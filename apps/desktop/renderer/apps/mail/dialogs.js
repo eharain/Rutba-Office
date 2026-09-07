@@ -231,7 +231,45 @@ export function AccountDialog({ shell, seed, onClose, onSaved, toast }) {
   const [note, setNote] = useState(seed ? `These settings came from ${seed.source} on this computer.` : null);
   const [testing, setTesting] = useState(false);
   const [result, setResult] = useState(null);
+  const [provider, setProvider] = useState(null);
+  const [signingIn, setSigningIn] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  // Gmail and Outlook.com stopped accepting a password for IMAP. Asking for one
+  // and then failing at the server is the worst possible order, so the moment
+  // the address is recognised the form says so and offers the browser instead.
+  useEffect(() => {
+    if (!form.email.includes('@')) {
+      setProvider(null);
+      return;
+    }
+    shell.oauth
+      .provider({ email: form.email })
+      .then(setProvider)
+      .catch(() => setProvider(null));
+  }, [form.email, shell]);
+
+  const signIn = useCallback(async () => {
+    setSigningIn(true);
+    try {
+      const account = await shell.oauth.signIn({ email: form.email, provider: provider.id });
+      await shell.mail.addAccount({
+        account: {
+          email: account.email,
+          name: account.name || form.name || account.email,
+          imap: account.imap,
+          smtp: account.smtp,
+          auth: 'oauth',
+          provider: account.provider,
+        },
+      });
+      onSaved();
+    } catch (err) {
+      toast(err.message, { tone: 'bad', ms: 12000 });
+    } finally {
+      setSigningIn(false);
+    }
+  }, [shell, form, provider, onSaved, toast]);
 
   const discover = useCallback(
     async (email) => {
@@ -302,6 +340,30 @@ export function AccountDialog({ shell, seed, onClose, onSaved, toast }) {
         <Field label="Your name">
           <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="How your name appears on messages you send" />
         </Field>
+
+        {provider ? (
+          <div className="ml-found">
+            <button type="button" className="ml-found-item" disabled={signingIn || !provider.configured} onClick={signIn}>
+              <span className="ml-found-logo">
+                {signingIn ? <Spinner /> : <Icon name="lock" size={15} />}
+              </span>
+              <span className="grow">
+                <div className="who">{signingIn ? `Waiting for ${provider.label}…` : `Sign in with ${provider.label}`}</div>
+                <div className="what">
+                  {provider.configured
+                    ? 'Opens your own browser. Your password is typed into their page and never reaches this application.'
+                    : `This build has no ${provider.label} client id, so signing in is not set up. See docs/OAUTH.md.`}
+                </div>
+              </span>
+              {provider.configured ? <Chip>Recommended</Chip> : null}
+            </button>
+            <p className="rw-hint" style={{ margin: 0 }}>
+              {provider.label} no longer accepts an ordinary password for mail programs. You can still use an app
+              password below if you have one.
+            </p>
+          </div>
+        ) : null}
+
         <Field label="Password" hint="Kept in this computer's keystore, never in a file you can read.">
           <Input type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} />
         </Field>

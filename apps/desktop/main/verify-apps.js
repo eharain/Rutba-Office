@@ -641,6 +641,29 @@ export async function verifyApps({ windows, doc }) {
       const bulk = await js(`document.querySelector('.ml-bulk')?.textContent ?? ''`);
       check('mail: selecting rows opens the bulk actions', /selected/.test(bulk), `bar reads ${JSON.stringify(bulk.slice(0, 40))}`);
 
+      // Gmail and Outlook.com no longer take a password. Typing one of those
+      // addresses has to offer the browser rather than a password box that
+      // will fail at the server — the worst possible order to find out in.
+      await js(`(() => {
+        const item = [...document.querySelectorAll('.rw-item')].find((i) => /Add account/.test(i.textContent));
+        item?.click();
+        return 'opened';
+      })()`);
+      await wait(700);
+      await js(`(() => {
+        const input = document.querySelector('.rw-dialog input');
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(input, 'someone@gmail.com');
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        return 'typed';
+      })()`);
+      await wait(900);
+      const signIn = await js(`document.querySelector('.rw-dialog .ml-found')?.textContent ?? ''`);
+      check('mail: a Gmail address is offered a sign-in, not a password box', /Sign in with Google/.test(signIn), `the dialog says ${JSON.stringify(signIn.slice(0, 60))}`);
+
+      await js(`(() => { [...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => /Cancel/.test(b.textContent))?.click(); return 'closed'; })()`);
+      await wait(400);
+
       // The attachment view is a place, not a search.
       await js(`(() => {
         const item = [...document.querySelectorAll('.rw-item')].find((i) => /^Attachments/.test(i.textContent));

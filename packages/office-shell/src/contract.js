@@ -142,6 +142,14 @@ export const METHODS = {
     'set',          // ({ exts }) -> { changed, opened, message }
   ],
   // What other mail clients have left on this computer.
+  // Signing in to Gmail and Outlook.com, which no longer accept a password.
+  oauth: [
+    'provider',     // ({ email }) -> { id, label, configured, imap, smtp } | null
+    'signIn',       // ({ email, provider }) -> { email, provider, imap, smtp }
+    'signOut',      // ({ email, provider }) -> { removed, note }
+    'setClientId',  // ({ provider, clientId }) -> { configured }
+    'clientIds',    // () -> { google, microsoft }
+  ],
   // The one request this application makes of the outside world.
   announce: [
     'check',        // ({ force }) -> { announcement, enabled, checkedAt }
@@ -169,6 +177,7 @@ export const EVENTS = [
   'app:command',      // { command, args }   menu / accelerator
   'mail:progress',    // { accountId, folder, done, total, phase }
   'mail:new',         // { accountId, folder, count }
+  'mail:oauth',       // { phase, provider, email }
   'announce:new',     // { id, title, body, link, kind }
   'mail:sent',        // { id, to }
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }

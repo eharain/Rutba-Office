@@ -53,7 +53,7 @@ function classify(name) {
   return { role: 'folder', icon: 'folder', order: 9 };
 }
 
-export function createMailService({ stores, holdBlob, broadcast, userData }) {
+export function createMailService({ stores, holdBlob, broadcast, userData, oauth = null }) {
   const store = new MailStore(path.join(userData, 'mail'));
 
   const accounts = () => stores.settings.get('mail.accounts', []);
@@ -64,16 +64,34 @@ export function createMailService({ stores, holdBlob, broadcast, userData }) {
 
   const passwordKey = (id) => `mail:${id}`;
 
+  /**
+   * How to prove who we are to this account's servers.
+   *
+   * An account added by signing in to Google or Microsoft has no password to
+   * store — it has a refresh token in the keystore, and a fresh access token is
+   * fetched for each connection. Both IMAP and SMTP take the same shape, so the
+   * decision is made once here rather than in two places that could disagree.
+   */
+  async function credentialsFor(account) {
+    const user = account.imap?.user || account.email;
+    if (account.auth === 'oauth' || account.imap?.auth === 'oauth') {
+      if (!oauth) throw new Error('This build cannot sign in to that provider.');
+      const { accessToken } = await oauth.accessToken({ email: account.email, provider: account.provider });
+      return { user, accessToken };
+    }
+    const password = stores.secrets.get(passwordKey(account.id));
+    if (!password) throw new Error(`No password is stored for ${account.email}.`);
+    return { user, pass: password };
+  }
+
   /** ImapFlow is loaded when an account is actually used, not at start-up. */
   async function imapFor(account) {
     const { ImapFlow } = await import('imapflow');
-    const password = stores.secrets.get(passwordKey(account.id));
-    if (!password) throw new Error(`No password is stored for ${account.email}.`);
     const client = new ImapFlow({
       host: account.imap.host,
       port: account.imap.port,
       secure: account.imap.secure,
-      auth: { user: account.imap.user || account.email, pass: password },
+      auth: await credentialsFor(account),
       logger: false,
       tls: { rejectUnauthorized: account.imap.rejectUnauthorized !== false },
     });
@@ -181,6 +199,11 @@ export function createMailService({ stores, holdBlob, broadcast, userData }) {
         signature: account.signature || '',
         addedAt: new Date().toISOString(),
         local: Boolean(account.local),
+        // A signed-in account has no password to keep. What it has is a refresh
+        // token, already in the keystore under the address, and these two say
+        // which door to knock on for a live one.
+        auth: account.auth === 'oauth' ? 'oauth' : 'password',
+        provider: account.provider || null,
       };
       if (password) stores.secrets.set(passwordKey(id), password);
       setAccounts([...accounts().filter((a) => a.id !== id), record]);
@@ -491,12 +514,14 @@ export function createMailService({ stores, holdBlob, broadcast, userData }) {
     send: async ({ accountId, draft }) => {
       const account = find(accountId);
       const nodemailer = (await import('nodemailer')).default;
-      const password = stores.secrets.get(passwordKey(account.id));
+      const credentials = await credentialsFor(account);
       const transport = nodemailer.createTransport({
         host: account.smtp.host,
         port: account.smtp.port,
         secure: account.smtp.secure,
-        auth: password ? { user: account.smtp.user || account.email, pass: password } : undefined,
+        auth: credentials.accessToken
+          ? { type: 'OAuth2', user: account.smtp.user || account.email, accessToken: credentials.accessToken }
+          : { user: account.smtp.user || account.email, pass: credentials.pass },
       });
       const info = await transport.sendMail({
         from: { name: account.name, address: account.email },

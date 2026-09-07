@@ -12,6 +12,7 @@ import { fileAssociations } from '@rutba/office-formats/registry';
 import { createDocumentService } from './documents.js';
 import { createMailService } from './mail.js';
 import { createUpdateService } from './updates.js';
+import { createOAuthService } from './oauth.js';
 import { createAnnouncementService } from './announce.js';
 import { createDefaultsService } from './defaults.js';
 import { createDiscoveryService } from './discover.js';
@@ -36,19 +37,28 @@ createShell({
    */
   appForFile: (file) => appFor(kindFromExtension(file)) || 'home',
 
-  namespaces: ({ stores, holdBlob: hold }) => (services = {
-    doc: createDocumentService({ holdBlob: hold }),
-    update: updates = createUpdateService({ stores, broadcast }),
-    announce: createAnnouncementService({ stores, broadcast }),
-    defaults: createDefaultsService({ associations: fileAssociations() }),
-    discover: createDiscoveryService(),
-    mail: createMailService({
-      stores,
-      holdBlob: hold,
-      broadcast,
-      userData: stores.dir,
-    }),
-  }),
+  namespaces: ({ stores, holdBlob: hold }) => {
+    // Built before the mail service, which needs it to fetch an access token
+    // for an account that was added by signing in rather than by typing a
+    // password.
+    const oauth = createOAuthService({ stores, broadcast });
+
+    return (services = {
+      doc: createDocumentService({ holdBlob: hold }),
+      update: updates = createUpdateService({ stores, broadcast }),
+      announce: createAnnouncementService({ stores, broadcast }),
+      defaults: createDefaultsService({ associations: fileAssociations() }),
+      discover: createDiscoveryService(),
+      oauth,
+      mail: createMailService({
+        stores,
+        holdBlob: hold,
+        broadcast,
+        userData: stores.dir,
+        oauth,
+      }),
+    });
+  },
 
   /**
    * After the first window is up.
