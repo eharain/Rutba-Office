@@ -1,0 +1,48 @@
+# Patterns describing disallowed AI-footprint content.
+# One extended-regex (ERE) pattern per line. Lines starting with '#' and
+# blank lines are ignored. Matching is case-insensitive.
+#
+# This file is intentionally the single source of truth for banned terms so
+# that other docs (README, workflow, etc.) do not need to repeat provider
+# names and therefore do not trip the very check they describe.
+
+# --- Generic AI authorship / generation disclosures ---
+co-authored-by
+generated (by|with|using) (an? )?(ai|artificial intelligence)
+ai[- ]generated
+written (by|with) (the help of )?(an? )?(ai|artificial intelligence)
+assisted by (an? )?(ai|artificial intelligence)
+powered by (an? )?(ai|artificial intelligence)
+(code|file|commit|content|text) was (generated|written|created|drafted) (by|with) an? (ai|language model|llm|chatbot|assistant)
+large language model
+llm-generated
+this (commit|change|pr|pull request) was (created|authored|written) by an? (ai|bot|assistant)
+
+# --- Known AI providers / assistants / products ---
+open ?ai
+chatgpt
+gpt-?[0-9]
+anthropic
+claude
+copilot
+codex
+gemini
+bard
+\bgrok\b
+x\.?ai
+mistral
+cohere
+perplexity
+deepseek
+\bllama\b
+meta ai
+amazon q
+\bdevin\b
+cursor ai
+replit ai
+tabnine
+sourcegraph cody
+windsurf
+\bqwen\b
+doubao
+ernie bot

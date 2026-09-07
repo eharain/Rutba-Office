@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Local pre-commit hook: rejects commits whose staged/tracked content
+# contains disallowed AI-footprint patterns.
+#
+# Enable with:  git config core.hooksPath .githooks
+set -euo pipefail
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+exec "$REPO_ROOT/scripts/check-ai-footprint.sh"

@@ -1,0 +1,20 @@
+name: Block AI Footprint
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  check-ai-footprint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Run AI footprint check
+        run: ./scripts/check-ai-footprint.sh

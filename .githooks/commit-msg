@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Local commit-msg hook: rejects commit messages (including trailers such as
+# "Co-authored-by:") that contain disallowed AI-footprint patterns.
+#
+# Enable with:  git config core.hooksPath .githooks
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+PATTERNS_FILE="$REPO_ROOT/scripts/ai-footprint-patterns.txt"
+MSG_FILE="$1"
+
+mapfile -t PATTERNS < <(grep -vE '^[[:space:]]*(#|$)' "$PATTERNS_FILE")
+
+fail=0
+for pattern in "${PATTERNS[@]}"; do
+  if grep -inE "$pattern" "$MSG_FILE" >/dev/null; then
+    echo "Commit message rejected: matches disallowed AI footprint pattern '${pattern}'" >&2
+    fail=1
+  fi
+done
+
+exit "$fail"
