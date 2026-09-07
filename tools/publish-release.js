@@ -65,56 +65,22 @@ async function api(url, { method = 'GET', body, headers = {}, raw } = {}) {
   return parsed;
 }
 
-const NOTES = `Seven apps in one download — Mail, Word, Worksheets, Presentation, Pictures,
-Image and Video — working with the network switched off.
+/**
+ * The release notes.
+ *
+ * From `docs/releases/<tag>.md` when there is one, because notes belong with
+ * the release they describe rather than inside the script that uploads it —
+ * a hard-coded block is one that still says 1.0.0 when 1.4 goes out.
+ */
+function notesFor(forTag) {
+  const file = path.join(root, "docs", "releases", `${forTag}.md`);
+  if (fs.existsSync(file)) return fs.readFileSync(file, "utf8");
+  throw new Error(
+    `No notes for ${forTag}. Write docs/releases/${forTag}.md — a release with no notes is a file nobody knows whether to install.`
+  );
+}
 
-## What it opens
-
-**Read and write** \`.docx\` \`.xlsx\` \`.pptx\` \`.csv\` \`.tsv\` \`.txt\` \`.md\` \`.html\`
-\`.png\` \`.jpg\` \`.webp\` \`.webm\` \`.eml\` \`.mbox\`, and PDF on export.
-
-**Read** \`.doc\` \`.xls\` \`.ppt\` \`.odt\` \`.ods\` \`.odp\` \`.rtf\`, every image and video
-format the browser engine decodes, and the mail archives other clients leave
-behind: Outlook \`.pst\` and \`.ost\`, Outlook for Mac \`.olm\`, \`.msg\` and \`.emlx\`.
-
-A format that cannot be written is converted on open into one that can, and the
-title bar says so — Save As is never a surprise.
-
-## What is different about it
-
-- **It does not damage your files.** The engine rewrites only the parts of a
-  document it deliberately edited. Charts, pivot caches, macros, signatures and
-  embedded media come back byte-for-byte as they arrived.
-- **It works offline.** No account, no sign-in, no telemetry. Automatic update
-  checking is off until you turn it on.
-- **Your old mail opens.** The \`.pst\` reader was built against a real 906 MB
-  \`.ost\` — 467 folders and 12,172 messages — not against fixtures.
-- **Mail cannot phone home.** Message bodies render in a frame with no scripts,
-  no same-origin access and no remote fetch; remote images load only when asked.
-
-## Downloads
-
-| File | For |
-|---|---|
-| \`Rutba-Office-1.0.0-win-x64.exe\` | Windows installer |
-| \`Rutba-Office-1.0.0-portable.exe\` | Windows, no installation |
-
-macOS and Linux builds are produced by the same configuration and will follow.
-
-**The Windows builds are not code-signed**, so SmartScreen will warn on first
-run. The warning is telling you the truth: the publisher is unverified. Check
-the file against this page, or build it yourself — the source is here.
-
-## Verified
-
-577 engine tests, 18 application checks and 9 editing checks. The application
-checks drive the real windows: open a file, change it, save it, reopen it from
-disk, and look at what is actually there. The same run is repeated against the
-packaged binary, because that is the only thing that proves what ships works.
-
-Dual-licensed under the GNU AGPL v3.0 and a commercial licence.
-[office.rutba.io](https://office.rutba.io)
-`;
+const NOTES = notesFor(tag);
 
 async function main() {
   if (!fs.existsSync(releaseDir)) throw new Error(`nothing built: ${releaseDir} does not exist`);
