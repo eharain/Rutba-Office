@@ -91,8 +91,18 @@ function shapePath(preset, { x, y, w, h }) {
 
 const BULLET_CHARS = ['•', '–', '▪', '‣', '·'];
 
+/** What a placeholder's text defaults to, when nothing states a size. */
+function defaultSizeFor(placeholder) {
+  const type = placeholder?.type;
+  if (type === 'ctrTitle') return 40;
+  if (type === 'title') return 32;
+  if (type === 'subTitle') return 20;
+  if (type === 'ftr' || type === 'sldNum' || type === 'dt') return 11;
+  return 18;
+}
+
 /** Lay a text body out into positioned lines. Shared by SVG and the editor. */
-export function layoutText(body, box, { scale = 1 } = {}) {
+export function layoutText(body, box, { scale = 1, baseSize = 18 } = {}) {
   if (!body || !box) return { lines: [], height: 0 };
   const insets = body.insets || { l: 7.2, t: 3.6, r: 7.2, b: 3.6 };
   const width = Math.max(8, box.w - insets.l - insets.r);
@@ -102,8 +112,11 @@ export function layoutText(body, box, { scale = 1 } = {}) {
   for (const p of body.paragraphs || []) {
     const level = p.level || 0;
     const indent = (p.indent ?? level * 24) * scale;
-    const baseSize = p.runs.find((r) => r.size)?.size || (level === 0 ? 18 : 16);
-    const size = baseSize * scale;
+    // A run that states no size inherits it — from the shape, then from the
+    // placeholder it fills. A title that falls back to body size is the single
+    // most obvious way a rendered deck looks wrong.
+    const stated = p.runs.find((r) => r.size)?.size;
+    const size = (stated || Math.max(9, baseSize - level * 2)) * scale;
     const lh = p.lineHeightPt ? p.lineHeightPt * scale : lineHeight(size) * (p.lineHeight || 1);
     if (p.spaceBefore) y += p.spaceBefore * scale;
 
@@ -303,7 +316,7 @@ export function renderSlide(slide, opts = {}) {
     body.push(`${geom} fill="${fillValue}"${opacity}${strokeBits}${transform}/>`);
 
     const text = shape.text && shape.text.paragraphs?.length ? shape.text : null;
-    if (text) body.push(`<g${transform}>${textSvg(text, g, { scale: 1 })}</g>`);
+    if (text) body.push(`<g${transform}>${textSvg(text, g, { scale: 1, baseSize: defaultSizeFor(shape.placeholder) })}</g>`);
   }
 
   const inner = `${defs.length ? `<defs>${defs.join('')}</defs>` : ''}${body.join('')}`;

@@ -108,9 +108,44 @@ export function decodeQuotedPrintable(text) {
   return new Uint8Array(out);
 }
 
+/**
+ * Headers are read as one byte per character, because that is what the
+ * specification says they are. Senders disagree: raw UTF-8 in a Subject is
+ * technically illegal and completely routine, and a client that does not notice
+ * shows "Invoice â€" September" where the sender wrote an em dash.
+ *
+ * The repair is safe because it is checked: the characters are turned back into
+ * the bytes they came from and decoded strictly as UTF-8. Text that is not
+ * valid UTF-8 throws and is left exactly as it was.
+ */
+// A character in the 0x80-0xFF range is the only reason to look closer.
+function hasHighByte(text) {
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code >= 0x80 && code <= 0xff) return true;
+  }
+  return false;
+}
+
+function repairUtf8(text) {
+  if (!text || !hasHighByte(text)) return text;
+  const bytes = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) {
+    const code = text.charCodeAt(i);
+    if (code > 0xff) return text; // already decoded characters; leave it alone
+    bytes[i] = code;
+  }
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return text;
+  }
+}
+
 /** RFC 2047: `=?utf-8?B?…?=` inside a header value. */
 export function decodeWords(value) {
-  if (!value || !value.includes('=?')) return value || '';
+  if (!value) return '';
+  if (!String(value).includes('=?')) return repairUtf8(String(value));
   return String(value)
     // Adjacent encoded words are one string; the space between them is not data.
     .replace(/(=\?[^?]+\?[bBqQ]\?[^?]*\?=)\s+(?==\?)/g, '$1')

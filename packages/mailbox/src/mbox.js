@@ -90,17 +90,33 @@ export class Mbox {
   }
 }
 
+/**
+ * One byte per character, which is what a message body is.
+ *
+ * The escaping pass below works on text, and message bytes are not text — they
+ * are whatever encoding the sender used. Decoding them as latin1 makes each
+ * byte one character; encoding them back the same way returns exactly the bytes
+ * that came in. Going out through UTF-8 instead would turn every byte above 127
+ * into two, which is how an em-dash becomes three mojibake characters.
+ */
+function latin1Bytes(text) {
+  const out = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) out[i] = text.charCodeAt(i) & 0xff;
+  return out;
+}
+
 /** Write messages back out as mboxrd. */
 export function writeMbox(messages) {
   const enc = new TextEncoder();
   const chunks = [];
   for (const m of messages) {
+    // A string given as `raw` is text and becomes UTF-8; bytes stay bytes.
     const raw = typeof m.raw === 'string' ? enc.encode(m.raw) : toBytes(m.raw ?? m);
     const from = m.from?.address || 'unknown@localhost';
     const when = m.date ? new Date(m.date) : new Date();
     chunks.push(enc.encode(`From ${from} ${when.toUTCString()}\n`));
     const text = new TextDecoder('latin1').decode(raw).replace(/^(>*From )/gm, '>$1');
-    chunks.push(enc.encode(text));
+    chunks.push(latin1Bytes(text));
     chunks.push(enc.encode('\n\n'));
   }
   const total = chunks.reduce((n, c) => n + c.length, 0);

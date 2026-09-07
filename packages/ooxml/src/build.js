@@ -616,19 +616,60 @@ export function buildXlsx({ sheets, definedNames = [] }) {
 import { STANDARD_STYLES_XML as STANDARD_DOC_STYLES } from './docstyles.js';
 
 /**
- * Minimal .docx, so the embed proof covers workspace.docs as well as
- * workspace.sheets. Bindings are sheets-only; this exists purely to have a real
- * word document to open, edit and save back through the same callback path.
+ * One paragraph.
  *
- * `styles: true` adds the standard style catalogue — what the template gallery
- * passes, so a person in a fresh document can pick Heading 1. Off by default:
- * the minimal shape is byte-pinned by the goldens and plenty of tests want a
- * document with no styles part at all.
+ * A plain string produces exactly the XML this function has always produced,
+ * byte for byte — the goldens pin it, and a template that wants formatting
+ * should not change what a plain one writes. An object adds only what it names:
+ *
+ *   { text, runs, style, align, bold, italic, underline, size, colour, font }
+ */
+function paragraphXml(p) {
+  if (typeof p === 'string' || p == null) {
+    return '<w:p><w:r><w:t xml:space="preserve">' + esc(p ?? '') + '</w:t></w:r></w:p>';
+  }
+
+  const pPrBits = [];
+  if (p.style) pPrBits.push('<w:pStyle w:val="' + esc(p.style) + '"/>');
+  if (p.align) {
+    const jc = { left: 'left', center: 'center', centre: 'center', right: 'right', justify: 'both' }[p.align];
+    if (jc) pPrBits.push('<w:jc w:val="' + jc + '"/>');
+  }
+  const pPr = pPrBits.length ? '<w:pPr>' + pPrBits.join('') + '</w:pPr>' : '';
+
+  const runXml = (r) => {
+    const bits = [];
+    if (r.bold) bits.push('<w:b/>');
+    if (r.italic) bits.push('<w:i/>');
+    if (r.underline) bits.push('<w:u w:val="single"/>');
+    if (r.strike) bits.push('<w:strike/>');
+    if (r.font) bits.push('<w:rFonts w:ascii="' + esc(r.font) + '" w:hAnsi="' + esc(r.font) + '"/>');
+    // Word measures text in half-points.
+    if (r.size) bits.push('<w:sz w:val="' + Math.round(r.size * 2) + '"/><w:szCs w:val="' + Math.round(r.size * 2) + '"/>');
+    if (r.colour || r.color) bits.push('<w:color w:val="' + String(r.colour || r.color).replace('#', '').toUpperCase() + '"/>');
+    const rPr = bits.length ? '<w:rPr>' + bits.join('') + '</w:rPr>' : '';
+    return '<w:r>' + rPr + '<w:t xml:space="preserve">' + esc(r.text ?? '') + '</w:t></w:r>';
+  };
+
+  const runs = Array.isArray(p.runs) && p.runs.length
+    ? p.runs.map(runXml).join('')
+    : runXml({ ...p, text: p.text ?? '' });
+
+  return '<w:p>' + pPr + runs + '</w:p>';
+}
+
+/**
+ * A .docx from nothing: the template gallery, the document a .odt or .rtf
+ * becomes on import, and the fixtures the tests open.
+ *
+ * `paragraphs` takes plain strings or the object above. `styles: true` adds the
+ * standard style catalogue — what the template gallery passes, so a person in a
+ * fresh document can pick Heading 1. Off by default: the minimal shape is
+ * byte-pinned by the goldens and plenty of tests want a document with no styles
+ * part at all.
  */
 export function buildDocx({ paragraphs = [], styles = false }) {
-  const body = paragraphs
-    .map((p) => '<w:p><w:r><w:t xml:space="preserve">' + esc(p) + '</w:t></w:r></w:p>')
-    .join('');
+  const body = paragraphs.map(paragraphXml).join('');
   const documentXml =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +

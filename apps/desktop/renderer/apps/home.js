@@ -222,7 +222,7 @@ function About({ version, shell, onClose }) {
           </p>
         </div>
         <div className="rw-dialog-foot">
-          <Button label="Source code" onClick={() => shell.shell.openExternal({ url: 'https://github.com/eharain/rutba-office' })} />
+          <Button label="Source code" onClick={() => shell.shell.openExternal({ url: 'https://github.com/eharain/Rutba-Office' })} />
           <Button label="Close" primary onClick={onClose} />
         </div>
       </div>

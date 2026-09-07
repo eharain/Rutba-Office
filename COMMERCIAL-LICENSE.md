@@ -1,7 +1,9 @@
 # Commercial Licensing
 
-Rutba Office is Copyright (C) 2026 Tech Style Ltd (Company No.
-11101491), registered in England & Wales — https://tech-style.co
+Rutba Office — the free desktop suite of the Rutba estate, comprising all
+applications and packages in this repository — is Copyright (C) 2026
+Tech Style Ltd (Company No. 11101491), registered in England & Wales —
+https://tech-style.co
 
 This software is dual-licensed.
 

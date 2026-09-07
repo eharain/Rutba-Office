@@ -14,6 +14,9 @@ import { createMailService } from './mail.js';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
 
+// Kept so the smoke run can drive the same services the windows do.
+let services = null;
+
 createShell({
   appName: 'Rutba Office',
   rendererDir: path.join(app, 'build', 'out'),
@@ -27,7 +30,7 @@ createShell({
    */
   appForFile: (file) => appFor(kindFromExtension(file)) || 'home',
 
-  namespaces: ({ stores, holdBlob: hold }) => ({
+  namespaces: ({ stores, holdBlob: hold }) => (services = {
     doc: createDocumentService({ holdBlob: hold }),
     mail: createMailService({
       stores,
@@ -39,9 +42,9 @@ createShell({
 
   // `npm run smoke` boots this same process, photographs each app, and exits.
   onReady: process.env.RUTBA_OFFICE_SMOKE
-    ? async ({ windows }) => {
+    ? async ({ windows, stores }) => {
         const { runSmoke } = await import('./smoke.js');
-        const ok = await runSmoke({ windows, outDir: path.join(app, 'build', 'smoke') });
+        const ok = await runSmoke({ windows, outDir: path.join(app, 'build', 'smoke'), stores, mail: services?.mail });
         const { app: electronApp } = await import('electron');
         electronApp.exit(ok ? 0 : 1);
       }

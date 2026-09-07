@@ -114,7 +114,7 @@ function buildMenu({ send, appName }) {
         { label: 'Rutba Office Help', accelerator: 'F1', click: cmd('help.show') },
         { label: 'Keyboard Shortcuts', click: cmd('help.shortcuts') },
         { type: 'separator' },
-        { label: 'Source Code (AGPL)', click: () => electronShell.openExternal('https://github.com/eharain/rutba-office') },
+        { label: 'Source Code (AGPL)', click: () => electronShell.openExternal('https://github.com/eharain/Rutba-Office') },
         { label: 'Rutba Workspace Online', click: () => electronShell.openExternal('https://rutba.io/') },
         { type: 'separator' },
         { label: 'About Rutba Office', click: cmd('help.about') },

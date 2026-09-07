@@ -6,7 +6,7 @@
   "homepage": "https://rutba.io/office",
   "repository": {
     "type": "git",
-    "url": "https://github.com/eharain/rutba-office.git",
+    "url": "https://github.com/eharain/Rutba-Office.git",
     "directory": "packages/sheet-view"
   },
   "type": "module",

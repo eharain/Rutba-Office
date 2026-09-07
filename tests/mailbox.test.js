@@ -146,6 +146,26 @@ test('messages written back as mbox can be read again', () => {
   assert.equal(back.message(0).subject, 'Quarterly review — Q3');
 });
 
+test('a body with characters outside ASCII survives a write and a read', () => {
+  const subject = 'Invoice — September';
+  const body = 'Total: 1 250 € — due on the 4th. Signed, José.';
+  const source = [
+    'From: a@b.c',
+    'To: d@e.f',
+    'Subject: ' + subject,
+    'MIME-Version: 1.0',
+    'Content-Type: text/plain; charset=utf-8',
+    '',
+    body,
+    '',
+  ].join(CRLF);
+
+  const out = writeMbox([{ raw: source, from: { address: 'a@b.c' }, date: '2026-03-11T09:00:00Z' }]);
+  const back = new Mbox(out).message(0);
+  assert.equal(back.subject, subject);
+  assert.equal(back.text.trim(), body, 'the em dash and the euro sign came back as themselves');
+});
+
 test('the PST cipher tables are the ones the specification publishes', () => {
   const result = verifyTables();
   assert.deepEqual(result.problems, []);
