@@ -88,7 +88,13 @@ async function main() {
   const assets = fs
     .readdirSync(releaseDir)
     .filter((name) => /\.(exe|dmg|zip|AppImage|deb|blockmap)$/.test(name) || /^latest.*\.yml$/.test(name))
-    .filter((name) => !name.startsWith('builder-debug'));
+    .filter((name) => !name.startsWith('builder-debug'))
+    // Only this version's. The build directory keeps every installer ever made
+    // on this machine, and a release carrying the previous version's binaries
+    // is one where somebody downloads the wrong file — the update feeds are the
+    // exception, since they are rewritten in place and always describe the
+    // build that has just been made.
+    .filter((name) => /^latest.*\.yml$/.test(name) || name.includes(tag.replace(/^v/, '')));
 
   if (!assets.length) throw new Error('no release artefacts found — run npm run dist first');
 
