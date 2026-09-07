@@ -19,7 +19,8 @@
     "smoke": "node build/bundle.js && node build/smoke-run.js",
     "icon": "electron build/make-icon.js",
     "verify:edit": "node build/bundle.js && node build/verify-edit-run.js",
-    "verify:apps": "node build/bundle.js && node build/verify-apps-run.js"
+    "verify:apps": "node build/bundle.js && node build/verify-apps-run.js",
+    "screens": "node build/bundle.js && node build/make-screens.js"
   },
   "dependencies": {
     "@rutba/doc-view": "*",

@@ -25,7 +25,8 @@
     "smoke": "npm run smoke --workspace=@rutba/office-desktop",
     "icon": "npm run icon --workspace=@rutba/office-desktop",
     "verify:edit": "npm run verify:edit --workspace=@rutba/office-desktop",
-    "verify:apps": "npm run verify:apps --workspace=@rutba/office-desktop"
+    "verify:apps": "npm run verify:apps --workspace=@rutba/office-desktop",
+    "screens": "npm run screens --workspace=@rutba/office-desktop"
   },
   "engines": {
     "node": ">=20"

@@ -12,6 +12,14 @@ build/out/
 # Build output: the bundle, the preload, and the smoke captures.
 apps/desktop/build/out/
 apps/desktop/build/smoke/
+# Website screenshots, from `npm run screens`. Ignored for the same reason the
+# smoke captures are, and for one more: an app given no file opens the
+# operating system's own folders, so a capture can contain whatever is on the
+# machine that made it. The generator no longer allows that (build/make-screens.js
+# draws its own sample pictures), and this is the second lock on the same door —
+# a directory that is not ignored is a directory another session sweeps into a
+# commit.
+apps/desktop/build/screens/
 
 # Agent scratch and per-machine settings.
 .ai/
