@@ -307,13 +307,30 @@ textarea,
   align-items: stretch;
   gap: 0;
   padding: 7px 8px 6px;
-  background: var(--surface);
   border-top: 1px solid var(--line-soft);
   overflow-x: auto;
   overflow-y: hidden;
   min-height: 58px;
+
+  /*
+    A shadow on whichever side has more, and on neither when it all fits.
+    The ribbon has always scrolled; nothing said so, and a group that is off
+    the edge of a narrow window is a group nobody knows exists. The two `local`
+    layers are the ribbon's own background moving with the content, and the two
+    `scroll` layers stay pinned — where a pinned shadow is not covered by a
+    moving background, there is something out there.
+  */
+  background:
+    linear-gradient(to right, var(--surface) 40%, transparent) left / 30px 100% no-repeat local,
+    linear-gradient(to left, var(--surface) 40%, transparent) right / 30px 100% no-repeat local,
+    radial-gradient(farthest-side at 0 50%, rgba(0, 0, 0, 0.13), transparent) left / 14px 100% no-repeat scroll,
+    radial-gradient(farthest-side at 100% 50%, rgba(0, 0, 0, 0.13), transparent) right / 14px 100% no-repeat scroll,
+    var(--surface);
+  scrollbar-width: thin;
 }
 .rw-groups::-webkit-scrollbar { height: 6px; }
+.rw-groups::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+.rw-groups:hover::-webkit-scrollbar-thumb { background: var(--ink-4, var(--ink-3)); }
 
 .rw-group { display: flex; flex-direction: column; padding: 0 9px; position: relative; }
 .rw-group + .rw-group::before {

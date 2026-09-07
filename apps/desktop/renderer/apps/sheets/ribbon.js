@@ -137,9 +137,10 @@ export default function SheetsRibbon({
               )}
             </Select>
             <Separator />
-            <Button icon="minus" title="Currency" onClick={() => setFormat({ numberFormat: '"£"#,##0.00' })} label="£" />
-            <Button icon="minus" title="Percent" onClick={() => setFormat({ numberFormat: '0%' })} label="%" />
-            <Button icon="minus" title="Comma" onClick={() => setFormat({ numberFormat: '#,##0.00' })} label="," />
+            {/* The mark is the button. An icon beside a currency symbol says nothing. */}
+            <Button title="Currency" onClick={() => setFormat({ numberFormat: '"£"#,##0.00' })} label="£" />
+            <Button title="Percent" onClick={() => setFormat({ numberFormat: '0%' })} label="%" />
+            <Button title="Thousands separator" onClick={() => setFormat({ numberFormat: '#,##0.00' })} label="," />
           </Group>
 
           <Group label="Styles">

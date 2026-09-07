@@ -13,6 +13,22 @@
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Wait for a condition rather than for a guess at how long it takes. */
+async function until(condition, what, timeout = 6000) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    let held = false;
+    try {
+      held = await condition();
+    } catch {
+      held = false;
+    }
+    if (held) return true;
+    if (Date.now() > deadline) throw new Error(`waited ${timeout} ms for ${what} and it never happened`);
+    await wait(80);
+  }
+}
+
 /**
  * Press a key the way a keyboard does.
  *
@@ -182,9 +198,12 @@ export async function verifyEditing({ windows, doc }) {
     await wait(450);
 
     const session = sessionFor('sheet');
-    const model = session && doc.model({ id: session.id });
-    const a1 = model?.cells?.find((c) => c.ref === 'A1');
-    check('sheets: typing into a cell reaches the engine', a1?.text === '42', `A1 is ${JSON.stringify(a1?.text ?? null)}`);
+    const cell = (ref) => doc.model({ id: session.id })?.cells?.find((c) => c.ref === ref);
+    await until(() => cell('A1')?.text === '42', 'the typed value to reach the cell');
+    const a1 = cell('A1');
+    // A number right-aligns; text left-aligns. They display identically, and
+    // only one of them can be multiplied — which is what the next check finds.
+    check('sheets: typing into a cell reaches the engine', a1?.text === '42' && a1?.align === 'right', `A1 is ${JSON.stringify(a1?.text ?? null)}, aligned ${a1?.align} (so it is ${a1?.align === 'right' ? 'a number' : 'text'})`);
 
     // A formula has to survive the same path, and then compute.
     for (const ch of '=A1*2') await typeChar(sheets.webContents, ch);
@@ -192,9 +211,13 @@ export async function verifyEditing({ windows, doc }) {
     await press(sheets.webContents, 'Return', { char: true });
     await wait(600);
 
-    const after = doc.model({ id: session.id });
-    const a2 = after?.cells?.find((c) => c.ref === 'A2');
-    check('sheets: a formula computes', a2?.text === '84', `A2 is ${JSON.stringify(a2?.text ?? null)}`);
+    try {
+      await until(() => cell('A2')?.text === '84', 'the formula to compute');
+    } catch {
+      // Fall through to the check, which reports what it actually holds.
+    }
+    const a2 = cell('A2');
+    check('sheets: a formula computes', a2?.text === '84', `A2 is ${JSON.stringify(a2?.text ?? null)}${a2?.isFormula ? ' (stored as a formula)' : ' (not a formula)'}`);
   } catch (err) {
     check('sheets: the checks ran', false, err.message);
   }
