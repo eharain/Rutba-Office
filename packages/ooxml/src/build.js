@@ -624,10 +624,60 @@ import { STANDARD_STYLES_XML as STANDARD_DOC_STYLES } from './docstyles.js';
  *
  *   { text, runs, style, align, bold, italic, underline, size, colour, font }
  */
-function paragraphXml(p) {
+const HYPERLINK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+
+/**
+ * A table in a generated document.
+ *
+ * `rows` is the whole grid, first row treated as the header when `header` is
+ * set — which is the shape a Markdown table, a CSV and a query result all
+ * already have, so nothing has to be rearranged to get here.
+ *
+ * The letter builder has its own copy of this with a different signature
+ * (`columns`, a separate `header` row) whose output is byte-pinned by the
+ * confirmation-letter goldens. Merging them would be a change to those files
+ * for no gain, so they stay apart.
+ */
+function tableXml({ rows = [], header = false, align = [] }) {
+  if (!rows.length) return '';
+  const columns = Math.max(...rows.map((r) => r.length));
+  const grid = '<w:tblGrid>' + Array.from({ length: columns }, () => '<w:gridCol w:w="' + Math.round(9360 / columns) + '"/>').join('') + '</w:tblGrid>';
+
+  const cell = (text, i, isHeader) => {
+    const shading = isHeader ? '<w:shd w:val="clear" w:fill="D9E2F3"/>' : '';
+    const jc = align[i] ? '<w:pPr><w:jc w:val="' + esc(align[i] === 'center' ? 'center' : align[i]) + '"/></w:pPr>' : '';
+    const rPr = isHeader ? '<w:rPr><w:b/></w:rPr>' : '';
+    return '<w:tc><w:tcPr><w:tcW w:w="' + Math.round(9360 / columns) + '" w:type="dxa"/>' + shading + '</w:tcPr>'
+      + '<w:p>' + jc + '<w:r>' + rPr + '<w:t xml:space="preserve">' + esc(text ?? '') + '</w:t></w:r></w:p></w:tc>';
+  };
+
+  const row = (cells, isHeader) => '<w:tr>'
+    + (isHeader ? '<w:trPr><w:tblHeader/></w:trPr>' : '')
+    + Array.from({ length: columns }, (_, i) => cell(cells[i], i, isHeader)).join('')
+    + '</w:tr>';
+
+  return '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="pct"/>'
+    + '<w:tblBorders><w:top w:val="single" w:sz="8" w:color="7F7F7F"/>'
+    + '<w:bottom w:val="single" w:sz="8" w:color="7F7F7F"/>'
+    + '<w:insideH w:val="single" w:sz="4" w:color="D9D9D9"/>'
+    + '<w:insideV w:val="single" w:sz="4" w:color="D9D9D9"/></w:tblBorders></w:tblPr>'
+    + grid
+    + rows.map((r, n) => row(r, header && n === 0)).join('')
+    + '</w:tbl>';
+}
+
+/**
+ * @param {object|string} p the paragraph
+ * @param {Map<string,string>} [links] collects url → relationship id. Passing
+ *   it is what turns a run's `link` into a real hyperlink; without it a link is
+ *   ignored, which is how the header and footer builders keep their exact
+ *   byte-pinned output.
+ */
+function paragraphXml(p, links = null) {
   if (typeof p === 'string' || p == null) {
     return '<w:p><w:r><w:t xml:space="preserve">' + esc(p ?? '') + '</w:t></w:r></w:p>';
   }
+  if (p.table) return tableXml(p.table);
 
   const pPrBits = [];
   if (p.style) pPrBits.push('<w:pStyle w:val="' + esc(p.style) + '"/>');
@@ -652,10 +702,35 @@ function paragraphXml(p) {
   };
 
   const runs = Array.isArray(p.runs) && p.runs.length
-    ? p.runs.map(runXml).join('')
-    : runXml({ ...p, text: p.text ?? '' });
+    ? runsWithLinks(p.runs, runXml, links)
+    : runsWithLinks([{ ...p, text: p.text ?? '' }], runXml, links);
 
   return '<w:p>' + pPr + runs + '</w:p>';
+}
+
+/**
+ * Consecutive runs that share a link go inside one `<w:hyperlink>`, which is
+ * how Word groups them and how this package's reader expects to find them.
+ * Link runs also take the blue underline, because a link nobody can see is not
+ * a link — Word's own Hyperlink character style does the same thing.
+ */
+function runsWithLinks(list, runXml, links) {
+  const out = [];
+  let open = null;
+  for (const run of list) {
+    const url = links && run.link ? String(run.link) : null;
+    if (url !== open) {
+      if (open !== null) out.push('</w:hyperlink>');
+      if (url !== null) {
+        if (!links.has(url)) links.set(url, 'rIdLink' + (links.size + 1));
+        out.push('<w:hyperlink r:id="' + links.get(url) + '">');
+      }
+      open = url;
+    }
+    out.push(runXml(url ? { underline: true, colour: '0563C1', ...run } : run));
+  }
+  if (open !== null) out.push('</w:hyperlink>');
+  return out.join('');
 }
 
 /**
@@ -669,10 +744,20 @@ function paragraphXml(p) {
  * part at all.
  */
 export function buildDocx({ paragraphs = [], styles = false }) {
-  const body = paragraphs.map(paragraphXml).join('');
+  // Links are collected while the body is written, because each one needs a
+  // relationship id and the ids have to be minted in the order they appear.
+  // The map stays empty for a document with no links, and everything below is
+  // then byte-for-byte what it was before hyperlinks existed — which the
+  // goldens depend on.
+  const links = new Map();
+  const body = paragraphs.map((p) => paragraphXml(p, links)).join('');
+  const linked = links.size > 0;
+
   const documentXml =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"' +
+    (linked ? ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"' : '') +
+    '>' +
     '<w:body>' + body + '<w:sectPr/></w:body></w:document>';
   const contentTypes =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
@@ -690,16 +775,21 @@ export function buildDocx({ paragraphs = [], styles = false }) {
   const documentRels =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
-    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+    (styles ? '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' : '') +
+    [...links].map(([url, id]) =>
+      '<Relationship Id="' + id + '" Type="' + HYPERLINK_REL + '" Target="' + esc(url) + '" TargetMode="External"/>'
+    ).join('') +
     '</Relationships>';
+
+  // A document with links needs its relationship part whether or not it has a
+  // style table: an r:id with nothing behind it is a file Word refuses.
+  const needsRels = styles || linked;
   return packParts([
     { name: '[Content_Types].xml', data: contentTypes },
     { name: '_rels/.rels', data: rootRels },
     { name: 'word/document.xml', data: documentXml },
-    ...(styles ? [
-      { name: 'word/_rels/document.xml.rels', data: documentRels },
-      { name: 'word/styles.xml', data: STANDARD_DOC_STYLES },
-    ] : []),
+    ...(needsRels ? [{ name: 'word/_rels/document.xml.rels', data: documentRels }] : []),
+    ...(styles ? [{ name: 'word/styles.xml', data: STANDARD_DOC_STYLES }] : []),
   ]);
 }
 

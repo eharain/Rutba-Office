@@ -1,3 +1,5 @@
+import { parseMarkdown, serializeMarkdown } from './markdown.js';
+
 // The plain formats: delimited data, Markdown, plain text.
 //
 // They look trivial until you meet real files — a CSV whose quoted field spans
@@ -144,89 +146,7 @@ export function writeDelimited(rows, { delimiter = ',', eol = '\r\n' } = {}) {
  * implementation.
  */
 export function readMarkdown(input) {
-  const text = decodeText(input).replace(/\r\n?/g, '\n');
-  const lines = text.split('\n');
-  const blocks = [];
-  let i = 0;
-
-  const inline = (s) => {
-    const runs = [];
-    const re = /(\*\*|__)(.+?)\1|(\*|_)(.+?)\3|`([^`]+)`|\[([^\]]+)\]\(([^)]+)\)/g;
-    let last = 0;
-    let m;
-    while ((m = re.exec(s))) {
-      if (m.index > last) runs.push({ text: s.slice(last, m.index) });
-      if (m[2] != null) runs.push({ text: m[2], bold: true });
-      else if (m[4] != null) runs.push({ text: m[4], italic: true });
-      else if (m[5] != null) runs.push({ text: m[5], code: true });
-      else if (m[6] != null) runs.push({ text: m[6], link: m[7] });
-      last = re.lastIndex;
-    }
-    if (last < s.length) runs.push({ text: s.slice(last) });
-    return runs.length ? runs : [{ text: s }];
-  };
-
-  while (i < lines.length) {
-    const line = lines[i];
-    if (!line.trim()) {
-      i++;
-      continue;
-    }
-    let m;
-    if ((m = /^(#{1,6})\s+(.*)$/.exec(line))) {
-      blocks.push({ type: 'heading', level: m[1].length, runs: inline(m[2].trim()), text: m[2].trim() });
-      i++;
-      continue;
-    }
-    if (/^```/.test(line)) {
-      const lang = line.slice(3).trim();
-      const body = [];
-      i++;
-      while (i < lines.length && !/^```/.test(lines[i])) body.push(lines[i++]);
-      i++;
-      blocks.push({ type: 'code', language: lang, text: body.join('\n') });
-      continue;
-    }
-    if (/^(\*\s*){3,}$|^(-\s*){3,}$|^(_\s*){3,}$/.test(line.trim())) {
-      blocks.push({ type: 'rule' });
-      i++;
-      continue;
-    }
-    if (/^\s*\|.*\|\s*$/.test(line) && /^\s*\|?[\s:-]*\|[\s:|-]*$/.test(lines[i + 1] || '')) {
-      const cells = (l) => l.trim().replace(/^\||\|$/g, '').split('|').map((c) => c.trim());
-      const header = cells(line);
-      i += 2;
-      const rows = [header];
-      while (i < lines.length && /\|/.test(lines[i]) && lines[i].trim()) rows.push(cells(lines[i++]));
-      blocks.push({ type: 'table', header: true, rows: rows.map((r) => r.map((c) => ({ runs: inline(c), text: c }))) });
-      continue;
-    }
-    if (/^\s*>\s?/.test(line)) {
-      const body = [];
-      while (i < lines.length && /^\s*>\s?/.test(lines[i])) body.push(lines[i++].replace(/^\s*>\s?/, ''));
-      blocks.push({ type: 'quote', runs: inline(body.join(' ')), text: body.join(' ') });
-      continue;
-    }
-    if (/^\s*([-*+]|\d+[.)])\s+/.test(line)) {
-      const ordered = /^\s*\d/.test(line);
-      const items = [];
-      while (i < lines.length && /^\s*([-*+]|\d+[.)])\s+/.test(lines[i])) {
-        const raw = lines[i].replace(/^\s*([-*+]|\d+[.)])\s+/, '');
-        const indent = (/^\s*/.exec(lines[i])[0] || '').length;
-        items.push({ text: raw, runs: inline(raw), level: Math.floor(indent / 2) });
-        i++;
-      }
-      blocks.push({ type: 'list', ordered, items });
-      continue;
-    }
-    const para = [];
-    while (i < lines.length && lines[i].trim() && !/^(#{1,6}\s|```|\s*[-*+]\s|\s*\d+[.)]\s|\s*>)/.test(lines[i])) {
-      para.push(lines[i++]);
-    }
-    const joined = para.join(' ').trim();
-    blocks.push({ type: 'paragraph', runs: inline(joined), text: joined });
-  }
-  return { blocks };
+  return parseMarkdown(decodeText(input));
 }
 
 /** Plain text: one paragraph per blank-line-separated chunk, hard breaks kept. */
@@ -241,32 +161,8 @@ export function readPlain(input) {
 }
 
 /** Blocks back to Markdown, for Save As. */
-export function writeMarkdown(blocks) {
-  const runText = (runs) =>
-    (runs || [])
-      .map((r) => {
-        let t = r.text ?? '';
-        if (r.code) t = `\`${t}\``;
-        if (r.bold) t = `**${t}**`;
-        if (r.italic) t = `*${t}*`;
-        if (r.link) t = `[${t}](${r.link})`;
-        return t;
-      })
-      .join('');
-  const out = [];
-  for (const b of blocks) {
-    if (b.type === 'heading') out.push(`${'#'.repeat(b.level || 1)} ${b.text ?? runText(b.runs)}`);
-    else if (b.type === 'list') out.push(b.items.map((it, n) => `${b.ordered ? `${n + 1}.` : '-'} ${it.text ?? runText(it.runs)}`).join('\n'));
-    else if (b.type === 'quote') out.push(`> ${b.text ?? runText(b.runs)}`);
-    else if (b.type === 'code') out.push(`\`\`\`${b.language || ''}\n${b.text}\n\`\`\``);
-    else if (b.type === 'rule') out.push('---');
-    else if (b.type === 'table') {
-      const rows = b.rows.map((r) => `| ${r.map((c) => c.text ?? runText(c.runs)).join(' | ')} |`);
-      if (rows.length) rows.splice(1, 0, `| ${b.rows[0].map(() => '---').join(' | ')} |`);
-      out.push(rows.join('\n'));
-    } else out.push(b.text ?? runText(b.runs));
-  }
-  return out.join('\n\n') + '\n';
+export function writeMarkdown(blocks, meta) {
+  return serializeMarkdown(blocks, meta);
 }
 
 /** Blocks to plain text. */

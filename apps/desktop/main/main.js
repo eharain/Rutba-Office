@@ -8,9 +8,12 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createShell, holdBlob, broadcast } from '@rutba/office-shell/electron/main';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
+import { fileAssociations } from '@rutba/office-formats/registry';
 import { createDocumentService } from './documents.js';
 import { createMailService } from './mail.js';
 import { createUpdateService } from './updates.js';
+import { createDefaultsService } from './defaults.js';
+import { createDiscoveryService } from './discover.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -35,6 +38,8 @@ createShell({
   namespaces: ({ stores, holdBlob: hold }) => (services = {
     doc: createDocumentService({ holdBlob: hold }),
     update: updates = createUpdateService({ stores, broadcast }),
+    defaults: createDefaultsService({ associations: fileAssociations() }),
+    discover: createDiscoveryService(),
     mail: createMailService({
       stores,
       holdBlob: hold,
@@ -63,10 +68,10 @@ createShell({
     }
     if (process.env.RUTBA_OFFICE_VERIFY_APPS) {
       const { verifyApps } = await import('./verify-apps.js');
-      if (process.env.RUTBA_SMOKE_SEED) {
-        const { seedFor } = await import('./smoke.js');
-        await seedFor({ stores, mail: services?.mail }).catch(() => {});
-      }
+      // Always seeded. A check that only passes because the developer happens
+      // to have imported an archive last week is not a check.
+      const { seedMail } = await import('./seed-mail.js');
+      await seedMail({ stores, mail: services?.mail }).catch((e) => console.error('the mail fixture failed:', e.message));
       const ok = await verifyApps({ windows, doc: services.doc });
       const { app: electronApp } = await import('electron');
       return electronApp.exit(ok ? 0 : 1);

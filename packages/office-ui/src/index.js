@@ -124,17 +124,43 @@ export function Window({ app, children }) {
  */
 export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, onMenu }) {
   const [maximized, setMaximized] = useState(false);
+  const [fullscreen, setFullscreen] = useState(false);
   const isMac = platform === 'darwin';
 
   useEffect(() => {
     let alive = true;
-    shell?.win.state().then((s) => alive && setMaximized(Boolean(s.maximized)));
-    const off = shell?.on('win:state', (s) => setMaximized(Boolean(s.maximized)));
+    shell?.win.state().then((s) => {
+      if (!alive) return;
+      setMaximized(Boolean(s.maximized));
+      setFullscreen(Boolean(s.fullscreen));
+    });
+    const off = shell?.on('win:state', (s) => {
+      setMaximized(Boolean(s.maximized));
+      setFullscreen(Boolean(s.fullscreen));
+    });
     return () => {
       alive = false;
       off?.();
     };
   }, [shell]);
+
+  // Full screen has a key everywhere and a button almost nowhere. It is one
+  // press on every platform here, and F11 (or Escape, to come back) still
+  // works — the two stay in step because both go through the same call.
+  const toggleFullscreen = async () => setFullscreen(Boolean((await shell?.win.fullscreen({ on: !fullscreen }))?.fullscreen));
+
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === 'F11' || (e.key === 'f' && (e.metaKey || e.ctrlKey) && e.shiftKey)) {
+        e.preventDefault();
+        toggleFullscreen();
+      } else if (e.key === 'Escape' && fullscreen) {
+        toggleFullscreen();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   return (
     <div className={`rw-titlebar${isMac ? ' mac' : ''}`}>
@@ -154,10 +180,35 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
 
       <div className="interactive" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
         {right}
+        {/*
+          On macOS the traffic lights are the system's, so the full-screen
+          button lives here beside them rather than in a set of controls this
+          application does not draw.
+        */}
+        {isMac ? (
+          <button
+            type="button"
+            className="rw-btn ghost"
+            onClick={toggleFullscreen}
+            title={fullscreen ? 'Leave full screen (Escape)' : 'Full screen (⌃⌘F)'}
+            aria-label={fullscreen ? 'Leave full screen' : 'Full screen'}
+          >
+            <Icon name={fullscreen ? 'restore' : 'maximize'} size={13} />
+          </button>
+        ) : null}
       </div>
 
       {isMac ? null : (
         <div className="rw-wincontrols">
+          <button
+            type="button"
+            onClick={toggleFullscreen}
+            title={fullscreen ? 'Leave full screen (F11)' : 'Full screen (F11)'}
+            aria-label={fullscreen ? 'Leave full screen' : 'Full screen'}
+            className={fullscreen ? 'on' : undefined}
+          >
+            <Icon name={fullscreen ? 'zoomOut' : 'zoomIn'} size={13} />
+          </button>
           <button type="button" onClick={() => shell?.win.minimize()} title="Minimise" aria-label="Minimise">
             <Icon name="minimize" size={14} />
           </button>

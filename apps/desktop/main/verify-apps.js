@@ -59,6 +59,44 @@ function buildWav({ seconds = 1, rate = 8000, freq = 440 } = {}) {
   return buf;
 }
 
+const FENCE = String.fromCharCode(96, 96, 96);
+
+const README = [
+  '---',
+  'title: Rutba Office',
+  '---',
+  '',
+  '# Rutba Office',
+  '',
+  'A free office suite. See the [documentation](https://office.rutba.io).',
+  '',
+  '## Status',
+  '',
+  '- [x] Mail, with **tracker blocking**',
+  '- [ ] Translations',
+  '- Word, Worksheets and *Presentation*',
+  '',
+  '| Format | Read | Write |',
+  '| :----- | :--: | ----: |',
+  '| .docx  | yes  | yes   |',
+  '| .pst   | yes  | no    |',
+  '',
+  '> Nothing leaves your computer.',
+  '',
+  FENCE + 'js',
+  "office.open('report.docx');",
+  FENCE,
+  '',
+].join(String.fromCharCode(10));
+
+/** Where two files stop agreeing, with enough either side to see why. */
+function firstDifference(a, b) {
+  const at = [...a].findIndex((c, i) => c !== b[i]);
+  if (at < 0) return 'one file is longer than the other';
+  const window = (s) => JSON.stringify(s.slice(Math.max(0, at - 40), at + 40));
+  return `at ${at}: ${window(a)} became ${window(b)}`;
+}
+
 function makeFixtures(dir) {
   fs.mkdirSync(dir, { recursive: true });
   const at = (name) => path.join(dir, name);
@@ -104,6 +142,10 @@ function makeFixtures(dir) {
 
   fs.writeFileSync(at('tone.wav'), buildWav());
 
+  // A README with the parts that usually get lost: a task list, a fenced
+  // block, a table with alignment, links, and front matter.
+  fs.writeFileSync(at('readme.md'), README);
+
   // A real image: the application's own icon, which is a genuine PNG.
   const icon = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\//, '')), '..', 'resources', 'icon.png');
   if (fs.existsSync(icon)) fs.copyFileSync(icon, at('picture.png'));
@@ -113,6 +155,7 @@ function makeFixtures(dir) {
     xlsx: at('sales.xlsx'),
     pptx: at('deck.pptx'),
     wav: at('tone.wav'),
+    md: at('readme.md'),
     png: fs.existsSync(at('picture.png')) ? at('picture.png') : null,
   };
 }
@@ -130,6 +173,12 @@ export async function verifyApps({ windows, doc }) {
 
   const open = async (app, file) => {
     const win = windows.create({ app, file: file || null });
+    // A window that throws during render paints nothing and reports nothing, so
+    // every check against it fails with a description of an empty page rather
+    // than of the fault. The console is the only place the fault appears.
+    win.webContents.on('console-message', (_event, level, text) => {
+      if (level >= 2) console.log(`     [${app}] ${text.split('\n')[0].slice(0, 200)}`);
+    });
     await new Promise((resolve) => {
       win.webContents.once('did-finish-load', () => setTimeout(resolve, 1300));
     });
@@ -314,26 +363,117 @@ export async function verifyApps({ windows, doc }) {
     check('video: the checks ran', false, err.message);
   }
 
+  /* ── Word: a GitHub README opens, edits and saves as Markdown ────────── */
+
+  try {
+    const win = await open('word', files.md);
+    await wait(400);
+
+    const shown = await win.webContents.executeJavaScript(`(() => {
+      const blocks = [...document.querySelectorAll('.wd-page [data-block]')];
+      return {
+        count: blocks.length,
+        text: blocks.map((b) => b.textContent).join('\\n'),
+        headings: blocks.filter((b) => /^h[1-6]$/i.test(b.tagName) || /heading/i.test(b.className)).length,
+        links: document.querySelectorAll('.wd-page a, .wd-page [data-link]').length,
+      };
+    })()`);
+
+    // The structure a README is made of has to be visible, not flattened.
+    check('word: a task list survives into the document', /☑|☐/.test(shown.text), `${shown.count} blocks drawn`);
+    check('word: a fenced code block keeps its fences', shown.text.includes('```'), 'the fence markers are on screen');
+    check('word: a table is a table', shown.text.includes('Format') && shown.text.includes('.pst'), 'table cells are present');
+
+    // Save it straight back and compare with what went in.
+    const before = fs.readFileSync(files.md, 'utf8');
+    const session = sessionFor('doc');
+    doc.export({ id: session.id, format: 'md', path: files.md });
+    const after = fs.readFileSync(files.md, 'utf8');
+
+    check(
+      'word: saving a README does not rewrite it',
+      after.trim() === before.trim(),
+      after.trim() === before.trim() ? 'byte for byte' : firstDifference(before, after)
+    );
+  } catch (err) {
+    check('word: the Markdown round trip ran', false, err.message);
+  }
+
   /* ── Mail: a seeded message opens in the reading pane ────────────────── */
 
   try {
     const win = await open('mail');
-    await wait(900);
-    const rows = await win.webContents.executeJavaScript(`document.querySelectorAll('.ml-row').length`);
-    if (rows > 0) {
-      await win.webContents.executeJavaScript(`document.querySelector('.ml-row').click(), 'clicked'`);
-      await wait(900);
-      const subject = await win.webContents.executeJavaScript(
-        `document.querySelector('.ml-head h2')?.textContent ?? ''`
-      );
-      check('mail: a message opens in the reading pane', subject.trim().length > 0, `subject is ${JSON.stringify(subject.trim())}`);
+    await wait(1400);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const rows = await js(`document.querySelectorAll('.ml-row').length`);
 
-      const framed = await win.webContents.executeJavaScript(
-        `(() => { const f = document.querySelector('.ml-body iframe'); return f ? f.getAttribute('sandbox') : null; })()`
-      );
-      check('mail: the body is framed with no privileges', framed === '', `sandbox is ${JSON.stringify(framed)}`);
+    if (!rows) {
+      check('mail: there are messages to read', false, 'the seeded store produced no rows');
     } else {
-      check('mail: there are messages to read', false, 'the seeded store was empty — run with RUTBA_SMOKE_SEED=1');
+      // The seed contains one conversation of four messages, three of which
+      // are chained and one of which only matches by subject. If the count
+      // badge does not say 4, threading has regressed one way or the other.
+      const thread = await js(`(() => {
+        const badge = [...document.querySelectorAll('.ml-count')].map((b) => Number(b.textContent)).sort((a, b) => b - a)[0];
+        return badge ?? 0;
+      })()`);
+      check('mail: replies collapse into one conversation', thread === 4, `largest conversation holds ${thread} messages`);
+
+      // Open the newsletter, which is where the whole privacy story lives.
+      const opened = await js(`(() => {
+        const row = [...document.querySelectorAll('.ml-row')].find((r) => /pricing right/i.test(r.textContent));
+        if (!row) return 'not found';
+        row.click();
+        return 'clicked';
+      })()`);
+      await wait(1100);
+
+      const subject = await js(`document.querySelector('.ml-head h2')?.textContent ?? ''`);
+      check('mail: a message opens in the reading pane', subject.trim().length > 0, `subject is ${JSON.stringify(subject.trim().slice(0, 40))} (${opened})`);
+
+      const framed = await js(`(() => { const f = document.querySelector('.ml-body iframe'); return f ? f.getAttribute('sandbox') : null; })()`);
+      check('mail: the body is framed with no privileges', framed === '', `sandbox is ${JSON.stringify(framed)}`);
+
+      const strip = await js(`document.querySelector('.ml-strip')?.textContent ?? ''`);
+      // Exactly two: the open pixel and the analytics beacon. The sender's own
+      // 180-pixel logo is remote too, and is not a tracker — counting it would
+      // be the kind of scaremongering that teaches people to ignore the badge.
+      check('mail: trackers are counted, and a logo is not one', /\b2 trackers blocked/.test(strip), `strip reads ${JSON.stringify(strip.slice(0, 70))}`);
+      check('mail: the tracking networks are named', /Mailchimp|Google Analytics/.test(strip), `strip names ${JSON.stringify(strip.slice(0, 70))}`);
+      check('mail: leaving the list is offered', /unsubscribe/i.test(strip), /unsubscribe/i.test(strip) ? 'one-click unsubscribe offered' : 'no offer on a message that carries the header');
+
+      // The forged message must be visibly forged.
+      await js(`(() => {
+        const row = [...document.querySelectorAll('.ml-row')].find((r) => /account has been limited/i.test(r.textContent));
+        row?.click();
+        return 'clicked';
+      })()`);
+      await wait(900);
+      const bad = await js(`document.querySelector('.ml-strip')?.textContent ?? ''`);
+      check('mail: a failed sender check is shown', /failed/i.test(bad), `strip reads ${JSON.stringify(bad.slice(0, 70))}`);
+
+      // Selecting rows must offer the actions that only make sense in bulk.
+      await js(`(() => {
+        const box = document.querySelector('.ml-row .ml-check');
+        box.click();
+        return 'checked';
+      })()`);
+      await wait(400);
+      const bulk = await js(`document.querySelector('.ml-bulk')?.textContent ?? ''`);
+      check('mail: selecting rows opens the bulk actions', /selected/.test(bulk), `bar reads ${JSON.stringify(bulk.slice(0, 40))}`);
+
+      // The attachment view is a place, not a search.
+      await js(`(() => {
+        const item = [...document.querySelectorAll('.rw-item')].find((i) => /^Attachments/.test(i.textContent));
+        item?.click();
+        return 'opened';
+      })()`);
+      await wait(1200);
+      const files = await js(`(() => ({
+        cards: document.querySelectorAll('.ml-card').length,
+        first: document.querySelector('.ml-card .name')?.textContent ?? '',
+      }))()`);
+      check('mail: every attachment is listed in one place', files.cards > 0, `${files.cards} files, first is ${JSON.stringify(files.first)}`);
     }
   } catch (err) {
     check('mail: the checks ran', false, err.message);

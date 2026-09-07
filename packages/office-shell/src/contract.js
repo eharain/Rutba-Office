@@ -119,12 +119,31 @@ export const METHODS = {
     'export',       // ({ accountId, folder, path, format }) -> { messages }
     'attachment',   // ({ accountId, folder, id, index }) -> { url, name, type, size }
     'search',       // ({ accountId, query, limit }) -> [header]
+    'unified',      // ({ role, query }) -> one list across every account
+    'insight',      // ({ accountId, folder, id }) -> { trackers, unsubscribe, auth, bulk }
+    'files',        // ({ accountId, query }) -> every attachment in the mailbox
+    'people',       // ({ accountId }) -> the addresses seen, ranked
+    'markAllRead',  // ({ accountId, folder }) -> { changed }
+    'emptyFolder',  // ({ accountId, folder }) -> { removed }
+    'queue',        // ({ accountId, draft, at, holdSeconds }) -> outbox item
+    'outbox',       // () -> items still waiting to go
+    'unsend',       // ({ id }) -> the item, taken back
   ],
   update: [
     'state',        // () -> { state, version, available, percent, automatic }
     'check',        // ({ manual }) -> state
     'install',      // () -> { installed }   quits, installs, returns
     'setAutomatic', // ({ on }) -> state
+  ],
+  // Making this the application a file opens with. What is possible
+  // differs by platform, and the service says which.
+  defaults: [
+    'status',       // () -> { platform, canSet, ours, total, formats, instructions }
+    'set',          // ({ exts }) -> { changed, opened, message }
+  ],
+  // What other mail clients have left on this computer.
+  discover: [
+    'scan',         // () -> { accounts, files, scanned }
   ],
   print: [
     'toPDF',        // ({ landscape, margins, pageSize }) -> { bytes }
@@ -143,6 +162,8 @@ export const EVENTS = [
   'app:command',      // { command, args }   menu / accelerator
   'mail:progress',    // { accountId, folder, done, total, phase }
   'mail:new',         // { accountId, folder, count }
+  'mail:sent',        // { id, to }
+  'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
   'theme:changed',    // { dark }
   'update:state',     // { state, version, available, percent, automatic }
 ];

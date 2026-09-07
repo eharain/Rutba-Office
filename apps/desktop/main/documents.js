@@ -22,6 +22,7 @@ import { sniff, refineOoxml } from '@rutba/office-formats/sniff';
 import { readOdf } from '@rutba/office-formats/odf';
 import { readRtf } from '@rutba/office-formats/rtf';
 import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, writePlain, decodeText } from '@rutba/office-formats/text';
+import { markdownToParagraphs, paragraphsToMarkdown } from './markdown-bridge.js';
 import { CompoundFile } from '@rutba/office-formats/cfb';
 import { readZip } from '@rutba/ooxml/zip';
 
@@ -222,7 +223,15 @@ export function createDocumentService({ holdBlob }) {
       }
       case 'md': {
         const md = readMarkdown(bytes);
-        return { kind: 'doc', bytes: buildDocx({ paragraphs: blocksToParagraphs(md.blocks), styles: true }), source: 'md', converted: { from: 'md' } };
+        return {
+          kind: 'doc',
+          bytes: buildDocx({ paragraphs: markdownToParagraphs(md.blocks), styles: true }),
+          source: 'md',
+          // The front matter, the link definitions and the footnote bodies have
+          // no home in a document. They ride along here so that saving restores
+          // the file rather than a lossy impression of it.
+          converted: { from: 'md', markdown: md.meta },
+        };
       }
       case 'txt':
       case 'html': {
@@ -740,13 +749,24 @@ export function createDocumentService({ holdBlob }) {
 
     if (session.kind === 'doc' && (ext === 'txt' || ext === 'md' || ext === 'html')) {
       const frame = session.engine.render();
+
+      // Markdown goes back through the bridge that brought it in, which knows
+      // what each paragraph style meant and still holds the parts of the file
+      // a document cannot carry.
+      if (ext === 'md') {
+        fs.writeFileSync(target, paragraphsToMarkdown(frame.blocks || [], session.converted?.markdown || {}), 'utf8');
+        return { path: target, format: 'md' };
+      }
+
       const blocks = (frame.blocks || []).map((b) => ({
         type: b.style && /heading/i.test(b.style) ? 'heading' : 'paragraph',
         level: Number(String(b.style || '').replace(/\D/g, '')) || 1,
         text: (b.runs || []).map((r) => r.text).join('') || b.text || '',
         runs: b.runs,
       }));
-      const text = ext === 'md' ? writeMarkdown(blocks) : ext === 'txt' ? writePlain(blocks) : `<!doctype html>\n<meta charset="utf-8">\n<title>${session.name}</title>\n${blocks.map((b) => (b.type === 'heading' ? `<h${b.level}>${b.text}</h${b.level}>` : `<p>${b.text}</p>`)).join('\n')}\n`;
+      const text = ext === 'txt'
+        ? writePlain(blocks)
+        : `<!doctype html>\n<meta charset="utf-8">\n<title>${session.name}</title>\n${blocks.map((b) => (b.type === 'heading' ? `<h${b.level}>${b.text}</h${b.level}>` : `<p>${b.text}</p>`)).join('\n')}\n`;
       fs.writeFileSync(target, text, 'utf8');
       return { path: target, format: ext };
     }

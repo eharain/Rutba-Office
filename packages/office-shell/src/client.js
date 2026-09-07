@@ -67,6 +67,8 @@ export const store = namespaces.store;
 export const doc = namespaces.doc;
 export const mail = namespaces.mail;
 export const update = namespaces.update;
+export const defaults = namespaces.defaults;
+export const discover = namespaces.discover;
 export const print = namespaces.print;
 export const clipboard = namespaces.clipboard;
 
@@ -79,4 +81,4 @@ export function boot() {
   return hasShell() ? bridge().boot() : { app: 'home', file: null, platform: 'web', arch: '', versions: {} };
 }
 
-export default { app, win, fs, dialog, shell, secrets, store, doc, mail, update, print, clipboard, on, boot, hasShell };
+export default { app, win, fs, dialog, shell, secrets, store, doc, mail, update, defaults, discover, print, clipboard, on, boot, hasShell };

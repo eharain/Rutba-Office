@@ -12,6 +12,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { seedMail } from './seed-mail.js';
 
 const ALL = ['home', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'mail'];
 
@@ -24,33 +25,6 @@ const ALL = ['home', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', '
  */
 export async function seedFor({ stores, mail }) {
   return seedMail({ stores, mail });
-}
-
-async function seedMail({ stores, mail }) {
-  const { writeMbox } = await import('@rutba/mailbox/mbox');
-  const people = [
-    ['Amina Yusuf', 'amina@northwind.example', 'Q3 numbers are in', 'The northern region closed 18% up. Full workbook attached to the board pack — the totals are computed, not typed.'],
-    ['Tomas Berg', 'tomas@berg-partners.example', 'Re: contract wording', 'Clause 4.2 is fine as drafted. I would still shorten the notice period to 30 days.'],
-    ['Priya Raman', 'priya@lattice.example', 'Design review Thursday', 'I have put the three options in the deck. My preference is the second, but I want to hear the room first.'],
-    ['Accounts', 'billing@hosting.example', 'Invoice 88421', 'Your invoice for September is attached. No action is needed — payment is by direct debit on the 4th.'],
-    ['Dan Okafor', 'dan@okafor.example', 'Lunch?', 'Free on Friday if you are. There is a new place near the station that is supposed to be good.'],
-    ['Release bot', 'ci@build.example', 'Build 4471 passed', 'All 569 tests green in 4.1 s. Artefacts are on the usual share.'],
-  ];
-  const now = Date.now();
-  const raw = people.map(([name, address, subject, body], i) => ({
-    from: { address },
-    date: new Date(now - i * 5400000).toISOString(),
-    raw:
-      `From: ${name} <${address}>\r\nTo: You <you@example.com>\r\nSubject: ${subject}\r\n` +
-      `Date: ${new Date(now - i * 5400000).toUTCString()}\r\nMessage-ID: <seed-${i}@example.com>\r\n` +
-      `MIME-Version: 1.0\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${body}\r\n`,
-  }));
-
-  const file = path.join(stores.dir, 'smoke-seed.mbox');
-  fs.writeFileSync(file, Buffer.from(writeMbox(raw)));
-  const result = mail.import({ path: file, folders: null });
-  fs.rmSync(file, { force: true });
-  return result;
 }
 
 export async function runSmoke({ windows, outDir, stores, mail }) {

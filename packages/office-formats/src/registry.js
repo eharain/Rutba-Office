@@ -84,7 +84,9 @@ export const APPS = {
 
 /** Extensions each app claims, in the order a dialog should show them. */
 export const APP_EXTENSIONS = {
-  word: ['docx', 'docm', 'dotx', 'doc', 'odt', 'rtf', 'txt', 'md', 'html', 'htm'],
+  // `markdown` alongside `md`: GitHub accepts both for a README, and an editor
+  // that claims one and not the other is the default for half your files.
+  word: ['docx', 'docm', 'dotx', 'doc', 'odt', 'rtf', 'txt', 'md', 'markdown', 'html', 'htm'],
   sheets: ['xlsx', 'xlsm', 'xltx', 'xls', 'ods', 'csv', 'tsv'],
   slides: ['pptx', 'pptm', 'potx', 'ppsx', 'ppt', 'odp'],
   pictures: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'bmp', 'tif', 'tiff', 'ico', 'svg', 'pdf'],
@@ -162,6 +164,22 @@ export function saveFilters(appKey) {
 }
 
 /**
+ * Extensions that are a second name for a kind rather than a kind of their own.
+ * Mirrors the alias list in sniff.js, which is where a file's identity is
+ * decided; this is only about what the operating system should call it.
+ */
+const EXTENSION_ALIASES = {
+  markdown: 'md',
+  htm: 'html',
+  jpeg: 'jpeg',
+  jpe: 'jpeg',
+  tif: 'tiff',
+  m4v: 'mp4',
+  emlx: 'eml',
+  mbx: 'mbox',
+};
+
+/**
  * File associations for electron-builder. Every extension the suite can open
  * is claimed, so double-clicking works for the formats we advertise — and only
  * for those.
@@ -174,7 +192,10 @@ export function fileAssociations() {
     for (const ext of exts) {
       if (seen.has(ext)) continue;
       seen.add(ext);
-      const kind = Object.entries(KINDS).find(([, d]) => d.ext === `.${ext}`)?.[0];
+      // A kind's canonical extension, or the one it is also known by: `.markdown`
+      // is `md`, `.htm` is `html`, and both need a real name and MIME type or
+      // the operating system offers to open them with "MARKDOWN file".
+      const kind = Object.entries(KINDS).find(([, d]) => d.ext === `.${ext}`)?.[0] ?? EXTENSION_ALIASES[ext];
       out.push({
         ext,
         name: KINDS[kind]?.label || `${ext.toUpperCase()} file`,

@@ -2,7 +2,7 @@
   "name": "@rutba/office-formats",
   "version": "1.0.0",
   "license": "AGPL-3.0-or-later",
-  "description": "What a file is and who opens it: magic-byte sniffing, the format registry, and readers for the formats the OOXML engine does not own — ODF (odt/ods/odp), RTF, legacy CFB (doc/xls/ppt), plain text, Markdown, CSV and iCalendar.",
+  "description": "What a file is and who opens it: magic-byte sniffing, the format registry, and readers for the formats the OOXML engine does not own — ODF (odt/ods/odp), RTF, legacy CFB (doc/xls/ppt), plain text, GitHub-flavoured Markdown, CSV and iCalendar.",
   "type": "module",
   "main": "./src/index.js",
   "exports": {
@@ -13,6 +13,7 @@
     "./odf": "./src/odf.js",
     "./rtf": "./src/rtf.js",
     "./text": "./src/text.js",
+    "./markdown": "./src/markdown.js",
     "./xml": "./src/xml.js"
   },
   "dependencies": {
