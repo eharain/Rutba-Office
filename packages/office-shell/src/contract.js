@@ -116,7 +116,8 @@ export const METHODS = {
     'import',       // ({ path, accountId }) -> { folders, messages }
     'importScan',   // ({ path }) -> { kind, folders, messages }
     'export',       // ({ accountId, folder, path, format }) -> { messages }
-    'attachment',   // ({ accountId, folder, uid, index }) -> { bytes, name, type }
+    'attachment',   // ({ accountId, folder, id, index }) -> { url, name, type, size }
+    'search',       // ({ accountId, query, limit }) -> [header]
   ],
   print: [
     'toPDF',        // ({ landscape, margins, pageSize }) -> { bytes }

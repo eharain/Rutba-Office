@@ -22,8 +22,8 @@ MSG_FILE="$1"
 #     is a meteor shower. Each still trips when written as a word.
 #
 # Added 2026-09-06, mirroring pre-push and pre-commit.
-AI_ANYWHERE='claude|anthropic|copilot|chatgpt|openai|gpt-[0-9]|codeium|tabnine|windsurf|deepseek'
-AI_WORD='codex|kimi|gemini'
+AI_ANYWHERE='claude|anthropic|copilot|chatgpt|openai|gpt-[0-9]|codeium|tabnine|windsurf|deepseek|conva'
+AI_WORD='codex|kimi|gemini|deepseek|conva'
 CONTENT_PATTERN="$AI_ANYWHERE|\\b($AI_WORD)\\b"
 CURSOR_PATTERN='(co-?authored|generated|written|authored|created|assisted|made|built|powered)([^a-z]|[a-z]){0,24}cursor|cursor\.(sh|so|com|ai|dev)|cursor[-_ ](ide|editor|ai|agent|composer|rules)|\.cursorrules|\.cursor/'
 ROBOT=$(printf '\360\237\244\226')

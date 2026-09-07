@@ -21,7 +21,8 @@
     "dist:mac": "npm run dist:mac --workspace=@rutba/office-desktop",
     "dist:linux": "npm run dist:linux --workspace=@rutba/office-desktop",
     "test": "node --test \"tests/*.test.js\"",
-    "gate": "node tools/gate.js"
+    "gate": "node tools/gate.js",
+    "smoke": "npm run smoke --workspace=@rutba/office-desktop"
   },
   "engines": {
     "node": ">=20"

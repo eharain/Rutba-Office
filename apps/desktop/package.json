@@ -15,7 +15,8 @@
     "dist": "npm run build && electron-builder --publish never",
     "dist:win": "npm run build && electron-builder --win --publish never",
     "dist:mac": "npm run build && electron-builder --mac --publish never",
-    "dist:linux": "npm run build && electron-builder --linux --publish never"
+    "dist:linux": "npm run build && electron-builder --linux --publish never",
+    "smoke": "node build/bundle.js && node build/smoke-run.js"
   },
   "dependencies": {
     "@rutba/doc-view": "*",
