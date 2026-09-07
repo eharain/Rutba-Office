@@ -407,7 +407,12 @@ export async function verifyApps({ windows, doc }) {
 
     // Driven the way the window drives it — through the operation table — so
     // the check covers the wiring as well as the engine.
-    const run = (...ops) => doc.apply({ id: session.id, ops });
+    // `apply` answers with a patch when the change is small, so the model is
+    // read back explicitly rather than fished out of the reply.
+    const run = async (...ops) => {
+      await doc.apply({ id: session.id, ops });
+      return doc.model({ id: session.id });
+    };
     const bolded = await press('Bold');
     await wait(600);
     const afterBold = await doc.viewport({ id: session.id });
@@ -415,14 +420,14 @@ export async function verifyApps({ windows, doc }) {
 
     // Freeze panes, protection and named ranges: three more that existed only
     // in the engine until this ribbon.
-    const frozen = (await run({ op: 'freeze', rows: 1, cols: 0 })).model;
+    const frozen = await run({ op: 'freeze', rows: 1, cols: 0 });
     check('sheets: panes freeze', frozen.frozen?.rows === 1, JSON.stringify(frozen.frozen));
 
-    const locked = (await run({ op: 'protect' })).model;
+    const locked = await run({ op: 'protect' });
     check('sheets: a sheet can be protected', locked.protection?.sheet === true, JSON.stringify(locked.protection));
     await run({ op: 'unprotect' });
 
-    const named = (await run({ op: 'defineName', name: 'Revenue', ref: 'Sales!$B$2:$B$3' })).model;
+    const named = await run({ op: 'defineName', name: 'Revenue', ref: 'Sales!$B$2:$B$3' });
     check('sheets: a range can be named', (named.names || []).some((n) => n.name === 'Revenue'), `${(named.names || []).length} names defined`);
 
     const tabs = await js(`[...document.querySelectorAll('.rw-ribbon-tabs button, .rw-tab')].map((b) => b.textContent.trim()).join(', ')`);
@@ -481,6 +486,57 @@ export async function verifyApps({ windows, doc }) {
     );
   } catch (err) {
     check('word: the Markdown round trip ran', false, err.message);
+  }
+
+  /* ── Word: the ribbon reaches what the engine can do ─────────────────── */
+
+  try {
+    const win = await open('word', files.docx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    // Its own session, opened by path. Picking "the last document session"
+    // finds whichever window happened to open most recently, which is a
+    // different document every time a check is added above this one — and the
+    // checks then quietly measure the wrong file.
+    const session = doc.open({ path: files.docx });
+    // `apply` may answer with a patch rather than a whole model, so the model
+    // is read back explicitly instead of being fished out of the reply.
+    const run = async (...ops) => {
+      await doc.apply({ id: session.id, ops });
+      return doc.model({ id: session.id });
+    };
+
+    const tabs = await js(`[...document.querySelectorAll('.rw-ribbon-tabs button, .rw-tab')].map((b) => b.textContent.trim()).join(', ')`);
+    check(
+      'word: the ribbon has the tabs a word processor has',
+      ['Home', 'Insert', 'Layout', 'References', 'Review', 'View'].every((t) => tabs.includes(t)),
+      `tabs are ${JSON.stringify(tabs)}`
+    );
+
+    // A link, a comment and a footer: three capabilities that were in the
+    // engine with nothing calling them, and are now one press each.
+    await run({ op: 'setSelection', anchor: { block: 1, offset: 0 }, focus: { block: 1, offset: 8 } });
+    const linked = await run({ op: 'setLink', url: 'https://office.rutba.io' });
+    const hasLink = (linked.blocks || []).some((b) => (b.runs || []).some((r) => r.link));
+    check('word: text can be made a link', hasLink, hasLink ? 'the run carries its target' : 'no run came back with a link');
+
+    const commented = await run({ op: 'addComment', text: 'Check this figure', author: 'Verify' });
+    check('word: a comment can be added', (commented.comments || []).length > 0, `${(commented.comments || []).length} comments on the document`);
+
+    const footed = await run({ op: 'setBand', band: 'footer', lines: ['{PAGE} of {PAGES}'] });
+    const footer = footed.bands?.footers?.default;
+    check('word: a footer can be set', Boolean(footer), footer ? `holds ${JSON.stringify(footer.paragraphs?.[0]?.text ?? '')}` : 'no footer came back');
+
+    // And all three have to survive being written to disk and read again.
+    const target = path.join(dir, 'ribbon.docx');
+    doc.save({ id: session.id, path: target });
+    const again = doc.open({ path: target });
+    const back = again.model;
+    const keptLink = (back.blocks || []).some((b) => (b.runs || []).some((r) => r.link));
+    check('word: a link survives the file', keptLink, keptLink ? 'read back from the .docx' : 'the hyperlink relationship was lost');
+    doc.close({ id: again.id });
+    doc.close({ id: session.id });
+  } catch (err) {
+    check('word: the ribbon checks ran', false, err.message);
   }
 
   /* ── Mail: a seeded message opens in the reading pane ────────────────── */

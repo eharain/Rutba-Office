@@ -363,6 +363,21 @@ export function createDocumentService({ holdBlob }) {
     };
   }
 
+  /**
+   * Read something the model would like to show, or nothing.
+   *
+   * A document converted from RTF has no comments part and a document with no
+   * `sectPr` has no geometry to report. Neither is a failure worth turning a
+   * whole model into an exception over — the ribbon simply shows less.
+   */
+  const safely = (read) => {
+    try {
+      return read() ?? null;
+    } catch {
+      return null;
+    }
+  };
+
   function docModel(session) {
     const view = session.engine;
     const frame = view.render();
@@ -376,6 +391,15 @@ export function createDocumentService({ holdBlob }) {
       canEdit: view.canEdit,
       styles: typeof view.paragraphStyles === 'object' ? view.paragraphStyles : [],
       format: typeof view.formatAtCaret === 'function' ? view.formatAtCaret() : null,
+      // What the ribbon needs to show state rather than only to change it: the
+      // page geometry behind Layout, the headers and footers behind Insert, and
+      // the comments behind Review. All were readable and none were read.
+      // `section` is a getter on the view; the bands and comments live on the
+      // backend behind it. All three are wrapped because a document opened from
+      // a converted format may have no backend that answers them.
+      section: safely(() => view.section),
+      bands: safely(() => view.doc?.headerFooters?.()),
+      comments: safely(() => view.doc?.comments?.()) || [],
     };
   }
 

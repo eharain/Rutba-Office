@@ -13,8 +13,12 @@
 // of it.
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Spinner, Select, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
+import WordRibbon from './word/ribbon.js';
+import {
+  LinkDialog, TableDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
+} from './word/dialogs.js';
 
 /**
  * Character offset of a DOM position within its block element.
@@ -96,6 +100,20 @@ function placeSelection(page, anchor, focus) {
 
 const HEADING_SIZES = { Title: 28, Heading1: 21, Heading2: 17, Heading3: 15, Heading4: 14 };
 
+/**
+ * The lines already in a header or footer, ready to edit.
+ *
+ * OOXML has three of each — default, first page and even pages — and stores
+ * them as parts full of paragraphs. The dialog edits the default one, which is
+ * the one every document has and the only one most documents want.
+ */
+function bandLines(model, band, fallback = []) {
+  const part = model?.bands?.[band === 'header' ? 'headers' : 'footers']?.default;
+  if (!part) return fallback;
+  const lines = (part.paragraphs || []).map((p) => p.text ?? (p.runs || []).map((r) => r.text ?? '').join(''));
+  return lines.length ? lines : fallback;
+}
+
 export default function Word({ app, shell, boot }) {
   const toast = useToast();
   const [doc, setDoc] = useState(null);
@@ -103,6 +121,8 @@ export default function Word({ app, shell, boot }) {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('home');
+  // One name at a time, the way the spreadsheet does it.
+  const [dialog, setDialog] = useState(null);
   const [find, setFind] = useState(null);
   const pageRef = useRef(null);
   const pendingCaret = useRef(null);
@@ -407,109 +427,20 @@ export default function Word({ app, shell, boot }) {
       dirty={doc?.dirty}
       menu={appMenu}
       ribbon={
-        <Ribbon
-          tabs={[
-            { id: 'home', label: 'Home' },
-            { id: 'insert', label: 'Insert' },
-            { id: 'layout', label: 'Layout' },
-            { id: 'view', label: 'View' },
-          ]}
-          active={tab}
-          onTab={setTab}
-          quick={
-            <>
-              <Button icon="save" title="Save" onClick={() => save(false)} />
-              <Button icon="undo" title="Undo" disabled={!doc?.canUndo} onClick={() => commands['edit.undo'].run()} />
-              <Button icon="redo" title="Redo" disabled={!doc?.canRedo} onClick={() => commands['edit.redo'].run()} />
-            </>
-          }
-        >
-          {tab === 'home' ? (
-            <>
-              <Group label="File">
-                <Button tall icon="new" label="New" onClick={() => shell.win.create({ app: 'word' })} />
-                <Button tall icon="open" label="Open" onClick={openFile} />
-                <Button tall icon="save" label="Save" onClick={() => save(false)} />
-              </Group>
-              <Group label="Font">
-                <Button icon="bold" pressed={format.bold} title="Bold" onClick={() => commands['format.bold'].run()} />
-                <Button icon="italic" pressed={format.italic} title="Italic" onClick={() => commands['format.italic'].run()} />
-                <Button icon="underline" pressed={format.underline} title="Underline" onClick={() => commands['format.underline'].run()} />
-                <Button icon="strike" pressed={format.strike} title="Strikethrough" onClick={() => apply({ op: 'toggleFormat', tag: 'strike' })} />
-                <Separator />
-                <Select
-                  value={format.fontSize || ''}
-                  onChange={(e) => apply({ op: 'setRunFormat', delta: { size: Number(e.target.value) || null } })}
-                  style={{ width: 62 }}
-                >
-                  <option value="">Size</option>
-                  {[8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48].map((s) => (
-                    <option key={s} value={s}>{s}</option>
-                  ))}
-                </Select>
-              </Group>
-              <Group label="Paragraph">
-                <Button icon="alignLeft" pressed={format.paragraphAlign === 'left'} title="Align left" onClick={() => align('left')} />
-                <Button icon="alignCenter" pressed={format.paragraphAlign === 'center'} title="Centre" onClick={() => align('center')} />
-                <Button icon="alignRight" pressed={format.paragraphAlign === 'right'} title="Align right" onClick={() => align('right')} />
-                <Button icon="alignJustify" pressed={format.paragraphAlign === 'justify'} title="Justify" onClick={() => align('justify')} />
-              </Group>
-              <Group label="Styles">
-                <Select value={format.paragraphStyle || ''} onChange={(e) => setStyle(e.target.value)} style={{ width: 128 }}>
-                  <option value="">Body text</option>
-                  {(model?.paragraphStyles || []).map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </Select>
-              </Group>
-              <Group label="Editing">
-                <Button tall icon="find" label="Find" onClick={() => commands['edit.find'].run()} />
-              </Group>
-            </>
-          ) : tab === 'insert' ? (
-            <>
-              <Group label="Tables">
-                <Button tall icon="table" label="Table" onClick={() => commands['insert.table'].run()} />
-              </Group>
-              <Group label="Illustrations">
-                <Button tall icon="picture" label="Picture" onClick={async () => {
-                  const file = (await shell.dialog.open({ title: 'Insert picture', filters: [{ name: 'Images', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }] }))[0];
-                  if (!file) return;
-                  const { bytes, stat } = await shell.fs.read({ path: file });
-                  apply({ op: 'insertImage', name: stat.name, contentType: stat.ext === '.png' ? 'image/png' : 'image/jpeg', data: bytes, widthPx: 420, heightPx: 280 });
-                }} />
-                <Button tall icon="chart" label="Chart" onClick={() => apply({ op: 'insertChart', kind: 'column' })} />
-                <Button tall icon="shape" label="Shape" onClick={() => apply({ op: 'insertShape', preset: 'rect', widthPx: 200, heightPx: 120 })} />
-              </Group>
-              <Group label="Pages">
-                <Button tall icon="file" label="Break" onClick={() => commands['insert.break'].run()} />
-              </Group>
-            </>
-          ) : tab === 'layout' ? (
-            <>
-              <Group label="Page">
-                <Button icon="file" label="Portrait" onClick={() => apply({ op: 'setPageSetup', spec: { orientation: 'portrait' } })} />
-                <Button icon="file" label="Landscape" onClick={() => apply({ op: 'setPageSetup', spec: { orientation: 'landscape' } })} />
-              </Group>
-              <Group label="Export">
-                <Button tall icon="pdf" label="PDF" onClick={() => exportAs('pdf')} />
-                <Button tall icon="export" label="Markdown" onClick={() => exportAs('md')} />
-                <Button tall icon="export" label="Text" onClick={() => exportAs('txt')} />
-              </Group>
-            </>
-          ) : (
-            <>
-              <Group label="Zoom">
-                <Button icon="zoomOut" label="Out" onClick={() => shell.win.zoom({ delta: -0.1 })} />
-                <Button icon="zoomIn" label="In" onClick={() => shell.win.zoom({ delta: 0.1 })} />
-                <Button icon="check" label="100%" onClick={() => shell.win.zoom({ reset: true })} />
-              </Group>
-              <Group label="Print">
-                <Button tall icon="print" label="Print" onClick={() => shell.print.print({})} />
-              </Group>
-            </>
-          )}
-        </Ribbon>
+        <WordRibbon
+          tab={tab}
+          setTab={setTab}
+          doc={doc}
+          model={model}
+          dispatch={apply}
+          commands={commands}
+          shell={shell}
+          menu={menu}
+          save={save}
+          openFile={openFile}
+          exportAs={exportAs}
+          openDialog={setDialog}
+        />
       }
       status={
         <>
@@ -571,6 +502,83 @@ export default function Word({ app, shell, boot }) {
           ) : null}
         </div>
       )}
+
+      {dialog === 'link' ? (
+        <LinkDialog
+          current={model?.format?.link || null}
+          selectedText={model?.selectionText || null}
+          onClose={() => setDialog(null)}
+          onApply={async (url) => {
+            await apply({ op: 'setLink', url });
+            setDialog(null);
+          }}
+          onRemove={async () => {
+            await apply({ op: 'setLink', url: null });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'table' ? (
+        <TableDialog
+          onClose={() => setDialog(null)}
+          onInsert={async (spec) => {
+            await apply({ op: 'insertTable', ...spec });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'header' || dialog === 'footer' ? (
+        <BandDialog
+          band={dialog}
+          current={bandLines(model, dialog)}
+          onClose={() => setDialog(null)}
+          onApply={async (lines) => {
+            await apply({ op: 'setBand', band: dialog, lines });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'pageNumber' ? (
+        <BandDialog
+          band="footer"
+          current={bandLines(model, 'footer', ['{PAGE} of {PAGES}'])}
+          onClose={() => setDialog(null)}
+          onApply={async (lines) => {
+            await apply({ op: 'setBand', band: 'footer', lines });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'comment' ? (
+        <CommentDialog
+          onClose={() => setDialog(null)}
+          onAdd={async (text) => {
+            await apply({ op: 'addComment', text });
+            setDialog(null);
+            toast('Comment added', { tone: 'good' });
+          }}
+        />
+      ) : null}
+
+      {dialog === 'comments' ? (
+        <CommentsDialog comments={model?.comments || []} onClose={() => setDialog(null)} onGoto={() => setDialog(null)} />
+      ) : null}
+
+      {dialog === 'find' ? (
+        <FindDialog
+          onClose={() => setDialog(null)}
+          onReplaceAll={async (find, replace, matchCase) => {
+            const next = await apply({ op: 'replaceAll', find, replace, matchCase });
+            return next ? 'Replaced every match.' : 'Nothing matched.';
+          }}
+        />
+      ) : null}
+
+      {dialog === 'wordCount' ? <WordCountDialog blocks={model?.blocks || []} onClose={() => setDialog(null)} /> : null}
     </AppFrame>
   );
 }
