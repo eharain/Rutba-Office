@@ -1,0 +1,16 @@
+{
+  "name": "@rutba/office-ui",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "The Rutba Office design system: the ribbon, command model, dialogs, panels, icon set and the light/dark theme tokens every app in the suite renders with.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./theme.css": "./src/theme.css",
+    "./icons": "./src/icons.js",
+    "./commands": "./src/commands.js"
+  },
+  "peerDependencies": { "react": ">=19" },
+  "sideEffects": ["*.css"]
+}

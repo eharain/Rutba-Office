@@ -1,0 +1,57 @@
+#!/bin/sh
+# Rejects any commit whose MESSAGE carries an AI-provider footprint — not only
+# a Co-Authored-By / generated-with trailer but the provider's name anywhere
+# in the message (Claude, Anthropic, Copilot, ChatGPT, OpenAI/GPT, Cursor,
+# Codeium, Tabnine, Windsurf, Kimi, DeepSeek, Gemini, Codex), and the robot
+# emoji that marks generated-with lines. The message half of the guard set:
+# pre-commit covers identity, file names and content; pre-push re-checks
+# whole history. Installed machine-wide via `git config --global
+# core.hooksPath`, and versioned in each repo's .githooks/.
+#
+# "cursor" is scanned in attribution context only — it is also the caret, and
+# a message like "restore the cursor after repaint" is ordinary work here.
+
+MSG_FILE="$1"
+
+# Two classes, because one of them collides with ordinary code and prose.
+#   AI_ANYWHERE — distinctive enough to be meant wherever it appears, so it
+#     matches inside an identifier too. Word-bounding these would let a
+#     camelCase file or symbol name through.
+#   AI_WORD — also ordinary substrings, so they count only as WHOLE WORDS. An
+#     XML decoding helper whose name ends in "codeX" is not a tool, and neither
+#     is a meteor shower. Each still trips when written as a word.
+#
+# Added 2026-09-06, mirroring pre-push and pre-commit.
+AI_ANYWHERE='claude|anthropic|copilot|chatgpt|openai|gpt-[0-9]|codeium|tabnine|windsurf|deepseek'
+AI_WORD='codex|kimi|gemini'
+CONTENT_PATTERN="$AI_ANYWHERE|\\b($AI_WORD)\\b"
+CURSOR_PATTERN='(co-?authored|generated|written|authored|created|assisted|made|built|powered)([^a-z]|[a-z]){0,24}cursor|cursor\.(sh|so|com|ai|dev)|cursor[-_ ](ide|editor|ai|agent|composer|rules)|\.cursorrules|\.cursor/'
+ROBOT=$(printf '\360\237\244\226')
+
+# Comment lines (commented-out template text) never reach the recorded
+# message, so they are stripped before scanning.
+STRIPPED=$(mktemp)
+trap 'rm -f "$STRIPPED"' EXIT
+grep -v '^#' "$MSG_FILE" > "$STRIPPED"
+
+# The robot mark is matched by SHELL string containment, not grep: the hook
+# environment's locale differs from an interactive shell's, and a multibyte
+# grep pattern that matches at a prompt silently missed under a real hook.
+MSG_BODY=$(cat "$STRIPPED")
+robot_hit=1
+case "$MSG_BODY" in *"$ROBOT"*) robot_hit=0 ;; esac
+
+if grep -qiE "$CONTENT_PATTERN" "$STRIPPED" \
+  || grep -qiE "$CURSOR_PATTERN" "$STRIPPED" \
+  || [ "$robot_hit" -eq 0 ]; then
+  echo "" >&2
+  echo "commit-msg hook: rejected - the commit message names an AI provider or carries an attribution mark:" >&2
+  { grep -inE "$CONTENT_PATTERN" "$STRIPPED"; grep -inE "$CURSOR_PATTERN" "$STRIPPED"; grep -n "$ROBOT" "$STRIPPED"; } | sed 's/^/  line /' | sort -u >&2
+  echo "" >&2
+  echo "Describe the change without naming any AI tool, and drop any" >&2
+  echo "'Co-Authored-By: <bot>' or 'Generated with ...' line, then retry." >&2
+  echo "" >&2
+  exit 1
+fi
+
+exit 0

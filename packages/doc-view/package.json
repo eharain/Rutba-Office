@@ -1,0 +1,41 @@
+{
+  "name": "@rutba/doc-view",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "The editable model of a document: run-aware text positions, insert/delete/split/merge, character formatting. Pure logic, no DOM, no format — the format sits behind a backend port so Workspace (.docx) and Mail (email HTML) share one editor.",
+  "homepage": "https://rutba.io/office",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eharain/rutba-office.git",
+    "directory": "packages/doc-view"
+  },
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./positions": "./src/positions.js",
+    "./backend": "./src/backend.js",
+    "./backends/ooxml": "./src/backends/ooxml.js",
+    "./backends/html": "./src/backends/html.js",
+    "./paginate": "./src/paginate.js",
+    "./bands": "./src/bands.js",
+    "./lists": "./src/lists.js",
+    "./export/pdf": "./src/export/pdf.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "dependencies": {
+    "@rutba/drawing": "*",
+    "@rutba/editing": "*",
+    "@rutba/ooxml": "*",
+    "@rutba/pdf": "*"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

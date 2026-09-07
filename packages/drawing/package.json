@@ -1,0 +1,33 @@
+{
+  "name": "@rutba/drawing",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "Format-neutral drawing: a JSON scene graph, an SVG renderer, a chart layout engine and a validated palette. No DOM, no product coupling — intended for Workspace, Studio and Mail alike.",
+  "homepage": "https://rutba.io/office",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eharain/rutba-office.git",
+    "directory": "packages/drawing"
+  },
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./palette": "./src/palette.js",
+    "./scene": "./src/scene.js",
+    "./svg": "./src/svg.js",
+    "./chart": "./src/chart.js",
+    "./ooxml": "./src/ooxml.js",
+    "./shapes": "./src/shapes.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

@@ -1,0 +1,116 @@
+#!/bin/sh
+# Last line of defense: every commit about to be pushed is re-checked for an
+# AI-provider footprint in ALL FOUR places a commit can carry one —
+#   - the author and committer identities,
+#   - the commit message,
+#   - the names of the files it touches,
+#   - the lines it adds.
+# Catches commits made with `commit --no-verify`, imported via
+# cherry-pick/patch/rebase from elsewhere, or already sitting in history.
+# The patterns and carve-outs mirror pre-commit and commit-msg exactly; see
+# pre-commit for why "cursor" and lockfiles are handled specially.
+
+# Two classes, because one of them collides with ordinary code.
+#   AI_ANYWHERE — distinctive enough to be meant wherever it appears, so it
+#     matches inside an identifier too: ClaudeService.ts and myclaudehelper
+#     both trip. Word-bounding these would let camelCase through.
+#   AI_WORD — also ordinary substrings, so they count only as WHOLE WORDS.
+#     "decodeXml" is not Codex and "geminid" is not Gemini. Each still trips
+#     as a word: codex.md, using Codex, Gemini.
+#
+# Added 2026-09-06, after `decodeXml` in a merge commit already on the remote
+# made it impossible to push any new branch in this repository.
+AI_ANYWHERE='claude|anthropic|copilot|chatgpt|openai|gpt-[0-9]|codeium|tabnine|windsurf|deepseek'
+AI_WORD='codex|kimi|gemini'
+PATTERN="$AI_ANYWHERE|\\b($AI_WORD)\\b|cursor"
+CONTENT_PATTERN="$AI_ANYWHERE|\\b($AI_WORD)\\b"
+CURSOR_PATTERN='(co-?authored|generated|written|authored|created|assisted|made|built|powered)([^a-z]|[a-z]){0,24}cursor|cursor\.(sh|so|com|ai|dev)|cursor[-_ ](ide|editor|ai|agent|composer|rules)|\.cursorrules|\.cursor/'
+ROBOT=$(printf '\360\237\244\226')
+
+z40=0000000000000000000000000000000000000000
+HITS=$(mktemp)
+PATHS=$(mktemp)
+trap 'rm -f "$HITS" "$PATHS"' EXIT
+
+check_commit() {
+  c="$1"
+  ref="$2"
+
+  # Identity: an AI-bot author or committer must not reach a remote.
+  ident=$(git show -s --format='%an <%ae>%n%cn <%ce>' "$c")
+  if printf '%s' "$ident" | grep -qiE "$PATTERN"; then
+    printf '  %s (%s) IDENT: %s\n' "$c" "$ref" "$(printf '%s' "$ident" | tr '\n' ';')" >> "$HITS"
+  fi
+
+  # Message: provider names anywhere, attribution-context cursor, robot mark.
+  # The robot mark is matched by SHELL string containment, not grep: the hook
+  # environment's locale differs from an interactive shell's, and a multibyte
+  # grep pattern that matches at a prompt silently missed under a real push.
+  msg=$(git show -s --format='%B' "$c")
+  robot_hit=1
+  case "$msg" in *"$ROBOT"*) robot_hit=0 ;; esac
+  if printf '%s' "$msg" | grep -qiE "$CONTENT_PATTERN" \
+    || printf '%s' "$msg" | grep -qiE "$CURSOR_PATTERN" \
+    || [ "$robot_hit" -eq 0 ]; then
+    printf '  %s (%s) MESSAGE\n' "$c" "$ref" >> "$HITS"
+  fi
+
+  # File names and added lines, with pre-commit's exact carve-outs. A merge
+  # commit shows no diff here (its content arrived in parents already
+  # checked); that is the same stance `git log -p` takes.
+  git diff-tree -r --no-commit-id --name-only --diff-filter=ACMR -z "$c" \
+    | tr '\0' '\n' > "$PATHS"
+  while IFS= read -r path; do
+    [ -z "$path" ] && continue
+    case "$path" in
+      *.githooks/*|AGENTS.md|RULES.md|.ai-rules.md|*/AGENTS.md|*/RULES.md|*/.ai-rules.md)
+        continue ;;
+    esac
+    if printf '%s' "$path" | grep -qiE "$PATTERN"; then
+      printf '  %s (%s) NAME: %s\n' "$c" "$ref" "$path" >> "$HITS"
+    fi
+    case "$path" in
+      package-lock.json|*/package-lock.json|npm-shrinkwrap.json|*/npm-shrinkwrap.json|yarn.lock|*/yarn.lock|pnpm-lock.yaml|*/pnpm-lock.yaml)
+        continue ;;
+    esac
+    added=$(git diff-tree -r -p --no-commit-id "$c" -- "$path" \
+      | grep '^+' | grep -v '^+++')
+    if printf '%s' "$added" | grep -qiE "$CONTENT_PATTERN" \
+      || printf '%s' "$added" | grep -qiE "$CURSOR_PATTERN"; then
+      printf '  %s (%s) CONTENT: %s\n' "$c" "$ref" "$path" >> "$HITS"
+    fi
+  done < "$PATHS"
+}
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$z40" ] && continue   # deleting a ref, nothing to check
+
+  # A brand-new ref is checked for what it ADDS, not for everything reachable
+  # from it. Checking the whole history meant a branch cut from main re-read
+  # every commit ever pushed, so one historical false positive made it
+  # impossible to create a branch at all — which is how a guard ends up
+  # bypassed with --no-verify. Anything already on a remote has been past this
+  # hook or predates it; re-reading it yields noise and never protection.
+  if [ "$remote_sha" = "$z40" ]; then
+    commits=$(git rev-list "$local_sha" --not --remotes -- 2>/dev/null)
+  else
+    commits=$(git rev-list "$remote_sha..$local_sha" -- 2>/dev/null)
+  fi
+
+  for c in $commits; do
+    check_commit "$c" "$remote_ref"
+  done
+done
+
+if [ -s "$HITS" ]; then
+  echo "" >&2
+  echo "pre-push hook: rejected - commit(s) about to be pushed carry an AI-provider footprint:" >&2
+  cat "$HITS" >&2
+  echo "" >&2
+  echo "Rewrite the offending commit(s) (rebase/amend) so no identity, message," >&2
+  echo "file name or added line names an AI tool, then push again." >&2
+  echo "" >&2
+  exit 1
+fi
+
+exit 0

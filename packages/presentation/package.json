@@ -1,0 +1,17 @@
+{
+  "name": "@rutba/presentation",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "The presentation engine: a preserving .pptx package layer on the OOXML core, a slide scene model, layout/master inheritance, and an SVG renderer shared with @rutba/drawing.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./deck": "./src/deck.js",
+    "./slide": "./src/slide.js",
+    "./render": "./src/render.js",
+    "./build": "./src/build.js"
+  },
+  "dependencies": { "@rutba/ooxml": "*", "@rutba/drawing": "*", "@rutba/editing": "*" },
+  "sideEffects": false
+}

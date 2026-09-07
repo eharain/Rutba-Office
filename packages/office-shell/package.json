@@ -1,0 +1,16 @@
+{
+  "name": "@rutba/office-shell",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "The platform port: every OS capability Rutba Office needs (files, dialogs, windows, menus, secrets, shell) behind one interface, with an Electron backend. A second backend (Tauri) can be added without touching an app.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./contract": "./src/contract.js",
+    "./electron/main": "./src/electron/main.js",
+    "./electron/preload": "./src/electron/preload.cjs",
+    "./client": "./src/client.js"
+  },
+  "sideEffects": false
+}

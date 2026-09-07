@@ -1,0 +1,121 @@
+#!/bin/sh
+# Blocks a commit that would carry an AI-provider footprint in ANY of:
+#   - the author or committer identity (name or email),
+#   - a staged file's NAME,
+#   - a staged file's CONTENT.
+# Providers covered: Claude, Anthropic, Copilot, ChatGPT, OpenAI/GPT, Cursor,
+# Codeium, Tabnine, Windsurf, Kimi, DeepSeek, Gemini, Codex.
+#
+# One of three guards: commit-msg covers the commit message, pre-push re-checks
+# whole history (identities, messages, names, added lines) so a --no-verify
+# commit or an imported one is still caught before it reaches a remote.
+# Installed machine-wide via `git config --global core.hooksPath`, and
+# versioned in each repo's .githooks/ so the protection travels with a clone.
+#
+# The only files allowed to carry these names are the guardrail files
+# themselves, which must name what they block: .githooks/*, AGENTS.md,
+# RULES.md (and the .ai-rules.md predecessor). Anything else staged with a
+# match is rejected.
+
+# Two classes, because one of them collides with ordinary code.
+#   AI_ANYWHERE — distinctive enough to be meant wherever it appears, so it
+#     matches inside an identifier too. Word-bounding these would let a
+#     camelCase file or symbol name through, which is a name worth catching.
+#   AI_WORD — also ordinary substrings, so they count only as WHOLE WORDS. An
+#     XML decoding helper whose name ends in "codeX" is not a tool, and neither
+#     is a meteor shower. Each still trips when written as a word.
+#
+# Added 2026-09-06, mirroring pre-push and commit-msg.
+AI_ANYWHERE='claude|anthropic|copilot|chatgpt|openai|gpt-[0-9]|codeium|tabnine|windsurf|deepseek'
+AI_WORD='codex|kimi|gemini'
+PATTERN="$AI_ANYWHERE|\\b($AI_WORD)\\b|cursor"
+
+# CONTENT is scanned with a second pattern, because one name on that list is
+# also an ordinary word.
+#
+# "cursor" is the text caret, the CSS property and the database iterator. It
+# appears in 183 files already committed here and it is the core vocabulary of
+# a document editor: the co-editing model is literally one shared document and
+# per-participant cursors. Scanning content for a bare "cursor" made every one
+# of those files uneditable and blocked the word from ever being written again
+# — the same defect the lockfile carve-out below fixes, and with the same
+# consequence: a guard that cannot be satisfied is one that gets bypassed with
+# --no-verify, which is worse than the false positive.
+#
+# So content is checked for the AI tool rather than the noun: the name has to
+# appear as an attribution, a domain, or a product reference. The FILE NAME
+# check keeps the full pattern above — no file here is named for a caret, and
+# `.cursor/` or `cursorrules` is exactly the artefact worth catching.
+#
+# Every other name on the list is unambiguous and stays broad.
+CONTENT_PATTERN="$AI_ANYWHERE|\\b($AI_WORD)\\b"
+CURSOR_PATTERN='(co-?authored|generated|written|authored|created|assisted|made|built|powered)([^a-z]|[a-z]){0,24}cursor|cursor\.(sh|so|com|ai|dev)|cursor[-_ ](ide|editor|ai|agent|composer|rules)|\.cursorrules|\.cursor/'
+
+# ── who is committing ───────────────────────────────────────────────────────
+# An AI-bot author or committer is a footprint no message or content scan can
+# see. `git var` resolves the same precedence git itself uses (environment,
+# then config), so what is checked is exactly what the commit would record.
+IDENT="$(git var GIT_AUTHOR_IDENT 2>/dev/null)
+$(git var GIT_COMMITTER_IDENT 2>/dev/null)"
+if printf '%s' "$IDENT" | grep -qiE "$PATTERN"; then
+  echo "" >&2
+  echo "pre-commit hook: rejected - the author or committer identity names an AI provider:" >&2
+  printf '%s\n' "$IDENT" | sed 's/^/  /' >&2
+  echo "" >&2
+  echo "Set your own name and email (git config user.name / user.email, or the" >&2
+  echo "GIT_AUTHOR_* / GIT_COMMITTER_* environment) and retry." >&2
+  echo "" >&2
+  exit 1
+fi
+
+HITS=$(mktemp)
+trap 'rm -f "$HITS"' EXIT
+
+# NUL-delimited staged paths (added/copied/modified/renamed). tr converts
+# NUL to newline so the loop stays in this shell (no subshell state loss).
+git diff --cached --name-only --diff-filter=ACMR -z | tr '\0' '\n' | while IFS= read -r path; do
+  [ -z "$path" ] && continue
+
+  case "$path" in
+    *.githooks/*|AGENTS.md|RULES.md|.ai-rules.md|*/AGENTS.md|*/RULES.md|*/.ai-rules.md)
+      continue ;;
+  esac
+
+  if printf '%s' "$path" | grep -qiE "$PATTERN"; then
+    printf '  NAME: %s\n' "$path" >> "$HITS"
+  fi
+
+  # Generated dependency locks are checked by NAME but not by CONTENT. Nobody
+  # writes a lockfile — npm resolves it from the public registry — so it cannot
+  # carry an attribution anybody chose to put there. What it DOES carry is
+  # ordinary packages whose names collide with the pattern: `cli-cursor` and
+  # `restore-cursor` (terminal cursor handling, pulled in transitively by ora,
+  # inquirer and listr) match `cursor`, which made every lockfile in the estate
+  # uncommittable. A guard that cannot be satisfied is a guard that gets
+  # bypassed with --no-verify, and that is worse than the false positive.
+  case "$path" in
+    package-lock.json|*/package-lock.json|npm-shrinkwrap.json|*/npm-shrinkwrap.json|yarn.lock|*/yarn.lock|pnpm-lock.yaml|*/pnpm-lock.yaml)
+      continue ;;
+  esac
+
+  blob=$(git ls-files -s -- "$path" | awk '{print $2}')
+  [ -z "$blob" ] && continue
+  if git cat-file -p "$blob" 2>/dev/null | grep -qiE "$CONTENT_PATTERN"; then
+    printf '  CONTENT: %s\n' "$path" >> "$HITS"
+  elif git cat-file -p "$blob" 2>/dev/null | grep -qiE "$CURSOR_PATTERN"; then
+    printf '  CONTENT: %s\n' "$path" >> "$HITS"
+  fi
+done
+
+if [ -s "$HITS" ]; then
+  echo "" >&2
+  echo "pre-commit hook: rejected - staged file(s) carry an AI-provider name in the file name or content:" >&2
+  cat "$HITS" >&2
+  echo "" >&2
+  echo "Rename the file / remove the reference. Files that legitimately document this" >&2
+  echo "policy belong in AGENTS.md / RULES.md or .githooks/, which are allow-listed." >&2
+  echo "" >&2
+  exit 1
+fi
+
+exit 0

@@ -1,0 +1,20 @@
+{
+  "name": "@rutba/mailbox",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "Mail without a server: RFC 5322/2045 parsing, and readers for the containers other clients leave behind — Outlook .pst/.ost and .msg, Outlook for Mac .olm, Unix mbox, .eml and Maildir. Plus the local message store the client runs on.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./mime": "./src/mime.js",
+    "./mbox": "./src/mbox.js",
+    "./pst": "./src/pst/index.js",
+    "./msg": "./src/msg.js",
+    "./olm": "./src/olm.js",
+    "./import": "./src/import.js",
+    "./store": "./src/store.js"
+  },
+  "dependencies": { "@rutba/office-formats": "*" },
+  "sideEffects": false
+}

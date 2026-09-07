@@ -1,0 +1,29 @@
+{
+  "name": "@rutba/ooxml",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "Owned OOXML core: a preserving package layer for .xlsx/.docx, plus a workbook view that edits only what it understands and passes everything else through untouched.",
+  "homepage": "https://rutba.io/office",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eharain/rutba-office.git",
+    "directory": "packages/ooxml"
+  },
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./package": "./src/package.js",
+    "./workbook": "./src/workbook.js",
+    "./fidelity": "./src/fidelity.js",
+    "./document": "./src/document.js",
+    "./capabilities": "./src/capabilities.js",
+    "./recalc": "./src/recalc.js",
+    "./pivot": "./src/pivot.js",
+    "./build": "./src/build.js",
+    "./zip": "./src/zip.js"
+  },
+  "dependencies": {
+    "@rutba/formula": "*"
+  }
+}

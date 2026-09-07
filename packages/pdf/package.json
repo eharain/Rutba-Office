@@ -1,0 +1,30 @@
+{
+  "name": "@rutba/pdf",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "A PDF writer with no dependencies: base-14 fonts, exact widths, and a page layout for business documents.",
+  "homepage": "https://rutba.io/office",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eharain/rutba-office.git",
+    "directory": "packages/pdf"
+  },
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./metrics": "./src/metrics.js",
+    "./encoding": "./src/encoding.js",
+    "./document": "./src/document.js",
+    "./sheet": "./src/sheet.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

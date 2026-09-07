@@ -1,0 +1,17 @@
+node_modules/
+dist/
+release/
+build/out/
+*.log
+
+.env
+.env.*
+!.env.example
+
+# Renderer bundles are build output.
+apps/desktop/renderer/build/
+
+# Agent scratch and per-machine settings.
+.ai/
+.vs/
+.worktrees/

@@ -1,0 +1,20 @@
+{
+  "name": "@rutba/formula",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "Spreadsheet calculation: tokenizer, parser, evaluator, function library and dependency-ordered recalculation. Excel semantics, written from the published behaviour of spreadsheets rather than from any implementation.",
+  "homepage": "https://rutba.io/office",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eharain/rutba-office.git",
+    "directory": "packages/formula"
+  },
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./functions": "./src/functions.js",
+    "./parser": "./src/parser.js",
+    "./catalog": "./src/catalog.js"
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "@rutba/editing",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "Editing primitives shared by every surface: the undo history, with the coalescing rules that make it feel right. No DOM, no format, no product.",
+  "homepage": "https://rutba.io/office",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eharain/rutba-office.git",
+    "directory": "packages/editing"
+  },
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./history": "./src/history.js"
+  },
+  "files": [
+    "src",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "restricted"
+  }
+}

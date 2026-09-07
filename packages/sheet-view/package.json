@@ -1,0 +1,27 @@
+{
+  "name": "@rutba/sheet-view",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "The renderable model of a sheet: number formats, geometry, virtualisation, selection and edit state. Pure logic, no DOM — the browser shell is a thin layer over this.",
+  "homepage": "https://rutba.io/office",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eharain/rutba-office.git",
+    "directory": "packages/sheet-view"
+  },
+  "type": "module",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./numfmt": "./src/numfmt.js",
+    "./geometry": "./src/geometry.js",
+    "./selection": "./src/selection.js",
+    "./styles-write": "./src/styles-write.js"
+  },
+  "dependencies": {
+    "@rutba/formula": "*",
+    "@rutba/ooxml": "*",
+    "@rutba/drawing": "*",
+    "@rutba/editing": "*"
+  }
+}

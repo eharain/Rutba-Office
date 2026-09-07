@@ -1,0 +1,33 @@
+{
+  "name": "rutba-office",
+  "version": "1.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "description": "Rutba Office — free, open-source, cross-platform desktop office suite: Mail, Word, Worksheets, Presentation, Pictures, Image and Video. One installer, seven apps, on an engine we own.",
+  "homepage": "https://rutba.io/office",
+  "author": "Tech Style Ltd <hello@tech-style.co> (https://tech-style.co)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "prepare": "git config core.hooksPath .githooks",
+    "build": "npm run build --workspace=@rutba/office-desktop",
+    "dev": "npm run dev --workspace=@rutba/office-desktop",
+    "start": "npm run start --workspace=@rutba/office-desktop",
+    "dist": "npm run dist --workspace=@rutba/office-desktop",
+    "dist:win": "npm run dist:win --workspace=@rutba/office-desktop",
+    "dist:mac": "npm run dist:mac --workspace=@rutba/office-desktop",
+    "dist:linux": "npm run dist:linux --workspace=@rutba/office-desktop",
+    "test": "node --test \"tests/*.test.js\"",
+    "gate": "node tools/gate.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "electron": "43.4.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.25.0"
+  }
+}

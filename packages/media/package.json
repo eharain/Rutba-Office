@@ -1,0 +1,15 @@
+{
+  "name": "@rutba/media",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "Video and audio: MP4/WebM container probing, the edit timeline model (trim, split, join, speed, volume, captions) and the WebCodecs export plan. No ffmpeg, no native binaries.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./probe": "./src/probe.js",
+    "./timeline": "./src/timeline.js",
+    "./export": "./src/export.js"
+  },
+  "sideEffects": false
+}

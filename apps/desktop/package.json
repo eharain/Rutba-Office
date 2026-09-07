@@ -1,0 +1,43 @@
+{
+  "name": "@rutba/office-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "description": "Rutba Office — the desktop application. One window frame, seven apps: Mail, Word, Worksheets, Presentation, Pictures, Image and Video.",
+  "type": "module",
+  "main": "main/main.js",
+  "scripts": {
+    "build:renderer": "node build/bundle.js",
+    "build": "node build/bundle.js",
+    "watch": "node build/bundle.js --watch",
+    "start": "electron .",
+    "dev": "node build/dev.js",
+    "dist": "npm run build && electron-builder --publish never",
+    "dist:win": "npm run build && electron-builder --win --publish never",
+    "dist:mac": "npm run build && electron-builder --mac --publish never",
+    "dist:linux": "npm run build && electron-builder --linux --publish never"
+  },
+  "dependencies": {
+    "@rutba/doc-view": "*",
+    "@rutba/drawing": "*",
+    "@rutba/editing": "*",
+    "@rutba/formula": "*",
+    "@rutba/imaging": "*",
+    "@rutba/mailbox": "*",
+    "@rutba/media": "*",
+    "@rutba/office-formats": "*",
+    "@rutba/office-shell": "*",
+    "@rutba/office-ui": "*",
+    "@rutba/ooxml": "*",
+    "@rutba/pdf": "*",
+    "@rutba/presentation": "*",
+    "@rutba/sheet-view": "*",
+    "imapflow": "^1.7.0",
+    "mailparser": "^3.9.15",
+    "nodemailer": "^9.0.5"
+  },
+  "devDependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  }
+}

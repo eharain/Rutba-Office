@@ -1,0 +1,259 @@
+// The Electron backend.
+//
+// `createShell()` is everything the desktop app needs from the operating
+// system: one instance, the rutba:// scheme, windows, the menu and its
+// accelerators, and the file-association plumbing that makes double-clicking a
+// .docx open Word rather than a second copy of the launcher.
+//
+// The app supplies its own namespaces (mail) and its command handler. Nothing
+// about documents, formats or IMAP is known here — that is the point of the
+// seam.
+
+import { app, BrowserWindow, Menu, nativeTheme, shell as electronShell } from 'electron';
+import path from 'node:path';
+import fs from 'node:fs';
+import { createStores } from './store.js';
+import { registerSchemePrivileges, installProtocol, fileUrl, holdBlob, releaseBlob, SCHEME } from './protocol.js';
+import { createWindowManager } from './windows.js';
+import { buildImplementations, installIpc, sendEvent, broadcast } from './ipc.js';
+
+const isMac = process.platform === 'darwin';
+
+// Registered before app ready, or the scheme is not privileged when the first
+// window loads. Callers get this by importing the module, so it must be safe to
+// run at import time.
+registerSchemePrivileges();
+
+function buildMenu({ send, appName }) {
+  const cmd = (command, args) => () => send(command, args);
+  const template = [
+    ...(isMac
+      ? [
+          {
+            label: appName,
+            submenu: [
+              { role: 'about' },
+              { type: 'separator' },
+              { label: 'Settings…', accelerator: 'Cmd+,', click: cmd('app.settings') },
+              { type: 'separator' },
+              { role: 'services' },
+              { type: 'separator' },
+              { role: 'hide' },
+              { role: 'hideOthers' },
+              { role: 'unhide' },
+              { type: 'separator' },
+              { role: 'quit' },
+            ],
+          },
+        ]
+      : []),
+    {
+      label: '&File',
+      submenu: [
+        { label: 'New', accelerator: 'CmdOrCtrl+N', click: cmd('file.new') },
+        { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: cmd('file.open') },
+        { label: 'Open Recent', role: 'recentDocuments', submenu: [{ label: 'Clear', role: 'clearRecentDocuments' }] },
+        { type: 'separator' },
+        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: cmd('file.save') },
+        { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: cmd('file.saveAs') },
+        { label: 'Export as PDF…', accelerator: 'CmdOrCtrl+Shift+E', click: cmd('file.exportPdf') },
+        { type: 'separator' },
+        { label: 'Print…', accelerator: 'CmdOrCtrl+P', click: cmd('file.print') },
+        { type: 'separator' },
+        { label: 'Close Window', accelerator: 'CmdOrCtrl+W', role: 'close' },
+        ...(isMac ? [] : [{ label: 'Exit', role: 'quit' }]),
+      ],
+    },
+    {
+      label: '&Edit',
+      submenu: [
+        { label: 'Undo', accelerator: 'CmdOrCtrl+Z', click: cmd('edit.undo') },
+        { label: 'Redo', accelerator: isMac ? 'Cmd+Shift+Z' : 'Ctrl+Y', click: cmd('edit.redo') },
+        { type: 'separator' },
+        { role: 'cut' },
+        { role: 'copy' },
+        { role: 'paste' },
+        { label: 'Paste as Plain Text', accelerator: 'CmdOrCtrl+Shift+V', role: 'pasteAndMatchStyle' },
+        { role: 'selectAll' },
+        { type: 'separator' },
+        { label: 'Find…', accelerator: 'CmdOrCtrl+F', click: cmd('edit.find') },
+        { label: 'Replace…', accelerator: 'CmdOrCtrl+H', click: cmd('edit.replace') },
+      ],
+    },
+    {
+      label: '&View',
+      submenu: [
+        { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', click: cmd('view.zoomIn') },
+        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: cmd('view.zoomOut') },
+        { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: cmd('view.zoomReset') },
+        { type: 'separator' },
+        { label: 'Toggle Theme', accelerator: 'CmdOrCtrl+Shift+D', click: cmd('view.toggleTheme') },
+        { label: 'Full Screen', accelerator: isMac ? 'Ctrl+Cmd+F' : 'F11', click: cmd('view.fullscreen') },
+        { type: 'separator' },
+        { label: 'Reload', accelerator: 'CmdOrCtrl+R', role: 'reload' },
+        { label: 'Developer Tools', accelerator: isMac ? 'Alt+Cmd+I' : 'Ctrl+Shift+I', role: 'toggleDevTools' },
+      ],
+    },
+    {
+      label: '&Apps',
+      submenu: [
+        { label: 'Home', accelerator: 'CmdOrCtrl+Shift+H', click: cmd('open.app', { app: 'home' }) },
+        { type: 'separator' },
+        { label: 'Mail', click: cmd('open.app', { app: 'mail' }) },
+        { label: 'Word', click: cmd('open.app', { app: 'word' }) },
+        { label: 'Worksheets', click: cmd('open.app', { app: 'sheets' }) },
+        { label: 'Presentation', click: cmd('open.app', { app: 'slides' }) },
+        { label: 'Pictures', click: cmd('open.app', { app: 'pictures' }) },
+        { label: 'Image', click: cmd('open.app', { app: 'image' }) },
+        { label: 'Video', click: cmd('open.app', { app: 'video' }) },
+      ],
+    },
+    {
+      label: '&Help',
+      submenu: [
+        { label: 'Rutba Office Help', accelerator: 'F1', click: cmd('help.show') },
+        { label: 'Keyboard Shortcuts', click: cmd('help.shortcuts') },
+        { type: 'separator' },
+        { label: 'Source Code (AGPL)', click: () => electronShell.openExternal('https://github.com/eharain/rutba-office') },
+        { label: 'Rutba Workspace Online', click: () => electronShell.openExternal('https://rutba.io/') },
+        { type: 'separator' },
+        { label: 'About Rutba Office', click: cmd('help.about') },
+      ],
+    },
+  ];
+  return Menu.buildFromTemplate(template);
+}
+
+/**
+ * @param {object} o
+ * @param {string} o.rendererDir  directory holding index.html + bundle
+ * @param {string} o.preloadPath  bundled CommonJS preload
+ * @param {string} [o.iconPath]
+ * @param {string} [o.appName]
+ * @param {(ctx) => object} [o.namespaces] extra IPC namespaces, given the shell context
+ * @param {(path: string) => string} [o.appForFile] which app opens this file
+ */
+export function createShell({
+  rendererDir,
+  preloadPath,
+  iconPath,
+  appName = 'Rutba Office',
+  namespaces,
+  appForFile = () => 'home',
+  onReady,
+}) {
+  app.setName(appName);
+  if (process.platform === 'win32') app.setAppUserModelId('co.techstyle.rutba.office');
+
+  const quitting = { value: false };
+  /** Files handed to us before the app was ready (double-click at cold start). */
+  const pending = [];
+
+  const gotLock = app.requestSingleInstanceLock();
+  if (!gotLock) {
+    app.quit();
+    return { app };
+  }
+
+  let stores = null;
+  let windows = null;
+
+  function send(command, args) {
+    const win = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+    if (win) sendEvent(win, 'app:command', { command, args: args || null });
+  }
+
+  function openPath(p) {
+    if (!p || !fs.existsSync(p)) return;
+    const which = appForFile(p);
+    windows.open({ app: which, file: p });
+    stores.recent.add({ path: p, app: which });
+  }
+
+  function argvFiles(argv) {
+    return argv
+      .slice(1)
+      .filter((a) => !a.startsWith('-') && !a.startsWith(`${SCHEME}:`))
+      .filter((a) => {
+        try {
+          return fs.statSync(a).isFile();
+        } catch {
+          return false;
+        }
+      });
+  }
+
+  // macOS delivers documents through this event, before and after ready.
+  app.on('open-file', (event, p) => {
+    event.preventDefault();
+    if (windows) openPath(p);
+    else pending.push(p);
+  });
+
+  app.on('second-instance', (_e, argv) => {
+    const files = argvFiles(argv);
+    if (files.length) files.forEach(openPath);
+    else {
+      const win = BrowserWindow.getAllWindows()[0];
+      if (win) {
+        if (win.isMinimized()) win.restore();
+        win.focus();
+      } else windows.open({ app: 'home' });
+    }
+  });
+
+  app.on('window-all-closed', () => {
+    if (!isMac) app.quit();
+  });
+
+  app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) windows.open({ app: 'home' });
+  });
+
+  app.on('before-quit', () => {
+    quitting.value = true;
+  });
+
+  app.whenReady().then(async () => {
+    stores = createStores();
+
+    installProtocol({ rendererDir, allowFile: () => true });
+
+    windows = createWindowManager({
+      stores,
+      preloadPath,
+      iconPath,
+      onWindowEvent: (win, event, payload) => sendEvent(win, event, payload),
+    });
+
+    const context = {
+      stores,
+      windows,
+      openPath,
+      fileUrl,
+      holdBlob,
+      releaseBlob,
+      broadcast,
+      sendEvent,
+      send,
+    };
+
+    const base = buildImplementations({ stores, windows, quitting });
+    const extra = namespaces ? await namespaces(context) : {};
+    installIpc({ ...base, ...extra });
+
+    Menu.setApplicationMenu(buildMenu({ send, appName }));
+
+    nativeTheme.on('updated', () => broadcast('theme:changed', { dark: nativeTheme.shouldUseDarkColors }));
+
+    await onReady?.(context);
+
+    const startFiles = [...pending, ...argvFiles(process.argv)];
+    if (startFiles.length) startFiles.forEach(openPath);
+    else windows.open({ app: 'home' });
+  });
+
+  return { app, get windows() { return windows; }, get stores() { return stores; }, openPath, fileUrl, holdBlob };
+}
+
+export { fileUrl, holdBlob, releaseBlob, sendEvent, broadcast, path };
