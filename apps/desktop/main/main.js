@@ -44,7 +44,7 @@ createShell({
   onReady: process.env.RUTBA_OFFICE_SMOKE
     ? async ({ windows, stores }) => {
         const { runSmoke } = await import('./smoke.js');
-        const ok = await runSmoke({ windows, outDir: path.join(app, 'build', 'smoke'), stores, mail: services?.mail });
+        const ok = await runSmoke({ windows, outDir: process.env.RUTBA_SMOKE_OUT || path.join(app, 'build', 'smoke'), stores, mail: services?.mail });
         const { app: electronApp } = await import('electron');
         electronApp.exit(ok ? 0 : 1);
       }

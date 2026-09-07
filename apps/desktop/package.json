@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "license": "AGPL-3.0-or-later",
-  "description": "Rutba Office — the desktop application. One window frame, seven apps: Mail, Word, Worksheets, Presentation, Pictures, Image and Video.",
+  "description": "Rutba Office — free, open-source desktop suite: Mail, Word, Worksheets, Presentation, Pictures, Image and Video.",
   "type": "module",
   "main": "main/main.js",
   "scripts": {
@@ -12,11 +12,12 @@
     "watch": "node build/bundle.js --watch",
     "start": "electron .",
     "dev": "node build/dev.js",
-    "dist": "npm run build && electron-builder --publish never",
-    "dist:win": "npm run build && electron-builder --win --publish never",
-    "dist:mac": "npm run build && electron-builder --mac --publish never",
-    "dist:linux": "npm run build && electron-builder --linux --publish never",
-    "smoke": "node build/bundle.js && node build/smoke-run.js"
+    "dist": "npm run build && electron-builder --config electron-builder.config.cjs --publish never",
+    "dist:win": "npm run build && electron-builder --config electron-builder.config.cjs --win --publish never",
+    "dist:mac": "npm run build && electron-builder --config electron-builder.config.cjs --mac --publish never",
+    "dist:linux": "npm run build && electron-builder --config electron-builder.config.cjs --linux --publish never",
+    "smoke": "node build/bundle.js && node build/smoke-run.js",
+    "icon": "electron build/make-icon.js"
   },
   "dependencies": {
     "@rutba/doc-view": "*",
@@ -40,5 +41,11 @@
   "devDependencies": {
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
-  }
+  },
+  "author": {
+    "name": "Tech Style Ltd",
+    "email": "hello@tech-style.co",
+    "url": "https://tech-style.co"
+  },
+  "homepage": "https://github.com/eharain/Rutba-Office"
 }

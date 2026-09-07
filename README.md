@@ -1,0 +1,168 @@
+# Rutba Office
+
+A free, open-source desktop office suite. Seven apps in one download, working
+with the network switched off.
+
+| | | |
+|---|---|---|
+| **Mail** | Every account, every archive, one inbox | IMAP and SMTP, plus the archives other clients leave behind — Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg` |
+| **Word** | Documents that open the same everywhere | `.docx` on an engine we own, reading `.odt`, `.rtf`, `.doc`, Markdown and text |
+| **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.ods` and `.csv` |
+| **Presentation** | Slides that survive the round trip | `.pptx` — read, edit, render, present — reading `.odp` |
+| **Pictures** | A viewer that opens before you blink | Every common format, EXIF, orientation, and PDFs |
+| **Image** | Crop, correct, annotate, export | Non-destructive: your original is never touched |
+| **Video** | Trim and export without a render farm | No ffmpeg, no native binaries, nothing to install |
+
+Dual-licensed: **GNU AGPL v3.0**, or a commercial licence — see
+[COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
+
+---
+
+## Why this exists
+
+Most free office software asks you to give something up: your file format, your
+privacy, your old mail, or your patience. This asks for none of those.
+
+- **It opens what you already have.** Microsoft formats are the point, not an
+  afterthought. So are the mail archives you have been carrying between
+  computers for fifteen years.
+- **It works offline.** There is no account, no sign-in, no telemetry and no
+  network call. Unplug the machine and everything in the list above still works.
+- **It does not damage your files.** The engine rewrites only the parts of a
+  document it deliberately edited; everything else — charts, pivot caches,
+  macros, signatures, embedded media — is returned byte-for-byte as it arrived.
+- **The source is published.** Under the AGPL, which means you can read it,
+  change it and share it.
+
+## Install
+
+Downloads are built for Windows, macOS and Linux:
+
+| Platform | File |
+|---|---|
+| Windows | `Rutba-Office-<version>-win-x64.exe` (installer) or `-portable.exe` |
+| macOS | `Rutba-Office-<version>-mac-<arch>.dmg` |
+| Linux | `Rutba-Office-<version>-linux-x86_64.AppImage`, or the `.deb` |
+
+The Windows builds are not code-signed yet, so SmartScreen will warn on first
+run. That is worth knowing before you click.
+
+## Build it yourself
+
+```bash
+git clone https://github.com/eharain/Rutba-Office.git office
+cd office
+npm install
+npm test          # 570 tests, no network needed
+npm run build     # bundle the renderer
+npm start         # run the app
+npm run dist      # installers for this platform, into apps/desktop/release
+```
+
+Node 20 or later. Nothing else — no Python, no C++ toolchain, no native modules.
+
+## What is in the repository
+
+```
+packages/
+  ooxml            the preserving .xlsx/.docx package layer — the engine core
+  formula          spreadsheet calculation: parser, evaluator, dependency order
+  sheet-view       the renderable model of a sheet: formats, geometry, selection
+  doc-view         the editable model of a document: runs, positions, formatting
+  presentation     the .pptx engine: package, scene, layout inheritance, SVG
+  drawing          format-neutral scene graph, SVG renderer, chart layout
+  editing          the undo history, and the rules that make it feel right
+  pdf              a PDF writer with no dependencies
+  office-formats   what a file is: sniffing, ODF, RTF, compound file, text
+  mailbox          MIME, mbox, .msg, .olm, .pst/.ost, and the local mail store
+  imaging          image probing, EXIF, and the non-destructive edit pipeline
+  media            container probing and the video edit timeline
+  office-shell     the platform contract, and its Electron backend
+  office-ui        the design system every app renders with
+
+apps/desktop       the application: main process, renderer, seven apps
+tools/             probes for looking inside real files during development
+tests/             the engine suite
+```
+
+### The two decisions that shape everything else
+
+**Documents live in the backend.** The OOXML engine inflates with zlib and works
+in Buffers — it is a Node engine, not a browser one. So a document opens, edits
+and saves in the main process, and the window draws the view model it is sent.
+A spreadsheet asks for the viewport it is about to paint and nothing else, which
+is why the size of a workbook has no bearing on the size of a window's heap.
+
+**We only rewrite what we edit.** An `.xlsx` is a zip of XML parts, and almost
+everything we will not implement for years lives in a part that can be carried
+through untouched. Fidelity is therefore high on day one and degrades only in
+the specific places we choose to touch — which are also the places we test.
+
+## Formats
+
+**Read and write:** `.docx` `.xlsx` `.pptx` `.csv` `.tsv` `.txt` `.md` `.html`
+`.pdf` (export) `.png` `.jpg` `.webp` `.webm` `.eml` `.mbox`
+
+**Read:** `.doc` `.xls` `.ppt` `.odt` `.ods` `.odp` `.rtf` `.pst` `.ost` `.olm`
+`.msg` `.emlx` and every image and video format the browser engine decodes.
+
+A format we can read but not write is opened by converting it into one we can —
+an `.odt` becomes a document, an `.ods` a workbook — and the title bar says so,
+so Save As is never a surprise.
+
+### Outlook data files
+
+`.pst` and `.ost` are read in full: the node and block B-trees, the heap,
+property and table contexts, folders, messages, recipients and attachments.
+Verified against a real 906 MB `.ost` — 467 folders, 12,172 messages indexed in
+under a second — which is how three things were found that no amount of reading
+the specification would have given:
+
+- Outlook 2013 and later compress the larger data blocks of an `.ost` with
+  zlib. It is not in the published structure, and a reader that does not notice
+  sees every message in the file as empty.
+- In an `.ost` the hierarchy and contents tables are mostly not materialised —
+  449 folders with five hierarchy tables between them — so the folder tree has
+  to come from the node B-tree's parent pointers, which are always complete.
+- A view table that does exist may still carry no subject column.
+
+The substitution tables for Outlook's block encoding are transcribed from
+Microsoft's published [MS-PST] open specification, and checked three ways when
+they load: each is a permutation of 0–255, and the encode and decode tables are
+exact inverses in both directions. A damaged table decodes nothing rather than
+decoding wrongly.
+
+## Privacy
+
+- No account, no sign-in, no telemetry, no update check.
+- Mail passwords go to the operating system's keystore — DPAPI, Keychain,
+  libsecret — never to a file the application can read back in clear text.
+- Message bodies render in a sandboxed frame with no scripts, no same-origin
+  access, and a policy that blocks every remote fetch. Remote images load only
+  when you ask, per message, so a tracking pixel cannot report that you opened
+  the mail.
+- Deleting a file moves it to the operating system's trash. An office suite
+  should never be the reason something is unrecoverable.
+
+## Testing
+
+```bash
+npm test                # the engine suite
+npm run smoke           # boot the real app, photograph every window, report
+npm run smoke -- word   # just one
+```
+
+`npm run smoke` is the one that finds the things a build cannot. It launches the
+actual application — same main process, same preload, same bundle — waits for
+each window's first render, captures it, and reports anything the renderer
+logged. Three defects in this repository's history were caught by it and by
+nothing else.
+
+## Licence
+
+Copyright © 2026 Tech Style Ltd (Company No. 11101491), registered in England &
+Wales — [tech-style.co](https://tech-style.co).
+
+Dual-licensed under the GNU Affero General Public License v3.0 — see
+[LICENSE](LICENSE) — and a separate commercial licence for use without the
+AGPL's obligations: [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
