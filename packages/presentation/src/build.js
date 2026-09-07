@@ -148,7 +148,14 @@ function placeholderShape(id, name, phType, phIdx, paragraphs, geometry) {
     `<p:txBody><a:bodyPr/><a:lstStyle/>${(paragraphs || []).map(paragraphXml).join('') || '<a:p/>'}</p:txBody></p:sp>`;
 }
 
-function slideXml(slide) {
+/**
+ * One slide, as the XML a .pptx part holds.
+ *
+ * Exported because the Deck builds a new slide with exactly the same shape
+ * a generated deck does — a second implementation of a placeholder shape is
+ * how two code paths quietly diverge on what PowerPoint will open.
+ */
+export function slideXml(slide) {
   const shapes = [];
   let id = 2;
   if (slide.title != null) {

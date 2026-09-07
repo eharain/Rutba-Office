@@ -363,6 +363,45 @@ export async function verifyApps({ windows, doc }) {
     check('video: the checks ran', false, err.message);
   }
 
+  /* ── Presentation: a deck can gain a slide, and a slide can gain notes ─ */
+
+  try {
+    const win = await open('slides', files.pptx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const session = doc.open({ path: files.pptx });
+    const run = async (...ops) => {
+      await doc.apply({ id: session.id, ops });
+      return doc.model({ id: session.id });
+    };
+
+    const before = doc.model({ id: session.id }).count;
+    const after = (await run({ op: 'insertSlide', after: 0, layout: 'obj', title: 'Inserted', body: ['One'] })).count;
+    check('slides: a deck can gain a slide', after === before + 1, `${before} slides became ${after}`);
+
+    await run({ op: 'setNotes', slide: 1, text: 'Mention the tracker report.' });
+    const withNotes = doc.model({ id: session.id, slide: 1 });
+    check('slides: a slide can carry speaker notes', /tracker report/.test(withNotes.slide?.notes || ''), JSON.stringify(withNotes.slide?.notes || ''));
+
+    // And both have to survive the file, since a notes part that PowerPoint
+    // refuses is worse than no notes at all.
+    const target = path.join(dir, 'deck-out.pptx');
+    doc.save({ id: session.id, path: target });
+    const again = doc.open({ path: target, slide: 1 });
+    check('slides: the new slide survives the file', again.model.count === after, `${again.model.count} slides read back`);
+    check('slides: the notes survive the file', /tracker report/.test(again.model.slide?.notes || ''), JSON.stringify(again.model.slide?.notes || ''));
+    doc.close({ id: again.id });
+    doc.close({ id: session.id });
+
+    const tabs = await js(`[...document.querySelectorAll('.rw-ribbon-tabs button, .rw-tab')].map((b) => b.textContent.trim()).join(', ')`);
+    check(
+      'slides: the ribbon has the tabs a presentation has',
+      ['Home', 'Insert', 'Design', 'Slide Show', 'View'].every((t) => tabs.includes(t)),
+      `tabs are ${JSON.stringify(tabs)}`
+    );
+  } catch (err) {
+    check('slides: the deck checks ran', false, err.message);
+  }
+
   /* ── The launcher survives a notice board that is not there ──────────── */
 
   try {

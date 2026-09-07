@@ -14,6 +14,7 @@ import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parse, kids, first, all, escapeXml } from '@rutba/office-formats/xml';
 import { emuToPx, pxToEmu, ptToSz } from './units.js';
 import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText } from './slide.js';
+import { slideXml } from './build.js';
 
 const A = (n) => `a:${n}`;
 const P = (n) => `p:${n}`;
@@ -455,6 +456,134 @@ export class Deck {
     this.dirty = true;
     this.#load();
     return this.slideParts.findIndex((s) => s.part === newPart);
+  }
+
+  /**
+   * A new slide, after the one at `after`.
+   *
+   * Until this existed a deck could only grow by duplicating a slide it already
+   * had — which meant a new presentation could not gain a second slide at all,
+   * and is the single most-used button in every presentation program there is.
+   *
+   * The layout is borrowed from a neighbouring slide rather than invented: a
+   * deck's layouts carry its theme, its placeholder geometry and its fonts, and
+   * a slide that points at a layout the deck does not have is a slide that
+   * opens blank in PowerPoint.
+   *
+   * @param {number} after index to insert after; -1 puts it first
+   * @param {{ layout?: 'title'|'obj'|'blank', title?: string, body?: string|string[] }} [spec]
+   * @returns {number} the index of the new slide
+   */
+  insertSlide(after = this.slideCount - 1, spec = {}) {
+    const n = this.pkg.nextPartNumber('ppt/slides/', 'slide');
+    const newPart = `ppt/slides/slide${n}.xml`;
+
+    const { layout = 'obj', title = '', body = '' } = spec;
+    const content = { layout, ...(layout === 'blank' ? {} : { title, body }) };
+    this.pkg.addPart(newPart, Buffer.from(slideXml(content), 'utf8'), CT.slide);
+
+    // The layout of the slide we are inserting after, or of the first slide, or
+    // — for a deck with no slides at all — whatever layout part exists.
+    const neighbour = this.slideParts[after] || this.slideParts[0] || null;
+    let layoutTarget = null;
+    if (neighbour) {
+      for (const r of this.pkg.rels(neighbour.part) || []) {
+        if (r.type === REL.layout) layoutTarget = r.target;
+      }
+    }
+    if (!layoutTarget) {
+      const any = (this.pkg.partNames() || []).find((p) => /^ppt\/slideLayouts\/slideLayout\d+\.xml$/.test(p));
+      layoutTarget = any ? `../slideLayouts/${any.split('/').pop()}` : '../slideLayouts/slideLayout2.xml';
+    }
+
+    this.pkg.addPart(
+      `ppt/slides/_rels/slide${n}.xml.rels`,
+      Buffer.from(
+        `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+          `<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">` +
+          `<Relationship Id="rId1" Type="${REL.layout}" Target="${layoutTarget}"/>` +
+          `</Relationships>`,
+        'utf8'
+      ),
+      'application/vnd.openxmlformats-package.relationships+xml'
+    );
+
+    const rId = this.pkg.addRelationshipTo('ppt/presentation.xml', REL.slide, `slides/slide${n}.xml`);
+    const presXml = this.pkg.text('ppt/presentation.xml');
+    const maxId = Math.max(255, ...[...presXml.matchAll(/<p:sldId\s+id="(\d+)"/g)].map((m) => Number(m[1])));
+    const entry = `<p:sldId id="${maxId + 1}" r:id="${rId}"/>`;
+
+    const anchor = this.slideParts[after]?.rId;
+    const marker = anchor ? new RegExp(`<p:sldId\\b[^>]*r:id="${anchor}"[^>]*/>`) : null;
+    const next = marker && marker.test(presXml)
+      ? presXml.replace(marker, (m) => m + entry)
+      : after < 0 && /<p:sldIdLst>/.test(presXml)
+        ? presXml.replace('<p:sldIdLst>', `<p:sldIdLst>${entry}`)
+        : presXml.replace('</p:sldIdLst>', `${entry}</p:sldIdLst>`);
+
+    this.pkg.write_('ppt/presentation.xml', Buffer.from(next, 'utf8'));
+    this.dirty = true;
+    this.#load();
+    return this.slideParts.findIndex((s) => s.part === newPart);
+  }
+
+  /**
+   * Speaker notes for a slide.
+   *
+   * The deck has always been able to read them; this writes them. A notesSlide
+   * is a part like any other, related from the slide — so an existing one is
+   * rewritten in place and a missing one is created, and the presentation's
+   * notes size (already declared by every deck this package builds) governs how
+   * PowerPoint lays it out.
+   *
+   * @param {number} index
+   * @param {string} text one paragraph per line
+   */
+  setNotes(index, text) {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+
+    const paragraphs = String(text ?? '')
+      .split('\n')
+      .map((line) =>
+        line.trim()
+          ? `<a:p><a:r><a:rPr lang="en-GB" dirty="0"/><a:t>${escapeXml(line)}</a:t></a:r></a:p>`
+          : '<a:p/>'
+      )
+      .join('') || '<a:p/>';
+
+    const xml =
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>` +
+      `<p:notes xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ` +
+      `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ` +
+      `xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">` +
+      `<p:cSld><p:spTree>` +
+      `<p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>` +
+      `<p:grpSpPr/>` +
+      `<p:sp><p:nvSpPr><p:cNvPr id="2" name="Notes Placeholder 1"/>` +
+      `<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>` +
+      `<p:nvPr><p:ph type="body" idx="1"/></p:nvPr></p:nvSpPr>` +
+      `<p:spPr/><p:txBody><a:bodyPr/><a:lstStyle/>${paragraphs}</p:txBody></p:sp>` +
+      `</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:notes>`;
+
+    // An existing notes part is rewritten; a missing one is added and related.
+    let target = null;
+    for (const r of this.pkg.rels(entry.part) || []) {
+      if (r.type === REL.notes) target = r.resolved;
+    }
+
+    if (target && this.pkg.has(target)) {
+      this.pkg.write_(target, Buffer.from(xml, 'utf8'));
+    } else {
+      const n = this.pkg.nextPartNumber('ppt/notesSlides/', 'notesSlide');
+      const part = `ppt/notesSlides/notesSlide${n}.xml`;
+      this.pkg.addPart(part, Buffer.from(xml, 'utf8'), CT.notes);
+      this.pkg.addRelationshipTo(entry.part, REL.notes, `../notesSlides/notesSlide${n}.xml`);
+    }
+
+    this.dirty = true;
+    this.#load();
+    return true;
   }
 
   /** Remove a slide from the show. The part stays, unreferenced, as PowerPoint does. */

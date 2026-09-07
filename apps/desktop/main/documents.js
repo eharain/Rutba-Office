@@ -616,6 +616,10 @@ export function createDocumentService({ holdBlob }) {
     duplicateSlide: (d, a) => d.duplicateSlide(a.slide),
     removeSlide: (d, a) => d.removeSlide(a.slide),
     moveSlide: (d, a) => d.moveSlide(a.from, a.to),
+    // A deck could only grow by duplicating a slide it already had, which meant
+    // a new presentation could never gain a second one.
+    insertSlide: (d, a) => d.insertSlide(a.after ?? a.slide ?? d.slideCount - 1, a),
+    setNotes: (d, a) => d.setNotes(a.slide, a.text ?? ''),
   };
 
   const OPS = { sheet: SHEET_OPS, doc: DOC_OPS, deck: DECK_OPS };
@@ -637,7 +641,7 @@ export function createDocumentService({ holdBlob }) {
       return { ...session.meta(), model: modelOf(session) };
     },
 
-    open: ({ path: filePath, width }) => {
+    open: ({ path: filePath, width, slide }) => {
       const bytes = fs.readFileSync(filePath);
       const loaded = load(bytes, filePath);
       const session = new Session({
@@ -649,7 +653,9 @@ export function createDocumentService({ holdBlob }) {
         converted: loaded.converted,
       });
       sessions.set(session.id, session);
-      return { ...session.meta(), model: modelOf(session, { width }) };
+      // `slide` matters for a deck: opening a presentation at slide 4 should
+      // answer with slide 4, not with slide 1 and a second round trip.
+      return { ...session.meta(), model: modelOf(session, { width, slide }) };
     },
 
     close: ({ id }) => {

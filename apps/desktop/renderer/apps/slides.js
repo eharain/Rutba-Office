@@ -10,7 +10,7 @@
 // rewrites one slide's XML and leaves every other part of the file alone.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ribbon, Group, Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
+import { Ribbon, Group, Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 
 export default function Slides({ app, shell, boot }) {
@@ -23,6 +23,7 @@ export default function Slides({ app, shell, boot }) {
   const [tab, setTab] = useState('home');
   const [editing, setEditing] = useState(null);
   const [present, setPresent] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
   const stageRef = useRef(null);
   const menu = useMenu();
   const openFileRef = useRef(null);
@@ -44,9 +45,12 @@ export default function Slides({ app, shell, boot }) {
         const next = await shell.doc.apply({ id: doc.id, ops, slide: index, width: 1280 });
         setDoc(next);
         setModel(next.model);
+        // Returned, not swallowed: adding a slide needs to know which one it
+        // got so it can select it.
+        return next;
       } catch (err) {
         toast(err.message, { tone: 'bad' });
-        return false;
+        return null;
       }
     },
     [doc, index, shell, toast]
@@ -121,6 +125,47 @@ export default function Slides({ app, shell, boot }) {
     [apply, index]
   );
 
+  /**
+   * A slide that did not exist before, after the one on screen, and selected.
+   *
+   * Selecting it matters: a new slide you then have to go and find is a new
+   * slide you did not want yet.
+   */
+  const addSlide = useCallback(
+    async (layout = 'obj') => {
+      const next = await apply({
+        op: 'insertSlide',
+        after: index,
+        layout,
+        ...(layout === 'blank' ? {} : { title: 'New slide', body: layout === 'title' ? '' : ['Point one'] }),
+      });
+      if (next) setIndex(Math.min(index + 1, (next.model?.count || index + 2) - 1));
+      return next;
+    },
+    [apply, index]
+  );
+  const addSlideRef = useRef(null);
+  addSlideRef.current = addSlide;
+
+  const exportAs = useCallback(
+    async (format) => {
+      if (!doc) return;
+      const target = await shell.dialog.save({
+        title: `Export as ${format.toUpperCase()}`,
+        defaultPath: (doc.path || doc.name).replace(/\.[^.]+$/, `.${format}`),
+        filters: [{ name: format.toUpperCase(), extensions: [format] }],
+      });
+      if (!target) return;
+      try {
+        await shell.doc.export({ id: doc.id, format, path: target });
+        toast(`Exported ${target.split(/[\\/]/).pop()}`, { tone: 'good' });
+      } catch (err) {
+        toast(err.message, { tone: 'bad' });
+      }
+    },
+    [doc, shell, toast]
+  );
+
   const commands = useMemo(
     () => ({
       'file.new': { label: 'New', icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'slides' }) },
@@ -132,6 +177,7 @@ export default function Slides({ app, shell, boot }) {
       'slide.delete': { label: 'Delete slide', icon: 'trash', run: () => apply({ op: 'removeSlide', slide: index }) },
       'slide.textbox': { label: 'Text box', icon: 'textbox', run: () => apply({ op: 'addTextBox', slide: index, x: 120, y: 120, w: 420, h: 90, paragraphs: [{ runs: [{ text: 'New text' }] }] }) },
       'view.present': { label: 'Present', icon: 'play', key: 'F5', run: () => setPresent(true) },
+      'slide.add': { label: 'New slide', icon: 'plus', key: 'Mod+M', run: () => addSlideRef.current?.('obj') },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [doc, model, index, apply, save, openFile, shell]
@@ -187,44 +233,108 @@ export default function Slides({ app, shell, boot }) {
       menu={appMenu}
       ribbon={
         <Ribbon
-          tabs={[{ id: 'home', label: 'Home' }, { id: 'insert', label: 'Insert' }, { id: 'view', label: 'View' }]}
+          tabs={[
+            { id: 'home', label: 'Home' },
+            { id: 'insert', label: 'Insert' },
+            { id: 'design', label: 'Design' },
+            { id: 'show', label: 'Slide Show' },
+            { id: 'view', label: 'View' },
+          ]}
           active={tab}
           onTab={setTab}
           quick={
             <>
               <Button icon="save" title="Save" onClick={() => save(false)} />
+              <Button icon="undo" title="Undo" disabled={!doc?.canUndo} onClick={() => commands['edit.undo']?.run?.()} />
               <Button icon="play" title="Present" onClick={() => setPresent(true)} />
             </>
           }
         >
           {tab === 'home' ? (
             <>
-              <Group label="File">
-                <Button tall icon="new" label="New" onClick={() => shell.win.create({ app: 'slides' })} />
-                <Button tall icon="open" label="Open" onClick={openFile} />
-                <Button tall icon="save" label="Save" onClick={() => save(false)} />
-              </Group>
               <Group label="Slides">
-                <Button tall icon="plus" label="Duplicate" onClick={() => commands['slide.new'].run()} />
-                <Button tall icon="trash" label="Delete" onClick={() => commands['slide.delete'].run()} disabled={(model?.count || 0) < 2} />
+                <Button
+                  tall
+                  icon="plus"
+                  label="New slide"
+                  onClick={(e) =>
+                    menu.open(e, [
+                      { label: 'Title and content', icon: 'slides', run: () => addSlide('obj') },
+                      { label: 'Title slide', icon: 'slides', run: () => addSlide('title') },
+                      { label: 'Blank', icon: 'file', run: () => addSlide('blank') },
+                    ])
+                  }
+                />
+                <Button icon="copy" label="Duplicate" onClick={() => commands['slide.new'].run()} />
+                <Button icon="trash" label="Delete" onClick={() => commands['slide.delete'].run()} disabled={(model?.count || 0) < 2} />
               </Group>
               <Group label="Arrange">
                 <Button icon="chevronUp" label="Move up" disabled={index === 0} onClick={() => { apply({ op: 'moveSlide', from: index, to: index - 1 }); setIndex(index - 1); }} />
                 <Button icon="chevronDown" label="Move down" disabled={index >= (model?.count || 1) - 1} onClick={() => { apply({ op: 'moveSlide', from: index, to: index + 1 }); setIndex(index + 1); }} />
               </Group>
+              <Group label="Notes">
+                <Button tall icon="word" label="Speaker notes" onClick={() => setNotesOpen(true)} />
+              </Group>
+              <Group label="File">
+                <Button tall icon="new" label="New" onClick={() => shell.win.create({ app: 'slides' })} />
+                <Button tall icon="open" label="Open" onClick={openFile} />
+                <Button tall icon="save" label="Save" onClick={() => save(false)} />
+              </Group>
             </>
           ) : tab === 'insert' ? (
-            <Group label="Insert">
-              <Button tall icon="textbox" label="Text box" onClick={() => commands['slide.textbox'].run()} />
-            </Group>
+            <>
+              <Group label="Text">
+                <Button tall icon="textbox" label="Text box" onClick={() => commands['slide.textbox'].run()} />
+              </Group>
+              <Group label="Illustrations">
+                <Button
+                  tall
+                  icon="shape"
+                  label="Shape"
+                  onClick={(e) =>
+                    menu.open(e, ['rect', 'ellipse', 'roundRect', 'triangle', 'arrow', 'star'].map((g) => ({
+                      label: g[0].toUpperCase() + g.slice(1),
+                      icon: 'shape',
+                      run: () => apply({ op: 'addTextBox', slide: index, geometry: g, text: '', x: 120, y: 120, w: 240, h: 140 }),
+                    })))
+                  }
+                />
+              </Group>
+              <Group label="Slides">
+                <Button tall icon="plus" label="New slide" onClick={() => addSlide('obj')} />
+              </Group>
+            </>
+          ) : tab === 'design' ? (
+            <>
+              <Group label="Slide size">
+                <Button tall icon="grid" label="Widescreen" title="16:9, the size this deck already uses" disabled />
+              </Group>
+              <Group label="Theme">
+                <Button tall icon="wand" label="From the deck" title="Colours and fonts come from the presentation's own master and theme, and are used as the file defines them." disabled />
+              </Group>
+              <Group label="Export">
+                <Button tall icon="pdf" label="PDF" onClick={() => exportAs('pdf')} />
+              </Group>
+            </>
+          ) : tab === 'show' ? (
+            <>
+              <Group label="Start">
+                <Button tall icon="play" label="From the start" onClick={() => { setIndex(0); setPresent(true); }} />
+                <Button tall icon="play" label="From here" onClick={() => setPresent(true)} />
+              </Group>
+              <Group label="Notes">
+                <Button tall icon="word" label="Speaker notes" onClick={() => setNotesOpen(true)} />
+              </Group>
+            </>
           ) : (
             <>
-              <Group label="Show">
-                <Button tall icon="play" label="Present" onClick={() => setPresent(true)} />
+              <Group label="Window">
+                <Button tall icon="maximize" label="Full screen" onClick={() => shell.win.fullscreen({})} />
               </Group>
               <Group label="Zoom">
                 <Button icon="zoomOut" label="Out" onClick={() => shell.win.zoom({ delta: -0.1 })} />
                 <Button icon="zoomIn" label="In" onClick={() => shell.win.zoom({ delta: 0.1 })} />
+                <Button icon="check" label="100%" onClick={() => shell.win.zoom({ reset: true })} />
               </Group>
             </>
           )}
@@ -311,6 +421,20 @@ export default function Slides({ app, shell, boot }) {
           {menu.node}
         </>
       )}
+
+      {notesOpen ? (
+        <NotesDialog
+          key={index}
+          slide={index}
+          text={slide?.notes || ''}
+          onClose={() => setNotesOpen(false)}
+          onSave={async (text) => {
+            await apply({ op: 'setNotes', slide: index, text });
+            setNotesOpen(false);
+            toast('Notes saved', { tone: 'good' });
+          }}
+        />
+      ) : null}
     </AppFrame>
   );
 }
@@ -352,3 +476,39 @@ const CSS = `
   color: rgba(255,255,255,0.55); font-size: 12px; letter-spacing: 0.02em;
 }
 `;
+
+/**
+ * Speaker notes.
+ *
+ * The deck engine has always read these — an imported .pptx shows whatever its
+ * author wrote — and until now there was no way to write one. They are per
+ * slide, one paragraph per line, and stored in the file rather than beside it,
+ * so they travel with the deck to PowerPoint and back.
+ */
+function NotesDialog({ slide, text, onClose, onSave }) {
+  const [draft, setDraft] = useState(text || '');
+  return (
+    <Dialog
+      title={`Speaker notes — slide ${slide + 1}`}
+      width={560}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="Save" onClick={() => onSave(draft)} />
+        </>
+      }
+    >
+      <Field label="Only you see these" hint="They are saved into the presentation, and travel with it.">
+        <textarea
+          className="rw-input"
+          style={{ minHeight: 200, fontFamily: 'var(--font)', resize: 'vertical' }}
+          rows={9}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          autoFocus
+        />
+      </Field>
+    </Dialog>
+  );
+}
