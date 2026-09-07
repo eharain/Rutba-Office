@@ -8,8 +8,9 @@ build/out/
 .env.*
 !.env.example
 
-# Renderer bundles are build output.
-apps/desktop/renderer/build/
+# Build output: the bundle, the preload, and the smoke captures.
+apps/desktop/build/out/
+apps/desktop/build/smoke/
 
 # Agent scratch and per-machine settings.
 .ai/

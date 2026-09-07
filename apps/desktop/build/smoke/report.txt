@@ -1,3 +1,0 @@
-ok   sheets     1540 ms  sheets.png
-
-1/1 windows rendered clean
