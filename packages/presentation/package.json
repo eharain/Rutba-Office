@@ -10,8 +10,14 @@
     "./deck": "./src/deck.js",
     "./slide": "./src/slide.js",
     "./render": "./src/render.js",
-    "./build": "./src/build.js"
+    "./build": "./src/build.js",
+    "./units": "./src/units.js"
   },
-  "dependencies": { "@rutba/ooxml": "*", "@rutba/drawing": "*", "@rutba/editing": "*" },
+  "dependencies": {
+    "@rutba/ooxml": "*",
+    "@rutba/drawing": "*",
+    "@rutba/editing": "*",
+    "@rutba/office-formats": "*"
+  },
   "sideEffects": false
 }

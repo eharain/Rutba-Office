@@ -2,6 +2,7 @@
   "name": "rutba-office",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "license": "AGPL-3.0-or-later",
   "description": "Rutba Office — free, open-source, cross-platform desktop office suite: Mail, Word, Worksheets, Presentation, Pictures, Image and Video. One installer, seven apps, on an engine we own.",
   "homepage": "https://rutba.io/office",

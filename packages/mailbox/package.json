@@ -13,8 +13,12 @@
     "./msg": "./src/msg.js",
     "./olm": "./src/olm.js",
     "./import": "./src/import.js",
-    "./store": "./src/store.js"
+    "./store": "./src/store.js",
+    "./props": "./src/props.js"
   },
-  "dependencies": { "@rutba/office-formats": "*" },
+  "dependencies": {
+    "@rutba/office-formats": "*",
+    "@rutba/ooxml": "*"
+  },
   "sideEffects": false
 }

@@ -84,7 +84,10 @@ export function walk(xml, on) {
     const name = sp < 0 ? body : body.slice(0, sp);
     const attrs = sp < 0 ? {} : parseAttrs(body.slice(sp + 1));
     on.open?.(name, attrs, selfClosing);
-    if (selfClosing) on.close?.(name);
+    // A self-closing element still reports a close, so a streaming consumer
+    // sees balanced events — but it is flagged, because a tree builder must
+    // not pop for an element it never pushed.
+    if (selfClosing) on.close?.(name, true);
     i = gt + 1;
   }
 }
@@ -136,7 +139,8 @@ export function parse(xml, opts = {}) {
       stack[stack.length - 1].children.push(node);
       if (!selfClosing) stack.push(node);
     },
-    close() {
+    close(_name, selfClosing) {
+      if (selfClosing) return;
       if (stack.length > 1) stack.pop();
     },
     text(t) {

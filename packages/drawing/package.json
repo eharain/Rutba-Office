@@ -18,7 +18,8 @@
     "./svg": "./src/svg.js",
     "./chart": "./src/chart.js",
     "./ooxml": "./src/ooxml.js",
-    "./shapes": "./src/shapes.js"
+    "./shapes": "./src/shapes.js",
+    "./measure": "./src/measure.js"
   },
   "files": [
     "src",
