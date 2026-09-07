@@ -147,6 +147,12 @@ export const METHODS = {
     'set',          // ({ exts }) -> { changed, opened, message }
   ],
   // What other mail clients have left on this computer.
+  // Where a slide show is up to, shared between the audience window and the
+  // presenter window because two renderers cannot tell each other anything.
+  present: [
+    'state',        // () -> { id, index, running, startedAt, blank }
+    'set',          // ({ index, running, blank, restart }) -> state
+  ],
   // Signing in to Gmail and Outlook.com, which no longer accept a password.
   oauth: [
     'provider',     // ({ email }) -> { id, label, configured, imap, smtp } | null
@@ -182,6 +188,7 @@ export const EVENTS = [
   'app:command',      // { command, args }   menu / accelerator
   'mail:progress',    // { accountId, folder, done, total, phase }
   'mail:new',         // { accountId, folder, count }
+  'present:state',    // { id, index, running, startedAt, blank }
   'mail:oauth',       // { phase, provider, email }
   'announce:new',     // { id, title, body, link, kind }
   'mail:sent',        // { id, to }

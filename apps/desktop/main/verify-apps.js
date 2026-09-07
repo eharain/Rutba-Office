@@ -465,6 +465,26 @@ export async function verifyApps({ windows, doc }) {
       ['Home', 'Insert', 'Design', 'Slide Show', 'View'].every((t) => tabs.includes(t)),
       `tabs are ${JSON.stringify(tabs)}`
     );
+
+    // Presenter view: a second window on the same open document, showing the
+    // speaker's side. It has to find the notes that were just written.
+    const deck = doc.open({ path: files.pptx });
+    doc.apply({ id: deck.id, ops: [{ op: 'setNotes', slide: 0, text: 'Open with the tracker report.' }] });
+
+    const presenter = windows.create({ app: 'slides', query: { presenter: deck.id } });
+    opened.push(presenter);
+    await new Promise((resolve) => presenter.webContents.once('did-finish-load', () => setTimeout(resolve, 1400)));
+
+    const speaker = await presenter.webContents.executeJavaScript(`(() => ({
+      notes: document.querySelector('.pv-notes-text')?.textContent ?? '',
+      hasNext: Boolean(document.querySelector('.pv-next .pv-thumb')),
+      clock: document.querySelector('.pv-clock')?.textContent ?? '',
+      stage: Boolean(document.querySelector('.pv-stage svg')),
+    }))()`);
+
+    check('slides: presenter view shows the speaker notes', /tracker report/.test(speaker.notes), JSON.stringify(speaker.notes.slice(0, 40)));
+    check('slides: presenter view shows the next slide and a clock', speaker.hasNext && speaker.stage && /\d/.test(speaker.clock), JSON.stringify(speaker));
+    doc.close({ id: deck.id });
   } catch (err) {
     check('slides: the deck checks ran', false, err.message);
   }

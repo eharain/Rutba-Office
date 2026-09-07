@@ -149,7 +149,7 @@ Against **PowerPoint**, **Impress**, **Keynote**, **Google Slides**.
 | Missing | Who has it |
 | :--- | :--- |
 | ⬜ Transitions and animations (authoring) | all |
-| ⬜ Presenter view with notes, timer and next slide | all |
+| ✅ ~~Presenter view with notes, timer and next slide~~ | all |
 | ⬜ Master and layout editing | all |
 | ⬜ Themes to choose from | all |
 | ⬜ Tables and charts on a slide | all |
@@ -190,7 +190,7 @@ Ranked by how many people it stops from using this at all.
    A build still needs its own registered client id before it works.
 2. ~~Message rules.~~ **Built.**
 3. ~~A search index.~~ **Built.**
-4. **Presenter view.** Cheap, now that speaker notes exist.
+4. ~~Presenter view.~~ **Built** — a second window for the other screen.
 5. **Footnotes and a table of contents** in Word — the two most common reasons a
    document has to go back to Word.
 6. **Calendar.** The largest single piece of work on this list, and the one that

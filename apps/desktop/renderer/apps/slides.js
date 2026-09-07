@@ -12,8 +12,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ribbon, Group, Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
+import Presenter from './slides/presenter.js';
 
 export default function Slides({ app, shell, boot }) {
+  // A presenter window is the same app pointed at the same open document,
+  // told to draw the speaker's side of it. It is a window rather than a panel
+  // so it can live on the other screen, which is the whole point.
+  const presenterFor = new URLSearchParams(location.search).get('presenter');
   const toast = useToast();
   const [doc, setDoc] = useState(null);
   const [model, setModel] = useState(null);
@@ -24,6 +29,9 @@ export default function Slides({ app, shell, boot }) {
   const [editing, setEditing] = useState(null);
   const [present, setPresent] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  const [blank, setBlank] = useState(false);
+  // Set when a presenter window is driving, so this one follows rather than leads.
+  const [led, setLed] = useState(false);
   const stageRef = useRef(null);
   const menu = useMenu();
   const openFileRef = useRef(null);
@@ -82,6 +90,19 @@ export default function Slides({ app, shell, boot }) {
     load(index);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, doc]);
+
+  // When a presenter window is driving, this one follows: the position lives
+  // in the main process precisely so the two cannot disagree about it.
+  useEffect(() => {
+    const off = shell.on('present:state', (s) => {
+      setLed(true);
+      setBlank(Boolean(s.blank));
+      if (typeof s.index === 'number') setIndex(s.index);
+      if (s.running === false) setPresent(false);
+      else if (s.running === true) setPresent(true);
+    });
+    return () => off?.();
+  }, [shell]);
 
   const save = useCallback(
     async (as = false) => {
@@ -147,6 +168,21 @@ export default function Slides({ app, shell, boot }) {
   const addSlideRef = useRef(null);
   addSlideRef.current = addSlide;
 
+  /**
+   * Start the show with a presenter window beside it.
+   *
+   * The second window opens on the same document — the session lives in the
+   * main process, so both windows are looking at one deck rather than at two
+   * copies of it — and this window goes full screen showing only the slide.
+   */
+  const presentWithNotes = useCallback(async () => {
+    if (!doc) return;
+    await shell.present.set({ id: doc.id, index, running: true, blank: false });
+    await shell.win.create({ app: 'slides', query: { presenter: doc.id } });
+    setPresent(true);
+    shell.win.fullscreen({ on: true });
+  }, [shell, doc, index]);
+
   const exportAs = useCallback(
     async (format) => {
       if (!doc) return;
@@ -209,15 +245,28 @@ export default function Slides({ app, shell, boot }) {
   }
 
   const slide = model?.slide;
-  const scale = slide ? 1 : 1;
+
+  // A presenter window draws only the speaker's side. It shares the document
+  // session, so nothing is opened twice and nothing can drift.
+  if (presenterFor) {
+    return (
+      <AppFrame app={app} shell={shell} title="Presenter view" menu={appMenu}>
+        <Presenter shell={shell} docId={presenterFor} />
+      </AppFrame>
+    );
+  }
 
   if (present && slide) {
     return (
-      <div className="sl-present" onClick={() => setIndex((i) => Math.min(i + 1, (model.count || 1) - 1))}>
+      <div
+        className="sl-present"
+        onClick={() => (led ? shell.present.set({ index: Math.min(index + 1, (model.count || 1) - 1) }) : setIndex((i) => Math.min(i + 1, (model.count || 1) - 1)))}
+      >
         <style>{CSS}</style>
-        <div className="sl-present-stage" dangerouslySetInnerHTML={{ __html: slide.svg }} />
+        {/* A black screen is a thing speakers ask for by name: attention back on them. */}
+        {blank ? null : <div className="sl-present-stage" dangerouslySetInnerHTML={{ __html: slide.svg }} />}
         <div className="sl-present-bar">
-          {index + 1} / {model.count} · press Esc to leave
+          {index + 1} / {model.count}{led ? ' · driven from the presenter window' : ' · press Esc to leave'}
         </div>
       </div>
     );
@@ -321,6 +370,7 @@ export default function Slides({ app, shell, boot }) {
               <Group label="Start">
                 <Button tall icon="play" label="From the start" onClick={() => { setIndex(0); setPresent(true); }} />
                 <Button tall icon="play" label="From here" onClick={() => setPresent(true)} />
+                <Button tall icon="grid" label="Presenter view" title="Opens a second window with your notes, the next slide and a clock — put it on the other screen" onClick={presentWithNotes} />
               </Group>
               <Group label="Notes">
                 <Button tall icon="word" label="Speaker notes" onClick={() => setNotesOpen(true)} />
@@ -378,7 +428,7 @@ export default function Slides({ app, shell, boot }) {
           <Content>
             <div className="sl-stage" ref={stageRef}>
               {slide ? (
-                <div className="sl-slide" style={{ width: model.size.width * scale, height: model.size.height * scale }}>
+                <div className="sl-slide" style={{ width: model.size.width, height: model.size.height }}>
                   <div className="sl-svg" dangerouslySetInnerHTML={{ __html: slide.svg }} />
                   {/* Text boxes get a hit area so a click lands on the shape rather than on the drawing. */}
                   {slide.shapes.filter((s) => s.text && s.geometry).map((s) => (

@@ -13,6 +13,7 @@ import { createDocumentService } from './documents.js';
 import { createMailService } from './mail.js';
 import { createUpdateService } from './updates.js';
 import { createOAuthService } from './oauth.js';
+import { createPresentService } from './present.js';
 import { createAnnouncementService } from './announce.js';
 import { createDefaultsService } from './defaults.js';
 import { createDiscoveryService } from './discover.js';
@@ -49,6 +50,7 @@ createShell({
       announce: createAnnouncementService({ stores, broadcast }),
       defaults: createDefaultsService({ associations: fileAssociations() }),
       discover: createDiscoveryService(),
+      present: createPresentService({ broadcast }),
       oauth,
       mail: createMailService({
         stores,
