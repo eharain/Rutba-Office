@@ -128,6 +128,8 @@ module.exports = async () => {
 
     deb: { depends: ['libgtk-3-0', 'libnotify4', 'libnss3', 'libxss1', 'libxtst6', 'xdg-utils', 'libatspi2.0-0'] },
 
-    publish: null,
+    // The update feed. electron-builder writes latest.yml beside the
+    // installers, and electron-updater reads it from the release.
+    publish: [{ provider: 'github', owner: 'eharain', repo: 'Rutba-Office', releaseType: 'release' }],
   };
 };

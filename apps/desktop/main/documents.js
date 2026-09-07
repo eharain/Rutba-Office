@@ -348,6 +348,9 @@ export function createDocumentService({ holdBlob }) {
   function docModel(session) {
     const view = session.engine;
     const frame = view.render();
+    // Remember what the window now holds, so the next edit can send only the
+    // difference rather than the document.
+    session.lastBlocks = frame.blocks.map((b) => JSON.stringify(b));
     return {
       ...frame,
       canUndo: view.canUndo,
@@ -356,6 +359,60 @@ export function createDocumentService({ holdBlob }) {
       styles: typeof view.paragraphStyles === 'object' ? view.paragraphStyles : [],
       format: typeof view.formatAtCaret === 'function' ? view.formatAtCaret() : null,
     };
+  }
+
+  /**
+   * What changed, rather than what there is.
+   *
+   * Typing into a four-hundred paragraph document produced a 380 KB model and
+   * re-rendered every block, per keystroke — the engine was never the slow
+   * part, the round trip was. Almost every edit touches one paragraph, so the
+   * blocks are compared against what the window was last sent and only the run
+   * that actually differs crosses: a common prefix, a common suffix, and the
+   * span between them.
+   *
+   * When the shape of the change is not a simple splice — a style sweep, a
+   * find-and-replace — this hands back the whole model instead. Correct is the
+   * floor; fast is the goal above it.
+   */
+  function docDelta(session) {
+    const view = session.engine;
+    const frame = view.render();
+    const next = frame.blocks.map((b) => JSON.stringify(b));
+    const prev = session.lastBlocks;
+    session.lastBlocks = next;
+
+    const common = {
+      selection: frame.selection,
+      format: typeof view.formatAtCaret === 'function' ? view.formatAtCaret() : null,
+      listLabels: frame.listLabels,
+      wordCount: frame.wordCount,
+      characterCount: frame.characterCount,
+      section: frame.section,
+      canUndo: view.canUndo,
+      canRedo: view.canRedo,
+    };
+
+    if (!prev) return { model: docModel(session) };
+
+    let head = 0;
+    while (head < prev.length && head < next.length && prev[head] === next[head]) head++;
+    let tail = 0;
+    while (
+      tail < prev.length - head &&
+      tail < next.length - head &&
+      prev[prev.length - 1 - tail] === next[next.length - 1 - tail]
+    ) {
+      tail++;
+    }
+
+    const removed = prev.length - head - tail;
+    const inserted = frame.blocks.slice(head, next.length - tail);
+
+    // A change touching more than a screenful is not worth splicing.
+    if (inserted.length > 60) return { model: { ...frame, ...common, styles: view.paragraphStyles } };
+
+    return { patch: { from: head, removed, blocks: inserted, ...common } };
   }
 
   function deckModel(session, { slide = 0, width = 960 } = {}) {
@@ -522,7 +579,7 @@ export function createDocumentService({ holdBlob }) {
 
     model: ({ id, ...opts }) => modelOf(get(id), opts),
 
-    apply: ({ id, ops, width, slide }) => {
+    apply: ({ id, ops, width, slide, delta = true }) => {
       const session = get(id);
       const table = OPS[session.kind];
       let touched = false;
@@ -536,6 +593,9 @@ export function createDocumentService({ holdBlob }) {
         session.dirty = true;
         session.version++;
       }
+      // A document answers with the difference; the other kinds are already
+      // small — a sheet sends only the viewport, a deck one slide.
+      if (session.kind === 'doc' && delta) return { ...session.meta(), ...docDelta(session) };
       return { ...session.meta(), model: modelOf(session, { width, slide }) };
     },
 

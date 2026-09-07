@@ -5,7 +5,7 @@
   "type": "module",
   "license": "AGPL-3.0-or-later",
   "description": "Rutba Office — free, open-source, cross-platform desktop office suite: Mail, Word, Worksheets, Presentation, Pictures, Image and Video. One installer, seven apps, on an engine we own.",
-  "homepage": "https://rutba.io/office",
+  "homepage": "https://office.rutba.io",
   "author": "Tech Style Ltd <hello@tech-style.co> (https://tech-style.co)",
   "workspaces": [
     "packages/*",
@@ -23,7 +23,8 @@
     "test": "node --test \"tests/*.test.js\"",
     "gate": "node tools/gate.js",
     "smoke": "npm run smoke --workspace=@rutba/office-desktop",
-    "icon": "npm run icon --workspace=@rutba/office-desktop"
+    "icon": "npm run icon --workspace=@rutba/office-desktop",
+    "verify:edit": "npm run verify:edit --workspace=@rutba/office-desktop"
   },
   "engines": {
     "node": ">=20"

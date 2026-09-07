@@ -10,12 +10,14 @@ import { createShell, holdBlob, broadcast } from '@rutba/office-shell/electron/m
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { createDocumentService } from './documents.js';
 import { createMailService } from './mail.js';
+import { createUpdateService } from './updates.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
 
 // Kept so the smoke run can drive the same services the windows do.
 let services = null;
+let updates = null;
 
 createShell({
   appName: 'Rutba Office',
@@ -32,6 +34,7 @@ createShell({
 
   namespaces: ({ stores, holdBlob: hold }) => (services = {
     doc: createDocumentService({ holdBlob: hold }),
+    update: updates = createUpdateService({ stores, broadcast }),
     mail: createMailService({
       stores,
       holdBlob: hold,
@@ -40,15 +43,37 @@ createShell({
     }),
   }),
 
-  // `npm run smoke` boots this same process, photographs each app, and exits.
-  onReady: process.env.RUTBA_OFFICE_SMOKE
-    ? async ({ windows, stores }) => {
-        const { runSmoke } = await import('./smoke.js');
-        const ok = await runSmoke({ windows, outDir: process.env.RUTBA_SMOKE_OUT || path.join(app, 'build', 'smoke'), stores, mail: services?.mail });
-        const { app: electronApp } = await import('electron');
-        electronApp.exit(ok ? 0 : 1);
-      }
-    : undefined,
+  /**
+   * After the first window is up.
+   *
+   * Normally that means starting the update rhythm — quietly, and not for
+   * twenty-five seconds, because the first moments after launch belong to
+   * whatever the person opened the application to do.
+   *
+   * The two verification runs take this over instead: `npm run smoke`
+   * photographs every window, `npm run verify:edit` types into two of them.
+   * Neither should ever contact GitHub, so neither starts the updater.
+   */
+  onReady: async ({ windows, stores }) => {
+    if (process.env.RUTBA_OFFICE_VERIFY_EDIT) {
+      const { verifyEditing } = await import('./verify-edit.js');
+      const ok = await verifyEditing({ windows, doc: services.doc });
+      const { app: electronApp } = await import('electron');
+      return electronApp.exit(ok ? 0 : 1);
+    }
+    if (process.env.RUTBA_OFFICE_SMOKE) {
+      const { runSmoke } = await import('./smoke.js');
+      const ok = await runSmoke({
+        windows,
+        outDir: process.env.RUTBA_SMOKE_OUT || path.join(app, 'build', 'smoke'),
+        stores,
+        mail: services?.mail,
+      });
+      const { app: electronApp } = await import('electron');
+      return electronApp.exit(ok ? 0 : 1);
+    }
+    return updates?.start();
+  },
 });
 
 export { holdBlob };

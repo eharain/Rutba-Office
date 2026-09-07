@@ -7,7 +7,7 @@
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, Search, Empty, Button, Chip, Spacer, formatBytes, formatWhen, basename } from '@rutba/office-ui';
-import { APPS, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
+import { APPS, NEW_DOCUMENTS, SITE } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension, KINDS } from '@rutba/office-formats/sniff';
 import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop } from '../shell.js';
 
@@ -39,6 +39,7 @@ export default function Home({ app, shell }) {
   const [query, setQuery] = useState('');
   const [version, setVersion] = useState(null);
   const [showAbout, setShowAbout] = useState(() => new URLSearchParams(location.search).has('about'));
+  const [update, setUpdate] = useState(null);
 
   const refresh = useCallback(() => {
     shell.app.recent().then(setRecent).catch(() => setRecent([]));
@@ -47,7 +48,10 @@ export default function Home({ app, shell }) {
   useEffect(() => {
     refresh();
     shell.app.version().then(setVersion).catch(() => {});
+    shell.update.state().then(setUpdate).catch(() => {});
   }, [refresh, shell]);
+
+  useEffect(() => shell.on('update:state', setUpdate), [shell]);
 
   const openApp = useCallback((key) => shell.win.create({ app: key }), [shell]);
 
@@ -84,7 +88,7 @@ export default function Home({ app, shell }) {
   }, [recent, query]);
 
   return (
-    <AppFrame app={app} shell={shell} title="Rutba Office" menu={menu} status={<HomeStatus version={version} recent={recent.length} />}>
+    <AppFrame app={app} shell={shell} title="Rutba Office" menu={menu} status={<HomeStatus version={version} recent={recent.length} shell={shell} update={update} />}>
       <style>{CSS}</style>
       <div className="home">
         <header className="home-hero">
@@ -176,23 +180,72 @@ export default function Home({ app, shell }) {
         </section>
       </div>
 
-      {showAbout ? <About version={version} shell={shell} onClose={() => setShowAbout(false)} /> : null}
+      {showAbout ? (
+        <About
+          version={version}
+          shell={shell}
+          update={update}
+          onCheck={() => shell.update.check({ manual: true }).then(setUpdate)}
+          onInstall={() => shell.update.install()}
+          onToggleAuto={(on) => shell.update.setAutomatic({ on }).then(setUpdate)}
+          onClose={() => setShowAbout(false)}
+        />
+      ) : null}
     </AppFrame>
   );
 }
 
-function HomeStatus({ version, recent }) {
+function HomeStatus({ version, recent, shell, update }) {
+  const open = (url) => shell.shell.openExternal({ url });
   return (
     <>
       <span>Rutba Office{version ? ` ${version.version}` : ''}</span>
+      {/* The footer is where somebody looks for who made this and how to ask. */}
+      <a className="home-link" href={SITE.home} onClick={(e) => { e.preventDefault(); open(SITE.home); }}>
+        office.rutba.io
+      </a>
+      <a className="home-link" href={SITE.contact} onClick={(e) => { e.preventDefault(); open(SITE.contact); }}>
+        Contact us
+      </a>
       <Spacer />
+      {update?.state === 'ready' ? (
+        <Chip title={`Version ${update.available} is downloaded and installs when you quit`}>Update ready</Chip>
+      ) : update?.state === 'downloading' ? (
+        <Chip title="Downloading in the background">Updating {Math.round(update.percent || 0)}%</Chip>
+      ) : null}
       <Chip title="Files you have opened">{recent} recent</Chip>
-      <Chip title="This build works with no network connection">Offline</Chip>
+      <Chip title="Documents, mail and media all work with no network connection">Works offline</Chip>
     </>
   );
 }
 
-function About({ version, shell, onClose }) {
+/** What the update service is doing, in words rather than a state name. */
+function updateSentence(update) {
+  if (!update) return 'Checking…';
+  switch (update.state) {
+    case 'unpackaged':
+      return 'Updates apply to an installed copy; this one is running from source.';
+    case 'off':
+      return 'Automatic updates are off. Nothing is contacted.';
+    case 'checking':
+      return 'Looking for a newer release…';
+    case 'available':
+      return `Version ${update.available} is available and downloading.`;
+    case 'downloading':
+      return `Downloading version ${update.available} — ${Math.round(update.percent || 0)}%.`;
+    case 'ready':
+      return `Version ${update.available} is ready, and installs when you quit.`;
+    case 'current':
+      return 'This is the latest release.';
+    case 'error':
+      return `The last check did not complete: ${update.error}`;
+    default:
+      return 'No check has run yet.';
+  }
+}
+
+function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClose }) {
+  const open = (url) => shell.shell.openExternal({ url });
   return (
     <div className="rw-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="rw-dialog" style={{ width: 460 }}>
@@ -213,16 +266,48 @@ function About({ version, shell, onClose }) {
             <dd>
               Electron {version?.electron} · Chromium {version?.chrome} · Node {version?.node}
             </dd>
+            <dt>Website</dt>
+            <dd>
+              <a className="home-link inline" href={SITE.home} onClick={(e) => { e.preventDefault(); open(SITE.home); }}>
+                office.rutba.io
+              </a>
+            </dd>
+            <dt>Contact</dt>
+            <dd>
+              <a className="home-link inline" href={SITE.contact} onClick={(e) => { e.preventDefault(); open(SITE.contact); }}>
+                office.rutba.io/contact
+              </a>
+            </dd>
             <dt>Licence</dt>
             <dd>GNU AGPL v3.0, or a commercial licence</dd>
           </dl>
+
+          <div className="about-update">
+            <div className="about-update-line">
+              <Icon name={update?.state === 'ready' ? 'download' : update?.state === 'error' ? 'info' : 'refresh'} size={15} />
+              <span>{updateSentence(update)}</span>
+            </div>
+            <label className="about-auto">
+              <input type="checkbox" checked={update?.automatic !== false} onChange={(e) => onToggleAuto(e.target.checked)} />
+              <span>
+                Check for updates automatically — one request to GitHub for the release list, and nothing about
+                you or your files.
+              </span>
+            </label>
+          </div>
+
           <p className="rw-hint">
             Copyright © 2026 Tech Style Ltd. The source is published, and you are free to study, modify and
             share it under the terms of the AGPL.
           </p>
         </div>
         <div className="rw-dialog-foot">
-          <Button label="Source code" onClick={() => shell.shell.openExternal({ url: 'https://github.com/eharain/Rutba-Office' })} />
+          <Button label="Source code" onClick={() => open(SITE.source)} />
+          {update?.state === 'ready' ? (
+            <Button label="Restart and install" onClick={onInstall} />
+          ) : (
+            <Button label="Check for updates" onClick={onCheck} />
+          )}
           <Button label="Close" primary onClick={onClose} />
         </div>
       </div>
@@ -320,4 +405,19 @@ const CSS = `
 .about-list { display: grid; grid-template-columns: auto 1fr; gap: 5px 16px; margin: 14px 0; font-size: 12.5px; }
 .about-list dt { color: var(--ink-3); }
 .about-list dd { margin: 0; }
+
+.home-link {
+  color: var(--accent); text-decoration: none; font-size: 11.5px;
+  border-bottom: 1px solid transparent; transition: border-color var(--fast);
+}
+.home-link:hover { border-bottom-color: var(--accent); }
+.home-link.inline { font-size: inherit; }
+
+.about-update {
+  margin: 14px 0 4px; padding: 11px 13px; border-radius: var(--r-2);
+  background: var(--sunken); display: flex; flex-direction: column; gap: 9px;
+}
+.about-update-line { display: flex; align-items: center; gap: 9px; font-size: 12.5px; }
+.about-auto { display: flex; align-items: flex-start; gap: 8px; font-size: 11.5px; color: var(--ink-2); }
+.about-auto input { margin-top: 2px; accent-color: var(--accent); }
 `;

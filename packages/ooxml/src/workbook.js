@@ -67,6 +67,7 @@ class SheetPart {
       this.suffix = xml.slice(close + '</sheetData>'.length);
     }
     this.rows = this._parseRows();
+    this._rowsChanged();
     this.dirty = false;
   }
 
@@ -88,8 +89,26 @@ class SheetPart {
     return rows;
   }
 
+  /**
+   * The row with this index.
+   *
+   * Indexed rather than scanned. A linear search here is invisible on a small
+   * sheet and quadratic on a real one: loading a 20,000-row worksheet spent 2.8
+   * of its 5.3 seconds inside this one `find`, because every row loaded looks
+   * itself up. The index is rebuilt whenever the row list changes shape, which
+   * `_rowsChanged` announces.
+   */
   _rowAt(rowIndex) {
-    return this.rows.find((r) => r.index === rowIndex) ?? null;
+    if (!this._rowIndex) {
+      this._rowIndex = new Map();
+      for (const row of this.rows) this._rowIndex.set(row.index, row);
+    }
+    return this._rowIndex.get(rowIndex) ?? null;
+  }
+
+  /** A row was added, removed or renumbered, so the index no longer holds. */
+  _rowsChanged() {
+    this._rowIndex = null;
   }
 
   static _parseCells(inner) {
@@ -130,6 +149,7 @@ class SheetPart {
       const at = this.rows.findIndex((r) => r.index > rowIndex);
       if (at < 0) this.rows.push(row);
       else this.rows.splice(at, 0, row);
+      this._rowsChanged();
     }
     const cells = SheetPart._parseCells(row.inner);
     const existing = cells.find((c) => c.col === colIndex);
@@ -165,6 +185,7 @@ class SheetPart {
       const at = this.rows.findIndex((r) => r.index > rowIndex);
       if (at < 0) this.rows.push(row);
       else this.rows.splice(at, 0, row);
+      this._rowsChanged();
     }
     const cells = SheetPart._parseCells(row.inner);
     const existing = cells.find((c) => c.col === colIndex);
@@ -269,6 +290,7 @@ class SheetPart {
       const at = this.rows.findIndex((r) => r.index > rowIndex);
       if (at < 0) this.rows.push(row);
       else this.rows.splice(at, 0, row);
+      this._rowsChanged();
     }
     if (/\bht="[^"]*"/.test(row.attrsStr)) row.attrsStr = row.attrsStr.replace(/\bht="[^"]*"/, 'ht="' + points + '"');
     else row.attrsStr += ' ht="' + points + '"';
@@ -297,6 +319,7 @@ class SheetPart {
     for (const row of this.rows) {
       if (row.index >= at) this._renumberRow(row, row.index + count);
     }
+    this._rowsChanged();
     this.dirty = true;
     return this;
   }
@@ -304,9 +327,11 @@ class SheetPart {
   /** Remove rows `[at, at+count)` and close the gap beneath them. */
   deleteRowsRange(at, count) {
     this.rows = this.rows.filter((row) => row.index < at || row.index >= at + count);
+    this._rowsChanged();
     for (const row of this.rows) {
       if (row.index >= at + count) this._renumberRow(row, row.index - count);
     }
+    this._rowsChanged();
     this.dirty = true;
     return this;
   }

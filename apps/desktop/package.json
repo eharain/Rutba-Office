@@ -17,7 +17,8 @@
     "dist:mac": "npm run build && electron-builder --config electron-builder.config.cjs --mac --publish never",
     "dist:linux": "npm run build && electron-builder --config electron-builder.config.cjs --linux --publish never",
     "smoke": "node build/bundle.js && node build/smoke-run.js",
-    "icon": "electron build/make-icon.js"
+    "icon": "electron build/make-icon.js",
+    "verify:edit": "node build/bundle.js && node build/verify-edit-run.js"
   },
   "dependencies": {
     "@rutba/doc-view": "*",
@@ -34,6 +35,7 @@
     "@rutba/pdf": "*",
     "@rutba/presentation": "*",
     "@rutba/sheet-view": "*",
+    "electron-updater": "^6.8.9",
     "imapflow": "^1.7.0",
     "mailparser": "^3.9.15",
     "nodemailer": "^9.0.5"
@@ -47,5 +49,5 @@
     "email": "hello@tech-style.co",
     "url": "https://tech-style.co"
   },
-  "homepage": "https://github.com/eharain/Rutba-Office"
+  "homepage": "https://office.rutba.io"
 }

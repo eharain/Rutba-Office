@@ -50,10 +50,33 @@ export class Spreadsheet {
      * @type {Map<string, {sheet: string, top: number, left: number, h: number, w: number, values: any[][], blocked: boolean}>}
      */
     this.spills = new Map();
+
+    /**
+     * Bumped whenever a cell or a spill changes shape, and used to date the
+     * `usedBounds` cache below.
+     *
+     * `usedBounds` walks every cell in a sheet. That is cheap on a small sheet
+     * and quadratic on a large one, because the evaluator asks for it while
+     * resolving whole-column references — measured on 30,000 rows, opening the
+     * file spent six seconds in it, and each subsequent frame spent fifteen
+     * milliseconds calling it three more times.
+     */
+    this.revision = 0;
+    this._boundsCache = new Map();
+  }
+
+  /** Something changed the extent of the grid; the cached bounds are stale. */
+  _touch() {
+    this.revision += 1;
   }
 
   addSheet(name) {
-    if (!this.sheets.has(name)) this.sheets.set(name, new Map());
+    // Only a sheet that did not exist changes anything; `setCell` calls this on
+    // every write, and invalidating on a mere lookup would defeat the cache.
+    if (!this.sheets.has(name)) {
+      this.sheets.set(name, new Map());
+      this._touch();
+    }
     return this;
   }
   sheetNames() { return [...this.sheets.keys()]; }
@@ -77,6 +100,7 @@ export class Spreadsheet {
       cells.delete(k);
       this.volatileCells.delete(k);
       this.spills.delete(k);
+      this._touch();
       this._invalidate(sheetName, row, col);
       return this;
     }
@@ -103,6 +127,7 @@ export class Spreadsheet {
     if (cell.volatile) this.volatileCells.add(k);
     else this.volatileCells.delete(k);
     this.spills.delete(k);
+    this._touch();
     this._invalidate(sheetName, row, col);
     return this;
   }
@@ -179,6 +204,9 @@ export class Spreadsheet {
   // ---- resolver ----------------------------------------------------------
 
   usedBounds(sheetName) {
+    const cached = this._boundsCache.get(sheetName);
+    if (cached && cached.revision === this.revision) return cached.bounds;
+
     const cells = this.sheets.get(sheetName);
     let maxRow = 0;
     let maxCol = 0;
@@ -195,7 +223,10 @@ export class Spreadsheet {
       if (s.top + s.h - 1 > maxRow) maxRow = s.top + s.h - 1;
       if (s.left + s.w - 1 > maxCol) maxCol = s.left + s.w - 1;
     }
-    return { maxRow, maxCol };
+
+    const bounds = { maxRow, maxCol };
+    this._boundsCache.set(sheetName, { revision: this.revision, bounds });
+    return bounds;
   }
 
   resolver() {
@@ -489,6 +520,7 @@ export class Spreadsheet {
   _dropSpill(anchorKey, spillTouched) {
     const prev = this.spills.get(anchorKey);
     this.spills.delete(anchorKey);
+    this._touch();
     if (!prev || prev.blocked) return;
     for (let r = 0; r < prev.h; r++) {
       for (let c = 0; c < prev.w; c++) {
@@ -538,6 +570,7 @@ export class Spreadsheet {
     if (blocked) {
       if (prev && !prev.blocked) this._dropSpill(k, spillTouched);
       this.spills.set(k, { sheet: cell.sheet, top: cell.row, left: cell.col, h, w, values: null, blocked: true });
+      this._touch();
       cell.value = ERR.SPILL('something is in the way of this formula’s spill');
       cell.error = cell.value;
       return;
@@ -563,6 +596,7 @@ export class Spreadsheet {
       }
     }
     this.spills.set(k, { sheet: cell.sheet, top: cell.row, left: cell.col, h, w, values, blocked: false });
+    this._touch();
     cell.value = values[0][0];
     cell.error = isError(cell.value) ? cell.value : null;
   }

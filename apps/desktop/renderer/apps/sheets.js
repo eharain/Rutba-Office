@@ -203,13 +203,56 @@ export default function Sheets({ app, shell, boot }) {
 
   const editing = model?.editing;
 
+  /**
+   * What is being typed lives here while it is being typed.
+   *
+   * The draft used to be sent to the engine on every keystroke and the input's
+   * value read back from the answer, so each character made a round trip and
+   * the field lagged behind the keyboard — fast typing dropped characters and
+   * reordered them. The engine does not need to see a half-typed formula; it
+   * needs the finished one. So the cell holds its own text and hands it over
+   * once, on commit.
+   */
+  const [draft, setDraft] = useState(null);
+
+  /**
+   * An edit is starting, decided here and now.
+   *
+   * Beginning an edit is a round trip, and the characters that follow arrive
+   * before it returns — typing "=A1*2" briskly started five separate edits and
+   * kept the last character. This flag is set synchronously on the first key,
+   * so every later character is text rather than a fresh edit, whether or not
+   * the cell editor has taken focus yet.
+   */
+  const startingRef = useRef(false);
+
+  useEffect(() => {
+    if (editing) setDraft((d) => (d == null ? editing.draft ?? '' : d));
+    else {
+      setDraft(null);
+      startingRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [Boolean(editing), editing?.row, editing?.col]);
+
   useEffect(() => {
     if (editing && editorRef.current) {
-      editorRef.current.focus();
       const el = editorRef.current;
+      el.focus();
       el.setSelectionRange(el.value.length, el.value.length);
     }
   }, [editing?.row, editing?.col]);
+
+  /** Hand the finished text to the engine, then move as a spreadsheet does. */
+  const commitDraft = useCallback(
+    (move = 'down') => {
+      const text = draft ?? '';
+      setDraft(null);
+      startingRef.current = false;
+      return dispatch({ op: 'updateDraft', text }, { op: 'commitEdit', move });
+    },
+    [draft, dispatch]
+  );
 
   const onKeyDown = useCallback(
     async (e) => {
@@ -217,13 +260,14 @@ export default function Sheets({ app, shell, boot }) {
       if (editing) {
         if (e.key === 'Escape') {
           e.preventDefault();
+          setDraft(null);
           await dispatch({ op: 'cancelEdit' });
         } else if (e.key === 'Enter') {
           e.preventDefault();
-          await dispatch({ op: 'commitEdit', move: e.shiftKey ? 'up' : 'down' });
+          await commitDraft(e.shiftKey ? 'up' : 'down');
         } else if (e.key === 'Tab') {
           e.preventDefault();
-          await dispatch({ op: 'commitEdit', move: e.shiftKey ? 'left' : 'right' });
+          await commitDraft(e.shiftKey ? 'left' : 'right');
         }
         return;
       }
@@ -257,6 +301,14 @@ export default function Sheets({ app, shell, boot }) {
       // Typing a printable character starts an edit that replaces the cell.
       if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
+        if (startingRef.current) {
+          // The edit is already on its way; this character is text, and it is
+          // kept here because the editor may not hold focus yet.
+          setDraft((d) => (d ?? '') + e.key);
+          return;
+        }
+        startingRef.current = true;
+        setDraft(e.key);
         await dispatch({ op: 'beginEdit', replace: true, initial: e.key });
       }
     },
@@ -414,11 +466,20 @@ export default function Sheets({ app, shell, boot }) {
             <div className="sh-namebox">{sel?.ref}</div>
             <Icon name="formula" size={14} style={{ color: 'var(--ink-3)' }} />
             <Input
-              value={editing ? editing.draft : model.formulaBar ?? ''}
-              onChange={(e) => (editing ? dispatch({ op: 'updateDraft', text: e.target.value }) : dispatch({ op: 'beginEdit', replace: true, initial: e.target.value }))}
+              value={editing ? draft ?? '' : model.formulaBar ?? ''}
+              onChange={(e) => {
+                if (editing) setDraft(e.target.value);
+                else {
+                  setDraft(e.target.value);
+                  dispatch({ op: 'beginEdit', replace: true, initial: e.target.value });
+                }
+              }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') dispatch({ op: 'commitEdit', move: 'down' });
-                if (e.key === 'Escape') dispatch({ op: 'cancelEdit' });
+                if (e.key === 'Enter') commitDraft('down');
+                if (e.key === 'Escape') {
+                  setDraft(null);
+                  dispatch({ op: 'cancelEdit' });
+                }
               }}
               style={{ flex: 1, border: 0, background: 'transparent' }}
             />
@@ -488,8 +549,9 @@ export default function Sheets({ app, shell, boot }) {
                   <input
                     ref={editorRef}
                     className="sh-editor"
-                    value={editing.draft}
-                    onChange={(e) => dispatch({ op: 'updateDraft', text: e.target.value })}
+                    value={draft ?? ''}
+                    onChange={(e) => setDraft(e.target.value)}
+                    onBlur={() => editing && commitDraft('none')}
                     style={{
                       left: editing.x ?? model.cells.find((c) => c.active)?.x ?? 0,
                       top: editing.y ?? model.cells.find((c) => c.active)?.y ?? 0,

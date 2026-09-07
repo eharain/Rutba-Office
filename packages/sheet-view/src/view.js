@@ -945,8 +945,12 @@ export class SheetView {
     const { row, col, draft, startedFrom } = this.editing;
     this.editing = null;
     if (draft !== startedFrom) this.setCell(row, col, draft);
+    // Shift reverses the direction, as it does everywhere else in a sheet, and
+    // 'none' commits where the cursor is — which is what a click away means.
     if (move === 'down') this.enterKey(false);
+    else if (move === 'up') this.enterKey(true);
     else if (move === 'right') this.tab(false);
+    else if (move === 'left') this.tab(true);
     return this;
   }
 

@@ -7,6 +7,20 @@
 
 import { KINDS } from './sniff.js';
 
+/**
+ * Where the product lives. One definition, because these appear in the About
+ * dialog, the Help menu, the launcher's footer, the installer metadata and the
+ * README, and a stale URL in any of them is a support request.
+ */
+export const SITE = {
+  home: 'https://office.rutba.io',
+  contact: 'https://office.rutba.io/contact',
+  help: 'https://office.rutba.io/help',
+  source: 'https://github.com/eharain/Rutba-Office',
+  releases: 'https://github.com/eharain/Rutba-Office/releases',
+  company: 'https://tech-style.co',
+};
+
 /** @typedef {'mail'|'word'|'sheets'|'slides'|'pictures'|'image'|'video'} AppKey */
 
 export const APPS = {

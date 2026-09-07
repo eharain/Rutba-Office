@@ -119,6 +119,12 @@ export const METHODS = {
     'attachment',   // ({ accountId, folder, id, index }) -> { url, name, type, size }
     'search',       // ({ accountId, query, limit }) -> [header]
   ],
+  update: [
+    'state',        // () -> { state, version, available, percent, automatic }
+    'check',        // ({ manual }) -> state
+    'install',      // () -> { installed }   quits, installs, returns
+    'setAutomatic', // ({ on }) -> state
+  ],
   print: [
     'toPDF',        // ({ landscape, margins, pageSize }) -> { bytes }
     'print',        // ({ silent }) -> void
@@ -137,6 +143,7 @@ export const EVENTS = [
   'mail:progress',    // { accountId, folder, done, total, phase }
   'mail:new',         // { accountId, folder, count }
   'theme:changed',    // { dark }
+  'update:state',     // { state, version, available, percent, automatic }
 ];
 
 /** Every method as a flat channel list, e.g. 'fs:read'. */

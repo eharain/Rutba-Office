@@ -85,8 +85,26 @@ export default function Word({ app, shell, boot }) {
       try {
         const next = await shell.doc.apply({ id: doc.id, ops });
         setDoc(next);
-        setModel(next.model);
-        pendingCaret.current = next.model?.selection?.focus ?? null;
+
+        if (next.patch) {
+          // A splice, not a replacement: the blocks that did not change keep
+          // their identity, so React re-renders the one paragraph that did.
+          const { from, removed, blocks: inserted, ...rest } = next.patch;
+          setModel((current) => {
+            if (!current) return current;
+            const blocks = current.blocks.slice();
+            blocks.splice(from, removed, ...inserted);
+            // Block indices are positions; renumber whatever the splice moved.
+            for (let i = from; i < blocks.length; i++) {
+              if (blocks[i].index !== i) blocks[i] = { ...blocks[i], index: i };
+            }
+            return { ...current, ...rest, blocks };
+          });
+          pendingCaret.current = next.patch.selection?.focus ?? null;
+        } else {
+          setModel(next.model);
+          pendingCaret.current = next.model?.selection?.focus ?? null;
+        }
         return next;
       } catch (err) {
         toast(err.message, { tone: 'bad' });
@@ -190,13 +208,19 @@ export default function Word({ app, shell, boot }) {
     };
   }, []);
 
+  /**
+   * The caret moved. This is deliberately *not* sent to the backend on every
+   * key release: an edit carries its own position, so the only reason to tell
+   * the engine separately is a click or an arrow key, and doing it per keystroke
+   * doubled the round trips for no gain.
+   */
   const syncSelection = useCallback(() => {
     const pos = currentPosition();
     if (!pos?.focus) return;
     apply({ op: 'setSelection', anchor: pos.anchor || pos.focus, focus: pos.focus });
   }, [apply, currentPosition]);
 
-  const onBeforeInput = useCallback(
+  const handleBeforeInput = useCallback(
     (e) => {
       // Nothing the browser does to the DOM is kept; the engine decides.
       e.preventDefault();
@@ -222,9 +246,23 @@ export default function Word({ app, shell, boot }) {
         case 'deleteByCut':
           ops.push({ op: 'deleteSelection' });
           break;
-        case 'insertFromPaste': {
+        case 'insertFromPaste':
+        case 'insertFromDrop': {
+          // The native event carries the payload on `dataTransfer`; a paste
+          // routed through the menu arrives with neither, so the clipboard is
+          // read as a fallback.
           const text = e.dataTransfer?.getData('text/plain');
           if (text) ops.push({ op: 'pasteText', text });
+          else {
+            shell.clipboard.readText().then((clip) => clip && apply({ op: 'pasteText', text: clip }));
+            return;
+          }
+          break;
+        }
+        case 'insertReplacementText': {
+          // A spell-check correction: the engine replaces the current word.
+          const text = e.dataTransfer?.getData('text/plain') || e.data;
+          if (text) ops.push({ op: 'insertText', text });
           break;
         }
         case 'formatBold':
@@ -243,6 +281,26 @@ export default function Word({ app, shell, boot }) {
     },
     [apply, currentPosition]
   );
+
+  /**
+   * `beforeinput` is attached natively, not through React.
+   *
+   * React's `onBeforeInput` is not this event. It is a synthetic event
+   * react-dom assembles from `keypress`, `textInput` and `compositionend` — a
+   * polyfill older than the standard — and it carries no `inputType`. An editor
+   * wired to it cancels the browser's insertion and then asks what to do about
+   * `undefined`, which is nothing: typing does absolutely nothing, silently.
+   * Backspace never arrives at all, because `keypress` does not fire for it.
+   *
+   * The native event carries `inputType` and is cancellable, which is the whole
+   * mechanism this editor runs on. `word-input.test.js` pins it.
+   */
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el) return undefined;
+    el.addEventListener('beforeinput', handleBeforeInput);
+    return () => el.removeEventListener('beforeinput', handleBeforeInput);
+  }, [handleBeforeInput, model]);
 
   // The engine's caret is authoritative; after every render the DOM caret is
   // put back where the engine says it is.
@@ -431,9 +489,13 @@ export default function Word({ app, shell, boot }) {
               contentEditable
               suppressContentEditableWarning
               spellCheck
-              onBeforeInput={onBeforeInput}
-              onKeyUp={syncSelection}
               onMouseUp={syncSelection}
+              onKeyDown={(e) => {
+                // Arrow keys and Home/End move the caret without an edit, so the
+                // engine is told where it landed — after the browser has moved
+                // it, which is why this waits a tick.
+                if (/^(Arrow|Home|End|Page)/.test(e.key)) setTimeout(syncSelection, 0);
+              }}
               onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.undo', 'edit.redo', '-', 'format.bold', 'format.italic', 'format.underline', '-', 'edit.find']))}
               style={{
                 width: section ? Math.round(section.widthPx) : 794,
@@ -467,7 +529,10 @@ export default function Word({ app, shell, boot }) {
   );
 }
 
-function Block({ block, labels }) {
+// Memoised: with the patch above, a keystroke changes one block, and only
+// that one should re-render. Without this the saving is thrown away in
+// reconciliation.
+const Block = React.memo(function Block({ block, labels }) {
   const style = {
     textAlign: block.align || undefined,
     marginLeft: block.indent ? block.indent * 24 : undefined,
@@ -520,7 +585,7 @@ function Block({ block, labels }) {
       )}
     </p>
   );
-}
+});
 
 function FindPanel({ state, onChange, onClose, onReplaceAll }) {
   return (
