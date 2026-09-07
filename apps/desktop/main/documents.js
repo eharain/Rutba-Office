@@ -351,6 +351,15 @@ export function createDocumentService({ holdBlob }) {
       canUndo: view.canUndo,
       canRedo: view.canRedo,
       names: typeof view.names === 'function' ? view.names() : [],
+      // What the ribbon needs to show a pressed button: the formatting of the
+      // selection, whether the sheet is protected, and where the panes are
+      // frozen. Without these the toolbar can apply formatting but never
+      // reflect it, which reads as a toolbar that does not work.
+      format: typeof view.formatState === 'function' ? view.formatState() : null,
+      protection: typeof view.protection === 'function' ? view.protection() : null,
+      frozen: typeof view.frozenPane === 'function' ? view.frozenPane() : null,
+      tables: typeof view.sheetTables === 'function' ? view.sheetTables() : [],
+      filtered: typeof view.sheetFilter === 'function' ? Boolean(view.sheetFilter()) : false,
     };
   }
 
@@ -506,6 +515,31 @@ export function createDocumentService({ holdBlob }) {
     insertShape: (v, a) => v.insertShape(a),
     formatBrush: (v) => v.markFormatBrush(),
     paintFormat: (v) => v.paintFormat(),
+
+    // Everything below was in the engine before it was in the ribbon. A cell
+    // that cannot be made bold, a sheet that cannot be frozen and a column that
+    // cannot be filtered are not missing features here — they were missing
+    // buttons, which is the same thing to the person using it.
+    setFormat: (v, a) => v.setFormat(a.delta || {}),
+    freeze: (v, a) => v.freezePanes(a.rows ?? 0, a.cols ?? 0),
+    protect: (v) => v.protect(),
+    unprotect: (v) => v.unprotect(),
+    conditional: (v, a) => v.addConditionalRule(a.spec || {}),
+    clearConditional: (v, a) => v.clearConditionalRules({ all: Boolean(a.all) }),
+    validation: (v, a) => v.addValidationRule(a.spec || {}),
+    clearValidation: (v, a) => v.clearValidationRules({ all: Boolean(a.all) }),
+    goalSeek: (v, a) => v.goalSeek({ set: a.set, to: a.to, by: a.by }),
+    dataTable: (v, a) => v.dataTable({ range: a.range, rowInput: a.rowInput, colInput: a.colInput }),
+    defineName: (v, a) => v.defineName(a.name, a.ref),
+    deleteName: (v, a) => v.deleteName(a.name),
+    gotoName: (v, a) => v.gotoName(a.name),
+    autoFilter: (v) => v.toggleAutoFilter(),
+    applyFilter: (v, a) => v.applyFilter(a.table, a.column, a.values),
+    findNext: (v, a) => v.findNext(a.text),
+    replaceNext: (v, a) => v.replaceNext(a.find, a.replace),
+    replaceAll: (v, a) => v.replaceAll(a.find, a.replace),
+    pivot: (v, a) => v.createPivot(a),
+    refreshPivot: (v, a) => v.refreshPivot(a.name),
   };
 
   /** What the ribbon calls a format, and what the document engine calls it. */
@@ -545,6 +579,9 @@ export function createDocumentService({ holdBlob }) {
     tableOp: (v, a) => v.tableOp(a.op, a.arg),
     addComment: (v, a) => v.addComment(a.text, { author: a.author }),
     tabCell: (v, a) => v.tabCell({ back: a.back }),
+    // Headers and footers. A report without a page number is a draft, and the
+    // engine has been able to write one since bands existed.
+    setBand: (v, a) => v.setBand(a.band, a.lines ?? [a.text ?? '']),
   };
 
   const DECK_OPS = {

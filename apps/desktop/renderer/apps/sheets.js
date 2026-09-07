@@ -10,8 +10,12 @@
 // the sheet came from a .xlsx, a .csv or an .ods.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Spinner, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
+import SheetsRibbon from './sheets/ribbon.js';
+import {
+  ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
+} from './sheets/dialogs.js';
 
 const colLabel = (n) => {
   let s = '';
@@ -30,6 +34,9 @@ export default function Sheets({ app, shell, boot }) {
   const [busy, setBusy] = useState(true);
   const [tab, setTab] = useState('home');
   const [error, setError] = useState(null);
+  // Which of the ribbon's dialogs is open, by name. One piece of state rather
+  // than seven booleans, because only one of them can be open at a time.
+  const [dialog, setDialog] = useState(null);
   const gridRef = useRef(null);
   const editorRef = useRef(null);
   const menu = useMenu();
@@ -364,86 +371,20 @@ export default function Sheets({ app, shell, boot }) {
       dirty={doc?.dirty}
       menu={appMenu}
       ribbon={
-        <Ribbon
-          tabs={[
-            { id: 'home', label: 'Home' },
-            { id: 'insert', label: 'Insert' },
-            { id: 'data', label: 'Data' },
-            { id: 'view', label: 'View' },
-          ]}
-          active={tab}
-          onTab={setTab}
-          quick={
-            <>
-              <Button icon="save" title="Save" onClick={() => save(false)} />
-              <Button icon="undo" title="Undo" disabled={!doc?.canUndo} onClick={() => commands['edit.undo'].run()} />
-              <Button icon="redo" title="Redo" disabled={!doc?.canRedo} onClick={() => commands['edit.redo'].run()} />
-            </>
-          }
-        >
-          {tab === 'home' ? (
-            <>
-              <Group label="File">
-                <Button tall icon="new" label="New" onClick={() => shell.win.create({ app: 'sheets' })} />
-                <Button tall icon="open" label="Open" onClick={openFile} />
-                <Button tall icon="save" label="Save" onClick={() => save(false)} />
-              </Group>
-              <Group label="Clipboard">
-                <Button tall icon="copy" label="Copy" onClick={() => commands['edit.copy'].run()} />
-                <Button tall icon="paste" label="Paste" onClick={async () => dispatch({ op: 'paste', text: await shell.clipboard.readText() })} />
-                <Button tall icon="wand" label="Format" title="Copy formatting" onClick={() => dispatch({ op: 'formatBrush' })} />
-              </Group>
-              <Group label="Cells">
-                <Button icon="table" label="Merge" onClick={() => dispatch({ op: 'merge' })} />
-                <Button icon="minus" label="Unmerge" onClick={() => dispatch({ op: 'unmerge' })} />
-                <Button icon="close" label="Clear" onClick={() => dispatch({ op: 'clear' })} />
-              </Group>
-              <Group label="Rows and columns">
-                <Button icon="plus" label="Row" onClick={() => commands['sheet.insertRow'].run()} />
-                <Button icon="minus" label="Row" onClick={() => commands['sheet.deleteRow'].run()} />
-                <Button icon="plus" label="Column" onClick={() => commands['sheet.insertCol'].run()} />
-                <Button icon="minus" label="Column" onClick={() => commands['sheet.deleteCol'].run()} />
-              </Group>
-              <Group label="Editing">
-                <Button tall icon="sum" label="AutoSum" onClick={() => commands['sheet.autoSum'].run()} />
-                <Button tall icon="sort" label="Sort" onClick={() => commands['sheet.sortAsc'].run()} />
-              </Group>
-            </>
-          ) : tab === 'insert' ? (
-            <>
-              <Group label="Charts">
-                <Button tall icon="chart" label="Column" onClick={() => dispatch({ op: 'insertChart', kind: 'column' })} />
-                <Button tall icon="chart" label="Line" onClick={() => dispatch({ op: 'insertChart', kind: 'line' })} />
-                <Button tall icon="chart" label="Pie" onClick={() => dispatch({ op: 'insertChart', kind: 'pie' })} />
-              </Group>
-              <Group label="Illustrations">
-                <Button tall icon="shape" label="Shape" onClick={() => dispatch({ op: 'insertShape', geometry: 'rect', text: '' })} />
-              </Group>
-            </>
-          ) : tab === 'data' ? (
-            <>
-              <Group label="Sort and filter">
-                <Button tall icon="sort" label="A → Z" onClick={() => commands['sheet.sortAsc'].run()} />
-                <Button tall icon="sort" label="Z → A" onClick={() => commands['sheet.sortDesc'].run()} />
-              </Group>
-              <Group label="Export">
-                <Button tall icon="export" label="CSV" onClick={() => exportAs('csv')} />
-                <Button tall icon="export" label="TSV" onClick={() => exportAs('tsv')} />
-              </Group>
-            </>
-          ) : (
-            <>
-              <Group label="Zoom">
-                <Button icon="zoomOut" label="Out" onClick={() => shell.win.zoom({ delta: -0.1 })} />
-                <Button icon="zoomIn" label="In" onClick={() => shell.win.zoom({ delta: 0.1 })} />
-                <Button icon="check" label="100%" onClick={() => shell.win.zoom({ reset: true })} />
-              </Group>
-              <Group label="Window">
-                <Button icon="maximize" label="Full screen" onClick={() => shell.win.fullscreen({})} />
-              </Group>
-            </>
-          )}
-        </Ribbon>
+        <SheetsRibbon
+          tab={tab}
+          setTab={setTab}
+          model={model}
+          doc={doc}
+          dispatch={dispatch}
+          commands={commands}
+          shell={shell}
+          menu={menu}
+          save={save}
+          openFile={openFile}
+          exportAs={exportAs}
+          openDialog={setDialog}
+        />
       }
       status={
         <>
@@ -586,7 +527,158 @@ export default function Sheets({ app, shell, boot }) {
           {menu.node}
         </div>
       )}
+
+      {dialog === 'conditional' ? (
+        <ConditionalDialog
+          selection={sel?.ref}
+          onClose={() => setDialog(null)}
+          onApply={async (spec) => {
+            await dispatch({ op: 'conditional', spec });
+            setDialog(null);
+          }}
+          onClear={async (all) => {
+            await dispatch({ op: 'clearConditional', all });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'validation' ? (
+        <ValidationDialog
+          selection={sel?.ref}
+          onClose={() => setDialog(null)}
+          onApply={async (spec) => {
+            await dispatch({ op: 'validation', spec });
+            setDialog(null);
+          }}
+          onClear={async (all) => {
+            await dispatch({ op: 'clearValidation', all });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'goalSeek' ? (
+        <GoalSeekDialog
+          active={sel?.ref?.split(':')[0]}
+          onClose={() => setDialog(null)}
+          onRun={async ({ set, to, by }) => {
+            const next = await dispatch({ op: 'goalSeek', set, to, by });
+            return next?.model?.goalSeek ?? { converged: Boolean(next), value: by, reached: to };
+          }}
+        />
+      ) : null}
+
+      {dialog === 'dataTable' ? (
+        <DataTableDialog
+          selection={sel?.ref}
+          onClose={() => setDialog(null)}
+          onRun={async (spec) => {
+            await dispatch({ op: 'dataTable', ...spec });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'names' ? (
+        <NameManager
+          names={model?.names || []}
+          selection={sel?.ref}
+          onClose={() => setDialog(null)}
+          onDefine={(name, ref) => dispatch({ op: 'defineName', name, ref })}
+          onDelete={(name) => dispatch({ op: 'deleteName', name })}
+          onGoto={async (name) => {
+            await dispatch({ op: 'gotoName', name });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'find' ? (
+        <FindDialog
+          onClose={() => setDialog(null)}
+          onFind={async (text) => {
+            const next = await dispatch({ op: 'findNext', text });
+            return next ? 'Found the next match.' : 'Nothing else matches.';
+          }}
+          onReplace={async (find, replace) => {
+            const next = await dispatch({ op: 'replaceNext', find, replace });
+            return next ? 'Replaced one.' : 'Nothing left to replace.';
+          }}
+          onReplaceAll={async (find, replace) => {
+            const next = await dispatch({ op: 'replaceAll', find, replace });
+            return next ? 'Replaced every match.' : 'Nothing matched.';
+          }}
+        />
+      ) : null}
+
+      {dialog === 'pivot' ? (
+        <PivotDialog
+          selection={sel?.ref}
+          sheets={model?.sheets || []}
+          onClose={() => setDialog(null)}
+          onCreate={async (spec) => {
+            await dispatch({ op: 'pivot', ...spec });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'freeze' ? <FreezeDialog model={model} sel={sel} dispatch={dispatch} onClose={() => setDialog(null)} /> : null}
     </AppFrame>
+  );
+}
+
+/**
+ * Freeze panes.
+ *
+ * Excel freezes at the selection and leaves you to work out where that is.
+ * Naming the three things people actually want — the top row, the first column,
+ * both — and offering "at the selection" underneath is the same feature with
+ * the guessing taken out.
+ */
+function FreezeDialog({ model, sel, dispatch, onClose }) {
+  const frozen = model?.frozen || { rows: 0, cols: 0 };
+  const at = sel?.active || { row: 0, col: 0 };
+
+  const choices = [
+    { label: 'Freeze the top row', rows: 1, cols: 0 },
+    { label: 'Freeze the first column', rows: 0, cols: 1 },
+    { label: 'Freeze the top row and first column', rows: 1, cols: 1 },
+    { label: `Freeze above and left of ${sel?.ref?.split(':')[0] || 'the selection'}`, rows: at.row, cols: at.col },
+    { label: 'Unfreeze', rows: 0, cols: 0 },
+  ];
+
+  return (
+    <Dialog
+      title="Freeze panes"
+      width={420}
+      onClose={onClose}
+      actions={<Button label="Close" onClick={onClose} />}
+    >
+      <p style={{ marginTop: 0, fontSize: 12.5 }}>
+        {frozen.rows || frozen.cols
+          ? `Currently frozen: ${frozen.rows} row${frozen.rows === 1 ? '' : 's'}, ${frozen.cols} column${frozen.cols === 1 ? '' : 's'}.`
+          : 'Nothing is frozen.'}
+      </p>
+      <div className="ml-found">
+        {choices.map((c) => (
+          <button
+            key={c.label}
+            type="button"
+            className="ml-found-item"
+            onClick={async () => {
+              await dispatch({ op: 'freeze', rows: c.rows, cols: c.cols });
+              onClose();
+            }}
+          >
+            <span className="ml-found-logo"><Icon name="freeze" size={15} /></span>
+            <span className="grow"><div className="who">{c.label}</div></span>
+            {frozen.rows === c.rows && frozen.cols === c.cols ? <Icon name="check" size={14} /> : null}
+          </button>
+        ))}
+      </div>
+    </Dialog>
   );
 }
 

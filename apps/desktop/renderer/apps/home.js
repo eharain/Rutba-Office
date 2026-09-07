@@ -109,6 +109,8 @@ export default function Home({ app, shell }) {
           </div>
         </header>
 
+        <Announcement shell={shell} />
+
         <section className="home-section">
           <h2>Apps</h2>
           <div className="home-grid">
@@ -195,6 +197,69 @@ export default function Home({ app, shell }) {
   );
 }
 
+/**
+ * The notice board.
+ *
+ * Nothing is drawn unless there is something to say that has not been said
+ * before — no placeholder, no "no announcements", no space reserved. A launcher
+ * that shows an empty box every morning trains people not to look at it.
+ *
+ * Every failure is silence. Offline, blocked, a proxy returning a login page,
+ * the endpoint not built yet: all the same, and none of them are the person's
+ * problem. There is no loading state for the same reason — a strip that flashes
+ * "checking…" on every launch is worse than one that simply appears when it has
+ * news.
+ */
+function Announcement({ shell }) {
+  const [notice, setNotice] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    shell.announce
+      .check()
+      .then((r) => live && setNotice(r?.announcement || null))
+      .catch(() => {});
+    // A second window opening later can find news this one has not seen.
+    const off = shell.on('announce:new', (fresh) => setNotice(fresh));
+    return () => {
+      live = false;
+      off?.();
+    };
+  }, [shell]);
+
+  if (!notice) return null;
+
+  const close = () => {
+    setNotice(null);
+    shell.announce.dismiss({ id: notice.id }).catch(() => {});
+  };
+
+  return (
+    <div className={`home-notice ${notice.kind}`} role="status">
+      <Icon name={notice.kind === 'security' ? 'shield' : notice.kind === 'release' ? 'download' : 'info'} size={14} />
+      <div className="home-notice-text">
+        <strong>{notice.title}</strong>
+        {notice.body ? <span>{notice.body}</span> : null}
+      </div>
+      {notice.link ? (
+        <button
+          type="button"
+          className="home-notice-link"
+          onClick={() => {
+            shell.shell.openExternal({ url: notice.link }).catch(() => {});
+            close();
+          }}
+        >
+          {notice.linkLabel}
+        </button>
+      ) : null}
+      <button type="button" className="home-notice-close" onClick={close} title="Dismiss" aria-label="Dismiss">
+        <Icon name="close" size={12} />
+      </button>
+    </div>
+  );
+}
+
 function HomeStatus({ version, recent, shell, update }) {
   const open = (url) => shell.shell.openExternal({ url });
   return (
@@ -242,6 +307,55 @@ function updateSentence(update) {
     default:
       return 'No check has run yet. This build contacts nothing on its own.';
   }
+}
+
+/**
+ * The announcement setting, stated rather than buried.
+ *
+ * A suite whose mail client names the companies watching you cannot have a
+ * quiet channel of its own. So the second — and last — outbound request is
+ * described here in the words that are actually true, including the part that
+ * is uncomfortable to write down: this is how we know anybody is using it.
+ */
+function AnnouncementSetting({ shell }) {
+  const [status, setStatus] = useState(null);
+
+  useEffect(() => {
+    let live = true;
+    shell.announce.status().then((s) => live && setStatus(s)).catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [shell]);
+
+  if (!status) return null;
+
+  return (
+    <div className="about-update">
+      <div className="about-update-line">
+        <Icon name="globe" size={15} />
+        <span>
+          {status.enabled
+            ? status.checkedAt
+              ? `Last asked ${formatWhen(new Date(status.checkedAt).toISOString())}.`
+              : 'Not asked yet.'
+            : 'Announcements are off, so this is never contacted.'}
+        </span>
+      </div>
+      <label className="about-auto">
+        <input
+          type="checkbox"
+          checked={status.enabled}
+          onChange={async (e) => setStatus({ ...status, ...(await shell.announce.setEnabled({ on: e.target.checked })) })}
+        />
+        <span>
+          Show announcements from office.rutba.io — once a day at most. It sends the version and the operating
+          system, and no identifier of any kind, so what is counted at the other end is "a copy opened somewhere",
+          never you. It is also the only way we know the suite is being used at all.
+        </span>
+      </label>
+    </div>
+  );
 }
 
 function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClose }) {
@@ -296,6 +410,18 @@ function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClo
             </label>
           </div>
 
+          <AnnouncementSetting shell={shell} />
+
+          {/*
+            The whole list, so nobody has to take our word for it. If a network
+            monitor ever shows a fourth thing, that is a bug and we want to hear
+            about it.
+          */}
+          <p className="rw-hint">
+            Those two requests, and the mail and calendar servers you set up yourself, are everything Rutba Office
+            ever contacts. Your documents, your mail and what you do with them never leave this computer.
+          </p>
+
           <p className="rw-hint">
             Copyright © 2026 Tech Style Ltd. The source is published, and you are free to study, modify and
             share it under the terms of the AGPL.
@@ -316,6 +442,28 @@ function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClo
 }
 
 const CSS = `
+/* the notice board: one line, easy to ignore, easy to dismiss */
+.home-notice {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 18px;
+  padding: 9px 12px; border-radius: var(--r-2); font-size: 12.5px;
+  background: var(--sunken); border: 1px solid var(--line); color: var(--ink-2);
+}
+.home-notice.release { border-color: var(--accent-line); background: var(--selected); }
+.home-notice.security { border-color: color-mix(in srgb, var(--bad) 40%, transparent); background: color-mix(in srgb, var(--bad) 8%, transparent); }
+.home-notice-text { flex: 1; min-width: 0; display: flex; gap: 8px; align-items: baseline; }
+.home-notice-text strong { color: var(--ink); }
+.home-notice-text span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.home-notice-link {
+  border: 0; background: none; color: var(--accent); font: inherit; font-size: 12.5px;
+  font-weight: 600; cursor: pointer; padding: 2px 4px; border-radius: var(--r-1); flex: none;
+}
+.home-notice-link:hover { background: var(--hover); }
+.home-notice-close {
+  border: 0; background: none; color: var(--ink-3); cursor: pointer; padding: 2px;
+  display: grid; place-items: center; flex: none; border-radius: var(--r-1);
+}
+.home-notice-close:hover { background: var(--hover); color: var(--ink); }
+
 .home { flex: 1; overflow: auto; padding: 26px 30px 34px; display: flex; flex-direction: column; gap: 26px; }
 .home-hero { display: flex; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
 .home-hero h1 {

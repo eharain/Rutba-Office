@@ -142,6 +142,13 @@ export const METHODS = {
     'set',          // ({ exts }) -> { changed, opened, message }
   ],
   // What other mail clients have left on this computer.
+  // The one request this application makes of the outside world.
+  announce: [
+    'check',        // ({ force }) -> { announcement, enabled, checkedAt }
+    'dismiss',      // ({ id }) -> { seen }
+    'status',       // () -> { enabled, endpoint, sends, sendsNot }
+    'setEnabled',   // ({ on }) -> { enabled }
+  ],
   discover: [
     'scan',         // () -> { accounts, files, scanned }
   ],
@@ -162,6 +169,7 @@ export const EVENTS = [
   'app:command',      // { command, args }   menu / accelerator
   'mail:progress',    // { accountId, folder, done, total, phase }
   'mail:new',         // { accountId, folder, count }
+  'announce:new',     // { id, title, body, link, kind }
   'mail:sent',        // { id, to }
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
   'theme:changed',    // { dark }

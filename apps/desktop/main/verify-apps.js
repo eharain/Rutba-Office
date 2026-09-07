@@ -363,6 +363,90 @@ export async function verifyApps({ windows, doc }) {
     check('video: the checks ran', false, err.message);
   }
 
+  /* ── The launcher survives a notice board that is not there ──────────── */
+
+  try {
+    const win = await open('home');
+    // Long enough for the fetch to have failed and the render to have settled.
+    await wait(2200);
+    const state = await win.webContents.executeJavaScript(`(() => ({
+      notices: document.querySelectorAll('.home-notice').length,
+      complaints: [...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent),
+      apps: document.querySelectorAll('.home-card').length,
+    }))()`);
+
+    // The endpoint may or may not exist yet. Either way the launcher must be
+    // whole, and a missing notice board must be silent — not a toast, not an
+    // empty strip, not a gap where one would go.
+    check('home: a notice board that is unreachable says nothing', state.complaints.length === 0, state.complaints.join(' | ') || 'nothing reported');
+    check('home: the launcher is whole regardless', state.apps === 7, `${state.apps} app cards, ${state.notices} notices`);
+  } catch (err) {
+    check('home: the launcher checks ran', false, err.message);
+  }
+
+  /* ── Worksheets: the ribbon can actually format a cell ───────────────── */
+
+  try {
+    const win = await open('sheets', files.xlsx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const session = sessionFor('sheet');
+
+    // Every one of these was in the engine and had no button. A spreadsheet
+    // whose cells cannot be made bold is not a spreadsheet, and the gap was
+    // invisible because nothing checked for it.
+    const press = async (title) =>
+      js(`(() => {
+        const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || '') === ${JSON.stringify(title)});
+        if (!b) return 'no button';
+        b.click();
+        return 'clicked';
+      })()`);
+
+    await js(`document.querySelector('.sh')?.focus(), 'ok'`);
+    await wait(200);
+
+    // Driven the way the window drives it — through the operation table — so
+    // the check covers the wiring as well as the engine.
+    const run = (...ops) => doc.apply({ id: session.id, ops });
+    const bolded = await press('Bold');
+    await wait(600);
+    const afterBold = await doc.viewport({ id: session.id });
+    check('sheets: the ribbon can make a cell bold', afterBold.format?.bold === true, `${bolded}, the selection reads bold=${afterBold.format?.bold}`);
+
+    // Freeze panes, protection and named ranges: three more that existed only
+    // in the engine until this ribbon.
+    const frozen = (await run({ op: 'freeze', rows: 1, cols: 0 })).model;
+    check('sheets: panes freeze', frozen.frozen?.rows === 1, JSON.stringify(frozen.frozen));
+
+    const locked = (await run({ op: 'protect' })).model;
+    check('sheets: a sheet can be protected', locked.protection?.sheet === true, JSON.stringify(locked.protection));
+    await run({ op: 'unprotect' });
+
+    const named = (await run({ op: 'defineName', name: 'Revenue', ref: 'Sales!$B$2:$B$3' })).model;
+    check('sheets: a range can be named', (named.names || []).some((n) => n.name === 'Revenue'), `${(named.names || []).length} names defined`);
+
+    const tabs = await js(`[...document.querySelectorAll('.rw-ribbon-tabs button, .rw-tab')].map((b) => b.textContent.trim()).join(', ')`);
+    check(
+      'sheets: the ribbon has the tabs a spreadsheet has',
+      ['Home', 'Insert', 'Formulas', 'Data', 'Review', 'View'].every((t) => tabs.includes(t)),
+      `tabs are ${JSON.stringify(tabs)}`
+    );
+  } catch (err) {
+    check('sheets: the ribbon checks ran', false, err.message);
+  }
+
+  /* ── Every window offers full screen ─────────────────────────────────── */
+
+  try {
+    const win = opened[0];
+    const found = await win.webContents.executeJavaScript(
+      `[...document.querySelectorAll('.rw-wincontrols button, .rw-titlebar button')].some((b) => /full screen/i.test(b.title || ''))`
+    );
+    check('every window has a full-screen button', found === true, found ? 'in the title bar' : 'none found in the title bar');
+  } catch (err) {
+    check('the full-screen check ran', false, err.message);
+  }
+
   /* ── Word: a GitHub README opens, edits and saves as Markdown ────────── */
 
   try {

@@ -12,6 +12,7 @@ import { fileAssociations } from '@rutba/office-formats/registry';
 import { createDocumentService } from './documents.js';
 import { createMailService } from './mail.js';
 import { createUpdateService } from './updates.js';
+import { createAnnouncementService } from './announce.js';
 import { createDefaultsService } from './defaults.js';
 import { createDiscoveryService } from './discover.js';
 
@@ -38,6 +39,7 @@ createShell({
   namespaces: ({ stores, holdBlob: hold }) => (services = {
     doc: createDocumentService({ holdBlob: hold }),
     update: updates = createUpdateService({ stores, broadcast }),
+    announce: createAnnouncementService({ stores, broadcast }),
     defaults: createDefaultsService({ associations: fileAssociations() }),
     discover: createDiscoveryService(),
     mail: createMailService({
