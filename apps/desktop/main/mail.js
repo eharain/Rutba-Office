@@ -17,6 +17,7 @@ import { parseMessage } from '@rutba/mailbox/mime';
 import { scan, read as readArchive, identify } from '@rutba/mailbox/import';
 import { writeMbox } from '@rutba/mailbox/mbox';
 import { insightFor } from './mail-insight.js';
+import { planRules, applyPlan } from './mail-rules.js';
 
 /** Well-known providers, so most people never type a server name. */
 const PROVIDERS = [
@@ -98,6 +99,15 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     await client.connect();
     return client;
   }
+
+  /**
+   * The folder this account calls its Trash, its Junk, its Archive.
+   * A rule says "junk"; the account may call it Spam, Bulk Mail or
+   * [Gmail]/Spam, and putting a message in a folder that does not exist is
+   * how mail gets lost.
+   */
+  const folderFor = (accountId, role) =>
+    (store.folders(accountId) || []).find((f) => classify(f.name || f.path).role === role)?.path || null;
 
   const find = (id) => {
     const account = accounts().find((a) => a.id === id);
@@ -317,8 +327,22 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       } finally {
         await client.logout().catch(() => {});
       }
-      if (added) broadcast?.('mail:new', { accountId, folder, count: added });
-      return { added, total: store.counts(accountId, folder || 'Inbox').total };
+      // Rules run on arrival, over what has just arrived rather than over the
+      // whole folder — a rule is about the message coming in, and re-running
+      // one across 50,000 old messages every fetch would be a different and
+      // much slower feature.
+      let filed = null;
+      if (added) {
+        const rules = stores.settings.get('mail.rules', []);
+        if (rules.some((r) => r.enabled !== false)) {
+          const { rows } = store.list(accountId, folder || 'Inbox', { limit: added });
+          const plan = planRules(rows.map((r) => ({ ...r, folder: folder || 'Inbox' })), rules);
+          if (plan.length) filed = applyPlan(plan, { store, accountId, folderFor });
+        }
+      }
+
+      if (added) broadcast?.('mail:new', { accountId, folder, count: added, filed });
+      return { added, filed, total: store.counts(accountId, folder || 'Inbox').total };
     },
 
     messages: ({ accountId, folder, offset = 0, limit = 100, query = '', unreadOnly = false }) =>
@@ -346,6 +370,61 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       }
       rows.sort((a, b) => (b.date || '').localeCompare(a.date || ''));
       return { total: rows.length, rows: rows.slice(offset, offset + limit) };
+    },
+
+    /* ── rules ────────────────────────────────────────────────────────── */
+
+    rules: () => stores.settings.get('mail.rules', []),
+
+    saveRule: ({ rule }) => {
+      const rules = stores.settings.get('mail.rules', []);
+      const id = rule.id || crypto.randomUUID().slice(0, 8);
+      const record = { ...rule, id };
+      const at = rules.findIndex((r) => r.id === id);
+      if (at >= 0) rules[at] = record;
+      else rules.push(record);
+      stores.settings.set('mail.rules', rules);
+      return record;
+    },
+
+    deleteRule: ({ id }) => {
+      stores.settings.set('mail.rules', stores.settings.get('mail.rules', []).filter((r) => r.id !== id));
+      return { removed: true };
+    },
+
+    /**
+     * What the rules would do, without doing any of it.
+     *
+     * The reason anybody writes a rule is the mail already sitting in the
+     * folder, and the reason people distrust rules is that a wrong one moves a
+     * thousand messages before they can look. So this answers first.
+     */
+    testRules: ({ accountId, folder, rules: only = null, limit = 40 }) => {
+      const rules = only || stores.settings.get('mail.rules', []);
+      const { rows } = store.list(accountId, folder, { limit: 100000 });
+      const plan = planRules(rows.map((r) => ({ ...r, folder })), rules);
+      return {
+        matched: plan.length,
+        of: rows.length,
+        sample: plan.slice(0, limit).map(({ row, rule, actions }) => ({
+          id: row.id,
+          subject: row.subject,
+          from: row.from,
+          date: row.date,
+          rule: rule?.name || rule?.id || null,
+          actions: actions.map((a) => (a.value ? `${a.type} → ${a.value}` : a.type)),
+        })),
+      };
+    },
+
+    /** Run them for real, over one folder. */
+    runRules: ({ accountId, folder, rules: only = null }) => {
+      const rules = only || stores.settings.get('mail.rules', []);
+      const { rows } = store.list(accountId, folder, { limit: 100000 });
+      const plan = planRules(rows.map((r) => ({ ...r, folder })), rules);
+      const tally = applyPlan(plan, { store, accountId, folderFor });
+      if (tally.matched) broadcast?.('mail:new', { accountId, folder, count: 0 });
+      return tally;
     },
 
     /** Mark a whole folder read — the button every list needs and few have. */

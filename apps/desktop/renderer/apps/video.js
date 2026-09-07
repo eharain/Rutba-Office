@@ -69,6 +69,29 @@ export default function VideoTool({ app, shell, boot }) {
     );
   }, [path]);
 
+  /**
+   * The event may already have happened.
+   *
+   * `loadedmetadata` fires once, and a small file served over the local
+   * protocol can be decoded before React has attached the handler — in which
+   * case the event is gone and the timeline is never built. The media plays and
+   * the timeline stays empty, which looks like a broken application and is
+   * invisible on a slow machine because there the event wins the race.
+   *
+   * So the state is asked as well as listened for.
+   */
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el || !path) return undefined;
+    if (el.readyState >= 1) onMetadata();
+    // A second chance after the element has certainly had time to attach: the
+    // ref is not populated on the first pass of a fresh mount.
+    const timer = setTimeout(() => {
+      if (videoRef.current?.readyState >= 1) onMetadata();
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [path, onMetadata]);
+
   const openFile = useCallback(async () => {
     const file = await pickOpen(shell, 'video');
     if (file) load(file);

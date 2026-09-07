@@ -68,8 +68,8 @@ this, and the 180-pixel image is the sender's own logo"*. See
 | Missing | Who has it | Why it matters |
 | :--- | :--- | :--- |
 | ✅ ~~OAuth for Gmail and Outlook.com~~ | All of them | **Built.** RFC 8252 flow in the system browser with PKCE and a loopback redirect. Needs a registered client id per build — see [OAUTH.md](OAUTH.md). |
-| ⬜ Message rules and filters | Outlook, Thunderbird, eM | Sorting on arrival is table stakes |
-| ⬜ A search index | Outlook, Thunderbird | Search is a linear scan; fine at 10,000 messages, slow at 200,000 |
+| ✅ ~~Message rules and filters~~ | Outlook, Thunderbird, eM | **Built**, and unlike theirs it shows what a rule *would* do to the folder in front of you, live, before it does anything. |
+| ✅ ~~A search index~~ | Outlook, Thunderbird | **Built.** Inverted index with `from:`, `subject:`, `has:attachment`, `is:unread` and quoted phrases. 20,000 messages: 494 ms to build, under 10 ms per search. |
 | ⬜ Calendar and contacts (CalDAV / CardDAV) | Outlook, Thunderbird, eM | A mail client without a calendar is half a client to many people |
 | ⬜ OpenPGP / S/MIME | Thunderbird (built in) | Encryption is why some people choose Thunderbird |
 | ⬜ Junk filtering | All of them | We show that a message is bulk; we do not sort it |
@@ -188,9 +188,8 @@ Ranked by how many people it stops from using this at all.
 
 1. ~~OAuth for Gmail and Outlook.com.~~ **Built** — see [OAUTH.md](OAUTH.md).
    A build still needs its own registered client id before it works.
-2. **Message rules.** The most-asked-for mail feature after accounts work.
-3. **A search index.** Linear scan is fine now and will not be at 200,000
-   messages, which is what a decade of imported PST is.
+2. ~~Message rules.~~ **Built.**
+3. ~~A search index.~~ **Built.**
 4. **Presenter view.** Cheap, now that speaker notes exist.
 5. **Footnotes and a table of contents** in Word — the two most common reasons a
    document has to go back to Word.

@@ -128,6 +128,11 @@ export const METHODS = {
     'queue',        // ({ accountId, draft, at, holdSeconds }) -> outbox item
     'outbox',       // () -> items still waiting to go
     'unsend',       // ({ id }) -> the item, taken back
+    'rules',        // () -> [rule]
+    'saveRule',     // ({ rule }) -> rule
+    'deleteRule',   // ({ id }) -> { removed }
+    'testRules',    // ({ accountId, folder }) -> { matched, of, sample }  changes nothing
+    'runRules',     // ({ accountId, folder }) -> { matched, moved, starred, read, deleted }
   ],
   update: [
     'state',        // () -> { state, version, available, percent, automatic }

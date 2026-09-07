@@ -405,6 +405,9 @@ export const CSS = `
 .ml-linkchip.on { color: var(--accent); font-weight: 600; }
 .ml-files { display: flex; flex-wrap: wrap; gap: 6px; }
 
+.ml-rule-row { display: flex; align-items: center; gap: 7px; }
+.ml-rule-row .rw-select, .ml-rule-row .rw-input { width: 100%; }
+
 /* attachment and people views -------------------------------------------- */
 .ml-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; padding: 14px; overflow: auto; }
 .ml-card {

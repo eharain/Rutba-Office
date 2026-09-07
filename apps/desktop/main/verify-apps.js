@@ -20,6 +20,29 @@ import { buildPptx } from '@rutba/presentation';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Wait for something to become true, rather than for a number of milliseconds.
+ *
+ * Every flaky check in this file has been a fixed pause that was long enough on
+ * the machine it was written on. Polling for the condition is both faster when
+ * it happens quickly and honest when it does not: the failure names what never
+ * became true instead of describing whatever the state happened to be.
+ */
+async function until(condition, what, timeout = 8000) {
+  const deadline = Date.now() + timeout;
+  for (;;) {
+    let held = false;
+    try {
+      held = await condition();
+    } catch {
+      held = false;
+    }
+    if (held) return true;
+    if (Date.now() > deadline) throw new Error(`waited ${timeout} ms for ${what} and it never happened`);
+    await wait(80);
+  }
+}
+
 async function press(wc, keyCode, { modifiers = [], char = false } = {}) {
   wc.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
   if (char) wc.sendInputEvent({ type: 'char', keyCode, modifiers });
@@ -243,17 +266,51 @@ export async function verifyApps({ windows, doc }) {
 
   try {
     const win = await open('sheets', files.xlsx);
-    await win.webContents.executeJavaScript(`document.querySelector('.sh')?.focus(), 'ok'`);
-    await wait(250);
+
+    // Focused, and confirmed focused. Asking for focus and then typing 250 ms
+    // later is a race: on a busy machine the keystrokes arrive before the grid
+    // has it, land nowhere, and the check fails describing a save that was
+    // never asked to happen.
+    await until(async () => {
+      win.focus();
+      win.webContents.focus();
+      return win.webContents.executeJavaScript(
+        `(() => { const g = document.querySelector('.sh'); if (!g) return false; g.focus(); return document.activeElement === g; })()`
+      );
+    }, 'the grid to take focus');
 
     // Move to an empty cell and type into it.
-    for (let i = 0; i < 4; i++) await press(win.webContents, 'Down');
-    await typeText(win.webContents, '99');
-    await press(win.webContents, 'Return', { char: true });
-    await wait(400);
+    //
+    // Synthesised keystrokes are delivered to the window, not to the widget,
+    // and a window that loses focus for one frame in the middle of a sequence
+    // swallows the rest of it silently. The check is still that typing reaches
+    // the document — that is the whole point of it — so it types again rather
+    // than waiting longer. Three attempts that all produce nothing is a real
+    // break; one that does not is the operating system.
+    const typed = () => (doc.model({ id: sessionFor('sheet').id }).cells || []).some((c) => String(c.text) === '99');
+    let attempts = 0;
+    while (!typed() && attempts < 3) {
+      attempts++;
+      win.focus();
+      win.webContents.focus();
+      await win.webContents.executeJavaScript(`document.querySelector('.sh')?.focus(), 'ok'`);
+      for (let i = 0; i < 4; i++) await press(win.webContents, 'Down');
+      await typeText(win.webContents, '99');
+      await press(win.webContents, 'Return', { char: true });
+      try {
+        await until(typed, 'the value to reach the engine', 2500);
+      } catch {
+        // Try once more from the top, with focus taken again.
+      }
+    }
+    await until(typed, `the value to reach the engine after ${attempts} attempts`, 1000);
 
+    // Waited for, not guessed at. A fixed pause is a check that passes on a
+    // quiet machine and fails on a busy one, which teaches everybody to ignore
+    // it — so this waits for the thing it is actually waiting for.
+    const wasSaved = fs.statSync(files.xlsx).mtimeMs;
     await press(win.webContents, 's', { modifiers: ['control'] });
-    await wait(1600);
+    await until(() => fs.statSync(files.xlsx).mtimeMs !== wasSaved, 'the file to be written');
 
     const reopened = doc.open({ path: files.xlsx });
     const model = doc.model({ id: reopened.id });
@@ -346,7 +403,13 @@ export async function verifyApps({ windows, doc }) {
 
   try {
     const win = await open('video', files.wav);
-    await wait(1200);
+
+    // The media element decodes on its own schedule and the timeline is drawn
+    // from what it reports, so both are waited for rather than slept through.
+    await until(
+      () => win.webContents.executeJavaScript(`(() => { const v = document.querySelector('video'); return Boolean(v && v.readyState >= 1 && isFinite(v.duration)); })()`),
+      'the media to report a duration'
+    );
     const media = await win.webContents.executeJavaScript(`(() => {
       const v = document.querySelector('video');
       return v ? { duration: v.duration, ready: v.readyState, err: v.error ? v.error.code : null } : null;
@@ -357,6 +420,10 @@ export async function verifyApps({ windows, doc }) {
       media ? `duration ${media.duration}, readyState ${media.ready}${media.err ? `, error ${media.err}` : ''}` : 'no media element'
     );
 
+    await until(
+      () => win.webContents.executeJavaScript(`document.querySelectorAll('.vd-clip').length > 0`),
+      'the timeline to be built'
+    );
     const clips = await win.webContents.executeJavaScript(`document.querySelectorAll('.vd-clip').length`);
     check('video: a timeline is built from it', clips === 1, `${clips} clips`);
   } catch (err) {
@@ -663,6 +730,45 @@ export async function verifyApps({ windows, doc }) {
 
       await js(`(() => { [...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => /Cancel/.test(b.textContent))?.click(); return 'closed'; })()`);
       await wait(400);
+
+      // Rules. The point of the preview is that it changes nothing, so that is
+      // checked before the rule is allowed to run.
+      const account = (await win.webContents.executeJavaScript(
+        `(async () => (await window.rutbaOffice.mail.accounts({}))[0]?.id)()`
+      ));
+      const mail = (method, args = {}) =>
+        win.webContents.executeJavaScript(`window.rutbaOffice.mail.${method}(${JSON.stringify(args)})`);
+
+      // The seeded account's folder is named after the archive it came from,
+      // not "Inbox" — asking the account rather than assuming is also what
+      // the window does.
+      const inbox = (await mail('folders', { accountId: account }))[0]?.path;
+
+      const rule = {
+        name: 'Newsletters',
+        enabled: true,
+        all: true,
+        conditions: [{ field: 'subject', op: 'contains', value: 'pricing right' }],
+        actions: [{ type: 'move', value: 'Reading' }],
+      };
+
+      const before = (await mail('messages', { accountId: account, folder: inbox, limit: 500 })).total;
+      const dry = await mail('testRules', { accountId: account, folder: inbox, rules: [rule] });
+      const stillThere = (await mail('messages', { accountId: account, folder: inbox, limit: 500 })).total;
+      check(
+        'mail: a rule can be tried without moving anything',
+        dry.matched === 1 && stillThere === before,
+        `${dry.matched} of ${dry.of} would move; the folder still holds ${stillThere}`
+      );
+
+      const ran = await mail('runRules', { accountId: account, folder: inbox, rules: [rule] });
+      const after = (await mail('messages', { accountId: account, folder: 'Reading', limit: 500 })).total;
+      check('mail: a rule files mail when it is run', ran.moved === 1 && after === 1, `moved ${ran.moved}; Reading now holds ${after}`);
+
+      // Search has to find it in its new home, which is the index noticing that
+      // a folder changed underneath it.
+      const found = await mail('search', { accountId: account, query: 'subject:pricing', limit: 20 });
+      check('mail: search follows a message that a rule moved', found.length === 1 && found[0].folder === 'Reading', `${found.length} hits, first in ${JSON.stringify(found[0]?.folder)}`);
 
       // The attachment view is a place, not a search.
       await js(`(() => {

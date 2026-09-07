@@ -30,6 +30,7 @@ import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installS
 import Reader from './mail/reader.js';
 import Compose from './mail/compose.js';
 import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView } from './mail/dialogs.js';
+import { RulesDialog } from './mail/rules.js';
 
 installStyles();
 
@@ -742,6 +743,7 @@ export default function Mail({ app, shell }) {
                 <Button tall icon="find" label="Search" onClick={() => commands['mail.search'].run()} />
                 <Button icon="attach" label="Attachments" pressed={view === 'files'} onClick={() => setView(view === 'files' ? 'mail' : 'files')} disabled={unified} />
                 <Button icon="reply" label="People" pressed={view === 'people'} onClick={() => setView(view === 'people' ? 'mail' : 'people')} disabled={unified} />
+                <Button icon="filter" label="Rules" onClick={() => setDialog({ kind: 'rules' })} />
               </Group>
             </>
           ) : tab === 'send' ? (
@@ -870,6 +872,9 @@ export default function Mail({ app, shell }) {
               <Group label="This computer">
                 <Button tall icon="settings" label="Default apps" onClick={() => setDialog({ kind: 'defaults' })} />
                 <Button tall icon="import" label="Find my mail" onClick={() => setDialog({ kind: 'import' })} />
+              </Group>
+              <Group label="Mail">
+                <Button tall icon="filter" label="Rules" onClick={() => setDialog({ kind: 'rules' })} />
               </Group>
               <Group label="Sending">
                 <Button
@@ -1203,6 +1208,21 @@ export default function Mail({ app, shell }) {
       ) : null}
 
       {dialog?.kind === 'defaults' ? <DefaultsDialog shell={shell} onClose={() => setDialog(null)} toast={toast} /> : null}
+
+      {dialog?.kind === 'rules' ? (
+        <RulesDialog
+          shell={shell}
+          accountId={unified ? accounts[0]?.id : accountId}
+          folder={folder}
+          folders={folders}
+          toast={toast}
+          onClose={() => {
+            setDialog(null);
+            refreshList();
+            loadAccounts();
+          }}
+        />
+      ) : null}
 
       {dialog?.kind === 'outbox' ? (
         <Dialog title="Waiting to go out" width={520} onClose={() => setDialog(null)} actions={<Button primary label="Close" onClick={() => setDialog(null)} />}>
