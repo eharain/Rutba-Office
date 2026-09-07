@@ -9,7 +9,7 @@
 // about documents, formats or IMAP is known here — that is the point of the
 // seam.
 
-import { app, BrowserWindow, Menu, nativeTheme, shell as electronShell } from 'electron';
+import { app, BrowserWindow, Menu, dialog, nativeTheme, shell as electronShell } from 'electron';
 import path from 'node:path';
 import fs from 'node:fs';
 import { createStores } from './store.js';
@@ -227,6 +227,35 @@ export function createShell({
       preloadPath,
       iconPath,
       onWindowEvent: (win, event, payload) => sendEvent(win, event, payload),
+
+      /**
+       * Asked before a window holding unsaved work is allowed to close.
+       *
+       * The dialog is the platform's own, because this is the one moment where
+       * looking like every other application matters more than looking like
+       * ours: people answer this question by muscle memory. "Save" hands back
+       * to the window, which knows how to save itself and closes when it has.
+       */
+      confirmClose: async (win, info) => {
+        const { response } = await dialog.showMessageBox(win, {
+          type: 'warning',
+          message: `Save changes to ${info.name || 'this document'}?`,
+          detail: 'If you don’t save, your changes will be lost.',
+          buttons: ['Save', "Don't save", 'Cancel'],
+          defaultId: 0,
+          cancelId: 2,
+          noLink: true,
+        });
+        if (response === 0) {
+          sendEvent(win, 'app:command', { command: 'file.saveAndClose', args: null });
+          return 'save';
+        }
+        if (response === 1) {
+          windows.forceClose(win);
+          return 'discard';
+        }
+        return 'cancel';
+      },
     });
 
     const context = {

@@ -22,6 +22,10 @@ const ALL = ['home', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', '
  * The messages are generated here on purpose: a screenshot of somebody's actual
  * inbox has no business in a build artefact.
  */
+export async function seedFor({ stores, mail }) {
+  return seedMail({ stores, mail });
+}
+
 async function seedMail({ stores, mail }) {
   const { writeMbox } = await import('@rutba/mailbox/mbox');
   const people = [

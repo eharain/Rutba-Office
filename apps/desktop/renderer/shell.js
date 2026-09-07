@@ -5,7 +5,7 @@
 // a document window asks before closing on unsaved work, the theme toggle is in
 // the same place, and files dropped on a window open in the right app.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Window, TitleBar, Body, StatusBar, Menu, Icon, useToast, useTheme, Button } from '@rutba/office-ui';
 import { APPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
@@ -55,6 +55,35 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
   );
 
   return { open, node: menu ? <Menu {...menu} onClose={() => setMenu(null)} /> : null };
+}
+
+/**
+ * Do not let unsaved work close.
+ *
+ * The window tells the backend whether it is holding changes; the backend
+ * cancels the close and asks with the platform's own dialog. "Save" comes back
+ * here as a command, and the window closes once it has actually saved — so a
+ * save that is itself cancelled leaves the window open with the work in it.
+ *
+ * Without this, closing a window with the X threw the document away in
+ * silence, which is the single worst thing an editor can do.
+ */
+export function useDirtyGuard({ shell, dirty, name, onSave }) {
+  const save = useRef(onSave);
+  save.current = onSave;
+
+  useEffect(() => {
+    shell.win.setDirty({ dirty: Boolean(dirty), name: name || '' }).catch(() => {});
+  }, [shell, dirty, name]);
+
+  useEffect(() => {
+    if (!shell?.on) return undefined;
+    return shell.on('app:command', async ({ command }) => {
+      if (command !== 'file.saveAndClose') return;
+      const saved = await save.current?.();
+      if (saved !== false) shell.win.close({ force: true });
+    });
+  }, [shell]);
 }
 
 /** Ask before losing work. Used by every editor's close path. */

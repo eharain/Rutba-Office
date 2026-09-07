@@ -61,6 +61,16 @@ createShell({
       const { app: electronApp } = await import('electron');
       return electronApp.exit(ok ? 0 : 1);
     }
+    if (process.env.RUTBA_OFFICE_VERIFY_APPS) {
+      const { verifyApps } = await import('./verify-apps.js');
+      if (process.env.RUTBA_SMOKE_SEED) {
+        const { seedFor } = await import('./smoke.js');
+        await seedFor({ stores, mail: services?.mail }).catch(() => {});
+      }
+      const ok = await verifyApps({ windows, doc: services.doc });
+      const { app: electronApp } = await import('electron');
+      return electronApp.exit(ok ? 0 : 1);
+    }
     if (process.env.RUTBA_OFFICE_SMOKE) {
       const { runSmoke } = await import('./smoke.js');
       const ok = await runSmoke({

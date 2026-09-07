@@ -30,8 +30,9 @@ privacy, your old mail, or your patience. This asks for none of those.
 - **It opens what you already have.** Microsoft formats are the point, not an
   afterthought. So are the mail archives you have been carrying between
   computers for fifteen years.
-- **It works offline.** There is no account, no sign-in, no telemetry and no
-  network call. Unplug the machine and everything in the list above still works.
+- **It works offline.** No account, no sign-in, no telemetry. The only network
+  request it makes is the update check below, and that is a switch. Unplug the
+  machine and everything in the list above still works.
 - **It does not damage your files.** The engine rewrites only the parts of a
   document it deliberately edited; everything else — charts, pivot caches,
   macros, signatures, embedded media — is returned byte-for-byte as it arrived.
@@ -76,7 +77,7 @@ installations on the version they have.
 git clone https://github.com/eharain/Rutba-Office.git office
 cd office
 npm install
-npm test          # 570 tests, no network needed
+npm test          # 577 tests, no network needed
 npm run build     # bundle the renderer
 npm start         # run the app
 npm run dist      # installers for this platform, into apps/desktop/release

@@ -14,7 +14,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Spinner, Select, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
-import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 
 /**
  * Character offset of a DOM position within its block element.
@@ -180,24 +180,29 @@ export default function Word({ app, shell, boot }) {
 
   const save = useCallback(
     async (as = false) => {
-      if (!doc) return;
+      if (!doc) return false;
       let target = doc.path;
       if (as || !target) {
         target = await pickSave(shell, 'word', doc.path || doc.name);
-        if (!target) return;
+        // A cancelled Save As is not a save; the caller must know.
+        if (!target) return false;
       }
       try {
         const saved = await shell.doc.save({ id: doc.id, path: target });
         setDoc((d) => ({ ...d, ...saved, dirty: false }));
         shell.app.addRecent({ path: saved.path, app: 'word' }).catch(() => {});
         toast(`Saved ${saved.path.split(/[\\/]/).pop()}`, { tone: 'good' });
+        return true;
       } catch (err) {
         toast(err.message, { tone: 'bad' });
+        return false;
       }
     },
     [doc, shell, toast]
   );
 
+  // Closing a window with unsaved work must ask, not discard.
+  useDirtyGuard({ shell, dirty: doc?.dirty, name: doc?.name, onSave: () => save(false) });
   const openFile = useCallback(async () => {
     const file = await pickOpen(shell, 'word');
     if (file) openInApp(shell, file, 'word');
@@ -212,12 +217,14 @@ export default function Word({ app, shell, boot }) {
         defaultPath: (doc.path || doc.name).replace(/\.[^.]+$/, `.${format}`),
         filters: [{ name: format.toUpperCase(), extensions: [format] }],
       });
-      if (!target) return;
+      // A cancelled Save As is not a save; the caller must know.
+      if (!target) return false;
       try {
         await shell.doc.export({ id: doc.id, format, path: target });
         toast(`Exported ${target.split(/[\\/]/).pop()}`, { tone: 'good' });
       } catch (err) {
         toast(err.message, { tone: 'bad' });
+        return false;
       }
     },
     [doc, shell, toast]

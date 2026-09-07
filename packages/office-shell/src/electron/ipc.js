@@ -101,7 +101,12 @@ export function buildImplementations({ stores, windows, quitting }) {
       const created = windows.open({ app: p.app, file: p.file, query: p.query, parentId: p.modal ? win?.id : null });
       return { id: created.id };
     },
-    close: (_p, win) => void win?.close(),
+    close: (p, win) => {
+      if (!win) return;
+      // force means the save prompt has already been answered.
+      if (p?.force) windows.forceClose(win);
+      else win.close();
+    },
     minimize: (_p, win) => void win?.minimize(),
     toggleMaximize: (_p, win) => {
       if (!win) return { maximized: false };
@@ -111,6 +116,7 @@ export function buildImplementations({ stores, windows, quitting }) {
     },
     isMaximized: (_p, win) => Boolean(win?.isMaximized()),
     setTitle: (p, win) => void win?.setTitle(p.title || 'Rutba Office'),
+    setDirty: (p, win) => void (win && windows.setDirty(win, p)),
     setDocumentEdited: (p, win) => {
       if (!win) return;
       if (isMac) win.setDocumentEdited(Boolean(p.edited));

@@ -24,12 +24,13 @@ export const METHODS = {
   ],
   win: [
     'create',       // ({ app, file, query }) -> { id }
-    'close',        // () -> void
+    'close',        // ({ force }) -> void   force answers the save prompt
     'minimize',     // () -> void
     'toggleMaximize',// () -> { maximized }
     'isMaximized',  // () -> boolean
     'setTitle',     // ({ title }) -> void
     'setDocumentEdited', // ({ edited }) -> void
+    'setDirty',     // ({ dirty, name }) -> void   guards the close
     'fullscreen',   // ({ on }) -> { fullscreen }
     'zoom',         // ({ delta, reset }) -> { factor }
     'state',        // () -> { maximized, fullscreen, focused, platform }

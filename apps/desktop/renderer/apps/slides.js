@@ -11,7 +11,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ribbon, Group, Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
-import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 
 export default function Slides({ app, shell, boot }) {
   const toast = useToast();
@@ -46,6 +46,7 @@ export default function Slides({ app, shell, boot }) {
         setModel(next.model);
       } catch (err) {
         toast(err.message, { tone: 'bad' });
+        return false;
       }
     },
     [doc, index, shell, toast]
@@ -80,24 +81,29 @@ export default function Slides({ app, shell, boot }) {
 
   const save = useCallback(
     async (as = false) => {
-      if (!doc) return;
+      if (!doc) return false;
       let target = doc.path;
       if (as || !target) {
         target = await pickSave(shell, 'slides', doc.path || doc.name);
-        if (!target) return;
+        // A cancelled Save As is not a save; the caller must know.
+        if (!target) return false;
       }
       try {
         const saved = await shell.doc.save({ id: doc.id, path: target });
         setDoc((d) => ({ ...d, ...saved, dirty: false }));
         shell.app.addRecent({ path: saved.path, app: 'slides' }).catch(() => {});
         toast(`Saved ${saved.path.split(/[\\/]/).pop()}`, { tone: 'good' });
+        return true;
       } catch (err) {
         toast(err.message, { tone: 'bad' });
+        return false;
       }
     },
     [doc, shell, toast]
   );
 
+  // Closing a window with unsaved work must ask, not discard.
+  useDirtyGuard({ shell, dirty: doc?.dirty, name: doc?.name, onSave: () => save(false) });
   const openFile = useCallback(async () => {
     const file = await pickOpen(shell, 'slides');
     if (file) openInApp(shell, file, 'slides');

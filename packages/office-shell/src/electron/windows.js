@@ -28,8 +28,8 @@ const GEOMETRY = {
   video: { width: 1400, height: 880, minWidth: 900, minHeight: 600 },
 };
 
-export function createWindowManager({ stores, preloadPath, iconPath, onWindowEvent }) {
-  /** @type {Map<number, { app: string, file: string|null }>} */
+export function createWindowManager({ stores, preloadPath, iconPath, onWindowEvent, confirmClose }) {
+  /** @type {Map<number, { app: string, file: string|null, dirty: boolean, name: string, closing: boolean }>} */
   const meta = new Map();
 
   function savedBounds(appKey) {
@@ -93,7 +93,7 @@ export function createWindowManager({ stores, preloadPath, iconPath, onWindowEve
       },
     });
 
-    meta.set(win.id, { app: appKey, file });
+    meta.set(win.id, { app: appKey, file, dirty: false, name: '', closing: false });
     if (saved?.maximized) win.maximize();
 
     win.once('ready-to-show', () => win.show());
@@ -116,7 +116,31 @@ export function createWindowManager({ stores, preloadPath, iconPath, onWindowEve
         saveTimer = setTimeout(() => rememberBounds(win, appKey), 400);
       });
     }
-    win.on('close', () => {
+    /**
+     * A window with unsaved work does not just close.
+     *
+     * This is the one defect a document application must not have. The close is
+     * cancelled, the question is asked with the platform's own dialog, and the
+     * window closes only once the answer is in — after saving, if that is what
+     * was asked for. `close({ force: true })` is how the renderer says the
+     * question has been answered.
+     */
+    win.on('close', (event) => {
+      const info = meta.get(win.id);
+      if (info?.dirty && !info.closing && typeof confirmClose === 'function') {
+        event.preventDefault();
+        info.closing = true;
+        Promise.resolve(confirmClose(win, info))
+          .then((decision) => {
+            // 'cancel' leaves the window exactly as it was, including the flag,
+            // so a second attempt asks again rather than closing silently.
+            if (decision === 'cancel') info.closing = false;
+          })
+          .catch(() => {
+            info.closing = false;
+          });
+        return;
+      }
       clearTimeout(saveTimer);
       rememberBounds(win, appKey);
     });
@@ -162,6 +186,24 @@ export function createWindowManager({ stores, preloadPath, iconPath, onWindowEve
     if (m) m.file = file;
   }
 
+  /** The renderer tells us whether this window is holding unsaved work. */
+  function setDirty(win, { dirty, name }) {
+    const m = meta.get(win.id);
+    if (!m) return;
+    m.dirty = Boolean(dirty);
+    if (name) m.name = name;
+  }
+
+  /** Close past the guard, once the question has been answered. */
+  function forceClose(win) {
+    const m = meta.get(win.id);
+    if (m) {
+      m.dirty = false;
+      m.closing = true;
+    }
+    win.close();
+  }
+
   function infoFor(win) {
     return meta.get(win.id) || { app: 'home', file: null };
   }
@@ -170,5 +212,5 @@ export function createWindowManager({ stores, preloadPath, iconPath, onWindowEve
     return BrowserWindow.getAllWindows();
   }
 
-  return { create, open, findByFile, setFile, infoFor, all, encodePath, GEOMETRY };
+  return { create, open, findByFile, setFile, setDirty, forceClose, infoFor, all, encodePath, GEOMETRY };
 }

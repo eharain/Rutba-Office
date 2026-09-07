@@ -18,7 +18,8 @@
     "dist:linux": "npm run build && electron-builder --config electron-builder.config.cjs --linux --publish never",
     "smoke": "node build/bundle.js && node build/smoke-run.js",
     "icon": "electron build/make-icon.js",
-    "verify:edit": "node build/bundle.js && node build/verify-edit-run.js"
+    "verify:edit": "node build/bundle.js && node build/verify-edit-run.js",
+    "verify:apps": "node build/bundle.js && node build/verify-apps-run.js"
   },
   "dependencies": {
     "@rutba/doc-view": "*",
