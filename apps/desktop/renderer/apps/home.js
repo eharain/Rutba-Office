@@ -226,7 +226,7 @@ function updateSentence(update) {
     case 'unpackaged':
       return 'Updates apply to an installed copy; this one is running from source.';
     case 'off':
-      return 'Automatic updates are off. Nothing is contacted.';
+      return 'Automatic updates are off, so nothing is contacted. You can check whenever you like.';
     case 'checking':
       return 'Looking for a newer release…';
     case 'available':
@@ -240,7 +240,7 @@ function updateSentence(update) {
     case 'error':
       return `The last check did not complete: ${update.error}`;
     default:
-      return 'No check has run yet.';
+      return 'No check has run yet. This build contacts nothing on its own.';
   }
 }
 

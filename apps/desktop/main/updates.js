@@ -33,7 +33,19 @@ export function createUpdateService({ stores, broadcast }) {
   let updater = null;
   let timer = null;
 
-  const enabled = () => stores.settings.get('updates.automatic', true) !== false;
+  /**
+   * Off unless somebody turns it on.
+   *
+   * The suite's promise is that it contacts nothing, and a default-on update
+   * check quietly breaks that promise on first launch — before anyone has been
+   * asked. So the switch starts off: the application makes no outbound request
+   * of its own until it is turned on, and "Check for updates" remains available
+   * for anyone who wants to look now and then.
+   *
+   * This is expected to change when Office is connected to the rutba.io
+   * workspace, at which point there is an account to have an opinion about it.
+   */
+  const enabled = () => stores.settings.get('updates.automatic', false) === true;
 
   const publish = () => {
     const payload = {

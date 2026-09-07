@@ -123,6 +123,47 @@ export async function verifyEditing({ windows, doc }) {
       `document.querySelector('.wd-page [data-block="0"]')?.textContent ?? ''`
     );
     check('word: the page shows what the engine holds', shown.trim() === 'Hell', `page shows ${JSON.stringify(shown.trim())}`);
+
+    // Bold. The ribbon says "bold" and the engine says "b"; when nothing
+    // translated between them every press raised "unknown format: bold" and
+    // the only thing that happened was a red notice.
+    await word.webContents.executeJavaScript(`(() => {
+      const block = document.querySelector('.wd-page [data-block="0"]');
+      const range = document.createRange();
+      range.selectNodeContents(block);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return 'selected';
+    })()`);
+    await wait(280);
+
+    // The engine must have the *range*, not a caret; a collapsed selection here
+    // means the sync lost it, and bold would silently apply to nothing.
+    const before = doc.model({ id: sessionFor('doc').id });
+    check(
+      'word: selecting text reaches the engine as a range',
+      before.selection && !before.selection.collapsed,
+      `engine has ${JSON.stringify(before.selection)}`
+    );
+
+    await press(word.webContents, 'b', { modifiers: ['control'] });
+    await wait(380);
+
+    session = sessionFor('doc');
+    model = session && doc.model({ id: session.id });
+    const bolded = model?.blocks?.[0]?.runs ?? [];
+    check(
+      'word: bold reaches the engine',
+      bolded.some((r) => r.bold),
+      bolded.length ? `runs are ${JSON.stringify(bolded.map((r) => ({ text: r.text, bold: !!r.bold })))}` : 'no runs'
+    );
+
+    const complaints = await word.webContents.executeJavaScript(
+      `[...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent)`
+    );
+    check('word: bold raises no error', complaints.length === 0, complaints.join(' | ') || 'nothing was reported');
   } catch (err) {
     check('word: the checks ran', false, err.message);
   }

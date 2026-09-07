@@ -582,6 +582,10 @@ textarea,
   animation: rw-rise var(--slow);
 }
 :root[data-theme='dark'] .rw-toast { background: var(--n-30); color: var(--ink); }
+.rw-toast-count {
+  font-variant-numeric: tabular-nums; opacity: 0.7; font-size: 11px;
+  padding: 0 5px; border-radius: 10px; background: rgba(255, 255, 255, 0.18);
+}
 .rw-toast.bad { background: var(--bad); color: #fff; }
 .rw-toast.good { background: var(--good); color: #fff; }
 

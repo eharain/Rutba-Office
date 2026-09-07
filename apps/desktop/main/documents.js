@@ -499,6 +499,15 @@ export function createDocumentService({ holdBlob }) {
     paintFormat: (v) => v.paintFormat(),
   };
 
+  /** What the ribbon calls a format, and what the document engine calls it. */
+  const RUN_FORMATS = {
+    bold: 'b',
+    italic: 'i',
+    underline: 'u',
+    strike: 's',
+    strikethrough: 's',
+  };
+
   const DOC_OPS = {
     setSelection: (v, a) => v.setSelection(a.anchor, a.focus ?? a.anchor),
     moveCaret: (v, a) => v.moveCaret(a.direction, { extend: a.extend }),
@@ -508,7 +517,10 @@ export function createDocumentService({ holdBlob }) {
     deleteForward: (v) => v.deleteForward(),
     deleteSelection: (v) => v.deleteSelection(),
     splitParagraph: (v) => v.splitParagraph(),
-    toggleFormat: (v, a) => v.toggleFormat(a.tag),
+    // The renderer speaks in words and the engine in OOXML's letters. The
+    // translation belongs here rather than in the ribbon, which should not have
+    // to know that bold is called "b".
+    toggleFormat: (v, a) => v.toggleFormat(RUN_FORMATS[a.tag] ?? a.tag),
     setRunFormat: (v, a) => v.setRunFormat(a.delta),
     clearFormat: (v) => v.clearFormat(),
     setParagraphFormat: (v, a) => v.setParagraphFormat(a.delta),

@@ -16,9 +16,26 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Spinner, Select, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp } from '../shell.js';
 
-/** Character offset of a DOM position within its block element. */
+/**
+ * Character offset of a DOM position within its block element.
+ *
+ * A selection position is a node and an offset, and the offset means two
+ * different things depending on the node. In a text node it is a character
+ * index; in an element it is a *child index*. Treating the second as the first
+ * is why selecting a whole paragraph and pressing Ctrl+B did nothing: the
+ * anchor landed on the paragraph element with offset 0, which was read as "the
+ * end of the text", collapsing the selection onto its own focus before the
+ * engine ever saw it.
+ */
 function offsetIn(blockEl, node, offset) {
-  if (!blockEl) return 0;
+  if (!blockEl || !node) return 0;
+
+  // An element position: count the text in the children before it.
+  if (node.nodeType !== Node.TEXT_NODE) {
+    const children = [...node.childNodes].slice(0, offset);
+    return children.reduce((n, child) => n + (child.textContent?.length ?? 0), 0);
+  }
+
   let total = 0;
   const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
   let current = walker.nextNode();
@@ -27,34 +44,53 @@ function offsetIn(blockEl, node, offset) {
     total += current.nodeValue.length;
     current = walker.nextNode();
   }
-  return node === blockEl ? total : total;
+  // A text node outside this block: clamp to the block's end rather than guess.
+  return total;
 }
 
-/** The reverse: put the caret at a character offset inside a block. */
-function placeCaret(blockEl, offset) {
-  if (!blockEl) return;
+/** The DOM position for a character offset inside a block. */
+function pointIn(blockEl, offset) {
+  if (!blockEl) return null;
   const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
   let seen = 0;
   let node = walker.nextNode();
   while (node) {
     const len = node.nodeValue.length;
-    if (seen + len >= offset) {
-      const range = document.createRange();
-      range.setStart(node, Math.max(0, Math.min(len, offset - seen)));
-      range.collapse(true);
-      const sel = window.getSelection();
-      sel.removeAllRanges();
-      sel.addRange(range);
-      return;
-    }
+    if (seen + len >= offset) return { node, offset: Math.max(0, Math.min(len, offset - seen)) };
     seen += len;
     node = walker.nextNode();
   }
-  const range = document.createRange();
-  range.selectNodeContents(blockEl);
-  range.collapse(false);
+  return { node: blockEl, offset: blockEl.childNodes.length };
+}
+
+/**
+ * Put the selection back where the engine says it is.
+ *
+ * A *range*, not a caret. Restoring only the focus point collapsed whatever the
+ * reader had selected, so selecting a sentence and pressing Ctrl+B bolded
+ * nothing: the selection was destroyed by the act of telling the engine about
+ * it, and the engine then applied the format to an empty caret.
+ */
+function placeSelection(page, anchor, focus) {
+  if (!page || !focus) return;
+  const focusEl = page.querySelector(`[data-block="${focus.block}"]`);
+  if (!focusEl) return;
+  const anchorEl = anchor ? page.querySelector(`[data-block="${anchor.block}"]`) : focusEl;
+
+  const start = pointIn(anchorEl || focusEl, (anchor ?? focus).offset);
+  const end = pointIn(focusEl, focus.offset);
+  if (!start || !end) return;
+
   const sel = window.getSelection();
   sel.removeAllRanges();
+  const range = document.createRange();
+  range.setStart(start.node, start.offset);
+  range.setEnd(end.node, end.offset);
+  // A backwards selection has its end before its start, which a Range refuses.
+  if (range.collapsed && (start.node !== end.node || start.offset !== end.offset)) {
+    range.setStart(end.node, end.offset);
+    range.setEnd(start.node, start.offset);
+  }
   sel.addRange(range);
 }
 
@@ -82,6 +118,10 @@ export default function Word({ app, shell, boot }) {
   const apply = useCallback(
     async (...ops) => {
       if (!doc) return null;
+      // A selection sync is a statement about where the caret already is; it
+      // must not then be put back, because that collapses a range the reader
+      // has just made.
+      const movesCaret = ops.some((op) => op.op !== 'setSelection');
       try {
         const next = await shell.doc.apply({ id: doc.id, ops });
         setDoc(next);
@@ -100,10 +140,10 @@ export default function Word({ app, shell, boot }) {
             }
             return { ...current, ...rest, blocks };
           });
-          pendingCaret.current = next.patch.selection?.focus ?? null;
+          pendingCaret.current = movesCaret ? next.patch.selection ?? null : null;
         } else {
           setModel(next.model);
-          pendingCaret.current = next.model?.selection?.focus ?? null;
+          pendingCaret.current = movesCaret ? next.model?.selection ?? null : null;
         }
         return next;
       } catch (err) {
@@ -307,8 +347,7 @@ export default function Word({ app, shell, boot }) {
   useLayoutEffect(() => {
     const target = pendingCaret.current;
     if (!target || !pageRef.current) return;
-    const el = pageRef.current.querySelector(`[data-block="${target.block}"]`);
-    if (el) placeCaret(el, target.offset);
+    placeSelection(pageRef.current, target.anchor, target.focus);
     pendingCaret.current = null;
   }, [model]);
 

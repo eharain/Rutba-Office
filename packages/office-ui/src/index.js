@@ -62,7 +62,19 @@ export function ToastProvider({ children }) {
 
   const push = useCallback((message, { tone = 'plain', ms = 3200, action } = {}) => {
     const id = ++seq.current;
-    setItems((list) => [...list, { id, message, tone, action }]);
+    setItems((list) => {
+      // The same thing going wrong fifteen times is one problem, not fifteen.
+      // A repeat is counted on the notice already showing rather than stacked
+      // behind it, which is what turns a failing shortcut into a wall of red.
+      const at = list.findIndex((t) => t.message === message && t.tone === tone);
+      if (at >= 0) {
+        const existing = list[at];
+        const next = list.slice();
+        next[at] = { ...existing, repeats: (existing.repeats || 1) + 1 };
+        return next;
+      }
+      return [...list, { id, message, tone, action, repeats: 1 }];
+    });
     if (ms) setTimeout(() => setItems((list) => list.filter((t) => t.id !== id)), ms);
     return id;
   }, []);
@@ -75,6 +87,7 @@ export function ToastProvider({ children }) {
           <div key={t.id} className={`rw-toast ${t.tone === 'plain' ? '' : t.tone}`} role="status">
             {t.tone === 'bad' ? <Icon name="info" /> : t.tone === 'good' ? <Icon name="check" /> : null}
             <span>{t.message}</span>
+            {t.repeats > 1 ? <span className="rw-toast-count">×{t.repeats}</span> : null}
             {t.action ? (
               <button
                 type="button"
