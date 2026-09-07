@@ -9,10 +9,10 @@ with the network switched off.
 
 | | | |
 |---|---|---|
-| **Mail** | Every account, every archive, one inbox | IMAP and SMTP, plus the archives other clients leave behind — Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg` |
-| **Word** | Documents that open the same everywhere | `.docx` on an engine we own, reading `.odt`, `.rtf`, `.doc`, Markdown and text |
+| **Mail** | Every account, every archive, one inbox | IMAP, SMTP and sign-in to Gmail and Outlook.com, plus the archives other clients leave behind — Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg`. Names the trackers in a message, and offers the way off the list |
+| **Word** | Documents that open the same everywhere | `.docx` on an engine we own, reading `.odt`, `.rtf`, `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.ods` and `.csv` |
-| **Presentation** | Slides that survive the round trip | `.pptx` — read, edit, render, present — reading `.odp` |
+| **Presentation** | Slides that survive the round trip | `.pptx` — read, edit, render, present — with speaker notes and a presenter view for the other screen |
 | **Pictures** | A viewer that opens before you blink | Every common format, EXIF, orientation, and PDFs |
 | **Image** | Crop, correct, annotate, export | Non-destructive: your original is never touched |
 | **Video** | Trim and export without a render farm | No ffmpeg, no native binaries, nothing to install |
@@ -30,9 +30,10 @@ privacy, your old mail, or your patience. This asks for none of those.
 - **It opens what you already have.** Microsoft formats are the point, not an
   afterthought. So are the mail archives you have been carrying between
   computers for fifteen years.
-- **It works offline.** No account, no sign-in, no telemetry. The only network
-  request it makes is the update check below, and that is a switch. Unplug the
-  machine and everything in the list above still works.
+- **It works offline.** No account, no telemetry, nothing to sign up for. It
+  makes exactly two requests of its own — an update check, and one announcement
+  check a day — and both are switches. Unplug the machine and everything in the
+  list above still works.
 - **It does not damage your files.** The engine rewrites only the parts of a
   document it deliberately edited; everything else — charts, pivot caches,
   macros, signatures, embedded media — is returned byte-for-byte as it arrived.
@@ -171,8 +172,24 @@ Running from source never checks: updates apply to an installed copy.
 
 ## Privacy
 
-- No account, no sign-in, no telemetry. The only network request the suite
-  makes on its own is the update check above, and that can be switched off.
+Two requests, and here they both are. If a network monitor ever shows a third,
+that is a bug and we want to hear about it.
+
+| What | When | What it carries | Off |
+|---|---|---|---|
+| Update check | 25 seconds after launch, then every 6 hours | Nothing about you | About → Check for updates automatically |
+| [Announcement](docs/ANNOUNCEMENT.md) | Once a day at most, from the launcher | The version and the operating system. **No identifier of any kind** | About → Show announcements |
+
+The announcement is also how we know anyone is using this. The server counts
+requests, and a request carries nothing that identifies the copy making it — so
+what is counted is *"a copy of Rutba Office opened somewhere today"*, never you.
+Turning it off turns off the notice board too: there is deliberately no setting
+that reports without showing you something back.
+
+Everything else:
+
+- No account, no telemetry, no crash reports. Your documents, your mail, and
+  what you do with them never leave this computer.
 - Mail passwords go to the operating system's keystore — DPAPI, Keychain,
   libsecret — never to a file the application can read back in clear text.
 - Message bodies render in a sandboxed frame with no scripts, no same-origin
@@ -181,20 +198,43 @@ Running from source never checks: updates apply to an installed copy.
   the mail.
 - Deleting a file moves it to the operating system's trash. An office suite
   should never be the reason something is unrecoverable.
+- Mail goes further than blocking trackers: it **names** them. See
+  [what a message is doing to you](apps/desktop/main/mail-insight.js).
+
+## Where this stands against the alternatives
+
+[COMPETITORS.md](docs/COMPETITORS.md) is an audit, app by app, against what you
+would otherwise install — Microsoft 365, LibreOffice, OnlyOffice, Thunderbird,
+Outlook, eM Client, Google. It lists the gaps as carefully as the leads, because
+a gap nobody has written down is a gap nobody fixes. Track changes, footnotes,
+macros, a calendar and encryption are all on it.
+
+Other things worth reading:
+
+- [OAUTH.md](docs/OAUTH.md) — signing in to Gmail and Outlook.com, and why a
+  client id is not a secret
+- [ANNOUNCEMENT.md](docs/ANNOUNCEMENT.md) — the announcement contract, in full
 
 ## Testing
 
 ```bash
-npm test                # the engine suite
+npm run gate            # all four passes, in the order that finds problems soonest
+npm test                # the engine suite — 577 checks, no windows
+npm run verify:edit     # do keystrokes reach the document?
+npm run verify:apps     # does each app open, change and save a real file?
 npm run smoke           # boot the real app, photograph every window, report
 npm run smoke -- word   # just one
 ```
 
-`npm run smoke` is the one that finds the things a build cannot. It launches the
-actual application — same main process, same preload, same bundle — waits for
-each window's first render, captures it, and reports anything the renderer
-logged. Three defects in this repository's history were caught by it and by
-nothing else.
+`npm run gate` is what runs before a release: 577 engine tests, 9 editing checks,
+53 application checks and 8 window captures, in about 75 seconds.
+
+The window runs are the ones that find what a build cannot. They launch the
+actual application — same main process, same preload, same bundle — in a profile
+of their own against generated fixtures, so they pass or fail on the code rather
+than on whatever happens to be on the machine. Several defects in this
+repository's history were caught by them and by nothing else, including a video
+timeline that was never built when the file loaded faster than the window did.
 
 ## Licence
 
