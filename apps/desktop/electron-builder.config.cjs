@@ -71,7 +71,13 @@ module.exports = async () => {
       menuCategory: false,
       installerIcon: path.resolve(__dirname, 'resources/icon.ico'),
       uninstallerIcon: path.resolve(__dirname, 'resources/icon.ico'),
+      // One copy on a machine. electron-builder replaces the previous copy in
+      // the scope being installed to; this script also removes one in the
+      // other scope (per-user beside per-machine), whatever directory it is
+      // in, and forgets a registry entry whose uninstaller is gone.
+      include: path.resolve(__dirname, 'resources/installer.nsh'),
     },
+
 
     portable: {
       artifactName: 'Rutba-Office-${version}-portable.exe',

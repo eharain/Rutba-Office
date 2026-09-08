@@ -54,6 +54,13 @@ Downloads are built for Windows, macOS and Linux:
 The Windows builds are not code-signed yet, so SmartScreen will warn on first
 run. That is worth knowing before you click.
 
+The Windows installer keeps **one copy** of Rutba Office on a machine: it
+removes whatever version is already installed — for this user or for all
+users, in whichever directory — before it installs, and it does the same when
+an installed copy updates itself. Your documents and settings stay where they
+are. The portable build installs nothing and is not counted.
+
+
 ### What the website links to
 
 [office.rutba.io](https://office.rutba.io) is the download page, and these are
