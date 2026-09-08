@@ -322,14 +322,33 @@ export function createShell({
     };
 
     const base = buildImplementations({ stores, windows, quitting });
-    const extra = namespaces ? await namespaces(context) : {};
+    // A host namespace that fails to build must not take the whole
+    // application with it: the shell's own methods still work, and the window
+    // that opens says what it cannot do rather than never appearing.
+    let extra = {};
+    try {
+      extra = namespaces ? await namespaces(context) : {};
+    } catch (err) {
+      record('namespaces', err);
+    }
     installIpc({ ...base, ...extra });
 
     Menu.setApplicationMenu(buildMenu({ send, appName }));
 
     nativeTheme.on('updated', () => broadcast('theme:changed', { dark: nativeTheme.shouldUseDarkColors }));
 
-    await onReady?.(context);
+    // Whatever the host wanted done before the first window — and if it
+    // throws, a window all the same. Nothing caught this: an exception here
+    // left the application running with no window at all, which on Windows
+    // never quits either, so it looked like a launch that did nothing. The
+    // error handler above turned it from a dialog into a line in errors.log,
+    // which made a loud failure a silent one. The log still gets the fault;
+    // the person still gets their launcher.
+    try {
+      await onReady?.(context);
+    } catch (err) {
+      record('startup', err);
+    }
 
     const startFiles = [...pending, ...argvFiles(process.argv)];
     if (startFiles.length) startFiles.forEach(openPath);

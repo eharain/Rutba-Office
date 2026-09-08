@@ -112,41 +112,54 @@ createShell({
       });
     });
 
-    if (process.env.RUTBA_OFFICE_VERIFY_EDIT) {
-      const { verifyEditing } = await import('./verify-edit.js');
-      const ok = await verifyEditing({ windows, doc: services.doc });
+    // A check run ends by exiting, pass or fail — including when the check
+    // itself throws. Without this, an error raised before the first window
+    // (a corpus run pointed at no folder, say) left an application with no
+    // windows, which never quits: `npm run verify:corpus` hung for as long as
+    // anyone let it, having printed the reason and then waited forever.
+    const finish = async (run) => {
       const { app: electronApp } = await import('electron');
-      return electronApp.exit(ok ? 0 : 1);
+      try {
+        return electronApp.exit((await run()) ? 0 : 1);
+      } catch (err) {
+        console.error(`the check run stopped: ${err?.stack || err?.message || err}`);
+        return electronApp.exit(1);
+      }
+    };
+
+    if (process.env.RUTBA_OFFICE_VERIFY_EDIT) {
+      return finish(async () => {
+        const { verifyEditing } = await import('./verify-edit.js');
+        return verifyEditing({ windows, doc: services.doc });
+      });
     }
     if (process.env.RUTBA_OFFICE_VERIFY_APPS) {
-      const { verifyApps } = await import('./verify-apps.js');
-      // Always seeded. A check that only passes because the developer happens
-      // to have imported an archive last week is not a check.
-      const { seedMail } = await import('./seed-mail.js');
-      await seedMail({ stores, mail: services?.mail }).catch((e) => console.error('the mail fixture failed:', e.message));
-      const ok = await verifyApps({ windows, doc: services.doc });
-      const { app: electronApp } = await import('electron');
-      return electronApp.exit(ok ? 0 : 1);
+      return finish(async () => {
+        const { verifyApps } = await import('./verify-apps.js');
+        // Always seeded. A check that only passes because the developer happens
+        // to have imported an archive last week is not a check.
+        const { seedMail } = await import('./seed-mail.js');
+        await seedMail({ stores, mail: services?.mail }).catch((e) => console.error('the mail fixture failed:', e.message));
+        return verifyApps({ windows, doc: services.doc });
+      });
     }
     if (process.env.RUTBA_OFFICE_VERIFY_CORPUS) {
       // Every file in a folder, opened for real, one window at a time.
-      const { verifyCorpus } = await import('./verify-corpus.js');
-      const ok = await verifyCorpus({ windows, doc: services.doc, appForFile: (file) => appFor(kindFromExtension(file)) || 'home' });
-
-      const { app: electronApp } = await import('electron');
-      return electronApp.exit(ok ? 0 : 1);
+      return finish(async () => {
+        const { verifyCorpus } = await import('./verify-corpus.js');
+        return verifyCorpus({ windows, doc: services.doc, appForFile: (file) => appFor(kindFromExtension(file)) || 'home' });
+      });
     }
     if (process.env.RUTBA_OFFICE_SMOKE) {
-      const { runSmoke } = await import('./smoke.js');
-
-      const ok = await runSmoke({
-        windows,
-        outDir: process.env.RUTBA_SMOKE_OUT || path.join(app, 'build', 'smoke'),
-        stores,
-        mail: services?.mail,
+      return finish(async () => {
+        const { runSmoke } = await import('./smoke.js');
+        return runSmoke({
+          windows,
+          outDir: process.env.RUTBA_SMOKE_OUT || path.join(app, 'build', 'smoke'),
+          stores,
+          mail: services?.mail,
+        });
       });
-      const { app: electronApp } = await import('electron');
-      return electronApp.exit(ok ? 0 : 1);
     }
     return updates?.start();
   },

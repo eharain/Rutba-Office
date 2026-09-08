@@ -55,9 +55,14 @@ file, not for the page to load:
 | Word | a paragraph block on the page | "This file could not be opened", with the engine's reason |
 | Worksheets | the cell layer | same |
 | Presentation | a slide thumbnail or the slide | same |
-| Pictures | the picture, the PDF frame, the video or audio element | — |
-| Image | the canvas | — |
-| Video | a clip on the timeline | — |
+| Pictures | the picture decoded (`naturalWidth`), the PDF frame, or the media element with its metadata | same |
+| Image | the canvas | same |
+| Video | a clip on the timeline | same |
+
+An element is not proof: an `<img>` whose file never decoded is still an
+`<img>`, and counting it as shown is how a zero-byte PNG passed the run. The
+picture apps are waited on for a decoded image or a media element that has
+read its metadata, and each of them refuses in words when the decoder does.
 
 ## The cases the checks are being broadened to cover
 
@@ -102,6 +107,14 @@ journeys block covers Escape on dialogs, the minimum window size, Ctrl+F1
 and the launcher's recent list. Items 3, 4, 6, 8 and the rest of 5 and 7
 are the work.
 
+Item 3 and most of item 5 arrived with `tests/document-service.test.js`,
+which drives the service every window uses — open, convert, save, export,
+refuse — in node, where a check costs milliseconds rather than a window. It
+covers the round trip for every format the suite writes, a file that is not
+the kind the window asked for, and what the disk failing says. What it
+cannot see is the window: that a refusal is drawn, and drawn instead of a
+spinner, is still the corpus run's job.
+
 ## What the first corpus runs taught, 2026-09-08
 
 - A window never closed its document session; a hundred and forty files in,
@@ -133,3 +146,45 @@ are the work.
   cell must be aimed by the headers, because an empty cell has no element.
 
 
+
+## What a corpus of hostile files taught, 2026-09-08
+
+The runs above were over real documents. This one was over 76 files written
+on purpose to be awkward: every format the suite claims, in ordinary shapes
+and then zero-byte, truncated at the header, truncated in the middle, with a
+byte flipped, under the wrong extension, in four text encodings, with the
+name of an Office owner file, and with names full of spaces, brackets and
+scripts other than Latin. Four things came out of it that a thousand real
+documents had not.
+
+- **A document under a workbook's name hung the window.** The extension
+  decides which app opens a file, so `report.xlsx` that is really a document
+  opened Worksheets, which drew a document model and threw on geometry it
+  does not have: thirty seconds of blank window, then the timeout. The window
+  now says which kind it edits when it asks for a file, and a file of another
+  kind is refused by name — "docx-named.xlsx is a document, not a workbook.
+  Open it in Word." — in a third of a second.
+- **A UTF-16 text file was refused as an MP3.** `FF FE` is the byte-order
+  mark Notepad writes for "Unicode" and PowerShell writes whenever it
+  redirects; it is also a valid MPEG frame sync, and the audio test came
+  first. Every UTF-16 text file on Windows was unopenable. The mark is read
+  before the magic numbers now, and `tests/sniff.test.js` exists because the
+  code that decides what a file is had no test of its own.
+- **A file the decoder refuses left the media window empty for ever.** The
+  Video window builds its timeline on `loadedmetadata` and listened for
+  nothing else, so a file with a RIFF header and rubbish behind it produced
+  no timeline, no message and no end. Pictures and the Image editor had the
+  same shape in a milder form: a toast that fades, and then a window that
+  looks like nothing was opened. All three now say what happened, and keep
+  saying it.
+- **A picture that never decoded counted as shown.** An `<img>` is an `<img>`
+  whether or not there is an image behind it, so the corpus run called a
+  zero-byte PNG "ok" in 672 ms. It waits for `naturalWidth` now, and for a
+  media element's metadata, which turned three false passes into three
+  refusals with sentences.
+
+And one that was not about files: **the disk's own failures reached people as
+error codes.** Saving over a file Word still had open said "EPERM: operation
+not permitted, open 'D:\work\report.docx'". A save into a folder that had
+been moved said ENOENT. Each of them now says what happened and what to do
+about it, and `tests/document-service.test.js` holds them to it.

@@ -28,6 +28,8 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+// One reading of a console-message for both harnesses.
+import { consoleMessage } from './console-message.js';
 
 const EXTENSIONS = new Set([
   '.docx', '.doc', '.odt', '.rtf', '.txt', '.md', '.html', '.htm',
@@ -141,8 +143,9 @@ export async function verifyCorpus({ windows, doc = null, appForFile }) {
     let gone = false;
     let unresponsive = false;
     const win = windows.create({ app, file });
-    win.webContents.on('console-message', (_e, level, message, line, source) => {
-      if (level >= 2) messages.push(`${String(message).slice(0, 300)} (${String(source).split('/').pop()}:${line})`);
+    win.webContents.on('console-message', (...args) => {
+      const m = consoleMessage(args);
+      if (m.level >= 2) messages.push(`${m.text.slice(0, 300)} (${m.source.split('/').pop()}:${m.line})`);
     });
     win.webContents.on('render-process-gone', (_e, details) => {
       gone = true;
@@ -178,6 +181,13 @@ export async function verifyCorpus({ windows, doc = null, appForFile }) {
         if (refused) return { refused: (refused.parentElement?.textContent || '').replace(refused.textContent, '').trim().slice(0, 300) };
 
         if (!ready) return { waiting: true };
+        // An element is not a picture. An <img> whose file never decoded is
+        // still an <img>, so a corrupt PNG drew an empty frame and counted as
+        // shown; a media element answers for itself only once it has
+        // metadata. Waiting here means the deadline decides, as it does for
+        // every other kind of file.
+        if (ready.tagName === 'IMG' && !ready.naturalWidth) return { waiting: true };
+        if (ready.tagName === 'VIDEO' && !(ready.readyState >= 1)) return { waiting: true };
         return {
           ready: true,
           blocks: document.querySelectorAll('.wd-block').length,

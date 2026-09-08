@@ -24,6 +24,7 @@
     "gate": "node tools/gate.js",
     "smoke": "npm run smoke --workspace=@rutba/office-desktop",
     "icon": "npm run icon --workspace=@rutba/office-desktop",
+    "icons": "npm run icons --workspace=@rutba/office-desktop",
     "verify:edit": "npm run verify:edit --workspace=@rutba/office-desktop",
     "verify:apps": "npm run verify:apps --workspace=@rutba/office-desktop",
     "verify:corpus": "npm run verify:corpus --workspace=@rutba/office-desktop",

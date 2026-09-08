@@ -117,7 +117,7 @@ installations on the version they have.
 git clone https://github.com/eharain/Rutba-Office.git office
 cd office
 npm install
-npm test          # 619 tests, no network needed
+npm test          # 632 tests, no network needed
 npm run build     # bundle the renderer
 npm start         # run the app
 npm run dist      # installers for this platform, into apps/desktop/release
@@ -258,16 +258,16 @@ Other things worth reading:
 
 ```bash
 npm run gate            # all four passes, in the order that finds problems soonest
-npm test                # the engine suite — 619 checks, no windows
+npm test                # the engine suite — 632 checks, no windows
 npm run verify:edit     # do keystrokes reach the document?
 npm run verify:apps     # does each app open, change and save a real file?
 npm run smoke           # boot the real app, photograph every window, report
 npm run smoke -- word   # just one
 RUTBA_CORPUS_DIRS="D:\docs" npm run verify:corpus   # open every file in a folder in the real app, one window at a time
-
+node tools/fuzz-open.js 500                         # damage good files at random; every one must draw or refuse in a sentence
 ```
 
-`npm run gate` is what runs before a release: 619 engine tests, 9 editing checks,
+`npm run gate` is what runs before a release: 632 engine tests, 9 editing checks,
 136 application checks — most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard — and 8 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about a quarter of an hour.
 
 The window runs are the ones that find what a build cannot. They launch the

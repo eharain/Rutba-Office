@@ -57,4 +57,20 @@ test('the sheet view opens the big workbook, shows the right cells, and saves an
   view.scrollTo(0, 20000 * 20);
   const far = view.render();
   assert.ok(far.cells.some((c) => /^B2\d{4}$/.test(c.ref) && /^name 2\d{4}$/.test(c.text)), 'the far end reads through the provider');
+
+  // The save the name of this test promised and did not make. An edit and a
+  // clear on a sheet the model never loaded have to survive the file: the
+  // edit written into the part, the cleared cell staying cleared rather than
+  // showing the file's own value through the gap, and its neighbours
+  // untouched.
+  view.activeSheet = 'Data';
+  view.setCell(5, 1, 'EDITED');
+  view.setCell(6, 1, '');
+  const reopened = new SheetView(view.save());
+  reopened.activeSheet = 'Data';
+  assert.equal(reopened.calc.getValue('Data', 5, 1), 'EDITED', 'the edit is in the file');
+  assert.equal(reopened.calc.getValue('Data', 6, 1), '', 'the cleared cell stayed cleared');
+  assert.equal(reopened.calc.getValue('Data', 7, 1), 'name 8', 'its neighbour is untouched');
+  assert.equal(reopened.calc.getValue('Data', 20000, 1), 'name 20001', 'and the far end survived the round trip');
+  assert.ok(reopened.calc.lazy.has('Data'), 'and it is still read through, not copied');
 });

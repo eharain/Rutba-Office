@@ -4,7 +4,7 @@
 //
 // Four passes, each answering a question the one before it cannot:
 //
-//   test          do the engines do what they say? 619 checks, no windows.
+//   test          do the engines do what they say? 632 checks, no windows.
 //   verify:edit   do keystrokes reach the document? two real windows.
 //   verify:apps   does each app open, change and save a real file? every window.
 //   smoke         does every window paint without logging anything?

@@ -17,8 +17,10 @@ import os from 'node:os';
 import path from 'node:path';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
+import { consoleMessage } from './console-message.js';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
 
 /**
  * Wait for something to become true, rather than for a number of milliseconds.
@@ -221,8 +223,9 @@ export async function verifyApps({ windows, doc }) {
     // A window that throws during render paints nothing and reports nothing, so
     // every check against it fails with a description of an empty page rather
     // than of the fault. The console is the only place the fault appears.
-    win.webContents.on('console-message', (_event, level, text) => {
-      if (level >= 2) console.log(`     [${app}] ${text.split('\n')[0].slice(0, 200)}`);
+    win.webContents.on('console-message', (...args) => {
+      const m = consoleMessage(args);
+      if (m.level >= 2) console.log(`     [${app}] ${m.text.split('\n')[0].slice(0, 200)}`);
     });
     // A window that goes away mid-run takes its checks with it and, once the
     // last one goes, the whole run — say which one went, and when.
@@ -257,7 +260,7 @@ export async function verifyApps({ windows, doc }) {
       fs.writeFileSync(broken, Buffer.from('this is not a zip archive, whatever the name says. '.repeat(400)));
       const win = await open(appName, broken);
       const consoleErrors = [];
-      win.webContents.on('console-message', (_e, level, text) => { if (level >= 2) consoleErrors.push(String(text).slice(0, 120)); });
+      win.webContents.on('console-message', (...args) => { const m = consoleMessage(args); if (m.level >= 2) consoleErrors.push(m.text.slice(0, 120)); });
       await until(() => win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-empty h3')].some((h) => /could not be opened/i.test(h.textContent))`), 'the refusal to show', 6000).catch(() => {});
       const shown = await win.webContents.executeJavaScript(`(() => {
         const h = [...document.querySelectorAll('.rw-empty h3')].find((x) => /could not be opened/i.test(x.textContent));
@@ -1962,12 +1965,30 @@ export async function verifyApps({ windows, doc }) {
     await until(async () => (await active()) === 'B9', 'B9 to be selected', 3000).catch(() => {});
     const bar = await mouse(win, '.sh-formula input, .sh-formula-input');
     if (bar) {
+      // Where the keys are going before they are sent, and what each of the
+      // three places that can hold the text says afterwards. This check
+      // failed once with B9 reading "ello" and there was no way to tell from
+      // the line which of them had eaten the letter.
+      // Nothing may still be open from the check before this one. A cell
+      // editor left standing takes the first letter and commits it where it
+      // was, and the rest lands here: B9 read "ello" twice before this wait,
+      // and the state below is what said so.
+      await until(() => win.webContents.executeJavaScript(`!document.querySelector('.sh-editor')`), 'the previous edit to have finished', 3000).catch(() => {});
+      const before = await win.webContents.executeJavaScript(`(() => {
+        const b = document.querySelector('.sh-formula input');
+        const a = document.activeElement;
+        return { focus: a ? (a.className || a.tagName) : 'none', bar: b ? b.value : null, editor: document.querySelector('.sh-editor')?.value ?? '(none)', cell: document.querySelector('.sh-cell.active')?.dataset.ref ?? null };
+      })()`);
       await typeText(win.webContents, 'hello');
       await press(win.webContents, 'Return');
       await until(async () => (await cellText('B9')) === 'hello', 'the formula bar entry to land', 4000).catch(() => {});
       await press(win.webContents, 'Down');
       await wait(150);
-      check('real input: Enter in the formula bar commits and hands the keys back to the grid', (await cellText('B9')) === 'hello' && (await active()) === 'B11', `B9 = ${JSON.stringify(await cellText('B9'))}; after Enter, Down: ${await active()}; focus ${await focused()}`);
+      check(
+        'real input: Enter in the formula bar commits and hands the keys back to the grid',
+        (await cellText('B9')) === 'hello' && (await active()) === 'B11',
+        `B9 = ${JSON.stringify(await cellText('B9'))}; after Enter, Down: ${await active()}; focus ${await focused()}; before typing ${JSON.stringify(before)}`
+      );
     } else {
       check('real input: the formula bar is there to click', false, 'no formula bar input found');
     }

@@ -13,6 +13,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { seedMail } from './seed-mail.js';
+import { samplePictures } from './sample-picture.js';
+import { consoleMessage } from './console-message.js';
 
 const ALL = ['home', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'mail'];
 
@@ -44,12 +46,18 @@ export async function runSmoke({ windows, outDir, stores, mail }) {
 
   const results = [];
   const opened = [];
+  let samples = null;
   for (const app of list) {
     const started = Date.now();
-    const win = windows.create({ app, file: file && app !== 'home' ? file : null });
+    // The Pictures window opened with no file lists the operating system's own
+    // pictures folder, so a capture run photographed whoever's machine it was
+    // on. It gets pictures drawn for it instead — see sample-picture.js.
+    const shown = file || (app === 'pictures' ? (samples || (samples = samplePictures())).first : null);
+    const win = windows.create({ app, file: shown && app !== 'home' ? shown : null });
     const messages = [];
-    win.webContents.on('console-message', (_e, level, message, line, source) => {
-      if (level >= 2) messages.push(`${message} (${String(source).split('/').pop()}:${line})`);
+    win.webContents.on('console-message', (...args) => {
+      const m = consoleMessage(args);
+      if (m.level >= 2) messages.push(`${m.text} (${m.source.split('/').pop()}:${m.line})`);
     });
     win.webContents.on('render-process-gone', (_e, details) => messages.push(`renderer gone: ${details.reason}`));
 
