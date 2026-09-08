@@ -51,8 +51,25 @@ Downloads are built for Windows, macOS and Linux:
 | macOS | `Rutba-Office-<version>-mac-<arch>.dmg` |
 | Linux | `Rutba-Office-<version>-linux-x86_64.AppImage`, or the `.deb` |
 
-The Windows builds are not code-signed yet, so SmartScreen will warn on first
-run. That is worth knowing before you click.
+### Code signing
+
+Code signing for the Windows builds is provided by [SignPath.io](https://signpath.io),
+with a free code-signing certificate granted by the
+[SignPath Foundation](https://signpath.org) to open-source projects.
+**Thank you to the SignPath Foundation for signing Rutba Office.**
+
+Certificates issued under that programme are held in SignPath Foundation's
+name, so that — rather than Tech Style Ltd — is the publisher Windows shows.
+It is the trade the programme asks for and it is worth stating plainly rather
+than leaving somebody to notice it in a dialog.
+
+> **Status:** the application is in progress and the binaries published so far
+> are NOT yet signed, so SmartScreen still warns on first run. That warning is
+> telling you the truth until this note says otherwise. This paragraph goes
+> when the first signed release ships.
+
+Privacy policy: Rutba Office collects no user data at all — see [Privacy](#privacy)
+below.
 
 The Windows installer keeps **one copy** of Rutba Office on a machine: it
 removes whatever version is already installed — for this user or for all
