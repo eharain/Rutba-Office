@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
+import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { SITE } from '@rutba/office-formats/registry';
 import Presenter from './slides/presenter.js';
 import SlidesRibbon from './slides/ribbon.js';
@@ -45,6 +46,7 @@ export default function Slides({ app, shell, boot }) {
   // is what the Font and Paragraph groups act on.
   const [selected, setSelected] = useState(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [printing, setPrinting] = useState(false);
   // Reading View: the show in this window, without going full screen.
   const [reading, setReading] = useState(false);
   const stageRef = useRef(null);
@@ -287,7 +289,7 @@ export default function Slides({ app, shell, boot }) {
   }, [shell, doc, index]);
 
   const exportAs = useCallback(
-    async (format) => {
+    async (format, options = null) => {
       if (!doc) return;
       const target = await shell.dialog.save({
         title: `Export as ${format.toUpperCase()}`,
@@ -296,7 +298,10 @@ export default function Slides({ app, shell, boot }) {
       });
       if (!target) return;
       try {
-        await shell.doc.export({ id: doc.id, format, path: target });
+        // A PDF is a print job: the page setup decides where the pages fall,
+        // and a workbook or a deck must be laid out before it is one.
+        if (format === 'pdf') await shell.print.pdf({ id: doc.id, path: target, options: options || defaultPrintOptions('deck') });
+        else await shell.doc.export({ id: doc.id, format, path: target });
         toast(`Exported ${target.split(/[\\/]/).pop()}`, { tone: 'good' });
       } catch (err) {
         toast(err.message, { tone: 'bad' });
@@ -310,6 +315,7 @@ export default function Slides({ app, shell, boot }) {
       'file.new': { label: 'New', icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'slides' }) },
       'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
       'file.save': { label: 'Save', icon: 'save', key: 'Mod+S', run: () => save(false) },
+      'file.print': { label: 'Print…', icon: 'print', key: 'Mod+P', global: true, run: () => setPrinting(true) },
       'slide.next': { label: 'Next slide', icon: 'chevronRight', key: 'arrowdown', run: () => setIndex((i) => Math.min(i + 1, (model?.count || 1) - 1)) },
       'slide.prev': { label: 'Previous slide', icon: 'chevronLeft', key: 'arrowup', run: () => setIndex((i) => Math.max(0, i - 1)) },
       'slide.new': { label: 'Duplicate slide', icon: 'plus', run: () => apply({ op: 'duplicateSlide', slide: index }) },
@@ -629,6 +635,16 @@ export default function Slides({ app, shell, boot }) {
       )}
 
       {shortcutsOpen ? <SlidesShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
+
+      {printing && doc ? (
+        <PrintDialog
+          shell={shell}
+          doc={doc}
+          kind="deck"
+          onClose={() => setPrinting(false)}
+          onSaveAs={(options) => exportAs('pdf', options)}
+        />
+      ) : null}
 
       {notesOpen ? (
         <NotesDialog

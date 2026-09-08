@@ -10,6 +10,7 @@
     "./deck": "./src/deck.js",
     "./slide": "./src/slide.js",
     "./render": "./src/render.js",
+    "./print": "./src/print.js",
     "./build": "./src/build.js",
     "./units": "./src/units.js"
   },

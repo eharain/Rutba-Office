@@ -331,7 +331,12 @@ export function createShell({
     } catch (err) {
       record('namespaces', err);
     }
-    installIpc({ ...base, ...extra });
+    // Merged per namespace, not over it. A host that adds one method to a
+    // namespace the shell already has — printing a document beside printing
+    // a window — must not take the shell's own methods away with it.
+    const merged = { ...base };
+    for (const [ns, methods] of Object.entries(extra)) merged[ns] = { ...(merged[ns] || {}), ...methods };
+    installIpc(merged);
 
     Menu.setApplicationMenu(buildMenu({ send, appName }));
 

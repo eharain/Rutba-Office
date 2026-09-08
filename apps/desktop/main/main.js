@@ -10,6 +10,7 @@ import { createShell, holdBlob, broadcast } from '@rutba/office-shell/electron/m
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { fileAssociations, APPS } from '@rutba/office-formats/registry';
 import { createDocumentService } from './documents.js';
+import { createPrintService } from './print.js';
 import { createMailService } from './mail.js';
 import { createUpdateService } from './updates.js';
 import { createOAuthService } from './oauth.js';
@@ -48,9 +49,13 @@ createShell({
     // for an account that was added by signing in rather than by typing a
     // password.
     const oauth = createOAuthService({ stores, broadcast });
+    const doc = createDocumentService({ holdBlob: hold });
 
     return (services = {
-      doc: createDocumentService({ holdBlob: hold }),
+      doc,
+      // Paper and PDFs, for every kind of document. It asks the document
+      // service where the pages fall and hands the result to a hidden window.
+      print: createPrintService({ docs: doc }),
       update: updates = createUpdateService({ stores, broadcast }),
       announce: createAnnouncementService({ stores, broadcast }),
       defaults: createDefaultsService({ associations: fileAssociations() }),

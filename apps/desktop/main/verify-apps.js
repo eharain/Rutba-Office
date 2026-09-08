@@ -2038,6 +2038,55 @@ export async function verifyApps({ windows, doc }) {
     check('real input: the Word journey ran', false, err.message);
   }
 
+  /* ── Printing: paper, and a PDF of anything ──────────────────────────── */
+  //
+  // A suite that cannot print is not an office suite. Until this existed the
+  // Print button in Word called a command that was never defined, and the one
+  // in Worksheets asked for a PDF that was refused. Each window opens the
+  // dialog with Ctrl+P, is asked how many pages that would be, and then writes
+  // the PDF through the same door the dialog's own button uses — which is what
+  // proves the layout reached Chromium and came back as pages.
+  for (const [appName, file, kind, options] of [
+    ['word', files.docx, 'doc', {}],
+    ['sheets', files.xlsx, 'sheet', { headings: true, gridlines: true }],
+    ['slides', files.pptx, 'deck', { layout: 'handout', perPage: 4 }],
+  ]) {
+    try {
+      const win = await open(appName, file);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const session = () => js(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); return all.filter((s) => s.kind === ${JSON.stringify(kind)}).pop().id; })()`);
+      const id = await session();
+
+      // The dialog says how many pages before it prints anything.
+      raise(win);
+      await press(win.webContents, 'p', { modifiers: ['control'] });
+      await until(() => js(`Boolean(document.querySelector('.rw-dialog'))`), 'the print dialog', 4000).catch(() => {});
+      const dialog = await js(`(() => {
+        const d = document.querySelector('.rw-dialog');
+        if (!d) return null;
+        return { title: d.querySelector('.rw-dialog-head')?.textContent || '', text: d.textContent.slice(0, 400) };
+      })()`);
+      const counted = dialog && /\d+ page/.test(dialog.text);
+      await press(win.webContents, 'Escape');
+      await until(() => js(`!document.querySelector('.rw-dialog')`), 'the dialog to close', 3000).catch(() => {});
+      check(`${appName}: Ctrl+P opens a print dialog that says how many pages`, Boolean(dialog) && dialog.title === 'Print' && counted && (await js(`!document.querySelector('.rw-dialog')`)), dialog ? `${JSON.stringify((/(\d+ pages?[^"]*)/.exec(dialog.text) || [])[1] || dialog.text.slice(0, 60))}` : 'no dialog');
+
+      // And the PDF it would write is a PDF, with the pages it promised.
+      const target = path.join(path.dirname(files.docx), `print-${appName}.pdf`);
+      const promised = await js(`window.rutbaOffice.print.summary({ id: ${JSON.stringify(id)}, options: ${JSON.stringify(options)} })`);
+      await js(`window.rutbaOffice.print.pdf({ id: ${JSON.stringify(id)}, path: ${JSON.stringify(target)}, options: ${JSON.stringify(options)} })`);
+      const bytes = fs.readFileSync(target);
+      const drawn = (bytes.toString('latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
+      check(
+        `${appName}: it writes a PDF with the pages it said it would`,
+        bytes.subarray(0, 5).toString('latin1') === '%PDF-' && drawn === promised.pages && drawn > 0,
+        `${promised.pages} promised, ${drawn} drawn, ${(bytes.length / 1024).toFixed(0)} KB`
+      );
+    } catch (err) {
+      check(`${appName}: the printing checks ran`, false, err.message);
+    }
+  }
+
   /* ── Last of all: a dirty window refuses to close ─────────────────────── */
 
 

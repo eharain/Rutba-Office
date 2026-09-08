@@ -14,6 +14,7 @@
   "exports": {
     ".": "./src/index.js",
     "./numfmt": "./src/numfmt.js",
+    "./print": "./src/print.js",
     "./geometry": "./src/geometry.js",
     "./selection": "./src/selection.js",
     "./styles-write": "./src/styles-write.js"

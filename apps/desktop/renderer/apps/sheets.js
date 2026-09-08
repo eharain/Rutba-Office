@@ -12,6 +12,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
+import { PrintDialog, defaultPrintOptions } from '../print.js';
 import SheetsRibbon, { FUNCTIONS } from './sheets/ribbon.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
@@ -154,7 +155,7 @@ export default function Sheets({ app, shell, boot }) {
   );
 
   const exportAs = useCallback(
-    async (format) => {
+    async (format, options = null) => {
       if (!doc) return;
       const target = await shell.dialog.save({
         title: `Export as ${format.toUpperCase()}`,
@@ -164,7 +165,10 @@ export default function Sheets({ app, shell, boot }) {
       // A cancelled Save As is not a save; the caller must know.
       if (!target) return false;
       try {
-        await shell.doc.export({ id: doc.id, format, path: target });
+        // A PDF is a print job: the page setup decides where the pages fall,
+        // and a workbook or a deck must be laid out before it is one.
+        if (format === 'pdf') await shell.print.pdf({ id: doc.id, path: target, options: options || defaultPrintOptions('sheet') });
+        else await shell.doc.export({ id: doc.id, format, path: target });
         toast(`Exported ${target.split(/[\\/]/).pop()}`, { tone: 'good' });
       } catch (err) {
         toast(err.message, { tone: 'bad' });
@@ -219,6 +223,7 @@ export default function Sheets({ app, shell, boot }) {
       'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
       'file.save': { label: 'Save', icon: 'save', key: 'Mod+S', run: () => save(false) },
       'file.saveAs': { label: 'Save as…', icon: 'save', key: 'Mod+Shift+S', run: () => save(true) },
+      'file.print': { label: 'Print…', icon: 'print', key: 'Mod+P', global: true, run: () => setDialog('print') },
       'edit.undo': { label: 'Undo', icon: 'undo', key: 'Mod+Z', run: async () => { const n = await shell.doc.undo({ id: doc.id }); setDoc(n); setModel(n.model); } },
       'edit.redo': { label: 'Redo', icon: 'redo', key: 'Mod+Y', run: async () => { const n = await shell.doc.redo({ id: doc.id }); setDoc(n); setModel(n.model); } },
       'edit.copy': { label: 'Copy', icon: 'copy', key: 'Mod+C', run: () => dispatch({ op: 'copy' }) },
@@ -773,6 +778,17 @@ export default function Sheets({ app, shell, boot }) {
           {menu.node}
         </div>
       )}
+
+      {dialog === 'print' && doc ? (
+        <PrintDialog
+          shell={shell}
+          doc={doc}
+          kind="sheet"
+          sheets={model?.sheets || []}
+          onClose={() => setDialog(null)}
+          onSaveAs={(options) => exportAs('pdf', options)}
+        />
+      ) : null}
 
       {dialog === 'goto' ? (
         <GoToDialog names={model?.names || []} onClose={() => setDialog(null)} onGo={async (ref) => { setDialog(null); await act('goto', ref); }} />

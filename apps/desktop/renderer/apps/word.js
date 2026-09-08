@@ -19,6 +19,7 @@ import { SITE } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
 import { NavigationPane, Ruler, installWordStyles } from './word/panes.js';
 import { selectionToSend } from './word/caret.js';
+import { PrintDialog, defaultPrintOptions } from '../print.js';
 
 installWordStyles();
 import {
@@ -296,7 +297,7 @@ export default function Word({ app, shell, boot }) {
   openFileRef.current = openFile;
 
   const exportAs = useCallback(
-    async (format) => {
+    async (format, options = null) => {
       if (!doc) return;
       const target = await shell.dialog.save({
         title: `Export as ${format.toUpperCase()}`,
@@ -306,7 +307,12 @@ export default function Word({ app, shell, boot }) {
       // A cancelled Save As is not a save; the caller must know.
       if (!target) return false;
       try {
-        await shell.doc.export({ id: doc.id, format, path: target });
+        // A PDF is a print job: the page setup decides where the pages fall,
+        // and a workbook or a deck must be laid out before it is one. The
+        // same door for all three, so what is printed and what is exported
+        // can never drift apart.
+        if (format === 'pdf') await shell.print.pdf({ id: doc.id, path: target, options: options || defaultPrintOptions('doc') });
+        else await shell.doc.export({ id: doc.id, format, path: target });
         toast(`Exported ${target.split(/[\\/]/).pop()}`, { tone: 'good' });
       } catch (err) {
         toast(err.message, { tone: 'bad' });
@@ -684,6 +690,7 @@ export default function Word({ app, shell, boot }) {
       'file.new': { label: 'New', icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'word' }) },
       'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
       'file.save': { label: 'Save', icon: 'save', key: 'Mod+S', global: true, run: () => save(false) },
+      'file.print': { label: 'Print…', icon: 'print', key: 'Mod+P', global: true, run: () => setDialog('print') },
       'file.saveAs': { label: 'Save as…', icon: 'save', key: 'Mod+Shift+S', global: true, run: () => save(true) },
       'file.pdf': { label: 'Export as PDF…', icon: 'pdf', run: () => exportAs('pdf') },
       'edit.undo': { label: 'Undo', icon: 'undo', key: 'Mod+Z', global: true, run: async () => { const n = await shell.doc.undo({ id: doc.id }); setDoc(n); setModel(n.model); } },
@@ -854,6 +861,16 @@ export default function Word({ app, shell, boot }) {
             await apply({ op: 'insertTable', rows: spec.rows, cols: spec.cols });
             setDialog(null);
           }}
+        />
+      ) : null}
+
+      {dialog === 'print' && doc ? (
+        <PrintDialog
+          shell={shell}
+          doc={doc}
+          kind="doc"
+          onClose={() => setDialog(null)}
+          onSaveAs={(options) => exportAs('pdf', options)}
         />
       ) : null}
 

@@ -18,6 +18,8 @@ import { buildXlsx, buildDocx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';import { probeImage } from '@rutba/imaging/probe';
+import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary } from '@rutba/sheet-view/print';
+import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
 
 import { sniff, refineOoxml, kindFromExtension } from '@rutba/office-formats/sniff';
 import { readOdf } from '@rutba/office-formats/odf';
@@ -1039,6 +1041,46 @@ export function createDocumentService({ holdBlob }) {
     },
 
     export: ({ id, format, path: target }) => writing(target, () => exportTo(get(id), target, format)),
+
+    /* ── printing ─────────────────────────────────────────────────────────
+     *
+     * What a printer needs, worked out here where the engines are, and handed
+     * over as either a page of HTML or a finished PDF. Nothing in this file
+     * knows what a printer is: laying the sheet out on pages is a decision
+     * about the document, and turning that into ink is Chromium's job, which
+     * lives in main/print.js.
+     */
+
+    /** How many pages, at what scale, before anything is drawn. */
+    printSummary: ({ id, options = {} }) => {
+      const session = get(id);
+      if (session.kind === 'sheet') return { kind: 'sheet', name: session.name, ...sheetPrintSummary(session.engine, options) };
+      if (session.kind === 'deck') return { kind: 'deck', name: session.name, ...deckPrintSummary(session.engine, options) };
+      const rendered = renderPdf(session.engine, { title: session.name }) || {};
+      return { kind: 'doc', name: session.name, pages: rendered.pages ?? 0, setup: { paper: 'A4', orientation: 'portrait' } };
+    },
+
+    /**
+     * The document as something a window can print.
+     *
+     * A workbook and a deck become a page of HTML — Chromium already knows
+     * how to break pages, embed fonts and talk to a printer, and the layout
+     * decision above it is the part worth owning. A document is already
+     * written as a PDF by the engine that paginates it, which lays the page
+     * out rather than photographing a screen, so that is what comes back.
+     */
+    printSource: ({ id, options = {} }) => {
+      const session = get(id);
+      if (session.kind === 'sheet') {
+        return { kind: 'sheet', name: session.name, html: sheetPrintHtml(session.engine, { ...options, file: session.name, title: session.name }) };
+      }
+      if (session.kind === 'deck') {
+        return { kind: 'deck', name: session.name, html: deckPrintHtml(session.engine, { ...options, title: session.name }) };
+      }
+      const { buffer } = renderPdf(session.engine, { title: session.name }) || {};
+      if (!buffer) throw new Error(`${session.name} could not be laid out for printing.`);
+      return { kind: 'doc', name: session.name, pdf: new Uint8Array(buffer) };
+    },
 
     search: ({ id, query, options }) => {
       const session = get(id);

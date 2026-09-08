@@ -176,6 +176,10 @@ export const METHODS = {
     'scan',         // () -> { accounts, files, scanned }
   ],
   print: [
+    'summary',      // ({ id, options }) -> { kind, pages, setup, sheets? } — before anything is drawn
+    'printers',     // () -> [{ name, description, status, default }]
+    'pdf',          // ({ id, path, options }) -> { path } — a workbook or deck laid out on pages
+    'document',     // ({ id, options, printer, copies, silent }) -> { ok, reason }
     'toPDF',        // ({ landscape, margins, pageSize }) -> { bytes }
     'print',        // ({ silent }) -> void
   ],
