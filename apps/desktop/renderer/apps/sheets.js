@@ -89,7 +89,15 @@ export default function Sheets({ app, shell, boot }) {
         setModel(opened.model);
         if (opened.path) shell.app.addRecent({ path: opened.path, app: 'sheets' }).catch(() => {});
         if (opened.converted?.from) {
-          toast(`Opened from ${opened.converted.from.toUpperCase()}. Saving will write a .xlsx.`, { ms: 5200 });
+          // What saving will actually do: a .csv opened here saves as .csv,
+          // an .ods cannot be saved at all until it is given a new name.
+          const was = opened.converted.from.toUpperCase();
+          toast(
+            opened.converted.writesBack
+              ? `Opened from ${was}. Saving writes the ${was} back.`
+              : `Opened from ${was}. This build cannot write ${was} — Save as will write a .xlsx.`,
+            { ms: 5200 }
+          );
         }
       } catch (err) {
         setError(err.message);
@@ -103,7 +111,7 @@ export default function Sheets({ app, shell, boot }) {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const template = params.get('template');
-    if (boot.file) load(() => shell.doc.open({ path: boot.file }));
+    if (boot.file) load(() => shell.doc.open({ path: boot.file, kind: 'sheet' }));
     else load(() => shell.doc.new({ kind: 'sheets', template: template && template !== 'blank' ? template : 'sheet' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -593,12 +601,24 @@ export default function Sheets({ app, shell, boot }) {
             <div className="sh-namebox">{sel?.ref}</div>
             <Icon name="formula" size={14} style={{ color: 'var(--ink-3)' }} />
             <Input
-              value={editing ? draft ?? '' : model.formulaBar ?? ''}
+              // The draft wins the moment there is one, not once the engine
+              // has answered. Beginning an edit is a round trip; until it
+              // returned, `editing` was false and this fell back to the
+              // model's value, which put the cell's old contents back into
+              // the box and threw away the letter just typed. "hello" typed
+              // into the formula bar arrived as "ello" — the same race the
+              // grid solved with startingRef below, in the one place that had
+              // not been given it.
+              value={editing || draft != null ? draft ?? '' : model.formulaBar ?? ''}
               onChange={(e) => {
-                if (editing) setDraft(e.target.value);
-                else {
-                  setDraft(e.target.value);
-                  dispatch({ op: 'beginEdit', replace: true, initial: e.target.value });
+                setDraft(e.target.value);
+                if (!editing && !startingRef.current) {
+                  startingRef.current = true;
+                  // A refused edit — a protected sheet, say — must not leave
+                  // the flag standing, or the bar takes no further keys.
+                  Promise.resolve(dispatch({ op: 'beginEdit', replace: true, initial: e.target.value })).catch(() => {
+                    startingRef.current = false;
+                  });
                 }
               }}
               onKeyDown={(e) => {

@@ -237,12 +237,23 @@ export default function Word({ app, shell, boot }) {
       setBusy(true);
       try {
         const opened = boot.file
-          ? await shell.doc.open({ path: boot.file })
+          ? await shell.doc.open({ path: boot.file, kind: 'doc' })
           : await shell.doc.new({ kind: 'word', template: template && template !== 'blank' ? template : 'doc' });
         setDoc(opened);
         setModel(opened.model);
         if (opened.path) shell.app.addRecent({ path: opened.path, app: 'word' }).catch(() => {});
-        if (opened.converted?.from) toast(`Opened from ${opened.converted.from.toUpperCase()}. Saving will write a .docx.`, { ms: 5200 });
+        // What saving will actually do, which is not one answer: a .md
+        // opened here saves as .md, and an .rtf cannot be saved at all
+        // until it is given a new name. Both used to be promised a .docx.
+        if (opened.converted?.from) {
+          const was = opened.converted.from.toUpperCase();
+          toast(
+            opened.converted.writesBack
+              ? `Opened from ${was}. Saving writes the ${was} back.`
+              : `Opened from ${was}. This build cannot write ${was} — Save as will write a .docx.`,
+            { ms: 5200 }
+          );
+        }
       } catch (err) {
         setError(err.message);
       } finally {
@@ -447,11 +458,16 @@ export default function Word({ app, shell, boot }) {
   // The engine's caret is authoritative; after every render the DOM caret is
   // put back where the engine says it is.
   useLayoutEffect(() => {
+    // The answer to whatever was sent has been painted by the time this runs,
+    // so nothing is in flight any more — whether or not the answer moved the
+    // caret. Clearing it only when it did left a stale position standing
+    // after a formatting edit, and a keystroke that happened to land on
+    // exactly that spot then sent no selection at all.
+    sentCaret.current = null;
     const target = pendingCaret.current;
     if (!target || !pageRef.current) return;
     placeSelection(pageRef.current, target.anchor, target.focus);
     placedCaret.current = target;
-    sentCaret.current = null;
     pendingCaret.current = null;
   }, [model]);
 
@@ -1129,10 +1145,20 @@ function planTabs(p, stops) {
   const image = p.querySelector('.wd-image');
   const plan = [];
   // With every width reset, a later tab's natural position is short by the
-  // widths the earlier tabs on its line will be given; carry them forward.
+  // widths the earlier tabs ON ITS OWN LINE will be given; carry those
+  // forward, and only those. A paragraph that wraps starts each line afresh —
+  // carrying a first line's widths into the second pushed every tab on it
+  // sideways by the sum of the ones above, which is how a wrapped contents
+  // entry ended up with its page number off the page.
   let carried = 0;
+  let lineTop = null;
   for (const span of tabs) {
-    const x = span.getBoundingClientRect().left - left + carried;
+    const rect = span.getBoundingClientRect();
+    if (lineTop === null || Math.abs(rect.top - lineTop) > 1) {
+      carried = 0;
+      lineTop = rect.top;
+    }
+    const x = rect.left - left + carried;
 
     const stop = custom.find((s) => s.posPx > x + 1) || { posPx: (Math.floor(x / DEFAULT_TAB_PX) + 1) * DEFAULT_TAB_PX, align: 'left' };
     let width = stop.posPx - x;
