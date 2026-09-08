@@ -30,6 +30,20 @@ import { readZip } from '@rutba/ooxml/zip';
 let seq = 0;
 const KIND_FOR_APP = { word: 'doc', sheets: 'sheet', slides: 'deck' };
 
+/** What each kind is called, and the app that opens it, for a window given the wrong one. */
+const KIND_LABEL = { doc: 'a document', sheet: 'a workbook', deck: 'a presentation' };
+const KIND_APP = { doc: 'Word', sheet: 'Worksheets', deck: 'Presentation' };
+
+/**
+ * The formats each kind can be written out as, besides its own.
+ *
+ * A converted file is told, on open, what will happen when it is saved, and
+ * the window has to be told the truth: an .md opened in Word saves as .md,
+ * an .rtf cannot be saved at all and needs Save as. Both used to be promised
+ * a .docx, and neither got one.
+ */
+const EXPORTS = { doc: ['pdf', 'txt', 'md', 'html'], sheet: ['csv', 'tsv'], deck: [] };
+
 /**
  * Text as HTML text.
  *
@@ -245,6 +259,56 @@ export function createDocumentService({ holdBlob }) {
       return `${name} does not contain what a .${ext} file should — it may have been saved by a program that writes the format differently, or renamed. (${raw})`;
     }
     return `${name} could not be read. (${raw})`;
+  }
+
+  /**
+   * A file-system failure, in a sentence — or null when it is not one.
+   *
+   * "EPERM: operation not permitted, open 'D:\\work\\report.docx'" is what a
+   * person saw when they pressed Save on a file Word still had open, and what
+   * they saw when a folder had been moved out from under them. It is the
+   * error Node raises, printed; it is not a sentence, it does not say what
+   * happened in words anybody uses, and it names no way out.
+   */
+  function plainFsError(err, filePath, verb = 'opened') {
+    const name = filePath ? path.basename(filePath) : 'The file';
+    const saving = verb === 'saved';
+    switch (err?.code) {
+      case 'ENOENT':
+        return saving
+          ? `${name} could not be saved: the folder it was going into is not there any more.`
+          : `${name} is not there any more. It may have been moved, renamed or deleted since this list was made.`;
+      case 'EACCES':
+      case 'EPERM':
+        return saving
+          ? `${name} could not be saved: it is read-only, or another program has it open. Save it under another name, or close the other program first.`
+          : `${name} could not be read: this account does not have permission to open it, or another program has it locked.`;
+      case 'EBUSY':
+        return `${name} is open in another program, which is holding on to it.`;
+      case 'EISDIR':
+        return `${name} is a folder, not a file.`;
+      case 'ENOSPC':
+        return `There is no room left on the disk to save ${name}.`;
+      case 'EROFS':
+        return `${name} is on a disk that cannot be written to.`;
+      case 'ENAMETOOLONG':
+        return `That name is too long for this disk.`;
+      case 'EMFILE':
+        return `Too many files are open at once. Close a few windows and try again.`;
+      default:
+        return null;
+    }
+  }
+
+  /** Anything that writes a file, with the disk's own failures said in words. */
+  function writing(target, fn) {
+    try {
+      return fn();
+    } catch (err) {
+      const said = plainFsError(err, target, 'saved');
+      if (said) throw new Error(said);
+      throw err;
+    }
   }
 
   const PLAIN_TEXT_KINDS = new Set(['txt', 'md', 'markdown', 'csv', 'tsv', 'html', 'htm']);
@@ -823,15 +887,45 @@ export function createDocumentService({ holdBlob }) {
       return { ...session.meta(), model: modelOf(session) };
     },
 
-    open: ({ path: filePath, width, slide }, win) => {
-      const bytes = fs.readFileSync(filePath);
+    open: ({ path: filePath, kind: expected, width, slide }, win) => {
+      let bytes;
+      try {
+        bytes = fs.readFileSync(filePath);
+      } catch (err) {
+        throw new Error(plainFsError(err, filePath) || plainRefusal(err, filePath));
+      }
       let loaded;
       let engine;
       try {
         loaded = load(bytes, filePath);
+      } catch (err) {
+        throw new Error(plainRefusal(err, filePath));
+      }
+
+      // The window says which kind it edits, and a file that turns out to be
+      // another kind is refused with a sentence naming the app that does open
+      // it. The extension decides which window a double-click opens, so a
+      // document saved under an .xlsx name opened the Worksheets window, which
+      // drew a document model and threw on the geometry it does not have: a
+      // blank window, for as long as the person waited. Outside the catch
+      // below, because this refusal is already the sentence — it must not be
+      // wrapped in one about a file that could not be read.
+      if (expected && loaded.kind !== expected) {
+        const is = KIND_LABEL[loaded.kind] || 'another kind of file';
+        const wanted = KIND_LABEL[expected] || 'what this window opens';
+        const where = KIND_APP[loaded.kind];
+        throw new Error(`${path.basename(filePath)} is ${is}, not ${wanted}.${where ? ` Open it in ${where}.` : ''}`);
+      }
+
+      try {
         engine = engineFor(loaded.kind, loaded.bytes);
       } catch (err) {
         throw new Error(plainRefusal(err, filePath));
+      }
+
+      // Whether Ctrl+S will write this file back in the format it came in.
+      if (loaded.converted?.from) {
+        loaded.converted = { ...loaded.converted, writesBack: EXPORTS[loaded.kind]?.includes(loaded.converted.from) ?? false };
       }
 
       const session = new Session({
@@ -933,18 +1027,18 @@ export function createDocumentService({ holdBlob }) {
       // routed as one rather than writing a mislabelled file.
       const native = { sheet: ['.xlsx', '.xlsm', '.xltx'], doc: ['.docx', '.docm', '.dotx'], deck: ['.pptx', '.pptm', '.potx', '.ppsx'] }[session.kind];
       if (!native.includes(ext)) {
-        return exportTo(session, to, ext.replace('.', ''));
+        return writing(to, () => exportTo(session, to, ext.replace('.', '')));
       }
 
-      const bytes = session.kind === 'deck' ? session.engine.save() : session.engine.save();
-      fs.writeFileSync(to, Buffer.from(bytes));
+      const bytes = session.engine.save();
+      writing(to, () => fs.writeFileSync(to, Buffer.from(bytes)));
       session.path = to;
       session.dirty = false;
       session.converted = null;
       return { ...session.meta(), path: to, stat: { size: fs.statSync(to).size } };
     },
 
-    export: ({ id, format, path: target }) => exportTo(get(id), target, format),
+    export: ({ id, format, path: target }) => writing(target, () => exportTo(get(id), target, format)),
 
     search: ({ id, query, options }) => {
       const session = get(id);
@@ -1015,6 +1109,11 @@ export function createDocumentService({ holdBlob }) {
   function exportTo(session, target, format) {
     const ext = (format || path.extname(target).replace('.', '')).toLowerCase();
 
+    // Only a document has a PDF writer. A workbook and a deck fall through to
+    // the refusal at the end, which names what they CAN be written as — the
+    // message here used to say the export "is done from the window", and
+    // nothing in any window does it, so the Worksheets PDF button and the
+    // Presentation one sent people looking for a door that is not there.
     if (ext === 'pdf') {
       if (session.kind === 'doc') {
         // The document engine has its own PDF writer, which lays the document
@@ -1029,7 +1128,6 @@ export function createDocumentService({ holdBlob }) {
           return { path: target, format: 'pdf', pages };
         }
       }
-      throw new Error('PDF export for this document is done from the window, so the page can be laid out first.');
     }
 
     if (session.kind === 'sheet' && (ext === 'csv' || ext === 'tsv')) {
@@ -1069,6 +1167,13 @@ export function createDocumentService({ holdBlob }) {
       return { path: target, format: ext };
     }
 
-    throw new Error(`Rutba Office cannot export this document as ${ext.toUpperCase()} yet.`);
+    // What it can write, so the sentence ends somewhere useful rather than
+    // leaving a person to guess which format to try next.
+    const can = EXPORTS[session.kind] || [];
+    const native = { doc: '.docx', sheet: '.xlsx', deck: '.pptx' }[session.kind];
+    throw new Error(
+      `Rutba Office cannot write ${ext.toUpperCase()} yet. Use Save as to write ${native}` +
+        (can.length ? ` or ${can.map((e) => `.${e}`).join(', ')}.` : '.')
+    );
   }
 }

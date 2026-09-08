@@ -162,12 +162,23 @@ export default function Slides({ app, shell, boot }) {
       setBusy(true);
       try {
         const opened = boot.file
-          ? await shell.doc.open({ path: boot.file, width: 1280 })
+          ? await shell.doc.open({ path: boot.file, kind: 'deck', width: 1280 })
           : await shell.doc.new({ kind: 'slides', template: template && template !== 'blank' ? template : 'deck' });
         setDoc(opened);
         setModel(opened.model);
         if (opened.path) shell.app.addRecent({ path: opened.path, app: 'slides' }).catch(() => {});
-        if (opened.converted?.from) toast(`Opened from ${opened.converted.from.toUpperCase()}. Saving will write a .pptx.`, { ms: 5200 });
+        // What saving will actually do, which is not one answer: a .md
+        // opened here saves as .md, and an .rtf cannot be saved at all
+        // until it is given a new name. Both used to be promised a .pptx.
+        if (opened.converted?.from) {
+          const was = opened.converted.from.toUpperCase();
+          toast(
+            opened.converted.writesBack
+              ? `Opened from ${was}. Saving writes the ${was} back.`
+              : `Opened from ${was}. This build cannot write ${was} — Save as will write a .pptx.`,
+            { ms: 5200 }
+          );
+        }
       } catch (err) {
         setError(err.message);
       } finally {
