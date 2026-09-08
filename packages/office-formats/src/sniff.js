@@ -214,6 +214,21 @@ function looksLikeText(b) {
   return control / Math.max(1, n) < 0.02;
 }
 
+/**
+ * The UTF-16 encoding a byte-order mark names, or null.
+ *
+ * UTF-32's mark begins with UTF-16LE's, so it is ruled out first — and left
+ * alone, because nothing here reads UTF-32 and calling it text would be worse
+ * than calling it unknown.
+ */
+function utf16Encoding(b) {
+  const has = (...m) => b.length >= m.length && m.every((v, i) => b[i] === v);
+  if (has(0xff, 0xfe, 0x00, 0x00) || has(0x00, 0x00, 0xfe, 0xff)) return 'utf-32';
+  if (has(0xff, 0xfe)) return 'utf-16le';
+  if (has(0xfe, 0xff)) return 'utf-16be';
+  return null;
+}
+
 function delimitedGuess(text) {
   const lines = text.split(/\r?\n/).filter((l) => l.trim()).slice(0, 8);
   if (lines.length < 2) return null;
@@ -245,6 +260,23 @@ export function sniff(input, name = '') {
   });
 
   if (b.length === 0) return answer(byExt || 'unknown', byExt ? 'extension' : 'none');
+
+  // A UTF-16 byte-order mark, before the binary magics — because it collides
+  // with one. FF FE is a valid MPEG frame sync, so a text file saved as
+  // Unicode on Windows (Notepad's own "Unicode", and what PowerShell writes
+  // when it redirects) was identified as an MP3 and the document apps refused
+  // it: "Rutba Office cannot open MP3 Audio files yet." The content is decoded
+  // and identified as the text it is; `decodeText` reads the same mark when
+  // the file is opened.
+  const wide = utf16Encoding(b);
+  // UTF-32 begins with UTF-16LE's mark. Nothing here reads it, but it is
+  // certainly not an MP3, and saying so is the difference between a refusal a
+  // person can act on and a wrong one.
+  if (wide === 'utf-32') return answer(byExt && KINDS[byExt] ? byExt : 'unknown', byExt ? 'extension' : 'magic', { encoding: 'utf-32' });
+  if (wide) {
+    const text = new TextDecoder(wide, { fatal: false }).decode(b.subarray(2));
+    return { ...sniff(new TextEncoder().encode(text), name), encoding: wide };
+  }
 
   if (starts(b, PNG)) return answer('png', 'magic');
   if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return answer('jpeg', 'magic');
