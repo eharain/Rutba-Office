@@ -1013,6 +1013,11 @@ export async function verifyApps({ windows, doc }) {
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
     const menuItem = (label) => js(`(() => { const i = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!i) return 'no item ' + ${JSON.stringify(label)}; i.click(); return 'clicked'; })()`);
+    // Move the selection by reference through the engine, the way Go To does.
+    const act_goto = async (ref) => {
+      await js(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); const col = ${JSON.stringify(ref)}.charCodeAt(0) - 65; const row = Number(${JSON.stringify(ref)}.slice(1)) - 1; await window.rutbaOffice.doc.apply({ id: mine.id, ops: [{ op: 'select', row, col }] }); return 'moved'; })()`);
+      await wait(150);
+    };
 
     // Every Excel tab is reachable and draws its groups; what is not wired says so.
     const tabs = ['Home', 'Insert', 'Draw', 'Page Layout', 'Formulas', 'Data', 'Review', 'View', 'Automate', 'Help'];
@@ -1088,6 +1093,29 @@ export async function verifyApps({ windows, doc }) {
     await until(async () => (await model()).selection?.ref === 'B3', 'B3', 4000).catch(() => {});
     const went = (await model()).selection?.ref;
     check('sheets: Home → Find & Select → Go To moves the selection', went === 'B3', `selection ${went}`);
+
+    // Text wider than its cell spills over an empty neighbour, as in Excel —
+    // and stops spilling the moment the neighbour has something in it.
+    // Row 9 is empty in the fixture; row 1 holds the headers, and a header
+    // next door is exactly what stops a spill.
+    await act_goto('A9');
+    await js(`document.querySelector('.sh')?.focus(), 'ok'`);
+    await typeText(win.webContents, 'A sentence far too long for one column');
+    await press(win.webContents, 'Return', { char: true });
+    await until(() => js(`(document.querySelector('.sh-cell[data-ref="A9"]')?.offsetWidth || 0) > (document.querySelector('.sh-colheads .sh-head')?.offsetWidth || 0) + 10`), 'the text to spill', 4000).catch(() => {});
+    const spilled = await js(`({ cell: document.querySelector('.sh-cell[data-ref="A9"]')?.offsetWidth || 0, column: document.querySelector('.sh-colheads .sh-head')?.offsetWidth || 0 })`);
+    // The commit is asynchronous; moving on before it lands races the next
+    // keystrokes into the old edit.
+    await until(async () => { const m = await model(); return !m.editing && m.cells?.some((c) => c.ref === 'A9' && /sentence/.test(c.text)); }, 'A9 to commit', 4000).catch(() => {});
+    // B9 is filled through the engine (typing has its own checks), and the
+    // window learns of it on its next operation of its own — a click on A9.
+    await js(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); await window.rutbaOffice.doc.apply({ id: mine.id, ops: [{ op: 'setCell', row: 8, col: 1, value: 'x' }] }); return 'set'; })()`);
+    await js(`(() => { const c = document.querySelector('.sh-cell[data-ref="A9"]'); c?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 })); return 'clicked'; })()`);
+    await until(async () => (await model()).cells?.some((c) => c.ref === 'B9' && c.text === 'x'), 'the x to land in B9', 4000).catch(() => {});
+    const b9 = (await model()).cells?.find((c) => c.ref === 'B9')?.text ?? null;
+    await until(() => js(`(document.querySelector('.sh-cell[data-ref="A9"]')?.offsetWidth || 0) <= (document.querySelector('.sh-colheads .sh-head')?.offsetWidth || 0) + 1`), 'the spill to stop', 4000).catch(() => {});
+    const stopped = await js(`document.querySelector('.sh-cell[data-ref="A9"]')?.offsetWidth || 0`);
+    check('sheets: long text spills over an empty neighbour and stops when it fills', spilled.cell > spilled.column + 10 && stopped <= spilled.column + 1, `A9 drew ${spilled.cell}px over a ${spilled.column}px column; ${stopped}px once B9 held ${JSON.stringify(b9)}`);
 
     // Formulas → Insert Function → SUM starts the edit with =SUM( typed.
     await tabTo('Formulas');
@@ -1308,7 +1336,9 @@ export async function verifyApps({ windows, doc }) {
   try {
     const win = await open('image', files.png);
     const js = (code) => win.webContents.executeJavaScript(code);
-    await until(() => js(`(document.querySelector('.im-canvas')?.width || 0) > 0`), 'the picture to reach the canvas', 6000);
+    // Fifteen seconds, not six: by this point a dozen check windows are open
+    // and the compositor is slow to hand the decoded picture to a canvas.
+    await until(() => js(`(document.querySelector('.im-canvas')?.width || 0) > 0`), 'the picture to reach the canvas', 15000);
     const ops = () => js(`document.querySelectorAll('.im-op').length`);
     const start = await ops();
     await clickIn(win, 'Right');

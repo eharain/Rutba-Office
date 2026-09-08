@@ -361,6 +361,15 @@ export default function Sheets({ app, shell, boot }) {
    * format applied correctly in the file and painted nothing in the window,
    * which reads as "formatting does not work".
    */
+  // Text wider than its cell spills over empty neighbours, as in Excel; the
+  // boxes are worked out once per frame and applied on top of the cell style.
+  const spills = useMemo(() => spillBoxes(model), [model]);
+  const spillStyle = (cell) => {
+    const base = cellStyle(cell);
+    const sp = spills.get(cell.ref);
+    return sp ? { ...base, left: sp.x, width: sp.width, zIndex: 1 } : base;
+  };
+
   const cellStyle = (cell) => {
     const s = cell.style || {};
     const font = s.font || {};
@@ -664,7 +673,8 @@ export default function Sheets({ app, shell, boot }) {
                   <div
                     key={cell.ref}
                     className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}`}
-                    style={cellStyle(cell)}
+                    data-ref={cell.ref}
+                    style={spillStyle(cell)}
                     onMouseDown={(e) => dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey })}
                     onDoubleClick={() => dispatch({ op: 'beginEdit' })}
                     onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.copy', 'edit.clear', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
@@ -888,6 +898,52 @@ function FreezeDialog({ model, sel, dispatch, onClose }) {
       </div>
     </Dialog>
   );
+}
+
+/**
+ * Excel lets text wider than its cell spill into empty neighbours — to the
+ * right for left-aligned text, to the left for right-aligned, both ways for
+ * centred — and stops at the first cell with something in it. Numbers never
+ * spill (Excel shows #### instead), nor does wrapped or merged text. Measured
+ * with the cell's own font on a canvas, so what spills is what is too wide;
+ * a neighbour off the edge of the frame counts as a wall, which errs towards
+ * clipping rather than towards drawing over something unseen.
+ *
+ * @returns {Map<string, {x: number, width: number}>} by cell ref
+ */
+const measureCtx = typeof document !== 'undefined' ? document.createElement('canvas').getContext('2d') : null;
+function spillBoxes(model) {
+  const out = new Map();
+  const cells = model?.cells || [];
+  const columns = model?.columns || [];
+  if (!measureCtx || !cells.length || !columns.length) return out;
+  const byRow = new Map();
+  for (const c of cells) {
+    if (!byRow.has(c.row)) byRow.set(c.row, new Map());
+    byRow.get(c.row).set(c.col, c);
+  }
+  const colAt = new Map(columns.map((c) => [c.index, c]));
+  for (const c of cells) {
+    if (!c.text || c.wrap || c.merged || c.numeric || c.isError) continue;
+    const font = c.style?.font || {};
+    measureCtx.font = `${font.bold ? 'bold ' : ''}${font.italic ? 'italic ' : ''}${font.sizePt ? Math.round(font.sizePt * (96 / 72)) : 12.5}px ${font.family || 'Calibri, "Segoe UI", sans-serif'}`;
+    const needed = measureCtx.measureText(String(c.text)).width + 12;
+    if (needed <= c.width) continue;
+    const row = byRow.get(c.row);
+    const free = (col) => colAt.has(col) && !row.get(col)?.text;
+    let left = c.x;
+    let right = c.x + c.width;
+    const growRight = (until) => { let col = c.col + 1; while (right < until && free(col)) { const k = colAt.get(col); right = k.x + k.width; col += 1; } };
+    const growLeft = (until) => { let col = c.col - 1; while (left > until && free(col)) { left = colAt.get(col).x; col -= 1; } };
+    if (c.align === 'right') growLeft(right - needed);
+    else if (c.align === 'center') {
+      const extra = (needed - c.width) / 2;
+      growLeft(c.x - extra);
+      growRight(c.x + c.width + extra);
+    } else growRight(left + needed);
+    if (left !== c.x || right !== c.x + c.width) out.set(c.ref, { x: left, width: right - left });
+  }
+  return out;
 }
 
 function formatNumber(n) {

@@ -1178,6 +1178,101 @@ export const FUNCTIONS = {
     if (isError(nums)) return nums;
     return nums.reduce((total, v, i) => total + v / (1 + r) ** (i + 1), 0);
   }),
+  /**
+   * Internal rate of return: the rate at which the cash flows' net present
+   * value is zero, found by Newton's method from the guess (10% unless
+   * given), as Excel does — and #NUM! when twenty steps do not converge or
+   * the flows never change sign, which is when no rate exists.
+   */
+  IRR: def((values, guess) => {
+    const flows = aggregateNumbers([values]);
+    if (isError(flows)) return flows;
+    const g = guess === undefined ? 0.1 : num1(guess);
+    if (isError(g)) return g;
+    if (!flows.some((v) => v > 0) || !flows.some((v) => v < 0)) return ERR.NUM('IRR needs both an outflow and an inflow');
+    let r = g;
+    for (let i = 0; i < 100; i++) {
+      let f = 0;
+      let df = 0;
+      for (let k = 0; k < flows.length; k++) {
+        const d = (1 + r) ** k;
+        f += flows[k] / d;
+        df -= (k * flows[k]) / (d * (1 + r));
+      }
+      if (Math.abs(f) < 1e-10) return r;
+      if (df === 0 || !Number.isFinite(df)) break;
+      const next = r - f / df;
+      if (!Number.isFinite(next) || next <= -1) break;
+      if (Math.abs(next - r) < 1e-12) return next;
+      r = next;
+    }
+    return ERR.NUM('IRR did not converge');
+  }),
+  /**
+   * The interest rate per period of an annuity — PMT solved for the rate,
+   * by Newton's method from the guess (10% unless given), like Excel.
+   */
+  RATE: def((nper, pmt, pv, fv, type, guess) => {
+    const n = num1(nper);
+    const m = num1(pmt);
+    const p = num1(pv);
+    const f = fv === undefined ? 0 : num1(fv);
+    const t = type === undefined ? 0 : num1(type);
+    const g = guess === undefined ? 0.1 : num1(guess);
+    const e = firstError([n, m, p, f, t, g]);
+    if (e) return e;
+    if (n <= 0) return ERR.NUM('RATE needs a positive number of periods');
+    const balance = (r) => {
+      if (Math.abs(r) < 1e-12) return p + m * n + f;
+      const growth = (1 + r) ** n;
+      return p * growth + m * (1 + r * (t ? 1 : 0)) * (growth - 1) / r + f;
+    };
+    let r = g;
+    for (let i = 0; i < 100; i++) {
+      const y = balance(r);
+      if (Math.abs(y) < 1e-9) return r;
+      const h = 1e-6;
+      const dy = (balance(r + h) - balance(r - h)) / (2 * h);
+      if (dy === 0 || !Number.isFinite(dy)) break;
+      const next = r - y / dy;
+      if (!Number.isFinite(next) || next <= -1) break;
+      if (Math.abs(next - r) < 1e-12) return next;
+      r = next;
+    }
+    return ERR.NUM('RATE did not converge');
+  }),
+  /**
+   * Excel's DATEDIF, units as Excel spells them: "Y" complete years, "M"
+   * complete months, "D" days, "MD" days ignoring months and years, "YM"
+   * months ignoring years, "YD" days ignoring years. #NUM! when the start is
+   * after the end, as in Excel.
+   */
+  DATEDIF: def((start, end, unit) => {
+    const s = num1(start);
+    const e = num1(end);
+    const err = firstError([s, e]);
+    if (err) return err;
+    if (s > e) return ERR.NUM('DATEDIF start is after its end');
+    const u = String(unit ?? '').toUpperCase().trim();
+    const a = partsOf(Math.trunc(s));
+    const b = partsOf(Math.trunc(e));
+    const months = (b.y - a.y) * 12 + (b.m - a.m) - (b.day < a.day ? 1 : 0);
+    if (u === 'D') return Math.trunc(e) - Math.trunc(s);
+    if (u === 'M') return months;
+    if (u === 'Y') return Math.trunc(months / 12);
+    if (u === 'YM') return months % 12;
+    if (u === 'MD') {
+      if (b.day >= a.day) return b.day - a.day;
+      // Days left in the month before the end's month, plus the end's day.
+      const prevLast = new Date(Date.UTC(b.y, b.m, 0)).getUTCDate();
+      return prevLast - a.day + b.day;
+    }
+    if (u === 'YD') {
+      const sameYearStart = serialOfClamped(b.y - (new Date(Date.UTC(b.y, a.m, a.day)) > new Date(Date.UTC(b.y, b.m, b.day)) ? 1 : 0), a.m, a.day);
+      return Math.trunc(e) - sameYearStart;
+    }
+    return ERR.NUM('DATEDIF unit must be Y, M, D, MD, YM or YD');
+  }),
 };
 
 export const FUNCTION_NAMES = Object.keys(FUNCTIONS).sort();

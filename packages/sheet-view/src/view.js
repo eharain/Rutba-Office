@@ -638,6 +638,9 @@ export class SheetView {
           note,
           merged: merge ? { ref: merge.ref, rows: merge.bottom - merge.top + 1, cols: merge.right - merge.left + 1 } : null,
           isError: isError(this.calc.getValue(this.activeSheet, row, col)),
+          // A number never spills into its neighbours (Excel shows #### instead);
+          // text does. The painter needs to know which it is drawing.
+          numeric: typeof this.calc.getValue(this.activeSheet, row, col) === 'number',
           isFormula: this.editValue(row, col).startsWith('='),
           // The formula itself, for a grid showing formulas instead of results.
           ...(this.editValue(row, col).startsWith('=') ? { formula: this.editValue(row, col) } : {}),

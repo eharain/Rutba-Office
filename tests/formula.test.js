@@ -982,3 +982,30 @@ test('UNIQUE and SORT run sideways with by_col', () => {
   assert.equal(s.getValue('S', 8, 0), 9);
   assert.equal(s.getValue('S', 7, 1), 'b');
 });
+
+test('IRR finds the rate at which the flows net to nothing, and RATE solves PMT for the rate', () => {
+  // A 1,000 outlay returning 500 a year for three years: about 23.4%.
+  const irr = evalIn('=IRR(A1:A4)', { A1: -1000, A2: 500, A3: 500, A4: 500 });
+  assert.ok(Math.abs(irr - 0.23375) < 1e-4, `IRR ${irr}`);
+  assert.ok(Math.abs(evalIn('=NPV(IRR(A1:A4), A2:A4) + A1', { A1: -1000, A2: 500, A3: 500, A4: 500 })) < 1e-6, 'NPV at the IRR is zero');
+  assert.equal(String(evalIn('=IRR(A1:A3)', { A1: 100, A2: 100, A3: 100 })), '#NUM!', 'no sign change, no rate');
+  // The rate behind a 60-month, 10,000 loan at 193.33 a month: 0.5% a month.
+  const rate = evalIn('=RATE(60, -193.33, 10000)');
+  assert.ok(Math.abs(rate - 0.005) < 1e-5, `RATE ${rate}`);
+  const back = evalIn('=PMT(RATE(60, -193.33, 10000), 60, 10000)');
+  assert.ok(Math.abs(back + 193.33) < 1e-6, 'PMT at that rate gives the payment back');
+  assert.equal(String(evalIn('=RATE(0, -100, 1000)')), '#NUM!');
+});
+
+test('DATEDIF counts the way Excel counts, unit by unit', () => {
+  const d = (unit) => evalIn(`=DATEDIF(DATE(2024,1,31), DATE(2026,3,15), "${unit}")`);
+  assert.equal(d('Y'), 2);
+  assert.equal(d('M'), 25, 'complete months: the 15th is before the 31st');
+  assert.equal(d('D'), 774);
+  assert.equal(d('YM'), 1);
+  assert.equal(d('MD'), 12, "days ignoring months and years: Excel borrows February's 28, so 28 - 31 + 15");
+  assert.equal(d('YD'), 43);
+  assert.equal(evalIn('=DATEDIF(DATE(2026,1,1), DATE(2026,1,1), "D")'), 0);
+  assert.equal(String(evalIn('=DATEDIF(DATE(2026,2,1), DATE(2026,1,1), "D")')), '#NUM!', 'start after end');
+  assert.equal(String(evalIn('=DATEDIF(DATE(2026,1,1), DATE(2026,2,1), "W")')), '#NUM!', 'no such unit');
+});

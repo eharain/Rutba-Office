@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { Ribbon, Group, Button, Separator, Select } from '@rutba/office-ui';
+import { catalogByCategory } from '@rutba/formula';
 import { NUMBER_FORMATS } from './dialogs.js';
 
 /** The palette a toolbar offers before it offers a colour picker. */
@@ -87,16 +88,15 @@ export const CELL_STYLES = [
  * active cell with `=NAME(` typed, which is what Excel's Insert Function does
  * after its wizard: the arguments are the person's to type.
  */
-export const FUNCTIONS = {
-  'Recently used': ['SUM', 'AVERAGE', 'IF', 'COUNT', 'MAX', 'MIN', 'VLOOKUP', 'ROUND'],
-  Financial: ['PMT', 'FV', 'PV', 'NPV', 'IRR', 'RATE', 'NPER'],
-  Logical: ['IF', 'AND', 'OR', 'NOT', 'IFERROR', 'IFS', 'SWITCH', 'TRUE', 'FALSE'],
-  Text: ['CONCAT', 'LEFT', 'RIGHT', 'MID', 'LEN', 'TRIM', 'UPPER', 'LOWER', 'PROPER', 'TEXT', 'FIND', 'SUBSTITUTE'],
-  'Date & Time': ['TODAY', 'NOW', 'DATE', 'YEAR', 'MONTH', 'DAY', 'DATEDIF', 'EOMONTH', 'WEEKDAY'],
-  'Lookup & Reference': ['VLOOKUP', 'HLOOKUP', 'XLOOKUP', 'INDEX', 'MATCH', 'OFFSET', 'INDIRECT', 'ROW', 'COLUMN'],
-  'Math & Trig': ['SUM', 'SUMIF', 'SUMIFS', 'SUMPRODUCT', 'ROUND', 'ROUNDUP', 'ROUNDDOWN', 'ABS', 'MOD', 'POWER', 'SQRT', 'INT'],
-  Statistical: ['AVERAGE', 'AVERAGEIF', 'COUNT', 'COUNTA', 'COUNTIF', 'COUNTIFS', 'MAX', 'MIN', 'MEDIAN', 'STDEV', 'RANK'],
-};
+export const FUNCTIONS = (() => {
+  // From the engine's own catalogue, which a test holds in lock-step with
+  // the functions that exist — so nothing offered here can evaluate to
+  // #NAME?. "Recently used" is Excel's first category; a fixed short list
+  // stands in until use is remembered.
+  const out = { 'Recently used': ['SUM', 'AVERAGE', 'IF', 'COUNT', 'MAX', 'MIN', 'VLOOKUP', 'ROUND'] };
+  for (const { category, functions } of catalogByCategory()) out[category] = functions.map((f) => f.name);
+  return out;
+})();
 
 /**
  * One more or one fewer decimal on a number format: General goes to `0.0`,

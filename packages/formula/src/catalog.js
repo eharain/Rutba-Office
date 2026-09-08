@@ -171,6 +171,9 @@ export const FUNCTION_CATALOG = [
   fin('PV', '(rate, nper, pmt, [fv], [type])', 'Present value of an investment'),
   fin('NPER', '(rate, pmt, pv, [fv], [type])', 'Number of payment periods'),
   fin('NPV', '(rate, value1, …)', 'Net present value of cash flows'),
+  fin('IRR', '(values, [guess])', 'Internal rate of return of cash flows'),
+  fin('RATE', '(nper, pmt, pv, [fv], [type], [guess])', 'Interest rate per period of an annuity'),
+  date('DATEDIF', '(start, end, unit)', 'Years, months or days between two dates ("Y", "M", "D", "MD", "YM", "YD")'),
 
   // ---- Information --------------------------------------------------------
   info('ISBLANK', '(value)', 'Is the cell empty'),
