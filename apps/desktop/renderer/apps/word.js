@@ -1013,8 +1013,13 @@ function withTabs(text) {
 function sizeTabs(p, stops) {
   const tabs = p.querySelectorAll('.wd-tab');
   if (!tabs.length) return;
-  const paddingLeft = parseFloat(getComputedStyle(p).paddingLeft) || 0;
-  const left = p.getBoundingClientRect().left + paddingLeft;
+  // Stops are measured from the LEFT MARGIN — the page's content edge, or the
+  // text box's, or the header's — not from the paragraph's own indent. A TOC
+  // entry indented 29 px with a right stop at the margin's far edge used to
+  // put that stop 29 px past the edge, and its page number on the next line.
+  const host = p.closest('.wd-textbox, .wd-notes, .wd-band, .wd-page') || p;
+  const edge = host.classList.contains('wd-band') ? p : host;
+  const left = host.getBoundingClientRect().left + (parseFloat(getComputedStyle(edge).paddingLeft) || 0);
   const custom = (stops || []).filter((s) => s && s.posPx > 0);
   const image = p.querySelector('.wd-image');
   for (const span of tabs) {
@@ -1094,19 +1099,31 @@ function paragraphCss(block, styles) {
     color: named?.colour || undefined,
     // 'both' is OOXML for justified; the other three are CSS already.
     textAlign: align === 'both' ? 'justify' : align || undefined,
-    marginTop: named?.spaceBeforePx != null ? Math.round(named.spaceBeforePx) : heading ? '1.1em' : undefined,
-    marginBottom: named?.spaceAfterPx != null ? Math.round(named.spaceAfterPx) : undefined,
-    marginLeft: block.indentLevel ? block.indentLevel * 24 : block.indent ? block.indent * 24 : named?.indentPx ? Math.round(named.indentPx) : undefined,
-    marginRight: block.rightPx ? Math.round(block.rightPx) : undefined,
+    marginTop: block.spaceBeforePx != null ? Math.round(block.spaceBeforePx) : named?.spaceBeforePx != null ? Math.round(named.spaceBeforePx) : heading ? '1.1em' : undefined,
+    marginBottom: block.spaceAfterPx != null ? Math.round(block.spaceAfterPx) : named?.spaceAfterPx != null ? Math.round(named.spaceAfterPx) : undefined,
+    // The paragraph's own left indent, to the pixel — including an explicit
+    // zero, which is how a contract's "DATED" line sits at the margin while
+    // its Normal style indents everything else. Only a paragraph that says
+    // nothing takes the style's indent.
+    marginLeft: block.indentPx != null ? Math.round(block.indentPx)
+      : block.indentLevel ? block.indentLevel * 24
+      : block.indent ? block.indent * 24
+      : named?.indentPx ? Math.round(named.indentPx) : undefined,
+    marginRight: block.rightPx ? Math.round(block.rightPx) : named?.rightPx ? Math.round(named.rightPx) : undefined,
     // A first-line indent pushes the first line in; a hanging one pulls it out
     // and the rest of the paragraph in by the same amount, the way a list does.
     textIndent: firstLine ? Math.round(firstLine) : hanging ? -Math.round(hanging) : undefined,
     paddingLeft: hanging ? Math.round(hanging) : undefined,
-    lineHeight: block.lineSpacing ? block.lineSpacing * 1.2 : named?.lineFactor ? named.lineFactor * 1.2 : undefined,
+    // An exact line (pixels) beats a multiplier; the paragraph's own beats the
+    // style's. Word's "single" for a Latin face is about 1.2 of the size.
+    lineHeight: block.lineHeightPx ? `${Math.round(block.lineHeightPx)}px`
+      : block.lineSpacing ? block.lineSpacing * 1.2
+      : named?.lineExactPx ? `${Math.round(named.lineExactPx)}px`
+      : named?.lineFactor ? named.lineFactor * 1.2 : undefined,
     // Shading and borders: the paragraph's own, or its style's, drawn edge to
     // edge like Word.
     backgroundColor: block.shading || named?.shading || undefined,
-    ...borderStyle(block.borders),
+    ...borderStyle(block.borders ?? named?.borders),
   };
 }
 
@@ -1132,13 +1149,14 @@ function RunSpan({ run }) {
         // stores it; the size is in points, the way Word means it. The
         // painter used to read `colour` and paint the size in pixels, so
         // a colour never showed and 12 pt drew at two-thirds size.
-        color: run.fontColour ? `#${run.fontColour}` : run.link != null ? '#0563C1' : undefined,
+        // A hyperlink is blue and underlined because its Hyperlink character
+        // style says so — the engine folds that style into the run — and a
+        // link without the style (a TOC entry) is as plain as Word draws it.
+        color: run.fontColour ? `#${run.fontColour}` : undefined,
         backgroundColor: run.highlight ? HIGHLIGHT_CSS[run.highlight] || run.highlight : undefined,
         fontFamily: run.fontName || undefined,
         fontSize: run.fontSize ? `${run.fontSize}pt` : undefined,
-        // A hyperlink is blue and underlined unless the run says otherwise;
-        // a footnote reference sits superscript, a chemical formula sub.
-        ...(run.link != null && !run.underline && !run.fontColour ? { textDecoration: 'underline' } : {}),
+        // A footnote reference sits superscript, a chemical formula sub.
         ...(run.vertAlign === 'superscript' ? { verticalAlign: 'super', fontSize: '0.65em' } : run.vertAlign === 'subscript' ? { verticalAlign: 'sub', fontSize: '0.65em' } : {}),
         textTransform: run.caps ? 'uppercase' : undefined,
         fontVariant: run.smallCaps ? 'small-caps' : undefined,

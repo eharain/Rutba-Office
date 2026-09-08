@@ -77,6 +77,25 @@ export async function runSmoke({ windows, outDir, stores, mail }) {
         if (png.length < 5000) messages.push(`capture is suspiciously small (${png.length} bytes)`);
       } catch (err) {
         messages.push(`capture failed: ${err.message}`);
+        // What the page was when the compositor gave up — its height, its
+        // pictures — and one retry with the page's shadow off, the usual
+        // suspect when a 181-page contract is one element 200,000 px tall.
+        try {
+          const facts = await win.webContents.executeJavaScript(`(() => {
+            const page = document.querySelector('.wd-page');
+            return { docHeight: document.documentElement.scrollHeight, page: page ? page.scrollHeight : null, images: document.images.length, svg: document.querySelectorAll('svg').length };
+          })()`);
+          messages.push(`page: ${JSON.stringify(facts)}`);
+          await win.webContents.executeJavaScript(`document.querySelectorAll('.wd-page').forEach((p) => { p.style.boxShadow = 'none'; }); 'done'`);
+          await new Promise((r) => setTimeout(r, 500));
+          const image = await win.webContents.capturePage();
+          const png = image.toPNG();
+          captured = path.join(outDir, `${app}.png`);
+          fs.writeFileSync(captured, png);
+          messages.push('captured on retry with the page shadow off');
+        } catch (err2) {
+          messages.push(`retry failed: ${err2.message}`);
+        }
       }
     }
 

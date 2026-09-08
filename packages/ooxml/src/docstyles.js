@@ -84,10 +84,38 @@ function readProps(styleXml) {
       if (a['w:line'] === undefined || (a['w:lineRule'] ?? 'auto') !== 'auto') return undefined;
       return Number(a['w:line']) / 240;
     })(),
+    // An exact or at-least line: pixels, the way a cover title is set
+    // ("exactly 60 pt") so its lines sit tight whatever the font says.
+    lineExactPx: (() => {
+      if (!spacing) return undefined;
+      const a = attrs(spacing);
+      if (a['w:line'] === undefined || (a['w:lineRule'] ?? 'auto') === 'auto') return undefined;
+      return twipsToPx(a['w:line']);
+    })(),
     indentPx: ind ? (attrs(ind)['w:left'] !== undefined ? twipsToPx(attrs(ind)['w:left']) : undefined) : undefined,
+    rightPx: ind ? (attrs(ind)['w:right'] !== undefined ? twipsToPx(attrs(ind)['w:right']) : undefined) : undefined,
     hangingPx: ind ? (attrs(ind)['w:hanging'] !== undefined ? twipsToPx(attrs(ind)['w:hanging']) : undefined) : undefined,
     firstLinePx: ind ? (attrs(ind)['w:firstLine'] !== undefined ? twipsToPx(attrs(ind)['w:firstLine']) : undefined) : undefined,
     keepNext: toggle(pPr, 'w:keepNext'),
+    // A style's borders — the box around a cover title — same shape as the
+    // paragraph's own.
+    borders: (() => {
+      const pBdr = first(pPr, 'w:pBdr');
+      if (!pBdr) return undefined;
+      const out = {};
+      for (const m of pBdr.matchAll(/<w:(top|left|bottom|right|between|bar)\b([^>]*)\/>/g)) {
+        const a = attrs(m[2]);
+        const style = a['w:val'] || 'single';
+        if (style === 'nil' || style === 'none') continue;
+        out[m[1]] = {
+          style,
+          widthPx: Math.max(1, Math.round((Number(a['w:sz'] ?? 4) / 8) * (96 / 72))),
+          colour: a['w:color'] && a['w:color'] !== 'auto' ? '#' + a['w:color'].toUpperCase() : '#000000',
+          spacePt: Number(a['w:space'] ?? 0) || 0,
+        };
+      }
+      return Object.keys(out).length ? out : undefined;
+    })(),
     // A style's shading and tab stops: a Title band, a TOC entry's dotted
     // right tab. The same shape the paragraph's own decor uses.
     shading: (() => {
@@ -210,6 +238,55 @@ export function readParagraphStyles(stylesXml, themeFonts = null) {
 
   // A font named by theme slot becomes the theme's face — after flattening, so
   // a heading based on Normal that names the major slot keeps it.
+  for (const s of Object.values(resolved)) {
+    if (s.fontName === THEME_MAJOR) s.fontName = theme.major;
+    else if (s.fontName === THEME_MINOR) s.fontName = theme.minor;
+  }
+  return resolved;
+}
+
+/**
+ * Every CHARACTER style, chains flattened, fonts through the theme — the
+ * look a run gets from its `w:rStyle`: Hyperlink is blue and underlined,
+ * FootnoteReference is superscript, Strong is bold. A run's own properties
+ * beat these; these beat the paragraph's. Only run-level fields are kept.
+ */
+export function readCharacterStyles(stylesXml, themeFonts = null) {
+  if (!stylesXml) return {};
+  const theme = themeFonts ?? readThemeFonts(null);
+  const raw = new Map();
+  for (const m of String(stylesXml).matchAll(/<w:style\b([^>]*)>([\s\S]*?)<\/w:style>/g)) {
+    const a = attrs(m[1]);
+    if (a['w:type'] !== 'character') continue;
+    const id = a['w:styleId'];
+    if (!id) continue;
+    const rPr = first(m[2], 'w:rPr');
+    const props = readProps('<w:style>' + (rPr || '') + '</w:style>');
+    const vert = val(rPr, 'w:vertAlign');
+    raw.set(id, {
+      basedOn: val(m[2], 'w:basedOn'),
+      name: val(m[2], 'w:name'),
+      props: {
+        bold: props.bold, italic: props.italic, underline: props.underline, caps: props.caps, smallCaps: props.smallCaps,
+        sizePx: props.sizePx, colour: props.colour, fontName: props.fontName,
+        vertAlign: vert && vert !== 'baseline' ? vert : undefined,
+      },
+    });
+  }
+  const resolved = {};
+  const resolve = (id, seen = new Set()) => {
+    if (resolved[id]) return resolved[id];
+    const entry = raw.get(id);
+    if (!entry || seen.has(id)) return {};
+    seen.add(id);
+    const base = entry.basedOn ? resolve(entry.basedOn, seen) : {};
+    const merged = { ...base };
+    for (const [k, v] of Object.entries(entry.props)) if (v !== undefined) merged[k] = v;
+    merged.name = entry.name ?? id;
+    resolved[id] = merged;
+    return merged;
+  };
+  for (const id of raw.keys()) resolve(id);
   for (const s of Object.values(resolved)) {
     if (s.fontName === THEME_MAJOR) s.fontName = theme.major;
     else if (s.fontName === THEME_MINOR) s.fontName = theme.minor;

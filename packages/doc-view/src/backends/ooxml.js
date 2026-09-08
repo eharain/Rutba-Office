@@ -233,6 +233,8 @@ export class OoxmlBackend {
   setBandText(which, lines) { this.doc.setBandText(which, lines); return this; }
   /** Paragraph styles resolved from styles.xml — flattened, CSS pixels. */
   paragraphStyles() { return this.doc.paragraphStyles(); }
+  /** Character styles by id — what a run's `w:rStyle` gives it. */
+  characterStyles() { return this.doc.characterStyles(); }
   /** Footnotes and endnotes by id, displayed paragraphs each — see `Document.notes`. */
   notes() { return this.doc.notes(); }
   /** Numbering definitions: numId -> levels. Labels are the view's to count. */

@@ -897,6 +897,7 @@ export class DocView {
   _loadDefinitions() {
     if (this._docStyles !== undefined) return;
     this._docStyles = typeof this.doc.paragraphStyles === 'function' ? this.doc.paragraphStyles() : null;
+    this._charStyles = typeof this.doc.characterStyles === 'function' ? this.doc.characterStyles() : null;
     this._numberingDefs = typeof this.doc.numberingDefs === 'function' ? this.doc.numberingDefs() : null;
   }
 
@@ -1427,7 +1428,7 @@ export class DocView {
    * so a plain document's frame carries no null ballast. The painter reads
    * these rather than `rPr` — the frame stays format-free.
    */
-  _renderRun(r) {
+  _renderRun(r, { toc = false } = {}) {
     const out = { text: r.text, bold: r.bold, italic: r.italic, underline: r.underline };
     if (r.strike) out.strike = true;
     // A footnote/endnote reference carries its NUMBER — assigned by `_notes`
@@ -1435,6 +1436,26 @@ export class DocView {
     // of a note carries the kind, numbered by `_notes` too.
     if (r.noteRef) out.noteRef = { ...r.noteRef, n: this._noteNumbers?.get(r) ?? null };
     if (r.noteMark) out.noteMark = r.noteMark;
+    // The run's CHARACTER style — Hyperlink, FootnoteReference, Strong —
+    // fills in what the run does not set itself. Word paints a hyperlink
+    // blue and underlined only because its style says so; a TOC entry that
+    // links to a heading without the style is plain, and stays plain here.
+    const rStyle = r.rPr ? /<w:rStyle\b[^>]*\bw:val="([^"]*)"/.exec(r.rPr) : null;
+    // Inside a table of contents Word writes the Hyperlink style on every
+    // entry and then draws the entries in the TOC style, black — the link is
+    // there for Ctrl+click, not for colour. So the one style is skipped there.
+    const cs = rStyle && !(toc && rStyle[1] === 'Hyperlink') ? this._charStyles?.[rStyle[1]] : null;
+    if (cs) {
+      if (cs.bold && !r.bold) out.bold = true;
+      if (cs.italic && !r.italic) out.italic = true;
+      if (cs.underline && !r.underline) out.underline = true;
+      if (out.fontName == null && cs.fontName) out.fontName = cs.fontName;
+      if (out.fontSize == null && cs.sizePx) out.fontSize = Math.round((cs.sizePx * 72) / 96 * 2) / 2;
+      if (out.fontColour == null && cs.colour) out.fontColour = cs.colour.slice(1).toUpperCase();
+      if (out.vertAlign == null && cs.vertAlign) out.vertAlign = cs.vertAlign;
+      if (cs.caps && !out.caps) out.caps = true;
+      if (cs.smallCaps && !out.smallCaps) out.smallCaps = true;
+    }
     if (typeof this.doc.readRunProps === 'function' && r.rPr) {
       const props = this.doc.readRunProps(r.rPr);
       if (props.fontName != null) out.fontName = props.fontName;
@@ -1464,8 +1485,12 @@ export class DocView {
     return {
       style: p.style, align: p.align ?? null,
       indentLevel: p.indentPx ? Math.round(p.indentPx / PX_PER_STEP) : 0,
+      indentPx: p.indentPx ?? null,
       ...(p.decor || {}),
       lineSpacing: p.spacing?.lineFactor ?? null,
+      lineHeightPx: p.spacing?.lineExactPx ?? null,
+      spaceBeforePx: p.spacing?.beforePx ?? null,
+      spaceAfterPx: p.spacing?.afterPx ?? null,
       text: p.text,
       runs: p.runs.map((r) => this._renderRun(r)),
       images: (p.images || []).filter((img) => img.href),
@@ -1519,7 +1544,9 @@ export class DocView {
     // XML and cost seven milliseconds each, which on a three-thousand-paragraph
     // specification was twenty seconds per keystroke.
     const PX_PER_STEP = INDENT_STEP * (96 / 1440);
-    // Numbered first: the blocks below read the numbers off the references.
+    // The styles first — the runs below fold their character style in — and
+    // the notes next: the blocks read the numbers off the references.
+    this._loadDefinitions();
     const notes = this._notes();
     return {
       ...notes,
@@ -1529,11 +1556,18 @@ export class DocView {
         style: b.style,
         align: b.align ?? null,
         indentLevel: b.indentPx ? Math.round(b.indentPx / PX_PER_STEP) : 0,
+        // The indent to the pixel, null when the paragraph sets none — an
+        // explicit zero beats the style's indent, and a step count cannot say so.
+        indentPx: b.indentPx ?? null,
         // What the OOXML reader found beyond alignment and the left indent:
         // tab stops, shading, borders, the first-line/hanging/right indents.
         // Spread flat so the painter reads `block.tabs`, not `block.decor.tabs`.
         ...(b.decor || {}),
         lineSpacing: b.spacing?.lineFactor ?? null,
+        // Direct spacing beats the style's: an exact line, a gap before or after.
+        lineHeightPx: b.spacing?.lineExactPx ?? null,
+        spaceBeforePx: b.spacing?.beforePx ?? null,
+        spaceAfterPx: b.spacing?.afterPx ?? null,
         structural: b.structural,
         structuralTags: b.structuralTags,
         ...(b.inSdt ? { inSdt: true } : {}),
@@ -1546,7 +1580,7 @@ export class DocView {
         // shell tell a caret at a cell boundary why Tab and Backspace behave.
         container: b.container ?? null,
         text: b.text,
-        runs: b.runs.map((r) => this._renderRun(r)),
+        runs: b.runs.map((r) => this._renderRun(r, { toc: /^TOC\d/i.test(b.style || '') })),
         ...(b.tracked ? { tracked: b.tracked } : {}),
         // Every paragraph's pictures — and its charts and shapes, which ride
         // the same pipeline as SVG — paint from here. This used to be cell

@@ -30,7 +30,7 @@ import { unesc } from './workbook.js';
 import { chartPartXml } from './build.js';
 import { parseTable, parseSection, childElements, firstElement, headBefore } from './table.js';
 import { readHeadersAndFooters } from './headers.js';
-import { readParagraphStyles, readNumberingDefs, readThemeFonts, readThemeColours, STANDARD_STYLES_XML } from './docstyles.js';
+import { readParagraphStyles, readCharacterStyles, readNumberingDefs, readThemeFonts, readThemeColours, STANDARD_STYLES_XML } from './docstyles.js';
 
 /**
  * Media bytes -> data URI. Deliberately duplicated from `@rutba/drawing` rather
@@ -626,6 +626,12 @@ export class Document {
   paragraphStyles() {
     const part = 'word/styles.xml';
     return readParagraphStyles(this.pkg.has(part) ? this.pkg.text(part) : null, this.themeFonts());
+  }
+
+  /** Character styles resolved from word/styles.xml — what a `w:rStyle` gives a run. */
+  characterStyles() {
+    const part = 'word/styles.xml';
+    return readCharacterStyles(this.pkg.has(part) ? this.pkg.text(part) : null, this.themeFonts());
   }
 
   /**

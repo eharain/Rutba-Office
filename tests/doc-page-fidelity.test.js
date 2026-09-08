@@ -72,6 +72,8 @@ test('direct tab stops, shading, a border and a hanging indent reach the frame',
   assert.equal(line.borders.bottom.colour, '#1F5F8B');
   assert.equal(line.borders.bottom.widthPx, 1);
   assert.equal(line.hangingPx, 24);
+  assert.equal(line.indentPx, 48, 'the left indent to the pixel');
+  assert.equal(f.blocks.find((b) => b.text === 'Plain, editable.').indentPx, null, 'unset is null, not zero');
   assert.equal(line.text, 'Name:\tValue\tPage 3', 'tabs survive into the text');
   assert.deepEqual(line.runs.map((r) => r.text), ['Name:', '\t', 'Value', '\tPage 3'], 'a tab in a run of its own is a run');
   assert.equal(line.runs.map((r) => r.text).join(''), line.text, 'text and runs agree, so caret offsets do');
@@ -126,6 +128,39 @@ test('styles resolve fonts through the theme, and carry shading and tab stops', 
   assert.equal(doc.themeColours().dk1, '000000', 'a system colour resolves to lastClr');
   assert.equal(readThemeColours(null).accent1, '4472C4', 'Office defaults without a theme');
   assert.deepEqual(readThemeFonts(null), { major: 'Calibri Light', minor: 'Calibri' });
+});
+
+test('character styles fold into the run: a Hyperlink is blue, a bare link is plain', () => {
+  const f = frame();
+  const p = f.blocks.find((b) => b.text.startsWith('gov.uk'));
+  const [styled, , bare] = p.runs;
+  assert.equal(styled.fontColour, '0563C1');
+  assert.equal(styled.underline, true);
+  assert.equal(styled.link, 'https://www.gov.uk/guidance');
+  assert.equal(bare.fontColour, undefined, 'no colour of its own and no style: plain');
+  assert.equal(bare.underline, false);
+  // The FootnoteReference style raises the reference even when the run does not say so itself.
+  const body = f.blocks.find((b) => b.text.startsWith('The supplier'));
+  assert.equal(body.runs.find((r) => r.noteRef?.id === '2').vertAlign, 'superscript');
+  const cs = Document.open(buildCoverPageDocument()).characterStyles();
+  assert.equal(cs.Strong.bold, true);
+  assert.equal(cs.Hyperlink.name, 'Hyperlink');
+  // A table of contents entry wears the Hyperlink style and is drawn plain,
+  // as Word draws it — black in the TOC style, the link kept for Ctrl+click.
+  const entry = f.blocks.find((b) => b.style === 'TOC1');
+  assert.equal(entry.text, 'Introduction\t2');
+  assert.equal(entry.runs[0].fontColour, undefined);
+  assert.equal(entry.runs[0].underline, false);
+  assert.ok(entry.runs[0].link, 'the link itself is kept');
+});
+
+test('a style\'s exact line, borders and right indent reach the paragraph', () => {
+  const s = frame().styles;
+  assert.equal(s.Title.lineExactPx, 80, '1200 twips exactly');
+  assert.equal(s.Title.borders.top.colour, '#7E97AD');
+  assert.equal(s.Title.borders.top.spacePt, 10);
+  assert.ok(Math.abs(s.Title.rightPx - 115 * (96 / 1440)) < 1e-9);
+  assert.equal(s.Normal?.lineExactPx, undefined, 'an auto rule is a factor, not pixels');
 });
 
 test('footnotes are numbered by where their references fall, not by id', () => {

@@ -98,7 +98,11 @@ export function buildCoverPageDocument() {
     // whose style carries the dotted right tab.
     '<w:sdt><w:sdtPr><w:docPartObj><w:docPartGallery w:val="Table of Contents"/></w:docPartObj><w:id w:val="1002"/></w:sdtPr><w:sdtContent>' +
       '<w:p><w:pPr><w:pStyle w:val="TOCHeading"/></w:pPr><w:r><w:t>Contents</w:t></w:r></w:p>' +
-      '<w:p><w:pPr><w:pStyle w:val="TOC1"/></w:pPr><w:r><w:t>Introduction</w:t></w:r><w:r><w:tab/><w:t>2</w:t></w:r></w:p>' +
+      // An entry as Word writes one: a hyperlink to the heading's bookmark,
+      // every run wearing the Hyperlink style Word then does not draw.
+      '<w:p><w:pPr><w:pStyle w:val="TOC1"/></w:pPr><w:hyperlink w:anchor="_Toc1" w:history="1">' +
+        '<w:r><w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t>Introduction</w:t></w:r>' +
+        '<w:r><w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:tab/><w:t>2</w:t></w:r></w:hyperlink></w:p>' +
     '</w:sdtContent></w:sdt>' +
 
     // A form line: its own tab stops, shading, a rule beneath, a hanging indent.
@@ -123,6 +127,10 @@ export function buildCoverPageDocument() {
       '<w:r><w:t>.</w:t></w:r>' +
     '</w:p>' +
     '<w:p><w:r><w:t>Plain, editable.</w:t></w:r></w:p>' +
+    // Two links: one wearing the Hyperlink character style, one bare.
+    '<w:p><w:hyperlink r:id="rIdLink"><w:r><w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t>gov.uk guidance</w:t></w:r></w:hyperlink>' +
+      '<w:r><w:t xml:space="preserve"> and </w:t></w:r>' +
+      '<w:hyperlink w:anchor="_Toc1"><w:r><w:t>a plain TOC link</w:t></w:r></w:hyperlink></w:p>' +
 
     '<w:sectPr>' +
       '<w:headerReference w:type="default" r:id="rIdHdr"/>' +
@@ -140,6 +148,7 @@ export function buildCoverPageDocument() {
     '<Relationship Id="rIdHdrFirst" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header2.xml"/>' +
     '<Relationship Id="rIdFn" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes" Target="footnotes.xml"/>' +
     '<Relationship Id="rIdTheme" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme" Target="theme/theme1.xml"/>' +
+    '<Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://www.gov.uk/guidance" TargetMode="External"/>' +
     '</Relationships>';
 
   const styles = XML + '<w:styles ' + W + '>' +
@@ -150,7 +159,12 @@ export function buildCoverPageDocument() {
     '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:basedOn w:val="Normal"/>' +
       '<w:pPr><w:keepNext/><w:spacing w:before="240" w:after="0"/></w:pPr><w:rPr><w:rFonts w:asciiTheme="majorHAnsi"/><w:color w:val="2F5496"/><w:sz w:val="32"/></w:rPr></w:style>' +
     '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/><w:basedOn w:val="Normal"/>' +
-      '<w:pPr><w:shd w:val="clear" w:fill="7E97AD"/><w:spacing w:before="120" w:after="120"/></w:pPr><w:rPr><w:caps/><w:color w:val="FFFFFF"/><w:sz w:val="136"/></w:rPr></w:style>' +
+      '<w:pPr><w:pBdr><w:top w:val="single" w:sz="4" w:space="10" w:color="7E97AD"/></w:pBdr><w:shd w:val="clear" w:fill="7E97AD"/>' +
+      '<w:spacing w:before="120" w:after="120" w:line="1200" w:lineRule="exact"/><w:ind w:left="115" w:right="115"/></w:pPr>' +
+      '<w:rPr><w:caps/><w:color w:val="FFFFFF"/><w:sz w:val="136"/></w:rPr></w:style>' +
+    '<w:style w:type="character" w:styleId="Hyperlink"><w:name w:val="Hyperlink"/><w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr></w:style>' +
+    '<w:style w:type="character" w:styleId="FootnoteReference"><w:name w:val="footnote reference"/><w:rPr><w:vertAlign w:val="superscript"/></w:rPr></w:style>' +
+    '<w:style w:type="character" w:styleId="Strong"><w:name w:val="Strong"/><w:basedOn w:val="DefaultParagraphFont"/><w:rPr><w:b/></w:rPr></w:style>' +
     '<w:style w:type="paragraph" w:styleId="Subtitle"><w:name w:val="Subtitle"/><w:basedOn w:val="Normal"/><w:rPr><w:i/><w:color w:val="7E97AD"/><w:sz w:val="32"/></w:rPr></w:style>' +
     '<w:style w:type="paragraph" w:styleId="TOCHeading"><w:name w:val="TOC Heading"/><w:basedOn w:val="Heading1"/></w:style>' +
     '<w:style w:type="paragraph" w:styleId="TOC1"><w:name w:val="toc 1"/><w:basedOn w:val="Normal"/>' +
