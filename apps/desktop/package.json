@@ -1,6 +1,6 @@
 {
   "name": "@rutba/office-desktop",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "private": true,
   "license": "AGPL-3.0-or-later",
   "description": "Rutba Office — free, open-source desktop suite: Mail, Word, Worksheets, Presentation, Pictures, Image and Video.",
@@ -20,6 +20,7 @@
     "icon": "electron build/make-icon.js",
     "verify:edit": "node build/bundle.js && node build/verify-edit-run.js",
     "verify:apps": "node build/bundle.js && node build/verify-apps-run.js",
+    "verify:corpus": "node build/bundle.js && node build/verify-corpus-run.js",
     "screens": "node build/bundle.js && node build/make-screens.js"
   },
   "dependencies": {

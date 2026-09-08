@@ -43,7 +43,15 @@ privacy, your old mail, or your patience. This asks for none of those.
 
 ## Install
 
+**Rutba Office is in beta.** Every release is published as a pre-release,
+the window title says so, and an installed copy follows the beta releases.
+It opens and edits real files today; it also still meets documents it draws
+wrongly and places where the way to do something is not yet obvious. The
+issue tracker is where those go, and the release notes say what each
+release fixed.
+
 Downloads are built for Windows, macOS and Linux:
+
 
 | Platform | File |
 |---|---|
@@ -77,6 +85,12 @@ users, in whichever directory — before it installs, and it does the same when
 an installed copy updates itself. Your documents and settings stay where they
 are. The portable build installs nothing and is not counted.
 
+Once Rutba Office is the default, each kind of file wears the icon of the
+app that opens it — a document, a workbook, a deck, a picture, a video, a
+message and a PDF each look like what they are in Explorer — and on
+Windows each app's windows carry that app's tile and sit under their own
+taskbar icon, so Word and Worksheets can be pinned and opened on their own.
+
 
 ### What the website links to
 
@@ -103,7 +117,7 @@ installations on the version they have.
 git clone https://github.com/eharain/Rutba-Office.git office
 cd office
 npm install
-npm test          # 577 tests, no network needed
+npm test          # 619 tests, no network needed
 npm run build     # bundle the renderer
 npm start         # run the app
 npm run dist      # installers for this platform, into apps/desktop/release
@@ -244,15 +258,17 @@ Other things worth reading:
 
 ```bash
 npm run gate            # all four passes, in the order that finds problems soonest
-npm test                # the engine suite — 577 checks, no windows
+npm test                # the engine suite — 619 checks, no windows
 npm run verify:edit     # do keystrokes reach the document?
 npm run verify:apps     # does each app open, change and save a real file?
 npm run smoke           # boot the real app, photograph every window, report
 npm run smoke -- word   # just one
+RUTBA_CORPUS_DIRS="D:\docs" npm run verify:corpus   # open every file in a folder in the real app, one window at a time
+
 ```
 
-`npm run gate` is what runs before a release: 577 engine tests, 9 editing checks,
-86 application checks — 35 of them pressing the real ribbon buttons and reading what the page paints — and 8 window captures, in about 75 seconds.
+`npm run gate` is what runs before a release: 619 engine tests, 9 editing checks,
+136 application checks — most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard — and 8 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about a quarter of an hour.
 
 The window runs are the ones that find what a build cannot. They launch the
 actual application — same main process, same preload, same bundle — in a profile

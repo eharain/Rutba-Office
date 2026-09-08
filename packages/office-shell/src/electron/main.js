@@ -132,6 +132,8 @@ function buildMenu({ send, appName }) {
  * @param {string} o.rendererDir  directory holding index.html + bundle
  * @param {string} o.preloadPath  bundled CommonJS preload
  * @param {string} [o.iconPath]
+ * @param {Record<string,string>} [o.appIcons]  per-app .ico paths on disk, for the taskbar
+ * @param {Record<string,string>} [o.appNames]  per-app display names, for a pinned taskbar entry
  * @param {string} [o.appName]
  * @param {(ctx) => object} [o.namespaces] extra IPC namespaces, given the shell context
  * @param {(path: string) => string} [o.appForFile] which app opens this file
@@ -140,15 +142,48 @@ export function createShell({
   rendererDir,
   preloadPath,
   iconPath,
+  appIcons = {},
+  appNames = {},
   appName = 'Rutba Office',
   namespaces,
   appForFile = () => 'home',
   onReady,
 }) {
   app.setName(appName);
-  if (process.platform === 'win32') app.setAppUserModelId('co.techstyle.rutba.office');
+  const appUserModelId = 'co.techstyle.rutba.office';
+  if (process.platform === 'win32') app.setAppUserModelId(appUserModelId);
 
   const quitting = { value: false };
+
+  // An uncaught error in the main process must never become a dialog. With
+  // no listener Electron shows "A JavaScript error occurred in the main
+  // process" — a stack trace in a box, in front of a person's document, for
+  // an error they can do nothing about (a fetch whose stream Node closed
+  // twice, say). It is written to errors.log in the profile instead, with
+  // the time, and the application carries on. The log is the bug report.
+  const errorLog = () => {
+    try {
+      return path.join(app.getPath('userData'), 'errors.log');
+    } catch {
+      return null;
+    }
+  };
+  const record = (kind, err) => {
+    const line = `${new Date().toISOString()} ${kind}: ${err?.stack || err?.message || String(err)}\n`;
+    console.error(line.trim());
+    const file = errorLog();
+    if (!file) return;
+    try {
+      // Capped: a fault that repeats every second must not fill the disk.
+      if (fs.existsSync(file) && fs.statSync(file).size > 512 * 1024) fs.truncateSync(file, 0);
+      fs.appendFileSync(file, line);
+    } catch {
+      /* the log is best effort */
+    }
+  };
+  process.on('uncaughtException', (err) => record('uncaught exception', err));
+  process.on('unhandledRejection', (reason) => record('unhandled rejection', reason));
+
   /** Files handed to us before the app was ready (double-click at cold start). */
   const pending = [];
 
@@ -171,6 +206,12 @@ export function createShell({
     const which = appForFile(p);
     windows.open({ app: which, file: p });
     stores.recent.add({ path: p, app: which });
+  }
+
+  /** `--app=word` — how a pinned per-app taskbar entry relaunches into its app. */
+  function argvApp(argv) {
+    const flag = argv.find((a) => a.startsWith('--app='));
+    return flag ? flag.slice('--app='.length) : null;
   }
 
   function argvFiles(argv) {
@@ -196,6 +237,7 @@ export function createShell({
   app.on('second-instance', (_e, argv) => {
     const files = argvFiles(argv);
     if (files.length) files.forEach(openPath);
+    else if (argvApp(argv)) windows.open({ app: argvApp(argv) });
     else {
       const win = BrowserWindow.getAllWindows()[0];
       if (win) {
@@ -217,6 +259,12 @@ export function createShell({
     quitting.value = true;
   });
 
+  // A check run keeps its windows off the desktop (windows.js). Chromium's
+  // native occlusion tracker would count a window on no screen as hidden and
+  // stop painting it; told not to, the page renders and takes input as if
+  // it were in front.
+  if (process.env.RUTBA_WINDOW_DISPLAY === 'offscreen') app.commandLine.appendSwitch('disable-features', 'CalculateNativeWinOcclusion');
+
   app.whenReady().then(async () => {
     stores = createStores();
 
@@ -226,6 +274,9 @@ export function createShell({
       stores,
       preloadPath,
       iconPath,
+      appIcons,
+      appNames,
+      appUserModelId,
       onWindowEvent: (win, event, payload) => sendEvent(win, event, payload),
 
       /**
@@ -282,7 +333,7 @@ export function createShell({
 
     const startFiles = [...pending, ...argvFiles(process.argv)];
     if (startFiles.length) startFiles.forEach(openPath);
-    else windows.open({ app: 'home' });
+    else windows.open({ app: argvApp(process.argv) || 'home' });
   });
 
   return { app, get windows() { return windows; }, get stores() { return stores; }, openPath, fileUrl, holdBlob };

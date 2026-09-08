@@ -3,7 +3,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Deck, buildPptx, renderSlide, sceneText, TEMPLATES } from '@rutba/presentation';
+import { Deck, buildPptx, renderSlide, renderThumbnail, sceneText, TEMPLATES } from '@rutba/presentation';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 
 const DECK = buildPptx({
@@ -315,4 +315,44 @@ test('a bullet stored for Wingdings or Symbol is drawn as the character it looks
   assert.equal(bulletGlyph(''), '•', 'a private-use bullet with no font named is still a bullet');
   assert.equal(bulletGlyph('–', 'Calibri'), '–', 'a plain character in a text font is itself');
   assert.equal(bulletGlyph('§', 'Arial'), '§');
+});
+
+test('the outline reads titles, counts and notes off the XML, and agrees with the scenes', () => {
+  const deck = Deck.open(DECK);
+  const outline = deck.outline();
+  assert.equal(outline.length, deck.slideCount);
+  for (const o of outline) {
+    const scene = deck.slide(o.index);
+    const title = scene.shapes.find((s) => s.placeholder?.type === 'title' || s.placeholder?.type === 'ctrTitle');
+    const body = title?.text || title?.inheritedText;
+    const expected = body ? body.paragraphs.map((p) => p.runs.map((r) => r.text).join('')).join(' ').trim() : '';
+    assert.equal(o.title, expected, `slide ${o.index + 1} title`);
+    assert.equal(o.shapes, scene.shapes.length, `slide ${o.index + 1} shape count`);
+    assert.equal(o.notes, scene.notes.replace(/\s+/g, ' ').trim(), `slide ${o.index + 1} notes`);
+  }
+  deck.setNotes(1, 'Speaker line one\nand two');
+  assert.equal(deck.outline()[1].notes, 'Speaker line one and two');
+  assert.match(Deck.open(buildPptx({ title: 'Fish &amp; Chips', slides: [{ layout: 'title', title: 'Fish & Chips' }] })).outline()[0].title, /^Fish & Chips$/, 'entities are decoded');
+});
+
+test('a thumbnail leaves out a custom path with a hundred thousand points; the slide itself keeps it', () => {
+  const deck = Deck.open(DECK);
+  const pkg = deck.pkg;
+  const part = deck.slideParts[2].part;
+  let points = '';
+  for (let i = 0; i < 6000; i++) points += `<a:lnTo><a:pt x="${(i * 37) % 1000}" y="${(i * 91) % 1000}"/></a:lnTo>`;
+  const sp =
+    '<p:sp><p:nvSpPr><p:cNvPr id="99" name="Map"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>' +
+    '<p:spPr><a:xfrm><a:off x="914400" y="914400"/><a:ext cx="4572000" cy="3048000"/></a:xfrm>' +
+    '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst>' +
+    `<a:path w="1000" h="1000"><a:moveTo><a:pt x="0" y="0"/></a:moveTo>${points}<a:close/></a:path></a:pathLst></a:custGeom>` +
+    '<a:solidFill><a:srgbClr val="336699"/></a:solidFill></p:spPr></p:sp>';
+  const xml = pkg.text(part).replace('</p:spTree>', sp + '</p:spTree>');
+  pkg.write_(part, Buffer.from(xml, 'utf8'));
+  const scene = deck.slide(2);
+  const full = renderSlide(scene, { width: 640 });
+  assert.match(full, /<path d="M/, 'the slide draws the path');
+  const thumb = renderThumbnail(scene, 220);
+  assert.doesNotMatch(thumb, /<path d="M/, 'the thumbnail leaves it out');
+  assert.ok(thumb.length < full.length / 4, `the thumbnail is small (${thumb.length} vs ${full.length})`);
 });

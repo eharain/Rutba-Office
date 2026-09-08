@@ -79,6 +79,45 @@ export default function Slides({ app, shell, boot }) {
     [doc, index, shell]
   );
 
+  // The thumbnails the model left out arrive after the first paint, a few at
+  // a time: a nineteen-slide deck shows its slide before its sidebar is
+  // complete rather than after. A slide whose thumbnail is missing shows its
+  // title until then.
+  const missingThumbs = model?.outline ? model.outline.filter((o) => o.thumbnail == null).length : 0;
+  useEffect(() => {
+    if (!doc || !missingThumbs) return undefined;
+    let alive = true;
+    (async () => {
+      const missing = (model?.outline || []).filter((o) => o.thumbnail == null).map((o) => o.index);
+      for (let at = 0; at < missing.length && alive; at += 4) {
+        let got = {};
+        try {
+          got = await shell.doc.thumbnails({ id: doc.id, indexes: missing.slice(at, at + 4) });
+        } catch {
+          return;
+        }
+        if (!alive) return;
+        setModel((m) => {
+          if (!m?.outline) return m;
+          let changed = false;
+          const outline = m.outline.map((o) => {
+            if (o.thumbnail == null && got[o.index]) {
+              changed = true;
+              return { ...o, thumbnail: got[o.index] };
+            }
+            return o;
+          });
+          return changed ? { ...m, outline } : m;
+        });
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [doc?.id, missingThumbs, shell]);
+
+
   const apply = useCallback(
     async (...ops) => {
       if (!doc) return;
@@ -297,13 +336,6 @@ export default function Slides({ app, shell, boot }) {
   // A new slide means a new selection: the shape ids belong to the slide.
   useEffect(() => { setSelected(null); }, [index]);
 
-  if (error) {
-    return (
-      <AppFrame app={app} shell={shell} title="Presentation" menu={appMenu}>
-        <Empty icon="slides" title="This file could not be opened">{error}</Empty>
-      </AppFrame>
-    );
-  }
 
   const slide = model?.slide;
   const selectedShape = selected ? slide?.shapes?.find((s) => s.id === selected) || null : null;
@@ -390,9 +422,22 @@ export default function Slides({ app, shell, boot }) {
     }
   };
 
+  // Every hook above, every early return below. This return sat above the
+  // formatting memo, so a file the engine refused made React throw
+  // "rendered fewer hooks than expected" and the person got a blank window
+  // instead of the reason — for a truncated deck, twenty seconds of nothing.
+  if (error) {
+    return (
+      <AppFrame app={app} shell={shell} title="Presentation" menu={appMenu}>
+        <Empty icon="slides" title="This file could not be opened">{error}</Empty>
+      </AppFrame>
+    );
+  }
+
   // A presenter window draws only the speaker's side. It shares the document
   // session, so nothing is opened twice and nothing can drift.
   if (presenterFor) {
+
     return (
       <AppFrame app={app} shell={shell} title="Presenter view" menu={appMenu}>
         <Presenter shell={shell} docId={presenterFor} />

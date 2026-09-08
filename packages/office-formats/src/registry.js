@@ -198,11 +198,16 @@ export function fileAssociations() {
       const kind = Object.entries(KINDS).find(([, d]) => d.ext === `.${ext}`)?.[0] ?? EXTENSION_ALIASES[ext];
       out.push({
         ext,
+        // The app that opens it, so the installer can give the type that
+        // app's icon: a person reads the icon before the name, and every
+        // type wearing the suite's one mark looked like one kind of file.
+        app: appKey,
         name: KINDS[kind]?.label || `${ext.toUpperCase()} file`,
         description: KINDS[kind]?.label || `${ext.toUpperCase()} file`,
         mimeType: KINDS[kind]?.mime || 'application/octet-stream',
         role: 'Editor',
       });
+
     }
   }
   return out;

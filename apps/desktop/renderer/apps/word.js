@@ -18,6 +18,7 @@ import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, 
 import { SITE } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
 import { NavigationPane, Ruler, installWordStyles } from './word/panes.js';
+import { selectionToSend } from './word/caret.js';
 
 installWordStyles();
 import {
@@ -137,6 +138,14 @@ export default function Word({ app, shell, boot }) {
   const [tab, setTab] = useState('home');
   // One name at a time, the way the spreadsheet does it.
   const [dialog, setDialog] = useState(null);
+  // How much of the flow is mounted. A specification of three thousand
+  // paragraphs and two thousand table cells reached the engine in half a
+  // second and then took six more to mount, all before the first paint.
+  // The first screens mount at once and the rest follows in slices while
+  // the person is already reading; block indices are stable, so nothing
+  // moves under the caret.
+  const [mounted, setMounted] = useState(MOUNT_FIRST);
+
   // The note dialog carries its own state: which kind, and — when editing —
   // which note and its current words.
   const [noteDialog, setNoteDialog] = useState(null);
@@ -167,6 +176,11 @@ export default function Word({ app, shell, boot }) {
   const [find, setFind] = useState(null);
   const pageRef = useRef(null);
   const pendingCaret = useRef(null);
+  // The caret as this editor last left it: sent with an edit whose answer is
+  // not painted yet, and placed from the engine's answer. A keystroke that
+  // finds the caret exactly there does not resend it — see word/caret.js.
+  const sentCaret = useRef(null);
+  const placedCaret = useRef(null);
   const menu = useMenu();
   const openFileRef = useRef(null);
   const appMenu = useAppMenu({
@@ -350,7 +364,8 @@ export default function Word({ app, shell, boot }) {
       e.preventDefault();
       const pos = currentPosition();
       const ops = [];
-      if (pos?.focus) ops.push({ op: 'setSelection', anchor: pos.anchor || pos.focus, focus: pos.focus });
+      const selection = selectionToSend(pos, { sent: sentCaret.current, placed: placedCaret.current });
+      if (selection) ops.push(selection);
 
       switch (e.inputType) {
         case 'insertText':
@@ -401,7 +416,10 @@ export default function Word({ app, shell, boot }) {
         default:
           return;
       }
-      if (ops.length > 1 || (ops.length === 1 && ops[0].op !== 'setSelection')) apply(...ops);
+      if (ops.some((op) => op.op !== 'setSelection')) {
+        sentCaret.current = pos;
+        apply(...ops);
+      }
     },
     [apply, currentPosition]
   );
@@ -432,12 +450,30 @@ export default function Word({ app, shell, boot }) {
     const target = pendingCaret.current;
     if (!target || !pageRef.current) return;
     placeSelection(pageRef.current, target.anchor, target.focus);
+    placedCaret.current = target;
+    sentCaret.current = null;
     pendingCaret.current = null;
   }, [model]);
 
   /* ── commands ────────────────────────────────────────────────────────── */
 
   const format = model?.format || {};
+
+  const flowItems = useMemo(() => (model?.blocks ? groupTables(model.blocks) : []), [model?.blocks]);
+  // A new document starts with the first screens; the rest mounts in slices
+  // once the browser has painted, and a document already fully mounted stays
+  // so through every edit.
+  useEffect(() => {
+    setMounted(MOUNT_FIRST);
+  }, [doc?.id]);
+  useEffect(() => {
+    if (mounted >= flowItems.length) return undefined;
+    const schedule = window.requestIdleCallback || ((fn) => setTimeout(fn, 16));
+    const cancel = window.cancelIdleCallback || clearTimeout;
+    const handle = schedule(() => setMounted((m) => Math.min(flowItems.length, m + MOUNT_STEP)));
+    return () => cancel(handle);
+  }, [mounted, flowItems.length]);
+
 
   const insertPicture = useCallback(async () => {
     const [file] = await shell.dialog.open({
@@ -748,13 +784,15 @@ export default function Word({ app, shell, boot }) {
                 </div>
               ) : null}
               <Band kind="header" bands={model.bands} section={section} onEdit={() => setDialog('header')} />
-              {groupTables(model.blocks).map((item) =>
+              {flowItems.slice(0, mounted).map((item) =>
                 item.table ? (
                   <TableGroup key={`t${item.table.id}`} table={item.table} labels={model.listLabels} styles={model.resolvedStyles} />
                 ) : (
                   <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} />
                 )
               )}
+              {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{`Laying out… ${Math.round((mounted / flowItems.length) * 100)}%`}</div> : null}
+
               <Notes notes={model.footnotes} kind="footnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'footnote', id: note.id, initial: noteWords(note) })} />
               <Notes notes={model.endnotes} kind="endnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'endnote', id: note.id, initial: noteWords(note) })} />
               <Band kind="footer" bands={model.bands} section={section} onEdit={() => setDialog('footer')} />
@@ -911,7 +949,12 @@ export default function Word({ app, shell, boot }) {
  * into rows and cells, keeping each cell paragraph as its own editable
  * [data-block] so the caret, selection and typing keep working inside it.
  */
+/** Flow items mounted before the first paint, and per slice afterwards. */
+const MOUNT_FIRST = 160;
+const MOUNT_STEP = 240;
+
 function groupTables(blocks) {
+
   const out = [];
   let current = null;
   const flush = () => {
@@ -1033,9 +1076,48 @@ function withTabs(text) {
  * pulls it back by that much; a decimal stop aligns on the point. Read live,
  * in document order, because each width moves everything after it.
  */
-function sizeTabs(p, stops) {
+/*
+ * Tab stops are measured, not computed: where a tab lands depends on the
+ * width of the text before it in the font the browser actually used. The
+ * measuring is the expensive part — every read of a position forces the
+ * browser to lay the page out, and a page of a thousand paragraphs takes
+ * tens of milliseconds to lay out. Measured one paragraph at a time, with a
+ * write after each read, a tender with 274 tabs forced 274 layouts and the
+ * window did not answer for seven seconds. So paragraphs REGISTER here
+ * during the commit and are measured together once it is over: every width
+ * reset (one write), every position and text extent read (one layout), every
+ * width applied (one write). A microtask runs after React's commit and
+ * before the browser paints, so nothing flashes.
+ */
+let pendingTabs = null;
+function scheduleTabs(p, stops) {
+  if (!pendingTabs) {
+    pendingTabs = new Map();
+    queueMicrotask(flushTabs);
+  }
+  pendingTabs.set(p, stops);
+}
+
+function flushTabs() {
+  const batch = pendingTabs;
+  pendingTabs = null;
+  if (!batch) return;
+  const items = [...batch].filter(([p]) => p.isConnected);
+  for (const [p] of items) for (const span of p.querySelectorAll('.wd-tab')) span.style.width = '';
+  const plans = items.map(([p, stops]) => planTabs(p, stops));
+  for (const plan of plans) {
+    for (const t of plan) {
+      t.span.style.width = `${t.width}px`;
+      t.span.dataset.leader = t.leader;
+    }
+  }
+}
+
+/** Reads only: what width each tab in `p` should get, with the widths reset. */
+function planTabs(p, stops) {
   const tabs = p.querySelectorAll('.wd-tab');
-  if (!tabs.length) return;
+  if (!tabs.length) return [];
+
   // Stops are measured from the LEFT MARGIN — the page's content edge, or the
   // text box's, or the header's — not from the paragraph's own indent. A TOC
   // entry indented 29 px with a right stop at the margin's far edge used to
@@ -1045,9 +1127,13 @@ function sizeTabs(p, stops) {
   const left = host.getBoundingClientRect().left + (parseFloat(getComputedStyle(edge).paddingLeft) || 0);
   const custom = (stops || []).filter((s) => s && s.posPx > 0);
   const image = p.querySelector('.wd-image');
+  const plan = [];
+  // With every width reset, a later tab's natural position is short by the
+  // widths the earlier tabs on its line will be given; carry them forward.
+  let carried = 0;
   for (const span of tabs) {
-    span.style.width = '';
-    const x = span.getBoundingClientRect().left - left;
+    const x = span.getBoundingClientRect().left - left + carried;
+
     const stop = custom.find((s) => s.posPx > x + 1) || { posPx: (Math.floor(x / DEFAULT_TAB_PX) + 1) * DEFAULT_TAB_PX, align: 'left' };
     let width = stop.posPx - x;
     if (stop.align === 'center' || stop.align === 'right' || stop.align === 'decimal') {
@@ -1076,9 +1162,11 @@ function sizeTabs(p, stops) {
       }
       width -= stop.align === 'center' ? w / 2 : w;
     }
-    span.style.width = `${Math.max(2, Math.round(width))}px`;
-    span.dataset.leader = stop.leader || '';
+    const finalWidth = Math.max(2, Math.round(width));
+    carried += finalWidth;
+    plan.push({ span, width: finalWidth, leader: stop.leader || '' });
   }
+  return plan;
 }
 
 /** Paragraph borders as CSS: one line per side, in the file's colour and weight. */
@@ -1209,7 +1297,7 @@ function TextBox({ box, styles }) {
   React.useLayoutEffect(() => {
     if (!ref.current) return;
     for (const p of ref.current.querySelectorAll('.wd-box-p')) {
-      if (p.querySelector('.wd-tab')) sizeTabs(p, p._tabs || null);
+      if (p.querySelector('.wd-tab')) scheduleTabs(p, p._tabs || null);
     }
   });
   const style = {
@@ -1262,7 +1350,7 @@ const Block = React.memo(function Block({ block, labels, styles }) {
   const ref = React.useRef(null);
   const hasTabs = (block.runs || []).some((r) => r.text && r.text.includes('\t'));
   React.useLayoutEffect(() => {
-    if (hasTabs && ref.current) sizeTabs(ref.current, tabStops(block, styles));
+    if (hasTabs && ref.current) scheduleTabs(ref.current, tabStops(block, styles));
   });
   const style = paragraphCss(block, styles);
 
@@ -1352,6 +1440,8 @@ const CSS = `
 .wd-tab[data-leader="hyphen"] { background: linear-gradient(currentColor, currentColor) 0 calc(100% - 3px) / 3px 1px repeat-x; }
 .wd-tab[data-leader="underscore"] { border-bottom: 1px solid currentColor; }
 .wd-marker { color: #555; margin-right: 6px; user-select: none; }
+.wd-mounting { margin: 12px 0 0; font-size: 12px; color: var(--ink-3); user-select: none; }
+
 /* A watermark: the header's WordArt, drawn behind the body as Word does. */
 .wd-watermark {
   position: absolute; left: 0; right: 0; top: 380px; text-align: center; pointer-events: none; user-select: none;

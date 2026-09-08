@@ -20,6 +20,7 @@
 import { Workbook, OoxmlPackage } from '@rutba/ooxml';
 import { toSpreadsheet, writeCachedValue, parseDefinedNameRange } from '@rutba/ooxml/recalc';
 import {
+
   readPivots, computePivot, updatePivotLocation, dataFieldLabel, areaRef,
   createPivot, planPivot,
 } from '@rutba/ooxml/pivot';
@@ -43,6 +44,9 @@ import {
 } from '@rutba/drawing';
 import { drawingAnchorXml, chartPartXml } from '@rutba/ooxml/build';
 import { History } from '@rutba/editing';
+
+/** Sheet XML beyond which cell styles are read on demand rather than mapped up front. */
+const LAZY_STYLES_XML = 64 * 1024 * 1024;
 
 /**
  * The pseudo-name the sheet-level autofilter answers to in the filter UI.
@@ -92,11 +96,24 @@ export class SheetView {
     this.validations = new Map();
     /** @type {Map<string, Array<object>>} sheet -> conditional-formatting rules */
     this.conditionals = new Map();
+    /** Sheets whose cell styles are read from the part on demand — see the constructor. */
+    this._lazyStyles = new Set();
+
 
     for (const { name, part } of this.workbook.sheets()) {
       const xml = this.pkg.text(part);
       this.geometry.set(name, SheetGeometry.fromSheetXml(xml));
-      this.cellStyles.set(name, this._readCellStyles(xml));
+      // A map of every cell's style is fine at two million cells and
+      // impossible at eighteen: a JavaScript Map stops at 16.7 million
+      // entries, and a 46 MB sample-data workbook has more. Past a size the
+      // styles are read from the part as cells are asked for, and only the
+      // cells written to are kept here.
+      if (xml.length > LAZY_STYLES_XML) {
+        this._lazyStyles.add(name);
+        this.cellStyles.set(name, new Map());
+      } else {
+        this.cellStyles.set(name, this._readCellStyles(xml));
+      }
       this.merges.set(name, readMergedCells(xml));
       this.validations.set(name, readDataValidations(xml));
       this.conditionals.set(name, readConditionalFormatting(xml, this.styles.theme));
@@ -412,9 +429,10 @@ export class SheetView {
 
   /** The full style behind a cell, or null where the file said nothing. */
   styleFor(row, col) {
-    const index = this.cellStyles.get(this.activeSheet)?.get(ref(row, col));
-    return index === undefined ? null : this.styles.byStyleIndex[index] ?? null;
+    const index = this._styleIndexAt(this.activeSheet, row, col);
+    return index === null ? null : this.styles.byStyleIndex[index] ?? null;
   }
+
 
   /** The merge this cell belongs to, if any. */
   mergeAt(row, col) {
@@ -1279,7 +1297,10 @@ export class SheetView {
     for (const { name, part } of this.workbook.sheets()) {
       const xml = this.workbook.snapshotParts([part])[part];
       this.geometry.set(name, SheetGeometry.fromSheetXml(xml));
-      this.cellStyles.set(name, this._readCellStyles(xml));
+      // A sheet whose styles are read on demand keeps reading them on demand:
+      // rebuilding the whole map here is the 16.7-million-entry map the lazy
+      // path exists to avoid, and it would drop the cleared-style marks with it.
+      this.cellStyles.set(name, this._lazyStyles.has(name) ? new Map() : this._readCellStyles(xml));
       this.merges.set(name, readMergedCells(xml));
       this.validations.set(name, readDataValidations(xml));
       this.conditionals.set(name, readConditionalFormatting(xml, this.styles.theme));
@@ -3633,17 +3654,27 @@ export class SheetView {
 
   /** This cell's style index, or null where the file said nothing. */
   _styleIndexAt(sheetName, row, col) {
-    const index = this.cellStyles.get(sheetName)?.get(ref(row, col));
-    return index === undefined ? null : index;
+    const own = this.cellStyles.get(sheetName)?.get(ref(row, col));
+    if (own !== undefined) return own;
+    if (this._lazyStyles.has(sheetName)) {
+      // The part's own cell, read as asked for; a cleared style is a null
+      // in the map above, so the file's does not show through.
+      const cell = this.workbook._sheetPart(sheetName).part.getCell(row, col);
+      return cell?.style != null && cell.style !== '' ? Number(cell.style) : null;
+    }
+    return null;
   }
 
   _setStyleIndex(sheetName, row, col, index) {
     let map = this.cellStyles.get(sheetName);
     if (!map) { map = new Map(); this.cellStyles.set(sheetName, map); }
-    if (index === null || index === undefined) map.delete(ref(row, col));
-    else map.set(ref(row, col), index);
+    if (index === null || index === undefined) {
+      if (this._lazyStyles.has(sheetName)) map.set(ref(row, col), null);
+      else map.delete(ref(row, col));
+    } else map.set(ref(row, col), index);
     this.styledCells.add(sheetName + '!' + ref(row, col));
   }
+
 
   /**
    * Whether the whole selection already reads as bold / italic / etc.

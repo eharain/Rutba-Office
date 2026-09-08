@@ -1,6 +1,6 @@
 {
   "name": "rutba-office",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-or-later",
@@ -26,6 +26,7 @@
     "icon": "npm run icon --workspace=@rutba/office-desktop",
     "verify:edit": "npm run verify:edit --workspace=@rutba/office-desktop",
     "verify:apps": "npm run verify:apps --workspace=@rutba/office-desktop",
+    "verify:corpus": "npm run verify:corpus --workspace=@rutba/office-desktop",
     "screens": "npm run screens --workspace=@rutba/office-desktop"
   },
   "engines": {

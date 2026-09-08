@@ -19,7 +19,7 @@ import { OoxmlPackage } from '@rutba/ooxml/package';
 import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';import { probeImage } from '@rutba/imaging/probe';
 
-import { sniff, refineOoxml } from '@rutba/office-formats/sniff';
+import { sniff, refineOoxml, kindFromExtension } from '@rutba/office-formats/sniff';
 import { readOdf } from '@rutba/office-formats/odf';
 import { readRtf } from '@rutba/office-formats/rtf';
 import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, writePlain, decodeText } from '@rutba/office-formats/text';
@@ -30,6 +30,14 @@ import { readZip } from '@rutba/ooxml/zip';
 let seq = 0;
 const KIND_FOR_APP = { word: 'doc', sheets: 'sheet', slides: 'deck' };
 
+/**
+ * Text as HTML text.
+ *
+ * The HTML export wrote the document's own characters straight into the
+ * file: a paragraph reading "5 < 6 & 7 > 4" came back "5   4", and a
+ * document that happened to contain a script tag produced a page that ran
+ * it. What a document says is never markup.
+ */
 /** Blocks in the neutral reader shape → paragraphs `buildDocx` understands. */
 function blocksToParagraphs(blocks) {
   const out = [];
@@ -168,10 +176,52 @@ export function createDocumentService({ holdBlob }) {
     return s;
   };
 
+  /**
+   * The reason a file could not be opened, in a sentence for the person who
+   * double-clicked it. The engine's own message follows in brackets, because
+   * it is the thing to paste into a bug report; it is not the thing to lead
+   * with. "not a zip archive: no end-of-central-directory record" is true
+   * of a truncated download and says nothing a person can act on.
+   */
+  function plainRefusal(err, filePath) {
+    const name = filePath ? path.basename(filePath) : 'This file';
+    const ext = filePath ? path.extname(filePath).replace('.', '').toLowerCase() : '';
+    const raw = String(err?.message || err);
+    // Word, Excel and PowerPoint leave a 162-byte owner file beside a document
+    // while it is open — the document's name with "~$" in front — and leave
+    // it behind after a crash. Folders are full of them, and a person who
+    // opens one is told it is a stopped download, which it is not.
+    if (name.startsWith('~$')) {
+      const owner = name.slice(2);
+      return `${name} is not a document: it is the owner file Word, Excel or PowerPoint keeps beside ${owner} while that file is open, and leaves behind after a crash. Open ${owner} itself; this one can be deleted once the document is closed.`;
+    }
+    if (/not a zip|end-of-central-directory|central directory|zip/i.test(raw)) {
+      return `${name} is not a complete .${ext || 'office'} file — it may be a download that stopped early, or a file with the wrong extension. (${raw})`;
+    }
+    if (/password|encrypted|EncryptedPackage/i.test(raw)) {
+      return `${name} is password-protected, and this version cannot open protected files. (${raw})`;
+    }
+    if (/not a presentation|not a workbook|not a document|missing/i.test(raw)) {
+      return `${name} does not contain what a .${ext} file should — it may have been saved by a program that writes the format differently, or renamed. (${raw})`;
+    }
+    return `${name} could not be read. (${raw})`;
+  }
+
+  const PLAIN_TEXT_KINDS = new Set(['txt', 'md', 'markdown', 'csv', 'tsv', 'html', 'htm']);
+  const REFUSED_SNIFFS = new Set(['eml', 'msg', 'mbox', 'emlx', 'olm', 'pst', 'ost', 'vcf', 'ics', 'unknown']);
+
   /** Decide the kind, converting the formats we do not write. */
   function load(bytes, filePath) {
+
     const detected = sniff(bytes, filePath ? path.basename(filePath) : '');
     let kind = detected.kind;
+    // A text file is a text file. A clarifications.txt that begins with
+    // "From:" and "Subject:" was sniffed as an email message and refused,
+    // when the person had asked for a text file and we open those. The
+    // extension wins for the plain-text kinds when the sniff names a kind
+    // this service would refuse.
+    const byExt = filePath ? kindFromExtension(path.basename(filePath)) : null;
+    if (byExt && PLAIN_TEXT_KINDS.has(byExt) && kind !== byExt && REFUSED_SNIFFS.has(kind)) kind = byExt;
 
     if (kind === 'zip' || detected.container === 'ooxml') {
       try {
@@ -472,14 +522,22 @@ export function createDocumentService({ holdBlob }) {
     return { patch: { from: head, removed, blocks: inserted, ...common } };
   }
 
-  function deckModel(session, { slide = 0, width = 960 } = {}) {
+  /**
+   * A deck session's picture blobs and slide thumbnails, kept for the session.
+   *
+   * One blob per picture part: a fifteen-megabyte deck held ten megabytes of
+   * pictures afresh on every operation before this. One thumbnail per slide,
+   * keyed on the slide part's own XML: a slide that changed is drawn again,
+   * the eighteen that did not are not. `thumbnailOf(o, false)` answers from
+   * the cache or not at all — the open model draws the slides near the one
+   * shown and leaves the rest to the window, which asks after its first
+   * paint, so a deck shows its slide before its sidebar is complete rather
+   * than after.
+   */
+  function deckThumbnailer(session) {
     const deck = session.engine;
-    const count = deck.slideCount;
-    const index = Math.max(0, Math.min(slide, Math.max(0, count - 1)));
-    const current = count ? deck.slide(index) : null;
-    // One blob per picture part per session: a fifteen-megabyte deck held
-    // ten megabytes of pictures afresh on every operation before this.
     const blobs = session.blobs || (session.blobs = new Map());
+
     const resolveImage = (shape) => {
       if (!shape.source?.part) return null;
       const known = blobs.get(shape.source.part);
@@ -495,11 +553,12 @@ export function createDocumentService({ holdBlob }) {
     // of nineteen slides must not be drawn nineteen times per keystroke, and
     // a slide that changed must be drawn again.
     const thumbs = session.thumbs || (session.thumbs = new Map());
-    const thumbnailOf = (o) => {
+    const thumbnailOf = (o, compute = true) => {
       try {
         const key = deck.pkg?.text ? deck.pkg.text(o.part) : String(o.index);
         const hit = thumbs.get(o.part);
         if (hit && hit.key === key) return hit.svg;
+        if (!compute) return null;
         const svg = renderThumbnail(deck.slide(o.index), 220, { resolveImage });
         thumbs.set(o.part, { key, svg });
         return svg;
@@ -507,11 +566,21 @@ export function createDocumentService({ holdBlob }) {
         return null;
       }
     };
+    return { resolveImage, thumbnailOf };
+  }
+
+  function deckModel(session, { slide = 0, width = 960 } = {}) {
+    const deck = session.engine;
+    const count = deck.slideCount;
+    const index = Math.max(0, Math.min(slide, Math.max(0, count - 1)));
+    const current = count ? deck.slide(index) : null;
+    const { resolveImage, thumbnailOf } = deckThumbnailer(session);
     return {
       count,
       index,
       size: deck.size,
-      outline: deck.outline().map((o) => ({ ...o, thumbnail: thumbnailOf(o) })),
+      outline: deck.outline().map((o) => ({ ...o, thumbnail: thumbnailOf(o, Math.abs(o.index - index) <= 2) })),
+
       slide: current
         ? {
             ...current,
@@ -703,27 +772,45 @@ export function createDocumentService({ holdBlob }) {
   /* ── the namespace ────────────────────────────────────────────────────── */
 
   return {
-    new: ({ kind = 'doc', template }) => {
+    new: ({ kind = 'doc', template }, win) => {
       const make = TEMPLATES[template] || TEMPLATES[KIND_FOR_APP[kind] || kind] || TEMPLATES.doc;
       const bytes = make();
       const resolved = template && TEMPLATES[template] ? (['budget', 'invoice', 'sheet'].includes(template) ? 'sheet' : ['pitch', 'deck'].includes(template) ? 'deck' : 'doc') : KIND_FOR_APP[kind] || kind;
       const session = new Session({ id: nextId(), kind: resolved, filePath: null, engine: engineFor(resolved, bytes), source: 'new' });
+      session.windowId = win?.id ?? null;
       sessions.set(session.id, session);
+
       return { ...session.meta(), model: modelOf(session) };
     },
 
-    open: ({ path: filePath, width, slide }) => {
+    open: ({ path: filePath, width, slide }, win) => {
       const bytes = fs.readFileSync(filePath);
-      const loaded = load(bytes, filePath);
+      let loaded;
+      let engine;
+      try {
+        loaded = load(bytes, filePath);
+        engine = engineFor(loaded.kind, loaded.bytes);
+      } catch (err) {
+        throw new Error(plainRefusal(err, filePath));
+      }
+
       const session = new Session({
         id: nextId(),
         kind: loaded.kind,
         filePath,
-        engine: engineFor(loaded.kind, loaded.bytes),
+        engine,
+
         source: loaded.source,
         converted: loaded.converted,
       });
+      // The window that opened it: when that window closes, the session goes
+      // with it. Nothing closed a session before this, so every document
+      // ever opened stayed in memory for the life of the application — a
+      // hundred and forty files into a run, the main process stalled for two
+      // minutes.
+      session.windowId = win?.id ?? null;
       sessions.set(session.id, session);
+
       // `slide` matters for a deck: opening a presentation at slide 4 should
       // answer with slide 4, not with slide 1 and a second round trip.
       return { ...session.meta(), model: modelOf(session, { width, slide }) };
@@ -733,6 +820,20 @@ export function createDocumentService({ holdBlob }) {
       sessions.delete(id);
       return true;
     },
+
+    /** Not on the bridge: the main process calls it when a window closes. */
+    /** Close every document a window held open; answers with their ids. */
+    closeWindow: (winId) => {
+      const gone = [];
+      for (const [id, s] of sessions) {
+        if (s.windowId === winId) {
+          sessions.delete(id);
+          gone.push(id);
+        }
+      }
+      return gone;
+    },
+
 
     meta: ({ id }) => get(id).meta(),
 
@@ -853,7 +954,22 @@ export function createDocumentService({ holdBlob }) {
       return holdBlob(pkg.read(ref), 'application/octet-stream', path.basename(ref));
     },
 
+    // The thumbnails an open model left out, drawn on request and cached
+    // with the rest; the window asks a few at a time after its first paint.
+    thumbnails: ({ id, indexes = [] }) => {
+      const session = get(id);
+      if (session.kind !== 'deck') return {};
+      const { thumbnailOf } = deckThumbnailer(session);
+      const out = {};
+      for (const i of indexes) {
+        const part = session.engine.slideParts[i]?.part;
+        if (part) out[i] = thumbnailOf({ index: i, part }, true);
+      }
+      return out;
+    },
+
     sessions: () => [...sessions.values()].map((s) => s.meta()),
+
   };
 
   function exportTo(session, target, format) {

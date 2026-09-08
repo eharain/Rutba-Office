@@ -8,7 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createShell, holdBlob, broadcast } from '@rutba/office-shell/electron/main';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
-import { fileAssociations } from '@rutba/office-formats/registry';
+import { fileAssociations, APPS } from '@rutba/office-formats/registry';
 import { createDocumentService } from './documents.js';
 import { createMailService } from './mail.js';
 import { createUpdateService } from './updates.js';
@@ -30,6 +30,11 @@ createShell({
   rendererDir: path.join(app, 'build', 'out'),
   preloadPath: path.join(app, 'build', 'out', 'preload.cjs'),
   iconPath: path.join(app, 'resources', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
+  // One tile per app for the taskbar (build/make-file-icons.js). The taskbar
+  // reads the file itself, so in a packaged copy it lives unpacked beside
+  // the archive, and the path says so.
+  appIcons: Object.fromEntries(Object.keys(APPS).map((key) => [key, path.join(app, 'resources', 'apps', `${key}.ico`).replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`)])),
+  appNames: Object.fromEntries(Object.entries(APPS).map(([key, a]) => [key, a.name])),
 
   /**
    * Which window a double-clicked file opens. The extension decides, because
@@ -74,6 +79,39 @@ createShell({
    * Neither should ever contact GitHub, so neither starts the updater.
    */
   onReady: async ({ windows, stores }) => {
+    // A check run contacts nothing: not GitHub for updates (never started
+    // here) and not office.rutba.io for the notice board. Its launcher used
+    // to make that request, and an aborted one threw a dialog onto the
+    // owner's screen in the middle of a run.
+    if (process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE) {
+      stores.settings.set('announcements.enabled', false);
+      stores.settings.set('updates.automatic', false);
+    }
+
+    // A closed window frees the documents it opened. The session is the
+    // engine and everything it holds — a deck's pictures, a document's
+    // pages — and nothing let go of it before this.
+    const { app: electronApp, BrowserWindow } = await import('electron');
+    electronApp.on('browser-window-created', (_e, win) => {
+      const id = win.id;
+      win.once('closed', () => {
+        const gone = services.doc?.closeWindow?.(id) ?? [];
+        if (!gone.length) return;
+        // A presenter window shows a deck its editor holds open. With the
+        // editor gone the deck is gone, and a window left showing it would
+        // fail every call it made: the show ends with its editor.
+        for (const other of BrowserWindow.getAllWindows()) {
+          let presenting = null;
+          try {
+            presenting = new URL(other.webContents.getURL()).searchParams.get('presenter');
+          } catch {
+            presenting = null;
+          }
+          if (presenting && gone.includes(presenting)) other.close();
+        }
+      });
+    });
+
     if (process.env.RUTBA_OFFICE_VERIFY_EDIT) {
       const { verifyEditing } = await import('./verify-edit.js');
       const ok = await verifyEditing({ windows, doc: services.doc });
@@ -90,8 +128,17 @@ createShell({
       const { app: electronApp } = await import('electron');
       return electronApp.exit(ok ? 0 : 1);
     }
+    if (process.env.RUTBA_OFFICE_VERIFY_CORPUS) {
+      // Every file in a folder, opened for real, one window at a time.
+      const { verifyCorpus } = await import('./verify-corpus.js');
+      const ok = await verifyCorpus({ windows, doc: services.doc, appForFile: (file) => appFor(kindFromExtension(file)) || 'home' });
+
+      const { app: electronApp } = await import('electron');
+      return electronApp.exit(ok ? 0 : 1);
+    }
     if (process.env.RUTBA_OFFICE_SMOKE) {
       const { runSmoke } = await import('./smoke.js');
+
       const ok = await runSmoke({
         windows,
         outDir: process.env.RUTBA_SMOKE_OUT || path.join(app, 'build', 'smoke'),

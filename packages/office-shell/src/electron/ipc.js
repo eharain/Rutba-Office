@@ -152,6 +152,20 @@ export function buildImplementations({ stores, windows, quitting }) {
       const bytes = await fsp.readFile(p);
       return { bytes: new Uint8Array(bytes), stat: statOf(p) };
     },
+    // The first N bytes: what a header needs. The photo viewer read a whole
+    // fifty-megabyte picture across the bridge to learn its size and its
+    // EXIF, which live in the first quarter megabyte.
+    readHead: async ({ path: p, bytes = 262144 }) => {
+      const handle = await fsp.open(p, 'r');
+      try {
+        const buf = Buffer.alloc(Math.max(0, Number(bytes) || 0));
+        const { bytesRead } = await handle.read(buf, 0, buf.length, 0);
+        return { bytes: new Uint8Array(buf.subarray(0, bytesRead)), stat: statOf(p) };
+      } finally {
+        await handle.close();
+      }
+    },
+
     readText: async ({ path: p, encoding = 'utf8' }) => ({
       text: await fsp.readFile(p, encoding),
       stat: statOf(p),

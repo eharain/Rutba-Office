@@ -98,16 +98,19 @@ export function createAnnouncementService({ stores, broadcast }) {
     url.searchParams.set('os', process.platform);
 
     try {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), TIMEOUT);
+      // Node's own timeout signal, not a hand-rolled abort: aborting a
+      // request whose body stream has already closed makes undici close the
+      // stream a second time and throw ERR_INVALID_STATE outside any catch —
+      // the "JavaScript error occurred in the main process" box.
       const response = await fetch(url, {
-        signal: controller.signal,
+        signal: AbortSignal.timeout(TIMEOUT),
         redirect: 'follow',
         headers: { Accept: 'application/json', 'User-Agent': `RutbaOffice/${app.getVersion()}` },
         // No credentials, no cookies, nothing that could become an identifier.
         credentials: 'omit',
         cache: 'no-store',
-      }).finally(() => clearTimeout(timer));
+      });
+
 
       // The request has now been made, which is the count. Whether it answered
       // usefully is a separate question, and the time is recorded either way so

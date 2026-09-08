@@ -28,6 +28,20 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
  * it happens quickly and honest when it does not: the failure names what never
  * became true instead of describing whatever the state happened to be.
  */
+// Set once the checks start closing their own windows; a close before that is not theirs.
+const closingPhase = { value: false };
+
+/**
+ * Bring a window's page to the front of the keyboard. Off the desktop the
+ * window itself is never activated — that would take the keyboard from
+ * whoever is working at the machine — and the page needs no activation to
+ * take synthetic input.
+ */
+function raise(win) {
+  if (process.env.RUTBA_WINDOW_DISPLAY !== 'offscreen') win.focus();
+  win.webContents.focus();
+}
+
 async function until(condition, what, timeout = 8000) {
   const deadline = Date.now() + timeout;
   for (;;) {
@@ -184,6 +198,11 @@ function makeFixtures(dir) {
 }
 
 export async function verifyApps({ windows, doc }) {
+  // An error that escapes a block would end the run with no summary and no
+  // name. Name it.
+  process.on('unhandledRejection', (e) => console.log(`     [unhandled] ${e?.stack || e}`));
+  process.on('uncaughtException', (e) => console.log(`     [uncaught] ${e?.stack || e}`));
+
   const results = [];
   const opened = [];
   // If the application quits under the run, the run ends with no summary and
@@ -207,13 +226,16 @@ export async function verifyApps({ windows, doc }) {
     });
     // A window that goes away mid-run takes its checks with it and, once the
     // last one goes, the whole run — say which one went, and when.
-    win.on('closed', () => console.log(`     [closed] the ${app} window (#${win.id ?? '?'})`));
+    const id = win.id;
+    // A window closed before the checks close theirs was closed by someone
+    // else — a person at the machine, or a crash — and the check that was
+    // using it fails with "Object has been destroyed".
+    win.on('closed', () => console.log(`     [closed] the ${app} window (#${id}) at ${new Date().toTimeString().slice(0, 8)}${closingPhase.value ? '' : ' — not by the checks'}`));
     win.webContents.on('render-process-gone', (_e, details) => console.log(`     [gone] the ${app} renderer: ${details.reason}`));
     await new Promise((resolve) => {
       win.webContents.once('did-finish-load', () => setTimeout(resolve, 1300));
     });
-    win.focus();
-    win.webContents.focus();
+    raise(win);
     opened.push(win);
     return win;
   };
@@ -222,7 +244,47 @@ export async function verifyApps({ windows, doc }) {
   const errorsIn = (win) =>
     win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent)`);
 
+  /* ── A broken file gets a sentence, not a blank window ───────────────── */
+  //
+  // A truncated deck made the Presentation window throw "rendered fewer
+  // hooks than expected" and show nothing for as long as the person waited:
+  // the error return sat above a hook. Each document app opens a file of
+  // junk here and must show "This file could not be opened" with the reason,
+  // within seconds, with no exception in the console.
+  for (const [appName, ext] of [['word', 'docx'], ['sheets', 'xlsx'], ['slides', 'pptx']]) {
+    try {
+      const broken = path.join(path.dirname(files.docx), `broken.${ext}`);
+      fs.writeFileSync(broken, Buffer.from('this is not a zip archive, whatever the name says. '.repeat(400)));
+      const win = await open(appName, broken);
+      const consoleErrors = [];
+      win.webContents.on('console-message', (_e, level, text) => { if (level >= 2) consoleErrors.push(String(text).slice(0, 120)); });
+      await until(() => win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-empty h3')].some((h) => /could not be opened/i.test(h.textContent))`), 'the refusal to show', 6000).catch(() => {});
+      const shown = await win.webContents.executeJavaScript(`(() => {
+        const h = [...document.querySelectorAll('.rw-empty h3')].find((x) => /could not be opened/i.test(x.textContent));
+        return { refused: Boolean(h), reason: h ? (h.parentElement.textContent || '').replace(h.textContent, '').trim().slice(0, 80) : null, spinner: Boolean(document.querySelector('.rw-spinner')) };
+      })()`);
+      check(`${appName}: a broken file gets "could not be opened" and a reason, not a blank window`, shown.refused && shown.reason && !shown.spinner && consoleErrors.length === 0, `${JSON.stringify(shown)}${consoleErrors.length ? `; console: ${consoleErrors[0]}` : ''}`);
+    } catch (err) {
+      check(`${appName}: the broken-file check ran`, false, err.message);
+    }
+  }
+
+  // The owner file Word keeps beside an open document: 162 bytes named after
+  // it with "~$" in front. The corpus run over a Downloads folder began with
+  // four of them, each called a stopped download.
+  try {
+    const owner = path.join(path.dirname(files.docx), '~$report.docx');
+    fs.writeFileSync(owner, Buffer.alloc(162, 7));
+    const win = await open('word', owner);
+    await until(() => win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-empty h3')].some((h) => /could not be opened/i.test(h.textContent))`), 'the refusal to show', 6000).catch(() => {});
+    const reason = await win.webContents.executeJavaScript(`(document.querySelector('.rw-empty')?.textContent || '').slice(0, 300)`);
+    check('word: an owner file is called what it is, and names the document to open instead', /owner file/.test(reason) && /Open report.docx itself/.test(reason), JSON.stringify(reason.slice(0, 120)));
+  } catch (err) {
+    check('word: the owner-file check ran', false, err.message);
+  }
+
   /* ── Word: open, type, save in place, reopen from disk ───────────────── */
+
 
   try {
     const win = await open('word', files.docx);
@@ -270,8 +332,7 @@ export async function verifyApps({ windows, doc }) {
     // has it, land nowhere, and the check fails describing a save that was
     // never asked to happen.
     await until(async () => {
-      win.focus();
-      win.webContents.focus();
+      raise(win);
       return win.webContents.executeJavaScript(
         `(() => { const g = document.querySelector('.sh'); if (!g) return false; g.focus(); return document.activeElement === g; })()`
       );
@@ -289,8 +350,7 @@ export async function verifyApps({ windows, doc }) {
     let attempts = 0;
     while (!typed() && attempts < 3) {
       attempts++;
-      win.focus();
-      win.webContents.focus();
+      raise(win);
       await win.webContents.executeJavaScript(`document.querySelector('.sh')?.focus(), 'ok'`);
       for (let i = 0; i < 4; i++) await press(win.webContents, 'Down');
       await typeText(win.webContents, '99');
@@ -1242,13 +1302,19 @@ export async function verifyApps({ windows, doc }) {
 
   /* ── Presentation, Pictures, Image, Video, Mail: pressed, not driven ──── */
 
-  const clickIn = (win, title) => win.webContents.executeJavaScript(`(() => {
-    const b = [...document.querySelectorAll('.rw-btn, .ml-compose-cta button')].find((n) => (n.title || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled);
+  const clickIn = async (win, title) => {
+    const find = `[...document.querySelectorAll('.rw-btn, .ml-compose-cta button')].find((n) => (n.title || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+    // A tab's buttons arrive a render after the tab is chosen — later on a
+    // loaded machine — and a fixed pause was missing them.
+    await until(() => win.webContents.executeJavaScript(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
+    return win.webContents.executeJavaScript(`(() => {
+    const b = ${find};
     if (!b) return 'no button ' + ${JSON.stringify(title)};
     b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
     b.click();
     return 'clicked';
   })()`);
+  };
   const clickMenu = (win, label) => win.webContents.executeJavaScript(`(() => {
     const item = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
     if (!item) return 'no menu item ' + ${JSON.stringify(label)};
@@ -1507,7 +1573,9 @@ export async function verifyApps({ windows, doc }) {
   try {
     const win = await open('video', files.wav);
     const js = (code) => win.webContents.executeJavaScript(code);
-    await until(() => js(`document.querySelectorAll('.vd-clip').length > 0`), 'the timeline', 8000);
+    // The media element decodes on its own schedule; with a corpus run on
+    // the same machine it once took past eight seconds.
+    await until(() => js(`document.querySelectorAll('.vd-clip').length > 0`), 'the timeline', 20000);
     // Move the playhead to the middle with the scrubber, then split there.
     await js(`(() => {
       const s = document.querySelector('.vd-scrub');
@@ -1570,6 +1638,9 @@ export async function verifyApps({ windows, doc }) {
       const framed = await js(`(() => { const f = document.querySelector('.ml-body iframe'); return f ? f.getAttribute('sandbox') : null; })()`);
       check('mail: the body is framed with no privileges', framed === '', `sandbox is ${JSON.stringify(framed)}`);
 
+      // The strip is written once the body has been inspected, a moment after
+      // the pane paints — a longer moment on a loaded machine.
+      await until(async () => (await js(`document.querySelector('.ml-strip')?.textContent ?? ''`)).trim().length > 0, 'the message strip', 5000).catch(() => {});
       const strip = await js(`document.querySelector('.ml-strip')?.textContent ?? ''`);
       // Exactly two: the open pixel and the analytics beacon. The sender's own
       // 180-pixel logo is remote too, and is not a tracker — counting it would
@@ -1703,7 +1774,252 @@ export async function verifyApps({ windows, doc }) {
     check('mail: the checks ran', false, err.message);
   }
 
+  /* ── Journeys: the things a person does between the buttons ──────────── */
+  //
+  // Escape leaves a dialog with nothing changed; a window at its smallest
+  // size still shows everything without a sideways scroll; the launcher
+  // lists what was opened; Ctrl+F1 folds the ribbon and unfolds it.
+
+  try {
+    const win = await open('sheets', files.xlsx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`Boolean(document.querySelector('.sh-cell.active'))`), 'an active cell', 6000);
+    const before = await js(`document.querySelector('.sh-cell.active')?.dataset.ref || null`);
+    await press(win.webContents, 'G', { modifiers: ['control'] });
+    await until(() => js(`Boolean(document.querySelector('.rw-dialog input'))`), 'the Go To dialog', 4000).catch(() => {});
+    const opened = await js(`Boolean(document.querySelector('.rw-dialog input'))`);
+    await js(`(() => { const i = document.querySelector('.rw-dialog input'); if (i) { i.focus(); i.value = 'Z99'; i.dispatchEvent(new Event('input', { bubbles: true })); } return 'typed'; })()`);
+    await press(win.webContents, 'Escape');
+    await until(() => js(`!document.querySelector('.rw-dialog')`), 'the dialog to close', 4000).catch(() => {});
+    const after = await js(`({ dialog: Boolean(document.querySelector('.rw-dialog')), ref: document.querySelector('.sh-cell.active')?.dataset.ref || null })`);
+    check('journeys: Escape closes the Go To dialog and moves nothing', opened && !after.dialog && after.ref === before, `dialog ${opened} then ${after.dialog}; selection ${before} then ${after.ref}`);
+
+    await win.setSize(720, 520);
+    await wait(500);
+    const small = await js(`(() => {
+      const d = document.documentElement;
+      const status = document.querySelector('.rw-status');
+      const tabs = document.querySelector('.rw-tabs');
+      return { w: innerWidth, h: innerHeight, sideways: d.scrollWidth - d.clientWidth, status: status ? status.getBoundingClientRect().bottom <= innerHeight + 1 : false, tabs: tabs ? tabs.scrollWidth >= tabs.clientWidth : false };
+    })()`);
+    check('journeys: a window at its minimum size has no sideways scroll and keeps its status bar', small.sideways <= 1 && small.status && small.tabs, JSON.stringify(small));
+    await win.setSize(1280, 860);
+  } catch (err) {
+    check('journeys: the sheets journey ran', false, err.message);
+  }
+
+  try {
+    const win = await open('slides', files.pptx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`Boolean(document.querySelector('.sl-svg'))`), 'the slide', 6000);
+    await clickTab(win, 'Review');
+    await wait(150);
+    await clickIn(win, 'Speaker Notes');
+    await until(() => js(`Boolean(document.querySelector('.rw-dialog textarea'))`), 'the notes dialog', 4000).catch(() => {});
+    const opened = await js(`Boolean(document.querySelector('.rw-dialog textarea'))`);
+    await setField(win, '.rw-dialog textarea', 'Not to be kept.');
+    await press(win.webContents, 'Escape');
+    await until(() => js(`!document.querySelector('.rw-dialog')`), 'the dialog to close', 4000).catch(() => {});
+    const closed = await js(`!document.querySelector('.rw-dialog')`);
+    const notes = await win.webContents.executeJavaScript(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'deck').pop(); const m = await window.rutbaOffice.doc.model({ id: mine.id, slide: 0, width: 640 }); return m.slide?.notes || ''; })()`);
+    check('journeys: Escape closes the Speaker Notes dialog and keeps the notes as they were', opened && closed && !/Not to be kept/.test(notes), `dialog ${opened}, closed ${closed}; notes ${JSON.stringify(notes.slice(0, 40))}`);
+
+    await win.setSize(720, 520);
+    await wait(500);
+    const small = await js(`(() => { const d = document.documentElement; return { sideways: d.scrollWidth - d.clientWidth, slide: Boolean(document.querySelector('.sl-svg')), status: Boolean(document.querySelector('.rw-status')) }; })()`);
+    check('journeys: the presentation window at its minimum size still shows the slide', small.sideways <= 1 && small.slide && small.status, JSON.stringify(small));
+    await win.setSize(1280, 860);
+  } catch (err) {
+    check('journeys: the slides journey ran', false, err.message);
+  }
+
+  try {
+    const win = await open('word', files.docx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`Boolean(document.querySelector('.wd-block'))`), 'the page', 6000);
+    await press(win.webContents, 'F1', { modifiers: ['control'] });
+    await until(() => js(`Boolean(document.querySelector('.rw-ribbon.collapsed'))`), 'the ribbon to fold', 3000).catch(() => {});
+    const folded = await js(`({ collapsed: Boolean(document.querySelector('.rw-ribbon.collapsed')), groups: document.querySelectorAll('.rw-groups').length })`);
+    await press(win.webContents, 'F1', { modifiers: ['control'] });
+    await until(() => js(`!document.querySelector('.rw-ribbon.collapsed')`), 'the ribbon to unfold', 3000).catch(() => {});
+    const unfolded = await js(`({ collapsed: Boolean(document.querySelector('.rw-ribbon.collapsed')), groups: document.querySelectorAll('.rw-groups').length })`);
+    check('journeys: Ctrl+F1 folds the ribbon and folds it back', folded.collapsed && folded.groups === 0 && !unfolded.collapsed && unfolded.groups === 1, `folded ${JSON.stringify(folded)}; unfolded ${JSON.stringify(unfolded)}`);
+
+    await win.setSize(720, 520);
+    await wait(500);
+    const small = await js(`(() => { const d = document.documentElement; const page = document.querySelector('.wd-page'); return { sideways: d.scrollWidth - d.clientWidth, page: Boolean(page), status: Boolean(document.querySelector('.rw-status')) }; })()`);
+    check('journeys: the Word window at its minimum size still shows the page without a sideways scroll', small.sideways <= 1 && small.page && small.status, JSON.stringify(small));
+    await win.setSize(1280, 860);
+  } catch (err) {
+    check('journeys: the Word journey ran', false, err.message);
+  }
+
+  try {
+    const win = await open('home');
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`document.querySelectorAll('.home-recent-row').length >= 3`), 'the recent list', 8000).catch(() => {});
+    const recent = await js(`[...document.querySelectorAll('.home-recent-row')].map((r) => r.textContent.trim().slice(0, 60))`);
+    const names = recent.join(' | ');
+    check('journeys: the launcher lists the files this run opened', recent.length >= 3 && /report\.docx/.test(names) && /sales\.xlsx/.test(names) && /deck\.pptx/.test(names), `${recent.length} rows: ${names.slice(0, 200)}`);
+  } catch (err) {
+    check('journeys: the launcher journey ran', false, err.message);
+  }
+
+  /* ── A presenter window ends with its editor ─────────────────────────── */
+  //
+  // The presenter shows the deck its editor holds open. Closing the editor
+  // used to leave the presenter up, failing every call it made.
+  try {
+    const editor = await open('slides', files.pptx);
+    const deckId = await editor.webContents.executeJavaScript(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); return all.filter((s) => s.kind === 'deck').pop().id; })()`);
+    const presenter = windows.create({ app: 'slides', query: { presenter: deckId } });
+    opened.push(presenter);
+    await new Promise((resolve) => presenter.webContents.once('did-finish-load', () => setTimeout(resolve, 800)));
+    closingPhase.value = true;
+    editor.close();
+    await until(() => presenter.isDestroyed(), 'the presenter window to close with its editor', 5000).catch(() => {});
+    closingPhase.value = false;
+    check('journeys: closing the editor closes the presenter window on the same deck', presenter.isDestroyed(), presenter.isDestroyed() ? 'closed together' : 'the presenter stayed open on a deck that is no longer there');
+  } catch (err) {
+    closingPhase.value = false;
+    check('journeys: the presenter-close check ran', false, err.message);
+  }
+
+  /* ── Real input: the mouse and the keyboard, not element clicks ──────── */
+  //
+  // Every other check clicks elements and calls dispatch. The owner's report
+  // was about what a person does: click a cell and it is not selected, press
+  // an arrow and nothing moves, press a shortcut and nothing happens. So
+  // these drive the windows with the same events a mouse and a keyboard
+  // send, and read the engine to see where they landed.
+
+  const mouse = async (win, selector, { at = 'centre' } = {}) => {
+    // A cell is named by its reference ("D5"): an empty cell has no element
+    // of its own, so the point comes from the column and row headers, the
+    // way an eye finds it. Anything else is an element to hit in the middle.
+    const box = await win.webContents.executeJavaScript(`(() => {
+      const sel = ${JSON.stringify(selector)};
+      const cell = /^cell:([A-Z]+)([0-9]+)$/.exec(sel);
+      if (cell) {
+        const col = [...document.querySelectorAll('.sh-colheads .sh-head')].find((h) => h.textContent.trim() === cell[1]);
+        const row = [...document.querySelectorAll('.sh-rowheads .sh-head')].find((h) => h.textContent.trim() === cell[2]);
+        if (!col || !row) return null;
+        const c = col.getBoundingClientRect(); const r = row.getBoundingClientRect();
+        return { x: c.left + c.width / 2, y: r.top + r.height / 2, w: c.width, h: r.height, under: (document.elementFromPoint(c.left + c.width / 2, r.top + r.height / 2) || {}).className || null };
+      }
+      const el = document.querySelector(sel); if (!el) return null; const r = el.getBoundingClientRect();
+      return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height };
+    })()`);
+    if (!box) return null;
+
+    const x = Math.round(at === 'left' ? box.x - box.w / 4 : box.x);
+    const y = Math.round(box.y);
+    win.webContents.sendInputEvent({ type: 'mouseMove', x, y });
+    win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
+    win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
+    await wait(120);
+    return box;
+  };
+
+  try {
+    const win = await open('sheets', files.xlsx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`Boolean(document.querySelector('.sh-cell.active'))`), 'an active cell', 6000);
+    const active = () => js(`document.querySelector('.sh-cell.active')?.dataset.ref || null`);
+    const focused = () => js(`(document.activeElement && (document.activeElement.className || document.activeElement.tagName)) || 'none'`);
+    const session = () => win.webContents.executeJavaScript(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); return all.filter((s) => s.kind === 'sheet').pop().id; })()`);
+    const cellText = async (ref) => { const id = await session(); return win.webContents.executeJavaScript(`(async () => { const m = await window.rutbaOffice.doc.model({ id: ${JSON.stringify(id)} }); const c = (m.cells || []).find((x) => x.ref === ${JSON.stringify(ref)}); return c ? String(c.text ?? '') : ''; })()`); };
+
+    // A real click on D5 selects D5.
+    const clicked = await mouse(win, 'cell:D5');
+    await until(async () => (await active()) === 'D5', 'the click to select D5', 3000).catch(() => {});
+    const afterClick = await active();
+    // Arrow keys move the selection: Right to E5, Down to E6.
+    await press(win.webContents, 'Right');
+    await press(win.webContents, 'Down');
+    await until(async () => (await active()) === 'E6', 'the arrows to reach E6', 3000).catch(() => {});
+    const afterArrows = await active();
+    // Typing lands in E6 and Enter commits it and moves down.
+    await typeText(win.webContents, '4321');
+    await press(win.webContents, 'Return');
+    await until(async () => (await cellText('E6')) === '4321', 'the value to land in E6', 4000).catch(() => {});
+    const landed = await cellText('E6');
+    const afterEnter = await active();
+    check('real input: a click selects the cell, the arrows move it, typing lands, Enter moves down', Boolean(clicked) && afterClick === 'D5' && afterArrows === 'E6' && landed === '4321' && afterEnter === 'E7', `click → ${afterClick}; arrows → ${afterArrows}; E6 = ${JSON.stringify(landed)}; after Enter ${afterEnter}; focus ${await focused()}`);
+
+    // A real click on the ribbon's Bold, then typing: the keys must still go
+    // to the grid. A button that kept focus would swallow them.
+    await mouse(win, '.rw-btn[title^="Bold"]');
+    await typeText(win.webContents, '77');
+    await press(win.webContents, 'Return');
+    await until(async () => (await cellText('E7')) === '77', 'the value typed after the ribbon click to land', 4000).catch(() => {});
+    const afterRibbon = await cellText('E7');
+    check('real input: typing after a ribbon click still goes to the grid', afterRibbon === '77', `E7 = ${JSON.stringify(afterRibbon)}; focus ${await focused()}`);
+
+    // The formula bar: click it, type, Enter — the value lands and the keys
+    // go back to the grid, as they do in Excel.
+    await mouse(win, 'cell:B9');
+    await until(async () => (await active()) === 'B9', 'B9 to be selected', 3000).catch(() => {});
+    const bar = await mouse(win, '.sh-formula input, .sh-formula-input');
+    if (bar) {
+      await typeText(win.webContents, 'hello');
+      await press(win.webContents, 'Return');
+      await until(async () => (await cellText('B9')) === 'hello', 'the formula bar entry to land', 4000).catch(() => {});
+      await press(win.webContents, 'Down');
+      await wait(150);
+      check('real input: Enter in the formula bar commits and hands the keys back to the grid', (await cellText('B9')) === 'hello' && (await active()) === 'B11', `B9 = ${JSON.stringify(await cellText('B9'))}; after Enter, Down: ${await active()}; focus ${await focused()}`);
+    } else {
+      check('real input: the formula bar is there to click', false, 'no formula bar input found');
+    }
+  } catch (err) {
+    check('real input: the Worksheets journey ran', false, err.message);
+  }
+
+  try {
+    const win = await open('word', files.docx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`Boolean(document.querySelector('.wd-block'))`), 'the page', 6000);
+    const session = () => win.webContents.executeJavaScript(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); return all.filter((s) => s.kind === 'doc').pop().id; })()`);
+    const block = async (i) => { const id = await session(); return win.webContents.executeJavaScript(`(async () => { const m = await window.rutbaOffice.doc.model({ id: ${JSON.stringify(id)} }); const b = m.blocks[${i}]; return { text: b?.text || '', bold: (b?.runs || []).some((r) => r.bold), italic: (b?.runs || []).some((r) => r.italic) }; })()`); };
+    const before = await block(0);
+    // A real click at the end of the first paragraph, then typing.
+    await mouse(win, '[data-block="0"]', { at: 'right' });
+    await js(`(() => { const p = document.querySelector('[data-block="0"]'); const r = document.createRange(); r.selectNodeContents(p); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return 'caret'; })()`);
+    await typeText(win.webContents, ' Typed.');
+    await until(async () => /Typed\./.test((await block(0)).text), 'the typing to reach the engine', 4000).catch(() => {});
+    const typed = await block(0);
+    check('real input: a click into the page and typing reach the engine', typed.text.length > before.text.length && /Typed\./.test(typed.text), `text ${JSON.stringify(typed.text.slice(-24))}`);
+
+    // Ctrl+B by keyboard on a selection, then a real click on Italic.
+    await js(`(() => { const p = document.querySelector('[data-block="0"]'); const r = document.createRange(); r.selectNodeContents(p); const s = getSelection(); s.removeAllRanges(); s.addRange(r); return 'selected'; })()`);
+    await press(win.webContents, 'B', { modifiers: ['control'] });
+    await until(async () => (await block(0)).bold, 'Ctrl+B to reach the engine', 4000).catch(() => {});
+    const bolded = await block(0);
+    // The selection a person makes: a real drag across the second paragraph,
+    // then a real click on the ribbon's Italic. The button must not take the
+    // selection with it.
+    const drag = await js(`(() => { const p = document.querySelector('[data-block="1"]'); if (!p) return null; const r = p.getBoundingClientRect(); return { x1: r.left + 4, y1: r.top + r.height / 2, x2: r.left + Math.min(r.width - 4, 260), y2: r.top + r.height / 2 }; })()`);
+    if (drag) {
+      const wc = win.webContents;
+      wc.sendInputEvent({ type: 'mouseMove', x: Math.round(drag.x1), y: Math.round(drag.y1) });
+      wc.sendInputEvent({ type: 'mouseDown', x: Math.round(drag.x1), y: Math.round(drag.y1), button: 'left', clickCount: 1 });
+      for (let i = 1; i <= 6; i++) wc.sendInputEvent({ type: 'mouseMove', x: Math.round(drag.x1 + ((drag.x2 - drag.x1) * i) / 6), y: Math.round(drag.y1), button: 'left', buttons: 1 });
+      wc.sendInputEvent({ type: 'mouseUp', x: Math.round(drag.x2), y: Math.round(drag.y2), button: 'left', clickCount: 1 });
+      await wait(250);
+    }
+    const selectedBefore = await js(`(() => { const s = getSelection(); return { collapsed: s.isCollapsed, text: s.toString().slice(0, 30) }; })()`);
+    await mouse(win, '.rw-btn[title^="Italic"]');
+    const selectedAfter = await js(`(() => { const s = getSelection(); return { collapsed: s.isCollapsed, text: s.toString().slice(0, 30), focus: (document.activeElement && (document.activeElement.className || document.activeElement.tagName)) || 'none' }; })()`);
+    await until(async () => (await block(1)).italic, 'the Italic button to reach the engine', 4000).catch(() => {});
+    const italic = await block(1);
+    check('real input: Ctrl+B on a selection, and a real drag then a real click on Italic, both reach the engine', bolded.bold && italic.italic, `bold ${bolded.bold}; italic ${italic.italic}; drag ${JSON.stringify(drag)}; selection before click ${JSON.stringify(selectedBefore)}, after ${JSON.stringify(selectedAfter)}`);
+  } catch (err) {
+    check('real input: the Word journey ran', false, err.message);
+  }
+
   /* ── Last of all: a dirty window refuses to close ─────────────────────── */
+
+
   //
   // Unsaved work must not close. Type to make a fresh document dirty, ask the
   // window to close, and check that it refused — the prompt is on screen and
@@ -1744,7 +2060,8 @@ export async function verifyApps({ windows, doc }) {
     check('word: the dirty-close check ran', false, err.message);
   }
 
-  for (const win of opened) win.destroy();
+  closingPhase.value = true;
+  for (const win of opened) if (!win.isDestroyed()) win.destroy();
   fs.rmSync(dir, { recursive: true, force: true });
 
   const failed = results.filter((r) => !r.ok);

@@ -10,7 +10,7 @@
 // Window position and size are remembered per app, not per document: reopening
 // a spreadsheet should land where your spreadsheets live.
 
-import { BrowserWindow, screen, nativeTheme } from 'electron';
+import { app, BrowserWindow, screen, nativeTheme } from 'electron';
 import path from 'node:path';
 import { SCHEME, encodePath } from './protocol.js';
 
@@ -28,7 +28,7 @@ const GEOMETRY = {
   video: { width: 1400, height: 880, minWidth: 900, minHeight: 600 },
 };
 
-export function createWindowManager({ stores, preloadPath, iconPath, onWindowEvent, confirmClose }) {
+export function createWindowManager({ stores, preloadPath, iconPath, appIcons = {}, appNames = {}, appUserModelId = null, onWindowEvent, confirmClose }) {
   /** @type {Map<number, { app: string, file: string|null, dirty: boolean, name: string, closing: boolean }>} */
   const meta = new Map();
 
@@ -68,6 +68,19 @@ export function createWindowManager({ stores, preloadPath, iconPath, onWindowEve
     return others.sort((a, b) => b.workArea.width * b.workArea.height - a.workArea.width * a.workArea.height)[0];
   }
 
+  /**
+   * A spot to the right of every display: on no screen, in nobody's way, and
+   * still rendered and typed into — Chromium's occlusion tracker is told not
+   * to count it as hidden (office-shell main.js). A check run puts its
+   * windows here so that nobody at the machine closes the stack by hand,
+   * which took two runs with it, and so that the windows never take the
+   * keyboard from whoever is working.
+   */
+  function offscreenOrigin() {
+    const right = Math.max(...screen.getAllDisplays().map((d) => d.bounds.x + d.bounds.width));
+    return { x: right + 100, y: 100 };
+  }
+
   function create({ app: appKey = 'home', file = null, query = null, parentId = null } = {}) {
 
     const geo = GEOMETRY[appKey] || GEOMETRY.home;
@@ -83,6 +96,7 @@ export function createWindowManager({ stores, preloadPath, iconPath, onWindowEve
     // created there rather than moved there: a move between displays of
     // different scale factors rescales the window once on the way.
     const away = process.env.RUTBA_WINDOW_DISPLAY === 'secondary' ? secondaryDisplay() : null;
+    const hidden = process.env.RUTBA_WINDOW_DISPLAY === 'offscreen' ? offscreenOrigin() : null;
     const wanted = {
       width: forced ? Number(forced[1]) : saved?.width ?? geo.width,
       height: forced ? Number(forced[2]) : saved?.height ?? geo.height,
@@ -94,14 +108,15 @@ export function createWindowManager({ stores, preloadPath, iconPath, onWindowEve
     const win = new BrowserWindow({
       width: size.width,
       height: size.height,
-      x: away ? away.workArea.x + Math.floor((away.workArea.width - size.width) / 2) : saved?.x,
-      y: away ? away.workArea.y + Math.floor((away.workArea.height - size.height) / 2) : saved?.y,
+      x: hidden ? hidden.x : away ? away.workArea.x + Math.floor((away.workArea.width - size.width) / 2) : saved?.x,
+      y: hidden ? hidden.y : away ? away.workArea.y + Math.floor((away.workArea.height - size.height) / 2) : saved?.y,
 
       minWidth: geo.minWidth,
       minHeight: geo.minHeight,
       show: false,
+      skipTaskbar: Boolean(hidden),
       backgroundColor: dark ? '#161719' : '#f3f3f5',
-      icon: iconPath,
+      icon: appIcons[appKey] || iconPath,
       title: 'Rutba Office',
       autoHideMenuBar: true,
       frame: false,
@@ -125,7 +140,27 @@ export function createWindowManager({ stores, preloadPath, iconPath, onWindowEve
 
 
 
-    win.once('ready-to-show', () => win.show());
+    // On Windows each app is its own taskbar identity: a Word window and a
+    // Worksheets window group under different icons, and each can be pinned
+    // and relaunched on its own, as Office's apps can. The launcher keeps
+    // the suite's identity. The icon path has to be a file on disk — the
+    // taskbar reads it, not Electron.
+    if (process.platform === 'win32' && appUserModelId && appKey !== 'home' && appIcons[appKey]) {
+      const exe = process.execPath;
+      const relaunch = app.isPackaged ? `"${exe}" --app=${appKey}` : `"${exe}" "${app.getAppPath()}" --app=${appKey}`;
+      try {
+        win.setAppDetails({
+          appId: `${appUserModelId}.${appKey}`,
+          appIconPath: appIcons[appKey],
+          appIconIndex: 0,
+          relaunchCommand: relaunch,
+          relaunchDisplayName: appNames[appKey] || 'Rutba Office',
+        });
+      } catch {
+        // An identity is a nicety; a window without one still opens.
+      }
+    }
+    win.once('ready-to-show', () => (hidden ? win.showInactive() : win.show()));
 
     const pushState = () => {
       if (win.isDestroyed()) return;

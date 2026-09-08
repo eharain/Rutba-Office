@@ -53,6 +53,9 @@ export default function Sheets({ app, shell, boot }) {
   });
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
   const gridRef = useRef(null);
+  /** The element that takes the keys: the grid's own container. */
+  const shRef = useRef(null);
+
   const editorRef = useRef(null);
   const menu = useMenu();
   const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.() });
@@ -583,7 +586,7 @@ export default function Sheets({ app, shell, boot }) {
           <Spinner style={{ width: 22, height: 22 }} />
         </div>
       ) : (
-        <div className={`sh${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => el && !editing && document.activeElement === document.body && el.focus()}>
+        <div className={`sh${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
           <style>{CSS}</style>
 
           <div className="sh-formula" hidden={view.formulaBar === false}>
@@ -599,13 +602,24 @@ export default function Sheets({ app, shell, boot }) {
                 }
               }}
               onKeyDown={(e) => {
-                if (e.key === 'Enter') commitDraft('down');
+                // Enter, Tab and Escape finish with the bar and hand the keys
+                // back to the grid, as Excel does. The bar kept focus after
+                // Enter, so the next arrow key moved the caret in the bar
+                // and the selection did not move — "the focus was not
+                // moving with my keys".
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                  e.preventDefault();
+                  commitDraft(e.key === 'Tab' ? (e.shiftKey ? 'left' : 'right') : e.shiftKey ? 'up' : 'down');
+                  shRef.current?.focus();
+                }
                 if (e.key === 'Escape') {
                   setDraft(null);
                   dispatch({ op: 'cancelEdit' });
+                  shRef.current?.focus();
                 }
               }}
               style={{ flex: 1, border: 0, background: 'transparent' }}
+
             />
           </div>
 

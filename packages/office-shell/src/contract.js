@@ -38,6 +38,8 @@ export const METHODS = {
   ],
   fs: [
     'read',         // ({ path }) -> { bytes: Uint8Array, stat }
+    'readHead',     // ({ path, bytes }) -> { bytes: Uint8Array, stat } — the first N bytes only, for a header
+
     'readText',     // ({ path, encoding }) -> { text, stat }
     'write',        // ({ path, bytes }) -> { stat }
     'writeText',    // ({ path, text }) -> { stat }
@@ -87,6 +89,8 @@ export const METHODS = {
     'open',         // ({ path, kind }) -> { id, kind, model, meta }
     'close',        // ({ id }) -> void
     'meta',         // ({ id }) -> meta
+    'thumbnails',   // ({ id, indexes }) -> { [index]: svg | null } — a deck's slide thumbnails the open model left out
+
     'model',        // ({ id, part }) -> model
     'apply',        // ({ id, ops }) -> { version, model?, patch? }
     'viewport',     // ({ id, sheet, top, left, rows, cols }) -> { cells, geometry }

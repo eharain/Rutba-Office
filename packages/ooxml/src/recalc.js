@@ -25,13 +25,73 @@ import { OoxmlPackage } from './package.js';
  * Load a workbook's cells and defined names into a calculation model.
  * @returns {{sheet: Spreadsheet, cells: Array}}
  */
+/** Rows beyond which a formula-free sheet stays in its part rather than in the model. */
+const LAZY_ROWS = 20000;
+
+/** A formula-free sheet's cells and extent, read from the part as asked for. */
+function lazyProvider(wb, part) {
+  return {
+    cell(row, col) {
+      const raw = part.getCell(row, col);
+      if (!raw) return null;
+      const value = wb._cellValue(raw);
+      return value == null ? null : { value, input: value };
+    },
+    bounds() {
+      const m = /<dimension\b[^>]*\bref="([^"]+)"/.exec(part.prefix || '');
+      if (m) {
+        const [a, b] = m[1].split(':');
+        try {
+          const end = parseRef((b || a).replace(/\$/g, ''));
+          return { maxRow: end.row, maxCol: end.col };
+        } catch {
+          /* a dimension we cannot read is no dimension */
+        }
+      }
+      // No dimension hint: the last row's index, and the widest row's last
+      // cell — one lastIndexOf per row, a second on a million rows, done once.
+      if (this._scanned) return this._scanned;
+      let maxRow = 0;
+      let maxCol = 0;
+      for (const r of part.rows) {
+        if (r.index > maxRow) maxRow = r.index;
+        const at = r.inner.lastIndexOf('<c r="');
+        if (at < 0) continue;
+        const m = /^([A-Z]+)/.exec(r.inner.slice(at + 6, at + 12));
+        if (m) {
+          try {
+            const col = parseRef(m[1] + '1').col;
+            if (col > maxCol) maxCol = col;
+          } catch {
+            /* not a reference */
+          }
+        }
+      }
+      this._scanned = { maxRow, maxCol };
+      return this._scanned;
+
+    },
+  };
+}
+
 export function toSpreadsheet(wb, { now } = {}) {
+
   const sheet = new Spreadsheet({ now });
   const loaded = [];
 
   for (const { name } of wb.sheets()) {
     sheet.addSheet(name);
     const { part } = wb._sheetPart(name);
+
+    // A big sheet with no formula has nothing to calculate. Copying its cells
+    // in here — eighteen million of them, on one sample-data workbook — took
+    // twenty seconds and two gigabytes before the window could paint. It is
+    // answered from its own part on demand instead; see Spreadsheet.addLazySheet.
+    if (part.rows.length > LAZY_ROWS && !part.rows.some((r) => r.inner.includes('<f'))) {
+      sheet.addLazySheet(name, lazyProvider(wb, part));
+      continue;
+    }
+
 
     // Pass 1: the ranges covered by array formulas (`<f t="array" ref>` —
     // ours or Excel's). The cells an array covers carry cached VALUES with

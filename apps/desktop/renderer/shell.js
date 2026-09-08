@@ -155,7 +155,8 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
   }, [shell]);
 
   useEffect(() => {
-    shell.win.setTitle({ title: `${title ? `${title} — ` : ''}${app?.name || 'Rutba Office'}` }).catch(() => {});
+    shell.win.setTitle({ title: `${title ? `${title} — ` : ''}${app?.name || 'Rutba Office'} (beta)` }).catch(() => {});
+
     shell.win.setDocumentEdited({ edited: Boolean(dirty) }).catch(() => {});
   }, [title, dirty, app, shell]);
 

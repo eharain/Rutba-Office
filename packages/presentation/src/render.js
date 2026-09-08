@@ -39,12 +39,17 @@ function gradientDef(fill, id) {
 }
 
 /** The preset geometries that actually appear in decks, as SVG. */
-function shapePath(preset, { x, y, w, h }, custom = null) {
+function shapePath(preset, { x, y, w, h }, custom = null, { simplify = false } = {}) {
   const r = Math.min(w, h);
   // A custom geometry: its path, scaled from the path's own box onto the
   // shape's, in the coordinates themselves — no transform attribute, so the
   // caller's rotation still applies cleanly.
   if (preset === 'custom' && custom?.d) {
+    // A thumbnail of a vector map with a hundred thousand points is a
+    // hundred thousand points in a 220-pixel box: half a second to draw and
+    // invisible when drawn. The sidebar leaves such a shape out.
+    if (simplify && custom.d.length > 20000) return null;
+
     const sx = w / (custom.w || 1);
     const sy = h / (custom.h || 1);
     const d = custom.d.replace(/([MLCQAZ])([^MLCQAZ]*)/g, (_, op, args) => {
@@ -303,7 +308,8 @@ function tableSvg(shape, opts) {
  * @param {{ width?: number, resolveImage?: (shape) => string|null, standalone?: boolean, selection?: string }} [opts]
  */
 export function renderSlide(slide, opts = {}) {
-  const { width: outWidth, resolveImage, standalone = true } = opts;
+  const { width: outWidth, resolveImage, standalone = true, simplify = false } = opts;
+
   const W = slide.size?.width || 960;
   const H = slide.size?.height || 540;
   const scale = outWidth ? outWidth / W : 1;
@@ -356,7 +362,9 @@ export function renderSlide(slide, opts = {}) {
 
     const fill = registerFill(shape.fill);
     const line = shape.line;
-    const geom = shapePath(shape.preset, g, shape.path || null);
+    const geom = shapePath(shape.preset, g, shape.path || null, { simplify });
+    if (!geom) continue;
+
     const strokeBits = line && line.type !== 'none' && line.color
       ? ` stroke="${line.color}" stroke-width="${(line.width || 1).toFixed(2)}"${line.dash ? ` stroke-dasharray="${line.dash === 'dash' ? '6 4' : '2 3'}"` : ''}`
       : '';
@@ -380,5 +388,6 @@ export function renderSlide(slide, opts = {}) {
 
 /** A thumbnail: the same drawing, smaller, with a border the sorter can show. */
 export function renderThumbnail(slide, width = 240, opts = {}) {
-  return renderSlide(slide, { ...opts, width });
+  return renderSlide(slide, { simplify: true, ...opts, width });
 }
+

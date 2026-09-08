@@ -29,6 +29,7 @@ module.exports = async () => {
       'build/out/**/*',
       'resources/icon.png',
       'resources/icon.ico',
+      'resources/apps/*.ico',
       'package.json',
       '!**/*.map',
       '!**/test/**',
@@ -37,13 +38,27 @@ module.exports = async () => {
     ],
 
     asar: true,
+    // The taskbar reads an app's icon straight from disk, so the tiles sit
+    // beside the archive rather than inside it.
+    asarUnpack: ['resources/apps/*.ico'],
     // The engines read their own sources at runtime through the package
     // exports; nothing needs unpacking, and an asar makes cold start faster.
     compression: 'maximum',
     removePackageScripts: true,
     npmRebuild: false,
 
-    fileAssociations: fileAssociations(),
+    // Each type wears the icon of the app that opens it — a Word document
+    // looks like a document, a workbook like a grid — rather than the
+    // suite's one mark on everything. The icons come from
+    // build/make-file-icons.js, one per family, into resources/filetypes.
+    // The owning app decides the icon and is then dropped: electron-builder
+    // validates each association against its own schema and refuses a config
+    // carrying a property it does not know, which is a build that never runs.
+    fileAssociations: fileAssociations().map(({ app: owner, ...a }) => ({
+      ...a,
+      icon: path.resolve(__dirname, 'resources', 'filetypes', `${a.ext === 'pdf' ? 'pdf' : owner}.ico`),
+    })),
+
 
     protocols: [{ name: 'Rutba Office', schemes: ['rutba-office'] }],
 

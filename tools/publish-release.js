@@ -117,7 +117,10 @@ async function main() {
         name: `Rutba Office ${tag.replace(/^v/, '')}`,
         body: NOTES,
         draft: false,
-        prerelease: false,
+        // Beta: every release is a pre-release until the owner says otherwise
+        // (RUTBA_RELEASE_FINAL=1 publishes a full release).
+        prerelease: process.env.RUTBA_RELEASE_FINAL !== '1',
+
       },
     });
     console.log(`\ncreated release #${release.id}`);

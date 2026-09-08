@@ -264,7 +264,8 @@ function HomeStatus({ version, recent, shell, update }) {
   const open = (url) => shell.shell.openExternal({ url });
   return (
     <>
-      <span>Rutba Office{version ? ` ${version.version}` : ''}</span>
+      <span>Rutba Office{version ? ` ${version.version}` : ''} beta</span>
+
       {/* The footer is where somebody looks for who made this and how to ask. */}
       <a className="home-link" href={SITE.home} onClick={(e) => { e.preventDefault(); open(SITE.home); }}>
         office.rutba.io

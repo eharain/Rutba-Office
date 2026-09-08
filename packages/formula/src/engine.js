@@ -33,6 +33,9 @@ export class Spreadsheet {
   constructor({ now = () => new Date() } = {}) {
     /** @type {Map<string, Map<string, object>>} sheet -> cellKey -> cell */
     this.sheets = new Map();
+    /** Sheets answered by a provider rather than held here — see addLazySheet. */
+    this.lazy = new Map();
+
     /** @type {Map<string, {sheet: string|null, start: object, end: object}>} */
     this.names = new Map();
     /** @type {Map<string, object>} UPPER table name -> {sheet, top, left, bottom, right, headerRows, totalsRows, columns, name} */
@@ -80,6 +83,27 @@ export class Spreadsheet {
     return this;
   }
   sheetNames() { return [...this.sheets.keys()]; }
+
+  /**
+   * A sheet whose cells live somewhere else until asked for.
+   *
+   * A workbook of eighteen million plain values and no formula was being
+   * copied, cell by cell, into this model before its window could paint:
+   * twenty seconds and two gigabytes in node, two minutes in the
+   * application. A sheet like that has nothing to calculate. It is
+   * registered with a PROVIDER — `cell(row, col)` answering `{ value, input }`
+   * or null from the file's own part, `bounds()` answering `{ maxRow, maxCol }`
+   * — and the model holds only what is written to it afterwards. An edit
+   * overlays the provider; a cleared cell leaves a tombstone so the file's
+   * value does not show through; formulas read through `cell()` like any
+   * other, so `SUM` over the provider's cells works.
+   */
+  addLazySheet(name, provider) {
+    this.addSheet(name);
+    this.lazy.set(name, provider);
+    return this;
+  }
+
   _sheet(name) {
     const s = this.sheets.get(name);
     if (!s) throw new Error('no such sheet: ' + name);
@@ -97,13 +121,17 @@ export class Spreadsheet {
     const k = key(sheetName, row, col);
 
     if (isBlank(input)) {
-      cells.delete(k);
+      // On a lazy sheet a cleared cell is a tombstone, or the file's own
+      // value would show through the gap.
+      if (this.lazy.has(sheetName)) cells.set(k, { sheet: sheetName, row, col, input: '', formula: null, ast: null, value: '', error: null, tombstone: true });
+      else cells.delete(k);
       this.volatileCells.delete(k);
       this.spills.delete(k);
       this._touch();
       this._invalidate(sheetName, row, col);
       return this;
     }
+
 
     const isFormula = typeof input === 'string' && input.startsWith('=');
     const cell = { sheet: sheetName, row, col, input, formula: null, ast: null, value: null, error: null };
@@ -140,8 +168,14 @@ export class Spreadsheet {
 
   /** Stored cell record, or null. */
   cell(sheetName, row, col) {
-    return this.sheets.get(sheetName)?.get(key(sheetName, row, col)) ?? null;
+    const own = this.sheets.get(sheetName)?.get(key(sheetName, row, col));
+    if (own) return own.tombstone ? null : own;
+    const provider = this.lazy.get(sheetName);
+    if (!provider) return null;
+    const p = provider.cell(row, col);
+    return p ? { sheet: sheetName, row, col, input: p.input ?? p.value ?? '', formula: null, ast: null, value: p.value ?? '', error: null, lazy: true } : null;
   }
+
 
   /** A spilled value covering a cell that holds nothing of its own. */
   spillValueAt(sheetName, row, col) {
@@ -224,9 +258,16 @@ export class Spreadsheet {
       if (s.left + s.w - 1 > maxCol) maxCol = s.left + s.w - 1;
     }
 
+    const provided = this.lazy.get(sheetName)?.bounds?.();
+    if (provided) {
+      maxRow = Math.max(maxRow, provided.maxRow || 0);
+      maxCol = Math.max(maxCol, provided.maxCol || 0);
+    }
+
     const bounds = { maxRow, maxCol };
     this._boundsCache.set(sheetName, { revision: this.revision, bounds });
     return bounds;
+
   }
 
   resolver() {

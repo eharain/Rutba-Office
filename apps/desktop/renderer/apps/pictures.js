@@ -147,8 +147,10 @@ export default function Pictures({ app, shell, boot }) {
     setFrozen(false);
     (async () => {
       try {
-        const { bytes, stat } = await shell.fs.read({ path: current });
-        const head = bytes.slice(0, 262144);
+        // The header only: the picture itself reaches the screen through the
+        // file URL, and its size and EXIF live in the first quarter megabyte.
+        const { bytes: head, stat } = await shell.fs.readHead({ path: current, bytes: 262144 });
+
         const { probeImage } = await import('@rutba/imaging/probe');
         const { readExif, describeExif, orientationOf } = await import('@rutba/imaging/exif');
         const { probeMedia } = await import('@rutba/media/probe');

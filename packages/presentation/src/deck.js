@@ -300,21 +300,31 @@ export class Deck {
     return result;
   }
 
-  /** Every slide, thumbnail-shaped: enough to draw a sorter without the parts. */
+  /**
+   * Every slide, thumbnail-shaped: enough to draw a sorter without the parts.
+   *
+   * Read from the slide XML directly, not from the scene. The outline is
+   * asked for at open, and building nineteen scenes with their layouts and
+   * masters cost 2.6 seconds on a fifteen-megabyte deck before the window
+   * could paint anything. A title placeholder's text, a count of shapes and
+   * the notes text need none of that: a few milliseconds a slide, whatever
+   * the deck weighs.
+   */
   outline() {
     return this.slideParts.map((entry, i) => {
-      const scene = this.slide(i);
-      const title = scene.shapes.find((s) => s.placeholder?.type === 'title' || s.placeholder?.type === 'ctrTitle');
-      const body = title?.text || title?.inheritedText;
+      const xml = this.pkg.text(entry.part);
+      const rels = this.#relMap(entry.part);
+      const notesPart = [...rels.values()].find((r) => r.type === REL.notes && this.pkg.has(r.resolved))?.resolved || null;
       return {
         index: i,
         part: entry.part,
-        title: body ? body.paragraphs.map((p) => p.runs.map((r) => r.text).join('')).join(' ').trim() : '',
-        shapes: scene.shapes.length,
-        notes: scene.notes,
+        title: outlineTitle(xml),
+        shapes: (xml.match(/<p:(sp|pic|graphicFrame|grpSp|cxnSp)\b/g) || []).length,
+        notes: notesPart ? plainTextOf(this.pkg.text(notesPart)) : '',
       };
     });
   }
+
 
   /** Bytes of an image part, for the renderer to show. */
   media(partName) {
@@ -749,7 +759,37 @@ export class Deck {
   }
 }
 
+const unescapeXml = (s) =>
+  String(s)
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&amp;/g, '&');
+
+/** Every run of text in a fragment, as one line. */
+function plainTextOf(xml) {
+  return [...String(xml).matchAll(/<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/g)]
+    .map((m) => unescapeXml(m[1]))
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** The text of a slide's title placeholder, straight from its XML. */
+function outlineTitle(xml) {
+  for (const m of String(xml).matchAll(/<p:sp\b[^>]*>[\s\S]*?<\/p:sp>/g)) {
+    if (!/<p:ph\b[^>]*\btype="(?:title|ctrTitle)"/.test(m[0])) continue;
+    const text = plainTextOf(m[0]);
+    if (text) return text;
+  }
+  return '';
+}
+
 /** What PowerPoint calls each preset, for the shape's name. */
+
 const PRESET_NAMES = {
   rect: 'Rectangle', roundRect: 'Rectangle: Rounded Corners', ellipse: 'Oval', triangle: 'Isosceles Triangle',
   rtTriangle: 'Right Triangle', diamond: 'Diamond', parallelogram: 'Parallelogram', trapezoid: 'Trapezoid',
