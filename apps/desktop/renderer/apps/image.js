@@ -91,6 +91,11 @@ export default function ImageTool({ app, shell, boot }) {
   const [ratio, setRatio] = useState(null);
   const [tab, setTab] = useState('home');
   const [busy, setBusy] = useState(false);
+  // The file that would not decode, and why. A toast says it once and fades,
+  // and the window then shows "No picture open" — which is what it says when
+  // you have not opened anything, so a person who just double-clicked a file
+  // is told nothing happened rather than what happened.
+  const [failed, setFailed] = useState(null);
   const canvasRef = useRef(null);
   const stageRef = useRef(null);
   const openFileRef = useRef(null);
@@ -104,6 +109,7 @@ export default function ImageTool({ app, shell, boot }) {
   const load = useCallback(
     async (target) => {
       setBusy(true);
+      setFailed(null);
       try {
         const info = await shell.fs.stat({ path: target });
         const img = new Image();
@@ -121,6 +127,7 @@ export default function ImageTool({ app, shell, boot }) {
         setCrop(null);
         shell.app.addRecent({ path: target, app: 'image' }).catch(() => {});
       } catch (err) {
+        setFailed(`${basename(target)}: ${err.message}`);
         toast(err.message, { tone: 'bad' });
       } finally {
         setBusy(false);
@@ -291,7 +298,12 @@ export default function ImageTool({ app, shell, boot }) {
         </>
       }
     >
-      {!image ? (
+      {!image && failed && !busy ? (
+        <Empty icon="image" title="This file could not be opened">
+          {failed}
+          <Button primary icon="open" label="Open another" onClick={openFile} style={{ marginTop: 12 }} />
+        </Empty>
+      ) : !image ? (
         <Empty icon="image" title={busy ? 'Opening…' : 'No picture open'}>
           {busy ? null : 'Open a picture, or drop one onto this window. Nothing is changed until you export.'}
           {busy ? <Spinner /> : <Button primary icon="open" label="Open a picture" onClick={openFile} style={{ marginTop: 12 }} />}

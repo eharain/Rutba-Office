@@ -155,11 +155,13 @@ export function buildImplementations({ stores, windows, quitting }) {
     // The first N bytes: what a header needs. The photo viewer read a whole
     // fifty-megabyte picture across the bridge to learn its size and its
     // EXIF, which live in the first quarter megabyte.
-    readHead: async ({ path: p, bytes = 262144 }) => {
+    // `offset` because a header is not always at the front: an MP4 written by
+    // a camera keeps the atom that holds its duration at the END of the file.
+    readHead: async ({ path: p, bytes = 262144, offset = 0 }) => {
       const handle = await fsp.open(p, 'r');
       try {
         const buf = Buffer.alloc(Math.max(0, Number(bytes) || 0));
-        const { bytesRead } = await handle.read(buf, 0, buf.length, 0);
+        const { bytesRead } = await handle.read(buf, 0, buf.length, Math.max(0, Number(offset) || 0));
         return { bytes: new Uint8Array(buf.subarray(0, bytesRead)), stat: statOf(p) };
       } finally {
         await handle.close();
@@ -323,6 +325,12 @@ export function installIpc(impls) {
         try {
           return await fn(payload ?? {}, win);
         } catch (err) {
+          // A window that has gone cannot be answered, and its last request
+          // failing is not a fault: the documents it held were freed the
+          // moment it closed, so a viewport request already in flight lands
+          // on a session that is no longer there. Every closed window logged
+          // a stack for it. Nothing is waiting for the answer either.
+          if (!win || win.isDestroyed() || event.sender.isDestroyed()) return null;
           // Errors cross IPC as a plain shape; an Error instance loses its
           // message on the way and the renderer shows "an object".
           const wrapped = new Error(err?.message || String(err));

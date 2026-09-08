@@ -86,6 +86,11 @@ export default function Pictures({ app, shell, boot }) {
 
   // Animated stills can be held still.
   const [frozen, setFrozen] = useState(false);
+  // The file that would not decode. A toast says it once and fades; the
+  // window then holds a frame with nothing in it, which reads as the
+  // application having lost the picture. The stage says so instead, and keeps
+  // saying it, and the corpus check can see it.
+  const [failed, setFailed] = useState(null);
   const imgRef = useRef(null);
   const freezeRef = useRef(null);
   const mediaRef = useRef(null);
@@ -145,16 +150,29 @@ export default function Pictures({ app, shell, boot }) {
     if (!current) return undefined;
     let alive = true;
     setFrozen(false);
+    setFailed(null);
     (async () => {
       try {
         // The header only: the picture itself reaches the screen through the
         // file URL, and its size and EXIF live in the first quarter megabyte.
-        const { bytes: head, stat } = await shell.fs.readHead({ path: current, bytes: 262144 });
+        //
+        // Video and sound need more of it, and sometimes from the other end.
+        // An MP4 keeps its duration in the moov atom, which sits at the END
+        // of every file a camera or an ordinary encoder writes unless it was
+        // asked to move it to the front. A quarter megabyte of the front
+        // finds nothing there, and the panel showed no length at all.
+        const media = kindOf(current) === 'video' || kindOf(current) === 'audio';
+        const want = media ? 4 * 1024 * 1024 : 262144;
+        const { bytes: head, stat } = await shell.fs.readHead({ path: current, bytes: want });
 
         const { probeImage } = await import('@rutba/imaging/probe');
         const { readExif, describeExif, orientationOf } = await import('@rutba/imaging/exif');
         const { probeMedia } = await import('@rutba/media/probe');
-        const probe = probeImage(head) || probeMedia(head);
+        let probe = probeImage(head) || probeMedia(head);
+        if (media && !probe?.duration && stat.size > want) {
+          const { bytes: tail } = await shell.fs.readHead({ path: current, bytes: want, offset: stat.size - want });
+          probe = probeMedia(tail) || probe;
+        }
         const exif = readExif(head);
         if (alive) setDetails({ stat, probe, exif, rows: describeExif(exif), orientation: orientationOf(exif) });
       } catch {
@@ -466,6 +484,12 @@ export default function Pictures({ app, shell, boot }) {
                 ? 'Pick a file from the list, or press the play button to run through them.'
                 : 'Open a folder, or drop pictures, video or animations onto this window.'}
             </Empty>
+          ) : failed === current ? (
+            <Empty icon="pictures" title="This file could not be opened">
+              {failed === current && isMedia
+                ? `${basename(current)} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.`
+                : `${basename(current)} could not be decoded as a picture. It may be a download that stopped early, or a file with the wrong extension.`}
+            </Empty>
           ) : kind === 'pdf' ? (
             <embed src={fileUrl(current)} type="application/pdf" className="pv-pdf" />
           ) : isMedia ? (
@@ -483,7 +507,7 @@ export default function Pictures({ app, shell, boot }) {
               controls
               autoPlay={playing}
               onEnded={() => playing && step(1)}
-              onError={() => toast('This file could not be played.', { tone: 'bad' })}
+              onError={() => { setFailed(current); toast('This file could not be played.', { tone: 'bad' }); }}
             />
           ) : (
             <>
@@ -498,7 +522,7 @@ export default function Pictures({ app, shell, boot }) {
                   height: zoom ? 'auto' : undefined,
                 }}
                 draggable={false}
-                onError={() => toast('This picture could not be decoded.', { tone: 'bad' })}
+                onError={() => { setFailed(current); toast('This picture could not be decoded.', { tone: 'bad' }); }}
               />
               {/* The held frame of an animation, drawn once and shown in its place. */}
               <canvas ref={freezeRef} className={`pv-image${frozen ? '' : ' hidden'}`} style={{ transform: `rotate(${rotation}deg)` }} />

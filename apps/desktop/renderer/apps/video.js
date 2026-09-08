@@ -31,6 +31,11 @@ export default function VideoTool({ app, shell, boot }) {
   const [rate, setRate] = useState(1);
   const [tab, setTab] = useState('home');
   const [exporting, setExporting] = useState(null);
+  // What the decoder said, when it refused. Without this a file the operating
+  // system cannot decode — a RIFF header with nothing behind it, a clip in a
+  // codec this machine has no decoder for — left the window empty for as long
+  // as the person waited: no timeline, no message, nothing to act on.
+  const [error, setError] = useState(null);
   const videoRef = useRef(null);
   const openFileRef = useRef(null);
   const appMenu = useAppMenu({ shell, appKey: 'video', onOpen: () => openFileRef.current?.() });
@@ -41,6 +46,7 @@ export default function VideoTool({ app, shell, boot }) {
         const info = await shell.fs.stat({ path: target });
         setStat(info);
         setPath(target);
+        setError(null);
         setTimeline(null);
         setSelected(null);
         setTime(0);
@@ -320,6 +326,11 @@ export default function VideoTool({ app, shell, boot }) {
           Open a video or an audio file, or drop one onto this window.
           <Button primary icon="open" label="Open media" onClick={openFile} style={{ marginTop: 12 }} />
         </Empty>
+      ) : error ? (
+        <Empty icon="video" title="This file could not be opened">
+          {error}
+          <Button icon="open" label="Open another" onClick={openFile} style={{ marginTop: 12 }} />
+        </Empty>
       ) : (
         <Content>
           <div className="vd-stage">
@@ -334,6 +345,19 @@ export default function VideoTool({ app, shell, boot }) {
               className={isAudio ? 'vd-hidden' : 'vd-video'}
               src={fileUrl(path)}
               onLoadedMetadata={onMetadata}
+              // The decoder's own verdict, in a sentence. MediaError carries a
+              // number and nothing a person can read.
+              onError={(e) => {
+                const code = e.currentTarget?.error?.code ?? 0;
+                const name = basename(path);
+                setError(
+                  code === 3
+                    ? `${name} is damaged: the decoder stopped part way through it.`
+                    : code === 2
+                      ? `${name} could not be read from disk.`
+                      : `${name} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.`
+                );
+              }}
               // Not while a seek is pending: the element still reports the old
               // position then, and taking it would snap the playhead back to
               // where it was before the drag.
