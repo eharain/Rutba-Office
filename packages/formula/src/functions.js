@@ -52,6 +52,11 @@ function aggregateNumbers(args) {
         // text and blanks in a range are skipped
       }
     } else {
+      // A reference to an empty cell is not a zero. Blanks inside a RANGE were
+      // skipped above and a lone one was not, so =COUNT(A1) on an empty cell
+      // answered 1 and =AVERAGE(A1) answered 0 where Excel answers #DIV/0! —
+      // the difference between "nothing here" and "nothing here, counted".
+      if (isBlank(arg)) continue;
       const n = toNumber(arg);
       if (isError(n)) return n;
       out.push(n);

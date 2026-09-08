@@ -1046,3 +1046,26 @@ test('a range wholly past the used cells is blank, not the last row that holds s
   assert.equal(s.getValue('S', 4, 0), 27, 'a range that does cover the data still sums it');
   assert.equal(s.getValue('S', 5, 0), 27, 'a whole column still sums what it holds');
 });
+
+test('a reference to an empty cell is nothing, not a zero', () => {
+  // Blanks inside a range were skipped and a lone one was not: =COUNT(A1) on
+  // an empty cell answered 1, and =AVERAGE(A1) answered 0 where Excel answers
+  // #DIV/0!. The difference matters wherever a sheet asks whether a cell has
+  // been filled in yet.
+  const s = new Spreadsheet();
+  s.addSheet('S');
+  s.setCell('S', 0, 0, 5); // A1
+  const at = (formula) => {
+    s.setCell('S', 2, 0, formula);
+    s.recalculate();
+    return s.getValue('S', 2, 0);
+  };
+  assert.equal(at('=COUNT(F1)'), 0, 'an empty cell counts as nothing');
+  assert.equal(at('=COUNT(A1)'), 1, 'a number still counts');
+  assert.equal(at('=COUNT(A1,F1)'), 1);
+  assert.equal(String(at('=AVERAGE(F1)')), '#DIV/0!', 'there is nothing to average');
+  assert.equal(at('=AVERAGE(A1,F1)'), 5, 'and a blank is not a zero in the mean');
+  assert.equal(at('=SUM(A1,F1)'), 5);
+  assert.equal(at('=MIN(A1,F1)'), 5, 'nor in the minimum');
+  assert.equal(at('=SUM(1,2,3)'), 6, 'ordinary arguments are untouched');
+});
