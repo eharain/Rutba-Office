@@ -237,6 +237,151 @@ export function FindDialog({ onClose, onReplaceAll }) {
   );
 }
 
+/* ── date and time ───────────────────────────────────────────────────────── */
+
+/** The formats Word offers, produced by the system's own locale. */
+const DATE_FORMATS = [
+  (d) => d.toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }),
+  (d) => d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }),
+  (d) => d.toLocaleDateString(),
+  (d) => d.toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' }),
+  (d) => d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }),
+  (d) => d.toISOString().slice(0, 10),
+  (d) => d.toLocaleString(undefined, { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+  (d) => d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }),
+  (d) => d.toLocaleTimeString(),
+];
+
+export function DateTimeDialog({ onClose, onInsert }) {
+  const now = new Date();
+  return (
+    <Dialog title="Date and time" width={420} onClose={onClose} actions={<Button label="Cancel" onClick={onClose} />}>
+      <p style={{ marginTop: 0, fontSize: 12.5 }}>Inserted as text, in your own language and region.</p>
+      <div className="ml-found">
+        {DATE_FORMATS.map((fmt, i) => {
+          const text = fmt(now);
+          return (
+            <button key={i} type="button" className="ml-found-item" style={{ padding: '7px 12px' }} onClick={() => onInsert(text)}>
+              <span className="grow"><div className="who" style={{ fontWeight: 500 }}>{text}</div></span>
+              <Icon name="chevronRight" size={13} />
+            </button>
+          );
+        })}
+      </div>
+    </Dialog>
+  );
+}
+
+/* ── symbols ─────────────────────────────────────────────────────────────── */
+
+const SYMBOLS = [
+  ['Common', '— – … • · © ® ™ § ¶ † ‡ ° ± × ÷ ≠ ≤ ≥ ≈ ∞ √ ∑ ∏ ∆ µ « » “ ” ‘ ’ ‹ › ¡ ¿'],
+  ['Currency', '€ £ $ ¥ ₹ ₽ ₩ ₺ ₪ ¢ ₫ ₴ ₦ ₱'],
+  ['Arrows', '← → ↑ ↓ ↔ ↕ ⇐ ⇒ ⇑ ⇓ ⇔ ↩ ↪ ➜ ➔ ➤'],
+  ['Marks', '✓ ✔ ✗ ✘ ☐ ☑ ☒ ★ ☆ ♥ ♦ ♣ ♠ ♪ ♫ ☎ ✉ ⚠ ⚡ ☀ ☁ ☂'],
+  ['Greek', 'α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ σ τ υ φ χ ψ ω Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω'],
+  ['Fractions and numbers', '½ ⅓ ⅔ ¼ ¾ ⅛ ⅜ ⅝ ⅞ ¹ ² ³ ⁴ ⁿ ₀ ₁ ₂ ₃ ①  ② ③ ④ ⑤'],
+  ['Letters', 'à á â ä å æ ç è é ê ë ì í î ï ñ ò ó ô ö ø ù ú û ü ý ÿ ß À Á Â Ä Å Æ Ç È É Ê Ë Ñ Ö Ø Ü'],
+];
+
+export function SymbolDialog({ onClose, onInsert }) {
+  const [set, setSet] = useState(0);
+  const chars = SYMBOLS[set][1].split(/\s+/).filter(Boolean);
+  return (
+    <Dialog title="Symbol" width={520} onClose={onClose} actions={<Button label="Close" onClick={onClose} />}>
+      <div className="ml-filters" style={{ flexWrap: 'wrap', marginBottom: 10 }}>
+        {SYMBOLS.map(([label], i) => (
+          <button key={label} type="button" className={`ml-filter${set === i ? ' on' : ''}`} onClick={() => setSet(i)}>{label}</button>
+        ))}
+      </div>
+      <div className="wd-symbols">
+        {chars.map((c, i) => (
+          <button key={`${c}${i}`} type="button" className="wd-symbol" title={`U+${c.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`} onClick={() => onInsert(c)}>
+            {c}
+          </button>
+        ))}
+      </div>
+      <p className="rw-hint">Click a symbol to insert it at the caret. The dialog stays open for the next one.</p>
+    </Dialog>
+  );
+}
+
+/* ── properties ──────────────────────────────────────────────────────────── */
+
+export function PropertiesDialog({ doc, model, onClose }) {
+  const blocks = model?.blocks || [];
+  const words = blocks.reduce((n, b) => n + ((b.text || (b.runs || []).map((r) => r.text).join('')).match(/[^\s]+/g) || []).length, 0);
+  const section = model?.section;
+  return (
+    <Dialog title="Properties" width={460} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
+      <dl className="about-list">
+        <dt>Name</dt><dd>{doc?.name || '—'}</dd>
+        <dt>Location</dt><dd style={{ wordBreak: 'break-all' }}>{doc?.path || 'Not saved yet'}</dd>
+        <dt>Format</dt><dd>{doc?.source ? doc.source.toUpperCase() : 'DOCX'}{doc?.converted?.from ? ` (opened from ${doc.converted.from.toUpperCase()})` : ''}</dd>
+        <dt>Paragraphs</dt><dd>{blocks.filter((b) => !b.container).length.toLocaleString()}</dd>
+        <dt>Words</dt><dd>{words.toLocaleString()}</dd>
+        <dt>Tables</dt><dd>{new Set(blocks.map((b) => (b.container || '').split(':')[0]).filter(Boolean)).size}</dd>
+        <dt>Pictures</dt><dd>{blocks.reduce((n, b) => n + (b.images?.length || 0), 0)}</dd>
+        <dt>Comments</dt><dd>{(model?.comments || []).length}</dd>
+        <dt>Page</dt><dd>{section ? `${Math.round((section.widthPx / 96) * 25.4)} × ${Math.round((section.heightPx / 96) * 25.4)} mm, ${section.orientation}` : '—'}</dd>
+        <dt>Styles</dt><dd>{(model?.styles || []).length}</dd>
+        <dt>Unsaved changes</dt><dd>{doc?.dirty ? 'Yes' : 'No'}</dd>
+      </dl>
+    </Dialog>
+  );
+}
+
+/* ── shortcuts ───────────────────────────────────────────────────────────── */
+
+const SHORTCUTS = [
+  ['Ctrl+N', 'New document'], ['Ctrl+O', 'Open'], ['Ctrl+S', 'Save'], ['Ctrl+Shift+S', 'Save as'], ['Ctrl+P', 'Print'],
+  ['Ctrl+Z / Ctrl+Y', 'Undo / Redo'], ['Ctrl+X / C / V', 'Cut / Copy / Paste'], ['Ctrl+A', 'Select all'], ['Ctrl+F', 'Find and replace'],
+  ['Ctrl+B / I / U', 'Bold / Italic / Underline'], ['Ctrl+K', 'Link'], ['Ctrl+Enter', 'Page break'],
+  ['F11', 'Full screen'], ['Esc', 'Leave full screen'],
+];
+
+export function ShortcutsDialog({ onClose }) {
+  return (
+    <Dialog title="Keyboard shortcuts" width={440} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
+      <dl className="about-list">
+        {SHORTCUTS.map(([keys, what]) => (
+          <React.Fragment key={keys}>
+            <dt><kbd>{keys}</kbd></dt>
+            <dd>{what}</dd>
+          </React.Fragment>
+        ))}
+      </dl>
+    </Dialog>
+  );
+}
+
+/* ── the reviewing pane ──────────────────────────────────────────────────── */
+
+/** Every tracked change the document carries, read from the file. */
+export function TrackedDialog({ blocks, onClose, onGoto }) {
+  const changed = (blocks || []).filter((b) => b.tracked);
+  return (
+    <Dialog title="Tracked changes" width={560} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
+      {changed.length ? (
+        <div className="ml-import-folders" style={{ maxHeight: 340 }}>
+          {changed.map((b) => (
+            <button key={b.index} type="button" className="ml-found-item" style={{ border: 0, borderBottom: '1px solid var(--line-soft)', borderRadius: 0 }} onClick={() => onGoto(b.index)}>
+              <span className="ml-found-logo"><Icon name="eye" size={14} /></span>
+              <span className="grow">
+                <div className="who">{typeof b.tracked === 'object' ? (b.tracked.author || 'Someone') : 'Changed'}{typeof b.tracked === 'object' && b.tracked.date ? ` · ${formatWhen(b.tracked.date)}` : ''}</div>
+                <div className="what">{(b.text || (b.runs || []).map((r) => r.text).join('')).slice(0, 120) || '(empty paragraph)'}</div>
+              </span>
+            </button>
+          ))}
+        </div>
+      ) : (
+        <Empty icon="eye" title="No tracked changes">This document has none recorded.</Empty>
+      )}
+      <p className="rw-hint">Shown as the file records them. Recording new ones, and accepting or rejecting, is not built yet.</p>
+    </Dialog>
+  );
+}
+
 /* ── word count ──────────────────────────────────────────────────────────── */
 
 /**

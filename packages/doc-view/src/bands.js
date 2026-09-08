@@ -30,7 +30,10 @@
  * @param {number} pageNumber  1-based
  */
 export function bandForPage(bands, pageNumber, { titlePage = false, evenAndOdd = false } = {}) {
-  if (titlePage && pageNumber === 1 && bands.first) return bands.first;
+  // A title page takes the first-page band and NOTHING else: when the file
+  // defines none, Word leaves page 1 blank rather than reaching for the
+  // default — which is how a cover page has no running header.
+  if (titlePage && pageNumber === 1) return bands.first ?? null;
   if (evenAndOdd && pageNumber % 2 === 0 && bands.even) return bands.even;
   return bands.default ?? bands.even ?? bands.first ?? null;
 }

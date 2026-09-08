@@ -80,7 +80,7 @@ export class OoxmlBackend {
   setRunProp(rPr, prop, value) { return withRunProp(rPr, prop, value); }
 
   /** Read family/size/colour back off an rPr — the toolbar's caret state. */
-  readRunProps(rPr) { return readRunProps(rPr); }
+  readRunProps(rPr) { return readRunProps(rPr, typeof this.doc.themeFonts === 'function' ? this.doc.themeFonts() : null); }
 
   /**
    * Read a paragraph's alignment, left indentation and named style — the
@@ -233,6 +233,8 @@ export class OoxmlBackend {
   setBandText(which, lines) { this.doc.setBandText(which, lines); return this; }
   /** Paragraph styles resolved from styles.xml — flattened, CSS pixels. */
   paragraphStyles() { return this.doc.paragraphStyles(); }
+  /** Footnotes and endnotes by id, displayed paragraphs each — see `Document.notes`. */
+  notes() { return this.doc.notes(); }
   /** Numbering definitions: numId -> levels. Labels are the view's to count. */
   numberingDefs() { return this.doc.numberingDefs(); }
 
@@ -354,15 +356,29 @@ function withRunProp(rPr, prop, value) {
   if (prop === 'highlight') {
     return withElement(rPr, 'highlight', value == null ? null : '<w:highlight w:val="' + normaliseHighlight(value) + '"/>');
   }
+  if (prop === 'vertAlign') {
+    if (value != null && value !== 'superscript' && value !== 'subscript') throw new Error('vertAlign is superscript, subscript or null');
+    return withElement(rPr, 'vertAlign', value == null ? null : '<w:vertAlign w:val="' + value + '"/>');
+  }
   throw new Error('unknown run property: ' + prop);
 }
 
 /** Family/size/colour/highlight off an rPr — the inverse of `withRunProp`. */
-function readRunProps(rPr) {
+function readRunProps(rPr, themeFonts = null) {
   const out = { fontName: null, fontSize: null, fontColour: null, highlight: null };
   if (!rPr) return out;
   const font = /<w:rFonts\b[^>]*\bw:ascii="([^"]*)"/.exec(rPr);
   if (font) out.fontName = unesc(font[1]);
+  else if (themeFonts) {
+    // Named through the theme instead — the heading or the body face.
+    const slot = /<w:rFonts\b[^>]*\bw:asciiTheme="([^"]*)"/.exec(rPr);
+    if (slot) out.fontName = slot[1].startsWith('major') ? themeFonts.major : themeFonts.minor;
+  }
+  // Superscript and subscript — a footnote reference, a squared metre.
+  const vert = /<w:vertAlign\b[^>]*\bw:val="([^"]*)"/.exec(rPr);
+  if (vert && vert[1] !== 'baseline') out.vertAlign = vert[1];
+  if (/<w:caps\b(?![^>]*w:val="(?:0|false)")/.test(rPr)) out.caps = true;
+  if (/<w:smallCaps\b(?![^>]*w:val="(?:0|false)")/.test(rPr)) out.smallCaps = true;
   const sz = /<w:sz\b[^>]*\bw:val="([^"]*)"/.exec(rPr);
   if (sz && /^\d+$/.test(sz[1])) out.fontSize = Number(sz[1]) / 2;
   const colour = /<w:color\b[^>]*\bw:val="([^"]*)"/.exec(rPr);

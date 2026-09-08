@@ -44,30 +44,131 @@ function readProps(styleXml) {
   const sz = val(rPr, 'w:sz');
   const spacing = first(pPr, 'w:spacing');
   const ind = first(pPr, 'w:ind');
+  const fonts = first(rPr, 'w:rFonts');
   const out = {
     bold: toggle(rPr, 'w:b'),
     italic: toggle(rPr, 'w:i'),
+    underline: (() => {
+      const u = first(rPr, 'w:u');
+      if (!u) return undefined;
+      const v = attrs(u)['w:val'];
+      return v !== 'none' && v !== '0';
+    })(),
+    caps: toggle(rPr, 'w:caps'),
+    smallCaps: toggle(rPr, 'w:smallCaps'),
     sizePx: sz !== null ? halfPointsToPx(sz) : undefined,
     colour: (() => {
       const c = val(rPr, 'w:color');
       return c && c !== 'auto' ? '#' + c.toLowerCase() : undefined;
     })(),
+    // A font is named outright (`w:ascii`) or by theme slot (`w:asciiTheme`);
+    // the slot is kept as a marker and resolved against the theme once every
+    // chain is flattened — see `readParagraphStyles`.
+    fontName: (() => {
+      if (!fonts) return undefined;
+      const a = attrs(fonts);
+      if (a['w:ascii']) return a['w:ascii'];
+      if (a['w:hAnsi']) return a['w:hAnsi'];
+      const slot = a['w:asciiTheme'] || a['w:hAnsiTheme'];
+      if (slot) return slot.startsWith('major') ? THEME_MAJOR : THEME_MINOR;
+      return undefined;
+    })(),
     align: val(pPr, 'w:jc') ?? undefined,
     spaceBeforePx: spacing ? (attrs(spacing)['w:before'] !== undefined ? twipsToPx(attrs(spacing)['w:before']) : undefined) : undefined,
     spaceAfterPx: spacing ? (attrs(spacing)['w:after'] !== undefined ? twipsToPx(attrs(spacing)['w:after']) : undefined) : undefined,
+    // Line spacing as a multiplier when the rule is auto (240 = single), the
+    // only form a stylesheet can express without knowing the font.
+    lineFactor: (() => {
+      if (!spacing) return undefined;
+      const a = attrs(spacing);
+      if (a['w:line'] === undefined || (a['w:lineRule'] ?? 'auto') !== 'auto') return undefined;
+      return Number(a['w:line']) / 240;
+    })(),
     indentPx: ind ? (attrs(ind)['w:left'] !== undefined ? twipsToPx(attrs(ind)['w:left']) : undefined) : undefined,
+    hangingPx: ind ? (attrs(ind)['w:hanging'] !== undefined ? twipsToPx(attrs(ind)['w:hanging']) : undefined) : undefined,
+    firstLinePx: ind ? (attrs(ind)['w:firstLine'] !== undefined ? twipsToPx(attrs(ind)['w:firstLine']) : undefined) : undefined,
+    keepNext: toggle(pPr, 'w:keepNext'),
+    // A style's shading and tab stops: a Title band, a TOC entry's dotted
+    // right tab. The same shape the paragraph's own decor uses.
+    shading: (() => {
+      const shd = first(pPr, 'w:shd');
+      const fill = shd ? attrs(shd)['w:fill'] : null;
+      return fill && /^[0-9A-Fa-f]{6}$/.test(fill) ? '#' + fill.toUpperCase() : undefined;
+    })(),
+    tabs: (() => {
+      const tabs = first(pPr, 'w:tabs');
+      if (!tabs) return undefined;
+      const stops = [];
+      for (const m of tabs.matchAll(/<w:tab\b([^>]*)\/>/g)) {
+        const a = attrs(m[1]);
+        if (a['w:val'] === 'clear' || a['w:pos'] === undefined) continue;
+        stops.push({ align: a['w:val'] || 'left', posPx: twipsToPx(a['w:pos']), leader: a['w:leader'] && a['w:leader'] !== 'none' ? a['w:leader'] : null });
+      }
+      return stops.length ? stops.sort((x, y) => x.posPx - y.posPx) : undefined;
+    })(),
   };
+  return out;
+}
+
+/** Markers for a font named by theme slot, resolved after the chains flatten. */
+const THEME_MAJOR = '@theme:major';
+const THEME_MINOR = '@theme:minor';
+
+/**
+ * The two Latin faces a theme names: headings (`majorFont`) and body
+ * (`minorFont`). Word's own defaults are "Calibri Light" and "Calibri", and
+ * nearly every styles.xml Word writes names its fonts through these slots
+ * rather than outright — so without the theme every document is Calibri.
+ */
+export function readThemeFonts(themeXml) {
+  const out = { major: 'Calibri Light', minor: 'Calibri' };
+  if (!themeXml) return out;
+  const face = (slot) => {
+    const block = first(themeXml, 'a:' + slot + 'Font');
+    const latin = block ? first(block, 'a:latin') : null;
+    const typeface = latin ? attrs(latin).typeface : null;
+    return typeface && typeface.trim() ? typeface : null;
+  };
+  out.major = face('major') ?? out.major;
+  out.minor = face('minor') ?? out.minor;
+  return out;
+}
+
+/**
+ * The theme's colour scheme, slot -> hex without the hash. Office's own
+ * defaults fill any slot a theme omits, and a system colour resolves to the
+ * value the writer last saw (`lastClr`).
+ */
+export function readThemeColours(themeXml) {
+  const out = {
+    dk1: '000000', lt1: 'FFFFFF', dk2: '44546A', lt2: 'E7E6E6',
+    accent1: '4472C4', accent2: 'ED7D31', accent3: 'A5A5A5', accent4: 'FFC000', accent5: '5B9BD5', accent6: '70AD47',
+    hlink: '0563C1', folHlink: '954F72',
+  };
+  const scheme = themeXml ? first(themeXml, 'a:clrScheme') : null;
+  if (!scheme) return out;
+  for (const slot of Object.keys(out)) {
+    const el = first(scheme, 'a:' + slot);
+    if (!el) continue;
+    const srgb = /<a:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/.exec(el);
+    const sys = /<a:sysClr\b[^>]*\blastClr="([0-9A-Fa-f]{6})"/.exec(el);
+    if (srgb) out[slot] = srgb[1].toUpperCase();
+    else if (sys) out[slot] = sys[1].toUpperCase();
+  }
   return out;
 }
 
 /**
  * Every paragraph style, chains flattened, in CSS pixels.
  *
- * @returns {Record<string, {sizePx?:number,bold?:boolean,italic?:boolean,colour?:string,
+ * @param {string|null} stylesXml   word/styles.xml
+ * @param {{major:string,minor:string}} [themeFonts]  from `readThemeFonts`
+ * @returns {Record<string, {sizePx?:number,bold?:boolean,italic?:boolean,colour?:string,fontName?:string,
  *   align?:string,spaceBeforePx?:number,spaceAfterPx?:number,indentPx?:number,name?:string}>}
  */
-export function readParagraphStyles(stylesXml) {
+export function readParagraphStyles(stylesXml, themeFonts = null) {
   if (!stylesXml) return {};
+  const theme = themeFonts ?? readThemeFonts(null);
   const raw = new Map();
 
   for (const m of String(stylesXml).matchAll(/<w:style\b([^>]*)>([\s\S]*?)<\/w:style>/g)) {
@@ -106,6 +207,13 @@ export function readParagraphStyles(stylesXml) {
   // document's base font size, or an 11pt house document renders at our 10.5.
   const defaultId = [...raw.entries()].find(([, e]) => e.isDefault)?.[0];
   resolved['*default*'] = defaultId ? resolved[defaultId] : { ...defaults };
+
+  // A font named by theme slot becomes the theme's face — after flattening, so
+  // a heading based on Normal that names the major slot keeps it.
+  for (const s of Object.values(resolved)) {
+    if (s.fontName === THEME_MAJOR) s.fontName = theme.major;
+    else if (s.fontName === THEME_MINOR) s.fontName = theme.minor;
+  }
   return resolved;
 }
 

@@ -190,9 +190,19 @@ textarea,
 .rw {
   display: grid;
   grid-template-rows: var(--titlebar-h) auto 1fr var(--status-h);
+  /*
+    minmax(0, 1fr), not the implicit minmax(auto, 1fr): an auto minimum lets
+    the one column grow to the widest row's min-content, and Word's Home
+    ribbon is 2,372 px of groups. The groups row scrolls — but a track that
+    had already grown to fit them had nothing to scroll, and the body below
+    was 2,372 px wide too, so the page it centred sat off the right edge of a
+    1,280 px window. The rows overflow the track now; the track does not grow.
+  */
+  grid-template-columns: minmax(0, 1fr);
   height: 100%;
   background: var(--window);
 }
+.rw > * { min-width: 0; }
 
 .rw-titlebar {
   -webkit-app-region: drag;
@@ -275,7 +285,12 @@ textarea,
   gap: 2px;
   padding: 0 8px;
   height: 34px;
+  /* Eleven tabs fit a normal window; a narrow one scrolls them, no bar. */
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
 }
+.rw-tabs::-webkit-scrollbar { display: none; }
 .rw-tab {
   border: 0;
   background: transparent;

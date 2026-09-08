@@ -99,8 +99,8 @@ Against **Microsoft Word**, **LibreOffice Writer**, **OnlyOffice**, **Google Doc
 | Missing | Who has it |
 | :--- | :--- |
 | ⬜ Track changes | Word, Writer, OnlyOffice, Docs |
-| ⬜ Footnotes and endnotes | all |
-| ⬜ Table of contents | all |
+| ◐ Footnotes and endnotes — shown and numbered, stepped through from the ribbon; inserting one is not built | all |
+| ◐ Table of contents — built from the headings as text; not a live field that updates itself | all |
 | ⬜ Mail merge | Word, Writer |
 | ⬜ Citations and bibliography | Word, Writer |
 | ⬜ Equations | Word, Writer |
@@ -192,6 +192,8 @@ Ranked by how many people it stops from using this at all.
 3. ~~A search index.~~ **Built.**
 4. ~~Presenter view.~~ **Built** — a second window for the other screen.
 5. **Footnotes and a table of contents** in Word — the two most common reasons a
-   document has to go back to Word.
+   document has to go back to Word. Half done: a document's footnotes are shown,
+   numbered and navigable, and a table of contents can be built from the
+   headings; inserting a footnote and a self-updating contents field are not.
 6. **Calendar.** The largest single piece of work on this list, and the one that
    turns a mail client into a replacement for Outlook rather than for Thunderbird.

@@ -755,7 +755,7 @@ export async function verifyApps({ windows, doc }) {
     // Colour, from the menu.
     await selectBlock1();
     await wait(200);
-    await pressButton('Text colour');
+    await pressButton('Font colour');
     await wait(200);
     const red = await pressMenu('Red');
     await until(async () => (await state()).format?.fontColour === 'E03131', 'the engine to hold the colour', 4000).catch(() => {});
@@ -769,7 +769,7 @@ export async function verifyApps({ windows, doc }) {
     const paintAlign = await painted();
     check('word: the Centre button centres the paragraph', paintAlign?.align === 'center', `${centred}; engine paragraphAlign=${afterCentre.format?.paragraphAlign}, block align=${JSON.stringify(afterCentre.block1?.align ?? null)}, page align=${paintAlign?.align}`);
 
-    await pressButton('Bulleted list');
+    await pressButton('Bullets');
     await until(async () => (await state()).format?.listType === 'bullet', 'the paragraph to become a list item', 4000).catch(() => {});
     const afterList = await state();
     check('word: the list button makes a list', afterList.format?.listType === 'bullet', `listType=${afterList.format?.listType}`);
@@ -791,7 +791,9 @@ export async function verifyApps({ windows, doc }) {
 
     await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Layout')?.click(), 'layout tab'`);
     await wait(200);
-    await pressButton('Switch orientation');
+    await pressButton('Orientation');
+    await wait(200);
+    await pressMenu('Landscape');
     await until(async () => (await state()).section?.orientation === 'landscape', 'the page to turn', 4000).catch(() => {});
     const afterTurn = await state();
     check('word: Layout → orientation turns the page', afterTurn.section?.orientation === 'landscape', `orientation=${afterTurn.section?.orientation}`);
@@ -831,6 +833,148 @@ export async function verifyApps({ windows, doc }) {
     check('word: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check('word: the button checks ran', false, err.message);
+  }
+
+  /* ── Word: the rest of the ribbon, tab by tab ─────────────────────────── */
+
+  try {
+    const win = await open('word', files.docx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const tabTo = (label) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
+    const press = (title) => js(`(() => {
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      if (!b) return 'no live button ' + ${JSON.stringify(title)};
+      b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      b.click();
+      return 'clicked';
+    })()`);
+    const menuItem = (label) => js(`(() => { const i = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!i) return 'no item'; i.click(); return 'clicked'; })()`);
+    const engine = () => js(`(async () => {
+      const all = await window.rutbaOffice.doc.sessions({});
+      const mine = all.filter((s) => s.kind === 'doc').pop();
+      const m = await window.rutbaOffice.doc.model({ id: mine.id });
+      return { blocks: m.blocks.length, texts: m.blocks.map((b) => b.text), styles: m.blocks.map((b) => b.style), format: m.format };
+    })()`);
+
+    // The page sits in the middle of the window, whatever the ribbon is doing.
+    const centred = await js(`(() => {
+      const page = document.querySelector('.wd-page').getBoundingClientRect();
+      const scroll = document.querySelector('.wd-scroll');
+      return { left: Math.round(page.left), right: Math.round(page.right), window: innerWidth, scrollClient: scroll.clientWidth, scrollWidth: scroll.scrollWidth, body: document.querySelector('.rw-body')?.clientWidth };
+    })()`);
+    check('word: the page is centred in the window', Math.abs((centred.left + centred.right) / 2 - centred.window / 2) < 40, JSON.stringify(centred));
+
+    // Every tab is reachable and draws its groups.
+    const tabs = ['Home', 'Insert', 'Draw', 'Design', 'Layout', 'References', 'Mailings', 'Review', 'View', 'Help', 'PDF'];
+    const groups = {};
+    for (const t of tabs) {
+      await tabTo(t);
+      await wait(120);
+      groups[t] = await js(`document.querySelectorAll('.rw-ribbon .rw-group').length`);
+    }
+    check('word: every Word tab is there and draws its groups', tabs.every((t) => groups[t] > 0), tabs.map((t) => `${t} ${groups[t]}`).join(', '));
+
+    // What is not wired says so, on the button, rather than pretending.
+    const honest = await js(`(() => {
+      const dead = [...document.querySelectorAll('.rw-ribbon .rw-btn[disabled]')];
+      // Undo and Redo are disabled because there is nothing to undo — that is
+      // state, not an apology, and needs no explanation.
+      return { count: dead.length, unexplained: dead.filter((b) => !/not built yet/.test(b.title || '') && !/^(Undo|Redo) /.test(b.title || '')).map((b) => b.title || b.textContent.trim()).slice(0, 5) };
+    })()`);
+    check('word: every disabled control explains itself', honest.unexplained.length === 0, `${honest.count} disabled on the PDF tab; unexplained: ${JSON.stringify(honest.unexplained)}`);
+
+    // View: the navigation pane lists the heading, and clicking it moves the caret.
+    await tabTo('View');
+    await wait(120);
+    await press('Headings, to move around');
+    await until(() => js(`document.querySelectorAll('.wd-nav-item').length > 0`), 'the navigation pane', 4000).catch(() => {});
+    const navItems = await js(`[...document.querySelectorAll('.wd-nav-item')].map((n) => n.textContent.trim())`);
+    check('word: the Navigation Pane lists the headings', navItems.includes('Quarterly Review'), JSON.stringify(navItems));
+
+    await press('Web Layout');
+    await wait(150);
+    const web = await js(`document.querySelector('.wd')?.className || ''`);
+    await press('Print Layout');
+    check('word: View → Web Layout changes the view', /mode-web/.test(web), `class was ${JSON.stringify(web)}`);
+
+    // Insert: a symbol and the date, through their dialogs.
+    await tabTo('Insert');
+    await wait(120);
+    await js(`(() => { const page = document.querySelector('.wd-page'); const b = page.querySelector('[data-block="2"]'); page.focus(); const r = document.createRange(); r.selectNodeContents(b); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return 'caret at end of block 2'; })()`);
+    await wait(200);
+    await press('Symbol');
+    await wait(250);
+    await js(`(() => { const b = [...document.querySelectorAll('.wd-symbol')].find((n) => n.textContent.trim() === '©'); b?.click(); return 'symbol'; })()`);
+    await until(async () => (await engine()).texts.some((t) => /©/.test(t)), 'the symbol to land', 4000).catch(() => {});
+    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Close')?.click(), 'closed'`);
+    const withSymbol = await engine();
+    check('word: Insert → Symbol inserts the character', withSymbol.texts.some((t) => /©/.test(t)), JSON.stringify(withSymbol.texts.find((t) => /©/.test(t)) || '').slice(0, 60));
+
+    await press('Date & Time');
+    await wait(250);
+    await js(`document.querySelector('.rw-dialog .ml-found-item')?.click(), 'first format'`);
+    const year = String(new Date().getFullYear());
+    await until(async () => (await engine()).texts.some((t) => t.includes(year)), 'the date to land', 4000).catch(() => {});
+    const withDate = await engine();
+    check('word: Insert → Date & Time inserts today', withDate.texts.some((t) => t.includes(year)), `a paragraph contains ${year}: ${withDate.texts.some((t) => t.includes(year))}`);
+
+    // Home: the pilcrow button, change case on a selection, a heading style.
+    await tabTo('Home');
+    await wait(120);
+    const pressed = await press('Show formatting marks');
+    await until(() => js(`document.querySelector('.wd-page').classList.contains('marks')`), 'the marks', 3000).catch(() => {});
+    const marks = await js(`document.querySelector('.wd-page').classList.contains('marks')`);
+    check('word: formatting marks toggle on', marks === true, `page has marks=${marks} (${pressed})`);
+    await press('Show formatting marks');
+
+    await js(`(() => { const page = document.querySelector('.wd-page'); const b = page.querySelector('[data-block="1"]'); const r = document.createRange(); r.selectNodeContents(b); const s = getSelection(); s.removeAllRanges(); s.addRange(r); page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return s.toString().length; })()`);
+    await wait(200);
+    await press('Change case');
+    await wait(200);
+    await menuItem('UPPERCASE');
+    await until(async () => /^[A-Z0-9 .,%'-]+$/.test((await engine()).texts[1] || 'x'), 'the text to go upper case', 4000).catch(() => {});
+    const upper = await engine();
+    check('word: Home → Change case makes the selection UPPERCASE', /[A-Z]{4}/.test(upper.texts[1]) && upper.texts[1] === upper.texts[1].toUpperCase(), JSON.stringify(upper.texts[1]).slice(0, 60));
+
+    // Superscript on the (still selected) paragraph — the engine writes the
+    // run property and the page paints it raised.
+    await js(`(() => { const page = document.querySelector('.wd-page'); const b = page.querySelector('[data-block="1"]'); const r = document.createRange(); r.selectNodeContents(b); const s = getSelection(); s.removeAllRanges(); s.addRange(r); page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return s.toString().length; })()`);
+    await wait(200);
+    await press('Superscript');
+    await until(async () => (await engine()).format?.vertAlign === 'superscript', 'the superscript', 4000).catch(() => {});
+    const sup = await engine();
+    const raised = await js(`getComputedStyle(document.querySelector('[data-block="1"] span')).verticalAlign`);
+    check('word: Home → x² makes the selection superscript, and it is painted raised', sup.format?.vertAlign === 'superscript' && raised === 'super', `engine ${sup.format?.vertAlign}; painted vertical-align ${raised}`);
+    await press('Superscript');
+    await until(async () => !(await engine()).format?.vertAlign, 'the superscript to clear', 4000).catch(() => {});
+
+    // A heading, through the style box — the table of contents needs one.
+    await js(`(() => {
+      const s = [...document.querySelectorAll('.rw-ribbon select')].find((n) => n.title === 'Paragraph style');
+      if (!s) return 'no style box';
+      Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'Heading1');
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+      return 'Heading1';
+    })()`);
+    await until(async () => (await engine()).styles[1] === 'Heading1', 'the heading style', 4000).catch(() => {});
+    const styled = await engine();
+    check('word: the style box makes a paragraph a Heading 1', styled.styles[1] === 'Heading1', `block 1 style ${JSON.stringify(styled.styles[1])}`);
+
+    // References: a table of contents built from the headings.
+    await tabTo('References');
+    await wait(120);
+    await js(`(() => { const page = document.querySelector('.wd-page'); const b = page.querySelector('[data-block="0"]'); const r = document.createRange(); r.selectNodeContents(b); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return 'caret at start'; })()`);
+    await wait(200);
+    const before = (await engine()).blocks;
+    await press('Built from the headings');
+    await until(async () => (await engine()).texts.includes('Contents'), 'the contents to appear', 4000).catch(() => {});
+    const toc = await engine();
+    check('word: References → Table of Contents lists the headings', toc.texts.includes('Contents') && toc.blocks > before, `${before} → ${toc.blocks} blocks; ${JSON.stringify(toc.texts.slice(0, 3))}`);
+
+    const complaints = await errorsIn(win);
+    check('word: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the ribbon-tab checks ran', false, err.message);
   }
 
   /* ── Worksheets: clicking empty grid, typing, and formatting that paints ── */

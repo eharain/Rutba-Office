@@ -199,10 +199,7 @@ export class DocView {
     // operation writes styles.xml or numbering.xml — so they are read once per
     // view rather than per keystroke. The LABELS are recomputed every layout,
     // because deleting item two renumbers item three.
-    if (this._docStyles === undefined) {
-      this._docStyles = typeof this.doc.paragraphStyles === 'function' ? this.doc.paragraphStyles() : null;
-      this._numberingDefs = typeof this.doc.numberingDefs === 'function' ? this.doc.numberingDefs() : null;
-    }
+    this._loadDefinitions();
     const listLabels = computeListLabels(this.flow, this.blocks, this._numberingDefs);
     const laid = paginate({
       flow: this.flow, blocks: this.blocks, section,
@@ -554,7 +551,7 @@ export class DocView {
       throw new Error('this document backend does not support character formatting');
     }
     const props = {};
-    for (const key of ['fontName', 'fontSize', 'fontColour', 'highlight']) {
+    for (const key of ['fontName', 'fontSize', 'fontColour', 'highlight', 'vertAlign']) {
       if (delta && key in delta) props[key] = delta[key];
     }
     if (Object.keys(props).length === 0) return this;
@@ -891,6 +888,18 @@ export class DocView {
    * catalogue (an email body) yields an empty list, and the dropdown is simply
    * not rendered — the no-dead-controls rule.
    */
+  /** Styles and numbering, read once per view — see `_loadDefinitions`. */
+  get docStyles() {
+    this._loadDefinitions();
+    return this._docStyles;
+  }
+
+  _loadDefinitions() {
+    if (this._docStyles !== undefined) return;
+    this._docStyles = typeof this.doc.paragraphStyles === 'function' ? this.doc.paragraphStyles() : null;
+    this._numberingDefs = typeof this.doc.numberingDefs === 'function' ? this.doc.numberingDefs() : null;
+  }
+
   get paragraphStyles() {
     if (this._styleCatalogue === undefined) {
       this._styleCatalogue = typeof this.doc.paragraphStyleCatalogue === 'function'
@@ -1421,12 +1430,20 @@ export class DocView {
   _renderRun(r) {
     const out = { text: r.text, bold: r.bold, italic: r.italic, underline: r.underline };
     if (r.strike) out.strike = true;
+    // A footnote/endnote reference carries its NUMBER — assigned by `_notes`
+    // from where the reference falls in the body — and the mark at the head
+    // of a note carries the kind, numbered by `_notes` too.
+    if (r.noteRef) out.noteRef = { ...r.noteRef, n: this._noteNumbers?.get(r) ?? null };
+    if (r.noteMark) out.noteMark = r.noteMark;
     if (typeof this.doc.readRunProps === 'function' && r.rPr) {
       const props = this.doc.readRunProps(r.rPr);
       if (props.fontName != null) out.fontName = props.fontName;
       if (props.fontSize != null) out.fontSize = props.fontSize;
       if (props.fontColour != null) out.fontColour = props.fontColour;
       if (props.highlight != null) out.highlight = props.highlight;
+      if (props.vertAlign != null) out.vertAlign = props.vertAlign;
+      if (props.caps) out.caps = true;
+      if (props.smallCaps) out.smallCaps = true;
     }
     // The painter gets the TARGET, never the token: the frame stays
     // format-free, and a dangling id degrades to plain text.
@@ -1437,26 +1454,94 @@ export class DocView {
     return out;
   }
 
-  render() {
-    const { from, to } = this.selection;
-    // Paragraph properties reach the painter here, once per block. The frame
-    // carried the style name and nothing else, so a paragraph the engine had
-    // centred or indented drew exactly as it had before — the button worked,
-    // the file was right, and the page showed nothing.
-    const props = typeof this.doc.getParagraphProps === 'function'
-      ? (i) => { try { return this.doc.getParagraphProps(i); } catch { return null; } }
-      : () => null;
+  /**
+   * A DISPLAYED paragraph — inside a text box, a footnote — shaped like a
+   * block so the painter draws it with the block code, minus the index and
+   * the address a caret would need.
+   */
+  _liteBlock(p) {
+    const PX_PER_STEP = INDENT_STEP * (96 / 1440);
     return {
+      style: p.style, align: p.align ?? null,
+      indentLevel: p.indentPx ? Math.round(p.indentPx / PX_PER_STEP) : 0,
+      ...(p.decor || {}),
+      lineSpacing: p.spacing?.lineFactor ?? null,
+      text: p.text,
+      runs: p.runs.map((r) => this._renderRun(r)),
+      images: (p.images || []).filter((img) => img.href),
+    };
+  }
+
+  /**
+   * Footnotes and endnotes as the page shows them: numbered by where each
+   * reference falls in the body — the order Word numbers them, whatever the
+   * ids say — each with its paragraphs shaped like blocks. Fills
+   * `_noteNumbers`, which `_renderRun` reads to put the number on the
+   * reference in the body, so it runs before the blocks are mapped.
+   */
+  _notes() {
+    this._noteNumbers = new Map();
+    const out = { footnotes: [], endnotes: [] };
+    const source = typeof this.doc.notes === 'function' ? this.doc.notes() : null;
+    if (!source) return out;
+    const byId = {
+      footnote: new Map((source.footnotes || []).map((n) => [n.id, n])),
+      endnote: new Map((source.endnotes || []).map((n) => [n.id, n])),
+    };
+    const counters = { footnote: 0, endnote: 0 };
+    for (const b of this.blocks) {
+      for (const r of b.runs) {
+        if (!r.noteRef) continue;
+        const kind = r.noteRef.kind;
+        const n = ++counters[kind];
+        this._noteNumbers.set(r, n);
+        const note = byId[kind].get(r.noteRef.id);
+        if (!note) continue;
+        const paragraphs = note.paragraphs.map((p) => this._liteBlock(p));
+        for (const p of paragraphs) for (const run of p.runs) if (run.noteMark) run.noteMark = { kind: run.noteMark, n };
+        out[kind + 's'].push({ n, id: note.id, paragraphs });
+      }
+    }
+    return out;
+  }
+
+  /**
+   * The frame a painter draws from.
+   * @param {{ pages?: boolean }} [opts] `pages: false` skips pagination — the
+   *   editor draws from blocks and never reads the sheets.
+   */
+  render({ pages: withPages = true } = {}) {
+    const { from, to } = this.selection;
+    // Paragraph properties reach the painter here, once per block, read from
+    // what the block already carries — the backend parsed `align`, `indentPx`
+    // and `spacing` when it built the block. The first version asked the
+    // backend again, per block, per frame; that call re-reads the paragraph's
+    // XML and cost seven milliseconds each, which on a three-thousand-paragraph
+    // specification was twenty seconds per keystroke.
+    const PX_PER_STEP = INDENT_STEP * (96 / 1440);
+    // Numbered first: the blocks below read the numbers off the references.
+    const notes = this._notes();
+    return {
+      ...notes,
       blocks: this.blocks.map((b) => {
-        const pp = props(b.index);
         return {
         index: b.index,
         style: b.style,
-        align: pp?.align ?? null,
-        indentLevel: pp?.indentTwips ? Math.round(pp.indentTwips / INDENT_STEP) : 0,
-        lineSpacing: pp?.lineSpacing ?? null,
+        align: b.align ?? null,
+        indentLevel: b.indentPx ? Math.round(b.indentPx / PX_PER_STEP) : 0,
+        // What the OOXML reader found beyond alignment and the left indent:
+        // tab stops, shading, borders, the first-line/hanging/right indents.
+        // Spread flat so the painter reads `block.tabs`, not `block.decor.tabs`.
+        ...(b.decor || {}),
+        lineSpacing: b.spacing?.lineFactor ?? null,
         structural: b.structural,
         structuralTags: b.structuralTags,
+        ...(b.inSdt ? { inSdt: true } : {}),
+        // Text boxes anchored here, their paragraphs shaped like blocks so the
+        // painter draws them with the same code — read-only, no index.
+        ...(b.textBoxes ? {
+          textBoxes: b.textBoxes.map((box) => ({ ...box, paragraphs: box.paragraphs.map((p) => this._liteBlock(p)) })),
+        } : {}),
         // The cell this block lives in, or null for prose — what lets the
         // shell tell a caret at a cell boundary why Tab and Backspace behave.
         container: b.container ?? null,
@@ -1484,12 +1569,20 @@ export class DocView {
       flow: this.flow,
       // A page has edges; an email body does not. null means "continuous flow".
       section: this.section,
-      // The flow laid onto sheets. null means continuous flow — render `flow`.
-      pages: this.pages,
+      // The flow laid onto sheets — unless the caller said it does not want it.
+      // The editor draws from `blocks` and never reads this, and paginating a
+      // three-thousand-paragraph document on every keystroke made typing into a
+      // long specification take seconds per character. The PDF writer and the
+      // paged tests ask for it; the document service does not.
+      pages: withPages ? this.pages : null,
       format: this.formatAtCaret(),
       // The catalogue the Style dropdown offers. Once per load, not per caret —
       // see the getter.
       paragraphStyles: this.paragraphStyles,
+      // The same styles RESOLVED — font, size, colour, spacing per style id,
+      // chains flattened, `*default*` for an unstyled paragraph. The page
+      // paints from these; without them every document is the app's font.
+      styles: this.docStyles,
       // The default header and footer, for the ribbon's editing panel:
       // existence, lines, and whether text editing would flatten a field.
       bands: typeof this.doc.bandInfo === 'function' ? this.doc.bandInfo() : null,

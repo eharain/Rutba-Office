@@ -30,7 +30,7 @@ import { unesc } from './workbook.js';
 import { chartPartXml } from './build.js';
 import { parseTable, parseSection, childElements, firstElement, headBefore } from './table.js';
 import { readHeadersAndFooters } from './headers.js';
-import { readParagraphStyles, readNumberingDefs, STANDARD_STYLES_XML } from './docstyles.js';
+import { readParagraphStyles, readNumberingDefs, readThemeFonts, readThemeColours, STANDARD_STYLES_XML } from './docstyles.js';
 
 /**
  * Media bytes -> data URI. Deliberately duplicated from `@rutba/drawing` rather
@@ -90,6 +90,127 @@ function readDirectSpacing(pPr) {
     if (rule === 'auto') out.lineFactor = Number(line) / 240;
     else out.lineExactPx = twipsToPx(line);
   }
+  return Object.keys(out).length ? out : null;
+}
+
+/**
+ * The rest of a paragraph's DIRECT formatting that the page has to draw: its
+ * tab stops, its shading, its borders, and the two indents `w:ind` carries
+ * besides the left one. These are the corpus's most-used features after
+ * numbering and tables — a form is "Name:<tab>______", a heading band is
+ * shading, a rule under a title is a bottom border — and a page that drops
+ * them looks nothing like Word's, however right the text is.
+ *
+ * The paragraph-mark run properties (`<w:rPr>` inside `<w:pPr>`) are cut out
+ * first: a shaded pilcrow is not a shaded paragraph.
+ */
+const eighthsToPx = (sz) => Math.max(1, Math.round((Number(sz) / 8) * (96 / 72)));
+
+/** A paragraph's XML without the text boxes it anchors (and their VML twins). */
+const stripTextBoxes = (xml) => String(xml)
+  .replace(/<mc:Fallback>[\s\S]*?<\/mc:Fallback>/g, '')
+  .replace(/<w:txbxContent\b[^>]*>[\s\S]*?<\/w:txbxContent>/g, '');
+
+/**
+ * A DrawingML colour in a fragment, as CSS: `<a:srgbClr val="7E97AD"/>` as it
+ * is, `<a:schemeClr val="accent1"/>` through the theme, with the lumMod/lumOff
+ * children that make "Accent 1, lighter 60%" applied in HSL the way Word
+ * applies them. Null for no fill or nothing recognisable.
+ */
+function colourOf(fragment, colours) {
+  const xml = String(fragment || '');
+  if (!xml || /^\s*$/.test(xml)) return null;
+  const solid = /<a:solidFill>([\s\S]*?)<\/a:solidFill>/.exec(xml);
+  const inner = solid ? solid[1] : xml;
+  if (!solid && /<a:noFill\b/.test(xml)) return null;
+  let hex = null;
+  const srgb = /<a:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/.exec(inner);
+  const scheme = /<a:schemeClr\b[^>]*\bval="([^"]*)"/.exec(inner);
+  if (srgb) hex = srgb[1];
+  else if (scheme) hex = colours?.[SCHEME_ALIAS[scheme[1]] ?? scheme[1]] ?? null;
+  if (!hex) return null;
+  const mod = /<a:lumMod\b[^>]*\bval="(\d+)"/.exec(inner);
+  const off = /<a:lumOff\b[^>]*\bval="(-?\d+)"/.exec(inner);
+  if (!mod && !off) return '#' + hex.toUpperCase();
+  const [h, s, l] = hexToHsl(hex);
+  const l2 = Math.max(0, Math.min(1, l * (mod ? Number(mod[1]) / 100000 : 1) + (off ? Number(off[1]) / 100000 : 0)));
+  return hslToHex(h, s, l2);
+}
+const SCHEME_ALIAS = { tx1: 'dk1', bg1: 'lt1', tx2: 'dk2', bg2: 'lt2' };
+function hexToHsl(hex) {
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h;
+  if (max === r) h = (g - b) / d + (g < b ? 6 : 0);
+  else if (max === g) h = (b - r) / d + 2;
+  else h = (r - g) / d + 4;
+  return [h / 6, s, l];
+}
+function hslToHex(h, s, l) {
+  const f = (n) => {
+    const k = (n + h * 12) % 12;
+    const a = s * Math.min(l, 1 - l);
+    const v = l - a * Math.max(-1, Math.min(k - 3, 9 - k, 1));
+    return Math.round(v * 255).toString(16).padStart(2, '0');
+  };
+  return ('#' + f(0) + f(8) + f(4)).toUpperCase();
+}
+
+function readParagraphDecor(pPrXml) {
+  const pPr = String(pPrXml || '').replace(/<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>|<w:rPr\b[^>]*\/>/g, '');
+  const out = {};
+
+  // <w:tabs><w:tab w:val="left" w:pos="720" w:leader="dot"/></w:tabs>
+  const tabs = /<w:tabs\b[^>]*>([\s\S]*?)<\/w:tabs>/.exec(pPr);
+  if (tabs) {
+    const stops = [];
+    for (const m of tabs[1].matchAll(/<w:tab\b([^>]*)\/>/g)) {
+      const a = attrs(m[1]);
+      if (a['w:val'] === 'clear' || a['w:pos'] === undefined) continue;
+      stops.push({ align: a['w:val'] || 'left', posPx: twipsToPx(a['w:pos']), leader: a['w:leader'] && a['w:leader'] !== 'none' ? a['w:leader'] : null });
+    }
+    if (stops.length) out.tabs = stops.sort((x, y) => x.posPx - y.posPx);
+  }
+
+  // <w:shd w:val="clear" w:color="auto" w:fill="D9E2F3"/> — the fill is the colour.
+  const shd = /<w:shd\b([^>]*)\/>/.exec(pPr);
+  if (shd) {
+    const a = attrs(shd[1]);
+    const fill = a['w:fill'];
+    if (fill && fill !== 'auto' && /^[0-9A-Fa-f]{6}$/.test(fill)) out.shading = '#' + fill.toUpperCase();
+  }
+
+  // <w:pBdr><w:bottom w:val="single" w:sz="4" w:space="1" w:color="auto"/></w:pBdr>
+  const pBdr = /<w:pBdr\b[^>]*>([\s\S]*?)<\/w:pBdr>/.exec(pPr);
+  if (pBdr) {
+    const borders = {};
+    for (const m of pBdr[1].matchAll(/<w:(top|left|bottom|right|between|bar)\b([^>]*)\/>/g)) {
+      const a = attrs(m[2]);
+      const style = a['w:val'] || 'single';
+      if (style === 'nil' || style === 'none') continue;
+      const colour = a['w:color'] && a['w:color'] !== 'auto' ? '#' + a['w:color'].toUpperCase() : '#000000';
+      borders[m[1]] = { style, widthPx: eighthsToPx(a['w:sz'] ?? 4), colour, spacePt: Number(a['w:space'] ?? 0) || 0 };
+    }
+    if (Object.keys(borders).length) out.borders = borders;
+  }
+
+  // The indents beyond `left`: a first-line indent, a hanging one, the right.
+  const ind = /<w:ind\b([^>]*?)\/?>/.exec(pPr);
+  if (ind) {
+    const a = attrs(ind[1]);
+    if (a['w:firstLine'] !== undefined) out.firstLinePx = twipsToPx(a['w:firstLine']);
+    if (a['w:hanging'] !== undefined) out.hangingPx = twipsToPx(a['w:hanging']);
+    const right = a['w:right'] ?? a['w:end'];
+    if (right !== undefined) out.rightPx = twipsToPx(right);
+  }
+
   return Object.keys(out).length ? out : null;
 }
 
@@ -250,9 +371,18 @@ export class Document {
 
     const { body } = this._body();
     const out = [];
-    const re = /<w:(tbl|tr|tc|sdt)\b[^>]*?(\/?)>|<\/w:(tbl|tr|tc|sdt)>|<w:p\b[^>]*?(\/?)>|<\/w:p>/g;
+    const re = /<w:(tbl|tr|tc|sdt|txbxContent)\b[^>]*?(\/?)>|<\/w:(tbl|tr|tc|sdt|txbxContent)>|<w:p\b[^>]*?(\/?)>|<\/w:p>/g;
     const stack = [];
     let sdtDepth = 0;
+    // A table inside a body-level content control: its paragraphs stay opaque
+    // (cellBlocks flags them `inSdt` and the zip in _assignBlockIndices skips
+    // them), so they must not be listed here either.
+    let sdtTableDepth = 0;
+    // A text box's paragraphs belong to the paragraph that anchors the box —
+    // `_paragraphTextBoxes` reads them from there. Listing them here made a
+    // cover page's text box lines into body paragraphs and LOST the paragraph
+    // that carried the box.
+    let boxDepth = 0;
     let pStart = -1;
     let key = null; // the container key for the innermost open cell, or null
 
@@ -270,14 +400,26 @@ export class Document {
     let m;
     while ((m = re.exec(body))) {
       const tag = m[0];
-      if (m[1] || m[3]) { // open/self-close or close of tbl|tr|tc|sdt
+      if (m[1] || m[3]) { // open/self-close or close of tbl|tr|tc|sdt|txbxContent
         const name = m[1] ?? m[3];
+        if (name === 'txbxContent') {
+          if (m[1] && m[2] !== '/') boxDepth += 1;
+          else if (m[3]) boxDepth = Math.max(0, boxDepth - 1);
+          continue;
+        }
+        if (boxDepth > 0) continue;
         if (name === 'sdt') {
           if (m[1] && m[2] !== '/') sdtDepth += 1;
           else if (m[3]) sdtDepth = Math.max(0, sdtDepth - 1);
           continue;
         }
-        if (sdtDepth > 0) continue; // structure inside a content control is opaque
+        if (sdtDepth > 0) { // structure inside a content control is opaque
+          if (name === 'tbl') {
+            if (m[1] && m[2] !== '/') sdtTableDepth += 1;
+            else if (m[3]) sdtTableDepth = Math.max(0, sdtTableDepth - 1);
+          }
+          continue;
+        }
         if (m[1]) {
           if (m[2] === '/') continue; // an empty element — nothing to enter
           if (name === 'tbl') stack.push({ tag: 'tbl', id: m.index, nextRow: 0 });
@@ -306,13 +448,20 @@ export class Document {
       }
 
       // a <w:p …> or </w:p>
-      if (sdtDepth > 0) continue;
+      if (boxDepth > 0) continue;
+      // A BODY-LEVEL content control's paragraphs are listed, read-only: a
+      // cover page, a table of contents, a bound field are all sdt, and a
+      // page that skipped them opened a fifteen-page tender on its second
+      // page. Inside a table cell the control stays opaque, as cellBlocks
+      // expects; a table inside a body-level control stays opaque too.
+      if (sdtDepth > 0 && (stack.length > 0 || sdtTableDepth > 0)) continue;
+      const inSdt = sdtDepth > 0 || undefined;
       const top = stack[stack.length - 1];
       if (top && top.tag !== 'tc') continue; // a stray paragraph under tbl/tr — not a valid home
       const hiddenCell = stack.some((f) => f.tag === 'tc' && f.hidden) || undefined;
       if (/^<w:p\b/.test(tag)) {
         if (tag.endsWith('/>')) {
-          out.push({ index: out.length, xml: tag, start: m.index, end: m.index + tag.length, text: '', container: key, ...(hiddenCell ? { hiddenCell } : {}) });
+          out.push({ index: out.length, xml: tag, start: m.index, end: m.index + tag.length, text: '', container: key, ...(hiddenCell ? { hiddenCell } : {}), ...(inSdt ? { inSdt } : {}) });
         } else {
           pStart = m.index;
         }
@@ -320,7 +469,7 @@ export class Document {
       }
       if (tag === '</w:p>' && pStart >= 0) {
         const xml = body.slice(pStart, m.index + tag.length);
-        out.push({ index: out.length, xml, start: pStart, end: m.index + tag.length, text: textOf(xml), container: key, ...(hiddenCell ? { hiddenCell } : {}) });
+        out.push({ index: out.length, xml, start: pStart, end: m.index + tag.length, text: textOf(xml), container: key, ...(hiddenCell ? { hiddenCell } : {}), ...(inSdt ? { inSdt } : {}) });
         pStart = -1;
       }
     }
@@ -354,23 +503,31 @@ export class Document {
     );
     const out = [];
 
-    // One scan, tracking tbl/sdt depth exactly as paragraphs() does so the two
-    // views cannot disagree about which paragraphs are top level.
-    const re = /<w:(tbl|sdt)\b[^>]*?(\/?)>|<\/w:(tbl|sdt)>|<w:p\b[^>]*?(\/?)>|<\/w:p>/g;
+    // One scan, tracking tbl/sdt/txbxContent depth exactly as editParagraphs()
+    // does so the two views cannot disagree about which paragraphs are top
+    // level: a body-level content control's paragraphs are (read-only), a
+    // table inside one is not, and a text box's are never.
+    const re = /<w:(tbl|sdt|txbxContent)\b[^>]*?(\/?)>|<\/w:(tbl|sdt|txbxContent)>|<w:p\b[^>]*?(\/?)>|<\/w:p>/g;
     let depth = 0;
+    let sdtDepth = 0;
+    let boxDepth = 0;
     let tblStart = -1;
     let m;
     while ((m = re.exec(body))) {
       const tag = m[0];
+      if (/^<w:txbxContent\b/.test(tag) && !tag.endsWith('/>')) { boxDepth += 1; continue; }
+      if (tag === '</w:txbxContent>') { boxDepth = Math.max(0, boxDepth - 1); continue; }
+      if (boxDepth > 0) continue;
       if (/^<w:tbl\b/.test(tag) && !tag.endsWith('/>')) {
-        if (depth === 0) tblStart = m.index;
+        if (depth === 0 && sdtDepth === 0) tblStart = m.index;
         depth += 1;
         continue;
       }
-      if (/^<w:sdt\b/.test(tag) && !tag.endsWith('/>')) { depth += 1; continue; }
-      if (/^<\/w:(tbl|sdt)>/.test(tag)) {
+      if (/^<w:sdt\b/.test(tag) && !tag.endsWith('/>')) { sdtDepth += 1; continue; }
+      if (tag === '</w:sdt>') { sdtDepth = Math.max(0, sdtDepth - 1); continue; }
+      if (tag === '</w:tbl>') {
         depth -= 1;
-        if (depth === 0 && tag === '</w:tbl>' && tblStart >= 0) {
+        if (depth === 0 && sdtDepth === 0 && tblStart >= 0) {
           const table = parseTable(body.slice(tblStart, m.index + tag.length));
           this._assignBlockIndices(table, tblStart, m.index + tag.length);
           out.push({ kind: 'table', table });
@@ -468,7 +625,19 @@ export class Document {
   /** Paragraph styles resolved from word/styles.xml, flattened, in CSS px. */
   paragraphStyles() {
     const part = 'word/styles.xml';
-    return readParagraphStyles(this.pkg.has(part) ? this.pkg.text(part) : null);
+    return readParagraphStyles(this.pkg.has(part) ? this.pkg.text(part) : null, this.themeFonts());
+  }
+
+  /**
+   * The theme's heading and body faces. Word names nearly every font through
+   * these two slots, so a reader that ignores the theme shows every document
+   * in Calibri. Cached: no editing operation writes the theme part.
+   */
+  themeFonts() {
+    if (this._themeFonts) return this._themeFonts;
+    const part = this.pkg.partNames().find((n) => /^word\/theme\/theme\d*\.xml$/.test(n));
+    this._themeFonts = readThemeFonts(part ? this.pkg.text(part) : null);
+    return this._themeFonts;
   }
 
   /** Numbering definitions from word/numbering.xml: numId -> levels. */
@@ -765,9 +934,123 @@ export class Document {
         continue;
       }
       const wsp = /<wps:wsp\b[\s\S]*?<\/wps:wsp>/.exec(inner);
-      if (wsp) out.push({ kind: 'shape', name, widthPx, heightPx, shapeXml: wsp[0] });
+      // A shape with a text box is a TEXT box — `_paragraphTextBoxes` draws
+      // it with its words; painting the frame here too would double it.
+      if (wsp && !/<wps:txbx\b/.test(wsp[0])) out.push({ kind: 'shape', name, widthPx, heightPx, shapeXml: wsp[0] });
     }
     return out;
+  }
+
+  /**
+   * The text boxes anchored in a paragraph: each one's frame — size, fill,
+   * outline, horizontal alignment — and its paragraphs, decorated like the
+   * body's (style, alignment, indents, shading, runs, pictures) but not
+   * addressable: a caret has no business in a box the engine cannot rebuild.
+   *
+   * Only the `mc:Choice` of an AlternateContent is read; the VML fallback
+   * repeats the same words for older Words and would show them twice.
+   */
+  _paragraphTextBoxes(paragraphXml) {
+    if (!paragraphXml.includes('<w:txbxContent')) return [];
+    const xml = String(paragraphXml).replace(/<mc:Fallback>[\s\S]*?<\/mc:Fallback>/g, '');
+    const colours = this.themeColours();
+    const out = [];
+    for (const m of xml.matchAll(/<w:drawing\b[^>]*>([\s\S]*?)<\/w:drawing>|<w:pict\b[^>]*>([\s\S]*?)<\/w:pict>/g)) {
+      const inner = m[1] ?? m[2] ?? '';
+      const content = /<w:txbxContent\b[^>]*>([\s\S]*?)<\/w:txbxContent>/.exec(inner);
+      if (!content) continue;
+      const extent = /<wp:extent\b([^>]*)\/>/.exec(inner);
+      const ext = extent ? attrs(extent[1]) : {};
+      let widthPx = ext.cx ? Math.round(Number(ext.cx) / 9525) : null;
+      let heightPx = ext.cy ? Math.round(Number(ext.cy) / 9525) : null;
+      if (widthPx === null) {
+        // VML: <v:shape style="width:451.3pt;height:38.4pt">
+        const style = /<v:(?:shape|rect)\b[^>]*\bstyle="([^"]*)"/.exec(inner);
+        const dim = (name) => { const d = new RegExp('(?:^|;)\\s*' + name + ':\\s*([\\d.]+)(pt|px|in|cm)?').exec(style?.[1] ?? ''); return d ? Math.round(Number(d[1]) * ({ pt: 96 / 72, px: 1, in: 96, cm: 96 / 2.54 })[d[2] || 'pt']) : null; };
+        widthPx = dim('width');
+        heightPx = dim('height');
+      }
+      const namePr = /<wp:docPr\b([^>]*)\/?>/.exec(inner);
+      const hAlign = /<wp:positionH\b[^>]*>[\s\S]*?<wp:align>([^<]*)<\/wp:align>/.exec(inner)?.[1] ?? null;
+      const spPr = /<wps:spPr\b[^>]*>([\s\S]*?)<\/wps:spPr>/.exec(inner)?.[1] ?? '';
+      const line = /<a:ln\b[^>]*>([\s\S]*?)<\/a:ln>/.exec(spPr);
+      const fill = colourOf(spPr.replace(/<a:ln\b[^>]*>[\s\S]*?<\/a:ln>/, ''), colours);
+      const vmlFill = /<v:(?:shape|rect)\b[^>]*\bfillcolor="([^"]*)"/.exec(inner);
+      const paragraphs = this._liteParagraphs(content[1]);
+      out.push({
+        name: namePr ? (attrs(namePr[1])['name'] ?? null) : null,
+        widthPx, heightPx, hAlign,
+        fill: fill ?? (vmlFill ? vmlFill[1] : null),
+        line: line ? colourOf(line[1], colours) : null,
+        paragraphs,
+      });
+    }
+    return out;
+  }
+
+  /**
+   * The paragraphs of a fragment that is DISPLAYED, never edited — a text
+   * box, a footnote — decorated the way body blocks are (style, alignment,
+   * indent, spacing, decor, runs, pictures) but with no index and no
+   * address: the caret cannot go there, so nothing here needs to rebuild.
+   */
+  _liteParagraphs(fragment) {
+    const paragraphs = [];
+    for (const p of String(fragment).matchAll(/<w:p\b[^>]*\/>|<w:p\b[^>]*>[\s\S]*?<\/w:p>/g)) {
+      const px = p[0];
+      const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(px);
+      const style = /<w:pStyle\b[^>]*w:val="([^"]*)"/.exec(pPr ? pPr[0] : '');
+      const jc = /<w:jc\b[^>]*w:val="([^"]*)"/.exec(pPr ? pPr[0] : '');
+      const ind = /<w:ind\b([^>]*?)\/?>/.exec(pPr ? pPr[0] : '');
+      const left = ind ? (/\bw:left="(-?\d+)"/.exec(ind[1]) || /\bw:start="(-?\d+)"/.exec(ind[1])) : null;
+      paragraphs.push({
+        text: textOf(px),
+        style: style ? style[1] : null,
+        align: jc ? jc[1] : null,
+        indentPx: left ? twipsToPx(Number(left[1])) : null,
+        spacing: readDirectSpacing(pPr ? pPr[0] : ''),
+        decor: readParagraphDecor(pPr ? pPr[0] : ''),
+        runs: parseRuns(px),
+        images: this._paragraphImages(px),
+      });
+    }
+    return paragraphs;
+  }
+
+  /**
+   * The document's footnotes and endnotes, by id, each as displayed
+   * paragraphs. Word's separator "notes" (type separator/continuationSeparator)
+   * are the rule between body and notes, not notes, and are left out. The
+   * NUMBERS are not here: a note is numbered by where its reference falls in
+   * the body, which is the view's business. Cached — no edit writes the part.
+   */
+  notes() {
+    if (this._notes) return this._notes;
+    const read = (part, tag) => {
+      if (!this.pkg.has(part)) return [];
+      const xml = this.pkg.text(part);
+      const out = [];
+      for (const m of xml.matchAll(new RegExp('<w:' + tag + '\\b([^>]*)>([\\s\\S]*?)</w:' + tag + '>', 'g'))) {
+        const a = attrs(m[1]);
+        if (a['w:type'] && a['w:type'] !== 'normal') continue;
+        if (a['w:id'] === undefined) continue;
+        out.push({ id: String(a['w:id']), paragraphs: this._liteParagraphs(m[2]) });
+      }
+      return out;
+    };
+    this._notes = { footnotes: read('word/footnotes.xml', 'footnote'), endnotes: read('word/endnotes.xml', 'endnote') };
+    return this._notes;
+  }
+
+  /**
+   * The theme's colour scheme — accent1 and friends — resolved to hex, for a
+   * shape fill named by scheme slot. Cached like the fonts.
+   */
+  themeColours() {
+    if (this._themeColours) return this._themeColours;
+    const part = this.pkg.partNames().find((n) => /^word\/theme\/theme\d*\.xml$/.test(n));
+    this._themeColours = readThemeColours(part ? this.pkg.text(part) : null);
+    return this._themeColours;
   }
 
   /**
@@ -1317,8 +1600,16 @@ export class Document {
     // read-only here until its changes are accepted or rejected in Word —
     // and its tracked state is SHOWN (see `tracked` below) rather than
     // silently flattened, which is what editing used to do.
-    const structural = ['w:fldSimple', 'w:fldChar', 'w:bookmarkStart', 'w:commentRangeStart', 'w:sdt', 'w:ins', 'w:del']
+    // w:txbxContent is on the list because a rebuild reassembles the runs
+    // and would drop the box the paragraph anchors, words and all.
+    const structural = ['w:fldSimple', 'w:fldChar', 'w:bookmarkStart', 'w:commentRangeStart', 'w:sdt', 'w:ins', 'w:del', 'w:txbxContent', 'w:footnoteReference', 'w:endnoteReference']
       .filter((tag) => new RegExp('<' + tag + '\\b').test(p.xml)); // \b: w:ins is a prefix of w:instrText
+    // A paragraph INSIDE a body-level content control carries no sdt tag of
+    // its own; it is read-only for the same reason one that does is.
+    if (p.inSdt && !structural.includes('w:sdt')) structural.push('w:sdt');
+    // The paragraph's OWN words: a text box's are the box's (`textBoxes`
+    // below), not the anchor's — counted once, drawn once.
+    const own = p.xml.includes('<w:txbxContent') ? stripTextBoxes(p.xml) : p.xml;
     const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(p.xml);
     const style = /<w:pStyle\b[^>]*w:val="([^"]*)"/.exec(p.xml);
     // `open` is normalised to a real opening tag: a self-closing `<w:p/>` (an
@@ -1333,7 +1624,7 @@ export class Document {
       xml: p.xml,
       start: p.start,
       end: p.end,
-      text: p.text,
+      text: own === p.xml ? p.text : textOf(own),
       open: rawOpen.endsWith('/>') ? rawOpen.replace(/\/>$/, '>') : rawOpen,
       pPr: pPr ? pPr[0] : null,
       style: style ? style[1] : null,
@@ -1357,6 +1648,9 @@ export class Document {
         const left = /\bw:left="(-?\d+)"/.exec(ind[1]) || /\bw:start="(-?\d+)"/.exec(ind[1]);
         return left ? twipsToPx(Number(left[1])) : null;
       })(),
+      // Tab stops, shading, borders and the other indents — direct formatting
+      // the page draws. Null when the paragraph sets none of them.
+      decor: readParagraphDecor(pPr ? pPr[0] : ''),
       // A list paragraph names its numbering; the LABEL is computed by the view,
       // because "3." depends on the two list items before it, not on this XML.
       numbering: (() => {
@@ -1366,7 +1660,7 @@ export class Document {
         const ilvl = /<w:ilvl\b[^>]*w:val="([^"]*)"/.exec(numPr[1]);
         return numId ? { numId: numId[1], level: Number(ilvl?.[1] ?? 0) || 0 } : null;
       })(),
-      images: this._paragraphImages(p.xml),
+      images: this._paragraphImages(own),
       // Charts and shapes, RAW — the xml and the box, no interpretation.
       // This layer is format-only; turning a chart part into something
       // paintable is the doc-view backend's job, with @rutba/drawing.
@@ -1374,7 +1668,14 @@ export class Document {
         const drawings = this._paragraphRichDrawings(p.xml);
         return drawings.length ? { drawings } : {};
       })()),
-      runs: parseRuns(p.xml),
+      // Text boxes anchored in this paragraph, their paragraphs read the way
+      // the body's are — a cover page is nothing but these.
+      ...((() => {
+        const textBoxes = this._paragraphTextBoxes(p.xml);
+        return textBoxes.length ? { textBoxes } : {};
+      })()),
+      ...(p.inSdt ? { inSdt: true } : {}),
+      runs: parseRuns(own),
       structural: structural.length > 0,
       structuralTags: structural,
       // Tracked changes, summarised for the margin: who touched this

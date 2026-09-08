@@ -64,10 +64,13 @@ export function createWindowManager({ stores, preloadPath, iconPath, onWindowEve
     const geo = GEOMETRY[appKey] || GEOMETRY.home;
     const saved = savedBounds(appKey);
     const dark = nativeTheme.shouldUseDarkColors;
+    // A capture harness can ask for a room of its own size — a page-tall
+    // window for a rendering comparison — without touching the saved bounds.
+    const forced = /^(\d+)x(\d+)$/.exec(process.env.RUTBA_WINDOW_SIZE || '');
 
     const win = new BrowserWindow({
-      width: saved?.width ?? geo.width,
-      height: saved?.height ?? geo.height,
+      width: forced ? Number(forced[1]) : saved?.width ?? geo.width,
+      height: forced ? Number(forced[2]) : saved?.height ?? geo.height,
       x: saved?.x,
       y: saved?.y,
       minWidth: geo.minWidth,

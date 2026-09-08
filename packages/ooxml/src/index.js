@@ -27,7 +27,7 @@ export {
   parseTable, parseSection, twipsToPx, eighthPointsToPx, TWIPS_PER_INCH,
 } from './table.js';
 export { readHeadersAndFooters, parseBand } from './headers.js';
-export { readParagraphStyles, readNumberingDefs, STANDARD_PARAGRAPH_STYLES, STANDARD_STYLES_XML } from './docstyles.js';
+export { readParagraphStyles, readNumberingDefs, readThemeFonts, readThemeColours, STANDARD_PARAGRAPH_STYLES, STANDARD_STYLES_XML } from './docstyles.js';
 export {
   recalculateWorkbook, inspectCalculation, toSpreadsheet, parseDefinedNameRange,
 } from './recalc.js';

@@ -15,6 +15,7 @@
  */
 import { OoxmlPackage, attrs } from './package.js';
 import { textOf, parseRuns } from './runs.js';
+import { unesc } from './workbook.js';
 
 const REFERENCE = /<w:(header|footer)Reference\b([^>]*)\/>/g;
 
@@ -89,7 +90,25 @@ export function readHeadersAndFooters(pkg, mainPart, sectPrXml) {
     const part = OoxmlPackage.resolveTarget(mainPart, target);
     if (!pkg.has(part)) continue;
     const bucket = m[1] === 'header' ? result.headers : result.footers;
-    bucket[type] = { part, paragraphs: parseBand(pkg.text(part)) };
+    const xml = pkg.text(part);
+    bucket[type] = { part, paragraphs: parseBand(xml) };
+    // A watermark is a WordArt shape in the header — "DRAFT" across every
+    // page, drawn by Word behind the body. Its words are a VML text path;
+    // without this it is not a word in any paragraph and simply vanishes.
+    if (m[1] === 'header' && !result.watermark) {
+      const path = /<v:textpath\b[^>]*\bstring="([^"]*)"/.exec(xml);
+      if (path) {
+        const shape = /<v:shape\b[^>]*\bfillcolor="([^"]*)"/.exec(xml);
+        const style = /<v:shape\b[^>]*\bstyle="([^"]*)"/.exec(xml);
+        const rotation = style ? /rotation:\s*(-?[\d.]+)/.exec(style[1]) : null;
+        result.watermark = {
+          text: unesc(path[1]),
+          colour: shape ? shape[1] : 'silver',
+          rotation: rotation ? Number(rotation[1]) : 315,
+          band: type,
+        };
+      }
+    }
   }
   return result;
 }

@@ -8,23 +8,42 @@
 import { esc } from './package.js';
 import { unesc } from './workbook.js';
 
-/** Text of a run/paragraph fragment, honouring w:tab and w:br like Word does. */
+/**
+ * Text of a run/paragraph fragment, honouring w:tab and w:br like Word does.
+ *
+ * Walked in document order: `<w:t>` gives its words, a bare `<w:tab/>` a tab,
+ * `<w:br/>`/`<w:cr/>` a line break. The first version substituted the tab and
+ * break characters into the XML and then kept only what sat inside `<w:t>` —
+ * which a run's `<w:tab/>` never does — so no tab ever reached the text, and
+ * every form line in the corpus ran its label into its value. Only a BARE
+ * `<w:tab/>` is a tab: the `<w:tab w:val w:pos/>` in a paragraph's `<w:tabs>`
+ * is a tab STOP, and counting it put phantom tabs at the head of every
+ * paragraph that defined one.
+ */
 export function textOf(xmlFragment) {
-  return String(xmlFragment)
-    .replace(/<w:tab\b[^>]*\/>/g, '\t')
-    .replace(/<w:br\b[^>]*\/>/g, '\n')
-    .replace(/<w:cr\b[^>]*\/>/g, '\n')
-    .split(/<w:t\b[^>]*>/)
-    .slice(1)
-    .map((chunk) => unesc(chunk.split('</w:t>')[0]))
-    .join('');
+  let out = '';
+  const re = /<w:t\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:t>)|<w:tab\s*\/>|<w:(?:br|cr)\b[^>]*\/>/g;
+  for (const m of String(xmlFragment).matchAll(re)) {
+    const tag = m[0];
+    if (tag.startsWith('<w:tab')) out += '\t';
+    else if (tag.startsWith('<w:t')) out += unesc(m[1] ?? '');
+    else out += '\n';
+  }
+  return out;
 }
 
 /** Render a run that carries the given properties verbatim. */
 function renderRun(rPrXml, text) {
   const props = rPrXml ? rPrXml : '';
-  // xml:space="preserve" or Word eats leading and trailing spaces.
-  return '<w:r>' + props + '<w:t xml:space="preserve">' + esc(text) + '</w:t></w:r>';
+  // A tab and a line break are elements in the file, not characters: a
+  // literal tab inside <w:t> is something Word tolerates, not something it
+  // writes. xml:space="preserve" or Word eats leading and trailing spaces.
+  const body = String(text).split(/([\t\n])/).map((piece) => {
+    if (piece === '\t') return '<w:tab/>';
+    if (piece === '\n') return '<w:br/>';
+    return piece ? '<w:t xml:space="preserve">' + esc(piece) + '</w:t>' : '';
+  }).join('');
+  return '<w:r>' + props + body + '</w:r>';
 }
 
 /** First run's <w:rPr>…</w:rPr>, so an edit inherits the original formatting. */
@@ -53,8 +72,29 @@ const RPR_RE = /<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>|<w:rPr\b[^>]*\/>/;
 /** One `<w:r>` inner content -> a run record, or null when it has no text. */
 function runFromInner(inner, link = null) {
   // A run with no <w:t> carries something else — a break, a comment anchor, a
-  // drawing. It has no text to edit, so it is not offered as one.
-  if (!/<w:t\b/.test(inner)) return null;
+  // drawing. It has no text to edit, so it is not offered as one. The two
+  // exceptions are a footnote or endnote REFERENCE (the little number in the
+  // body) and the matching mark at the head of the note: they are offered as
+  // empty runs carrying `noteRef`/`noteMark`, so the page can draw the number
+  // in place. Text-free, so no caret offset moves; the paragraph is
+  // structural, so no rebuild ever drops them.
+  // A run holding only a tab or a line break IS text — Word writes the tab
+  // between a label and its value as a run of its own, and dropping it ran
+  // every form line's label into its value and left `text` and `runs`
+  // disagreeing about where the caret was.
+  if (!/<w:t\b|<w:tab\s*\/>|<w:(?:br|cr)\b/.test(inner)) {
+    const ref = /<w:(footnote|endnote)Reference\b[^>]*\bw:id="([^"]+)"/.exec(inner);
+    const mark = /<w:(footnote|endnote)Ref\b/.exec(inner);
+    if (!ref && !mark) return null;
+    const rPrMatch = RPR_RE.exec(inner);
+    return {
+      rPr: rPrMatch ? rPrMatch[0] : null,
+      text: '',
+      bold: false, italic: false, underline: false, strike: false,
+      ...(ref ? { noteRef: { kind: ref[1], id: ref[2] } } : { noteMark: mark[1] }),
+      ...(link !== null ? { link } : {}),
+    };
+  }
   const rPrMatch = RPR_RE.exec(inner);
   const rPr = rPrMatch ? rPrMatch[0] : null;
   return {

@@ -343,7 +343,9 @@ export function createDocumentService({ holdBlob }) {
 
   function sheetModel(session) {
     const view = session.engine;
-    const frame = view.render();
+    // The editor never reads pages; paginating on every keystroke is what made
+    // a long specification take seconds per character. (Ignored by a sheet.)
+    const frame = view.render({ pages: false });
     return {
       ...frame,
       sheets: view.sheetNames(),
@@ -380,7 +382,9 @@ export function createDocumentService({ holdBlob }) {
 
   function docModel(session) {
     const view = session.engine;
-    const frame = view.render();
+    // The editor never reads pages; paginating on every keystroke is what made
+    // a long specification take seconds per character. (Ignored by a sheet.)
+    const frame = view.render({ pages: false });
     // Remember what the window now holds, so the next edit can send only the
     // difference rather than the document.
     session.lastBlocks = frame.blocks.map((b) => JSON.stringify(b));
@@ -390,6 +394,10 @@ export function createDocumentService({ holdBlob }) {
       canRedo: view.canRedo,
       canEdit: view.canEdit,
       styles: typeof view.paragraphStyles === 'object' ? view.paragraphStyles : [],
+      // The same styles RESOLVED — font, size, colour, spacing by style id —
+      // for the page to paint from. `styles` above is the catalogue the
+      // ribbon's style box lists; this is what each entry looks like.
+      resolvedStyles: safely(() => view.docStyles) || null,
       format: typeof view.formatAtCaret === 'function' ? view.formatAtCaret() : null,
       // What the ribbon needs to show state rather than only to change it: the
       // page geometry behind Layout, the headers and footers behind Insert, and
@@ -419,7 +427,9 @@ export function createDocumentService({ holdBlob }) {
    */
   function docDelta(session) {
     const view = session.engine;
-    const frame = view.render();
+    // The editor never reads pages; paginating on every keystroke is what made
+    // a long specification take seconds per character. (Ignored by a sheet.)
+    const frame = view.render({ pages: false });
     const next = frame.blocks.map((b) => JSON.stringify(b));
     const prev = session.lastBlocks;
     session.lastBlocks = next;

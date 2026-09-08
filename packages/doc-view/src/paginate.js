@@ -371,6 +371,9 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
  * every continuation, which is what `w:tblHeader` is for and the only way a
  * table that spans pages stays legible.
  */
+/** More sheets than any one table can honestly need; past this it is a bug, and the floor. */
+const maxPagesGuard = 2000;
+
 function layTable(table, { width, height, place, remaining, newPage, cache = null }) {
   const headerRows = [];
   for (const row of table.rows) {
@@ -381,6 +384,7 @@ function layTable(table, { width, height, place, remaining, newPage, cache = nul
 
   let index = 0;
   let repeatHeader = false;
+  let sheets = 0;
   while (index < table.rows.length) {
     const rows = [];
     let used = repeatHeader ? headerHeight : 0;
@@ -388,17 +392,28 @@ function layTable(table, { width, height, place, remaining, newPage, cache = nul
     while (index < table.rows.length) {
       const row = table.rows[index];
       const h = rowHeight(row, table, width, cache);
-      if (used + h > remaining() && rows.length + (repeatHeader ? headerRows.length : 0) > 0) break;
-      // A row taller than a whole page is placed anyway and allowed to clip;
-      // the alternative is an infinite loop, and a clipped row at least shows
-      // the reader that something is there.
+      // Break for a new page only once a BODY row is on this one. The repeated
+      // header used to count as placed rows, so a header plus first row taller
+      // than the page broke with nothing placed, opened a fresh page, and did
+      // exactly the same again — an infinite loop that allocated a page object
+      // each turn and took an 81 KB document to four gigabytes. A row that
+      // does not fit on an otherwise empty page is placed anyway and clipped;
+      // a clipped row at least shows the reader something is there.
+      if (used + h > remaining() && rows.length > 0) break;
       rows.push(row);
       used += h;
       index += 1;
       if (used > remaining() && used > height) break;
     }
 
-    if (!rows.length) { newPage(); repeatHeader = headerRows.length > 0; continue; }
+    if (!rows.length) {
+      // Cannot happen now — the loop above always takes at least one row — but
+      // a paginator's loops are exactly where "cannot happen" needs a floor.
+      if (++sheets > maxPagesGuard) break;
+      newPage();
+      repeatHeader = headerRows.length > 0;
+      continue;
+    }
 
     const done = index >= table.rows.length;
     place({

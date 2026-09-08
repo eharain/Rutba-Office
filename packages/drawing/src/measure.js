@@ -28,6 +28,9 @@ const WIDTHS = {
   k: 0.5, l: 0.22, m: 0.83, n: 0.55, o: 0.55, p: 0.55, q: 0.55, r: 0.33, s: 0.5, t: 0.28,
   u: 0.55, v: 0.5, w: 0.72, x: 0.5, y: 0.5, z: 0.5,
   '{': 0.33, '|': 0.26, '}': 0.33, '~': 0.58,
+  // A tab advances to Word's next default stop, half an inch on: about 3.3 em
+  // at body size. An estimate of an average, like everything else here.
+  '\t': 3.3,
 };
 const DEFAULT_WIDTH = 0.55;
 const BOLD_FACTOR = 1.06;
@@ -59,7 +62,9 @@ export const capHeight = (size = 11) => size * 0.71;
 
 /** Greedy word wrap to a pixel width. Returns the lines. */
 export function wrapText(value, width, opts = {}) {
-  const words = String(value ?? '').split(/\s+/).filter(Boolean);
+  // Break on spaces and line ends, never on a tab: a tab is part of the word it
+  // precedes, so its advance (see WIDTHS) counts toward the line it sits on.
+  const words = String(value ?? '').split(/[^\S\t]+/).filter(Boolean);
   if (!words.length) return [];
   const lines = [];
   let current = words[0];
