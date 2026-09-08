@@ -249,12 +249,32 @@ const PLAN = [
   ['video', null],
 ];
 
+/**
+ * How long to let each window settle before photographing it, in ms.
+ *
+ * Per-app because the work differs: a launcher has nothing to wait for, a
+ * photo viewer is decoding a half-megabyte JPEG and rendering a thumbnail
+ * for every file in the folder, and mail is reading a store off disk.
+ */
+const SETTLE = {
+  home: 1500,
+  pictures: 6000,
+  image: 5000,
+  mail: 5000,
+};
+
 function capture(app, file, profile) {
   return new Promise((resolve) => {
     const env = {
       ...process.env,
       RUTBA_OFFICE_SMOKE: '1',
       RUTBA_SMOKE_OUT: outDir,
+      // A smoke run wants to be quick and a marketing capture wants to be
+      // right. At the smoke default of 900ms the photo viewer photographed
+      // blank thumbnails over a JPEG decoded to the halfway line, and mail
+      // caught its folder before the messages landed - both of which look
+      // like product defects in a screenshot and are neither.
+      RUTBA_SMOKE_SETTLE: String(SETTLE[app] ?? 2500),
       ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
     };
     if (file) env.RUTBA_SMOKE_FILE = file;

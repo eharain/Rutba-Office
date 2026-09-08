@@ -57,8 +57,19 @@ export async function runSmoke({ windows, outDir, stores, mail }) {
       const timer = setTimeout(() => resolve(false), 12000);
       win.webContents.once('did-finish-load', () => {
         clearTimeout(timer);
-        // One more frame after load, so React has committed its first render.
-        setTimeout(() => resolve(true), 900);
+        // Time for the window to SETTLE, not just to have loaded.
+        //
+        // 900ms is enough for a window that draws from data it already has.
+        // It is not enough for one still decoding a half-megabyte JPEG or
+        // waiting on an async read: the website captures came back with the
+        // photo viewer showing blank thumbnails and an image rendered down to
+        // the halfway line, and a mail window whose folder had not populated.
+        // Both looked like product defects and were neither.
+        //
+        // RUTBA_SMOKE_SETTLE overrides it, which is what the screenshot
+        // build does — a smoke run wants to be quick, and a marketing
+        // capture wants to be right.
+        setTimeout(() => resolve(true), Number(process.env.RUTBA_SMOKE_SETTLE) || 900);
       });
       win.webContents.once('did-fail-load', (_e, code, desc) => {
         clearTimeout(timer);
