@@ -1021,3 +1021,28 @@ test("Excel's _xlfn. prefix is the file's, not the function's, and CEILING.MATH 
   assert.equal(evalIn('=FLOOR.MATH(-4.3, 1, 1)'), -4, 'unless mode says toward it');
   assert.equal(String(evalIn('=_xlfn.NOSUCHFUNCTION(1)')), '#NAME?', 'an unknown function is still unknown');
 });
+
+test('a range wholly past the used cells is blank, not the last row that holds something', () => {
+  // Ranges are clipped to the used area so that A:A does not walk a million
+  // rows. Clipping the END of a range that starts beyond the used area pulled
+  // it back before its start, and the backwards-range rule then normalised it
+  // onto the boundary: on a sheet whose last used row is 5, =SUM(D7:D9) came
+  // back with the contents of D5.
+  const s = new Spreadsheet();
+  s.addSheet('S');
+  s.setCell('S', 0, 3, 20); // D1
+  s.setCell('S', 4, 3, 7); // D5, the last used row
+  s.setCell('S', 0, 0, '=SUM(D7:D9)');
+  s.setCell('S', 1, 0, '=COUNT(D7:D9)');
+  s.setCell('S', 2, 0, '=SUM(F1:F3)'); // a column past the used ones
+  s.setCell('S', 3, 0, '=SUM(D9:D7)'); // the same, written backwards
+  s.setCell('S', 4, 0, '=SUM(D1:D9)'); // reaching past the end still sums what is there
+  s.setCell('S', 5, 0, '=SUM(D:D)'); // and a whole column is still clipped
+  s.recalculate();
+  assert.equal(s.getValue('S', 0, 0), 0, 'rows past the end hold nothing');
+  assert.equal(s.getValue('S', 1, 0), 0, 'and count as nothing');
+  assert.equal(s.getValue('S', 2, 0), 0, 'a column past the end likewise');
+  assert.equal(s.getValue('S', 3, 0), 0, 'written backwards or forwards');
+  assert.equal(s.getValue('S', 4, 0), 27, 'a range that does cover the data still sums it');
+  assert.equal(s.getValue('S', 5, 0), 27, 'a whole column still sums what it holds');
+});

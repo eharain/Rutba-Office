@@ -27,9 +27,19 @@ function clip(resolver, sheet, start, end) {
   const used = resolver.usedBounds ? resolver.usedBounds(sheet) : null;
   const maxRow = used ? used.maxRow : 1000;
   const maxCol = used ? used.maxCol : 100;
+  // Clipping trims a range that runs PAST the used cells; it must never pull
+  // an end back BEFORE its start. A range wholly beyond them — D7:D9 on a
+  // sheet whose last row is 5 — covers blanks, and clamping its end to that
+  // row turned it into D5:D7 once the backwards-range rule normalised it:
+  // =SUM(D7:D9) answered with the contents of D5.
+  const endRow = Math.min(end.row, maxRow);
+  const endCol = Math.min(end.col, maxCol);
   return {
     start: { row: Math.min(start.row, MAX_ROWS - 1), col: Math.min(start.col, MAX_COLS - 1) },
-    end: { row: Math.min(end.row, maxRow), col: Math.min(end.col, maxCol) },
+    end: {
+      row: endRow < start.row ? Math.min(end.row, MAX_ROWS - 1) : endRow,
+      col: endCol < start.col ? Math.min(end.col, MAX_COLS - 1) : endCol,
+    },
   };
 }
 
