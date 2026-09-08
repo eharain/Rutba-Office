@@ -39,8 +39,31 @@ function gradientDef(fill, id) {
 }
 
 /** The preset geometries that actually appear in decks, as SVG. */
-function shapePath(preset, { x, y, w, h }) {
+function shapePath(preset, { x, y, w, h }, custom = null) {
   const r = Math.min(w, h);
+  // A custom geometry: its path, scaled from the path's own box onto the
+  // shape's, in the coordinates themselves — no transform attribute, so the
+  // caller's rotation still applies cleanly.
+  if (preset === 'custom' && custom?.d) {
+    const sx = w / (custom.w || 1);
+    const sy = h / (custom.h || 1);
+    const d = custom.d.replace(/([MLCQAZ])([^MLCQAZ]*)/g, (_, op, args) => {
+      if (op === 'Z') return 'Z';
+      const nums = args.trim().split(/[\s,]+/).filter((v) => v !== '').map(Number);
+      if (op === 'A') {
+        // rx ry rotation large sweep x y — radii scale by axis, flags stay.
+        const out = [];
+        for (let i = 0; i + 6 < nums.length + 1; i += 7) {
+          out.push([nums[i] * sx, nums[i + 1] * sy, nums[i + 2], nums[i + 3], nums[i + 4], x + nums[i + 5] * sx, y + nums[i + 6] * sy].map((v) => (Math.round(v * 100) / 100)).join(' '));
+        }
+        return 'A' + out.join(' ');
+      }
+      const out = [];
+      for (let i = 0; i + 1 < nums.length; i += 2) out.push(`${Math.round((x + nums[i] * sx) * 100) / 100} ${Math.round((y + nums[i + 1] * sy) * 100) / 100}`);
+      return op + out.join(' ');
+    });
+    return `<path d="${d}"`;
+  }
   switch (preset) {
     case 'ellipse':
     case 'circle':
@@ -307,7 +330,7 @@ export function renderSlide(slide, opts = {}) {
 
     const fill = registerFill(shape.fill);
     const line = shape.line;
-    const geom = shapePath(shape.preset, g);
+    const geom = shapePath(shape.preset, g, shape.path || null);
     const strokeBits = line && line.type !== 'none' && line.color
       ? ` stroke="${line.color}" stroke-width="${(line.width || 1).toFixed(2)}"${line.dash ? ` stroke-dasharray="${line.dash === 'dash' ? '6 4' : '2 3'}"` : ''}`
       : '';

@@ -158,6 +158,7 @@ Against **PowerPoint**, **Impress**, **Keynote**, **Google Slides**.
 | ⬜ Master and layout editing | all |
 | ⬜ Themes to choose from | all |
 | ⬜ Tables and charts on a slide | all |
+| ⬜ Legacy `.ppt` (the binary format) — Word reads `.doc`, Presentation does not read `.ppt` yet | PowerPoint, Impress |
 
 ---
 

@@ -358,9 +358,67 @@ function readShape(sp, ctx, offset) {
     line,
     preset: first(spPr, A('prstGeom'))?.attrs.prst || (kids(spPr || { children: [] }, A('custGeom'))[0] ? 'custom' : 'rect'),
     adjustments: readAdjustments(spPr),
+    // A custom geometry's outline, as SVG path data in the path's own units
+    // — a banner with a diagonal cut, a slash, a swoosh. Null for a preset.
+    path: readCustomPath(spPr),
     text,
     inheritedText: inherited?.text || null,
   };
+}
+
+/**
+ * `<a:custGeom>` → `{ w, h, d }`: the path's declared box and its commands
+ * as SVG path data in that box's units. moveTo, lnTo, cubicBezTo, quadBezTo,
+ * arcTo and close are what decks use; arcTo is turned into an SVG arc from
+ * its sweep. The renderer scales the box onto the shape's geometry.
+ */
+function readCustomPath(spPr) {
+  const cust = spPr ? kids(spPr, A('custGeom'))[0] : null;
+  const list = cust ? kids(cust, A('pathLst'))[0] : null;
+  const paths = list ? kids(list, A('path')) : [];
+  if (!paths.length) return null;
+  const pt = (node) => {
+    const p = kids(node, A('pt'))[0];
+    return p ? [Number(p.attrs.x) || 0, Number(p.attrs.y) || 0] : null;
+  };
+  const pts = (node) => kids(node, A('pt')).map((p) => [Number(p.attrs.x) || 0, Number(p.attrs.y) || 0]);
+  const n = (v) => (Math.round(v * 100) / 100).toString();
+  let w = 0;
+  let h = 0;
+  const d = [];
+  let filled = false;
+  for (const path of paths) {
+    w = Math.max(w, Number(path.attrs.w) || 0);
+    h = Math.max(h, Number(path.attrs.h) || 0);
+    if (path.attrs.fill !== 'none') filled = true;
+    let cx = 0;
+    let cy = 0;
+    for (const cmd of path.children || []) {
+      const name = String(cmd.name || '').replace(/^a:/, '');
+      if (name === 'moveTo') { const p = pt(cmd); if (p) { d.push(`M${n(p[0])} ${n(p[1])}`); [cx, cy] = p; } }
+      else if (name === 'lnTo') { const p = pt(cmd); if (p) { d.push(`L${n(p[0])} ${n(p[1])}`); [cx, cy] = p; } }
+      else if (name === 'cubicBezTo') { const p = pts(cmd); if (p.length === 3) { d.push(`C${p.map((q) => `${n(q[0])} ${n(q[1])}`).join(' ')}`); [cx, cy] = p[2]; } }
+      else if (name === 'quadBezTo') { const p = pts(cmd); if (p.length === 2) { d.push(`Q${p.map((q) => `${n(q[0])} ${n(q[1])}`).join(' ')}`); [cx, cy] = p[1]; } }
+      else if (name === 'arcTo') {
+        // Radii and angles in DrawingML's units: 60,000ths of a degree, from
+        // the current point, clockwise-positive on a y-down page.
+        const wR = Number(cmd.attrs.wR) || 0;
+        const hR = Number(cmd.attrs.hR) || 0;
+        const st = ((Number(cmd.attrs.stAng) || 0) / 60000) * (Math.PI / 180);
+        const sw = ((Number(cmd.attrs.swAng) || 0) / 60000) * (Math.PI / 180);
+        const ox = cx - wR * Math.cos(st);
+        const oy = cy - hR * Math.sin(st);
+        const ex = ox + wR * Math.cos(st + sw);
+        const ey = oy + hR * Math.sin(st + sw);
+        d.push(`A${n(wR)} ${n(hR)} 0 ${Math.abs(sw) > Math.PI ? 1 : 0} ${sw > 0 ? 1 : 0} ${n(ex)} ${n(ey)}`);
+        cx = ex;
+        cy = ey;
+      }
+      else if (name === 'close') d.push('Z');
+    }
+  }
+  if (!d.length) return null;
+  return { w: w || 1, h: h || 1, d: d.join(' '), filled };
 }
 
 function readAdjustments(spPr) {

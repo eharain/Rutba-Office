@@ -16,7 +16,7 @@ import { SheetView } from '@rutba/sheet-view';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { buildXlsx, buildDocx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
-import { Deck, buildPptx, renderSlide, TEMPLATES as DECK_TEMPLATES } from '@rutba/presentation';
+import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';
 import { sniff, refineOoxml } from '@rutba/office-formats/sniff';
 import { readOdf } from '@rutba/office-formats/odf';
@@ -483,11 +483,27 @@ export function createDocumentService({ holdBlob }) {
       const type = shape.source.part.endsWith('.png') ? 'image/png' : shape.source.part.endsWith('.gif') ? 'image/gif' : 'image/jpeg';
       return holdBlob(bytes, type, path.basename(shape.source.part)).url;
     };
+    // Thumbnails, cached per slide against the slide part's own XML: a deck
+    // of nineteen slides must not be drawn nineteen times per keystroke, and
+    // a slide that changed must be drawn again.
+    const thumbs = session.thumbs || (session.thumbs = new Map());
+    const thumbnailOf = (o) => {
+      try {
+        const key = deck.pkg?.text ? deck.pkg.text(o.part) : String(o.index);
+        const hit = thumbs.get(o.part);
+        if (hit && hit.key === key) return hit.svg;
+        const svg = renderThumbnail(deck.slide(o.index), 220, { resolveImage });
+        thumbs.set(o.part, { key, svg });
+        return svg;
+      } catch {
+        return null;
+      }
+    };
     return {
       count,
       index,
       size: deck.size,
-      outline: deck.outline().map((o) => ({ ...o, thumbnail: null })),
+      outline: deck.outline().map((o) => ({ ...o, thumbnail: thumbnailOf(o) })),
       slide: current
         ? {
             ...current,

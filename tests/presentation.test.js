@@ -201,3 +201,38 @@ test('leading and trailing spaces are preserved in a run', () => {
   const reopened = Deck.open(deck.save());
   assert.equal(sceneText(reopened.slide(0)).split('\n')[0], '  spaced  ');
 });
+
+test('a custom geometry draws as its own path, scaled onto the shape, not as a rectangle', async () => {
+  const { readSlideScene } = await import('@rutba/presentation');
+  const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main">' +
+    '<p:cSld><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr/>' +
+    // A banner with a diagonal cut: the shape a preset cannot describe.
+    '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Banner"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>' +
+    '<p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm>' +
+    '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="100" h="100">' +
+    '<a:moveTo><a:pt x="0" y="0"/></a:moveTo><a:lnTo><a:pt x="100" y="0"/></a:lnTo><a:lnTo><a:pt x="80" y="100"/></a:lnTo><a:lnTo><a:pt x="0" y="100"/></a:lnTo><a:close/>' +
+    '</a:path></a:pathLst></a:custGeom><a:solidFill><a:srgbClr val="2292FD"/></a:solidFill><a:ln><a:noFill/></a:ln></p:spPr></p:sp>' +
+    '</p:spTree></p:cSld></p:sld>';
+  const scene = readSlideScene(xml, {});
+  const banner = scene.shapes.find((s) => s.name === 'Banner');
+  assert.equal(banner.preset, 'custom');
+  assert.deepEqual(banner.path, { w: 100, h: 100, d: 'M0 0 L100 0 L80 100 L0 100 Z', filled: true });
+  const svg = renderSlide(scene, { width: 960 });
+  // 914400 EMU is one inch, 96 px: the path's 100-unit box scales to 96.
+  assert.match(svg, /<path d="M0 0L96 0L76\.8 96L0 96Z" fill="#2292fd"/i);
+  assert.ok(!/<rect x="0" y="0" width="96" height="96"/.test(svg), 'no rectangle stands in for it');
+});
+
+test('an arcTo in a custom geometry becomes an SVG arc from its sweep', async () => {
+  const { readSlideScene } = await import('@rutba/presentation');
+  const xml = '<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree>' +
+    '<p:sp><p:nvSpPr><p:cNvPr id="2" name="Swoosh"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm>' +
+    '<a:custGeom><a:pathLst><a:path w="200" h="200"><a:moveTo><a:pt x="0" y="100"/></a:moveTo>' +
+    // A half turn clockwise from the left of a 100-radius circle centred at (100,100): ends at (200,100).
+    '<a:arcTo wR="100" hR="100" stAng="10800000" swAng="10800000"/><a:close/></a:path></a:pathLst></a:custGeom></p:spPr></p:sp>' +
+    '</p:spTree></p:cSld></p:sld>';
+  const scene = readSlideScene(xml, {});
+  const d = scene.shapes[0].path.d;
+  assert.match(d, /^M0 100 A100 100 0 0 1 200 100 Z$/);
+});

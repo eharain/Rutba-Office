@@ -33,6 +33,24 @@ export default function Slides({ app, shell, boot }) {
   // Set when a presenter window is driving, so this one follows rather than leads.
   const [led, setLed] = useState(false);
   const stageRef = useRef(null);
+  // The slide is drawn at its own size and scaled to fit the stage, the way
+  // PowerPoint's "Fit to Window" does — a 1280-px slide in a 1000-px stage
+  // used to run off the right edge, logo and all. Re-measured on resize.
+  const [fit, setFit] = useState(1);
+  useEffect(() => {
+    const el = stageRef.current;
+    if (!el || !model?.size) return undefined;
+    const measure = () => {
+      const w = el.clientWidth - 44;
+      const h = el.clientHeight - 44;
+      const scale = Math.min(1, w / model.size.width, h / model.size.height);
+      setFit(Number.isFinite(scale) && scale > 0 ? Math.round(scale * 1000) / 1000 : 1);
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [model?.size?.width, model?.size?.height, busy]);
   const menu = useMenu();
   const openFileRef = useRef(null);
   const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.() });
@@ -418,8 +436,10 @@ export default function Slides({ app, shell, boot }) {
                   onContextMenu={(e) => menu.open(e, menuItems(commands, ['slide.new', 'slide.delete']))}
                 >
                   <span className="sl-thumb-n">{i + 1}</span>
-                  <span className="sl-thumb-card">
-                    <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>
+                  <span className="sl-thumb-card" title={o.title || `Slide ${i + 1}`}>
+                    {o.thumbnail
+                      ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} />
+                      : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
                   </span>
                 </button>
               ))}
@@ -429,7 +449,8 @@ export default function Slides({ app, shell, boot }) {
           <Content>
             <div className="sl-stage" ref={stageRef}>
               {slide ? (
-                <div className="sl-slide" style={{ width: model.size.width, height: model.size.height }}>
+                <div className="sl-fit" style={{ width: Math.round(model.size.width * fit), height: Math.round(model.size.height * fit) }}>
+                <div className="sl-slide" style={{ width: model.size.width, height: model.size.height, transform: `scale(${fit})`, transformOrigin: 'top left' }}>
                   <div className="sl-svg" dangerouslySetInnerHTML={{ __html: slide.svg }} />
                   {/* Text boxes get a hit area so a click lands on the shape rather than on the drawing. */}
                   {slide.shapes.filter((s) => s.text && s.geometry).map((s) => (
@@ -462,6 +483,7 @@ export default function Slides({ app, shell, boot }) {
                       }}
                     />
                   ) : null}
+                </div>
                 </div>
               ) : (
                 <Empty icon="slides" title="This presentation has no slides" />
@@ -504,6 +526,11 @@ const CSS = `
   font-size: 10.5px; line-height: 1.3; color: var(--ink-2); display: -webkit-box;
   -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden;
 }
+/* A real picture of the slide, the same drawing smaller. */
+.sl-thumb-card:has(.sl-thumb-pic) { padding: 0; background: #fff; }
+.sl-thumb-pic { display: block; line-height: 0; }
+.sl-thumb-pic svg { display: block; width: 100%; height: auto; }
+.sl-fit { position: relative; flex: none; }
 
 .sl-stage { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 22px; background: var(--window); }
 .sl-slide { position: relative; box-shadow: var(--shadow-2); background: #fff; }
