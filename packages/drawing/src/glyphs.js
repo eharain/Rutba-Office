@@ -1,5 +1,12 @@
 // Bullets that live in symbol fonts.
 //
+// This is a glyph table, not a format: it knows fonts, not files, which is why
+// it sits in the drawing engine beside the text metrics rather than in
+// @rutba/ooxml, where it was born (2026-09-09). Word's lists (@rutba/doc-view)
+// and PowerPoint's slides (@rutba/presentation) both draw from it, and the
+// format-neutral editor core may import the drawing engine but never the
+// format layer — tests/engine-seam.test.js holds that line.
+//
 // Word and PowerPoint write a bullet as a character in Wingdings or Symbol —
 // U+F0A7 in Wingdings is a small square, U+F0B7 in Symbol is a round bullet —
 // and a renderer without those fonts shows the private-use code point as a

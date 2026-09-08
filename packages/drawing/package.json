@@ -19,7 +19,8 @@
     "./chart": "./src/chart.js",
     "./ooxml": "./src/ooxml.js",
     "./shapes": "./src/shapes.js",
-    "./measure": "./src/measure.js"
+    "./measure": "./src/measure.js",
+    "./glyphs": "./src/glyphs.js"
   },
   "files": [
     "src",

@@ -149,6 +149,24 @@ tools/             probes for looking inside real files during development
 tests/             the engine suite
 ```
 
+### The engines have a second consumer
+
+The Rutba consumer line (the `rutba-suite` repo, `consumer/` beside this one
+in the estate) runs on these packages too: Workspace's editors, Sign's drafting
+surface and PDF writer, the assistant's report writers, comms' whiteboard and
+Studio's undo all resolve `@rutba/ooxml`, `formula`, `sheet-view`, `doc-view`,
+`drawing`, `editing` and `pdf` from *this* repository, linked in by `file:`
+path from `consumer/package.json` since 2026-09-09. There is one engine, not
+two. Two things follow:
+
+- **The export maps are a contract.** `tests/engine-seam.test.js` pins every
+  subpath the consumer line imports; renaming one is a build broken in another
+  repository, so the test says so here.
+- **The seam holds on both sides.** `drawing`, `editing` and `doc-view` import
+  no format layer outside a backend (same test); the consumer line's
+  `workspace/tests/shared-seam.test.js` checks the same through its links, and
+  its own suite runs against these files on every change there.
+
 ### The two decisions that shape everything else
 
 **Documents live in the backend.** The OOXML engine inflates with zlib and works

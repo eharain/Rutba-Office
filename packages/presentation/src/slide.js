@@ -18,7 +18,7 @@
 //     master's text styles, then the theme default.
 
 import { parse, kids, first, all, textOf } from '@rutba/office-formats/xml';
-import { bulletGlyph } from '@rutba/ooxml/glyphs';
+import { bulletGlyph } from '@rutba/drawing/glyphs';
 import { emuToPx, szToPt, rotToDeg, applyColorTransforms, PRESET_COLORS, pctOf } from './units.js';
 
 const A = (n) => `a:${n}`;

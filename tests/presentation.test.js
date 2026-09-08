@@ -307,7 +307,7 @@ test('a preset shape can be added with the theme accent, a line and centred text
 });
 
 test('a bullet stored for Wingdings or Symbol is drawn as the character it looks like', async () => {
-  const { bulletGlyph } = await import('@rutba/ooxml/glyphs');
+  const { bulletGlyph } = await import('@rutba/drawing/glyphs');
   assert.equal(bulletGlyph('§', 'Wingdings'), '▪', 'Wingdings 0xA7 is a small square');
   assert.equal(bulletGlyph('', 'Wingdings'), '▪', 'the same code point in the private-use area');
   assert.equal(bulletGlyph('ü', 'Wingdings'), '✓');

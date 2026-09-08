@@ -1,4 +1,4 @@
-import { bulletGlyph } from '@rutba/ooxml/glyphs';
+import { bulletGlyph } from '@rutba/drawing/glyphs';
 /**
  * List labels — the "3." in front of the third item.
  *
