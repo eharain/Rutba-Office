@@ -522,7 +522,7 @@ export async function verifyApps({ windows, doc }) {
     // invisible because nothing checked for it.
     const press = async (title) =>
       js(`(() => {
-        const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || '') === ${JSON.stringify(title)});
+        const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}));
         if (!b) return 'no button';
         b.click();
         return 'clicked';
@@ -991,6 +991,121 @@ export async function verifyApps({ windows, doc }) {
     check('word: the ribbon-tab checks ran', false, err.message);
   }
 
+  /* ── Worksheets: the rest of the ribbon, tab by tab ───────────────────── */
+
+  try {
+    const win = await open('sheets', files.xlsx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const model = () => js(`(async () => {
+      const all = await window.rutbaOffice.doc.sessions({});
+      const mine = all.filter((s) => s.kind === 'sheet').pop();
+      return window.rutbaOffice.doc.model({ id: mine.id });
+    })()`);
+    const tabTo = (label) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
+    const pushTitle = (title) => js(`(() => {
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      if (!b) return 'no live button ' + ${JSON.stringify(title)};
+      b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
+    })()`);
+    const pushLabel = (label) => js(`(() => {
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+      if (!b) return 'no live button ' + ${JSON.stringify(label)};
+      b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
+    })()`);
+    const menuItem = (label) => js(`(() => { const i = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!i) return 'no item ' + ${JSON.stringify(label)}; i.click(); return 'clicked'; })()`);
+
+    // Every Excel tab is reachable and draws its groups; what is not wired says so.
+    const tabs = ['Home', 'Insert', 'Draw', 'Page Layout', 'Formulas', 'Data', 'Review', 'View', 'Automate', 'Help'];
+    const groups = {};
+    for (const t of tabs) {
+      await tabTo(t);
+      await wait(120);
+      groups[t] = await js(`document.querySelectorAll('.rw-ribbon .rw-group').length`);
+    }
+    check('sheets: every Excel tab is there and draws its groups', tabs.every((t) => groups[t] > 0), tabs.map((t) => `${t} ${groups[t]}`).join(', '));
+    const honest = await js(`(() => {
+      const dead = [...document.querySelectorAll('.rw-ribbon .rw-btn[disabled]')];
+      return { count: dead.length, unexplained: dead.filter((b) => !/not built yet/.test(b.title || '') && !/^(Undo|Redo) /.test(b.title || '')).map((b) => b.title || b.textContent.trim()).slice(0, 5) };
+    })()`);
+    check('sheets: every disabled control explains itself', honest.unexplained.length === 0, `${honest.count} disabled on the Help tab; unexplained: ${JSON.stringify(honest.unexplained)}`);
+
+    // View: the three Show toggles change the grid, and freeze works from the menu.
+    await tabTo('View');
+    await wait(120);
+    await pushLabel('Gridlines');
+    await until(() => js(`Boolean(document.querySelector('.sh.no-grid'))`), 'gridlines off', 3000).catch(() => {});
+    const noGrid = await js(`Boolean(document.querySelector('.sh.no-grid'))`);
+    await pushLabel('Gridlines');
+    await pushLabel('Headings');
+    await until(() => js(`Boolean(document.querySelector('.sh.no-heads'))`), 'headings off', 3000).catch(() => {});
+    const noHeads = await js(`({ off: Boolean(document.querySelector('.sh.no-heads')), rails: getComputedStyle(document.querySelector('.sh-colheads')).display })`);
+    await pushLabel('Headings');
+    await pushLabel('Formula Bar');
+    await until(() => js(`document.querySelector('.sh-formula').hidden`), 'the formula bar to hide', 3000).catch(() => {});
+    const noBar = await js(`document.querySelector('.sh-formula').hidden`);
+    await pushLabel('Formula Bar');
+    check('sheets: View → Gridlines, Headings and Formula Bar toggle what they name', noGrid && noHeads.off && noHeads.rails === 'none' && noBar, `gridlines off ${noGrid}; headings ${JSON.stringify(noHeads)}; formula bar hidden ${noBar}`);
+
+    await pushLabel('Freeze Panes');
+    await wait(150);
+    await menuItem('Freeze top row');
+    await until(async () => (await model()).frozen?.rows === 1, 'the top row to freeze', 4000).catch(() => {});
+    const frozen = (await model()).frozen;
+    check('sheets: View → Freeze Panes → Freeze top row freezes it', frozen?.rows === 1 && !frozen?.cols, JSON.stringify(frozen));
+    await pushLabel('Freeze Panes');
+    await wait(150);
+    await menuItem('Unfreeze panes');
+
+    // Home: a cell style paints, the decimal buttons rewrite the number format, Go To moves.
+    await tabTo('Home');
+    await wait(120);
+    await js(`(() => { const c = document.querySelector('.sh-cell'); c?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, button: 0 })); return c?.textContent; })()`);
+    await wait(200);
+    await pushLabel('Cell Styles');
+    await wait(150);
+    await menuItem('Good');
+    await until(async () => /c6efce/i.test(String((await model()).format?.fill || '')), 'the Good style', 4000).catch(() => {});
+    const good = await model();
+    const painted = await js(`getComputedStyle(document.querySelector('.sh-cell.active')).backgroundColor`);
+    check('sheets: Home → Cell Styles → Good fills the cell Excel-green', /c6efce/i.test(String(good.format?.fill || '')) && painted === 'rgb(198, 239, 206)', `engine fill ${good.format?.fill}; painted ${painted}`);
+    await pushLabel('Cell Styles');
+    await wait(150);
+    await menuItem('Normal');
+
+    await pushTitle('Increase decimal');
+    await until(async () => /\.0/.test(String((await model()).format?.numberFormat || '')), 'a decimal', 4000).catch(() => {});
+    const dec = (await model()).format?.numberFormat;
+    await pushTitle('Decrease decimal');
+    check('sheets: Home → Increase decimal turns General into 0.0', dec === '0.0', `number format ${JSON.stringify(dec)}`);
+
+    await pushLabel('Find & Select');
+    await wait(150);
+    await menuItem('Go To…');
+    await until(() => js(`Boolean(document.querySelector('.rw-dialog input'))`), 'the Go To dialog', 3000).catch(() => {});
+    await js(`(() => { const i = document.querySelector('.rw-dialog input'); if (!i) return 'no input'; Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(i, 'B3'); i.dispatchEvent(new Event('input', { bubbles: true })); return 'typed'; })()`);
+    await wait(120);
+    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Go')?.click(), 'go'`);
+    await until(async () => (await model()).selection?.ref === 'B3', 'B3', 4000).catch(() => {});
+    const went = (await model()).selection?.ref;
+    check('sheets: Home → Find & Select → Go To moves the selection', went === 'B3', `selection ${went}`);
+
+    // Formulas → Insert Function → SUM starts the edit with =SUM( typed.
+    await tabTo('Formulas');
+    await wait(120);
+    await pushLabel('Insert Function');
+    await until(() => js(`Boolean(document.querySelector('.rw-dialog'))`), 'the function dialog', 3000).catch(() => {});
+    await js(`[...document.querySelectorAll('.rw-dialog .ml-found-item')].find((b) => b.textContent.trim() === 'SUM')?.click(), 'picked'`);
+    await until(() => js(`(document.querySelector('.sh-editor')?.value || '').startsWith('=SUM(')`), 'the edit to start', 4000).catch(() => {});
+    const editor = await js(`document.querySelector('.sh-editor')?.value ?? null`);
+    check('sheets: Formulas → Insert Function → SUM starts the edit with =SUM(', editor === '=SUM(', `editor ${JSON.stringify(editor)}`);
+    await js(`document.querySelector('.sh-editor')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 'esc'`);
+
+    const complaints = await errorsIn(win);
+    check('sheets: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('sheets: the ribbon-tab checks ran', false, err.message);
+  }
+
   /* ── Worksheets: clicking empty grid, typing, and formatting that paints ── */
 
   try {
@@ -1037,7 +1152,8 @@ export async function verifyApps({ windows, doc }) {
     await pressEmpty(6, 2);
     await wait(250);
     const clickRibbon = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '') === ${JSON.stringify(title)});
+      // By the START of the title: "Bold (Ctrl+B)" is still the Bold button.
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}));
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -1073,7 +1189,10 @@ export async function verifyApps({ windows, doc }) {
     // "Freeze the top row", and the frame has to say row 1 is frozen.
     await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'View')?.click(), 'view tab'`);
     await wait(150);
-    await clickRibbon('Freeze panes');
+    // Freeze Panes is a menu now, as in Excel; "Choose…" opens the dialog.
+    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Freeze Panes'); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
+    await wait(200);
+    await js(`[...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Choose…')?.click(), 'choose'`);
     await wait(300);
     const chosen = await js(`(() => {
       const item = [...document.querySelectorAll('.rw-dialog .ml-found-item')].find((b) => /Freeze the top row/.test(b.textContent));

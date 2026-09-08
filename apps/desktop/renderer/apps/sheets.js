@@ -12,7 +12,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
-import SheetsRibbon from './sheets/ribbon.js';
+import SheetsRibbon, { FUNCTIONS } from './sheets/ribbon.js';
+import { SITE } from '@rutba/office-formats/registry';
+import { SymbolDialog } from './word/dialogs.js';
+import {
+  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, parseRef,
+} from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
 } from './sheets/dialogs.js';
@@ -37,6 +42,16 @@ export default function Sheets({ app, shell, boot }) {
   // Which of the ribbon's dialogs is open, by name. One piece of state rather
   // than seven booleans, because only one of them can be open at a time.
   const [dialog, setDialog] = useState(null);
+  /**
+   * How the grid is shown. None of it is in the workbook: gridlines,
+   * headings and the formula bar are Excel's View toggles, "show formulas"
+   * is Ctrl+`, and the page setup is what the PDF export will lay out to.
+   */
+  const [view, setView] = useState({
+    gridlines: true, headings: true, formulaBar: true, formulas: false,
+    page: { orientation: 'portrait', margins: 'normal', size: 'A4' },
+  });
+  const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
   const gridRef = useRef(null);
   const editorRef = useRef(null);
   const menu = useMenu();
@@ -307,6 +322,13 @@ export default function Sheets({ app, shell, boot }) {
         await dispatch({ op: 'beginEdit' });
         return;
       }
+      // Excel's own: Ctrl+D/R fill, Ctrl+G go to, Ctrl+` show formulas.
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'd' || key === 'r') { e.preventDefault(); await act('fill', key === 'd' ? 'down' : 'right'); return; }
+        if (key === 'g') { e.preventDefault(); setDialog('goto'); return; }
+        if (key === '`') { e.preventDefault(); await act('toggleFormulas'); return; }
+      }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
         await dispatch({ op: 'clear' });
@@ -398,6 +420,112 @@ export default function Sheets({ app, shell, boot }) {
   const sel = model?.selection;
   const status = model?.status;
 
+  /**
+   * The ribbon's verbs that are not one engine operation: the View toggles,
+   * zoom, windows, the freeze shortcuts, the Fill and function helpers.
+   * Named so a check can press the button and read what changed.
+   */
+  const act = async (name, arg, opts = {}) => {
+    const at = sel?.active || { row: 0, col: 0 };
+    const range = sel?.range || { top: at.row, left: at.col, bottom: at.row, right: at.col };
+    switch (name) {
+      case 'toggleGridlines': patchView((v) => ({ gridlines: v.gridlines === false })); return;
+      case 'toggleHeadings': patchView((v) => ({ headings: v.headings === false })); return;
+      case 'toggleFormulaBar': patchView((v) => ({ formulaBar: v.formulaBar === false })); return;
+      case 'toggleFormulas': patchView((v) => ({ formulas: !v.formulas })); return;
+      case 'page': patchView((v) => ({ page: { ...v.page, ...arg } })); return;
+      case 'view': return;
+      case 'zoom': {
+        // The window's zoom is additive on a factor; reset first so a chosen
+        // level is that level and not that level times the last one.
+        await shell.win.zoom({ reset: true });
+        if (arg && arg !== 1) await shell.win.zoom({ delta: arg - 1 });
+        return;
+      }
+      case 'newWindow':
+        if (!doc?.path) return toast('Save the workbook first, so a second window can open the same file.', { ms: 5000 });
+        shell.win.create({ app: 'sheets', file: doc.path });
+        return;
+      case 'freeze': {
+        const spec = arg === 'row' ? { rows: 1, cols: 0 } : arg === 'col' ? { rows: 0, cols: 1 } : arg === 'here' ? { rows: at.row, cols: at.col } : { rows: 0, cols: 0 };
+        if (arg === 'here' && !spec.rows && !spec.cols) return toast('Select a cell below and right of what should stay in view, then freeze.', { ms: 5000 });
+        await dispatch({ op: 'freeze', ...spec });
+        return;
+      }
+      case 'mergeCentre':
+        await dispatch({ op: 'merge' }, { op: 'setFormat', delta: { align: 'center' } });
+        return;
+      case 'fill': {
+        // Excel's Ctrl+D/Ctrl+R: one cell fills from its neighbour above or
+        // left; a range fills from its own first row or column.
+        const single = range.top === range.bottom && range.left === range.right;
+        if (single) {
+          const source = arg === 'right' ? { row: at.row, col: at.col - 1 } : { row: at.row - 1, col: at.col };
+          if (source.row < 0 || source.col < 0) return toast('Nothing above or left to fill from.', { ms: 4000 });
+          await dispatch({ op: 'select', row: source.row, col: source.col }, { op: 'fill', target: range }, { op: 'select', row: at.row, col: at.col });
+        } else {
+          const source = arg === 'right'
+            ? { top: range.top, bottom: range.bottom, left: range.left, right: range.left }
+            : { top: range.top, bottom: range.top, left: range.left, right: range.right };
+          await dispatch(
+            { op: 'select', row: source.top, col: source.left },
+            { op: 'select', row: source.bottom, col: source.right, extend: true },
+            { op: 'fill', target: range },
+            { op: 'select', row: range.top, col: range.left },
+            { op: 'select', row: range.bottom, col: range.right, extend: true },
+          );
+        }
+        return;
+      }
+      case 'insertFunction': {
+        // Start an edit with `=NAME(` typed, the arguments the person's to
+        // type; a bare name (Use in Formula) goes in as it is.
+        const text = opts.bare ? `=${arg}` : `=${arg}(`;
+        setDraft(text);
+        await dispatch({ op: 'beginEdit', replace: true, initial: text });
+        setTimeout(() => editorRef.current?.focus(), 0);
+        return;
+      }
+      case 'recalculate':
+        await dispatch({ op: 'select', row: at.row, col: at.col });
+        toast('Recalculated.', { tone: 'good', ms: 2000 });
+        return;
+      case 'refreshAll':
+        await dispatch({ op: 'select', row: at.row, col: at.col });
+        try { await shell.doc.apply({ id: doc.id, ops: [{ op: 'refreshPivot' }] }).then((next) => { setDoc(next); setModel(next.model); }); } catch { /* no pivot to refresh */ }
+        toast('Refreshed.', { tone: 'good', ms: 2000 });
+        return;
+      case 'autoFit': {
+        // Each selected column takes the widest text on screen, plus padding.
+        const ops = [];
+        for (let col = range.left; col <= range.right; col++) {
+          const widest = Math.max(0, ...(model?.cells || []).filter((c) => c.col === col && c.text).map((c) => String(c.text).length));
+          ops.push({ op: 'colWidth', col, width: Math.max(40, Math.min(600, Math.round(widest * 7.2 + 14))) });
+        }
+        if (ops.length) await dispatch(...ops);
+        return;
+      }
+      case 'textBox':
+        await dispatch({ op: 'insertShape', geometry: 'rect', text: 'Text' });
+        return;
+      case 'goto': {
+        const at2 = parseRef(arg);
+        if (at2) await dispatch({ op: 'select', row: at2.row, col: at2.col });
+        else await dispatch({ op: 'gotoName', name: arg });
+        return;
+      }
+      case 'symbol':
+        if (editing) setDraft((d) => (d ?? '') + arg);
+        else await dispatch({ op: 'beginEdit', replace: true, initial: (model?.formulaBar ?? '') + arg });
+        return;
+      case 'help': shell.shell.openExternal({ url: SITE.help }); return;
+      case 'feedback': shell.shell.openExternal({ url: SITE.contact }); return;
+      case 'about': shell.win.create({ app: 'home', query: { about: 1 } }); return;
+      default:
+        toast(`${name} is not wired yet.`, { ms: 3000 });
+    }
+  };
+
   return (
     <AppFrame
       app={app}
@@ -420,6 +548,9 @@ export default function Sheets({ app, shell, boot }) {
           openFile={openFile}
           exportAs={exportAs}
           openDialog={setDialog}
+          act={act}
+          view={view}
+          sel={sel}
         />
       }
       status={
@@ -443,10 +574,10 @@ export default function Sheets({ app, shell, boot }) {
           <Spinner style={{ width: 22, height: 22 }} />
         </div>
       ) : (
-        <div className="sh" onKeyDown={onKeyDown} tabIndex={0} ref={(el) => el && !editing && document.activeElement === document.body && el.focus()}>
+        <div className={`sh${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => el && !editing && document.activeElement === document.body && el.focus()}>
           <style>{CSS}</style>
 
-          <div className="sh-formula">
+          <div className="sh-formula" hidden={view.formulaBar === false}>
             <div className="sh-namebox">{sel?.ref}</div>
             <Icon name="formula" size={14} style={{ color: 'var(--ink-3)' }} />
             <Input
@@ -539,7 +670,7 @@ export default function Sheets({ app, shell, boot }) {
                     onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.copy', 'edit.clear', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
                     title={cell.note || undefined}
                   >
-                    {cell.text}
+                    {view.formulas && cell.formula ? cell.formula : cell.text}
                   </div>
                 ))}
 
@@ -577,6 +708,33 @@ export default function Sheets({ app, shell, boot }) {
           {menu.node}
         </div>
       )}
+
+      {dialog === 'goto' ? (
+        <GoToDialog names={model?.names || []} onClose={() => setDialog(null)} onGo={async (ref) => { setDialog(null); await act('goto', ref); }} />
+      ) : null}
+      {dialog === 'function' ? (
+        <FunctionDialog catalogue={FUNCTIONS} onClose={() => setDialog(null)} onPick={async (name) => { setDialog(null); await act('insertFunction', name); }} />
+      ) : null}
+      {dialog === 'symbol' ? (
+        <SymbolDialog onClose={() => setDialog(null)} onInsert={(ch) => act('symbol', ch)} />
+      ) : null}
+      {dialog === 'statistics' ? <StatisticsDialog model={model} onClose={() => setDialog(null)} /> : null}
+      {dialog === 'shortcuts' ? <SheetShortcutsDialog onClose={() => setDialog(null)} /> : null}
+      {dialog === 'rowHeight' || dialog === 'colWidth' ? (
+        <SizeDialog
+          kind={dialog === 'rowHeight' ? 'row' : 'col'}
+          current={dialog === 'rowHeight' ? model?.cells?.find((c) => c.active)?.height : model?.cells?.find((c) => c.active)?.width}
+          onClose={() => setDialog(null)}
+          onApply={async (n) => {
+            const r = sel?.range || { top: sel?.active?.row ?? 0, bottom: sel?.active?.row ?? 0, left: sel?.active?.col ?? 0, right: sel?.active?.col ?? 0 };
+            const ops = [];
+            if (dialog === 'rowHeight') for (let row = r.top; row <= r.bottom; row++) ops.push({ op: 'rowHeight', row, height: n });
+            else for (let col = r.left; col <= r.right; col++) ops.push({ op: 'colWidth', col, width: n });
+            await dispatch(...ops);
+            setDialog(null);
+          }}
+        />
+      ) : null}
 
       {dialog === 'conditional' ? (
         <ConditionalDialog
@@ -775,6 +933,10 @@ const CSS = `
   font-size: 12.5px; overflow: hidden; white-space: nowrap; background: var(--surface);
 }
 .sh-cell.sel { background: var(--selected); }
+/* Excel's View toggles: gridlines off leaves the cells' own borders; headings off drops the rails. */
+.sh.no-grid .sh-cell { border-right-color: transparent; border-bottom-color: transparent; }
+.sh.no-heads .sh-corner, .sh.no-heads .sh-colheads, .sh.no-heads .sh-rowheads { display: none; }
+.sh.no-heads .sh-canvas { grid-template-columns: 0 auto !important; grid-template-rows: 0 auto !important; }
 .sh-cell.active { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 2; background: var(--surface); }
 .sh-cell.err { color: var(--bad); }
 .sh-editor {

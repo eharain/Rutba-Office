@@ -67,21 +67,14 @@ export function toSpreadsheet(wb, { now } = {}) {
     const isGhost = (r, c) => covered.some((v) => r >= v.top && r <= v.bottom
       && c >= v.left && c <= v.right && !(r === v.anchorRow && c === v.anchorCol));
 
-    for (const row of part.rows) {
-      const cells = row.inner.match(/<c\b[^>]*?(?:\/>|>[\s\S]*?<\/c>)/g) ?? [];
-      for (const cellXml of cells) {
-        const refMatch = /\br="([A-Z]+\d+)"/.exec(cellXml);
-        if (!refMatch) continue;
-        const { row: r, col: c } = parseRef(refMatch[1]);
-        const value = wb.getCell(name, refMatch[1]);
-        if (value === null) continue;
-        const isFormula = typeof value === 'string' && value.startsWith('=');
-        if (!isFormula && covered.length && isGhost(r, c)) continue;
-        sheet.setCell(name, r, c, value);
-        if (isFormula) {
-          loaded.push({ sheet: name, ref: refMatch[1], formula: value });
-        }
-      }
+    // Pass 2: the cells, one row parse each. Asking the workbook for every
+    // cell by reference re-parsed its row every time — quadratic in the
+    // sheet's width, and eleven minutes on a 2.4-million-cell tender.
+    for (const { ref, row: r, col: c, value } of wb.cells(name)) {
+      const isFormula = typeof value === 'string' && value.startsWith('=');
+      if (!isFormula && covered.length && isGhost(r, c)) continue;
+      sheet.setCell(name, r, c, value);
+      if (isFormula) loaded.push({ sheet: name, ref, formula: value });
     }
   }
 

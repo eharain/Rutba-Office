@@ -129,6 +129,12 @@ Against **Excel**, **LibreOffice Calc**, **OnlyOffice**, **Google Sheets**.
 | ⬜ Array formulas and dynamic spill | Excel, Sheets |
 | ⬜ Chart editing after insertion | all |
 | ⬜ Solver | Excel, Calc |
+| ⬜ Cell comments and notes, cell hyperlinks | all |
+| ⬜ Text to Columns, Remove Duplicates, outline groups and subtotals | Excel, Calc |
+| ⬜ Page setup that prints: print area, titles, breaks, scaling | all |
+
+Every one of these is on the ribbon where Excel puts it, disabled, with a
+title that says why — so the gap is visible in the product, not only here.
 
 ---
 

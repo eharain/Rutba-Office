@@ -365,6 +365,154 @@ export function FindDialog({ onClose, onFind, onReplace, onReplaceAll }) {
 
 /* ── pivot ───────────────────────────────────────────────────────────────── */
 
+/** A1 → { row, col }, zero-based; null for anything that is not a cell reference. */
+export function parseRef(text) {
+  const m = /^\s*\$?([A-Za-z]{1,3})\$?(\d{1,7})\s*$/.exec(String(text || ''));
+  if (!m) return null;
+  let col = 0;
+  for (const ch of m[1].toUpperCase()) col = col * 26 + (ch.charCodeAt(0) - 64);
+  return { row: Number(m[2]) - 1, col: col - 1 };
+}
+
+/** Go To: a cell reference or a defined name, the way Ctrl+G asks for one. */
+export function GoToDialog({ onClose, onGo, names = [] }) {
+  const [text, setText] = useState('');
+  const ok = Boolean(parseRef(text)) || names.some((n) => n.name === text.trim());
+  return (
+    <Dialog
+      title="Go To"
+      width={380}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="Go" disabled={!ok} onClick={() => onGo(text.trim())} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="Reference" hint="A cell such as C12, or a defined name.">
+          <Input value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onGo(text.trim()); }} autoFocus placeholder="C12" />
+        </Field>
+        {names.length ? (
+          <div className="ml-found">
+            {names.slice(0, 8).map((n) => (
+              <button key={n.name} type="button" className="ml-found-item" onClick={() => onGo(n.name)}>
+                <span className="grow"><div className="who">{n.name}</div><div className="what">{n.ref || ''}</div></span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </Dialog>
+  );
+}
+
+/** Insert Function: Excel's categories, a pick starts `=NAME(` in the active cell. */
+export function FunctionDialog({ onClose, onPick, catalogue }) {
+  const categories = Object.keys(catalogue);
+  const [category, setCategory] = useState(categories[0]);
+  const [filter, setFilter] = useState('');
+  const names = filter.trim()
+    ? [...new Set(Object.values(catalogue).flat())].filter((n) => n.includes(filter.trim().toUpperCase()))
+    : catalogue[category] || [];
+  return (
+    <Dialog title="Insert function" width={480} onClose={onClose} actions={<Button label="Cancel" onClick={onClose} />}>
+      <div className="ml-form">
+        <Field label="Search">
+          <Input value={filter} onChange={(e) => setFilter(e.target.value)} placeholder="Type part of a name" autoFocus />
+        </Field>
+        {filter.trim() ? null : (
+          <Field label="Category">
+            <Select value={category} onChange={(e) => setCategory(e.target.value)}>
+              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </Select>
+          </Field>
+        )}
+        <div className="ml-found" style={{ maxHeight: 260, overflow: 'auto' }}>
+          {names.map((n) => (
+            <button key={n} type="button" className="ml-found-item" onClick={() => onPick(n)}>
+              <span className="ml-found-logo"><Icon name="formula" size={15} /></span>
+              <span className="grow"><div className="who">{n}</div></span>
+            </button>
+          ))}
+          {names.length ? null : <Empty title="No function by that name" />}
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
+/** Workbook Statistics: what the model knows, as Excel's dialog lists it. */
+export function StatisticsDialog({ model, onClose }) {
+  const rows = [
+    ['Sheets', (model?.sheets || []).length],
+    ['Active sheet', model?.activeSheet || '—'],
+    ['Cells with content', (model?.cells || []).filter((c) => c.text !== '' && c.text != null).length + (model?.cells ? ' (on screen)' : '')],
+    ['Formulas', (model?.cells || []).filter((c) => c.isFormula).length + ' (on screen)'],
+    ['Defined names', (model?.names || []).length],
+    ['Tables', (model?.tables || []).length],
+    ['Frozen', model?.frozen && (model.frozen.rows || model.frozen.cols) ? `${model.frozen.rows} rows, ${model.frozen.cols} columns` : 'nothing'],
+    ['Filter', model?.filtered ? 'on' : 'off'],
+    ['Protection', model?.protection?.sheet ? 'sheet protected' : 'none'],
+  ];
+  return (
+    <Dialog title="Workbook statistics" width={420} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
+      <dl className="about-list">
+        {rows.map(([k, v]) => (
+          <React.Fragment key={k}><dt>{k}</dt><dd>{String(v)}</dd></React.Fragment>
+        ))}
+      </dl>
+    </Dialog>
+  );
+}
+
+const SHEET_SHORTCUTS = [
+  ['Ctrl+S', 'Save'], ['Ctrl+Z / Ctrl+Y', 'Undo / Redo'], ['Ctrl+C / Ctrl+X / Ctrl+V', 'Copy / Cut / Paste'],
+  ['Ctrl+B / Ctrl+I / Ctrl+U', 'Bold / Italic / Underline'], ['F2', 'Edit the active cell'], ['Enter / Tab', 'Commit and move down / right'],
+  ['Escape', 'Cancel the edit'], ['Delete', 'Clear the selection'], ['Shift+Arrows', 'Extend the selection'],
+  ['Ctrl+Arrows', 'Jump to the edge of the data'], ['Ctrl+A', 'Select all'], ['Ctrl+D / Ctrl+R', 'Fill down / right'],
+  ['Ctrl+F / Ctrl+H', 'Find / Replace'], ['Ctrl+G', 'Go To'], ['Ctrl+`', 'Show formulas'],
+];
+
+export function SheetShortcutsDialog({ onClose }) {
+  return (
+    <Dialog title="Keyboard shortcuts" width={440} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
+      <dl className="about-list">
+        {SHEET_SHORTCUTS.map(([k, v]) => (
+          <React.Fragment key={k}><dt>{k}</dt><dd>{v}</dd></React.Fragment>
+        ))}
+      </dl>
+    </Dialog>
+  );
+}
+
+/** Row height or column width, in pixels, for the rows or columns selected. */
+export function SizeDialog({ kind, current, onClose, onApply }) {
+  const [value, setValue] = useState(String(current || (kind === 'row' ? 20 : 64)));
+  const n = Number(value);
+  const ok = Number.isFinite(n) && n >= 4 && n <= 1000;
+  return (
+    <Dialog
+      title={kind === 'row' ? 'Row height' : 'Column width'}
+      width={340}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="OK" disabled={!ok} onClick={() => onApply(n)} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label={kind === 'row' ? 'Height (px)' : 'Width (px)'} hint="Applies to every selected row or column.">
+          <Input value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onApply(n); }} autoFocus />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
 export function PivotDialog({ onClose, onCreate, selection, sheets }) {
   const [source, setSource] = useState(selection || '');
   const [rows, setRows] = useState('');

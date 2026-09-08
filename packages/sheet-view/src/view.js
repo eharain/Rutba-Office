@@ -639,6 +639,8 @@ export class SheetView {
           merged: merge ? { ref: merge.ref, rows: merge.bottom - merge.top + 1, cols: merge.right - merge.left + 1 } : null,
           isError: isError(this.calc.getValue(this.activeSheet, row, col)),
           isFormula: this.editValue(row, col).startsWith('='),
+          // The formula itself, for a grid showing formulas instead of results.
+          ...(this.editValue(row, col).startsWith('=') ? { formula: this.editValue(row, col) } : {}),
           selected: this.selection.contains(row, col),
           active: this.selection.active.row === row && this.selection.active.col === col,
           x: geo.colOffset(col),

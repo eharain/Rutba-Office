@@ -133,8 +133,24 @@ class SheetPart {
   getCell(rowIndex, colIndex) {
     const row = this._rowAt(rowIndex);
     if (!row) return null;
-    const cell = SheetPart._parseCells(row.inner).find((c) => c.col === colIndex);
-    return cell ?? null;
+    return SheetPart.cellsByCol(row).get(colIndex) ?? null;
+  }
+
+  /**
+   * A row's cells, parsed once per VERSION of its XML and indexed by column.
+   *
+   * `getCell` used to re-parse the whole row for every cell asked for, which
+   * made loading a sheet quadratic in its width: a tender workbook of 2.4
+   * million mostly-blank formatted cells took eleven minutes to open, all of
+   * it here. The key is the row's XML string itself — every edit replaces
+   * it, so a stale cache is not expressible.
+   */
+  static cellsByCol(row) {
+    if (row._cellsFor !== row.inner) {
+      row._cellsFor = row.inner;
+      row._cellsByCol = new Map(SheetPart._parseCells(row.inner).map((c) => [c.col, c]));
+    }
+    return row._cellsByCol;
   }
 
   /**
@@ -1028,6 +1044,40 @@ export class Workbook {
     const { part } = this._sheetPart(sheetName);
     const cell = part.getCell(row, col);
     if (!cell) return null;
+    return this._cellValue(cell);
+  }
+
+  /**
+   * Every cell of a sheet that holds something, in row order, decoded —
+   * `{ ref, row, col, value }`. One parse per row; a formatted blank (the
+   * `<c r="F9" s="3"/>` a tender's answer grid is mostly made of) costs a
+   * lookup and nothing else. What the calc model is built from.
+   */
+  *cells(sheetName) {
+    const { part } = this._sheetPart(sheetName);
+    // Transient, not through the row cache: a walk of every sheet must not
+    // pin every parsed cell of every sheet in memory (900 MB on the tender
+    // workbook). And a self-closing `<c …/>` — a formatted blank, which is
+    // what 2.4 million of its 2.44 million cells are — is skipped before its
+    // attributes are even looked at.
+    const re = /<c\b([^>]*?)(\/>|>([\s\S]*?)<\/c>)/g;
+    for (const row of part.rows) {
+      re.lastIndex = 0;
+      let m;
+      while ((m = re.exec(row.inner))) {
+        if (m[2] === '/>') continue;
+        const a = attrs(m[1]);
+        if (!a.r) continue;
+        const cell = { ref: a.r, col: parseRef(a.r).col, style: a.s ?? null, type: a.t ?? null, inner: m[3] };
+        const value = this._cellValue(cell);
+        if (value === null) continue;
+        yield { ref: cell.ref, row: row.index, col: cell.col, value };
+      }
+    }
+  }
+
+  /** A parsed cell's value: formula text, shared or inline string, boolean, error, number. */
+  _cellValue(cell) {
     // A dataTable formula has no expression of its own — the element is the
     // MARKER of a what-if table, and the cell's truth is its cached value.
     // Returning '=' plus its empty body would hand every consumer a garbage
