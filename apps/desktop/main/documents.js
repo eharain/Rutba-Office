@@ -38,6 +38,46 @@ const KIND_FOR_APP = { word: 'doc', sheets: 'sheet', slides: 'deck' };
  * document that happened to contain a script tag produced a page that ran
  * it. What a document says is never markup.
  */
+/** The characters an HTML entity stands for — the reverse of escapeHtml. */
+const HTML_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+function decodeEntities(text) {
+  return String(text ?? '')
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&([a-zA-Z]+);/g, (whole, name) => HTML_ENTITIES[name.toLowerCase()] ?? whole);
+}
+
+/**
+ * A web page as paragraphs.
+ *
+ * The reader was one replace of every tag with a space: a whole page arrived
+ * as a single paragraph, its entities as the letters "&lt;", and the contents
+ * of its <style> and <script> blocks as text in the document. A block-level
+ * tag ends a paragraph, and what is inside script, style and head is not
+ * text.
+ */
+function htmlBlocks(html) {
+  const body = String(html)
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<(script|style|head|title)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
+  const blocks = [];
+  for (const piece of body.split(/<\/?(?:p|div|br|li|tr|section|article|h[1-6]|blockquote|pre|table)\b[^>]*>/i)) {
+    const text = decodeEntities(piece.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+    if (text) blocks.push({ type: 'paragraph', text });
+  }
+  return blocks.length ? blocks : [{ type: 'paragraph', text: '' }];
+}
+
+function escapeHtml(text) {
+  return String(text ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 /** Blocks in the neutral reader shape → paragraphs `buildDocx` understands. */
 function blocksToParagraphs(blocks) {
   const out = [];
@@ -286,7 +326,7 @@ export function createDocumentService({ holdBlob }) {
       }
       case 'txt':
       case 'html': {
-        const parsed = kind === 'txt' ? readPlain(bytes) : { blocks: [{ type: 'paragraph', text: decodeText(bytes).replace(/<[^>]+>/g, ' ') }] };
+        const parsed = kind === 'txt' ? readPlain(bytes) : { blocks: htmlBlocks(decodeText(bytes)) };
         return { kind: 'doc', bytes: buildDocx({ paragraphs: blocksToParagraphs(parsed.blocks), styles: true }), source: kind, converted: { from: kind } };
       }
       case 'doc':
@@ -979,10 +1019,14 @@ export function createDocumentService({ holdBlob }) {
       if (session.kind === 'doc') {
         // The document engine has its own PDF writer, which lays the document
         // out rather than photographing a screen.
-        const bytes = renderPdf(session.engine, { title: session.name });
-        if (bytes) {
-          fs.writeFileSync(target, Buffer.from(bytes));
-          return { path: target, format: 'pdf' };
+        // renderPdf answers { buffer, pages }, not bytes. Handed straight to
+        // Buffer.from it threw "The first argument must be of type string or
+        // an instance of Buffer" — which is what Export as PDF put in front of
+        // anyone who pressed it, every time.
+        const { buffer, pages } = renderPdf(session.engine, { title: session.name }) || {};
+        if (buffer) {
+          fs.writeFileSync(target, Buffer.from(buffer));
+          return { path: target, format: 'pdf', pages };
         }
       }
       throw new Error('PDF export for this document is done from the window, so the page can be laid out first.');
@@ -1020,7 +1064,7 @@ export function createDocumentService({ holdBlob }) {
       }));
       const text = ext === 'txt'
         ? writePlain(blocks)
-        : `<!doctype html>\n<meta charset="utf-8">\n<title>${session.name}</title>\n${blocks.map((b) => (b.type === 'heading' ? `<h${b.level}>${b.text}</h${b.level}>` : `<p>${b.text}</p>`)).join('\n')}\n`;
+        : `<!doctype html>\n<meta charset="utf-8">\n<title>${escapeHtml(session.name)}</title>\n${blocks.map((b) => (b.type === 'heading' ? `<h${b.level}>${escapeHtml(b.text)}</h${b.level}>` : `<p>${escapeHtml(b.text)}</p>`)).join('\n')}\n`;
       fs.writeFileSync(target, text, 'utf8');
       return { path: target, format: ext };
     }
