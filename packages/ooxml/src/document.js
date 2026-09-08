@@ -106,6 +106,36 @@ function readDirectSpacing(pPr) {
  */
 const eighthsToPx = (sz) => Math.max(1, Math.round((Number(sz) / 8) * (96 / 72)));
 
+/** The two notes parts: where they live, what they are, how they are styled. */
+const NOTE_PARTS = {
+  footnote: {
+    part: 'word/footnotes.xml', target: 'footnotes.xml',
+    ct: 'application/vnd.openxmlformats-officedocument.wordprocessingml.footnotes+xml',
+    rel: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footnotes',
+    textStyle: 'FootnoteText', refStyle: 'FootnoteReference',
+  },
+  endnote: {
+    part: 'word/endnotes.xml', target: 'endnotes.xml',
+    ct: 'application/vnd.openxmlformats-officedocument.wordprocessingml.endnotes+xml',
+    rel: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/endnotes',
+    textStyle: 'EndnoteText', refStyle: 'EndnoteReference',
+  },
+};
+
+/**
+ * An empty notes part as Word writes one: the separator (the short rule
+ * between body and notes) and the continuation separator, at ids −1 and 0,
+ * before any note. A part without them is one Word repairs on open.
+ */
+function emptyNotesXml(kind) {
+  const sep = (type, id, el) =>
+    '<w:' + kind + ' w:type="' + type + '" w:id="' + id + '"><w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/></w:pPr><w:r><w:' + el + '/></w:r></w:p></w:' + kind + '>';
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<w:' + kind + 's xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+    + sep('separator', -1, 'separator') + sep('continuationSeparator', 0, 'continuationSeparator')
+    + '</w:' + kind + 's>';
+}
+
 /** A paragraph's XML without the text boxes it anchors (and their VML twins). */
 const stripTextBoxes = (xml) => String(xml)
   .replace(/<mc:Fallback>[\s\S]*?<\/mc:Fallback>/g, '')
@@ -1031,7 +1061,11 @@ export class Document {
    * the body, which is the view's business. Cached — no edit writes the part.
    */
   notes() {
-    if (this._notes) return this._notes;
+    // Cached against the parts' own text, so an inserted note, an edited
+    // one, or an undo that puts a part back is seen the next time.
+    const key = ['word/footnotes.xml', 'word/endnotes.xml'].map((p) => (this.pkg.has(p) ? this.pkg.text(p) : '')).join(' ');
+    if (this._notes && this._notesKey === key) return this._notes;
+    this._notesKey = key;
     const read = (part, tag) => {
       if (!this.pkg.has(part)) return [];
       const xml = this.pkg.text(part);
@@ -1046,6 +1080,68 @@ export class Document {
     };
     this._notes = { footnotes: read('word/footnotes.xml', 'footnote'), endnotes: read('word/endnotes.xml', 'endnote') };
     return this._notes;
+  }
+
+  /**
+   * Make the notes part real (with Word's two separator entries) and put it
+   * on the undo list — BEFORE the edit's snapshot, so undoing the very first
+   * footnote restores an empty part rather than leaving an orphaned note.
+   */
+  registerNoteUndo(kind) {
+    const spec = NOTE_PARTS[kind];
+    if (!spec) throw new Error('a note is a footnote or an endnote');
+    if (!this.pkg.has(spec.part)) {
+      this.pkg.addPart(spec.part, emptyNotesXml(kind), spec.ct);
+      this._addRel(spec.rel, spec.target);
+    }
+    this._undoParts.add(spec.part);
+    return this;
+  }
+
+  /**
+   * Add a footnote or endnote — its words, in the part — and return its id.
+   * The REFERENCE in the body is the view's to place: it is one run in one
+   * paragraph, and the view knows where the caret is. The note's paragraph
+   * wears the note style, and its mark is superscript outright, so it reads
+   * right even in a file whose stylesheet never heard of footnotes.
+   */
+  addNote(kind, text) {
+    const body = String(text ?? '').trim();
+    if (!body) throw new Error('a ' + kind + ' needs some words');
+    this.registerNoteUndo(kind);
+    const spec = NOTE_PARTS[kind];
+    const xml = this.pkg.text(spec.part);
+    let id = 0;
+    for (const m of xml.matchAll(new RegExp('<w:' + kind + '\\b[^>]*\\bw:id="(-?\\d+)"', 'g'))) id = Math.max(id, Number(m[1]));
+    id += 1;
+    const entry = '<w:' + kind + ' w:id="' + id + '"><w:p><w:pPr><w:pStyle w:val="' + spec.textStyle + '"/></w:pPr>'
+      + '<w:r><w:rPr><w:rStyle w:val="' + spec.refStyle + '"/><w:vertAlign w:val="superscript"/></w:rPr><w:' + kind + 'Ref/></w:r>'
+      + renderRun(null, ' ' + body) + '</w:p></w:' + kind + '>';
+    this.pkg.write_(spec.part, xml.replace('</w:' + kind + 's>', entry + '</w:' + kind + 's>'));
+    this.dirty = true;
+    return String(id);
+  }
+
+  /**
+   * Replace a note's words. The first paragraph keeps its properties and its
+   * mark; everything after the mark is the new text, as one plain run.
+   */
+  setNoteText(kind, id, text) {
+    const body = String(text ?? '').trim();
+    if (!body) throw new Error('a ' + kind + ' needs some words');
+    this.registerNoteUndo(kind);
+    const spec = NOTE_PARTS[kind];
+    const xml = this.pkg.text(spec.part);
+    const m = new RegExp('(<w:' + kind + '\\b[^>]*\\bw:id="' + String(id).replace(/[^-\d]/g, '') + '"[^>]*>)([\\s\\S]*?)(</w:' + kind + '>)').exec(xml);
+    if (!m) throw new Error('no ' + kind + ' with id ' + id);
+    const firstP = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/.exec(m[2]);
+    const pPr = (firstP && /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/.exec(firstP[1])?.[0]) || '<w:pPr><w:pStyle w:val="' + spec.textStyle + '"/></w:pPr>';
+    const mark = (firstP && new RegExp('<w:r\\b[^>]*>(?:(?!</w:r>)[\\s\\S])*?<w:' + kind + 'Ref\\b[^>]*/>[\\s\\S]*?</w:r>').exec(firstP[1])?.[0])
+      || '<w:r><w:rPr><w:rStyle w:val="' + spec.refStyle + '"/><w:vertAlign w:val="superscript"/></w:rPr><w:' + kind + 'Ref/></w:r>';
+    const rebuilt = m[1] + '<w:p>' + pPr + mark + renderRun(null, ' ' + body) + '</w:p>' + m[3];
+    this.pkg.write_(spec.part, xml.replace(m[0], rebuilt));
+    this.dirty = true;
+    return this;
   }
 
   /**
@@ -1608,7 +1704,9 @@ export class Document {
     // silently flattened, which is what editing used to do.
     // w:txbxContent is on the list because a rebuild reassembles the runs
     // and would drop the box the paragraph anchors, words and all.
-    const structural = ['w:fldSimple', 'w:fldChar', 'w:bookmarkStart', 'w:commentRangeStart', 'w:sdt', 'w:ins', 'w:del', 'w:txbxContent', 'w:footnoteReference', 'w:endnoteReference']
+    // A note reference is NOT on the list: it is a run of its own with one
+    // character of text, and the rebuild writes the element back from it.
+    const structural = ['w:fldSimple', 'w:fldChar', 'w:bookmarkStart', 'w:commentRangeStart', 'w:sdt', 'w:ins', 'w:del', 'w:txbxContent']
       .filter((tag) => new RegExp('<' + tag + '\\b').test(p.xml)); // \b: w:ins is a prefix of w:instrText
     // A paragraph INSIDE a body-level content control carries no sdt tag of
     // its own; it is read-only for the same reason one that does is.
@@ -1780,6 +1878,10 @@ export class Document {
         for (const sub of chunk.matchAll(/<w:(drawing|object|pict)\b[^>]*(?:\/>|>[\s\S]*?<\/w:\1>)/g)) {
           kept.push('<w:r>' + sub[0] + '</w:r>');
         }
+      } else if (/<w:(?:footnote|endnote)Reference\b/.test(chunk)) {
+        // A note reference is a run the model OWNS — one character of text,
+        // written back by renderRuns from the run that carries it. Keeping
+        // the chunk too put a second reference at the end of the paragraph.
       } else {
         kept.push(chunk);
       }

@@ -173,9 +173,72 @@ test('footnotes are numbered by where their references fall, not by id', () => {
   const body = f.blocks.find((b) => b.text.startsWith('The supplier'));
   const refs = body.runs.filter((r) => r.noteRef);
   assert.deepEqual(refs.map((r) => r.noteRef), [{ kind: 'footnote', id: '2', n: 1 }, { kind: 'footnote', id: '1', n: 2 }]);
-  assert.equal(refs[0].text, '', 'a reference adds no text, so no caret offset moves');
-  assert.equal(body.structural, true, 'a paragraph with a reference is never rebuilt');
+  assert.equal(refs[0].text, '￼', 'a reference is one character, as Word counts it');
+  assert.equal(body.text, 'The supplier must not meet any exclusion ground￼ and must say so￼.');
+  assert.equal(body.runs.map((r) => r.text).join(''), body.text, 'text and runs agree');
+  assert.equal(body.structural, false, 'a paragraph with a reference stays editable');
   assert.equal(f.endnotes.length, 0);
+});
+
+test('a footnote can be inserted at the caret, typed around, reworded, deleted and undone', () => {
+  const view = openDocx(buildCoverPageDocument());
+  const plain = view.blocks.findIndex((b) => b.text === 'Plain, editable.');
+  const xmlOf = () => view.doc.doc.editParagraph(plain).xml;
+
+  view.setSelection({ block: plain, offset: 6 });
+  view.insertNote('footnote', 'A note of our own.');
+  let f = view.render({ pages: false });
+  assert.equal(f.footnotes.length, 3);
+  assert.equal(view.blocks[plain].text, 'Plain,￼ editable.');
+  const own = f.footnotes.find((n) => n.paragraphs[0].text.includes('A note of our own'));
+  assert.ok(own, 'the note is under the body');
+  assert.equal(own.n, 3, 'numbered after the two whose references come first');
+  assert.match(xmlOf(), /<w:footnoteReference w:id="3"\/>/);
+  assert.equal(f.selection.focus.offset, 7, 'the caret sits after the reference');
+
+  // Typing after the reference rebuilds the paragraph and keeps the element.
+  view.insertText('still');
+  assert.equal(view.blocks[plain].text, 'Plain,￼still editable.');
+  assert.match(xmlOf(), /<w:footnoteReference w:id="3"\/>/, 'the rebuild wrote the reference back');
+  assert.ok(!/￼/.test(xmlOf()), 'the character never reaches the file');
+  assert.match(xmlOf(), /<w:rStyle w:val="FootnoteReference"\/>/);
+
+  // Rewording keeps the number and the mark.
+  view.setNoteText('footnote', own.id, 'Reworded.');
+  f = view.render({ pages: false });
+  const reworded = f.footnotes.find((n) => n.id === own.id);
+  assert.equal(reworded.paragraphs[0].text, ' Reworded.');
+  assert.deepEqual(reworded.paragraphs[0].runs[0].noteMark, { kind: 'footnote', n: 3 });
+
+  // Deleting the reference character leaves the note unreferenced, and gone from the page.
+  view.setSelection({ block: plain, offset: 6 }, { block: plain, offset: 7 });
+  view.deleteSelection();
+  assert.equal(view.blocks[plain].text, 'Plain,still editable.');
+  assert.equal(view.render({ pages: false }).footnotes.length, 2);
+  assert.ok(!/footnoteReference w:id="3"/.test(xmlOf()));
+
+  // Undo, step by step, back to before the note existed — the part included.
+  view.undo();
+  assert.equal(view.render({ pages: false }).footnotes.length, 3, 'undoing the delete brings the reference back');
+  view.undo();
+  view.undo();
+  view.undo();
+  assert.equal(view.blocks[plain].text, 'Plain, editable.');
+  assert.equal(view.render({ pages: false }).footnotes.length, 2);
+  assert.ok(!/A note of our own|Reworded/.test(view.doc.doc.pkg.text('word/footnotes.xml')), 'the part was restored too');
+
+  // An endnote creates its part, with Word's two separators ahead of it.
+  view.setSelection({ block: plain, offset: 0 });
+  view.insertNote('endnote', 'At the end.');
+  f = view.render({ pages: false });
+  assert.equal(f.endnotes.length, 1);
+  assert.equal(f.endnotes[0].n, 1);
+  const part = view.doc.doc.pkg.text('word/endnotes.xml');
+  assert.match(part, /w:type="separator" w:id="-1"/);
+  assert.match(part, /<w:endnote w:id="1"><w:p><w:pPr><w:pStyle w:val="EndnoteText"\/>/);
+  assert.match(view.doc.doc.pkg.text('[Content_Types].xml'), /endnotes\+xml/);
+  assert.throws(() => view.insertNote('margin', 'x'), /footnote or an endnote/);
+  assert.throws(() => view.insertNote('footnote', '   '), /needs some words/);
 });
 
 test('a first-page header is read alongside the default one, with the title page flag', () => {

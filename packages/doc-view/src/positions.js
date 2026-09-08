@@ -103,8 +103,10 @@ export function coalesce(runs) {
     if (run.text === '') continue;
     const last = out[out.length - 1];
     // A link is part of a run's identity: merging a linked run into a plain
-    // neighbour would stretch or swallow the link.
-    if (last && last.rPr === run.rPr && (last.link ?? null) === (run.link ?? null)) last.text += run.text;
+    // neighbour would stretch or swallow the link. A note reference is a run
+    // of its own for the same reason — its one character IS the reference.
+    const marker = Boolean(run.noteRef || run.noteMark || last?.noteRef || last?.noteMark);
+    if (last && !marker && last.rPr === run.rPr && (last.link ?? null) === (run.link ?? null)) last.text += run.text;
     else out.push({ ...run });
   }
   return out;

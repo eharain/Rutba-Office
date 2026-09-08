@@ -853,7 +853,7 @@ export async function verifyApps({ windows, doc }) {
       const all = await window.rutbaOffice.doc.sessions({});
       const mine = all.filter((s) => s.kind === 'doc').pop();
       const m = await window.rutbaOffice.doc.model({ id: mine.id });
-      return { blocks: m.blocks.length, texts: m.blocks.map((b) => b.text), styles: m.blocks.map((b) => b.style), format: m.format };
+      return { blocks: m.blocks.length, texts: m.blocks.map((b) => b.text), styles: m.blocks.map((b) => b.style), format: m.format, footnotes: (m.footnotes || []).length };
     })()`);
 
     // The page sits in the middle of the window, whatever the ribbon is doing.
@@ -970,6 +970,20 @@ export async function verifyApps({ windows, doc }) {
     await until(async () => (await engine()).texts.includes('Contents'), 'the contents to appear', 4000).catch(() => {});
     const toc = await engine();
     check('word: References → Table of Contents lists the headings', toc.texts.includes('Contents') && toc.blocks > before, `${before} → ${toc.blocks} blocks; ${JSON.stringify(toc.texts.slice(0, 3))}`);
+
+    // References → Insert Footnote: the dialog takes the words, the page
+    // gets a raised number at the caret and the note under the body.
+    await js(`(() => { const page = document.querySelector('.wd-page'); const b = page.querySelector('[data-block="2"]'); const r = document.createRange(); r.selectNodeContents(b); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return 'caret at end of block 2'; })()`);
+    await wait(200);
+    await press('A raised number at the caret, and its words under the body');
+    await until(() => js(`Boolean(document.querySelector('.rw-dialog textarea'))`), 'the footnote dialog', 4000).catch(() => {});
+    await js(`(() => { const ta = document.querySelector('.rw-dialog textarea'); if (!ta) return 'no textarea'; Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(ta, 'See regulation 57.'); ta.dispatchEvent(new Event('input', { bubbles: true })); return 'typed'; })()`);
+    await wait(150);
+    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Insert')?.click(), 'inserted'`);
+    await until(async () => (await engine()).footnotes === 1, 'the footnote', 5000).catch(() => {});
+    const noted = await engine();
+    const painted = await js(`({ refs: document.querySelectorAll('.wd-page .wd-noteref').length, notes: document.querySelectorAll('.wd-notes .wd-note').length, words: document.querySelector('.wd-notes')?.textContent.trim() || '' })`);
+    check('word: References → Insert Footnote puts the number in the text and the note under the body', noted.footnotes === 1 && painted.refs === 1 && painted.notes === 1 && /regulation 57/.test(painted.words), `engine footnotes ${noted.footnotes}; painted ${JSON.stringify(painted)}`);
 
     const complaints = await errorsIn(win);
     check('word: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

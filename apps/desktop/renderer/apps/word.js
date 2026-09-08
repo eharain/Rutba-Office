@@ -22,7 +22,7 @@ import { NavigationPane, Ruler, installWordStyles } from './word/panes.js';
 installWordStyles();
 import {
   LinkDialog, TableDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
-  DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog,
+  DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog,
 } from './word/dialogs.js';
 
 /**
@@ -137,6 +137,9 @@ export default function Word({ app, shell, boot }) {
   const [tab, setTab] = useState('home');
   // One name at a time, the way the spreadsheet does it.
   const [dialog, setDialog] = useState(null);
+  // The note dialog carries its own state: which kind, and — when editing —
+  // which note and its current words.
+  const [noteDialog, setNoteDialog] = useState(null);
 
   // What was selected when a dialog opened. Read at the moment of the press,
   // because a dialog takes focus and a selection read after that is empty.
@@ -581,6 +584,12 @@ export default function Word({ app, shell, boot }) {
           toast(`Contents listed ${headings.length} heading${headings.length === 1 ? '' : 's'}. Insert it again after the headings change.`, { ms: 6000 });
           return;
         }
+        case 'insertNote':
+          setNoteDialog({ kind: arg === 'endnote' ? 'endnote' : 'footnote' });
+          return;
+        case 'editNote':
+          setNoteDialog(arg);
+          return;
         case 'nextNote': {
           // The next paragraph carrying a footnote or endnote reference — the
           // references are in body order, so the notes are too.
@@ -746,8 +755,8 @@ export default function Word({ app, shell, boot }) {
                   <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} />
                 )
               )}
-              <Notes notes={model.footnotes} kind="footnotes" styles={model.resolvedStyles} />
-              <Notes notes={model.endnotes} kind="endnotes" styles={model.resolvedStyles} />
+              <Notes notes={model.footnotes} kind="footnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'footnote', id: note.id, initial: noteWords(note) })} />
+              <Notes notes={model.endnotes} kind="endnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'endnote', id: note.id, initial: noteWords(note) })} />
               <Band kind="footer" bands={model.bands} section={section} onEdit={() => setDialog('footer')} />
             </div>
           </div>
@@ -814,6 +823,20 @@ export default function Word({ app, shell, boot }) {
           onApply={async (lines) => {
             await apply({ op: 'setBand', band: 'footer', lines });
             setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {noteDialog ? (
+        <NoteDialog
+          kind={noteDialog.kind}
+          initial={noteDialog.initial || ''}
+          onClose={() => setNoteDialog(null)}
+          onSave={async (text) => {
+            if (noteDialog.id) await apply({ op: 'setNoteText', kind: noteDialog.kind, id: noteDialog.id, text });
+            else await apply({ op: 'insertNote', kind: noteDialog.kind, text });
+            setNoteDialog(null);
+            toast(noteDialog.id ? 'Note changed' : `${noteDialog.kind === 'endnote' ? 'Endnote' : 'Footnote'} inserted`, { tone: 'good' });
           }}
         />
       ) : null}
@@ -1137,7 +1160,14 @@ function RunSpan({ run }) {
   // engine's caret offsets stay exactly right.
   if (run.noteRef || run.noteMark) {
     const n = run.noteRef ? run.noteRef.n : run.noteMark?.n;
-    return <span className={run.noteRef ? 'wd-noteref' : 'wd-notemark'} data-n={n ?? '?'} contentEditable={false} title={run.noteRef ? `${run.noteRef.kind} ${n}` : undefined} />;
+    // The reference's one character (U+FFFC) stays in the DOM at size zero,
+    // so the caret can step over it and Backspace can take it; the number is
+    // drawn beside it by CSS.
+    return (
+      <span className={run.noteRef ? 'wd-noteref' : 'wd-notemark'} data-n={n ?? '?'} title={run.noteRef ? `${run.noteRef.kind} ${n}` : undefined}>
+        {run.noteRef ? <span className="wd-noteref-char">{run.text}</span> : null}
+      </span>
+    );
   }
   return (
     <span
@@ -1208,12 +1238,15 @@ function TextBox({ box, styles }) {
  * paragraphs painted like the body's, its number drawn by the mark at its
  * head. Read-only, like the references that point at them.
  */
-function Notes({ notes, kind, styles }) {
+/** A note's words, for the dialog that changes them: every paragraph, the mark left out. */
+const noteWords = (note) => (note.paragraphs || []).map((p) => p.text || '').join('\n').trim();
+
+function Notes({ notes, kind, styles, onEdit }) {
   if (!notes?.length) return null;
   return (
     <div className={`wd-notes wd-${kind}`} contentEditable={false}>
       {notes.map((note) => (
-        <div key={note.id} className="wd-note" id={`wd-${kind}-${note.n}`}>
+        <div key={note.id} className="wd-note" id={`wd-${kind}-${note.n}`} title="Double-click to change the words" onDoubleClick={() => onEdit?.(note)}>
           {note.paragraphs.map((p, i) => (
             <p key={i} className="wd-box-p" style={paragraphCss(p, styles)}>
               {(p.runs || []).length ? p.runs.map((run, j) => <RunSpan key={j} run={run} />) : <br />}
@@ -1321,6 +1354,8 @@ const CSS = `
 .wd-page > .wd-block, .wd-page > .wd-table, .wd-page > .wd-notes { position: relative; z-index: 1; }
 /* Footnote references and the notes themselves. */
 .wd-noteref::after, .wd-notemark::after { content: attr(data-n); vertical-align: super; font-size: 0.65em; line-height: 0; }
+.wd-noteref-char { font-size: 0; }
+.wd-notes .wd-note { cursor: text; }
 .wd-notemark::after { margin-right: 3px; }
 .wd-notes { margin-top: 28px; padding-top: 6px; border-top: 1px solid #333; width: 33%; min-width: 220px; font-size: 0.85em; user-select: none; }
 .wd-notes .wd-note { width: 300%; }

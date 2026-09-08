@@ -22,23 +22,38 @@ import { unesc } from './workbook.js';
  */
 export function textOf(xmlFragment) {
   let out = '';
-  const re = /<w:t\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:t>)|<w:tab\s*\/>|<w:(?:br|cr)\b[^>]*\/>/g;
+  const re = /<w:t\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:t>)|<w:tab\s*\/>|<w:(?:br|cr)\b[^>]*\/>|<w:(?:footnote|endnote)Reference\b[^>]*\/>/g;
   for (const m of String(xmlFragment).matchAll(re)) {
     const tag = m[0];
     if (tag.startsWith('<w:tab')) out += '\t';
+    else if (tag.includes('Reference')) out += NOTE_MARK;
     else if (tag.startsWith('<w:t')) out += unesc(m[1] ?? '');
     else out += '\n';
   }
   return out;
 }
 
+/**
+ * A footnote or endnote REFERENCE is one character of the text, as Word
+ * counts it: U+FFFC, the object-replacement character. So a caret steps over
+ * it, a selection can delete it, and `text` and `runs` agree to the letter —
+ * while the file never sees the character, because `renderRun` writes the
+ * reference element back from the run that carries it.
+ */
+export const NOTE_MARK = '￼';
+
 /** Render a run that carries the given properties verbatim. */
-function renderRun(rPrXml, text) {
+function renderRun(rPrXml, text, run = null) {
   const props = rPrXml ? rPrXml : '';
+  // A note reference or mark is an element with no words: written back from
+  // what the run carries, never from its text.
+  if (run?.noteRef) return '<w:r>' + props + '<w:' + run.noteRef.kind + 'Reference w:id="' + esc(String(run.noteRef.id)) + '"/></w:r>';
+  if (run?.noteMark) return '<w:r>' + props + '<w:' + run.noteMark + 'Ref/></w:r>';
   // A tab and a line break are elements in the file, not characters: a
   // literal tab inside <w:t> is something Word tolerates, not something it
   // writes. xml:space="preserve" or Word eats leading and trailing spaces.
-  const body = String(text).split(/([\t\n])/).map((piece) => {
+  // The reference character never reaches the file either.
+  const body = String(text).replace(/￼/g, '').split(/([\t\n])/).map((piece) => {
     if (piece === '\t') return '<w:tab/>';
     if (piece === '\n') return '<w:br/>';
     return piece ? '<w:t xml:space="preserve">' + esc(piece) + '</w:t>' : '';
@@ -89,7 +104,9 @@ function runFromInner(inner, link = null) {
     const rPrMatch = RPR_RE.exec(inner);
     return {
       rPr: rPrMatch ? rPrMatch[0] : null,
-      text: '',
+      // The reference is a character; the mark at the head of a note is not
+      // (a note's paragraph is never edited through the body's text).
+      text: ref ? NOTE_MARK : '',
       bold: false, italic: false, underline: false, strike: false,
       ...(ref ? { noteRef: { kind: ref[1], id: ref[2] } } : { noteMark: mark[1] }),
       ...(link !== null ? { link } : {}),
@@ -174,14 +191,14 @@ export function withToggle(rPr, tag, on) {
 export function renderRuns(runs) {
   const out = [];
   let openLink = null;
-  for (const r of runs.filter((run) => run.text !== '')) {
+  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark)) {
     const link = r.link ?? null;
     if (link !== openLink) {
       if (openLink !== null) out.push('</w:hyperlink>');
       if (link !== null) out.push('<w:hyperlink' + link + '>');
       openLink = link;
     }
-    out.push(renderRun(r.rPr, r.text));
+    out.push(renderRun(r.rPr, r.text, r));
   }
   if (openLink !== null) out.push('</w:hyperlink>');
   return out.join('');

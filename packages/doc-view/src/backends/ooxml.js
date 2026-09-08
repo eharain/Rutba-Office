@@ -237,6 +237,10 @@ export class OoxmlBackend {
   characterStyles() { return this.doc.characterStyles(); }
   /** Footnotes and endnotes by id, displayed paragraphs each — see `Document.notes`. */
   notes() { return this.doc.notes(); }
+  registerNoteUndo(kind) { return this.doc.registerNoteUndo(kind); }
+  /** The note's words into the part; returns the id the reference must carry. */
+  addNote(kind, text) { return this.doc.addNote(kind, text); }
+  setNoteText(kind, id, text) { return this.doc.setNoteText(kind, id, text); }
   /** Numbering definitions: numId -> levels. Labels are the view's to count. */
   numberingDefs() { return this.doc.numberingDefs(); }
 

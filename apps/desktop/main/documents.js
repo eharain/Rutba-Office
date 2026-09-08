@@ -438,6 +438,10 @@ export function createDocumentService({ holdBlob }) {
       selection: frame.selection,
       format: typeof view.formatAtCaret === 'function' ? view.formatAtCaret() : null,
       listLabels: frame.listLabels,
+      // The notes ride every patch: inserting one changes one paragraph and
+      // the list under the body, and the list is small.
+      footnotes: frame.footnotes,
+      endnotes: frame.endnotes,
       wordCount: frame.wordCount,
       characterCount: frame.characterCount,
       section: frame.section,
@@ -612,6 +616,8 @@ export function createDocumentService({ holdBlob }) {
     setPageSetup: (v, a) => v.setPageSetup(a.spec),
     tableOp: (v, a) => v.tableOp(a.op, a.arg),
     addComment: (v, a) => v.addComment(a.text, { author: a.author }),
+    insertNote: (v, a) => v.insertNote(a.kind ?? 'footnote', a.text),
+    setNoteText: (v, a) => v.setNoteText(a.kind ?? 'footnote', a.id, a.text),
     tabCell: (v, a) => v.tabCell({ back: a.back }),
     // Headers and footers. A report without a page number is a draft, and the
     // engine has been able to write one since bands existed.

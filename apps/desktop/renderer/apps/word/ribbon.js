@@ -381,8 +381,8 @@ export default function WordRibbon({
             <Soon icon="refresh" label="Update Table" why="A live TOC is a field; the one inserted here is text. Insert it again to refresh." />
           </Group>
           <Group label="Footnotes">
-            <Soon tall icon="file" label="Insert Footnote" why="Footnotes need the footnotes part and a reference run; on the list, and the corpus says they matter." />
-            <Soon icon="file" label="Insert Endnote" why="Endnotes come with footnotes." />
+            <Button tall icon="file" label="Insert Footnote" title="A raised number at the caret, and its words under the body" onClick={() => act('insertNote', 'footnote')} />
+            <Button icon="file" label="Insert Endnote" title="A raised number at the caret, and its words at the end of the document" onClick={() => act('insertNote', 'endnote')} />
             <Button icon="chevronDown" label="Next Footnote" title="Go to the next footnote reference" onClick={() => act('nextNote', 1)} />
             <Button icon="eye" label="Show Notes" title="Scroll to the footnotes under the body" onClick={() => act('showNotes')} />
           </Group>

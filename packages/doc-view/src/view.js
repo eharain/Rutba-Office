@@ -353,6 +353,22 @@ export class DocView {
     const { runIndex, runOffset } = locate(runs, offset, 'left');
     const target = runs[runIndex];
 
+    // A note reference is a run of its own and takes no words: typing beside
+    // it goes into a new run wearing the formatting of the text next to it,
+    // never into the reference — whose rebuild writes an element, not text.
+    if (target.noteRef || target.noteMark) {
+      const neighbour = runOffset === 0 ? runs[runIndex - 1] : runs[runIndex + 1];
+      let rPr = neighbour && !neighbour.noteRef && !neighbour.noteMark ? neighbour.rPr : null;
+      if (this.pendingFormat) rPr = this._applyPending(rPr);
+      const at = runOffset === 0 ? runIndex : runIndex + 1;
+      const next = [...runs.slice(0, at), { rPr, text }, ...runs.slice(at)];
+      this.doc.setParagraphRuns(block, coalesce(next));
+      this._invalidate();
+      this.pendingFormat = null;
+      this.collapseTo({ block, offset: offset + text.length });
+      return this;
+    }
+
     let rPr = target.rPr;
     if (this.pendingFormat) rPr = this._applyPending(rPr);
 
@@ -1394,6 +1410,49 @@ export class DocView {
     if (typeof this.doc.registerCommentUndo === 'function') this.doc.registerCommentUndo();
     return this._edit('comment', null, () => {
       this.doc.addComment(this.focus.block, { author, text });
+      this._invalidate();
+      return this;
+    });
+  }
+
+  /**
+   * A footnote or endnote at the caret. The note's words go into the notes
+   * part; the REFERENCE — one character, U+FFFC, the way Word counts it —
+   * goes into the paragraph as a run of its own wearing the reference style.
+   * The paragraph stays editable: the rebuild writes the element back from
+   * the run, a caret steps over the character, Backspace removes it and the
+   * note is then simply unreferenced.
+   */
+  insertNote(kind, text) {
+    if (typeof this.doc.addNote !== 'function') throw new Error('this document backend does not support footnotes');
+    if (kind !== 'footnote' && kind !== 'endnote') throw new Error('a note is a footnote or an endnote');
+    if (typeof this.doc.registerNoteUndo === 'function') this.doc.registerNoteUndo(kind);
+    return this._edit('note', null, () => {
+      if (!this.collapsed) this.collapseTo(this.selection.to);
+      const { block, offset } = this.focus;
+      const b = this._editable(block);
+      const id = this.doc.addNote(kind, text);
+      const styleId = kind === 'footnote' ? 'FootnoteReference' : 'EndnoteReference';
+      const ref = {
+        rPr: '<w:rPr><w:rStyle w:val="' + styleId + '"/><w:vertAlign w:val="superscript"/></w:rPr>',
+        text: '￼', noteRef: { kind, id },
+        bold: false, italic: false, underline: false, strike: false,
+      };
+      const next = [...sliceRuns(b.runs, 0, offset), ref, ...sliceRuns(b.runs, offset, Infinity)];
+      this.doc.setParagraphRuns(block, coalesce(next));
+      this._invalidate();
+      this.pendingFormat = null;
+      this.collapseTo({ block, offset: offset + 1 });
+      return this;
+    });
+  }
+
+  /** Replace a note's words — the number and the reference stay where they are. */
+  setNoteText(kind, id, text) {
+    if (typeof this.doc.setNoteText !== 'function') throw new Error('this document backend does not support footnotes');
+    if (typeof this.doc.registerNoteUndo === 'function') this.doc.registerNoteUndo(kind);
+    return this._edit('note', null, () => {
+      this.doc.setNoteText(kind, id, text);
       this._invalidate();
       return this;
     });

@@ -172,6 +172,41 @@ export function CommentDialog({ onClose, onAdd }) {
   );
 }
 
+/** A footnote or endnote: its words, on the way in or on the way to a change. */
+export function NoteDialog({ kind = 'footnote', initial = '', onClose, onSave }) {
+  const [text, setText] = useState(initial);
+  const label = kind === 'endnote' ? 'Endnote' : 'Footnote';
+  return (
+    <Dialog
+      title={initial ? `Edit ${label.toLowerCase()}` : `Insert ${label.toLowerCase()}`}
+      width={460}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label={initial ? 'Save' : 'Insert'} disabled={!text.trim()} onClick={() => onSave(text.trim())} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field
+          label={label}
+          hint={initial ? 'The words change; the number and its reference stay where they are.' : `A raised number at the caret, and these words ${kind === 'endnote' ? 'at the end of the document' : 'under the body'}.`}
+        >
+          <textarea
+            className="rw-input ml-compose-body"
+            style={{ minHeight: 90 }}
+            rows={3}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            autoFocus
+          />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
 export function CommentsDialog({ comments, onClose, onGoto }) {
   return (
     <Dialog title="Comments" width={520} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>

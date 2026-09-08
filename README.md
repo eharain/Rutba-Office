@@ -206,8 +206,8 @@ Everything else:
 [COMPETITORS.md](docs/COMPETITORS.md) is an audit, app by app, against what you
 would otherwise install — Microsoft 365, LibreOffice, OnlyOffice, Thunderbird,
 Outlook, eM Client, Google. It lists the gaps as carefully as the leads, because
-a gap nobody has written down is a gap nobody fixes. Track changes, inserting
-footnotes, macros, a calendar and encryption are all on it.
+a gap nobody has written down is a gap nobody fixes. Track changes, macros, a
+calendar and encryption are all on it.
 
 Other things worth reading:
 
