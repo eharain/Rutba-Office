@@ -363,6 +363,11 @@ export class OoxmlPackage {
 
   /** Resolve a relationship Target against the part that declares it. */
   static resolveTarget(fromPart, target) {
+    // A relationship with no Target: XML that has been damaged, which a
+    // downloaded file eventually is. Without this the whole open ended in
+    // "Cannot read properties of undefined (reading 'startsWith')" from four
+    // frames down, which is not something anybody can act on.
+    if (typeof target !== 'string' || target === '') throw new OoxmlError('not an OOXML package: a relationship is missing its target');
     if (/^[a-z]+:\/\//i.test(target)) return target; // external
     if (target.startsWith('/')) return target.slice(1);
     const i = fromPart.lastIndexOf('/');
@@ -380,14 +385,17 @@ export class OoxmlPackage {
   /** Root document part, via the package-level relationships. */
   mainDocument() {
     for (const rel of this.rels('')) {
-      if (String(rel.Type).endsWith('/officeDocument')) {
+      // A damaged relationship is passed over rather than believed: the parts
+      // below are where the main one lives in every file Office writes, so a
+      // package with one bad line still opens.
+      if (String(rel.Type).endsWith('/officeDocument') && rel.Target) {
         return OoxmlPackage.resolveTarget('', rel.Target);
       }
     }
     for (const candidate of ['xl/workbook.xml', 'word/document.xml', 'ppt/presentation.xml']) {
       if (this.has(candidate)) return candidate;
     }
-    throw new OoxmlError('no officeDocument relationship and no known main part');
+    throw new OoxmlError('not an OOXML package: the relationship naming its main part is missing, and no part is where one would be');
   }
 
   kind() {

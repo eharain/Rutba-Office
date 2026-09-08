@@ -130,7 +130,15 @@ export class SheetView {
       this.comments.set(name, this._readComments(part));
     }
 
+    // A workbook with no sheet in it is not a workbook. Without this the view
+    // carried an undefined active sheet all the way to the first frame and
+    // threw there — "Cannot read properties of undefined (reading
+    // 'viewport')" — which reaches a person as a window that never draws
+    // rather than as a file that could not be read. A flipped byte in the
+    // part that lists the sheets is enough to produce one; six of six hundred
+    // damaged workbooks did (tools/fuzz-open.js).
     this.activeSheet = this.workbook.sheetNames()[0];
+    if (!this.activeSheet) throw new Error('not a workbook: it lists no sheets');
     this.selection = Selection.at(0, 0);
     this.scrollX = 0;
     this.scrollY = 0;
