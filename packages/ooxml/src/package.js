@@ -284,6 +284,29 @@ export class OoxmlPackage {
     this.write_('[Content_Types].xml', xml);
   }
 
+  /**
+   * Make sure an extension has a `<Default>` content type.
+   *
+   * A media part is named by its extension, not by an override: PowerPoint
+   * and Word write `<Default Extension="png" .../>` once and never list the
+   * pictures. An override per picture is legal and Office reads it, but a
+   * package whose content types are not the shape Office writes is a package
+   * a stricter reader may refuse — and a diff against the original should be
+   * one line, not one per picture.
+   */
+  ensureDefault(extension, contentType) {
+    const ext = String(extension).replace(/^\./, '').toLowerCase();
+    const { defaults } = this.contentTypes();
+    if (defaults.has(ext)) return defaults.get(ext);
+    defaults.set(ext, contentType);
+    const xml = this.text('[Content_Types].xml');
+    const entry = '<Default Extension="' + esc(ext) + '" ContentType="' + esc(contentType) + '"/>';
+    const at = xml.indexOf('>', xml.indexOf('<Types'));
+    if (at < 0) throw new OoxmlError('[Content_Types].xml has no <Types> element');
+    this.write_('[Content_Types].xml', xml.slice(0, at + 1) + entry + xml.slice(at + 1));
+    return contentType;
+  }
+
   // ---- relationships -------------------------------------------------------
 
   /** `xl/workbook.xml` -> `xl/_rels/workbook.xml.rels` */

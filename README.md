@@ -12,7 +12,8 @@ with the network switched off.
 | **Mail** | Every account, every archive, one inbox | IMAP, SMTP and sign-in to Gmail and Outlook.com, plus the archives other clients leave behind — Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg`. Names the trackers in a message, and offers the way off the list |
 | **Word** | Documents that open the same everywhere | `.docx` on an engine we own, reading `.odt`, `.rtf`, `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.ods` and `.csv` |
-| **Presentation** | Slides that survive the round trip | `.pptx` — read, edit, render, present — with speaker notes and a presenter view for the other screen |
+| **Presentation** | Slides that survive the round trip | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen |
+
 | **Pictures** | A viewer that opens before you blink | Every common format, EXIF, orientation, and PDFs |
 | **Image** | Crop, correct, annotate, export | Non-destructive: your original is never touched |
 | **Video** | Trim and export without a render farm | No ffmpeg, no native binaries, nothing to install |

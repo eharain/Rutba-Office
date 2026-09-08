@@ -552,7 +552,31 @@ export const FUNCTIONS = {
     if (n > 0 && s < 0) return ERR.NUM('FLOOR with opposite signs');
     return Math.floor(n / s) * s;
   }),
+  // CEILING.MATH / FLOOR.MATH are the 2013 forms: the significance defaults
+  // to 1, its sign never matters, and a negative number rounds toward zero
+  // (CEILING.MATH) or away from it (FLOOR.MATH) unless mode is non-zero.
+  'CEILING.MATH': def((v, sig, mode) => {
+    const n = num1(v);
+    const s = sig === undefined ? 1 : Math.abs(num1(sig));
+    const m = mode === undefined ? 0 : num1(mode);
+    const e = firstError([n, s, m]);
+    if (e) return e;
+    if (s === 0) return 0;
+    if (n < 0 && m !== 0) return -Math.ceil(-n / s) * s;
+    return Math.ceil(n / s) * s;
+  }),
+  'FLOOR.MATH': def((v, sig, mode) => {
+    const n = num1(v);
+    const s = sig === undefined ? 1 : Math.abs(num1(sig));
+    const m = mode === undefined ? 0 : num1(mode);
+    const e = firstError([n, s, m]);
+    if (e) return e;
+    if (s === 0) return 0;
+    if (n < 0 && m !== 0) return -Math.floor(-n / s) * s;
+    return Math.floor(n / s) * s;
+  }),
   MROUND: def((v, mult) => {
+
     const n = num1(v);
     const m = num1(mult);
     const e = firstError([n, m]);

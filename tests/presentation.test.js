@@ -236,3 +236,83 @@ test('an arcTo in a custom geometry becomes an SVG arc from its sweep', async ()
   const d = scene.shapes[0].path.d;
   assert.match(d, /^M0 100 A100 100 0 0 1 200 100 Z$/);
 });
+
+test('a picture can be added to a slide: media part, relationship, default content type, and it draws as an image', () => {
+  const PNG_1x1 = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==';
+  const png = Buffer.from(PNG_1x1, 'base64');
+  const deck = Deck.open(DECK);
+  const untouched = OoxmlPackage.read(DECK).text('ppt/slides/slide1.xml');
+
+  const { id, part } = deck.addPicture(1, { data: png, contentType: 'image/png', name: 'dot.png', x: 100, y: 120, w: 200, h: 150 });
+  assert.equal(part, 'ppt/media/image1.png');
+
+  const reopened = Deck.open(deck.save());
+  const shape = reopened.slide(1).shapes.find((s) => s.id === String(id));
+  assert.equal(shape?.kind, 'picture', 'the shape reads back as a picture');
+  assert.equal(shape.source?.part, part, 'its blip resolves to the media part');
+  assert.deepEqual(
+    [shape.geometry.x, shape.geometry.y, shape.geometry.w, shape.geometry.h].map(Math.round),
+    [100, 120, 200, 150],
+    'placed where it was asked to be'
+  );
+  assert.ok(Buffer.from(reopened.media(part)).equals(png), 'the bytes come back as they went in');
+
+  const pkg = OoxmlPackage.read(reopened.save());
+  assert.equal(pkg.contentTypeOf(part), 'image/png');
+  assert.match(pkg.text('[Content_Types].xml'), /<Default Extension="png" ContentType="image\/png"\/>/, 'declared as a default, the way Office does');
+  assert.doesNotMatch(pkg.text('[Content_Types].xml'), /Override[^>]*media\/image1/, 'not as a per-picture override');
+  assert.equal(pkg.text('ppt/slides/slide1.xml'), untouched, 'the other slides are byte-identical');
+
+  const svg = renderSlide(reopened.slide(1), {
+    width: 640,
+    resolveImage: (s) => `data:image/png;base64,${Buffer.from(reopened.media(s.source.part)).toString('base64')}`,
+  });
+  assert.match(svg, /<image [^>]*href="data:image\/png;base64,/, 'drawn as an image, not as the "Picture" placeholder');
+
+  const second = reopened.addPicture(1, { data: png, contentType: 'image/png', w: 10, h: 10 });
+  assert.equal(second.part, 'ppt/media/image2.png', 'a second picture gets the next number');
+  assert.notEqual(second.id, id);
+  assert.throws(() => reopened.addPicture(1, { data: png, contentType: 'image/tiff', w: 10, h: 10 }), /unsupported picture type/);
+});
+
+test('a preset shape can be added with the theme accent, a line and centred text, and draws as its geometry', () => {
+  const deck = Deck.open(DECK);
+  const untouched = OoxmlPackage.read(DECK).text('ppt/slides/slide1.xml');
+  const id = deck.addShape(2, { preset: 'ellipse', x: 200, y: 100, w: 240, h: 160, text: 'Hello' });
+  const bare = deck.addShape(2, { preset: 'star5', x: 500, y: 100, w: 120, h: 120, fill: '#FFC000', line: 'none' });
+
+  const reopened = Deck.open(deck.save());
+  const scene = reopened.slide(2);
+  const oval = scene.shapes.find((s) => s.id === String(id));
+  assert.equal(oval?.kind, 'shape');
+  assert.equal(oval.preset, 'ellipse');
+  assert.equal(oval.fill?.type, 'solid');
+  assert.equal(oval.fill.color.toUpperCase(), String(scene.theme.colors.accent1).toUpperCase(), 'filled with the theme accent, not a hard-coded colour');
+  assert.ok(oval.line?.color, 'it has a line');
+  assert.equal(oval.text?.anchor, 'middle', 'the text sits in the middle of the shape');
+  assert.equal(oval.text.paragraphs[0].runs.map((r) => r.text).join(''), 'Hello');
+  assert.deepEqual([oval.geometry.x, oval.geometry.y, oval.geometry.w, oval.geometry.h].map(Math.round), [200, 100, 240, 160]);
+
+  const star = scene.shapes.find((s) => s.id === String(bare));
+  assert.equal(star.preset, 'star5');
+  assert.equal(star.fill.color.toUpperCase(), '#FFC000');
+  assert.equal(star.line?.type, 'none');
+
+  const svg = renderSlide(scene, { width: 640 });
+  assert.match(svg, /<ellipse [^>]*fill="#/, 'the oval draws as an ellipse');
+  assert.match(svg, /<polygon [^>]*fill="#FFC000"/i, 'the star draws as its polygon in its own colour');
+  assert.match(svg, />Hello</, 'and the text is on it');
+  assert.equal(OoxmlPackage.read(reopened.save()).text('ppt/slides/slide1.xml'), untouched, 'the other slides are byte-identical');
+  assert.throws(() => reopened.addShape(2, { preset: 'rect"/><x', w: 10, h: 10 }), /not a preset geometry/);
+});
+
+test('a bullet stored for Wingdings or Symbol is drawn as the character it looks like', async () => {
+  const { bulletGlyph } = await import('@rutba/ooxml/glyphs');
+  assert.equal(bulletGlyph('§', 'Wingdings'), '▪', 'Wingdings 0xA7 is a small square');
+  assert.equal(bulletGlyph('', 'Wingdings'), '▪', 'the same code point in the private-use area');
+  assert.equal(bulletGlyph('ü', 'Wingdings'), '✓');
+  assert.equal(bulletGlyph('', 'Symbol'), '•');
+  assert.equal(bulletGlyph(''), '•', 'a private-use bullet with no font named is still a bullet');
+  assert.equal(bulletGlyph('–', 'Calibri'), '–', 'a plain character in a text font is itself');
+  assert.equal(bulletGlyph('§', 'Arial'), '§');
+});

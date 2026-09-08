@@ -59,7 +59,11 @@ function readProps(styleXml) {
     sizePx: sz !== null ? halfPointsToPx(sz) : undefined,
     colour: (() => {
       const c = val(rPr, 'w:color');
-      return c && c !== 'auto' ? '#' + c.toLowerCase() : undefined;
+      // "auto" is a colour, not the absence of one: a run that says auto on a
+      // heading whose style says blue is black in Word, and was blue here.
+      if (c === 'auto') return '#000000';
+      return c ? '#' + c.toLowerCase() : undefined;
+
     })(),
     // A font is named outright (`w:ascii`) or by theme slot (`w:asciiTheme`);
     // the slot is kept as a marker and resolved against the theme once every
@@ -97,6 +101,8 @@ function readProps(styleXml) {
     hangingPx: ind ? (attrs(ind)['w:hanging'] !== undefined ? twipsToPx(attrs(ind)['w:hanging']) : undefined) : undefined,
     firstLinePx: ind ? (attrs(ind)['w:firstLine'] !== undefined ? twipsToPx(attrs(ind)['w:firstLine']) : undefined) : undefined,
     keepNext: toggle(pPr, 'w:keepNext'),
+    contextualSpacing: toggle(pPr, 'w:contextualSpacing'),
+
     // A style's borders — the box around a cover title — same shape as the
     // paragraph's own.
     borders: (() => {
@@ -319,9 +325,18 @@ export function readNumberingDefs(numberingXml) {
       const ilvl = Number(attrs(lvl[1])['w:ilvl'] ?? levels.length);
       const fmt = val(lvl[2], 'w:numFmt') ?? 'decimal';
       const ind = first(lvl[2], 'w:ind');
+      const fonts = first(lvl[2], 'w:rFonts');
       levels[ilvl] = {
         format: FORMATS.has(fmt) ? fmt : 'decimal',
         lvlText: val(lvl[2], 'w:lvlText') ?? '%' + (ilvl + 1) + '.',
+        // The marker hangs to the left of the text by this much: Word's
+        // bullet at a quarter inch with the text at a half.
+        hangingPx: ind && attrs(ind)['w:hanging'] !== undefined ? twipsToPx(attrs(ind)['w:hanging']) : null,
+
+        // The font the bullet character was stored for: U+F0A7 is a square
+        // in Wingdings and a club in Symbol.
+        font: fonts ? (attrs(fonts)['w:ascii'] ?? attrs(fonts)['w:hAnsi'] ?? null) : null,
+
         start: Number(val(lvl[2], 'w:start') ?? 1) || 1,
         indentPx: ind && attrs(ind)['w:left'] !== undefined ? twipsToPx(attrs(ind)['w:left']) : (ilvl + 1) * 24,
       };

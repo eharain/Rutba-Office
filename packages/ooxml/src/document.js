@@ -75,8 +75,13 @@ const EXPLICIT_BREAK = /<w:br\b[^>]*w:type="page"/;
  */
 const twipsToPx = (tw) => Number(tw) * (96 / 1440);
 function readDirectSpacing(pPr) {
+  // "Don't add space between paragraphs of the same style": the flag a list
+  // item carries so the list sits tight while the list keeps its space from
+  // the prose around it. Resolved against the neighbours by the view.
+  const contextual = /<w:contextualSpacing\b(?![^>]*w:val="(?:0|false)")/.test(pPr || '');
   const spacing = /<w:spacing\b([^>]*?)\/?>/.exec(pPr || '');
-  if (!spacing) return null;
+  if (!spacing) return contextual ? { contextual: true } : null;
+
   const attr = (name) => {
     const m = new RegExp('\\b' + name + '="([^"]*)"').exec(spacing[1]);
     return m ? m[1] : undefined;
@@ -90,8 +95,10 @@ function readDirectSpacing(pPr) {
     if (rule === 'auto') out.lineFactor = Number(line) / 240;
     else out.lineExactPx = twipsToPx(line);
   }
+  if (contextual) out.contextual = true;
   return Object.keys(out).length ? out : null;
 }
+
 
 /**
  * The rest of a paragraph's DIRECT formatting that the page has to draw: its

@@ -21,10 +21,34 @@ import { measureText, wrapText, lineHeight } from './measure.js';
 
 /** Presets we draw properly. Everything else becomes a rectangle. */
 export const SUPPORTED_GEOMETRY = [
-  'rect', 'roundRect', 'ellipse', 'line', 'straightConnector1',
+  'rect', 'roundRect', 'ellipse', 'line', 'straightConnector1', 'bentConnector2', 'bentConnector3', 'curvedConnector3',
   'triangle', 'diamond', 'rightArrow', 'leftArrow', 'upArrow', 'downArrow',
   'pentagon', 'hexagon', 'star5', 'plus', 'chevron', 'parallelogram', 'trapezoid',
+  'leftBrace', 'rightBrace', 'leftBracket', 'rightBracket',
 ];
+
+const LINE_GEOMETRY = /^(line|straightConnector\d*|bentConnector\d*|curvedConnector\d*)$/;
+const BRACE_GEOMETRY = /^(left|right)(Brace|Bracket)$/;
+
+/**
+ * A brace or bracket: a stroke and no fill, the curl at the middle of the
+ * long side, opening away from the side it is named for.
+ */
+function bracePath(geometry, x, y, w, h) {
+  const left = geometry.startsWith('left');
+  const outer = left ? x + w : x;   // the side the arms reach
+  const inner = left ? x : x + w;   // the side the point touches
+  const mid = x + w / 2;
+  const cy = y + h / 2;
+  const f = (n) => Math.round(n * 100) / 100;
+  if (geometry.endsWith('Bracket')) return `M${f(outer)} ${f(y)}L${f(inner)} ${f(y)}L${f(inner)} ${f(y + h)}L${f(outer)} ${f(y + h)}`;
+  const r = Math.min(w, h / 4);
+  return (
+    `M${f(outer)} ${f(y)}Q${f(mid)} ${f(y)} ${f(mid)} ${f(y + r)}L${f(mid)} ${f(cy - r)}Q${f(mid)} ${f(cy)} ${f(inner)} ${f(cy)}` +
+    `Q${f(mid)} ${f(cy)} ${f(mid)} ${f(cy + r)}L${f(mid)} ${f(y + h - r)}Q${f(mid)} ${f(y + h)} ${f(outer)} ${f(y + h)}`
+  );
+}
+
 
 /**
  * A theme colour maps onto OUR palette rather than the customer's theme.
@@ -146,13 +170,27 @@ export function buildShape(descriptor, box, { mode = 'light' } = {}) {
   const children = [];
   if (geometry === 'ellipse') {
     children.push(ellipse({ cx: x + width / 2, cy: y + height / 2, rx: width / 2, ry: height / 2, ...paint }));
-  } else if (geometry === 'line' || geometry === 'straightConnector1') {
-    children.push(line({
-      x1: x, y1: y, x2: x + width, y2: y + height,
-      stroke: (stroke && stroke !== 'none') ? stroke : fill,
-      strokeWidth: strokeWidth || 2, linecap: 'round',
+  } else if (LINE_GEOMETRY.test(geometry)) {
+    // Corner to corner of the box; a flip says which corners. A bent
+    // connector goes half way across, turns, and finishes level.
+    const x1 = descriptor.flipH ? x + width : x;
+    const x2 = descriptor.flipH ? x : x + width;
+    const y1 = descriptor.flipV ? y + height : y;
+    const y2 = descriptor.flipV ? y : y + height;
+    const strokeColour = (stroke && stroke !== 'none') ? stroke : fill;
+    if (/^bentConnector/.test(geometry)) {
+      const mx = (x1 + x2) / 2;
+      children.push(path({ d: `M${x1} ${y1}L${mx} ${y1}L${mx} ${y2}L${x2} ${y2}`, fill: 'none', stroke: strokeColour, strokeWidth: strokeWidth || 1 }));
+    } else {
+      children.push(line({ x1, y1, x2, y2, stroke: strokeColour, strokeWidth: strokeWidth || 1, linecap: 'round' }));
+    }
+  } else if (BRACE_GEOMETRY.test(geometry)) {
+    children.push(path({
+      d: bracePath(geometry, x, y, width, height), fill: 'none',
+      stroke: (stroke && stroke !== 'none') ? stroke : fill, strokeWidth: strokeWidth || 1,
     }));
   } else if (geometry === 'roundRect') {
+
     const radius = Math.min(width, height) * 0.14;
     children.push(path({ d: roundedRectPath(x, y, width, height, radius), ...paint }));
   } else {
@@ -177,8 +215,15 @@ export function buildShape(descriptor, box, { mode = 'light' } = {}) {
     });
   }
 
-  return group(children, { class: 'shape' });
+  // A rotated shape turns about its own centre — a brace laid on its side
+  // under a box is a vertical brace with rot="5400000".
+  const rotation = Number(descriptor.rotation) || 0;
+  return group(children, {
+    class: 'shape',
+    ...(rotation ? { transform: `rotate(${Math.round(rotation * 100) / 100} ${x + width / 2} ${y + height / 2})` } : {}),
+  });
 }
+
 
 /** Path data is a string, so the renderer's number formatting cannot reach it.
  *  Round here or a rounded rectangle ships with 17 digits per corner. */

@@ -17,7 +17,8 @@ import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { buildXlsx, buildDocx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES } from '@rutba/presentation';
-import { renderPdf } from '@rutba/doc-view/export/pdf';
+import { renderPdf } from '@rutba/doc-view/export/pdf';import { probeImage } from '@rutba/imaging/probe';
+
 import { sniff, refineOoxml } from '@rutba/office-formats/sniff';
 import { readOdf } from '@rutba/office-formats/odf';
 import { readRtf } from '@rutba/office-formats/rtf';
@@ -485,7 +486,7 @@ export function createDocumentService({ holdBlob }) {
       if (known) return known;
       const bytes = deck.media(shape.source.part);
       if (!bytes) return null;
-      const type = shape.source.part.endsWith('.png') ? 'image/png' : shape.source.part.endsWith('.gif') ? 'image/gif' : 'image/jpeg';
+      const type = shape.source.part.endsWith('.png') ? 'image/png' : shape.source.part.endsWith('.gif') ? 'image/gif' : shape.source.part.endsWith('.bmp') ? 'image/bmp' : 'image/jpeg';
       const url = holdBlob(bytes, type, path.basename(shape.source.part)).url;
       blobs.set(shape.source.part, url);
       return url;
@@ -659,7 +660,38 @@ export function createDocumentService({ holdBlob }) {
     // a new presentation could never gain a second one.
     insertSlide: (d, a) => d.insertSlide(a.after ?? a.slide ?? d.slideCount - 1, a),
     setNotes: (d, a) => d.setNotes(a.slide, a.text ?? ''),
+    // A picture on a slide, sized from its own header when the caller gives
+    // no size: it keeps its aspect, fits within the slide, and sits in the
+    // middle of it. The engine does not decode pictures; this reads the size
+    // out of the first bytes the way the photo viewer does.
+    addPicture: (d, a) => d.addPicture(a.slide, picturePlacement(d, a)),
+    // A preset shape in the theme's colours; the ribbon picks the preset.
+    addShape: (d, a) => d.addShape(a.slide, a),
+
   };
+
+  function picturePlacement(deck, a) {
+    const data = Buffer.isBuffer(a.data) ? a.data : a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64');
+    if (a.w > 0 && a.h > 0) return { ...a, data };
+    const probe = safely(() => probeImage(data)) || null;
+    const iw = probe?.width > 0 ? probe.width : 4;
+    const ih = probe?.height > 0 ? probe.height : 3;
+    // Never larger than six tenths of the slide; a small picture is drawn at
+    // its own size unless that would be a speck, in which case it gets a
+    // hand's width and the user resizes from there.
+    const scale = Math.min((deck.size.width * 0.6) / iw, (deck.size.height * 0.6) / ih, Math.max(1, 240 / Math.max(iw, ih)));
+    const w = Math.max(1, Math.round(iw * scale));
+    const h = Math.max(1, Math.round(ih * scale));
+    return {
+      ...a,
+      data,
+      w,
+      h,
+      x: a.x ?? Math.round((deck.size.width - w) / 2),
+      y: a.y ?? Math.round((deck.size.height - h) / 2),
+    };
+  }
+
 
   const OPS = { sheet: SHEET_OPS, doc: DOC_OPS, deck: DECK_OPS };
 

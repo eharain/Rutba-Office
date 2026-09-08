@@ -60,19 +60,43 @@ export function createWindowManager({ stores, preloadPath, iconPath, onWindowEve
     return `${SCHEME}://app/index.html?${params.toString()}`;
   }
 
+  /** The largest display that is not the primary one, or null when there is only the one. */
+  function secondaryDisplay() {
+    const primary = screen.getPrimaryDisplay();
+    const others = screen.getAllDisplays().filter((d) => d.id !== primary.id);
+    if (!others.length) return null;
+    return others.sort((a, b) => b.workArea.width * b.workArea.height - a.workArea.width * a.workArea.height)[0];
+  }
+
   function create({ app: appKey = 'home', file = null, query = null, parentId = null } = {}) {
+
     const geo = GEOMETRY[appKey] || GEOMETRY.home;
     const saved = savedBounds(appKey);
     const dark = nativeTheme.shouldUseDarkColors;
     // A capture harness can ask for a room of its own size — a page-tall
     // window for a rendering comparison — without touching the saved bounds.
     const forced = /^(\d+)x(\d+)$/.exec(process.env.RUTBA_WINDOW_SIZE || '');
-
-    const win = new BrowserWindow({
+    // A check harness opens twenty windows in five minutes. On the display
+    // somebody is working at, that is a stack to close by hand — and closing
+    // it takes the checks with it. When there is a second display the
+    // harness asks for it, and the windows keep out of the way. The window is
+    // created there rather than moved there: a move between displays of
+    // different scale factors rescales the window once on the way.
+    const away = process.env.RUTBA_WINDOW_DISPLAY === 'secondary' ? secondaryDisplay() : null;
+    const wanted = {
       width: forced ? Number(forced[1]) : saved?.width ?? geo.width,
       height: forced ? Number(forced[2]) : saved?.height ?? geo.height,
-      x: saved?.x,
-      y: saved?.y,
+    };
+    const size = away
+      ? { width: Math.min(wanted.width, away.workArea.width), height: Math.min(wanted.height, away.workArea.height) }
+      : wanted;
+
+    const win = new BrowserWindow({
+      width: size.width,
+      height: size.height,
+      x: away ? away.workArea.x + Math.floor((away.workArea.width - size.width) / 2) : saved?.x,
+      y: away ? away.workArea.y + Math.floor((away.workArea.height - size.height) / 2) : saved?.y,
+
       minWidth: geo.minWidth,
       minHeight: geo.minHeight,
       show: false,
@@ -97,7 +121,9 @@ export function createWindowManager({ stores, preloadPath, iconPath, onWindowEve
     });
 
     meta.set(win.id, { app: appKey, file, dirty: false, name: '', closing: false });
-    if (saved?.maximized) win.maximize();
+    if (!away && saved?.maximized) win.maximize();
+
+
 
     win.once('ready-to-show', () => win.show());
 

@@ -1009,3 +1009,15 @@ test('DATEDIF counts the way Excel counts, unit by unit', () => {
   assert.equal(String(evalIn('=DATEDIF(DATE(2026,2,1), DATE(2026,1,1), "D")')), '#NUM!', 'start after end');
   assert.equal(String(evalIn('=DATEDIF(DATE(2026,1,1), DATE(2026,2,1), "W")')), '#NUM!', 'no such unit');
 });
+
+test("Excel's _xlfn. prefix is the file's, not the function's, and CEILING.MATH rounds the 2013 way", () => {
+  assert.equal(evalIn('=_xlfn.CEILING.MATH(450*12/220)'), 25, 'the prefix is stripped before the lookup');
+  assert.equal(evalIn('=CEILING.MATH(4.3)'), 5);
+  assert.equal(evalIn('=CEILING.MATH(-4.3)'), -4, 'a negative rounds toward zero');
+  assert.equal(evalIn('=CEILING.MATH(-4.3, 1, 1)'), -5, 'unless mode says away from it');
+  assert.equal(evalIn('=CEILING.MATH(7, -3)'), 9, 'the sign of the significance never matters');
+  assert.equal(evalIn('=FLOOR.MATH(4.7)'), 4);
+  assert.equal(evalIn('=FLOOR.MATH(-4.3)'), -5, 'a negative rounds away from zero');
+  assert.equal(evalIn('=FLOOR.MATH(-4.3, 1, 1)'), -4, 'unless mode says toward it');
+  assert.equal(String(evalIn('=_xlfn.NOSUCHFUNCTION(1)')), '#NAME?', 'an unknown function is still unknown');
+});

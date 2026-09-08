@@ -32,7 +32,15 @@ const REL = {
   theme: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme',
   image: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
   notes: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide',
+};/** The picture types PowerPoint itself embeds; anything else is converted first. */
+const IMAGE_EXTENSIONS = {
+  'image/png': 'png',
+  'image/jpeg': 'jpeg',
+  'image/jpg': 'jpeg',
+  'image/gif': 'gif',
+  'image/bmp': 'bmp',
 };
+
 
 /** Resolve a relationship target against the part that declares it. */
 function resolveTarget(fromPart, target) {
@@ -439,6 +447,115 @@ export class Deck {
     return id;
   }
 
+  /**
+   * A picture on a slide.
+   *
+   * Three writes, and PowerPoint insists on all of them: the bytes as a media
+   * part (`ppt/media/imageN.ext`), a relationship from the slide to it, and a
+   * `<p:pic>` whose blip names the relationship. The extension's content type
+   * is a package-wide default, as Office writes it. The drawn size is the
+   * caller's, in pixels — the engine does not decode pictures — so a caller
+   * that has read the picture's own size keeps its aspect.
+   *
+   * @param {number} slideIndex
+   * @param {{ data: Buffer|Uint8Array|string, contentType: string, name?: string, x?: number, y?: number, w: number, h: number }} spec
+   * @returns {{ id: number, part: string }} the shape id and the media part
+   */
+  addPicture(slideIndex, { data, contentType, name = 'Picture', x = 0, y = 0, w, h }) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const ext = IMAGE_EXTENSIONS[String(contentType || '').toLowerCase()];
+    if (!ext) throw new Error(`unsupported picture type: ${contentType} (png, jpeg, gif or bmp)`);
+    const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data), 'base64');
+    if (!bytes.length) throw new Error('the picture has no bytes');
+    if (!(w > 0) || !(h > 0)) throw new Error('a picture needs a positive width and height');
+
+    // Numbered across every extension, as PowerPoint numbers them.
+    const names = this.pkg.partNames() || [];
+    let n = 1;
+    while (names.some((p) => p.startsWith(`ppt/media/image${n}.`))) n += 1;
+    const media = `ppt/media/image${n}.${ext}`;
+    this.pkg.ensureDefault(ext, ext === 'jpeg' ? 'image/jpeg' : contentType);
+    this.pkg.addPart(media, bytes);
+    const rId = this.pkg.addRelationshipTo(part, REL.image, `../media/image${n}.${ext}`);
+
+    let xml = this.pkg.text(part);
+    // A slide that has never had a relationship may not declare the prefix.
+    const head = xml.slice(0, Math.max(0, xml.indexOf('<p:cSld')));
+    if (!/xmlns:r=/.test(head)) {
+      xml = xml.replace(/<p:sld\b/, '<p:sld xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"');
+    }
+    const id = nextShapeId(xml);
+    const label = escapeXml(name);
+    const pic =
+      `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${label}" descr="${label}"/>` +
+      `<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr><p:nvPr/></p:nvPicPr>` +
+      `<p:blipFill><a:blip r:embed="${rId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
+      `<p:spPr><a:xfrm><a:off x="${pxToEmu(x)}" y="${pxToEmu(y)}"/>` +
+      `<a:ext cx="${Math.max(1, pxToEmu(w))}" cy="${Math.max(1, pxToEmu(h))}"/></a:xfrm>` +
+      `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+    const at = xml.lastIndexOf('</p:spTree>');
+    if (at < 0) throw new Error('slide has no shape tree');
+    this.#writeSlide(part, xml.slice(0, at) + pic + xml.slice(at));
+    return { id, part: media };
+  }
+
+  /**
+   * A preset shape — a rectangle, an oval, an arrow, a star — with a fill, a
+   * line and, when asked, centred text.
+   *
+   * Written the way PowerPoint writes one it has just drawn: preset geometry,
+   * a solid fill in the theme's first accent, a line in the same accent
+   * darkened by half, and a text body anchored to the middle, so the shape
+   * takes the deck's colours and a theme change recolours it. A hex colour is
+   * accepted anywhere a scheme colour is.
+   *
+   * @param {number} slideIndex
+   * @param {{ preset?: string, x?: number, y?: number, w: number, h: number,
+   *   fill?: string|{ scheme: string, lumMod?: number }|'none',
+   *   line?: { color?: string|{ scheme: string, lumMod?: number }, width?: number }|'none',
+   *   text?: string|Array, name?: string }} spec pixels and points
+   * @returns {number} the shape id
+   */
+  addShape(slideIndex, {
+    preset = 'rect', x = 0, y = 0, w, h,
+    fill = { scheme: 'accent1' },
+    line = { color: { scheme: 'accent1', lumMod: 50 }, width: 1 },
+    text = null, name = null,
+  } = {}) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (!(w > 0) || !(h >= 0)) throw new Error('a shape needs a positive width and a height');
+    if (!/^[A-Za-z][A-Za-z0-9]*$/.test(String(preset))) throw new Error(`not a preset geometry: ${preset}`);
+
+    const xml = this.pkg.text(part);
+    const id = nextShapeId(xml);
+    const label = escapeXml(name || `${PRESET_NAMES[preset] || 'Shape'} ${id}`);
+    const fillXml = fill === 'none' || fill?.type === 'none' ? '<a:noFill/>' : `<a:solidFill>${colourXml(fill)}</a:solidFill>`;
+    const lineXml = line === 'none' || line?.type === 'none'
+      ? '<a:ln><a:noFill/></a:ln>'
+      : line
+        ? `<a:ln w="${Math.round((line.width ?? 1) * 12700)}"><a:solidFill>${colourXml(line.color ?? { scheme: 'accent1' })}</a:solidFill></a:ln>`
+        : '';
+    const paragraphs = text == null
+      ? []
+      : typeof text === 'string'
+        ? text.split('\n').map((t) => ({ align: 'center', runs: [{ text: t, color: '#FFFFFF' }] }))
+        : text;
+    const body = paragraphs.length
+      ? buildTextBody(paragraphs, '', -1, -1).replace('<a:bodyPr/>', '<a:bodyPr rtlCol="0" anchor="ctr"/>')
+      : '<p:txBody><a:bodyPr rtlCol="0" anchor="ctr"/><a:lstStyle/><a:p><a:pPr algn="ctr"/></a:p></p:txBody>';
+    const sp =
+      `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${label}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>` +
+      `<p:spPr><a:xfrm><a:off x="${pxToEmu(x)}" y="${pxToEmu(y)}"/>` +
+      `<a:ext cx="${Math.max(1, pxToEmu(w))}" cy="${Math.max(0, pxToEmu(h))}"/></a:xfrm>` +
+      `<a:prstGeom prst="${preset}"><a:avLst/></a:prstGeom>${fillXml}${lineXml}</p:spPr>${body}</p:sp>`;
+    const at = xml.lastIndexOf('</p:spTree>');
+    if (at < 0) throw new Error('slide has no shape tree');
+    this.#writeSlide(part, xml.slice(0, at) + sp + xml.slice(at));
+    return id;
+  }
+
   /** Duplicate a slide, which is the cheapest way to add one that matches. */
   duplicateSlide(index) {
     const src = this.slideParts[index];
@@ -632,7 +749,23 @@ export class Deck {
   }
 }
 
+/** What PowerPoint calls each preset, for the shape's name. */
+const PRESET_NAMES = {
+  rect: 'Rectangle', roundRect: 'Rectangle: Rounded Corners', ellipse: 'Oval', triangle: 'Isosceles Triangle',
+  rtTriangle: 'Right Triangle', diamond: 'Diamond', parallelogram: 'Parallelogram', trapezoid: 'Trapezoid',
+  pentagon: 'Pentagon', hexagon: 'Hexagon', octagon: 'Octagon', star5: 'Star: 5 Points',
+  rightArrow: 'Arrow: Right', chevron: 'Chevron', line: 'Straight Connector',
+};
+
+/** A colour as DrawingML writes it: a hex string, or a scheme colour with an optional luminance modifier. */
+function colourXml(c) {
+  if (typeof c === 'string') return `<a:srgbClr val="${escapeXml(c.replace('#', '').toUpperCase())}"/>`;
+  const mods = c.lumMod != null ? `<a:lumMod val="${Math.round(c.lumMod * 1000)}"/>` : '';
+  return mods ? `<a:schemeClr val="${escapeXml(c.scheme)}">${mods}</a:schemeClr>` : `<a:schemeClr val="${escapeXml(c.scheme)}"/>`;
+}
+
 function nextShapeId(xml) {
+
   const ids = [...xml.matchAll(/<p:cNvPr\b[^>]*\bid="(\d+)"/g)].map((m) => Number(m[1]));
   return (ids.length ? Math.max(...ids) : 1) + 1;
 }

@@ -1207,9 +1207,13 @@ export async function verifyApps({ windows, doc }) {
     await clickRibbon('Borders');
     await wait(200);
     await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'All borders')?.click(); return 'chose'; })()`);
-    await until(async () => (await activeStyle())?.borderTop === '1px', 'the border to paint', 4000).catch(() => {});
+    // Chromium floors a border to whole device pixels, so on a 175% display
+    // a 1px border computes as 0.571px: any width at all is the border.
+    const hasBorder = (s) => parseFloat(s?.borderTop || '0') > 0;
+    await until(async () => hasBorder(await activeStyle()), 'the border to paint', 4000).catch(() => {});
     const bordered = await activeStyle();
-    check('sheets: the border menu paints a border', bordered?.borderTop === '1px', `border-top=${bordered?.borderTop}`);
+    check('sheets: the border menu paints a border', hasBorder(bordered), `border-top=${bordered?.borderTop}`);
+
 
     // A dialog from the ribbon, through to its effect: View → Freeze panes →
     // "Freeze the top row", and the frame has to say row 1 is frozen.
@@ -1286,6 +1290,59 @@ export async function verifyApps({ windows, doc }) {
     await until(async () => ((await deckModel()).slide?.shapes?.length ?? 0) > shapesBefore, 'a text box to appear', 4000).catch(() => {});
     const shapesAfter = (await deckModel()).slide?.shapes?.length ?? 0;
     check('slides: Insert → Text box puts a text box on the slide', shapesAfter === shapesBefore + 1, `${shapesBefore} → ${shapesAfter} shapes`);
+
+    // Insert → Pictures opens a native file dialog, which the harness cannot
+    // drive (and which would swallow every later keystroke). The button's
+    // state is checked, and the operation the dialog would make is sent
+    // through the same door — the document service — with a real PNG.
+    const picButton = await win.webContents.executeJavaScript(`(() => {
+      const b = [...document.querySelectorAll('.rw-btn')].find((x) => (x.title || '').startsWith('Pictures'));
+      return b ? { found: true, disabled: b.disabled } : { found: false };
+    })()`);
+    const pictured = await win.webContents.executeJavaScript(`(async () => {
+      const all = await window.rutbaOffice.doc.sessions({});
+      const mine = all.filter((s) => s.kind === 'deck').pop();
+      const active = Math.max(0, [...document.querySelectorAll('.sl-thumb')].findIndex((t) => t.classList.contains('active')));
+      const bytes = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg=='), (c) => c.charCodeAt(0));
+      const next = await window.rutbaOffice.doc.apply({ id: mine.id, ops: [{ op: 'addPicture', slide: active, contentType: 'image/png', name: 'dot.png', data: bytes }], slide: active, width: 640 });
+      const shapes = next.model.slide.shapes;
+      const pic = shapes[shapes.length - 1];
+      return {
+        kind: pic?.kind,
+        geometry: pic?.geometry,
+        drawn: /<image [^>]*href="[^"]+"/.test(next.model.slide.svg),
+        inThumb: /<image /.test(next.model.outline[active]?.thumbnail || ''),
+        shapes: shapes.length,
+      };
+    })()`);
+    check(
+      'slides: Insert → Pictures is live, and a picture lands on the slide, drawn and in its thumbnail',
+      picButton.found && !picButton.disabled && pictured.kind === 'picture' && pictured.drawn && pictured.inThumb && pictured.shapes === shapesAfter + 1,
+      JSON.stringify({ button: picButton, ...pictured })
+    );
+
+    // Home → Shapes → Oval: a preset shape in the theme's accent, selected as
+    // soon as it lands, and drawn as an ellipse rather than a rectangle.
+    await clickTab(win, 'Home');
+    await wait(150);
+    const shapesBeforeOval = (await deckModel()).slide?.shapes?.length ?? 0;
+    await clickIn(win, 'Shapes');
+    await wait(200);
+    await clickMenu(win, 'Oval');
+    await until(async () => ((await deckModel()).slide?.shapes?.length ?? 0) > shapesBeforeOval, 'an oval to appear', 4000).catch(() => {});
+    const ovalModel = await deckModel();
+    const oval = ovalModel.slide?.shapes?.slice(-1)[0];
+    const ovalDom = await win.webContents.executeJavaScript(`(() => ({
+      selected: document.querySelectorAll('.sl-hit.selected').length,
+      ellipses: document.querySelectorAll('.sl-stage ellipse, .sl-fit ellipse, .sl-slide ellipse').length,
+    }))()`);
+    check(
+      'slides: Home → Shapes → Oval puts an oval on the slide, filled, selected, drawn as an ellipse',
+      oval?.kind === 'shape' && /<ellipse [^>]*fill="#/.test(ovalModel.slide?.svg || '') && ovalDom.selected === 1,
+      JSON.stringify({ kind: oval?.kind, name: oval?.name, ...ovalDom, shapes: `${shapesBeforeOval} → ${ovalModel.slide?.shapes?.length}` })
+    );
+
+
 
     await clickTab(win, 'Review');
     await wait(150);
@@ -1368,7 +1425,12 @@ export async function verifyApps({ windows, doc }) {
     // Home: click a text box, then Bold — the run in the file goes bold.
     await clickTab(win, 'Home');
     await wait(120);
-    const picked = await js(`(() => { const hit = document.querySelector('.sl-hit'); if (!hit) return 'no text box'; hit.click(); return 'selected'; })()`);
+    // The first shape WITH TEXT, by the model's order, which is the DOM's: a
+    // picture or a bare shape ahead of it would take the click and have no
+    // run to make bold.
+    const textual = ((await deckModel()).slide?.shapes || []).findIndex((s) => s.text?.paragraphs?.some((p) => p.runs?.length));
+    const picked = await js(`(() => { const hit = document.querySelectorAll('.sl-hit')[${Math.max(0, textual)}]; if (!hit) return 'no text box'; hit.click(); return 'selected'; })()`);
+
     await until(() => js(`Boolean(document.querySelector('.sl-hit.selected'))`), 'a selected text box', 3000).catch(() => {});
     await pushTitle('Bold');
     await until(async () => { const m = await deckModel(); return m.slide?.shapes?.some((s) => s.text?.paragraphs?.some((p) => p.runs?.some((r) => r.bold))); }, 'a bold run', 4000).catch(() => {});
@@ -1474,9 +1536,12 @@ export async function verifyApps({ windows, doc }) {
 
   try {
     const win = await open('mail');
-    await wait(1400);
     const js = (code) => win.webContents.executeJavaScript(code);
+    // The store is read off disk after the window loads; a fixed pause was
+    // enough on an idle machine and not under load, so wait for the rows.
+    await until(async () => (await js(`document.querySelectorAll('.ml-row').length`)) > 0, 'the seeded messages to list', 8000).catch(() => {});
     const rows = await js(`document.querySelectorAll('.ml-row').length`);
+
 
     if (!rows) {
       check('mail: there are messages to read', false, 'the seeded store produced no rows');

@@ -1,3 +1,4 @@
+import { bulletGlyph } from '@rutba/ooxml/glyphs';
 /**
  * List labels — the "3." in front of the third item.
  *
@@ -77,7 +78,8 @@ export function computeListLabels(flow, blocks, defs) {
 
     // lvlText like "%1.%2." pulls in the counters of the SHALLOWER levels too —
     // that is how "2.3." knows about the 2.
-    const label = def.format === 'bullet' ? '•' : def.lvlText.replace(/%(\d)/g, (_, d) => {
+    const label = def.format === 'bullet' ? bulletGlyph(def.lvlText, def.font) : def.lvlText.replace(/%(\d)/g, (_, d) => {
+
       const level = Number(d) - 1;
       const value = c[level] ?? levels[level]?.start ?? 1;
       return formatCounter(levels[level]?.format ?? 'decimal', value);
@@ -86,8 +88,10 @@ export function computeListLabels(flow, blocks, defs) {
     out.set(block.index, {
       label,
       indentPx: def.indentPx,
+      hangingPx: def.hangingPx ?? null,
       bullet: def.format === 'bullet',
     });
+
   };
 
   // Tables descend: a list item inside a cell is still item N of its list,

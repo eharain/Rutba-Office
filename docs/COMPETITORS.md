@@ -128,6 +128,8 @@ Against **Excel**, **LibreOffice Calc**, **OnlyOffice**, **Google Sheets**.
 | ⬜ Power Query / external data | Excel |
 | ⬜ Array formulas and dynamic spill | Excel, Sheets |
 | ⬜ Chart editing after insertion | all |
+| ✅ ~~Drawings on a sheet~~ — shapes, connectors, braces, pictures and charts drawn over the cells at their own size, theme-filled and rotated as the file says | all |
+
 | ⬜ Solver | Excel, Calc |
 | ⬜ Cell comments and notes, cell hyperlinks | all |
 | ⬜ Text to Columns, Remove Duplicates, outline groups and subtotals | Excel, Calc |
@@ -157,7 +159,9 @@ Against **PowerPoint**, **Impress**, **Keynote**, **Google Slides**.
 | ✅ ~~Presenter view with notes, timer and next slide~~ | all |
 | ⬜ Master and layout editing | all |
 | ⬜ Themes to choose from | all |
+| ✅ ~~Pictures and shapes on a slide~~ — a picture from disk (sized from its own header), fifteen preset shapes in the theme's colours | all |
 | ⬜ Tables and charts on a slide | all |
+
 | ⬜ Legacy `.ppt` (the binary format) — Word reads `.doc`, Presentation does not read `.ppt` yet | PowerPoint, Impress |
 
 ---

@@ -54,6 +54,9 @@ export const FUNCTION_CATALOG = [
   math('ROUNDDOWN', '(number, [digits])', 'Round toward zero'),
   math('CEILING', '(number, [significance])', 'Round up to a multiple'),
   math('FLOOR', '(number, [significance])', 'Round down to a multiple'),
+  math('CEILING.MATH', '(number, [significance], [mode])', 'Round up to a multiple; negatives toward zero unless mode is set'),
+  math('FLOOR.MATH', '(number, [significance], [mode])', 'Round down to a multiple; negatives away from zero unless mode is set'),
+
   math('MROUND', '(number, multiple)', 'Round to the nearest multiple'),
   math('EVEN', '(number)', 'Round away from zero to an even integer'),
   math('ODD', '(number)', 'Round away from zero to an odd integer'),

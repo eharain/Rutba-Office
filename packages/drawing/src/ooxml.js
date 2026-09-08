@@ -178,8 +178,12 @@ export function parseDrawingAnchors(drawingXml) {
     if (firstElement(xml, 'graphicFrame')) return 'chart';
     if (firstElement(xml, 'pic')) return 'image';
     if (firstElement(xml, 'sp')) return 'shape';
+    // A connector is a shape with a line for a body: the same reader, and
+    // the line runs corner to corner of its box, flipped as the box says.
+    if (firstElement(xml, 'cxnSp')) return 'shape';
     return 'unknown';
   };
+
 
   // DOCUMENT ORDER, not grouped by anchor type: the order anchors appear in is
   // their z-order, so collecting all the two-cell ones first would put a shape
@@ -229,7 +233,10 @@ function readColour(xml) {
   const srgb = firstElement(xml, 'srgbClr');
   if (srgb) return { type: 'srgb', value: attrs(srgb).val ?? '000000' };
   const scheme = firstElement(xml, 'schemeClr');
-  if (scheme) return { type: 'scheme', value: attrs(scheme).val ?? 'accent1' };
+  // The opening tag only: a scheme colour carries its modifiers as children
+  // (<a:shade val="50000"/>), and the last val in the element is theirs.
+  if (scheme) return { type: 'scheme', value: attrs(scheme.slice(0, scheme.indexOf('>'))).val ?? 'accent1' };
+
   return null;
 }
 
@@ -255,12 +262,31 @@ export function parseShapeXml(spXml) {
   const rPr = firstElement(spXml, 'rPr');
   const nvPr = firstElement(spXml, 'cNvPr');
 
+  // A shape Excel has just drawn states no fill and no line of its own: both
+  // come from the theme through `<xdr:style>` — fillRef idx 1 in accent1, lnRef
+  // idx 2 in accent1 shaded — and a reader that stops at spPr draws it empty.
+  // Index 0 means "none", and is left alone.
+  const style = firstElement(spXml, 'style');
+  const ref = (name) => {
+    const el = style ? firstElement(style, name) : null;
+    if (!el || attrs(el).idx === '0') return null;
+    return readColour(el);
+  };
+  const xfrm = firstElement(spPr, 'xfrm');
+
   return {
     kind: 'shape',
     geometry,
     name: nvPr ? (attrs(nvPr).name ?? null) : null,
-    fill: readColour(fillSource),
-    stroke: lnXml ? readColour(lnXml) : null,
+    fill: readColour(fillSource) ?? ref('fillRef'),
+    stroke: (lnXml ? readColour(lnXml) : null) ?? ref('lnRef'),
+    connector: Boolean(firstElement(spXml, 'cxnSp')),
+    flipH: xfrm ? attrs(xfrm).flipH === '1' : false,
+    flipV: xfrm ? attrs(xfrm).flipV === '1' : false,
+    // Degrees clockwise about the centre; the file keeps 60,000ths of one.
+    rotation: xfrm && attrs(xfrm).rot ? Number(attrs(xfrm).rot) / 60000 : 0,
+
+
     // Scene units are pixels, so the outline width converts here rather than
     // leaking EMUs into the renderer.
     strokeWidth: lnXml && attrs(lnXml).w ? Math.max(1, Math.round(emuToPx(attrs(lnXml).w))) : null,
@@ -269,8 +295,9 @@ export function parseShapeXml(spXml) {
     textSize: rPr && attrs(rPr).sz ? Number(attrs(rPr).sz) / 100 : null,
     textColour: (() => {
       const body = firstElement(spXml, 'txBody');
-      return body ? readColour(firstElement(body, 'rPr') ?? '') : null;
+      return (body ? readColour(firstElement(body, 'rPr') ?? '') : null) ?? ref('fontRef');
     })(),
+
     // False means we draw a box instead of the real outline. The caller can say
     // so; the part itself is preserved either way.
     supported: SUPPORTED_GEOMETRY.includes(geometry),

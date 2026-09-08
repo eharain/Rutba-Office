@@ -678,13 +678,18 @@ export class SheetView {
       const x = d.from ? geo.colOffset(d.from.col) + Math.round((d.from.colOffsetEmu ?? 0) / 9525) : 0;
       const y = d.from ? geo.rowOffset(d.from.row) + Math.round((d.from.rowOffsetEmu ?? 0) / 9525) : 0;
       // A two-cell anchor resizes with its cells, so its size comes from the
-      // grid, not from a stored extent.
+      // grid, not from a stored extent. A chart smaller than a postcard is a
+      // chart nobody can read, so it gets a floor; a shape is whatever size
+      // its author drew — a connector one pixel wide and a column tall was
+      // being widened to eighty and drawn as a diagonal.
+      const floor = d.kind === 'chart' ? { w: 80, h: 60 } : { w: 1, h: 1 };
       const width = d.to
-        ? Math.max(80, geo.colOffset(d.to.col) + Math.round((d.to.colOffsetEmu ?? 0) / 9525) - x)
+        ? Math.max(floor.w, geo.colOffset(d.to.col) + Math.round((d.to.colOffsetEmu ?? 0) / 9525) - x)
         : Math.round(d.widthPx ?? 320);
       const height = d.to
-        ? Math.max(60, geo.rowOffset(d.to.row) + Math.round((d.to.rowOffsetEmu ?? 0) / 9525) - y)
+        ? Math.max(floor.h, geo.rowOffset(d.to.row) + Math.round((d.to.rowOffsetEmu ?? 0) / 9525) - y)
         : Math.round(d.heightPx ?? 240);
+
 
       if (x > visibleRight || y > visibleBottom || x + width < visibleLeft || y + height < visibleTop) {
         return null;

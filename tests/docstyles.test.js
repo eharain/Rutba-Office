@@ -9,6 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readParagraphStyles, readNumberingDefs } from '@rutba/ooxml';
+import { OoxmlPackage } from '@rutba/ooxml/package';
 import { computeListLabels, formatCounter } from '@rutba/doc-view/lists';
 import { paginate } from '@rutba/doc-view/paginate';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
@@ -187,4 +188,62 @@ test('editing the text around a picture leaves the picture untouched', () => {
   assert.equal(images.length, 1, 'still there, still drawn');
   // and the file's media part is untouched on save — the round-trip suite
   // covers the bytes; here we only care that layout did not eat it.
+});
+
+test('a run that says colour auto is black, whatever colour its style says', () => {
+  const styles =
+    '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:rPr><w:color w:val="2E74B5" w:themeColor="accent1"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Plain"><w:name w:val="plain"/><w:rPr><w:color w:val="auto"/></w:rPr></w:style>' +
+    '</w:styles>';
+  const read = readParagraphStyles(styles);
+  assert.equal(read.Heading1.colour, '#2e74b5');
+  assert.equal(read.Plain.colour, '#000000', 'auto is a colour — the default one — not the absence of one');
+});
+
+test('a numbering level remembers the font its bullet character was stored for', () => {
+  const numbering =
+    '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/><w:lvlText w:val=""/>' +
+    '<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr><w:rPr><w:rFonts w:ascii="Wingdings" w:hAnsi="Wingdings"/></w:rPr></w:lvl></w:abstractNum>' +
+    '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>';
+  const defs = readNumberingDefs(numbering);
+  assert.equal(defs['1'][0].font, 'Wingdings');
+  assert.equal(defs['1'][0].lvlText, '');
+});
+
+test('the page honours colour auto on a run, contextual spacing between list items, and the hanging marker', () => {
+  const pkg = OoxmlPackage.read(LETTER);
+  const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"';
+  pkg.write_('word/styles.xml',
+    `<w:styles ${W}>` +
+    '<w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:pPr><w:spacing w:after="160"/></w:pPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Heading1"><w:name w:val="heading 1"/><w:rPr><w:color w:val="2E74B5"/></w:rPr></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="ListParagraph"><w:name w:val="List Paragraph"/><w:pPr><w:ind w:left="720"/><w:contextualSpacing/></w:pPr></w:style>' +
+    '</w:styles>');
+  pkg.write_('word/numbering.xml',
+    `<w:numbering ${W}>` +
+    '<w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:numFmt w:val="bullet"/><w:lvlText w:val=""/><w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr><w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol"/></w:rPr></w:lvl></w:abstractNum>' +
+    '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num></w:numbering>');
+  const item = (t) => `<w:p><w:pPr><w:pStyle w:val="ListParagraph"/><w:numPr><w:ilvl w:val="0"/><w:numId w:val="1"/></w:numPr></w:pPr><w:r><w:t>${t}</w:t></w:r></w:p>`;
+  pkg.write_('word/document.xml',
+    `<w:document ${W}><w:body>` +
+    '<w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:rPr><w:color w:val="auto"/></w:rPr><w:t>Products</w:t></w:r></w:p>' +
+    '<w:p><w:r><w:t>Intro</w:t></w:r></w:p>' +
+    item('One') + item('Two') + item('Three') +
+    '<w:p><w:r><w:t>After</w:t></w:r></w:p>' +
+    '<w:sectPr/></w:body></w:document>');
+  const view = openDocx(pkg.write());
+  const { blocks, listLabels } = view.render({ pages: false });
+  assert.equal(blocks[0].runs[0].fontColour, '000000', 'auto beats the heading style\'s blue');
+  assert.equal(blocks[2].spaceAfterPx, 0, 'no gap after the first item');
+  assert.equal(blocks[3].spaceBeforePx, 0);
+  assert.equal(blocks[3].spaceAfterPx, 0, 'nor around the middle one');
+  assert.equal(blocks[4].spaceBeforePx, 0);
+  assert.equal(blocks[4].spaceAfterPx, null, 'the last item keeps its gap from the prose after the list');
+  assert.equal(blocks[1].spaceAfterPx, null, 'and the prose before it keeps its own');
+  const label = listLabels.get ? listLabels.get(2) : listLabels[2];
+  assert.equal(label.label, '•', 'Symbol U+F0B7 is a round bullet');
+  assert.equal(label.indentPx, 48);
+  assert.equal(label.hangingPx, 24, 'the marker hangs a quarter inch to the left of the text');
 });

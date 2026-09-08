@@ -150,7 +150,12 @@ export function tokenize(input) {
       }
       while (j < src.length && /\s/.test(src[j])) j += 1;
       if (src[j] === '(') {
-        tokens.push({ type: T.FUNC, value: name.toUpperCase() });
+        // Excel prefixes a function newer than 2007 with `_xlfn.` in the file
+        // (and a worksheet-only one with `_xlws.`) so an old Excel shows a
+        // #NAME? rather than a wrong number. The prefix is the file's, not
+        // the function's: CEILING.MATH is CEILING.MATH.
+        tokens.push({ type: T.FUNC, value: name.toUpperCase().replace(/^_XL(FN|WS|PM|LM|ETN|DLM|OP)\./, '') });
+
         tokens.push({ type: T.LPAREN });
         i = j + 1;
         continue;

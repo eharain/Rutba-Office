@@ -498,3 +498,68 @@ test('a sheet mixing a shape and a picture reads both from one drawing part', ()
   assert.equal(Math.round(drawings[1].widthPx), 100);
   assert.equal(Math.round(drawings[1].heightPx), 50);
 });
+
+test('a connector is a shape whose line runs corner to corner, flipped as its box says', () => {
+  const xml =
+    '<xdr:wsDr xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
+    '<xdr:twoCellAnchor><xdr:from><xdr:col>0</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>0</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>' +
+    '<xdr:to><xdr:col>2</xdr:col><xdr:colOff>0</xdr:colOff><xdr:row>4</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>' +
+    '<xdr:cxnSp macro=""><xdr:nvCxnSpPr><xdr:cNvPr id="2" name="Straight Connector 1"/><xdr:cNvCxnSpPr/></xdr:nvCxnSpPr>' +
+    '<xdr:spPr><a:xfrm flipV="1"><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm><a:prstGeom prst="line"><a:avLst/></a:prstGeom></xdr:spPr>' +
+    '<xdr:style><a:lnRef idx="1"><a:schemeClr val="accent1"><a:shade val="50000"/></a:schemeClr></a:lnRef><a:fillRef idx="0"><a:schemeClr val="accent1"/></a:fillRef>' +
+    '<a:effectRef idx="0"><a:schemeClr val="accent1"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="tx1"/></a:fontRef></xdr:style></xdr:cxnSp>' +
+    '<xdr:clientData/></xdr:twoCellAnchor></xdr:wsDr>';
+  const [found] = readSheetDrawings({ drawingXml: xml, resolveRelationship: () => null, readPart: () => null, readPartBinary: () => null });
+  assert.equal(found.kind, 'shape', 'a cxnSp is read, not left unknown');
+  const d = found.descriptor;
+  assert.equal(d.connector, true);
+  assert.equal(d.geometry, 'line');
+  assert.equal(d.flipV, true);
+  assert.equal(d.flipH, false);
+  assert.deepEqual(d.stroke, { type: 'scheme', value: 'accent1' }, 'the line colour comes from lnRef, and the shade child does not overwrite it');
+  assert.equal(d.fill, null, 'fillRef idx 0 is no fill');
+  const built = buildShape(d, { x: 10, y: 20, width: 100, height: 50 });
+  const ln = built.children.find((c) => c.type === 'line');
+  assert.ok(ln, 'drawn as a line');
+  assert.deepEqual([ln.x1, ln.y1, ln.x2, ln.y2], [10, 70, 110, 20], 'from the bottom-left corner to the top-right, as flipV says');
+});
+
+test('a shape with no fill of its own takes the theme fill its style refers to; a brace is a stroke with no fill', () => {
+  const sp = (geom, style) =>
+    `<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="3" name="${geom}"/><xdr:cNvSpPr/></xdr:nvSpPr>` +
+    `<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm><a:prstGeom prst="${geom}"><a:avLst/></a:prstGeom></xdr:spPr>${style}</xdr:sp>`;
+  const styled = '<xdr:style><a:lnRef idx="2"><a:schemeClr val="accent1"><a:shade val="50000"/></a:schemeClr></a:lnRef><a:fillRef idx="1"><a:schemeClr val="accent1"/></a:fillRef>' +
+    '<a:effectRef idx="0"><a:schemeClr val="accent1"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></xdr:style>';
+  const arrow = parseShapeXml(sp('rightArrow', styled));
+  assert.deepEqual(arrow.fill, { type: 'scheme', value: 'accent1' }, 'filled from fillRef');
+  assert.deepEqual(arrow.stroke, { type: 'scheme', value: 'accent1' }, 'outlined from lnRef');
+  assert.deepEqual(arrow.textColour, { type: 'scheme', value: 'lt1' }, 'text coloured from fontRef');
+
+  const brace = parseShapeXml(sp('leftBrace', styled));
+  assert.equal(brace.supported, true, 'a brace is a geometry we draw');
+  const built = buildShape(brace, { x: 0, y: 0, width: 20, height: 100 });
+  const p = built.children.find((c) => c.type === 'path');
+  assert.ok(p, 'drawn as a path');
+  assert.equal(p.fill, 'none', 'a brace has no body');
+  assert.ok(p.stroke, 'and a stroke');
+  assert.match(p.d, /^M20 0Q/, 'its arms start at the far side');
+  assert.match(p.d, /Q10 50 0 50/, 'and its point touches the near side at mid-height');
+
+  const bent = buildShape({ ...parseShapeXml(sp('bentConnector3', styled)), flipH: true }, { x: 0, y: 0, width: 100, height: 40 });
+  const elbow = bent.children.find((c) => c.type === 'path');
+  assert.equal(elbow.d, 'M100 0L50 0L50 40L0 40', 'a bent connector turns half way across');
+});
+
+test('a rotated shape turns about its centre, and the turn reaches the SVG', () => {
+  const xml =
+    '<xdr:sp xmlns:xdr="http://schemas.openxmlformats.org/drawingml/2006/spreadsheetDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" macro="" textlink="">' +
+    '<xdr:nvSpPr><xdr:cNvPr id="5" name="Right Brace 4"/><xdr:cNvSpPr/></xdr:nvSpPr>' +
+    '<xdr:spPr><a:xfrm rot="5400000"><a:off x="0" y="0"/><a:ext cx="914400" cy="914400"/></a:xfrm><a:prstGeom prst="rightBrace"><a:avLst/></a:prstGeom></xdr:spPr></xdr:sp>';
+  const d = parseShapeXml(xml);
+  assert.equal(d.rotation, 90);
+  const built = buildShape(d, { x: 0, y: 0, width: 200, height: 100 });
+  assert.equal(built.transform, 'rotate(90 100 50)');
+  const svg = renderSvg(scene({ width: 200, height: 100, children: [built] }));
+  assert.match(svg, /<g transform="rotate\(90 100 50\)"/);
+  assert.equal(parseShapeXml(xml.replace(' rot="5400000"', '')).rotation, 0, 'no rot is no turn');
+});

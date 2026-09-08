@@ -7,6 +7,6 @@ import electron from 'electron';
 const app = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const child = spawn(electron, [app], {
   stdio: 'inherit',
-  env: { ...process.env, RUTBA_OFFICE_VERIFY_EDIT: '1', ELECTRON_ENABLE_LOGGING: '1' },
+  env: { ...process.env, RUTBA_OFFICE_VERIFY_EDIT: '1', RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY ?? 'secondary', ELECTRON_ENABLE_LOGGING: '1' },
 });
 child.on('exit', (code) => process.exit(code ?? 1));

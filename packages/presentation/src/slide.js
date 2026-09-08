@@ -18,6 +18,7 @@
 //     master's text styles, then the theme default.
 
 import { parse, kids, first, all, textOf } from '@rutba/office-formats/xml';
+import { bulletGlyph } from '@rutba/ooxml/glyphs';
 import { emuToPx, szToPt, rotToDeg, applyColorTransforms, PRESET_COLORS, pctOf } from './units.js';
 
 const A = (n) => `a:${n}`;
@@ -162,7 +163,12 @@ function readParagraphProps(pPr, theme) {
   if (kids(pPr, A('buNone'))[0]) out.bullet = { type: 'none' };
   const buChar = kids(pPr, A('buChar'))[0];
   const buAuto = kids(pPr, A('buAutoNum'))[0];
-  if (buChar) out.bullet = { type: 'char', char: buChar.attrs.char || '•' };
+  // The character is stored for a symbol font — "§" in Wingdings is a small
+  // square — and drawn in whatever font the slide has, so it is mapped to the
+  // Unicode character that looks the same everywhere.
+  const buFont = kids(pPr, A('buFont'))[0]?.attrs.typeface;
+  if (buChar) out.bullet = { type: 'char', char: bulletGlyph(buChar.attrs.char || '•', buFont) };
+
   if (buAuto) out.bullet = { type: 'number', scheme: buAuto.attrs.type || 'arabicPeriod', start: Number(buAuto.attrs.startAt || 1) };
   const buClr = kids(pPr, A('buClr'))[0];
   if (buClr && out.bullet) out.bullet.color = colorChildOf(buClr, theme)?.hex;

@@ -97,6 +97,26 @@ export default function Slides({ app, shell, boot }) {
     [doc, index, shell, toast]
   );
 
+  /**
+   * A picture from this device onto the current slide. The service reads the
+   * size out of the picture's own header and fits it to the slide; what comes
+   * back is selected, so Arrange and Delete act on it at once.
+   */
+  const insertPicture = useCallback(async () => {
+    const [file] = await shell.dialog.open({
+      title: 'Insert picture',
+      filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp'] }],
+    });
+    if (!file) return;
+    const { bytes, stat } = await shell.fs.read({ path: file });
+    const ext = String(stat?.ext || file.split('.').pop()).replace('.', '').toLowerCase();
+    const contentType = { png: 'image/png', gif: 'image/gif', bmp: 'image/bmp' }[ext] || 'image/jpeg';
+    const next = await apply({ op: 'addPicture', slide: index, name: stat?.name || file.split(/[\/]/).pop(), contentType, data: bytes });
+    const added = next?.model?.slide?.shapes?.slice(-1)[0];
+    if (added) setSelected(added.id);
+  }, [shell, apply, index]);
+
+
   useEffect(() => {
     const template = new URLSearchParams(location.search).get('template');
     const run = async () => {
@@ -245,11 +265,14 @@ export default function Slides({ app, shell, boot }) {
       'slide.new': { label: 'Duplicate slide', icon: 'plus', run: () => apply({ op: 'duplicateSlide', slide: index }) },
       'slide.delete': { label: 'Delete slide', icon: 'trash', run: () => apply({ op: 'removeSlide', slide: index }) },
       'slide.textbox': { label: 'Text box', icon: 'textbox', run: () => apply({ op: 'addTextBox', slide: index, x: 120, y: 120, w: 420, h: 90, paragraphs: [{ runs: [{ text: 'New text' }] }] }) },
+      'slide.picture': { label: 'Picture…', icon: 'picture', run: insertPicture },
+
       'view.present': { label: 'Present', icon: 'play', key: 'F5', run: () => setPresent(true) },
       'slide.add': { label: 'New slide', icon: 'plus', key: 'Mod+M', run: () => addSlideRef.current?.('obj') },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc, model, index, apply, save, openFile, shell]
+    [doc, model, index, apply, save, openFile, shell, insertPicture]
+
   );
 
   useCommands(commands, [doc, model, index]);
@@ -317,8 +340,21 @@ export default function Slides({ app, shell, boot }) {
       case 'feedback': shell.shell.openExternal({ url: SITE.contact }); return;
       case 'releases': shell.shell.openExternal({ url: SITE.releases }); return;
       case 'shortcuts': setShortcutsOpen(true); return;
+      case 'addShape': {
+        // Placed in the middle of the slide at a hand's size, then selected so
+        // Arrange and the font controls act on it at once.
+        const W = model?.size?.width || 1280;
+        const H = model?.size?.height || 720;
+        const w = arg === 'line' ? 320 : 240;
+        const h = arg === 'line' ? 0 : 160;
+        const next = await apply({ op: 'addShape', slide: index, preset: arg, x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h });
+        const added = next?.model?.slide?.shapes?.slice(-1)[0];
+        if (added) setSelected(added.id);
+        return;
+      }
       case 'deleteShape':
         if (!selectedShape) return;
+
         await apply({ op: 'removeShape', slide: index, shape: selectedShape.id });
         setSelected(null);
         return;
@@ -406,7 +442,9 @@ export default function Slides({ app, shell, boot }) {
           selected={selected}
           format={format}
           addSlide={addSlide}
+          insertPicture={insertPicture}
           presentWithNotes={presentWithNotes}
+
           setPresent={setPresent}
           setNotesOpen={setNotesOpen}
         />
@@ -576,7 +614,8 @@ const CSS = `
 .sl-stage { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 22px; background: var(--window); }
 .sl-slide { position: relative; box-shadow: var(--shadow-2); background: #fff; }
 .sl-svg svg { display: block; width: 100%; height: 100%; }
-.sl-hit { position: absolute; border: 1px solid transparent; background: transparent; border-radius: 2px; }
+.sl-hit { position: absolute; border: 1px solid transparent; background: transparent; border-radius: 2px; min-height: 8px; min-width: 8px; }
+
 .sl-hit:hover { border-color: var(--accent-line); background: rgba(43, 95, 217, 0.06); }
 .sl-editor {
   position: absolute; border: 2px solid var(--accent); border-radius: 3px; padding: 4px 6px;

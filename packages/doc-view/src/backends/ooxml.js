@@ -389,6 +389,10 @@ function readRunProps(rPr, themeFonts = null) {
   if (sz && /^\d+$/.test(sz[1])) out.fontSize = Number(sz[1]) / 2;
   const colour = /<w:color\b[^>]*\bw:val="([^"]*)"/.exec(rPr);
   if (colour && /^[0-9A-Fa-f]{6}$/.test(colour[1])) out.fontColour = colour[1].toUpperCase();
+  // "auto" is the default colour, stated: a run that says so on a heading
+  // whose style says blue is black in Word, and it has to beat the style.
+  else if (colour && colour[1] === 'auto') out.fontColour = '000000';
+
   const highlight = /<w:highlight\b[^>]*\bw:val="([^"]*)"/.exec(rPr);
   if (highlight && highlight[1] !== 'none') out.highlight = highlight[1];
   return out;

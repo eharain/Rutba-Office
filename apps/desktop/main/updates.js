@@ -34,18 +34,17 @@ export function createUpdateService({ stores, broadcast }) {
   let timer = null;
 
   /**
-   * Off unless somebody turns it on.
+   * On unless somebody turns it off.
    *
-   * The suite's promise is that it contacts nothing, and a default-on update
-   * check quietly breaks that promise on first launch — before anyone has been
-   * asked. So the switch starts off: the application makes no outbound request
-   * of its own until it is turned on, and "Check for updates" remains available
-   * for anyone who wants to look now and then.
-   *
-   * This is expected to change when Office is connected to the rutba.io
-   * workspace, at which point there is an account to have an opinion about it.
+   * A suite that ships a release a day and never tells anyone leaves every
+   * installed copy on the version it was installed with, defects and all. So
+   * the check is on from the first launch: one request to GitHub's release
+   * feed, carrying nothing about the person or the machine (the README's
+   * privacy table lists it, and the announcement, and nothing else). The
+   * switch in About turns it off, and off means no request at all.
    */
-  const enabled = () => stores.settings.get('updates.automatic', false) === true;
+  const enabled = () => stores.settings.get('updates.automatic', true) !== false;
+
 
   const publish = () => {
     const payload = {

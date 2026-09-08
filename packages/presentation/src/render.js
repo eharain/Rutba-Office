@@ -114,6 +114,15 @@ function shapePath(preset, { x, y, w, h }, custom = null) {
 
 const BULLET_CHARS = ['•', '–', '▪', '‣', '·'];
 
+/** Faces with no lowercase; their text is set in capitals whatever the fallback has. */
+const CAPS_ONLY_FONTS = new Set(['bebas neue', 'bebas', 'bebas kai', 'bebas neue pro', 'league gothic', 'anton', 'six caps', 'big shoulders display']);
+/** What stands in for a condensed display face the machine does not have. */
+const CONDENSED_FALLBACK = "'Bahnschrift SemiCondensed', 'Arial Narrow', Impact";
+
+/** Letter spacing in the file's hundredths of a point, as the pixels SVG wants. */
+const spacingPx = (segment, scale) => (segment.spacing ? segment.spacing * (96 / 72) * scale : 0);
+
+
 /** What a placeholder's text defaults to, when nothing states a size. */
 function defaultSizeFor(placeholder) {
   const type = placeholder?.type;
@@ -150,11 +159,16 @@ export function layoutText(body, box, { scale = 1, baseSize = 18 } = {}) {
           : p.bullet.char || BULLET_CHARS[Math.min(level, BULLET_CHARS.length - 1)]
         : null;
 
-    const text = p.runs.map((r) => r.text).join('');
+    // A face that has no lowercase — Bebas Neue is the one on every second
+    // deck — shows its text in capitals on a machine that has it, and in the
+    // fallback's lowercase on one that does not. The capitals are the design.
+    const runs = p.runs.map((r) => (r.text && CAPS_ONLY_FONTS.has(String(r.font || '').toLowerCase()) ? { ...r, text: r.text.toUpperCase() } : r));
+    const text = runs.map((r) => r.text).join('');
     if (!text.trim()) {
       y += lh;
       continue;
     }
+
 
     // Wrapping is done on the paragraph's plain text, then runs are mapped back
     // onto the wrapped lines so formatting survives the break.
@@ -162,27 +176,33 @@ export function layoutText(body, box, { scale = 1, baseSize = 18 } = {}) {
     const wrapped = wrapText(text, Math.max(20, avail), { size });
     let consumed = 0;
     wrapped.forEach((lineText, li) => {
-      const segments = [];
-      let need = lineText.length;
-      let cursor = consumed;
-      for (const run of p.runs) {
-        const runEnd = cursor + (run.text?.length || 0);
-        if (runEnd <= consumed) {
-          cursor = runEnd;
-          continue;
-        }
-        if (need <= 0) break;
-        const from = Math.max(0, consumed - cursor);
-        const slice = (run.text || '').slice(from, from + need);
-        if (slice) {
-          segments.push({ ...run, text: slice });
-          need -= slice.length;
-          consumed += slice.length;
-        }
-        cursor = runEnd;
+      // The wrapped line is the source's words joined by single spaces. The
+      // source may hold several ("7LP  UK", a tabbed address line) — so the
+      // line is matched back onto the source word by word, and the segment
+      // is the source span, not the first N characters of it. Counting
+      // characters lost the last one of every line that had a double space.
+      let pos = consumed;
+      while (pos < text.length && /\s/.test(text[pos])) pos += 1;
+      const start = pos;
+      for (const word of lineText.split(' ')) {
+        if (!word) continue;
+        const at = text.indexOf(word, pos);
+        if (at < 0) break;
+        pos = at + word.length;
       }
-      // Wrapping dropped the space at the break; step past it.
-      consumed += 1;
+      const end = Math.max(start, pos);
+
+      const segments = [];
+      let cursor = 0;
+      for (const run of runs) {
+        const runStart = cursor;
+        const runEnd = cursor + (run.text?.length || 0);
+        cursor = runEnd;
+        if (runEnd <= start || runStart >= end) continue;
+        const slice = (run.text || '').slice(Math.max(0, start - runStart), Math.min(runEnd, end) - runStart);
+        if (slice) segments.push({ ...run, text: slice });
+      }
+      consumed = end;
       lines.push({
         y: y + size,
         x: indent + (bullet && li === 0 ? size * 0.9 : 0),
@@ -213,7 +233,8 @@ function textSvg(body, box, opts) {
   const out = [];
   for (const line of lines) {
     const width = box.w - (insets?.l || 0) - (insets?.r || 0);
-    const lineWidth = line.segments.reduce((n, s) => n + measureText(s.text, { size: s.size || line.size, weight: s.bold ? 'bold' : 'normal' }), 0);
+    const lineWidth = line.segments.reduce((n, s) => n + measureText(s.text, { size: s.size || line.size, weight: s.bold ? 'bold' : 'normal' }) + spacingPx(s, opts?.scale || 1) * s.text.length, 0);
+
     let x = originX + line.x;
     if (line.align === 'center') x = originX + Math.max(0, (width - lineWidth) / 2);
     else if (line.align === 'right') x = originX + Math.max(0, width - lineWidth);
@@ -233,8 +254,13 @@ function textSvg(body, box, opts) {
         if (s.underline) attrs.push('text-decoration="underline"');
         if (s.color) attrs.push(`fill="${s.color}"`);
         if (s.size && s.size !== line.size) attrs.push(`font-size="${(s.size * (opts?.scale || 1)).toFixed(2)}"`);
-        if (s.font) attrs.push(`font-family="${escapeXml(s.font)}, ${DEFAULT_FONT}"`);
+        if (s.font) {
+          const condensed = CAPS_ONLY_FONTS.has(String(s.font).toLowerCase()) ? `${CONDENSED_FALLBACK}, ` : '';
+          attrs.push(`font-family="${escapeXml(s.font)}, ${condensed}${DEFAULT_FONT}"`);
+        }
+        if (s.spacing) attrs.push(`letter-spacing="${spacingPx(s, opts?.scale || 1).toFixed(2)}"`);
         return `<tspan ${attrs.join(' ')}>${escapeXml(s.text)}</tspan>`;
+
       })
       .join('');
     out.push(

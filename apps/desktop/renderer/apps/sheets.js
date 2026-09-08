@@ -684,7 +684,28 @@ export default function Sheets({ app, shell, boot }) {
                   </div>
                 ))}
 
+                {/*
+                  What is drawn over the cells: the shapes, pictures and charts
+                  the engine reads from the sheet's drawing part, each already
+                  an SVG at its own size, anchored in the same coordinates as
+                  the cells. The engine has produced these since charts were
+                  built; the window never painted them, so a diagram drawn in
+                  Excel opened as an empty grid with its captions.
+                */}
+                {(model.drawings || []).map((d) => (
+                  <div
+                    key={d.id}
+                    className={`sh-drawing${d.svg ? '' : ' unsupported'}`}
+                    style={{ left: d.x, top: d.y, width: d.width, height: d.height }}
+                    title={d.unsupported ? `${d.name || d.kind}: ${d.unsupported}` : d.name || undefined}
+                    {...(d.svg ? { dangerouslySetInnerHTML: { __html: d.svg } } : {})}
+                  >
+                    {d.svg ? null : <span>{d.name || d.kind}</span>}
+                  </div>
+                ))}
+
                 {editing ? (
+
                   <input
                     ref={editorRef}
                     className="sh-editor"
@@ -989,6 +1010,10 @@ const CSS = `
   font-size: 12.5px; overflow: hidden; white-space: nowrap; background: var(--surface);
 }
 .sh-cell.sel { background: var(--selected); }
+.sh-drawing { position: absolute; overflow: visible; z-index: 2; }
+.sh-drawing > svg { display: block; overflow: visible; }
+.sh-drawing.unsupported { display: grid; place-items: center; border: 1px dashed var(--line); color: var(--ink-3); font-size: 11px; background: rgba(255, 255, 255, 0.6); }
+
 /* Excel's View toggles: gridlines off leaves the cells' own borders; headings off drops the rails. */
 .sh.no-grid .sh-cell { border-right-color: transparent; border-bottom-color: transparent; }
 .sh.no-heads .sh-corner, .sh.no-heads .sh-colheads, .sh.no-heads .sh-rowheads { display: none; }

@@ -31,7 +31,31 @@ import {
  */
 const INDENT_STEP = 720;
 
+/**
+ * Contextual spacing, resolved against the neighbours.
+ *
+ * Word drops the gap between two consecutive paragraphs of the same style
+ * when either of them says "don't add space between paragraphs of the same
+ * style" — directly, or through the style, which is how List Paragraph has
+ * it. The rendered blocks get an explicit zero on that edge; the painter and
+ * the paginator both read an explicit value before the style's.
+ */
+function contextualSpacing(sources, styles, blocks) {
+  const says = (p) => Boolean(p.spacing?.contextual || styles?.[p.style || 'Normal']?.contextualSpacing);
+  for (let i = 0; i + 1 < blocks.length; i++) {
+    const a = sources[i];
+    const b = sources[i + 1];
+    if (!a || !b || (a.style || 'Normal') !== (b.style || 'Normal')) continue;
+    if (says(a) || says(b)) {
+      blocks[i].spaceAfterPx = 0;
+      blocks[i + 1].spaceBeforePx = 0;
+    }
+  }
+  return blocks;
+}
+
 export class DocView {
+
   /**
    * @param {object} backend  see backend.js — the format sits behind this port,
    *   which is what lets Mail compose an email with the same editor.
@@ -1612,7 +1636,8 @@ export class DocView {
     const notes = this._notes();
     return {
       ...notes,
-      blocks: this.blocks.map((b) => {
+      blocks: contextualSpacing(this.blocks, this._docStyles, this.blocks.map((b) => {
+
         return {
         index: b.index,
         style: b.style,
@@ -1652,8 +1677,9 @@ export class DocView {
         // the page.
         ...(b.images?.some((i) => i.href) ? { images: b.images.filter((i) => i.href) } : {}),
         };
-      }),
+      })),
       selection: {
+
         anchor: { ...this.anchor },
         focus: { ...this.focus },
         from: { ...from },

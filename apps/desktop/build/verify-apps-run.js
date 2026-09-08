@@ -18,7 +18,7 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-verify-'));
 
 const child = spawn(electron, [app, `--user-data-dir=${profile}`], {
   stdio: 'inherit',
-  env: { ...process.env, RUTBA_OFFICE_VERIFY_APPS: '1', RUTBA_SMOKE_SEED: '1' },
+  env: { ...process.env, RUTBA_OFFICE_VERIFY_APPS: '1', RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY ?? 'secondary', RUTBA_SMOKE_SEED: '1' },
 });
 
 child.on('exit', (code) => {

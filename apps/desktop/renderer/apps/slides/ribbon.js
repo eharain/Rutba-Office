@@ -21,7 +21,16 @@ const COLOURS = [
 const LAYOUTS = [
   ['title', 'Title Slide'], ['obj', 'Title and Content'], ['blank', 'Blank'],
 ];
+/** The preset geometries the engine writes and the renderer draws, in PowerPoint's names. */
+const SHAPES = [
+  ['rect', 'Rectangle'], ['roundRect', 'Rectangle: Rounded Corners'], ['ellipse', 'Oval'],
+  ['triangle', 'Isosceles Triangle'], ['rtTriangle', 'Right Triangle'], ['diamond', 'Diamond'],
+  ['parallelogram', 'Parallelogram'], ['trapezoid', 'Trapezoid'], ['pentagon', 'Pentagon'],
+  ['hexagon', 'Hexagon'], ['octagon', 'Octagon'], ['star5', 'Star: 5 Points'],
+  ['rightArrow', 'Arrow: Right'], ['chevron', 'Chevron'], ['line', 'Line'],
+];
 const TRANSITIONS = ['None', 'Morph', 'Fade', 'Push', 'Wipe', 'Split', 'Reveal', 'Cut', 'Random Bars', 'Shape', 'Uncover'];
+
 const ANIMATIONS = ['None', 'Appear', 'Fade', 'Fly In', 'Float In', 'Split'];
 
 /** A control that is drawn where PowerPoint draws it, and says why it is not live. */
@@ -34,7 +43,8 @@ const ANIMATION_WHY = 'Animations are preserved in the file when the deck has th
 
 export default function SlidesRibbon({
   tab, setTab, model, doc, commands, shell, menu, save, openFile, exportAs,
-  act, view = {}, index = 0, selected = null, format = {}, addSlide, presentWithNotes, setPresent, setNotesOpen,
+  act, view = {}, index = 0, selected = null, format = {}, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
+
 }) {
   const count = model?.count || 0;
   const hasShape = Boolean(selected);
@@ -129,7 +139,8 @@ export default function SlidesRibbon({
             <Soon icon="shape" label="SmartArt" why="SmartArt is a diagram part the engine does not write." />
           </Group>
           <Group label="Drawing">
-            <Soon tall icon="shape" label="Shapes" why="The engine writes text boxes and nothing else yet; a Shape button that inserted a text box was worse than one that says so." />
+            <Button tall icon="shape" label="Shapes" title="Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
+
             <Button tall icon="grid" label="Arrange" onClick={(e) => menu.open(e, [
               { label: 'Delete shape', icon: 'trash', run: () => act('deleteShape') },
               { label: 'Move up (nudge)', run: () => act('nudge', { dy: -8 }) },
@@ -164,7 +175,8 @@ export default function SlidesRibbon({
             <Soon tall icon="table" label="Table" why="A table on a slide is a graphic frame the engine reads and does not yet write." />
           </Group>
           <Group label="Images">
-            <Soon tall icon="picture" label="Pictures" why="A picture on a slide needs a media part and a relationship the deck writer does not write yet — on the list, and high on it." />
+            <Button tall icon="picture" label="Pictures" title="Pictures — a picture from this device, onto this slide" onClick={insertPicture} />
+
             <Soon tall icon="picture" label="Screenshot" why="Comes with pictures." />
             <Soon tall icon="picture" label="Photo Album" why="Comes with pictures." />
           </Group>
@@ -172,7 +184,8 @@ export default function SlidesRibbon({
             <Soon tall icon="video" label="Cameo" why="A live camera feed on a slide is a PowerPoint-only feature." />
           </Group>
           <Group label="Illustrations">
-            <Soon tall icon="shape" label="Shapes" why="The engine writes text boxes and nothing else yet." />
+            <Button tall icon="shape" label="Shapes" title="Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
+
             <Soon tall icon="star" label="Icons" why="Icons are an online library." />
             <Soon tall icon="shape" label="3D Models" why="3D models are an online library." />
             <Soon tall icon="shape" label="SmartArt" why="SmartArt is a diagram part the engine does not write." />

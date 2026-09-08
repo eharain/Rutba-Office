@@ -1273,9 +1273,15 @@ const Block = React.memo(function Block({ block, labels, styles }) {
   const mark = labels?.[block.index];
   const label = typeof mark === 'string' ? mark : mark?.label ?? null;
   const markerIndent = typeof mark === 'object' && mark?.indentPx ? mark.indentPx : null;
+  // The marker hangs to the left of the text by the level's hanging indent —
+  // Word's bullet at a quarter inch with the text at a half — so the text
+  // starts at the indent and the bullet sits in the space before it.
+  const markerHang = typeof mark === 'object' && mark?.hangingPx ? Math.round(mark.hangingPx) : null;
+  const listStyle = markerIndent ? { ...style, marginLeft: markerIndent, ...(markerHang ? { textIndent: -markerHang } : {}) } : style;
   return (
-    <p ref={ref} className="wd-block" data-block={block.index} data-style={block.style || 'Normal'} style={markerIndent ? { ...style, marginLeft: markerIndent } : style}>
-      {label ? <span className="wd-marker" contentEditable={false}>{label}</span> : null}
+    <p ref={ref} className="wd-block" data-block={block.index} data-style={block.style || 'Normal'} style={listStyle}>
+      {label ? <span className="wd-marker" contentEditable={false} style={markerHang ? { display: 'inline-block', width: markerHang, textIndent: 0, marginRight: 0 } : undefined}>{label}</span> : null}
+
       {(block.runs || []).length ? block.runs.map((run, i) => <RunSpan key={i} run={run} />) : <br />}
       {/*
         Pictures, charts and shapes sit under the paragraph's text as blocks —
