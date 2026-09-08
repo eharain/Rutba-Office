@@ -231,9 +231,28 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
 
 /* ── ribbon ─────────────────────────────────────────────────────────────── */
 
+/**
+ * A toolbar press must not take focus from the editor.
+ *
+ * Every button here acts on a selection in the page below it — bold applies to
+ * the selected words, a font size to the selected cells. A click on a button
+ * normally moves focus to the button, and the moment that happens the editor's
+ * selection is what the browser considers "not the active selection": the DOM
+ * range can survive it, but the editor has lost focus, the caret is gone, and
+ * whatever the app does next runs against a page nobody is in.
+ *
+ * Preventing the default on mousedown stops the focus move and nothing else:
+ * the click still fires. Inputs and selects are left alone — a dropdown that
+ * cannot take focus cannot open.
+ */
+const keepEditorFocus = (e) => {
+  const target = e.target instanceof Element ? e.target.closest('button, select, input, textarea') : null;
+  if (target && target.tagName === 'BUTTON') e.preventDefault();
+};
+
 export function Ribbon({ tabs, active, onTab, quick, children }) {
   return (
-    <div className="rw-ribbon">
+    <div className="rw-ribbon" onMouseDown={keepEditorFocus}>
       <div className="rw-tabs" role="tablist">
         {tabs.map((t) => (
           <button

@@ -101,6 +101,15 @@ function placeSelection(page, anchor, focus) {
 const HEADING_SIZES = { Title: 28, Heading1: 21, Heading2: 17, Heading3: 15, Heading4: 14 };
 
 /**
+ * Word's highlighter colours are named, and half the names are not CSS names.
+ * The ones that are — yellow, green, cyan, magenta, red, blue — pass through.
+ */
+const HIGHLIGHT_CSS = {
+  darkBlue: '#00008b', darkCyan: '#008b8b', darkGreen: '#006400', darkMagenta: '#8b008b',
+  darkRed: '#8b0000', darkYellow: '#8b8b00', darkGray: '#a9a9a9', lightGray: '#d3d3d3', black: '#000000',
+};
+
+/**
  * The lines already in a header or footer, ready to edit.
  *
  * OOXML has three of each — default, first page and even pages — and stores
@@ -123,6 +132,18 @@ export default function Word({ app, shell, boot }) {
   const [tab, setTab] = useState('home');
   // One name at a time, the way the spreadsheet does it.
   const [dialog, setDialog] = useState(null);
+
+  // What was selected when a dialog opened. Read at the moment of the press,
+  // because a dialog takes focus and a selection read after that is empty.
+  const selectionText = useRef('');
+  const openDialog = useCallback((name) => {
+    selectionText.current = window.getSelection()?.toString() || '';
+    setDialog(name);
+  }, []);
+
+  // A picture from a file on disk: the bytes, its type from the extension, and
+  // a size that fits a page. The engine takes the bytes and writes the part.
+  const insertPictureRef = useRef(null);
   const [find, setFind] = useState(null);
   const pageRef = useRef(null);
   const pendingCaret = useRef(null);
@@ -382,6 +403,23 @@ export default function Word({ app, shell, boot }) {
 
   const format = model?.format || {};
 
+  const insertPicture = useCallback(async () => {
+    const [file] = await shell.dialog.open({
+      title: 'Insert picture',
+      filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+    });
+    if (!file) return;
+    const { bytes, stat } = await shell.fs.read({ path: file });
+    const ext = String(stat?.ext || file.split('.').pop()).replace('.', '').toLowerCase();
+    const contentType = { png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' }[ext] || 'image/jpeg';
+    // Sized to the text width and a sensible height; the engine keeps the
+    // aspect from the bytes if it can read them, and this is the fallback.
+    const page = model?.section;
+    const width = page ? Math.round(page.widthPx - page.margins.left - page.margins.right) : 600;
+    await apply({ op: 'insertImage', name: stat?.name || file.split(/[\\/]/).pop(), contentType, data: bytes, widthPx: Math.min(width, 480), heightPx: Math.round(Math.min(width, 480) * 0.66) });
+  }, [shell, apply, model]);
+  insertPictureRef.current = insertPicture;
+
   const commands = useMemo(
     () => ({
       'file.new': { label: 'New', icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'word' }) },
@@ -398,6 +436,7 @@ export default function Word({ app, shell, boot }) {
       'format.clear': { label: 'Clear formatting', icon: 'close', run: () => apply({ op: 'clearFormat' }) },
       'insert.table': { label: 'Table', icon: 'table', run: () => apply({ op: 'insertTable', rows: 3, cols: 3 }) },
       'insert.break': { label: 'Page break', icon: 'file', run: () => apply({ op: 'insertPageBreak' }) },
+      'insert.image': { label: 'Picture…', icon: 'picture', run: () => insertPictureRef.current?.() },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [doc, apply, save, openFile, exportAs, shell]
@@ -439,7 +478,8 @@ export default function Word({ app, shell, boot }) {
           save={save}
           openFile={openFile}
           exportAs={exportAs}
-          openDialog={setDialog}
+          openDialog={openDialog}
+          insertPicture={insertPicture}
         />
       }
       status={
@@ -483,9 +523,13 @@ export default function Word({ app, shell, boot }) {
                 paddingLeft: section?.margins.left ?? 96,
               }}
             >
-              {model.blocks.map((block) => (
-                <Block key={block.index} block={block} labels={model.listLabels} />
-              ))}
+              {groupTables(model.blocks).map((item) =>
+                item.table ? (
+                  <TableGroup key={`t${item.table.id}`} table={item.table} labels={model.listLabels} />
+                ) : (
+                  <Block key={item.index} block={item} labels={model.listLabels} />
+                )
+              )}
             </div>
           </div>
           {menu.node}
@@ -506,7 +550,7 @@ export default function Word({ app, shell, boot }) {
       {dialog === 'link' ? (
         <LinkDialog
           current={model?.format?.link || null}
-          selectedText={model?.selectionText || null}
+          selectedText={selectionText.current || null}
           onClose={() => setDialog(null)}
           onApply={async (url) => {
             await apply({ op: 'setLink', url });
@@ -523,7 +567,9 @@ export default function Word({ app, shell, boot }) {
         <TableDialog
           onClose={() => setDialog(null)}
           onInsert={async (spec) => {
-            await apply({ op: 'insertTable', ...spec });
+            // The engine takes a size; a header row is a formatting decision it
+            // does not model yet, so it is not pretended.
+            await apply({ op: 'insertTable', rows: spec.rows, cols: spec.cols });
             setDialog(null);
           }}
         />
@@ -586,36 +632,88 @@ export default function Word({ app, shell, boot }) {
 // Memoised: with the patch above, a keystroke changes one block, and only
 // that one should re-render. Without this the saving is thrown away in
 // reconciliation.
+/**
+ * Consecutive cell paragraphs of one table, gathered into a table.
+ *
+ * The engine's frame is a flat list of paragraphs, and a table's cells are
+ * paragraphs whose `container` names their cell — `t1024:r2:c0`. Painting them
+ * one under another is how a three-by-three table looked like nine lines and
+ * "Insert table" looked broken. This groups a run of blocks that share a table
+ * into rows and cells, keeping each cell paragraph as its own editable
+ * [data-block] so the caret, selection and typing keep working inside it.
+ */
+function groupTables(blocks) {
+  const out = [];
+  let current = null;
+  const flush = () => {
+    if (current) out.push({ table: current });
+    current = null;
+  };
+  for (const block of blocks) {
+    const at = /^(t\d+):r(\d+):c(\d+)$/.exec(String(block.container || ''));
+    if (!at) {
+      flush();
+      out.push(block);
+      continue;
+    }
+    if (!current || current.id !== at[1]) {
+      flush();
+      current = { id: at[1], rows: new Map() };
+    }
+    const row = Number(at[2]);
+    const cell = Number(at[3]);
+    if (!current.rows.has(row)) current.rows.set(row, new Map());
+    const cells = current.rows.get(row);
+    if (!cells.has(cell)) cells.set(cell, []);
+    cells.get(cell).push(block);
+  }
+  flush();
+  return out;
+}
+
+function TableGroup({ table, labels }) {
+  const rows = [...table.rows.entries()].sort((a, b) => a[0] - b[0]);
+  return (
+    <table className="wd-table">
+      <tbody>
+        {rows.map(([r, cells]) => (
+          <tr key={r}>
+            {[...cells.entries()]
+              .sort((a, b) => a[0] - b[0])
+              .map(([c, paragraphs]) => (
+                <td key={c}>
+                  {paragraphs.map((block) => (
+                    <Block key={block.index} block={block} labels={labels} />
+                  ))}
+                </td>
+              ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 const Block = React.memo(function Block({ block, labels }) {
   const style = {
-    textAlign: block.align || undefined,
-    marginLeft: block.indent ? block.indent * 24 : undefined,
+    // 'both' is OOXML for justified; the other three are CSS already.
+    textAlign: block.align === 'both' ? 'justify' : block.align || undefined,
+    marginLeft: block.indentLevel ? block.indentLevel * 24 : block.indent ? block.indent * 24 : undefined,
+    lineHeight: block.lineSpacing ? block.lineSpacing * 1.2 : undefined,
     fontSize: HEADING_SIZES[block.style] ? `${HEADING_SIZES[block.style]}px` : undefined,
     fontWeight: block.style && /Title|Heading/.test(block.style) ? 600 : undefined,
     marginTop: block.style && /Title|Heading/.test(block.style) ? '1.1em' : undefined,
   };
 
-  if (block.table) {
-    return (
-      <table className="wd-table" data-block={block.index}>
-        <tbody>
-          {block.table.rows.map((row, r) => (
-            <tr key={r}>
-              {row.cells.map((cell, c) => (
-                <td key={c} colSpan={cell.colspan || 1} rowSpan={cell.rowspan || 1}>
-                  {(cell.blocks || []).map((b) => (b.runs || []).map((run) => run.text).join('')).join('\n')}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    );
-  }
-
-  const label = labels?.[block.index];
+  // A list marker arrives as `{ label, indentPx, bullet }` — the text to draw,
+  // how far in it sits, and whether it is a bullet or a number. Drawing the
+  // object itself is a React crash, and it was one: pressing "Bulleted list"
+  // took the whole page down.
+  const mark = labels?.[block.index];
+  const label = typeof mark === 'string' ? mark : mark?.label ?? null;
+  const markerIndent = typeof mark === 'object' && mark?.indentPx ? mark.indentPx : null;
   return (
-    <p className="wd-block" data-block={block.index} style={style}>
+    <p className="wd-block" data-block={block.index} style={markerIndent ? { ...style, marginLeft: markerIndent } : style}>
       {label ? <span className="wd-marker" contentEditable={false}>{label}</span> : null}
       {(block.runs || []).length ? (
         block.runs.map((run, i) => (
@@ -625,10 +723,14 @@ const Block = React.memo(function Block({ block, labels }) {
               fontWeight: run.bold ? 700 : undefined,
               fontStyle: run.italic ? 'italic' : undefined,
               textDecoration: [run.underline ? 'underline' : '', run.strike ? 'line-through' : ''].filter(Boolean).join(' ') || undefined,
-              color: run.colour || undefined,
-              backgroundColor: run.highlight || undefined,
+              // The engine reports `fontColour` as bare hex, the way the file
+              // stores it; the size is in points, the way Word means it. The
+              // painter used to read `colour` and paint the size in pixels, so
+              // a colour never showed and 12 pt drew at two-thirds size.
+              color: run.fontColour ? `#${run.fontColour}` : undefined,
+              backgroundColor: run.highlight ? HIGHLIGHT_CSS[run.highlight] || run.highlight : undefined,
               fontFamily: run.fontName || undefined,
-              fontSize: run.fontSize ? `${run.fontSize}px` : undefined,
+              fontSize: run.fontSize ? `${run.fontSize}pt` : undefined,
             }}
           >
             {run.text}

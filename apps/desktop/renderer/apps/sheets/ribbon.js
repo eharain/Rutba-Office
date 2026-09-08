@@ -28,9 +28,32 @@ const FILLS = [
 const FONTS = ['Calibri', 'Arial', 'Times New Roman', 'Georgia', 'Verdana', 'Segoe UI', 'Consolas'];
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 36, 48];
 
+/**
+ * A border delta names edges. The engine keeps the edges it is not told about,
+ * writes the ones it is, and deletes the ones set to null — so "all" is four
+ * thin black edges and "none" is four nulls.
+ */
+const THIN = { style: 'thin', colour: '#000000' };
 const BORDERS = [
-  ['all', 'All borders'], ['outline', 'Outline'], ['top', 'Top'], ['bottom', 'Bottom'],
-  ['left', 'Left'], ['right', 'Right'], ['none', 'No border'],
+  ['All borders', { top: THIN, bottom: THIN, left: THIN, right: THIN }],
+  ['Outline', { top: THIN, bottom: THIN, left: THIN, right: THIN }],
+  ['Top', { top: THIN }],
+  ['Bottom', { bottom: THIN }],
+  ['Left', { left: THIN }],
+  ['Right', { right: THIN }],
+  ['Thick bottom', { bottom: { style: 'medium', colour: '#000000' } }],
+  ['No border', { top: null, bottom: null, left: null, right: null }],
+];
+
+/** What the engine can draw, by the names it draws them under. */
+const CHARTS = [
+  ['column', 'Column'], ['bar', 'Bar'], ['line', 'Line'], ['area', 'Area'], ['pie', 'Pie'], ['doughnut', 'Doughnut'],
+];
+const SHAPES = [
+  ['rect', 'Rectangle'], ['roundRect', 'Rounded rectangle'], ['ellipse', 'Ellipse'], ['line', 'Line'],
+  ['triangle', 'Triangle'], ['diamond', 'Diamond'], ['rightArrow', 'Arrow right'], ['leftArrow', 'Arrow left'],
+  ['upArrow', 'Arrow up'], ['downArrow', 'Arrow down'], ['pentagon', 'Pentagon'], ['hexagon', 'Hexagon'],
+  ['star5', 'Star'], ['plus', 'Plus'], ['chevron', 'Chevron'], ['parallelogram', 'Parallelogram'], ['trapezoid', 'Trapezoid'],
 ];
 
 export default function SheetsRibbon({
@@ -105,9 +128,9 @@ export default function SheetsRibbon({
             <Button icon="underline" title="Underline" pressed={format.underline} onClick={() => setFormat({ underline: 'toggle' })} />
             <Button icon="strike" title="Strikethrough" pressed={format.strike} onClick={() => setFormat({ strike: 'toggle' })} />
             <Separator />
-            <Button icon="contrast" title="Text colour" onClick={(e) => swatchMenu(e, 'fontColour', SWATCHES.map(([c, l]) => [c.replace('#', '').toUpperCase(), l]))} />
-            <Button icon="wand" title="Fill colour" onClick={(e) => swatchMenu(e, 'fill', FILLS)} />
-            <Button icon="grid" title="Borders" onClick={(e) => menu.open(e, BORDERS.map(([v, l]) => ({ label: l, run: () => setFormat({ border: v === 'none' ? null : v }) })))} />
+            <Button icon="contrast" title="Text colour" onClick={(e) => swatchMenu(e, 'fontColour', SWATCHES)} />
+            <Button icon="wand" title="Fill colour" onClick={(e) => swatchMenu(e, 'fill', FILLS.map(([c, l]) => [c ? `#${c}` : null, l]))} />
+            <Button icon="grid" title="Borders" onClick={(e) => menu.open(e, BORDERS.map(([label, edges]) => ({ label, run: () => setFormat({ border: edges }) })))} />
           </Group>
 
           <Group label="Alignment">
@@ -168,21 +191,17 @@ export default function SheetsRibbon({
             <Button tall icon="filter" label="Filter" pressed={model?.filtered} onClick={() => dispatch({ op: 'autoFilter' })} />
           </Group>
           <Group label="Charts">
-            <Button tall icon="chart" label="Column" onClick={() => dispatch({ op: 'insertChart', kind: 'column' })} />
-            <Button tall icon="chart" label="Bar" onClick={() => dispatch({ op: 'insertChart', kind: 'bar' })} />
-            <Button tall icon="chart" label="Line" onClick={() => dispatch({ op: 'insertChart', kind: 'line' })} />
-            <Button tall icon="chart" label="Pie" onClick={() => dispatch({ op: 'insertChart', kind: 'pie' })} />
-            <Button tall icon="chart" label="Area" onClick={() => dispatch({ op: 'insertChart', kind: 'area' })} />
-            <Button tall icon="chart" label="Scatter" onClick={() => dispatch({ op: 'insertChart', kind: 'scatter' })} />
+            {CHARTS.map(([kind, label]) => (
+              <Button key={kind} tall icon="chart" label={label} title={`${label} chart from the data around the selection`} onClick={() => dispatch({ op: 'insertChart', kind })} />
+            ))}
           </Group>
           <Group label="Illustrations">
-            <Button tall icon="shape" label="Shape" onClick={(e) =>
-              menu.open(e, ['rect', 'ellipse', 'roundRect', 'triangle', 'arrow', 'star'].map((g) => ({
-                label: g[0].toUpperCase() + g.slice(1),
-                icon: 'shape',
-                run: () => dispatch({ op: 'insertShape', geometry: g, text: '' }),
-              })))
-            } />
+            <Button
+              tall
+              icon="shape"
+              label="Shape"
+              onClick={(e) => menu.open(e, SHAPES.map(([geometry, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', geometry, text: '' }) })))}
+            />
           </Group>
           <Group label="Names">
             <Button tall icon="find" label="Define name" onClick={() => openDialog('names')} />

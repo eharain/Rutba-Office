@@ -665,6 +665,227 @@ export async function verifyApps({ windows, doc }) {
     check('word: the ribbon checks ran', false, err.message);
   }
 
+  /* ── Word: the buttons a person clicks do what they say ──────────────── */
+  //
+  // Everything above drives the engine through operations. These drive the
+  // window the way a hand does: select words on the page, press a button on
+  // the ribbon, and read what the page paints. The first ribbon shipped with
+  // every font, colour, indent and style control sending a key the engine did
+  // not listen for, and nothing here noticed — because nothing here clicked.
+
+  try {
+    const win = await open('word', files.docx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const session = doc.open({ path: files.docx });
+    doc.close({ id: session.id }); // only needed the path to resolve; the window has its own
+    const state = () => js(`(async () => {
+      const all = await window.rutbaOffice.doc.sessions({});
+      const mine = all.filter((s) => s.kind === 'doc').pop();
+      const m = await window.rutbaOffice.doc.model({ id: mine.id });
+      // A table reaches the frame as its cell paragraphs, each carrying the
+      // address of its cell; there is no "table block". Counting distinct
+      // table addresses is counting tables.
+      const tables = new Set(m.blocks.map((b) => (b.container || '').split(':')[0]).filter(Boolean)).size;
+      const drawn = document.querySelectorAll('.wd-page table.wd-table').length;
+      return { format: m.format, block1: m.blocks[1], section: m.section, tables, drawn };
+    })()`);
+
+    // Select the whole of the second paragraph with a real DOM range, and tell
+    // the page about it the way a mouse would: with a mouseup.
+    const selectBlock1 = () => js(`(() => {
+      const page = document.querySelector('.wd-page');
+      const block = page.querySelector('[data-block="1"]');
+      page.focus();
+      const range = document.createRange();
+      range.selectNodeContents(block);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return sel.toString().length;
+    })()`);
+    const pressButton = (title) => js(`(() => {
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}));
+      if (!b) return 'no button titled ' + ${JSON.stringify(title)};
+      b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      b.click();
+      return 'clicked';
+    })()`);
+    const pressMenu = (label) => js(`(() => {
+      const item = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+      if (!item) return 'no menu item ' + ${JSON.stringify(label)};
+      item.click();
+      return 'clicked';
+    })()`);
+    const choose = (title, value) => js(`(() => {
+      const s = [...document.querySelectorAll('.rw-ribbon select')].find((n) => n.title === ${JSON.stringify(title)});
+      if (!s) return 'no select titled ' + ${JSON.stringify(title)};
+      const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set;
+      setter.call(s, ${JSON.stringify(value)});
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+      return 'chose';
+    })()`);
+    const painted = () => js(`(() => {
+      const span = document.querySelector('.wd-page [data-block="1"] span');
+      const cs = span ? getComputedStyle(span) : null;
+      const p = document.querySelector('.wd-page [data-block="1"]');
+      return cs ? { weight: cs.fontWeight, size: cs.fontSize, colour: cs.color, align: getComputedStyle(p).textAlign } : null;
+    })()`);
+
+    const selected = await selectBlock1();
+    await wait(300);
+    check('word: words can be selected on the page', selected > 10, `${selected} characters selected`);
+
+    // Bold, from the button. Focus must stay on the page for this to land.
+    const b = await pressButton('Bold');
+    await until(async () => (await state()).block1?.runs?.some((r) => r.bold), 'the engine to hold bold', 4000).catch(() => {});
+    const afterBold = await state();
+    const paintBold = await painted();
+    check('word: the Bold button makes the selection bold', afterBold.block1?.runs?.some((r) => r.bold) && paintBold?.weight === '700', `${b}; engine bold=${afterBold.block1?.runs?.some((r) => r.bold)}, page weight=${paintBold?.weight}`);
+
+    // Font size, from the dropdown, and it has to paint at that size.
+    await selectBlock1();
+    await wait(200);
+    await choose('Size', '18');
+    await until(async () => (await state()).format?.fontSize === 18, 'the engine to hold 18 pt', 4000).catch(() => {});
+    const afterSize = await state();
+    const paintSize = await painted();
+    check('word: the size dropdown changes the font size', afterSize.format?.fontSize === 18 && paintSize?.size === '24px', `engine=${afterSize.format?.fontSize} pt, page=${paintSize?.size} (18 pt is 24 px)`);
+
+    // Colour, from the menu.
+    await selectBlock1();
+    await wait(200);
+    await pressButton('Text colour');
+    await wait(200);
+    const red = await pressMenu('Red');
+    await until(async () => (await state()).format?.fontColour === 'E03131', 'the engine to hold the colour', 4000).catch(() => {});
+    const paintColour = await painted();
+    check('word: the colour menu colours the text', paintColour?.colour === 'rgb(224, 49, 49)', `${red}; page colour=${paintColour?.colour}`);
+
+    // Alignment, list and style act on the paragraph the caret is in.
+    const centred = await pressButton('Centre');
+    await until(async () => (await state()).format?.paragraphAlign === 'center', 'the paragraph to centre', 4000).catch(() => {});
+    const afterCentre = await state();
+    const paintAlign = await painted();
+    check('word: the Centre button centres the paragraph', paintAlign?.align === 'center', `${centred}; engine paragraphAlign=${afterCentre.format?.paragraphAlign}, block align=${JSON.stringify(afterCentre.block1?.align ?? null)}, page align=${paintAlign?.align}`);
+
+    await pressButton('Bulleted list');
+    await until(async () => (await state()).format?.listType === 'bullet', 'the paragraph to become a list item', 4000).catch(() => {});
+    const afterList = await state();
+    check('word: the list button makes a list', afterList.format?.listType === 'bullet', `listType=${afterList.format?.listType}`);
+
+    await choose('Paragraph style', 'Heading1');
+    await until(async () => (await state()).format?.paragraphStyle === 'Heading1', 'the style to apply', 4000).catch(() => {});
+    const afterStyle = await state();
+    check('word: the style dropdown applies a style', afterStyle.format?.paragraphStyle === 'Heading1', `paragraphStyle=${afterStyle.format?.paragraphStyle}`);
+
+    // Insert a table through the dialog, and turn the page on its side.
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'insert tab'`);
+    await wait(200);
+    await pressButton('Table');
+    await wait(300);
+    await js(`(() => { [...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Insert')?.click(); return 'inserted'; })()`);
+    await until(async () => (await state()).tables > 0, 'a table to appear', 4000).catch(() => {});
+    const afterTable = await state();
+    check('word: Insert → Table puts a table in the document, and the page draws it as one', afterTable.tables > 0 && afterTable.drawn > 0, `${afterTable.tables} table(s) in the document, ${afterTable.drawn} drawn on the page`);
+
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Layout')?.click(), 'layout tab'`);
+    await wait(200);
+    await pressButton('Switch orientation');
+    await until(async () => (await state()).section?.orientation === 'landscape', 'the page to turn', 4000).catch(() => {});
+    const afterTurn = await state();
+    check('word: Layout → orientation turns the page', afterTurn.section?.orientation === 'landscape', `orientation=${afterTurn.section?.orientation}`);
+
+    const complaints = await errorsIn(win);
+    check('word: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the button checks ran', false, err.message);
+  }
+
+  /* ── Worksheets: clicking empty grid, typing, and formatting that paints ── */
+
+  try {
+    const win = await open('sheets', files.xlsx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const model = () => js(`(async () => {
+      const all = await window.rutbaOffice.doc.sessions({});
+      const mine = all.filter((s) => s.kind === 'sheet').pop();
+      return window.rutbaOffice.doc.model({ id: mine.id });
+    })()`);
+
+    // A press on empty grid, at the coordinates of C7 — a cell the engine has
+    // not drawn because there is nothing in it.
+    const pressEmpty = (row, col) => js(`(() => {
+      const layer = document.querySelector('.sh-cells');
+      const rect = layer.getBoundingClientRect();
+      const grid = ${JSON.stringify({ row, col })};
+      const cols = [...document.querySelectorAll('.sh-colheads .sh-head')];
+      const rows = [...document.querySelectorAll('.sh-rowheads .sh-head')];
+      const c = cols[grid.col]; const r = rows[grid.row];
+      if (!c || !r) return 'headers missing';
+      const x = rect.left + c.offsetLeft + c.offsetWidth / 2;
+      const y = rect.top + r.offsetTop + r.offsetHeight / 2;
+      const hit = document.elementFromPoint(x, y);
+      hit.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true, clientX: x, clientY: y, button: 0 }));
+      return hit.className;
+    })()`);
+
+    const hit = await pressEmpty(6, 2);
+    await until(async () => { const m = await model(); return m.selection?.active?.row === 6 && m.selection?.active?.col === 2; }, 'the click to select C7', 4000).catch(() => {});
+    const afterClick = await model();
+    check('sheets: clicking empty grid selects that cell', afterClick.selection?.active?.row === 6 && afterClick.selection?.active?.col === 2, `pressed on ${JSON.stringify(hit)}; active is ${afterClick.selection?.ref || JSON.stringify(afterClick.selection?.active)}`);
+
+    // Type into it. The grid has to have focus for keys to land, and a click
+    // on the layer is what gives it.
+    await js(`document.querySelector('.sh')?.focus(), 'ok'`);
+    await typeText(win.webContents, '77');
+    await press(win.webContents, 'Return', { char: true });
+    await until(async () => (await model()).cells?.some((c) => c.ref === 'C7' && c.text === '77'), 'the value to land in C7', 4000).catch(() => {});
+    const typed = await model();
+    check('sheets: typing after the click fills that cell', typed.cells?.some((c) => c.ref === 'C7' && c.text === '77'), `C7 is ${JSON.stringify(typed.cells?.find((c) => c.ref === 'C7')?.text ?? null)}`);
+
+    // Back onto C7, then Bold, then a fill, then borders — and each must PAINT.
+    await pressEmpty(6, 2);
+    await wait(250);
+    const clickRibbon = (title) => js(`(() => {
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '') === ${JSON.stringify(title)});
+      if (!b) return 'no button ' + ${JSON.stringify(title)};
+      b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      b.click();
+      return 'clicked';
+    })()`);
+    const activeStyle = () => js(`(() => {
+      const el = document.querySelector('.sh-cell.active');
+      if (!el) return null;
+      const cs = getComputedStyle(el);
+      return { weight: cs.fontWeight, background: cs.backgroundColor, borderTop: cs.borderTopWidth, text: el.textContent };
+    })()`);
+
+    await clickRibbon('Bold');
+    await until(async () => (await activeStyle())?.weight === '700', 'the cell to paint bold', 4000).catch(() => {});
+    const bold = await activeStyle();
+    check('sheets: the Bold button paints the cell bold', bold?.weight === '700' && bold?.text === '77', `active cell weight=${bold?.weight}, text=${JSON.stringify(bold?.text)}`);
+
+    await clickRibbon('Fill colour');
+    await wait(200);
+    await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Light amber')?.click(); return 'chose'; })()`);
+    await until(async () => (await activeStyle())?.background === 'rgb(255, 243, 191)', 'the fill to paint', 4000).catch(() => {});
+    const filled = await activeStyle();
+    check('sheets: the fill menu paints the cell', filled?.background === 'rgb(255, 243, 191)', `background=${filled?.background}`);
+
+    await clickRibbon('Borders');
+    await wait(200);
+    await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'All borders')?.click(); return 'chose'; })()`);
+    await until(async () => (await activeStyle())?.borderTop === '1px', 'the border to paint', 4000).catch(() => {});
+    const bordered = await activeStyle();
+    check('sheets: the border menu paints a border', bordered?.borderTop === '1px', `border-top=${bordered?.borderTop}`);
+
+    const complaints = await errorsIn(win);
+    check('sheets: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('sheets: the click checks ran', false, err.message);
+  }
+
   /* ── Mail: a seeded message opens in the reading pane ────────────────── */
 
   try {

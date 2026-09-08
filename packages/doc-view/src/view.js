@@ -1439,10 +1439,22 @@ export class DocView {
 
   render() {
     const { from, to } = this.selection;
+    // Paragraph properties reach the painter here, once per block. The frame
+    // carried the style name and nothing else, so a paragraph the engine had
+    // centred or indented drew exactly as it had before — the button worked,
+    // the file was right, and the page showed nothing.
+    const props = typeof this.doc.getParagraphProps === 'function'
+      ? (i) => { try { return this.doc.getParagraphProps(i); } catch { return null; } }
+      : () => null;
     return {
-      blocks: this.blocks.map((b) => ({
+      blocks: this.blocks.map((b) => {
+        const pp = props(b.index);
+        return {
         index: b.index,
         style: b.style,
+        align: pp?.align ?? null,
+        indentLevel: pp?.indentTwips ? Math.round(pp.indentTwips / INDENT_STEP) : 0,
+        lineSpacing: pp?.lineSpacing ?? null,
         structural: b.structural,
         structuralTags: b.structuralTags,
         // The cell this block lives in, or null for prose — what lets the
@@ -1455,7 +1467,8 @@ export class DocView {
         // images through fragments, but a table cell has no fragment.
         ...(b.container && b.images?.some((i) => i.href)
           ? { images: b.images.filter((i) => i.href) } : {}),
-      })),
+        };
+      }),
       selection: {
         anchor: { ...this.anchor },
         focus: { ...this.focus },

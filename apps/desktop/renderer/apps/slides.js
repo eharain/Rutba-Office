@@ -335,31 +335,32 @@ export default function Slides({ app, shell, boot }) {
               <Group label="Text">
                 <Button tall icon="textbox" label="Text box" onClick={() => commands['slide.textbox'].run()} />
               </Group>
-              <Group label="Illustrations">
-                <Button
-                  tall
-                  icon="shape"
-                  label="Shape"
-                  onClick={(e) =>
-                    menu.open(e, ['rect', 'ellipse', 'roundRect', 'triangle', 'arrow', 'star'].map((g) => ({
-                      label: g[0].toUpperCase() + g.slice(1),
-                      icon: 'shape',
-                      run: () => apply({ op: 'addTextBox', slide: index, geometry: g, text: '', x: 120, y: 120, w: 240, h: 140 }),
-                    })))
-                  }
-                />
-              </Group>
+              {/*
+                The deck engine writes text boxes and nothing else yet. A Shape
+                button that quietly inserted a text box was here for a day; a
+                control that does something other than what it says is worse
+                than one that is missing, and the audit says shapes are missing.
+              */}
               <Group label="Slides">
                 <Button tall icon="plus" label="New slide" onClick={() => addSlide('obj')} />
+                <Button tall icon="copy" label="Duplicate" onClick={() => commands['slide.new'].run()} />
               </Group>
             </>
           ) : tab === 'design' ? (
             <>
-              <Group label="Slide size">
-                <Button tall icon="grid" label="Widescreen" title="16:9, the size this deck already uses" disabled />
+              <Group label="This deck">
+                <Button
+                  tall
+                  icon="grid"
+                  label={model?.size ? `${Math.round(model.size.width)} × ${Math.round(model.size.height)}` : 'Slide size'}
+                  title={model?.size ? `Slides are ${Math.round(model.size.width)} by ${Math.round(model.size.height)} pixels — ${Math.abs(model.size.width / model.size.height - 16 / 9) < 0.02 ? '16:9 widescreen' : Math.abs(model.size.width / model.size.height - 4 / 3) < 0.02 ? '4:3 standard' : 'a custom ratio'}. Colours and fonts come from the deck's own theme.` : 'The deck decides its own size and theme'}
+                  disabled
+                />
               </Group>
-              <Group label="Theme">
-                <Button tall icon="wand" label="From the deck" title="Colours and fonts come from the presentation's own master and theme, and are used as the file defines them." disabled />
+              <Group label="Layout">
+                <Button tall icon="slides" label="Title slide" onClick={() => addSlide('title')} />
+                <Button tall icon="slides" label="Title and content" onClick={() => addSlide('obj')} />
+                <Button tall icon="file" label="Blank" onClick={() => addSlide('blank')} />
               </Group>
               <Group label="Export">
                 <Button tall icon="pdf" label="PDF" onClick={() => exportAs('pdf')} />

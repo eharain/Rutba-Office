@@ -329,24 +329,60 @@ export default function Sheets({ app, shell, boot }) {
     [model, editing, dispatch]
   );
 
+  /**
+   * A cell's formatting, as the engine reports it.
+   *
+   * The engine hands over `style.font` (`bold`, `italic`, `underline`,
+   * `strike`, `sizePt`, `family`, `colour`), `style.fill` (`{ colour }`) and
+   * `style.border` (an edge map). This painter used to read flat keys the
+   * engine never sends — `s.bold`, `s.fill` as a string, `s.size` — so every
+   * format applied correctly in the file and painted nothing in the window,
+   * which reads as "formatting does not work".
+   */
   const cellStyle = (cell) => {
     const s = cell.style || {};
+    const font = s.font || {};
+    const edge = (e) => (e && e.style && e.style !== 'none' ? `${e.widthPx || 1}px ${e.style === 'dashed' || e.style === 'dotted' || e.style === 'double' ? e.style : 'solid'} ${e.colour || '#000'}` : undefined);
     return {
       left: cell.x,
       top: cell.y,
       width: cell.width,
       height: cell.height,
       textAlign: cell.align || (typeof cell.text === 'string' && cell.isFormula ? 'right' : undefined),
-      fontWeight: s.bold ? 700 : undefined,
-      fontStyle: s.italic ? 'italic' : undefined,
-      textDecoration: s.underline ? 'underline' : undefined,
-      color: s.colour || cell.colour || undefined,
-      background: s.fill || undefined,
-      fontSize: s.size ? `${s.size}px` : undefined,
-      fontFamily: s.font || undefined,
+      fontWeight: font.bold ? 700 : undefined,
+      fontStyle: font.italic ? 'italic' : undefined,
+      textDecoration: [font.underline ? 'underline' : '', font.strike ? 'line-through' : ''].filter(Boolean).join(' ') || undefined,
+      color: font.colour || cell.colour || undefined,
+      background: s.fill?.colour || undefined,
+      fontSize: font.sizePt ? `${font.sizePt}pt` : undefined,
+      fontFamily: font.family || undefined,
+      borderTop: edge(s.border?.top),
+      borderBottom: edge(s.border?.bottom),
+      borderLeft: edge(s.border?.left),
+      borderRight: edge(s.border?.right),
+      whiteSpace: cell.wrap ? 'normal' : undefined,
       justifyContent: cell.align === 'center' ? 'center' : cell.align === 'right' ? 'flex-end' : undefined,
-      alignItems: cell.valign === 'middle' ? 'center' : cell.valign === 'top' ? 'flex-start' : undefined,
+      alignItems: cell.valign === 'center' || cell.valign === 'middle' ? 'center' : cell.valign === 'top' ? 'flex-start' : undefined,
     };
+  };
+
+  /**
+   * Which cell is under a point in the cells layer.
+   *
+   * The engine does not emit empty cells — a sheet is mostly empty and
+   * drawing a million nothings is not a plan — so a click on blank grid lands
+   * on the layer itself, not on a cell. The frame carries every visible
+   * column's x and every visible row's y, which is enough to say which cell
+   * that was. Without this, clicking an empty cell did nothing at all.
+   */
+  const cellAt = (event) => {
+    const layer = event.currentTarget;
+    const rect = layer.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const col = (model?.columns || []).find((c) => x >= c.x && x < c.x + c.width);
+    const row = (model?.rows || []).find((r) => y >= r.y && y < r.y + r.height);
+    return col && row ? { row: row.index, col: col.index } : null;
   };
 
   if (error) {
@@ -478,7 +514,21 @@ export default function Sheets({ app, shell, boot }) {
                 ))}
               </div>
 
-              <div className="sh-cells">
+              <div
+                className="sh-cells"
+                onMouseDown={(e) => {
+                  // A press on a drawn cell is handled by the cell. Anywhere else
+                  // is empty grid, and empty grid is still grid.
+                  if (e.button !== 0 || e.target.closest('.sh-cell, .sh-editor, .sh-drawing')) return;
+                  const at = cellAt(e);
+                  if (at) dispatch({ op: 'select', row: at.row, col: at.col, extend: e.shiftKey });
+                }}
+                onDoubleClick={(e) => {
+                  if (e.target.closest('.sh-cell, .sh-editor, .sh-drawing')) return;
+                  const at = cellAt(e);
+                  if (at) dispatch({ op: 'select', row: at.row, col: at.col }, { op: 'beginEdit' });
+                }}
+              >
                 {model.cells.map((cell) => (
                   <div
                     key={cell.ref}
