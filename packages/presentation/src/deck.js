@@ -93,6 +93,8 @@ export class Deck {
   /** @param {OoxmlPackage} pkg */
   constructor(pkg) {
     this.pkg = pkg;
+    /** Parsed slides by part, keyed on their XML — see `slide()`. */
+    this._scenes = new Map();
     this.dirty = false;
     this.#load();
   }
@@ -255,20 +257,27 @@ export class Deck {
       return { part: r.resolved, external: r.mode === 'External', target: r.target };
     };
 
-    const scene = readSlideScene(this.pkg.text(slidePart), { theme, inherit, rel });
+    // Parsed once per VERSION of the slide's XML (and its notes'): the
+    // outline, the thumbnails and the model all ask for every slide, and a
+    // fifteen-megabyte deck of nineteen slides parsed nineteen slides three
+    // times per keystroke. The key is the XML itself, so a stale entry is
+    // not expressible; an edit writes new XML and misses.
+    const slideXml = this.pkg.text(slidePart);
+    const notesPart = [...rels.values()].find((r) => r.type === REL.notes && this.pkg.has(r.resolved))?.resolved || null;
+    const notesXml = notesPart ? this.pkg.text(notesPart) : '';
+    const cacheKey = slideXml.length + ':' + notesXml.length + ':' + slideXml + notesXml;
+    const cached = this._scenes.get(slidePart);
+    if (cached && cached.key === cacheKey) return cached.scene;
+
+    const scene = readSlideScene(slideXml, { theme, inherit, rel });
     if (!scene.background) {
       scene.background = layoutPh.get('#background') || masterPh.get('#background') || null;
     }
 
     let notes = '';
-    for (const r of rels.values()) {
-      if (r.type === REL.notes && this.pkg.has(r.resolved)) {
-        const n = readSlideScene(this.pkg.text(r.resolved), { theme });
-        notes = sceneText(n);
-      }
-    }
+    if (notesPart) notes = sceneText(readSlideScene(notesXml, { theme }));
 
-    return {
+    const result = {
       index,
       part: slidePart,
       layout: layoutPart,
@@ -279,6 +288,8 @@ export class Deck {
       notes,
       theme: { colors: theme.colors, fonts: theme.fonts },
     };
+    this._scenes.set(slidePart, { key: cacheKey, scene: result });
+    return result;
   }
 
   /** Every slide, thumbnail-shaped: enough to draw a sorter without the parts. */

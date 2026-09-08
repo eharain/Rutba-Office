@@ -10,9 +10,11 @@
 // rewrites one slide's XML and leaves every other part of the file alone.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ribbon, Group, Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
+import { SITE } from '@rutba/office-formats/registry';
 import Presenter from './slides/presenter.js';
+import SlidesRibbon from './slides/ribbon.js';
 
 export default function Slides({ app, shell, boot }) {
   // A presenter window is the same app pointed at the same open document,
@@ -32,6 +34,19 @@ export default function Slides({ app, shell, boot }) {
   const [blank, setBlank] = useState(false);
   // Set when a presenter window is driving, so this one follows rather than leads.
   const [led, setLed] = useState(false);
+  /**
+   * How the deck is shown. None of it is in the file: the view mode, the
+   * rulers, gridlines and guides, whether the notes strip shows, a zoom
+   * level (null fits the window), and the colour/greyscale tone.
+   */
+  const [view, setView] = useState({ mode: 'normal', ruler: false, gridlines: false, guides: false, notes: true, zoom: null, tone: 'colour' });
+  const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
+  // The selected shape — one click selects, a double-click edits its words —
+  // is what the Font and Paragraph groups act on.
+  const [selected, setSelected] = useState(null);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // Reading View: the show in this window, without going full screen.
+  const [reading, setReading] = useState(false);
   const stageRef = useRef(null);
   // The slide is drawn at its own size and scaled to fit the stage, the way
   // PowerPoint's "Fit to Window" does — a 1280-px slide in a 1000-px stage
@@ -247,12 +262,17 @@ export default function Slides({ app, shell, boot }) {
       if (e.key === 'ArrowLeft' || e.key === 'PageUp') setIndex((i) => Math.max(0, i - 1));
     };
     window.addEventListener('keydown', onKey);
-    shell.win.fullscreen({ on: true });
+    if (!reading) shell.win.fullscreen({ on: true });
     return () => {
       window.removeEventListener('keydown', onKey);
-      shell.win.fullscreen({ on: false });
+      if (!reading) shell.win.fullscreen({ on: false });
+      setReading(false);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [present, model, shell]);
+
+  // A new slide means a new selection: the shape ids belong to the slide.
+  useEffect(() => { setSelected(null); }, [index]);
 
   if (error) {
     return (
@@ -263,6 +283,76 @@ export default function Slides({ app, shell, boot }) {
   }
 
   const slide = model?.slide;
+  const selectedShape = selected ? slide?.shapes?.find((s) => s.id === selected) || null : null;
+  // What the ribbon shows for the selected shape: its first run's look and
+  // its first paragraph's alignment — the granularity the writer edits at.
+  const format = useMemo(() => {
+    const p = selectedShape?.text?.paragraphs?.[0];
+    const r = p?.runs?.[0] || {};
+    return { bold: Boolean(r.bold), italic: Boolean(r.italic), underline: Boolean(r.underline), size: r.size || 18, color: r.color || null, font: r.font || '', align: p?.align || 'left' };
+  }, [selectedShape]);
+
+  /**
+   * The ribbon's verbs beyond one engine operation: the show, the view
+   * modes and overlays, zoom and tone, windows, help — and the formatting
+   * of the selected shape, applied to every run in it, which is the
+   * granularity the deck writer edits at.
+   */
+  const act = async (name, arg) => {
+    switch (name) {
+      case 'present':
+        if (arg === 'start') setIndex(0);
+        if (arg === 'reading') setReading(true);
+        setPresent(true);
+        return;
+      case 'mode': patchView({ mode: arg }); return;
+      case 'toggle': patchView((v) => ({ [arg]: arg === 'notes' ? v.notes === false : !v[arg] })); return;
+      case 'zoom': patchView({ zoom: arg }); return;
+      case 'tone': patchView({ tone: arg }); return;
+      case 'newWindow':
+        if (!doc?.path) return toast('Save the presentation first, so a second window can open the same file.', { ms: 5000 });
+        shell.win.create({ app: 'slides', file: doc.path });
+        return;
+      case 'help': shell.shell.openExternal({ url: SITE.help }); return;
+      case 'feedback': shell.shell.openExternal({ url: SITE.contact }); return;
+      case 'releases': shell.shell.openExternal({ url: SITE.releases }); return;
+      case 'shortcuts': setShortcutsOpen(true); return;
+      case 'deleteShape':
+        if (!selectedShape) return;
+        await apply({ op: 'removeShape', slide: index, shape: selectedShape.id });
+        setSelected(null);
+        return;
+      case 'nudge': {
+        if (!selectedShape?.geometry) return;
+        const g = selectedShape.geometry;
+        await apply({ op: 'setGeometry', slide: index, shape: selectedShape.id, x: g.x + (arg.dx || 0), y: g.y + (arg.dy || 0), w: g.w, h: g.h });
+        return;
+      }
+      case 'format': {
+        if (!selectedShape?.text) return toast('Click a text box first.', { ms: 3500 });
+        const paragraphs = selectedShape.text.paragraphs.map((p) => {
+          const { plain, ...rest } = p;
+          return {
+            ...rest,
+            align: arg.align ?? p.align,
+            runs: (p.runs || []).map((r) => ({
+              ...r,
+              bold: arg.bold === 'toggle' ? !r.bold : arg.bold ?? r.bold,
+              italic: arg.italic === 'toggle' ? !r.italic : arg.italic ?? r.italic,
+              underline: arg.underline === 'toggle' ? !r.underline : arg.underline ?? r.underline,
+              size: arg.size ?? r.size,
+              color: arg.color ?? r.color,
+              font: 'font' in arg ? (arg.font || undefined) : r.font,
+            })),
+          };
+        });
+        await apply({ op: 'setText', slide: index, shape: selectedShape.id, paragraphs });
+        return;
+      }
+      default:
+        toast(`${name} is not wired yet.`, { ms: 3000 });
+    }
+  };
 
   // A presenter window draws only the speaker's side. It shares the document
   // session, so nothing is opened twice and nothing can drift.
@@ -299,115 +389,27 @@ export default function Slides({ app, shell, boot }) {
       dirty={doc?.dirty}
       menu={appMenu}
       ribbon={
-        <Ribbon
-          tabs={[
-            { id: 'home', label: 'Home' },
-            { id: 'insert', label: 'Insert' },
-            { id: 'design', label: 'Design' },
-            { id: 'show', label: 'Slide Show' },
-            { id: 'view', label: 'View' },
-          ]}
-          active={tab}
-          onTab={setTab}
-          quick={
-            <>
-              <Button icon="save" title="Save" onClick={() => save(false)} />
-              <Button icon="undo" title="Undo" disabled={!doc?.canUndo} onClick={() => commands['edit.undo']?.run?.()} />
-              <Button icon="play" title="Present" onClick={() => setPresent(true)} />
-            </>
-          }
-        >
-          {tab === 'home' ? (
-            <>
-              <Group label="Slides">
-                <Button
-                  tall
-                  icon="plus"
-                  label="New slide"
-                  onClick={(e) =>
-                    menu.open(e, [
-                      { label: 'Title and content', icon: 'slides', run: () => addSlide('obj') },
-                      { label: 'Title slide', icon: 'slides', run: () => addSlide('title') },
-                      { label: 'Blank', icon: 'file', run: () => addSlide('blank') },
-                    ])
-                  }
-                />
-                <Button icon="copy" label="Duplicate" onClick={() => commands['slide.new'].run()} />
-                <Button icon="trash" label="Delete" onClick={() => commands['slide.delete'].run()} disabled={(model?.count || 0) < 2} />
-              </Group>
-              <Group label="Arrange">
-                <Button icon="chevronUp" label="Move up" disabled={index === 0} onClick={() => { apply({ op: 'moveSlide', from: index, to: index - 1 }); setIndex(index - 1); }} />
-                <Button icon="chevronDown" label="Move down" disabled={index >= (model?.count || 1) - 1} onClick={() => { apply({ op: 'moveSlide', from: index, to: index + 1 }); setIndex(index + 1); }} />
-              </Group>
-              <Group label="Notes">
-                <Button tall icon="word" label="Speaker notes" onClick={() => setNotesOpen(true)} />
-              </Group>
-              <Group label="File">
-                <Button tall icon="new" label="New" onClick={() => shell.win.create({ app: 'slides' })} />
-                <Button tall icon="open" label="Open" onClick={openFile} />
-                <Button tall icon="save" label="Save" onClick={() => save(false)} />
-              </Group>
-            </>
-          ) : tab === 'insert' ? (
-            <>
-              <Group label="Text">
-                <Button tall icon="textbox" label="Text box" onClick={() => commands['slide.textbox'].run()} />
-              </Group>
-              {/*
-                The deck engine writes text boxes and nothing else yet. A Shape
-                button that quietly inserted a text box was here for a day; a
-                control that does something other than what it says is worse
-                than one that is missing, and the audit says shapes are missing.
-              */}
-              <Group label="Slides">
-                <Button tall icon="plus" label="New slide" onClick={() => addSlide('obj')} />
-                <Button tall icon="copy" label="Duplicate" onClick={() => commands['slide.new'].run()} />
-              </Group>
-            </>
-          ) : tab === 'design' ? (
-            <>
-              <Group label="This deck">
-                <Button
-                  tall
-                  icon="grid"
-                  label={model?.size ? `${Math.round(model.size.width)} × ${Math.round(model.size.height)}` : 'Slide size'}
-                  title={model?.size ? `Slides are ${Math.round(model.size.width)} by ${Math.round(model.size.height)} pixels — ${Math.abs(model.size.width / model.size.height - 16 / 9) < 0.02 ? '16:9 widescreen' : Math.abs(model.size.width / model.size.height - 4 / 3) < 0.02 ? '4:3 standard' : 'a custom ratio'}. Colours and fonts come from the deck's own theme.` : 'The deck decides its own size and theme'}
-                  disabled
-                />
-              </Group>
-              <Group label="Layout">
-                <Button tall icon="slides" label="Title slide" onClick={() => addSlide('title')} />
-                <Button tall icon="slides" label="Title and content" onClick={() => addSlide('obj')} />
-                <Button tall icon="file" label="Blank" onClick={() => addSlide('blank')} />
-              </Group>
-              <Group label="Export">
-                <Button tall icon="pdf" label="PDF" onClick={() => exportAs('pdf')} />
-              </Group>
-            </>
-          ) : tab === 'show' ? (
-            <>
-              <Group label="Start">
-                <Button tall icon="play" label="From the start" onClick={() => { setIndex(0); setPresent(true); }} />
-                <Button tall icon="play" label="From here" onClick={() => setPresent(true)} />
-                <Button tall icon="grid" label="Presenter view" title="Opens a second window with your notes, the next slide and a clock — put it on the other screen" onClick={presentWithNotes} />
-              </Group>
-              <Group label="Notes">
-                <Button tall icon="word" label="Speaker notes" onClick={() => setNotesOpen(true)} />
-              </Group>
-            </>
-          ) : (
-            <>
-              <Group label="Window">
-                <Button tall icon="maximize" label="Full screen" onClick={() => shell.win.fullscreen({})} />
-              </Group>
-              <Group label="Zoom">
-                <Button icon="zoomOut" label="Out" onClick={() => shell.win.zoom({ delta: -0.1 })} />
-                <Button icon="zoomIn" label="In" onClick={() => shell.win.zoom({ delta: 0.1 })} />
-                <Button icon="check" label="100%" onClick={() => shell.win.zoom({ reset: true })} />
-              </Group>
-            </>
-          )}
-        </Ribbon>
+        <SlidesRibbon
+          tab={tab}
+          setTab={setTab}
+          model={model}
+          doc={doc}
+          commands={commands}
+          shell={shell}
+          menu={menu}
+          save={save}
+          openFile={openFile}
+          exportAs={exportAs}
+          act={act}
+          view={view}
+          index={index}
+          selected={selected}
+          format={format}
+          addSlide={addSlide}
+          presentWithNotes={presentWithNotes}
+          setPresent={setPresent}
+          setNotesOpen={setNotesOpen}
+        />
       }
       status={
         <>
@@ -447,18 +449,47 @@ export default function Slides({ app, shell, boot }) {
           </Panel>
 
           <Content>
-            <div className="sl-stage" ref={stageRef}>
-              {slide ? (
-                <div className="sl-fit" style={{ width: Math.round(model.size.width * fit), height: Math.round(model.size.height * fit) }}>
-                <div className="sl-slide" style={{ width: model.size.width, height: model.size.height, transform: `scale(${fit})`, transformOrigin: 'top left' }}>
+            <div
+              className={`sl-stage tone-${view.tone || 'colour'}`}
+              ref={stageRef}
+              onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null); }}
+            >
+              {slide && view.mode === 'sorter' ? (
+                <div className="sl-sortergrid">
+                  {(model.outline || []).map((o, i) => (
+                    <button key={o.part || i} type="button" className={`sl-sortercard${i === index ? ' active' : ''}`} onClick={() => { setIndex(i); patchView({ mode: 'normal' }); }} title={o.title || `Slide ${i + 1}`}>
+                      {o.thumbnail ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} /> : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
+                      <span className="sl-sortern">{i + 1}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : slide && view.mode === 'outline' ? (
+                <div className="sl-outline">
+                  {(model.outline || []).map((o, i) => (
+                    <button key={o.part || i} type="button" className={`sl-outlineitem${i === index ? ' active' : ''}`} onClick={() => setIndex(i)}>
+                      <span className="sl-sortern">{i + 1}</span>
+                      <span className="grow">
+                        <div className="sl-outlinetitle">{o.title || 'Untitled slide'}</div>
+                        {i === index ? slide.shapes.filter((s) => s.text).map((s) => s.text.paragraphs.map((p) => p.plain).join(' ')).filter((t) => t && t !== o.title).map((t, k) => <div key={k} className="sl-outlinetext">{t}</div>) : null}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              ) : slide ? (
+                <div className="sl-fit" style={{ width: Math.round(model.size.width * (view.zoom ?? fit)), height: Math.round(model.size.height * (view.zoom ?? fit)) }}>
+                {view.ruler ? <><div className="sl-ruler-h" /><div className="sl-ruler-v" /></> : null}
+                <div className="sl-slide" style={{ width: model.size.width, height: model.size.height, transform: `scale(${view.zoom ?? fit})`, transformOrigin: 'top left' }}>
                   <div className="sl-svg" dangerouslySetInnerHTML={{ __html: slide.svg }} />
+                  {view.gridlines ? <div className="sl-gridlines" /> : null}
+                  {view.guides ? <div className="sl-guides" /> : null}
                   {/* Text boxes get a hit area so a click lands on the shape rather than on the drawing. */}
                   {slide.shapes.filter((s) => s.text && s.geometry).map((s) => (
                     <button
                       key={s.id}
                       type="button"
-                      className="sl-hit"
+                      className={`sl-hit${selected === s.id ? ' selected' : ''}`}
                       style={{ left: s.geometry.x, top: s.geometry.y, width: s.geometry.w, height: s.geometry.h }}
+                      onClick={() => setSelected(s.id)}
                       onDoubleClick={() => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') })}
                       onContextMenu={(e) => menu.open(e, [
                         { label: 'Edit text', icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) },
@@ -489,11 +520,21 @@ export default function Slides({ app, shell, boot }) {
                 <Empty icon="slides" title="This presentation has no slides" />
               )}
             </div>
-            {slide?.notes ? <div className="sl-notes">{slide.notes}</div> : null}
+            {slide && view.mode === 'notes' ? (
+              <textarea
+                key={`notes-${index}`}
+                className="sl-notespage"
+                defaultValue={slide.notes || ''}
+                placeholder="Click to add notes"
+                onBlur={async (e) => { if (e.target.value !== (slide.notes || '')) await apply({ op: 'setNotes', slide: index, text: e.target.value }); }}
+              />
+            ) : slide?.notes && view.notes !== false ? <div className="sl-notes">{slide.notes}</div> : null}
           </Content>
           {menu.node}
         </>
       )}
+
+      {shortcutsOpen ? <SlidesShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
 
       {notesOpen ? (
         <NotesDialog
@@ -546,6 +587,30 @@ const CSS = `
   font-size: 12.5px; color: var(--ink-2); max-height: 110px; overflow: auto; white-space: pre-wrap;
 }
 
+.sl-hit.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+/* View → Show: rulers beside the slide, gridlines and guides over it. */
+.sl-ruler-h { position: absolute; left: 0; right: 0; top: -14px; height: 12px; background: repeating-linear-gradient(to right, var(--ink-3) 0 1px, transparent 1px 48px); opacity: .5; }
+.sl-ruler-v { position: absolute; top: 0; bottom: 0; left: -14px; width: 12px; background: repeating-linear-gradient(to bottom, var(--ink-3) 0 1px, transparent 1px 48px); opacity: .5; }
+.sl-gridlines { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(to right, rgba(0,0,0,.12) 1px, transparent 1px), linear-gradient(to bottom, rgba(0,0,0,.12) 1px, transparent 1px); background-size: 48px 48px; }
+.sl-guides { position: absolute; inset: 0; pointer-events: none; background-image: linear-gradient(to right, transparent calc(50% - 1px), rgba(200,0,0,.6) calc(50% - 1px), rgba(200,0,0,.6) 50%, transparent 50%), linear-gradient(to bottom, transparent calc(50% - 1px), rgba(200,0,0,.6) calc(50% - 1px), rgba(200,0,0,.6) 50%, transparent 50%); }
+/* View → Colour/Greyscale. */
+.sl-stage.tone-grey .sl-fit { filter: grayscale(1); }
+.sl-stage.tone-mono .sl-fit { filter: grayscale(1) contrast(4); }
+/* Slide Sorter and Outline View. */
+.sl-sortergrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; width: 100%; align-self: start; }
+.sl-sortercard { position: relative; border: 2px solid var(--line); border-radius: var(--r-2); background: #fff; padding: 0; overflow: hidden; aspect-ratio: 16 / 9; cursor: pointer; }
+.sl-sortercard:hover { border-color: var(--line-strong); }
+.sl-sortercard.active { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+.sl-sortern { position: absolute; left: 6px; bottom: 4px; font-size: 11px; color: var(--ink-3); background: rgba(255,255,255,.85); padding: 0 5px; border-radius: 3px; }
+.sl-outline { width: min(760px, 100%); align-self: start; display: flex; flex-direction: column; gap: 4px; }
+.sl-outlineitem { display: flex; gap: 10px; align-items: flex-start; text-align: left; border: 1px solid transparent; border-radius: var(--r-2); background: transparent; padding: 6px 10px; cursor: pointer; }
+.sl-outlineitem:hover { background: var(--hover); }
+.sl-outlineitem.active { border-color: var(--accent); background: var(--surface); }
+.sl-outlineitem .sl-sortern { position: static; }
+.sl-outlinetitle { font-weight: 600; font-size: 13px; }
+.sl-outlinetext { font-size: 12px; color: var(--ink-2); margin-top: 2px; white-space: pre-wrap; }
+.sl-notespage { border-top: 1px solid var(--line); background: var(--surface); padding: 12px 18px; font: inherit; font-size: 13px; min-height: 160px; resize: none; outline: none; color: var(--ink); }
+
 .sl-present { position: fixed; inset: 0; background: #000; display: grid; place-items: center; z-index: 200; }
 .sl-present-stage { width: min(100vw, 177.78vh); }
 .sl-present-stage svg { display: block; width: 100%; height: auto; }
@@ -554,6 +619,24 @@ const CSS = `
   color: rgba(255,255,255,0.55); font-size: 12px; letter-spacing: 0.02em;
 }
 `;
+
+const SLIDE_SHORTCUTS = [
+  ['Ctrl+S', 'Save'], ['Ctrl+Z', 'Undo'], ['Ctrl+N / Ctrl+O', 'New / Open'], ['Ctrl+M', 'New slide'],
+  ['F5', 'Start the show from the beginning'], ['Escape', 'Leave the show'], ['→ / Space / Page Down', 'Next slide'], ['← / Page Up', 'Previous slide'],
+  ['↑ / ↓', 'Previous / next slide while editing'], ['Double-click a text box', 'Edit its words'], ['Ctrl+Enter', 'Finish editing'],
+];
+
+function SlidesShortcutsDialog({ onClose }) {
+  return (
+    <Dialog title="Keyboard shortcuts" width={440} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
+      <dl className="about-list">
+        {SLIDE_SHORTCUTS.map(([k, v]) => (
+          <React.Fragment key={k}><dt>{k}</dt><dd>{v}</dd></React.Fragment>
+        ))}
+      </dl>
+    </Dialog>
+  );
+}
 
 /**
  * Speaker notes.

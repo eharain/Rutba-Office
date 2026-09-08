@@ -317,6 +317,18 @@ textarea,
 
 .rw-quick { display: flex; align-items: center; gap: 1px; margin-left: auto; padding-right: 4px; }
 
+/* Collapsing: the chevron at the strip's end; a peek floats the groups over the content. */
+.rw-collapse {
+  border: 0; background: transparent; color: var(--ink-3); width: 24px; height: 24px; margin-left: 4px;
+  border-radius: var(--r-1); display: grid; place-items: center; cursor: pointer;
+}
+.rw-collapse:hover { background: var(--hover); color: var(--ink); }
+.rw-ribbon.collapsed .rw-tabs { border-bottom: 0; }
+.rw-ribbon.peek .rw-groups {
+  position: absolute; left: 0; right: 0; top: 100%; z-index: 30;
+  box-shadow: var(--shadow-2); border-bottom: 1px solid var(--line);
+}
+
 .rw-groups {
   display: flex;
   align-items: stretch;

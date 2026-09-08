@@ -250,9 +250,48 @@ const keepEditorFocus = (e) => {
   if (target && target.tagName === 'BUTTON') e.preventDefault();
 };
 
-export function Ribbon({ tabs, active, onTab, quick, children }) {
+/**
+ * The ribbon: a tab strip, the active tab's groups, and the quick-access
+ * buttons at the strip's end.
+ *
+ * It COLLAPSES, the way Office's does: the chevron at the strip's end (or
+ * Ctrl+F1) folds it to the tabs alone, and while folded a tab click peeks
+ * the groups OVER the content — they float, the content does not move —
+ * until a command is pressed or the pointer goes down elsewhere. An app
+ * that wants to decide passes `collapsed`/`onCollapse` (the picture viewer
+ * folds it whenever a picture is open, so the picture gets the room);
+ * otherwise the ribbon keeps its own state.
+ */
+export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collapsedProp, onCollapse, collapsible = true }) {
+  const [own, setOwn] = useState(false);
+  const collapsed = collapsible && (collapsedProp ?? own);
+  const [peek, setPeek] = useState(false);
+  const ref = useRef(null);
+  const setCollapsed = (next) => {
+    if (onCollapse) onCollapse(next);
+    if (collapsedProp === undefined) setOwn(next);
+    setPeek(false);
+  };
+
+  // A peek closes on a press anywhere outside the ribbon, or on a command.
+  useEffect(() => {
+    if (!peek) return undefined;
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setPeek(false); };
+    document.addEventListener('mousedown', close, true);
+    return () => document.removeEventListener('mousedown', close, true);
+  }, [peek]);
+  useEffect(() => { if (!collapsed) setPeek(false); }, [collapsed]);
+  useEffect(() => {
+    if (!collapsible) return undefined;
+    const onKey = (e) => { if (e.ctrlKey && e.key === 'F1') { e.preventDefault(); setCollapsed(!collapsed); } };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [collapsed, collapsible, collapsedProp, onCollapse]);
+
+  const showGroups = !collapsed || peek;
   return (
-    <div className="rw-ribbon" onMouseDown={keepEditorFocus}>
+    <div ref={ref} className={`rw-ribbon${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}`} onMouseDown={keepEditorFocus}>
       <div className="rw-tabs" role="tablist">
         {tabs.map((t) => (
           <button
@@ -261,16 +300,43 @@ export function Ribbon({ tabs, active, onTab, quick, children }) {
             role="tab"
             className="rw-tab"
             aria-selected={t.id === active}
-            onClick={() => onTab(t.id)}
+            onClick={() => {
+              onTab(t.id);
+              if (collapsed) setPeek((p) => !(p && t.id === active));
+            }}
           >
             {t.label}
           </button>
         ))}
-        <div className="rw-quick">{quick}</div>
+        <div className="rw-quick">
+          {quick}
+          {collapsible ? (
+            <button
+              type="button"
+              className="rw-collapse"
+              title={collapsed ? 'Expand the ribbon (Ctrl+F1)' : 'Collapse the ribbon (Ctrl+F1)'}
+              aria-label={collapsed ? 'Expand the ribbon' : 'Collapse the ribbon'}
+              aria-expanded={!collapsed}
+              onClick={() => setCollapsed(!collapsed)}
+            >
+              <Icon name={collapsed ? 'chevronDown' : 'chevronUp'} size={12} />
+            </button>
+          ) : null}
+        </div>
       </div>
-      <div className="rw-groups" role="tabpanel">
-        {children}
-      </div>
+      {showGroups ? (
+        <div
+          className="rw-groups"
+          role="tabpanel"
+          onClick={(e) => {
+            // A command pressed from a peek closes the peek, as in Office; a
+            // dropdown keeps it, because a dropdown that closes cannot open.
+            if (collapsed && peek && e.target.closest('button') && !e.target.closest('select')) setPeek(false);
+          }}
+        >
+          {children}
+        </div>
+      ) : null}
     </div>
   );
 }

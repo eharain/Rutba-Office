@@ -476,12 +476,19 @@ export function createDocumentService({ holdBlob }) {
     const count = deck.slideCount;
     const index = Math.max(0, Math.min(slide, Math.max(0, count - 1)));
     const current = count ? deck.slide(index) : null;
+    // One blob per picture part per session: a fifteen-megabyte deck held
+    // ten megabytes of pictures afresh on every operation before this.
+    const blobs = session.blobs || (session.blobs = new Map());
     const resolveImage = (shape) => {
       if (!shape.source?.part) return null;
+      const known = blobs.get(shape.source.part);
+      if (known) return known;
       const bytes = deck.media(shape.source.part);
       if (!bytes) return null;
       const type = shape.source.part.endsWith('.png') ? 'image/png' : shape.source.part.endsWith('.gif') ? 'image/gif' : 'image/jpeg';
-      return holdBlob(bytes, type, path.basename(shape.source.part)).url;
+      const url = holdBlob(bytes, type, path.basename(shape.source.part)).url;
+      blobs.set(shape.source.part, url);
+      return url;
     };
     // Thumbnails, cached per slide against the slide part's own XML: a deck
     // of nineteen slides must not be drawn nineteen times per keystroke, and

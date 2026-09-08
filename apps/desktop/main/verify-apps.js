@@ -186,6 +186,9 @@ function makeFixtures(dir) {
 export async function verifyApps({ windows, doc }) {
   const results = [];
   const opened = [];
+  // If the application quits under the run, the run ends with no summary and
+  // exit code 0 — which looks like success. Say so.
+  import('electron').then(({ app }) => app.once('before-quit', () => console.log('     [before-quit] the application is quitting under the checks'))).catch(() => {});
   const check = (name, ok, detail = '') => {
     results.push({ name, ok, detail });
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
@@ -202,6 +205,10 @@ export async function verifyApps({ windows, doc }) {
     win.webContents.on('console-message', (_event, level, text) => {
       if (level >= 2) console.log(`     [${app}] ${text.split('\n')[0].slice(0, 200)}`);
     });
+    // A window that goes away mid-run takes its checks with it and, once the
+    // last one goes, the whole run — say which one went, and when.
+    win.on('closed', () => console.log(`     [closed] the ${app} window (#${win.id ?? '?'})`));
+    win.webContents.on('render-process-gone', (_e, details) => console.log(`     [gone] the ${app} renderer: ${details.reason}`));
     await new Promise((resolve) => {
       win.webContents.once('did-finish-load', () => setTimeout(resolve, 1300));
     });
@@ -249,15 +256,6 @@ export async function verifyApps({ windows, doc }) {
     const complaints = await errorsIn(win);
     check('word: saving reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
 
-    // Unsaved work must not close. Type again to make it dirty, then ask the
-    // window to close and check that it refused — the prompt is on screen and
-    // the document is still there. Closing the X used to throw the work away
-    // without a word, which is the worst thing an editor can do.
-    win.webContents.insertText('MORE');
-    await wait(500);
-    win.close();
-    await wait(900);
-    check('word: a dirty window refuses to close silently', !win.isDestroyed(), win.isDestroyed() ? 'the window closed and the work went with it' : 'the window is still open, asking');
   } catch (err) {
     check('word: the round trip ran', false, err.message);
   }
@@ -1273,9 +1271,9 @@ export async function verifyApps({ windows, doc }) {
     })()`);
 
     const before = (await deckModel()).count;
-    await clickIn(win, 'New slide');
+    await clickIn(win, 'New Slide');
     await wait(200);
-    await clickMenu(win, 'Title and content');
+    await clickMenu(win, 'Title and Content');
     await until(async () => (await deckModel()).count === before + 1, 'the deck to gain a slide', 4000).catch(() => {});
     const grew = await deckModel();
     const thumbs = await win.webContents.executeJavaScript(`document.querySelectorAll('.sl-thumb').length`);
@@ -1284,14 +1282,14 @@ export async function verifyApps({ windows, doc }) {
     await clickTab(win, 'Insert');
     await wait(150);
     const shapesBefore = (await deckModel()).slide?.shapes?.length ?? 0;
-    await clickIn(win, 'Text box');
+    await clickIn(win, 'Text Box');
     await until(async () => ((await deckModel()).slide?.shapes?.length ?? 0) > shapesBefore, 'a text box to appear', 4000).catch(() => {});
     const shapesAfter = (await deckModel()).slide?.shapes?.length ?? 0;
     check('slides: Insert → Text box puts a text box on the slide', shapesAfter === shapesBefore + 1, `${shapesBefore} → ${shapesAfter} shapes`);
 
-    await clickTab(win, 'Home');
+    await clickTab(win, 'Review');
     await wait(150);
-    await clickIn(win, 'Speaker notes');
+    await clickIn(win, 'Speaker Notes');
     await wait(250);
     await setField(win, '.rw-dialog textarea', 'Say hello first.');
     await win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Save')?.click(), 'saved'`);
@@ -1299,6 +1297,8 @@ export async function verifyApps({ windows, doc }) {
     const noted = await deckModel();
     check('slides: the Speaker notes dialog saves notes', /hello first/.test(noted.slide?.notes || ''), JSON.stringify(noted.slide?.notes || ''));
 
+    await clickTab(win, 'Home');
+    await wait(150);
     await clickIn(win, 'Delete');
     await until(async () => (await deckModel()).count === before, 'the slide to go', 4000).catch(() => {});
     const shrank = await deckModel();
@@ -1308,6 +1308,79 @@ export async function verifyApps({ windows, doc }) {
     check('slides: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check('slides: the button checks ran', false, err.message);
+  }
+
+  /* ── Presentation: the rest of the ribbon, tab by tab ─────────────────── */
+
+  try {
+    const win = await open('slides', files.pptx);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const deckModel = () => js(`(async () => {
+      const all = await window.rutbaOffice.doc.sessions({});
+      const mine = all.filter((s) => s.kind === 'deck').pop();
+      const active = [...document.querySelectorAll('.sl-thumb')].findIndex((t) => t.classList.contains('active'));
+      return window.rutbaOffice.doc.model({ id: mine.id, slide: Math.max(0, active), width: 640 });
+    })()`);
+    const pushLabel = (label) => js(`(() => {
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+      if (!b) return 'no live button ' + ${JSON.stringify(label)};
+      b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
+    })()`);
+    const pushTitle = (title) => js(`(() => {
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      if (!b) return 'no live button ' + ${JSON.stringify(title)};
+      b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
+    })()`);
+
+    // Every PowerPoint tab is reachable and draws its groups; what is not wired says so.
+    const tabs = ['Home', 'Insert', 'Draw', 'Design', 'Transitions', 'Animations', 'Slide Show', 'Record', 'Review', 'View', 'Help', 'PDF'];
+    const groups = {};
+    for (const t of tabs) {
+      await clickTab(win, t);
+      await wait(120);
+      groups[t] = await js(`document.querySelectorAll('.rw-ribbon .rw-group').length`);
+    }
+    check('slides: every PowerPoint tab is there and draws its groups', tabs.every((t) => groups[t] > 0), tabs.map((t) => `${t} ${groups[t]}`).join(', '));
+    await clickTab(win, 'Home');
+    await wait(120);
+    const honest = await js(`(() => {
+      const dead = [...document.querySelectorAll('.rw-ribbon .rw-btn[disabled]')];
+      return { count: dead.length, unexplained: dead.filter((b) => !/not built yet|Select a text box first|decides its own size|Changing it rescales/.test(b.title || '') && !/^(Undo|Redo) /.test(b.title || '')).map((b) => b.title || b.textContent.trim()).slice(0, 5) };
+    })()`);
+    check('slides: every disabled control explains itself', honest.unexplained.length === 0, `${honest.count} disabled on Home with nothing selected; unexplained: ${JSON.stringify(honest.unexplained)}`);
+
+    // View: the Slide Sorter shows every slide, Gridlines draw over the slide.
+    await clickTab(win, 'View');
+    await wait(120);
+    await pushLabel('Slide Sorter');
+    await until(() => js(`document.querySelectorAll('.sl-sortergrid .sl-sortercard').length > 0`), 'the sorter', 4000).catch(() => {});
+    const sorted = await js(`({ cards: document.querySelectorAll('.sl-sortergrid .sl-sortercard').length, pics: document.querySelectorAll('.sl-sortergrid .sl-thumb-pic svg').length })`);
+    const count = (await deckModel()).count;
+    await pushLabel('Normal');
+    await until(() => js(`Boolean(document.querySelector('.sl-slide'))`), 'the normal view', 4000).catch(() => {});
+    check('slides: View → Slide Sorter shows every slide as a picture', sorted.cards === count && sorted.pics === count, `${sorted.cards} cards, ${sorted.pics} pictures, ${count} slides`);
+    await pushLabel('Gridlines');
+    await until(() => js(`Boolean(document.querySelector('.sl-gridlines'))`), 'gridlines', 3000).catch(() => {});
+    const gridded = await js(`Boolean(document.querySelector('.sl-gridlines'))`);
+    await pushLabel('Gridlines');
+    check('slides: View → Gridlines draws them over the slide', gridded, `gridlines shown ${gridded}`);
+
+    // Home: click a text box, then Bold — the run in the file goes bold.
+    await clickTab(win, 'Home');
+    await wait(120);
+    const picked = await js(`(() => { const hit = document.querySelector('.sl-hit'); if (!hit) return 'no text box'; hit.click(); return 'selected'; })()`);
+    await until(() => js(`Boolean(document.querySelector('.sl-hit.selected'))`), 'a selected text box', 3000).catch(() => {});
+    await pushTitle('Bold');
+    await until(async () => { const m = await deckModel(); return m.slide?.shapes?.some((s) => s.text?.paragraphs?.some((p) => p.runs?.some((r) => r.bold))); }, 'a bold run', 4000).catch(() => {});
+    const m = await deckModel();
+    const boldRuns = (m.slide?.shapes || []).flatMap((s) => (s.text?.paragraphs || []).flatMap((p) => (p.runs || []).filter((r) => r.bold))).length;
+    const painted = await js(`/font-weight="bold"|font-weight:\\s*bold|<tspan[^>]*font-weight="700"|font-weight="700"/.test(document.querySelector('.sl-svg')?.innerHTML || '')`);
+    check('slides: Home → Bold makes the selected text box bold, in the file and on the slide', picked === 'selected' && boldRuns > 0 && painted, `${picked}; bold runs ${boldRuns}; painted bold ${painted}`);
+
+    const complaints = await errorsIn(win);
+    check('slides: none of the ribbon checks reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('slides: the ribbon-tab checks ran', false, err.message);
   }
 
   try {
@@ -1326,6 +1399,19 @@ export async function verifyApps({ windows, doc }) {
     await until(() => js(`document.querySelector('.pv-counter').textContent !== ${JSON.stringify(counter)}`), 'the counter to advance', 4000).catch(() => {});
     const advanced = await js(`document.querySelector('.pv-counter').textContent`);
     check('pictures: the Next button moves to the next file', advanced !== counter, `${counter} → ${advanced}`);
+
+    // With a picture open the ribbon is folded to its tabs and the picture
+    // has the room; a tab click peeks the groups over it; the chevron opens
+    // the ribbon back out.
+    const folded = await js(`({ collapsed: document.querySelector('.rw-ribbon')?.classList.contains('collapsed'), groups: document.querySelectorAll('.rw-groups').length, stage: document.querySelector('.pv-stage')?.getBoundingClientRect().height || 0, window: innerHeight, padding: getComputedStyle(document.querySelector('.pv-stage')).paddingTop })`);
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'View')?.click(), 'peek'`);
+    await until(() => js(`Boolean(document.querySelector('.rw-ribbon.peek .rw-groups'))`), 'the peek', 3000).catch(() => {});
+    const peeked = await js(`({ peek: Boolean(document.querySelector('.rw-ribbon.peek .rw-groups')), stage: document.querySelector('.pv-stage')?.getBoundingClientRect().height || 0 })`);
+    await js(`document.querySelector('.rw-collapse')?.click(), 'expand'`);
+    await until(() => js(`!document.querySelector('.rw-ribbon')?.classList.contains('collapsed') && document.querySelectorAll('.rw-groups').length === 1`), 'the ribbon to open', 3000).catch(() => {});
+    const opened = await js(`({ collapsed: document.querySelector('.rw-ribbon')?.classList.contains('collapsed'), groups: document.querySelectorAll('.rw-groups').length, stage: document.querySelector('.pv-stage')?.getBoundingClientRect().height || 0 })`);
+    await js(`document.querySelector('.rw-collapse')?.click(), 'fold again'`);
+    check('pictures: with a picture open the ribbon folds and the picture gets the room', folded.collapsed && folded.groups === 0 && folded.stage > folded.window * 0.7 && folded.padding === '4px' && peeked.peek && peeked.stage === folded.stage && !opened.collapsed && opened.groups === 1 && opened.stage < folded.stage, `folded ${JSON.stringify(folded)}; peek ${JSON.stringify(peeked)}; opened ${JSON.stringify(opened)}`);
 
     const complaints = await errorsIn(win);
     check('pictures: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
@@ -1550,6 +1636,47 @@ export async function verifyApps({ windows, doc }) {
     }
   } catch (err) {
     check('mail: the checks ran', false, err.message);
+  }
+
+  /* ── Last of all: a dirty window refuses to close ─────────────────────── */
+  //
+  // Unsaved work must not close. Type to make a fresh document dirty, ask the
+  // window to close, and check that it refused — the prompt is on screen and
+  // the document is still there. Closing the X used to throw the work away
+  // without a word, which is the worst thing an editor can do.
+  //
+  // LAST, because the refusal is a native, window-modal message box that
+  // nothing can dismiss from here; while it stood mid-run, keystrokes meant
+  // for later checks reached it, answered it, and the run lost windows.
+  try {
+    const win = await open('word', null);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`Boolean(document.querySelector('.wd-page [data-block]'))`), 'the page and its first paragraph', 8000);
+    // Put the caret in the first paragraph the way the round-trip check does,
+    // then insert text through the same path — a keystroke into a page that
+    // has not yet taken focus lands nowhere.
+    await js(`(() => {
+      const page = document.querySelector('.wd-page');
+      const block = page.querySelector('[data-block="0"]');
+      page.focus();
+      const range = document.createRange();
+      range.selectNodeContents(block);
+      range.collapse(false);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return 'caret placed';
+    })()`);
+    await wait(250);
+    win.webContents.insertText('MORE');
+    await until(() => js(`/MORE/.test(document.querySelector('.wd-page')?.textContent || '')`), 'the text to land', 4000);
+    await wait(300);
+    win.close();
+    await wait(900);
+    check('word: a dirty window refuses to close silently', !win.isDestroyed(), win.isDestroyed() ? 'the window closed and the work went with it' : 'the window is still open, asking');
+  } catch (err) {
+    check('word: the dirty-close check ran', false, err.message);
   }
 
   for (const win of opened) win.destroy();

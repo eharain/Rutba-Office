@@ -68,6 +68,15 @@ export default function Pictures({ app, shell, boot }) {
   const [spin, setSpin] = useState(0); // view-only rotation, in quarter turns
   const [showDetails, setShowDetails] = useState(true);
   const [filmstrip, setFilmstrip] = useState(true);
+  // With a picture open the ribbon folds to its tabs, so the picture gets the
+  // room — the top especially. Expanding it is remembered on this machine.
+  const [ribbonCollapsed, setRibbonCollapsed] = useState(() => {
+    try { return localStorage.getItem('pictures.ribbon') !== 'open'; } catch { return true; }
+  });
+  const collapseRibbon = useCallback((next) => {
+    setRibbonCollapsed(next);
+    try { localStorage.setItem('pictures.ribbon', next ? 'collapsed' : 'open'); } catch { /* no storage, no memory */ }
+  }, []);
 
   // The auto-navigator
   const [playing, setPlaying] = useState(false);
@@ -321,6 +330,8 @@ export default function Pictures({ app, shell, boot }) {
           ]}
           active={tab}
           onTab={setTab}
+          collapsed={Boolean(current) && ribbonCollapsed}
+          onCollapse={collapseRibbon}
           quick={
             <>
               <Button icon="chevronLeft" title="Previous" onClick={() => step(-1)} disabled={!files.length} />
@@ -438,7 +449,7 @@ export default function Pictures({ app, shell, boot }) {
 
       <Content>
         <div
-          className="pv-stage"
+          className={`pv-stage${current ? ' viewing' : ''}`}
           onWheel={(e) => {
             if (!e.ctrlKey) return;
             e.preventDefault();
@@ -645,6 +656,8 @@ const CSS = `
   flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center;
   background: var(--sunken); padding: 16px; position: relative;
 }
+/* With a picture open, the stage keeps almost nothing back from it. */
+.pv-stage.viewing { padding: 4px; }
 .pv-image { max-width: 100%; max-height: 100%; object-fit: contain; display: block; box-shadow: var(--shadow-2); }
 .pv-image.zoomed { max-width: none; max-height: none; }
 .pv-image.hidden { display: none; }
