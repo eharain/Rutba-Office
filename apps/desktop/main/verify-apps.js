@@ -687,7 +687,7 @@ export async function verifyApps({ windows, doc }) {
       // table addresses is counting tables.
       const tables = new Set(m.blocks.map((b) => (b.container || '').split(':')[0]).filter(Boolean)).size;
       const drawn = document.querySelectorAll('.wd-page table.wd-table').length;
-      return { format: m.format, block1: m.blocks[1], section: m.section, tables, drawn };
+      return { format: m.format, block1: m.blocks[1], section: m.section, tables, drawn, blocksTotal: m.blocks.length };
     })()`);
 
     // Select the whole of the second paragraph with a real DOM range, and tell
@@ -796,6 +796,37 @@ export async function verifyApps({ windows, doc }) {
     const afterTurn = await state();
     check('word: Layout → orientation turns the page', afterTurn.section?.orientation === 'landscape', `orientation=${afterTurn.section?.orientation}`);
 
+    // A picture, with the bytes a file dialog would have handed over. The
+    // dialog itself is the operating system's and cannot be pressed from here;
+    // everything after it can.
+    if (files.png) {
+      const before = (await state()).blocksTotal;
+      const inserted = await js(`(async () => {
+        const all = await window.rutbaOffice.doc.sessions({});
+        const mine = all.filter((s) => s.kind === 'doc').pop();
+        const { bytes, stat } = await window.rutbaOffice.fs.read({ path: ${JSON.stringify(files.png)} });
+        // Out of the table the previous step left the caret in: the engine
+        // refuses a picture inside a cell, and says so, which is correct.
+        await window.rutbaOffice.doc.apply({ id: mine.id, ops: [
+          { op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 0, offset: 0 } },
+          { op: 'insertImage', name: stat.name, contentType: 'image/png', data: bytes, widthPx: 320, heightPx: 320 },
+        ] });
+        return 'inserted';
+      })()`);
+      await until(async () => (await state()).blocksTotal > before, 'the picture to land', 4000).catch(() => {});
+      // The insert went in behind the window's back, so the page has not heard.
+      // Undo and redo, from the keyboard, put it through the window's own path
+      // — and prove that a picture survives both.
+      await js(`document.querySelector('.wd-page')?.focus(), 'focused'`);
+      await press(win.webContents, 'z', { modifiers: ['control'] });
+      await wait(400);
+      await press(win.webContents, 'y', { modifiers: ['control'] });
+      await until(() => js(`document.querySelectorAll('.wd-page img').length > 0`), 'the picture to be drawn', 4000).catch(() => {});
+      const pictured = await state();
+      const drawnImage = await js(`document.querySelectorAll('.wd-page img').length`);
+      check('word: a picture inserts as its own block and is drawn', pictured.blocksTotal > before && drawnImage > 0, `${inserted}; ${before} → ${pictured.blocksTotal} blocks, ${drawnImage} image(s) on the page`);
+    }
+
     const complaints = await errorsIn(win);
     check('word: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
@@ -880,10 +911,170 @@ export async function verifyApps({ windows, doc }) {
     const bordered = await activeStyle();
     check('sheets: the border menu paints a border', bordered?.borderTop === '1px', `border-top=${bordered?.borderTop}`);
 
+    // A dialog from the ribbon, through to its effect: View → Freeze panes →
+    // "Freeze the top row", and the frame has to say row 1 is frozen.
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'View')?.click(), 'view tab'`);
+    await wait(150);
+    await clickRibbon('Freeze panes');
+    await wait(300);
+    const chosen = await js(`(() => {
+      const item = [...document.querySelectorAll('.rw-dialog .ml-found-item')].find((b) => /Freeze the top row/.test(b.textContent));
+      if (!item) return 'no such choice';
+      item.click();
+      return 'chose';
+    })()`);
+    await until(async () => (await model()).frozen?.rows === 1, 'the top row to freeze', 4000).catch(() => {});
+    const frozen = (await model()).frozen;
+    check('sheets: the Freeze panes dialog freezes the top row', frozen?.rows === 1, `${chosen}; frozen=${JSON.stringify(frozen)}`);
+
     const complaints = await errorsIn(win);
     check('sheets: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check('sheets: the click checks ran', false, err.message);
+  }
+
+  /* ── Presentation, Pictures, Image, Video, Mail: pressed, not driven ──── */
+
+  const clickIn = (win, title) => win.webContents.executeJavaScript(`(() => {
+    const b = [...document.querySelectorAll('.rw-btn, .ml-compose-cta button')].find((n) => (n.title || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled);
+    if (!b) return 'no button ' + ${JSON.stringify(title)};
+    b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+    b.click();
+    return 'clicked';
+  })()`);
+  const clickMenu = (win, label) => win.webContents.executeJavaScript(`(() => {
+    const item = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+    if (!item) return 'no menu item ' + ${JSON.stringify(label)};
+    item.click();
+    return 'clicked';
+  })()`);
+  const clickTab = (win, label) => win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
+  const setField = (win, selector, value) => win.webContents.executeJavaScript(`(() => {
+    const el = document.querySelector(${JSON.stringify(selector)});
+    if (!el) return 'no field ' + ${JSON.stringify(selector)};
+    const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, ${JSON.stringify(value)});
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    return 'set';
+  })()`);
+
+  try {
+    const win = await open('slides', files.pptx);
+    const deckModel = (slide) => win.webContents.executeJavaScript(`(async () => {
+      const all = await window.rutbaOffice.doc.sessions({});
+      const mine = all.filter((s) => s.kind === 'deck').pop();
+      const active = [...document.querySelectorAll('.sl-thumb')].findIndex((t) => t.classList.contains('active'));
+      return window.rutbaOffice.doc.model({ id: mine.id, slide: ${slide === undefined ? 'Math.max(0, active)' : slide}, width: 640 });
+    })()`);
+
+    const before = (await deckModel()).count;
+    await clickIn(win, 'New slide');
+    await wait(200);
+    await clickMenu(win, 'Title and content');
+    await until(async () => (await deckModel()).count === before + 1, 'the deck to gain a slide', 4000).catch(() => {});
+    const grew = await deckModel();
+    const thumbs = await win.webContents.executeJavaScript(`document.querySelectorAll('.sl-thumb').length`);
+    check('slides: the New slide menu adds a slide', grew.count === before + 1 && thumbs === before + 1, `${before} → ${grew.count} slides, ${thumbs} thumbnails`);
+
+    await clickTab(win, 'Insert');
+    await wait(150);
+    const shapesBefore = (await deckModel()).slide?.shapes?.length ?? 0;
+    await clickIn(win, 'Text box');
+    await until(async () => ((await deckModel()).slide?.shapes?.length ?? 0) > shapesBefore, 'a text box to appear', 4000).catch(() => {});
+    const shapesAfter = (await deckModel()).slide?.shapes?.length ?? 0;
+    check('slides: Insert → Text box puts a text box on the slide', shapesAfter === shapesBefore + 1, `${shapesBefore} → ${shapesAfter} shapes`);
+
+    await clickTab(win, 'Home');
+    await wait(150);
+    await clickIn(win, 'Speaker notes');
+    await wait(250);
+    await setField(win, '.rw-dialog textarea', 'Say hello first.');
+    await win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Save')?.click(), 'saved'`);
+    await until(async () => /hello first/.test((await deckModel()).slide?.notes || ''), 'the notes to save', 4000).catch(() => {});
+    const noted = await deckModel();
+    check('slides: the Speaker notes dialog saves notes', /hello first/.test(noted.slide?.notes || ''), JSON.stringify(noted.slide?.notes || ''));
+
+    await clickIn(win, 'Delete');
+    await until(async () => (await deckModel()).count === before, 'the slide to go', 4000).catch(() => {});
+    const shrank = await deckModel();
+    check('slides: the Delete button removes the slide', shrank.count === before, `${grew.count} → ${shrank.count} slides`);
+
+    const complaints = await errorsIn(win);
+    check('slides: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('slides: the button checks ran', false, err.message);
+  }
+
+  try {
+    const win = await open('pictures', files.png);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`Boolean(document.querySelector('.pv-image')) && /\\d+ \\/ \\d+/.test(document.querySelector('.pv-counter')?.textContent || '')`), 'the picture and its counter', 6000);
+    const counter = await js(`document.querySelector('.pv-counter').textContent`);
+
+    await clickIn(win, 'Rotate');
+    await until(() => js(`/rotate\\(90deg\\)/.test(document.querySelector('.pv-image')?.style.transform || '')`), 'the view to rotate', 4000).catch(() => {});
+    const turned = await js(`document.querySelector('.pv-image')?.style.transform || ''`);
+    check('pictures: the Rotate button turns the view', /rotate\(90deg\)/.test(turned), `transform is ${JSON.stringify(turned)}`);
+
+    // The fixture folder holds two files, so Next has somewhere to go.
+    await clickIn(win, 'Next');
+    await until(() => js(`document.querySelector('.pv-counter').textContent !== ${JSON.stringify(counter)}`), 'the counter to advance', 4000).catch(() => {});
+    const advanced = await js(`document.querySelector('.pv-counter').textContent`);
+    check('pictures: the Next button moves to the next file', advanced !== counter, `${counter} → ${advanced}`);
+
+    const complaints = await errorsIn(win);
+    check('pictures: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('pictures: the button checks ran', false, err.message);
+  }
+
+  try {
+    const win = await open('image', files.png);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`(document.querySelector('.im-canvas')?.width || 0) > 0`), 'the picture to reach the canvas', 6000);
+    const ops = () => js(`document.querySelectorAll('.im-op').length`);
+    const start = await ops();
+    await clickIn(win, 'Right');
+    await until(async () => (await ops()) === start + 1, 'a rotate to be recorded', 4000).catch(() => {});
+    await clickIn(win, 'Flip');
+    await until(async () => (await ops()) === start + 2, 'a flip to be recorded', 4000).catch(() => {});
+    const two = await ops();
+    check('image: Rotate and Flip each record an edit', two === start + 2, `${start} → ${two} edits`);
+    await clickIn(win, 'Reset');
+    await until(async () => (await ops()) === 0, 'the edits to clear', 4000).catch(() => {});
+    check('image: Reset clears them', (await ops()) === 0, `${await ops()} edits left`);
+    const complaints = await errorsIn(win);
+    check('image: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('image: the button checks ran', false, err.message);
+  }
+
+  try {
+    const win = await open('video', files.wav);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`document.querySelectorAll('.vd-clip').length > 0`), 'the timeline', 8000);
+    // Move the playhead to the middle with the scrubber, then split there.
+    await js(`(() => {
+      const s = document.querySelector('.vd-scrub');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, String(Number(s.max || 1) / 2));
+      s.dispatchEvent(new Event('input', { bubbles: true }));
+      s.dispatchEvent(new Event('change', { bubbles: true }));
+      return s.value;
+    })()`);
+    await wait(300);
+    const scrubbed = await js(`document.querySelector('.vd-time')?.textContent ?? ''`);
+    // Split lives on the Edit tab. A check that looked for it on Home found
+    // nothing and said "1 clips", which is the wrong sentence for "no button".
+    await clickTab(win, 'Edit');
+    await wait(150);
+    const pressed = await clickIn(win, 'Split');
+    await until(() => js(`document.querySelectorAll('.vd-clip').length === 2`), 'the clip to split in two', 4000).catch(() => {});
+    const clips = await js(`document.querySelectorAll('.vd-clip').length`);
+    check('video: Split at the playhead makes two clips', clips === 2, `${pressed}; playhead at ${scrubbed}; ${clips} clips`);
+    const complaints = await errorsIn(win);
+    check('video: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('video: the button checks ran', false, err.message);
   }
 
   /* ── Mail: a seeded message opens in the reading pane ────────────────── */
@@ -1010,6 +1201,32 @@ export async function verifyApps({ windows, doc }) {
       // a folder changed underneath it.
       const found = await mail('search', { accountId: account, query: 'subject:pricing', limit: 20 });
       check('mail: search follows a message that a rule moved', found.length === 1 && found[0].folder === 'Reading', `${found.length} hits, first in ${JSON.stringify(found[0]?.folder)}`);
+
+      // Compose, from the big button, to the outbox, and back. Send never
+      // goes straight out; it waits in the queue, and Undo takes it back and
+      // reopens the message — which is checked before the queue could fire.
+      await clickIn(win, 'Compose');
+      await wait(400);
+      await js(`(() => {
+        const inputs = [...document.querySelectorAll('.rw-dialog input:not([disabled]):not([type=checkbox])')];
+        const set = (el, v) => { Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); };
+        set(inputs[0], 'someone@example.com');
+        set(inputs[1], 'Hello from the check');
+        return inputs.length;
+      })()`);
+      await wait(200);
+      await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Send')?.click(), 'sent'`);
+      await until(async () => (await mail('outbox')).length === 1, 'the message to reach the outbox', 4000).catch(() => {});
+      const queued = await mail('outbox');
+      const banner = await js(`document.querySelector('.ml-outbox')?.textContent ?? ''`);
+      check('mail: Send puts the message in the outbox with an undo', queued.length === 1 && queued[0].draft?.to === 'someone@example.com' && /Undo/.test(banner), `${queued.length} queued; banner reads ${JSON.stringify(banner.slice(0, 50))}`);
+
+      await js(`document.querySelector('.ml-outbox button')?.click(), 'undo'`);
+      await until(async () => (await mail('outbox')).length === 0, 'the message to come back', 4000).catch(() => {});
+      const reopened = await js(`Boolean(document.querySelector('.rw-dialog')) && (document.querySelector('.rw-dialog input:not([disabled])')?.value || '')`);
+      check('mail: Undo takes it back and reopens it', (await mail('outbox')).length === 0 && reopened === 'someone@example.com', `outbox ${(await mail('outbox')).length}; reopened to ${JSON.stringify(reopened)}`);
+      await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Discard')?.click(), 'discarded'`);
+      await wait(300);
 
       // The attachment view is a place, not a search.
       await js(`(() => {

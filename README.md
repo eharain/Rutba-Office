@@ -227,7 +227,7 @@ npm run smoke -- word   # just one
 ```
 
 `npm run gate` is what runs before a release: 577 engine tests, 9 editing checks,
-53 application checks and 8 window captures, in about 75 seconds.
+86 application checks — 35 of them pressing the real ribbon buttons and reading what the page paints — and 8 window captures, in about 75 seconds.
 
 The window runs are the ones that find what a build cannot. They launch the
 actual application — same main process, same preload, same bundle — in a profile

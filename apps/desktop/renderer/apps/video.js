@@ -112,12 +112,22 @@ export default function VideoTool({ app, shell, boot }) {
     }
   }, []);
 
-  const seek = useCallback((seconds) => {
-    const el = videoRef.current;
-    if (!el) return;
-    el.currentTime = Math.max(0, Math.min(el.duration || 0, seconds));
-    setTime(el.currentTime);
-  }, []);
+  const seek = useCallback(
+    (seconds) => {
+      const el = videoRef.current;
+      if (!el) return;
+      // The requested time, not the element's. Setting `currentTime` starts a
+      // seek that lands later, so reading it straight back gives the old
+      // position — usually 0 — and everything keyed on `time` (Split, Trim, the
+      // clock) acted at the wrong place while the scrubber sat where it was
+      // dragged.
+      const limit = Number.isFinite(el.duration) && el.duration > 0 ? el.duration : duration || 0;
+      const next = Math.max(0, Math.min(limit, seconds));
+      el.currentTime = next;
+      setTime(next);
+    },
+    [duration]
+  );
 
   const split = useCallback(() => {
     if (!timeline) return;
@@ -324,7 +334,10 @@ export default function VideoTool({ app, shell, boot }) {
               className={isAudio ? 'vd-hidden' : 'vd-video'}
               src={fileUrl(path)}
               onLoadedMetadata={onMetadata}
-              onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+              // Not while a seek is pending: the element still reports the old
+              // position then, and taking it would snap the playhead back to
+              // where it was before the drag.
+              onTimeUpdate={(e) => !e.currentTarget.seeking && setTime(e.currentTarget.currentTime)}
               onPlay={() => setPlaying(true)}
               onPause={() => setPlaying(false)}
               onClick={play}

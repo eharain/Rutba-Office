@@ -1463,10 +1463,13 @@ export class DocView {
         text: b.text,
         runs: b.runs.map((r) => this._renderRun(r)),
         ...(b.tracked ? { tracked: b.tracked } : {}),
-        // Cell paragraphs' pictures paint from here — the paged body gets its
-        // images through fragments, but a table cell has no fragment.
-        ...(b.container && b.images?.some((i) => i.href)
-          ? { images: b.images.filter((i) => i.href) } : {}),
+        // Every paragraph's pictures — and its charts and shapes, which ride
+        // the same pipeline as SVG — paint from here. This used to be cell
+        // paragraphs only, on the theory that the paged body gets images
+        // through fragments; the editor draws from these blocks, not from
+        // fragments, so an inserted picture landed in the file and never on
+        // the page.
+        ...(b.images?.some((i) => i.href) ? { images: b.images.filter((i) => i.href) } : {}),
         };
       }),
       selection: {

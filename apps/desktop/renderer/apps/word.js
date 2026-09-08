@@ -739,6 +739,23 @@ const Block = React.memo(function Block({ block, labels }) {
       ) : (
         <br />
       )}
+      {/*
+        Pictures, charts and shapes sit under the paragraph's text as blocks —
+        the engine's own honest simplification of float layout. Not editable:
+        the caret has no business inside a picture, and letting the browser
+        put it there is how an image gets deleted by a stray Backspace.
+      */}
+      {(block.images || []).map((image, i) => (
+        <img
+          key={i}
+          className="wd-image"
+          contentEditable={false}
+          src={image.href}
+          alt={image.name || ''}
+          draggable={false}
+          style={{ width: image.widthPx ? Math.min(image.widthPx, 640) : undefined, height: 'auto', maxWidth: '100%', display: 'block', margin: '6px 0' }}
+        />
+      ))}
     </p>
   );
 });
