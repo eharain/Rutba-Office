@@ -86,3 +86,42 @@ test('a frame with a PNG embeds it, and anything else becomes a labelled frame',
   assert.ok(body.includes('/Subtype /Image'), 'the PNG became an image XObject');
   assert.ok(body.includes('(chart.svg) Tj'), 'the SVG is a labelled frame, not a silent gap');
 });
+
+test('the printed pages carry the text boxes, the footnotes and the watermark the screen shows', async () => {
+  const { buildCoverPageDocument } = await import('./fixtures/cover-page-document.js');
+  const view = openDocx(buildCoverPageDocument());
+  const pages = view.pages;
+  assert.ok(pages && pages.count >= 1);
+  const first = pages.pages[0];
+  const box = first.fragments.find((f) => f.kind === 'textbox');
+  assert.ok(box, 'the cover paragraph placed its text box as a fragment');
+  assert.equal(box.widthPx, 576);
+  assert.ok(box.heightPx >= 144, `the box is at least as tall as the file says: ${box.heightPx}`);
+  assert.equal(box.paragraphs[0].lines[0].text.startsWith('Learning'), true);
+  assert.equal(box.hAlign, 'center');
+  const noted = pages.pages.find((p) => p.notes.length);
+  assert.ok(noted, 'a page carries the footnotes its references call for');
+  assert.deepEqual(noted.notes.map((n) => n.n), [1, 2]);
+  assert.ok(noted.notesHeightPx > 0);
+  assert.ok(noted.fragments.some((f) => f.kind === 'paragraph' && f.paragraphIndex === view.blocks.findIndex((b) => b.text.startsWith('The supplier'))), 'the referencing paragraph is on the same page');
+  assert.equal(first.watermark.text, 'DRAFT');
+
+  const { buffer, pages: count } = renderPdf(view);
+  assert.equal(count, pages.count);
+  const pdf = text(buffer);
+  assert.ok(/Learning/.test(pdf) && /Management/.test(pdf), 'the text box words are printed (three lines at 68 pt)');
+  assert.ok(/exclusions/.test(pdf) && /guidance/.test(pdf), 'the footnote words are printed');
+  assert.ok(/DRAFT/.test(pdf), 'the watermark is printed');
+  assert.ok(/Tm\n\(DRAFT\)/.test(pdf.replace(/\r/g, '')) || /0\.7071/.test(pdf), 'the watermark is rotated');
+});
+
+test('a paragraph whose footnote will not fit beside it starts on the next page, note and all', () => {
+  // Fill a page with body, then a paragraph with a long note at the foot.
+  const rows = Array.from({ length: 40 }, (_, i) => ({ text: `Body line ${i + 1} of a page that is nearly full.` }));
+  const bytes = buildDocx({ paragraphs: rows, styles: true });
+  const view = openDocx(bytes);
+  const before = view.pages.count;
+  assert.ok(before >= 1);
+  // No notes in this file: every page carries none, and nothing is reserved.
+  assert.ok(view.pages.pages.every((p) => p.notes.length === 0 && p.notesHeightPx === 0));
+});

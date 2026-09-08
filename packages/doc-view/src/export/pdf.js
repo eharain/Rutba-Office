@@ -301,6 +301,9 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
 
   for (const sheet of frame.pages.pages) {
     const page = doc.addPage();
+    // The watermark first, so everything else draws over it: the header's
+    // WordArt, rising across the page in the grey Word draws it in.
+    if (sheet.watermark?.text) drawWatermark(page, doc, sheet.watermark, section);
     if (sheet.header) drawBand(page, doc, sheet.header, { xPx, yPx: m.header || m.top / 2, widthPx });
     if (sheet.footer) {
       const lh = lineHeightOf(BAND_SIZE_PX);
@@ -322,6 +325,21 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
         }
         continue;
       }
+      if (fr.kind === 'textbox') {
+        drawTextBox(page, doc, fr, { xPx, yPx: y, widthPx });
+        y += fr.heightPx + IMAGE_GAP;
+        continue;
+      }
+      if (fr.kind === 'note') {
+        // An endnote: its number in the gutter, its words indented past it.
+        y += fr.spaceBefore || 0;
+        drawNoteNumber(page, doc, fr.note, xPx, y, fr);
+        y += drawParagraphLines(page, doc, {
+          lines: fr.lines, fragment: fr, runs: fr.runs, xPx: xPx + NOTE_INDENT_PX, yPx: y, widthPx: widthPx - NOTE_INDENT_PX,
+        });
+        y += fr.spaceAfter || 0;
+        continue;
+      }
       y += fr.spaceBefore || 0;
       const block = byIndex.get(fr.paragraphIndex) || null;
       y += drawParagraphLines(page, doc, {
@@ -331,8 +349,74 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
       });
       y += fr.spaceAfter || 0;
     }
+
+    // The page's footnotes, at its foot: a short rule, then each note with
+    // its number in the gutter — in the room the paginator kept for them.
+    if (sheet.notes?.length) {
+      let ny = m.top + (sheet.contentHeightPx ?? (section.heightPx - m.top - m.bottom)) - sheet.notesHeightPx + 4;
+      page.line(xPx * PT, ny * PT, (xPx + widthPx / 3) * PT, ny * PT, { width: 0.6, colour: '#333333' });
+      ny += NOTE_RULE_PX - 4;
+      for (const note of sheet.notes) {
+        for (const p of note.paragraphs) {
+          ny += p.spaceBefore || 0;
+          if (p === note.paragraphs[0]) drawNoteNumber(page, doc, note.n, xPx, ny, p);
+          ny += drawParagraphLines(page, doc, { lines: p.lines, fragment: p, runs: p.runs, xPx: xPx + NOTE_INDENT_PX, yPx: ny, widthPx: widthPx - NOTE_INDENT_PX });
+          ny += p.spaceAfter || 0;
+        }
+        ny += 2;
+      }
+    }
   }
   return { buffer: doc.toBuffer(), pages: frame.pages.pages.length };
+}
+
+const NOTE_INDENT_PX = 18;
+const NOTE_RULE_PX = 14;
+const BOX_PAD_PX = 7;
+
+/** A note's number, small and raised, in the gutter before its words. */
+function drawNoteNumber(page, doc, n, xPx, yPx, fragment) {
+  const size = Math.max(6, ((fragment.sizePx || BAND_SIZE_PX) * PT) * 0.7);
+  const baseline = (yPx + (fragment.lineHeightPx || lineHeightOf(fragment.sizePx || BAND_SIZE_PX)) * BASELINE - 3) * PT;
+  page.text(String(n), xPx * PT, baseline, { font: 'Helvetica', size, colour: fragment.colour || null });
+}
+
+/**
+ * A text box: its frame — filled and outlined as the shape says, placed by
+ * its alignment — and its paragraphs inside the padding, painted like the
+ * body's from the lines the paginator laid.
+ */
+function drawTextBox(page, doc, fr, { xPx, yPx, widthPx }) {
+  const bx = fr.hAlign === 'center' ? xPx + (widthPx - fr.widthPx) / 2 : fr.hAlign === 'right' ? xPx + widthPx - fr.widthPx : xPx;
+  const fill = fr.fill && /^#[0-9a-fA-F]{6}$/.test(fr.fill) ? fr.fill : null;
+  const stroke = fr.line && /^#[0-9a-fA-F]{6}$/.test(fr.line) ? fr.line : null;
+  if (fill || stroke) page.rect(bx * PT, yPx * PT, fr.widthPx * PT, fr.heightPx * PT, { fill, stroke, width: 0.6 });
+  let y = yPx + BOX_PAD_PX;
+  for (const p of fr.paragraphs || []) {
+    y += p.spaceBefore || 0;
+    y += drawParagraphLines(page, doc, {
+      lines: p.lines, fragment: p, runs: p.runs, xPx: bx + BOX_PAD_PX + (p.indent || 0), yPx: y, widthPx: fr.widthPx - 2 * BOX_PAD_PX - (p.indent || 0),
+    });
+    y += p.spaceAfter || 0;
+  }
+}
+
+/** The watermark: big, grey, rising across the middle of the page. */
+function drawWatermark(page, doc, watermark, section) {
+  const text = String(watermark.text || '').trim();
+  if (!text) return;
+  const size = Math.min(150, Math.max(40, (section.widthPx * PT * 1.1) / Math.max(4, text.length)));
+  const width = doc.widthOf(text, { font: 'Helvetica', size });
+  const rotate = 45;
+  const rad = (rotate * Math.PI) / 180;
+  const cx = (section.widthPx * PT) / 2;
+  const cy = (section.heightPx * PT) / 2;
+  // The baseline runs up and to the right; start it half a width back along
+  // that line so the words sit centred on the page.
+  const x = cx - (width / 2) * Math.cos(rad);
+  const y = cy + (width / 2) * Math.sin(rad) + size * 0.35;
+  const colour = watermark.colour && /^#[0-9a-fA-F]{6}$/.test(watermark.colour) ? watermark.colour : '#C8C8C8';
+  page.text(text, x, y, { font: 'Helvetica', size, colour, rotate });
 }
 
 /**

@@ -85,17 +85,23 @@ class Page {
    * positions by, and converting in two places is how text drifts by an
    * ascent.
    */
-  text(value, x, y, { font = 'Helvetica', size = 10, colour: fill = null, late = false } = {}) {
+  text(value, x, y, { font = 'Helvetica', size = 10, colour: fill = null, late = false, rotate = 0 } = {}) {
     const name = this._use(font);
     const bytes = encode(value);
     if (!bytes.length) return 0;
     const ops = [];
     const rgb = colour(fill);
     if (rgb) ops.push('q', `${rgb.join(' ')} rg`);
+    // `rotate` turns the text counter-clockwise about its own origin, in
+    // degrees — a watermark rising across the page. The text matrix carries
+    // the rotation; nothing else on the page is touched.
+    const rad = (Number(rotate) || 0) * (Math.PI / 180);
+    const c = Math.cos(rad);
+    const s = Math.sin(rad);
     ops.push(
       'BT',
       `/${name} ${num(size)} Tf`,
-      `1 0 0 1 ${num(x)} ${num(this.height - y)} Tm`,
+      `${num(c)} ${num(s)} ${num(-s)} ${num(c)} ${num(x)} ${num(this.height - y)} Tm`,
       `${pdfString(value)} Tj`,
       'ET',
     );

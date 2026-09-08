@@ -220,7 +220,7 @@ const TABLE_SPACE_AFTER = 12;
  * @param {number}   [input.maxPages] a runaway guard; a measurement bug must not
  *   produce a million empty sheets and take the browser with it
  */
-export function paginate({ flow, blocks, section, maxPages = 500, cache = null, styles = null, listLabels = null }) {
+export function paginate({ flow, blocks, section, maxPages = 500, cache = null, styles = null, listLabels = null, notes = null, watermark = null }) {
   // No page geometry means no pages — an email body is a continuous flow, and
   // saying so is better than inventing A4 for it.
   if (!section) return null;
@@ -237,17 +237,44 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
   let used = 0;
 
   const newPage = () => {
-    current = { index: pages.length, number: pages.length + 1, fragments: [], contentHeightPx: height };
+    // `notes` are the footnotes this page carries at its foot, and
+    // `notesHeightPx` the room they take — reserved from the page's height
+    // the moment their reference lands here, so body text never runs over
+    // them. The watermark rides every page.
+    current = { index: pages.length, number: pages.length + 1, fragments: [], contentHeightPx: height, notes: [], notesHeightPx: 0, watermark };
     pages.push(current);
     used = 0;
     return current;
   };
   newPage();
 
-  const remaining = () => height - used;
+  const remaining = () => height - used - current.notesHeightPx;
   const place = (fragment, cost) => {
     current.fragments.push(fragment);
     used += cost;
+  };
+
+  /**
+   * A DISPLAYED paragraph (a text box's, a note's) laid out at a width: the
+   * lines and the look, the way a body fragment carries them, plus the runs
+   * so the writer can paint the words in their own formatting.
+   */
+  const layShown = (p, at) => {
+    const laid = layoutParagraph(p, at, { styles });
+    return {
+      lines: laid.lines, lineHeightPx: laid.lineHeightPx, indent: laid.indentPx ?? 0,
+      sizePx: laid.style.sizePx, weight: laid.style.weight ?? 'normal', italic: Boolean(laid.style.italic), colour: laid.style.colour ?? null,
+      align: p.align ?? laid.style.align ?? null, runs: p.runs || [],
+      spaceBefore: p.spaceBeforePx ?? laid.style.spaceBefore ?? 0, spaceAfter: p.spaceAfterPx ?? laid.style.spaceAfter ?? 0,
+    };
+  };
+  const heightOf = (laidParagraphs) => laidParagraphs.reduce((s, p) => s + p.spaceBefore + p.lines.length * p.lineHeightPx + p.spaceAfter, 0);
+
+  // Footnotes by id, laid out once: the same note is never referenced twice.
+  const noteById = new Map((notes?.footnotes || []).map((n) => [n.id, n]));
+  const layNote = (note) => {
+    const paragraphs = (note.paragraphs || []).map((p) => layShown(p, width - NOTE_INDENT_PX));
+    return { n: note.n, id: note.id, paragraphs, heightPx: heightOf(paragraphs) + 2 };
   };
 
   for (const entry of flow ?? []) {
@@ -279,6 +306,20 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     // Direct paragraph spacing beats the style's, exactly as Word resolves it.
     let spaceBefore = block.spacing?.beforePx ?? style.spaceBefore;
     const spaceAfter = block.spacing?.afterPx ?? style.spaceAfter;
+
+    // The footnotes this paragraph references go at the foot of the page its
+    // first line lands on — Word's rule — so their room is reserved before
+    // the line is placed, and a paragraph whose notes will not fit beside it
+    // starts on the next page, notes and all.
+    const pageNotes = (block.runs || [])
+      .filter((r) => r.noteRef?.kind === 'footnote' && noteById.has(r.noteRef.id))
+      .map((r) => layNote(noteById.get(r.noteRef.id)));
+    if (pageNotes.length) {
+      const cost = pageNotes.reduce((s, n) => s + n.heightPx, 0) + (current.notes.length ? 0 : NOTE_RULE_PX);
+      if (remaining() - spaceBefore - cost < lineHeightPx && current.fragments.length) { newPage(); spaceBefore = 0; }
+      current.notesHeightPx += pageNotes.reduce((s, n) => s + n.heightPx, 0) + (current.notes.length ? 0 : NOTE_RULE_PX);
+      current.notes.push(...pageNotes);
+    }
 
     while (cursor < lines.length) {
       // Only the LINES have to fit. The space after a paragraph is empty room
@@ -356,12 +397,44 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
       if (cost > remaining() && current.fragments.length) newPage();
       place({ kind: 'images', paragraphIndex: block.index, images: drawn }, cost);
     }
+
+    // Text boxes ride under their paragraph like pictures do — the same
+    // honest simplification of float layout the screen makes. The box is as
+    // tall as the file says or as its words need, whichever is more, and is
+    // pushed whole onto the next sheet rather than cut.
+    for (const box of block.textBoxes || []) {
+      const boxWidth = Math.max(40, Math.min(width, box.widthPx || width));
+      const paragraphs = (box.paragraphs || []).map((p) => layShown(p, boxWidth - 2 * BOX_PAD_PX));
+      const heightPx = Math.min(height, Math.max(box.heightPx || 0, heightOf(paragraphs) + 2 * BOX_PAD_PX));
+      if (heightPx > remaining() && current.fragments.length) newPage();
+      place({
+        kind: 'textbox', paragraphIndex: block.index, widthPx: boxWidth, heightPx,
+        fill: box.fill || null, line: box.line || null, hAlign: box.hAlign || null, paragraphs,
+      }, heightPx + IMAGE_GAP);
+    }
+  }
+
+  // Endnotes come after everything, as their name says: each laid out as a
+  // paragraph of its own, numbered where its mark is.
+  for (const note of notes?.endnotes || []) {
+    for (const p of note.paragraphs || []) {
+      const laid = layShown(p, width - NOTE_INDENT_PX);
+      const cost = laid.spaceBefore + laid.lines.length * laid.lineHeightPx + laid.spaceAfter;
+      if (cost > remaining() && current.fragments.length) newPage();
+      place({ kind: 'note', note: note.n, ...laid, first: true, last: true, structural: true, structuralTags: ['w:endnote'] }, cost);
+    }
   }
 
   const count = pages.length;
   for (const page of pages) page.of = count;
   return { pages, count, contentWidthPx: width, contentHeightPx: height };
 }
+
+/** The room a note takes from the page: its indent, and the rule above the first. */
+const NOTE_INDENT_PX = 18;
+const NOTE_RULE_PX = 14;
+/** A text box's padding, the way Word insets a shape's words. */
+const BOX_PAD_PX = 7;
 
 /**
  * Place a table, breaking BETWEEN ROWS.

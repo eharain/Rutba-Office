@@ -201,15 +201,18 @@ export class DocView {
     // because deleting item two renumbers item three.
     this._loadDefinitions();
     const listLabels = computeListLabels(this.flow, this.blocks, this._numberingDefs);
-    const laid = paginate({
-      flow: this.flow, blocks: this.blocks, section,
-      cache: this._lineCache, styles: this._docStyles, listLabels,
-    });
-    if (!laid) return (this._pages = null);
-
     const bands = typeof this.doc.headerFooters === 'function'
       ? this.doc.headerFooters()
       : { headers: {}, footers: {} };
+    // The notes go to the paginator numbered, so each page can carry the
+    // footnotes its references call for; the watermark rides every page.
+    const laid = paginate({
+      flow: this.flow, blocks: this.blocks, section,
+      cache: this._lineCache, styles: this._docStyles, listLabels,
+      notes: this._notes(), watermark: bands.watermark ?? null,
+    });
+    if (!laid) return (this._pages = null);
+
     const opts = { titlePage: section.titlePage, evenAndOdd: section.evenAndOdd };
 
     for (const page of laid.pages) {
