@@ -151,10 +151,46 @@ export function dateToSerial(date) {
   return days >= 60 ? days + 1 : days;
 }
 
+/**
+ * A Date for a serial — for anything that needs a calendar. Serial 60 has no
+ * Date: it is 29 February 1900, which never happened, so it answers as
+ * 1 March. Use `serialToParts` where the day matters.
+ */
 export function serialToDate(serial) {
   const n = Math.floor(serial);
   const days = n > 60 ? n - 1 : n;
   return new Date(EPOCH_UTC + days * MS_PER_DAY);
+}
+
+/**
+ * The calendar parts of a serial, as Excel has them.
+ *
+ * Serial 60 is 29 February 1900 in Excel and in every file Excel wrote; no
+ * Date can hold it, so the parts are given directly. The weekday is Excel's
+ * arithmetic, not the calendar's: serial 1 was a Sunday to Excel, whatever
+ * the almanac says of 1 January 1900, and from 1 March 1900 the two agree —
+ * the phantom day cancels the error. A workbook's WEEKDAY() must agree with
+ * Excel's, which is why it is not read off a Date.
+ *
+ * @returns {{ y: number, m: number, d: number, weekday: number }} m is the
+ *   month index (January 0); weekday is 0 for Sunday.
+ */
+export function serialToParts(serial) {
+  const n = Math.floor(serial);
+  const weekday = (((n - 1) % 7) + 7) % 7;
+  if (n === 60) return { y: 1900, m: 1, d: 29, weekday };
+  const date = serialToDate(n);
+  return { y: date.getUTCFullYear(), m: date.getUTCMonth(), d: date.getUTCDate(), weekday };
+}
+
+/**
+ * The serial of a year, month index and day, with Excel's overflow —
+ * (2023, 12, 1) is January 2024, (2023, 0, 0) is the last of December 2022 —
+ * and the day that never existed: (1900, 1, 29) and (1900, 2, 0) are 60.
+ */
+export function partsToSerial(y, m, d) {
+  if (y === 1900 && ((m === 1 && d === 29) || (m === 2 && d === 0))) return 60;
+  return dateToSerial(new Date(Date.UTC(y, m, d)));
 }
 
 /**

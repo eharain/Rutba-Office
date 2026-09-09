@@ -15,6 +15,7 @@
     ".": "./src/index.js",
     "./functions": "./src/functions.js",
     "./parser": "./src/parser.js",
-    "./catalog": "./src/catalog.js"
+    "./catalog": "./src/catalog.js",
+    "./numfmt": "./src/numfmt.js"
   }
 }

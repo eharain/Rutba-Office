@@ -42,6 +42,14 @@ export class Selection {
     /** Column that Enter returns to after a run of Tabs. */
     this.entryCol = col;
     this.entryRow = row;
+    /**
+     * The other rectangles, when Ctrl+click has added some. The rectangle
+     * anchor and extent describe is always the one being worked on; these
+     * are the ones already made. A plain click or arrow drops them, as a
+     * spreadsheet does; Shift grows the current one and leaves them.
+     * @type {Array<{top:number,bottom:number,left:number,right:number}>}
+     */
+    this.ranges = [];
   }
 
   static at(row, col) { return new Selection({ row, col }); }
@@ -62,15 +70,38 @@ export class Selection {
 
   contains(row, col) {
     const r = this.range;
-    return row >= r.top && row <= r.bottom && col >= r.left && col <= r.right;
+    if (row >= r.top && row <= r.bottom && col >= r.left && col <= r.right) return true;
+    return this.ranges.some((q) => row >= q.top && row <= q.bottom && col >= q.left && col <= q.right);
+  }
+
+  /** Every rectangle, the one being worked on last. */
+  get allRanges() {
+    return [...this.ranges, this.range];
+  }
+
+  get isMultiple() {
+    return this.ranges.length > 0;
   }
 
   collapseTo(row, col) {
+    this.ranges = [];
     this.anchor = { row, col };
     this.extent = { row, col };
     this.active = { row, col };
     this.entryCol = col;
     this.entryRow = row;
+    return this;
+  }
+
+  /**
+   * Ctrl+click: keep what is selected and start another rectangle here. The
+   * active cell moves to the new one, as it does in Excel, so typing goes
+   * where the last click was.
+   */
+  beginAnother(row, col) {
+    const kept = [...this.ranges, this.range];
+    this.collapseTo(row, col);
+    this.ranges = kept;
     return this;
   }
 
@@ -158,12 +189,19 @@ export class Selection {
 
   /** Every cell in the selection, row-major. Guarded against enormous ranges. */
   *cells({ limit = 100000 } = {}) {
-    const r = this.range;
     let n = 0;
-    for (let row = r.top; row <= r.bottom; row++) {
-      for (let col = r.left; col <= r.right; col++) {
-        if (++n > limit) return;
-        yield { row, col };
+    const seen = this.ranges.length ? new Set() : null;
+    for (const r of this.allRanges) {
+      for (let row = r.top; row <= r.bottom; row++) {
+        for (let col = r.left; col <= r.right; col++) {
+          if (seen) {
+            const k = row * 16384 + col;
+            if (seen.has(k)) continue;
+            seen.add(k);
+          }
+          if (++n > limit) return;
+          yield { row, col };
+        }
       }
     }
   }
@@ -174,14 +212,13 @@ export class Selection {
     s.active = { ...this.active };
     s.entryCol = this.entryCol;
     s.entryRow = this.entryRow;
+    s.ranges = this.ranges.map((r) => ({ ...r }));
     return s;
   }
 
   toString() {
-    const r = this.range;
-    return r.top === r.bottom && r.left === r.right
-      ? ref(r.top, r.left)
-      : ref(r.top, r.left) + ':' + ref(r.bottom, r.right);
+    const one = (r) => (r.top === r.bottom && r.left === r.right ? ref(r.top, r.left) : ref(r.top, r.left) + ':' + ref(r.bottom, r.right));
+    return this.allRanges.map(one).join(',');
   }
 }
 

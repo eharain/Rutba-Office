@@ -837,29 +837,65 @@ export class SheetView {
         width: frozen.cols ? geo.colOffset(frozen.cols) : 0,
         height: frozen.rows ? geo.rowOffset(frozen.rows) : 0,
       },
-      selection: {
-        ...this.selection.range,
-        ref: this.selection.toString(),
-        active: { ...active, ref: ref(active.row, active.col) },
-      },
-      // The active cell's validation rule, for the in-cell dropdown and the
-      // author's input prompt. Null for the unruled majority.
-      validation: (() => {
-        const rule = this.validationAt(active.row, active.col);
-        if (!rule) return null;
-        const list = rule.type === 'list' && !rule.suppressDropdown
-          ? this.validationOptions(rule, active.row, active.col)
-          : null;
-        return {
-          type: rule.type,
-          prompt: rule.prompt,
-          promptTitle: rule.promptTitle,
-          list: list && list.length ? list : null,
-        };
-      })(),
+      selection: this._selectionFields(active),
+      validation: this._validationFields(active),
       formulaBar: this.editing ? this.editing.draft : this.editValue(active.row, active.col),
       editing: this.editing ? { ...this.editing } : null,
       status: this.statusLine(),
+    };
+  }
+
+  _selectionFields(active) {
+    return {
+      ...this.selection.range,
+      ref: this.selection.toString(),
+      active: { ...active, ref: ref(active.row, active.col) },
+      // Every rectangle when Ctrl+click has added some; the grid paints them all.
+      ranges: this.selection.isMultiple ? this.selection.allRanges : null,
+    };
+  }
+
+  /**
+   * The active cell's validation rule, for the in-cell dropdown and the
+   * author's input prompt. Null for the unruled majority.
+   */
+  _validationFields(active) {
+    const rule = this.validationAt(active.row, active.col);
+    if (!rule) return null;
+    const list = rule.type === 'list' && !rule.suppressDropdown
+      ? this.validationOptions(rule, active.row, active.col)
+      : null;
+    return {
+      type: rule.type,
+      prompt: rule.prompt,
+      promptTitle: rule.promptTitle,
+      list: list && list.length ? list : null,
+    };
+  }
+
+  /**
+   * What a selection move changes when nothing scrolls: the selection, the
+   * active cell's format, validation and formula-bar text, the status strip
+   * and the canvas extent. The cells on screen are the same cells, so the
+   * frame — a quarter of a megabyte on a wide sheet, a hundred milliseconds
+   * to build — need not be built or sent. An arrow key on an eighteen-
+   * million-cell workbook took that long, and a held key queued one per
+   * repeat.
+   */
+  selectionFrame() {
+    const geo = this.geo;
+    const vp = geo.viewport({ scrollX: this.scrollX, scrollY: this.scrollY, width: this.viewportWidth, height: this.viewportHeight });
+    const active = this.selection.active;
+    return {
+      selection: this._selectionFields(active),
+      format: this.formatState(),
+      validation: this._validationFields(active),
+      formulaBar: this.editing ? this.editing.draft : this.editValue(active.row, active.col),
+      status: this.statusLine(),
+      total: this._stickyTotal(geo, {
+        maxRow: Math.max(this.bounds.maxRow, this.selection.range.bottom, vp.lastRow),
+        maxCol: Math.max(this.bounds.maxCol, this.selection.range.right, vp.lastCol),
+      }),
     };
   }
 
@@ -890,10 +926,11 @@ export class SheetView {
 
   // ---- interaction -------------------------------------------------------
 
-  select(row, col, { extend = false } = {}) {
+  select(row, col, { extend = false, add = false } = {}) {
     // A cell change ends the run: "type in A1, click B4, type" is two undos.
     this.history.break();
-    if (extend) this.selection.extendTo(row, col);
+    if (add) this.selection.beginAnother(row, col);
+    else if (extend) this.selection.extendTo(row, col);
     else this.selection.collapseTo(row, col);
     this.ensureVisible();
     return this;
@@ -1556,20 +1593,22 @@ export class SheetView {
    * (format, clear, sort) is the part of it that exists, and a bounded
    * selection keeps those operations bounded too.
    */
-  selectColumn(col, { extend = false } = {}) {
+  selectColumn(col, { extend = false, add = false } = {}) {
     this.history.break();
     const maxRow = Math.max(this.bounds.maxRow, this.selection.range.bottom);
     const anchorCol = extend ? this.selection.anchor.col : col;
-    this.selection.collapseTo(0, anchorCol);
+    if (add) this.selection.beginAnother(0, col);
+    else this.selection.collapseTo(0, anchorCol);
     this.selection.extendTo(maxRow, col);
     return this;
   }
 
-  selectRow(row, { extend = false } = {}) {
+  selectRow(row, { extend = false, add = false } = {}) {
     this.history.break();
     const maxCol = Math.max(this.bounds.maxCol, this.selection.range.right);
     const anchorRow = extend ? this.selection.anchor.row : row;
-    this.selection.collapseTo(anchorRow, 0);
+    if (add) this.selection.beginAnother(row, 0);
+    else this.selection.collapseTo(anchorRow, 0);
     this.selection.extendTo(row, maxCol);
     return this;
   }

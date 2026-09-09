@@ -25,7 +25,7 @@
  *   - `[Red]` and friends are colour, not text. They come back as a hint so the
  *     view can apply it, rather than being printed.
  */
-import { serialToDate, formatNumber } from '@rutba/formula';
+import { serialToParts, formatNumber } from './values.js';
 
 /** ECMA-376 §18.8.30 built-in formats. */
 export const BUILTIN_FORMATS = {
@@ -214,7 +214,8 @@ function renderNumber(value, pattern, { percent }) {
 const pad = (n, width) => String(n).padStart(width, '0');
 
 function renderDate(value, tokens, { elapsed }) {
-  const date = serialToDate(value);
+  // The parts, not a Date: serial 60 is 29 February 1900 here, as in Excel.
+  const date = serialToParts(value);
   const dayFraction = value - Math.floor(value);
   const totalSeconds = Math.round(dayFraction * 86400);
   const hours24 = Math.floor(totalSeconds / 3600);
@@ -229,12 +230,12 @@ function renderDate(value, tokens, { elapsed }) {
     const lower = raw.toLowerCase();
     if (lower === 'am/pm') return hours24 < 12 ? 'AM' : 'PM';
     if (lower === 'a/p') return hours24 < 12 ? 'A' : 'P';
-    if (/^y{3,4}$/.test(lower)) return String(date.getUTCFullYear());
-    if (/^y{1,2}$/.test(lower)) return pad(date.getUTCFullYear() % 100, 2);
-    if (/^d{4}$/.test(lower)) return DAYS[date.getUTCDay()];
-    if (/^d{3}$/.test(lower)) return DAYS[date.getUTCDay()].slice(0, 3);
-    if (/^d{2}$/.test(lower)) return pad(date.getUTCDate(), 2);
-    if (/^d$/.test(lower)) return String(date.getUTCDate());
+    if (/^y{3,4}$/.test(lower)) return String(date.y);
+    if (/^y{1,2}$/.test(lower)) return pad(date.y % 100, 2);
+    if (/^d{4}$/.test(lower)) return DAYS[date.weekday];
+    if (/^d{3}$/.test(lower)) return DAYS[date.weekday].slice(0, 3);
+    if (/^d{2}$/.test(lower)) return pad(date.d, 2);
+    if (/^d$/.test(lower)) return String(date.d);
     if (/^h+$/.test(lower)) {
       if (elapsed) return String(Math.floor(value * 24));
       const h = usesAmPm ? hours12 : hours24;
@@ -244,14 +245,98 @@ function renderDate(value, tokens, { elapsed }) {
     if (/^\.0+$/.test(lower)) return '.' + pad(0, raw.length - 1);
     if (/^m+$/.test(lower)) {
       if (t.meaning === 'minute') return raw.length > 1 ? pad(minutes, 2) : String(minutes);
-      if (raw.length === 5) return MONTHS[date.getUTCMonth()][0];
-      if (raw.length === 4) return MONTHS[date.getUTCMonth()];
-      if (raw.length === 3) return MONTHS[date.getUTCMonth()].slice(0, 3);
-      if (raw.length === 2) return pad(date.getUTCMonth() + 1, 2);
-      return String(date.getUTCMonth() + 1);
+      if (raw.length === 5) return MONTHS[date.m][0];
+      if (raw.length === 4) return MONTHS[date.m];
+      if (raw.length === 3) return MONTHS[date.m].slice(0, 3);
+      if (raw.length === 2) return pad(date.m + 1, 2);
+      return String(date.m + 1);
     }
     return raw;
   }).join('');
+}
+
+/**
+ * A scientific code: mantissa placeholders, `E`, a sign rule and exponent
+ * placeholders — `0.00E+00`, `##0.0E+0`. `E+` always writes the sign, `E-`
+ * only when it is negative; the exponent is padded to its placeholders. More
+ * than one integer placeholder is Excel's engineering notation: the exponent
+ * is a multiple of their count, so `##0.0E+0` shows 1234567 as 1.2E+6 and
+ * 12345678 as 12.3E+6.
+ */
+const SCIENTIFIC = /^([#0,]*)(?:\.([0#]*))?E([+-])(0+)$/i;
+
+function renderScientific(magnitude, body) {
+  const [, intCode, fracCode = '', signRule, expCode] = SCIENTIFIC.exec(body.trim());
+  const k = Math.max(1, (intCode.match(/[0#]/g) || []).length);
+  let exponent = 0;
+  let mantissa = 0;
+  if (magnitude > 0) {
+    const order = Math.floor(Math.log10(magnitude));
+    exponent = k > 1 ? Math.floor(order / k) * k : order;
+    mantissa = magnitude / Math.pow(10, exponent);
+    // Rounding can carry the mantissa to the next power: 9.995 at two places is 10.00.
+    const places = fracCode.length;
+    if (Number(mantissa.toFixed(places)) >= Math.pow(10, k)) {
+      exponent += k > 1 ? k : 1;
+      mantissa = magnitude / Math.pow(10, exponent);
+    }
+  }
+  const mantissaText = renderNumber(mantissa, `${intCode || '0'}${fracCode ? '.' + fracCode : ''}`, {});
+  const sign = exponent < 0 ? '-' : signRule === '+' ? '+' : '';
+  return `${mantissaText}E${sign}${String(Math.abs(exponent)).padStart(expCode.length, '0')}`;
+}
+
+/**
+ * A fraction code: an optional whole part, then numerator placeholders, a
+ * slash, and denominator placeholders or a fixed denominator — `# ?/?`,
+ * `# ??/??`, `?/8`, `0 ?/16`. Excel's rules: the placeholders' count bounds
+ * the denominator (one `?` allows up to 9, two up to 99); `?` pads with a
+ * space so a column of fractions lines up; a whole part of `#` disappears
+ * when it is zero and leaves its space behind, which is why a half in
+ * `# ?/?` is " 1/2"; a fraction that rounds away leaves spaces its width.
+ */
+const FRACTION = /^([#0]*)(\s*)([?#0]+)\/([?#0]+|[1-9][0-9]*)(.*)$/;
+
+function renderFraction(magnitude, body) {
+  const m = FRACTION.exec(body.trim());
+  const [, wholeCode, gap, numCode, denCode, tail] = m;
+  const mixed = wholeCode.length > 0;
+  let whole = mixed ? Math.floor(magnitude) : 0;
+  const rest = mixed ? magnitude - whole : magnitude;
+  let num;
+  let den;
+  if (/^[0-9]+$/.test(denCode)) {
+    den = Number(denCode);
+    num = Math.round(rest * den);
+  } else {
+    // The closest fraction with a denominator the placeholders allow.
+    const maxDen = Math.pow(10, denCode.length) - 1;
+    let best = { num: Math.round(rest), den: 1, err: Math.abs(rest - Math.round(rest)) };
+    for (let d = 2; d <= maxDen; d++) {
+      const n = Math.round(rest * d);
+      const err = Math.abs(rest - n / d);
+      if (err + 1e-12 < best.err) best = { num: n, den: d, err };
+      if (err === 0) break;
+    }
+    num = best.num;
+    den = best.den;
+  }
+  if (num >= den && den > 0 && mixed) {
+    whole += Math.floor(num / den);
+    num -= Math.floor(num / den) * den;
+  }
+  const padLeft = (s, code) => (code.includes('?') ? s.padStart(code.length, ' ') : s);
+  const padRight = (s, code) => (code.includes('?') ? s.padEnd(code.length, ' ') : s);
+  let out = '';
+  if (mixed) out += whole === 0 && !wholeCode.includes('0') ? '' : String(whole);
+  out += gap;
+  if (num === 0 && mixed) {
+    // Nothing to show past the whole number: spaces where the fraction would be.
+    out += ' '.repeat(numCode.length + 1 + denCode.length);
+  } else {
+    out += padLeft(String(num), numCode) + '/' + padRight(String(den), denCode);
+  }
+  return out + tail;
 }
 
 /**
@@ -302,6 +387,16 @@ export function formatValue(value, code = 'General') {
   if (isDateFormat(body)) {
     const tokens = classifyMonthMinute(tokenize(body));
     return { text: renderDate(value, tokens, { elapsed }), colour, align: 'right' };
+  }
+
+  if (SCIENTIFIC.test(body.trim())) {
+    const sign = sections.length > 1 || value >= 0 ? '' : '-';
+    return { text: sign + renderScientific(Math.abs(value), body), colour, align: 'right' };
+  }
+
+  if (FRACTION.test(body.trim())) {
+    const sign = sections.length > 1 || value >= 0 ? '' : '-';
+    return { text: sign + renderFraction(Math.abs(value), body), colour, align: 'right' };
   }
 
   const tokens = tokenize(body);

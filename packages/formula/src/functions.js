@@ -20,9 +20,10 @@
 import {
   ERR, FormulaError, isError, isBlank, firstError,
   toNumber, toText, toBoolean, compareValues, roundHalfAwayFromZero,
-  dateToSerial, serialToDate, numericText,
+  dateToSerial, serialToDate, serialToParts, partsToSerial, numericText,
 } from './values.js';
 import { indexToCol } from './parser.js';
+import { formatValue } from './numfmt.js';
 
 /** Flatten range results into a list of scalars. */
 const flatten = (args) => args.flat(Infinity);
@@ -162,10 +163,10 @@ function wildcardRegex(pattern) {
   );
 }
 
-/** Excel's date parts from a serial, via the shared 1900-epoch arithmetic. */
+/** Excel's date parts from a serial, via the shared 1900-epoch arithmetic — 29 February 1900 included. */
 const partsOf = (serial) => {
-  const d = serialToDate(serial);
-  return { y: d.getUTCFullYear(), m: d.getUTCMonth(), day: d.getUTCDate() };
+  const p = serialToParts(serial);
+  return { y: p.y, m: p.m, day: p.d };
 };
 
 /** Serial of (year, monthIndex, day), clamping day into the month like EDATE does. */
@@ -415,19 +416,12 @@ export const FUNCTIONS = {
     if (isError(raw)) return raw;
     const pattern = text1(fmt);
     if (isError(pattern)) return pattern;
-    const n = toNumber(raw);
+    // The grid's own formatter, so a date code, a percentage, a fraction, a
+    // currency or a colour section answers as the cell shows it — including
+    // 29 February 1900. Text that is not a number stays text, as in Excel.
+    const n = typeof raw === 'number' ? raw : toNumber(raw);
     if (isError(n)) return toText(raw);
-    // A deliberately small subset: thousands separators and fixed decimals.
-    // Anything else returns the plain rendering rather than guessing.
-    const m = /^([#,]*)0*(?:\.(0+))?$/.exec(pattern.replace(/["']/g, ''));
-    if (!m) return toText(raw);
-    const decimals = m[2] ? m[2].length : 0;
-    const grouped = pattern.includes(',');
-    return n.toLocaleString('en-US', {
-      minimumFractionDigits: decimals,
-      maximumFractionDigits: decimals,
-      useGrouping: grouped,
-    });
+    return formatValue(n, pattern).text;
   }),
 
   // ---- lookup -------------------------------------------------------------
@@ -507,11 +501,11 @@ export const FUNCTIONS = {
     const dd = num1(d);
     const e = firstError([yy, mm, dd]);
     if (e) return e;
-    return dateToSerial(new Date(Date.UTC(yy, mm - 1, dd)));
+    return partsToSerial(yy, mm - 1, dd);
   }),
-  YEAR: def((v) => { const n = num1(v); return isError(n) ? n : serialToDate(n).getUTCFullYear(); }),
-  MONTH: def((v) => { const n = num1(v); return isError(n) ? n : serialToDate(n).getUTCMonth() + 1; }),
-  DAY: def((v) => { const n = num1(v); return isError(n) ? n : serialToDate(n).getUTCDate(); }),
+  YEAR: def((v) => { const n = num1(v); return isError(n) ? n : serialToParts(n).y; }),
+  MONTH: def((v) => { const n = num1(v); return isError(n) ? n : serialToParts(n).m + 1; }),
+  DAY: def((v) => { const n = num1(v); return isError(n) ? n : serialToParts(n).d; }),
 
   // ---- maths, the wider set ----------------------------------------------
   PI: def(() => Math.PI),
@@ -969,7 +963,7 @@ export const FUNCTIONS = {
     if (isError(s)) return s;
     const t = type === undefined ? 1 : num1(type);
     if (isError(t)) return t;
-    const sunday0 = serialToDate(s).getUTCDay(); // 0 = Sunday
+    const sunday0 = serialToParts(s).weekday; // 0 = Sunday, by Excel's arithmetic
     if (t === 1) return sunday0 + 1;
     if (t === 2) return sunday0 === 0 ? 7 : sunday0;
     if (t === 3) return sunday0 === 0 ? 6 : sunday0 - 1;

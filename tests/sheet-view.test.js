@@ -2551,3 +2551,35 @@ test('clear validation: in the selection, on the sheet, and the honest refusals'
   assert.throws(() => sealed.addValidationRule({ kind: 'list', items: ['x'] }), /protected/);
   assert.equal(sealed.history.past.length, 0);
 });
+
+test('Ctrl+click keeps what is selected and starts another rectangle', () => {
+  const s = Selection.at(0, 0);
+  s.extendTo(1, 1); // A1:B2
+  s.beginAnother(3, 3); // D4
+  s.extendTo(4, 3); // D4:D5
+  assert.equal(s.isMultiple, true);
+  assert.equal(s.toString(), 'A1:B2,D4:D5');
+  assert.deepEqual(s.active, { row: 3, col: 3 }, 'typing goes where the last click was');
+  assert.ok(s.contains(1, 1) && s.contains(4, 3), 'both rectangles are selected');
+  assert.ok(!s.contains(2, 2), 'the gap between them is not');
+  assert.equal([...s.cells()].length, 6, 'every cell of both, once each');
+  const copy = s.clone();
+  assert.equal(copy.toString(), 'A1:B2,D4:D5');
+  // A plain click drops the others, as a spreadsheet does; Shift grows the current one.
+  s.collapseTo(6, 6);
+  assert.equal(s.isMultiple, false);
+  assert.equal(s.toString(), 'G7');
+  s.beginAnother(0, 0).beginAnother(2, 2);
+  s.extendTo(2, 3);
+  assert.equal(s.toString(), 'G7,A1,C3:D3');
+  s.move('down', { extend: true });
+  assert.equal(s.toString(), 'G7,A1,C3:D4', 'Shift+arrow grows the current rectangle and keeps the rest');
+  s.move('right');
+  assert.equal(s.toString(), 'D3', 'a plain arrow collapses to one cell');
+  // Overlapping rectangles count a cell once.
+  s.collapseTo(0, 0);
+  s.extendTo(2, 2);
+  s.beginAnother(1, 1);
+  s.extendTo(3, 3);
+  assert.equal([...s.cells()].length, 9 + 9 - 4);
+});
