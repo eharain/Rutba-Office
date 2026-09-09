@@ -9,7 +9,9 @@ with the network switched off.
 
 | | | |
 |---|---|---|
-| **Mail** | Every account, every archive, one inbox | An address and a password — the servers are found from the domain's own records — with sign-in to Gmail, Outlook.com and Microsoft 365, plus the archives other clients leave behind — Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg`. Names the trackers in a message, and offers the way off the list |
+| **Mail** | Every account, every archive, one inbox | An address and a password — the servers are found from the domain's own records — with sign-in to Gmail, Outlook.com and Microsoft 365, or a file of accounts set up at once; plus the archives other clients leave behind — Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg`. Names the trackers in a message, and offers the way off the list |
+| **Calendar** | Meetings, kept on your own machine | Month, week, day and agenda; `.ics` in and out, repeats and time zones included; an invitation in a message answered from Mail, with a reply the organizer's calendar understands |
+| **Contacts** | The address book Mail completes from | `.vcf` and CSV in, vCards out; a sender kept from the reading pane in one click |
 | **Word** | Documents that open the same everywhere | `.docx` on an engine we own, reading `.odt`, `.rtf`, `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.ods` and `.csv` |
 | **Presentation** | Slides that survive the round trip | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen |
@@ -117,7 +119,7 @@ installations on the version they have.
 git clone https://github.com/eharain/Rutba-Office.git office
 cd office
 npm install
-npm test          # 632 tests, no network needed
+npm test          # 688 tests, no network needed
 npm run build     # bundle the renderer
 npm start         # run the app
 npm run dist      # installers for this platform, into apps/desktop/release
@@ -276,7 +278,7 @@ Other things worth reading:
 
 ```bash
 npm run gate            # all four passes, in the order that finds problems soonest
-npm test                # the engine suite — 632 checks, no windows
+npm test                # the engine suite — 688 checks, no windows
 npm run verify:edit     # do keystrokes reach the document?
 npm run verify:apps     # does each app open, change and save a real file?
 npm run smoke           # boot the real app, photograph every window, report
@@ -285,8 +287,8 @@ RUTBA_CORPUS_DIRS="D:\docs" npm run verify:corpus   # open every file in a folde
 node tools/fuzz-open.js 500                         # damage good files at random; every one must draw or refuse in a sentence
 ```
 
-`npm run gate` is what runs before a release: 632 engine tests, 9 editing checks,
-136 application checks — most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard — and 8 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about a quarter of an hour.
+`npm run gate` is what runs before a release: 688 engine tests, 9 editing checks,
+165 application checks — most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard — and 10 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about two and a half minutes.
 
 The window runs are the ones that find what a build cannot. They launch the
 actual application — same main process, same preload, same bundle — in a profile
