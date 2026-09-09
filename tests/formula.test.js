@@ -1069,3 +1069,33 @@ test('a reference to an empty cell is nothing, not a zero', () => {
   assert.equal(at('=MIN(A1,F1)'), 5, 'nor in the minimum');
   assert.equal(at('=SUM(1,2,3)'), 6, 'ordinary arguments are untouched');
 });
+
+test('an array constant is a grid, and a ragged one is padded the way Excel pads it', () => {
+  // {1,2;3,4} — commas across, semicolons down. The semicolon is the awkward
+  // part: outside braces it is what a great many locales type instead of a
+  // comma between arguments, and it has meant that here since the beginning.
+  assert.equal(evalIn('=SUM({1;2;3})'), 6);
+  assert.equal(evalIn('=SUM({1,2;3,4})'), 10);
+  assert.equal(evalIn('=COUNT({1;2;3})'), 3);
+  assert.equal(evalIn('=MAX({1,9;3,4})'), 9);
+  assert.equal(evalIn('=INDEX({1,2;3,4},2,1)'), 3, 'two rows down, one across');
+  assert.equal(evalIn('=SUM({"a";"b"})'), 0, 'text in an array is skipped, as in a range');
+  // A row shorter than the widest is padded with #N/A rather than with zero,
+  // so the hole is visible.
+  assert.equal(String(evalIn('=SUM({1,2;3})')), '#N/A');
+  // And a semicolon between arguments still separates arguments.
+  assert.equal(evalIn('=SUM(1;2;3)'), 6);
+});
+
+test('LET names a value and then uses it', () => {
+  assert.equal(evalIn('=LET(x,2,x*3)'), 6);
+  assert.equal(evalIn('=LET(x,2,y,x*5,x+y)'), 12, 'a later value may use an earlier name');
+  assert.equal(evalIn('=LET(rate,0.2,total,50,total*rate)'), 10);
+  // A LET inside a LET has its own names and gives them back afterwards.
+  assert.equal(evalIn('=LET(x,1,LET(x,2,x)+x)'), 3);
+  assert.equal(evalIn('=LET(x,2,x)+LET(y,3,y)'), 5);
+  // The shape of the call is checked before anything is evaluated.
+  assert.equal(String(evalIn('=LET(x,2)')), '#VALUE!', 'a name with no calculation');
+  assert.equal(String(evalIn('=LET(x,2,y,3)')), '#VALUE!', 'an even number of arguments');
+  assert.equal(String(evalIn('=LET(1,2,3)')), '#VALUE!', 'the name has to be a name');
+});

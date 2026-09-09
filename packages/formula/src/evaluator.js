@@ -54,6 +54,9 @@ export function evaluate(ast, resolver, context = {}) {
   };
   if (ctx.depth > 128) return ERR.NUM('formula nested too deeply');
 
+  /** Names LET has bound, innermost last. Empty for every other formula. */
+  const bindings = new Map();
+
   const evalNode = (node) => {
     switch (node.type) {
       case 'literal':
@@ -87,7 +90,23 @@ export function evaluate(ast, resolver, context = {}) {
         return resolver.getRange(sheet, start, end);
       }
 
+      // An array constant, as a grid of values. A row shorter than the widest
+      // is padded with #N/A, which is what Excel does and what makes the
+      // padding visible rather than a quiet zero.
+      case 'array': {
+        const width = node.rows.reduce((n, row) => Math.max(n, row.length), 0);
+        return node.rows.map((row) => {
+          const values = row.map((cell) => scalar(evalNode(cell)));
+          while (values.length < width) values.push(ERR.NA('this row of the array is shorter than the widest'));
+          return values;
+        });
+      }
+
       case 'name': {
+        // A name LET bound is this formula's own, and hides a defined name of
+        // the same spelling for as long as the calculation runs.
+        const bound = String(node.name).toUpperCase();
+        if (bindings.has(bound)) return bindings.get(bound);
         const resolved = resolver.getName ? resolver.getName(node.name, ctx.sheet) : null;
         if (resolved === null || resolved === undefined) return ERR.NAME('unknown name "' + node.name + '"');
         if (typeof resolved === 'object' && resolved.start && resolved.end) {
@@ -277,6 +296,35 @@ export function evaluate(ast, resolver, context = {}) {
   }
 
   function call(node) {
+    /**
+     * LET names a value and then uses it, which needs the calculation held
+     * back while the names are bound: an ordinary function has its arguments
+     * evaluated first, and `x` means nothing until `x` is bound.
+     *
+     * Each value may use the names before it, as Excel's does, and the
+     * bindings are put back afterwards so a LET inside a LET cannot leak.
+     */
+    if (node.name === 'LET') {
+      const args = node.args;
+      if (args.length < 3 || args.length % 2 === 0) {
+        return ERR.VALUE('LET takes a name and a value for each name, and then one calculation');
+      }
+      const saved = new Map(bindings);
+      try {
+        for (let i = 0; i + 2 < args.length; i += 2) {
+          const named = args[i];
+          if (!named || named.type !== 'name') return ERR.VALUE('LET names each value before the calculation that uses it');
+          const value = evalNode(args[i + 1]);
+          if (isError(value)) return value;
+          bindings.set(String(named.name).toUpperCase(), value);
+        }
+        return evalNode(args[args.length - 1]);
+      } finally {
+        bindings.clear();
+        for (const [key, value] of saved) bindings.set(key, value);
+      }
+    }
+
     // ROW and COLUMN read a reference's POSITION, which only the AST still
     // knows — by the time arguments are evaluated a cell is just its value.
     // Handled here rather than in the library, and before evaluation, so

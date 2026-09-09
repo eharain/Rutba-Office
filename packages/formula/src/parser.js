@@ -30,6 +30,7 @@ const T = {
   NUMBER: 'number', STRING: 'string', BOOL: 'bool', ERROR: 'error',
   REF: 'ref', NAME: 'name', FUNC: 'func', STRUCT: 'struct',
   OP: 'op', LPAREN: '(', RPAREN: ')', COMMA: ',', COLON: ':', PERCENT: '%',
+  LBRACE: '{', RBRACE: '}', SEMI: ';',
 };
 
 const REF_RE = /^(?:(?:'((?:[^']|'')+)'|([A-Za-z_][A-Za-z0-9_.]*))!)?(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?![\w(])/;
@@ -42,6 +43,8 @@ export function tokenize(input) {
   const src = String(input).startsWith('=') ? String(input).slice(1) : String(input);
   const tokens = [];
   let i = 0;
+  /** How deep inside an array constant we are, which decides what `;` means. */
+  let braces = 0;
 
   const prev = () => tokens[tokens.length - 1];
   // A '-' is unary when nothing value-like precedes it.
@@ -177,7 +180,14 @@ export function tokenize(input) {
 
     if (ch === '(') { tokens.push({ type: T.LPAREN }); i += 1; continue; }
     if (ch === ')') { tokens.push({ type: T.RPAREN }); i += 1; continue; }
-    if (ch === ',' || ch === ';') { tokens.push({ type: T.COMMA }); i += 1; continue; }
+    // An array constant: {1,2;3,4} is two rows of two. Inside the braces a
+    // semicolon starts a row; outside them it is what a great many locales
+    // type instead of a comma between arguments, which is why it has meant
+    // "comma" here since the first version.
+    if (ch === '{') { tokens.push({ type: T.LBRACE }); braces += 1; i += 1; continue; }
+    if (ch === '}') { tokens.push({ type: T.RBRACE }); braces = Math.max(0, braces - 1); i += 1; continue; }
+    if (ch === ';') { tokens.push({ type: braces > 0 ? T.SEMI : T.COMMA }); i += 1; continue; }
+    if (ch === ',') { tokens.push({ type: T.COMMA }); i += 1; continue; }
     if (ch === ':') { tokens.push({ type: T.COLON }); i += 1; continue; }
     if (ch === '%') { tokens.push({ type: T.PERCENT }); i += 1; continue; }
 
@@ -444,6 +454,25 @@ export function parse(input) {
         };
       }
       return startNode;
+    }
+
+    // An array constant. Excel writes rows with `;` and columns with `,`, and
+    // pads a ragged one with #N/A so that every row is the width of the
+    // widest — which is what makes {1,2;3} a 2×2 rather than an error.
+    if (t.type === T.LBRACE) {
+      next();
+      const rows = [[]];
+      if (peek().type !== T.RBRACE) {
+        for (;;) {
+          rows[rows.length - 1].push(parseComparison());
+          const after = peek();
+          if (after.type === T.COMMA) { next(); continue; }
+          if (after.type === T.SEMI) { next(); rows.push([]); continue; }
+          break;
+        }
+      }
+      expect(T.RBRACE);
+      return { type: 'array', rows };
     }
 
     if (t.type === T.NAME) { next(); return { type: 'name', name: t.value }; }
