@@ -32,6 +32,41 @@ const SPECIAL = [
   { test: /(archive)/i, role: 'archive', icon: 'archive', order: 5 },
 ];
 
+/**
+ * One entry of an accounts file, in our shape — or null when it has no
+ * address or no server. Clients name these fields differently (host or
+ * imapHost or imap.host; port; secure or ssl), so the reading is loose,
+ * and the ports decide the security when nothing says: 993 and 465 are
+ * TLS, anything else is upgraded with STARTTLS.
+ */
+function accountFromEntry(e) {
+  if (!e || typeof e !== 'object') return null;
+  const email = String(e.email || e.address || '').trim();
+  if (!email.includes('@')) return null;
+  const imapIn = e.imap && typeof e.imap === 'object' ? e.imap : {};
+  const smtpIn = e.smtp && typeof e.smtp === 'object' ? e.smtp : {};
+  const imapHost = String(imapIn.host || e.imapHost || e.host || e.server || e.incoming || '').trim();
+  const smtpHost = String(smtpIn.host || e.smtpHost || e.outgoing || imapHost).trim();
+  if (!imapHost) return null;
+  const imapPort = Number(imapIn.port || e.imapPort || e.port || 993);
+  const smtpPort = Number(smtpIn.port || e.smtpPort || 587);
+  const on = (v, fallback) => (v === undefined || v === null ? fallback : v === true || v === 1 || /^(true|1|ssl|tls|yes)$/i.test(String(v)));
+  const imapSecure = on(imapIn.secure ?? e.imapSecure ?? e.secure ?? e.ssl, imapPort === 993);
+  const smtpSecure = on(smtpIn.secure ?? e.smtpSecure ?? e.smtpSsl, smtpPort === 465);
+  const user = String(imapIn.user || e.user || e.username || e.login || '').trim() || undefined;
+  return {
+    email,
+    name: String(e.name || e.displayName || e.fullName || '').trim() || email,
+    imap: { host: imapHost, port: imapPort, secure: imapSecure, starttls: !imapSecure, user },
+    smtp: { host: smtpHost, port: smtpPort, secure: smtpSecure, starttls: !smtpSecure && (smtpIn.starttls ?? e.smtpStarttls) !== false, user: String(smtpIn.user || e.smtpUser || '').trim() || user },
+    colour: e.colour || e.color || null,
+    signature: typeof e.signature === 'string' ? e.signature : '',
+  };
+}
+
+/** The password an entry carries, whatever it calls it. */
+const passwordOf = (e) => String(e?.password ?? e?.pass ?? e?.pwd ?? e?.imap?.pass ?? e?.imap?.password ?? '');
+
 function classify(name) {
   const leaf = String(name).split(/[/.]/).pop();
   for (const s of SPECIAL) if (s.test.test(leaf)) return s;
@@ -263,6 +298,70 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       } catch (err) {
         result.smtp = { ok: false, message: err.message };
         result.error = result.error || err.message;
+      }
+      return result;
+    },
+
+    /**
+     * Accounts from a file, set up at once: the file another client kept,
+     * or the one an administrator hands out. A JSON array of entries such as
+     * { email, password, host, port, smtpHost, smtpPort, smtpSecure } — or
+     * an object of them, or { accounts: [...] } — read loosely, see
+     * accountFromEntry. `only` names the addresses wanted. Each is tried
+     * before it is kept, as the dialog does, unless `test` is off; a check
+     * run never asks the network and keeps them untried. An address
+     * already set up is left as it is. The answer names addresses and
+     * outcomes and never a password, and the file is not changed.
+     */
+    importAccounts: async ({ path: target, only = null, test = true }) => {
+      const raw = JSON.parse(fs.readFileSync(target, 'utf8'));
+      const entries = Array.isArray(raw)
+        ? raw
+        : Array.isArray(raw?.accounts)
+          ? raw.accounts
+          : raw && typeof raw === 'object'
+            ? Object.entries(raw).map(([key, value]) => (value && typeof value === 'object' ? { email: value.email || key, ...value } : null))
+            : [];
+      const wanted = only && only.length ? new Set(only.map((e) => String(e).trim().toLowerCase())) : null;
+      const have = new Set(accounts().map((a) => String(a.email).toLowerCase()));
+      const result = { added: [], skipped: [], failed: [], total: entries.length, chosen: 0 };
+      for (const entry of entries) {
+        const shaped = accountFromEntry(entry);
+        const email = (shaped?.email || String(entry?.email || '')).toLowerCase();
+        if (wanted && !wanted.has(email)) continue;
+        result.chosen++;
+        if (!shaped) {
+          result.skipped.push({ email: email || '(no address)', reason: 'no address or no server' });
+          continue;
+        }
+        if (have.has(email)) {
+          result.skipped.push({ email, reason: 'already set up' });
+          continue;
+        }
+        const password = passwordOf(entry);
+        if (!password) {
+          result.skipped.push({ email, reason: 'no password' });
+          continue;
+        }
+        let tried = null;
+        if (test && !CHECK_RUN) {
+          tried = await service.testAccount({ account: shaped, password });
+          if (!tried.imap?.ok) {
+            result.failed.push({ email, message: tried.imap?.message || tried.error || 'could not sign in' });
+            continue;
+          }
+        }
+        const record = service.addAccount({ account: shaped, password });
+        have.add(email);
+        result.added.push({
+          id: record.id,
+          email,
+          imap: `${shaped.imap.host}:${shaped.imap.port}`,
+          smtp: `${shaped.smtp.host}:${shaped.smtp.port}`,
+          folders: tried?.imap?.folders ?? null,
+          smtpOk: tried ? Boolean(tried.smtp?.ok) : null,
+          smtpMessage: tried && !tried.smtp?.ok ? tried.smtp?.message || null : null,
+        });
       }
       return result;
     },

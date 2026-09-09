@@ -211,7 +211,15 @@ function makeFixtures(dir) {
   const icon = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\//, '')), '..', 'resources', 'icon.png');
   if (fs.existsSync(icon)) fs.copyFileSync(icon, at('picture.png'));
 
+  // A file of accounts, the loose way other clients write one.
+  fs.writeFileSync(at('accounts.json'), JSON.stringify([
+    { email: 'one@checks.example', password: 'not-a-real-password', host: 'mail.checks.example', port: 993, smtpPort: 587, smtpSecure: false, label: 'one' },
+    { email: 'two@checks.example', password: 'not-a-real-password', imap: { host: 'imap.checks.example', port: 143, secure: false }, smtp: { host: 'smtp.checks.example', port: 465, secure: true }, name: 'Two' },
+    { email: 'nothing@checks.example', host: 'mail.checks.example' },
+  ], null, 2));
+
   return {
+    accounts: at('accounts.json'),
     docx: at('report.docx'),
     xlsx: at('sales.xlsx'),
     pptx: at('deck.pptx'),
@@ -1951,7 +1959,16 @@ export async function verifyApps({ windows, doc }) {
     await until(() => js(`document.querySelector('.ml-search')?.dataset.state === 'nothing'`), 'an unknown domain to be said so', 6000).catch(() => {});
     const unknown = await js(`(() => { const s = document.querySelector('.ml-search'); return { state: s?.dataset.state, text: (s?.textContent || '').slice(0, 160) }; })()`);
     check('mail: a domain nothing knows says so, and leaves the fields to the person', unknown.state === 'nothing' && /nowhere\.example/.test(unknown.text), JSON.stringify(unknown));
+    const fromFile = await js(`Boolean([...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => /^From a file/.test(b.textContent.trim())))`);
     await js(`[...document.querySelectorAll('.rw-btn, button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 'closed'`);
+    // The file itself, through the service: two set up as the file says,
+    // one left out for having no password, and none tried on the network.
+    const imported = await js(`window.rutbaOffice.mail.importAccounts({ path: ${JSON.stringify(files.accounts)} })`);
+    const listed = await js(`(async () => (await window.rutbaOffice.mail.accounts()).filter((a) => /checks\\.example$/.test(a.email)).map((a) => ({ email: a.email, name: a.name, imap: a.imap.host + ':' + a.imap.port + (a.imap.secure ? ' tls' : ' starttls'), smtp: a.smtp.host + ':' + a.smtp.port + (a.smtp.secure ? ' tls' : ' starttls'), hasPassword: a.hasPassword })))()`);
+    check('mail: a file of accounts sets them up at once, ports deciding the security, and the dialog offers it', fromFile && imported.added.length === 2 && imported.skipped.length === 1 && imported.skipped[0].reason === 'no password' && listed.length === 2 && listed.every((a) => a.hasPassword) && listed[0].imap === 'mail.checks.example:993 tls' && listed[0].smtp === 'mail.checks.example:587 starttls' && listed[1].name === 'Two' && listed[1].imap === 'imap.checks.example:143 starttls' && listed[1].smtp === 'smtp.checks.example:465 tls', `${JSON.stringify(imported)}; ${JSON.stringify(listed)}; button ${fromFile}`);
+    const again = await js(`window.rutbaOffice.mail.importAccounts({ path: ${JSON.stringify(files.accounts)} })`);
+    check('mail: the same file again sets up nothing twice', again.added.length === 0 && again.skipped.filter((x) => x.reason === 'already set up').length === 2, JSON.stringify(again));
+    for (const a of imported.added) await js(`window.rutbaOffice.mail.removeAccount({ id: ${JSON.stringify(a.id)} })`);
   } catch (err) {
     check('mail: the account dialog checks ran', false, err.message);
   }

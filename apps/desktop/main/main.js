@@ -4,8 +4,10 @@
 // every platform capability; this file only says which app opens which file and
 // hands the shell the two namespaces that know about documents and mail.
 
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { app as electron } from 'electron';
 import { createShell, holdBlob, broadcast } from '@rutba/office-shell/electron/main';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { fileAssociations, APPS } from '@rutba/office-formats/registry';
@@ -116,6 +118,47 @@ createShell({
     if (process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE) {
       stores.settings.set('announcements.enabled', false);
       stores.settings.set('updates.automatic', false);
+    }
+
+    // `--import-accounts=<file>` sets up the accounts in a file before the
+    // first window: how an administrator's file, or another client's,
+    // becomes a working Mail without a dialog per address. `--accounts=a,b`
+    // picks addresses from it, `--sync` fetches each new inbox, and with
+    // `--quit` the application leaves rather than opening a window. What
+    // happened is printed — addresses and outcomes, never a password.
+    const importFlag = process.argv.find((a) => a.startsWith('--import-accounts='));
+    if (importFlag) {
+      const file = importFlag.slice('--import-accounts='.length).replace(/^"|"$/g, '');
+      const onlyFlag = process.argv.find((a) => a.startsWith('--accounts='));
+      const only = onlyFlag ? onlyFlag.slice('--accounts='.length).split(',').map((e) => e.trim()).filter(Boolean) : null;
+      const report = { file };
+      try {
+        report.result = await services.mail.importAccounts({ path: file, only, test: true });
+        if (process.argv.includes('--sync')) {
+          report.synced = [];
+          for (const added of report.result.added) {
+            try {
+              const r = await services.mail.sync({ accountId: added.id, limit: 100 });
+              report.synced.push({ email: added.email, added: r.added, total: r.total });
+            } catch (err) {
+              report.synced.push({ email: added.email, error: err?.message || String(err) });
+            }
+          }
+        }
+      } catch (err) {
+        report.error = err?.message || String(err);
+      }
+      // Written synchronously: on Windows a pipe is asynchronous, and an
+      // exit right after console.log can lose the line.
+      try {
+        fs.writeSync(1, `[import-accounts] ${JSON.stringify(report)}\n`);
+      } catch {
+        console.log(`[import-accounts] ${JSON.stringify(report)}`);
+      }
+      if (process.argv.includes('--quit')) {
+        setTimeout(() => electron.exit(report.error ? 1 : 0), 300);
+        return undefined;
+      }
     }
 
     // Every half minute, whatever is unsaved. Nothing is written for a

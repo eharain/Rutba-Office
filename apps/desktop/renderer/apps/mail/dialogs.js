@@ -116,7 +116,7 @@ export function Discovered({ scan, onImportStore, onUseAccount }) {
 
 /* ── import ──────────────────────────────────────────────────────────────── */
 
-export function ImportDialog({ scan, onClose, onChoose, onImportStore, onUseAccount }) {
+export function ImportDialog({ scan, onClose, onChoose, onImportStore, onUseAccount, onImportAccounts }) {
   return (
     <Dialog
       title="Import mail"
@@ -137,7 +137,12 @@ export function ImportDialog({ scan, onClose, onChoose, onImportStore, onUseAcco
         <li><strong>.mbox</strong> — Thunderbird, Apple Mail, Google Takeout</li>
         <li><strong>.eml</strong>, <strong>.msg</strong> — single messages, or a folder full of them</li>
       </ul>
-      <p className="rw-hint">Nothing is sent anywhere. The import reads the file and writes to this computer only.</p>
+      <p style={{ marginTop: 10, marginBottom: 6, fontWeight: 600, fontSize: 12.5 }}>Or set up accounts from a file</p>
+      <p className="rw-hint" style={{ marginBottom: 6 }}>
+        A JSON file of accounts — address, password, servers — from another client or from whoever runs your mail. Each is tried before it is kept; one already set up is left alone.
+      </p>
+      <Button label="Choose an accounts file…" onClick={onImportAccounts} className="ml-import-accounts" />
+      <p className="rw-hint" style={{ marginTop: 10 }}>Nothing is sent anywhere. The import reads the file and writes to this computer only.</p>
     </Dialog>
   );
 }
@@ -216,7 +221,7 @@ export function ImportPreview({ found, onCancel, onImport }) {
 
 /* ── account setup ───────────────────────────────────────────────────────── */
 
-export function AccountDialog({ shell, seed, onClose, onSaved, toast }) {
+export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts, toast }) {
   // An address and a password. Everything else is found: the provider table,
   // the domain's MX and SRV records, autoconfig, Microsoft autodiscover, and a
   // knock on the conventional names (main/mail-discover.js). What was found is
@@ -383,6 +388,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, toast }) {
       actions={
         <>
           <Button label="Cancel" onClick={onClose} />
+          {onImportAccounts ? <Button label="From a file…" title="Set up the accounts in a file, all at once" className="ml-import-accounts" onClick={onImportAccounts} /> : null}
           <Button label={advanced ? 'Simple' : 'Advanced…'} onClick={() => setAdvanced((a) => !a)} />
           <Button label={testing ? 'Testing…' : 'Test'} disabled={testing || adding || !ready || !form.password} onClick={test} />
           <Button primary label={adding ? 'Adding…' : 'Add account'} disabled={adding || testing || !ready || !form.password} onClick={add} />

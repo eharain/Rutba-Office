@@ -566,6 +566,31 @@ export default function Mail({ app, shell }) {
     if (paths[0]) importFrom(paths[0]);
   }, [shell, importFrom]);
 
+  // A file of accounts: the picker, the service, and what came of it.
+  const importAccountsFrom = useCallback(async () => {
+    const paths = await shell.dialog.open({
+      title: 'Set up accounts from a file',
+      filters: [
+        { name: 'Accounts (JSON)', extensions: ['json'] },
+        { name: 'All files', extensions: ['*'] },
+      ],
+    });
+    if (!paths[0]) return;
+    setDialog(null);
+    try {
+      const r = await shell.mail.importAccounts({ path: paths[0], test: true });
+      await loadAccounts();
+      if (r.added.length) setAccountId(r.added[0].id);
+      const parts = [];
+      if (r.added.length) parts.push(`${r.added.length} set up`);
+      if (r.skipped.length) parts.push(`${r.skipped.length} left as ${r.skipped.length === 1 ? 'it was' : 'they were'}`);
+      if (r.failed.length) parts.push(`${r.failed.length} could not sign in: ${r.failed.map((f) => f.email).join(', ')}`);
+      toast(parts.length ? `${parts.join('; ')}.` : 'No accounts in that file.', { tone: r.failed.length ? 'bad' : r.added.length ? 'good' : 'plain', ms: 8000 });
+    } catch (err) {
+      toast(err.message, { tone: 'bad', ms: 8000 });
+    }
+  }, [shell, loadAccounts, toast]);
+
   const runImport = useCallback(
     async (target, chosen) => {
       setDialog({ kind: 'importing', path: target });
@@ -1276,6 +1301,7 @@ export default function Mail({ app, shell }) {
             setDialog(null);
             loadAccounts();
           }}
+          onImportAccounts={importAccountsFrom}
           toast={toast}
         />
       ) : null}
@@ -1287,6 +1313,7 @@ export default function Mail({ app, shell }) {
           onChoose={chooseImport}
           onImportStore={(path) => importFrom(path)}
           onUseAccount={(found) => setDialog({ kind: 'account', seed: found })}
+          onImportAccounts={importAccountsFrom}
         />
       ) : null}
 
