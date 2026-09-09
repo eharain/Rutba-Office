@@ -1,0 +1,15 @@
+{
+  "name": "@rutba/calendar",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "iCalendar without a server: RFC 5545 read and write, recurrence expanded with its exceptions, time zones resolved, and the invitation round trip (REQUEST, REPLY, CANCEL) that mail carries.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./ical": "./src/ical.js",
+    "./recur": "./src/recur.js",
+    "./tz": "./src/tz.js"
+  },
+  "sideEffects": false
+}

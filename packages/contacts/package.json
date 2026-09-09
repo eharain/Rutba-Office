@@ -1,0 +1,17 @@
+{
+  "name": "@rutba/contacts",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "vCard without a server: 2.1, 3.0 and 4.0 read and written — names, emails, phones, addresses, photos, birthdays, the groups Apple writes and the encodings Outlook leaves — and the CSV address books Google and Outlook export.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./vcard": "./src/vcard.js",
+    "./csv": "./src/csv.js"
+  },
+  "dependencies": {
+    "@rutba/calendar": "*"
+  },
+  "sideEffects": false
+}
