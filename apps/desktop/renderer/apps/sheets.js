@@ -276,9 +276,9 @@ export default function Sheets({ app, shell, boot }) {
   const startingRef = useRef(false);
 
   useEffect(() => {
-    if (editing) setDraft((d) => (d == null ? editing.draft ?? '' : d));
+    if (editing) putDraft((d) => (d == null ? editing.draft ?? '' : d));
     else {
-      setDraft(null);
+      putDraft(null);
       startingRef.current = false;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -293,14 +293,29 @@ export default function Sheets({ app, shell, boot }) {
   }, [editing?.row, editing?.col]);
 
   /** Hand the finished text to the engine, then move as a spreadsheet does. */
+  /**
+   * The draft as it stands, not as the last render saw it.
+   *
+   * Enter is handled by a callback that closed over `draft`, and a keystroke
+   * 60 ms before it can arrive between the state update and the render that
+   * carries it: "hello" typed briskly into the formula bar committed "hell".
+   * The ref is written in the same breath as the state, so what is committed
+   * is what was typed however far behind the rendering is.
+   */
+  const draftRef = useRef(null);
+  const putDraft = useCallback((value) => {
+    draftRef.current = typeof value === 'function' ? value(draftRef.current) : value;
+    setDraft(draftRef.current);
+  }, []);
+
   const commitDraft = useCallback(
     (move = 'down') => {
-      const text = draft ?? '';
-      setDraft(null);
+      const text = draftRef.current ?? '';
+      putDraft(null);
       startingRef.current = false;
       return dispatch({ op: 'updateDraft', text }, { op: 'commitEdit', move });
     },
-    [draft, dispatch]
+    [dispatch, putDraft]
   );
 
   const onKeyDown = useCallback(
@@ -309,7 +324,7 @@ export default function Sheets({ app, shell, boot }) {
       if (editing) {
         if (e.key === 'Escape') {
           e.preventDefault();
-          setDraft(null);
+          putDraft(null);
           await dispatch({ op: 'cancelEdit' });
         } else if (e.key === 'Enter') {
           e.preventDefault();
@@ -360,11 +375,11 @@ export default function Sheets({ app, shell, boot }) {
         if (startingRef.current) {
           // The edit is already on its way; this character is text, and it is
           // kept here because the editor may not hold focus yet.
-          setDraft((d) => (d ?? '') + e.key);
+          putDraft((d) => (d ?? '') + e.key);
           return;
         }
         startingRef.current = true;
-        setDraft(e.key);
+        putDraft(e.key);
         await dispatch({ op: 'beginEdit', replace: true, initial: e.key });
       }
     },
@@ -510,7 +525,7 @@ export default function Sheets({ app, shell, boot }) {
         // Start an edit with `=NAME(` typed, the arguments the person's to
         // type; a bare name (Use in Formula) goes in as it is.
         const text = opts.bare ? `=${arg}` : `=${arg}(`;
-        setDraft(text);
+        putDraft(text);
         await dispatch({ op: 'beginEdit', replace: true, initial: text });
         setTimeout(() => editorRef.current?.focus(), 0);
         return;
@@ -544,7 +559,7 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'symbol':
-        if (editing) setDraft((d) => (d ?? '') + arg);
+        if (editing) putDraft((d) => (d ?? '') + arg);
         else await dispatch({ op: 'beginEdit', replace: true, initial: (model?.formulaBar ?? '') + arg });
         return;
       case 'help': shell.shell.openExternal({ url: SITE.help }); return;
@@ -620,7 +635,7 @@ export default function Sheets({ app, shell, boot }) {
               // not been given it.
               value={editing || draft != null ? draft ?? '' : model.formulaBar ?? ''}
               onChange={(e) => {
-                setDraft(e.target.value);
+                putDraft(e.target.value);
                 if (!editing && !startingRef.current) {
                   startingRef.current = true;
                   // A refused edit — a protected sheet, say — must not leave
@@ -642,7 +657,7 @@ export default function Sheets({ app, shell, boot }) {
                   shRef.current?.focus();
                 }
                 if (e.key === 'Escape') {
-                  setDraft(null);
+                  putDraft(null);
                   dispatch({ op: 'cancelEdit' });
                   shRef.current?.focus();
                 }
@@ -753,7 +768,7 @@ export default function Sheets({ app, shell, boot }) {
                     ref={editorRef}
                     className="sh-editor"
                     value={draft ?? ''}
-                    onChange={(e) => setDraft(e.target.value)}
+                    onChange={(e) => putDraft(e.target.value)}
                     onBlur={() => editing && commitDraft('none')}
                     style={{
                       left: editing.x ?? model.cells.find((c) => c.active)?.x ?? 0,

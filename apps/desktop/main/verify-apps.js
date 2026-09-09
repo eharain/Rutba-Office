@@ -2087,7 +2087,12 @@ export async function verifyApps({ windows, doc }) {
     );
 
     // And it is recoverable as the document it was, with the words in it.
-    const entry = offered.find((e) => e.kind === 'doc');
+    //
+    // The newest one, not the first: by this point in the run a dozen windows
+    // are open and unsaved, so the list holds every one of them, and the first
+    // check that read it recovered somebody else's document and failed on
+    // words it had never typed.
+    const entry = offered.filter((e) => e.kind === 'doc').sort((a, b) => b.at - a.at)[0];
     const recovered = doc.recover({ file: entry.file });
     const text = (recovered.model.blocks || []).map((b) => (b.runs || []).map((r) => r.text).join('')).join(' ');
     check('autosave: what comes back is the work that was lost', text.includes('UNSAVED WORK'), `recovered ${JSON.stringify(text.slice(0, 60))}`);
