@@ -231,3 +231,75 @@ unpacked smoke was green, and the installed copy opened with "Cannot find
 package '@rutba/contacts'" because the two new packages were not declared
 as the desktop application's dependencies. The install test said so in one
 word — a window titled "Error" — and the word was nearly missed.
+
+## The rich fixtures, written by Office itself
+
+`tests/fixtures/rich/` holds a workbook, a document and a deck that use what
+people actually put in files, written by Excel, Word and PowerPoint through
+COM automation — `tools/make-rich-fixtures.ps1` — as OOXML and as
+OpenDocument from the same content, so the OpenDocument readers are judged
+against the same thing the OOXML readers are.
+
+- **showcase.xlsx / .ods** — five sheets: twelve months by four regions with
+  totals, averages, IFERROR growth, number formats, borders, fills, a colour
+  scale, data bars, an icon set, sparklines, an autofilter, frozen headings,
+  a note, a hyperlink and a validation list; a Summary sheet whose every
+  cell reaches into another sheet — `SUM`, a named range, `INDEX/MATCH`,
+  `VLOOKUP`, `COUNTIF`, `SUMIF`, `IF`, `TEXT`, a sheet whose name has a
+  space, a table — and a pie chart; a Charts sheet with four chart kinds,
+  sixteen preset shapes with fills, gradients, outlines and shadows, a
+  picture, a text box, a group, a rotation and a connector; a Data types
+  sheet with one of everything a cell can hold; and a real table with a
+  style, a total row and a structured reference.
+- **showcase.docx** — a title, a table of contents Word built, headings,
+  every run format, a justified shaded paragraph, three kinds of list, a
+  styled table with a merged total, a picture with a caption, five floating
+  shapes and a text box, a footnote, an endnote, a comment, a bookmark, a
+  hyperlink, DATE/PAGE/NUMPAGES fields, a tracked insertion and deletion, an
+  equation, a landscape section in two columns, a header, page numbers and
+  a DRAFT watermark. Taken from Word as Flat OPC (`Document.WordOpenXML`)
+  and packed by `tools/flat-opc-to-docx.mjs`, because Word's SaveAs never
+  returns from an automated session on the build machine — so there is no
+  `.odt` from Word; the corpus carries OpenDocument text from other hands.
+- **showcase.pptx / .odp** — eight slides: a gradient title slide with
+  notes, three levels of bullets and a picture, a gallery of sixteen preset
+  shapes with fills, gradients, transparency, shadows, a group, a rotation
+  and a hyperlink, a styled table, two charts, WordArt and a formatted text
+  box, animations on a hidden slide, sections, footers and slide numbers.
+
+`tests/rich-fixtures.test.js` opens every one through the document service
+the windows use and holds the engine to Excel's own results — the totals,
+the names, the formats, the chart count, the merged cells, the frozen panes
+— and to what the document and the deck carry. Regenerate with
+
+```bash
+powershell -NoProfile -ExecutionPolicy Bypass -File tools/make-rich-fixtures.ps1
+```
+
+on a machine with Office; the script drives the applications invisibly
+(PowerPoint shows itself minimised for its charts, which a windowless
+presentation refuses), reaps the processes it started, and reports each
+decoration Office declined rather than stopping.
+
+What the first generation found, on 2026-09-10: `SUBTOTAL` was missing, so
+every Excel table's total row read `#NAME?`; an `.ods` lost its named
+ranges (`$$Name` in the file), merged cells and number formats; built-in
+date format 14 was rendered in the American order rather than the
+machine's; and a chart on a slide was an empty frame. All four are fixed
+and pinned. Still open, in docs/GAPS.md: OpenDocument drawings, equations,
+and tracked changes shown as changes.
+
+### The downloaded corpus
+
+`.corpus/samples/` (ignored by git) holds 81 real files from two public
+sample sites — getsamplefiles.com and mzeeshan.me — in every format the
+suite opens, including corrupted, password-protected, non-Latin, equation,
+chart, 73-page and 36 MB media cases. Run them through the real windows
+with
+
+```bash
+RUTBA_CORPUS_DIRS="D:\Rutba2.0\office\.corpus\samples" npm run verify:corpus
+```
+
+and turn each failure into a fixture and a check, as the section above
+describes.

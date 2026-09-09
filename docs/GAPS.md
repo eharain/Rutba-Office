@@ -23,6 +23,9 @@ a suite.
 | **Autosave and recovery** | **Built, 2026-09-09** | A dirty document is copied into the profile every half minute and the copy is deleted when it is saved or closed, so what is left at start-up is what a crash took. The launcher offers each one back by name, with where it belonged and when it was taken. |
 | **Calendar** | **Built, 2026-09-09** | Month, week, day and agenda; calendars with a colour each; events with repeats, exceptions and zones; `.ics` opened, offered, imported and exported. An invitation in a message is shown in Mail's reading pane, kept as an event, and answered with the reply attached to a message to the organizer. |
 | **Contacts** | **Built, 2026-09-09** | A book in the profile: list, card, editor, search. `.vcf` and CSV opened, offered and merged by address; vCards exported. Compose completes from the book and then from the people mail has seen; a sender is kept from the reading pane in one click. |
+| **OpenDocument drawings** | **Missing** | An `.ods` written by Excel carries its charts as embedded objects and its shapes as `draw:custom-shape`; neither is read, so the Charts sheet of the showcase workbook opens empty from `.ods` and full from `.xlsx`. Its frozen panes (settings.xml) and hidden columns are not read either. An `.odp` reads only its text frames: the showcase deck's pictures, shapes, table and gradients are all dropped from `.odp` and all present from `.pptx`. Found 2026-09-10 by tools/make-rich-fixtures.ps1. |
+| **Equations** | **Missing** | Office Math (`m:oMath`) is not read: the showcase document's quadratic formula is simply absent from the model, and the corpus has documents and decks of equations. |
+| **Tracked changes, shown** | **Missing** | `w:ins` text arrives as plain text and `w:del` text is dropped — the accepted view, which is right for reading, but nothing says a change was made or by whom; there is no view of the markup and no accept or reject. Recording them is the older gap below. |
 | **Page setup as a document property** | **Built for workbooks, 2026-09-09** | Paper, orientation, margins, scaling, gridlines, headings, centring, the print area and the repeated rows are read from and written to the file where Excel keeps them. A document and a deck still choose theirs in the dialog each time. |
 | **Password-protected files** | **Missing** | Refused with a sentence. An encrypted OOXML package (`EncryptedPackage` in a compound file, agile encryption) is neither read nor written. |
 | **A spell-check pass** | **Partly** | Chromium underlines as you type in the places that are contenteditable. There is no pass over a document, no dictionary the person owns, no add-to-dictionary, and nothing at all in the grid or on a slide. |
@@ -96,8 +99,11 @@ document and workbook writers.
 - **Text inside a shape**: bullets and numbering, indent levels, line
   spacing, character spacing, strikethrough, highlight, text direction,
   vertical alignment, columns in a box, WordArt.
-- **What can be put on a slide**: a table, a chart, video, audio, SmartArt,
-  a hyperlink. All four are read and drawn; none can be inserted.
+- **What can be put on a slide**: a table and a chart are read and drawn —
+  a chart since 2026-09-10, through the same chart kit a worksheet uses,
+  found by the corpus deck whose six chart slides showed an empty frame
+  each; video, audio, SmartArt and a hyperlink are named and boxed. None
+  can be inserted.
 - **The master and layouts.** Masters and layouts are read and inherited
   from; editing them, swapping a theme, changing an existing slide's layout,
   background styles, headers and footers, slide numbers and date fields all
@@ -127,7 +133,7 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
 | :-- | :-- | :-- |
 | `.docx` `.xlsx` `.pptx` | yes, preserving | yes, preserving |
 | `.doc` `.xls` `.ppt` | text only — an approximation, and only `.xls` says so | no |
-| `.odt` `.ods` `.odp` | yes | **yes**, 2026-09-09 — what the suite models: text, structure, tables and run formatting; values, formulas and value types; text boxes, pictures and notes |
+| `.odt` `.ods` `.odp` | yes — an `.ods` reads its named ranges, merged cells and number formats since 2026-09-10; its charts and shapes are not read | **yes**, 2026-09-09 — what the suite models: text, structure, tables and run formatting; values, formulas and value types; text boxes, pictures and notes |
 | `.rtf` | yes | **yes**, 2026-09-09 |
 | `.csv` `.tsv` `.txt` `.md` `.html` | yes | yes |
 | `.pdf` | viewed | written, for all three kinds since printing landed |

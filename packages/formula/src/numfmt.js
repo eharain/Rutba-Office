@@ -27,7 +27,26 @@
  */
 import { serialToParts, formatNumber } from './values.js';
 
-/** ECMA-376 §18.8.30 built-in formats. */
+/**
+ * The short date this computer writes, as a format code: `dd/mm/yyyy` on a
+ * British machine, `mm/dd/yyyy` on an American one, `yyyy-mm-dd` on a
+ * Swedish one. Excel's built-in format 14 is documented as `mm-dd-yy` but
+ * shows the system's short date, and so does every file whose cells wear
+ * it — a British workbook's dates would read as American here otherwise.
+ */
+export function localeShortDate(locale = undefined) {
+  try {
+    const parts = new Intl.DateTimeFormat(locale, { year: 'numeric', month: '2-digit', day: '2-digit' }).formatToParts(new Date(Date.UTC(2001, 10, 22, 12)));
+    const code = parts
+      .map((p) => (p.type === 'day' ? 'dd' : p.type === 'month' ? 'mm' : p.type === 'year' ? 'yyyy' : p.type === 'literal' ? p.value.replace(/[^-/. ]/g, '') : ''))
+      .join('');
+    return /dd|mm|yyyy/.test(code) ? code.trim() : 'dd/mm/yyyy';
+  } catch {
+    return 'dd/mm/yyyy';
+  }
+}
+
+/** ECMA-376 §18.8.30 built-in formats; 14 and 22 follow the system's short date. */
 export const BUILTIN_FORMATS = {
   0: 'General',
   1: '0',
@@ -39,7 +58,7 @@ export const BUILTIN_FORMATS = {
   11: '0.00E+00',
   12: '# ?/?',
   13: '# ??/??',
-  14: 'mm-dd-yy',
+  14: localeShortDate(),
   15: 'd-mmm-yy',
   16: 'd-mmm',
   17: 'mmm-yy',
@@ -47,7 +66,7 @@ export const BUILTIN_FORMATS = {
   19: 'h:mm:ss AM/PM',
   20: 'h:mm',
   21: 'h:mm:ss',
-  22: 'm/d/yy h:mm',
+  22: `${localeShortDate()} h:mm`,
   37: '#,##0 ;(#,##0)',
   38: '#,##0 ;[Red](#,##0)',
   39: '#,##0.00;(#,##0.00)',

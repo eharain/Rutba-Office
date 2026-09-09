@@ -25,6 +25,16 @@ function Remove-Existing($p) { if (Test-Path $p) { Remove-Item $p -Force } }
 # A decoration that Office refuses is reported and skipped; the file is still
 # written with everything else, and the warning names what to fix.
 function Attempt($what, [scriptblock]$block) { try { & $block } catch { "warn: $what - $($_.Exception.Message)" } }
+# Office processes that were already running belong to somebody; the ones
+# this run starts are reaped at the end of each section, because Quit() has
+# been seen to leave an Excel behind with references still alive.
+$officeBefore = @(Get-Process -Name WINWORD, EXCEL, POWERPNT -ErrorAction SilentlyContinue | ForEach-Object { $_.Id })
+function Reap {
+  Start-Sleep -Seconds 1
+  foreach ($p in (Get-Process -Name WINWORD, EXCEL, POWERPNT -ErrorAction SilentlyContinue)) {
+    if ($officeBefore -notcontains $p.Id) { try { Stop-Process -Id $p.Id -Force -ErrorAction Stop; "reaped $($p.ProcessName) $($p.Id)" } catch {} }
+  }
+}
 
 # ── a small colourful picture, made here so nothing is fetched ──────────────
 Add-Type -AssemblyName System.Drawing
@@ -52,6 +62,7 @@ try {
   $xl = New-Object -ComObject Excel.Application
   $xl.Visible = $false
   $xl.DisplayAlerts = $false
+  Attempt 'add-ins off' { foreach ($a in $xl.COMAddIns) { if ($a.Connect) { $a.Connect = $false } } }
   $wb = $xl.Workbooks.Add()
   while ($wb.Worksheets.Count -lt 5) { [void]$wb.Worksheets.Add([Type]::Missing, $wb.Worksheets.Item($wb.Worksheets.Count)) }
   $sales = $wb.Worksheets.Item(1); $sales.Name = 'Sales'
@@ -103,7 +114,7 @@ try {
   $sales.Range('A21').Value2 = 'Approved?'
   Attempt 'validation' { $sales.Range('B21').Validation.Add(3, 1, 1, 'Yes,No,Maybe') }
   $sales.Range('B21').Value2 = 'Yes'
-  Attempt 'freeze panes' { $win = $wb.Windows.Item(1); $win.SplitRow = 1; $win.SplitColumn = 1; $win.FreezePanes = $true }
+  Attempt 'freeze panes' { $sales.Activate(); $win = $wb.Windows.Item(1); $win.SplitRow = 1; $win.SplitColumn = 1; $win.FreezePanes = $true }
   # names the other sheets use
   [void]$wb.Names.Add('SalesTotals', '=Sales!$F$2:$F$13')
   [void]$wb.Names.Add('Regions', '=Sales!$B$1:$E$1')
@@ -244,6 +255,7 @@ try {
   $wb.Close($false)
 } finally {
   if ($xl) { try { $xl.Quit() } catch {} ; Release $xl }
+  Reap
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -254,6 +266,9 @@ try {
   $wd = New-Object -ComObject Word.Application
   $wd.Visible = $false
   $wd.DisplayAlerts = 0
+  # Add-ins hook the save: Acrobat's PDFMaker held SaveAs2 for ever in a
+  # hidden Word here. Disconnected for this session only.
+  Attempt 'add-ins off' { foreach ($a in $wd.COMAddIns) { if ($a.Connect) { $a.Connect = $false } } }
   $doc = $wd.Documents.Add()
   $sel = $wd.Selection
   function Para($text, $style) { $sel.Style = $style; $sel.TypeText($text); $sel.TypeParagraph() }
@@ -262,9 +277,9 @@ try {
   $sel.Style = 'Subtitle'; $sel.TypeText("A document with one of everything, written by Word on $stamp"); $sel.TypeParagraph()
   $sel.Style = 'Normal'
   $sel.Font.Bold = $true; $sel.TypeText('Contents'); $sel.Font.Bold = $false; $sel.TypeParagraph()
-  $tocRange = $sel.Range
-  Attempt 'table of contents' { [void]$doc.TablesOfContents.Add($tocRange, $true, 1, 3) }
-  $sel.EndKey(6) | Out-Null
+  # The table of contents is built here at the end, once the headings exist
+  # (see 'table of contents' below); this paragraph marks where.
+  Attempt 'contents mark' { [void]$doc.Bookmarks.Add('TOCHere', $sel.Range) }
   $sel.TypeParagraph()
 
   Para 'Text and its formatting' 'Heading 1'
@@ -326,13 +341,14 @@ try {
   [void]$sel.InlineShapes.AddPicture($png)
   $sel.TypeParagraph()
   $sel.Style = 'Caption'; $sel.TypeText('Figure 1: a picture made for this document'); $sel.TypeParagraph(); $sel.Style = 'Normal'
-  Attempt 'chart' {
-    $chart = $sel.InlineShapes.AddChart2(-1, 51)
-    $chart.Chart.HasTitle = $true; $chart.Chart.ChartTitle.Text = 'A column chart in a document'
-  }
+  # No chart in the document: InlineShapes.AddChart2 keeps its data in an
+  # Excel Word starts for it, and SaveAs2 then never returns — with the data
+  # window open or closed, twice over. The workbook and the deck carry the
+  # charts; the corpus has documents with charts other people wrote.
   $sel.EndKey(6) | Out-Null; $sel.TypeParagraph()
   $sel.TypeText('The shapes below float beside this text: a gradient rectangle with words in it, an oval, an arrow, a star and a callout, and a text box.')
   $sel.TypeParagraph()
+  "stage: floating shapes"
   Attempt 'floating shapes' {
     $anchor = $sel.Range
     $r1 = $doc.Shapes.AddShape(1, 40, 0, 150, 60, $anchor); $r1.Fill.ForeColor.RGB = RGB 68 114 196; $r1.Fill.TwoColorGradient(1, 1); $r1.Fill.BackColor.RGB = RGB 255 255 255
@@ -345,6 +361,7 @@ try {
   }
   for ($i = 0; $i -lt 8; $i++) { $sel.TypeParagraph() }
 
+  "stage: notes, comments, fields, changes"
   Para 'Notes, comments and changes' 'Heading 1'
   $sel.Style = 'Normal'
   $sel.TypeText('This sentence carries a footnote')
@@ -389,6 +406,7 @@ try {
   }
   $sel.EndKey(6) | Out-Null
 
+  "stage: equation"
   Para 'An equation' 'Heading 1'
   $sel.Style = 'Normal'
   Attempt 'equation' {
@@ -400,6 +418,7 @@ try {
   $sel.EndKey(6) | Out-Null; $sel.TypeParagraph()
 
   # a landscape section in two columns
+  "stage: landscape section"
   Attempt 'landscape section' {
     [void]$doc.Sections.Add()
     $sec = $doc.Sections.Item($doc.Sections.Count)
@@ -414,6 +433,7 @@ try {
   # header, footer with page numbers, a watermark
   Attempt 'header' { $doc.Sections.Item(1).Headers.Item(1).Range.Text = 'Rutba Office showcase — header' }
   Attempt 'footer page numbers' { $doc.Sections.Item(1).Footers.Item(1).PageNumbers.Add(2) | Out-Null }
+  "stage: header, footer, watermark"
   Attempt 'watermark' {
     $wm = $doc.Sections.Item(1).Headers.Item(1).Shapes.AddTextEffect(0, 'DRAFT', 'Calibri', 1, $false, $false, 0, 0)
     $wm.Name = 'PowerPlusWaterMarkObject1'; $wm.TextEffect.NormalizedHeight = $false; $wm.Line.Visible = $false
@@ -424,15 +444,28 @@ try {
 
   Attempt 'title property' { $doc.BuiltInDocumentProperties.Item('Title').Value = 'The Rutba Office showcase' }
   Attempt 'author property' { $doc.BuiltInDocumentProperties.Item('Author').Value = 'Rutba Office' }
-  Attempt 'table of contents update' { $doc.TablesOfContents.Item(1).Update() }
+  "stage: table of contents"
+  Attempt 'table of contents' { [void]$doc.TablesOfContents.Add($doc.Bookmarks.Item('TOCHere').Range, $true, 1, 3) }
 
-  $docx = Join-Path $outDir 'showcase.docx'; Remove-Existing $docx; $doc.SaveAs2($docx, 16); "showcase.docx written ($((Get-Item $docx).Length) bytes)"
-  $odt = Join-Path $outDir 'showcase.odt'; Remove-Existing $odt; $doc.SaveAs2($odt, 23); "showcase.odt written ($((Get-Item $odt).Length) bytes)"
-  $rtf = Join-Path $outDir 'showcase.rtf'; Remove-Existing $rtf; $doc.SaveAs2($rtf, 6); "showcase.rtf written ($((Get-Item $rtf).Length) bytes)"
-  $docold = Join-Path $outDir 'showcase.doc'; Remove-Existing $docold; $doc.SaveAs2($docold, 0); "showcase.doc written ($((Get-Item $docold).Length) bytes)"
+  "stage: taking the document as Flat OPC"
+  # Word's SaveAs never returns from an automated session on this machine —
+  # hidden or minimised, add-ins on or off, background save off, SaveAs or
+  # SaveAs2, a new document or an opened one, any format. WordOpenXML is the
+  # same package as one XML string and involves no save at all, so the
+  # document is taken that way and packed by tools/flat-opc-to-docx.mjs.
+  # The .odt, .rtf and .doc that SaveAs2 would have written are not made;
+  # the corpus carries those from other hands.
+  $flat = Join-Path $env:TEMP 'rich-showcase-flat.xml'
+  [IO.File]::WriteAllText($flat, $doc.WordOpenXML, [Text.Encoding]::UTF8)
+  "flat opc: $((Get-Item $flat).Length) bytes"
+  $docx = Join-Path $outDir 'showcase.docx'; Remove-Existing $docx
+  & node (Join-Path $root 'tools\flat-opc-to-docx.mjs') $flat $docx
+  if (Test-Path $docx) { "showcase.docx written ($((Get-Item $docx).Length) bytes)" } else { "warn: showcase.docx was not packed" }
+  Remove-Item $flat -ErrorAction SilentlyContinue
   $doc.Close(0)
 } finally {
   if ($wd) { try { $wd.Quit() } catch {} ; Release $wd }
+  Reap
 }
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -441,7 +474,13 @@ try {
 $pp = $null
 try {
   $pp = New-Object -ComObject PowerPoint.Application
-  $pres = $pp.Presentations.Add(0)
+  Attempt 'add-ins off' { foreach ($a in $pp.COMAddIns) { if ($a.Connect) { $a.Connect = $false } } }
+  # With a window: a chart cannot be added to a presentation that has none
+  # (AddChart and AddChart2 fail with E_FAIL), so PowerPoint shows itself
+  # for the length of this section, minimised at once. The one window this
+  # script puts on the desktop.
+  $pres = $pp.Presentations.Add(-1)
+  Attempt 'minimise' { $pp.WindowState = 2 }
   $pres.PageSetup.SlideWidth = 960; $pres.PageSetup.SlideHeight = 540
   $layouts = $pres.SlideMaster.CustomLayouts
   function Layout($name) { foreach ($l in $layouts) { if ($l.Name -eq $name) { return $l } }; return $layouts.Item(1) }
@@ -488,7 +527,7 @@ try {
   Attempt 'shape hyperlink' { $s3.Shapes.Item('Shape Heart').ActionSettings.Item(1).Hyperlink.Address = 'https://office.rutba.io' }
   Attempt 'group' { $grp = $s3.Shapes.Range([object[]]@('Shape Cloud', 'Shape Up arrow')).Group(); $grp.Name = 'Grouped pair' }
   Attempt 'connector' { [void]$s3.Shapes.AddConnector(2, 130, 185, 145, 185) }
-  Attempt 'transition 3' { $s3.SlideShowTransition.EntryEffect = 3841 }
+  Attempt 'transition 3' { $s3.SlideShowTransition.EntryEffect = 3844 }
   Attempt 'notes 3' { $s3.NotesPage.Shapes.Item(2).TextFrame.TextRange.Text = 'Sixteen preset shapes, two of them grouped, one rotated, one a hyperlink.' }
 
   # 4 — a table
@@ -503,8 +542,8 @@ try {
   # 5 — charts
   $s5 = $pres.Slides.AddSlide(5, $titleOnly)
   $s5.Shapes.Item(1).TextFrame.TextRange.Text = 'Charts: a column chart and a pie'
-  Attempt 'column chart' { $c1 = $s5.Shapes.AddChart2(-1, 51, 40, 130, 440, 360); $c1.Chart.HasTitle = $true; $c1.Chart.ChartTitle.Text = 'Columns' }
-  Attempt 'pie chart' { $c2 = $s5.Shapes.AddChart2(-1, 5, 500, 130, 420, 360); $c2.Chart.HasTitle = $true; $c2.Chart.ChartTitle.Text = 'A pie' }
+  Attempt 'column chart' { $c1 = $s5.Shapes.AddChart2(-1, 51, 40, 130, 440, 360); $c1.Chart.HasTitle = $true; $c1.Chart.ChartTitle.Text = 'Columns'; $c1.Chart.ChartData.Workbook.Close() }
+  Attempt 'pie chart' { $c2 = $s5.Shapes.AddChart2(-1, 5, 500, 130, 420, 360); $c2.Chart.HasTitle = $true; $c2.Chart.ChartTitle.Text = 'A pie'; $c2.Chart.ChartData.Workbook.Close() }
   Attempt 'notes 5' { $s5.NotesPage.Shapes.Item(2).TextFrame.TextRange.Text = 'The chart data is what PowerPoint puts in by default.' }
 
   # 6 — WordArt, a formatted text box, a callout
@@ -558,6 +597,7 @@ try {
   $pres.Close()
 } finally {
   if ($pp) { try { $pp.Quit() } catch {} ; Release $pp }
+  Reap
 }
 [GC]::Collect(); [GC]::WaitForPendingFinalizers()
 "done: " + ((Get-ChildItem $outDir | ForEach-Object { $_.Name + ' ' + $_.Length }) -join ', ')

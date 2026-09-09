@@ -197,6 +197,21 @@ test('conditional aggregation with operators and wildcards', () => {
   assert.equal(evalIn('=SUMIF(A1:A3, "banana", B1:B3)', cells), 30);
 });
 
+test('SUBTOTAL is the aggregate a total row asks for, by number', () => {
+  // Excel writes a table's total row as SUBTOTAL(109, …); the Office-written
+  // showcase workbook answered #NAME? before this was here.
+  const cells = { B1: 10, B2: 20, B3: 30, A1: 'x', A2: '', A3: 'z' };
+  assert.equal(evalIn('=SUBTOTAL(9, B1:B3)', cells), 60);
+  assert.equal(evalIn('=SUBTOTAL(109, B1:B3)', cells), 60);
+  assert.equal(evalIn('=SUBTOTAL(1, B1:B3)', cells), 20);
+  assert.equal(evalIn('=SUBTOTAL(4, B1:B3)', cells), 30);
+  assert.equal(evalIn('=SUBTOTAL(5, B1:B3)', cells), 10);
+  assert.equal(evalIn('=SUBTOTAL(2, B1:B3)', cells), 3);
+  assert.equal(evalIn('=SUBTOTAL(103, A1:A3)', cells), 2);
+  assert.equal(evalIn('=SUBTOTAL(6, B1:B3)', cells), 6000);
+  assert.equal(String(evalIn('=SUBTOTAL(12, B1:B3)', cells)), '#VALUE!');
+});
+
 test('lookup functions', () => {
   const cells = { A1: 'SKU-1', B1: 100, A2: 'SKU-2', B2: 200, A3: 'SKU-3', B3: 300 };
   assert.equal(evalIn('=VLOOKUP("SKU-2", A1:B3, 2, FALSE)', cells), 200);

@@ -123,11 +123,14 @@ function readTable(table) {
       const cell = {
         text,
         type: c.attrs['office:value-type'] || (text ? 'string' : null),
-        value: c.attrs['office:value'] ?? c.attrs['office:date-value'] ?? c.attrs['office:boolean-value'] ?? null,
+        value: c.attrs['office:value'] ?? c.attrs['office:date-value'] ?? c.attrs['office:time-value'] ?? c.attrs['office:boolean-value'] ?? null,
         // `of:=SUM([.A1:.B2];3)` in the file is `=SUM(A1:B2,3)` to the engine.
         formula: c.attrs['table:formula'] ? formulaFromOdf(c.attrs['table:formula']) : null,
         colspan: Number(c.attrs['table:number-columns-spanned'] || 1),
         rowspan: Number(c.attrs['table:number-rows-spanned'] || 1),
+        // The automatic cell style, which names the data style the number wears.
+        style: c.attrs['table:style-name'] || null,
+        covered: c.name === 'table:covered-table-cell',
       };
       for (let i = 0; i < repeat; i++) cells.push(i === 0 ? cell : { ...cell });
     }
@@ -140,11 +143,128 @@ function readTable(table) {
   return { type: 'table', name: table.attrs['table:name'] || '', rows };
 }
 
-function readSheets(body) {
+const colName = (i) => {
+  let s = '';
+  for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(64 + ((n - 1) % 26) + 1) + s;
+  return s;
+};
+
+/**
+ * The sheets, each with the ranges its spanned cells merge and the number
+ * format each styled cell wears — `formats` maps an automatic cell style's
+ * name to a format code, see readDataStyles.
+ */
+function readSheets(body, formats = new Map()) {
   return all(body, 'table:table').map((t) => {
     const table = readTable(t);
-    return { name: table.name, rows: table.rows };
+    const merges = [];
+    const cellFormats = {};
+    table.rows.forEach((row, r) => {
+      row.forEach((cell, c) => {
+        if (cell.covered) return;
+        if (cell.colspan > 1 || cell.rowspan > 1) merges.push(`${colName(c)}${r + 1}:${colName(c + cell.colspan - 1)}${r + cell.rowspan}`);
+        const fmt = cell.style && formats.get(cell.style);
+        if (fmt) cellFormats[`${colName(c)}${r + 1}`] = fmt;
+      });
+    });
+    return { name: table.name, rows: table.rows, merges, formats: cellFormats };
   });
+}
+
+/**
+ * Named ranges: `<table:named-range table:name="GrandTotal"
+ * table:cell-range-address="Sales.$F$14"/>` is `GrandTotal = Sales!$F$14`
+ * to the engine, and a formula spells it `$$GrandTotal` (formulaFromOdf).
+ */
+function readNames(body) {
+  const out = [];
+  for (const n of all(body, 'table:named-range')) {
+    const name = n.attrs['table:name'];
+    const addr = n.attrs['table:cell-range-address'] || '';
+    if (!name || !addr) continue;
+    const parts = addr.split(':').map((p) => {
+      const dot = p.lastIndexOf('.');
+      return { sheet: dot > 0 ? p.slice(0, dot).replace(/^\$/, '') : '', cell: p.slice(dot + 1) };
+    });
+    const sheet = parts[0].sheet;
+    const quoted = sheet && /[^A-Za-z0-9_]/.test(sheet.replace(/^'|'$/g, '')) ? `'${sheet.replace(/^'|'$/g, '')}'` : sheet;
+    out.push({ name, ref: (quoted ? `${quoted}!` : '') + parts.map((p) => p.cell).join(':') });
+  }
+  return out;
+}
+
+/**
+ * ODF number formats as the format codes the grid speaks. A data style is a
+ * small tree — `<number:number number:decimal-places="2" number:grouping="true"/>`
+ * between `<number:text>` pieces, a currency symbol, date parts — and the
+ * common ones map onto Excel's codes exactly; anything stranger falls back
+ * to the closest plain number. Answers a map of automatic CELL style name →
+ * format code, since that is what a cell names.
+ */
+function readDataStyles(roots) {
+  const codes = new Map();
+  const escText = (s) => (s ? (/^[\s%/:\-.,]+$/.test(s) ? s : `"${s.replace(/"/g, '""')}"`) : '');
+  const numberCode = (n) => {
+    if (!n) return 'General';
+    const dec = Number(n.attrs['number:decimal-places'] ?? n.attrs['number:min-decimal-places'] ?? 0);
+    const grouping = n.attrs['number:grouping'] === 'true';
+    const minInt = Number(n.attrs['number:min-integer-digits'] ?? 1);
+    let code = (grouping ? '#,##' : '') + (minInt ? '0' : '#');
+    if (dec > 0) code += '.' + '0'.repeat(dec);
+    return code;
+  };
+  const dateCode = (style) => {
+    let code = '';
+    for (const k of kids(style)) {
+      const long = k.attrs['number:style'] === 'long';
+      if (k.name === 'number:day') code += long ? 'dd' : 'd';
+      else if (k.name === 'number:month') code += k.attrs['number:textual'] === 'true' ? (long ? 'mmmm' : 'mmm') : long ? 'mm' : 'm';
+      else if (k.name === 'number:year') code += long ? 'yyyy' : 'yy';
+      else if (k.name === 'number:day-of-week') code += long ? 'dddd' : 'ddd';
+      else if (k.name === 'number:hours') code += long ? 'hh' : 'h';
+      else if (k.name === 'number:minutes') code += long ? 'mm' : 'm';
+      else if (k.name === 'number:seconds') code += long ? 'ss' : 's';
+      else if (k.name === 'number:am-pm') code += ' AM/PM';
+      else if (k.name === 'number:text') code += escText(textOf(k));
+    }
+    return code || 'General';
+  };
+  for (const root of roots.filter(Boolean)) {
+    for (const style of all(root, 'number:number-style')) {
+      const n = first(style, 'number:number');
+      const sci = first(style, 'number:scientific-number');
+      const frac = first(style, 'number:fraction');
+      const texts = kids(style, 'number:text').map(textOf);
+      let code;
+      if (sci) code = numberCode(sci) + 'E+' + '0'.repeat(Number(sci.attrs['number:min-exponent-digits'] || 2));
+      else if (frac) code = `# ${'?'.repeat(Number(frac.attrs['number:min-numerator-digits'] || 1))}/${'?'.repeat(Number(frac.attrs['number:min-denominator-digits'] || 1))}`;
+      else code = numberCode(n);
+      const suffix = texts.length && !n ? escText(texts[texts.length - 1]) : '';
+      codes.set(style.attrs['style:name'], code + suffix);
+    }
+    for (const style of all(root, 'number:percentage-style')) codes.set(style.attrs['style:name'], numberCode(first(style, 'number:number')) + '%');
+    for (const style of all(root, 'number:currency-style')) {
+      const sym = first(style, 'number:currency-symbol');
+      const n = first(style, 'number:number');
+      const symbol = sym ? textOf(sym) : '';
+      const before = sym && n && kids(style).indexOf(sym) < kids(style).indexOf(n);
+      const body = numberCode(n);
+      codes.set(style.attrs['style:name'], before ? `"${symbol}"${body}` : `${body}"${symbol}"`);
+    }
+    for (const style of all(root, 'number:date-style')) codes.set(style.attrs['style:name'], dateCode(style));
+    for (const style of all(root, 'number:time-style')) codes.set(style.attrs['style:name'], dateCode(style));
+    for (const style of all(root, 'number:boolean-style')) codes.set(style.attrs['style:name'], 'General');
+  }
+  // Cell styles name their data style; the map answers for the cell style.
+  const byCell = new Map();
+  for (const root of roots.filter(Boolean)) {
+    for (const st of all(root, 'style:style')) {
+      if (st.attrs['style:family'] !== 'table-cell') continue;
+      const data = st.attrs['style:data-style-name'];
+      if (data && codes.has(data) && codes.get(data) !== 'General') byCell.set(st.attrs['style:name'], codes.get(data));
+    }
+  }
+  return byCell;
 }
 
 function readSlides(body) {
@@ -209,8 +329,14 @@ export function readOdf(bytes) {
 
   const out = { flavour, meta: readMeta(map), images };
   if (flavour === 'odt') out.blocks = readTextBody(first(body, 'office:text') || body);
-  else if (flavour === 'ods') out.sheets = readSheets(body);
-  else out.slides = readSlides(body);
+  else if (flavour === 'ods') {
+    // Data styles live in content.xml's automatic styles or in styles.xml;
+    // both are read, and a cell's style name resolves through either.
+    const stylesXml = textPart(map, 'styles.xml');
+    const formats = readDataStyles([root, stylesXml ? parse(stylesXml) : null]);
+    out.sheets = readSheets(body, formats);
+    out.names = readNames(body);
+  } else out.slides = readSlides(body);
   return out;
 }
 

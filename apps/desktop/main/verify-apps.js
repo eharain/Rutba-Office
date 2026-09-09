@@ -1385,14 +1385,16 @@ export async function verifyApps({ windows, doc }) {
     check('sheets: the Bold button paints the cell bold', bold?.weight === '700' && bold?.text === '77', `active cell weight=${bold?.weight}, text=${JSON.stringify(bold?.text)}`);
 
     await clickRibbon('Fill colour');
-    await wait(200);
+    // The menu, not a fixed pause: under load 200 ms was not always enough
+    // and the choice below clicked nothing.
+    await until(() => js(`Boolean(document.querySelector('.rw-menu button'))`), 'the fill menu', 3000).catch(() => {});
     await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'Light amber')?.click(); return 'chose'; })()`);
     await until(async () => (await activeStyle())?.background === 'rgb(255, 243, 191)', 'the fill to paint', 4000).catch(() => {});
     const filled = await activeStyle();
     check('sheets: the fill menu paints the cell', filled?.background === 'rgb(255, 243, 191)', `background=${filled?.background}`);
 
     await clickRibbon('Borders');
-    await wait(200);
+    await until(() => js(`Boolean(document.querySelector('.rw-menu button'))`), 'the borders menu', 3000).catch(() => {});
     await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === 'All borders')?.click(); return 'chose'; })()`);
     // Chromium floors a border to whole device pixels, so on a 175% display
     // a 1px border computes as 0.571px: any width at all is the border.

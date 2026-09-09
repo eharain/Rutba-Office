@@ -13,6 +13,7 @@
 // preview is close.
 
 import { wrapText, measureText, lineHeight } from '@rutba/drawing/measure';
+import { buildChart, renderSvg } from '@rutba/drawing';
 import { escapeXml } from '@rutba/office-formats/xml';
 
 const DEFAULT_FONT = 'Segoe UI, system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif';
@@ -353,6 +354,25 @@ export function renderSlide(slide, opts = {}) {
         );
       }
       continue;
+    }
+
+    if (shape.kind === 'chart' && shape.spec) {
+      // Drawn by the chart kit the worksheet uses, on a transparent ground,
+      // and placed as a nested svg at the frame. A spec the kit refuses
+      // leaves the frame empty rather than the slide unrendered.
+      let inner = '';
+      try {
+        const chartScene = buildChart({ ...shape.spec, width: Math.max(160, Math.round(g.w)), height: Math.max(120, Math.round(g.h)), mode: 'light' });
+        chartScene.background = 'none';
+        inner = renderSvg(chartScene, { standalone: false });
+      } catch {
+        inner = '';
+      }
+      if (inner) {
+        const rotate = g.rot ? ` rotate(${g.rot.toFixed(2)} ${(g.w / 2).toFixed(2)} ${(g.h / 2).toFixed(2)})` : '';
+        body.push(`<g transform="translate(${g.x.toFixed(2)} ${g.y.toFixed(2)})${rotate}">${inner}</g>`);
+        continue;
+      }
     }
 
     if (shape.kind === 'table') {

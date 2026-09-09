@@ -277,7 +277,10 @@ export class Deck {
     const cached = this._scenes.get(slidePart);
     if (cached && cached.key === cacheKey) return cached.scene;
 
-    const scene = readSlideScene(slideXml, { theme, inherit, rel });
+    // `readPart` lets a chart frame read its chart part; only a slide gets
+    // it, since a layout or master never carries a chart of its own.
+    const readPart = (part) => (part && this.pkg.has(part) ? this.pkg.text(part) : null);
+    const scene = readSlideScene(slideXml, { theme, inherit, rel, readPart });
     if (!scene.background) {
       scene.background = layoutPh.get('#background') || masterPh.get('#background') || null;
     }

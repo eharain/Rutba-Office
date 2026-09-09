@@ -207,6 +207,18 @@ export const FUNCTIONS = {
   }),
   COUNTA: def((...args) => flatten(args).filter((v) => !isBlank(v)).length),
   COUNTBLANK: def((...args) => flatten(args).filter((v) => isBlank(v)).length),
+  // SUBTOTAL(function_num, ref1, …): the aggregate a table's total row uses.
+  // 1–11 are AVERAGE … VARP; 101–111 are the same ignoring rows a filter has
+  // hidden, which this engine does not model, so both aggregate everything
+  // the references hold.
+  SUBTOTAL: def((fn, ...refs) => {
+    const n = num1(fn);
+    if (isError(n)) return n;
+    const which = Math.trunc(n) > 100 ? Math.trunc(n) - 100 : Math.trunc(n);
+    const name = ['AVERAGE', 'COUNT', 'COUNTA', 'MAX', 'MIN', 'PRODUCT', 'STDEV', 'STDEVP', 'SUM', 'VAR', 'VARP'][which - 1];
+    if (!name) return ERR.VALUE(`SUBTOTAL has no function ${n}`);
+    return FUNCTIONS[name].fn(...refs);
+  }),
   ABS: def((v) => { const n = num1(v); return isError(n) ? n : Math.abs(n); }),
   SIGN: def((v) => { const n = num1(v); return isError(n) ? n : Math.sign(n); }),
   SQRT: def((v) => {

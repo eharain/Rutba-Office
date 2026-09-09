@@ -134,14 +134,37 @@ function rowsToWorkbook(rows, name = 'Sheet1') {
   return buildXlsx({ sheets: [{ name: name.slice(0, 31) || 'Sheet1', rows: cells }] });
 }
 
-function odfSheetsToWorkbook(sheets) {
+/**
+ * An .ods as the workbook the engine reads: every sheet's values and
+ * formulas, its merged ranges, the number format each styled cell wears,
+ * and the named ranges the formulas refer to. Dates and times arrive as
+ * serials, booleans as booleans.
+ */
+function odfSheetsToWorkbook(odf) {
+  const sheets = odf.sheets || [];
+  const EPOCH = Date.UTC(1899, 11, 30);
+  const serialOf = (iso) => {
+    const t = Date.parse(/T/.test(iso) ? `${iso}Z` : `${iso}T00:00:00Z`);
+    return Number.isFinite(t) ? (t - EPOCH) / 86400000 : null;
+  };
+  const timeSerial = (dur) => {
+    const m = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/.exec(dur || '');
+    return m ? (Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0)) / 86400 : null;
+  };
   return buildXlsx({
+    definedNames: odf.names || [],
     sheets: (sheets.length ? sheets : [{ name: 'Sheet1', rows: [] }]).map((s, i) => ({
       name: (s.name || `Sheet${i + 1}`).slice(0, 31),
+      merges: s.merges || [],
+      styles: Object.fromEntries(Object.entries(s.formats || {}).map(([ref, numFmt]) => [ref, { numFmt }])),
       rows: (s.rows || []).map((row) =>
         row.map((cell) => {
+          if (cell.covered) return null;
           if (cell.formula) return cell.formula.startsWith('=') ? cell.formula : '=' + cell.formula;
           if (cell.type === 'float' || cell.type === 'percentage' || cell.type === 'currency') return Number(cell.value ?? cell.text) || 0;
+          if (cell.type === 'date' && cell.value) return serialOf(String(cell.value)) ?? cell.text ?? null;
+          if (cell.type === 'time' && cell.value) return timeSerial(String(cell.value)) ?? cell.text ?? null;
+          if (cell.type === 'boolean') return String(cell.value ?? cell.text).toLowerCase() === 'true' ? '=TRUE()' : '=FALSE()';
           return cell.text || null;
         })
       ),
@@ -422,7 +445,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       }
       case 'ods': {
         const odf = readOdf(bytes);
-        return { kind: 'sheet', bytes: odfSheetsToWorkbook(odf.sheets || []), source: 'ods', converted: { from: 'ods' } };
+        return { kind: 'sheet', bytes: odfSheetsToWorkbook(odf), source: 'ods', converted: { from: 'ods' } };
       }
       case 'odt': {
         const odf = readOdf(bytes);

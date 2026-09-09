@@ -23,11 +23,11 @@ const FIXTURE = buildComplexWorkbook();
 
 // -------------------------------------------------------- number formats --
 
-test('the built-in format table matches the spec', () => {
+test('the built-in format table matches the spec, except the short date, which is the machine\'s', () => {
   assert.equal(BUILTIN_FORMATS[0], 'General');
   assert.equal(BUILTIN_FORMATS[4], '#,##0.00');
   assert.equal(BUILTIN_FORMATS[9], '0%');
-  assert.equal(BUILTIN_FORMATS[14], 'mm-dd-yy');
+  assert.match(BUILTIN_FORMATS[14], /^(dd[/.-]mm[/.-]yyyy|mm[/.-]dd[/.-]yyyy|yyyy[/.-]mm[/.-]dd)$/);
   assert.equal(BUILTIN_FORMATS[49], '@');
 });
 
@@ -2582,4 +2582,18 @@ test('Ctrl+click keeps what is selected and starts another rectangle', () => {
   s.beginAnother(1, 1);
   s.extendTo(3, 3);
   assert.equal([...s.cells()].length, 9 + 9 - 4);
+});
+
+test('built-in format 14 is the short date this computer writes, not the American order the spec lists', async () => {
+  // Excel shows built-in 14 as the system short date; a British workbook's
+  // 10 September read as "09-10-26" here before this followed suit.
+  const { localeShortDate, BUILTIN_FORMATS, formatValue } = await import('@rutba/formula/numfmt');
+  assert.equal(localeShortDate('en-GB'), 'dd/mm/yyyy');
+  assert.equal(localeShortDate('en-US'), 'mm/dd/yyyy');
+  assert.equal(localeShortDate('sv-SE'), 'yyyy-mm-dd');
+  assert.equal(localeShortDate('de-DE'), 'dd.mm.yyyy');
+  assert.equal(BUILTIN_FORMATS[14], localeShortDate());
+  assert.equal(BUILTIN_FORMATS[22], localeShortDate() + ' h:mm');
+  assert.equal(formatValue(46275, 'dd/mm/yyyy').text, '10/09/2026');
+  assert.equal(formatValue(46275, BUILTIN_FORMATS[14]).text, formatValue(46275, localeShortDate()).text);
 });

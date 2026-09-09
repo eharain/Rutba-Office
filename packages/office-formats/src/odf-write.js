@@ -311,6 +311,11 @@ export function formulaFromOdf(formula) {
       i += 1;
       continue;
     }
+    // A named range is `$$GrandTotal` in the file and `GrandTotal` to the engine.
+    if (ch === '$' && src[i + 1] === '$') {
+      i += 2;
+      continue;
+    }
     if (ch === '[') {
       const end = src.indexOf(']', i);
       if (end > i) {

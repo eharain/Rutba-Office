@@ -19,6 +19,7 @@
 
 import { parse, kids, first, all, textOf } from '@rutba/office-formats/xml';
 import { bulletGlyph } from '@rutba/drawing/glyphs';
+import { parseChartXml } from '@rutba/drawing';
 import { emuToPx, szToPt, rotToDeg, applyColorTransforms, PRESET_COLORS, pctOf } from './units.js';
 
 const A = (n) => `a:${n}`;
@@ -287,7 +288,23 @@ export function readSlideScene(xml, ctx = {}) {
         const table = readTable(node, ctx.theme);
         const meta = nameOf(node);
         if (table) shapes.push({ kind: 'table', ...meta, geometry: geom, table });
-        else shapes.push({ kind: 'unsupported', ...meta, geometry: geom, what: 'graphic' });
+        else {
+          // A chart. The frame names its part through a relationship, and
+          // the part is read the way a worksheet's is, into the spec
+          // @rutba/drawing draws — a chart on a slide and a chart on a
+          // sheet are one drawing. The deck hands in `rel` and `readPart`;
+          // a layout or master read without them keeps the frame as an
+          // unsupported graphic, which is what it was before.
+          const chartNode = all(node, 'c:chart')[0];
+          const rid = chartNode?.attrs['r:id'];
+          const r = rid && ctx.rel ? ctx.rel(rid) : null;
+          const xml = r?.part && ctx.readPart ? ctx.readPart(r.part) : null;
+          const spec = xml
+            ? parseChartXml(xml, { width: Math.max(160, Math.round(geom?.w || 480)), height: Math.max(120, Math.round(geom?.h || 300)) })
+            : null;
+          if (spec) shapes.push({ kind: 'chart', ...meta, geometry: geom, spec, part: r.part });
+          else shapes.push({ kind: 'unsupported', ...meta, geometry: geom, what: chartNode ? 'chart' : 'graphic' });
+        }
       } else if (node.name === P('cxnSp')) {
         const spPr = kids(node, P('spPr'))[0];
         const meta = nameOf(node);
