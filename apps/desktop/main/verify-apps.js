@@ -222,8 +222,28 @@ export async function verifyApps({ windows, doc }) {
   // If the application quits under the run, the run ends with no summary and
   // exit code 0 — which looks like success. Say so.
   import('electron').then(({ app }) => app.once('before-quit', () => console.log('     [before-quit] the application is quitting under the checks'))).catch(() => {});
+  // Where the time goes. A timer that should fire every second prints when
+  // the main process kept it waiting — a busy main process is what makes a
+  // window's reply late and a check read too soon — and a clock line every
+  // minute shows which block is slow.
+  const started = Date.now();
+  let lastCheck = '(before the first check)';
+  let lastTick = Date.now();
+  let lastClock = Date.now();
+  const lagTimer = setInterval(() => {
+    const now = Date.now();
+    const late = now - lastTick - 1000;
+    if (late > 400) console.log(`     [busy] the main process was ${late} ms late, after "${lastCheck}"`);
+    if (now - lastClock >= 60000) {
+      console.log(`     [clock] ${Math.round((now - started) / 1000)} s in, after "${lastCheck}"`);
+      lastClock = now;
+    }
+    lastTick = now;
+  }, 1000);
+
   const check = (name, ok, detail = '') => {
     results.push({ name, ok, detail });
+    lastCheck = name;
     console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}${detail ? ` — ${detail}` : ''}`);
   };
 
@@ -2278,6 +2298,7 @@ export async function verifyApps({ windows, doc }) {
     check('word: the dirty-close check ran', false, err.message);
   }
 
+  clearInterval(lagTimer);
   closingPhase.value = true;
   for (const win of opened) if (!win.isDestroyed()) win.destroy();
   fs.rmSync(dir, { recursive: true, force: true });
