@@ -9,7 +9,7 @@
 // nothing here pretends to author one.
 
 import React from 'react';
-import { Ribbon, Group, Button, Separator, Select } from '@rutba/office-ui';
+import { Ribbon, Group, Rows, Button, Separator, Select } from '@rutba/office-ui';
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
 const COLOURS = [
@@ -87,56 +87,78 @@ export default function SlidesRibbon({
         <>
           <Group label="Clipboard">
             <Soon tall icon="paste" label="Paste" why="A shape clipboard (copying shapes between slides) is not built; text inside a box pastes as text." />
-            <Soon icon="cut" label="Cut" why="Comes with the shape clipboard." />
-            <Soon icon="copy" label="Copy" why="Comes with the shape clipboard." />
-            <Soon icon="wand" label="Format Painter" why="Comes with shape formatting." />
+            <Rows>
+              <>
+                <Soon icon="cut" label="Cut" why="Comes with the shape clipboard." />
+                <Soon icon="copy" label="Copy" why="Comes with the shape clipboard." />
+              </>
+              <Soon icon="wand" label="Format Painter" why="Comes with shape formatting." />
+            </Rows>
           </Group>
           <Group label="Slides">
             <Button tall icon="plus" label="New Slide" onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
-            <Soon icon="grid" label="Layout" why="Changing an existing slide's layout re-parents its placeholders; the engine inserts with a layout and does not yet swap one." />
-            <Soon icon="undo" label="Reset" why="Comes with layouts." />
-            <Soon icon="list" label="Section" why="Sections are a presentation-part list the engine does not write yet." />
-            <Button icon="copy" label="Duplicate" onClick={() => commands['slide.new']?.run?.()} />
-            <Button icon="trash" label="Delete" disabled={count < 2} onClick={() => commands['slide.delete']?.run?.()} />
+            <Rows>
+              <>
+                <Soon icon="grid" label="Layout" why="Changing an existing slide's layout re-parents its placeholders; the engine inserts with a layout and does not yet swap one." />
+                <Soon icon="undo" label="Reset" why="Comes with layouts." />
+                <Soon icon="list" label="Section" why="Sections are a presentation-part list the engine does not write yet." />
+              </>
+              <>
+                <Button icon="copy" label="Duplicate" onClick={() => commands['slide.new']?.run?.()} />
+                <Button icon="trash" label="Delete" disabled={count < 2} onClick={() => commands['slide.delete']?.run?.()} />
+              </>
+            </Rows>
           </Group>
           <Group label="Font">
-            <Select value={format.font || ''} onChange={(e) => fmt({ font: e.target.value })} style={{ width: 118 }} title={needShape || 'Font'} disabled={!hasShape}>
-              <option value="">{format.font || 'Theme font'}</option>
-              {['Calibri', 'Calibri Light', 'Arial', 'Segoe UI', 'Georgia', 'Times New Roman', 'Verdana', 'Consolas'].filter((f) => f !== format.font).map((f) => <option key={f} value={f}>{f}</option>)}
-            </Select>
-            <Select value={String(size)} onChange={(e) => fmt({ size: Number(e.target.value) })} style={{ width: 58 }} title={needShape || 'Font size'} disabled={!hasShape}>
-              {SIZES.map((s) => <option key={s} value={String(s)}>{s}</option>)}
-              {SIZES.includes(size) ? null : <option value={String(size)}>{size}</option>}
-            </Select>
-            <Button icon="chevronUp" title={needShape || 'Increase font size'} disabled={!hasShape} onClick={() => fmt({ size: nearer(1) })} />
-            <Button icon="chevronDown" title={needShape || 'Decrease font size'} disabled={!hasShape} onClick={() => fmt({ size: nearer(-1) })} />
-            <Soon icon="undo" label="" why="Clear all formatting comes with shape formatting." />
-            <Separator />
-            <Button icon="bold" title={needShape || 'Bold (Ctrl+B)'} pressed={format.bold} disabled={!hasShape} onClick={() => fmt({ bold: 'toggle' })} />
-            <Button icon="italic" title={needShape || 'Italic (Ctrl+I)'} pressed={format.italic} disabled={!hasShape} onClick={() => fmt({ italic: 'toggle' })} />
-            <Button icon="underline" title={needShape || 'Underline (Ctrl+U)'} pressed={format.underline} disabled={!hasShape} onClick={() => fmt({ underline: 'toggle' })} />
-            <Soon icon="strike" label="" why="Strikethrough is a run property the deck writer does not write yet." />
-            <Soon icon="textbox" label="AV" why="Character spacing is a run property the deck writer does not write yet." />
-            <Soon icon="textbox" label="Aa" why="Change case comes with text selection inside a box." />
-            <Separator />
-            <Soon icon="wand" label="" why="Text highlight is a run property the deck writer does not write yet." />
-            <Button icon="contrast" title={needShape || 'Font colour'} disabled={!hasShape} onClick={(e) => menu.open(e, COLOURS.map(([value, label]) => ({ label, run: () => fmt({ color: value }) })))} />
+            <Rows>
+              <>
+                <Select value={format.font || ''} onChange={(e) => fmt({ font: e.target.value })} style={{ width: 118 }} title={needShape || 'Font'} disabled={!hasShape}>
+                  <option value="">{format.font || 'Theme font'}</option>
+                  {['Calibri', 'Calibri Light', 'Arial', 'Segoe UI', 'Georgia', 'Times New Roman', 'Verdana', 'Consolas'].filter((f) => f !== format.font).map((f) => <option key={f} value={f}>{f}</option>)}
+                </Select>
+                <Select value={String(size)} onChange={(e) => fmt({ size: Number(e.target.value) })} style={{ width: 58 }} title={needShape || 'Font size'} disabled={!hasShape}>
+                  {SIZES.map((s) => <option key={s} value={String(s)}>{s}</option>)}
+                  {SIZES.includes(size) ? null : <option value={String(size)}>{size}</option>}
+                </Select>
+                <Button icon="chevronUp" title={needShape || 'Increase font size'} disabled={!hasShape} onClick={() => fmt({ size: nearer(1) })} />
+                <Button icon="chevronDown" title={needShape || 'Decrease font size'} disabled={!hasShape} onClick={() => fmt({ size: nearer(-1) })} />
+                <Soon icon="undo" label="" why="Clear all formatting comes with shape formatting." />
+              </>
+              <>
+                <Button icon="bold" title={needShape || 'Bold (Ctrl+B)'} pressed={format.bold} disabled={!hasShape} onClick={() => fmt({ bold: 'toggle' })} />
+                <Button icon="italic" title={needShape || 'Italic (Ctrl+I)'} pressed={format.italic} disabled={!hasShape} onClick={() => fmt({ italic: 'toggle' })} />
+                <Button icon="underline" title={needShape || 'Underline (Ctrl+U)'} pressed={format.underline} disabled={!hasShape} onClick={() => fmt({ underline: 'toggle' })} />
+                <Soon icon="strike" label="" why="Strikethrough is a run property the deck writer does not write yet." />
+                <Soon icon="textbox" label="AV" why="Character spacing is a run property the deck writer does not write yet." />
+                <Soon icon="textbox" label="Aa" why="Change case comes with text selection inside a box." />
+                <Separator />
+                <Soon icon="wand" label="" why="Text highlight is a run property the deck writer does not write yet." />
+                <Button icon="contrast" title={needShape || 'Font colour'} disabled={!hasShape} onClick={(e) => menu.open(e, COLOURS.map(([value, label]) => ({ label, run: () => fmt({ color: value }) })))} />
+              </>
+            </Rows>
           </Group>
           <Group label="Paragraph">
-            <Soon icon="listBullet" label="" why="Bullets are a paragraph property (a:buChar) the deck writer does not write yet." />
-            <Soon icon="listNumber" label="" why="Numbering comes with bullets." />
-            <Soon icon="chevronLeft" label="" why="Indent levels come with bullets." />
-            <Soon icon="chevronRight" label="" why="Indent levels come with bullets." />
-            <Soon icon="list" label="" why="Line spacing is a paragraph property the deck writer does not write yet." />
-            <Separator />
-            <Button icon="alignLeft" title={needShape || 'Align left'} pressed={format.align === 'left'} disabled={!hasShape} onClick={() => fmt({ align: 'left' })} />
-            <Button icon="alignCenter" title={needShape || 'Centre'} pressed={format.align === 'center'} disabled={!hasShape} onClick={() => fmt({ align: 'center' })} />
-            <Button icon="alignRight" title={needShape || 'Align right'} pressed={format.align === 'right'} disabled={!hasShape} onClick={() => fmt({ align: 'right' })} />
-            <Button icon="alignJustify" title={needShape || 'Justify'} pressed={format.align === 'justify'} disabled={!hasShape} onClick={() => fmt({ align: 'justify' })} />
-            <Soon icon="grid" label="" why="Columns inside a text box are a body property the deck writer does not write yet." />
-            <Soon icon="rotate" label="" why="Text direction comes with body properties." />
-            <Soon icon="chevronUp" label="" why="Vertical alignment inside the box comes with body properties." />
-            <Soon icon="shape" label="SmartArt" why="SmartArt is a diagram part the engine does not write." />
+            <Rows>
+              <>
+                <Soon icon="listBullet" label="" why="Bullets are a paragraph property (a:buChar) the deck writer does not write yet." />
+                <Soon icon="listNumber" label="" why="Numbering comes with bullets." />
+                <Soon icon="chevronLeft" label="" why="Indent levels come with bullets." />
+                <Soon icon="chevronRight" label="" why="Indent levels come with bullets." />
+                <Soon icon="list" label="" why="Line spacing is a paragraph property the deck writer does not write yet." />
+                <Separator />
+                <Soon icon="grid" label="" why="Columns inside a text box are a body property the deck writer does not write yet." />
+                <Soon icon="rotate" label="" why="Text direction comes with body properties." />
+                <Soon icon="chevronUp" label="" why="Vertical alignment inside the box comes with body properties." />
+              </>
+              <>
+                <Button icon="alignLeft" title={needShape || 'Align left'} pressed={format.align === 'left'} disabled={!hasShape} onClick={() => fmt({ align: 'left' })} />
+                <Button icon="alignCenter" title={needShape || 'Centre'} pressed={format.align === 'center'} disabled={!hasShape} onClick={() => fmt({ align: 'center' })} />
+                <Button icon="alignRight" title={needShape || 'Align right'} pressed={format.align === 'right'} disabled={!hasShape} onClick={() => fmt({ align: 'right' })} />
+                <Button icon="alignJustify" title={needShape || 'Justify'} pressed={format.align === 'justify'} disabled={!hasShape} onClick={() => fmt({ align: 'justify' })} />
+                <Separator />
+                <Soon icon="shape" label="SmartArt" why="SmartArt is a diagram part the engine does not write." />
+              </>
+            </Rows>
           </Group>
           <Group label="Drawing">
             <Button tall icon="shape" label="Shapes" title="Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />

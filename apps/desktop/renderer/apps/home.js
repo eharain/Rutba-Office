@@ -513,7 +513,13 @@ const CSS = `
 }
 .home-notice-close:hover { background: var(--hover); color: var(--ink); }
 
-.home { flex: 1; overflow: auto; padding: 26px 30px 34px; display: flex; flex-direction: column; gap: 26px; }
+.home {
+  flex: 1; overflow: auto; padding: 26px 30px 34px; display: flex; flex-direction: column; gap: 26px;
+  /* A wash of the accent behind the welcome, gone by the first row of tiles. */
+  background:
+    radial-gradient(900px 360px at 12% -20%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
+    var(--window);
+}
 .home-hero { display: flex; align-items: flex-start; gap: 24px; flex-wrap: wrap; }
 .home-hero h1 {
   margin: 0 0 6px; font-family: var(--font-display); font-size: 27px; font-weight: 650;
@@ -543,17 +549,16 @@ const CSS = `
   flex: 1; display: flex; align-items: center; gap: 12px; padding: 13px 14px;
   border: 0; background: transparent; color: var(--ink); text-align: left; min-width: 0;
 }
+/* The tile wears the app's own colour — the theme names one per app, so a
+   new app never draws a blank tile again (Calendar and Contacts did). */
 .home-card-glyph {
   width: 40px; height: 40px; border-radius: 11px; display: grid; place-items: center; flex: none;
-  color: #fff; box-shadow: inset 0 -1px 0 rgba(0,0,0,0.18);
+  color: #fff;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--accent) 82%, white), var(--accent) 55%, color-mix(in srgb, var(--accent) 78%, black));
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--accent) 35%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: transform var(--fast), box-shadow var(--fast);
 }
-.home-card[data-app='mail'] .home-card-glyph { background: #3b7de0; }
-.home-card[data-app='word'] .home-card-glyph { background: #2b5fd9; }
-.home-card[data-app='sheets'] .home-card-glyph { background: #0f9d58; }
-.home-card[data-app='slides'] .home-card-glyph { background: #d9534f; }
-.home-card[data-app='pictures'] .home-card-glyph { background: #7b5cd6; }
-.home-card[data-app='image'] .home-card-glyph { background: #e08b2b; }
-.home-card[data-app='video'] .home-card-glyph { background: #c2408f; }
+.home-card:hover .home-card-glyph { transform: scale(1.04); box-shadow: 0 4px 12px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.25); }
 .home-card-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
 .home-card-text strong { font-size: 13.5px; font-weight: 600; }
 .home-card-text span { font-size: 11.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -603,13 +608,7 @@ const CSS = `
 .home-recent-row:last-child { border-bottom: 0; }
 .home-recent-row:hover { background: var(--hover); }
 .rr-glyph { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: #fff; flex: none; }
-.rr-glyph[data-app='mail'] { background: #3b7de0; }
-.rr-glyph[data-app='word'] { background: #2b5fd9; }
-.rr-glyph[data-app='sheets'] { background: #0f9d58; }
-.rr-glyph[data-app='slides'] { background: #d9534f; }
-.rr-glyph[data-app='pictures'] { background: #7b5cd6; }
-.rr-glyph[data-app='image'] { background: #e08b2b; }
-.rr-glyph[data-app='video'] { background: #c2408f; }
+.rr-glyph[data-app] { background: var(--accent); }
 .rr-glyph[data-app='home'] { background: var(--n-50); }
 .rr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rr-kind { color: var(--ink-3); font-size: 11.5px; flex: none; }

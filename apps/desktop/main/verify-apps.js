@@ -1749,8 +1749,16 @@ export async function verifyApps({ windows, doc }) {
     const reply = await js(`(() => { const to = document.querySelector('input[placeholder^="someone@"]'); const subject = [...document.querySelectorAll('input')].map((i) => i.value).find((v) => /^Accepted/.test(v)); return { to: to?.value || '', subject: subject || '', attachment: /reply\\.ics/i.test(document.body.textContent) }; })()`);
     const kept = await js(`(async () => { const c = await window.rutbaOffice.calendar.calendars({}); return c.reduce((n, x) => n + x.count, 0); })()`);
     check('mail: Accept keeps the event and opens the reply to the organizer with the file attached', /amina@northwind\.example/.test(reply.to) && /^Accepted: Quarterly numbers/.test(reply.subject) && reply.attachment && kept >= 1, `${JSON.stringify(reply)}; events kept ${kept}`);
+    // The reply opens, then the window settles the attachment a frame later,
+    // which once reset a To typed too soon; type after it has settled, and
+    // type again if the first try was swallowed.
+    await wait(400);
     await setField(win, 'input[placeholder^="someone@"]', 'ami');
-    await until(() => js(`document.querySelectorAll('.ml-suggest button').length > 0`), 'a suggestion', 6000).catch(() => {});
+    await until(() => js(`document.querySelectorAll('.ml-suggest button').length > 0`), 'a suggestion', 3000).catch(() => {});
+    if (!(await js(`document.querySelectorAll('.ml-suggest button').length`))) {
+      await setField(win, 'input[placeholder^="someone@"]', 'amin');
+      await until(() => js(`document.querySelectorAll('.ml-suggest button').length > 0`), 'a suggestion, second try', 4000).catch(() => {});
+    }
     const suggested = await js(`[...document.querySelectorAll('.ml-suggest button')].map((b) => b.textContent)`);
     check('mail: Compose completes an address from the people mail has seen', suggested.some((s) => /amina@northwind\.example/.test(s)), JSON.stringify(suggested));
     await js(`[...document.querySelectorAll('.rw-btn, button')].find((b) => /^(Close|Discard|Cancel)$/.test(b.textContent.trim()))?.click(), 'closed'`);
@@ -1915,6 +1923,8 @@ export async function verifyApps({ windows, doc }) {
 
       await js(`document.querySelector('.ml-outbox button')?.click(), 'undo'`);
       await until(async () => (await mail('outbox')).length === 0, 'the message to come back', 4000).catch(() => {});
+      // The message comes back first and the window reopens it a frame later.
+      await until(() => js(`Boolean(document.querySelector('.rw-dialog input:not([disabled])')?.value)`), 'the message to reopen', 3000).catch(() => {});
       const reopened = await js(`Boolean(document.querySelector('.rw-dialog')) && (document.querySelector('.rw-dialog input:not([disabled])')?.value || '')`);
       check('mail: Undo takes it back and reopens it', (await mail('outbox')).length === 0 && reopened === 'someone@example.com', `outbox ${(await mail('outbox')).length}; reopened to ${JSON.stringify(reopened)}`);
       await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Discard')?.click(), 'discarded'`);

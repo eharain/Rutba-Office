@@ -1103,15 +1103,19 @@ const CSS = `
 */
 .sh { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
 .sh-formula {
-  display: flex; align-items: center; gap: 8px; padding: 4px 10px;
-  background: var(--surface); border-bottom: 1px solid var(--line);
+  display: flex; align-items: center; gap: 8px; padding: 5px 10px;
+  background: var(--chrome); border-bottom: 1px solid var(--line-soft);
 }
 .sh-namebox {
-  min-width: 78px; padding: 3px 8px; font-size: 12px; font-variant-numeric: tabular-nums;
-  border: 1px solid var(--line); border-radius: var(--r-2); background: var(--chrome); text-align: center;
+  min-width: 82px; height: 26px; padding: 0 10px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;
+  border: 1px solid var(--line-soft); border-radius: var(--r-2); background: var(--surface); text-align: center;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--ink-2);
 }
-.sh-formula .rw-input { font-family: var(--mono); font-size: 12.5px; }
-.sh-formula .rw-input:focus { box-shadow: none; }
+.sh-formula .rw-input {
+  font-family: var(--mono); font-size: 12.5px; height: 26px; padding: 0 10px;
+  border: 1px solid var(--line-soft); background: var(--surface);
+}
+.sh-formula .rw-input:focus { box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); }
 
 .sh-grid { flex: 1; overflow: auto; position: relative; min-width: 0; min-height: 0; background: var(--surface); }
 .sh-canvas { display: grid; }
@@ -1128,10 +1132,14 @@ const CSS = `
 .sh-rowheads { position: sticky; }
 .sh-head {
   position: absolute; display: grid; place-items: center; font-size: 11.5px; color: var(--ink-2);
-  background: var(--chrome); border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line);
+  background: var(--surface-2); border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line);
   font-variant-numeric: tabular-nums; user-select: none;
+  transition: background var(--fast), color var(--fast);
 }
 .sh-head.active { background: var(--selected); color: var(--accent); font-weight: 600; }
+/* The heading of the active column carries a bar along its edge, the row's likewise. */
+.sh-colheads .sh-head.active { box-shadow: inset 0 -2px 0 var(--accent); }
+.sh-rowheads .sh-head.active { box-shadow: inset -2px 0 0 var(--accent); }
 .sh-cell {
   position: absolute; display: flex; align-items: center; padding: 0 5px;
   border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);
@@ -1153,12 +1161,15 @@ const CSS = `
   padding: 0 4px; font: inherit; font-size: 12.5px; background: var(--surface); color: var(--ink); outline: none;
 }
 .sh-tabs {
-  display: flex; align-items: stretch; gap: 2px; padding: 3px 8px;
-  background: var(--chrome); border-top: 1px solid var(--line); overflow-x: auto;
+  display: flex; align-items: stretch; gap: 3px; padding: 4px 8px;
+  background: var(--chrome); border-top: 1px solid var(--line-soft); overflow-x: auto;
+  scrollbar-width: none;
 }
+.sh-tabs::-webkit-scrollbar { display: none; }
 .sh-tab {
-  border: 0; background: transparent; color: var(--ink-2); padding: 3px 12px;
-  font-size: 12px; border-radius: var(--r-2); white-space: nowrap;
+  border: 0; background: transparent; color: var(--ink-2); padding: 4px 13px;
+  font-size: 12px; font-weight: 500; border-radius: var(--r-2); white-space: nowrap;
+  transition: background var(--fast), color var(--fast);
 }
 .sh-tab:hover { background: var(--hover); }
 .sh-tab.active { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: var(--shadow-1); }

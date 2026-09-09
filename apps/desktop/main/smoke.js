@@ -35,6 +35,10 @@ export async function runSmoke({ windows, outDir, stores, mail }) {
   const file = process.env.RUTBA_SMOKE_FILE || null;
   fs.mkdirSync(outDir, { recursive: true });
 
+  // `RUTBA_SMOKE_THEME=dark` photographs the windows in the dark theme: the
+  // setting the windows read at boot, put in the run's own profile first.
+  if (process.env.RUTBA_SMOKE_THEME && stores) stores.settings.set('theme', process.env.RUTBA_SMOKE_THEME);
+
   if (process.env.RUTBA_SMOKE_SEED && mail && stores) {
     try {
       const seeded = await seedMail({ stores, mail });

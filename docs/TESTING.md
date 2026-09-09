@@ -43,7 +43,8 @@ off the desktop — to the right of every display, out of the taskbar, never
 activated — so they are not in your way and you cannot close them by
 mistake, and they never take the keyboard from you. Set
 `RUTBA_WINDOW_DISPLAY=secondary` to watch a run on a second display
-instead.
+instead. `RUTBA_SMOKE_THEME=dark npm run smoke` photographs every window
+in the dark theme, which is how a change to the look is checked in both.
 
 ## When the main process is late
 

@@ -1471,7 +1471,9 @@ const CSS = `
 .wd { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
 .wd-scroll { flex: 1; overflow: auto; padding: 26px 0 40px; display: flex; justify-content: center; background: var(--window); }
 .wd-page {
-  background: #fff; color: #111; box-shadow: var(--shadow-2); border-radius: 2px;
+  background: #fff; color: #111; border-radius: 2px;
+  /* A sheet of paper on a desk: a close shadow for the edge, a wide soft one for the lift. */
+  box-shadow: 0 0 0 1px rgba(15, 20, 30, 0.05), 0 2px 6px rgba(15, 20, 30, 0.07), 0 14px 36px rgba(15, 20, 30, 0.1);
   outline: none; font-family: Calibri, "Segoe UI", system-ui, sans-serif; font-size: 15px;
   line-height: 1.5; caret-color: var(--accent); position: relative;
 }

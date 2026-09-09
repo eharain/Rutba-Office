@@ -8,7 +8,7 @@
 // that hides its gaps is a ribbon nobody fixes.
 
 import React from 'react';
-import { Ribbon, Group, Button, Separator, Select } from '@rutba/office-ui';
+import { Ribbon, Group, Rows, Button, Separator, Select } from '@rutba/office-ui';
 import { catalogByCategory } from '@rutba/formula';
 import { NUMBER_FORMATS } from './dialogs.js';
 
@@ -170,65 +170,83 @@ export default function SheetsRibbon({
         <>
           <Group label="Clipboard">
             <Button tall icon="paste" label="Paste" onClick={async () => dispatch({ op: 'paste', text: await shell.clipboard.readText() })} />
-            <Button icon="cut" label="Cut" onClick={() => commands['edit.cut']?.run?.()} />
-            <Button icon="copy" label="Copy" onClick={() => commands['edit.copy'].run()} />
-            <Button icon="wand" label="Format Painter" title="Copy the formatting here to the next selection" onClick={() => dispatch({ op: 'formatBrush' })} />
+            <Rows>
+              <>
+                <Button icon="cut" label="Cut" onClick={() => commands['edit.cut']?.run?.()} />
+                <Button icon="copy" label="Copy" onClick={() => commands['edit.copy'].run()} />
+              </>
+              <Button icon="wand" label="Format Painter" title="Copy the formatting here to the next selection" onClick={() => dispatch({ op: 'formatBrush' })} />
+            </Rows>
           </Group>
 
           <Group label="Font">
-            <Select value={format.fontName || 'Calibri'} onChange={(e) => setFormat({ fontName: e.target.value })} style={{ width: 118 }} title="Font">
-              {FONTS.map((f) => <option key={f} value={f}>{f}</option>)}
-              {format.fontName && !FONTS.includes(format.fontName) ? <option value={format.fontName}>{format.fontName}</option> : null}
-            </Select>
-            <Select value={String(size)} onChange={(e) => setFormat({ fontSize: Number(e.target.value) })} style={{ width: 56 }} title="Font size">
-              {SIZES.map((s) => <option key={s} value={String(s)}>{s}</option>)}
-              {SIZES.includes(size) ? null : <option value={String(size)}>{size}</option>}
-            </Select>
-            <Button icon="chevronUp" title="Increase font size" onClick={() => setFormat({ fontSize: nearer(1) })} />
-            <Button icon="chevronDown" title="Decrease font size" onClick={() => setFormat({ fontSize: nearer(-1) })} />
-            <Separator />
-            <Button icon="bold" title="Bold (Ctrl+B)" pressed={format.bold} onClick={() => setFormat({ bold: 'toggle' })} />
-            <Button icon="italic" title="Italic (Ctrl+I)" pressed={format.italic} onClick={() => setFormat({ italic: 'toggle' })} />
-            <Button icon="underline" title="Underline (Ctrl+U)" pressed={format.underline} onClick={() => setFormat({ underline: 'toggle' })} />
-            <Button icon="strike" title="Strikethrough" pressed={format.strike} onClick={() => setFormat({ strike: 'toggle' })} />
-            <Separator />
-            <Button icon="grid" title="Borders" onClick={(e) => menu.open(e, BORDERS.map(([label, edges]) => ({ label, run: () => setFormat({ border: edges }) })))} />
-            <Button icon="wand" title="Fill colour" onClick={(e) => swatchMenu(e, 'fill', FILLS.map(([c, l]) => [c ? `#${c}` : null, l]))} />
-            <Button icon="contrast" title="Font colour" onClick={(e) => swatchMenu(e, 'fontColour', SWATCHES)} />
+            <Rows>
+              <>
+                <Select value={format.fontName || 'Calibri'} onChange={(e) => setFormat({ fontName: e.target.value })} style={{ width: 118 }} title="Font">
+                  {FONTS.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {format.fontName && !FONTS.includes(format.fontName) ? <option value={format.fontName}>{format.fontName}</option> : null}
+                </Select>
+                <Select value={String(size)} onChange={(e) => setFormat({ fontSize: Number(e.target.value) })} style={{ width: 56 }} title="Font size">
+                  {SIZES.map((s) => <option key={s} value={String(s)}>{s}</option>)}
+                  {SIZES.includes(size) ? null : <option value={String(size)}>{size}</option>}
+                </Select>
+                <Button icon="chevronUp" title="Increase font size" onClick={() => setFormat({ fontSize: nearer(1) })} />
+                <Button icon="chevronDown" title="Decrease font size" onClick={() => setFormat({ fontSize: nearer(-1) })} />
+              </>
+              <>
+                <Button icon="bold" title="Bold (Ctrl+B)" pressed={format.bold} onClick={() => setFormat({ bold: 'toggle' })} />
+                <Button icon="italic" title="Italic (Ctrl+I)" pressed={format.italic} onClick={() => setFormat({ italic: 'toggle' })} />
+                <Button icon="underline" title="Underline (Ctrl+U)" pressed={format.underline} onClick={() => setFormat({ underline: 'toggle' })} />
+                <Button icon="strike" title="Strikethrough" pressed={format.strike} onClick={() => setFormat({ strike: 'toggle' })} />
+                <Separator />
+                <Button icon="grid" title="Borders" onClick={(e) => menu.open(e, BORDERS.map(([label, edges]) => ({ label, run: () => setFormat({ border: edges }) })))} />
+                <Button icon="wand" title="Fill colour" onClick={(e) => swatchMenu(e, 'fill', FILLS.map(([c, l]) => [c ? `#${c}` : null, l]))} />
+                <Button icon="contrast" title="Font colour" onClick={(e) => swatchMenu(e, 'fontColour', SWATCHES)} />
+              </>
+            </Rows>
           </Group>
 
           <Group label="Alignment">
-            <Button icon="chevronUp" title="Top align" pressed={format.valign === 'top'} onClick={() => setFormat({ valign: 'top' })} />
-            <Button icon="minus" title="Middle align" pressed={format.valign === 'center'} onClick={() => setFormat({ valign: 'center' })} />
-            <Button icon="chevronDown" title="Bottom align" pressed={format.valign === 'bottom'} onClick={() => setFormat({ valign: 'bottom' })} />
-            <Soon icon="rotate" label="" why="Text orientation (angled or vertical text) is a cell alignment the engine does not write yet." />
-            <Button icon="listBullet" label="Wrap Text" pressed={format.wrap} onClick={() => setFormat({ wrap: !format.wrap })} />
-            <Separator />
-            <Button icon="alignLeft" title="Align left" pressed={format.align === 'left'} onClick={() => setFormat({ align: 'left' })} />
-            <Button icon="alignCenter" title="Centre" pressed={format.align === 'center'} onClick={() => setFormat({ align: 'center' })} />
-            <Button icon="alignRight" title="Align right" pressed={format.align === 'right'} onClick={() => setFormat({ align: 'right' })} />
-            <Soon icon="chevronLeft" label="" why="Decrease indent is a cell alignment the engine does not write yet." />
-            <Soon icon="chevronRight" label="" why="Increase indent is a cell alignment the engine does not write yet." />
-            <Separator />
-            <Button icon="table" label="Merge & Centre" title="Merge the selected cells into one, and centre it" onClick={() => act('mergeCentre')} />
-            <Button icon="table" title="Merge cells" onClick={() => dispatch({ op: 'merge' })} />
-            <Button icon="minus" title="Unmerge cells" onClick={() => dispatch({ op: 'unmerge' })} />
+            <Rows>
+              <>
+                <Button icon="chevronUp" title="Top align" pressed={format.valign === 'top'} onClick={() => setFormat({ valign: 'top' })} />
+                <Button icon="minus" title="Middle align" pressed={format.valign === 'center'} onClick={() => setFormat({ valign: 'center' })} />
+                <Button icon="chevronDown" title="Bottom align" pressed={format.valign === 'bottom'} onClick={() => setFormat({ valign: 'bottom' })} />
+                <Soon icon="rotate" label="" why="Text orientation (angled or vertical text) is a cell alignment the engine does not write yet." />
+                <Separator />
+                <Button icon="listBullet" label="Wrap Text" pressed={format.wrap} onClick={() => setFormat({ wrap: !format.wrap })} />
+              </>
+              <>
+                <Button icon="alignLeft" title="Align left" pressed={format.align === 'left'} onClick={() => setFormat({ align: 'left' })} />
+                <Button icon="alignCenter" title="Centre" pressed={format.align === 'center'} onClick={() => setFormat({ align: 'center' })} />
+                <Button icon="alignRight" title="Align right" pressed={format.align === 'right'} onClick={() => setFormat({ align: 'right' })} />
+                <Soon icon="chevronLeft" label="" why="Decrease indent is a cell alignment the engine does not write yet." />
+                <Soon icon="chevronRight" label="" why="Increase indent is a cell alignment the engine does not write yet." />
+                <Separator />
+                <Button icon="table" label="Merge & Centre" title="Merge the selected cells into one, and centre it" onClick={() => act('mergeCentre')} />
+                <Button icon="table" title="Merge cells" onClick={() => dispatch({ op: 'merge' })} />
+                <Button icon="minus" title="Unmerge cells" onClick={() => dispatch({ op: 'unmerge' })} />
+              </>
+            </Rows>
           </Group>
 
           <Group label="Number">
-            <Select value={format.numberFormat || 'General'} onChange={(e) => setFormat({ numberFormat: e.target.value })} style={{ width: 148 }} title="Number format">
-              {NUMBER_FORMATS.map((f) => <option key={f.label} value={f.code}>{f.label}</option>)}
-              {NUMBER_FORMATS.some((f) => f.code === (format.numberFormat || 'General')) ? null : (
-                <option value={format.numberFormat}>{format.numberFormat}</option>
-              )}
-            </Select>
-            <Separator />
-            {/* The mark is the button. An icon beside a currency symbol says nothing. */}
-            <Button title="Currency" onClick={() => setFormat({ numberFormat: '"£"#,##0.00' })} label="£" />
-            <Button title="Percent style" onClick={() => setFormat({ numberFormat: '0%' })} label="%" />
-            <Button title="Comma style" onClick={() => setFormat({ numberFormat: '#,##0.00' })} label="," />
-            <Button title="Increase decimal" onClick={() => setFormat({ numberFormat: withDecimals(format.numberFormat, 1) })} label=".0" />
-            <Button title="Decrease decimal" onClick={() => setFormat({ numberFormat: withDecimals(format.numberFormat, -1) })} label=".00" />
+            <Rows>
+              <Select value={format.numberFormat || 'General'} onChange={(e) => setFormat({ numberFormat: e.target.value })} style={{ width: 148 }} title="Number format">
+                {NUMBER_FORMATS.map((f) => <option key={f.label} value={f.code}>{f.label}</option>)}
+                {NUMBER_FORMATS.some((f) => f.code === (format.numberFormat || 'General')) ? null : (
+                  <option value={format.numberFormat}>{format.numberFormat}</option>
+                )}
+              </Select>
+              <>
+                {/* The mark is the button. An icon beside a currency symbol says nothing. */}
+                <Button title="Currency" onClick={() => setFormat({ numberFormat: '"£"#,##0.00' })} label="£" />
+                <Button title="Percent style" onClick={() => setFormat({ numberFormat: '0%' })} label="%" />
+                <Button title="Comma style" onClick={() => setFormat({ numberFormat: '#,##0.00' })} label="," />
+                <Button title="Increase decimal" onClick={() => setFormat({ numberFormat: withDecimals(format.numberFormat, 1) })} label=".0" />
+                <Button title="Decrease decimal" onClick={() => setFormat({ numberFormat: withDecimals(format.numberFormat, -1) })} label=".00" />
+              </>
+            </Rows>
           </Group>
 
           <Group label="Styles">

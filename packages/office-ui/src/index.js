@@ -290,6 +290,42 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
   }, [collapsed, collapsible, collapsedProp, onCollapse]);
 
   const showGroups = !collapsed || peek;
+
+  // The groups are wider than most windows. There is no bar (a bar under a
+  // toolbar reads as a fault); a chevron appears on whichever side has more,
+  // the wheel scrolls sideways, and the edge shadows say the rest.
+  const groupsRef = useRef(null);
+  const [more, setMore] = useState({ left: false, right: false });
+  useEffect(() => {
+    const el = groupsRef.current;
+    if (!el || !showGroups) return undefined;
+    const measure = () => {
+      const left = el.scrollLeft > 2;
+      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+      setMore((m) => (m.left === left && m.right === right ? m : { left, right }));
+    };
+    measure();
+    el.addEventListener('scroll', measure, { passive: true });
+    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(measure) : null;
+    ro?.observe(el);
+    return () => {
+      el.removeEventListener('scroll', measure);
+      ro?.disconnect();
+    };
+  }, [showGroups, active, children]);
+  const scrollGroups = (dir) => {
+    const el = groupsRef.current;
+    if (el) el.scrollBy({ left: dir * Math.max(240, el.clientWidth * 0.6), behavior: 'smooth' });
+  };
+  const wheelSideways = (e) => {
+    const el = groupsRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && !e.target.closest('select')) {
+      el.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }
+  };
+
   return (
     <div ref={ref} className={`rw-ribbon${collapsed ? ' collapsed' : ''}${collapsed && peek ? ' peek' : ''}`} onMouseDown={keepEditorFocus}>
       <div className="rw-tabs" role="tablist">
@@ -325,16 +361,30 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
         </div>
       </div>
       {showGroups ? (
-        <div
-          className="rw-groups"
-          role="tabpanel"
-          onClick={(e) => {
-            // A command pressed from a peek closes the peek, as in Office; a
-            // dropdown keeps it, because a dropdown that closes cannot open.
-            if (collapsed && peek && e.target.closest('button') && !e.target.closest('select')) setPeek(false);
-          }}
-        >
-          {children}
+        <div className="rw-groups-wrap">
+          {more.left ? (
+            <button type="button" className="rw-more left" title="More, to the left" aria-label="Scroll the ribbon left" onClick={() => scrollGroups(-1)}>
+              <Icon name="chevronLeft" size={14} />
+            </button>
+          ) : null}
+          <div
+            ref={groupsRef}
+            className="rw-groups"
+            role="tabpanel"
+            onWheel={wheelSideways}
+            onClick={(e) => {
+              // A command pressed from a peek closes the peek, as in Office; a
+              // dropdown keeps it, because a dropdown that closes cannot open.
+              if (collapsed && peek && e.target.closest('button') && !e.target.closest('select')) setPeek(false);
+            }}
+          >
+            {children}
+          </div>
+          {more.right ? (
+            <button type="button" className="rw-more right" title="More, to the right" aria-label="Scroll the ribbon right" onClick={() => scrollGroups(1)}>
+              <Icon name="chevronRight" size={14} />
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -346,6 +396,19 @@ export function Group({ label, children }) {
     <div className="rw-group">
       <div className="rw-group-items">{children}</div>
       {label ? <div className="rw-group-label">{label}</div> : null}
+    </div>
+  );
+}
+
+/**
+ * Small buttons stacked in rows beside the tall ones, the way Office lays a
+ * group out: each child is one row. A Home ribbon of single-row groups was
+ * 2,372 px wide; in rows it fits a normal window.
+ */
+export function Rows({ children }) {
+  return (
+    <div className="rw-rows">
+      {React.Children.map(children, (row, i) => (row === null || row === undefined || row === false ? null : <div className="rw-row" key={i}>{row}</div>))}
     </div>
   );
 }

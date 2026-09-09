@@ -21,7 +21,7 @@
 // from the `view` the page keeps (mode, panes, marks).
 
 import React from 'react';
-import { Ribbon, Group, Button, Separator, Select, Input } from '@rutba/office-ui';
+import { Ribbon, Group, Rows, Button, Separator, Select, Input } from '@rutba/office-ui';
 
 /* ── vocabularies ────────────────────────────────────────────────────────── */
 
@@ -107,64 +107,78 @@ export default function WordRibbon({
         <>
           <Group label="Clipboard">
             <Button tall icon="paste" label="Paste" title="Paste (Ctrl+V)" onClick={() => commands['edit.paste']?.run?.()} />
-            <Button icon="cut" label="Cut" title="Cut (Ctrl+X)" onClick={() => commands['edit.cut']?.run?.()} />
-            <Button icon="copy" label="Copy" title="Copy (Ctrl+C)" onClick={() => commands['edit.copy']?.run?.()} />
-            <Button icon="wand" label="Format Painter" pressed={Boolean(view.painting)} title="Format Painter — copy the formatting here, then select the words to paint" onClick={() => act('formatPainter')} />
+            <Rows>
+              <>
+                <Button icon="cut" label="Cut" title="Cut (Ctrl+X)" onClick={() => commands['edit.cut']?.run?.()} />
+                <Button icon="copy" label="Copy" title="Copy (Ctrl+C)" onClick={() => commands['edit.copy']?.run?.()} />
+              </>
+              <Button icon="wand" label="Format Painter" pressed={Boolean(view.painting)} title="Format Painter — copy the formatting here, then select the words to paint" onClick={() => act('formatPainter')} />
+            </Rows>
           </Group>
 
           <Group label="Font">
-            <Select value={format.fontName || 'Calibri'} onChange={(e) => run({ fontName: e.target.value })} style={{ width: 132 }} title="Font">
-              {FONTS.map((f) => <option key={f} value={f}>{f}</option>)}
-              {format.fontName && !FONTS.includes(format.fontName) ? <option value={format.fontName}>{format.fontName}</option> : null}
-            </Select>
-            <Select value={String(size)} onChange={(e) => run({ fontSize: Number(e.target.value) })} style={{ width: 58 }} title="Size">
-              {SIZES.map((s) => <option key={s} value={String(s)}>{s}</option>)}
-              {SIZES.includes(size) ? null : <option value={String(size)}>{size}</option>}
-            </Select>
-            <Button icon="chevronUp" title="Grow font" onClick={() => run({ fontSize: nearer(1) })} />
-            <Button icon="chevronDown" title="Shrink font" onClick={() => run({ fontSize: nearer(-1) })} />
-            <Button icon="textbox" title="Change case" onClick={(e) => menu.open(e, CASES.map(([mode, label]) => ({ label, run: () => act('changeCase', mode) })))} />
-            <Button icon="undo" title="Clear all formatting" onClick={() => dispatch({ op: 'clearFormat' })} />
-            <Separator />
-            <Button icon="bold" title="Bold (Ctrl+B)" pressed={format.bold} onClick={() => dispatch({ op: 'toggleFormat', tag: 'bold' })} />
-            <Button icon="italic" title="Italic (Ctrl+I)" pressed={format.italic} onClick={() => dispatch({ op: 'toggleFormat', tag: 'italic' })} />
-            <Button icon="underline" title="Underline (Ctrl+U)" pressed={format.underline} onClick={() => dispatch({ op: 'toggleFormat', tag: 'underline' })} />
-            <Button icon="strike" title="Strikethrough" pressed={format.strike} onClick={() => dispatch({ op: 'toggleFormat', tag: 'strike' })} />
-            <Button icon="chevronDown" label="x₂" title="Subscript" pressed={format.vertAlign === 'subscript'} onClick={() => run({ vertAlign: format.vertAlign === 'subscript' ? null : 'subscript' })} />
-            <Button icon="chevronUp" label="x²" title="Superscript" pressed={format.vertAlign === 'superscript'} onClick={() => run({ vertAlign: format.vertAlign === 'superscript' ? null : 'superscript' })} />
-            <Separator />
-            <Soon icon="wand" label="A" why="Text effects (outline, shadow, glow) are DrawingML the engine does not write." />
-            <Button icon="wand" title="Text highlight colour" pressed={Boolean(format.highlight)} onClick={(e) => colourMenu(e, 'highlight', HIGHLIGHTS)} />
-            <Button icon="contrast" title="Font colour" onClick={(e) => colourMenu(e, 'fontColour', TEXT_COLOURS)} />
+            <Rows>
+              <>
+                <Select value={format.fontName || 'Calibri'} onChange={(e) => run({ fontName: e.target.value })} style={{ width: 132 }} title="Font">
+                  {FONTS.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {format.fontName && !FONTS.includes(format.fontName) ? <option value={format.fontName}>{format.fontName}</option> : null}
+                </Select>
+                <Select value={String(size)} onChange={(e) => run({ fontSize: Number(e.target.value) })} style={{ width: 58 }} title="Size">
+                  {SIZES.map((s) => <option key={s} value={String(s)}>{s}</option>)}
+                  {SIZES.includes(size) ? null : <option value={String(size)}>{size}</option>}
+                </Select>
+                <Button icon="chevronUp" title="Grow font" onClick={() => run({ fontSize: nearer(1) })} />
+                <Button icon="chevronDown" title="Shrink font" onClick={() => run({ fontSize: nearer(-1) })} />
+                <Button icon="textbox" title="Change case" onClick={(e) => menu.open(e, CASES.map(([mode, label]) => ({ label, run: () => act('changeCase', mode) })))} />
+                <Button icon="undo" title="Clear all formatting" onClick={() => dispatch({ op: 'clearFormat' })} />
+              </>
+              <>
+                <Button icon="bold" title="Bold (Ctrl+B)" pressed={format.bold} onClick={() => dispatch({ op: 'toggleFormat', tag: 'bold' })} />
+                <Button icon="italic" title="Italic (Ctrl+I)" pressed={format.italic} onClick={() => dispatch({ op: 'toggleFormat', tag: 'italic' })} />
+                <Button icon="underline" title="Underline (Ctrl+U)" pressed={format.underline} onClick={() => dispatch({ op: 'toggleFormat', tag: 'underline' })} />
+                <Button icon="strike" title="Strikethrough" pressed={format.strike} onClick={() => dispatch({ op: 'toggleFormat', tag: 'strike' })} />
+                <Button icon="chevronDown" label="x₂" title="Subscript" pressed={format.vertAlign === 'subscript'} onClick={() => run({ vertAlign: format.vertAlign === 'subscript' ? null : 'subscript' })} />
+                <Button icon="chevronUp" label="x²" title="Superscript" pressed={format.vertAlign === 'superscript'} onClick={() => run({ vertAlign: format.vertAlign === 'superscript' ? null : 'superscript' })} />
+                <Separator />
+                <Soon icon="wand" label="A" why="Text effects (outline, shadow, glow) are DrawingML the engine does not write." />
+                <Button icon="wand" title="Text highlight colour" pressed={Boolean(format.highlight)} onClick={(e) => colourMenu(e, 'highlight', HIGHLIGHTS)} />
+                <Button icon="contrast" title="Font colour" onClick={(e) => colourMenu(e, 'fontColour', TEXT_COLOURS)} />
+              </>
+            </Rows>
           </Group>
 
           <Group label="Paragraph">
-            <Button icon="listBullet" title="Bullets" pressed={format.listType === 'bullet'} onClick={() => toggleList('bullet')} />
-            <Button icon="listNumber" title="Numbering" pressed={format.listType === 'number'} onClick={() => toggleList('number')} />
-            <Soon icon="listNumber" label="" why="Multilevel lists need a numbering definition the engine does not write." />
-            <Separator />
-            <Button icon="chevronLeft" title="Decrease indent" disabled={!format.indentLevel} onClick={() => para({ indentDelta: -1 })} />
-            <Button icon="chevronRight" title="Increase indent" onClick={() => para({ indentDelta: 1 })} />
-            <Soon icon="sort" label="" why="Sort paragraphs — coming with the table sorter." />
-            <Button icon="formula" title="Show formatting marks (¶)" pressed={Boolean(view.marks)} onClick={() => act('toggleMarks')} />
-            <Separator />
-            <Button icon="alignLeft" title="Align left (Ctrl+L)" pressed={format.paragraphAlign === 'left'} onClick={() => para({ align: 'left' })} />
-            <Button icon="alignCenter" title="Centre (Ctrl+E)" pressed={format.paragraphAlign === 'center'} onClick={() => para({ align: 'center' })} />
-            <Button icon="alignRight" title="Align right (Ctrl+R)" pressed={format.paragraphAlign === 'right'} onClick={() => para({ align: 'right' })} />
-            <Button icon="alignJustify" title="Justify (Ctrl+J)" pressed={format.paragraphAlign === 'both'} onClick={() => para({ align: 'both' })} />
-            <Separator />
-            <Button icon="listNumber" title={`Line and paragraph spacing${format.lineSpacing ? ` — ${format.lineSpacing}` : ''}`} onClick={(e) =>
-              menu.open(e, [
-                ...SPACING.map(([v, l]) => ({ label: l, icon: format.lineSpacing === v ? 'check' : undefined, run: () => para({ lineSpacing: v }) })),
-                '-',
-                { label: 'Add space before paragraph', run: () => para({ spaceBefore: 12 }) },
-                { label: 'Remove space before paragraph', run: () => para({ spaceBefore: 0 }) },
-                { label: 'Add space after paragraph', run: () => para({ spaceAfter: 8 }) },
-                { label: 'Remove space after paragraph', run: () => para({ spaceAfter: 0 }) },
-              ])
-            } />
-            <Soon icon="wand" label="" why="Paragraph shading needs w:shd on the paragraph, which the engine does not write yet." />
-            <Soon icon="grid" label="" why="Paragraph borders need w:pBdr, which the engine does not write yet." />
+            <Rows>
+              <>
+                <Button icon="listBullet" title="Bullets" pressed={format.listType === 'bullet'} onClick={() => toggleList('bullet')} />
+                <Button icon="listNumber" title="Numbering" pressed={format.listType === 'number'} onClick={() => toggleList('number')} />
+                <Soon icon="listNumber" label="" why="Multilevel lists need a numbering definition the engine does not write." />
+                <Separator />
+                <Button icon="chevronLeft" title="Decrease indent" disabled={!format.indentLevel} onClick={() => para({ indentDelta: -1 })} />
+                <Button icon="chevronRight" title="Increase indent" onClick={() => para({ indentDelta: 1 })} />
+                <Soon icon="sort" label="" why="Sort paragraphs — coming with the table sorter." />
+                <Button icon="formula" title="Show formatting marks (¶)" pressed={Boolean(view.marks)} onClick={() => act('toggleMarks')} />
+              </>
+              <>
+                <Button icon="alignLeft" title="Align left (Ctrl+L)" pressed={format.paragraphAlign === 'left'} onClick={() => para({ align: 'left' })} />
+                <Button icon="alignCenter" title="Centre (Ctrl+E)" pressed={format.paragraphAlign === 'center'} onClick={() => para({ align: 'center' })} />
+                <Button icon="alignRight" title="Align right (Ctrl+R)" pressed={format.paragraphAlign === 'right'} onClick={() => para({ align: 'right' })} />
+                <Button icon="alignJustify" title="Justify (Ctrl+J)" pressed={format.paragraphAlign === 'both'} onClick={() => para({ align: 'both' })} />
+                <Separator />
+                <Button icon="listNumber" title={`Line and paragraph spacing${format.lineSpacing ? ` — ${format.lineSpacing}` : ''}`} onClick={(e) =>
+                  menu.open(e, [
+                    ...SPACING.map(([v, l]) => ({ label: l, icon: format.lineSpacing === v ? 'check' : undefined, run: () => para({ lineSpacing: v }) })),
+                    '-',
+                    { label: 'Add space before paragraph', run: () => para({ spaceBefore: 12 }) },
+                    { label: 'Remove space before paragraph', run: () => para({ spaceBefore: 0 }) },
+                    { label: 'Add space after paragraph', run: () => para({ spaceAfter: 8 }) },
+                    { label: 'Remove space after paragraph', run: () => para({ spaceAfter: 0 }) },
+                  ])
+                } />
+                <Soon icon="wand" label="" why="Paragraph shading needs w:shd on the paragraph, which the engine does not write yet." />
+                <Soon icon="grid" label="" why="Paragraph borders need w:pBdr, which the engine does not write yet." />
+              </>
+            </Rows>
           </Group>
 
           <Group label="Styles">
@@ -193,9 +207,13 @@ export default function WordRibbon({
           </Group>
 
           <Group label="Editing">
-            <Button icon="find" label="Find" title="Find (Ctrl+F)" onClick={() => openDialog('find')} />
-            <Button icon="refresh" label="Replace" title="Replace (Ctrl+H)" onClick={() => openDialog('find')} />
-            <Button icon="check" label="Select" title="Select all (Ctrl+A)" onClick={() => dispatch({ op: 'selectAll' })} />
+            <Rows>
+              <>
+                <Button icon="find" label="Find" title="Find (Ctrl+F)" onClick={() => openDialog('find')} />
+                <Button icon="refresh" label="Replace" title="Replace (Ctrl+H)" onClick={() => openDialog('find')} />
+              </>
+              <Button icon="check" label="Select" title="Select all (Ctrl+A)" onClick={() => dispatch({ op: 'selectAll' })} />
+            </Rows>
           </Group>
 
           <Group label="Voice">
