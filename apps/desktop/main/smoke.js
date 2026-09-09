@@ -16,7 +16,7 @@ import { seedMail } from './seed-mail.js';
 import { samplePictures } from './sample-picture.js';
 import { consoleMessage } from './console-message.js';
 
-const ALL = ['home', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'mail'];
+const ALL = ['home', 'word', 'sheets', 'slides', 'pictures', 'image', 'video', 'mail', 'calendar', 'contacts'];
 
 /**
  * Put a small archive through the real import path, so the mail screenshots

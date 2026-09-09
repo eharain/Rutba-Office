@@ -11,7 +11,7 @@ import { APPS, NEW_DOCUMENTS, SITE } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension, KINDS } from '@rutba/office-formats/sniff';
 import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop } from '../shell.js';
 
-const ORDER = ['mail', 'word', 'sheets', 'slides', 'pictures', 'image', 'video'];
+const ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pictures', 'image', 'video'];
 
 function AppCard({ app, onOpen, onNew }) {
   return (

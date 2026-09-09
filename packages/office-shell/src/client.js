@@ -74,6 +74,8 @@ export const defaults = namespaces.defaults;
 export const discover = namespaces.discover;
 export const print = namespaces.print;
 export const clipboard = namespaces.clipboard;
+export const calendar = namespaces.calendar;
+export const contacts = namespaces.contacts;
 
 export function on(event, handler) {
   if (!EVENTS.includes(event)) throw new Error(`unknown event: ${event}`);
@@ -84,4 +86,4 @@ export function boot() {
   return hasShell() ? bridge().boot() : { app: 'home', file: null, platform: 'web', arch: '', versions: {} };
 }
 
-export default { app, win, fs, dialog, shell, secrets, store, doc, mail, oauth, present, update, announce, defaults, discover, print, clipboard, on, boot, hasShell };
+export default { app, win, fs, dialog, shell, secrets, store, doc, mail, oauth, present, update, announce, defaults, discover, print, clipboard, calendar, contacts, on, boot, hasShell };

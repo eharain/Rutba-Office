@@ -30,6 +30,8 @@ const GLYPHS = {
   pictures: ['M4 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', 'm5 16 4-4 3 3 3.5-3.5L20 16', 'M15 8.5h.01'],
   video: ['M3 7a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'm16 10 5-3v10l-5-3z'],
   image: ['M4 5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z', 'M9 4v16M4 9h16', 'm14 15 3-3 3 3'],
+  calendar: ['M4 6a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2z', 'M4 10h16', 'M8 2v4M16 2v4', 'M8 14h3M13 14h3M8 17h3'],
+  contacts: ['M5 4a1 1 0 0 1 1-1h12a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1z', 'M12 12a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M7 18c1-2.5 3-3.5 5-3.5s4 1 5 3.5'],
   mail: ['M3 7a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z', 'm3.5 7.5 8.5 6 8.5-6'],
 };
 
@@ -41,6 +43,8 @@ const FAMILIES = {
   pictures: { colour: '#7b5cd6', glyph: 'pictures' },
   video: { colour: '#c2408f', glyph: 'video' },
   mail: { colour: '#3b7de0', glyph: 'mail' },
+  calendar: { colour: '#1a9f7a', glyph: 'calendar' },
+  contacts: { colour: '#5d6d7e', glyph: 'contacts' },
   pdf: { colour: '#b3261e', text: 'PDF' },
 };
 
@@ -76,6 +80,8 @@ const APPS = {
   image: { colour: '#e08b2b', glyph: 'image' },
   video: { colour: '#c2408f', glyph: 'video' },
   mail: { colour: '#3b7de0', glyph: 'mail' },
+  calendar: { colour: '#1a9f7a', glyph: 'calendar' },
+  contacts: { colour: '#5d6d7e', glyph: 'contacts' },
 };
 
 function tileSvg({ colour, glyph }) {

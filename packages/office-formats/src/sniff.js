@@ -100,8 +100,8 @@ export const KINDS = {
   pst: { app: 'mail', label: 'Outlook Data File', ext: '.pst', mime: 'application/vnd.ms-outlook-pst', edit: false },
   ost: { app: 'mail', label: 'Outlook Offline Data File', ext: '.ost', mime: 'application/vnd.ms-outlook-pst', edit: false },
   olm: { app: 'mail', label: 'Outlook for Mac Archive', ext: '.olm', mime: 'application/vnd.ms-outlook-olm', edit: false },
-  vcf: { app: 'mail', label: 'Contact Card', ext: '.vcf', mime: 'text/vcard', edit: false },
-  ics: { app: 'mail', label: 'Calendar', ext: '.ics', mime: 'text/calendar', edit: false },
+  vcf: { app: 'contacts', label: 'Contact Card', ext: '.vcf', mime: 'text/vcard', edit: true },
+  ics: { app: 'calendar', label: 'Calendar', ext: '.ics', mime: 'text/calendar', edit: true },
 
   pdf: { app: 'pictures', label: 'PDF Document', ext: '.pdf', mime: 'application/pdf', edit: false },
   zip: { app: null, label: 'Zip Archive', ext: '.zip', mime: 'application/zip', edit: false },

@@ -142,6 +142,33 @@ export const METHODS = {
     'testRules',    // ({ accountId, folder }) -> { matched, of, sample }  changes nothing
     'runRules',     // ({ accountId, folder }) -> { matched, moved, starred, read, deleted }
   ],
+  calendar: [
+    'calendars',      // () -> [{ id, name, colour, visible, count }]
+    'saveCalendar',   // ({ calendar }) -> [calendar]
+    'removeCalendar', // ({ id }) -> { removed }
+    'events',         // ({ from, to, all }) -> [occurrence]
+    'get',            // ({ id }) -> event
+    'save',           // ({ calendarId, event, scope, original }) -> event
+    'remove',         // ({ id, scope, original }) -> { removed }
+    'openFile',       // ({ path, from, to }) -> { name, method, count, events, invitation }
+    'importFile',     // ({ path, calendarId }) -> { added, updated }
+    'exportFile',     // ({ path, calendarId }) -> { path, count }
+    'respond',        // ({ path | id, partstat }) -> { kept, organizer, subject, replyPath }
+    'invitationFile', // ({ id }) -> { path, to, subject }
+  ],
+  contacts: [
+    'list',       // ({ query }) -> [contact]
+    'get',        // ({ id }) -> contact
+    'save',       // ({ contact }) -> contact
+    'remove',     // ({ id | ids }) -> { removed }
+    'suggest',    // ({ query, limit }) -> [{ name, email, source }]
+    'peek',       // ({ path }) -> { name, contacts }
+    'importFile', // ({ path }) -> { added, updated, same, total }
+    'importText', // ({ text }) -> { added, updated, same, total }
+    'exportFile', // ({ path, ids }) -> { path, count }
+    'fromMail',   // ({ name, email }) -> contact
+    'count',      // () -> number
+  ],
   update: [
     'state',        // () -> { state, version, available, percent, automatic }
     'check',        // ({ manual }) -> state
@@ -203,6 +230,8 @@ export const EVENTS = [
   'present:state',    // { id, index, running, startedAt, blank }
   'mail:oauth',       // { phase, provider, email }
   'announce:new',     // { id, title, body, link, kind }
+  'contacts:changed', // { count }           the address book was written
+  'calendar:changed', // {}                  a calendar or an event was written
   'mail:sent',        // { id, to }
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
   'theme:changed',    // { dark }

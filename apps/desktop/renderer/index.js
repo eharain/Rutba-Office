@@ -20,6 +20,8 @@ import Pictures from './apps/pictures.js';
 import ImageTool from './apps/image.js';
 import VideoTool from './apps/video.js';
 import Mail from './apps/mail.js';
+import Calendar from './apps/calendar.js';
+import Contacts from './apps/contacts.js';
 
 const APP_COMPONENTS = {
   home: Home,
@@ -30,6 +32,8 @@ const APP_COMPONENTS = {
   image: ImageTool,
   video: VideoTool,
   mail: Mail,
+  calendar: Calendar,
+  contacts: Contacts,
 };
 
 function Root() {

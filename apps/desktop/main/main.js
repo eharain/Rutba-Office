@@ -18,6 +18,8 @@ import { createPresentService } from './present.js';
 import { createAnnouncementService } from './announce.js';
 import { createDefaultsService } from './defaults.js';
 import { createDiscoveryService } from './discover.js';
+import { createContactsService } from './contacts.js';
+import { createCalendarService } from './calendar.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -72,6 +74,26 @@ createShell({
         userData: stores.dir,
         oauth,
       }),
+      // The address book, with the people mail has seen behind it for
+      // Compose to complete from; and the calendar, which answers an
+      // invitation through a message mail sends.
+      contacts: createContactsService({
+        stores,
+        broadcast,
+        people: () => {
+          try {
+            const out = [];
+            for (const account of services?.mail?.accounts?.() || []) {
+              const { rows = [] } = services.mail.people({ accountId: account.id, limit: 300 }) || {};
+              for (const p of rows) out.push({ name: p.name || '', email: p.address });
+            }
+            return out;
+          } catch {
+            return [];
+          }
+        },
+      }),
+      calendar: createCalendarService({ stores, broadcast, mail: { accounts: () => services?.mail?.accounts?.() || [] } }),
     });
   },
 

@@ -80,6 +80,22 @@ export const APPS = {
     accent: '#c2408f',
     icon: 'video',
   },
+  calendar: {
+    key: 'calendar',
+    name: 'Rutba Calendar',
+    short: 'Calendar',
+    tagline: 'Your days, on this computer',
+    accent: '#1a9f7a',
+    icon: 'calendar',
+  },
+  contacts: {
+    key: 'contacts',
+    name: 'Rutba Contacts',
+    short: 'Contacts',
+    tagline: 'Everyone you write to, in one book',
+    accent: '#5d6d7e',
+    icon: 'contacts',
+  },
 };
 
 /** Extensions each app claims, in the order a dialog should show them. */
@@ -92,7 +108,9 @@ export const APP_EXTENSIONS = {
   pictures: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'bmp', 'tif', 'tiff', 'ico', 'svg', 'pdf'],
   image: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'avif'],
   video: ['mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'mp3', 'm4a', 'wav', 'flac', 'ogg'],
-  mail: ['eml', 'emlx', 'msg', 'mbox', 'pst', 'ost', 'olm', 'vcf', 'ics'],
+  mail: ['eml', 'emlx', 'msg', 'mbox', 'pst', 'ost', 'olm'],
+  calendar: ['ics'],
+  contacts: ['vcf', 'csv'],
 };
 
 /** Formats we can write. Everything else is read-only, and says so. */
@@ -130,6 +148,8 @@ export const WRITABLE = {
     { kind: 'eml', label: 'Email Message (.eml)' },
     { kind: 'mbox', label: 'Mbox Archive (.mbox)' },
   ],
+  calendar: [{ kind: 'ics', label: 'Calendar (.ics)' }],
+  contacts: [{ kind: 'vcf', label: 'vCard (.vcf)' }],
 };
 
 const TITLES = {
@@ -140,6 +160,8 @@ const TITLES = {
   image: 'Images',
   video: 'Video and audio',
   mail: 'Mail files',
+  calendar: 'Calendars',
+  contacts: 'Address books',
 };
 
 /** Electron `dialog.showOpenDialog` filters for one app, or for everything. */

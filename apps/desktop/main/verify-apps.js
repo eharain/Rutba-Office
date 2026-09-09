@@ -30,6 +30,8 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
  * it happens quickly and honest when it does not: the failure names what never
  * became true instead of describing whatever the state happened to be.
  */
+import { APPS } from '@rutba/office-formats/registry';
+
 // Set once the checks start closing their own windows; a close before that is not theirs.
 const closingPhase = { value: false };
 
@@ -197,6 +199,14 @@ function makeFixtures(dir) {
   // block, a table with alignment, links, and front matter.
   fs.writeFileSync(at('readme.md'), README);
 
+  // Two cards and two events, the events placed round today so the month
+  // and week views show them whenever the run happens.
+  fs.writeFileSync(at('contacts.vcf'), ['BEGIN:VCARD', 'VERSION:3.0', 'FN:Kim Lee', 'N:Lee;Kim;;;', 'ORG:Tech Style Ltd', 'EMAIL;TYPE=WORK,PREF:kim@example.com', 'TEL;TYPE=CELL:+44 7700 900123', 'END:VCARD', 'BEGIN:VCARD', 'VERSION:3.0', 'FN:Sam Patel', 'N:Patel;Sam;;;', 'EMAIL;TYPE=WORK:sam@example.org', 'END:VCARD', ''].join('\r\n'));
+  const day = new Date();
+  const stamp = (d, h) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}T${String(h).padStart(2, '0')}0000`;
+  const tomorrow = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
+  fs.writeFileSync(at('events.ics'), ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Rutba//checks//EN', 'X-WR-CALNAME:Checks', 'BEGIN:VEVENT', 'UID:check-1@rutba.io', `DTSTART:${stamp(day, 10)}`, `DTEND:${stamp(day, 11)}`, 'SUMMARY:Pricing review', 'LOCATION:Room 4', 'END:VEVENT', 'BEGIN:VEVENT', 'UID:check-2@rutba.io', `DTSTART;VALUE=DATE:${stamp(tomorrow, 0).slice(0, 8)}`, 'SUMMARY:Bank holiday', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n'));
+
   // A real image: the application's own icon, which is a genuine PNG.
   const icon = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\//, '')), '..', 'resources', 'icon.png');
   if (fs.existsSync(icon)) fs.copyFileSync(icon, at('picture.png'));
@@ -206,6 +216,8 @@ function makeFixtures(dir) {
     xlsx: at('sales.xlsx'),
     pptx: at('deck.pptx'),
     wav: at('tone.wav'),
+    vcf: at('contacts.vcf'),
+    ics: at('events.ics'),
     md: at('readme.md'),
     png: fs.existsSync(at('picture.png')) ? at('picture.png') : null,
   };
@@ -651,7 +663,8 @@ export async function verifyApps({ windows, doc }) {
     // whole, and a missing notice board must be silent — not a toast, not an
     // empty strip, not a gap where one would go.
     check('home: a notice board that is unreachable says nothing', state.complaints.length === 0, state.complaints.join(' | ') || 'nothing reported');
-    check('home: the launcher is whole regardless', state.apps === 7, `${state.apps} app cards, ${state.notices} notices`);
+    // One card per app the registry knows; a card missing is an app the launcher lost.
+    check('home: the launcher is whole regardless', state.apps === Object.keys(APPS).length, `${state.apps} app cards of ${Object.keys(APPS).length}, ${state.notices} notices`);
   } catch (err) {
     check('home: the launcher checks ran', false, err.message);
   }
@@ -1920,6 +1933,59 @@ export async function verifyApps({ windows, doc }) {
     doc.close({ id: back.id });
   } catch (err) {
     check('the OpenDocument check ran', false, err.message);
+  }
+
+  /* ── Contacts: a file is shown and offered, a card is kept and found ─── */
+  try {
+    const win = await open('contacts', files.vcf);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`document.querySelectorAll('.ct-item').length >= 2`), 'the file\'s cards to list', 8000).catch(() => {});
+    const shown = await js(`(() => ({ items: document.querySelectorAll('.ct-item').length, names: [...document.querySelectorAll('.ct-item .name')].map((n) => n.textContent), offer: Boolean(document.querySelector('.ct-offer')), card: document.querySelector('.ct-card h2')?.textContent || '' }))()`);
+    check('contacts: a .vcf opens as its cards, shown and offered, not yet kept', shown.items === 2 && /Kim Lee/.test(shown.names.join(',')) && shown.offer && /Kim Lee|Sam Patel/.test(shown.card), JSON.stringify(shown));
+    await js(`[...document.querySelectorAll('.ct-offer .rw-btn')].pop()?.click(), 'added'`);
+    await until(() => js(`!document.querySelector('.ct-offer') && document.querySelectorAll('.ct-item').length >= 2`), 'the cards to be kept', 8000).catch(() => {});
+    const kept = await doc.constructor === Object ? null : null;
+    void kept;
+    const count = await js(`window.rutbaOffice.contacts.count({})`);
+    check('contacts: Add keeps the file\'s cards in the address book', count === 2 && (await js(`!document.querySelector('.ct-offer')`)), `${count} kept`);
+    await js(`[...document.querySelectorAll('.rw-btn')].find((b) => /New contact/.test(b.textContent))?.click(), 'new'`);
+    await until(() => js(`Boolean(document.querySelector('.ct-editor input.ct-name'))`), 'the editor', 4000).catch(() => {});
+    await setField(win, '.ct-editor input.ct-name', 'Alex Morgan');
+    await setField(win, '.ct-editor .ct-line input[placeholder="name@example.com"]', 'alex@example.net');
+    await js(`[...document.querySelectorAll('.ct-actions .rw-btn')].find((b) => b.textContent.trim() === 'Save')?.click(), 'saved'`);
+    await until(() => js(`document.querySelectorAll('.ct-item').length >= 3`), 'the new card to list', 6000).catch(() => {});
+    const after = await js(`(() => ({ items: document.querySelectorAll('.ct-item').length, card: document.querySelector('.ct-card h2')?.textContent || '', email: document.querySelector('.ct-card .ct-link')?.textContent || '' }))()`);
+    check('contacts: a new card typed in is kept and shown', after.items === 3 && after.card === 'Alex Morgan' && after.email === 'alex@example.net', JSON.stringify(after));
+    const found = await js(`(async () => { const s = await window.rutbaOffice.contacts.suggest({ query: 'ki' }); return s.map((x) => x.email); })()`);
+    check('contacts: Compose can complete an address from the book', found.includes('kim@example.com') && !found.includes('sam@example.org'), JSON.stringify(found));
+  } catch (err) {
+    check('contacts: the checks ran', false, err.message);
+  }
+
+  /* ── Calendar: a file is shown beside the person's own, kept, and added to ─ */
+  try {
+    const win = await open('calendar', files.ics);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`document.querySelectorAll('.cal-chip').length >= 2`), 'the file\'s events on the month', 8000).catch(() => {});
+    const shown = await js(`(() => ({ chips: [...document.querySelectorAll('.cal-chip .s')].map((n) => n.textContent), banner: document.querySelector('.cal-invite')?.textContent || '', today: Boolean(document.querySelector('.cal-day.today')) }))()`);
+    check('calendar: a .ics opens on the month it belongs to, shown beside your own and offered', shown.chips.includes('Pricing review') && shown.chips.includes('Bank holiday') && /not yet kept/.test(shown.banner) && shown.today, JSON.stringify(shown));
+    await js(`[...document.querySelectorAll('.cal-invite .rw-btn')].pop()?.click(), 'added'`);
+    await until(() => js(`!document.querySelector('.cal-invite')`), 'the events to be kept', 8000).catch(() => {});
+    const kept = await js(`(async () => { const c = await window.rutbaOffice.calendar.calendars({}); return c.map((x) => x.count); })()`);
+    check('calendar: Add to my calendar keeps the file\'s events', kept.some((n) => n >= 2) && (await js(`document.querySelectorAll('.cal-chip').length >= 2`)), `counts ${JSON.stringify(kept)}`);
+    await js(`[...document.querySelectorAll('.rw-btn')].find((b) => /New event/.test(b.textContent))?.click(), 'new'`);
+    await until(() => js(`Boolean(document.querySelector('.rw-dialog .cal-form'))`), 'the event dialog', 4000).catch(() => {});
+    await setField(win, '.rw-dialog input.cal-title', 'Dentist');
+    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Save')?.click(), 'saved'`);
+    await until(() => js(`[...document.querySelectorAll('.cal-chip .s')].some((n) => n.textContent === 'Dentist')`), 'the new event on the month', 6000).catch(() => {});
+    const chips = await js(`[...document.querySelectorAll('.cal-chip .s')].map((n) => n.textContent)`);
+    check('calendar: a new event typed in is kept and drawn', chips.includes('Dentist') && (await js(`!document.querySelector('.rw-dialog')`)), JSON.stringify(chips));
+    await js(`[...document.querySelectorAll('.cal-view')].find((b) => b.textContent === 'Week')?.click(), 'week'`);
+    await until(() => js(`document.querySelectorAll('.cal-block').length >= 1`), 'the week view', 4000).catch(() => {});
+    const week = await js(`(() => ({ blocks: [...document.querySelectorAll('.cal-block .s')].map((n) => n.textContent), allDay: [...document.querySelectorAll('.cal-allday-cell .cal-chip .s')].map((n) => n.textContent) }))()`);
+    check('calendar: the week view places timed events on the grid and all-day ones in the band', week.blocks.includes('Pricing review') && week.allDay.includes('Bank holiday'), JSON.stringify(week));
+  } catch (err) {
+    check('calendar: the checks ran', false, err.message);
   }
 
   /* ── Journeys: the things a person does between the buttons ──────────── */
