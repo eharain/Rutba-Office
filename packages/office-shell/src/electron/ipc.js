@@ -313,6 +313,18 @@ export function buildImplementations({ stores, windows, quitting }) {
  * @param {object} impls namespace -> { method(payload, win) }
  */
 export function installIpc(impls) {
+  // RUTBA_IPC_TRACE=1: count every request by channel and window, and print
+  // the busiest every five seconds. A main process that is never idle is
+  // answering somebody; this says whom, and for what.
+  const trace = process.env.RUTBA_IPC_TRACE ? new Map() : null;
+  if (trace) {
+    setInterval(() => {
+      if (!trace.size) return;
+      const rows = [...trace.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([k, n]) => `${k} ${n}`);
+      console.log(`     [ipc] last 5 s: ${rows.join(' · ')}`);
+      trace.clear();
+    }, 5000).unref();
+  }
   for (const [ns, names] of Object.entries(METHODS)) {
     for (const name of names) {
       const channel = `${CHANNEL_PREFIX}/${ns}:${name}`;
@@ -322,6 +334,10 @@ export function installIpc(impls) {
           throw new Error(`Rutba Office: no backend for ${ns}:${name}`);
         }
         const win = BrowserWindow.fromWebContents(event.sender);
+        if (trace) {
+          const key = `${ns}:${name}#${win?.id ?? '?'}`;
+          trace.set(key, (trace.get(key) || 0) + 1);
+        }
         try {
           return await fn(payload ?? {}, win);
         } catch (err) {

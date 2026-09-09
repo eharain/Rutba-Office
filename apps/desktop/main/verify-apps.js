@@ -241,6 +241,55 @@ export async function verifyApps({ windows, doc }) {
     lastTick = now;
   }, 1000);
 
+  // RUTBA_VERIFY_PROFILE=1: sample the main process while the checks run and
+  // say where its time went. A late main process is what makes a window's
+  // reply late and a check read too soon; the lag timer above says that it
+  // was late, this says whether it was busy with our own code or simply
+  // starved of the machine — the idle share tells the two apart.
+  let profiler = null;
+  if (process.env.RUTBA_VERIFY_PROFILE) {
+    try {
+      const { Session } = await import('node:inspector');
+      const session = new Session();
+      session.connect();
+      const post = (method, params) => new Promise((resolve, reject) => session.post(method, params || {}, (err, result) => (err ? reject(err) : resolve(result))));
+      await post('Profiler.enable');
+      await post('Profiler.setSamplingInterval', { interval: 2000 });
+      await post('Profiler.start');
+      profiler = { post };
+      console.log('     [profile] sampling the main process');
+    } catch (err) {
+      console.log(`     [profile] not available: ${err.message}`);
+    }
+  }
+  const printProfile = async () => {
+    if (!profiler) return;
+    try {
+      const { profile } = await profiler.post('Profiler.stop');
+      const byId = new Map(profile.nodes.map((n) => [n.id, n]));
+      const counts = new Map();
+      for (const id of profile.samples) counts.set(id, (counts.get(id) || 0) + 1);
+      const byFunction = new Map();
+      const byFile = new Map();
+      for (const [id, c] of counts) {
+        const cf = byId.get(id)?.callFrame || {};
+        const file = (cf.url || '').split(/[\\/]/).slice(-2).join('/') || '(native)';
+        const key = `${cf.functionName || '(anonymous)'}  ${file}:${(cf.lineNumber ?? -1) + 1}`;
+        byFunction.set(key, (byFunction.get(key) || 0) + c);
+        byFile.set(file, (byFile.get(file) || 0) + c);
+      }
+      const total = profile.samples.length || 1;
+      const seconds = Math.round((profile.endTime - profile.startTime) / 1e6);
+      const pct = (c) => `${((100 * c) / total).toFixed(1).padStart(5)}%`;
+      console.log(`     [profile] ${total} samples over ${seconds} s; the top functions by own time:`);
+      for (const [k, c] of [...byFunction.entries()].sort((a, b) => b[1] - a[1]).slice(0, 24)) console.log(`     [profile] ${pct(c)}  ${k}`);
+      console.log('     [profile] by file:');
+      for (const [k, c] of [...byFile.entries()].sort((a, b) => b[1] - a[1]).slice(0, 14)) console.log(`     [profile] ${pct(c)}  ${k}`);
+    } catch (err) {
+      console.log(`     [profile] failed: ${err.message}`);
+    }
+  };
+
   const check = (name, ok, detail = '') => {
     results.push({ name, ok, detail });
     lastCheck = name;
@@ -1262,6 +1311,21 @@ export async function verifyApps({ windows, doc }) {
 
     // The grid layer mounts a moment after the window says it is ready — later on a loaded machine.
     await until(() => js(`Boolean(document.querySelector('.sh-cells') && document.querySelectorAll('.sh-colheads .sh-head').length > 2)`), 'the grid and its headers', 8000).catch(() => {});
+
+    // An idle window must settle. The grid once stretched to its own canvas,
+    // the canvas grew to cover the grid, and the size observer asked the main
+    // process for a wider frame eight times a second for as long as the window
+    // lived — 1,088 px wider each time. Every open Worksheets window did it,
+    // and the main process was never idle again.
+    const gridSize = () => js(`(() => { const g = document.querySelector('.sh-grid'); return g ? { width: g.clientWidth, canvas: g.scrollWidth, window: window.innerWidth } : null; })()`);
+    const settled1 = await gridSize();
+    await wait(2500);
+    const settled2 = await gridSize();
+    check(
+      'sheets: an idle window settles — the grid stays inside the window and stops growing',
+      Boolean(settled1 && settled2) && settled2.width <= settled2.window && settled2.width === settled1.width && settled2.canvas === settled1.canvas,
+      `grid ${settled1?.width} → ${settled2?.width} px wide (window ${settled2?.window}); canvas ${settled1?.canvas} → ${settled2?.canvas}`
+    );
     const hit = await pressEmpty(6, 2);
     await until(async () => { const m = await model(); return m.selection?.active?.row === 6 && m.selection?.active?.col === 2; }, 'the click to select C7', 4000).catch(() => {});
     const afterClick = await model();
@@ -2233,12 +2297,22 @@ export async function verifyApps({ windows, doc }) {
       const dialog = await js(`(() => {
         const d = document.querySelector('.rw-dialog');
         if (!d) return null;
-        return { title: d.querySelector('.rw-dialog-head')?.textContent || '', text: d.textContent.slice(0, 400), chips: [...d.querySelectorAll('.rw-chip')].map((c) => c.textContent) };
+        return { title: d.querySelector('.rw-dialog-head')?.textContent || '', text: d.textContent.slice(0, 1500), chips: [...d.querySelectorAll('.chip')].map((c) => c.textContent) };
       })()`);
-      const counted = dialog && /\d+ page/.test(dialog.text);
+      // The count is in the summary chip; a workbook's dialog is long enough that a slice of its text would miss it.
+      const counted = Boolean(dialog) && (dialog.chips.some((c) => /[0-9]+ page/.test(c)) || /[0-9]+ page/.test(dialog.text));
+      const focusedBefore = await js(`(document.activeElement && (document.activeElement.className || document.activeElement.tagName)) || 'none'`);
       await press(win.webContents, 'Escape');
       await until(() => js(`!document.querySelector('.rw-dialog')`), 'the dialog to close', 3000).catch(() => {});
-      check(`${appName}: Ctrl+P opens a print dialog that says how many pages`, Boolean(dialog) && dialog.title === 'Print' && counted && (await js(`!document.querySelector('.rw-dialog')`)), dialog ? `${JSON.stringify((/(\d+ pages?[^"]*)/.exec(dialog.text) || [])[1] || dialog.chips.join(' | ') || dialog.text.slice(0, 60))}` : 'no dialog');
+      const closed = await js(`!document.querySelector('.rw-dialog')`);
+      check(
+        `${appName}: Ctrl+P opens a print dialog that says how many pages, and Escape closes it`,
+        Boolean(dialog) && dialog.title === 'Print' && counted && closed,
+        dialog
+          ? `${JSON.stringify((/(\d+ pages?[^"]*)/.exec(dialog.text) || [])[1] || dialog.chips.join(' | ') || dialog.text.slice(0, 60))}; title ${JSON.stringify(dialog.title)}; ${closed ? 'closed on Escape' : `still open after Escape (focus was on ${focusedBefore})`}`
+          : 'no dialog'
+      );
+      if (!closed) await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 'cancelled'`);
 
       // And the PDF it would write is a PDF, with the pages it promised.
       const target = path.join(path.dirname(files.docx), `print-${appName}.pdf`);
@@ -2300,6 +2374,7 @@ export async function verifyApps({ windows, doc }) {
   }
 
   clearInterval(lagTimer);
+  await printProfile();
   closingPhase.value = true;
   for (const win of opened) if (!win.isDestroyed()) win.destroy();
   fs.rmSync(dir, { recursive: true, force: true });

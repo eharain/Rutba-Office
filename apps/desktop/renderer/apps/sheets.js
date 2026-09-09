@@ -1092,7 +1092,16 @@ function formatNumber(n) {
 }
 
 const CSS = `
-.sh { flex: 1; display: flex; flex-direction: column; min-height: 0; outline: none; }
+/*
+  min-width: 0 on both is load-bearing. A flex item's minimum width is its
+  widest descendant unless told otherwise, and the widest descendant here is
+  the canvas — which is sized to cover the grid's own width plus a margin.
+  Without the zero, the column stretched to the canvas, the canvas grew to
+  cover the column, the size observer asked for a frame, and the frame grew
+  the canvas again: an idle window asked the main process for a wider frame
+  eight times a second for as long as it lived, 1,088 px wider each time.
+*/
+.sh { flex: 1; display: flex; flex-direction: column; min-height: 0; min-width: 0; outline: none; }
 .sh-formula {
   display: flex; align-items: center; gap: 8px; padding: 4px 10px;
   background: var(--surface); border-bottom: 1px solid var(--line);
@@ -1104,7 +1113,7 @@ const CSS = `
 .sh-formula .rw-input { font-family: var(--mono); font-size: 12.5px; }
 .sh-formula .rw-input:focus { box-shadow: none; }
 
-.sh-grid { flex: 1; overflow: auto; position: relative; background: var(--surface); }
+.sh-grid { flex: 1; overflow: auto; position: relative; min-width: 0; min-height: 0; background: var(--surface); }
 .sh-canvas { display: grid; }
 .sh-corner {
   position: sticky; left: 0; top: 0; z-index: 4; background: var(--chrome);

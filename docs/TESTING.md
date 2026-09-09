@@ -45,6 +45,18 @@ mistake, and they never take the keyboard from you. Set
 `RUTBA_WINDOW_DISPLAY=secondary` to watch a run on a second display
 instead.
 
+## When the main process is late
+
+The application checks print a line whenever the main process kept a timer
+waiting and a clock line every minute, so a slow block shows itself. Two
+switches say why: `RUTBA_VERIFY_PROFILE=1` samples the main process while
+the checks run and prints the top functions by own time, the same by file
+and the idle share — a low idle share means our own code, a high one means
+the machine; `RUTBA_IPC_TRACE=1` (any run of the application) prints the
+busiest bridge channels and the windows behind them every five seconds.
+Together they found an idle Worksheets window asking for a wider frame
+eight times a second, which a day of reading the code had not.
+
 ## What "opens" means, per app
 
 The run waits for the element each app renders only once it is showing the
