@@ -25,6 +25,8 @@
     "screens": "node build/bundle.js && node build/make-screens.js"
   },
   "dependencies": {
+    "@rutba/calendar": "*",
+    "@rutba/contacts": "*",
     "@rutba/doc-view": "*",
     "@rutba/drawing": "*",
     "@rutba/editing": "*",

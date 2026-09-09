@@ -25,3 +25,6 @@ apps/desktop/build/screens/
 .ai/
 .vs/
 .worktrees/
+
+# Real files gathered for verify:corpus — never in the repository.
+.corpus/

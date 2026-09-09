@@ -201,3 +201,33 @@ error codes.** Saving over a file Word still had open said "EPERM: operation
 not permitted, open 'D:\work\report.docx'". A save into a folder that had
 been moved said ENOENT. Each of them now says what happened and what to do
 about it, and `tests/document-service.test.js` holds them to it.
+
+## Before a release
+
+The gate proves the code. Three more runs prove the build, in this order,
+and each has caught something the gate cannot:
+
+1. **The packaged smoke, from outside the repository.** `npm run dist`, then
+   copy `apps/desktop/release/win-unpacked` somewhere that is not under the
+   repository and run it there with `RUTBA_OFFICE_SMOKE=1 RUTBA_SMOKE_SEED=1
+   RUTBA_WINDOW_DISPLAY=offscreen` and a `--user-data-dir` of its own. Run
+   in place, the unpacked build finds workspace packages the installer never
+   packed — Node climbs from `release/win-unpacked` to the repository's own
+   `node_modules` — and passes for a build that fails once installed.
+   `tests/desktop-deps.test.js` reads the imports for the same reason.
+2. **The install test.** `tools/install-test.ps1 -Installer <the setup exe>
+   -Label <version>` installs silently, checks the registered copy, the
+   icon behind every file type, the tiles unpacked beside the archive, and
+   that the installed copy opens a Word window from `--app=word` in a
+   profile of its own, off the desktop. When it does not, the script prints
+   what the copy showed instead — the text of an "Error" box included — and
+   exits 3. It refuses to install over a running copy (exit 2).
+3. **Publish**, with `node tools/publish-release.js`, a pre-release by
+   default; the tag goes on the commit the notes and the version bump are
+   in, after the two runs above, never before.
+
+1.8.0 is why the first two are written down: the gate was green, the
+unpacked smoke was green, and the installed copy opened with "Cannot find
+package '@rutba/contacts'" because the two new packages were not declared
+as the desktop application's dependencies. The install test said so in one
+word — a window titled "Error" — and the word was nearly missed.
