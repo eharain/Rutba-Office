@@ -25,6 +25,9 @@ export default function Reader({
   onForward,
   onUnsubscribe,
   onSender,
+  invitation = null,
+  onRespond,
+  onKeepSender,
 }) {
   const frameRef = useRef(null);
   const [height, setHeight] = useState(600);
@@ -68,6 +71,11 @@ export default function Reader({
                 <strong>{displayName(from)}</strong>
               </button>
               {from?.name && from?.address ? <span className="ml-addr"> &lt;{from.address}&gt;</span> : null}
+              {from?.address && onKeepSender ? (
+                <button type="button" className="ml-keep" title="Keep this sender in Contacts" onClick={() => onKeepSender(from)}>
+                  <Icon name="contacts" size={13} /> keep
+                </button>
+              ) : null}
             </div>
             <div className="ml-to">
               to {(message.to || []).map((t) => t.name || t.address).join(', ') || 'undisclosed recipients'}
@@ -80,6 +88,27 @@ export default function Reader({
           <Button icon="forward" title="Forward" onClick={onForward} />
         </div>
 
+        {invitation ? (
+          <div className="ml-invite">
+            <Icon name="calendar" size={18} />
+            <div className="ml-invite-text">
+              <div className="ml-invite-title">{invitation.summary}</div>
+              <div className="ml-invite-when">{invitation.when}{invitation.location ? ` · ${invitation.location}` : ''}</div>
+              <div className="ml-invite-who">{invitation.organizer ? `From ${invitation.organizer}` : ''}{invitation.answered ? ` · you answered ${invitation.answered.toLowerCase()}` : ''}</div>
+            </div>
+            {invitation.method === 'REQUEST' ? (
+              <div className="ml-invite-actions">
+                <Button primary label="Accept" onClick={() => onRespond?.('ACCEPTED')} />
+                <Button label="Tentative" onClick={() => onRespond?.('TENTATIVE')} />
+                <Button label="Decline" onClick={() => onRespond?.('DECLINED')} />
+              </div>
+            ) : invitation.method === 'REPLY' ? (
+              <Chip>{invitation.reply || 'a reply'}</Chip>
+            ) : (
+              <Button label="Add to calendar" onClick={() => onRespond?.('KEEP')} />
+            )}
+          </div>
+        ) : null}
         {attachments.length ? (
           <div className="ml-attachments">
             {attachments.map((a, i) => {

@@ -45,6 +45,71 @@ function scheduleChoices() {
   return options;
 }
 
+/**
+ * An address line that completes as you type: the cards in Contacts first,
+ * then the people mail has seen, once each. The token under the caret is
+ * what is matched; picking one replaces it with "Name <address>" and a comma.
+ */
+function AddressInput({ value, onChange, shell, placeholder, autoFocus }) {
+  const [hits, setHits] = useState([]);
+  const [on, setOn] = useState(-1);
+  const [open, setOpen] = useState(false);
+  const timer = useRef(null);
+  const tokenOf = (text) => {
+    const parts = String(text || '').split(',');
+    return { head: parts.slice(0, -1).map((s) => s.trim()).filter(Boolean), tail: (parts[parts.length - 1] || '').trim() };
+  };
+  const lookup = (text) => {
+    clearTimeout(timer.current);
+    const { tail } = tokenOf(text);
+    if (tail.length < 2 || !shell?.contacts) {
+      setHits([]);
+      setOpen(false);
+      return;
+    }
+    timer.current = setTimeout(async () => {
+      try {
+        const found = await shell.contacts.suggest({ query: tail, limit: 8 });
+        setHits(found);
+        setOn(found.length ? 0 : -1);
+        setOpen(found.length > 0);
+      } catch {
+        setHits([]);
+      }
+    }, 120);
+  };
+  const pick = (hit) => {
+    const { head } = tokenOf(value);
+    const piece = hit.name && hit.name !== hit.email ? `${hit.name} <${hit.email}>` : hit.email;
+    onChange([...head, piece].join(', ') + ', ');
+    setHits([]);
+    setOpen(false);
+  };
+  const onKeyDown = (e) => {
+    if (!open || !hits.length) return;
+    if (e.key === 'ArrowDown') { e.preventDefault(); setOn((i) => (i + 1) % hits.length); }
+    else if (e.key === 'ArrowUp') { e.preventDefault(); setOn((i) => (i - 1 + hits.length) % hits.length); }
+    else if (e.key === 'Enter' || e.key === 'Tab') { if (on >= 0) { e.preventDefault(); pick(hits[on]); } }
+    else if (e.key === 'Escape') { e.preventDefault(); setOpen(false); }
+  };
+  return (
+    <div className="ml-address">
+      <Input value={value || ''} placeholder={placeholder} autoFocus={autoFocus} onChange={(e) => { onChange(e.target.value); lookup(e.target.value); }} onKeyDown={onKeyDown} onBlur={() => setTimeout(() => setOpen(false), 150)} />
+      {open ? (
+        <div className="ml-suggest" role="listbox">
+          {hits.map((h, i) => (
+            <button type="button" key={h.email} className={i === on ? 'on' : ''} onMouseDown={(e) => { e.preventDefault(); pick(h); }}>
+              <span className="n">{h.name || h.email}</span>
+              {h.name ? <span className="e">{h.email}</span> : null}
+              <span className="s">{h.source === 'contacts' ? 'contact' : 'mail'}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function Compose({ draft, accounts, accountId, onAccount, onChange, onClose, onSend, onSaveDraft, shell, toast }) {
   const bodyRef = useRef(null);
   const [rich, setRich] = useState(draft.rich !== false);
@@ -137,10 +202,11 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
         <Field label="To">
           <div className="ml-to-row">
             <span className="grow">
-              <Input
+              <AddressInput
                 autoFocus
+                shell={shell}
                 value={draft.to || ''}
-                onChange={(e) => onChange({ ...draft, to: e.target.value })}
+                onChange={(to) => onChange({ ...draft, to })}
                 placeholder="someone@example.com, another@example.com"
               />
             </span>
@@ -153,10 +219,10 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
         {showCc ? (
           <>
             <Field label="Cc">
-              <Input value={draft.cc || ''} onChange={(e) => onChange({ ...draft, cc: e.target.value })} />
+              <AddressInput shell={shell} value={draft.cc || ''} onChange={(cc) => onChange({ ...draft, cc })} />
             </Field>
             <Field label="Bcc" hint="Nobody on this line is visible to the other recipients.">
-              <Input value={draft.bcc || ''} onChange={(e) => onChange({ ...draft, bcc: e.target.value })} />
+              <AddressInput shell={shell} value={draft.bcc || ''} onChange={(bcc) => onChange({ ...draft, bcc })} />
             </Field>
           </>
         ) : null}

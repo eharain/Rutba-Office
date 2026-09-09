@@ -66,6 +66,8 @@ export default function Mail({ app, shell }) {
   const [progress, setProgress] = useState(null);
   const [dialog, setDialog] = useState(() => (new URLSearchParams(location.search).has('import') ? { kind: 'import' } : null));
   const [compose, setCompose] = useState(null);
+  // The calendar part of the open message, read and offered as a card.
+  const [invitation, setInvitation] = useState(null);
   const [scan, setScan] = useState(null);
   const [outbox, setOutbox] = useState([]);
 
@@ -583,6 +585,90 @@ export default function Mail({ app, shell }) {
   );
 
   useFileDrop(useCallback((files) => files[0] && importFrom(files[0]), [importFrom]));
+
+  // A calendar part in the open message becomes a card with Accept, Tentative
+  // and Decline; the calendar reads it, and the answer goes back through a
+  // message to the organizer with the reply attached.
+  useEffect(() => {
+    let live = true;
+    setInvitation(null);
+    const index = (message?.attachments || []).findIndex((a) => /text\/calendar/i.test(a.type || '') || /\.ics$/i.test(a.filename || ''));
+    if (!message || index < 0 || !selected || !shell.calendar) return undefined;
+    (async () => {
+      try {
+        const part = await shell.mail.attachmentText({ ...selected, index });
+        if (!part?.text) return;
+        const seen = await shell.calendar.openFile({ text: part.text, name: part.name });
+        if (!live) return;
+        const first = seen.first;
+        const when = !first ? '' : first.allDay ? `${first.start.date}, all day` : new Date(first.start.at).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const me = seen.invitation?.me;
+        const who = first?.attendees?.[0];
+        setInvitation({
+          text: part.text,
+          index,
+          method: seen.method,
+          summary: first?.summary || part.name,
+          when,
+          location: first?.location || '',
+          organizer: first?.organizer?.name || first?.organizer?.email || '',
+          answered: me?.partstat && me.partstat !== 'NEEDS-ACTION' ? me.partstat : null,
+          reply: seen.method === 'REPLY' && who ? `${who.name || who.email} ${String(who.partstat || 'replied').toLowerCase()}` : null,
+        });
+      } catch (err) {
+        // A calendar part that will not read is an attachment like any other; say why on the console.
+        console.error(`invitation: ${err.message}`);
+      }
+    })();
+    return () => {
+      live = false;
+    };
+  }, [message, selected, shell]);
+
+  const respondToInvitation = useCallback(
+    async (partstat) => {
+      if (!invitation) return;
+      try {
+        if (partstat === 'KEEP') {
+          const r = await shell.calendar.importFile({ text: invitation.text });
+          toast(`${r.added} added to ${r.calendar}.`, { tone: 'good' });
+          return;
+        }
+        const r = await shell.calendar.respond({ text: invitation.text, partstat });
+        setInvitation((i) => (i ? { ...i, answered: partstat } : i));
+        if (r.replyPath && r.organizer?.email) {
+          setCompose({ to: r.organizer.email, subject: r.subject, text: '', attachments: [{ filename: 'reply.ics', path: r.replyPath, size: 0 }] });
+        }
+        toast(r.kept ? 'Added to your calendar; the reply is ready to send.' : 'Declined; the reply is ready to send.', { tone: 'good', ms: 6000 });
+      } catch (err) {
+        toast(err.message, { tone: 'bad', ms: 8000 });
+      }
+    },
+    [invitation, shell, toast]
+  );
+
+  const keepSender = useCallback(
+    async (from) => {
+      if (!from?.address) return;
+      try {
+        const kept = await shell.contacts.fromMail({ name: from.name || '', email: from.address });
+        toast(`Kept ${kept?.display || from.address} in Contacts.`, { tone: 'good' });
+      } catch (err) {
+        toast(err.message, { tone: 'bad' });
+      }
+    },
+    [shell, toast]
+  );
+
+  // Opened by another app with a message to write: Contacts' Send mail, or
+  // the calendar's reply or invitation with its file attached.
+  useEffect(() => {
+    const q = new URLSearchParams(window.location.search);
+    if (!q.get('to') && !q.get('attach')) return;
+    const attach = q.get('attach');
+    setCompose({ to: q.get('to') || '', subject: q.get('subject') || '', text: '', attachments: attach ? [{ filename: attach.split(/[\\/]/).pop(), path: attach, size: 0 }] : [] });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // The scan runs when the import dialog opens, not at start-up: it touches the
   // disk, and an application that rummages through your profile before you have
@@ -1136,6 +1222,9 @@ export default function Mail({ app, shell }) {
                     <Reader
                       message={message}
                       insight={insight}
+                      invitation={invitation}
+                      onRespond={respondToInvitation}
+                      onKeepSender={keepSender}
                       remote={remote}
                       plain={plain}
                       dark={dark}

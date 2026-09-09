@@ -1719,6 +1719,40 @@ export async function verifyApps({ windows, doc }) {
     check('video: the button checks ran', false, err.message);
   }
 
+  /* ── Mail and the calendar: an invitation in a message is answered from it ─ */
+  //
+  // The seed carries a message with a text/calendar part. Opening it shows
+  // the invitation card; Accept keeps the event and opens a message to the
+  // organizer with the reply attached. And Compose completes an address
+  // from the people mail has seen.
+  try {
+    const win = await open('mail');
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`document.querySelectorAll('.ml-row').length > 0`), 'the seeded messages', 8000);
+    await js(`[...document.querySelectorAll('.ml-row')].find((r) => /Invitation: Quarterly numbers/.test(r.textContent))?.click(), 'opened'`);
+    await until(() => js(`Boolean(document.querySelector('.ml-invite'))`), 'the invitation card', 8000).catch(() => {});
+    const card = await js(`(() => { const c = document.querySelector('.ml-invite'); return c ? { title: c.querySelector('.ml-invite-title')?.textContent, who: c.querySelector('.ml-invite-who')?.textContent, buttons: [...c.querySelectorAll('.rw-btn')].map((b) => b.textContent.trim()) } : null; })()`);
+    const rowsShown = await js(`[...document.querySelectorAll('.ml-row')].map((r) => r.textContent.slice(0, 48))`);
+    check('mail: a message that carries an invitation shows it, with Accept, Tentative and Decline', Boolean(card) && card.title === 'Quarterly numbers' && /Amina/.test(card.who || '') && card.buttons.join(',') === 'Accept,Tentative,Decline', `${JSON.stringify(card)}; rows ${JSON.stringify(rowsShown)}`);
+    await js(`[...document.querySelectorAll('.ml-invite .rw-btn')].find((b) => b.textContent.trim() === 'Accept')?.click(), 'accepted'`);
+    await until(() => js(`Boolean(document.querySelector('input[placeholder^="someone@"]'))`), 'the reply message to open', 8000).catch(() => {});
+    const reply = await js(`(() => { const to = document.querySelector('input[placeholder^="someone@"]'); const subject = [...document.querySelectorAll('input')].map((i) => i.value).find((v) => /^Accepted/.test(v)); return { to: to?.value || '', subject: subject || '', attachment: /reply\\.ics/i.test(document.body.textContent) }; })()`);
+    const kept = await js(`(async () => { const c = await window.rutbaOffice.calendar.calendars({}); return c.reduce((n, x) => n + x.count, 0); })()`);
+    check('mail: Accept keeps the event and opens the reply to the organizer with the file attached', /amina@northwind\.example/.test(reply.to) && /^Accepted: Quarterly numbers/.test(reply.subject) && reply.attachment && kept >= 1, `${JSON.stringify(reply)}; events kept ${kept}`);
+    await setField(win, 'input[placeholder^="someone@"]', 'ami');
+    await until(() => js(`document.querySelectorAll('.ml-suggest button').length > 0`), 'a suggestion', 6000).catch(() => {});
+    const suggested = await js(`[...document.querySelectorAll('.ml-suggest button')].map((b) => b.textContent)`);
+    check('mail: Compose completes an address from the people mail has seen', suggested.some((s) => /amina@northwind\.example/.test(s)), JSON.stringify(suggested));
+    await js(`[...document.querySelectorAll('.rw-btn, button')].find((b) => /^(Close|Discard|Cancel)$/.test(b.textContent.trim()))?.click(), 'closed'`);
+    await until(() => js(`!document.querySelector('input[placeholder^="someone@"]')`), 'the message to close', 4000).catch(() => {});
+    await js(`document.querySelector('.ml-keep')?.click(), 'kept'`);
+    await until(async () => (await js(`window.rutbaOffice.contacts.count({})`)) >= 1, 'the sender to be kept', 6000).catch(() => {});
+    const senders = await js(`(async () => (await window.rutbaOffice.contacts.list({ query: 'amina' })).map((c) => c.emails[0]?.value))()`);
+    check('mail: a sender is kept in Contacts with one click', senders.includes('amina@northwind.example'), JSON.stringify(senders));
+  } catch (err) {
+    check('mail: the invitation checks ran', false, err.message);
+  }
+
   /* ── Mail: a seeded message opens in the reading pane ────────────────── */
 
   try {
@@ -1939,23 +1973,23 @@ export async function verifyApps({ windows, doc }) {
   try {
     const win = await open('contacts', files.vcf);
     const js = (code) => win.webContents.executeJavaScript(code);
+    const before = await js('window.rutbaOffice.contacts.count({})');
     await until(() => js(`document.querySelectorAll('.ct-item').length >= 2`), 'the file\'s cards to list', 8000).catch(() => {});
     const shown = await js(`(() => ({ items: document.querySelectorAll('.ct-item').length, names: [...document.querySelectorAll('.ct-item .name')].map((n) => n.textContent), offer: Boolean(document.querySelector('.ct-offer')), card: document.querySelector('.ct-card h2')?.textContent || '' }))()`);
     check('contacts: a .vcf opens as its cards, shown and offered, not yet kept', shown.items === 2 && /Kim Lee/.test(shown.names.join(',')) && shown.offer && /Kim Lee|Sam Patel/.test(shown.card), JSON.stringify(shown));
     await js(`[...document.querySelectorAll('.ct-offer .rw-btn')].pop()?.click(), 'added'`);
     await until(() => js(`!document.querySelector('.ct-offer') && document.querySelectorAll('.ct-item').length >= 2`), 'the cards to be kept', 8000).catch(() => {});
-    const kept = await doc.constructor === Object ? null : null;
-    void kept;
+    // Relative to what the book held: the mail block has already kept a sender.
     const count = await js(`window.rutbaOffice.contacts.count({})`);
-    check('contacts: Add keeps the file\'s cards in the address book', count === 2 && (await js(`!document.querySelector('.ct-offer')`)), `${count} kept`);
+    check('contacts: Add keeps the file\'s cards in the address book', count === before + 2 && (await js(`!document.querySelector('.ct-offer')`)), `${count} kept, ${before} before`);
     await js(`[...document.querySelectorAll('.rw-btn')].find((b) => /New contact/.test(b.textContent))?.click(), 'new'`);
     await until(() => js(`Boolean(document.querySelector('.ct-editor input.ct-name'))`), 'the editor', 4000).catch(() => {});
     await setField(win, '.ct-editor input.ct-name', 'Alex Morgan');
     await setField(win, '.ct-editor .ct-line input[placeholder="name@example.com"]', 'alex@example.net');
     await js(`[...document.querySelectorAll('.ct-actions .rw-btn')].find((b) => b.textContent.trim() === 'Save')?.click(), 'saved'`);
-    await until(() => js(`document.querySelectorAll('.ct-item').length >= 3`), 'the new card to list', 6000).catch(() => {});
+    await until(() => js(`document.querySelector('.ct-card h2')?.textContent === 'Alex Morgan'`), 'the new card to be shown', 6000).catch(() => {});
     const after = await js(`(() => ({ items: document.querySelectorAll('.ct-item').length, card: document.querySelector('.ct-card h2')?.textContent || '', email: document.querySelector('.ct-card .ct-link')?.textContent || '' }))()`);
-    check('contacts: a new card typed in is kept and shown', after.items === 3 && after.card === 'Alex Morgan' && after.email === 'alex@example.net', JSON.stringify(after));
+    check('contacts: a new card typed in is kept and shown', after.items === count + 1 && after.card === 'Alex Morgan' && after.email === 'alex@example.net', `${JSON.stringify(after)}; ${count} before`);
     const found = await js(`(async () => { const s = await window.rutbaOffice.contacts.suggest({ query: 'ki' }); return s.map((x) => x.email); })()`);
     check('contacts: Compose can complete an address from the book', found.includes('kim@example.com') && !found.includes('sam@example.org'), JSON.stringify(found));
   } catch (err) {
@@ -2324,9 +2358,24 @@ export async function verifyApps({ windows, doc }) {
     // are open and unsaved, so the list holds every one of them, and the first
     // check that read it recovered somebody else's document and failed on
     // words it had never typed.
-    const entry = offered.filter((e) => e.kind === 'doc').sort((a, b) => b.at - a.at)[0];
-    const recovered = doc.recover({ file: entry.file });
-    const text = (recovered.model.blocks || []).map((b) => (b.runs || []).map((r) => r.text).join('')).join(' ');
+    // The newest is not always ours either — the timer copies whichever
+    // dirty window changed last — so every document copy is read and the
+    // one holding the typed words is the one this check is about.
+    const candidates = offered.filter((e) => e.kind === 'doc').sort((a, b) => b.at - a.at);
+    let entry = candidates[0];
+    let recovered = null;
+    let text = '';
+    for (const candidate of candidates) {
+      const opened = doc.recover({ file: candidate.file });
+      const words = (opened.model.blocks || []).map((b) => (b.runs || []).map((r) => r.text).join('')).join(' ');
+      if (words.includes('UNSAVED WORK') || !recovered) {
+        if (recovered) doc.close({ id: recovered.id });
+        entry = candidate;
+        recovered = opened;
+        text = words;
+        if (words.includes('UNSAVED WORK')) break;
+      } else doc.close({ id: opened.id });
+    }
     check('autosave: what comes back is the work that was lost', text.includes('UNSAVED WORK'), `recovered ${JSON.stringify(text.slice(0, 60))}`);
     doc.close({ id: recovered.id });
     doc.discardRecovery({ file: entry.file });

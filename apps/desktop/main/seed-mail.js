@@ -63,6 +63,25 @@ export function seedMessages(now = Date.now()) {
   const messages = [];
   const push = (fields) => messages.push({ from: { address: fields.address }, date: new Date(fields.date).toISOString(), raw: raw(fields) });
 
+  /* An invitation, the way a calendar sends one: a text/calendar part with METHOD:REQUEST. */
+  const meeting = new Date(now + 3 * 86400000);
+  meeting.setHours(14, 0, 0, 0);
+  const stamp = (d) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+  push({
+    address: 'amina@northwind.example',
+    from: 'Amina Yusuf <amina@northwind.example>',
+    subject: 'Invitation: Quarterly numbers',
+    date: now - 2 * 3600000,
+    id: 'invite-1@northwind.example',
+    headers: [PASSED],
+    body: 'You have been invited to Quarterly numbers.',
+    attachment: {
+      filename: 'invite.ics',
+      type: 'text/calendar; method=REQUEST; charset=utf-8',
+      content: ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Northwind//Calendar//EN', 'METHOD:REQUEST', 'BEGIN:VEVENT', 'UID:invite-1@northwind.example', `DTSTAMP:${stamp(new Date(now))}`, `DTSTART:${stamp(meeting)}`, `DTEND:${stamp(new Date(meeting.getTime() + 1800000))}`, 'SUMMARY:Quarterly numbers', 'LOCATION:Room 4', 'ORGANIZER;CN=Amina Yusuf:mailto:amina@northwind.example', 'ATTENDEE;CN=You;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE:mailto:you@example.com', 'ATTENDEE;CN=Amina Yusuf;PARTSTAT=ACCEPTED:mailto:amina@northwind.example', 'SEQUENCE:0', 'STATUS:CONFIRMED', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n'),
+    },
+  });
+
   /* A four-message conversation, chained properly. Two people, one subject. */
   push({
     address: 'amina@northwind.example',

@@ -113,6 +113,7 @@ export const METHODS = {
     'removeAccount',// ({ id }) -> void
     'testAccount',  // ({ account, password }) -> { imap, smtp, error }
     'autodiscover', // ({ email }) -> { imap, smtp, source }
+    'attachmentText', // ({ accountId, folder, id, index }) -> { name, type, text }
     'folders',      // ({ accountId }) -> [folder]
     'sync',         // ({ accountId, folder, limit }) -> { added, total }
     'messages',     // ({ accountId, folder, offset, limit, query }) -> { rows, total }

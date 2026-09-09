@@ -721,6 +721,14 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       return { ...holdBlob(bytes, a.type, a.filename), name: a.filename, type: a.type, size: bytes.length };
     },
 
+    /** An attachment's text — a calendar part, a card — for the app that reads it. */
+    attachmentText: ({ accountId, folder, id, index }) => {
+      const message = store.get(accountId, folder, id);
+      const a = message?.attachments?.[index];
+      if (!a?.stored) return null;
+      return { name: a.filename, type: a.type, text: fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored), 'utf8') };
+    },
+
     search: ({ accountId, query, limit }) => store.search(accountId, query, { limit }),
   };
 

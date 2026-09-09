@@ -198,10 +198,10 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
      * What a file holds, without keeping it: its events expanded in a range,
      * and whether it is an invitation to answer.
      */
-    openFile: ({ path: target, from, to }) => {
-      const cal = readCalendar(fs.readFileSync(target));
-      const name = cal.name || path.basename(target);
-      const temp = { id: `file:${target}`, name, colour: '#8c6d1f', events: cal.events.map((e, i) => ({ ...e, id: `file:${i}` })) };
+    openFile: ({ path: target = null, text = null, name: given = null, from, to }) => {
+      const cal = readCalendar(text != null ? text : fs.readFileSync(target));
+      const name = cal.name || given || (target ? path.basename(target) : 'Invitation');
+      const temp = { id: `file:${target || name}`, name, colour: '#8c6d1f', events: cal.events.map((e, i) => ({ ...e, id: `file:${i}` })) };
       const mine = myAddresses();
       const invitation = isInvitation(cal) ? cal.events[0] : null;
       const me = invitation ? invitation.attendees.find((a) => mine.includes(String(a.email || '').toLowerCase())) || null : null;
@@ -217,9 +217,9 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
     },
 
     /** Bring a file's events into a calendar; an event already there by UID is replaced when the file's is newer. */
-    importFile: ({ path: target, calendarId = null }) => {
+    importFile: ({ path: target = null, text = null, calendarId = null }) => {
       const cal = calendarOf(calendarId) || state.calendars[0];
-      const read = readCalendar(fs.readFileSync(target));
+      const read = readCalendar(text != null ? text : fs.readFileSync(target));
       const now = Date.now();
       let added = 0;
       let updated = 0;
@@ -252,11 +252,11 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
      * this person's line, and hand back the reply file and whom to send it
      * to. Sending is mail's; the window opens a message with the file on it.
      */
-    respond: ({ path: target = null, id = null, partstat = 'ACCEPTED', calendarId = null }) => {
+    respond: ({ path: target = null, text = null, id = null, partstat = 'ACCEPTED', calendarId = null }) => {
       const cal = calendarOf(calendarId) || state.calendars[0];
       let event = null;
-      if (target) {
-        const read = readCalendar(fs.readFileSync(target));
+      if (text != null || target) {
+        const read = readCalendar(text != null ? text : fs.readFileSync(target));
         event = read.events[0] || null;
       } else if (id) event = find(id)?.event || null;
       if (!event) throw new Error('There is no invitation to answer.');

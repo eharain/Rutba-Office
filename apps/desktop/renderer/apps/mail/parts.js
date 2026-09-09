@@ -319,6 +319,19 @@ export const CSS = `
 .ml-to { color: var(--ink-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ml-date { color: var(--ink-3); font-size: 11.5px; flex: none; }
 .ml-attachments { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.ml-keep { margin-left: 8px; border: 0; background: none; padding: 0 4px; font: inherit; font-size: 11.5px; color: var(--accent); cursor: pointer; display: inline-flex; align-items: center; gap: 3px; vertical-align: middle; }
+.ml-invite { display: flex; align-items: center; gap: 12px; margin: 12px 0 0; padding: 12px 14px; border-radius: var(--r-2); background: var(--sunken); border-left: 4px solid #1a9f7a; }
+.ml-invite-text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.ml-invite-title { font-weight: 600; }
+.ml-invite-when, .ml-invite-who { font-size: 12.5px; color: var(--ink-2); }
+.ml-invite-actions { display: flex; gap: 6px; }
+.ml-suggest { position: absolute; left: 0; right: 0; top: 100%; z-index: 20; margin-top: 2px; padding: 4px; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); box-shadow: 0 6px 20px rgba(0,0,0,.12); display: flex; flex-direction: column; }
+.ml-suggest button { display: flex; align-items: baseline; gap: 8px; border: 0; background: none; padding: 5px 8px; border-radius: 4px; font: inherit; text-align: left; color: var(--ink); cursor: pointer; }
+.ml-suggest button.on, .ml-suggest button:hover { background: var(--selected); }
+.ml-suggest .n { font-weight: 500; }
+.ml-suggest .e { color: var(--ink-3); font-size: 12px; }
+.ml-suggest .s { margin-left: auto; color: var(--ink-3); font-size: 11px; }
+.ml-address { position: relative; }
 .ml-attachment {
   display: inline-flex; align-items: center; gap: 7px; padding: 5px 10px;
   border: 1px solid var(--line); border-radius: 20px; background: var(--chrome);
