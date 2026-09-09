@@ -18,26 +18,10 @@ import { scan, read as readArchive, identify } from '@rutba/mailbox/import';
 import { writeMbox } from '@rutba/mailbox/mbox';
 import { insightFor } from './mail-insight.js';
 import { planRules, applyPlan } from './mail-rules.js';
+import { discoverMailServers } from './mail-discover.js';
 
-/** Well-known providers, so most people never type a server name. */
-const PROVIDERS = [
-  { match: /@(gmail|googlemail)\.com$/i, imap: { host: 'imap.gmail.com', port: 993, secure: true }, smtp: { host: 'smtp.gmail.com', port: 465, secure: true }, note: 'Gmail needs an app password when two-step verification is on.' },
-  { match: /@(outlook|hotmail|live|msn)\.[a-z.]+$/i, imap: { host: 'outlook.office365.com', port: 993, secure: true }, smtp: { host: 'smtp.office365.com', port: 587, secure: false } },
-  { match: /@yahoo\.[a-z.]+$/i, imap: { host: 'imap.mail.yahoo.com', port: 993, secure: true }, smtp: { host: 'smtp.mail.yahoo.com', port: 465, secure: true }, note: 'Yahoo requires an app password.' },
-  { match: /@(icloud|me|mac)\.com$/i, imap: { host: 'imap.mail.me.com', port: 993, secure: true }, smtp: { host: 'smtp.mail.me.com', port: 587, secure: false }, note: 'iCloud requires an app-specific password.' },
-  { match: /@(proton|protonmail)\.(com|me)$/i, imap: { host: '127.0.0.1', port: 1143, secure: false }, smtp: { host: '127.0.0.1', port: 1025, secure: false }, note: 'Proton Mail needs its Bridge running locally.' },
-  { match: /@fastmail\.[a-z.]+$/i, imap: { host: 'imap.fastmail.com', port: 993, secure: true }, smtp: { host: 'smtp.fastmail.com', port: 465, secure: true } },
-  { match: /@zoho\.[a-z.]+$/i, imap: { host: 'imap.zoho.com', port: 993, secure: true }, smtp: { host: 'smtp.zoho.com', port: 465, secure: true } },
-];
-
-/** The conventional names, tried when a domain is not one we know. */
-function guessFromDomain(domain) {
-  return {
-    imap: { host: `imap.${domain}`, port: 993, secure: true },
-    smtp: { host: `smtp.${domain}`, port: 465, secure: true },
-    guessed: true,
-  };
-}
+// A check run never asks the network where a mail server is.
+const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE);
 
 const SPECIAL = [
   { test: /^inbox$/i, role: 'inbox', icon: 'inbox', order: 0 },
@@ -189,13 +173,15 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         ),
       })),
 
-    autodiscover: ({ email }) => {
-      const domain = String(email).split('@')[1] || '';
-      const known = PROVIDERS.find((p) => p.match.test(email));
-      if (known) return { imap: known.imap, smtp: known.smtp, note: known.note || null, source: 'known' };
-      if (!domain) return { imap: null, smtp: null, source: 'none' };
-      return { ...guessFromDomain(domain), note: 'These server names are a guess from the domain.', source: 'guess' };
-    },
+    /**
+     * Where this address's mail lives: the provider table, the domain's MX
+     * and SRV records, autoconfig, Microsoft autodiscover, and a knock on
+     * the conventional names — see mail-discover.js. A check run never asks
+     * the network. Settings that came from another client on this computer
+     * are passed as `seed`, kept, and checked like the rest.
+     */
+    autodiscover: ({ email, seed = null, offline = false }) =>
+      discoverMailServers(email, { offline: offline || CHECK_RUN, seed }),
 
     addAccount: ({ account, password }) => {
       const id = account.id || crypto.randomUUID().slice(0, 8);
@@ -268,6 +254,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
           host: account.smtp.host,
           port: account.smtp.port,
           secure: account.smtp.secure,
+          // A plain port is upgraded with STARTTLS before a password is sent, or not used.
+          requireTLS: !account.smtp.secure && account.smtp.starttls !== false,
           auth: { user: account.smtp.user || account.email, pass: password },
         });
         await transport.verify();
@@ -598,6 +586,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         host: account.smtp.host,
         port: account.smtp.port,
         secure: account.smtp.secure,
+        // A plain port is upgraded with STARTTLS before anything is sent, or not used.
+        requireTLS: !account.smtp.secure && account.smtp.starttls !== false,
         auth: credentials.accessToken
           ? { type: 'OAuth2', user: account.smtp.user || account.email, accessToken: credentials.accessToken }
           : { user: account.smtp.user || account.email, pass: credentials.pass },

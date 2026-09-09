@@ -120,8 +120,10 @@ export function createOAuthService({ stores, broadcast }) {
 
   return {
     /** Which provider an address belongs to, and whether we can sign in to it. */
-    provider: ({ email }) => {
-      const provider = providerFor(email);
+    provider: ({ email, id = null }) => {
+      // Discovery can name the sign-in for a company domain hosted at Google
+      // or Microsoft 365, which no address pattern can know.
+      const provider = (id && PROVIDERS[id]) || providerFor(email);
       if (!provider) return null;
       return {
         id: provider.id,

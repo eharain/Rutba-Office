@@ -356,6 +356,22 @@ export const CSS = `
 /* dialogs and forms ------------------------------------------------------ */
 .ml-form { display: flex; flex-direction: column; gap: 11px; padding: 4px 0 10px; }
 .ml-servers { display: grid; grid-template-columns: 1fr 90px; gap: 10px; }
+.ml-servers3 { display: grid; grid-template-columns: 1fr 80px 118px; gap: 10px; }
+.ml-advanced { display: flex; flex-direction: column; gap: 11px; padding-top: 4px; border-top: 1px solid var(--line); }
+.ml-search { display: flex; flex-direction: column; gap: 6px; padding: 8px 11px; border-radius: var(--r-2); background: var(--sunken); font-size: 12.5px; }
+.ml-search[data-state='found'] { background: color-mix(in srgb, var(--good) 8%, var(--sunken)); }
+.ml-search .ml-note { padding: 0; background: none; }
+.ml-search-line { display: flex; align-items: center; gap: 8px; color: var(--ink-2); }
+.ml-search-line.quiet { color: var(--ink-3); }
+.ml-search-line b { color: var(--ink); font-weight: 600; }
+.ml-steps-toggle { align-self: flex-start; border: 0; background: none; padding: 0; color: var(--accent); font: inherit; font-size: 12px; cursor: pointer; }
+.ml-steps { list-style: none; margin: 2px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+.ml-step { display: grid; grid-template-columns: 16px 150px 1fr; gap: 6px; align-items: baseline; color: var(--ink-2); }
+.ml-step .name { color: var(--ink); }
+.ml-step .detail { overflow-wrap: anywhere; }
+.ml-step.ok svg { color: var(--good); }
+.ml-step.failed svg { color: var(--bad); }
+select.rw-input { appearance: auto; }
 .ml-note, .ml-result {
   display: flex; align-items: center; gap: 8px; padding: 7px 11px; border-radius: var(--r-2);
   background: var(--sunken); font-size: 12px; color: var(--ink-2);

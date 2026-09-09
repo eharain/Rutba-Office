@@ -6,7 +6,7 @@
 // index that is already there, which is why a client that owns its own store
 // can offer them and a thin IMAP front end cannot.
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button, Dialog, Field, Input, Icon, Chip, Empty, Spinner, Search, Progress,
   formatBytes, formatWhen,
@@ -217,51 +217,114 @@ export function ImportPreview({ found, onCancel, onImport }) {
 /* ── account setup ───────────────────────────────────────────────────────── */
 
 export function AccountDialog({ shell, seed, onClose, onSaved, toast }) {
+  // An address and a password. Everything else is found: the provider table,
+  // the domain's MX and SRV records, autoconfig, Microsoft autodiscover, and a
+  // knock on the conventional names (main/mail-discover.js). What was found is
+  // shown, what was checked can be opened, and the advanced fields — always one
+  // click away, never the only way in — are filled with the answer so that a
+  // wrong guess is a correction, not a form from scratch.
+  const security = (server) => (!server ? 'tls' : server.secure ? 'tls' : server.starttls === false ? 'none' : 'starttls');
   const [form, setForm] = useState(() => ({
     email: seed?.email && seed.email.includes('@') ? seed.email : '',
     name: seed?.name || '',
     password: '',
+    user: seed?.incoming?.user || '',
     imapHost: seed?.incoming?.host || '',
     imapPort: seed?.incoming?.port || 993,
-    imapSecure: seed?.incoming?.secure !== false,
+    imapSecurity: security(seed?.incoming ? { secure: seed.incoming.secure !== false, starttls: seed.incoming.secure === false } : null),
     smtpHost: seed?.outgoing?.host || '',
     smtpPort: seed?.outgoing?.port || 465,
-    smtpSecure: seed?.outgoing?.secure !== false,
+    smtpSecurity: security(seed?.outgoing ? { secure: seed.outgoing.secure !== false, starttls: seed.outgoing.secure === false } : null),
   }));
-  const [note, setNote] = useState(seed ? `These settings came from ${seed.source} on this computer.` : null);
-  const [testing, setTesting] = useState(false);
-  const [result, setResult] = useState(null);
+  const [advanced, setAdvanced] = useState(false);
+  const [looking, setLooking] = useState(false);
+  const [found, setFound] = useState(null);
+  const [showSteps, setShowSteps] = useState(false);
   const [provider, setProvider] = useState(null);
+  const [testing, setTesting] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [result, setResult] = useState(null);
   const [signingIn, setSigningIn] = useState(false);
+  const lookedUp = useRef('');
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
 
-  // Gmail and Outlook.com stopped accepting a password for IMAP. Asking for one
-  // and then failing at the server is the worst possible order, so the moment
-  // the address is recognised the form says so and offers the browser instead.
+  const discover = useCallback(
+    async (email) => {
+      const domain = (email.split('@')[1] || '').toLowerCase();
+      if (!domain.includes('.')) return;
+      lookedUp.current = domain;
+      setLooking(true);
+      setResult(null);
+      try {
+        const r = await shell.mail.autodiscover({
+          email,
+          seed: seed?.incoming?.host ? { imap: seed.incoming, smtp: seed.outgoing } : null,
+        });
+        if (lookedUp.current !== domain) return; // the address changed while this ran
+        setFound(r);
+        const patch = {};
+        if (r.imap) Object.assign(patch, { imapHost: r.imap.host, imapPort: r.imap.port, imapSecurity: security(r.imap), user: r.imap.user && r.imap.user !== email ? r.imap.user : '' });
+        if (r.smtp) Object.assign(patch, { smtpHost: r.smtp.host, smtpPort: r.smtp.port, smtpSecurity: security(r.smtp) });
+        set(patch);
+        const p = r.oauth ? await shell.oauth.provider({ email, id: r.oauth }).catch(() => null) : null;
+        if (p) setProvider(p);
+      } catch (err) {
+        setFound({ imap: null, smtp: null, note: err.message, steps: [{ name: 'the search', status: 'failed', detail: err.message }] });
+      } finally {
+        if (lookedUp.current === domain) setLooking(false);
+      }
+    },
+    [shell, seed]
+  );
+
+  // A provider the address alone names — Gmail, Outlook.com — is offered its
+  // sign-in the moment the address is typed, before the search confirms it;
+  // the search can still add one the address cannot name, such as a company
+  // domain hosted at Microsoft 365.
   useEffect(() => {
-    if (!form.email.includes('@')) {
+    const email = form.email.trim();
+    if (!email.includes('@')) {
       setProvider(null);
-      return;
+      return undefined;
     }
+    let live = true;
     shell.oauth
-      .provider({ email: form.email })
-      .then(setProvider)
-      .catch(() => setProvider(null));
+      .provider({ email })
+      .then((p) => {
+        if (live) setProvider(p);
+      })
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
   }, [form.email, shell]);
+
+  // The search runs once the domain looks complete and the typing has paused,
+  // and again only when the domain changes.
+  useEffect(() => {
+    const email = form.email.trim();
+    const domain = (email.split('@')[1] || '').toLowerCase();
+    if (!domain.includes('.') || domain === lookedUp.current) return undefined;
+    const timer = setTimeout(() => discover(email), 700);
+    return () => clearTimeout(timer);
+  }, [form.email, discover]);
+
+  const account = () => {
+    const sec = (s) => ({ secure: s === 'tls', starttls: s === 'starttls' });
+    return {
+      email: form.email.trim(),
+      name: form.name || form.email.trim(),
+      imap: { host: form.imapHost.trim(), port: Number(form.imapPort), ...sec(form.imapSecurity), user: form.user.trim() || undefined },
+      smtp: { host: form.smtpHost.trim(), port: Number(form.smtpPort), ...sec(form.smtpSecurity), user: form.user.trim() || undefined },
+    };
+  };
 
   const signIn = useCallback(async () => {
     setSigningIn(true);
     try {
-      const account = await shell.oauth.signIn({ email: form.email, provider: provider.id });
+      const signed = await shell.oauth.signIn({ email: form.email.trim(), provider: provider.id });
       await shell.mail.addAccount({
-        account: {
-          email: account.email,
-          name: account.name || form.name || account.email,
-          imap: account.imap,
-          smtp: account.smtp,
-          auth: 'oauth',
-          provider: account.provider,
-        },
+        account: { email: signed.email, name: signed.name || form.name || signed.email, imap: signed.imap, smtp: signed.smtp, auth: 'oauth', provider: signed.provider },
       });
       onSaved();
     } catch (err) {
@@ -271,82 +334,79 @@ export function AccountDialog({ shell, seed, onClose, onSaved, toast }) {
     }
   }, [shell, form, provider, onSaved, toast]);
 
-  const discover = useCallback(
-    async (email) => {
-      if (!email.includes('@')) return;
-      const found = await shell.mail.autodiscover({ email });
-      if (found.imap) {
-        set({
-          imapHost: found.imap.host,
-          imapPort: found.imap.port,
-          imapSecure: found.imap.secure,
-          smtpHost: found.smtp.host,
-          smtpPort: found.smtp.port,
-          smtpSecure: found.smtp.secure,
-        });
-      }
-      setNote(found.note);
-    },
-    [shell]
-  );
+  const test = useCallback(async () => {
+    setTesting(true);
+    try {
+      const r = await shell.mail.testAccount({ account: account(), password: form.password });
+      setResult(r);
+      return r;
+    } finally {
+      setTesting(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell, form]);
 
-  const account = () => ({
-    email: form.email,
-    name: form.name || form.email,
-    imap: { host: form.imapHost, port: Number(form.imapPort), secure: Boolean(form.imapSecure) },
-    smtp: { host: form.smtpHost, port: Number(form.smtpPort), secure: Boolean(form.smtpSecure) },
-  });
+  const add = useCallback(async () => {
+    setAdding(true);
+    try {
+      // Tried before it is kept: an account that cannot sign in is not added,
+      // and the failure opens the fields it needs.
+      const r = await test();
+      if (r.error) {
+        setAdvanced(true);
+        return;
+      }
+      await shell.mail.addAccount({ account: account(), password: form.password });
+      onSaved();
+    } catch (err) {
+      toast(err.message, { tone: 'bad', ms: 7000 });
+    } finally {
+      setAdding(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell, form, test, onSaved, toast]);
+
+  const ready = form.email.includes('@') && form.imapHost && form.smtpHost;
+  const label = (s) => ({ tls: 'TLS', starttls: 'STARTTLS', none: 'None' }[s] || s);
+  const server = (host, port, sec, verified) => (
+    <>
+      <b>{host}</b> · {port} · {label(sec)}
+      {verified ? <Icon name="check" size={13} /> : null}
+    </>
+  );
 
   return (
     <Dialog
       title="Add a mail account"
-      width={520}
+      width={560}
       onClose={onClose}
       actions={
         <>
           <Button label="Cancel" onClick={onClose} />
-          <Button
-            label={testing ? 'Testing…' : 'Test'}
-            disabled={testing || !form.email || !form.password}
-            onClick={async () => {
-              setTesting(true);
-              try {
-                setResult(await shell.mail.testAccount({ account: account(), password: form.password }));
-              } finally {
-                setTesting(false);
-              }
-            }}
-          />
-          <Button
-            primary
-            label="Add"
-            disabled={!form.email || !form.imapHost}
-            onClick={async () => {
-              try {
-                await shell.mail.addAccount({ account: account(), password: form.password });
-                onSaved();
-              } catch (err) {
-                toast(err.message, { tone: 'bad', ms: 7000 });
-              }
-            }}
-          />
+          <Button label={advanced ? 'Simple' : 'Advanced…'} onClick={() => setAdvanced((a) => !a)} />
+          <Button label={testing ? 'Testing…' : 'Test'} disabled={testing || adding || !ready || !form.password} onClick={test} />
+          <Button primary label={adding ? 'Adding…' : 'Add account'} disabled={adding || testing || !ready || !form.password} onClick={add} />
         </>
       }
     >
       <div className="ml-form">
         <Field label="Email address">
-          <Input value={form.email} onChange={(e) => set({ email: e.target.value })} onBlur={(e) => discover(e.target.value)} placeholder="you@example.com" />
-        </Field>
-        <Field label="Your name">
-          <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="How your name appears on messages you send" />
+          <Input
+            value={form.email}
+            autoFocus
+            onChange={(e) => set({ email: e.target.value })}
+            onBlur={(e) => {
+              const domain = (e.target.value.split('@')[1] || '').toLowerCase();
+              if (domain.includes('.') && domain !== lookedUp.current) discover(e.target.value.trim());
+            }}
+            placeholder="you@example.com"
+          />
         </Field>
 
         {provider ? (
           <div className="ml-found">
             <button type="button" className="ml-found-item" disabled={signingIn || !provider.configured} onClick={signIn}>
-              <span className="ml-found-logo">
-                {signingIn ? <Spinner /> : <Icon name="lock" size={15} />}
-              </span>
+              <span className="ml-found-logo">{signingIn ? <Spinner /> : <Icon name="lock" size={15} />}</span>
               <span className="grow">
                 <div className="who">{signingIn ? `Waiting for ${provider.label}…` : `Sign in with ${provider.label}`}</div>
                 <div className="what">
@@ -358,37 +418,103 @@ export function AccountDialog({ shell, seed, onClose, onSaved, toast }) {
               {provider.configured ? <Chip>Recommended</Chip> : null}
             </button>
             <p className="rw-hint" style={{ margin: 0 }}>
-              {provider.label} no longer accepts an ordinary password for mail programs. You can still use an app
-              password below if you have one.
+              {provider.label} no longer accepts an ordinary password for mail programs. An app password below still works if you have one.
             </p>
           </div>
         ) : null}
 
         <Field label="Password" hint="Kept in this computer's keystore, never in a file you can read.">
-          <Input type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} />
+          <Input type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter' && ready && form.password && !adding) add(); }} />
         </Field>
-        {note ? <div className="ml-note"><Icon name="info" size={14} />{note}</div> : null}
-        <div className="ml-servers">
-          <Field label="IMAP server">
-            <Input value={form.imapHost} onChange={(e) => set({ imapHost: e.target.value })} placeholder="imap.example.com" />
-          </Field>
-          <Field label="Port">
-            <Input type="number" value={form.imapPort} onChange={(e) => set({ imapPort: e.target.value })} />
-          </Field>
-          <Field label="SMTP server">
-            <Input value={form.smtpHost} onChange={(e) => set({ smtpHost: e.target.value })} placeholder="smtp.example.com" />
-          </Field>
-          <Field label="Port">
-            <Input type="number" value={form.smtpPort} onChange={(e) => set({ smtpPort: e.target.value })} />
-          </Field>
+
+        <div className="ml-search" data-state={looking ? 'looking' : found ? (found.imap ? 'found' : 'nothing') : 'idle'}>
+          {looking ? (
+            <div className="ml-search-line"><Spinner /> Looking up where {form.email.split('@')[1]} keeps its mail…</div>
+          ) : found ? (
+            <>
+              {found.imap ? (
+                <div className="ml-search-line">
+                  <Icon name={found.imap.verified ? 'check' : 'info'} size={14} />
+                  <span>Incoming {server(found.imap.host, found.imap.port, security(found.imap), found.imap.verified)}</span>
+                </div>
+              ) : null}
+              {found.smtp ? (
+                <div className="ml-search-line">
+                  <Icon name={found.smtp.verified ? 'check' : 'info'} size={14} />
+                  <span>Outgoing {server(found.smtp.host, found.smtp.port, security(found.smtp), found.smtp.verified)}</span>
+                </div>
+              ) : null}
+              {found.note ? <div className="ml-note"><Icon name="info" size={14} />{found.note}</div> : null}
+              {found.steps?.length ? (
+                <button type="button" className="ml-steps-toggle" onClick={() => setShowSteps((s) => !s)}>
+                  {showSteps ? 'Hide what was checked' : 'What was checked'}
+                </button>
+              ) : null}
+              {showSteps ? (
+                <ul className="ml-steps">
+                  {found.steps.map((s) => (
+                    <li key={s.name} className={`ml-step ${s.status}`}>
+                      <Icon name={s.status === 'ok' ? 'check' : s.status === 'failed' ? 'close' : 'minus'} size={12} />
+                      <span className="name">{s.name}</span>
+                      <span className="detail">{s.detail}</span>
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </>
+          ) : seed ? (
+            <div className="ml-note"><Icon name="info" size={14} />These settings came from {seed.source} on this computer; they are checked when the address is complete.</div>
+          ) : (
+            <div className="ml-search-line quiet">The mail server is found from the address. If it is not, Advanced takes the names from your provider.</div>
+          )}
         </div>
+
+        {advanced ? (
+          <div className="ml-advanced">
+            <Field label="Your name">
+              <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="How your name appears on messages you send" />
+            </Field>
+            <Field label="Username" hint="Only when it is not the address itself.">
+              <Input value={form.user} onChange={(e) => set({ user: e.target.value })} placeholder={form.email || 'you@example.com'} />
+            </Field>
+            <div className="ml-servers3">
+              <Field label="Incoming server (IMAP)">
+                <Input value={form.imapHost} onChange={(e) => set({ imapHost: e.target.value })} placeholder="imap.example.com" />
+              </Field>
+              <Field label="Port">
+                <Input type="number" value={form.imapPort} onChange={(e) => set({ imapPort: e.target.value })} />
+              </Field>
+              <Field label="Security">
+                <select className="rw-input" value={form.imapSecurity} onChange={(e) => set({ imapSecurity: e.target.value, imapPort: e.target.value === 'tls' ? 993 : 143 })}>
+                  <option value="tls">TLS</option>
+                  <option value="starttls">STARTTLS</option>
+                  <option value="none">None</option>
+                </select>
+              </Field>
+              <Field label="Outgoing server (SMTP)">
+                <Input value={form.smtpHost} onChange={(e) => set({ smtpHost: e.target.value })} placeholder="smtp.example.com" />
+              </Field>
+              <Field label="Port">
+                <Input type="number" value={form.smtpPort} onChange={(e) => set({ smtpPort: e.target.value })} />
+              </Field>
+              <Field label="Security">
+                <select className="rw-input" value={form.smtpSecurity} onChange={(e) => set({ smtpSecurity: e.target.value, smtpPort: e.target.value === 'tls' ? 465 : 587 })}>
+                  <option value="tls">TLS</option>
+                  <option value="starttls">STARTTLS</option>
+                  <option value="none">None</option>
+                </select>
+              </Field>
+            </div>
+          </div>
+        ) : null}
+
         {result ? (
           <div className={`ml-result${result.error ? ' bad' : ' good'}`}>
             <Icon name={result.error ? 'info' : 'check'} size={14} />
             <span>
-              IMAP {result.imap?.ok ? `connected — ${result.imap.folders} folders` : `failed: ${result.imap?.message}`}
+              Incoming {result.imap?.ok ? `signed in — ${result.imap.folders} folders` : `failed: ${result.imap?.message}`}
               {' · '}
-              SMTP {result.smtp?.ok ? 'connected' : `failed: ${result.smtp?.message}`}
+              Outgoing {result.smtp?.ok ? 'signed in' : `failed: ${result.smtp?.message}`}
             </span>
           </div>
         ) : null}
