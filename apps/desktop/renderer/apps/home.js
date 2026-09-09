@@ -40,6 +40,10 @@ export default function Home({ app, shell }) {
   const [version, setVersion] = useState(null);
   const [showAbout, setShowAbout] = useState(() => new URLSearchParams(location.search).has('about'));
   const [update, setUpdate] = useState(null);
+  // What a crash took. The copies are written while a document is open and
+  // deleted when it is saved or closed, so anything still here was never
+  // either — and the person who lost it is looking at this window.
+  const [recovered, setRecovered] = useState([]);
 
   const refresh = useCallback(() => {
     shell.app.recent().then(setRecent).catch(() => setRecent([]));
@@ -49,6 +53,7 @@ export default function Home({ app, shell }) {
     refresh();
     shell.app.version().then(setVersion).catch(() => {});
     shell.update.state().then(setUpdate).catch(() => {});
+    shell.doc.recoverable().then(setRecovered).catch(() => setRecovered([]));
   }, [refresh, shell]);
 
   useEffect(() => shell.on('update:state', setUpdate), [shell]);
@@ -110,6 +115,49 @@ export default function Home({ app, shell }) {
         </header>
 
         <Announcement shell={shell} />
+
+        {recovered.length ? (
+          <section className="home-section">
+            <h2>Recovered</h2>
+            <div className="home-recovered">
+              {recovered.map((r) => (
+                <div key={r.file} className="home-recovered-row">
+                  <span className="glyph" data-app={r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : 'word'}>
+                    <Icon name={r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : 'word'} size={16} />
+                  </span>
+                  <span className="home-recovered-text">
+                    <strong>{r.name}</strong>
+                    <small>
+                      unsaved work from {new Date(r.at).toLocaleString()}
+                      {r.from ? ` — ${r.from}` : ' — never saved anywhere'}
+                    </small>
+                  </span>
+                  <Spacer />
+                  <Button
+                    primary
+                    icon="open"
+                    label="Recover"
+                    onClick={async () => {
+                      // The window opens on the recovered copy, dirty, so the
+                      // person decides what it replaces.
+                      await shell.win.create({ app: r.kind === 'sheet' ? 'sheets' : r.kind === 'deck' ? 'slides' : 'word', query: { recover: r.file } });
+                      setRecovered((list) => list.filter((e) => e.file !== r.file));
+                    }}
+                  />
+                  <Button
+                    icon="trash"
+                    label="Discard"
+                    title="Throw this copy away"
+                    onClick={async () => {
+                      await shell.doc.discardRecovery({ file: r.file });
+                      setRecovered((list) => list.filter((e) => e.file !== r.file));
+                    }}
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <section className="home-section">
           <h2>Apps</h2>
@@ -531,6 +579,22 @@ const CSS = `
 .home-recent {
   border: 1px solid var(--line); border-radius: var(--r-3); overflow: hidden; background: var(--surface);
 }
+/* Work a crash took, offered back. Marked, because it is not an ordinary row
+   in a list: it is the one thing on this window somebody might be looking
+   for. */
+.home-recovered {
+  border: 1px solid var(--accent); border-radius: var(--radius); overflow: hidden;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.home-recovered-row { display: flex; align-items: center; gap: 12px; padding: 10px 13px; border-bottom: 1px solid var(--line-soft); }
+.home-recovered-row:last-child { border-bottom: 0; }
+.home-recovered-row .glyph { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: #fff; flex: none; background: var(--accent); }
+.home-recovered-row .glyph[data-app='word'] { background: #2b5fd9; }
+.home-recovered-row .glyph[data-app='sheets'] { background: #0f9d58; }
+.home-recovered-row .glyph[data-app='slides'] { background: #d9534f; }
+.home-recovered-text { display: flex; flex-direction: column; min-width: 0; }
+.home-recovered-text small { color: var(--ink-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 .home-recent-row {
   display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 13px;
   border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; color: var(--ink);

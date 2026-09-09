@@ -49,7 +49,10 @@ createShell({
     // for an account that was added by signing in rather than by typing a
     // password.
     const oauth = createOAuthService({ stores, broadcast });
-    const doc = createDocumentService({ holdBlob: hold });
+    // Unsaved work is written to a copy in the profile every half minute,
+    // and the copy is deleted the moment the document is saved or closed. What
+    // is left in that folder at start-up is what a crash took.
+    const doc = createDocumentService({ holdBlob: hold, recoveryDir: path.join(stores.dir, 'recovery') });
 
     return (services = {
       doc,
@@ -91,6 +94,20 @@ createShell({
     if (process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE) {
       stores.settings.set('announcements.enabled', false);
       stores.settings.set('updates.automatic', false);
+    }
+
+    // Every half minute, whatever is unsaved. Nothing is written for a
+    // document that has not changed since its last copy, so an open workbook
+    // costs nothing to leave open.
+    if (!process.env.RUTBA_OFFICE_VERIFY_CORPUS) {
+      const timer = setInterval(() => {
+        try {
+          services.doc?.autosave?.();
+        } catch (err) {
+          console.error('autosave:', err?.message || err);
+        }
+      }, Number(process.env.RUTBA_AUTOSAVE_MS || 30000));
+      timer.unref?.();
     }
 
     // A closed window frees the documents it opened. The session is the

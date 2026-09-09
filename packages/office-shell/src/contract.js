@@ -100,7 +100,11 @@ export const METHODS = {
     'export',       // ({ id, format, path, options }) -> { path }
     'search',       // ({ id, query, options }) -> [hit]
     'asset',        // ({ id, ref }) -> { url, type, name }
+    'pageSetup',    // ({ id, sheet }) -> the page setup the workbook carries
     'sessions',     // () -> [{ id, kind, path, dirty }]
+    'recoverable',  // () -> [{ file, kind, name, path, at, size }] — what a crash left behind
+    'recover',      // ({ file }) -> { id, kind, model, meta, recoveredFrom }
+    'discardRecovery', // ({ file }) -> { discarded }
   ],
   mail: [
     'accounts',     // () -> [account]

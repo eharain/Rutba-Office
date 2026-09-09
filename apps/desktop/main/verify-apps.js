@@ -2038,6 +2038,65 @@ export async function verifyApps({ windows, doc }) {
     check('real input: the Word journey ran', false, err.message);
   }
 
+  /* ── Autosave: a crash does not take the work ────────────────────────── */
+  //
+  // The copies are written on a timer while a document is open and deleted the
+  // moment it is saved or closed, so what is left in the profile is what a
+  // crash took. This types into a document, asks the service to write its
+  // copy, and then opens the launcher — where the person who lost it would be
+  // looking — to see that it is offered back by name.
+  try {
+    const win = await open('word', null);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`Boolean(document.querySelector('.wd-page [data-block]'))`), 'the page', 8000);
+    await js(`(() => {
+      const page = document.querySelector('.wd-page');
+      const block = page.querySelector('[data-block="0"]');
+      page.focus();
+      const range = document.createRange();
+      range.selectNodeContents(block);
+      range.collapse(false);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return 'placed';
+    })()`);
+    await wait(200);
+    win.webContents.insertText('UNSAVED WORK');
+    await until(() => js(`/UNSAVED WORK/.test(document.querySelector('.wd-page')?.textContent || '')`), 'the text to land', 4000);
+
+    const written = doc.autosave();
+    const offered = doc.recoverable();
+    check(
+      'autosave: unsaved work is copied where a crash cannot take it',
+      written.length >= 1 && offered.some((e) => e.kind === 'doc'),
+      `${written.length} written, ${offered.length} recoverable`
+    );
+
+    const launcher = await open('home');
+    await until(() => launcher.webContents.executeJavaScript(`document.querySelectorAll('.home-recovered-row').length > 0`), 'the recovered strip', 6000).catch(() => {});
+    const strip = await launcher.webContents.executeJavaScript(`(() => {
+      const rows = [...document.querySelectorAll('.home-recovered-row')];
+      return { rows: rows.length, text: rows.map((r) => r.textContent).join(' | ').slice(0, 160), buttons: rows[0] ? [...rows[0].querySelectorAll('button')].map((b) => b.textContent.trim()) : [] };
+    })()`);
+    check(
+      'autosave: the launcher offers the recovered document back',
+      strip.rows >= 1 && /unsaved work from/.test(strip.text) && strip.buttons.includes('Recover') && strip.buttons.includes('Discard'),
+      JSON.stringify(strip).slice(0, 200)
+    );
+
+    // And it is recoverable as the document it was, with the words in it.
+    const entry = offered.find((e) => e.kind === 'doc');
+    const recovered = doc.recover({ file: entry.file });
+    const text = (recovered.model.blocks || []).map((b) => (b.runs || []).map((r) => r.text).join('')).join(' ');
+    check('autosave: what comes back is the work that was lost', text.includes('UNSAVED WORK'), `recovered ${JSON.stringify(text.slice(0, 60))}`);
+    doc.close({ id: recovered.id });
+    doc.discardRecovery({ file: entry.file });
+  } catch (err) {
+    check('autosave: the recovery checks ran', false, err.message);
+  }
+
   /* ── Printing: paper, and a PDF of anything ──────────────────────────── */
   //
   // A suite that cannot print is not an office suite. Until this existed the

@@ -18,12 +18,12 @@ import { buildXlsx, buildDocx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';import { probeImage } from '@rutba/imaging/probe';
-import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary } from '@rutba/sheet-view/print';
+import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
 import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
 
 import { sniff, refineOoxml, kindFromExtension } from '@rutba/office-formats/sniff';
 import { readOdf } from '@rutba/office-formats/odf';
-import { readRtf } from '@rutba/office-formats/rtf';
+import { readRtf, writeRtf } from '@rutba/office-formats/rtf';
 import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, writePlain, decodeText } from '@rutba/office-formats/text';
 import { markdownToParagraphs, paragraphsToMarkdown } from './markdown-bridge.js';
 import { CompoundFile } from '@rutba/office-formats/cfb';
@@ -44,7 +44,7 @@ const KIND_APP = { doc: 'Word', sheet: 'Worksheets', deck: 'Presentation' };
  * an .rtf cannot be saved at all and needs Save as. Both used to be promised
  * a .docx, and neither got one.
  */
-const EXPORTS = { doc: ['pdf', 'txt', 'md', 'html'], sheet: ['csv', 'tsv'], deck: [] };
+const EXPORTS = { doc: ['pdf', 'rtf', 'txt', 'md', 'html'], sheet: ['csv', 'tsv'], deck: [] };
 
 /**
  * Text as HTML text.
@@ -221,7 +221,10 @@ class Session {
   }
 }
 
-export function createDocumentService({ holdBlob }) {
+/** The extension a recovery copy is written with, per kind. */
+const RECOVERY_EXT = { doc: '.docx', sheet: '.xlsx', deck: '.pptx' };
+
+export function createDocumentService({ holdBlob, recoveryDir = null }) {
   /** @type {Map<string, Session>} */
   const sessions = new Map();
   const nextId = () => `d${++seq}`;
@@ -300,6 +303,60 @@ export function createDocumentService({ holdBlob }) {
       default:
         return null;
     }
+  }
+
+  /* ── autosave and recovery ───────────────────────────────────────────────
+   *
+   * Nothing was written to disk until somebody pressed Ctrl+S, so a crash, a
+   * power cut or a closed lid lost everything since the last save — the one
+   * failure on the gap list that costs a person their work rather than their
+   * patience.
+   *
+   * A dirty document is written to a copy in the profile every half minute,
+   * under a name of its own, and the copy is deleted the moment the document
+   * is saved or closed properly. What is left in that folder when the
+   * application starts is therefore exactly what a crash took, and the
+   * launcher offers it back. The index beside the copies remembers where each
+   * one came from, because the copy itself cannot: a recovered file has to
+   * know it was `D:\work\tender.docx`, or recovering it saves it somewhere
+   * nobody will look.
+   */
+  const recovery = {
+    dir: recoveryDir,
+    index: () => {
+      if (!recoveryDir) return [];
+      try {
+        const raw = fs.readFileSync(path.join(recoveryDir, 'index.json'), 'utf8');
+        const list = JSON.parse(raw);
+        return Array.isArray(list) ? list : [];
+      } catch {
+        return [];
+      }
+    },
+    write: (list) => {
+      if (!recoveryDir) return;
+      try {
+        fs.mkdirSync(recoveryDir, { recursive: true });
+        fs.writeFileSync(path.join(recoveryDir, 'index.json'), JSON.stringify(list, null, 2), 'utf8');
+      } catch {
+        /* a recovery copy that cannot be written must not break the edit that
+           prompted it: this is a safety net, not the save path */
+      }
+    },
+  };
+
+  /** Forget a document's recovery copy: it has been saved, or let go of. */
+  function forgetRecovery(session) {
+    if (!recoveryDir || !session?.recoveryFile) return;
+    const list = recovery.index().filter((e) => e.file !== session.recoveryFile);
+    try {
+      fs.rmSync(path.join(recoveryDir, session.recoveryFile), { force: true });
+    } catch {
+      /* gone already */
+    }
+    recovery.write(list);
+    session.recoveryFile = null;
+    session.recoveredAt = 0;
   }
 
   /** Anything that writes a file, with the disk's own failures said in words. */
@@ -759,6 +816,10 @@ export function createDocumentService({ holdBlob }) {
     // buttons, which is the same thing to the person using it.
     setFormat: (v, a) => v.setFormat(a.delta || {}),
     freeze: (v, a) => v.freezePanes(a.rows ?? 0, a.cols ?? 0),
+    // The page setup belongs to the workbook, not to a dialog that closes:
+    // Excel keeps it in the sheet and in two defined names, and so does this,
+    // so the person who opens the file next gets the setup it was made with.
+    setPageSetup: (v, a) => writePageSetup(v, a.sheet || v.activeSheet, a.setup || {}),
     protect: (v) => v.protect(),
     unprotect: (v) => v.unprotect(),
     conditional: (v, a) => v.addConditionalRule(a.spec || {}),
@@ -953,6 +1014,7 @@ export function createDocumentService({ holdBlob }) {
     },
 
     close: ({ id }) => {
+      forgetRecovery(sessions.get(id));
       sessions.delete(id);
       return true;
     },
@@ -963,11 +1025,118 @@ export function createDocumentService({ holdBlob }) {
       const gone = [];
       for (const [id, s] of sessions) {
         if (s.windowId === winId) {
+          // A window that closes has been asked about its unsaved work
+          // already — the guard in the window does that — so whatever it
+          // held is not a crash and its recovery copy is not wanted.
+          forgetRecovery(s);
           sessions.delete(id);
           gone.push(id);
         }
       }
       return gone;
+    },
+
+    /**
+     * Write a copy of everything unsaved. Called on a timer by the main
+     * process; answers with what it wrote, so a run can say so.
+     */
+    autosave: () => {
+      if (!recoveryDir) return [];
+      const written = [];
+      const list = recovery.index();
+      for (const session of sessions.values()) {
+        if (!session.dirty || !RECOVERY_EXT[session.kind]) continue;
+        // Only what has changed since the last copy: a workbook of eighteen
+        // million cells must not be rewritten every half minute because it is
+        // open.
+        if (session.recoveredAt === session.version) continue;
+        const name = session.recoveryFile || `${session.id}-${Date.now().toString(36)}${RECOVERY_EXT[session.kind]}`;
+        try {
+          fs.mkdirSync(recoveryDir, { recursive: true });
+          fs.writeFileSync(path.join(recoveryDir, name), Buffer.from(session.engine.save()));
+        } catch {
+          continue;
+        }
+        session.recoveryFile = name;
+        session.recoveredAt = session.version;
+        const entry = {
+          file: name,
+          kind: session.kind,
+          name: session.name,
+          path: session.path,
+          at: Date.now(),
+          version: session.version,
+        };
+        const at = list.findIndex((e) => e.file === name);
+        if (at < 0) list.push(entry);
+        else list[at] = entry;
+        written.push(entry);
+      }
+      if (written.length) recovery.write(list);
+      return written;
+    },
+
+    /**
+     * What a crash left behind: the copies whose documents were never saved
+     * or closed. An entry whose file has gone is dropped rather than offered.
+     */
+    recoverable: () => {
+      if (!recoveryDir) return [];
+      const list = recovery.index();
+      const alive = list.filter((e) => {
+        try {
+          return fs.statSync(path.join(recoveryDir, e.file)).size > 0;
+        } catch {
+          return false;
+        }
+      });
+      if (alive.length !== list.length) recovery.write(alive);
+      return alive.map((e) => ({ ...e, from: e.path || null, size: fs.statSync(path.join(recoveryDir, e.file)).size }));
+    },
+
+    /**
+     * Open a recovered copy as the document it came from: the same name and
+     * the same path, and dirty, because what is on screen is not what is on
+     * disk and the person has to decide which one wins.
+     */
+    recover: ({ file }, win) => {
+      const entry = recovery.index().find((e) => e.file === file);
+      if (!entry) throw new Error('That recovered document is no longer there.');
+      const full = path.join(recoveryDir, entry.file);
+      let bytes;
+      try {
+        bytes = fs.readFileSync(full);
+      } catch (err) {
+        throw new Error(plainFsError(err, entry.name) || `${entry.name} could not be recovered.`);
+      }
+      const session = new Session({
+        id: nextId(),
+        kind: entry.kind,
+        filePath: entry.path || null,
+        engine: engineFor(entry.kind, bytes),
+        source: 'recovered',
+        converted: null,
+      });
+      session.windowId = win?.id ?? null;
+      session.dirty = true;
+      session.recoveryFile = entry.file;
+      session.recoveredAt = 0;
+      sessions.set(session.id, session);
+      return { ...session.meta(), recoveredFrom: entry.at, model: modelOf(session) };
+    },
+
+    /** Throw a recovered copy away: the person has decided they do not want it. */
+    discardRecovery: ({ file }) => {
+      const list = recovery.index();
+      const entry = list.find((e) => e.file === file);
+      if (!entry) return { discarded: false };
+      try {
+        fs.rmSync(path.join(recoveryDir, entry.file), { force: true });
+      } catch {
+        /* gone already */
+      }
+      recovery.write(list.filter((e) => e.file !== file));
+      return { discarded: true };
     },
 
 
@@ -1037,6 +1206,10 @@ export function createDocumentService({ holdBlob }) {
       session.path = to;
       session.dirty = false;
       session.converted = null;
+      // What is on disk is now what is on screen, so the recovery copy is
+      // not wanted: leaving it would offer a person their own saved work
+      // back after the next crash, as if it had been lost.
+      forgetRecovery(session);
       return { ...session.meta(), path: to, stat: { size: fs.statSync(to).size } };
     },
 
@@ -1050,6 +1223,13 @@ export function createDocumentService({ holdBlob }) {
      * about the document, and turning that into ink is Chromium's job, which
      * lives in main/print.js.
      */
+
+    /** The page setup this file carries, which is where a print dialog starts. */
+    pageSetup: ({ id, sheet }) => {
+      const session = get(id);
+      if (session.kind !== 'sheet') return null;
+      return readPageSetup(session.engine, sheet || session.engine.activeSheet);
+    },
 
     /** How many pages, at what scale, before anything is drawn. */
     printSummary: ({ id, options = {} }) => {
@@ -1185,8 +1365,16 @@ export function createDocumentService({ holdBlob }) {
       return { path: target, format: ext, rows: rows.length };
     }
 
-    if (session.kind === 'doc' && (ext === 'txt' || ext === 'md' || ext === 'html')) {
+    if (session.kind === 'doc' && (ext === 'txt' || ext === 'md' || ext === 'html' || ext === 'rtf')) {
       const frame = session.engine.render();
+
+      // Rich Text, which the installer has been claiming this suite edits.
+      // The runs carry their own weight, slant, size, font and colour, so the
+      // writer is given the frame's blocks rather than their text.
+      if (ext === 'rtf') {
+        fs.writeFileSync(target, writeRtf({ blocks: frame.blocks || [], title: session.name }), 'utf8');
+        return { path: target, format: 'rtf' };
+      }
 
       // Markdown goes back through the bridge that brought it in, which knows
       // what each paragraph style meant and still holds the parts of the file

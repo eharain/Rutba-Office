@@ -163,9 +163,13 @@ export default function Slides({ app, shell, boot }) {
     const run = async () => {
       setBusy(true);
       try {
-        const opened = boot.file
-          ? await shell.doc.open({ path: boot.file, kind: 'deck', width: 1280 })
-          : await shell.doc.new({ kind: 'slides', template: template && template !== 'blank' ? template : 'deck' });
+        const recover = new URLSearchParams(location.search).get('recover');
+        const opened = recover
+          ? await shell.doc.recover({ file: recover })
+          : boot.file
+            ? await shell.doc.open({ path: boot.file, kind: 'deck', width: 1280 })
+            : await shell.doc.new({ kind: 'slides', template: template && template !== 'blank' ? template : 'deck' });
+        if (recover) toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 });
         setDoc(opened);
         setModel(opened.model);
         if (opened.path) shell.app.addRecent({ path: opened.path, app: 'slides' }).catch(() => {});

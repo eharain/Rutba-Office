@@ -112,7 +112,11 @@ export default function Sheets({ app, shell, boot }) {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const template = params.get('template');
-    if (boot.file) load(() => shell.doc.open({ path: boot.file, kind: 'sheet' }));
+    const recover = params.get('recover');
+    // A recovery copy the launcher offered: opened as the workbook it came
+    // from, dirty, because what is on screen is not what is on disk.
+    if (recover) load(() => shell.doc.recover({ file: recover }).then((r) => { toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 }); return r; }));
+    else if (boot.file) load(() => shell.doc.open({ path: boot.file, kind: 'sheet' }));
     else load(() => shell.doc.new({ kind: 'sheets', template: template && template !== 'blank' ? template : 'sheet' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

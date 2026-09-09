@@ -237,9 +237,15 @@ export default function Word({ app, shell, boot }) {
     const run = async () => {
       setBusy(true);
       try {
-        const opened = boot.file
-          ? await shell.doc.open({ path: boot.file, kind: 'doc' })
-          : await shell.doc.new({ kind: 'word', template: template && template !== 'blank' ? template : 'doc' });
+        // A recovery copy the launcher offered: opened as the document it
+        // came from, dirty, because what is on screen is not what is on disk.
+        const recover = new URLSearchParams(location.search).get('recover');
+        const opened = recover
+          ? await shell.doc.recover({ file: recover })
+          : boot.file
+            ? await shell.doc.open({ path: boot.file, kind: 'doc' })
+            : await shell.doc.new({ kind: 'word', template: template && template !== 'blank' ? template : 'doc' });
+        if (recover) toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 });
         setDoc(opened);
         setModel(opened.model);
         if (opened.path) shell.app.addRecent({ path: opened.path, app: 'word' }).catch(() => {});

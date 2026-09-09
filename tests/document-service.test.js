@@ -89,12 +89,19 @@ test('a converted file says what saving will actually do', () => {
   assert.equal(md.converted.from, 'md');
   assert.equal(md.converted.writesBack, true, 'markdown is written back as markdown');
 
+  // RTF used to be the example of a format that could not be written at all;
+  // it is written now, and the flag says so. What is left that cannot be is
+  // the OpenDocument family, and the refusal has to name what it can do
+  // instead rather than ending on "yet".
   const rtf = doc.open({ path: write('note.rtf', '{\\rtf1\\ansi A paragraph.\\par}') });
   assert.equal(rtf.converted.from, 'rtf');
-  assert.equal(rtf.converted.writesBack, false, 'RTF is not written at all');
-  const said = refusal(() => doc.save({ id: rtf.id, path: path.join(dir, 'note.rtf') }));
-  assert.match(said, /cannot write RTF yet/);
+  assert.equal(rtf.converted.writesBack, true, 'rich text is written back as rich text');
+  doc.save({ id: rtf.id, path: path.join(dir, 'note.rtf') });
+
+  const said = refusal(() => doc.export({ id: rtf.id, format: 'odt', path: path.join(dir, 'note.odt') }));
+  assert.match(said, /cannot write ODT yet/);
   assert.match(said, /Save as to write \.docx/, 'and it says what it can write instead');
+  assert.match(said, /\.rtf/, 'which now includes rich text');
 
   const csv = doc.open({ path: write('rows.csv', 'a,b\n1,2\n') });
   assert.equal(csv.converted.writesBack, true, 'a workbook writes a CSV back');
@@ -161,4 +168,85 @@ test('a window closing takes its documents with it', () => {
   assert.deepEqual(gone.sort(), [a.id, b.id].sort(), 'both documents that window held, and only those');
   assert.equal(doc.sessions().length, before + 1);
   doc.close({ id: other.id });
+});
+
+test('unsaved work survives a crash, and is offered back once', () => {
+  // Nothing was written until Ctrl+S, so a crash, a power cut or a closed lid
+  // took everything since the last save. A dirty document is copied into the
+  // profile on a timer; what is left in that folder when the application
+  // starts is exactly what a crash took.
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-recovery-'));
+  const recoveryDir = path.join(home, 'recovery');
+  const service = createDocumentService({ holdBlob: () => ({}), recoveryDir });
+
+  const file = write('tender.docx', buildDocx({ paragraphs: ['One.'] }));
+  const session = service.open({ path: file });
+  assert.deepEqual(service.autosave(), [], 'a document nobody has touched is not copied');
+
+  service.apply({ id: session.id, ops: [{ op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 0, offset: 0 } }, { op: 'insertText', text: 'UNSAVED ' }] });
+  const written = service.autosave();
+  assert.equal(written.length, 1, 'an edited document is');
+  assert.equal(written[0].path, file, 'and it remembers where it came from');
+  assert.deepEqual(service.autosave(), [], 'and is not written again until it changes again');
+
+  // The crash: this service goes away without ever saving or closing.
+  const after = createDocumentService({ holdBlob: () => ({}), recoveryDir });
+  const found = after.recoverable();
+  assert.equal(found.length, 1);
+  assert.equal(found[0].name, 'tender.docx');
+  assert.ok(found[0].size > 0);
+
+  const back = after.recover({ file: found[0].file });
+  assert.ok(textOf(back.model).join('').includes('UNSAVED'), 'the edit is there');
+  assert.equal(back.path, file, 'and it knows the file it belongs to');
+  assert.equal(back.dirty, true, 'and it is not pretending to be saved');
+
+  // Saving it clears the copy: offering somebody their own saved work back
+  // after the next crash is worse than not offering anything.
+  after.save({ id: back.id, path: path.join(home, 'tender.docx') });
+  assert.deepEqual(after.recoverable(), []);
+});
+
+test('a document that is closed properly leaves nothing to recover', () => {
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-recovery2-'));
+  const recoveryDir = path.join(home, 'recovery');
+  const service = createDocumentService({ holdBlob: () => ({}), recoveryDir });
+  const opened = service.open({ path: write('notes2.docx', buildDocx({ paragraphs: ['One.'] })) }, { id: 7 });
+  service.apply({ id: opened.id, ops: [{ op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 0, offset: 0 } }, { op: 'insertText', text: 'X' }] });
+  assert.equal(service.autosave().length, 1);
+  assert.equal(service.recoverable().length, 1);
+
+  // A window that closes has already asked about its unsaved work.
+  service.closeWindow(7);
+  assert.deepEqual(service.recoverable(), [], 'so what it held is not a crash');
+
+  // And a copy whose file has been removed under us is dropped rather than
+  // offered: a recovery list that cannot recover is worse than an empty one.
+  const third = createDocumentService({ holdBlob: () => ({}), recoveryDir });
+  const s = third.open({ path: write('notes3.docx', buildDocx({ paragraphs: ['One.'] })) });
+  third.apply({ id: s.id, ops: [{ op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 0, offset: 0 } }, { op: 'insertText', text: 'Y' }] });
+  const [entry] = third.autosave();
+  fs.rmSync(path.join(recoveryDir, entry.file), { force: true });
+  assert.deepEqual(third.recoverable(), []);
+  assert.match(String(refusal(() => third.recover({ file: entry.file }))), /no longer there/);
+});
+
+test('an RTF opened here can be saved back as an RTF', () => {
+  // The installer registers this suite as the editor of .rtf; until the writer
+  // existed, opening one and pressing Ctrl+S refused. The window says which
+  // it is, so the flag and the behaviour have to agree.
+  const source = '{' + String.fromCharCode(92) + 'rtf1' + String.fromCharCode(92) + 'ansi A paragraph.' + String.fromCharCode(92) + 'par Second.' + String.fromCharCode(92) + 'par}';
+  const file = write('round.rtf', source);
+  const opened = doc.open({ path: file });
+  assert.equal(opened.converted.from, 'rtf');
+  assert.equal(opened.converted.writesBack, true, 'and it says so on the way in');
+
+  doc.apply({ id: opened.id, ops: [{ op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 0, offset: 0 } }, { op: 'insertText', text: 'EDITED ' }] });
+  doc.save({ id: opened.id, path: file });
+
+  const again = doc.open({ path: file });
+  assert.ok(textOf(again.model).join(' ').includes('EDITED A paragraph.'), 'the edit is in the file');
+  assert.ok(fs.readFileSync(file, 'utf8').startsWith('{'), 'and the file is an RTF, not a document under an RTF name');
+  doc.close({ id: again.id });
+  doc.close({ id: opened.id });
 });
