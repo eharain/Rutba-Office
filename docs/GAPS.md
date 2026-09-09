@@ -20,10 +20,10 @@ a suite.
 | | State | Notes |
 | :-- | :-- | :-- |
 | **Print** | **Built, 2026-09-09** | Ctrl+P, a dialog that counts the pages, printers, copies, paper, orientation, margins; sheets add fit-to-width, print area, repeated rows, gridlines and headings; decks add slides, notes pages and handouts. PDF export goes through the same door for all three. |
-| **Autosave and recovery** | **Missing** | Nothing is written until Ctrl+S. A crash, a power cut or a closed lid loses everything since the last save, and there is no recovery list on the way back in. Every suite people compare this to has had this for twenty years. |
+| **Autosave and recovery** | **Built, 2026-09-09** | A dirty document is copied into the profile every half minute and the copy is deleted when it is saved or closed, so what is left at start-up is what a crash took. The launcher offers each one back by name, with where it belonged and when it was taken. |
 | **Calendar** | **Missing** | Mail is here; a calendar is not. `.ics` is recognised by the sniffer and refused by every app. Meetings arrive in mail and cannot be accepted, stored or seen. |
 | **Contacts** | **Missing** | `.vcf` likewise. Addresses are typed by hand into Compose every time; there is no address book to complete from, and no way to keep one. |
-| **Page setup as a document property** | **Partly** | The print dialog holds paper, orientation, margins, scaling and the print area for the length of the dialog. None of it is written into the file, so it is chosen again next time and Excel never learns of it (`pageSetup`, `_xlnm.Print_Area`, `_xlnm.Print_Titles`). |
+| **Page setup as a document property** | **Built for workbooks, 2026-09-09** | Paper, orientation, margins, scaling, gridlines, headings, centring, the print area and the repeated rows are read from and written to the file where Excel keeps them. A document and a deck still choose theirs in the dialog each time. |
 | **Password-protected files** | **Missing** | Refused with a sentence. An encrypted OOXML package (`EncryptedPackage` in a compound file, agile encryption) is neither read nor written. |
 | **A spell-check pass** | **Partly** | Chromium underlines as you type in the places that are contenteditable. There is no pass over a document, no dictionary the person owns, no add-to-dictionary, and nothing at all in the grid or on a slide. |
 | **Accessibility check** | **Missing** | No alt-text prompt, no heading-order check, no contrast check. The windows are keyboard-reachable; nothing verifies it but a person. |
@@ -127,26 +127,29 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
 | `.docx` `.xlsx` `.pptx` | yes, preserving | yes, preserving |
 | `.doc` `.xls` `.ppt` | text only — an approximation, and only `.xls` says so | no |
 | `.odt` `.ods` `.odp` | yes | **no** — registered with the operating system as an editor all the same |
-| `.rtf` | yes | **no** — same |
+| `.rtf` | yes | **yes**, 2026-09-09 |
 | `.csv` `.tsv` `.txt` `.md` `.html` | yes | yes |
 | `.pdf` | viewed | written, for all three kinds since printing landed |
 | `.eml` `.msg` `.mbox` `.pst` `.ost` `.olm` | yes | mbox only |
 | `.ics` `.vcf` | sniffed | no — nothing opens them |
 | Encrypted OOXML | no | no |
 
-The ODF and RTF row is the one to fix first: the installer tells Windows this
-suite is the **editor** of those types, and Ctrl+S on one refuses. Either
-write them or register as a viewer.
+RTF was the first of those to fix and is done. The OpenDocument row is what
+is left of the trap: the installer tells Windows this suite is the **editor**
+of `.odt`, `.ods` and `.odp`, and Ctrl+S on one still refuses. Either write
+them or register as a viewer.
 
 ---
 
 ## The order this should be built in
 
-1. **Autosave and recovery.** Nothing else on this list loses work.
-2. **Page setup written into the file**, and the print area and print titles
-   with it — the printing work landed without them.
-3. **Write ODF and RTF**, or stop claiming them. A read-only editor is a
-   trap the operating system sets on our behalf.
+1. ~~**Autosave and recovery.**~~ Built 2026-09-09.
+2. ~~**Page setup written into the file**~~, with the print area and the print
+   titles. Built 2026-09-09 for workbooks; a document and a deck still choose
+   theirs per print.
+3. **Write ODF**, or stop claiming it. ~~RTF~~ is written as of 2026-09-09;
+   `.odt`, `.ods` and `.odp` are still read-only formats the installer
+   registers this suite as the editor of.
 4. **Calendar and contacts**, as a seventh and eighth app on the same shell —
    `.ics` and `.vcf` are already sniffed, and mail is already here.
 5. **Floating layout in the document paginator.** One piece of work unlocks
