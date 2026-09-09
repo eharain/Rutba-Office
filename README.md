@@ -1,6 +1,6 @@
 # Rutba Office
 
-A free, open-source desktop office suite. Seven apps in one download, working
+A free, open-source desktop office suite. Nine apps in one download, working
 with the network switched off.
 
 **[office.rutba.io](https://office.rutba.io)** ·
@@ -119,7 +119,7 @@ installations on the version they have.
 git clone https://github.com/eharain/Rutba-Office.git office
 cd office
 npm install
-npm test          # 688 tests, no network needed
+npm test          # 696 tests, no network needed
 npm run build     # bundle the renderer
 npm start         # run the app
 npm run dist      # installers for this platform, into apps/desktop/release
@@ -143,6 +143,8 @@ packages/
   mailbox          MIME, mbox, .msg, .olm, .pst/.ost, and the local mail store
   imaging          image probing, EXIF, and the non-destructive edit pipeline
   media            container probing and the video edit timeline
+  calendar         iCalendar read and written, recurrence, time zones
+  contacts         vCard and CSV address books, read and written
   office-shell     the platform contract, and its Electron backend
   office-ui        the design system every app renders with
 
@@ -278,7 +280,7 @@ Other things worth reading:
 
 ```bash
 npm run gate            # all four passes, in the order that finds problems soonest
-npm test                # the engine suite — 688 checks, no windows
+npm test                # the engine suite — 696 checks, no windows
 npm run verify:edit     # do keystrokes reach the document?
 npm run verify:apps     # does each app open, change and save a real file?
 npm run smoke           # boot the real app, photograph every window, report
@@ -287,7 +289,7 @@ RUTBA_CORPUS_DIRS="D:\docs" npm run verify:corpus   # open every file in a folde
 node tools/fuzz-open.js 500                         # damage good files at random; every one must draw or refuse in a sentence
 ```
 
-`npm run gate` is what runs before a release: 688 engine tests, 9 editing checks,
+`npm run gate` is what runs before a release: 696 engine tests, 9 editing checks,
 165 application checks — most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard — and 10 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about two and a half minutes.
 
 The engine suite includes `tests/rich-fixtures.test.js`, which opens a workbook, a document and a deck that Excel, Word and PowerPoint themselves wrote — charts, shapes, pictures, cross-sheet formulas, names, number formats, notes, footnotes, tracked changes, fields, a watermark — and holds the engine to Excel's own results. `tools/make-rich-fixtures.ps1` regenerates them on a machine with Office; docs/TESTING.md says what they hold and what they found.
