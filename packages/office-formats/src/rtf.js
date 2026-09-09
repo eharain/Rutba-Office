@@ -333,4 +333,150 @@ export function rtfToText(input) {
   return blocks.map(line).join('\n');
 }
 
-export default { readRtf, rtfToText };
+/* ── writing ────────────────────────────────────────────────────────────── */
+
+/**
+ * Blocks back out as Rich Text Format.
+ *
+ * The installer tells Windows this suite is the EDITOR of `.rtf`, and until
+ * now opening one and pressing Ctrl+S refused: a trap the operating system
+ * set on our behalf. This is the other half.
+ *
+ * Writing RTF is reading it backwards. A reader runs the stream, so a writer
+ * declares the fonts and the colours up front — a run can only name them by
+ * index — and then emits each paragraph as a set of state changes followed by
+ * its text, turning each change off again at the end so the next paragraph
+ * starts clean. What goes out is the subset this suite's own reader carries:
+ * the words, their font, size, weight, slant, underline, strike and colour,
+ * the paragraph's alignment and list level, and a table as rows of cells.
+ */
+
+/** Text as RTF text: braces and backslashes escape, and anything above ASCII becomes \uN. */
+function rtfText(text) {
+  let out = '';
+  for (const ch of String(text ?? '')) {
+    const code = ch.codePointAt(0);
+    if (ch === '\\' || ch === '{' || ch === '}') out += '\\' + ch;
+    else if (ch === '\t') out += '\\tab ';
+    else if (ch === '\n') out += '\\line ';
+    else if (code < 128) out += ch;
+    else if (code <= 0xffff) out += '\\u' + (code > 32767 ? code - 65536 : code) + '?';
+    else {
+      // Above the basic plane. RTF's \u takes a signed 16-bit word, so a
+      // code point that needs a surrogate pair is written as the two words
+      // a reader will put back together.
+      const v = code - 0x10000;
+      out += '\\u' + (0xd800 + (v >> 10) - 65536) + '?';
+      out += '\\u' + (0xdc00 + (v & 0x3ff) - 65536) + '?';
+    }
+  }
+  return out;
+}
+
+const ALIGN_WORD = { left: '\\ql', center: '\\qc', centre: '\\qc', right: '\\qr', justify: '\\qj', both: '\\qj' };
+
+/** #rrggbb as the colour table entry RTF wants. */
+function colourEntry(colour) {
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(colour || ''));
+  return m ? '\\red' + parseInt(m[1], 16) + '\\green' + parseInt(m[2], 16) + '\\blue' + parseInt(m[3], 16) + ';' : null;
+}
+
+export function writeRtf({ blocks = [], title = '' } = {}) {
+  // Both tables are built while the body is written and emitted before it,
+  // because a run refers to a font and a colour by index and neither is known
+  // until the run that wants it turns up.
+  const fonts = ['Calibri'];
+  const colours = [null]; // index 0 is "whatever the reader defaults to"
+  const fontIndex = (name) => {
+    const font = name || 'Calibri';
+    const at = fonts.indexOf(font);
+    return at < 0 ? fonts.push(font) - 1 : at;
+  };
+  const colourIndex = (colour) => {
+    const entry = colourEntry(colour);
+    if (!entry) return 0;
+    const at = colours.indexOf(entry);
+    return at < 0 ? colours.push(entry) - 1 : at;
+  };
+
+  /**
+   * A run with any formatting of its own is written as a group.
+   *
+   * Turning the formatting off again afterwards — `\b Bold\b0 and normal` —
+   * is the obvious way and it is wrong: a control word is delimited by one
+   * space, and that space is eaten rather than printed, so "Bold and normal"
+   * came back "Boldand normal". A group ends the formatting at its closing
+   * brace and leaves the next run's leading space alone. It is also what Word
+   * writes.
+   */
+  const runOut = (run) => {
+    const on = [];
+    const font = fontIndex(run.font || run.fontName);
+    if (font) on.push('\\f' + font);
+    const colour = colourIndex(run.colour || run.color);
+    if (colour) on.push('\\cf' + colour);
+    // RTF measures type in half-points, as Word's own format does.
+    if (run.size) on.push('\\fs' + Math.round(Number(run.size) * 2));
+    if (run.bold) on.push('\\b');
+    if (run.italic) on.push('\\i');
+    if (run.underline) on.push('\\ul');
+    if (run.strike) on.push('\\strike');
+    const text = rtfText(run.text);
+    return on.length ? '{' + on.join('') + ' ' + text + '}' : text;
+  };
+
+  const runsOf = (holder) => ((holder.runs || []).length ? holder.runs : [{ text: holder.text ?? '' }]);
+
+  const paragraph = (block) => {
+    const align = ALIGN_WORD[block.align] || '';
+    const indent = block.level ? '\\li' + block.level * 360 : '';
+    const heading = block.type === 'heading';
+    const size = heading ? Math.max(20, 36 - (block.level || 1) * 4) : 0;
+    return '{\\pard' + align + indent + '\\sa120 ' +
+      (heading ? '\\b\\fs' + size + ' ' : '') +
+      runsOf(block).map(runOut).join('') +
+      (heading ? '\\b0' : '') +
+      '\\par}';
+  };
+
+  /**
+   * A table row is not a group.
+   *
+   * The row definition, then each cell as its own `\pard\intbl … \cell`, then
+   * `\row`; a `\pard` after the last row is what tells a reader the table has
+   * ended. Wrapping a row in braces instead — which looks tidier — puts the
+   * cells inside a group whose state is popped at the closing brace, and both
+   * this suite's reader and Word's read the row back as one empty cell.
+   */
+  const table = (block) => {
+    const rows = block.rows || [];
+    const out = [];
+    for (const row of rows) {
+      const width = Math.floor(9000 / Math.max(1, row.length));
+      out.push(
+        '\\trowd\\trgaph108' +
+          row.map((_, i) => '\\clbrdrt\\brdrs\\clbrdrl\\brdrs\\clbrdrb\\brdrs\\clbrdrr\\brdrs\\cellx' + width * (i + 1)).join('')
+      );
+      // `\intbl` alone, not `\pard\intbl`. A reader ends a table when a
+      // paragraph resets outside a row, and this one — ours, and it is not
+      // alone in this — reads the `\pard` that opens the second row's first
+      // cell as that reset: a table of four rows came back as four tables of
+      // one. The row's properties come from `\trowd` either way.
+      for (const cell of row) out.push('\\intbl ' + runsOf(cell).map(runOut).join('') + '\\cell');
+      out.push('\\row');
+    }
+    return out.join('\n') + '\n\\pard';
+  };
+
+  const body = (blocks.length ? blocks : [{ type: 'paragraph', runs: [] }])
+    .map((block) => (block.type === 'table' ? table(block) : paragraph(block)))
+    .join('\n');
+
+  const fontTable = fonts.map((name, i) => '{\\f' + i + '\\fnil\\fcharset0 ' + rtfText(name) + ';}').join('');
+  const colourTable = '{\\colortbl;' + colours.slice(1).join('') + '}';
+  const info = title ? '{\\info{\\title ' + rtfText(title) + '}}' : '';
+  return '{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1{\\fonttbl' + fontTable + '}' + colourTable + info +
+    '\n\\viewkind4\\fs22\n' + body + '\n}';
+}
+
+export default { readRtf, rtfToText, writeRtf };
