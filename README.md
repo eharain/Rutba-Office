@@ -9,7 +9,7 @@ with the network switched off.
 
 | | | |
 |---|---|---|
-| **Mail** | Every account, every archive, one inbox | IMAP, SMTP and sign-in to Gmail and Outlook.com, plus the archives other clients leave behind — Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg`. Names the trackers in a message, and offers the way off the list |
+| **Mail** | Every account, every archive, one inbox | An address and a password — the servers are found from the domain's own records — with sign-in to Gmail, Outlook.com and Microsoft 365, plus the archives other clients leave behind — Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg`. Names the trackers in a message, and offers the way off the list |
 | **Word** | Documents that open the same everywhere | `.docx` on an engine we own, reading `.odt`, `.rtf`, `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.ods` and `.csv` |
 | **Presentation** | Slides that survive the round trip | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen |

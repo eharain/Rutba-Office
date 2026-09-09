@@ -48,7 +48,8 @@ instead.
 ## What "opens" means, per app
 
 The run waits for the element each app renders only once it is showing the
-file, not for the page to load:
+file, not for the page to load — and so does every window the application
+checks open (a fixed pause stood there before, and a loaded machine beat it):
 
 | App | The element | Refusal |
 | :-- | :-- | :-- |

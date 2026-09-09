@@ -78,10 +78,10 @@ it is where the gaps are.
   titles, a sheet background.
 - **Workbook protection** (structure), editable ranges on a protected sheet,
   custom views, manual calculation.
-- **The formula language**, where it stops: array constants (`{1;2;3}`),
-  `LET` and `LAMBDA`, `TEXT()` with a percentage or a date code — the suite
-  owns a formatter that handles both, in a package the engine cannot import —
-  and the phantom 29 February 1900 that Excel keeps and this does not.
+- **The formula language**, where it stops: `LAMBDA`. Array constants and
+  `LET` came on 2026-09-09; `TEXT()` speaks every format code the grid does
+  (the formatter moved in beside the engine), and serial 60 is 29 February
+  1900 with Excel's own weekday arithmetic, as of the same day.
 - **Power Query, Office Scripts, macros**: not built, and macros are
   deliberately never run — a workbook that runs code it arrived with is how
   ransomware starts. VBA in a file is preserved untouched.
@@ -119,6 +119,7 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
 - **local search across archives** is there, but there is no index, so a
   large mailbox searches by walking;
 - **signatures, out-of-office, and send-later** are not built.
+- ~~adding an account asked for the servers and guessed them from the domain~~ — built 2026-09-09: an address and a password; the server is found from the provider table, MX, SRV, autoconfig, Microsoft autodiscover and a knock on the conventional names, with Advanced always a click away.
 
 ## 5. The formats, read against written
 
@@ -126,7 +127,7 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
 | :-- | :-- | :-- |
 | `.docx` `.xlsx` `.pptx` | yes, preserving | yes, preserving |
 | `.doc` `.xls` `.ppt` | text only — an approximation, and only `.xls` says so | no |
-| `.odt` `.ods` `.odp` | yes | **no** — registered with the operating system as an editor all the same |
+| `.odt` `.ods` `.odp` | yes | **yes**, 2026-09-09 — what the suite models: text, structure, tables and run formatting; values, formulas and value types; text boxes, pictures and notes |
 | `.rtf` | yes | **yes**, 2026-09-09 |
 | `.csv` `.tsv` `.txt` `.md` `.html` | yes | yes |
 | `.pdf` | viewed | written, for all three kinds since printing landed |
@@ -134,10 +135,11 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
 | `.ics` `.vcf` | sniffed | no — nothing opens them |
 | Encrypted OOXML | no | no |
 
-RTF was the first of those to fix and is done. The OpenDocument row is what
-is left of the trap: the installer tells Windows this suite is the **editor**
-of `.odt`, `.ods` and `.odp`, and Ctrl+S on one still refuses. Either write
-them or register as a viewer.
+RTF and OpenDocument were the trap — the installer told Windows this suite
+was the **editor** of `.odt`, `.ods` and `.odp` while Ctrl+S on one refused —
+and both are written now. What is left in the table is the binary Office
+formats, which are read as text and never claimed as editable, and the
+encrypted package.
 
 ---
 
@@ -147,9 +149,9 @@ them or register as a viewer.
 2. ~~**Page setup written into the file**~~, with the print area and the print
    titles. Built 2026-09-09 for workbooks; a document and a deck still choose
    theirs per print.
-3. **Write ODF**, or stop claiming it. ~~RTF~~ is written as of 2026-09-09;
-   `.odt`, `.ods` and `.odp` are still read-only formats the installer
-   registers this suite as the editor of.
+3. ~~**Write ODF**, or stop claiming it.~~ RTF and `.odt`, `.ods`, `.odp` are
+   all written as of 2026-09-09; a file that came in as OpenDocument goes out
+   as OpenDocument.
 4. **Calendar and contacts**, as a seventh and eighth app on the same shell —
    `.ics` and `.vcf` are already sniffed, and mail is already here.
 5. **Floating layout in the document paginator.** One piece of work unlocks
@@ -161,8 +163,9 @@ them or register as a viewer.
 8. **Fields in the document**: bookmarks first, then cross-references,
    captions and a table of contents that refreshes.
 9. **Recording tracked changes**, then comparison and restricted editing.
-10. **The formula language's remaining corners**: array constants, `LET`,
-    `TEXT()` through the formatter the suite already owns.
+10. ~~**The formula language's remaining corners**: array constants, `LET`,
+    `TEXT()` through the formatter the suite already owns.~~ Built 2026-09-09,
+    with the phantom day; `LAMBDA` remains.
 
 Everything above this line is work somebody can start on Monday. Below it
 sit the things that are deliberately not built — macros that run, cloud

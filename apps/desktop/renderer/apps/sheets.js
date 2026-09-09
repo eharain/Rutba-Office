@@ -33,6 +33,25 @@ const colLabel = (n) => {
   return s;
 };
 
+/**
+ * A selection move that scrolled nothing answers with the selection and the
+ * active cell's fields rather than a frame; the cells already on screen are
+ * re-flagged here. Cells whose flags did not change keep their identity.
+ */
+function withSelection(model, patch) {
+  const sel = patch.selection;
+  const inside = (row, col) => {
+    if (row >= sel.top && row <= sel.bottom && col >= sel.left && col <= sel.right) return true;
+    return Boolean(sel.ranges && sel.ranges.some((q) => row >= q.top && row <= q.bottom && col >= q.left && col <= q.right));
+  };
+  const cells = (model.cells || []).map((c) => {
+    const selected = inside(c.row, c.col);
+    const active = c.row === sel.active.row && c.col === sel.active.col;
+    return selected === Boolean(c.selected) && active === Boolean(c.active) ? c : { ...c, selected, active };
+  });
+  return { ...model, ...patch, cells };
+}
+
 export default function Sheets({ app, shell, boot }) {
   const toast = useToast();
   const [doc, setDoc] = useState(null);
@@ -68,7 +87,8 @@ export default function Sheets({ app, shell, boot }) {
       try {
         const next = await shell.doc.apply({ id: doc.id, ops });
         setDoc(next);
-        setModel(next.model);
+        if (next.patch) setModel((m) => (m ? withSelection(m, next.patch) : m));
+        else setModel(next.model);
         return next;
       } catch (err) {
         toast(err.message, { tone: 'bad' });
@@ -76,6 +96,35 @@ export default function Sheets({ app, shell, boot }) {
       }
     },
     [doc, shell, toast]
+  );
+
+  /**
+   * Navigation, coalesced. A held arrow key fires thirty times a second and
+   * each press used to be its own round trip and its own full frame, so the
+   * grid fell further behind the key the longer it was held and caught up
+   * seconds after it was released. Moves that arrive while a frame is on its
+   * way are kept and sent together when it lands: one frame per reply,
+   * however fast the keys.
+   */
+  const navQueue = useRef([]);
+  const navBusy = useRef(false);
+  const navigate = useCallback(
+    (op) => {
+      navQueue.current.push(op);
+      if (navBusy.current) return;
+      navBusy.current = true;
+      (async () => {
+        try {
+          while (navQueue.current.length) {
+            const ops = navQueue.current.splice(0);
+            await dispatch(...ops);
+          }
+        } finally {
+          navBusy.current = false;
+        }
+      })();
+    },
+    [dispatch]
   );
 
   /* ── opening ─────────────────────────────────────────────────────────── */
@@ -339,17 +388,17 @@ export default function Sheets({ app, shell, boot }) {
       const arrows = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
       if (arrows[e.key]) {
         e.preventDefault();
-        await dispatch({ op: 'move', direction: arrows[e.key], extend: e.shiftKey, jump: e.ctrlKey || e.metaKey });
+        navigate({ op: 'move', direction: arrows[e.key], extend: e.shiftKey, jump: e.ctrlKey || e.metaKey });
         return;
       }
       if (e.key === 'Tab') {
         e.preventDefault();
-        await dispatch({ op: 'tab', back: e.shiftKey });
+        navigate({ op: 'tab', back: e.shiftKey });
         return;
       }
       if (e.key === 'Enter') {
         e.preventDefault();
-        await dispatch({ op: 'enter', back: e.shiftKey });
+        navigate({ op: 'enter', back: e.shiftKey });
         return;
       }
       if (e.key === 'F2') {
@@ -362,6 +411,7 @@ export default function Sheets({ app, shell, boot }) {
         const key = e.key.toLowerCase();
         if (key === 'd' || key === 'r') { e.preventDefault(); await act('fill', key === 'd' ? 'down' : 'right'); return; }
         if (key === 'g') { e.preventDefault(); setDialog('goto'); return; }
+        if (key === 'a') { e.preventDefault(); await dispatch({ op: 'selectAll' }); return; }
         if (key === '`') { e.preventDefault(); await act('toggleFormulas'); return; }
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -690,7 +740,7 @@ export default function Sheets({ app, shell, boot }) {
                     key={c.index}
                     className={`sh-head${c.index >= (sel?.left ?? -1) && c.index <= (sel?.right ?? -2) ? ' active' : ''}`}
                     style={{ left: c.x, width: c.width, height: model.headerHeight }}
-                    onClick={(e) => dispatch({ op: 'selectColumn', col: c.index, extend: e.shiftKey })}
+                    onClick={(e) => dispatch({ op: 'selectColumn', col: c.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
                     onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
                   >
                     {c.label || colLabel(c.index)}
@@ -704,7 +754,7 @@ export default function Sheets({ app, shell, boot }) {
                     key={r.index}
                     className={`sh-head${r.index >= (sel?.top ?? -1) && r.index <= (sel?.bottom ?? -2) ? ' active' : ''}`}
                     style={{ top: r.y, height: r.height, width: model.headerWidth }}
-                    onClick={(e) => dispatch({ op: 'selectRow', row: r.index, extend: e.shiftKey })}
+                    onClick={(e) => dispatch({ op: 'selectRow', row: r.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
                     onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertRow', 'sheet.deleteRow']))}
                   >
                     {r.label ?? r.index + 1}
@@ -719,7 +769,7 @@ export default function Sheets({ app, shell, boot }) {
                   // is empty grid, and empty grid is still grid.
                   if (e.button !== 0 || e.target.closest('.sh-cell, .sh-editor, .sh-drawing')) return;
                   const at = cellAt(e);
-                  if (at) dispatch({ op: 'select', row: at.row, col: at.col, extend: e.shiftKey });
+                  if (at) dispatch({ op: 'select', row: at.row, col: at.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
                 }}
                 onDoubleClick={(e) => {
                   if (e.target.closest('.sh-cell, .sh-editor, .sh-drawing')) return;
@@ -733,7 +783,7 @@ export default function Sheets({ app, shell, boot }) {
                     className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}`}
                     data-ref={cell.ref}
                     style={spillStyle(cell)}
-                    onMouseDown={(e) => dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey })}
+                    onMouseDown={(e) => dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
                     onDoubleClick={() => dispatch({ op: 'beginEdit' })}
                     onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.copy', 'edit.clear', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
                     title={cell.note || undefined}

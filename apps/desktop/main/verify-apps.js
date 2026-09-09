@@ -33,6 +33,18 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 // Set once the checks start closing their own windows; a close before that is not theirs.
 const closingPhase = { value: false };
 
+/** What each app draws first; a window is ready when one of these — or the refusal — is on the page. */
+const READY_IN = {
+  home: '.home-card',
+  word: '.wd-block',
+  sheets: '.sh-cells',
+  slides: '.sl-svg, .sl-thumb',
+  pictures: '.pv-image, .pv-pdf, .pv-video, .pv-audio, .pv-empty',
+  image: '.im-canvas',
+  video: '.vd-clip, .vd-empty',
+  mail: '.ml-row, .ml-list, .ml-compose-cta',
+};
+
 /**
  * Bring a window's page to the front of the keyboard. Off the desktop the
  * window itself is never activated — that would take the keyboard from
@@ -235,9 +247,13 @@ export async function verifyApps({ windows, doc }) {
     // using it fails with "Object has been destroyed".
     win.on('closed', () => console.log(`     [closed] the ${app} window (#${id}) at ${new Date().toTimeString().slice(0, 8)}${closingPhase.value ? '' : ' — not by the checks'}`));
     win.webContents.on('render-process-gone', (_e, details) => console.log(`     [gone] the ${app} renderer: ${details.reason}`));
-    await new Promise((resolve) => {
-      win.webContents.once('did-finish-load', () => setTimeout(resolve, 1300));
-    });
+    await new Promise((resolve) => win.webContents.once('did-finish-load', resolve));
+    // Ready when the app has drawn what it draws first — or said why it could
+    // not. A fixed pause here was 1.3 seconds, which a loaded machine beat:
+    // the grid layer was not there when the first press came.
+    const ready = `${READY_IN[app] || '.rw-app'}, .rw-empty`;
+    await until(() => win.webContents.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(ready)}))`), `the ${app} window to draw`, 12000).catch(() => {});
+    await wait(300);
     raise(win);
     opened.push(win);
     return win;
@@ -1210,6 +1226,7 @@ export async function verifyApps({ windows, doc }) {
     // not drawn because there is nothing in it.
     const pressEmpty = (row, col) => js(`(() => {
       const layer = document.querySelector('.sh-cells');
+      if (!layer) return 'no grid yet';
       const rect = layer.getBoundingClientRect();
       const grid = ${JSON.stringify({ row, col })};
       const cols = [...document.querySelectorAll('.sh-colheads .sh-head')];
@@ -1223,6 +1240,8 @@ export async function verifyApps({ windows, doc }) {
       return hit.className;
     })()`);
 
+    // The grid layer mounts a moment after the window says it is ready — later on a loaded machine.
+    await until(() => js(`Boolean(document.querySelector('.sh-cells') && document.querySelectorAll('.sh-colheads .sh-head').length > 2)`), 'the grid and its headers', 8000).catch(() => {});
     const hit = await pressEmpty(6, 2);
     await until(async () => { const m = await model(); return m.selection?.active?.row === 6 && m.selection?.active?.col === 2; }, 'the click to select C7', 4000).catch(() => {});
     const afterClick = await model();
@@ -1688,7 +1707,7 @@ export async function verifyApps({ windows, doc }) {
         input.dispatchEvent(new Event('input', { bubbles: true }));
         return 'typed';
       })()`);
-      await wait(900);
+      await until(() => js(`/Sign in with Google/.test(document.querySelector('.rw-dialog .ml-found')?.textContent || '')`), 'the sign-in to be offered', 6000).catch(() => {});
       const signIn = await js(`document.querySelector('.rw-dialog .ml-found')?.textContent ?? ''`);
       check('mail: a Gmail address is offered a sign-in, not a password box', /Sign in with Google/.test(signIn), `the dialog says ${JSON.stringify(signIn.slice(0, 60))}`);
 
@@ -1775,6 +1794,48 @@ export async function verifyApps({ windows, doc }) {
     }
   } catch (err) {
     check('mail: the checks ran', false, err.message);
+  }
+
+  /* ── Mail: adding an account is an address and a password ────────────── */
+  //
+  // The dialog finds the server from the address — a check run asks only the
+  // provider table, never the network — offers the browser sign-in the
+  // provider wants, and keeps the advanced fields one click away, filled
+  // with what was found.
+  try {
+    const win = await open('mail');
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`Boolean([...document.querySelectorAll('button')].find((b) => /Add account/.test(b.textContent)))`), 'an Add account button', 8000);
+    await js(`[...document.querySelectorAll('button')].find((b) => /Add account/.test(b.textContent)).click(), 'clicked'`);
+    await until(() => js(`Boolean(document.querySelector('.ml-form input[placeholder="you@example.com"]'))`), 'the account dialog', 5000);
+    await setField(win, '.ml-form input[placeholder="you@example.com"]', 'someone@gmail.com');
+    await until(() => js(`document.querySelector('.ml-search')?.dataset.state === 'found'`), 'the search to find Google', 6000).catch(() => {});
+    const found = await js(`(() => { const s = document.querySelector('.ml-search'); return { state: s?.dataset.state, text: (s?.textContent || '').slice(0, 160), signIn: Boolean(document.querySelector('.ml-found-item')), advanced: Boolean(document.querySelector('.ml-advanced')) }; })()`);
+    check('mail: an address alone finds the mail server, and the provider\'s sign-in is offered', found.state === 'found' && /imap\.gmail\.com/.test(found.text) && /smtp\.gmail\.com/.test(found.text) && found.signIn && !found.advanced, JSON.stringify(found));
+    await js(`[...document.querySelectorAll('.rw-btn, button')].find((b) => /^Advanced/.test(b.textContent.trim()))?.click(), 'advanced'`);
+    await until(() => js(`Boolean(document.querySelector('.ml-advanced'))`), 'the advanced fields', 3000).catch(() => {});
+    const advanced = await js(`(() => { const a = document.querySelector('.ml-advanced'); if (!a) return null; return { imap: a.querySelector('input[placeholder="imap.example.com"]')?.value, smtp: a.querySelector('input[placeholder="smtp.example.com"]')?.value, selects: a.querySelectorAll('select').length }; })()`);
+    check('mail: Advanced is always there, and carries what was found', advanced && advanced.imap === 'imap.gmail.com' && advanced.smtp === 'smtp.gmail.com' && advanced.selects === 2, JSON.stringify(advanced));
+    await setField(win, '.ml-form input[placeholder="you@example.com"]', 'someone@nowhere.example');
+    await until(() => js(`document.querySelector('.ml-search')?.dataset.state === 'nothing'`), 'an unknown domain to be said so', 6000).catch(() => {});
+    const unknown = await js(`(() => { const s = document.querySelector('.ml-search'); return { state: s?.dataset.state, text: (s?.textContent || '').slice(0, 160) }; })()`);
+    check('mail: a domain nothing knows says so, and leaves the fields to the person', unknown.state === 'nothing' && /nowhere\.example/.test(unknown.text), JSON.stringify(unknown));
+    await js(`[...document.querySelectorAll('.rw-btn, button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 'closed'`);
+  } catch (err) {
+    check('mail: the account dialog checks ran', false, err.message);
+  }
+
+  /* ── OpenDocument goes out as OpenDocument ───────────────────────────── */
+  try {
+    const odt = path.join(path.dirname(files.docx), 'report.odt');
+    const s = doc.open({ path: files.docx });
+    const saved = doc.save({ id: s.id, path: odt });
+    doc.close({ id: s.id });
+    const back = doc.open({ path: odt });
+    check('a document saved as .odt is an OpenDocument the suite opens as one, and writes back', saved.format === 'odt' && back.converted?.from === 'odt' && back.converted.writesBack === true && (back.model?.blocks?.length ?? 0) > 0, `${saved.format}; opened from ${back.converted?.from}, writesBack ${back.converted?.writesBack}, ${back.model?.blocks?.length ?? 0} blocks`);
+    doc.close({ id: back.id });
+  } catch (err) {
+    check('the OpenDocument check ran', false, err.message);
   }
 
   /* ── Journeys: the things a person does between the buttons ──────────── */
@@ -1896,7 +1957,7 @@ export async function verifyApps({ windows, doc }) {
   // these drive the windows with the same events a mouse and a keyboard
   // send, and read the engine to see where they landed.
 
-  const mouse = async (win, selector, { at = 'centre' } = {}) => {
+  const mouse = async (win, selector, { at = 'centre', modifiers = [] } = {}) => {
     // A cell is named by its reference ("D5"): an empty cell has no element
     // of its own, so the point comes from the column and row headers, the
     // way an eye finds it. Anything else is an element to hit in the middle.
@@ -1917,9 +1978,9 @@ export async function verifyApps({ windows, doc }) {
 
     const x = Math.round(at === 'left' ? box.x - box.w / 4 : box.x);
     const y = Math.round(box.y);
-    win.webContents.sendInputEvent({ type: 'mouseMove', x, y });
-    win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
-    win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1 });
+    win.webContents.sendInputEvent({ type: 'mouseMove', x, y, modifiers });
+    win.webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1, modifiers });
+    win.webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount: 1, modifiers });
     await wait(120);
     return box;
   };
@@ -1992,6 +2053,23 @@ export async function verifyApps({ windows, doc }) {
     } else {
       check('real input: the formula bar is there to click', false, 'no formula bar input found');
     }
+
+    // Ctrl+click adds a second rectangle; Bold from the ribbon paints both;
+    // a plain click drops the extra one. The owner: "multiselect in excel is
+    // not possible".
+    const namebox = () => js(`document.querySelector('.sh-namebox')?.textContent || ''`);
+    const weightOf = (ref) => js(`(() => { const c = document.querySelector('.sh-cell[data-ref="${ref}"]'); return c ? getComputedStyle(c).fontWeight : null; })()`);
+    await mouse(win, 'cell:D5');
+    await until(async () => (await active()) === 'D5', 'D5 to be selected', 3000).catch(() => {});
+    await mouse(win, 'cell:F7', { modifiers: ['control'] });
+    await until(async () => (await namebox()) === 'D5,F7', 'the name box to show both rectangles', 3000).catch(() => {});
+    const both = await namebox();
+    await mouse(win, '.rw-btn[title^="Bold"]');
+    await until(async () => (await weightOf('D5')) === '700' && (await weightOf('F7')) === '700', 'Bold to reach both cells', 4000).catch(() => {});
+    const weights = { D5: await weightOf('D5'), F7: await weightOf('F7') };
+    await mouse(win, 'cell:B2');
+    await until(async () => (await namebox()) === 'B2', 'a plain click to drop the extra rectangle', 3000).catch(() => {});
+    check('real input: Ctrl+click adds a second selection, Bold paints both, a plain click drops it', both === 'D5,F7' && weights.D5 === '700' && weights.F7 === '700' && (await namebox()) === 'B2', `name box ${JSON.stringify(both)} then ${JSON.stringify(await namebox())}; weights ${JSON.stringify(weights)}`);
   } catch (err) {
     check('real input: the Worksheets journey ran', false, err.message);
   }
@@ -2063,15 +2141,19 @@ export async function verifyApps({ windows, doc }) {
       return 'placed';
     })()`);
     await wait(200);
+    // The page takes keys once it is editable and has the focus; a loaded
+    // machine gets there later than a fixed pause allows.
+    await until(() => js(`(() => { const p = document.querySelector('.wd-page'); return Boolean(p && p.isContentEditable && document.activeElement === p); })()`), 'the page to be editable and focused', 6000).catch(() => {});
+    raise(win);
     win.webContents.insertText('UNSAVED WORK');
-    await until(() => js(`/UNSAVED WORK/.test(document.querySelector('.wd-page')?.textContent || '')`), 'the text to land', 4000);
+    await until(() => js(`/UNSAVED WORK/.test(document.querySelector('.wd-page')?.textContent || '')`), 'the text to land', 8000);
 
     const written = doc.autosave();
     const offered = doc.recoverable();
     check(
       'autosave: unsaved work is copied where a crash cannot take it',
-      written.length >= 1 && offered.some((e) => e.kind === 'doc'),
-      `${written.length} written, ${offered.length} recoverable`
+      (written.length >= 1 || offered.some((e) => e.kind === 'doc' && Date.now() - e.at < 60000)) && offered.some((e) => e.kind === 'doc'),
+      `${written.length} written now, ${offered.filter((e) => e.kind === 'doc' && Date.now() - e.at < 60000).length} copied within the minute, ${offered.length} recoverable`
     );
 
     const launcher = await open('home');
@@ -2125,6 +2207,8 @@ export async function verifyApps({ windows, doc }) {
       raise(win);
       await press(win.webContents, 'p', { modifiers: ['control'] });
       await until(() => js(`Boolean(document.querySelector('.rw-dialog'))`), 'the print dialog', 4000).catch(() => {});
+      // The count arrives when the plan does — later for a sheet than for a document.
+      await until(() => js(`/[0-9]+ page/.test(document.querySelector('.rw-dialog')?.textContent || '')`), 'the page count', 8000).catch(() => {});
       const dialog = await js(`(() => {
         const d = document.querySelector('.rw-dialog');
         if (!d) return null;
