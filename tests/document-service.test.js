@@ -189,6 +189,13 @@ test('unsaved work survives a crash, and is offered back once', () => {
   assert.equal(written[0].path, file, 'and it remembers where it came from');
   assert.deepEqual(service.autosave(), [], 'and is not written again until it changes again');
 
+  // Nor immediately after it does. A copy costs what serialising the document
+  // costs — twenty seconds for a 46 MB workbook, with the main process not
+  // answering its windows meanwhile — so a document is copied at most every
+  // half minute, and a costly one less often than that.
+  service.apply({ id: session.id, ops: [{ op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 0, offset: 0 } }, { op: 'insertText', text: 'MORE ' }] });
+  assert.deepEqual(service.autosave(), [], 'a second change within the interval waits for it');
+
   // The crash: this service goes away without ever saving or closing.
   const after = createDocumentService({ holdBlob: () => ({}), recoveryDir });
   const found = after.recoverable();

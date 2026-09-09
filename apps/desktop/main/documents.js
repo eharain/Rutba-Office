@@ -1050,13 +1050,27 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
         // million cells must not be rewritten every half minute because it is
         // open.
         if (session.recoveredAt === session.version) continue;
+        // A copy costs what serialising the document costs, and that is not
+        // the same number for every document: a 46 MB workbook of eighteen
+        // million values takes twenty seconds to write, and the main process
+        // is not answering its windows while it does. So the interval follows
+        // the cost — twenty times what the last copy took, at least the half
+        // minute everything else gets. A big workbook is copied every few
+        // minutes instead of never being copied at all, and a small document
+        // is copied every time it changes.
+        const due = (session.autosaveAt || 0) + Math.max(30000, (session.autosaveCost || 0) * 20);
+        if (session.autosaveAt && Date.now() < due) continue;
+
         const name = session.recoveryFile || `${session.id}-${Date.now().toString(36)}${RECOVERY_EXT[session.kind]}`;
+        const started = Date.now();
         try {
           fs.mkdirSync(recoveryDir, { recursive: true });
           fs.writeFileSync(path.join(recoveryDir, name), Buffer.from(session.engine.save()));
         } catch {
           continue;
         }
+        session.autosaveCost = Date.now() - started;
+        session.autosaveAt = Date.now();
         session.recoveryFile = name;
         session.recoveredAt = session.version;
         const entry = {
