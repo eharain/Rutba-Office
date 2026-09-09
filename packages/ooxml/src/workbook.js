@@ -668,6 +668,45 @@ class SheetPart {
   }
 
   /** The sheet-level `<autoFilter>` block, verbatim, or null. In the suffix. */
+  /**
+   * The order the schema gives the elements that follow sheetData.
+   *
+   * A worksheet's children are a sequence, not a set: an element in the wrong
+   * place makes the file invalid, and Excel repairs it by throwing the part
+   * away. Everything this engine writes into the tail of a sheet goes in
+   * through `setTailElement`, which reads its position from here.
+   */
+  static TAIL_ORDER = [
+    'sheetCalcPr', 'sheetProtection', 'protectedRanges', 'scenarios', 'autoFilter', 'sortState',
+    'dataConsolidate', 'customSheetViews', 'mergeCells', 'phoneticPr', 'conditionalFormatting',
+    'dataValidations', 'hyperlinks', 'printOptions', 'pageMargins', 'pageSetup', 'headerFooter',
+    'rowBreaks', 'colBreaks', 'customProperties', 'cellWatches', 'ignoredErrors', 'smartTags',
+    'drawing', 'legacyDrawing', 'legacyDrawingHF', 'picture', 'oleObjects', 'controls',
+    'webPublishItems', 'tableParts', 'extLst',
+  ];
+
+  /** Replace, insert or remove one element in the sheet's tail, in schema order. */
+  setTailElement(name, xml) {
+    const existing = new RegExp('<' + name + '\\b[^>]*(?:/>|>[\\s\\S]*?</' + name + '>)');
+    if (existing.test(this.suffix)) {
+      this.suffix = this.suffix.replace(existing, xml ?? '');
+      this.dirty = true;
+      return this;
+    }
+    if (!xml) return this;
+    const after = SheetPart.TAIL_ORDER.slice(SheetPart.TAIL_ORDER.indexOf(name) + 1);
+    const anchor = new RegExp('<(?:' + after.join('|') + ')\\b|</worksheet>').exec(this.suffix);
+    const at = anchor ? anchor.index : this.suffix.length;
+    this.suffix = this.suffix.slice(0, at) + xml + this.suffix.slice(at);
+    this.dirty = true;
+    return this;
+  }
+
+  /** One element of the tail, as it stands. */
+  tailElement(name) {
+    return (new RegExp('<' + name + '\\b[^>]*(?:/>|>[\\s\\S]*?</' + name + '>)').exec(this.suffix) ?? [null])[0];
+  }
+
   autoFilterXml() {
     return (/<autoFilter\b[^>]*(?:\/>|>[\s\S]*?<\/autoFilter>)/.exec(this.suffix) ?? [null])[0];
   }
@@ -1165,13 +1204,36 @@ export class Workbook {
     return out;
   }
 
-  /** Add or replace a defined name, leaving the rest of workbook.xml alone. */
-  setDefinedName(name, ref) {
+  /**
+   * Add, replace or remove a defined name, leaving the rest of workbook.xml
+   * alone.
+   *
+   * `attrs` carries the ones that change what a name means rather than what
+   * it points at — `localSheetId` above all, which is what makes
+   * `_xlnm.Print_Area` this sheet's print area rather than the workbook's.
+   * A null `ref` removes the name, which is how a print area is cleared.
+   */
+  setDefinedName(name, ref, extra = {}) {
     let xml = this.pkg.text(this.mainPart);
-    const entry = '<definedName name="' + esc(name) + '">' + esc(ref) + '</definedName>';
-    const existing = new RegExp('<definedName\\b[^>]*name="' + name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*>[\\s\\S]*?</definedName>');
+    const more = Object.entries(extra)
+      .filter(([, v]) => v !== null && v !== undefined && v !== '')
+      .map(([k, v]) => ` ${k}="${esc(String(v))}"`)
+      .join('');
+    const entry = ref === null || ref === undefined
+      ? ''
+      : '<definedName name="' + esc(name) + '"' + more + '>' + esc(ref) + '</definedName>';
+    // A sheet-scoped name is not unique by name: every sheet with a print
+    // area has one called _xlnm.Print_Area, and matching on the name alone
+    // would give the second sheet's the first sheet's range.
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const scope = extra.localSheetId === null || extra.localSheetId === undefined
+      ? '(?![^>]*localSheetId)'
+      : `(?=[^>]*localSheetId="${extra.localSheetId}")`;
+    const existing = new RegExp('<definedName\\b(?=[^>]*name="' + escaped + '")' + scope + '[^>]*>[\\s\\S]*?</definedName>');
     if (existing.test(xml)) {
       xml = xml.replace(existing, entry);
+    } else if (!entry) {
+      return this; // nothing to remove
     } else if (/<definedNames>/.test(xml)) {
       xml = xml.replace('</definedNames>', entry + '</definedNames>');
     } else {

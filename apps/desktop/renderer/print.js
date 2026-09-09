@@ -52,6 +52,24 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
   const [busy, setBusy] = useState(false);
   const set = (patch) => setOptions((o) => ({ ...o, ...patch }));
 
+  // A workbook carries its own page setup — Excel keeps paper, orientation,
+  // margins, scaling, the print area and the repeated rows in the file — so
+  // the dialog starts from what the file says rather than from what this
+  // build happens to default to.
+  const [keep, setKeep] = useState(kind === 'sheet');
+  useEffect(() => {
+    if (kind !== 'sheet') return;
+    shell.doc
+      .pageSetup({ id: doc.id })
+      .then((fromFile) => {
+        if (!fromFile) return;
+        setOptions((o) => ({ ...o, ...fromFile }));
+        const named = Object.entries(MARGIN_PRESETS).find(([, m]) => Math.abs(m.top - fromFile.margins.top) < 0.2 && Math.abs(m.left - fromFile.margins.left) < 0.2);
+        setMargins(named ? named[0] : 'Normal');
+      })
+      .catch(() => {});
+  }, [shell, doc.id, kind]);
+
   useEffect(() => {
     shell.print
       .printers()
@@ -84,9 +102,20 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
     return `${pages} page${pages === 1 ? '' : 's'}${shrunk}`;
   }, [summary, pages]);
 
+  /** Keep the choices in the workbook, where the next person will find them. */
+  const remember = async () => {
+    if (kind !== 'sheet' || !keep) return;
+    try {
+      await shell.doc.apply({ id: doc.id, ops: [{ op: 'setPageSetup', setup: options }] });
+    } catch {
+      /* a setup that will not save must not stop the print */
+    }
+  };
+
   const run = async () => {
     setBusy(true);
     try {
+      await remember();
       const answer = await shell.print.document({ id: doc.id, options, printer, copies: Number(copies) || 1 });
       if (answer?.ok) toast(`Sent ${pages ?? ''} page${pages === 1 ? '' : 's'} to ${printer || 'the printer'}.`, { tone: 'good' });
       else if (answer?.reason && answer.reason !== 'cancelled') toast(answer.reason, { tone: 'bad' });
@@ -105,7 +134,7 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
       onClose={onClose}
       actions={
         <>
-          <Button label="Save as PDF…" icon="pdf" disabled={busy} onClick={() => { onClose(); onSaveAs?.(options); }} />
+          <Button label="Save as PDF…" icon="pdf" disabled={busy} onClick={async () => { await remember(); onClose(); onSaveAs?.(options); }} />
           <span style={{ flex: 1 }} />
           <Button label="Cancel" onClick={onClose} />
           <Button primary label={busy ? 'Printing…' : 'Print'} icon="print" disabled={busy || !printers.length} onClick={run} />
@@ -180,9 +209,12 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
           <Field label="Print area" hint="Empty prints everything with anything in it.">
             <Input value={options.area || ''} placeholder="A1:H60" onChange={(e) => set({ area: e.target.value.trim() || null })} style={{ width: '100%' }} />
           </Field>
-          <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>
+          <div style={{ display: 'flex', gap: 16, marginTop: 4, flexWrap: 'wrap' }}>
             <label><input type="checkbox" checked={options.gridlines} onChange={(e) => set({ gridlines: e.target.checked })} /> Gridlines</label>
             <label><input type="checkbox" checked={options.headings} onChange={(e) => set({ headings: e.target.checked })} /> Row and column headings</label>
+            <label title="Excel keeps the page setup in the file; so does this, so the next person to open it gets the same pages">
+              <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} /> Keep these settings in the workbook
+            </label>
           </div>
         </>
       ) : null}

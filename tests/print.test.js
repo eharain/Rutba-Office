@@ -11,7 +11,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SheetView } from '@rutba/sheet-view';
-import { printHtml, printSummary, printableArea, pageSetup, PAPER } from '@rutba/sheet-view/print';
+import { printHtml, printSummary, printableArea, pageSetup, readPageSetup, writePageSetup, PAPER } from '@rutba/sheet-view/print';
 import { Deck, buildPptx } from '@rutba/presentation';
 import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
 import { buildXlsx } from '@rutba/ooxml/build';
@@ -103,4 +103,51 @@ test('a deck prints as slides, as notes, or as a handout', () => {
   const chosen = deckPrintHtml(deck, { slides: [0, 2, 4] });
   assert.equal((chosen.match(/<section class="page/g) || []).length, 3);
   assert.match(chosen, /<svg /, 'and each one is drawn, not described');
+});
+
+test('the page setup belongs to the workbook, not to the dialog', () => {
+  // Excel keeps paper, orientation, margins, scaling, gridlines, the print
+  // area and the repeated rows in the file — in the sheet's own tail and in
+  // two sheet-scoped defined names. A setup that lives only in a dialog is
+  // one a person sets again every time, and one that never reaches whoever
+  // opens the file next.
+  const book = buildXlsx({ sheets: [{ name: 'Report', rows: [['Region', 'Total'], ['North', 12], ['South', 8]] }, { name: 'Second', rows: [['a', 'b']] }] });
+  const view = new SheetView(book);
+  assert.equal(readPageSetup(view, 'Report').paper, 'A4', 'a workbook with no setup reads as the default');
+
+  writePageSetup(view, 'Report', {
+    paper: 'Letter', orientation: 'landscape', fit: 'width',
+    margins: { top: 6.4, right: 6.4, bottom: 6.4, left: 6.4 },
+    gridlines: true, headings: true, repeatRows: 1, area: 'A1:B3', centre: { horizontal: true },
+  });
+  writePageSetup(view, 'Second', { orientation: 'portrait', area: 'A1:A2' });
+
+  const back = new SheetView(view.save());
+  const read = readPageSetup(back, 'Report');
+  assert.equal(read.paper, 'Letter');
+  assert.equal(read.orientation, 'landscape');
+  assert.equal(read.fit, 'width');
+  assert.equal(read.gridlines, true);
+  assert.equal(read.headings, true);
+  assert.equal(read.repeatRows, 1);
+  assert.equal(read.area, 'A1:B3');
+  assert.equal(read.centre.horizontal, true);
+  assert.equal(Math.round(read.margins.left * 10) / 10, 6.4, 'margins survive the trip through inches');
+
+  // Each sheet keeps its own: a name scoped to one sheet must not be the
+  // other's, which is what matching a defined name by its name alone did.
+  assert.equal(readPageSetup(back, 'Second').area, 'A1:A2');
+  assert.equal(readPageSetup(back, 'Second').orientation, 'portrait');
+
+  const sheetXml = back.pkg.text(back.workbook._sheetPart('Report').sheet.part);
+  assert.match(sheetXml, /fitToPage="1"/, 'Excel ignores fitToWidth without it');
+  assert.deepEqual(
+    (sheetXml.match(/<(printOptions|pageMargins|pageSetup)\b/g) || []).map((t) => t.slice(1)),
+    ['printOptions', 'pageMargins', 'pageSetup'],
+    'and the schema wants them in that order'
+  );
+
+  // And the plan the printer follows is the file's, not the default's.
+  back.activeSheet = 'Report';
+  assert.equal(printSummary(back, readPageSetup(back, 'Report')).sheets[0].ref, 'A1:B3');
 });

@@ -351,6 +351,129 @@ ${sections.join('\n')}
 `;
 }
 
+/* ── the page setup the file itself carries ─────────────────────────────── */
+
+/** OOXML paper codes, for the sizes this printer offers. */
+export const PAPER_CODES = { 1: 'Letter', 3: 'Tabloid', 5: 'Legal', 8: 'A3', 9: 'A4', 11: 'A5' };
+const CODE_FOR_PAPER = Object.fromEntries(Object.entries(PAPER_CODES).map(([code, name]) => [name, Number(code)]));
+
+const INCH_TO_MM = 25.4;
+const attrsOf = (xml) => {
+  const out = {};
+  for (const m of String(xml || '').matchAll(/([\w:]+)="([^"]*)"/g)) out[m[1]] = m[2];
+  return out;
+};
+
+/**
+ * What the workbook says about printing this sheet.
+ *
+ * Excel keeps it in three places and this reads all three: `pageSetup` and
+ * `pageMargins` in the sheet's own tail, `printOptions` beside them for
+ * gridlines and headings, and two defined names — `_xlnm.Print_Area` and
+ * `_xlnm.Print_Titles` — scoped to the sheet. A workbook that has been set up
+ * for printing by somebody else opens with their setup rather than ours.
+ */
+export function readPageSetup(view, sheetName = view.activeSheet) {
+  const setup = { ...DEFAULT_PAGE_SETUP, margins: { ...DEFAULT_PAGE_SETUP.margins }, centre: { ...DEFAULT_PAGE_SETUP.centre } };
+  let part;
+  try {
+    part = view.workbook._sheetPart(sheetName).part;
+  } catch {
+    return setup;
+  }
+
+  const page = attrsOf(part.tailElement('pageSetup'));
+  if (page.orientation === 'landscape' || page.orientation === 'portrait') setup.orientation = page.orientation;
+  if (PAPER_CODES[Number(page.paperSize)]) setup.paper = PAPER_CODES[Number(page.paperSize)];
+  if (page.scale) setup.scale = Math.max(0.1, Math.min(1, Number(page.scale) / 100)) || 1;
+  const fitWidth = Number(page.fitToWidth ?? 0);
+  const fitHeight = Number(page.fitToHeight ?? 0);
+  if (/fitToPage="1"/.test(part.prefix || '')) {
+    if (fitWidth === 1 && fitHeight === 1) setup.fit = 'page';
+    else if (fitWidth === 1) setup.fit = 'width';
+  }
+
+  const margins = attrsOf(part.tailElement('pageMargins'));
+  for (const side of ['top', 'right', 'bottom', 'left']) {
+    if (margins[side] !== undefined) setup.margins[side] = Math.round(Number(margins[side]) * INCH_TO_MM * 10) / 10;
+  }
+
+  const options = attrsOf(part.tailElement('printOptions'));
+  setup.gridlines = options.gridLines === '1' || options.gridLines === 'true';
+  setup.headings = options.headings === '1' || options.headings === 'true';
+  setup.centre = { horizontal: options.horizontalCentered === '1', vertical: options.verticalCentered === '1' };
+
+  // The two names, scoped to this sheet by its index in the tab order.
+  const index = view.workbook.sheetNames().indexOf(sheetName);
+  for (const name of view.workbook.definedNames()) {
+    if (attrsOf(name.attrsStr).localSheetId !== String(index)) continue;
+    const target = String(name.ref || '').replace(/^'?[^!]*'?!/, '');
+    if (name.name === '_xlnm.Print_Area') setup.area = target.replace(/\$/g, '');
+    if (name.name === '_xlnm.Print_Titles') {
+      // Print titles are rows as `$1:$2`; a column title is not read yet.
+      const rows = /^\$?(\d+):\$?(\d+)$/.exec(target);
+      if (rows) setup.repeatRows = Number(rows[2]) - Number(rows[1]) + 1;
+    }
+  }
+  return setup;
+}
+
+/**
+ * Write the setup back into the workbook, the way Excel keeps it.
+ *
+ * The print dialog is where a person chooses these, and a choice that is
+ * forgotten when the window closes is a choice they have to make again every
+ * time — and one that never reaches whoever opens the file next.
+ */
+export function writePageSetup(view, sheetName, options = {}) {
+  const setup = pageSetup(options);
+  const { part } = view.workbook._sheetPart(sheetName);
+  const inch = (mm) => (Math.round((mm / INCH_TO_MM) * 1000) / 1000).toString();
+
+  part.setTailElement(
+    'printOptions',
+    setup.gridlines || setup.headings || setup.centre.horizontal || setup.centre.vertical
+      ? `<printOptions${setup.gridlines ? ' gridLines="1"' : ''}${setup.headings ? ' headings="1"' : ''}` +
+          `${setup.centre.horizontal ? ' horizontalCentered="1"' : ''}${setup.centre.vertical ? ' verticalCentered="1"' : ''}/>`
+      : null
+  );
+  part.setTailElement(
+    'pageMargins',
+    `<pageMargins left="${inch(setup.margins.left)}" right="${inch(setup.margins.right)}" top="${inch(setup.margins.top)}" bottom="${inch(setup.margins.bottom)}" header="0.3" footer="0.3"/>`
+  );
+  const fit = setup.fit === 'page' ? ' fitToWidth="1" fitToHeight="1"' : setup.fit === 'width' ? ' fitToWidth="1" fitToHeight="0"' : '';
+  part.setTailElement(
+    'pageSetup',
+    `<pageSetup paperSize="${CODE_FOR_PAPER[setup.paper] || 9}" orientation="${setup.orientation}"` +
+      `${setup.fit === 'none' && setup.scale !== 1 ? ` scale="${Math.round(setup.scale * 100)}"` : ''}${fit}/>`
+  );
+
+  // fitToPage lives on the sheet's properties, before the data, and Excel
+  // ignores fitToWidth without it.
+  if (setup.fit !== 'none') {
+    if (/<sheetPr\b/.test(part.prefix)) {
+      if (!/pageSetUpPr/.test(part.prefix)) {
+        part.prefix = /<sheetPr\b[^>]*\/>/.test(part.prefix)
+          ? part.prefix.replace(/<sheetPr\b([^>]*)\/>/, '<sheetPr$1><pageSetUpPr fitToPage="1"/></sheetPr>')
+          : part.prefix.replace(/<sheetPr\b([^>]*)>/, '<sheetPr$1><pageSetUpPr fitToPage="1"/>');
+      } else if (!/fitToPage="1"/.test(part.prefix)) {
+        part.prefix = part.prefix.replace(/<pageSetUpPr\b([^>]*)\/>/, '<pageSetUpPr$1 fitToPage="1"/>');
+      }
+    } else {
+      part.prefix = part.prefix.replace(/(<worksheet\b[^>]*>)/, '$1<sheetPr><pageSetUpPr fitToPage="1"/></sheetPr>');
+    }
+    part.dirty = true;
+  }
+
+  const index = view.workbook.sheetNames().indexOf(sheetName);
+  const quoted = /[^A-Za-z0-9_]/.test(sheetName) ? `'${sheetName.replace(/'/g, "''")}'` : sheetName;
+  const dollars = (ref) => ref.replace(/([A-Z]+)(\d+)/g, '$$$1$$$2');
+  view.workbook.setDefinedName('_xlnm.Print_Area', setup.area ? `${quoted}!${dollars(setup.area.toUpperCase())}` : null, { localSheetId: index });
+  view.workbook.setDefinedName('_xlnm.Print_Titles', setup.repeatRows > 0 ? `${quoted}!$1:$${setup.repeatRows}` : null, { localSheetId: index });
+  view._structuralDirty = true;
+  return setup;
+}
+
 /** What the print dialog needs to say before anything is drawn. */
 export function printSummary(view, options = {}) {
   const setup = pageSetup(options);
