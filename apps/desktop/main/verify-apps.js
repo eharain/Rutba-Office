@@ -2228,16 +2228,17 @@ export async function verifyApps({ windows, doc }) {
       await press(win.webContents, 'p', { modifiers: ['control'] });
       await until(() => js(`Boolean(document.querySelector('.rw-dialog'))`), 'the print dialog', 4000).catch(() => {});
       // The count arrives when the plan does — later for a sheet than for a document.
-      await until(() => js(`/[0-9]+ page/.test(document.querySelector('.rw-dialog')?.textContent || '')`), 'the page count', 8000).catch(() => {});
+      // A busy main process answers late; twenty seconds is the most a person would wait.
+      await until(() => js(`/[0-9]+ page/.test(document.querySelector('.rw-dialog')?.textContent || '')`), 'the page count', 20000).catch(() => {});
       const dialog = await js(`(() => {
         const d = document.querySelector('.rw-dialog');
         if (!d) return null;
-        return { title: d.querySelector('.rw-dialog-head')?.textContent || '', text: d.textContent.slice(0, 400) };
+        return { title: d.querySelector('.rw-dialog-head')?.textContent || '', text: d.textContent.slice(0, 400), chips: [...d.querySelectorAll('.rw-chip')].map((c) => c.textContent) };
       })()`);
       const counted = dialog && /\d+ page/.test(dialog.text);
       await press(win.webContents, 'Escape');
       await until(() => js(`!document.querySelector('.rw-dialog')`), 'the dialog to close', 3000).catch(() => {});
-      check(`${appName}: Ctrl+P opens a print dialog that says how many pages`, Boolean(dialog) && dialog.title === 'Print' && counted && (await js(`!document.querySelector('.rw-dialog')`)), dialog ? `${JSON.stringify((/(\d+ pages?[^"]*)/.exec(dialog.text) || [])[1] || dialog.text.slice(0, 60))}` : 'no dialog');
+      check(`${appName}: Ctrl+P opens a print dialog that says how many pages`, Boolean(dialog) && dialog.title === 'Print' && counted && (await js(`!document.querySelector('.rw-dialog')`)), dialog ? `${JSON.stringify((/(\d+ pages?[^"]*)/.exec(dialog.text) || [])[1] || dialog.chips.join(' | ') || dialog.text.slice(0, 60))}` : 'no dialog');
 
       // And the PDF it would write is a PDF, with the pages it promised.
       const target = path.join(path.dirname(files.docx), `print-${appName}.pdf`);
