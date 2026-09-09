@@ -1,10 +1,11 @@
 // OpenDocument — .odt, .ods, .odp.
 //
-// Read-only, and honestly so: we import ODF into our own model and save as
-// OOXML or PDF. Round-tripping someone else's ODF through our editor would
-// destroy the parts we do not model, and the preserving trick that makes our
-// OOXML safe (rewrite only what you touched) does not transfer, because ODF
-// keeps one document in one part rather than spreading it across many.
+// Read here, written in odf-write.js. A file that came in as ODF goes out as
+// ODF holding what this suite models — the text, structure, tables, values,
+// formulas and slide content below. The preserving trick that makes our OOXML
+// safe (rewrite only what you touched) does not transfer, because ODF keeps
+// one document in one part rather than spreading it across many, so what is
+// not modelled is not kept; the reader and the writer agree on the subset.
 //
 // What we do promise: the text, the structure, the tables, the sheet values and
 // the slide content all arrive intact, which is what someone opening a
@@ -12,6 +13,7 @@
 
 import { readZip } from '@rutba/ooxml/zip';
 import { parse, all, kids, textOf, first } from './xml.js';
+import { formulaFromOdf } from './odf-write.js';
 
 const dec = new TextDecoder('utf-8');
 
@@ -122,7 +124,8 @@ function readTable(table) {
         text,
         type: c.attrs['office:value-type'] || (text ? 'string' : null),
         value: c.attrs['office:value'] ?? c.attrs['office:date-value'] ?? c.attrs['office:boolean-value'] ?? null,
-        formula: c.attrs['table:formula'] ? c.attrs['table:formula'].replace(/^of:=?/, '=') : null,
+        // `of:=SUM([.A1:.B2];3)` in the file is `=SUM(A1:B2,3)` to the engine.
+        formula: c.attrs['table:formula'] ? formulaFromOdf(c.attrs['table:formula']) : null,
         colspan: Number(c.attrs['table:number-columns-spanned'] || 1),
         rowspan: Number(c.attrs['table:number-rows-spanned'] || 1),
       };

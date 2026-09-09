@@ -50,7 +50,7 @@ export const KINDS = {
   docm: { app: 'word', label: 'Word Macro-Enabled Document', ext: '.docm', mime: 'application/vnd.ms-word.document.macroEnabled.12', edit: true },
   dotx: { app: 'word', label: 'Word Template', ext: '.dotx', mime: 'application/vnd.openxmlformats-officedocument.wordprocessingml.template', edit: true },
   doc: { app: 'word', label: 'Word 97-2003 Document', ext: '.doc', mime: 'application/msword', edit: false },
-  odt: { app: 'word', label: 'OpenDocument Text', ext: '.odt', mime: 'application/vnd.oasis.opendocument.text', edit: false },
+  odt: { app: 'word', label: 'OpenDocument Text', ext: '.odt', mime: 'application/vnd.oasis.opendocument.text', edit: true },
   rtf: { app: 'word', label: 'Rich Text Format', ext: '.rtf', mime: 'application/rtf', edit: false },
   txt: { app: 'word', label: 'Plain Text', ext: '.txt', mime: 'text/plain', edit: true },
   md: { app: 'word', label: 'Markdown', ext: '.md', mime: 'text/markdown', edit: true },
@@ -60,7 +60,7 @@ export const KINDS = {
   xlsm: { app: 'sheets', label: 'Macro-Enabled Worksheet', ext: '.xlsm', mime: 'application/vnd.ms-excel.sheet.macroEnabled.12', edit: true },
   xltx: { app: 'sheets', label: 'Worksheet Template', ext: '.xltx', mime: 'application/vnd.openxmlformats-officedocument.spreadsheetml.template', edit: true },
   xls: { app: 'sheets', label: 'Excel 97-2003 Worksheet', ext: '.xls', mime: 'application/vnd.ms-excel', edit: false },
-  ods: { app: 'sheets', label: 'OpenDocument Spreadsheet', ext: '.ods', mime: 'application/vnd.oasis.opendocument.spreadsheet', edit: false },
+  ods: { app: 'sheets', label: 'OpenDocument Spreadsheet', ext: '.ods', mime: 'application/vnd.oasis.opendocument.spreadsheet', edit: true },
   csv: { app: 'sheets', label: 'Comma Separated Values', ext: '.csv', mime: 'text/csv', edit: true },
   tsv: { app: 'sheets', label: 'Tab Separated Values', ext: '.tsv', mime: 'text/tab-separated-values', edit: true },
 
@@ -69,7 +69,7 @@ export const KINDS = {
   potx: { app: 'slides', label: 'Presentation Template', ext: '.potx', mime: 'application/vnd.openxmlformats-officedocument.presentationml.template', edit: true },
   ppsx: { app: 'slides', label: 'Presentation Slideshow', ext: '.ppsx', mime: 'application/vnd.openxmlformats-officedocument.presentationml.slideshow', edit: true },
   ppt: { app: 'slides', label: 'PowerPoint 97-2003 Presentation', ext: '.ppt', mime: 'application/vnd.ms-powerpoint', edit: false },
-  odp: { app: 'slides', label: 'OpenDocument Presentation', ext: '.odp', mime: 'application/vnd.oasis.opendocument.presentation', edit: false },
+  odp: { app: 'slides', label: 'OpenDocument Presentation', ext: '.odp', mime: 'application/vnd.oasis.opendocument.presentation', edit: true },
 
   png: { app: 'pictures', label: 'PNG Image', ext: '.png', mime: 'image/png', edit: true },
   jpeg: { app: 'pictures', label: 'JPEG Image', ext: '.jpg', mime: 'image/jpeg', edit: true },

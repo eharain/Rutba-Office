@@ -23,6 +23,7 @@ import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
 
 import { sniff, refineOoxml, kindFromExtension } from '@rutba/office-formats/sniff';
 import { readOdf } from '@rutba/office-formats/odf';
+import { writeOdt, writeOds, writeOdp } from '@rutba/office-formats/odf-write';
 import { readRtf, writeRtf } from '@rutba/office-formats/rtf';
 import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, writePlain, decodeText } from '@rutba/office-formats/text';
 import { markdownToParagraphs, paragraphsToMarkdown } from './markdown-bridge.js';
@@ -44,7 +45,7 @@ const KIND_APP = { doc: 'Word', sheet: 'Worksheets', deck: 'Presentation' };
  * an .rtf cannot be saved at all and needs Save as. Both used to be promised
  * a .docx, and neither got one.
  */
-const EXPORTS = { doc: ['pdf', 'rtf', 'txt', 'md', 'html'], sheet: ['csv', 'tsv'], deck: [] };
+const EXPORTS = { doc: ['pdf', 'rtf', 'odt', 'txt', 'md', 'html'], sheet: ['csv', 'tsv', 'ods'], deck: ['odp'] };
 
 /**
  * Text as HTML text.
@@ -774,9 +775,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
   /* ── operations ───────────────────────────────────────────────────────── */
 
   const SHEET_OPS = {
-    select: (v, a) => v.select(a.row, a.col, { extend: a.extend }),
-    selectRow: (v, a) => v.selectRow(a.row, { extend: a.extend }),
-    selectColumn: (v, a) => v.selectColumn(a.col, { extend: a.extend }),
+    select: (v, a) => v.select(a.row, a.col, { extend: a.extend, add: a.add }),
+    selectRow: (v, a) => v.selectRow(a.row, { extend: a.extend, add: a.add }),
+    selectColumn: (v, a) => v.selectColumn(a.col, { extend: a.extend, add: a.add }),
     move: (v, a) => v.moveSelection(a.direction, a),
     scrollTo: (v, a) => v.scrollTo(a.x, a.y),
     viewport: (v, a) => {
@@ -934,6 +935,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
   // Operations that only move the cursor or the viewport do not make a file
   // dirty; a document that says "unsaved changes" because somebody scrolled is
   // a document nobody trusts.
+  /** Operations that move the selection and change nothing else. */
+  const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
   const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
@@ -1161,6 +1164,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     apply: ({ id, ops, width, slide, delta = true }) => {
       const session = get(id);
       const table = OPS[session.kind];
+      // A selection move on a sheet that scrolls nothing is answered with
+      // the selection and the active cell's fields, not a frame (below).
+      const view = session.kind === 'sheet' ? session.engine : null;
+      const before = view ? { x: view.scrollX, y: view.scrollY, sheet: view.activeSheet, editing: Boolean(view.editing) } : null;
       let touched = false;
       for (const op of ops || []) {
         const fn = table[op.op];
@@ -1171,6 +1178,18 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       if (touched) {
         session.dirty = true;
         session.version++;
+      }
+      if (
+        before &&
+        (ops || []).length &&
+        ops.every((op) => NAV_OPS.has(op.op)) &&
+        view.scrollX === before.x &&
+        view.scrollY === before.y &&
+        view.activeSheet === before.sheet &&
+        !view.editing &&
+        !before.editing
+      ) {
+        return { ...session.meta(), patch: view.selectionFrame() };
       }
       // A document answers with the difference; the other kinds are already
       // small — a sheet sends only the viewport, a deck one slide.
@@ -1366,6 +1385,62 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       }
     }
 
+    // OpenDocument, which the installer registers this suite as the editor
+    // of: the values, formulas and value types of every sheet; the frame's
+    // blocks of a document; the text boxes, pictures and notes of a deck.
+    if (session.kind === 'sheet' && ext === 'ods') {
+      const view = session.engine;
+      const current = view.activeSheet;
+      const sheets = [];
+      try {
+        for (const name of view.sheetNames()) {
+          view.selectSheet(name);
+          const bounds = view.bounds;
+          const rows = [];
+          for (let r = 0; r <= bounds.maxRow; r++) {
+            const row = [];
+            for (let c = 0; c <= bounds.maxCol; c++) {
+              const input = view.editValue(r, c);
+              if (input === '') {
+                row.push(null);
+                continue;
+              }
+              const value = view.calc.getValue(name, r, c);
+              row.push({ value, text: view.displayValue(r, c)?.text ?? '', formula: input.startsWith('=') ? input : null, format: view.formatFor(r, c) });
+            }
+            rows.push(row);
+          }
+          sheets.push({ name, rows });
+        }
+      } finally {
+        if (current) view.selectSheet(current);
+      }
+      fs.writeFileSync(target, writeOds({ sheets, title: session.name }));
+      return { path: target, format: 'ods', sheets: sheets.length };
+    }
+    if (session.kind === 'deck' && ext === 'odp') {
+      const deck = session.engine;
+      const slides = [];
+      for (let i = 0; i < deck.slideCount; i++) {
+        const slide = deck.slide(i);
+        const shapes = [];
+        for (const s of slide.shapes || []) {
+          const g = s.geometry || {};
+          if (s.kind === 'picture' && s.source?.part && !s.source.external) {
+            const data = deck.media(s.source.part);
+            const ext = path.extname(s.source.part).slice(1).toLowerCase();
+            const type = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml' }[ext];
+            if (data && type) shapes.push({ kind: 'picture', data: Buffer.from(data), contentType: type, x: g.x, y: g.y, w: g.w, h: g.h });
+          } else if (s.text?.paragraphs?.length) {
+            shapes.push({ kind: 'text', name: s.name, placeholder: s.placeholder?.type, paragraphs: s.text.paragraphs, x: g.x, y: g.y, w: g.w, h: g.h });
+          }
+        }
+        slides.push({ name: slide.name, shapes, notes: slide.notes || '' });
+      }
+      fs.writeFileSync(target, writeOdp({ slides, size: deck.size, title: session.name }));
+      return { path: target, format: 'odp', slides: slides.length };
+    }
+
     if (session.kind === 'sheet' && (ext === 'csv' || ext === 'tsv')) {
       const view = session.engine;
       const bounds = view.bounds;
@@ -1379,8 +1454,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       return { path: target, format: ext, rows: rows.length };
     }
 
-    if (session.kind === 'doc' && (ext === 'txt' || ext === 'md' || ext === 'html' || ext === 'rtf')) {
+    if (session.kind === 'doc' && (ext === 'txt' || ext === 'md' || ext === 'html' || ext === 'rtf' || ext === 'odt')) {
       const frame = session.engine.render();
+
+      if (ext === 'odt') {
+        fs.writeFileSync(target, writeOdt({ blocks: frame.blocks || [], title: session.name }));
+        return { path: target, format: 'odt' };
+      }
 
       // Rich Text, which the installer has been claiming this suite edits.
       // The runs carry their own weight, slant, size, font and colour, so the

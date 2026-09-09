@@ -12,6 +12,7 @@
  * Node.
  */
 import test from 'node:test';
+import { odfFlavour } from '../packages/office-formats/src/odf.js';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
@@ -90,18 +91,20 @@ test('a converted file says what saving will actually do', () => {
   assert.equal(md.converted.writesBack, true, 'markdown is written back as markdown');
 
   // RTF used to be the example of a format that could not be written at all;
-  // it is written now, and the flag says so. What is left that cannot be is
-  // the OpenDocument family, and the refusal has to name what it can do
-  // instead rather than ending on "yet".
+  // it is written now, and the flag says so. So is OpenDocument, which the
+  // installer had registered this suite as the editor of for a year.
   const rtf = doc.open({ path: write('note.rtf', '{\\rtf1\\ansi A paragraph.\\par}') });
   assert.equal(rtf.converted.from, 'rtf');
   assert.equal(rtf.converted.writesBack, true, 'rich text is written back as rich text');
   doc.save({ id: rtf.id, path: path.join(dir, 'note.rtf') });
 
-  const said = refusal(() => doc.export({ id: rtf.id, format: 'odt', path: path.join(dir, 'note.odt') }));
-  assert.match(said, /cannot write ODT yet/);
-  assert.match(said, /Save as to write \.docx/, 'and it says what it can write instead');
-  assert.match(said, /\.rtf/, 'which now includes rich text');
+  const odt = doc.export({ id: rtf.id, format: 'odt', path: path.join(dir, 'note.odt') });
+  assert.equal(odt.format, 'odt');
+  assert.equal(odfFlavour(fs.readFileSync(path.join(dir, 'note.odt'))), 'odt', 'a real OpenDocument archive');
+  const back = doc.open({ path: path.join(dir, 'note.odt') });
+  assert.equal(back.converted.from, 'odt');
+  assert.equal(back.converted.writesBack, true, 'OpenDocument is written back as OpenDocument');
+  doc.close({ id: back.id });
 
   const csv = doc.open({ path: write('rows.csv', 'a,b\n1,2\n') });
   assert.equal(csv.converted.writesBack, true, 'a workbook writes a CSV back');
@@ -256,4 +259,33 @@ test('an RTF opened here can be saved back as an RTF', () => {
   assert.ok(fs.readFileSync(file, 'utf8').startsWith('{'), 'and the file is an RTF, not a document under an RTF name');
   doc.close({ id: again.id });
   doc.close({ id: opened.id });
+});
+
+test('a selection move that scrolls nothing answers with the selection, not a frame', () => {
+  // An arrow key on an eighteen-million-cell workbook cost a hundred
+  // milliseconds and a quarter of a megabyte: the whole viewport, rebuilt and
+  // sent, for a selection that moved one cell. The cells on screen are the
+  // same cells; only the selection and the active cell's fields travel.
+  const s = doc.new({ kind: 'sheet' });
+  const moved = doc.apply({ id: s.id, ops: [{ op: 'move', direction: 'right' }] });
+  assert.ok(moved.patch && !moved.model, 'the reply is a patch');
+  assert.equal(moved.patch.selection.ref, 'B1');
+  assert.equal(moved.patch.selection.active.ref, 'B1');
+  assert.ok('format' in moved.patch && 'formulaBar' in moved.patch && 'total' in moved.patch, 'the active cell\'s fields come with it');
+
+  // Ctrl+click: the second rectangle joins the first, the reply says so.
+  const added = doc.apply({ id: s.id, ops: [{ op: 'select', row: 0, col: 0 }, { op: 'select', row: 2, col: 2, add: true }] });
+  assert.equal(added.patch.selection.ref, 'A1,C3');
+  assert.equal(added.patch.selection.ranges.length, 2);
+  assert.equal(added.patch.selection.active.ref, 'C3', 'typing goes where the last click was');
+
+  // A move that scrolls needs the cells, and gets the frame.
+  const far = doc.apply({ id: s.id, ops: [{ op: 'select', row: 400, col: 0 }] });
+  assert.ok(far.model && !far.patch, 'a scroll answers with a frame');
+  assert.equal(far.model.selection.ref, 'A401');
+
+  // An edit is never a patch, whatever came before it.
+  const typed = doc.apply({ id: s.id, ops: [{ op: 'select', row: 400, col: 1 }, { op: 'setCell', row: 400, col: 1, value: '7' }] });
+  assert.ok(typed.model, 'an edit answers with a frame');
+  doc.close({ id: s.id });
 });

@@ -99,6 +99,7 @@ export const APP_EXTENSIONS = {
 export const WRITABLE = {
   word: [
     { kind: 'docx', label: 'Word Document (.docx)' },
+    { kind: 'odt', label: 'OpenDocument Text (.odt)' },
     { kind: 'pdf', label: 'PDF Document (.pdf)' },
     { kind: 'txt', label: 'Plain Text (.txt)' },
     { kind: 'md', label: 'Markdown (.md)' },
@@ -106,12 +107,14 @@ export const WRITABLE = {
   ],
   sheets: [
     { kind: 'xlsx', label: 'Worksheet (.xlsx)' },
+    { kind: 'ods', label: 'OpenDocument Spreadsheet (.ods)' },
     { kind: 'csv', label: 'Comma Separated Values (.csv)' },
     { kind: 'tsv', label: 'Tab Separated Values (.tsv)' },
     { kind: 'pdf', label: 'PDF Document (.pdf)' },
   ],
   slides: [
     { kind: 'pptx', label: 'Presentation (.pptx)' },
+    { kind: 'odp', label: 'OpenDocument Presentation (.odp)' },
     { kind: 'pdf', label: 'PDF Document (.pdf)' },
   ],
   image: [
