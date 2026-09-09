@@ -264,6 +264,10 @@ export class CompoundFile {
    */
   application() {
     const names = new Set(this.childrenOf(this.root).map((c) => c.name));
+    // A password-protected .docx/.xlsx/.pptx is a compound file holding the
+    // encrypted package, whatever its extension says; it is not a 97-2003
+    // document, and reading it as one showed an empty page.
+    if (names.has('EncryptedPackage') || names.has('EncryptionInfo')) return 'encrypted';
     if (names.has('WordDocument')) return 'doc';
     if (names.has('Workbook') || names.has('Book')) return 'xls';
     if (names.has('PowerPoint Document')) return 'ppt';

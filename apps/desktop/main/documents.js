@@ -480,6 +480,16 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       case 'xls':
       case 'ppt': {
         const legacy = legacyText(bytes);
+        // A password-protected .docx, .xlsx or .pptx is a compound file
+        // whatever its name says. The corpus found one opening as an empty
+        // document and another refused as "a document, not a presentation".
+        const shown = filePath ? path.basename(filePath) : 'This file';
+        if (legacy.app === 'encrypted') {
+          throw new Error(`${shown} is password-protected. This suite cannot open an encrypted file yet — open it in the program that set the password, remove the password, and save it again.`);
+        }
+        if (!legacy.app) {
+          throw new Error(`${shown} is a compound file this suite does not read — not a Word, Excel or PowerPoint 97-2003 document.`);
+        }
         if (kind === 'xls') {
           return {
             kind: 'sheet',

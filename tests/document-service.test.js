@@ -17,12 +17,14 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createDocumentService } from '../apps/desktop/main/documents.js';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 
 const doc = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }) });
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-doc-service-'));
+const FIXTURES = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures');
 const write = (name, bytes) => {
   const p = path.join(dir, name);
   fs.writeFileSync(p, bytes);
@@ -59,6 +61,18 @@ test('a file that is not the kind this window edits is refused, by name', () => 
   const unasked = doc.open({ path: asXlsx });
   assert.equal(unasked.kind, 'doc');
   doc.close({ id: unasked.id });
+});
+
+test('a password-protected file is refused as one, whatever its extension', () => {
+  // An encrypted .docx is a compound file holding the encrypted package —
+  // not a 97-2003 document — and it used to open as an empty page, or as
+  // "a document, not a presentation" under a .pptx name. The fixture is
+  // the sample site's password-protected document (password 123), kept
+  // small and never decrypted.
+  const encrypted = path.join(FIXTURES, 'encrypted.docx');
+  assert.match(refusal(() => doc.open({ path: encrypted, kind: 'doc' })), /encrypted\.docx is password-protected/);
+  const asPptx = write('encrypted-named.pptx', fs.readFileSync(encrypted));
+  assert.match(refusal(() => doc.open({ path: asPptx, kind: 'deck' })), /is password-protected/);
 });
 
 test('the disk failing is a sentence, not an error code', () => {
