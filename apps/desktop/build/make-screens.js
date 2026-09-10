@@ -33,6 +33,8 @@ import { gradientPng } from '../main/sample-picture.js';
 import electron from 'electron';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
+import { dateTimeAt, writeCalendar } from '@rutba/calendar/ical';
+import { writeVCards } from '@rutba/contacts/vcard';
 
 const appDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const outDir = path.resolve(process.argv[2] || path.join(appDir, 'build', 'screens'));
@@ -184,6 +186,129 @@ if (!usedSupplied) {
 
 const firstPicture = () => path.join(picturesDir, fs.readdirSync(picturesDir).sort()[0]);
 
+/**
+ * A working week, for the Calendar capture.
+ *
+ * **Anchored to the current week rather than to a fixed date**, and that is the
+ * whole reason this is generated instead of committed as a fixture. A calendar
+ * screenshot is the one marketing asset that states what day it is; a file
+ * holding March 2026 photographs as a product nobody has touched since March
+ * 2026. Re-running this in June gives a June week, with no edit.
+ *
+ * The week runs Monday-first, which is what the month grid draws, and it is
+ * deliberately not full: eleven entries over five days reads as somebody's
+ * diary, and a wall of blocks reads as a stress test. One of them repeats,
+ * because the recurrence engine is a thing this app has and most free
+ * calendars get wrong.
+ *
+ * Every name is invented.
+ */
+const monday = (() => {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  // getDay() is Sunday-first; this shifts it to Monday-first before subtracting.
+  d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+  return d;
+})();
+
+const dayAt = (day, hour, minute = 0) =>
+  new Date(monday.getFullYear(), monday.getMonth(), monday.getDate() + day, hour, minute).getTime();
+
+const meeting = (day, hour, minutes, summary, extra = {}) => {
+  const at = dayAt(day, hour);
+  return {
+    summary,
+    start: dateTimeAt(at, null),
+    end: dateTimeAt(at + minutes * 60000, null),
+    ...extra,
+  };
+};
+
+fs.writeFileSync(
+  at('this-week.ics'),
+  writeCalendar({
+    name: 'Work',
+    events: [
+      meeting(0, 9, 30, 'Monday stand-up', {
+        // Weekly, so the week view shows the same slot filled on the day the
+        // rule lands rather than only where an event was written out.
+        rrule: { freq: 'WEEKLY', byDay: ['MO'] },
+        location: 'Room 2',
+      }),
+      meeting(0, 14, 60, 'Quarterly review — draft walkthrough', { location: 'Room 2' }),
+      meeting(1, 10, 45, 'Onboarding rewrite: what shipped', { location: 'Room 4' }),
+      meeting(1, 16, 30, 'Call with Halton & Rowe', { location: 'Dial in' }),
+      meeting(2, 11, 90, 'Regional sales — Q4 numbers', { location: 'Room 2' }),
+      meeting(3, 9, 60, 'Interview: Aoife Brennan', { location: 'Room 1' }),
+      meeting(3, 15, 30, 'Release readiness', { location: 'Room 4' }),
+      meeting(4, 12, 60, 'Team lunch', { location: 'The Waterman' }),
+      {
+        summary: 'Marta out — annual leave',
+        allDay: true,
+        start: dateTimeAt(dayAt(3, 0), null, true),
+        end: dateTimeAt(dayAt(5, 0), null, true),
+        transparency: 'TRANSPARENT',
+      },
+    ],
+  }),
+);
+
+/**
+ * An address book, for the Contacts capture.
+ *
+ * Enough fields on each that the detail pane has something to draw — a title,
+ * an organisation, two ways to reach them — because a contacts screenshot
+ * whose right-hand pane holds one email address is a screenshot of an empty
+ * pane. Fictional people at fictional companies, on example.com, which exists
+ * to be exactly this.
+ */
+fs.writeFileSync(
+  at('address-book.vcf'),
+  writeVCards([
+    {
+      name: { given: 'Aoife', family: 'Brennan' },
+      org: 'Halton & Rowe',
+      title: 'Operations Director',
+      emails: [{ value: 'a.brennan@example.com', type: 'work' }],
+      phones: [{ value: '+44 20 7946 0812', type: 'work' }],
+      addresses: [{ street: '14 Prospect Row', city: 'Bristol', postcode: 'BS1 4QT', country: 'United Kingdom', type: 'work' }],
+    },
+    {
+      name: { given: 'Marta', family: 'Kowalczyk' },
+      org: 'Northbank Logistics',
+      title: 'Head of Finance',
+      emails: [{ value: 'marta.k@example.com', type: 'work' }],
+      phones: [{ value: '+44 161 496 0177', type: 'work' }],
+    },
+    {
+      name: { given: 'Yusuf', family: 'Demir' },
+      org: 'Demir Studio',
+      title: 'Principal',
+      emails: [{ value: 'yusuf@example.com', type: 'work' }],
+      phones: [{ value: '+44 7700 900412', type: 'mobile' }],
+    },
+    {
+      name: { given: 'Priya', family: 'Raghavan' },
+      org: 'Halton & Rowe',
+      title: 'Contracts Manager',
+      emails: [{ value: 'p.raghavan@example.com', type: 'work' }],
+    },
+    {
+      name: { given: 'Tomas', family: 'Lindqvist' },
+      org: 'Vasa Partners',
+      title: 'Analyst',
+      emails: [{ value: 't.lindqvist@example.com', type: 'work' }],
+      phones: [{ value: '+46 8 505 12 00', type: 'work' }],
+    },
+    {
+      name: { given: 'Nkechi', family: 'Obi' },
+      org: 'Northbank Logistics',
+      title: 'Fleet Coordinator',
+      emails: [{ value: 'n.obi@example.com', type: 'work' }],
+    },
+  ]),
+);
+
 /** app -> the file it should open, or null for its empty state. */
 const PLAN = [
   ['home', null],
@@ -191,6 +316,13 @@ const PLAN = [
   ['sheets', at('regional-sales.xlsx')],
   ['slides', at('product-review.pptx')],
   ['mail', null],
+  // Added when the site was found publishing seven apps over a suite of nine:
+  // Calendar and Contacts shipped in 1.8.0 and this list was never extended, so
+  // they had no screenshot to be missing from anything. Both take a file for the
+  // same reason the document apps do — an empty week and an empty address book
+  // prove the window paints and sell nothing.
+  ['calendar', at('this-week.ics')],
+  ['contacts', at('address-book.vcf')],
   // NEVER null. Null means the app falls back to the operating system's
   // own folders, which is how somebody's family photographs ended up in a
   // build artefact. See the note above `gradientPng`.
@@ -213,6 +345,10 @@ const SETTLE = {
   pictures: 6000,
   image: 5000,
   mail: 5000,
+  // Both parse a file and lay out a view over it — the calendar expands a
+  // recurrence rule across the week before it can draw the grid.
+  calendar: 3500,
+  contacts: 3000,
 };
 
 function capture(app, file, profile) {
@@ -233,8 +369,19 @@ function capture(app, file, profile) {
     else delete env.RUTBA_SMOKE_FILE;
     // Mail is the one app whose empty state is not worth a picture, so it gets
     // the smoke seeder's invented correspondents.
-    if (app === 'mail') env.RUTBA_SMOKE_SEED = '1';
-    else delete env.RUTBA_SMOKE_SEED;
+    if (app === 'mail') {
+      env.RUTBA_SMOKE_SEED = '1';
+      // The import takes the account and folder name from the mbox filename,
+      // so this string is the one the sidebar, the window title, the search
+      // box and the status bar all repeat. Left at its default the mail
+      // screenshot was captioned "smoke-seed — smoke-seed", which is accurate
+      // and unpublishable. `Archive` is also the honest word for what it is:
+      // an imported mailbox, which is the feature the picture is selling.
+      env.RUTBA_SMOKE_SEED_NAME = 'Archive';
+    } else {
+      delete env.RUTBA_SMOKE_SEED;
+      delete env.RUTBA_SMOKE_SEED_NAME;
+    }
 
     const child = spawn(electron, [appDir, `--user-data-dir=${profile}`, app], {
       stdio: 'ignore',

@@ -41,7 +41,11 @@ export async function runSmoke({ windows, outDir, stores, mail }) {
 
   if (process.env.RUTBA_SMOKE_SEED && mail && stores) {
     try {
-      const seeded = await seedMail({ stores, mail });
+      // `RUTBA_SMOKE_SEED_NAME` names the imported mailbox, which is what the
+      // sidebar, the title bar and the status bar all show. A smoke run leaves
+      // it as `smoke-seed`; a marketing capture asks for something a reader
+      // would believe.
+      const seeded = await seedMail({ stores, mail, name: process.env.RUTBA_SMOKE_SEED_NAME || undefined });
       console.log(`seeded ${seeded.messages} messages into ${seeded.folders} folder(s)`);
     } catch (err) {
       console.log(`seeding failed: ${err.message}`);

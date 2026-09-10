@@ -57,7 +57,7 @@ function raw({ from, to = 'You <you@example.com>', subject, date, id, inReplyTo,
 }
 
 const PASSED = ['Authentication-Results', 'mx.example.com; spf=pass smtp.mailfrom=northwind.example; dkim=pass header.d=northwind.example; dmarc=pass'];
-const FAILED = ['Authentication-Results', 'mx.example.com; spf=fail smtp.mailfrom=paypa1-security.example; dkim=none; dmarc=fail'];
+const FAILED = ['Authentication-Results', 'mx.example.com; spf=fail smtp.mailfrom=northbank-secure.example; dkim=none; dmarc=fail'];
 
 export function seedMessages(now = Date.now()) {
   const messages = [];
@@ -148,15 +148,22 @@ export function seedMessages(now = Date.now()) {
       '</body></html>',
   });
 
-  /* One that failed its checks. Worth seeing before it is opened. */
+  /* One that failed its checks. Worth seeing before it is opened.
+     The brand is invented, like every other company in this file. It was a
+     real payment brand with a digit swapped into
+     the domain, which is a good imitation of the genuine article and a bad
+     thing to publish: these messages reach the website through make-screens,
+     and a marketing screenshot should not carry somebody else's trademark on
+     a phishing example. The lookalike domain, the failed SPF and DKIM and the
+     bait link all still do their job. */
   push({
-    address: 'security@paypa1-security.example',
-    from: '"PayPal Security" <security@paypa1-security.example>',
+    address: 'security@northbank-secure.example',
+    from: '"Northbank Pay Security" <security@northbank-secure.example>',
     subject: 'Your account has been limited',
     date: now - 20 * HOUR,
-    id: 'phish-1@paypa1-security.example',
+    id: 'phish-1@northbank-secure.example',
     headers: [FAILED],
-    html: '<html><body><p>We have limited your account. <a href="https://paypa1-security.example/verify">Verify now</a> to restore access.</p></body></html>',
+    html: '<html><body><p>We have limited your account. <a href="https://northbank-secure.example/verify">Verify now</a> to restore access.</p></body></html>',
   });
 
   /* Ordinary mail, one with a file on it. */
@@ -207,9 +214,15 @@ export function seedMessages(now = Date.now()) {
  * Write the fixture as an mbox and put it through the real import path, so the
  * seeded store is produced by the same code a person's archive goes through.
  */
-export async function seedMail({ stores, mail }) {
+export async function seedMail({ stores, mail, name = 'smoke-seed' }) {
   const { writeMbox } = await import('@rutba/mailbox/mbox');
-  const file = path.join(stores.dir, 'smoke-seed.mbox');
+  // The import names the account and the folder after the file, so this string
+  // ends up in the sidebar, the window title, the search box and the status
+  // bar. `smoke-seed` is the honest name for a smoke run and the wrong one for
+  // a picture of a product — a screenshot captioned "smoke-seed — smoke-seed"
+  // reads as a test artefact, which is what it is and not what it is for.
+  // `make-screens.js` passes `Archive`.
+  const file = path.join(stores.dir, `${name}.mbox`);
   fs.writeFileSync(file, Buffer.from(writeMbox(seedMessages())));
   try {
     return mail.import({ path: file, folders: null });
