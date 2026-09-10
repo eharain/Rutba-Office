@@ -13,6 +13,7 @@
 // of it.
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { flushSync } from 'react-dom';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { SITE } from '@rutba/office-formats/registry';
@@ -20,6 +21,7 @@ import WordRibbon from './word/ribbon.js';
 import { NavigationPane, Ruler, installWordStyles } from './word/panes.js';
 import { selectionToSend } from './word/caret.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
+import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement } from './word/pages.js';
 
 installWordStyles();
 import {
@@ -40,6 +42,11 @@ import {
  */
 function offsetIn(blockEl, node, offset) {
   if (!blockEl || !node) return 0;
+  // The second part of a paragraph split across pages starts partway in.
+  return offsetWithin(blockEl, node, offset) + Number(blockEl.dataset?.from || 0);
+}
+
+function offsetWithin(blockEl, node, offset) {
 
   // An element position: count the text in the children before it.
   if (node.nodeType !== Node.TEXT_NODE) {
@@ -75,6 +82,26 @@ function pointIn(blockEl, offset) {
 }
 
 /**
+ * The element that draws a block at a character offset. One element for
+ * most paragraphs; a paragraph split across pages has one per page, each
+ * marked with the offset it starts at, and the caret goes in the part that
+ * holds the offset — the second part when the offset is exactly the split,
+ * which is the head of the next page, as in Word.
+ */
+function partFor(page, index, offset) {
+  let best = null;
+  let bestFrom = -1;
+  for (const el of page.querySelectorAll(`[data-block="${index}"]`)) {
+    const from = Number(el.dataset.from || 0);
+    if (from <= offset && from > bestFrom) {
+      best = el;
+      bestFrom = from;
+    }
+  }
+  return best;
+}
+
+/**
  * Put the selection back where the engine says it is.
  *
  * A *range*, not a caret. Restoring only the focus point collapsed whatever the
@@ -84,12 +111,13 @@ function pointIn(blockEl, offset) {
  */
 function placeSelection(page, anchor, focus) {
   if (!page || !focus) return;
-  const focusEl = page.querySelector(`[data-block="${focus.block}"]`);
+  const focusEl = partFor(page, focus.block, focus.offset);
   if (!focusEl) return;
-  const anchorEl = anchor ? page.querySelector(`[data-block="${anchor.block}"]`) : focusEl;
+  const anchorEl = anchor ? partFor(page, anchor.block, anchor.offset) : focusEl;
 
-  const start = pointIn(anchorEl || focusEl, (anchor ?? focus).offset);
-  const end = pointIn(focusEl, focus.offset);
+  const within = (el, offset) => pointIn(el, offset - Number(el.dataset?.from || 0));
+  const start = within(anchorEl || focusEl, (anchor ?? focus).offset);
+  const end = within(focusEl, focus.offset);
   if (!start || !end) return;
 
   const sel = window.getSelection();
@@ -486,6 +514,77 @@ export default function Word({ app, shell, boot }) {
   /* ── commands ────────────────────────────────────────────────────────── */
 
   const format = model?.format || {};
+  const section = model?.section;
+
+  /* ── pages ─────────────────────────────────────────────────────────── */
+  //
+  // Print layout draws the flow on sheets. Which sheet each block lands on
+  // is decided by measuring the drawn page after every commit — see
+  // word/pages.js — and the split points that decision produces are the
+  // only part of it React needs to know: a split paragraph renders as parts.
+  const [pages, setPages] = useState(NO_PAGES);
+  const pagesRef = useRef(pages);
+  pagesRef.current = pages;
+  const paged = (view.mode || 'print') === 'print' && Boolean(section);
+  const geo = useMemo(() => geometryOf(section), [section]);
+  const passes = useRef(0);
+  const repaginate = useCallback(() => {
+    const page = pageRef.current;
+    if (!page) return;
+    const state = pagesRef.current;
+    if (!paged || !geo) {
+      clearPages(page);
+      if (state !== NO_PAGES) setPages(NO_PAGES);
+      return;
+    }
+    // A layout that will not settle — a paragraph that fits only when it is
+    // not split, say — stops here rather than looping. Sixteen is far more
+    // than any document has needed; the count resets with every edit.
+    if (passes.current > 16) return;
+    const laid = layPages(page, geo, state);
+    const focus = model?.selection?.focus;
+    const at = focus ? pageOfElement(partFor(page, focus.block, focus.offset), geo) + 1 : 1;
+    if (laid.changed) {
+      passes.current += 1;
+      // Synchronously, so the parts are drawn before the browser paints the
+      // frame; otherwise the unsplit paragraph shows over the gap for a frame.
+      flushSync(() => setPages({ splits: laid.splits, tableSplits: laid.tableSplits, count: laid.count, at }));
+    } else if (laid.count !== state.count || at !== state.at) {
+      setPages({ ...state, count: laid.count, at });
+    }
+  }, [paged, geo, model]);
+  const repaginateRef = useRef(repaginate);
+  repaginateRef.current = repaginate;
+  useLayoutEffect(() => {
+    passes.current = 0;
+  }, [model, mounted, paged, geo]);
+  // Every commit of the page lays it out again — after the tab widths, which
+  // are a microtask queued during the commit, and before the paint.
+  useLayoutEffect(() => {
+    let live = true;
+    queueMicrotask(() => {
+      if (live) repaginateRef.current();
+    });
+    return () => {
+      live = false;
+    };
+  }, [model, mounted, paged, geo, pages.splits, pages.tableSplits]);
+  // Pictures that arrive and fonts that load change heights without a render.
+  const hasPage = Boolean(!busy && model);
+  useEffect(() => {
+    const page = pageRef.current;
+    if (!page || typeof ResizeObserver === 'undefined') return undefined;
+    let raf = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => repaginateRef.current());
+    });
+    ro.observe(page);
+    return () => {
+      ro.disconnect();
+      cancelAnimationFrame(raf);
+    };
+  }, [hasPage]);
 
   const flowItems = useMemo(() => (model?.blocks ? groupTables(model.blocks) : []), [model?.blocks]);
   // A new document starts with the first screens; the rest mounts in slices
@@ -727,8 +826,6 @@ export default function Word({ app, shell, boot }) {
     );
   }
 
-  const section = model?.section;
-
   return (
     <AppFrame
       app={app}
@@ -760,6 +857,7 @@ export default function Word({ app, shell, boot }) {
         <>
           <span>{doc?.path || 'Not saved yet'}</span>
           <Spacer />
+          {paged ? <Chip>{`Page ${pages.at} of ${pages.count}`}</Chip> : null}
           <Chip>{model?.wordCount ?? 0} words</Chip>
           <Chip>{model?.characterCount ?? 0} characters</Chip>
           <Chip>{model?.blocks?.length ?? 0} paragraphs</Chip>
@@ -779,7 +877,7 @@ export default function Word({ app, shell, boot }) {
           <div className="wd-scroll">
             {view.ruler ? <Ruler section={section} /> : null}
             <div
-              className={`wd-page${view.marks ? ' marks' : ''}`}
+              className={`wd-page${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}`}
               ref={pageRef}
               contentEditable
               suppressContentEditableWarning
@@ -797,7 +895,7 @@ export default function Word({ app, shell, boot }) {
                 fontFamily: model.resolvedStyles?.['*default*']?.fontName || undefined,
                 fontSize: model.resolvedStyles?.['*default*']?.sizePx ? `${model.resolvedStyles['*default*'].sizePx}px` : undefined,
                 width: section ? Math.round(section.widthPx) : 794,
-                minHeight: section ? Math.round(section.heightPx) : 1123,
+                minHeight: paged ? pages.count * geo.H + (pages.count - 1) * geo.G : section ? Math.round(section.heightPx) : 1123,
                 paddingTop: section?.margins.top ?? 96,
                 paddingRight: section?.margins.right ?? 96,
                 paddingBottom: section?.margins.bottom ?? 96,
@@ -807,24 +905,40 @@ export default function Word({ app, shell, boot }) {
                 '--wd-margin-right': `${section?.margins.right ?? 96}px`,
               }}
             >
-              {model.bands?.watermark ? (
-                <div className="wd-watermark" contentEditable={false} aria-hidden="true" style={{ color: model.bands.watermark.colour || 'silver', transform: `rotate(${model.bands.watermark.rotation ?? 315}deg)` }}>
-                  {model.bands.watermark.text}
-                </div>
-              ) : null}
-              <Band kind="header" bands={model.bands} section={section} onEdit={() => setDialog('header')} />
+              {/*
+                The sheets, behind the flow — one per page the layout pass
+                counted — and on each the watermark, the header and the footer
+                that page calls for, its page number resolved.
+              */}
+              {paged
+                ? Array.from({ length: pages.count }, (_, k) => (
+                    <div key={`s${k}`} className="wd-sheet" contentEditable={false} aria-hidden="true" style={{ top: k * (geo.H + geo.G), height: geo.H }} />
+                  ))
+                : null}
+              {paged
+                ? Array.from({ length: pages.count }, (_, k) => (
+                    <React.Fragment key={`b${k}`}>
+                      {model.bands?.watermark ? (
+                        <div className="wd-watermark" contentEditable={false} aria-hidden="true" style={{ top: k * (geo.H + geo.G) + Math.round(geo.H / 3), color: model.bands.watermark.colour || 'silver', transform: `rotate(${model.bands.watermark.rotation ?? 315}deg)` }}>
+                          {model.bands.watermark.text}
+                        </div>
+                      ) : null}
+                      <Band kind="header" bands={model.bands} section={section} page={k + 1} of={pages.count} top={k * (geo.H + geo.G)} height={geo.H} onEdit={() => setDialog('header')} />
+                      <Band kind="footer" bands={model.bands} section={section} page={k + 1} of={pages.count} top={k * (geo.H + geo.G)} height={geo.H} onEdit={() => setDialog('footer')} />
+                    </React.Fragment>
+                  ))
+                : null}
               {flowItems.slice(0, mounted).map((item) =>
                 item.table ? (
-                  <TableGroup key={`t${item.table.id}`} table={item.table} labels={model.listLabels} styles={model.resolvedStyles} />
+                  <TableGroup key={`t${item.table.id}`} table={item.table} labels={model.listLabels} styles={model.resolvedStyles} tsplit={pages.tableSplits[item.table.id] || null} />
                 ) : (
-                  <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} />
+                  <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} split={pages.splits[item.index] || null} />
                 )
               )}
               {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{`Laying out… ${Math.round((mounted / flowItems.length) * 100)}%`}</div> : null}
 
               <Notes notes={model.footnotes} kind="footnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'footnote', id: note.id, initial: noteWords(note) })} />
               <Notes notes={model.endnotes} kind="endnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'endnote', id: note.id, initial: noteWords(note) })} />
-              <Band kind="footer" bands={model.bands} section={section} onEdit={() => setDialog('footer')} />
             </div>
           </div>
           {menu.node}
@@ -988,6 +1102,9 @@ export default function Word({ app, shell, boot }) {
  * into rows and cells, keeping each cell paragraph as its own editable
  * [data-block] so the caret, selection and typing keep working inside it.
  */
+/** No pages laid yet: one sheet, nothing split. */
+const NO_PAGES = { splits: {}, tableSplits: {}, count: 1, at: 1 };
+
 /** Flow items mounted before the first paint, and per slice afterwards. */
 const MOUNT_FIRST = 160;
 const MOUNT_STEP = 240;
@@ -1022,60 +1139,77 @@ function groupTables(blocks) {
   return out;
 }
 
-function TableGroup({ table, labels, styles }) {
+function TableGroup({ table, labels, styles, tsplit }) {
   const rows = [...table.rows.entries()].sort((a, b) => a[0] - b[0]);
+  // One table, or — split across pages at the rows the layout pass chose —
+  // one per page, each knowing which row it starts at.
+  const cuts = (tsplit || []).filter((r) => r > 0 && r < rows.length);
+  const bounds = [0, ...cuts, rows.length];
   return (
-    <table className="wd-table">
-      <tbody>
-        {rows.map(([r, cells]) => (
-          <tr key={r}>
-            {[...cells.entries()]
-              .sort((a, b) => a[0] - b[0])
-              .map(([c, paragraphs]) => (
-                <td key={c}>
-                  {paragraphs.map((block) => (
-                    <Block key={block.index} block={block} labels={labels} styles={styles} />
+    <>
+      {bounds.slice(0, -1).map((from, j) => (
+        <table key={j} className="wd-table" data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined}>
+          <tbody>
+            {rows.slice(from, bounds[j + 1]).map(([r, cells]) => (
+              <tr key={r}>
+                {[...cells.entries()]
+                  .sort((a, b) => a[0] - b[0])
+                  .map(([c, paragraphs]) => (
+                    <td key={c}>
+                      {paragraphs.map((block) => (
+                        <Block key={block.index} block={block} labels={labels} styles={styles} />
+                      ))}
+                    </td>
                   ))}
-                </td>
-              ))}
-          </tr>
-        ))}
-      </tbody>
-    </table>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      ))}
+    </>
   );
 }
 
 /**
- * The header or footer the page shows, drawn in the margin where Word draws
- * it and greyed the way Word greys it while the body has the caret. The page
- * here is one continuous sheet, so this is the band for page 1 (the first-page
- * band when the section asks for one), with the page fields resolved the only
- * way a continuous sheet can: page 1 of the count the engine reports. Not
- * editable in place — a double-click opens the band's dialog, as in Word.
+ * The header or footer of one page, drawn in the margin where Word draws it
+ * and greyed the way Word greys it while the body has the caret. Which band
+ * depends on the page: the first-page band on page 1 when the section asks
+ * for one (and nothing at all when the file defines none, which is how a
+ * cover page has no header), the even band on even pages when it asks for
+ * that, the default otherwise. A PAGE field says this page's number; the
+ * count is what the layout pass counted. Not editable in place — a
+ * double-click opens the band's dialog, as in Word.
  */
-function Band({ kind, bands, section, onEdit }) {
+function Band({ kind, bands, section, onEdit, page = 1, of = null, top = 0, height = null }) {
   const set = bands?.[kind === 'header' ? 'headers' : 'footers'];
   if (!set) return null;
-  // With a title page, page 1 gets the FIRST-page band — and nothing at all
-  // when the file defines none, which is how a cover page has no header.
-  const band = section?.titlePage ? set.first ?? null : set.default || set.even || set.first;
+  const band = page === 1 && section?.titlePage
+    ? set.first ?? null
+    : page % 2 === 0 && section?.evenAndOdd && set.even
+      ? set.even
+      : set.default || set.even || set.first;
   const paragraphs = band?.paragraphs || [];
   if (!paragraphs.length) return null;
-  const of = section?.pageCount || null;
+  const count = of || section?.pageCount || null;
   // w:pgMar's header/footer distance: from the page edge to the band, 48 px by default.
   const distance = Math.round(section?.margins?.[kind] ?? 48);
+  const place = kind === 'header'
+    ? { top: top + distance }
+    : height
+      ? { top: top + height - distance, transform: 'translateY(-100%)' }
+      : { bottom: distance };
   return (
     <div
       className={`wd-band wd-${kind}`}
       contentEditable={false}
-      style={kind === 'header' ? { top: distance } : { bottom: distance }}
+      style={place}
       onDoubleClick={onEdit}
       title={`Double-click to edit the ${kind}`}
     >
       {paragraphs.map((p, i) => (
         <p key={i} className="wd-band-line" style={{ textAlign: p.align === 'both' ? 'justify' : p.align || undefined }}>
           {(p.runs || []).map((r, j) => {
-            const text = r.field === 'PAGE' ? '1' : r.field === 'NUMPAGES' && of ? String(of) : r.text ?? '';
+            const text = r.field === 'PAGE' ? String(page) : r.field === 'NUMPAGES' ? (count ? String(count) : '') : r.text ?? '';
             return (
               <span key={j} style={{ fontWeight: r.bold ? 700 : undefined, fontStyle: r.italic ? 'italic' : undefined, textDecoration: r.underline ? 'underline' : undefined }}>
                 {withTabs(text)}
@@ -1395,9 +1529,33 @@ function Notes({ notes, kind, styles, onEdit }) {
   );
 }
 
-const Block = React.memo(function Block({ block, labels, styles }) {
+/**
+ * A paragraph — or, once the layout pass has split it at a line, its parts:
+ * one element per page it spans, each carrying the block's index and the
+ * character offset it starts at, so the caret's arithmetic is unchanged.
+ * Memoised, and the split array keeps its identity while it is unchanged,
+ * so a keystroke re-renders the one paragraph it touched.
+ */
+const Block = React.memo(function Block({ block, labels, styles, split }) {
+  if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last />;
+  const bounds = [0, ...split, Infinity];
+  return (
+    <>
+      {bounds.slice(0, -1).map((from, j) => (
+        <Part key={j} block={block} labels={labels} styles={styles} from={from} to={bounds[j + 1]} first={j === 0} last={j === bounds.length - 2} />
+      ))}
+    </>
+  );
+});
+
+/** The paragraphs a paginator keeps with what follows, by convention as much as by w:keepNext. */
+const KEEP_WITH_NEXT = /^(Heading[1-6]|Title|Subtitle)$/;
+
+function Part({ block, labels, styles, from, to, first, last }) {
   const ref = React.useRef(null);
-  const hasTabs = (block.runs || []).some((r) => r.text && r.text.includes('\t'));
+  const whole = first && last;
+  const runs = whole ? block.runs || [] : sliceRuns(block.runs, from, to);
+  const hasTabs = runs.some((r) => r.text && r.text.includes('\t'));
   React.useLayoutEffect(() => {
     if (hasTabs && ref.current) scheduleTabs(ref.current, tabStops(block, styles));
   });
@@ -1415,34 +1573,59 @@ const Block = React.memo(function Block({ block, labels, styles }) {
   // starts at the indent and the bullet sits in the space before it.
   const markerHang = typeof mark === 'object' && mark?.hangingPx ? Math.round(mark.hangingPx) : null;
   const listStyle = markerIndent ? { ...style, marginLeft: markerIndent, ...(markerHang ? { textIndent: -markerHang } : {}) } : style;
+  // A continuation starts flush, without the space before; a part that goes
+  // on ends without the space after, its last line justified like the rest.
+  const partStyle = whole
+    ? listStyle
+    : {
+        ...listStyle,
+        ...(first ? {} : { textIndent: 0, marginTop: 0 }),
+        ...(last ? {} : { marginBottom: 0, ...(style.textAlign === 'justify' ? { textAlignLast: 'justify' } : {}) }),
+      };
+  const hasMedia = Boolean(block.images?.length || block.textBoxes?.length);
   return (
-    <p ref={ref} className="wd-block" data-block={block.index} data-style={block.style || 'Normal'} style={listStyle}>
-      {label ? <span className="wd-marker" contentEditable={false} style={markerHang ? { display: 'inline-block', width: markerHang, textIndent: 0, marginRight: 0 } : undefined}>{label}</span> : null}
+    <p
+      ref={ref}
+      className="wd-block"
+      data-block={block.index}
+      data-style={block.style || 'Normal'}
+      data-from={from > 0 ? from : undefined}
+      data-part={whole ? undefined : first ? 0 : 1}
+      data-break={first && block.pageBreakBefore ? '1' : undefined}
+      data-keep={block.keepNext || KEEP_WITH_NEXT.test(block.style || '') ? '1' : undefined}
+      data-keeplines={block.keepLines ? '1' : undefined}
+      style={partStyle}
+    >
+      {first && label ? <span className="wd-marker" contentEditable={false} style={markerHang ? { display: 'inline-block', width: markerHang, textIndent: 0, marginRight: 0 } : undefined}>{label}</span> : null}
 
-      {(block.runs || []).length ? block.runs.map((run, i) => <RunSpan key={i} run={run} />) : <br />}
+      {runs.length ? runs.map((run, i) => <RunSpan key={i} run={run} />) : whole || !last || !hasMedia ? <br /> : null}
       {/*
         Pictures, charts and shapes sit under the paragraph's text as blocks —
         the engine's own honest simplification of float layout. Not editable:
         the caret has no business inside a picture, and letting the browser
         put it there is how an image gets deleted by a stray Backspace.
       */}
-      {(block.images || []).map((image, i) => (
-        <img
-          key={i}
-          className="wd-image"
-          contentEditable={false}
-          src={image.href}
-          alt={image.name || ''}
-          draggable={false}
-          style={{ width: image.widthPx ? Math.min(image.widthPx, 640) : undefined, height: 'auto', maxWidth: '100%', display: 'block', margin: '6px 0' }}
-        />
-      ))}
-      {(block.textBoxes || []).map((box, i) => (
-        <TextBox key={i} box={box} styles={styles} />
-      ))}
+      {last
+        ? (block.images || []).map((image, i) => (
+            <img
+              key={i}
+              className="wd-image"
+              contentEditable={false}
+              src={image.href}
+              alt={image.name || ''}
+              draggable={false}
+              style={{ width: image.widthPx ? Math.min(image.widthPx, 640) : undefined, height: 'auto', maxWidth: '100%', display: 'block', margin: '6px 0' }}
+            />
+          ))
+        : null}
+      {last
+        ? (block.textBoxes || []).map((box, i) => (
+            <TextBox key={i} box={box} styles={styles} />
+          ))
+        : null}
     </p>
   );
-});
+}
 
 function FindPanel({ state, onChange, onClose, onReplaceAll }) {
   return (
@@ -1469,16 +1652,26 @@ function FindPanel({ state, onChange, onClose, onReplaceAll }) {
 
 const CSS = `
 .wd { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
-.wd-scroll { flex: 1; overflow: auto; padding: 26px 0 40px; display: flex; justify-content: center; background: var(--window); }
+/* A column, so the ruler sits above the page and the page is as tall as its
+   content: as a row's flex item the page was stretched to the viewport's
+   height — a fixed height — and a long document ran out of the bottom of it. */
+.wd-scroll { flex: 1; overflow: auto; padding: 26px 0 40px; display: flex; flex-direction: column; align-items: center; background: var(--window); }
 .wd-page {
-  background: #fff; color: #111; border-radius: 2px;
+  background: #fff; color: #111; border-radius: 2px; flex: none;
   /* A sheet of paper on a desk: a close shadow for the edge, a wide soft one for the lift. */
   box-shadow: 0 0 0 1px rgba(15, 20, 30, 0.05), 0 2px 6px rgba(15, 20, 30, 0.07), 0 14px 36px rgba(15, 20, 30, 0.1);
   outline: none; font-family: Calibri, "Segoe UI", system-ui, sans-serif; font-size: 15px;
   line-height: 1.5; caret-color: var(--accent); position: relative;
 }
+/* In print layout the flow is transparent and the sheets are drawn behind it, one per page. */
+.wd-page.paged { background: transparent; box-shadow: none; }
+.wd-sheet {
+  position: absolute; left: 0; right: 0; z-index: 0; background: #fff; border-radius: 2px; pointer-events: none;
+  box-shadow: 0 0 0 1px rgba(15, 20, 30, 0.05), 0 2px 6px rgba(15, 20, 30, 0.07), 0 14px 36px rgba(15, 20, 30, 0.1);
+}
+:root[data-theme='dark'] .wd-sheet { background: #f7f7f5; }
 /* Headers and footers sit in the margins, greyed while the body has the caret. */
-.wd-band { position: absolute; left: 0; right: 0; color: #777; font-size: 13px; line-height: 1.35; user-select: none; cursor: default; }
+.wd-band { position: absolute; left: 0; right: 0; z-index: 1; color: #777; font-size: 13px; line-height: 1.35; user-select: none; cursor: default; }
 .wd-band .wd-band-line { margin: 0; padding: 0 var(--wd-margin-right, 96px) 0 var(--wd-margin-left, 96px); min-height: 1.2em; white-space: pre-wrap; }
 .wd-band:hover { color: #333; }
 .wd.mode-web .wd-band, .wd.mode-draft .wd-band, .wd.mode-read .wd-band, .wd.mode-outline .wd-band { display: none; }

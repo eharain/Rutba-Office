@@ -681,6 +681,10 @@ function paragraphXml(p, links = null) {
 
   const pPrBits = [];
   if (p.style) pPrBits.push('<w:pStyle w:val="' + esc(p.style) + '"/>');
+  // In the order the schema wants them: keepNext, keepLines, pageBreakBefore, then jc.
+  if (p.keepNext) pPrBits.push('<w:keepNext/>');
+  if (p.keepLines) pPrBits.push('<w:keepLines/>');
+  if (p.pageBreakBefore) pPrBits.push('<w:pageBreakBefore/>');
   if (p.align) {
     const jc = { left: 'left', center: 'center', centre: 'center', right: 'right', justify: 'both' }[p.align];
     if (jc) pPrBits.push('<w:jc w:val="' + jc + '"/>');

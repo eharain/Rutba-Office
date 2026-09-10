@@ -65,6 +65,13 @@ import {
  */
 const PAGE_BREAK_BEFORE = /<w:pageBreakBefore\b(?![^>]*w:val="(?:0|false)")/;
 const EXPLICIT_BREAK = /<w:br\b[^>]*w:type="page"/;
+/**
+ * The two "keep" properties a paginator honours: a heading that stays with
+ * the paragraph after it, and a paragraph whose lines are not split across
+ * pages. Both are toggles that may be written as w:val="0" to turn off.
+ */
+const KEEP_NEXT = /<w:keepNext\b(?![^>]*w:val="(?:0|false)")/;
+const KEEP_LINES = /<w:keepLines\b(?![^>]*w:val="(?:0|false)")/;
 
 /**
  * A paragraph's own `<w:spacing>` — the DIRECT formatting, distinct from the
@@ -1742,6 +1749,8 @@ export class Document {
       // An explicit page break is the author's instruction, not a suggestion —
       // the paginator must not decide it knows better.
       pageBreakBefore: PAGE_BREAK_BEFORE.test(pPr ? pPr[0] : '') || EXPLICIT_BREAK.test(p.xml),
+      keepNext: KEEP_NEXT.test(pPr ? pPr[0] : ''),
+      keepLines: KEEP_LINES.test(pPr ? pPr[0] : ''),
       // Direct paragraph spacing, if the paragraph sets any — the paginator
       // lets it beat the style's spacing, exactly as Word does.
       spacing: readDirectSpacing(pPr ? pPr[0] : ''),

@@ -1657,6 +1657,12 @@ export class DocView {
         spaceAfterPx: b.spacing?.afterPx ?? null,
         structural: b.structural,
         structuralTags: b.structuralTags,
+        // Where the pages fall on screen is the shell's to decide, from what
+        // the author said: an explicit break, a heading kept with what
+        // follows it, a paragraph kept in one piece.
+        ...(b.pageBreakBefore ? { pageBreakBefore: true } : {}),
+        ...(b.keepNext ? { keepNext: true } : {}),
+        ...(b.keepLines ? { keepLines: true } : {}),
         ...(b.inSdt ? { inSdt: true } : {}),
         // Text boxes anchored here, their paragraphs shaped like blocks so the
         // painter draws them with the same code — read-only, no index.

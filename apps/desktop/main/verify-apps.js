@@ -193,6 +193,20 @@ function makeFixtures(dir) {
     })
   );
 
+  // A report of several pages: paragraphs of up to a dozen lines, so some
+  // must cross a page's bottom; headings, which keep with what follows; an
+  // explicit page break; and a table of forty rows, taller than a page.
+  const lorem = 'The northern region grew fastest in absolute terms, and the margin it opened in the spring held through the autumn despite two price changes and a supply interruption that took most of July to clear. ';
+  const report = [{ text: 'The Long Report', style: 'Title' }];
+  for (let i = 0; i < 30; i++) {
+    if (i % 6 === 0) report.push({ text: `Section ${i / 6 + 1}`, style: 'Heading1' });
+    report.push({ text: lorem.repeat(1 + ((i * 7) % 5)) + `(${i + 1})`, align: 'justify' });
+  }
+  report.push({ text: 'Starts a fresh page.', pageBreakBefore: true });
+  report.push({ table: { rows: Array.from({ length: 40 }, (_, r) => [`Row ${r + 1}`, `Item ${r + 1}`, String((r + 1) * 12)]), header: true } });
+  for (let i = 0; i < 12; i++) report.push({ text: lorem.repeat(1 + (i % 4)) });
+  fs.writeFileSync(at('long.docx'), buildDocx({ styles: true, paragraphs: report }));
+
   fs.writeFileSync(at('tone.wav'), buildWav());
 
   // A README with the parts that usually get lost: a task list, a fenced
@@ -221,6 +235,7 @@ function makeFixtures(dir) {
   return {
     accounts: at('accounts.json'),
     docx: at('report.docx'),
+    long: at('long.docx'),
     xlsx: at('sales.xlsx'),
     pptx: at('deck.pptx'),
     wav: at('tone.wav'),
@@ -352,6 +367,136 @@ export async function verifyApps({ windows, doc }) {
   const errorsIn = (win) =>
     win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent)`);
 
+  const done = async () => {
+    clearInterval(lagTimer);
+    await printProfile();
+    closingPhase.value = true;
+    for (const win of opened) if (!win.isDestroyed()) win.destroy();
+    fs.rmSync(dir, { recursive: true, force: true });
+
+    const failed = results.filter((r) => !r.ok);
+    console.log(`\n${results.length - failed.length}/${results.length} application checks passed`);
+    return failed.length === 0;
+  };
+
+  /* ── Word: a long document lays out on pages ─────────────────────────── */
+  //
+  // The page used to be one endless sheet: a report ran off the bottom of the
+  // first page and over the desk, and a page break did nothing anyone could
+  // see. The flow is now laid onto sheets by measuring the drawn page. This
+  // opens a document of several pages and reads the layout back: every block
+  // sits inside a page's text area, the explicit break heads a fresh page, a
+  // long paragraph is split at a line and a long table at a row, the status
+  // bar counts the pages, the caret in a split paragraph's second part still
+  // addresses that paragraph's characters, and a page break typed at the
+  // front adds a page.
+  const wordPages = async () => {
+    try {
+      const win = await open('word', files.long);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`document.querySelectorAll('.wd-sheet').length >= 3 && !document.querySelector('.wd-mounting')`), 'the pages to be laid out', 15000);
+      await wait(700);
+      const laid = await js(`(() => {
+        const page = document.querySelector('.wd-page');
+        const sheets = [...page.querySelectorAll('.wd-sheet')];
+        const H = sheets[0].offsetHeight;
+        const P = sheets.length > 1 ? sheets[1].offsetTop - sheets[0].offsetTop : H;
+        const cs = getComputedStyle(page);
+        const mTop = parseFloat(cs.paddingTop);
+        const mBottom = parseFloat(cs.paddingBottom);
+        const flow = [...page.children].filter((el) => /wd-block|wd-table|wd-notes/.test(el.className));
+        const chip = [...document.querySelectorAll('.rw-status .chip')].map((c) => c.textContent).find((t) => /^Page \\d+ of \\d+$/.test(t)) || null;
+        const out = { sheets: sheets.length, blocks: flow.length, outside: [], tall: 0, parts: page.querySelectorAll('.wd-block[data-from]').length, tableParts: page.querySelectorAll('.wd-table[data-row-from]').length, breakAt: null, chip };
+        for (const el of flow) {
+          const top = el.offsetTop;
+          const bottom = top + el.offsetHeight;
+          const p = Math.floor(top / P);
+          const areaTop = p * P + mTop;
+          const areaBottom = p * P + H - mBottom;
+          if (el.dataset.break === '1') out.breakAt = { page: p + 1, top: Math.round(top - areaTop) };
+          if (el.offsetHeight > areaBottom - areaTop) { out.tall += 1; continue; }
+          if (top < areaTop - 1 || bottom > areaBottom + 1) out.outside.push(el.className + '#' + (el.dataset.block || el.dataset.table) + ' ' + Math.round(top) + '-' + Math.round(bottom) + ' on page ' + (p + 1) + ' [' + Math.round(areaTop) + ',' + Math.round(areaBottom) + ']');
+        }
+        return out;
+      })()`);
+      check('word: every block of a long document sits inside a page', laid.outside.length === 0 && laid.sheets >= 3, `${laid.sheets} pages, ${laid.blocks} blocks, ${laid.tall} taller than a page${laid.outside.length ? '; outside: ' + laid.outside.slice(0, 3).join(' | ') : ''}`);
+      check('word: an explicit page break heads a fresh page', Boolean(laid.breakAt) && laid.breakAt.page > 1 && Math.abs(laid.breakAt.top) <= 1, JSON.stringify(laid.breakAt));
+      check('word: a long paragraph splits at a line and a long table at a row', laid.parts >= 1 && laid.tableParts >= 1, `${laid.parts} paragraph part(s), ${laid.tableParts} table part(s)`);
+      check('word: the status bar counts the pages', laid.chip === `Page 1 of ${laid.sheets}`, laid.chip || 'no page chip');
+      if (process.env.RUTBA_VERIFY_CAPTURE) {
+        // Scrolled to the foot of page 1, so the capture shows the gap between two sheets.
+        await js(`document.querySelector('.wd-scroll').scrollTop = document.querySelector('.wd-sheet').offsetHeight - 420`);
+        await wait(400);
+        fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-pages.png'), (await win.webContents.capturePage()).toPNG());
+      }
+
+      // The caret at the head of a split paragraph's second part: a character
+      // typed there lands at that part's offset in the engine's paragraph.
+      const where = await js(`(() => {
+        const page = document.querySelector('.wd-page');
+        const part = page.querySelector('.wd-block[data-from]');
+        if (!part) return null;
+        const node = document.createTreeWalker(part, NodeFilter.SHOW_TEXT).nextNode();
+        page.focus();
+        const range = document.createRange();
+        range.setStart(node, 0);
+        range.collapse(true);
+        const sel = getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+        page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        return { block: Number(part.dataset.block), from: Number(part.dataset.from) };
+      })()`);
+      const name = "word: the caret in a split paragraph's second part addresses its own characters";
+      if (where) {
+        await wait(300);
+        win.webContents.insertText('Ω');
+        const session = sessionFor('doc');
+        await until(() => ((doc.model({ id: session.id }).blocks[where.block] || {}).text || '').includes('Ω'), 'the character to land', 4000);
+        const text = doc.model({ id: session.id }).blocks[where.block].text || '';
+        check(name, text.indexOf('Ω') === where.from, `landed at ${text.indexOf('Ω')}; the part starts at ${where.from}`);
+      } else check(name, false, 'no split paragraph to type into');
+
+      // A page break inserted at the front makes one more page.
+      const before = await js(`document.querySelectorAll('.wd-sheet').length`);
+      await js(`(() => {
+        const page = document.querySelector('.wd-page');
+        const block = page.querySelector('[data-block="0"]');
+        page.focus();
+        const r = document.createRange();
+        r.selectNodeContents(block);
+        r.collapse(true);
+        const s = getSelection();
+        s.removeAllRanges();
+        s.addRange(r);
+        page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        return 1;
+      })()`);
+      await wait(250);
+      await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => /^Page Break$/i.test(b.textContent.trim())))`), 'the Insert tab', 4000);
+      await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => /^Page Break$/i.test(b.textContent.trim())).click(); return 1; })()`);
+      await until(() => js(`document.querySelectorAll('.wd-sheet').length === ${before + 1}`), 'one more page', 6000).catch(() => {});
+      await wait(300);
+      const after = await js(`({
+        sheets: document.querySelectorAll('.wd-sheet').length,
+        chip: [...document.querySelectorAll('.rw-status .chip')].map((c) => c.textContent).find((t) => /^Page \\d+ of \\d+$/.test(t)) || null,
+        breaks: [...document.querySelectorAll('[data-break]')].map((e) => e.dataset.block + '@' + Math.round(e.getBoundingClientRect().top - document.querySelector('.wd-page').getBoundingClientRect().top)),
+        toasts: [...document.querySelectorAll('.rw-toast')].map((t) => t.textContent.slice(0, 80)),
+      })`);
+      const heads = doc.model({ id: sessionFor('doc').id }).blocks.slice(0, 3).map((b) => `${b.index}:${b.pageBreakBefore ? 'break ' : ''}${JSON.stringify((b.text || '').slice(0, 14))}`);
+      check('word: a page break typed at the front adds a page', after.sheets === before + 1 && (after.chip === `Page 2 of ${before + 1}` || after.chip === `Page 1 of ${before + 1}`), `${before} → ${after.sheets} pages, chip ${after.chip}; breaks at ${after.breaks.join(' ')}; blocks ${heads.join(' ')}${after.toasts.length ? '; toasts: ' + after.toasts.join(' | ') : ''}`);
+    } catch (err) {
+      check('word: the pages check ran', false, err.message);
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages: that block alone, for working on it.
+  if (process.env.RUTBA_VERIFY_ONLY === 'pages') {
+    await wordPages();
+    return done();
+  }
+
   /* ── A broken file gets a sentence, not a blank window ───────────────── */
   //
   // A truncated deck made the Presentation window throw "rendered fewer
@@ -429,6 +574,8 @@ export async function verifyApps({ windows, doc }) {
   } catch (err) {
     check('word: the round trip ran', false, err.message);
   }
+
+  await wordPages();
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */
 
@@ -2517,13 +2664,5 @@ export async function verifyApps({ windows, doc }) {
     check('word: the dirty-close check ran', false, err.message);
   }
 
-  clearInterval(lagTimer);
-  await printProfile();
-  closingPhase.value = true;
-  for (const win of opened) if (!win.isDestroyed()) win.destroy();
-  fs.rmSync(dir, { recursive: true, force: true });
-
-  const failed = results.filter((r) => !r.ok);
-  console.log(`\n${results.length - failed.length}/${results.length} application checks passed`);
-  return failed.length === 0;
+  return done();
 }
