@@ -820,7 +820,7 @@ export default function Word({ app, shell, boot }) {
 
   if (error) {
     return (
-      <AppFrame app={app} shell={shell} title="Word" menu={appMenu}>
+      <AppFrame app={app} shell={shell} title="Rutba Word" menu={appMenu}>
         <Empty icon="word" title="This file could not be opened">{error}</Empty>
       </AppFrame>
     );
@@ -830,7 +830,7 @@ export default function Word({ app, shell, boot }) {
     <AppFrame
       app={app}
       shell={shell}
-      title={doc?.name || 'Word'}
+      title={doc?.name || 'Rutba Word'}
       subtitle={doc?.converted ? `from ${doc.converted.from.toUpperCase()}` : null}
       dirty={doc?.dirty}
       menu={appMenu}

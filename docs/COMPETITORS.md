@@ -77,7 +77,7 @@ this, and the 180-pixel image is the sender's own logo"*. See
 
 ---
 
-## Word
+## Rutba Word
 
 Against **Microsoft Word**, **LibreOffice Writer**, **OnlyOffice**, **Google Docs**.
 

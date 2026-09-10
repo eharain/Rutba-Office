@@ -57,6 +57,40 @@ function resolveTarget(fromPart, target) {
   return out.join('/');
 }
 
+/**
+ * The spTree's top-level children in drawing order, each with its XML range
+ * and its id. Bottom first: the tree draws in order, so the last child is on
+ * top. A group counts as one child; the shapes inside it are its own affair.
+ */
+function topLevelShapes(xml) {
+  const start = xml.indexOf('<p:spTree');
+  const end = xml.lastIndexOf('</p:spTree>');
+  if (start < 0 || end < 0) return [];
+  const re = /<(\/?)p:(sp|pic|graphicFrame|cxnSp|grpSp)\b[^>]*?(\/?)>/g;
+  re.lastIndex = start;
+  const out = [];
+  const stack = [];
+  let m;
+  while ((m = re.exec(xml)) && m.index < end) {
+    const closing = m[1] === '/';
+    if (!closing) {
+      if (m[3] === '/') {
+        if (!stack.length) out.push({ tag: m[2], start: m.index, end: m.index + m[0].length, id: null });
+        continue;
+      }
+      stack.push({ tag: m[2], start: m.index });
+      continue;
+    }
+    const open = stack.pop();
+    if (!open) continue;
+    if (!stack.length) {
+      const id = /<p:cNvPr\b[^>]*\bid="([^"]+)"/.exec(xml.slice(open.start, m.index))?.[1] ?? null;
+      out.push({ tag: open.tag, start: open.start, end: m.index + m[0].length, id });
+    }
+  }
+  return out;
+}
+
 class Theme {
   constructor(xml, clrMap) {
     this.colors = {};
@@ -441,6 +475,119 @@ export class Deck {
     return true;
   }
 
+  /**
+   * Move a shape in the drawing order — bring forward, send backward, to the
+   * front, to the back. The spTree draws its children in order, so the order
+   * IS the layering: the shape's XML moves among its siblings, nothing else.
+   */
+  reorderShape(slideIndex, shapeId, to) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const shapes = topLevelShapes(xml);
+    const i = shapes.findIndex((s) => String(s.id) === String(shapeId));
+    if (i < 0) throw new Error(`shape ${shapeId} not found`);
+    const j = to === 'front' ? shapes.length - 1
+      : to === 'back' ? 0
+        : to === 'forward' ? Math.min(shapes.length - 1, i + 1)
+          : to === 'backward' ? Math.max(0, i - 1)
+            : i;
+    if (j === i) return false;
+    const order = shapes.slice();
+    const [moved] = order.splice(i, 1);
+    order.splice(j, 0, moved);
+    const head = xml.slice(0, shapes[0].start);
+    const tail = xml.slice(shapes[shapes.length - 1].end);
+    this.#writeSlide(part, head + order.map((s) => xml.slice(s.start, s.end)).join('') + tail);
+    return true;
+  }
+
+  /** Hide a shape, or show it again — the selection pane's eye. It stays in the file, undrawn. */
+  setShapeHidden(slideIndex, shapeId, hidden) {
+    return this.#editShapeProps(slideIndex, shapeId, (open) => {
+      const cleaned = open.replace(/\s+hidden="[^"]*"/, '');
+      return hidden ? cleaned.replace(/\/?>$/, (m) => ` hidden="1"${m}`) : cleaned;
+    });
+  }
+
+  /** Give a shape the name the selection pane shows — and PowerPoint keeps. */
+  renameShape(slideIndex, shapeId, name) {
+    const safe = escapeXml(String(name ?? '').trim() || `Shape ${shapeId}`);
+    return this.#editShapeProps(slideIndex, shapeId, (open) => (
+      /\sname="/.test(open) ? open.replace(/\sname="[^"]*"/, ` name="${safe}"`) : open.replace(/\/?>$/, (m) => ` name="${safe}"${m}`)
+    ));
+  }
+
+  /** Rewrite the opening tag of a shape's own p:cNvPr. */
+  #editShapeProps(slideIndex, shapeId, edit) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const re = new RegExp(`<p:cNvPr\\b[^>]*\\bid="${String(shapeId).replace(/[^\w-]/g, '')}"[^>]*>`);
+    const m = re.exec(xml);
+    if (!m) throw new Error(`shape ${shapeId} not found`);
+    const next = edit(m[0]);
+    if (next === m[0]) return false;
+    this.#writeSlide(part, xml.slice(0, m.index) + next + xml.slice(m.index + m[0].length));
+    return true;
+  }
+
+  /** The layout part a slide uses. */
+  layoutOf(slideIndex) {
+    const part = this.slideParts[slideIndex]?.part;
+    return part ? this.#layoutFor(part) : null;
+  }
+
+  /**
+   * The deck's layouts, in part order: the name PowerPoint shows, the type,
+   * and each placeholder as a box — a placeholder that states no geometry
+   * of its own takes the master's — which is enough to draw the gallery.
+   */
+  layoutList() {
+    const parts = (this.pkg.partNames() || [])
+      .filter((p) => /^ppt\/slideLayouts\/slideLayout\d+\.xml$/.test(p))
+      .sort((a, b) => Number(/(\d+)\.xml$/.exec(a)[1]) - Number(/(\d+)\.xml$/.exec(b)[1]));
+    return parts.map((part) => {
+      const xml = this.pkg.text(part);
+      const name = unescapeXml(/<p:cSld\b[^>]*\bname="([^"]*)"/.exec(xml)?.[1] || part.split('/').pop());
+      const type = /<p:sldLayout\b[^>]*\btype="([^"]*)"/.exec(xml)?.[1] || null;
+      const masterPart = this.#masterFor(part);
+      const theme = this.#themeFor(masterPart);
+      const masterPh = this.#placeholders(masterPart, theme);
+      const placeholders = [];
+      for (const s of readSlideScene(xml, { theme }).shapes) {
+        if (!s.placeholder) continue;
+        const kind = s.placeholder.type || 'body';
+        const inherited = (s.placeholder.idx != null ? masterPh.get(`idx:${s.placeholder.idx}`) : null) || masterPh.get(`type:${kind}`);
+        const geometry = s.geometry || inherited?.geometry || null;
+        if (geometry) placeholders.push({ type: kind, geometry });
+      }
+      return { part, name, type, placeholders };
+    });
+  }
+
+  /**
+   * Put a slide on another of the deck's layouts. Its placeholders then
+   * inherit that layout's geometry and text style wherever they state none
+   * of their own — which is what PowerPoint's Layout gallery does.
+   */
+  applyLayout(slideIndex, layoutPart) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (!/^ppt\/slideLayouts\/slideLayout\d+\.xml$/.test(layoutPart) || !this.pkg.has(layoutPart)) throw new Error(`no layout ${layoutPart} in this deck`);
+    const relsPath = part.replace(/([^/]+)$/, '_rels/$1.rels');
+    const rels = this.pkg.text(relsPath);
+    const target = `../slideLayouts/${layoutPart.split('/').pop()}`;
+    const next = rels.replace(/<Relationship\b[^>]*>/g, (el) => (/\bType="[^"]*\/slideLayout"/.test(el) ? el.replace(/\bTarget="[^"]*"/, `Target="${target}"`) : el));
+    if (next === rels) throw new Error('this slide has no layout to change');
+    this.pkg.write_(relsPath, Buffer.from(next, 'utf8'));
+    // The scene cache is keyed on the slide's XML, which this leaves as it
+    // was; the scene it holds was built on the old layout.
+    this._scenes.delete(part);
+    this.dirty = true;
+    return true;
+  }
+
   /** Append a text box, which is how the editor adds new content. */
   addTextBox(slideIndex, { x, y, w, h, paragraphs, name = 'TextBox' }) {
     const part = this.slideParts[slideIndex]?.part;
@@ -626,8 +773,9 @@ export class Deck {
     // The layout of the slide we are inserting after, or of the first slide, or
     // — for a deck with no slides at all — whatever layout part exists.
     const neighbour = this.slideParts[after] || this.slideParts[0] || null;
-    let layoutTarget = null;
-    if (neighbour) {
+    // The gallery names a layout; otherwise the neighbour's is borrowed.
+    let layoutTarget = spec.layoutPart && this.pkg.has(spec.layoutPart) ? `../slideLayouts/${spec.layoutPart.split('/').pop()}` : null;
+    if (!layoutTarget && neighbour) {
       for (const r of this.pkg.rels(neighbour.part) || []) {
         if (r.type === REL.layout) layoutTarget = r.target;
       }

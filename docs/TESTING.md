@@ -45,6 +45,11 @@ mistake, and they never take the keyboard from you. Set
 `RUTBA_WINDOW_DISPLAY=secondary` to watch a run on a second display
 instead. `RUTBA_SMOKE_THEME=dark npm run smoke` photographs every window
 in the dark theme, which is how a change to the look is checked in both.
+`RUTBA_VERIFY_ONLY=pages,grips,panes npm run verify:apps` runs only the
+named blocks of application checks — the ones for a feature being worked
+on, in seconds rather than minutes — and `RUTBA_VERIFY_CAPTURE=<dir>`
+makes those blocks photograph the window at the moment that matters (a
+page boundary in Rutba Word, each of Presentation's panes).
 
 ## When the main process is late
 
@@ -66,7 +71,7 @@ checks open (a fixed pause stood there before, and a loaded machine beat it):
 
 | App | The element | Refusal |
 | :-- | :-- | :-- |
-| Word | a paragraph block on the page | "This file could not be opened", with the engine's reason |
+| Rutba Word | a paragraph block on the page | "This file could not be opened", with the engine's reason |
 | Worksheets | the cell layer | same |
 | Presentation | a slide thumbnail or the slide | same |
 | Pictures | the picture decoded (`naturalWidth`), the PDF frame, or the media element with its metadata | same |
@@ -219,7 +224,7 @@ and each has caught something the gate cannot:
 2. **The install test.** `tools/install-test.ps1 -Installer <the setup exe>
    -Label <version>` installs silently, checks the registered copy, the
    icon behind every file type, the tiles unpacked beside the archive, and
-   that the installed copy opens a Word window from `--app=word` in a
+   that the installed copy opens a Rutba Word window from `--app=word` in a
    profile of its own, off the desktop. When it does not, the script prints
    what the copy showed instead — the text of an "Error" box included — and
    exits 3. It refuses to install over a running copy (exit 2).

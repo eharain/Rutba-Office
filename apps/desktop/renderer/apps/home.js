@@ -26,7 +26,7 @@ function AppCard({ app, onOpen, onNew }) {
         </span>
       </button>
       {onNew ? (
-        <button type="button" className="home-card-new" onClick={onNew} title={`New ${app.short.toLowerCase()}`}>
+        <button type="button" className="home-card-new" onClick={onNew} title={`New ${app.short.replace(/^Rutba /, '').toLowerCase()}`}>
           <Icon name="plus" size={14} />
         </button>
       ) : null}

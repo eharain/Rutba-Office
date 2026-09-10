@@ -35,7 +35,7 @@ const KIND_FOR_APP = { word: 'doc', sheets: 'sheet', slides: 'deck' };
 
 /** What each kind is called, and the app that opens it, for a window given the wrong one. */
 const KIND_LABEL = { doc: 'a document', sheet: 'a workbook', deck: 'a presentation' };
-const KIND_APP = { doc: 'Word', sheet: 'Worksheets', deck: 'Presentation' };
+const KIND_APP = { doc: 'Rutba Word', sheet: 'Worksheets', deck: 'Presentation' };
 
 /**
  * The formats each kind can be written out as, besides its own.
@@ -777,6 +777,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       index,
       size: deck.size,
       outline: deck.outline().map((o) => ({ ...o, thumbnail: thumbnailOf(o, Math.abs(o.index - index) <= 2) })),
+      // The deck's layouts, for the Designs pane. Read once: nothing edits
+      // a layout, and reading them draws every placeholder of every one.
+      layouts: (session.layouts ||= safely(() => deck.layoutList()) || []),
 
       slide: current
         ? {
@@ -786,6 +789,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
               id: s.id,
               kind: s.kind,
               name: s.name,
+              hidden: Boolean(s.hidden),
               geometry: s.geometry,
               placeholder: s.placeholder,
               text: (s.text || s.inheritedText)
@@ -937,6 +941,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     addPicture: (d, a) => d.addPicture(a.slide, picturePlacement(d, a)),
     // A preset shape in the theme's colours; the ribbon picks the preset.
     addShape: (d, a) => d.addShape(a.slide, a),
+    // The Layers pane's verbs: the drawing order, a shape hidden or shown, a name.
+    reorderShape: (d, a) => d.reorderShape(a.slide, a.shape, a.to),
+    setShapeHidden: (d, a) => d.setShapeHidden(a.slide, a.shape, Boolean(a.hidden)),
+    renameShape: (d, a) => d.renameShape(a.slide, a.shape, a.name),
+    // The Designs pane: this slide on another of the deck's layouts.
+    applyLayout: (d, a) => d.applyLayout(a.slide, a.layout),
 
   };
 

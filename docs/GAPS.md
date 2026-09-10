@@ -35,7 +35,7 @@ a suite.
 
 ---
 
-## 1. Word — the document
+## 1. Rutba Word — the document
 
 Reads more than it writes. What it draws faithfully and cannot yet produce:
 
@@ -43,8 +43,12 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   text does not wrap round it. Position, Wrap Text, Align, Group, the
   selection pane and z-order all wait on this one thing.
 - **Columns and section control.** `w:cols` is read and not honoured: the
-  paginator lays one column. Manual page breaks, line numbers, hyphenation
-  and page borders are the same story.
+  paginator lays one column. Line numbers, hyphenation and page borders are
+  the same story. (Pages themselves arrived on screen on 2026-09-10: the
+  flow is laid onto sheets by measuring the drawn page, paragraphs split at
+  a line and tables at a row, and a manual page break heads a fresh page.
+  Footnotes still sit at the end of the document on screen, and a block
+  taller than a page runs into the gap rather than being cut.)
 - **Fields.** Bookmarks, cross-references, captions, an index, a table of
   authorities, citations and a bibliography, `SEQ`, `PAGE` outside the
   header — none are written, so the table of contents this suite inserts is
@@ -105,9 +109,12 @@ document and workbook writers.
   each; video, audio, SmartArt and a hyperlink are named and boxed. None
   can be inserted.
 - **The master and layouts.** Masters and layouts are read and inherited
-  from; editing them, swapping a theme, changing an existing slide's layout,
-  background styles, headers and footers, slide numbers and date fields all
-  need the writer to reach the master.
+  from, and since 2026-09-10 the Designs pane puts an existing slide on
+  another of the deck's layouts and starts a new slide from one; editing
+  them, swapping a theme, background styles, headers and footers, slide
+  numbers and date fields all need the writer to reach the master. The
+  Layers pane of the same day gives the drawing order, hiding and naming;
+  grouping and alignment across shapes are still to come.
 - **Structure**: sections, hidden slides, custom shows, saving as a show.
 - **The show**: recorded narration and timings, transitions and animations
   as anything but ribbon tabs, export to video.

@@ -491,9 +491,131 @@ export async function verifyApps({ windows, doc }) {
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages: that block alone, for working on it.
-  if (process.env.RUTBA_VERIFY_ONLY === 'pages') {
-    await wordPages();
+  /* ── Worksheets: drag a heading's edge to resize ─────────────────────── */
+  //
+  // "Column resizing did not work for me": there was nothing to drag. The
+  // edge of a column or row heading is now a handle. This drags column B's
+  // by sixty pixels and row 2's by fifteen, with real pointer events, and
+  // reads the sizes back from the engine.
+  const sheetGrips = async () => {
+    try {
+      const win = await open('sheets', files.xlsx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const wc = win.webContents;
+      const widths = () => (doc.model({ id: sessionFor('sheet').id }).columns || []).map((c) => c.width);
+      const heights = () => (doc.model({ id: sessionFor('sheet').id }).rows || []).map((r) => r.height);
+      const drag = async (selector, dx, dy) => {
+        const at = await js(`(() => { const r = document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect(); return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : null; })()`);
+        if (!at) throw new Error(`no handle at ${selector}`);
+        const x = Math.round(at.x);
+        const y = Math.round(at.y);
+        wc.sendInputEvent({ type: 'mouseMove', x, y });
+        wc.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
+        await wait(60);
+        for (const f of [0.3, 0.6, 1]) {
+          wc.sendInputEvent({ type: 'mouseMove', x: Math.round(x + dx * f), y: Math.round(y + dy * f), button: 'left' });
+          await wait(40);
+        }
+        wc.sendInputEvent({ type: 'mouseUp', x: x + dx, y: y + dy, button: 'left', clickCount: 1 });
+        await wait(400);
+      };
+
+      await until(() => js(`Boolean(document.querySelector('.sh-colheads .sh-head:nth-child(2) .sh-grip.col'))`), 'the column handles', 6000);
+      const w0 = widths()[1];
+      await drag('.sh-colheads .sh-head:nth-child(2) .sh-grip.col', 60, 0);
+      const w1 = widths()[1];
+      check('sheets: dragging a column heading\'s edge resizes the column', Math.abs(w1 - (w0 + 60)) <= 2, `B went ${w0} → ${w1} px`);
+
+      const h0 = heights()[1];
+      await drag('.sh-rowheads .sh-head:nth-child(2) .sh-grip.row', 0, 15);
+      const h1 = heights()[1];
+      check('sheets: dragging a row heading\'s edge resizes the row', Math.abs(h1 - (h0 + 15)) <= 2, `row 2 went ${h0} → ${h1} px`);
+
+      const guide = await js(`document.querySelectorAll('.sh-guide').length`);
+      check('sheets: the guide line goes when the drag ends', guide === 0, `${guide} guide(s) left`);
+      const complaints = await errorsIn(win);
+      check('sheets: resizing reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('sheets: the resize check ran', false, err.message);
+    }
+  };
+
+  /* ── Presentation: the Layers and Designs panes ──────────────────────── */
+  //
+  // Two panes on the right, opened from the View tab: the slide's shapes as
+  // layers (select, reorder, hide, rename) and the deck's layouts as a
+  // gallery (put this slide on one, or start a new slide from it). Each verb
+  // is driven through the pane and read back from the engine.
+  const slidePanes = async () => {
+    try {
+      const win = await open('slides', files.pptx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
+      const tab = async (name) => {
+        await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(); return 1; })()`);
+        await wait(200);
+      };
+      const button = async (label) => {
+        await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} button`, 4000);
+        await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}).click(); return 1; })()`);
+        await wait(250);
+      };
+
+      await tab('View');
+      await button('Layers');
+      await until(() => js(`document.querySelectorAll('.sl-layer').length > 0`), 'the layer rows', 5000);
+      const shapes = model().slide.shapes;
+      const rows = await js(`[...document.querySelectorAll('.sl-layer')].map((r) => r.dataset.shape)`);
+      check('slides: the Layers pane lists the slide\'s shapes, top-most first', rows.length === shapes.length && rows[0] === String(shapes[shapes.length - 1].id), `rows ${rows.join(',')}; shapes ${shapes.map((s) => s.id).join(',')}`);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-layers.png'), (await win.webContents.capturePage()).toPNG());
+
+      // The bottom-most shape, selected in the pane, brought to the front.
+      const bottom = String(shapes[0].id);
+      await js(`(() => { [...document.querySelectorAll('.sl-layer')].find((r) => r.dataset.shape === ${JSON.stringify(bottom)}).click(); return 1; })()`);
+      await until(() => js(`document.querySelector('.sl-layer.active')?.dataset.shape === ${JSON.stringify(bottom)}`), 'the row to select', 3000);
+      await js(`(() => { [...document.querySelectorAll('.sl-layers-tools .rw-btn')].find((b) => b.textContent.trim() === 'Front').click(); return 1; })()`);
+      await until(() => String(model().slide.shapes.slice(-1)[0].id) === bottom, 'the shape to come to the front', 4000);
+      const order = model().slide.shapes.map((s) => String(s.id));
+      check('slides: Front brings the selected shape to the top of the drawing order', order[order.length - 1] === bottom, `order is now ${order.join(',')}`);
+
+      // The eye hides it: the engine says hidden, the row says off.
+      await js(`(() => { document.querySelector('.sl-layer[data-shape=' + JSON.stringify(${JSON.stringify(bottom)}) + '] .sl-eye').click(); return 1; })()`);
+      await until(() => model().slide.shapes.find((s) => String(s.id) === bottom)?.hidden === true, 'the shape to hide', 4000);
+      // The engine answers before the window has painted the answer.
+      const off = await until(() => js(`document.querySelector('.sl-layer[data-shape=' + JSON.stringify(${JSON.stringify(bottom)}) + ']').classList.contains('off')`), 'the row to say hidden', 4000).catch(() => false);
+      check('slides: the eye hides a shape, and the engine and the row agree', off === true, off ? 'hidden' : 'the row does not say so');
+
+      // Designs: the deck's two layouts; the other one, applied.
+      await button('Designs');
+      await until(() => js(`document.querySelectorAll('.sl-design').length > 0`), 'the layout cards', 5000);
+      const cards = await js(`[...document.querySelectorAll('.sl-design')].map((c) => ({ part: c.dataset.layout, active: c.classList.contains('active'), name: c.querySelector('.sl-design-name')?.textContent }))`);
+      const current = model().slide.layout;
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-designs.png'), (await win.webContents.capturePage()).toPNG());
+      check('slides: the Designs pane shows the deck\'s layouts with this slide\'s marked', cards.length === 2 && cards.filter((c) => c.active).length === 1 && cards.find((c) => c.active)?.part === current, JSON.stringify(cards));
+      const other = cards.find((c) => !c.active);
+      if (other) {
+        await js(`(() => { document.querySelector('.sl-design[data-layout=' + JSON.stringify(${JSON.stringify(other.part)}) + ']').click(); return 1; })()`);
+        await until(() => model().slide.layout === other.part, 'the layout to apply', 4000);
+        const marked = await until(() => js(`document.querySelector('.sl-design.active')?.dataset.layout === ${JSON.stringify(other.part)}`), 'the card to be marked', 4000).catch(() => false);
+        check('slides: clicking a layout puts the slide on it', model().slide.layout === other.part && marked === true, `now on ${other.name}${marked ? '' : ', but the card is not marked'}`);
+        const count = model().count;
+        await js(`(() => { document.querySelector('.sl-design[data-layout=' + JSON.stringify(${JSON.stringify(other.part)}) + '] .sl-design-new').click(); return 1; })()`);
+        await until(() => model().count === count + 1, 'a new slide', 4000);
+        check('slides: New starts a slide on that layout', model().count === count + 1 && doc.model({ id: sessionFor('deck').id, slide: 1 }).slide.layout === other.part, `${count} → ${model().count} slides`);
+      } else check('slides: clicking a layout puts the slide on it', false, 'no other layout to click');
+      const complaints = await errorsIn(win);
+      check('slides: the panes report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('slides: the panes check ran', false, err.message);
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes: those blocks alone, for working on them.
+  const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
+  if (only.length) {
+    if (only.includes('pages')) await wordPages();
+    if (only.includes('grips')) await sheetGrips();
+    if (only.includes('panes')) await slidePanes();
     return done();
   }
 
@@ -576,6 +698,8 @@ export async function verifyApps({ windows, doc }) {
   }
 
   await wordPages();
+  await sheetGrips();
+  await slidePanes();
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */
 

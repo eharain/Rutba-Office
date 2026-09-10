@@ -12,7 +12,7 @@ with the network switched off.
 | **Mail** | Every account, every archive, one inbox | An address and a password — the servers are found from the domain's own records — with sign-in to Gmail, Outlook.com and Microsoft 365, or a file of accounts set up at once; plus the archives other clients leave behind — Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg`. Names the trackers in a message, and offers the way off the list |
 | **Calendar** | Meetings, kept on your own machine | Month, week, day and agenda; `.ics` in and out, repeats and time zones included; an invitation in a message answered from Mail, with a reply the organizer's calendar understands |
 | **Contacts** | The address book Mail completes from | `.vcf` and CSV in, vCards out; a sender kept from the reading pane in one click |
-| **Word** | Documents that open the same everywhere | `.docx` on an engine we own, reading `.odt`, `.rtf`, `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
+| **Rutba Word** | Documents that open the same everywhere, laid out on pages | `.docx` on an engine we own, reading `.odt`, `.rtf`, `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.ods` and `.csv` |
 | **Presentation** | Slides that survive the round trip | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen |
 
@@ -91,7 +91,7 @@ Once Rutba Office is the default, each kind of file wears the icon of the
 app that opens it — a document, a workbook, a deck, a picture, a video, a
 message and a PDF each look like what they are in Explorer — and on
 Windows each app's windows carry that app's tile and sit under their own
-taskbar icon, so Word and Worksheets can be pinned and opened on their own.
+taskbar icon, so Rutba Word and Worksheets can be pinned and opened on their own.
 
 
 ### What the website links to
@@ -119,7 +119,7 @@ installations on the version they have.
 git clone https://github.com/eharain/Rutba-Office.git office
 cd office
 npm install
-npm test          # 696 tests, no network needed
+npm test          # 704 tests, no network needed
 npm run build     # bundle the renderer
 npm start         # run the app
 npm run dist      # installers for this platform, into apps/desktop/release
@@ -280,7 +280,7 @@ Other things worth reading:
 
 ```bash
 npm run gate            # all four passes, in the order that finds problems soonest
-npm test                # the engine suite — 696 checks, no windows
+npm test                # the engine suite — 704 checks, no windows
 npm run verify:edit     # do keystrokes reach the document?
 npm run verify:apps     # does each app open, change and save a real file?
 npm run smoke           # boot the real app, photograph every window, report
@@ -289,8 +289,8 @@ RUTBA_CORPUS_DIRS="D:\docs" npm run verify:corpus   # open every file in a folde
 node tools/fuzz-open.js 500                         # damage good files at random; every one must draw or refuse in a sentence
 ```
 
-`npm run gate` is what runs before a release: 696 engine tests, 9 editing checks,
-165 application checks — most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard — and 10 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about two and a half minutes.
+`npm run gate` is what runs before a release: 704 engine tests, 9 editing checks,
+182 application checks — most of them pressing the real ribbon buttons and reading what the page paints, a block of them driving the actual mouse and keyboard — and 10 window captures. The windows sit off the desktop, so a run never gets in your way and you cannot close it by mistake; it takes about two and a half minutes.
 
 The engine suite includes `tests/rich-fixtures.test.js`, which opens a workbook, a document and a deck that Excel, Word and PowerPoint themselves wrote — charts, shapes, pictures, cross-sheet formulas, names, number formats, notes, footnotes, tracked changes, fields, a watermark — and holds the engine to Excel's own results. `tools/make-rich-fixtures.ps1` regenerates them on a machine with Office; docs/TESTING.md says what they hold and what they found.
 

@@ -164,6 +164,13 @@ export default function SlidesRibbon({
             <Button tall icon="shape" label="Shapes" title="Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
 
             <Button tall icon="grid" label="Arrange" onClick={(e) => menu.open(e, [
+              { label: 'Bring to front', icon: 'chevronUp', run: () => act('order', 'front') },
+              { label: 'Bring forward', run: () => act('order', 'forward') },
+              { label: 'Send backward', run: () => act('order', 'backward') },
+              { label: 'Send to back', icon: 'chevronDown', run: () => act('order', 'back') },
+              '-',
+              { label: 'Selection pane (layers)', icon: 'list', run: () => act('pane', 'layers') },
+              '-',
               { label: 'Delete shape', icon: 'trash', run: () => act('deleteShape') },
               { label: 'Move up (nudge)', run: () => act('nudge', { dy: -8 }) },
               { label: 'Move down (nudge)', run: () => act('nudge', { dy: 8 }) },
@@ -289,6 +296,7 @@ export default function SlidesRibbon({
             <Soon icon="picture" label="Background Styles" why="A slide background is cSld/bg the deck writer does not write yet." />
           </Group>
           <Group label="Slides">
+            <Button tall icon="grid" label="Layouts" pressed={view.pane === 'designs'} title="The deck's layouts in a pane — put this slide on one, or start a new slide from it" onClick={() => act('pane', 'designs')} />
             <Button tall icon="slides" label="Layout" title="A new slide with this layout, after the current one" onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
             <Button
               tall
@@ -464,6 +472,8 @@ export default function SlidesRibbon({
             <Button icon="grid" label="Gridlines" pressed={Boolean(view.gridlines)} onClick={() => act('toggle', 'gridlines')} />
             <Button icon="plus" label="Guides" pressed={Boolean(view.guides)} onClick={() => act('toggle', 'guides')} />
             <Button icon="word" label="Notes" pressed={view.notes !== false} title="The notes strip under the slide" onClick={() => act('toggle', 'notes')} />
+            <Button icon="list" label="Layers" pressed={view.pane === 'layers'} title="The slide's shapes as layers — select, reorder, hide, rename" onClick={() => act('pane', 'layers')} />
+            <Button icon="grid" label="Designs" pressed={view.pane === 'designs'} title="The deck's layouts — put this slide on one, or start a new slide from it" onClick={() => act('pane', 'designs')} />
           </Group>
           <Group label="Direction">
             <Soon icon="rotate" label="View Direction" why="Right-to-left layout is not built." />

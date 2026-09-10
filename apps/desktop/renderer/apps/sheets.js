@@ -62,6 +62,10 @@ export default function Sheets({ app, shell, boot }) {
   // Which of the ribbon's dialogs is open, by name. One piece of state rather
   // than seven booleans, because only one of them can be open at a time.
   const [dialog, setDialog] = useState(null);
+  // A column or row being resized by its heading's edge: which one, and the
+  // size the pointer has dragged it to — drawn as a guide line until the
+  // button is released and the engine is told.
+  const [resizing, setResizing] = useState(null);
   /**
    * How the grid is shown. None of it is in the workbook: gridlines,
    * headings and the formula bar are Excel's View toggles, "show formulas"
@@ -491,6 +495,46 @@ export default function Sheets({ app, shell, boot }) {
    * column's x and every visible row's y, which is enough to say which cell
    * that was. Without this, clicking an empty cell did nothing at all.
    */
+  /**
+   * Drag the edge of a column or row heading to resize it — Excel's way, and
+   * the first thing anyone tries. The guide follows the pointer; the engine
+   * is told once, on release. A double-click on a column's edge fits it to
+   * its widest text; on a row's, puts the row back to the default height.
+   */
+  const startResize = useCallback(
+    (e, kind, index, size, start) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const origin = kind === 'col' ? e.clientX : e.clientY;
+      const min = kind === 'col' ? 12 : 10;
+      const max = kind === 'col' ? 1200 : 500;
+      let next = size;
+      setResizing({ kind, index, size, start });
+      const move = (ev) => {
+        next = Math.max(min, Math.min(max, Math.round(size + ((kind === 'col' ? ev.clientX : ev.clientY) - origin))));
+        setResizing({ kind, index, size: next, start });
+      };
+      const stop = () => {
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', stop);
+        setResizing(null);
+        if (next !== size) dispatch(kind === 'col' ? { op: 'colWidth', col: index, width: next } : { op: 'rowHeight', row: index, height: next });
+      };
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', stop);
+    },
+    [dispatch]
+  );
+
+  const fitColumn = useCallback(
+    (col) => {
+      const widest = Math.max(0, ...(model?.cells || []).filter((c) => c.col === col && c.text).map((c) => String(c.text).length));
+      dispatch({ op: 'colWidth', col, width: Math.max(40, Math.min(600, Math.round(widest * 7.2 + 14))) });
+    },
+    [dispatch, model]
+  );
+
   const cellAt = (event) => {
     const layer = event.currentTarget;
     const rect = layer.getBoundingClientRect();
@@ -744,6 +788,16 @@ export default function Sheets({ app, shell, boot }) {
                     onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
                   >
                     {c.label || colLabel(c.index)}
+                    <div
+                      className="sh-grip col"
+                      title="Drag to resize the column; double-click to fit its text"
+                      onMouseDown={(e) => startResize(e, 'col', c.index, c.width, c.x)}
+                      onClick={(e) => e.stopPropagation()}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        fitColumn(c.index);
+                      }}
+                    />
                   </div>
                 ))}
               </div>
@@ -758,6 +812,16 @@ export default function Sheets({ app, shell, boot }) {
                     onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertRow', 'sheet.deleteRow']))}
                   >
                     {r.label ?? r.index + 1}
+                    <div
+                      className="sh-grip row"
+                      title="Drag to resize the row; double-click for the default height"
+                      onMouseDown={(e) => startResize(e, 'row', r.index, r.height, r.y)}
+                      onClick={(e) => e.stopPropagation()}
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        dispatch({ op: 'rowHeight', row: r.index, height: 20 });
+                      }}
+                    />
                   </div>
                 ))}
               </div>
@@ -777,6 +841,12 @@ export default function Sheets({ app, shell, boot }) {
                   if (at) dispatch({ op: 'select', row: at.row, col: at.col }, { op: 'beginEdit' });
                 }}
               >
+                {resizing ? (
+                  <div
+                    className={`sh-guide ${resizing.kind}`}
+                    style={resizing.kind === 'col' ? { left: resizing.start + resizing.size, top: 0, height: model.total.height } : { top: resizing.start + resizing.size, left: 0, width: model.total.width }}
+                  />
+                ) : null}
                 {model.cells.map((cell) => (
                   <div
                     key={cell.ref}
@@ -1140,6 +1210,14 @@ const CSS = `
 /* The heading of the active column carries a bar along its edge, the row's likewise. */
 .sh-colheads .sh-head.active { box-shadow: inset 0 -2px 0 var(--accent); }
 .sh-rowheads .sh-head.active { box-shadow: inset -2px 0 0 var(--accent); }
+/* The edge of a heading is a handle: drag it and the column or row follows. */
+.sh-grip { position: absolute; z-index: 4; }
+.sh-grip.col { top: 0; bottom: 0; right: -4px; width: 8px; cursor: col-resize; }
+.sh-grip.row { left: 0; right: 0; bottom: -4px; height: 8px; cursor: row-resize; }
+.sh-grip:hover { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+.sh-guide { position: absolute; z-index: 6; pointer-events: none; background: var(--accent); }
+.sh-guide.col { width: 2px; margin-left: -1px; }
+.sh-guide.row { height: 2px; margin-top: -1px; }
 .sh-cell {
   position: absolute; display: flex; align-items: center; padding: 0 5px;
   border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line-soft);

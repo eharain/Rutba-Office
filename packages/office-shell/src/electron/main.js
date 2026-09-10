@@ -100,7 +100,7 @@ function buildMenu({ send, appName }) {
         { label: 'Home', accelerator: 'CmdOrCtrl+Shift+H', click: cmd('open.app', { app: 'home' }) },
         { type: 'separator' },
         { label: 'Mail', click: cmd('open.app', { app: 'mail' }) },
-        { label: 'Word', click: cmd('open.app', { app: 'word' }) },
+        { label: 'Rutba Word', click: cmd('open.app', { app: 'word' }) },
         { label: 'Worksheets', click: cmd('open.app', { app: 'sheets' }) },
         { label: 'Presentation', click: cmd('open.app', { app: 'slides' }) },
         { label: 'Pictures', click: cmd('open.app', { app: 'pictures' }) },

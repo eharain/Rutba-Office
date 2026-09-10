@@ -40,7 +40,7 @@ export default function Slides({ app, shell, boot }) {
    * rulers, gridlines and guides, whether the notes strip shows, a zoom
    * level (null fits the window), and the colour/greyscale tone.
    */
-  const [view, setView] = useState({ mode: 'normal', ruler: false, gridlines: false, guides: false, notes: true, zoom: null, tone: 'colour' });
+  const [view, setView] = useState({ mode: 'normal', ruler: false, gridlines: false, guides: false, notes: true, zoom: null, tone: 'colour', pane: null });
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
   // The selected shape — one click selects, a double-click edits its words —
   // is what the Font and Paragraph groups act on.
@@ -385,6 +385,30 @@ export default function Slides({ app, shell, boot }) {
       case 'toggle': patchView((v) => ({ [arg]: arg === 'notes' ? v.notes === false : !v[arg] })); return;
       case 'zoom': patchView({ zoom: arg }); return;
       case 'tone': patchView({ tone: arg }); return;
+      // The right-hand pane: Layers (the slide's shapes, in drawing order)
+      // or Designs (the deck's layouts). Asking for the one that is open closes it.
+      case 'pane': patchView((v) => ({ pane: v.pane === arg ? null : arg })); return;
+      case 'order':
+        if (!selectedShape) return;
+        await apply({ op: 'reorderShape', slide: index, shape: selectedShape.id, to: arg });
+        return;
+      case 'hideShape':
+        await apply({ op: 'setShapeHidden', slide: index, shape: arg.id, hidden: arg.hidden });
+        return;
+      case 'renameShape':
+        await apply({ op: 'renameShape', slide: index, shape: arg.id, name: arg.name });
+        return;
+      case 'applyLayout':
+        await apply({ op: 'applyLayout', slide: index, layout: arg });
+        return;
+      case 'newSlideFrom': {
+        // A slide after this one on the chosen layout, with the words a new
+        // slide of that kind starts with.
+        const kind = arg.type === 'title' ? 'title' : arg.type === 'blank' || !arg.placeholders?.length ? 'blank' : 'obj';
+        const next = await apply({ op: 'insertSlide', after: index, layout: kind, layoutPart: arg.part, ...(kind === 'blank' ? {} : { title: 'New slide', body: kind === 'title' ? '' : ['Point one'] }) });
+        if (next) setIndex(Math.min(index + 1, (next.model?.count || index + 2) - 1));
+        return;
+      }
       case 'newWindow':
         if (!doc?.path) return toast('Save the presentation first, so a second window can open the same file.', { ms: 5000 });
         shell.win.create({ app: 'slides', file: doc.path });
@@ -587,7 +611,7 @@ export default function Slides({ app, shell, boot }) {
                   {view.gridlines ? <div className="sl-gridlines" /> : null}
                   {view.guides ? <div className="sl-guides" /> : null}
                   {/* Text boxes get a hit area so a click lands on the shape rather than on the drawing. */}
-                  {slide.shapes.filter((s) => s.text && s.geometry).map((s) => (
+                  {slide.shapes.filter((s) => s.text && s.geometry && !s.hidden).map((s) => (
                     <button
                       key={s.id}
                       type="button"
@@ -634,6 +658,22 @@ export default function Slides({ app, shell, boot }) {
               />
             ) : slide?.notes && view.notes !== false ? <div className="sl-notes">{slide.notes}</div> : null}
           </Content>
+
+          {view.pane && model ? (
+            <Panel
+              right
+              width={252}
+              resizable
+              title={view.pane === 'layers' ? 'Layers' : 'Designs'}
+              actions={<Button icon="close" title="Close the pane" onClick={() => act('pane', view.pane)} />}
+            >
+              {view.pane === 'layers' ? (
+                <LayersPane slide={slide} selected={selected} onSelect={setSelected} act={act} />
+              ) : (
+                <DesignsPane layouts={model.layouts} current={slide?.layout || null} size={model.size} act={act} />
+              )}
+            </Panel>
+          ) : null}
           {menu.node}
         </>
       )}
@@ -667,7 +707,158 @@ export default function Slides({ app, shell, boot }) {
   );
 }
 
+/** The icon a layer row shows for its shape. */
+const LAYER_ICONS = { picture: 'picture', table: 'table', chart: 'chart', connector: 'minus', shape: 'shape', unsupported: 'shape' };
+
+/**
+ * The slide's shapes as layers, top-most first — PowerPoint's selection pane
+ * with the parts people use: a click selects the shape on the stage, the eye
+ * hides it (it stays in the file, undrawn), the arrows change the drawing
+ * order, a double-click renames it.
+ */
+function LayersPane({ slide, selected, onSelect, act }) {
+  const [renaming, setRenaming] = React.useState(null);
+  const shapes = slide?.shapes || [];
+  const rows = [...shapes].reverse();
+  const pos = selected != null ? shapes.findIndex((s) => s.id === selected) : -1;
+  const n = shapes.length;
+  return (
+    <div className="sl-layers">
+      <div className="sl-layers-tools">
+        <Button icon="chevronUp" title="Bring forward" disabled={pos < 0 || pos >= n - 1} onClick={() => act('order', 'forward')} />
+        <Button icon="chevronDown" title="Send backward" disabled={pos <= 0} onClick={() => act('order', 'backward')} />
+        <Button label="Front" title="Bring to front" disabled={pos < 0 || pos >= n - 1} onClick={() => act('order', 'front')} />
+        <Button label="Back" title="Send to back" disabled={pos <= 0} onClick={() => act('order', 'back')} />
+        <Spacer />
+        <Button icon="trash" title="Delete the selected shape" disabled={pos < 0} onClick={() => act('deleteShape')} />
+      </div>
+      {rows.length ? (
+        rows.map((s) => (
+          <div
+            key={s.id}
+            className={`sl-layer${selected === s.id ? ' active' : ''}${s.hidden ? ' off' : ''}`}
+            data-shape={s.id}
+            onClick={() => onSelect(s.id)}
+            onDoubleClick={() => setRenaming({ id: s.id, name: s.name || '' })}
+            title="Click to select; double-click to rename"
+          >
+            <button
+              type="button"
+              className="sl-eye"
+              title={s.hidden ? 'Show this shape' : 'Hide this shape'}
+              onClick={(e) => {
+                e.stopPropagation();
+                act('hideShape', { id: s.id, hidden: !s.hidden });
+              }}
+            >
+              <Icon name="eye" size={14} />
+            </button>
+            <Icon name={s.text ? 'textbox' : LAYER_ICONS[s.kind] || 'shape'} size={14} />
+            {renaming?.id === s.id ? (
+              <input
+                autoFocus
+                className="rw-input sl-layer-name"
+                value={renaming.name}
+                onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    act('renameShape', { id: s.id, name: renaming.name });
+                    setRenaming(null);
+                  }
+                  if (e.key === 'Escape') setRenaming(null);
+                }}
+                onBlur={() => setRenaming(null)}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span className="sl-layer-text">
+                <span className="sl-layer-title">{s.name || `${s.kind} ${s.id}`}</span>
+                {s.text?.paragraphs?.length ? <span className="sl-layer-words">{s.text.paragraphs.map((p) => p.plain).join(' ').slice(0, 70)}</span> : null}
+              </span>
+            )}
+          </div>
+        ))
+      ) : (
+        <div className="sl-pane-empty">Nothing on this slide yet.</div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * The deck's own layouts as a gallery — each drawn as the boxes its
+ * placeholders make, the way PowerPoint's Layout gallery draws them. A
+ * click puts the current slide on that layout; New starts a slide from it.
+ */
+function DesignsPane({ layouts, current, size, act }) {
+  const W = size?.width || 960;
+  const H = size?.height || 540;
+  if (!layouts?.length) return <div className="sl-pane-empty">This deck has no layouts of its own.</div>;
+  return (
+    <div className="sl-designs">
+      {layouts.map((l) => (
+        <div
+          key={l.part}
+          className={`sl-design${l.part === current ? ' active' : ''}`}
+          data-layout={l.part}
+          title={l.part === current ? `${l.name} — this slide's layout` : `${l.name} — click to put this slide on it`}
+          onClick={() => (l.part === current ? null : act('applyLayout', l.part))}
+        >
+          <svg className="sl-design-pic" viewBox={`0 0 ${W} ${H}`} aria-hidden="true">
+            <rect x="0" y="0" width={W} height={H} className="sl-design-bg" />
+            {l.placeholders.map((p, i) => (
+              <rect key={i} x={p.geometry.x} y={p.geometry.y} width={Math.max(1, p.geometry.w)} height={Math.max(1, p.geometry.h)} rx={W * 0.006} className={`sl-design-ph${/title/i.test(p.type) ? ' title' : ''}`} />
+            ))}
+          </svg>
+          <div className="sl-design-foot">
+            <span className="sl-design-name">{l.name}</span>
+            <button
+              type="button"
+              className="sl-design-new"
+              title={`A new slide on the ${l.name} layout, after this one`}
+              onClick={(e) => {
+                e.stopPropagation();
+                act('newSlideFrom', l);
+              }}
+            >
+              + New
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const CSS = `
+/* the right-hand panes ------------------------------------------------------ */
+.sl-pane-empty { padding: 14px; color: var(--ink-3); font-size: 12.5px; }
+.sl-layers { display: flex; flex-direction: column; }
+.sl-layers-tools { display: flex; align-items: center; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--line-soft); }
+.sl-layer { display: flex; align-items: center; gap: 8px; padding: 6px 10px; cursor: default; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; color: var(--ink); }
+.sl-layer:hover { background: var(--surface-2); }
+.sl-layer.active { background: var(--selected); box-shadow: inset 3px 0 0 var(--accent); }
+.sl-layer.off .sl-layer-text, .sl-layer.off > svg { opacity: .4; }
+.sl-layer.off .sl-eye { opacity: .35; }
+.sl-layer-text { display: flex; flex-direction: column; min-width: 0; flex: 1; }
+.sl-layer-title { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl-layer-words { color: var(--ink-3); font-size: 11.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl-eye { border: 0; background: transparent; color: var(--ink-3); padding: 2px; display: grid; place-items: center; border-radius: 4px; }
+.sl-eye:hover { color: var(--ink); background: var(--surface-2); }
+.sl-layer-name { flex: 1; min-width: 0; height: 24px; }
+.sl-designs { display: grid; grid-template-columns: 1fr; gap: 10px; padding: 10px; }
+.sl-design { border: 1px solid var(--line); border-radius: var(--r-2); overflow: hidden; background: var(--surface); cursor: pointer; transition: box-shadow var(--fast), border-color var(--fast); }
+.sl-design:hover { border-color: var(--accent); box-shadow: var(--shadow-1); }
+.sl-design.active { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 30%, transparent); cursor: default; }
+.sl-design-pic { display: block; width: 100%; height: auto; }
+.sl-design-bg { fill: #fff; }
+.sl-design-ph { fill: rgba(120, 130, 150, .18); stroke: rgba(120, 130, 150, .6); stroke-width: 6; stroke-dasharray: 18 12; }
+.sl-design-ph.title { fill: color-mix(in srgb, var(--accent) 16%, transparent); stroke: color-mix(in srgb, var(--accent) 70%, transparent); }
+.sl-design-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 9px; font-size: 12px; border-top: 1px solid var(--line-soft); }
+.sl-design-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl-design-new { flex: none; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 2px 9px; font-size: 11.5px; color: var(--ink-2); }
+.sl-design-new:hover { color: var(--accent); border-color: var(--accent); }
+
 .sl-sorter { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
 .sl-thumb { display: flex; align-items: stretch; gap: 7px; border: 0; background: transparent; padding: 0; text-align: left; }
 .sl-thumb-n { width: 16px; font-size: 11px; color: var(--ink-3); padding-top: 3px; flex: none; text-align: right; }

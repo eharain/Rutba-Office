@@ -35,7 +35,8 @@ export const APPS = {
   word: {
     key: 'word',
     name: 'Rutba Word',
-    short: 'Word',
+    // The short name carries the brand too: "Word" alone is Microsoft's.
+    short: 'Rutba Word',
     tagline: 'Documents that open the same everywhere',
     accent: '#2b5fd9',
     icon: 'word',

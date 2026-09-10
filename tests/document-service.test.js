@@ -49,7 +49,7 @@ test('a file that is not the kind this window edits is refused, by name', () => 
   const asPptx = write('xlsx-named.pptx', buildXlsx({ sheets: [{ name: 'S', rows: [[1, 2]] }] }));
   const asDocx = write('deck-named.docx', buildPptx({ title: 'D', slides: [{ layout: 'title', title: 'T' }] }));
 
-  assert.match(refusal(() => doc.open({ path: asXlsx, kind: 'sheet' })), /is a document, not a workbook\. Open it in Word\./);
+  assert.match(refusal(() => doc.open({ path: asXlsx, kind: 'sheet' })), /is a document, not a workbook\. Open it in Rutba Word./);
   assert.match(refusal(() => doc.open({ path: asPptx, kind: 'deck' })), /is a workbook, not a presentation\. Open it in Worksheets\./);
   assert.match(refusal(() => doc.open({ path: asDocx, kind: 'doc' })), /is a presentation, not a document\. Open it in Presentation\./);
 
