@@ -13,8 +13,17 @@
 // Updates are never installed while you are working. The download is silent,
 // the install happens on quit, and a release you have not been offered cannot
 // be applied — `autoInstallOnAppQuit` is the only path.
+//
+// And you are TOLD. A release the check finds is announced in every window
+// the moment it is found (owner, 2026-09-14: a copy that updates in silence
+// is a copy whose owner never learns what changed): the prompt shows the
+// download's progress, offers "Restart and update" once it is downloaded,
+// and "Not now" puts that version away for a day — after which it asks
+// again, because a copy that is never quit never installs on quit. A newer
+// release is never covered by an older "not now".
 
 import { app } from 'electron';
+import { isSnoozed, snoozeFor } from './update-snooze.js';
 
 const FEED = { provider: 'github', owner: 'eharain', repo: 'Rutba-Office' };
 const SIX_HOURS = 6 * 60 * 60 * 1000;
@@ -46,11 +55,21 @@ export function createUpdateService({ stores, broadcast }) {
   const enabled = () => stores.settings.get('updates.automatic', true) !== false;
 
 
+  /** The version "not now" covers right now, or null. */
+  const snoozedVersion = () => {
+    const entry = stores.settings.get('updates.snoozed', null);
+    return entry && isSnoozed(entry, entry.version) ? String(entry.version) : null;
+  };
+
   const publish = () => {
     const payload = {
       state,
       version: app.getVersion(),
       available: info?.version || null,
+      // Whether the windows should keep quiet about `available`: the person
+      // said "not now" to this very version less than a day ago.
+      snoozed: isSnoozed(stores.settings.get('updates.snoozed', null), info?.version),
+      snoozedVersion: snoozedVersion(),
       notes: info?.releaseNotes ? String(info.releaseNotes).slice(0, 4000) : null,
       releasedAt: info?.releaseDate || null,
       percent: progress?.percent ?? null,
@@ -127,6 +146,8 @@ export function createUpdateService({ stores, broadcast }) {
       state = 'off';
       return publish();
     }
+    // Somebody who asks for a check wants to be told what it finds.
+    if (manual) stores.settings.set('updates.snoozed', null);
     try {
       const u = await load();
       await u.checkForUpdates();
@@ -159,6 +180,12 @@ export function createUpdateService({ stores, broadcast }) {
       // Quit, install, and come back — the only way an update is ever applied.
       setImmediate(() => u.quitAndInstall(false, true));
       return { installed: true };
+    },
+    // "Not now": this version, for a day. The download and the install on
+    // quit go on regardless; only the asking stops.
+    snooze: ({ version } = {}) => {
+      stores.settings.set('updates.snoozed', snoozeFor(version ?? info?.version ?? null));
+      return publish();
     },
     setAutomatic: ({ on }) => {
       stores.settings.set('updates.automatic', Boolean(on));

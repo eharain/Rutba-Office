@@ -276,7 +276,7 @@ function makeFixtures(dir) {
   };
 }
 
-export async function verifyApps({ windows, doc }) {
+export async function verifyApps({ windows, doc, broadcast = null, update = null }) {
   // An error that escapes a block would end the run with no summary and no
   // name. Name it.
   process.on('unhandledRejection', (e) => console.log(`     [unhandled] ${e?.stack || e}`));
@@ -1066,7 +1066,68 @@ export async function verifyApps({ windows, doc }) {
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler: those blocks alone, for working on them.
+  /* ── The update prompt, in every window ──────────────────────────────── */
+  //
+  // A check run contacts nothing, so the service never finds a release here;
+  // the states it would publish are broadcast by hand and a Word window —
+  // not the launcher — is read, because that is where a person is all day.
+  const updatePrompt = async () => {
+    if (!broadcast) return check('frame: the update prompt check has the shell\'s broadcast', false, 'verifyApps was not given broadcast');
+    try {
+      const win = await open('word', files.docx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`Boolean(document.querySelector('.wd-page'))`), 'the Word window', 8000);
+      const base = { version: '1.12.0', automatic: true, snoozed: false, snoozedVersion: null, error: null, notes: null, releasedAt: '2026-09-14T11:40:44.266Z', channel: 'eharain/Rutba-Office' };
+      const text = () => js(`document.querySelector('.rw-update')?.textContent.slice(0, 200) ?? 'no prompt'`);
+      // On screen, not only in the tree: a box inside the window, and the
+      // element under its centre is the prompt (nothing covers it).
+      const seen = () => js(`(() => {
+        const p = document.querySelector('.rw-update');
+        if (!p) return { seen: false, why: 'no prompt' };
+        const r = p.getBoundingClientRect();
+        const cs = getComputedStyle(p);
+        const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        const inside = r.width > 200 && r.height > 60 && r.right <= innerWidth + 1 && r.bottom <= innerHeight + 1 && r.left >= 0 && r.top >= 0;
+        return { seen: inside && cs.visibility !== 'hidden' && Number(cs.opacity) > 0.9 && Boolean(hit && p.contains(hit)), box: [Math.round(r.left), Math.round(r.top), Math.round(r.width), Math.round(r.height)], window: [innerWidth, innerHeight], position: cs.position, opacity: cs.opacity, under: hit ? hit.className || hit.tagName : null };
+      })()`);
+
+      broadcast('update:state', { ...base, state: 'downloading', available: '9.9.9', percent: 42, transferred: 42, total: 100 });
+      const downloading = await until(() => js(`(() => { const p = document.querySelector('.rw-update'); return Boolean(p) && p.dataset.state === 'downloading' && /9\\.9\\.9/.test(p.textContent) && /42%/.test(p.textContent) && !p.querySelector('.rw-update-restart'); })()`), 'the prompt while downloading', 5000).catch(() => false);
+      const shown = await until(async () => (await seen()).seen === true, 'the prompt on screen', 4000).catch(() => false);
+      check('frame: a release the check finds is announced in the window, with the download\'s progress', downloading === true && shown === true, `${JSON.stringify(await seen())} ${(await text()).slice(0, 90)}`);
+
+      broadcast('update:state', { ...base, state: 'ready', available: '9.9.9', percent: 100 });
+      const ready = await until(() => js(`(() => { const p = document.querySelector('.rw-update'); return Boolean(p) && p.dataset.state === 'ready' && /ready to install/.test(p.textContent) && Boolean(p.querySelector('.rw-update-restart')); })()`), 'the prompt once downloaded', 5000).catch(() => false);
+      check('frame: once downloaded, the prompt offers Restart and update', ready === true, await text());
+      // A frame after the prompt has painted, not the one before it: an off-screen window paints on demand.
+      await wait(500);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'frame-update.png'), (await win.webContents.capturePage()).toPNG());
+
+      // Not now: the prompt goes, the service keeps the version for a day,
+      // and the same state again does not bring it back.
+      await js(`(() => { document.querySelector('.rw-update-later').click(); return 1; })()`);
+      const gone = await until(() => js(`!document.querySelector('.rw-update')`), 'the prompt to go', 4000).catch(() => false);
+      const remembered = update ? await until(() => update.state().snoozedVersion === '9.9.9', 'the snooze to be kept', 4000).catch(() => false) : 'no service';
+      broadcast('update:state', { ...base, state: 'ready', available: '9.9.9', percent: 100 });
+      await wait(400);
+      const stayedAway = await js(`!document.querySelector('.rw-update')`);
+      check('frame: Not now puts the prompt away for that version, and the service keeps the snooze for a day',
+        gone === true && remembered === true && stayedAway === true, `gone ${gone}, snoozed ${update ? update.state().snoozedVersion : 'n/a'}, stayed away ${stayedAway}`);
+
+      // A newer release is a new question.
+      broadcast('update:state', { ...base, state: 'ready', available: '9.9.10', percent: 100 });
+      const again = await until(() => js(`(() => { const p = document.querySelector('.rw-update'); return Boolean(p) && /9\\.9\\.10/.test(p.textContent); })()`), 'the prompt for a newer release', 5000).catch(() => false);
+      check('frame: a newer release is announced even after an older one was put away', again === true, await text());
+      await js(`(() => { document.querySelector('.rw-update-later')?.click(); return 1; })()`);
+      if (update) update.snooze({ version: null });
+      const complaints = await errorsIn(win);
+      check('frame: the update prompt reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('frame: the update prompt check ran', false, err.message);
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -1078,6 +1139,7 @@ export async function verifyApps({ windows, doc }) {
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('ruler')) await wordRuler();
+    if (only.includes('update')) await updatePrompt();
     return done();
   }
 
@@ -1167,6 +1229,7 @@ export async function verifyApps({ windows, doc }) {
   await sheetFill();
   await wordPictures();
   await wordRuler();
+  await updatePrompt();
   await polish();
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */

@@ -231,7 +231,7 @@ createShell({
         // to have imported an archive last week is not a check.
         const { seedMail } = await import('./seed-mail.js');
         await seedMail({ stores, mail: services?.mail }).catch((e) => console.error('the mail fixture failed:', e.message));
-        return verifyApps({ windows, doc: services.doc });
+        return verifyApps({ windows, doc: services.doc, broadcast, update: updates });
       });
     }
     if (process.env.RUTBA_OFFICE_VERIFY_CORPUS) {

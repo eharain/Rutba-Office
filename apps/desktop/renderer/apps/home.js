@@ -323,7 +323,7 @@ function HomeStatus({ version, recent, shell, update }) {
       </a>
       <Spacer />
       {update?.state === 'ready' ? (
-        <Chip title={`Version ${update.available} is downloaded and installs when you quit`}>Update ready</Chip>
+        <Chip title={`Version ${update.available} is downloaded — restart to update, or it installs when you quit`}>Update ready</Chip>
       ) : update?.state === 'downloading' ? (
         <Chip title="Downloading in the background">Updating {Math.round(update.percent || 0)}%</Chip>
       ) : null}
@@ -344,11 +344,11 @@ function updateSentence(update) {
     case 'checking':
       return 'Looking for a newer release…';
     case 'available':
-      return `Version ${update.available} is available and downloading.`;
+      return `Version ${update.available} is available and downloading; you will be asked to restart when it is ready.`;
     case 'downloading':
       return `Downloading version ${update.available} — ${Math.round(update.percent || 0)}%.`;
     case 'ready':
-      return `Version ${update.available} is ready, and installs when you quit.`;
+      return `Version ${update.available} is ready — restart to update, or it installs when you quit.`;
     case 'current':
       return 'This is the latest release.';
     case 'error':

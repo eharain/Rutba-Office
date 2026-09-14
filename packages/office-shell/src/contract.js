@@ -176,6 +176,7 @@ export const METHODS = {
     'check',        // ({ manual }) -> state
     'install',      // () -> { installed }   quits, installs, returns
     'setAutomatic', // ({ on }) -> state
+    'snooze',       // ({ version }) -> state   "not now": that version, for a day
   ],
   // Making this the application a file opens with. What is possible
   // differs by platform, and the service says which.
@@ -237,7 +238,7 @@ export const EVENTS = [
   'mail:sent',        // { id, to }
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
   'theme:changed',    // { dark }
-  'update:state',     // { state, version, available, percent, automatic }
+  'update:state',     // { state, version, available, percent, automatic, snoozed, snoozedVersion }
 ];
 
 /** Every method as a flat channel list, e.g. 'fs:read'. */

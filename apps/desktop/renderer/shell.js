@@ -6,7 +6,7 @@
 // the same place, and files dropped on a window open in the right app.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Window, TitleBar, Body, StatusBar, Menu, Icon, useToast, useTheme, Button } from '@rutba/office-ui';
+import { Window, TitleBar, Body, StatusBar, Menu, Icon, useToast, useTheme, Button, Progress } from '@rutba/office-ui';
 import { APPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 
@@ -175,9 +175,81 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
       {ribbon}
       <Body>{children}</Body>
       <StatusBar>{status}</StatusBar>
+      <UpdatePrompt shell={shell} />
       {menu?.node}
     </Window>
   );
 }
+
+/**
+ * The word that a release is waiting — in every window, not only the
+ * launcher, because a person who works in Rutba Word all day never sees the
+ * launcher's chip.
+ *
+ * The service does the finding and the downloading; this only says so. A
+ * release found is announced at once with the download's progress; once it
+ * is downloaded the prompt offers "Restart and update", which quits,
+ * installs and comes back. "Not now" puts that version away: in this
+ * window at once, and through the service for a day everywhere, after
+ * which it asks again — the install on quit goes on either way. A newer
+ * release is a new question, whatever was put away before.
+ */
+export function UpdatePrompt({ shell }) {
+  const [update, setUpdate] = useState(null);
+  const [away, setAway] = useState(null);
+  useEffect(() => {
+    if (!shell.update?.state) return;
+    shell.update.state().then(setUpdate).catch(() => {});
+  }, [shell]);
+  useEffect(() => shell.on('update:state', setUpdate), [shell]);
+  if (!update || update.snoozed) return null;
+  if (!['available', 'downloading', 'ready'].includes(update.state)) return null;
+  if (away && away === update.available) return null;
+  const ready = update.state === 'ready';
+  const percent = Math.round(update.percent || 0);
+  const when = update.releasedAt ? new Date(update.releasedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : null;
+  return (
+    <>
+      <style>{UPDATE_CSS}</style>
+      <div className="rw-update" role="status" aria-live="polite" data-state={update.state}>
+      <div className="rw-update-mark"><Icon name="download" size={18} /></div>
+      <div className="rw-update-body">
+        <div className="rw-update-title">
+          {ready ? `Rutba Office ${update.available} is ready to install` : `Rutba Office ${update.available} is available`}
+        </div>
+        <div className="rw-update-text">
+          {ready
+            ? 'Restart to update now. If you carry on working, it installs when you quit.'
+            : `Downloading in the background — ${percent}%. You will be asked to restart when it is ready.`}
+          {when ? ` Released ${when}.` : ''}
+        </div>
+        {!ready ? <Progress value={percent} max={100} /> : null}
+        <div className="rw-update-actions">
+          {ready ? <Button primary className="rw-update-restart" label="Restart and update" onClick={() => shell.update.install().catch(() => {})} /> : null}
+          <Button ghost className="rw-update-later" label="Not now" onClick={() => { setAway(update.available); shell.update.snooze?.({ version: update.available }).catch(() => {}); }} />
+        </div>
+      </div>
+      </div>
+    </>
+  );
+}
+
+const UPDATE_CSS = `
+.rw-update {
+  position: fixed; right: 18px; bottom: 46px; width: 380px; max-width: calc(100vw - 36px);
+  display: flex; gap: 12px; padding: 14px 16px; z-index: 60; font-size: 13px;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+  border-radius: var(--r-3); box-shadow: var(--shadow-3);
+}
+.rw-update-mark {
+  flex: none; width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center;
+  background: var(--accent-soft); color: var(--accent);
+}
+.rw-update-body { flex: 1; min-width: 0; }
+.rw-update-title { font-weight: 600; font-size: 13.5px; }
+.rw-update-text { margin-top: 3px; color: var(--ink-2); line-height: 1.4; }
+.rw-update .rw-progress { margin-top: 8px; }
+.rw-update-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+`;
 
 export { APPS, NEW_DOCUMENTS };

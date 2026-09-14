@@ -45,7 +45,7 @@ mistake, and they never take the keyboard from you. Set
 `RUTBA_WINDOW_DISPLAY=secondary` to watch a run on a second display
 instead. `RUTBA_SMOKE_THEME=dark npm run smoke` photographs every window
 in the dark theme, which is how a change to the look is checked in both.
-`RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler npm run verify:apps` runs only the
+`RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update npm run verify:apps` runs only the
 named blocks of application checks — the ones for a feature being worked
 on, in seconds rather than minutes — and `RUTBA_VERIFY_CAPTURE=<dir>`
 makes those blocks photograph the window at the moment that matters (a
@@ -237,8 +237,8 @@ and each has caught something the gate cannot:
    profile of its own, and waits for the copy's own updater to find the
    published release on GitHub and download it — then closes the window
    the way a person does and reads the version the installer left behind.
-   It reads the launcher's "Update ready" chip through UI Automation on
-   the way. Nothing is simulated: the copy under test does what an
+   It reads the update prompt — "is ready to install", with its Restart
+   and update button — through UI Automation on the way. Nothing is simulated: the copy under test does what an
    installed copy anywhere does, which is the only proof that customers
    receive a release rather than keep the one they installed. On
    2026-09-14 it found, downloaded (101 MB in 50 s) and installed 1.12.0

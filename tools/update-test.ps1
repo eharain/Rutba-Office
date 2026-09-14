@@ -40,7 +40,7 @@ $pending = Join-Path $cache 'pending'
 
 # The launcher, in a profile of its own (so automatic updates are at their
 # default: on), off the desktop. The service checks 25 s after launch and
-# downloads in the background; the launcher shows "Update ready" when it has.
+# downloads in the background; every window shows the update prompt when it has.
 $dataDir = Join-Path $env:TEMP ('rutba-updatetest-' + [guid]::NewGuid().ToString('N').Substring(0, 6))
 $env:RUTBA_WINDOW_DISPLAY = 'offscreen'
 $proc = Start-Process -FilePath $exe -ArgumentList @('--app=home', "--user-data-dir=$dataDir") -PassThru
@@ -63,7 +63,7 @@ if (-not $info) {
 $got = Get-ChildItem $pending -Filter *.exe | ForEach-Object { "{0} ({1:n1} MB)" -f $_.Name, ($_.Length / 1MB) }
 "[$Label] pending: $got"
 
-# The launcher's own word for it, read through UI Automation.
+# The window's own word for it - the prompt, and its button - read through UI Automation.
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 $chip = ''
@@ -74,12 +74,12 @@ for ($i = 0; $i -lt 20 -and -not $chip; $i++) {
       $root = [System.Windows.Automation.AutomationElement]::FromHandle($_.MainWindowHandle)
       foreach ($e in $root.FindAll([System.Windows.Automation.TreeScope]::Descendants, [System.Windows.Automation.Condition]::TrueCondition)) {
         $n = $e.Current.Name
-        if ($n -and $n -match 'Update ready') { $chip = $n }
+        if ($n -and $n -match 'ready to install|Restart and update|Update ready') { $chip = $n }
       }
     } catch {}
   }
 }
-"[$Label] launcher says: {0}" -f $(if ($chip) { $chip } else { '(no "Update ready" chip read)' })
+"[$Label] window says: {0}" -f $(if ($chip) { $chip } else { '(no update prompt read)' })
 
 # Close the window the way a person does; the service installs on quit.
 $sw.Restart()
