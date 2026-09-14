@@ -1126,6 +1126,19 @@ export class DocView {
     });
   }
 
+  /** A picture's size in pixels — a corner handle dragged. */
+  setImageSize({ block, image = 0, widthPx, heightPx } = {}) {
+    if (typeof this.doc.setImageSize !== 'function') {
+      throw new Error('this document backend does not support resizing pictures');
+    }
+    if (!this.block(block)) throw new Error('no paragraph at index ' + block);
+    return this._edit('picture size', null, () => {
+      this.doc.setImageSize(block, image, { widthPx, heightPx });
+      this._invalidate();
+      return this;
+    });
+  }
+
   insertImage({ name, contentType, data, widthPx, heightPx } = {}) {
     if (typeof this.doc.insertImage !== 'function') {
       throw new Error('this document backend does not support pictures');

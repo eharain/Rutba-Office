@@ -910,6 +910,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     insertImage: (v, a) => v.insertImage(a),
     // Wrap Text and Position: a picture in the line, or floating with the text round it.
     setImageLayout: (v, a) => v.setImageLayout(a),
+    setImageSize: (v, a) => v.setImageSize(a),
     insertPageBreak: (v) => v.insertPageBreak(),
     insertChart: (v, a) => v.insertChart(a),
     insertShape: (v, a) => v.insertShape(a),

@@ -707,6 +707,30 @@ export class Document {
   }
 
   /**
+   * A picture's size: the drawing's extent and the picture's own transform,
+   * both in EMU, both from the pixels the page measured. Everything else
+   * about the drawing — where it sits, how the words treat it — is untouched.
+   */
+  setImageSize(index, imageIndex, { widthPx, heightPx }) {
+    const p = this.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    const w = Math.round(Number(widthPx));
+    const h = Math.round(Number(heightPx));
+    if (!(w > 0) || !(h > 0)) throw new Error('a picture needs a positive width and height');
+    const drawings = [...p.xml.matchAll(/<w:drawing\b[^>]*>[\s\S]*?<\/w:drawing>/g)].filter((m) => /<a:blip\b/.test(m[0]));
+    const d = drawings[imageIndex];
+    if (!d) throw new Error('no picture ' + imageIndex + ' in paragraph ' + index);
+    const cx = w * PX_TO_EMU;
+    const cy = h * PX_TO_EMU;
+    let drawing = d[0].replace(/<wp:extent\b[^>]*\/>/, '<wp:extent cx="' + cx + '" cy="' + cy + '"/>');
+    // The picture's own transform: the first a:ext inside pic:spPr.
+    drawing = drawing.replace(/(<pic:spPr\b[\s\S]*?<a:ext\b)[^>]*(\/>)/, '$1 cx="' + cx + '" cy="' + cy + '"$2');
+    const xml = p.xml.slice(0, d.index) + drawing + p.xml.slice(d.index + d[0].length);
+    this._spliceBody(p.start, p.end, xml);
+    return this;
+  }
+
+  /**
    * How a picture sits in its paragraph: in the line, or floating with the
    * text wrapping round it, or behind or in front of it. Rewrites the
    * picture's drawing between `wp:inline` and `wp:anchor` in place; the

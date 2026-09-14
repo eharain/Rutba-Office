@@ -207,6 +207,9 @@ export default function Word({ app, shell, boot }) {
   // A click on a picture says so through a DOM event from the memoised
   // paragraph; a caret move takes the pick away, as in Word.
   const [picked, setPicked] = useState(null);
+  // True while a picture handle is being dragged: the mouseup that ends
+  // the drag lands wherever the pointer is, and must not take the pick away.
+  const pictureDrag = useRef(false);
   const pageRef = useRef(null);
   const pendingCaret = useRef(null);
   // The caret as this editor last left it: sent with an edit whose answer is
@@ -915,7 +918,11 @@ export default function Word({ app, shell, boot }) {
               contentEditable
               suppressContentEditableWarning
               spellCheck={view.spell !== false}
-              onMouseUp={syncSelection}
+              onMouseUp={(e) => {
+                // A press on a picture or its handles is a pick, not a caret move.
+                if (pictureDrag.current || e.target.closest?.('.wd-handles, .wd-image')) return;
+                syncSelection();
+              }}
               onKeyDown={(e) => {
                 // Arrow keys and Home/End move the caret without an edit, so the
                 // engine is told where it landed — after the browser has moved
@@ -970,6 +977,7 @@ export default function Word({ app, shell, boot }) {
               )}
               {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{`Laying out… ${Math.round((mounted / flowItems.length) * 100)}%`}</div> : null}
 
+              {picked ? <PictureHandles page={pageRef} picked={picked} model={model} pages={pages} onDrag={(on) => { pictureDrag.current = on; }} onResize={(size) => apply({ op: 'setImageSize', block: picked.block, image: picked.image, ...size })} /> : null}
               <Notes notes={model.footnotes} kind="footnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'footnote', id: note.id, initial: noteWords(note) })} />
               <Notes notes={model.endnotes} kind="endnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'endnote', id: note.id, initial: noteWords(note) })} />
             </div>
@@ -1630,6 +1638,74 @@ function imageStyle(image) {
   };
 }
 
+/**
+ * Four corner handles over the picked picture. Drag one and the picture
+ * follows, keeping its proportions, the page re-wrapping round it as it
+ * goes; on release the engine is told the size. The handles are measured
+ * from the picture's box after every layout, so they stay on it when the
+ * pages move.
+ */
+function PictureHandles({ page, picked, model, pages, onResize, onDrag }) {
+  const [box, setBox] = React.useState(null);
+  const find = () => {
+    const part = page.current && partFor(page.current, picked.block, 0);
+    return part ? part.querySelectorAll('.wd-image')[picked.image] || null : null;
+  };
+  const measure = React.useCallback(() => {
+    const img = find();
+    if (!img || !page.current) return setBox(null);
+    const r = img.getBoundingClientRect();
+    const p = page.current.getBoundingClientRect();
+    setBox({ left: r.left - p.left, top: r.top - p.top, width: r.width, height: r.height });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [picked, page]);
+  React.useLayoutEffect(() => {
+    measure();
+  }, [measure, model, pages]);
+  React.useEffect(() => {
+    const el = page.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [measure, page]);
+  if (!box) return null;
+  const start = (e, handle) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const img = find();
+    if (!img) return;
+    const x0 = e.clientX;
+    const w0 = box.width;
+    const ratio = box.height / Math.max(1, box.width);
+    let width = w0;
+    onDrag?.(true);
+    const move = (ev) => {
+      const dx = (ev.clientX - x0) * (handle.includes('w') ? -1 : 1);
+      width = Math.max(16, Math.round(w0 + dx));
+      img.style.width = `${width}px`;
+      measure();
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      // After the page's own mouseup has seen the flag.
+      setTimeout(() => onDrag?.(false), 0);
+      if (width !== Math.round(w0)) onResize({ widthPx: width, heightPx: Math.round(width * ratio) });
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+  return (
+    <div className="wd-handles" contentEditable={false} aria-hidden="true" style={{ left: box.left, top: box.top, width: box.width, height: box.height }}>
+      {[['nw', 0, 0], ['ne', 1, 0], ['sw', 0, 1], ['se', 1, 1]].map(([name, fx, fy]) => (
+        <div key={name} className="wd-handle" data-handle={name} style={{ left: `calc(${fx * 100}% - 5px)`, top: `calc(${fy * 100}% - 5px)`, cursor: fx === fy ? 'nwse-resize' : 'nesw-resize' }} onMouseDown={(e) => start(e, name)} />
+      ))}
+    </div>
+  );
+}
+
 /** The paragraphs a paginator keeps with what follows, by convention as much as by w:keepNext. */
 const KEEP_WITH_NEXT = /^(Heading[1-6]|Title|Subtitle)$/;
 
@@ -1773,6 +1849,8 @@ const CSS = `
    beside the words; one with no wrap sits behind or in front of them. */
 .wd-image { cursor: default; }
 .wd-image.picked { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wd-handles { position: absolute; z-index: 3; pointer-events: none; }
+.wd-handle { position: absolute; width: 10px; height: 10px; background: #fff; border: 1.5px solid var(--accent); border-radius: 2px; box-sizing: border-box; pointer-events: auto; }
 .wd-image.behind { opacity: .92; }
 .wd-mounting { margin: 12px 0 0; font-size: 12px; color: var(--ink-3); user-select: none; }
 

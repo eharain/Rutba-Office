@@ -66,6 +66,9 @@ export default function Sheets({ app, shell, boot }) {
   // size the pointer has dragged it to — drawn as a guide line until the
   // button is released and the engine is told.
   const [resizing, setResizing] = useState(null);
+  // A drag from the fill handle: the range it has reached, drawn as a dashed
+  // box until the button is released and the engine fills it.
+  const [filling, setFilling] = useState(null);
   /**
    * How the grid is shown. None of it is in the workbook: gridlines,
    * headings and the formula bar are Excel's View toggles, "show formulas"
@@ -536,6 +539,68 @@ export default function Sheets({ app, shell, boot }) {
     [dispatch, model]
   );
 
+  /**
+   * The fill handle: the square at the bottom-right of the selection. Drag
+   * it down or across and the cells it passes over are filled from the
+   * selection on release — a value copied, a formula's references moved, a
+   * series continued, as the engine's fill does for Ctrl+D. The dashed box
+   * follows the pointer; the direction is whichever the pointer has gone
+   * further in, as in Excel.
+   */
+  const startFill = useCallback(
+    (e, source) => {
+      if (e.button !== 0 || !source) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const layer = gridRef.current?.querySelector('.sh-cells');
+      if (!layer) return;
+      const rect = layer.getBoundingClientRect();
+      const columns = model?.columns || [];
+      const rows = model?.rows || [];
+      const corner = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      let target = source;
+      const move = (ev) => {
+        const px = ev.clientX - rect.left;
+        const py = ev.clientY - rect.top;
+        const col = columns.find((c) => px >= c.x && px < c.x + c.width) || (px >= (columns[columns.length - 1]?.x ?? 0) ? columns[columns.length - 1] : columns[0]);
+        const row = rows.find((r) => py >= r.y && py < r.y + r.height) || (py >= (rows[rows.length - 1]?.y ?? 0) ? rows[rows.length - 1] : rows[0]);
+        if (!col || !row) return;
+        const down = Math.abs(py - corner.y) >= Math.abs(px - corner.x);
+        target = down
+          ? { top: source.top, left: source.left, right: source.right, bottom: Math.max(source.bottom, row.index) }
+          : { top: source.top, bottom: source.bottom, left: source.left, right: Math.max(source.right, col.index) };
+        setFilling({ target });
+      };
+      const stop = () => {
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', stop);
+        setFilling(null);
+        if (target.bottom > source.bottom || target.right > source.right) {
+          dispatch(
+            { op: 'select', row: source.top, col: source.left },
+            { op: 'select', row: source.bottom, col: source.right, extend: true },
+            { op: 'fill', target },
+            { op: 'select', row: target.top, col: target.left },
+            { op: 'select', row: target.bottom, col: target.right, extend: true },
+          );
+        }
+      };
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', stop);
+    },
+    [dispatch, model]
+  );
+
+  /** A range's box in the cells layer, from the visible columns and rows; null when it is scrolled away. */
+  const boxOf = (range) => {
+    const left = (model?.columns || []).find((c) => c.index === range.left);
+    const right = (model?.columns || []).find((c) => c.index === range.right);
+    const top = (model?.rows || []).find((r) => r.index === range.top);
+    const bottom = (model?.rows || []).find((r) => r.index === range.bottom);
+    if (!left || !right || !top || !bottom) return null;
+    return { x: left.x, y: top.y, right: right.x + right.width, bottom: bottom.y + bottom.height };
+  };
+
   const cellAt = (event) => {
     const layer = event.currentTarget;
     const rect = layer.getBoundingClientRect();
@@ -844,6 +909,21 @@ export default function Sheets({ app, shell, boot }) {
                   if (at) dispatch({ op: 'select', row: at.row, col: at.col }, { op: 'beginEdit' });
                 }}
               >
+                {(() => {
+                  // The fill handle at the selection's corner, and the box a fill drag has reached.
+                  const active = model.cells.find((c) => c.active);
+                  const source = sel?.range || (active ? { top: active.row, left: active.col, bottom: active.row, right: active.col } : null);
+                  const box = source ? boxOf(source) : null;
+                  const reach = filling ? boxOf(filling.target) : null;
+                  return (
+                    <>
+                      {box && !resizing ? (
+                        <div className="sh-fill" title="Drag to fill the cells below or beside" style={{ left: box.right - 5, top: box.bottom - 5 }} onMouseDown={(e) => startFill(e, source)} />
+                      ) : null}
+                      {reach ? <div className="sh-fillguide" style={{ left: reach.x, top: reach.y, width: reach.right - reach.x, height: reach.bottom - reach.y }} /> : null}
+                    </>
+                  );
+                })()}
                 {resizing ? (
                   <div
                     className={`sh-guide ${resizing.kind}`}
@@ -1219,6 +1299,9 @@ const CSS = `
 .sh-grip.row { left: 0; right: 0; bottom: -4px; height: 8px; cursor: row-resize; }
 .sh-grip:hover { background: color-mix(in srgb, var(--accent) 35%, transparent); }
 .sh-guide { position: absolute; z-index: 6; pointer-events: none; background: var(--accent); }
+/* The fill handle and the box a fill drag has reached. */
+.sh-fill { position: absolute; width: 9px; height: 9px; background: var(--accent); border: 1.5px solid #fff; border-radius: 1px; z-index: 5; cursor: crosshair; box-sizing: border-box; }
+.sh-fillguide { position: absolute; border: 1.5px dashed var(--accent); pointer-events: none; z-index: 5; box-sizing: border-box; }
 .sh-guide.col { width: 2px; margin-left: -1px; }
 .sh-guide.row { height: 2px; margin-top: -1px; }
 .sh-cell {

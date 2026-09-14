@@ -84,3 +84,19 @@ test('setImageLayout floats a picture, moves it, and puts it back in the line', 
   assert.throws(() => reopened.setImageLayout({ block: pictureBlock, image: 4, wrap: 'square' }), /no picture 4/);
   assert.equal(reopened.canUndo, true, 'an undoable edit');
 });
+
+test('setImageSize writes the extent and the transform, and nothing else moves', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Sized.' }] }));
+  view.setSelection({ block: 0, offset: 0 });
+  view.insertImage({ name: 'logo', contentType: 'image/png', data: PNG, widthPx: 120, heightPx: 80 });
+  view.setImageLayout({ block: 1, image: 0, wrap: 'square', hAlign: 'right' });
+  view.setImageSize({ block: 1, image: 0, widthPx: 240, heightPx: 160 });
+  const image = view.render({ pages: false }).blocks[1].images[0];
+  assert.equal(image.widthPx, 240);
+  assert.equal(image.heightPx, 160);
+  assert.equal(image.wrap, 'square', 'the layout is untouched');
+  assert.equal(image.hAlign, 'right');
+  const reopened = openDocx(view.save()).render({ pages: false }).blocks[1].images[0];
+  assert.equal(reopened.widthPx, 240, 'in the file');
+  assert.throws(() => view.setImageSize({ block: 1, image: 0, widthPx: 0, heightPx: 10 }), /positive/);
+});

@@ -852,7 +852,85 @@ export async function verifyApps({ windows, doc }) {
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes: those blocks alone, for working on them.
+  /* ── Worksheets: the fill handle ─────────────────────────────────────── */
+  //
+  // The square at the selection's corner, dragged down two rows: the cells
+  // it passed over are filled from the selection and become the selection.
+  const sheetFill = async () => {
+    try {
+      const win = await open('sheets', files.xlsx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const wc = win.webContents;
+      const model = () => doc.model({ id: sessionFor('sheet').id });
+      const cell = (ref) => (model().cells || []).find((c) => c.ref === ref);
+      await js(`(() => { const c = document.querySelector('.sh-cell[data-ref="B2"]'); c.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
+      await until(() => cell('B2')?.active === true, 'B2 to be active', 4000);
+      await until(() => js(`Boolean(document.querySelector('.sh-fill'))`), 'the fill handle', 4000);
+      const at = await js(`(() => { const r = document.querySelector('.sh-fill').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+      wc.sendInputEvent({ type: 'mouseMove', x: at.x, y: at.y });
+      wc.sendInputEvent({ type: 'mouseDown', x: at.x, y: at.y, button: 'left', clickCount: 1 });
+      await wait(60);
+      for (const dy of [10, 22, 36]) {
+        wc.sendInputEvent({ type: 'mouseMove', x: at.x, y: at.y + dy, button: 'left' });
+        await wait(40);
+      }
+      const guide = await js(`Boolean(document.querySelector('.sh-fillguide'))`);
+      wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y + 36, button: 'left', clickCount: 1 });
+      const filled = await until(() => String(cell('B4')?.text || '') !== '', 'B4 to be filled', 5000).catch(() => false);
+      const picked = (model().cells || []).filter((c) => c.selected).map((c) => c.ref).sort();
+      const range = picked.length ? { top: 1, bottom: 1 + picked.length - 1, left: 1, right: 1, refs: picked.join(',') } : null;
+      if (range && picked.join(',') !== 'B2,B3,B4') range.bottom = -1;
+      check('sheets: dragging the fill handle down fills the cells it passes and selects them', filled === true && guide === true && String(cell('B3')?.text || '') !== '' && range && range.top === 1 && range.bottom === 3 && range.left === 1 && range.right === 1, `B2 ${JSON.stringify(cell('B2')?.text)} → B3 ${JSON.stringify(cell('B3')?.text)}, B4 ${JSON.stringify(cell('B4')?.text)}; selection ${JSON.stringify(range)}; guide ${guide}`);
+      const complaints = await errorsIn(win);
+      check('sheets: the fill handle reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('sheets: the fill-handle check ran', false, err.message);
+    }
+  };
+
+  /* ── Rutba Word: picture handles ──────────────────────────────────────── */
+  //
+  // Click a picture and it wears four corner handles; drag one and the
+  // picture grows, keeping its proportions, and the engine writes the size.
+  const wordPictures = async () => {
+    if (!files.float) return check('word: the picture-handles fixture exists', false, 'no icon to make it from');
+    try {
+      const win = await open('word', files.float);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const wc = win.webContents;
+      const image = () => doc.model({ id: sessionFor('doc').id }).blocks[1].images[0];
+      await until(() => js(`Boolean(document.querySelector('.wd-image'))`), 'the picture', 8000);
+      await js(`(() => { document.querySelector('.wd-image').click(); return 1; })()`);
+      const handles = await until(() => js(`document.querySelectorAll('.wd-handle').length === 4`), 'the four handles', 4000).catch(() => false);
+      check('word: clicking a picture shows four corner handles', handles === true, `${await js(`document.querySelectorAll('.wd-handle').length`)} handle(s)`);
+      const w0 = image().widthPx;
+      const at = await js(`(() => { const r = document.querySelector('.wd-handle[data-handle="se"]').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+      wc.sendInputEvent({ type: 'mouseMove', x: at.x, y: at.y });
+      wc.sendInputEvent({ type: 'mouseDown', x: at.x, y: at.y, button: 'left', clickCount: 1 });
+      await wait(60);
+      for (const dx of [10, 25, 40]) {
+        wc.sendInputEvent({ type: 'mouseMove', x: at.x + dx, y: at.y + 10, button: 'left' });
+        await wait(40);
+      }
+      wc.sendInputEvent({ type: 'mouseUp', x: at.x + 40, y: at.y + 10, button: 'left', clickCount: 1 });
+      const grew = await until(() => Math.abs(image().widthPx - (w0 + 40)) <= 2, 'the picture to grow', 5000).catch(() => false);
+      const img = image();
+      const drawn = await js(`Math.round(document.querySelector('.wd-image').getBoundingClientRect().width)`);
+      const kept = await until(() => js(`document.querySelectorAll('.wd-handle').length === 4 && document.querySelector('.wd-image.picked') !== null`), 'the pick to survive the drag', 3000).catch(() => false);
+      check('word: dragging a corner handle resizes the picture, keeping its proportions', grew === true && Math.abs(img.heightPx - img.widthPx) <= 2 && Math.abs(drawn - img.widthPx) <= 2 && kept === true, `${w0} → ${img.widthPx}×${img.heightPx} px; drawn ${drawn} px wide; still picked: ${kept}`);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-handles.png'), (await win.webContents.capturePage()).toPNG());
+      await press(wc, 's', { modifiers: ['control'] });
+      await wait(1200);
+      const saved = openDocx(fs.readFileSync(files.float)).render({ pages: false }).blocks[1].images[0];
+      check('word: the picture\'s size is saved', Math.abs(saved.widthPx - img.widthPx) <= 1, `file says ${saved.widthPx}×${saved.heightPx}`);
+      const complaints = await errorsIn(win);
+      check('word: resizing a picture reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('word: the picture-handles check ran', false, err.message);
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -861,6 +939,8 @@ export async function verifyApps({ windows, doc }) {
     if (only.includes('float')) await wordFloat();
     if (only.includes('polish')) await polish();
     if (only.includes('shapes')) await slideShapes();
+    if (only.includes('fill')) await sheetFill();
+    if (only.includes('pics')) await wordPictures();
     return done();
   }
 
@@ -947,6 +1027,8 @@ export async function verifyApps({ windows, doc }) {
   await sheetGrips();
   await slidePanes();
   await slideShapes();
+  await sheetFill();
+  await wordPictures();
   await polish();
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */

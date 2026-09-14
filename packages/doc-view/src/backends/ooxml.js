@@ -36,6 +36,7 @@ export class OoxmlBackend {
   /** Insert a picture as its own paragraph — the ribbon's Insert picture. */
   insertImage(index, spec) { this.doc.insertImageParagraph(index, spec); return this; }
   setImageLayout(index, image, spec) { this.doc.setImageLayout(index, image, spec); return this; }
+  setImageSize(index, image, spec) { this.doc.setImageSize(index, image, spec); return this; }
   /** A chart after a table, its data literal in the part; a preset shape. */
   insertChartAfterTable(tableStart, spec) { this.doc.insertChartAfterTable(tableStart, spec); return this; }
   insertShapeParagraph(index, spec) { this.doc.insertShapeParagraph(index, spec); return this; }
