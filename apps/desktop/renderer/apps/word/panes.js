@@ -1,10 +1,10 @@
-// What sits around the page: the navigation pane, the ruler, and the styles
-// the ribbon's own controls need.
+// What sits around the page: the navigation pane and the styles the ribbon's
+// own controls need. (The ruler, which moves things, lives in ruler.js.)
 //
 // None of it is document. The navigation pane is a view of the headings; the
-// ruler is a view of the margins; the view modes are ways of looking. That is
-// why they live beside the page and not inside the engine, and why a document
-// opened in two windows can show a different one in each.
+// view modes are ways of looking. That is why they live beside the page and
+// not inside the engine, and why a document opened in two windows can show a
+// different one in each.
 
 import React from 'react';
 import { Icon } from '@rutba/office-ui';
@@ -54,29 +54,6 @@ export function NavigationPane({ blocks, at, onGo, onClose }) {
   );
 }
 
-/**
- * A ruler in centimetres, with the margins shaded. Read-only: dragging the
- * indent markers is a nicety the paragraph dialog does not need yet.
- */
-export function Ruler({ section }) {
-  const widthPx = section ? Math.round(section.widthPx) : 794;
-  const left = section?.margins?.left ?? 96;
-  const right = section?.margins?.right ?? 96;
-  const pxPerCm = 96 / 2.54;
-  const cms = Math.floor(widthPx / pxPerCm);
-  return (
-    <div className="wd-ruler" style={{ width: widthPx }} aria-hidden="true">
-      <div className="wd-ruler-margin" style={{ left: 0, width: left }} />
-      <div className="wd-ruler-margin" style={{ right: 0, width: right }} />
-      {Array.from({ length: cms + 1 }, (_, i) => (
-        <span key={i} className={`wd-ruler-tick${i % 5 === 0 ? ' major' : ''}`} style={{ left: i * pxPerCm }}>
-          {i % 5 === 0 && i > 0 ? i : ''}
-        </span>
-      ))}
-    </div>
-  );
-}
-
 const CSS = `
 /* the ribbon's own controls ------------------------------------------------ */
 .wd-styles { display: flex; gap: 3px; align-items: stretch; }
@@ -122,16 +99,6 @@ const CSS = `
 .wd-nav-item:hover { background: var(--hover); color: var(--ink); }
 .wd-nav-item.on { color: var(--accent); font-weight: 600; box-shadow: inset 3px 0 0 var(--accent); }
 .wd-nav-empty { padding: 12px 14px; font-size: 12px; color: var(--ink-3); }
-
-/* the ruler ---------------------------------------------------------------- */
-.wd-ruler {
-  position: relative; height: 18px; margin: 10px auto 0; background: var(--surface);
-  border: 1px solid var(--line); border-radius: 3px 3px 0 0; overflow: hidden; font-size: 9px; color: var(--ink-3);
-}
-.wd-ruler-margin { position: absolute; top: 0; bottom: 0; background: var(--sunken); }
-.wd-ruler-tick { position: absolute; top: 12px; width: 1px; height: 5px; background: var(--ink-4, var(--ink-3)); text-align: center; text-indent: -4px; line-height: 0; }
-.wd-ruler-tick.major { top: 8px; height: 9px; }
-.wd-ruler-tick.major::after { content: attr(data-n); }
 
 /* formatting marks --------------------------------------------------------- */
 .wd-page.marks .wd-block::after { content: '¶'; color: var(--accent); opacity: .55; margin-left: 2px; font-weight: 400; }

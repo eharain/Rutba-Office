@@ -638,16 +638,22 @@ const HYPERLINK_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/rel
  * confirmation-letter goldens. Merging them would be a change to those files
  * for no gain, so they stay apart.
  */
-function tableXml({ rows = [], header = false, align = [] }) {
+function tableXml({ rows = [], header = false, align = [], columns: widths = null }) {
   if (!rows.length) return '';
   const columns = Math.max(...rows.map((r) => r.length));
-  const grid = '<w:tblGrid>' + Array.from({ length: columns }, () => '<w:gridCol w:w="' + Math.round(9360 / columns) + '"/>').join('') + '</w:tblGrid>';
+  // Column widths in twips when the caller gives them (the table is then a
+  // fixed width, their sum); otherwise equal shares of the text width.
+  const widthOf = (i) => (widths && widths[i] > 0 ? Math.round(widths[i]) : Math.round(9360 / columns));
+  const grid = '<w:tblGrid>' + Array.from({ length: columns }, (_, i) => '<w:gridCol w:w="' + widthOf(i) + '"/>').join('') + '</w:tblGrid>';
+  const tblW = widths
+    ? '<w:tblW w:w="' + Array.from({ length: columns }, (_, i) => widthOf(i)).reduce((a, b) => a + b, 0) + '" w:type="dxa"/>'
+    : '<w:tblW w:w="5000" w:type="pct"/>';
 
   const cell = (text, i, isHeader) => {
     const shading = isHeader ? '<w:shd w:val="clear" w:fill="D9E2F3"/>' : '';
     const jc = align[i] ? '<w:pPr><w:jc w:val="' + esc(align[i] === 'center' ? 'center' : align[i]) + '"/></w:pPr>' : '';
     const rPr = isHeader ? '<w:rPr><w:b/></w:rPr>' : '';
-    return '<w:tc><w:tcPr><w:tcW w:w="' + Math.round(9360 / columns) + '" w:type="dxa"/>' + shading + '</w:tcPr>'
+    return '<w:tc><w:tcPr><w:tcW w:w="' + widthOf(i) + '" w:type="dxa"/>' + shading + '</w:tcPr>'
       + '<w:p>' + jc + '<w:r>' + rPr + '<w:t xml:space="preserve">' + esc(text ?? '') + '</w:t></w:r></w:p></w:tc>';
   };
 
@@ -656,7 +662,7 @@ function tableXml({ rows = [], header = false, align = [] }) {
     + Array.from({ length: columns }, (_, i) => cell(cells[i], i, isHeader)).join('')
     + '</w:tr>';
 
-  return '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/><w:tblW w:w="5000" w:type="pct"/>'
+  return '<w:tbl><w:tblPr><w:tblStyle w:val="TableGrid"/>' + tblW
     + '<w:tblBorders><w:top w:val="single" w:sz="8" w:color="7F7F7F"/>'
     + '<w:bottom w:val="single" w:sz="8" w:color="7F7F7F"/>'
     + '<w:insideH w:val="single" w:sz="4" w:color="D9D9D9"/>'

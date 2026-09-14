@@ -918,6 +918,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     pasteText: (v, a) => v.pasteText(a.text),
     setPageSetup: (v, a) => v.setPageSetup(a.spec),
     tableOp: (v, a) => v.tableOp(a.op, a.arg),
+    // A border dragged on the page: the columns either side of it, or a row's height.
+    setTableColumnWidths: (v, a) => v.setTableColumnWidths(a),
+    setTableRowHeight: (v, a) => v.setTableRowHeight(a),
     addComment: (v, a) => v.addComment(a.text, { author: a.author }),
     insertNote: (v, a) => v.insertNote(a.kind ?? 'footnote', a.text),
     setNoteText: (v, a) => v.setNoteText(a.kind ?? 'footnote', a.id, a.text),

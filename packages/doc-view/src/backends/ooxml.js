@@ -58,6 +58,8 @@ export class OoxmlBackend {
   mergeTableCells(tableStart, r1, c1, r2, c2) { this.doc.mergeTableCells(tableStart, r1, c1, r2, c2); return this; }
   splitTableCell(tableStart, rowIndex, cellIndex) { this.doc.splitTableCell(tableStart, rowIndex, cellIndex); return this; }
   setTableColumnWidth(tableStart, cellIndex, twips) { this.doc.setTableColumnWidth(tableStart, cellIndex, twips); return this; }
+  setTableColumnWidths(tableStart, widths) { this.doc.setTableColumnWidths(tableStart, widths); return this; }
+  setTableRowHeight(tableStart, rowIndex, twips) { this.doc.setTableRowHeight(tableStart, rowIndex, twips); return this; }
 
   /**
    * Formatting is a verbatim `<w:rPr>` edit — fonts and colours ride along.
@@ -131,6 +133,12 @@ export class OoxmlBackend {
    *   prop 'spaceBeforePts' value points of space above, null clears
    *   prop 'spaceAfterPts'  value points of space below, null clears
    *   prop 'pageBreakBefore' true starts the paragraph on a fresh page, falsy clears
+   *   prop 'leftTwips'      an explicit left indent, zero included; null clears
+   *   prop 'firstLineTwips' a first-line indent (clears a hanging one); null clears
+   *   prop 'hangingTwips'   a hanging indent (clears a first-line one); null clears
+   *   prop 'rightTwips'     a right indent; null clears
+   *   prop 'tabs'           the paragraph's own stops, [{ align, posTwips, leader }];
+   *                         an empty list or null removes them
    */
   setParagraphProp(index, prop, value) {
     const p = this.doc.editParagraph(index);
@@ -423,6 +431,7 @@ function readParagraphProps(pPr) {
   const out = {
     align: null, indentTwips: null, style: null,
     lineSpacing: null, spaceBeforePts: null, spaceAfterPts: null,
+    firstLineTwips: null, hangingTwips: null, rightTwips: null, tabs: null,
   };
   if (!pPr) return out;
   const pStyle = /<w:pStyle\b[^>]*\bw:val="([^"]*)"/.exec(pPr);
@@ -434,6 +443,25 @@ function readParagraphProps(pPr) {
     // `w:left` is the classic attribute; `w:start` is its bidi-aware successor.
     const left = /\bw:left="(-?\d+)"/.exec(ind[1]) || /\bw:start="(-?\d+)"/.exec(ind[1]);
     if (left) out.indentTwips = Number(left[1]);
+    // The other three indents the ruler moves.
+    const firstLine = /\bw:firstLine="(-?\d+)"/.exec(ind[1]);
+    if (firstLine) out.firstLineTwips = Number(firstLine[1]);
+    const hanging = /\bw:hanging="(-?\d+)"/.exec(ind[1]);
+    if (hanging) out.hangingTwips = Number(hanging[1]);
+    const right = /\bw:right="(-?\d+)"/.exec(ind[1]) || /\bw:end="(-?\d+)"/.exec(ind[1]);
+    if (right) out.rightTwips = Number(right[1]);
+  }
+  // The paragraph's own tab stops, in twips — null when it sets none, an
+  // empty list when it only clears its style's.
+  const tabs = /<w:tabs\b[^>]*>([\s\S]*?)<\/w:tabs>/.exec(pPr);
+  if (tabs) {
+    out.tabs = [...tabs[1].matchAll(/<w:tab\b([^>]*)\/>/g)].map((m) => {
+      const val = /\bw:val="([^"]*)"/.exec(m[1])?.[1] ?? 'left';
+      const pos = /\bw:pos="(-?\d+)"/.exec(m[1]);
+      const leader = /\bw:leader="([^"]*)"/.exec(m[1])?.[1] ?? null;
+      if (!pos || val === 'clear') return null;
+      return { align: val, posTwips: Number(pos[1]), ...(leader && leader !== 'none' ? { leader } : {}) };
+    }).filter(Boolean);
   }
   const spacing = /<w:spacing\b([^>]*?)\/?>/.exec(pPr);
   if (spacing) {
@@ -577,6 +605,45 @@ function withInd(pPr, twips) {
   return joinPPr(open, insertOrdered(inner, 'ind', element), close);
 }
 
+/**
+ * Set or clear attributes on `<w:ind>` — the first-line, hanging and right
+ * indents the ruler moves, and an explicit left — dropping the element when
+ * none remain. The sibling of `withSpacing`.
+ */
+function withIndAttrs(pPr, changes) {
+  const { open, inner, close } = splitPPr(pPr);
+  const existing = pPrChildren(inner).find((c) => c.tag === 'ind');
+  let el = existing ? inner.slice(existing.start, existing.end) : '<w:ind/>';
+  for (const [attr, value] of Object.entries(changes)) {
+    el = value === null ? (stripAttr(el, attr) || '<w:ind/>') : setAttr(el, attr, value);
+  }
+  if (!/\bw:[a-zA-Z]+="/.test(el)) el = '';
+  if (existing) return joinPPr(open, inner.slice(0, existing.start) + el + inner.slice(existing.end), close);
+  if (el === '') return joinPPr(open, inner, close);
+  return joinPPr(open, insertOrdered(inner, 'ind', el), close);
+}
+
+/**
+ * Replace the paragraph's own tab stops with `[{ align, posTwips, leader }]`,
+ * sorted by position as Word writes them; a `clear` entry cancels one of
+ * the style's. An empty list or null removes the element.
+ */
+function withTabs(pPr, stops) {
+  const { open, inner, close } = splitPPr(pPr);
+  const existing = pPrChildren(inner).find((c) => c.tag === 'tabs');
+  const without = existing ? inner.slice(0, existing.start) + inner.slice(existing.end) : inner;
+  const list = (stops || []).filter((s) => s && Number.isFinite(Number(s.posTwips)));
+  if (!list.length) return joinPPr(open, without, close);
+  const ALIGN = { left: 'left', start: 'start', center: 'center', centre: 'center', right: 'right', end: 'end', decimal: 'decimal', bar: 'bar', num: 'num', clear: 'clear' };
+  const LEADER = { dot: 'dot', hyphen: 'hyphen', underscore: 'underscore', heavy: 'heavy', middleDot: 'middleDot' };
+  const el = '<w:tabs>' + list
+    .slice()
+    .sort((a, b) => Number(a.posTwips) - Number(b.posTwips))
+    .map((s) => '<w:tab w:val="' + (ALIGN[s.align] || 'left') + '"' + (LEADER[s.leader] ? ' w:leader="' + LEADER[s.leader] + '"' : '') + ' w:pos="' + Math.round(Number(s.posTwips)) + '"/>')
+    .join('') + '</w:tabs>';
+  return joinPPr(open, insertOrdered(without, 'tabs', el), close);
+}
+
 /** Add or replace `w:left` on a `<w:ind>` element, leaving its other attrs be. */
 function setIndLeft(indXml, twips) {
   if (!indXml) return '<w:ind w:left="' + twips + '"/>';
@@ -671,6 +738,27 @@ function withParagraphProp(pPr, prop, value) {
   }
   if (prop === 'pageBreakBefore') {
     return withPageBreakBefore(pPr, Boolean(value));
+  }
+  // The ruler's four indents and its tab stops, absolute rather than stepped.
+  if (prop === 'leftTwips') {
+    // Explicit, zero included: "at the margin" against a style that indents.
+    return withIndAttrs(pPr, { 'w:left': value == null ? null : String(Math.max(0, Math.round(Number(value)))) });
+  }
+  if (prop === 'firstLineTwips') {
+    // A first-line indent and a hanging one are one setting with two names;
+    // setting either clears the other, as Word does.
+    if (value == null) return withIndAttrs(pPr, { 'w:firstLine': null });
+    return withIndAttrs(pPr, { 'w:hanging': null, 'w:firstLine': String(Math.max(0, Math.round(Number(value)))) });
+  }
+  if (prop === 'hangingTwips') {
+    if (value == null) return withIndAttrs(pPr, { 'w:hanging': null });
+    return withIndAttrs(pPr, { 'w:firstLine': null, 'w:hanging': String(Math.max(0, Math.round(Number(value)))) });
+  }
+  if (prop === 'rightTwips') {
+    return withIndAttrs(pPr, { 'w:right': value == null ? null : String(Math.max(0, Math.round(Number(value)))) });
+  }
+  if (prop === 'tabs') {
+    return withTabs(pPr, value);
   }
   throw new Error('unknown paragraph property: ' + prop);
 }

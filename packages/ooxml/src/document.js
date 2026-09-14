@@ -253,12 +253,17 @@ function readParagraphDecor(pPrXml) {
   const tabs = /<w:tabs\b[^>]*>([\s\S]*?)<\/w:tabs>/.exec(pPr);
   if (tabs) {
     const stops = [];
+    let cleared = false;
     for (const m of tabs[1].matchAll(/<w:tab\b([^>]*)\/>/g)) {
       const a = attrs(m[1]);
-      if (a['w:val'] === 'clear' || a['w:pos'] === undefined) continue;
+      if (a['w:val'] === 'clear') { cleared = true; continue; }
+      if (a['w:pos'] === undefined) continue;
       stops.push({ align: a['w:val'] || 'left', posPx: twipsToPx(a['w:pos']), leader: a['w:leader'] && a['w:leader'] !== 'none' ? a['w:leader'] : null });
     }
-    if (stops.length) out.tabs = stops.sort((x, y) => x.posPx - y.posPx);
+    // A paragraph's own stops replace its style's; one that only clears
+    // stops (what the ruler writes when the last one is dragged away) has
+    // none, and an empty list says so where a missing one would not.
+    if (stops.length || cleared) out.tabs = stops.sort((x, y) => x.posPx - y.posPx);
   }
 
   // <w:shd w:val="clear" w:color="auto" w:fill="D9E2F3"/> — the fill is the colour.
@@ -294,6 +299,37 @@ function readParagraphDecor(pPrXml) {
   }
 
   return Object.keys(out).length ? out : null;
+}
+
+/**
+ * What a table says about itself before its first row: the grid's column
+ * widths and the table's own width — a share of the text width (`pct`, in
+ * fiftieths of a percent), a fixed one (`dxa`), or nothing. The page draws
+ * the columns from these; the ruler and the grips on the page move them.
+ */
+function tableHead(body, at) {
+  const firstRow = body.indexOf('<w:tr', at);
+  const head = body.slice(at, firstRow === -1 ? at + 4000 : firstRow);
+  const grid = /<w:tblGrid\b[^>]*>([\s\S]*?)<\/w:tblGrid>/.exec(head);
+  const gridPx = grid ? [...grid[1].matchAll(/<w:gridCol\b[^>]*\bw:w="(\d+)"/g)].map((g) => twipsToPx(Number(g[1]))) : [];
+  const tblW = /<w:tblW\b([^>]*)\/>/.exec(head);
+  const w = tblW ? attrs(tblW[1]) : {};
+  const tableWidth = w['w:type'] === 'pct'
+    ? { type: 'pct', value: /%\s*$/.test(String(w['w:w'])) ? parseFloat(w['w:w']) * 50 : Number(w['w:w']) || 5000 }
+    : w['w:type'] === 'dxa' && Number(w['w:w']) > 0 ? { type: 'dxa', value: Number(w['w:w']) }
+    : null;
+  return { gridPx: gridPx.length ? gridPx : null, tableWidth };
+}
+
+/** A row's own height, if the file sets one, and whether it is exact or a floor. */
+function rowHead(body, at) {
+  const firstCell = body.indexOf('<w:tc', at);
+  const head = body.slice(at, firstCell === -1 ? at + 1000 : firstCell);
+  const h = /<w:trHeight\b([^>]*)\/>/.exec(head);
+  if (!h) return {};
+  const a = attrs(h[1]);
+  const val = Number(a['w:val']);
+  return val > 0 ? { heightPx: twipsToPx(val), rule: a['w:hRule'] || 'atLeast' } : {};
 }
 
 // The two numbering definitions the editor's list button can create. Each is a
@@ -478,6 +514,18 @@ export class Document {
       }
       if (parts.length) key = parts.join(':');
     };
+    // What the page needs to draw a top-level table's cell as the file draws
+    // it: the grid and width (once per table, carried by each paragraph in
+    // it), a cell's span, a row's height. A nested table draws flat.
+    const tableMeta = () => {
+      if (stack.length !== 3 || stack[0].tag !== 'tbl') return {};
+      const [tbl, tr, tc] = stack;
+      return {
+        ...(tbl.gridPx ? { gridPx: tbl.gridPx, tableWidth: tbl.tableWidth } : {}),
+        ...(tc.span > 1 ? { cellSpan: tc.span } : {}),
+        ...(tr.heightPx ? { rowHeightPx: tr.heightPx, rowRule: tr.rule } : {}),
+      };
+    };
 
     let m;
     while ((m = re.exec(body))) {
@@ -504,10 +552,10 @@ export class Document {
         }
         if (m[1]) {
           if (m[2] === '/') continue; // an empty element — nothing to enter
-          if (name === 'tbl') stack.push({ tag: 'tbl', id: m.index, nextRow: 0 });
+          if (name === 'tbl') stack.push({ tag: 'tbl', id: m.index, nextRow: 0, ...tableHead(body, m.index) });
           else if (name === 'tr') {
             const top = stack[stack.length - 1];
-            stack.push({ tag: 'tr', index: top?.tag === 'tbl' ? top.nextRow++ : 0, nextCell: 0 });
+            stack.push({ tag: 'tr', index: top?.tag === 'tbl' ? top.nextRow++ : 0, nextCell: 0, ...rowHead(body, m.index) });
           } else {
             const top = stack[stack.length - 1];
             // A vMerge continuation cell exists in the file but not on the
@@ -518,7 +566,8 @@ export class Document {
               return body.slice(m.index, firstP === -1 ? m.index + 400 : firstP);
             })();
             const hidden = /<w:vMerge\b(?![^>]*w:val="restart")/.test(head);
-            stack.push({ tag: 'tc', index: top?.tag === 'tr' ? top.nextCell++ : 0, hidden });
+            const span = /<w:gridSpan\b[^>]*\bw:val="(\d+)"/.exec(head);
+            stack.push({ tag: 'tc', index: top?.tag === 'tr' ? top.nextCell++ : 0, hidden, span: span ? Number(span[1]) : 1 });
           }
         } else {
           for (let i = stack.length - 1; i >= 0; i--) {
@@ -543,7 +592,7 @@ export class Document {
       const hiddenCell = stack.some((f) => f.tag === 'tc' && f.hidden) || undefined;
       if (/^<w:p\b/.test(tag)) {
         if (tag.endsWith('/>')) {
-          out.push({ index: out.length, xml: tag, start: m.index, end: m.index + tag.length, text: '', container: key, ...(hiddenCell ? { hiddenCell } : {}), ...(inSdt ? { inSdt } : {}) });
+          out.push({ index: out.length, xml: tag, start: m.index, end: m.index + tag.length, text: '', container: key, ...tableMeta(), ...(hiddenCell ? { hiddenCell } : {}), ...(inSdt ? { inSdt } : {}) });
         } else {
           pStart = m.index;
         }
@@ -551,7 +600,7 @@ export class Document {
       }
       if (tag === '</w:p>' && pStart >= 0) {
         const xml = body.slice(pStart, m.index + tag.length);
-        out.push({ index: out.length, xml, start: pStart, end: m.index + tag.length, text: textOf(xml), container: key, ...(hiddenCell ? { hiddenCell } : {}), ...(inSdt ? { inSdt } : {}) });
+        out.push({ index: out.length, xml, start: pStart, end: m.index + tag.length, text: textOf(xml), container: key, ...tableMeta(), ...(hiddenCell ? { hiddenCell } : {}), ...(inSdt ? { inSdt } : {}) });
         pStart = -1;
       }
     }
@@ -1851,6 +1900,9 @@ export class Document {
       index: p.index,
       container: p.container ?? null,
       ...(p.hiddenCell ? { hiddenCell: true } : {}),
+      ...(p.gridPx ? { gridPx: p.gridPx, tableWidth: p.tableWidth ?? null } : {}),
+      ...(p.cellSpan > 1 ? { cellSpan: p.cellSpan } : {}),
+      ...(p.rowHeightPx ? { rowHeightPx: p.rowHeightPx, rowRule: p.rowRule } : {}),
       xml: p.xml,
       start: p.start,
       end: p.end,
@@ -2753,6 +2805,61 @@ export class Document {
         );
       }
     }
+    return this;
+  }
+
+  /**
+   * Several columns' widths at once, in twips by column index — what a
+   * border dragged on the page asks for, since the column on each side of
+   * it changes — and, when the table's own width is a fixed one, that width
+   * brought up to date with the grid, so Word draws the table at the size
+   * it was dragged to rather than scaling the columns back into the old one.
+   */
+  setTableColumnWidths(tableStart, widths) {
+    const entries = Object.entries(widths || {}).map(([i, w]) => [Number(i), w]).filter(([i]) => Number.isInteger(i) && i >= 0);
+    if (!entries.length) throw new Error('no column widths to set');
+    for (const [i, w] of entries) this.setTableColumnWidth(tableStart, i, w);
+    const parts = this._tableParts(tableStart);
+    if (!parts.grid) return this;
+    const { body } = this._body();
+    const sum = [...body.slice(parts.grid.start, parts.grid.end).matchAll(/<w:gridCol\b[^>]*\bw:w="(\d+)"/g)].reduce((a, g) => a + Number(g[1]), 0);
+    const head = body.slice(parts.innerStart, parts.grid.start);
+    const tblW = /<w:tblW\b([^>]*)\/>/.exec(head);
+    if (tblW && /\bw:type="dxa"/.test(tblW[1]) && sum > 0) {
+      const at = parts.innerStart + tblW.index;
+      this._spliceBody(at, at + tblW[0].length, '<w:tblW w:w="' + sum + '" w:type="dxa"/>');
+    }
+    return this;
+  }
+
+  /**
+   * One row's height in twips, as a floor ("at least" — what Word writes when
+   * a row's bottom border is dragged, so a cell that needs more still gets
+   * it); `null` lets the row take its content's height again.
+   */
+  setTableRowHeight(tableStart, rowIndex, twips) {
+    const parts = this._tableParts(tableStart);
+    const row = parts.rows[rowIndex];
+    if (!row) throw new Error('no row ' + rowIndex + ' in this table');
+    const { body } = this._body();
+    const rowXml = body.slice(row.start, row.end);
+    const open = /^<w:tr\b[^>]*>/.exec(rowXml)[0];
+    // trPr follows tblPrEx, when a row has one, and precedes the cells.
+    const lead = /^<w:tblPrEx\b[^>]*>[\s\S]*?<\/w:tblPrEx>|^<w:tblPrEx\b[^>]*\/>/.exec(rowXml.slice(open.length));
+    const pre = open + (lead ? lead[0] : '');
+    const trPr = /^<w:trPr\b[^>]*>[\s\S]*?<\/w:trPr>|^<w:trPr\b[^>]*\/>/.exec(rowXml.slice(pre.length));
+    let inner = trPr && !trPr[0].endsWith('/>') ? trPr[0].replace(/^<w:trPr\b[^>]*>/, '').replace(/<\/w:trPr>$/, '') : '';
+    inner = inner.replace(/<w:trHeight\b[^>]*\/>/g, '');
+    if (twips != null) {
+      const height = Math.round(Number(twips));
+      if (!(height >= 20 && height <= 31680)) throw new Error('a row height must be between 1pt and 22 inches');
+      const el = '<w:trHeight w:val="' + height + '" w:hRule="atLeast"/>';
+      // In the schema's order trHeight precedes tblHeader, tblCellSpacing, jc and hidden.
+      const after = /<w:(tblHeader|tblCellSpacing|jc|hidden)\b/.exec(inner);
+      inner = after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
+    }
+    const rest = rowXml.slice(pre.length + (trPr ? trPr[0].length : 0));
+    this._spliceBody(row.start, row.end, pre + (inner ? '<w:trPr>' + inner + '</w:trPr>' : '') + rest);
     return this;
   }
 

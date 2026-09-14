@@ -52,7 +52,11 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   flow is laid onto sheets by measuring the drawn page, paragraphs split at
   a line and tables at a row, and a manual page break heads a fresh page.
   Footnotes still sit at the end of the document on screen, and a block
-  taller than a page runs into the gap rather than being cut.)
+  taller than a page runs into the gap rather than being cut. Since
+  2026-09-14 the ruler moves a paragraph's four indents, its tab stops,
+  the page margins and a table's columns by hand, and grips on a table's
+  borders move its columns and rows; the print paginator does not yet
+  read the grid the page now draws from.)
 - **Fields.** Bookmarks, cross-references, captions, an index, a table of
   authorities, citations and a bibliography, `SEQ`, `PAGE` outside the
   header — none are written, so the table of contents this suite inserts is

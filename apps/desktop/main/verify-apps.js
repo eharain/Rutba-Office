@@ -236,6 +236,23 @@ function makeFixtures(dir) {
     fs.writeFileSync(at('float.docx'), view.save());
   }
 
+  // A paragraph with a first-line indent, one with two tab stops, and a
+  // table of three fixed columns — what the ruler and the grips move.
+  {
+    const view = openDocx(buildDocx({ styles: true, paragraphs: [
+      { text: 'The Ruler', style: 'Heading1' },
+      { text: lorem.repeat(2) },
+      { text: 'Item\tPrice\tTotal' },
+      { table: { rows: [['a', 'b', 'c'], ['d', 'e', 'f']], columns: [2400, 3000, 3600] } },
+      { text: 'After the table.' },
+    ] }));
+    view.setSelection({ block: 1, offset: 0 });
+    view.setParagraphFormat({ firstLineTwips: 720 });
+    view.setSelection({ block: 2, offset: 0 });
+    view.setParagraphFormat({ tabs: [{ align: 'left', posTwips: 1440 }, { align: 'right', posTwips: 5760 }] });
+    fs.writeFileSync(at('ruler.docx'), view.save());
+  }
+
   // A file of accounts, the loose way other clients write one.
   fs.writeFileSync(at('accounts.json'), JSON.stringify([
     { email: 'one@checks.example', password: 'not-a-real-password', host: 'mail.checks.example', port: 993, smtpPort: 587, smtpSecure: false, label: 'one' },
@@ -248,6 +265,7 @@ function makeFixtures(dir) {
     docx: at('report.docx'),
     long: at('long.docx'),
     float: fs.existsSync(at('float.docx')) ? at('float.docx') : null,
+    ruler: at('ruler.docx'),
     xlsx: at('sales.xlsx'),
     pptx: at('deck.pptx'),
     wav: at('tone.wav'),
@@ -930,7 +948,125 @@ export async function verifyApps({ windows, doc }) {
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics: those blocks alone, for working on them.
+  /* ── Rutba Word: the ruler and the grips on a table ───────────────────── */
+  //
+  // The ruler's markers and the grips on a table's borders are dragged with
+  // real pointer events; what they wrote is read from the engine, from the
+  // drawing (computed style, cell rectangles) and, at the end, from the file.
+  const wordRuler = async () => {
+    try {
+      const win = await open('word', files.ruler);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const wc = win.webContents;
+      const modelOf = () => doc.model({ id: sessionFor('doc').id });
+      const rect = (selector) => js(`(() => { const r = document.querySelector('${selector}')?.getBoundingClientRect(); return r ? { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height } : null; })()`);
+      const drag = async (from, to, steps = 3) => {
+        wc.sendInputEvent({ type: 'mouseMove', x: from.x, y: from.y });
+        wc.sendInputEvent({ type: 'mouseDown', x: from.x, y: from.y, button: 'left', clickCount: 1 });
+        await wait(60);
+        for (let i = 1; i <= steps; i++) {
+          wc.sendInputEvent({ type: 'mouseMove', x: Math.round(from.x + ((to.x - from.x) * i) / steps), y: Math.round(from.y + ((to.y - from.y) * i) / steps), button: 'left' });
+          await wait(40);
+        }
+        wc.sendInputEvent({ type: 'mouseUp', x: to.x, y: to.y, button: 'left', clickCount: 1 });
+      };
+      const click = async (p) => {
+        wc.sendInputEvent({ type: 'mouseMove', x: p.x, y: p.y });
+        wc.sendInputEvent({ type: 'mouseDown', x: p.x, y: p.y, button: 'left', clickCount: 1 });
+        await wait(40);
+        wc.sendInputEvent({ type: 'mouseUp', x: p.x, y: p.y, button: 'left', clickCount: 1 });
+      };
+      const caretTo = async (block) => {
+        await click(await rect(`[data-block="${block}"]`));
+        await until(() => modelOf().selection?.focus?.block === block, 'the caret in block ' + block, 5000);
+      };
+
+      await until(() => js(`Boolean(document.querySelector('.wd-ruler'))`), 'the ruler', 8000);
+      check('word: the ruler is shown above the page', true);
+
+      // The paragraph's indents, as drawn: the first line 48 px in.
+      await caretTo(1);
+      await until(() => js(`Boolean(document.querySelector('.wd-ruler-first') && document.querySelector('.wd-ruler-hang'))`), 'the indent markers', 5000);
+      const gap = () => js(`Math.round(document.querySelector('.wd-ruler-first').getBoundingClientRect().left - document.querySelector('.wd-ruler-hang').getBoundingClientRect().left)`);
+      await until(async () => Math.abs((await gap()) - 48) <= 2, 'the first-line marker 48 px in', 5000).catch(() => {});
+      check('word: the ruler shows the paragraph\'s first-line indent 48 px in from its left indent', Math.abs((await gap()) - 48) <= 2, `${await gap()} px`);
+
+      // Drag the first-line marker 30 px to the right: the file and the words follow.
+      const first = await rect('.wd-ruler-first');
+      await drag(first, { x: first.x + 30, y: first.y });
+      const moved = await until(() => Math.abs((modelOf().blocks[1].firstLinePx ?? 0) - 78) <= 1, 'the first-line indent to grow', 5000).catch(() => false);
+      const drawn = await js(`getComputedStyle(document.querySelector('[data-block="1"]')).textIndent`);
+      check('word: dragging the first-line marker writes the indent and the first line moves with it', moved === true && Math.abs(parseFloat(drawn) - 78) <= 1,
+        `engine ${modelOf().blocks[1].firstLinePx} px, drawn ${drawn}`);
+
+      // The tab stops of the tabbed line, where the file puts them.
+      await caretTo(2);
+      await until(() => js(`document.querySelectorAll('.wd-ruler-tab').length === 2`), 'two tab stops on the ruler', 5000).catch(() => {});
+      const stops = await js(`(() => { const ruler = document.querySelector('.wd-ruler').getBoundingClientRect(); return [...document.querySelectorAll('.wd-ruler-tab')].map((t) => ({ pos: Number(t.dataset.pos), align: t.dataset.align, x: Math.round(t.getBoundingClientRect().left + 4 - ruler.left) })); })()`);
+      const ML = Math.round(modelOf().section.margins.left);
+      check('word: the ruler shows the paragraph\'s two tab stops where the file puts them',
+        stops.length === 2 && stops[0].pos === 96 && stops[0].align === 'left' && Math.abs(stops[0].x - (ML + 96)) <= 1 && stops[1].pos === 384 && stops[1].align === 'right' && Math.abs(stops[1].x - (ML + 384)) <= 1,
+        JSON.stringify(stops));
+
+      // A click on the bare ruler adds a stop there; dragging it off removes it.
+      const ruler = await rect('.wd-ruler');
+      await click({ x: Math.round(ruler.left + ML + 200), y: ruler.y });
+      const added = await until(() => modelOf().blocks[2].tabs?.length === 3, 'a third tab stop', 5000).catch(() => false);
+      const third = (modelOf().blocks[2].tabs || []).find((t) => Math.abs(t.posPx - 200) <= 2);
+      check('word: a click on the ruler adds a tab stop where it was clicked', added === true && Boolean(third) && third.align === 'left', JSON.stringify(modelOf().blocks[2].tabs));
+      await until(() => js(`Boolean(document.querySelector('.wd-ruler-tab[data-pos="' + ${third ? Math.round(third.posPx) : -1} + '"]'))`), 'the new stop drawn', 4000).catch(() => {});
+      const newStop = await rect(`.wd-ruler-tab[data-pos="${third ? Math.round(third.posPx) : -1}"]`);
+      if (newStop) await drag(newStop, { x: newStop.x, y: newStop.y + 60 });
+      const removed = await until(() => modelOf().blocks[2].tabs?.length === 2, 'the stop to be removed', 5000).catch(() => false);
+      check('word: a tab stop dragged off the ruler is removed', removed === true, JSON.stringify(modelOf().blocks[2].tabs));
+
+      // Into the table: grips on its column edges on the page, and on the ruler.
+      await caretTo(3);
+      const grips = await until(() => js(`document.querySelectorAll('.wd-tgrip.col').length === 3 && document.querySelectorAll('.wd-ruler-col').length === 3 && document.querySelectorAll('.wd-tgrip.row').length === 2`), 'the table grips', 5000).catch(() => false);
+      check('word: with the caret in a table, grips sit on its column edges and row bottoms, and the ruler shows the columns', grips === true,
+        `${await js(`document.querySelectorAll('.wd-tgrip.col').length`)} column grip(s), ${await js(`document.querySelectorAll('.wd-ruler-col').length`)} on the ruler`);
+      const cellBefore = await rect('[data-block="3"]');
+      const grip = await rect('.wd-tgrip.col[data-k="1"]');
+      // Taken hold of inside the first row: at the table's middle a row grip crosses it.
+      await drag({ x: grip.x, y: Math.round(grip.top + 8) }, { x: grip.x + 40, y: Math.round(grip.top + 8) });
+      const resized = await until(() => { const g = modelOf().blocks[3].gridPx; return Boolean(g) && Math.abs(g[0] - 200) <= 1 && Math.abs(g[1] - 160) <= 1 && Math.abs(g[2] - 240) <= 1; }, 'the two columns to change', 5000).catch(() => false);
+      const cellAfter = await until(async () => { const r = await rect('[data-block="3"]'); return r && Math.abs(r.width - (cellBefore.width + 40)) <= 2 ? r : null; }, 'the cell to be drawn wider', 4000).catch(() => null);
+      check('word: dragging a column border on the page resizes the columns either side of it, the table keeping its width',
+        resized === true && Boolean(cellAfter), `grid ${JSON.stringify(modelOf().blocks[3].gridPx)}, cell ${cellBefore.width} → ${cellAfter?.width ?? (await rect('[data-block="3"]'))?.width}`);
+
+      // A row's bottom border dragged down 20 px.
+      const rowBefore = await js(`(() => { const tr = document.querySelector('.wd-table tbody tr'); return tr.getBoundingClientRect().height; })()`);
+      const rowGrip = await rect('.wd-tgrip.row[data-r="0"]');
+      await drag(rowGrip, { x: rowGrip.x, y: rowGrip.y + 20 });
+      const taller = await until(() => Math.abs((modelOf().blocks[3].rowHeightPx ?? 0) - (rowBefore + 20)) <= 2, 'the row height to be written', 5000).catch(() => false);
+      const rowAfter = await until(async () => { const h = await js(`document.querySelector('.wd-table tbody tr').getBoundingClientRect().height`); return Math.abs(h - (rowBefore + 20)) <= 2 ? h : null; }, 'the row drawn taller', 4000).catch(() => null);
+      check('word: dragging a row border on the page sets the row\'s height', taller === true && rowAfter != null, `row ${rowBefore} → ${rowAfter}, engine ${modelOf().blocks[3].rowHeightPx}`);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-ruler.png'), (await win.webContents.capturePage()).toPNG());
+
+      // The left margin's edge on the ruler, dragged 24 px in.
+      const bound = await rect('.wd-ruler-bound[data-bound="left"]');
+      await drag(bound, { x: bound.x + 24, y: bound.y });
+      const margin = await until(() => Math.abs(modelOf().section.margins.left - (ML + 24)) <= 1, 'the margin to move', 5000).catch(() => false);
+      const padding = await js(`parseFloat(getComputedStyle(document.querySelector('.wd-page')).paddingLeft)`);
+      check('word: dragging the margin edge on the ruler moves the page margin', margin === true && Math.abs(padding - (ML + 24)) <= 1, `margin ${modelOf().section.margins.left} px, page padding ${padding} px`);
+
+      // The file has all of it.
+      await press(wc, 's', { modifiers: ['control'] });
+      await wait(1200);
+      const saved = openDocx(fs.readFileSync(files.ruler)).render({ pages: false });
+      const cell = saved.blocks[3];
+      check('word: the ruler\'s and the grips\' changes are saved',
+        Math.abs(saved.blocks[1].firstLinePx - 78) <= 1 && saved.blocks[2].tabs?.length === 2 && cell.gridPx && Math.abs(cell.gridPx[0] - 200) <= 1 && Math.abs(cell.gridPx[1] - 160) <= 1
+          && Math.abs((cell.rowHeightPx ?? 0) - (rowBefore + 20)) <= 2 && Math.abs(saved.section.margins.left - (ML + 24)) <= 1,
+        JSON.stringify({ firstLine: saved.blocks[1].firstLinePx, tabs: saved.blocks[2].tabs?.length, grid: cell.gridPx, row: cell.rowHeightPx, margin: saved.section.margins.left }));
+      const complaints = await errorsIn(win);
+      check('word: the ruler and the grips report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('word: the ruler check ran', false, err.message);
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -941,6 +1077,7 @@ export async function verifyApps({ windows, doc }) {
     if (only.includes('shapes')) await slideShapes();
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
+    if (only.includes('ruler')) await wordRuler();
     return done();
   }
 
@@ -1029,6 +1166,7 @@ export async function verifyApps({ windows, doc }) {
   await slideShapes();
   await sheetFill();
   await wordPictures();
+  await wordRuler();
   await polish();
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */

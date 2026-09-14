@@ -30,6 +30,8 @@ import {
  * knowledge: the backend is the only place that knows a twip becomes `<w:ind>`.
  */
 const INDENT_STEP = 720;
+// The ruler's absolute paragraph properties, written as given.
+const RULER_KEYS = ['leftTwips', 'firstLineTwips', 'hangingTwips', 'rightTwips', 'tabs'];
 
 /**
  * Contextual spacing, resolved against the neighbours.
@@ -780,7 +782,7 @@ export class DocView {
    */
   setParagraphFormat(delta) {
     if (!delta) return this;
-    const hasAlignOrIndent = ('align' in delta) || Boolean(delta.indentDelta);
+    const hasAlignOrIndent = ('align' in delta) || Boolean(delta.indentDelta) || RULER_KEYS.some((k) => k in delta);
     const hasStyle = ('styleId' in delta);
     const hasList = ('list' in delta);
     const hasSpacing = ('lineSpacing' in delta) || ('spaceBefore' in delta) || ('spaceAfter' in delta);
@@ -808,6 +810,10 @@ export class DocView {
       if (delta.indentDelta) {
         const current = this.doc.getParagraphProps(i)?.indentTwips ?? 0;
         this.doc.setParagraphProp(i, 'indentTwips', Math.max(0, current + delta.indentDelta * INDENT_STEP));
+      }
+      // The ruler: a marker was dragged to a place, so the value is absolute.
+      for (const key of RULER_KEYS) {
+        if (key in delta) this.doc.setParagraphProp(i, key, delta[key] ?? null);
       }
       if ('list' in delta) {
         this.doc.setParagraphList(i, delta.list ?? null);
@@ -1436,6 +1442,31 @@ export class DocView {
   }
 
   /**
+   * Several columns' widths at once, in twips by column index — what a
+   * column border dragged on the page asks for, since the column on each
+   * side of it changes. The table is named by its start offset (the `t…` of
+   * a block's container), so the caret need not be in it. One undo step.
+   */
+  setTableColumnWidths({ table, widths } = {}) {
+    if (typeof this.doc.setTableColumnWidths !== 'function') throw new Error('this document backend does not support tables');
+    return this._edit('table', null, () => {
+      this.doc.setTableColumnWidths(Number(table), widths);
+      this._invalidate();
+      return this;
+    });
+  }
+
+  /** One row's height in twips (a floor), or null for its content's; one undo step. */
+  setTableRowHeight({ table, row, twips } = {}) {
+    if (typeof this.doc.setTableRowHeight !== 'function') throw new Error('this document backend does not support tables');
+    return this._edit('table', null, () => {
+      this.doc.setTableRowHeight(Number(table), Number(row), twips ?? null);
+      this._invalidate();
+      return this;
+    });
+  }
+
+  /**
    * Replace the default header's or footer's text, line per paragraph. The
    * bands are not caret-addressable (they live in their own parts, painted
    * per page), so this is panel-shaped rather than keystroke-shaped: one
@@ -1704,6 +1735,12 @@ export class DocView {
         // The cell this block lives in, or null for prose — what lets the
         // shell tell a caret at a cell boundary why Tab and Backspace behave.
         container: b.container ?? null,
+        // A top-level table's grid and width ride every paragraph in it, a
+        // merged cell its span, a sized row its height — the page draws the
+        // columns from these and the ruler moves them.
+        ...(b.gridPx ? { gridPx: b.gridPx, tableWidth: b.tableWidth ?? null } : {}),
+        ...(b.cellSpan ? { cellSpan: b.cellSpan } : {}),
+        ...(b.rowHeightPx ? { rowHeightPx: b.rowHeightPx, rowRule: b.rowRule ?? null } : {}),
         text: b.text,
         runs: b.runs.map((r) => this._renderRun(r, { toc: /^TOC\d/i.test(b.style || '') })),
         ...(b.tracked ? { tracked: b.tracked } : {}),

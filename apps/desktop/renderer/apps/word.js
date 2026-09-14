@@ -18,12 +18,14 @@ import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, useToast, useMe
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { SITE } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
-import { NavigationPane, Ruler, installWordStyles } from './word/panes.js';
+import { NavigationPane, installWordStyles } from './word/panes.js';
+import { Ruler, TableGrips, installRulerStyles } from './word/ruler.js';
 import { selectionToSend } from './word/caret.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement } from './word/pages.js';
 
 installWordStyles();
+installRulerStyles();
 import {
   LinkDialog, TableDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
   DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog,
@@ -198,7 +200,7 @@ export default function Word({ app, shell, boot }) {
    * the file, which is why they live here and not in the engine.
    */
   const [view, setView] = useState({
-    mode: 'print', marks: false, ruler: false, navigation: false, focus: false, spell: true, reading: false, painting: null, zoom: 1,
+    mode: 'print', marks: false, ruler: true, navigation: false, focus: false, spell: true, reading: false, painting: null, zoom: 1,
   });
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
   const actRef = useRef(null);
@@ -634,6 +636,33 @@ export default function Word({ app, shell, boot }) {
   }, [shell, apply, model]);
   insertPictureRef.current = insertPicture;
 
+  // The ruler and the grips on a table: where the caret is, which table
+  // that is in, and what a dragged border asks of the engine.
+  const at = model?.selection?.focus?.block ?? 0;
+  const tableAt = useMemo(() => {
+    const key = /^(t\d+):r\d+:c\d+$/.exec(String(model?.blocks?.[at]?.container || ''));
+    if (!key) return null;
+    const group = flowItems.find((item) => item.table?.id === key[1]);
+    return group?.table?.gridPx ? { id: key[1], gridPx: group.table.gridPx } : null;
+  }, [model, at, flowItems]);
+  const resizeColumn = useCallback((id, k, dx) => {
+    const grid = flowItems.find((item) => item.table?.id === id)?.table?.gridPx;
+    if (!grid || !(k >= 1 && k <= grid.length)) return;
+    // The column at the left of the border grows by the drag and the one at
+    // its right shrinks by it, so the table keeps its width, as in Word; the
+    // last border moves only the last column, and the table with it.
+    const MIN = 20;
+    const left = k - 1;
+    const right = k < grid.length ? k : null;
+    const d = Math.max(-(grid[left] - MIN), right != null ? Math.min(grid[right] - MIN, dx) : dx);
+    const widths = { [left]: Math.round((grid[left] + d) * 15) };
+    if (right != null) widths[right] = Math.round((grid[right] - d) * 15);
+    apply({ op: 'setTableColumnWidths', table: Number(id.slice(1)), widths });
+  }, [flowItems, apply]);
+  const resizeRow = useCallback((id, row, heightPx) => {
+    apply({ op: 'setTableRowHeight', table: Number(id.slice(1)), row, twips: Math.round(heightPx * 15) });
+  }, [apply]);
+
   /**
    * The ribbon's verbs that are not one engine operation.
    *
@@ -911,7 +940,19 @@ export default function Word({ app, shell, boot }) {
             <NavigationPane blocks={model.blocks} at={model.selection?.focus?.block ?? -1} onGo={(i) => act('goto', i)} onClose={() => act('toggleNavigation')} />
           ) : null}
           <div className="wd-scroll">
-            {view.ruler ? <Ruler section={section} /> : null}
+            {view.ruler ? (
+              <Ruler
+                section={section}
+                page={pageRef}
+                model={model}
+                at={at}
+                tableId={tableAt?.id ?? null}
+                gridPx={tableAt?.gridPx ?? null}
+                onParagraph={(delta) => apply({ op: 'setParagraphFormat', delta })}
+                onMargin={(side, px) => apply({ op: 'setPageSetup', spec: { margins: { [side]: Math.round(px * 15) } } })}
+                onColumn={resizeColumn}
+              />
+            ) : null}
             <div
               className={`wd-page${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}`}
               ref={pageRef}
@@ -978,6 +1019,7 @@ export default function Word({ app, shell, boot }) {
               {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{`Laying out… ${Math.round((mounted / flowItems.length) * 100)}%`}</div> : null}
 
               {picked ? <PictureHandles page={pageRef} picked={picked} model={model} pages={pages} onDrag={(on) => { pictureDrag.current = on; }} onResize={(size) => apply({ op: 'setImageSize', block: picked.block, image: picked.image, ...size })} /> : null}
+              {tableAt ? <TableGrips page={pageRef} model={model} pages={pages} tableId={tableAt.id} gridPx={tableAt.gridPx} onColumn={resizeColumn} onRow={resizeRow} onDrag={(on) => { pictureDrag.current = on; }} /> : null}
               <Notes notes={model.footnotes} kind="footnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'footnote', id: note.id, initial: noteWords(note) })} />
               <Notes notes={model.endnotes} kind="endnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'endnote', id: note.id, initial: noteWords(note) })} />
             </div>
@@ -1167,7 +1209,9 @@ function groupTables(blocks) {
     }
     if (!current || current.id !== at[1]) {
       flush();
-      current = { id: at[1], rows: new Map() };
+      // The file's grid and width ride every paragraph in the table; a sized
+      // row and a merged cell say so on their own paragraphs.
+      current = { id: at[1], rows: new Map(), gridPx: block.gridPx || null, width: block.tableWidth || null, rowHeights: new Map(), spans: new Map() };
     }
     const row = Number(at[2]);
     const cell = Number(at[3]);
@@ -1175,6 +1219,8 @@ function groupTables(blocks) {
     const cells = current.rows.get(row);
     if (!cells.has(cell)) cells.set(cell, []);
     cells.get(cell).push(block);
+    if (block.rowHeightPx && !current.rowHeights.has(row)) current.rowHeights.set(row, block.rowHeightPx);
+    if (block.cellSpan > 1) current.spans.set(`${row}:${cell}`, block.cellSpan);
   }
   flush();
   return out;
@@ -1186,17 +1232,28 @@ function TableGroup({ table, labels, styles, tsplit }) {
   // one per page, each knowing which row it starts at.
   const cuts = (tsplit || []).filter((r) => r > 0 && r < rows.length);
   const bounds = [0, ...cuts, rows.length];
+  // The file's grid: each column its share of the table, and the table the
+  // width the file gives it — a share of the text width, a fixed one, or
+  // the grid's own sum. A file with no grid keeps the text width.
+  const grid = table.gridPx;
+  const sum = grid ? grid.reduce((a, b) => a + b, 0) : 0;
+  const width = grid && sum > 0
+    ? table.width?.type === 'pct' ? `${Math.min(100, Math.round(table.width.value / 50))}%`
+      : table.width?.type === 'dxa' ? Math.round(table.width.value / 15)
+      : Math.round(sum)
+    : undefined;
   return (
     <>
       {bounds.slice(0, -1).map((from, j) => (
-        <table key={j} className="wd-table" data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined}>
+        <table key={j} className="wd-table" data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined} style={width ? { width } : undefined}>
+          {grid && sum > 0 ? <colgroup>{grid.map((w, i) => <col key={i} style={{ width: `${(w / sum) * 100}%` }} />)}</colgroup> : null}
           <tbody>
             {rows.slice(from, bounds[j + 1]).map(([r, cells]) => (
-              <tr key={r}>
+              <tr key={r} style={table.rowHeights?.has(r) ? { height: table.rowHeights.get(r) } : undefined}>
                 {[...cells.entries()]
                   .sort((a, b) => a[0] - b[0])
                   .map(([c, paragraphs]) => (
-                    <td key={c}>
+                    <td key={c} colSpan={table.spans?.get(`${r}:${c}`) || undefined}>
                       {paragraphs.map((block) => (
                         <Block key={block.index} block={block} labels={labels} styles={styles} />
                       ))}
