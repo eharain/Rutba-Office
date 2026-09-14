@@ -231,12 +231,42 @@ and each has caught something the gate cannot:
 3. **Publish**, with `node tools/publish-release.js`, a pre-release by
    default; the tag goes on the commit the notes and the version bump are
    in, after the two runs above, never before.
+4. **The update test**, after publishing. `tools/update-test.ps1 -Older
+   <the previous release's setup exe> -Expect <the version just published>`
+   installs the older release silently, launches it off the desktop in a
+   profile of its own, and waits for the copy's own updater to find the
+   published release on GitHub and download it — then closes the window
+   the way a person does and reads the version the installer left behind.
+   It reads the launcher's "Update ready" chip through UI Automation on
+   the way. Nothing is simulated: the copy under test does what an
+   installed copy anywhere does, which is the only proof that customers
+   receive a release rather than keep the one they installed. On
+   2026-09-14 it found, downloaded (101 MB in 50 s) and installed 1.12.0
+   over 1.11.0 in a hundred and twenty seconds. Exit 3 means nothing was
+   downloaded in fifteen minutes, exit 4 that the version after the quit
+   was not the one expected.
 
 1.8.0 is why the first two are written down: the gate was green, the
 unpacked smoke was green, and the installed copy opened with "Cannot find
 package '@rutba/contacts'" because the two new packages were not declared
 as the desktop application's dependencies. The install test said so in one
 word — a window titled "Error" — and the word was nearly missed.
+
+## The screenshots on the website
+
+`npm run screens` boots the real application once per app with a sample
+document built for the purpose (`apps/desktop/build/make-screens.js`) and
+photographs each window into `apps/desktop/build/screens/`; the site
+imports them from there (`npm run import:screens` in the portal). Every
+window is 1440×900 — the launcher 1180×780 — placed above the primary
+display so a run never covers the desktop, at a device scale of one and a
+half so the capture is sharp at the site's largest size whatever display
+the run happened on. `RUTBA_WINDOW_SIZE`, `RUTBA_WINDOW_DISPLAY` and
+`RUTBA_SCREEN_SCALE` override each. A scale of two is not used because it
+halves the display's logical size and Windows clamps the window to it;
+`above` rather than `offscreen` because the display beyond the end of a
+row of monitors can be the small one, and a window is sized against the
+display nearest it. Look at every capture before importing it.
 
 ## The rich fixtures, written by Office itself
 

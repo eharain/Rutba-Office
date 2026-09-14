@@ -83,6 +83,16 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     return { x: right + 100, y: 100 };
   }
 
+  // Above the primary display rather than beyond the row: a window is sized
+  // against the display nearest it, and the one at the end of a row can be
+  // the small one — at a forced device scale of two it is 960x540 logical,
+  // and a 1440x900 capture window came back clamped to it. The primary is
+  // the largest display there is, so a window above it keeps its size.
+  function aboveOrigin(height) {
+    const p = screen.getPrimaryDisplay().bounds;
+    return { x: p.x + 100, y: p.y - height - 100 };
+  }
+
   function create({ app: appKey = 'home', file = null, query = null, parentId = null } = {}) {
 
     const geo = GEOMETRY[appKey] || GEOMETRY.home;
@@ -98,11 +108,13 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     // created there rather than moved there: a move between displays of
     // different scale factors rescales the window once on the way.
     const away = process.env.RUTBA_WINDOW_DISPLAY === 'secondary' ? secondaryDisplay() : null;
-    const hidden = process.env.RUTBA_WINDOW_DISPLAY === 'offscreen' ? offscreenOrigin() : null;
     const wanted = {
       width: forced ? Number(forced[1]) : saved?.width ?? geo.width,
       height: forced ? Number(forced[2]) : saved?.height ?? geo.height,
     };
+    const hidden = process.env.RUTBA_WINDOW_DISPLAY === 'offscreen' ? offscreenOrigin()
+      : process.env.RUTBA_WINDOW_DISPLAY === 'above' ? aboveOrigin(wanted.height)
+      : null;
     const size = away
       ? { width: Math.min(wanted.width, away.workArea.width), height: Math.min(wanted.height, away.workArea.height) }
       : wanted;

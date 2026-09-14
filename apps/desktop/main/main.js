@@ -30,6 +30,10 @@ const app = path.resolve(here, '..');
 let services = null;
 let updates = null;
 
+// A screenshot build asks for a device scale of its own (`RUTBA_SCREEN_SCALE=2`),
+// so a capture is crisp at twice the window's size whatever display it ran on.
+if (process.env.RUTBA_SCREEN_SCALE) electron.commandLine.appendSwitch('force-device-scale-factor', process.env.RUTBA_SCREEN_SCALE);
+
 createShell({
   appName: 'Rutba Office',
   rendererDir: path.join(app, 'build', 'out'),

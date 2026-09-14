@@ -32,7 +32,11 @@ import { fileURLToPath } from 'node:url';
 import { gradientPng } from '../main/sample-picture.js';
 import electron from 'electron';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
-import { buildPptx } from '@rutba/presentation';
+// The document sample gets a chart the way a person adds one: the caret in
+// the table, Insert → Chart. The engine draws it from the table's figures.
+import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { SheetView } from '@rutba/sheet-view';
+import { buildPptx, Deck } from '@rutba/presentation';
 import { dateTimeAt, writeCalendar } from '@rutba/calendar/ical';
 import { writeVCards } from '@rutba/contacts/vcard';
 
@@ -56,83 +60,182 @@ const at = (name) => path.join(docsDir, name);
  * number. Everything else is restraint — a screenshot of forty columns reads
  * as noise at the size a web page renders it.
  */
-fs.writeFileSync(
-  at('regional-sales.xlsx'),
-  buildXlsx({
-    sheets: [
-      {
-        name: 'Sales',
-        rows: [
-          ['Region', 'Q1', 'Q2', 'Q3', 'Q4', 'Year'],
-          ['North', 142000, 161000, 158500, 174200, '=SUM(B2:E2)'],
-          ['South', 86000, 91000, 94750, 98300, '=SUM(B3:E3)'],
-          ['East', 51200, 57400, 60100, 66800, '=SUM(B4:E4)'],
-          ['West', 73900, 71100, 78650, 82400, '=SUM(B5:E5)'],
-          ['Total', '=SUM(B2:B5)', '=SUM(C2:C5)', '=SUM(D2:D5)', '=SUM(E2:E5)', '=SUM(F2:F5)'],
-          [],
-          ['Growth, Q4 on Q1', '=E6/B6-1'],
-        ],
-        styles: {
-          'A1:F1': { bold: true, fill: '#1F3A5F', colour: '#FFFFFF', border: true },
-          'A2:A5': { bold: true },
-          'B2:F5': { numFmt: '#,##0' },
-          // Declared after the number format and repeated for the numeric
-          // half, because the last matching declaration wins: a total row
-          // styled as a block silently dropped the format from its own
-          // figures and printed 353100 beside 142,000.
-          'A6:F6': { bold: true, fill: '#EEF2F7', border: true },
-          'B6:F6': { bold: true, fill: '#EEF2F7', border: true, numFmt: '#,##0' },
-          'A8:A8': { bold: true },
-          'B8:B8': { numFmt: '0.0%', bold: true, colour: '#0E7C66' },
+{
+  const regions = [
+    ['North', 142000, 161000, 158500, 174200],
+    ['South', 86000, 91000, 94750, 98300],
+    ['East', 51200, 57400, 60100, 66800],
+    ['West', 73900, 71100, 78650, 82400],
+    ['Midlands', 64300, 66900, 70250, 73100],
+    ['London', 188400, 196200, 201750, 214900],
+    ['Scotland', 38700, 41200, 42900, 45600],
+    ['Wales', 22100, 23400, 24850, 26300],
+  ];
+  const last = regions.length + 1; // the row number of the last region
+  const total = last + 1;
+  // A summary block of its own beside the table — the year by region, in
+  // I1:J9 with a blank column between — which is what the chart is drawn
+  // from: charted from the table itself, the Year, Share and Total figures
+  // would dwarf every quarter. A blank cell is a hole in the row, not an
+  // empty string, so the block and the table stay two regions.
+  const rows = [
+    ['Region', 'Q1', 'Q2', 'Q3', 'Q4', 'Year', 'Share', null, 'Region', 'Year'],
+    ...regions.map((r, i) => [...r, `=SUM(B${i + 2}:E${i + 2})`, `=F${i + 2}/F$${total}`, null, r[0], `=F${i + 2}`]),
+    ['Total', ...['B', 'C', 'D', 'E', 'F'].map((c) => `=SUM(${c}2:${c}${last})`), `=SUM(G2:G${last})`],
+    [],
+    ['Growth, Q4 on Q1', `=E${total}/B${total}-1`],
+    ['Best quarter', `=MAX(B${total}:E${total})`],
+  ];
+  const book = SheetView.open(
+    buildXlsx({
+      sheets: [
+        {
+          name: 'Sales',
+          rows,
+          styles: {
+            'A1:G1': { bold: true, fill: '#1F3A5F', colour: '#FFFFFF', border: true },
+            [`A2:A${last}`]: { bold: true },
+            [`B2:F${last}`]: { numFmt: '#,##0' },
+            [`G2:G${last}`]: { numFmt: '0.0%' },
+            // Declared after the number format and repeated for the numeric
+            // half, because the last matching declaration wins: a total row
+            // styled as a block silently dropped the format from its own
+            // figures and printed 353100 beside 142,000.
+            [`A${total}:G${total}`]: { bold: true, fill: '#EEF2F7', border: true },
+            [`B${total}:F${total}`]: { bold: true, fill: '#EEF2F7', border: true, numFmt: '#,##0' },
+            [`G${total}:G${total}`]: { bold: true, fill: '#EEF2F7', border: true, numFmt: '0.0%' },
+            [`A${total + 2}:A${total + 3}`]: { bold: true },
+            [`B${total + 2}:B${total + 2}`]: { numFmt: '0.0%', bold: true, colour: '#0E7C66' },
+            [`B${total + 3}:B${total + 3}`]: { numFmt: '#,##0', bold: true },
+            'I1:J1': { bold: true, fill: '#EEF2F7', border: true },
+            [`I2:I${last}`]: { bold: true },
+            [`J2:J${last}`]: { numFmt: '#,##0' },
+          },
         },
-      },
-    ],
-  }),
-);
+      ],
+    }),
+    { viewportWidth: 1100, viewportHeight: 620 },
+  );
+  // A first column wide enough for its own labels, and a chart from the
+  // figures — the way a person adds one: the cursor on the table, Insert →
+  // Chart. Saved from the view, so both are in the file as Excel writes them.
+  book.setColWidth(0, 132);
+  book.select(0, 8);
+  book.insertChart({ kind: 'column', title: 'Revenue by region, full year' });
+  book.select(0, 0);
+  fs.writeFileSync(at('regional-sales.xlsx'), book.save());
+}
 
-/** A document with a heading hierarchy, because a screenshot of one paragraph
- * of Lorem Ipsum tells a reader nothing about a word processor. */
-fs.writeFileSync(
-  at('quarterly-review.docx'),
-  buildDocx({
-    styles: true,
-    paragraphs: [
-      { text: 'Quarterly Review', style: 'Title', bold: true, size: 30 },
-      { text: 'Prepared for the board — figures are illustrative', size: 20 },
-      { text: 'Summary', style: 'Heading1', bold: true, size: 26 },
-      {
-        text:
-          'The northern region grew fastest in absolute terms, adding £32,200 between the first and fourth quarters. Growth was steadier in the east, which finished the year 30% ahead of where it started without a single down quarter.',
-      },
-      {
-        text:
-          'Churn fell to 2.1% across the year, from 3.4%. Most of the improvement came in the second half and is attributable to the change in onboarding rather than to pricing.',
-      },
-      { text: 'What we are watching', style: 'Heading1', bold: true, size: 26 },
-      {
-        text:
-          'Two things. The west was flat in the second quarter and has not fully recovered its trend, and the cost of servicing the largest three accounts has risen faster than the revenue they bring.',
-      },
-      {
-        text:
-          'Neither is urgent. Both would become urgent if the pattern repeats in the first quarter of next year, which is when we should look again.',
-      },
-    ],
-  }),
-);
+/**
+ * A document with a heading hierarchy, because a screenshot of one paragraph
+ * of Lorem Ipsum tells a reader nothing about a word processor — and with
+ * the things the page has learned to draw since: a table at the widths its
+ * file gives it, a chart drawn from that table, and enough of a report that
+ * it runs onto a second page, so the status bar can say so. The ruler shows
+ * above the page by default.
+ */
+{
+  const view = openDocx(
+    buildDocx({
+      styles: true,
+      paragraphs: [
+        { text: 'Quarterly Review', style: 'Title', bold: true, size: 30 },
+        { text: 'Prepared for the board — figures are illustrative', size: 20 },
+        { text: 'Summary', style: 'Heading1', bold: true, size: 26 },
+        {
+          text:
+            'The northern region grew fastest in absolute terms, adding £32,200 between the first and fourth quarters. Growth was steadier in the east, which finished the year 30% ahead of where it started without a single down quarter.',
+        },
+        {
+          text:
+            'Churn fell to 2.1% across the year, from 3.4%. Most of the improvement came in the second half and is attributable to the change in onboarding rather than to pricing.',
+        },
+        { text: 'Revenue by region', style: 'Heading1', bold: true, size: 26 },
+        {
+          table: {
+            rows: [
+              ['Region', 'Q1', 'Q2', 'Q3', 'Q4'],
+              ['North', '142,000', '161,000', '158,500', '174,200'],
+              ['South', '86,000', '91,000', '94,750', '98,300'],
+              ['East', '51,200', '57,400', '60,100', '66,800'],
+              ['West', '73,900', '71,100', '78,650', '82,400'],
+            ],
+            header: true,
+            align: [null, 'right', 'right', 'right', 'right'],
+            // Twips; together they are the text width of an A4 page with
+            // the default margins, so the table sits flush with the prose.
+            columns: [2626, 1600, 1600, 1600, 1600],
+          },
+        },
+        {
+          text:
+            'The figures are quarterly revenue in pounds, net of refunds. The chart below is drawn from the table above and updates with it.',
+        },
+        { text: 'What we are watching', style: 'Heading1', bold: true, size: 26 },
+        {
+          text:
+            'Two things. The west was flat in the second quarter and has not fully recovered its trend, and the cost of servicing the largest three accounts has risen faster than the revenue they bring.',
+        },
+        {
+          text:
+            'Neither is urgent. Both would become urgent if the pattern repeats in the first quarter of next year, which is when we should look again.',
+        },
+        { text: 'Costs', style: 'Heading1', bold: true, size: 26 },
+        {
+          text:
+            'Payroll rose 6% with two hires in the east, both of which were planned. Hosting fell 11% after the move to reserved capacity in the second quarter, which paid for itself in the third.',
+        },
+        {
+          text:
+            'Travel is the one line above plan: the two large renewals in the south were won in person, and the visits are what won them.',
+        },
+        { text: 'Next quarter', style: 'Heading1', bold: true, size: 26 },
+        {
+          text:
+            'Pricing stays as it is. Onboarding gets the same treatment the south received, region by region, starting with the west, and the three largest accounts get a named owner each.',
+        },
+      ],
+    }),
+  );
+  // The caret in the table's first cell; the chart goes in after the table.
+  const cell = view.render({ pages: false }).blocks.find((b) => /^t\d+:r0:c0$/.test(b.container || ''));
+  view.setSelection({ block: cell.index, offset: 0 });
+  view.insertChart({ kind: 'column', title: 'Revenue by region' });
+  fs.writeFileSync(at('quarterly-review.docx'), view.save());
+}
 
-/** Three slides, so the thumbnail rail in the screenshot is not one item. */
-fs.writeFileSync(
-  at('product-review.pptx'),
-  buildPptx({
-    title: 'Quarterly Review',
-    slides: [
-      { layout: 'title', title: 'Quarterly Review', body: 'Illustrative figures, prepared for the board' },
-      { layout: 'obj', title: 'Where growth came from', body: ['North, in absolute terms', 'East, in consistency', 'West is flat and worth watching'] },
-      { layout: 'obj', title: 'What changed', body: ['Churn 3.4% to 2.1%', 'Onboarding rewritten in Q3', 'Pricing unchanged'] },
+/**
+ * Three slides, so the thumbnail rail in the screenshot is not one item —
+ * and on the first, three figure cards: rounded rectangles in the theme's
+ * accent with white text, added the way the Shapes button adds one, so the
+ * slide that is photographed looks designed rather than typed.
+ */
+{
+  const deck = Deck.open(
+    buildPptx({
+      title: 'Quarterly Review',
+      slides: [
+        { layout: 'title', title: 'Quarterly Review', body: 'Illustrative figures, prepared for the board' },
+        { layout: 'obj', title: 'Where growth came from', body: ['North, in absolute terms', 'East, in consistency', 'West is flat and worth watching'] },
+        { layout: 'obj', title: 'What changed', body: ['Churn 3.4% to 2.1%', 'Onboarding rewritten in Q3', 'Pricing unchanged'] },
+      ],
+    }),
+  );
+  const card = (y, figure, label) => deck.addShape(0, {
+    preset: 'roundRect',
+    x: 800, y, w: 380, h: 120,
+    line: 'none',
+    text: [
+      { align: 'center', runs: [{ text: figure, size: 30, bold: true, color: '#FFFFFF' }] },
+      { align: 'center', runs: [{ text: label, size: 13, color: '#FFFFFF' }] },
     ],
-  }),
-);
+    name: label,
+  });
+  card(150, '£2.9m', 'Revenue, full year');
+  card(300, '17.3%', 'Growth, Q4 on Q1');
+  card(450, '2.1%', 'Churn, down from 3.4%');
+  fs.writeFileSync(at('product-review.pptx'), deck.save());
+}
 
 /**
  * Sample pictures, generated here.
@@ -334,6 +437,15 @@ const PLAN = [
 ];
 
 /**
+ * A window size of its own, where the one size does not suit: the launcher's
+ * tiles and templates fill a smaller window, and a launcher photographed at
+ * a document's size is mostly its empty recent-files list.
+ */
+const SIZE = {
+  home: '1180x780',
+};
+
+/**
  * How long to let each window settle before photographing it, in ms.
  *
  * Per-app because the work differs: a launcher has nothing to wait for, a
@@ -364,6 +476,17 @@ function capture(app, file, profile) {
       // like product defects in a screenshot and are neither.
       RUTBA_SMOKE_SETTLE: String(SETTLE[app] ?? 2500),
       ELECTRON_DISABLE_SECURITY_WARNINGS: '1',
+      // One window size for every app, so the pictures sit in a row on the
+      // site at one height; above the primary display, so a run never
+      // covers whoever is working and the window is never clamped to a
+      // smaller display at the end of the row; and at a device scale of one
+      // and a half, so the capture is sharp at the site's largest size on
+      // whatever display the run happened on — a scale of two shrinks a
+      // 2560-wide primary to 1280 logical and the window with it. Each can
+      // be overridden from the environment.
+      RUTBA_WINDOW_SIZE: process.env.RUTBA_WINDOW_SIZE || SIZE[app] || '1440x900',
+      RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY || 'above',
+      RUTBA_SCREEN_SCALE: process.env.RUTBA_SCREEN_SCALE || '1.5',
     };
     if (file) env.RUTBA_SMOKE_FILE = file;
     else delete env.RUTBA_SMOKE_FILE;
