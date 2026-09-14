@@ -790,6 +790,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
               kind: s.kind,
               name: s.name,
               hidden: Boolean(s.hidden),
+              fill: s.fill ?? null,
+              line: s.line ?? null,
               geometry: s.geometry,
               placeholder: s.placeholder,
               text: (s.text || s.inheritedText)
@@ -949,6 +951,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     renameShape: (d, a) => d.renameShape(a.slide, a.shape, a.name),
     // The Designs pane: this slide on another of the deck's layouts.
     applyLayout: (d, a) => d.applyLayout(a.slide, a.layout),
+    // The Format pane: a shape's fill and outline.
+    setShapeStyle: (d, a) => d.setShapeStyle(a.slide, a.shape, { fill: a.fill ?? null, line: a.line ?? null }),
 
   };
 

@@ -10,7 +10,7 @@
 // the sheet came from a .xlsx, a .csv or an .ods.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import SheetsRibbon, { FUNCTIONS } from './sheets/ribbon.js';
@@ -72,6 +72,7 @@ export default function Sheets({ app, shell, boot }) {
    * is Ctrl+`, and the page setup is what the PDF export will lay out to.
    */
   const [view, setView] = useState({
+    zoom: 1,
     gridlines: true, headings: true, formulaBar: true, formulas: false,
     page: { orientation: 'portrait', margins: 'normal', size: 'A4' },
   });
@@ -578,6 +579,7 @@ export default function Sheets({ app, shell, boot }) {
         // level is that level and not that level times the last one.
         await shell.win.zoom({ reset: true });
         if (arg && arg !== 1) await shell.win.zoom({ delta: arg - 1 });
+        patchView({ zoom: Math.round((arg || 1) * 100) / 100 });
         return;
       }
       case 'newWindow':
@@ -704,6 +706,7 @@ export default function Sheets({ app, shell, boot }) {
           ) : null}
           <Chip>{model?.activeSheet || ''}</Chip>
           <Chip>{sel?.ref || ''}</Chip>
+          <ZoomSlider value={view.zoom ?? 1} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', 1)} />
         </>
       }
     >

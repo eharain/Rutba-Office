@@ -702,13 +702,165 @@ export async function verifyApps({ windows, doc }) {
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float: those blocks alone, for working on them.
+  /* ── The frame: tooltips of our own, and the zoom slider ─────────────── */
+  //
+  // Every ribbon button carries its tip as data and the frame draws it as a
+  // small chip after a rest, in the suite's own look; the status bar of each
+  // document app ends in a zoom slider. Both are driven with real pointer
+  // events and read back from the window and from Electron's zoom factor.
+  const polish = async () => {
+    try {
+      const win = await open('word', files.docx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const wc = win.webContents;
+      const at = await js(`(() => { const r = document.querySelector('.rw-btn[data-tip^="Bold"]')?.getBoundingClientRect(); return r ? { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) } : null; })()`);
+      if (!at) throw new Error('no Bold button to hover');
+      wc.sendInputEvent({ type: 'mouseMove', x: at.x - 6, y: at.y });
+      await wait(60);
+      wc.sendInputEvent({ type: 'mouseMove', x: at.x, y: at.y });
+      const shown = await until(() => js(`(() => { const t = document.querySelector('.rw-tip.on'); return t ? t.textContent : null; })()`), 'the tooltip to show', 3000).catch(() => null);
+      const tipText = await js(`document.querySelector('.rw-tip.on')?.textContent || document.querySelector('.rw-tip')?.textContent || ''`);
+      const tips = await js(`document.querySelectorAll('.rw-tip').length`);
+      const native = await js(`document.querySelector('.rw-btn[data-tip^="Bold"]').hasAttribute('title')`);
+      check('frame: resting on a ribbon button shows the suite\'s own tooltip, not the browser\'s', shown === true && /^Bold/.test(tipText) && native === false && tips === 1, `tip reads ${JSON.stringify(tipText.slice(0, 40))}; title attribute: ${native}; ${tips} tip element(s)`);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'frame-tooltip.png'), (await win.webContents.capturePage()).toPNG());
+      const page = await js(`(() => { const r = document.querySelector('.wd-page').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 120) }; })()`);
+      wc.sendInputEvent({ type: 'mouseMove', x: page.x, y: page.y });
+      const gone = await until(() => js(`!document.querySelector('.rw-tip.on')`), 'the tooltip to go', 3000).catch(() => false);
+      check('frame: the tooltip goes when the pointer leaves', gone === true, gone ? 'gone' : 'still showing');
+
+      // The slider: 150% through the range input, 100% through the level button.
+      const setRange = (v) => js(`(() => {
+        const input = document.querySelector('.rw-zoom input[type="range"]');
+        if (!input) return false;
+        const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        set.call(input, ${JSON.stringify(String(v))});
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        return true;
+      })()`);
+      const had = await setRange(1.5);
+      const zoomed = await until(() => Math.abs(wc.getZoomFactor() - 1.5) < 0.02, 'the window to zoom', 4000).catch(() => false);
+      const pct = (await until(() => js(`document.querySelector('.rw-zoom-pct')?.textContent === '150%'`), 'the level to read 150%', 3000).catch(() => false)) ? '150%' : await js(`document.querySelector('.rw-zoom-pct')?.textContent`);
+      check('frame: the status bar\'s zoom slider zooms the window', had && zoomed === true && pct === '150%', `factor ${wc.getZoomFactor()}, level reads ${pct}`);
+      await js(`(() => { document.querySelector('.rw-zoom-pct').click(); return 1; })()`);
+      const back = await until(() => Math.abs(wc.getZoomFactor() - 1) < 0.02, 'the window to reset', 4000).catch(() => false);
+      const reads100 = await until(() => js(`document.querySelector('.rw-zoom-pct')?.textContent === '100%'`), 'the level to read 100%', 3000).catch(() => false);
+      check('frame: the level button puts the zoom back to 100%', back === true && reads100 === true, `factor ${wc.getZoomFactor()}, level reads ${await js(`document.querySelector('.rw-zoom-pct')?.textContent`)}`);
+
+      // A deck's slider scales the slide; the level button fits it to the window again.
+      const deck = await open('slides', files.pptx);
+      const djs = (code) => deck.webContents.executeJavaScript(code);
+      await until(() => djs(`Boolean(document.querySelector('.sl-slide'))`), 'the slide', 6000);
+      await djs(`(() => { const input = document.querySelector('.rw-zoom input[type="range"]'); const set = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; set.call(input, '0.5'); input.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+      const scaled = await until(() => djs(`/scale\\(0\\.5\\)/.test(document.querySelector('.sl-slide')?.style.transform || '')`), 'the slide to scale', 4000).catch(() => false);
+      await djs(`(() => { document.querySelector('.rw-zoom-pct').click(); return 1; })()`);
+      const fitted = await until(() => djs(`!/scale\\(0\\.5\\)/.test(document.querySelector('.sl-slide')?.style.transform || '')`), 'the slide to fit again', 4000).catch(() => false);
+      check('slides: the zoom slider scales the slide and the level button fits it again', scaled === true && fitted === true, `scaled ${scaled}, fitted ${fitted}`);
+    } catch (err) {
+      check('frame: the polish check ran', false, err.message);
+    }
+  };
+
+  /* ── Presentation: shapes move by hand, and the Format pane recolours them ── */
+  //
+  // Every shape on the slide has a hit area: a click selects it and shows
+  // eight handles, a drag moves it, a handle resizes it, the arrows nudge it,
+  // and the engine is told on release. The Format pane sets its fill and
+  // outline from the theme's swatches. Real pointer events, geometry read
+  // back from the engine.
+  const slideShapes = async () => {
+    try {
+      const win = await open('slides', files.pptx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const wc = win.webContents;
+      const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
+      const shapeId = String(model().slide.shapes[0].id);
+      const geometry = () => model().slide.shapes.find((s) => String(s.id) === shapeId).geometry;
+      const rectOf = (selector) => js(`(() => { const r = document.querySelector(${JSON.stringify(selector)})?.getBoundingClientRect(); return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height } : null; })()`);
+      const drag = async (selector, dx, dy) => {
+        const at = await rectOf(selector);
+        if (!at) throw new Error(`nothing at ${selector}`);
+        const x = Math.round(at.x);
+        const y = Math.round(at.y);
+        wc.sendInputEvent({ type: 'mouseMove', x, y });
+        wc.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount: 1 });
+        await wait(60);
+        for (const f of [0.25, 0.5, 0.75, 1]) {
+          wc.sendInputEvent({ type: 'mouseMove', x: Math.round(x + dx * f), y: Math.round(y + dy * f), button: 'left' });
+          await wait(40);
+        }
+        wc.sendInputEvent({ type: 'mouseUp', x: x + dx, y: y + dy, button: 'left', clickCount: 1 });
+        await wait(500);
+      };
+      const scale = await js(`(() => { const m = /scale\\(([\\d.]+)\\)/.exec(document.querySelector('.sl-slide')?.style.transform || ''); return m ? Number(m[1]) : 1; })()`);
+      const hit = `.sl-hit[data-shape="${shapeId}"]`;
+      await until(() => js(`Boolean(document.querySelector(${JSON.stringify(hit)}))`), 'the shape\'s hit area', 6000);
+
+      // Select: handles appear.
+      await js(`(() => { document.querySelector(${JSON.stringify(hit)}).click(); return 1; })()`);
+      const handles = await until(() => js(`document.querySelectorAll('.sl-handle').length === 8`), 'the eight handles', 4000).catch(() => false);
+      check('slides: clicking a shape selects it and shows eight handles', handles === true, `${await js(`document.querySelectorAll('.sl-handle').length`)} handle(s)`);
+
+      // Move by dragging the shape.
+      const g0 = geometry();
+      await drag(hit, 60, 30);
+      const g1 = await (async () => { await until(() => Math.abs(geometry().x - (g0.x + 60 / scale)) <= 2, 'the shape to move', 4000).catch(() => {}); return geometry(); })();
+      check('slides: dragging a shape moves it', Math.abs(g1.x - (g0.x + 60 / scale)) <= 2 && Math.abs(g1.y - (g0.y + 30 / scale)) <= 2 && Math.abs(g1.w - g0.w) <= 1 && Math.abs(g1.h - g0.h) <= 1, `from ${Math.round(g0.x)},${Math.round(g0.y)} to ${Math.round(g1.x)},${Math.round(g1.y)} at scale ${scale}; size ${Math.round(g0.w)}×${Math.round(g0.h)} → ${Math.round(g1.w)}×${Math.round(g1.h)}`);
+
+      // Resize by the south-east handle.
+      await drag('.sl-handle[data-handle="se"]', 40, 20);
+      const g2 = await (async () => { await until(() => Math.abs(geometry().w - (g1.w + 40 / scale)) <= 2, 'the shape to grow', 4000).catch(() => {}); return geometry(); })();
+      check('slides: dragging a handle resizes the shape', Math.abs(g2.w - (g1.w + 40 / scale)) <= 2 && Math.abs(g2.h - (g1.h + 20 / scale)) <= 2 && Math.abs(g2.x - g1.x) <= 1, `${Math.round(g1.w)}×${Math.round(g1.h)} → ${Math.round(g2.w)}×${Math.round(g2.h)}`);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-handles.png'), (await win.webContents.capturePage()).toPNG());
+
+      // The keyboard: an arrow nudges by a pixel.
+      await js(`(() => { document.querySelector('.sl-stage').focus(); return 1; })()`);
+      await press(wc, 'Right');
+      const g3 = await (async () => { await until(() => Math.abs(geometry().x - (g2.x + 1)) <= 0.5, 'the nudge', 3000).catch(() => {}); return geometry(); })();
+      check('slides: an arrow key nudges the selected shape', Math.abs(g3.x - (g2.x + 1)) <= 0.5, `x ${g2.x} → ${g3.x}`);
+
+      // The Format pane: a theme swatch for the fill, no outline, a weight.
+      await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Shape Fill' && !b.disabled))`), 'Shape Fill to be enabled', 4000);
+      await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Shape Fill').click(); return 1; })()`);
+      await until(() => js(`Boolean(document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]'))`), 'the Format pane', 4000);
+      const accent2 = await js(`getComputedStyle(document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]')).backgroundColor`);
+      await js(`(() => { document.querySelector('.sl-format .sl-swatch[data-swatch="accent2"]').click(); return 1; })()`);
+      const filled = await until(() => model().slide.shapes.find((s) => String(s.id) === shapeId).fill?.type === 'solid', 'the fill to be written', 4000).catch(() => false);
+      const fill = model().slide.shapes.find((s) => String(s.id) === shapeId).fill;
+      const rgb = (hex) => { const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || ''); return m ? `rgb(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)})` : null; };
+      check('slides: a theme swatch in the Format pane fills the shape with that colour', filled === true && rgb(fill?.color) === accent2, `fill ${JSON.stringify(fill)}, swatch ${accent2}`);
+      const drawn = await js(`document.querySelector('.sl-svg')?.innerHTML.includes(${JSON.stringify(String(fill?.color || '').toLowerCase())}) || document.querySelector('.sl-svg')?.innerHTML.includes(${JSON.stringify(String(fill?.color || '').toUpperCase())})`);
+      check('slides: the slide is redrawn with the new fill', drawn === true, drawn ? 'the colour is in the drawing' : 'not in the drawing');
+      await js(`(() => { [...document.querySelectorAll('.sl-format .sl-chip')].find((b) => b.textContent.trim() === 'No outline').click(); return 1; })()`);
+      const noLine = await until(() => model().slide.shapes.find((s) => String(s.id) === shapeId).line?.type === 'none', 'the outline to go', 4000).catch(() => false);
+      check('slides: No outline removes the outline', noLine === true, JSON.stringify(model().slide.shapes.find((s) => String(s.id) === shapeId).line));
+      await js(`(() => { document.querySelector('.sl-format-line .sl-swatch[data-swatch="#0070C0"]').click(); return 1; })()`);
+      await until(() => model().slide.shapes.find((s) => String(s.id) === shapeId).line?.color, 'the outline colour', 4000).catch(() => {});
+      // The pane paints the answer after the engine has it; the next press reads the pane.
+      await until(() => js(`document.querySelector('.sl-format-line .sl-swatch[data-swatch="#0070C0"]')?.classList.contains('current')`), 'the outline swatch to be marked', 4000).catch(() => {});
+      await js(`(() => { const sel = [...document.querySelectorAll('.sl-format-line select')][0]; const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(sel, '3'); sel.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+      const weighed = await until(() => model().slide.shapes.find((s) => String(s.id) === shapeId).line?.width === 3, 'the weight', 4000).catch(() => false);
+      const line = model().slide.shapes.find((s) => String(s.id) === shapeId).line;
+      check('slides: an outline colour and a weight of 3 pt are written together', weighed === true && String(line?.color).toUpperCase() === '#0070C0', JSON.stringify(line));
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-format.png'), (await win.webContents.capturePage()).toPNG());
+      const complaints = await errorsIn(win);
+      check('slides: moving and formatting report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('slides: the shapes check ran', false, err.message);
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
     if (only.includes('grips')) await sheetGrips();
     if (only.includes('panes')) await slidePanes();
     if (only.includes('float')) await wordFloat();
+    if (only.includes('polish')) await polish();
+    if (only.includes('shapes')) await slideShapes();
     return done();
   }
 
@@ -794,6 +946,8 @@ export async function verifyApps({ windows, doc }) {
   await wordFloat();
   await sheetGrips();
   await slidePanes();
+  await slideShapes();
+  await polish();
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */
 
@@ -1054,7 +1208,7 @@ export async function verifyApps({ windows, doc }) {
     // invisible because nothing checked for it.
     const press = async (title) =>
       js(`(() => {
-        const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}));
+        const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
         if (!b) return 'no button';
         b.click();
         return 'clicked';
@@ -1103,7 +1257,7 @@ export async function verifyApps({ windows, doc }) {
   try {
     const win = opened[0];
     const found = await win.webContents.executeJavaScript(
-      `[...document.querySelectorAll('.rw-wincontrols button, .rw-titlebar button')].some((b) => /full screen/i.test(b.title || ''))`
+      `[...document.querySelectorAll('.rw-wincontrols button, .rw-titlebar button')].some((b) => /full screen/i.test(b.title || b.dataset.tip || ''))`
     );
     check('every window has a full-screen button', found === true, found ? 'in the title bar' : 'none found in the title bar');
   } catch (err) {
@@ -1237,7 +1391,7 @@ export async function verifyApps({ windows, doc }) {
       return sel.toString().length;
     })()`);
     const pressButton = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}));
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
       if (!b) return 'no button titled ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -1374,7 +1528,7 @@ export async function verifyApps({ windows, doc }) {
     const js = (code) => win.webContents.executeJavaScript(code);
     const tabTo = (label) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
     const press = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
       if (!b) return 'no live button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -1411,7 +1565,7 @@ export async function verifyApps({ windows, doc }) {
       const dead = [...document.querySelectorAll('.rw-ribbon .rw-btn[disabled]')];
       // Undo and Redo are disabled because there is nothing to undo — that is
       // state, not an apology, and needs no explanation.
-      return { count: dead.length, unexplained: dead.filter((b) => !/not built yet/.test(b.title || '') && !/^(Undo|Redo) /.test(b.title || '')).map((b) => b.title || b.textContent.trim()).slice(0, 5) };
+      return { count: dead.length, unexplained: dead.filter((b) => !/not built yet/.test(b.title || b.dataset.tip || '') && !/^(Undo|Redo) /.test(b.title || b.dataset.tip || '')).map((b) => b.title || b.dataset.tip || b.textContent.trim()).slice(0, 5) };
     })()`);
     check('word: every disabled control explains itself', honest.unexplained.length === 0, `${honest.count} disabled on the PDF tab; unexplained: ${JSON.stringify(honest.unexplained)}`);
 
@@ -1535,7 +1689,7 @@ export async function verifyApps({ windows, doc }) {
     })()`);
     const tabTo = (label) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
     const pushTitle = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
       if (!b) return 'no live button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
@@ -1562,7 +1716,7 @@ export async function verifyApps({ windows, doc }) {
     check('sheets: every Excel tab is there and draws its groups', tabs.every((t) => groups[t] > 0), tabs.map((t) => `${t} ${groups[t]}`).join(', '));
     const honest = await js(`(() => {
       const dead = [...document.querySelectorAll('.rw-ribbon .rw-btn[disabled]')];
-      return { count: dead.length, unexplained: dead.filter((b) => !/not built yet/.test(b.title || '') && !/^(Undo|Redo) /.test(b.title || '')).map((b) => b.title || b.textContent.trim()).slice(0, 5) };
+      return { count: dead.length, unexplained: dead.filter((b) => !/not built yet/.test(b.title || b.dataset.tip || '') && !/^(Undo|Redo) /.test(b.title || b.dataset.tip || '')).map((b) => b.title || b.dataset.tip || b.textContent.trim()).slice(0, 5) };
     })()`);
     check('sheets: every disabled control explains itself', honest.unexplained.length === 0, `${honest.count} disabled on the Help tab; unexplained: ${JSON.stringify(honest.unexplained)}`);
 
@@ -1731,7 +1885,7 @@ export async function verifyApps({ windows, doc }) {
     await wait(250);
     const clickRibbon = (title) => js(`(() => {
       // By the START of the title: "Bold (Ctrl+B)" is still the Bold button.
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}));
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
       if (!b) return 'no button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
       b.click();
@@ -1797,7 +1951,7 @@ export async function verifyApps({ windows, doc }) {
   /* ── Presentation, Pictures, Image, Video, Mail: pressed, not driven ──── */
 
   const clickIn = async (win, title) => {
-    const find = `[...document.querySelectorAll('.rw-btn, .ml-compose-cta button')].find((n) => (n.title || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+    const find = `[...document.querySelectorAll('.rw-btn, .ml-compose-cta button')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
     // A tab's buttons arrive a render after the tab is chosen — later on a
     // loaded machine — and a fixed pause was missing them.
     await until(() => win.webContents.executeJavaScript(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
@@ -1856,7 +2010,7 @@ export async function verifyApps({ windows, doc }) {
     // state is checked, and the operation the dialog would make is sent
     // through the same door — the document service — with a real PNG.
     const picButton = await win.webContents.executeJavaScript(`(() => {
-      const b = [...document.querySelectorAll('.rw-btn')].find((x) => (x.title || '').startsWith('Pictures'));
+      const b = [...document.querySelectorAll('.rw-btn')].find((x) => (x.title || x.dataset.tip || '').startsWith('Pictures'));
       return b ? { found: true, disabled: b.disabled } : { found: false };
     })()`);
     const pictured = await win.webContents.executeJavaScript(`(async () => {
@@ -1944,7 +2098,7 @@ export async function verifyApps({ windows, doc }) {
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
     const pushTitle = (title) => js(`(() => {
-      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
       if (!b) return 'no live button ' + ${JSON.stringify(title)};
       b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
     })()`);
@@ -1962,7 +2116,7 @@ export async function verifyApps({ windows, doc }) {
     await wait(120);
     const honest = await js(`(() => {
       const dead = [...document.querySelectorAll('.rw-ribbon .rw-btn[disabled]')];
-      return { count: dead.length, unexplained: dead.filter((b) => !/not built yet|Select a text box first|decides its own size|Changing it rescales/.test(b.title || '') && !/^(Undo|Redo) /.test(b.title || '')).map((b) => b.title || b.textContent.trim()).slice(0, 5) };
+      return { count: dead.length, unexplained: dead.filter((b) => !/not built yet|Select a text box first|decides its own size|Changing it rescales/.test(b.title || b.dataset.tip || '') && !/^(Undo|Redo) /.test(b.title || b.dataset.tip || '')).map((b) => b.title || b.dataset.tip || b.textContent.trim()).slice(0, 5) };
     })()`);
     check('slides: every disabled control explains itself', honest.unexplained.length === 0, `${honest.count} disabled on Home with nothing selected; unexplained: ${JSON.stringify(honest.unexplained)}`);
 
@@ -2591,7 +2745,7 @@ export async function verifyApps({ windows, doc }) {
 
     // A real click on the ribbon's Bold, then typing: the keys must still go
     // to the grid. A button that kept focus would swallow them.
-    await mouse(win, '.rw-btn[title^="Bold"]');
+    await mouse(win, '.rw-btn[data-tip^="Bold"]');
     await typeText(win.webContents, '77');
     await press(win.webContents, 'Return');
     await until(async () => (await cellText('E7')) === '77', 'the value typed after the ribbon click to land', 4000).catch(() => {});
@@ -2642,7 +2796,7 @@ export async function verifyApps({ windows, doc }) {
     await mouse(win, 'cell:F7', { modifiers: ['control'] });
     await until(async () => (await namebox()) === 'D5,F7', 'the name box to show both rectangles', 3000).catch(() => {});
     const both = await namebox();
-    await mouse(win, '.rw-btn[title^="Bold"]');
+    await mouse(win, '.rw-btn[data-tip^="Bold"]');
     await until(async () => (await weightOf('D5')) === '700' && (await weightOf('F7')) === '700', 'Bold to reach both cells', 4000).catch(() => {});
     const weights = { D5: await weightOf('D5'), F7: await weightOf('F7') };
     await mouse(win, 'cell:B2');
@@ -2685,7 +2839,7 @@ export async function verifyApps({ windows, doc }) {
       await wait(250);
     }
     const selectedBefore = await js(`(() => { const s = getSelection(); return { collapsed: s.isCollapsed, text: s.toString().slice(0, 30) }; })()`);
-    await mouse(win, '.rw-btn[title^="Italic"]');
+    await mouse(win, '.rw-btn[data-tip^="Italic"]');
     const selectedAfter = await js(`(() => { const s = getSelection(); return { collapsed: s.isCollapsed, text: s.toString().slice(0, 30), focus: (document.activeElement && (document.activeElement.className || document.activeElement.tagName)) || 'none' }; })()`);
     await until(async () => (await block(1)).italic, 'the Italic button to reach the engine', 4000).catch(() => {});
     const italic = await block(1);

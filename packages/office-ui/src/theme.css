@@ -771,3 +771,24 @@ textarea,
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
 }
+
+/* tooltips ------------------------------------------------------------------ */
+.rw-tip {
+  position: fixed; z-index: 1000; pointer-events: none; max-width: 320px;
+  padding: 5px 9px; border-radius: 7px; font-size: 12px; line-height: 1.35;
+  background: var(--n-100, #1f2933); color: #fff; box-shadow: var(--shadow-2);
+  opacity: 0; transform: translateY(-2px); transition: opacity 120ms ease, transform 120ms ease;
+}
+.rw-tip.on { opacity: 1; transform: none; }
+:root[data-theme='dark'] .rw-tip { background: #f2f4f7; color: #1e2127; }
+
+/* the zoom slider ---------------------------------------------------------- */
+.rw-zoom { display: flex; align-items: center; gap: 4px; margin-left: 8px; }
+.rw-zoom input[type='range'] { width: 108px; height: 4px; accent-color: var(--accent); cursor: pointer; margin: 0 2px; }
+.rw-zoom-step, .rw-zoom-pct {
+  border: 0; background: transparent; color: var(--ink-2); font-size: 12px; line-height: 1;
+  padding: 3px 5px; border-radius: 5px; cursor: pointer;
+}
+.rw-zoom-step { font-size: 14px; width: 20px; }
+.rw-zoom-pct { min-width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+.rw-zoom-step:hover, .rw-zoom-pct:hover { background: var(--surface-2); color: var(--ink); }

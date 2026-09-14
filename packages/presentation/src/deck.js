@@ -502,6 +502,52 @@ export class Deck {
     return true;
   }
 
+  /**
+   * A shape's fill and outline — the Format pane. `fill` is 'none', a
+   * colour ('#RRGGBB' or { scheme, lumMod }) or null to leave it as it is;
+   * `line` is 'none', { color, width (points), dash } or null. Written into
+   * the shape's own spPr, where it beats the style reference the shape may
+   * carry, in the order the schema wants: geometry, fill, line. A picture
+   * takes an outline as a frame; a table or chart frame has no spPr and
+   * says so.
+   */
+  setShapeStyle(slideIndex, shapeId, { fill = null, line = null } = {}) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found`);
+    if (range.tag === '<p:graphicFrame>') throw new Error('A table or chart frame has no fill or outline of its own.');
+    let shapeXml = xml.slice(range.start, range.end);
+    const spPrRe = /<p:spPr\b[^>]*\/>|<p:spPr\b[^>]*>[\s\S]*?<\/p:spPr>/;
+    const m = spPrRe.exec(shapeXml);
+    if (!m) throw new Error(`shape ${shapeId} has no properties to write`);
+    const spPr = m[0].endsWith('/>') ? m[0].replace(/\/>$/, '></p:spPr>') : m[0];
+    const open = /^<p:spPr\b[^>]*>/.exec(spPr)[0];
+    let inner = spPr.slice(open.length, -'</p:spPr>'.length);
+    // The line first: it holds a fill of its own, which must not be mistaken for the shape's.
+    const lnRe = /<a:ln\b[^>]*\/>|<a:ln\b[^>]*>[\s\S]*?<\/a:ln>/;
+    const hadLine = lnRe.exec(inner)?.[0] ?? '';
+    inner = inner.replace(lnRe, '');
+    const fillRe = /<a:(noFill|solidFill|gradFill|blipFill|pattFill|grpFill)\b[^>]*\/>|<a:(noFill|solidFill|gradFill|blipFill|pattFill|grpFill)\b[^>]*>[\s\S]*?<\/a:\2>/;
+    const hadFill = fillRe.exec(inner)?.[0] ?? '';
+    inner = inner.replace(fillRe, '');
+    const fillXml = fill === null ? hadFill : fill === 'none' || fill?.type === 'none' ? '<a:noFill/>' : `<a:solidFill>${colourXml(fill)}</a:solidFill>`;
+    const lineXml = line === null
+      ? hadLine
+      : line === 'none' || line?.type === 'none'
+        ? '<a:ln><a:noFill/></a:ln>'
+        : `<a:ln w="${Math.round((line.width ?? 1) * 12700)}"><a:solidFill>${colourXml(line.color ?? { scheme: 'accent1' })}</a:solidFill>${line.dash && line.dash !== 'solid' ? `<a:prstDash val="${escapeXml(String(line.dash))}"/>` : ''}</a:ln>`;
+    // After the geometry, else after the transform, else first.
+    const geom = /<a:(prstGeom|custGeom)\b[^>]*\/>|<a:(prstGeom|custGeom)\b[^>]*>[\s\S]*?<\/a:\2>/.exec(inner);
+    const xfrm = geom ? null : /<a:xfrm\b[^>]*\/>|<a:xfrm\b[^>]*>[\s\S]*?<\/a:xfrm>/.exec(inner);
+    const at = geom ? geom.index + geom[0].length : xfrm ? xfrm.index + xfrm[0].length : 0;
+    inner = inner.slice(0, at) + fillXml + lineXml + inner.slice(at);
+    shapeXml = shapeXml.slice(0, m.index) + open + inner + '</p:spPr>' + shapeXml.slice(m.index + m[0].length);
+    this.#writeSlide(part, xml.slice(0, range.start) + shapeXml + xml.slice(range.end));
+    return true;
+  }
+
   /** Hide a shape, or show it again — the selection pane's eye. It stays in the file, undrawn. */
   setShapeHidden(slideIndex, shapeId, hidden) {
     return this.#editShapeProps(slideIndex, shapeId, (open) => {

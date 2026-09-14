@@ -14,7 +14,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { SITE } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
@@ -198,7 +198,7 @@ export default function Word({ app, shell, boot }) {
    * the file, which is why they live here and not in the engine.
    */
   const [view, setView] = useState({
-    mode: 'print', marks: false, ruler: false, navigation: false, focus: false, spell: true, reading: false, painting: null,
+    mode: 'print', marks: false, ruler: false, navigation: false, focus: false, spell: true, reading: false, painting: null, zoom: 1,
   });
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
   const actRef = useRef(null);
@@ -673,7 +673,9 @@ export default function Word({ app, shell, boot }) {
           await shell.win.zoom({ reset: true });
           const page = model?.section?.widthPx || 794;
           const target = arg === 'width' ? (window.innerWidth - 120) / page : arg === 'page' ? (window.innerHeight - 200) / (model?.section?.heightPx || 1123) : arg === 'pages' ? 0.5 : Number(arg) || 1;
-          if (Math.abs(target - 1) > 0.01) await shell.win.zoom({ delta: Math.max(0.3, Math.min(3, target)) - 1 });
+          const level = Math.max(0.3, Math.min(3, target));
+          if (Math.abs(level - 1) > 0.01) await shell.win.zoom({ delta: level - 1 });
+          patchView({ zoom: Math.round(level * 100) / 100 });
           return;
         }
         case 'newWindow':
@@ -891,6 +893,7 @@ export default function Word({ app, shell, boot }) {
           <Chip>{model?.wordCount ?? 0} words</Chip>
           <Chip>{model?.characterCount ?? 0} characters</Chip>
           <Chip>{model?.blocks?.length ?? 0} paragraphs</Chip>
+          <ZoomSlider value={view.zoom ?? 1} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', 1)} />
         </>
       }
     >

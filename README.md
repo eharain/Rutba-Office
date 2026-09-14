@@ -14,7 +14,7 @@ with the network switched off.
 | **Contacts** | The address book Mail completes from | `.vcf` and CSV in, vCards out; a sender kept from the reading pane in one click |
 | **Rutba Word** | Documents that open the same everywhere, laid out on pages | `.docx` on an engine we own, reading `.odt`, `.rtf`, `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.ods` and `.csv` |
-| **Presentation** | Slides that survive the round trip | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen |
+| **Presentation** | Slides that survive the round trip, shapes you move and recolour by hand | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen |
 
 | **Pictures** | A viewer that opens before you blink | Every common format, EXIF, orientation, and PDFs |
 | **Image** | Crop, correct, annotate, export | Non-destructive: your original is never touched |

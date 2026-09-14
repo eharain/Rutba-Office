@@ -177,9 +177,9 @@ export default function SlidesRibbon({
               { label: 'Move left (nudge)', run: () => act('nudge', { dx: -8 }) },
               { label: 'Move right (nudge)', run: () => act('nudge', { dx: 8 }) },
             ])} disabled={!hasShape} title={needShape || 'Arrange the selected shape'} />
-            <Soon tall icon="wand" label="Quick Styles" why="Shape styles are fill and outline presets; comes with shape formatting." />
-            <Soon icon="wand" label="Shape Fill" why="A shape's fill is spPr the deck writer does not write yet." />
-            <Soon icon="shape" label="Shape Outline" why="Comes with shape formatting." />
+            <Button tall icon="wand" label="Quick Styles" disabled={!hasShape} title={needShape || 'The theme\'s own looks: filled in an accent, outlined in the same'} onClick={(e) => menu.open(e, [1, 2, 3, 4, 5, 6].map((n) => ({ label: `Accent ${n}`, icon: 'shape', run: () => act('quickStyle', n) })))} />
+            <Button icon="wand" label="Shape Fill" disabled={!hasShape} title={needShape || 'The fill of the selected shape, in the Format pane'} onClick={() => act('formatPane')} />
+            <Button icon="shape" label="Shape Outline" disabled={!hasShape} title={needShape || 'The outline of the selected shape, in the Format pane'} onClick={() => act('formatPane')} />
             <Soon icon="wand" label="Shape Effects" why="Comes with shape formatting." />
           </Group>
           <Group label="Editing">

@@ -10,7 +10,7 @@
 // rewrites one slide's XML and leaves every other part of the file alone.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, ZoomSlider, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { SITE } from '@rutba/office-formats/registry';
@@ -45,11 +45,52 @@ export default function Slides({ app, shell, boot }) {
   // The selected shape — one click selects, a double-click edits its words —
   // is what the Font and Paragraph groups act on.
   const [selected, setSelected] = useState(null);
+  // A drag in progress on the stage: the shape, whether it is moved or
+  // resized (and by which handle), and the box it has been dragged to, in
+  // slide units. The engine is told once, on release.
+  const [drag, setDrag] = useState(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [printing, setPrinting] = useState(false);
   // Reading View: the show in this window, without going full screen.
   const [reading, setReading] = useState(false);
   const stageRef = useRef(null);
+  const dragRef = useRef(null);
+  const actRef = useRef(null);
+
+  /**
+   * A press on a shape or a handle starts a drag: the pointer's travel,
+   * divided by the stage's scale, moves the box or resizes it — a corner
+   * keeps a picture's proportions, Shift keeps any shape's. The box follows
+   * the pointer as a dashed outline; the engine is told once, on release.
+   */
+  const startDrag = (e, shape, kind, handle = null) => {
+    if (e.button !== 0 || !shape.geometry) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const g0 = { ...shape.geometry };
+    const s = dragRef.current?.scale ?? 1;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let moved = false;
+    let g = g0;
+    setSelected(shape.id);
+    const move = (ev) => {
+      const dx = (ev.clientX - x0) / s;
+      const dy = (ev.clientY - y0) / s;
+      if (!moved && Math.abs(ev.clientX - x0) < 2 && Math.abs(ev.clientY - y0) < 2) return;
+      moved = true;
+      g = kind === 'move' ? { ...g0, x: g0.x + dx, y: g0.y + dy } : resized(g0, handle, dx, dy, ev.shiftKey || shape.kind === 'picture');
+      setDrag({ id: shape.id, kind, handle, g });
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      setDrag(null);
+      if (moved) actRef.current?.('dragEnd', { id: shape.id, g });
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
   // The slide is drawn at its own size and scaled to fit the stage, the way
   // PowerPoint's "Fit to Window" does — a 1280-px slide in a 1000-px stage
   // used to run off the right edge, logo and all. Re-measured on resize.
@@ -360,6 +401,8 @@ export default function Slides({ app, shell, boot }) {
 
   const slide = model?.slide;
   const selectedShape = selected ? slide?.shapes?.find((s) => s.id === selected) || null : null;
+  const scale = view.zoom ?? fit;
+  dragRef.current = { scale };
   // What the ribbon shows for the selected shape: its first run's look and
   // its first paragraph's alignment — the granularity the writer edits at.
   const format = useMemo(() => {
@@ -388,6 +431,31 @@ export default function Slides({ app, shell, boot }) {
       // The right-hand pane: Layers (the slide's shapes, in drawing order)
       // or Designs (the deck's layouts). Asking for the one that is open closes it.
       case 'pane': patchView((v) => ({ pane: v.pane === arg ? null : arg })); return;
+      // The Format pane opens (and stays open) from Shape Fill and Shape Outline.
+      case 'formatPane': patchView({ pane: 'format' }); return;
+      case 'dragEnd':
+        // The box the pointer left the shape at.
+        await apply({ op: 'setGeometry', slide: index, shape: arg.id, x: Math.round(arg.g.x), y: Math.round(arg.g.y), w: Math.round(arg.g.w), h: Math.round(arg.g.h) });
+        return;
+      case 'shapeFill':
+        if (!selectedShape) return;
+        await apply({ op: 'setShapeStyle', slide: index, shape: selectedShape.id, fill: arg });
+        return;
+      case 'shapeLine': {
+        // A change to one of colour, weight or dashes keeps the other two.
+        if (!selectedShape) return;
+        const cur = selectedShape.line && selectedShape.line.type !== 'none' ? selectedShape.line : null;
+        const line = arg === 'none'
+          ? 'none'
+          : { color: arg.color ?? cur?.color ?? (slide?.theme?.colors?.accent1 || '#4472C4'), width: arg.width ?? cur?.width ?? 1, dash: arg.dash ?? cur?.dash ?? null };
+        await apply({ op: 'setShapeStyle', slide: index, shape: selectedShape.id, line });
+        return;
+      }
+      case 'quickStyle':
+        // Filled in an accent, outlined in the same accent darkened — the theme's own look.
+        if (!selectedShape) return;
+        await apply({ op: 'setShapeStyle', slide: index, shape: selectedShape.id, fill: { scheme: `accent${arg}` }, line: { color: { scheme: `accent${arg}`, lumMod: 50 }, width: 1 } });
+        return;
       case 'order':
         if (!selectedShape) return;
         await apply({ op: 'reorderShape', slide: index, shape: selectedShape.id, to: arg });
@@ -467,6 +535,8 @@ export default function Slides({ app, shell, boot }) {
     }
   };
 
+  actRef.current = act;
+
   // Every hook above, every early return below. This return sat above the
   // formatting memo, so a file the engine refused made React throw
   // "rendered fewer hooks than expected" and the person got a blank window
@@ -545,6 +615,7 @@ export default function Slides({ app, shell, boot }) {
           <Spacer />
           <Chip>Slide {index + 1} of {model?.count ?? 0}</Chip>
           {slide?.shapes ? <Chip>{slide.shapes.length} shapes</Chip> : null}
+          <ZoomSlider value={view.zoom ?? fit} min={0.25} max={3} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', null)} resetLabel="Fit to window" />
         </>
       }
     >
@@ -580,7 +651,18 @@ export default function Slides({ app, shell, boot }) {
             <div
               className={`sl-stage tone-${view.tone || 'colour'}`}
               ref={stageRef}
+              tabIndex={0}
               onMouseDown={(e) => { if (e.target === e.currentTarget) setSelected(null); }}
+              onKeyDown={(e) => {
+                // The keyboard on the stage: arrows nudge the selected shape
+                // (a pixel, ten with Shift), Delete removes it, Escape lets go.
+                if (editing || !selectedShape) return;
+                const step = e.shiftKey ? 10 : 1;
+                const nudge = { ArrowLeft: { dx: -step }, ArrowRight: { dx: step }, ArrowUp: { dy: -step }, ArrowDown: { dy: step } }[e.key];
+                if (nudge) { e.preventDefault(); act('nudge', nudge); }
+                else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); act('deleteShape'); }
+                else if (e.key === 'Escape') setSelected(null);
+              }}
             >
               {slide && view.mode === 'sorter' ? (
                 <div className="sl-sortergrid">
@@ -610,22 +692,50 @@ export default function Slides({ app, shell, boot }) {
                   <div className="sl-svg" dangerouslySetInnerHTML={{ __html: slide.svg }} />
                   {view.gridlines ? <div className="sl-gridlines" /> : null}
                   {view.guides ? <div className="sl-guides" /> : null}
-                  {/* Text boxes get a hit area so a click lands on the shape rather than on the drawing. */}
-                  {slide.shapes.filter((s) => s.text && s.geometry && !s.hidden).map((s) => (
-                    <button
-                      key={s.id}
-                      type="button"
-                      className={`sl-hit${selected === s.id ? ' selected' : ''}`}
-                      style={{ left: s.geometry.x, top: s.geometry.y, width: s.geometry.w, height: s.geometry.h }}
-                      onClick={() => setSelected(s.id)}
-                      onDoubleClick={() => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') })}
-                      onContextMenu={(e) => menu.open(e, [
-                        { label: 'Edit text', icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) },
-                        { label: 'Delete shape', icon: 'trash', run: () => apply({ op: 'removeShape', slide: index, shape: s.id }) },
-                      ])}
-                      title={`${s.name || 'Shape'} — double-click to edit`}
-                    />
-                  ))}
+                  {/*
+                    Every shape gets a hit area over the drawing, so a click lands
+                    on the shape: click selects, drag moves, a double-click on
+                    words edits them. The selected one wears eight handles.
+                  */}
+                  {slide.shapes.filter((s) => s.geometry && !s.hidden).map((s) => {
+                    const g = drag?.id === s.id ? drag.g : s.geometry;
+                    return (
+                      <button
+                        key={s.id}
+                        type="button"
+                        className={`sl-hit${selected === s.id ? ' selected' : ''}${drag?.id === s.id ? ' dragging' : ''}`}
+                        data-shape={s.id}
+                        style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
+                        onMouseDown={(e) => startDrag(e, s, 'move')}
+                        onClick={() => setSelected(s.id)}
+                        onDoubleClick={() => (s.text ? setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) : null)}
+                        onContextMenu={(e) => menu.open(e, [
+                          ...(s.text ? [{ label: 'Edit text', icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) }] : []),
+                          { label: 'Format shape…', icon: 'wand', run: () => { setSelected(s.id); act('formatPane'); } },
+                          { label: 'Bring to front', icon: 'chevronUp', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'front' }); } },
+                          { label: 'Send to back', icon: 'chevronDown', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'back' }); } },
+                          '-',
+                          { label: 'Delete shape', icon: 'trash', run: () => apply({ op: 'removeShape', slide: index, shape: s.id }) },
+                        ])}
+                        title={s.text ? `${s.name || 'Shape'} — drag to move, double-click to edit` : `${s.name || s.kind} — drag to move`}
+                      />
+                    );
+                  })}
+                  {selectedShape?.geometry && !selectedShape.hidden && !editing
+                    ? HANDLES.map(([name, fx, fy, cursor]) => {
+                        const g = drag?.id === selectedShape.id ? drag.g : selectedShape.geometry;
+                        const size = 9 / scale;
+                        return (
+                          <div
+                            key={name}
+                            className="sl-handle"
+                            data-handle={name}
+                            style={{ left: g.x + g.w * fx - size / 2, top: g.y + g.h * fy - size / 2, width: size, height: size, cursor, borderWidth: 1.5 / scale }}
+                            onMouseDown={(e) => startDrag(e, selectedShape, 'resize', name)}
+                          />
+                        );
+                      })
+                    : null}
                   {editing ? (
                     <textarea
                       className="sl-editor"
@@ -664,13 +774,15 @@ export default function Slides({ app, shell, boot }) {
               right
               width={252}
               resizable
-              title={view.pane === 'layers' ? 'Layers' : 'Designs'}
+              title={view.pane === 'layers' ? 'Layers' : view.pane === 'designs' ? 'Designs' : 'Format'}
               actions={<Button icon="close" title="Close the pane" onClick={() => act('pane', view.pane)} />}
             >
               {view.pane === 'layers' ? (
                 <LayersPane slide={slide} selected={selected} onSelect={setSelected} act={act} />
-              ) : (
+              ) : view.pane === 'designs' ? (
                 <DesignsPane layouts={model.layouts} current={slide?.layout || null} size={model.size} act={act} />
+              ) : (
+                <FormatPane shape={selectedShape} theme={slide?.theme} act={act} />
               )}
             </Panel>
           ) : null}
@@ -704,6 +816,102 @@ export default function Slides({ app, shell, boot }) {
         />
       ) : null}
     </AppFrame>
+  );
+}
+
+/** The eight handles: where each sits on the box, and the cursor it shows. */
+const HANDLES = [
+  ['nw', 0, 0, 'nwse-resize'], ['n', 0.5, 0, 'ns-resize'], ['ne', 1, 0, 'nesw-resize'],
+  ['e', 1, 0.5, 'ew-resize'], ['se', 1, 1, 'nwse-resize'], ['s', 0.5, 1, 'ns-resize'],
+  ['sw', 0, 1, 'nesw-resize'], ['w', 0, 0.5, 'ew-resize'],
+];
+
+/** The box a handle drags to, never smaller than a few pixels; `keep` holds the proportions on a corner. */
+function resized(g0, handle, dx, dy, keep) {
+  let { x, y, w, h } = g0;
+  if (handle.includes('e')) w = g0.w + dx;
+  if (handle.includes('s')) h = g0.h + dy;
+  if (handle.includes('w')) { x = g0.x + dx; w = g0.w - dx; }
+  if (handle.includes('n')) { y = g0.y + dy; h = g0.h - dy; }
+  if (keep && handle.length === 2 && g0.w > 0 && g0.h > 0) {
+    const ratio = g0.w / g0.h;
+    if (Math.abs(w / g0.w) > Math.abs(h / g0.h)) h = w / ratio; else w = h * ratio;
+    if (handle.includes('w')) x = g0.x + g0.w - w;
+    if (handle.includes('n')) y = g0.y + g0.h - h;
+  }
+  if (w < 8) { if (handle.includes('w')) x = g0.x + g0.w - 8; w = 8; }
+  if (h < 8) { if (handle.includes('n')) y = g0.y + g0.h - 8; h = 8; }
+  return { x, y, w, h };
+}
+
+/** The theme's colours, in the order PowerPoint's gallery shows them, and its standard row. */
+const THEME_SWATCHES = ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6'];
+const STANDARD_SWATCHES = ['#C00000', '#FF0000', '#FFC000', '#FFFF00', '#92D050', '#00B050', '#00B0F0', '#0070C0', '#002060', '#7030A0'];
+const LINE_WEIGHTS = [0.25, 0.5, 0.75, 1, 1.5, 2.25, 3, 4.5, 6];
+const LINE_DASHES = [['solid', 'Solid'], ['sysDash', 'Round dot'], ['dash', 'Dash'], ['dashDot', 'Dash dot'], ['lgDash', 'Long dash'], ['lgDashDot', 'Long dash dot']];
+
+/**
+ * The selected shape's fill and outline — PowerPoint's Format Shape pane,
+ * with the parts people use: the theme's colours and the standard ones as
+ * swatches, any colour, no fill; the outline's colour, weight and dashes,
+ * or no outline. Each press is one engine operation on the shape's own
+ * properties, which the file keeps.
+ */
+function FormatPane({ shape, theme, act }) {
+  if (!shape) return <div className="sl-pane-empty">Click a shape on the slide to format it.</div>;
+  if (shape.kind === 'table' || shape.kind === 'chart' || shape.kind === 'unsupported') return <div className="sl-pane-empty">A table or chart frame has no fill or outline of its own.</div>;
+  const colours = theme?.colors || {};
+  const fill = shape.fill?.type === 'solid' ? shape.fill.color : shape.fill?.type === 'none' ? 'none' : null;
+  const line = shape.line && shape.line.type !== 'none' ? shape.line : null;
+  const same = (a, b) => Boolean(a && b && String(a).toLowerCase() === String(b).toLowerCase());
+  const swatches = (onPick, current) => (
+    <>
+      <div className="sl-swatches">
+        {THEME_SWATCHES.filter((n) => colours[n]).map((n) => (
+          <button key={n} type="button" className={`sl-swatch${same(current, colours[n]) ? ' current' : ''}`} title={n} data-swatch={n} style={{ background: colours[n] }} onClick={() => onPick(colours[n])} />
+        ))}
+      </div>
+      <div className="sl-swatches">
+        {STANDARD_SWATCHES.map((hex) => (
+          <button key={hex} type="button" className={`sl-swatch${same(current, hex) ? ' current' : ''}`} title={hex} data-swatch={hex} style={{ background: hex }} onClick={() => onPick(hex)} />
+        ))}
+      </div>
+    </>
+  );
+  return (
+    <div className="sl-format">
+      <div className="sl-format-head">{shape.name || shape.kind}</div>
+      <section className="sl-format-fill">
+        <h4>Fill</h4>
+        {swatches((hex) => act('shapeFill', hex), fill)}
+        <div className="sl-format-row">
+          <button type="button" className={`sl-chip${fill === 'none' ? ' current' : ''}`} onClick={() => act('shapeFill', 'none')}>No fill</button>
+          <input type="color" className="sl-colour" title="Any colour" value={fill && fill !== 'none' ? fill : '#4472c4'} onChange={(e) => act('shapeFill', e.target.value)} />
+        </div>
+      </section>
+      <section className="sl-format-line">
+        <h4>Outline</h4>
+        {swatches((hex) => act('shapeLine', { color: hex }), line?.color)}
+        <div className="sl-format-row">
+          <button type="button" className={`sl-chip${shape.line?.type === 'none' ? ' current' : ''}`} onClick={() => act('shapeLine', 'none')}>No outline</button>
+          <input type="color" className="sl-colour" title="Any colour" value={line?.color || '#1f2937'} onChange={(e) => act('shapeLine', { color: e.target.value })} />
+        </div>
+        <div className="sl-format-row">
+          <label>
+            Weight
+            <select className="rw-input" value={String(line?.width ?? 1)} onChange={(e) => act('shapeLine', { width: Number(e.target.value) })}>
+              {LINE_WEIGHTS.map((w) => <option key={w} value={String(w)}>{w} pt</option>)}
+            </select>
+          </label>
+          <label>
+            Dashes
+            <select className="rw-input" value={line?.dash || 'solid'} onChange={(e) => act('shapeLine', { dash: e.target.value })}>
+              {LINE_DASHES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+            </select>
+          </label>
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -832,6 +1040,19 @@ function DesignsPane({ layouts, current, size, act }) {
 
 const CSS = `
 /* the right-hand panes ------------------------------------------------------ */
+.sl-format-head { padding: 8px 12px; font-weight: 600; font-size: 12.5px; border-bottom: 1px solid var(--line-soft); }
+.sl-format section { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); }
+.sl-format h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); font-weight: 600; }
+.sl-swatches { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; margin-bottom: 5px; }
+.sl-swatch { height: 18px; border-radius: 4px; border: 1px solid rgba(0, 0, 0, .14); cursor: pointer; padding: 0; }
+.sl-swatch:hover { transform: scale(1.12); }
+.sl-swatch.current { outline: 2px solid var(--accent); outline-offset: 1px; }
+.sl-format-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; font-size: 12px; }
+.sl-format-row label { display: flex; flex-direction: column; gap: 3px; flex: 1; font-size: 11.5px; color: var(--ink-2); }
+.sl-format-row select.rw-input { height: 26px; font-size: 12px; }
+.sl-chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: var(--ink-2); }
+.sl-chip:hover, .sl-chip.current { color: var(--accent); border-color: var(--accent); }
+.sl-colour { width: 30px; height: 24px; padding: 0 2px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
 .sl-pane-empty { padding: 14px; color: var(--ink-3); font-size: 12.5px; }
 .sl-layers { display: flex; flex-direction: column; }
 .sl-layers-tools { display: flex; align-items: center; gap: 2px; padding: 6px 8px; border-bottom: 1px solid var(--line-soft); }
@@ -881,7 +1102,10 @@ const CSS = `
 .sl-stage { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 22px; background: var(--window); }
 .sl-slide { position: relative; box-shadow: var(--shadow-2); background: #fff; }
 .sl-svg svg { display: block; width: 100%; height: 100%; }
-.sl-hit { position: absolute; border: 1px solid transparent; background: transparent; border-radius: 2px; min-height: 8px; min-width: 8px; }
+.sl-hit { position: absolute; border: 1px solid transparent; background: transparent; border-radius: 2px; min-height: 8px; min-width: 8px; cursor: move; }
+.sl-hit.dragging { border: 1px dashed var(--accent); background: rgba(43, 95, 217, 0.08); z-index: 4; }
+.sl-handle { position: absolute; z-index: 5; background: #fff; border: 1.5px solid var(--accent); border-radius: 2px; box-sizing: border-box; }
+.sl-stage:focus { outline: none; }
 
 .sl-hit:hover { border-color: var(--accent-line); background: rgba(43, 95, 217, 0.06); }
 .sl-editor {

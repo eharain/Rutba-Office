@@ -162,6 +162,8 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  useTips();
+
   return (
     <div className={`rw-titlebar${isMac ? ' mac' : ''}`}>
       <button type="button" className="rw-appmark interactive rw-btn ghost" onClick={onMenu} title="Rutba Office">
@@ -436,7 +438,8 @@ export function Button({
       className={classes}
       aria-pressed={pressed === undefined ? undefined : Boolean(pressed)}
       disabled={disabled}
-      title={title || label}
+      data-tip={title || label}
+      aria-label={!label && !children ? title : undefined}
       onClick={onClick}
       {...rest}
     >
@@ -448,6 +451,107 @@ export function Button({
 }
 
 export const Separator = () => <div className="rw-sep" />;
+
+/**
+ * Tooltips of our own: one small dark chip under the pointer's element,
+ * after a short rest, for anything with a `data-tip` (every ribbon button)
+ * or a `title`. The browser's tooltip is a grey box that arrives late and
+ * looks like nothing else in the window; this one is the suite's. An
+ * element's `title` is held aside while the pointer is on it — the browser
+ * draws its own tip from the attribute, and two tips are one too many — and
+ * given back when the pointer leaves.
+ */
+function useTips() {
+  useEffect(() => {
+    // One per document, kept between mounts: a second frame in the same
+    // window would otherwise leave an empty first one behind.
+    let tip = document.querySelector('.rw-tip');
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.className = 'rw-tip';
+      tip.setAttribute('role', 'tooltip');
+      document.body.appendChild(tip);
+    }
+    let timer = 0;
+    let held = null;
+    const hide = () => {
+      clearTimeout(timer);
+      timer = 0;
+      tip.classList.remove('on');
+      if (held) {
+        held.el.setAttribute('title', held.title);
+        held = null;
+      }
+    };
+    const show = (el, text) => {
+      tip.textContent = text;
+      tip.classList.add('on');
+      const r = el.getBoundingClientRect();
+      const w = tip.offsetWidth;
+      const h = tip.offsetHeight;
+      let left = Math.round(r.left + r.width / 2 - w / 2);
+      left = Math.max(6, Math.min(window.innerWidth - w - 6, left));
+      let top = Math.round(r.bottom + 8);
+      if (top + h > window.innerHeight - 6) top = Math.round(r.top - h - 8);
+      tip.style.left = `${left}px`;
+      tip.style.top = `${top}px`;
+    };
+    const over = (e) => {
+      const el = e.target.closest?.('[data-tip], [title]');
+      if (!el || el === held?.el) return;
+      hide();
+      const text = el.getAttribute('data-tip') || el.getAttribute('title');
+      if (!text || el.disabled === true && !el.getAttribute('data-tip')) return;
+      if (el.hasAttribute('title')) {
+        held = { el, title: el.getAttribute('title') };
+        el.removeAttribute('title');
+      }
+      timer = setTimeout(() => show(el, text), 420);
+      const leave = () => {
+        el.removeEventListener('mouseleave', leave);
+        hide();
+      };
+      el.addEventListener('mouseleave', leave);
+    };
+    document.addEventListener('mouseover', over);
+    document.addEventListener('mousedown', hide, true);
+    document.addEventListener('keydown', hide, true);
+    window.addEventListener('blur', hide);
+    return () => {
+      document.removeEventListener('mouseover', over);
+      document.removeEventListener('mousedown', hide, true);
+      document.removeEventListener('keydown', hide, true);
+      window.removeEventListener('blur', hide);
+      hide();
+    };
+  }, []);
+}
+
+/**
+ * The zoom slider every document app keeps at the right of its status bar:
+ * minus, a slider, plus, and the level as a button that puts it back to
+ * 100% (or, for a deck, to fit). `value` is a factor, 1 being actual size.
+ */
+export function ZoomSlider({ value = 1, min = 0.5, max = 2, step = 0.05, onChange, onReset, resetLabel = null }) {
+  const pct = Math.round((value || 1) * 100);
+  const clamp = (v) => Math.max(min, Math.min(max, Math.round(v * 100) / 100));
+  return (
+    <div className="rw-zoom" role="group" aria-label="Zoom">
+      <button type="button" className="rw-zoom-step" data-tip="Zoom out (Ctrl+-)" onClick={() => onChange?.(clamp(value - 0.1))}>−</button>
+      <input
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={Math.max(min, Math.min(max, value || 1))}
+        aria-label="Zoom level"
+        onChange={(e) => onChange?.(clamp(Number(e.target.value)))}
+      />
+      <button type="button" className="rw-zoom-step" data-tip="Zoom in (Ctrl++)" onClick={() => onChange?.(clamp(value + 0.1))}>+</button>
+      <button type="button" className="rw-zoom-pct" data-tip={resetLabel || 'Back to 100%'} onClick={() => onReset?.()}>{pct}%</button>
+    </div>
+  );
+}
 
 /* ── layout ─────────────────────────────────────────────────────────────── */
 

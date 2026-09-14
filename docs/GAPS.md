@@ -102,8 +102,11 @@ it is where the gaps are.
 The largest register of the three: the deck writer is younger than the
 document and workbook writers.
 
-- **Shape formatting**: fill, outline, effects, quick styles. A shape can be
-  drawn and moved; it cannot be recoloured.
+- **Shape formatting**: since 2026-09-14 the Format pane sets a shape's
+  fill and outline (colour, weight, dashes) and Quick Styles gives it the
+  theme's looks, and every shape moves and resizes by hand on the stage;
+  effects (shadow, glow, reflection), gradients and picture fills are still
+  read-only.
 - **Text inside a shape**: bullets and numbering, indent levels, line
   spacing, character spacing, strikethrough, highlight, text direction,
   vertical alignment, columns in a box, WordArt.
