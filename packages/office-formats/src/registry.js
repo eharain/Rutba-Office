@@ -14,6 +14,10 @@ import { KINDS } from './sniff.js';
  */
 export const SITE = {
   home: 'https://office.rutba.io',
+  // Opened from About, Help > Contact Us and the Feedback buttons, so every
+  // installed copy depends on it: office.rutba.io/contact must always answer.
+  // The site's `npm run check:facts` fails if that page goes (management repo,
+  // portal/apps/office). Messages there are emailed and kept in the console.
   contact: 'https://office.rutba.io/contact',
   help: 'https://office.rutba.io/help',
   source: 'https://github.com/eharain/Rutba-Office',
