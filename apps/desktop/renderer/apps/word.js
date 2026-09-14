@@ -203,6 +203,10 @@ export default function Word({ app, shell, boot }) {
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
   const actRef = useRef(null);
   const [find, setFind] = useState(null);
+  // The picture the reader clicked — the one Wrap Text and Position act on.
+  // A click on a picture says so through a DOM event from the memoised
+  // paragraph; a caret move takes the pick away, as in Word.
+  const [picked, setPicked] = useState(null);
   const pageRef = useRef(null);
   const pendingCaret = useRef(null);
   // The caret as this editor last left it: sent with an edit whose answer is
@@ -388,6 +392,7 @@ export default function Word({ app, shell, boot }) {
    * doubled the round trips for no gain.
    */
   const syncSelection = useCallback(() => {
+    setPicked(null);
     const pos = currentPosition();
     if (!pos?.focus) return;
     const ops = [{ op: 'setSelection', anchor: pos.anchor || pos.focus, focus: pos.focus }];
@@ -494,6 +499,13 @@ export default function Word({ app, shell, boot }) {
     el.addEventListener('beforeinput', handleBeforeInput);
     return () => el.removeEventListener('beforeinput', handleBeforeInput);
   }, [handleBeforeInput, model]);
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el) return undefined;
+    const pick = (e) => setPicked(e.detail);
+    el.addEventListener('wd-pick', pick);
+    return () => el.removeEventListener('wd-pick', pick);
+  }, [busy, model === null]);
 
   // The engine's caret is authoritative; after every render the DOM caret is
   // put back where the engine says it is.
@@ -716,6 +728,23 @@ export default function Word({ app, shell, boot }) {
           await apply({ op: 'deleteSelection' }, { op: 'insertText', text: cased }, { op: 'setSelection', anchor: from, focus: { block: from.block, offset: from.offset + cased.length } });
           return;
         }
+        case 'wrap': {
+          // How the text treats the picked picture: Word's Wrap Text menu.
+          if (!picked) return toast('Click a picture first, then choose how the text wraps round it.', { ms: 4500 });
+          const img = blocks[picked.block]?.images?.[picked.image];
+          await apply({ op: 'setImageLayout', block: picked.block, image: picked.image, wrap: arg, hAlign: img?.hAlign || 'left' });
+          return;
+        }
+        case 'position': {
+          // Where the picked picture sits: at the left or right with the words
+          // round it, or centred with the words above and below.
+          if (!picked) return toast('Click a picture first, then choose where it sits.', { ms: 4500 });
+          const img = blocks[picked.block]?.images?.[picked.image];
+          const floating = img?.anchored && img.wrap !== 'none' ? img.wrap : null;
+          const wrap = arg === 'center' ? 'topAndBottom' : floating && floating !== 'topAndBottom' ? floating : 'square';
+          await apply({ op: 'setImageLayout', block: picked.block, image: picked.image, wrap, hAlign: arg });
+          return;
+        }
         case 'coverPage':
           // A title paragraph at the very front, on a page of its own.
           await apply(
@@ -786,7 +815,7 @@ export default function Word({ app, shell, boot }) {
           return;
       }
     },
-    [model, view, apply, shell, toast, doc, patchView]
+    [model, view, apply, shell, toast, doc, patchView, picked]
   );
   actRef.current = act;
 
@@ -851,6 +880,7 @@ export default function Word({ app, shell, boot }) {
           insertPicture={insertPicture}
           act={act}
           view={view}
+          picked={picked}
         />
       }
       status={
@@ -932,7 +962,7 @@ export default function Word({ app, shell, boot }) {
                 item.table ? (
                   <TableGroup key={`t${item.table.id}`} table={item.table} labels={model.listLabels} styles={model.resolvedStyles} tsplit={pages.tableSplits[item.table.id] || null} />
                 ) : (
-                  <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} split={pages.splits[item.index] || null} />
+                  <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} split={pages.splits[item.index] || null} pickedImage={picked?.block === item.index ? picked.image : null} />
                 )
               )}
               {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{`Laying out… ${Math.round((mounted / flowItems.length) * 100)}%`}</div> : null}
@@ -1483,15 +1513,19 @@ function TextBox({ box, styles }) {
       if (p.querySelector('.wd-tab')) scheduleTabs(p, p._tabs || null);
     }
   });
+  const beside = floatsBeside(box);
+  const d = box.dist || {};
   const style = {
     width: box.widthPx ? Math.min(box.widthPx, 720) : undefined,
     minHeight: box.heightPx ? Math.min(box.heightPx, 900) : undefined,
     backgroundColor: box.fill || undefined,
     border: box.line ? `1px solid ${box.line}` : undefined,
-    margin: box.hAlign === 'center' ? '6px auto' : box.hAlign === 'right' ? '6px 0 6px auto' : '6px 0',
+    ...(beside
+      ? { float: floatSide(box), margin: `${Math.round(d.t || 0)}px ${floatSide(box) === 'left' ? Math.round(d.r || 12) : 0}px ${Math.round(d.b || 6)}px ${floatSide(box) === 'right' ? Math.round(d.l || 12) : 0}px` }
+      : { margin: box.hAlign === 'center' ? '6px auto' : box.hAlign === 'right' ? '6px 0 6px auto' : '6px 0' }),
   };
   return (
-    <div ref={ref} className="wd-textbox" contentEditable={false} style={style} title={box.name || undefined}>
+    <div ref={ref} className={`wd-textbox${beside ? ' wd-float' : ''}`} contentEditable={false} style={style} title={box.name || undefined}>
       {box.paragraphs.map((p, i) => (
         <p key={i} className="wd-box-p" style={paragraphCss(p, styles)} ref={(el) => { if (el) el._tabs = tabStops(p, styles); }}>
           {(p.runs || []).length ? p.runs.map((run, j) => <RunSpan key={j} run={run} />) : <br />}
@@ -1536,24 +1570,85 @@ function Notes({ notes, kind, styles, onEdit }) {
  * Memoised, and the split array keeps its identity while it is unchanged,
  * so a keystroke re-renders the one paragraph it touched.
  */
-const Block = React.memo(function Block({ block, labels, styles, split }) {
-  if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last />;
+const Block = React.memo(function Block({ block, labels, styles, split, pickedImage = null }) {
+  if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last pickedImage={pickedImage} />;
   const bounds = [0, ...split, Infinity];
   return (
     <>
       {bounds.slice(0, -1).map((from, j) => (
-        <Part key={j} block={block} labels={labels} styles={styles} from={from} to={bounds[j + 1]} first={j === 0} last={j === bounds.length - 2} />
+        <Part key={j} block={block} labels={labels} styles={styles} from={from} to={bounds[j + 1]} first={j === 0} last={j === bounds.length - 2} pickedImage={pickedImage} />
       ))}
     </>
   );
 });
 
+/**
+ * Does the drawing float beside the words — square, tight or through wrap,
+ * at the left or the right? Then it goes into the paragraph before the words,
+ * as a CSS float, and the lines run round it. Everything else — inline,
+ * top-and-bottom, centred, behind, in front — is drawn after the words.
+ */
+function floatsBeside(d) {
+  if (!d?.anchored) return false;
+  if (!['square', 'tight', 'through'].includes(d.wrap)) return false;
+  return d.hAlign !== 'center';
+}
+
+const floatSide = (d) => (d.hAlign === 'right' || d.hAlign === 'outside' ? 'right' : 'left');
+
+/**
+ * A picture's box from what the file says about it. The width is capped at
+ * the column; a floating picture keeps the distances the file gives it from
+ * the words, with Word's own quarter-inch-ish defaults where it gives none.
+ */
+function imageStyle(image) {
+  const base = { width: image.widthPx ? Math.min(image.widthPx, 640) : undefined, height: 'auto', maxWidth: '100%' };
+  const d = image.dist || {};
+  if (!image.anchored) return { ...base, display: 'block', margin: '6px 0' };
+  const side = image.hAlign === 'center' ? 'center' : floatSide(image);
+  if (floatsBeside(image)) {
+    return {
+      ...base,
+      float: side,
+      margin: `${Math.round(d.t || 0)}px ${side === 'left' ? Math.round(d.r || 12) : 0}px ${Math.round(d.b || 6)}px ${side === 'right' ? Math.round(d.l || 12) : 0}px`,
+    };
+  }
+  if (image.wrap === 'topAndBottom' || image.wrap === 'square' || image.wrap === 'tight' || image.wrap === 'through') {
+    return { ...base, display: 'block', margin: side === 'center' ? '6px auto' : side === 'right' ? '6px 0 6px auto' : '6px auto 6px 0' };
+  }
+  // No wrap: behind the words or in front of them, at the paragraph's edge.
+  return {
+    ...base,
+    position: 'absolute',
+    top: 0,
+    ...(side === 'center' ? { left: '50%', transform: 'translateX(-50%)' } : { [side]: 0 }),
+    zIndex: image.behind ? -1 : 2,
+    pointerEvents: 'auto',
+  };
+}
+
 /** The paragraphs a paginator keeps with what follows, by convention as much as by w:keepNext. */
 const KEEP_WITH_NEXT = /^(Heading[1-6]|Title|Subtitle)$/;
 
-function Part({ block, labels, styles, from, to, first, last }) {
+function Part({ block, labels, styles, from, to, first, last, pickedImage = null }) {
   const ref = React.useRef(null);
   const whole = first && last;
+  const pick = (e, i) => {
+    e.stopPropagation();
+    e.currentTarget.dispatchEvent(new CustomEvent('wd-pick', { bubbles: true, detail: { block: block.index, image: i } }));
+  };
+  const picture = (image, i) => (
+    <img
+      key={i}
+      className={`wd-image${floatsBeside(image) ? ' wd-float' : ''}${image.anchored && image.wrap === 'none' ? (image.behind ? ' behind' : ' front') : ''}${pickedImage === i ? ' picked' : ''}`}
+      contentEditable={false}
+      src={image.href}
+      alt={image.name || ''}
+      draggable={false}
+      onClick={(e) => pick(e, i)}
+      style={imageStyle(image)}
+    />
+  );
   const runs = whole ? block.runs || [] : sliceRuns(block.runs, from, to);
   const hasTabs = runs.some((r) => r.text && r.text.includes('\t'));
   React.useLayoutEffect(() => {
@@ -1596,6 +1691,9 @@ function Part({ block, labels, styles, from, to, first, last }) {
       data-keeplines={block.keepLines ? '1' : undefined}
       style={partStyle}
     >
+      {/* Floats first, so the lines that follow run round them. */}
+      {first ? (block.images || []).map((image, i) => (floatsBeside(image) ? picture(image, i) : null)) : null}
+      {first ? (block.textBoxes || []).map((box, i) => (floatsBeside(box) ? <TextBox key={`f${i}`} box={box} styles={styles} /> : null)) : null}
       {first && label ? <span className="wd-marker" contentEditable={false} style={markerHang ? { display: 'inline-block', width: markerHang, textIndent: 0, marginRight: 0 } : undefined}>{label}</span> : null}
 
       {runs.length ? runs.map((run, i) => <RunSpan key={i} run={run} />) : whole || !last || !hasMedia ? <br /> : null}
@@ -1605,24 +1703,8 @@ function Part({ block, labels, styles, from, to, first, last }) {
         the caret has no business inside a picture, and letting the browser
         put it there is how an image gets deleted by a stray Backspace.
       */}
-      {last
-        ? (block.images || []).map((image, i) => (
-            <img
-              key={i}
-              className="wd-image"
-              contentEditable={false}
-              src={image.href}
-              alt={image.name || ''}
-              draggable={false}
-              style={{ width: image.widthPx ? Math.min(image.widthPx, 640) : undefined, height: 'auto', maxWidth: '100%', display: 'block', margin: '6px 0' }}
-            />
-          ))
-        : null}
-      {last
-        ? (block.textBoxes || []).map((box, i) => (
-            <TextBox key={i} box={box} styles={styles} />
-          ))
-        : null}
+      {last ? (block.images || []).map((image, i) => (floatsBeside(image) ? null : picture(image, i))) : null}
+      {last ? (block.textBoxes || []).map((box, i) => (floatsBeside(box) ? null : <TextBox key={i} box={box} styles={styles} />)) : null}
     </p>
   );
 }
@@ -1684,6 +1766,11 @@ const CSS = `
 .wd-tab[data-leader="hyphen"] { background: linear-gradient(currentColor, currentColor) 0 calc(100% - 3px) / 3px 1px repeat-x; }
 .wd-tab[data-leader="underscore"] { border-bottom: 1px solid currentColor; }
 .wd-marker { color: #555; margin-right: 6px; user-select: none; }
+/* A picture: click to pick it; a picked one wears the accent. A float sits
+   beside the words; one with no wrap sits behind or in front of them. */
+.wd-image { cursor: default; }
+.wd-image.picked { outline: 2px solid var(--accent); outline-offset: 2px; }
+.wd-image.behind { opacity: .92; }
 .wd-mounting { margin: 12px 0 0; font-size: 12px; color: var(--ink-3); user-select: none; }
 
 /* A watermark: the header's WordArt, drawn behind the body as Word does. */

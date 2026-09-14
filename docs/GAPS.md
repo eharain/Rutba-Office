@@ -39,9 +39,13 @@ a suite.
 
 Reads more than it writes. What it draws faithfully and cannot yet produce:
 
-- **Floating layout.** A picture or a text box sits in its own paragraph;
-  text does not wrap round it. Position, Wrap Text, Align, Group, the
-  selection pane and z-order all wait on this one thing.
+- **Floating layout.** On screen, since 2026-09-14, a picture or a text box
+  anchored at the left or right floats there and the words wrap round it;
+  Wrap Text and Position on the Layout tab move a picked picture between the
+  line, the sides and the middle, and the file keeps it. Print and PDF still
+  draw a floating picture as a block under its paragraph — the engine's
+  paginator wraps to one width. Align, Group, the selection pane and z-order
+  for a document's drawings are still to come.
 - **Columns and section control.** `w:cols` is read and not honoured: the
   paginator lays one column. Line numbers, hyphenation and page borders are
   the same story. (Pages themselves arrived on screen on 2026-09-10: the

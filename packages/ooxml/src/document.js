@@ -65,6 +65,44 @@ import {
  */
 const PAGE_BREAK_BEFORE = /<w:pageBreakBefore\b(?![^>]*w:val="(?:0|false)")/;
 const EXPLICIT_BREAK = /<w:br\b[^>]*w:type="page"/;
+
+/**
+ * Where an anchored drawing sits and how text treats it, from `wp:anchor`:
+ * the wrap (square, tight, through, topAndBottom, none), which side the text
+ * runs on, the horizontal and vertical positions (an alignment or an offset,
+ * and what each is relative to), the distances text keeps from it, and
+ * whether it is behind the text. An inline drawing has none of this — it is
+ * a character in the line — and answers `anchored: false`.
+ */
+export function anchorLayout(inner) {
+  const anchor = /<wp:anchor\b([^>]*)>/.exec(inner);
+  if (!anchor) return { anchored: false };
+  const a = attrs(anchor[1]);
+  const emu = (v) => (v == null || v === '' ? 0 : Number(v) / 9525);
+  const wrapEl = /<wp:(wrapSquare|wrapTight|wrapThrough|wrapTopAndBottom|wrapNone)\b([^>]*)\/?>/.exec(inner);
+  const wrap = wrapEl
+    ? { wrapSquare: 'square', wrapTight: 'tight', wrapThrough: 'through', wrapTopAndBottom: 'topAndBottom', wrapNone: 'none' }[wrapEl[1]]
+    : 'none';
+  const wrapSide = wrapEl ? attrs(wrapEl[2] || '').wrapText ?? 'bothSides' : null;
+  const position = (axis) => {
+    const el = new RegExp('<wp:position' + axis + '\\b([^>]*)>([\\s\\S]*?)<\\/wp:position' + axis + '>').exec(inner);
+    if (!el) return { rel: null, align: null, offsetPx: null };
+    const align = /<wp:align>([^<]*)<\/wp:align>/.exec(el[2])?.[1] ?? null;
+    const off = /<wp:posOffset>(-?\d+)<\/wp:posOffset>/.exec(el[2]);
+    return { rel: attrs(el[1]).relativeFrom ?? null, align, offsetPx: off ? Number(off[1]) / 9525 : null };
+  };
+  const h = position('H');
+  const v = position('V');
+  return {
+    anchored: true,
+    wrap,
+    wrapSide,
+    hAlign: h.align, hOffsetPx: h.offsetPx, hRel: h.rel,
+    vAlign: v.align, vOffsetPx: v.offsetPx, vRel: v.rel,
+    dist: { l: emu(a.distL), r: emu(a.distR), t: emu(a.distT), b: emu(a.distB) },
+    behind: a.behindDoc === '1' || a.behindDoc === 'true',
+  };
+}
 /**
  * The two "keep" properties a paginator honours: a heading that stays with
  * the paragraph after it, and a paragraph whose lines are not split across
@@ -625,7 +663,9 @@ export class Document {
   section() { return parseSection(this._body().body); }
 
   /**
-   * Pictures embedded in one paragraph, as data URIs.
+   * Pictures embedded in one paragraph, as data URIs — with, for a picture
+   * in a `wp:anchor`, where it floats and how the text treats it (see
+   * `anchorLayout`), which is what lets the page wrap words round it.
    *
    * `w:drawing` wraps either `wp:inline` (flows with the text) or `wp:anchor`
    * (floats at a position). Both are rendered as a BLOCK under the paragraph's
@@ -660,10 +700,54 @@ export class Document {
         widthPx: ext.cx ? Number(ext.cx) / 9525 : 96,
         heightPx: ext.cy ? Number(ext.cy) / 9525 : 96,
         href: bytes ? toDataUri(bytes, part) : null,
-        anchored: inner.includes('<wp:anchor') || m[0].includes('<wp:anchor'),
+        ...anchorLayout(inner),
       });
     }
     return out;
+  }
+
+  /**
+   * How a picture sits in its paragraph: in the line, or floating with the
+   * text wrapping round it, or behind or in front of it. Rewrites the
+   * picture's drawing between `wp:inline` and `wp:anchor` in place; the
+   * picture itself — the blip, the size, the name — is untouched, so the
+   * file round-trips whichever way it went. `wrap` is one of inline,
+   * square, tight, topAndBottom, behind, front; `hAlign` left, center or
+   * right, relative to the margins.
+   */
+  setImageLayout(index, imageIndex, { wrap = 'inline', hAlign = 'left' } = {}) {
+    const p = this.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    const drawings = [...p.xml.matchAll(/<w:drawing\b[^>]*>[\s\S]*?<\/w:drawing>/g)].filter((m) => /<a:blip\b/.test(m[0]));
+    const d = drawings[imageIndex];
+    if (!d) throw new Error('no picture ' + imageIndex + ' in paragraph ' + index);
+    const inner = d[0];
+    const extent = /<wp:extent\b[^>]*\/>/.exec(inner)?.[0] ?? '<wp:extent cx="914400" cy="914400"/>';
+    const docPr = /<wp:docPr\b[^>]*\/>|<wp:docPr\b[^>]*>[\s\S]*?<\/wp:docPr>/.exec(inner)?.[0] ?? '<wp:docPr id="1" name="Picture"/>';
+    const graphic = /<a:graphic\b[\s\S]*<\/a:graphic>/.exec(inner)?.[0];
+    if (!graphic) throw new Error('the picture has no graphic');
+    const WP = 'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"';
+    let drawing;
+    if (wrap === 'inline') {
+      drawing = '<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0" ' + WP + '>' + extent + docPr + '<wp:cNvGraphicFramePr/>' + graphic + '</wp:inline></w:drawing>';
+    } else {
+      const align = { left: 'left', center: 'center', centre: 'center', right: 'right' }[hAlign] || 'left';
+      // Word wants a wrap polygon with wrapTight; a square is what it draws
+      // for a rectangular picture anyway.
+      const wrapXml = wrap === 'square' || wrap === 'tight' ? '<wp:wrapSquare wrapText="bothSides"/>'
+        : wrap === 'topAndBottom' ? '<wp:wrapTopAndBottom/>'
+          : '<wp:wrapNone/>';
+      const behind = wrap === 'behind' ? '1' : '0';
+      drawing = '<w:drawing><wp:anchor distT="0" distB="0" distL="114300" distR="114300" simplePos="0" relativeHeight="251658240" behindDoc="' + behind + '" locked="0" layoutInCell="1" allowOverlap="1" ' + WP + '>'
+        + '<wp:simplePos x="0" y="0"/>'
+        + '<wp:positionH relativeFrom="margin"><wp:align>' + align + '</wp:align></wp:positionH>'
+        + '<wp:positionV relativeFrom="paragraph"><wp:posOffset>0</wp:posOffset></wp:positionV>'
+        + extent + '<wp:effectExtent l="0" t="0" r="0" b="0"/>' + wrapXml + docPr + '<wp:cNvGraphicFramePr/>' + graphic
+        + '</wp:anchor></w:drawing>';
+    }
+    const xml = p.xml.slice(0, d.index) + drawing + p.xml.slice(d.index + inner.length);
+    this._spliceBody(p.start, p.end, xml);
+    return this;
   }
 
   /** Paragraph styles resolved from word/styles.xml, flattened, in CSS px. */
@@ -1021,7 +1105,8 @@ export class Document {
         heightPx = dim('height');
       }
       const namePr = /<wp:docPr\b([^>]*)\/?>/.exec(inner);
-      const hAlign = /<wp:positionH\b[^>]*>[\s\S]*?<wp:align>([^<]*)<\/wp:align>/.exec(inner)?.[1] ?? null;
+      const layout = anchorLayout(inner);
+      const hAlign = layout.hAlign ?? null;
       const spPr = /<wps:spPr\b[^>]*>([\s\S]*?)<\/wps:spPr>/.exec(inner)?.[1] ?? '';
       const line = /<a:ln\b[^>]*>([\s\S]*?)<\/a:ln>/.exec(spPr);
       const fill = colourOf(spPr.replace(/<a:ln\b[^>]*>[\s\S]*?<\/a:ln>/, ''), colours);
@@ -1030,6 +1115,9 @@ export class Document {
       out.push({
         name: namePr ? (attrs(namePr[1])['name'] ?? null) : null,
         widthPx, heightPx, hAlign,
+        anchored: layout.anchored, wrap: layout.wrap ?? null, wrapSide: layout.wrapSide ?? null,
+        dist: layout.dist ?? null, behind: Boolean(layout.behind),
+        vRel: layout.vRel ?? null, vOffsetPx: layout.vOffsetPx ?? null, hRel: layout.hRel ?? null, hOffsetPx: layout.hOffsetPx ?? null,
         fill: fill ?? (vmlFill ? vmlFill[1] : null),
         line: line ? colourOf(line[1], colours) : null,
         paragraphs,

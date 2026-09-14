@@ -56,7 +56,7 @@ const Soon = ({ icon, label, tall, why }) => (
 );
 
 export default function WordRibbon({
-  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {},
+  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null,
 }) {
   const format = model?.format || {};
   const styles = Array.isArray(model?.styles) ? model.styles : [];
@@ -371,8 +371,19 @@ export default function WordRibbon({
             </div>
           </Group>
           <Group label="Arrange">
-            <Soon tall icon="grid" label="Position" why="Floating layout — text wrapping round a box — is not in the paginator yet. Pictures sit in their own paragraph." />
-            <Soon tall icon="grid" label="Wrap Text" why="Floating layout is not in the paginator yet." />
+            <Button tall icon="grid" label="Position" disabled={!picked} title={picked ? 'Where the picture sits, with the words round it' : 'Click a picture first'} onClick={(e) => menu.open(e, [
+              { label: 'Left, words round it', icon: 'alignLeft', run: () => act('position', 'left') },
+              { label: 'Centre, words above and below', icon: 'alignCenter', run: () => act('position', 'center') },
+              { label: 'Right, words round it', icon: 'alignRight', run: () => act('position', 'right') },
+            ])} />
+            <Button tall icon="picture" label="Wrap Text" disabled={!picked} title={picked ? 'How the words treat the picture' : 'Click a picture first'} onClick={(e) => menu.open(e, [
+              { label: 'In line with text', run: () => act('wrap', 'inline') },
+              { label: 'Square', run: () => act('wrap', 'square') },
+              { label: 'Top and bottom', run: () => act('wrap', 'topAndBottom') },
+              '-',
+              { label: 'Behind text', run: () => act('wrap', 'behind') },
+              { label: 'In front of text', run: () => act('wrap', 'front') },
+            ])} />
             <Soon tall icon="chevronUp" label="Bring Forward" why="Z-order needs floating layout." />
             <Soon tall icon="chevronDown" label="Send Backward" why="Z-order needs floating layout." />
             <Soon icon="list" label="Selection Pane" why="Comes with floating layout." />

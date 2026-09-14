@@ -18,6 +18,7 @@ import path from 'node:path';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
+import { openDocx } from '@rutba/doc-view/backends/ooxml';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -225,6 +226,16 @@ function makeFixtures(dir) {
   const icon = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\//, '')), '..', 'resources', 'icon.png');
   if (fs.existsSync(icon)) fs.copyFileSync(icon, at('picture.png'));
 
+  // A picture floating at the right of a long paragraph, the words wrapping
+  // round it — what a logo beside a letter's opening looks like in Word.
+  if (fs.existsSync(icon)) {
+    const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Floating pictures', style: 'Heading1' }, { text: lorem.repeat(3) }, { text: 'After the picture.' }] }));
+    view.setSelection({ block: 0, offset: 0 });
+    view.insertImage({ name: 'logo', contentType: 'image/png', data: fs.readFileSync(icon), widthPx: 160, heightPx: 160 });
+    view.setImageLayout({ block: 1, image: 0, wrap: 'square', hAlign: 'right' });
+    fs.writeFileSync(at('float.docx'), view.save());
+  }
+
   // A file of accounts, the loose way other clients write one.
   fs.writeFileSync(at('accounts.json'), JSON.stringify([
     { email: 'one@checks.example', password: 'not-a-real-password', host: 'mail.checks.example', port: 993, smtpPort: 587, smtpSecure: false, label: 'one' },
@@ -236,6 +247,7 @@ function makeFixtures(dir) {
     accounts: at('accounts.json'),
     docx: at('report.docx'),
     long: at('long.docx'),
+    float: fs.existsSync(at('float.docx')) ? at('float.docx') : null,
     xlsx: at('sales.xlsx'),
     pptx: at('deck.pptx'),
     wav: at('tone.wav'),
@@ -610,12 +622,93 @@ export async function verifyApps({ windows, doc }) {
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes: those blocks alone, for working on them.
+  /* ── Rutba Word: a picture floats and the words wrap round it ─────────── */
+  //
+  // Pictures sat in a paragraph of their own whatever the file said. A
+  // picture in a wp:anchor now floats where the file puts it and the words
+  // run round it; Wrap Text and Position on the Layout tab move a picked
+  // picture between the line, the sides and the middle. The words' first
+  // line is measured against the picture each time.
+  const wordFloat = async () => {
+    if (!files.float) return check('word: the floating-picture fixture exists', false, 'no icon to make it from');
+    try {
+      const win = await open('word', files.float);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const measure = () => js(`(() => {
+        const page = document.querySelector('.wd-page');
+        const img = page.querySelector('.wd-image');
+        const words = page.querySelector('[data-block="2"]');
+        if (!img || !words) return null;
+        const node = document.createTreeWalker(words, NodeFilter.SHOW_TEXT).nextNode();
+        const r = document.createRange();
+        r.setStart(node, 0);
+        r.setEnd(node, 1);
+        const t = r.getBoundingClientRect();
+        const i = img.getBoundingClientRect();
+        const cs = getComputedStyle(page);
+        const p = page.getBoundingClientRect();
+        return {
+          floating: img.classList.contains('wd-float'), picked: img.classList.contains('picked'),
+          text: { left: Math.round(t.left), top: Math.round(t.top), right: Math.round(t.right) },
+          img: { left: Math.round(i.left), top: Math.round(i.top), right: Math.round(i.right), bottom: Math.round(i.bottom) },
+          column: { left: Math.round(p.left + parseFloat(cs.paddingLeft)), right: Math.round(p.right - parseFloat(cs.paddingRight)) },
+        };
+      })()`);
+      await until(() => js(`Boolean(document.querySelector('.wd-image.wd-float'))`), 'the floating picture', 8000);
+      await wait(400);
+      const right = await measure();
+      check('word: a picture anchored at the right floats there and the first line runs beside it',
+        right && right.floating && right.text.left <= right.column.left + 2 && right.text.top < right.img.bottom && right.text.top >= right.img.top - 4 && Math.abs(right.img.right - right.column.right) <= 3,
+        JSON.stringify(right));
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-float.png'), (await win.webContents.capturePage()).toPNG());
+
+      // Pick it, and put it in the line: the words drop below it.
+      await js(`(() => { document.querySelector('.wd-image').click(); return 1; })()`);
+      await until(() => js(`document.querySelector('.wd-image')?.classList.contains('picked')`), 'the picture to be picked', 4000);
+      await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Layout')?.click(); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Wrap Text' && !b.disabled))`), 'Wrap Text to be enabled', 4000);
+      await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Wrap Text').click(); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'In line with text'))`), 'the Wrap Text menu', 4000);
+      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'In line with text').click(); return 1; })()`);
+      await until(() => js(`Boolean(document.querySelector('.wd-image')) && !document.querySelector('.wd-image.wd-float')`), 'the picture to leave the words', 5000);
+      await wait(300);
+      const inline = await measure();
+      check('word: Wrap Text → In line with text puts the picture in its own line, the words below',
+        inline && !inline.floating && inline.text.top >= inline.img.bottom - 2,
+        JSON.stringify(inline));
+
+      // Position → Left: it floats at the left, the words at its right.
+      await js(`(() => { document.querySelector('.wd-image').click(); return 1; })()`);
+      await until(() => js(`document.querySelector('.wd-image')?.classList.contains('picked')`), 'the picture to be picked again', 4000);
+      await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Position').click(); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => /^Left/.test(b.textContent.trim())))`), 'the Position menu', 4000);
+      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => /^Left/.test(b.textContent.trim())).click(); return 1; })()`);
+      await until(() => js(`Boolean(document.querySelector('.wd-image.wd-float'))`), 'the picture to float again', 5000);
+      await wait(300);
+      const left = await measure();
+      check('word: Position → Left floats the picture at the left with the words at its right',
+        left && left.floating && Math.abs(left.img.left - left.column.left) <= 3 && left.text.left > left.img.right && left.text.top < left.img.bottom,
+        JSON.stringify(left));
+
+      // And the file says so.
+      await press(win.webContents, 's', { modifiers: ['control'] });
+      await wait(1200);
+      const saved = openDocx(fs.readFileSync(files.float)).render({ pages: false }).blocks[1].images[0];
+      check('word: the picture\'s wrap and position are saved', saved && saved.anchored && saved.wrap === 'square' && saved.hAlign === 'left', JSON.stringify({ anchored: saved?.anchored, wrap: saved?.wrap, hAlign: saved?.hAlign }));
+      const complaints = await errorsIn(win);
+      check('word: floating a picture reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('word: the floating-picture check ran', false, err.message);
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
     if (only.includes('grips')) await sheetGrips();
     if (only.includes('panes')) await slidePanes();
+    if (only.includes('float')) await wordFloat();
     return done();
   }
 
@@ -698,6 +791,7 @@ export async function verifyApps({ windows, doc }) {
   }
 
   await wordPages();
+  await wordFloat();
   await sheetGrips();
   await slidePanes();
 

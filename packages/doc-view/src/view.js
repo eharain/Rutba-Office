@@ -1107,6 +1107,25 @@ export class DocView {
    * yet (a known D5 remainder), and an insert nothing shows is a dead
    * control wearing a working one's clothes.
    */
+  /**
+   * How a picture sits: in the line, or floating with the text wrapping round
+   * it (square, tight, topAndBottom), or behind or in front of the text —
+   * Word's Wrap Text menu. `hAlign` puts a floating picture at the left,
+   * centre or right of the margins. The picture is named by its paragraph
+   * and its index among that paragraph's pictures.
+   */
+  setImageLayout({ block, image = 0, wrap = 'inline', hAlign = 'left' } = {}) {
+    if (typeof this.doc.setImageLayout !== 'function') {
+      throw new Error('this document backend does not support floating pictures');
+    }
+    if (!this.block(block)) throw new Error('no paragraph at index ' + block);
+    return this._edit('picture layout', null, () => {
+      this.doc.setImageLayout(block, image, { wrap, hAlign });
+      this._invalidate();
+      return this;
+    });
+  }
+
   insertImage({ name, contentType, data, widthPx, heightPx } = {}) {
     if (typeof this.doc.insertImage !== 'function') {
       throw new Error('this document backend does not support pictures');

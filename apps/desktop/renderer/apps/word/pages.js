@@ -306,11 +306,15 @@ export function layPages(page, geo, state) {
     const was = applied(el);
     const kind = el.classList.contains('wd-block') ? 'p' : el.classList.contains('wd-table') ? 't' : 'n';
     const rect = el.getBoundingClientRect();
+    // A float beside the words can hang below its paragraph's last line;
+    // the block is as tall as the float, or the next page cuts the picture.
+    let bottom = rect.bottom;
+    for (const f of el.querySelectorAll('.wd-float')) bottom = Math.max(bottom, f.getBoundingClientRect().bottom);
     return {
       el,
       kind,
       top: rect.top - pageRect.top,
-      height: rect.height,
+      height: bottom - rect.top,
       oldDelta: was ? was.delta : 0,
       block: kind === 'p' ? Number(el.dataset.block) : null,
       table: kind === 't' ? el.dataset.table || null : null,
