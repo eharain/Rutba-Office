@@ -23,6 +23,11 @@
  */
 import { OoxmlPackage, attrs, esc } from './package.js';
 
+const REL_HYPERLINK = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
+const XMLNS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+/** Where `<hyperlinks>` goes when a sheet has none: after the data validations, before the print options. */
+const AFTER_HYPERLINKS = /<printOptions\b|<pageMargins\b|<pageSetup\b|<headerFooter\b|<rowBreaks\b|<colBreaks\b|<customProperties\b|<cellWatches\b|<ignoredErrors\b|<smartTags\b|<drawing\b|<legacyDrawing\b|<legacyDrawingHF\b|<picture\b|<oleObjects\b|<controls\b|<webPublishItems\b|<tableParts\b|<extLst\b|<\/worksheet>/;
+
 const SHEET_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
 export function colToIndex(letters) {
@@ -593,6 +598,60 @@ class SheetPart {
    * else in schema position — before dataValidations and everything that
    * follows it in the tail.
    */
+  /** The sheet's hyperlinks as the file has them: ref, r:id, location, display, tooltip. */
+  hyperlinks() {
+    const block = /<hyperlinks\b[^>]*>([\s\S]*?)<\/hyperlinks>/.exec(this.suffix);
+    if (!block) return [];
+    const out = [];
+    for (const m of block[1].matchAll(/<hyperlink\b([^>]*?)\/?>/g)) {
+      const a = attrs(m[1]);
+      if (!a.ref) continue;
+      out.push({ ref: a.ref, rId: a['r:id'] ?? null, location: a.location ?? null, display: a.display ?? null, tooltip: a.tooltip ?? null });
+    }
+    return out;
+  }
+
+  /**
+   * Put a hyperlink on a cell, in place of the one it had. The block sits
+   * after the data validations and before the print options, and is made
+   * where it belongs when the sheet has none; an r:id needs the prefix
+   * declared on the root, which a sheet this suite built may not carry.
+   */
+  setHyperlink({ ref, rId = null, location = null, display = null, tooltip = null }) {
+    const el = '<hyperlink ref="' + ref + '"'
+      + (rId ? ' r:id="' + rId + '"' : '')
+      + (location ? ' location="' + esc(location) + '"' : '')
+      + (display ? ' display="' + esc(display) + '"' : '')
+      + (tooltip ? ' tooltip="' + esc(tooltip) + '"' : '') + '/>';
+    this.removeHyperlink(ref);
+    const block = /<hyperlinks\b[^>]*>[\s\S]*?<\/hyperlinks>/.exec(this.suffix);
+    if (block) {
+      const at = block.index + block[0].length - '</hyperlinks>'.length;
+      this.suffix = this.suffix.slice(0, at) + el + this.suffix.slice(at);
+    } else {
+      const anchor = AFTER_HYPERLINKS.exec(this.suffix);
+      this.suffix = this.suffix.slice(0, anchor.index) + '<hyperlinks>' + el + '</hyperlinks>' + this.suffix.slice(anchor.index);
+    }
+    if (rId && !/\sxmlns:r=/.test(this.prefix)) {
+      this.prefix = this.prefix.replace(/<worksheet\b/, '<worksheet xmlns:r="' + XMLNS_R + '"');
+    }
+    this.dirty = true;
+    return this;
+  }
+
+  /** Take the hyperlink off a cell; a block emptied by it goes too. Returns whether there was one. */
+  removeHyperlink(ref) {
+    const block = /<hyperlinks\b[^>]*>([\s\S]*?)<\/hyperlinks>/.exec(this.suffix);
+    if (!block) return false;
+    const one = new RegExp('<hyperlink\\b[^>]*\\bref="' + ref.replace(/[$]/g, '\\$&') + '"[^>]*?/?>(?:</hyperlink>)?');
+    if (!one.test(block[1])) return false;
+    const inner = block[1].replace(one, '');
+    const replacement = inner.trim() ? block[0].replace(block[1], () => inner) : '';
+    this.suffix = this.suffix.slice(0, block.index) + replacement + this.suffix.slice(block.index + block[0].length);
+    this.dirty = true;
+    return true;
+  }
+
   addConditionalFormatting(block) {
     const close = '</conditionalFormatting>';
     const last = this.suffix.lastIndexOf(close);
@@ -1613,6 +1672,34 @@ export class Workbook {
   // ── column widths and row heights ─────────────────────────────────────────
 
   /** Set one column's width in OOXML character units. */
+  /** A sheet's hyperlinks with their targets: an address from the rels, or a place in the workbook. */
+  hyperlinks(sheetName) {
+    const { part } = this._sheetPart(sheetName);
+    const rels = new Map(this.pkg.rels(this.partNameFor(sheetName)).map((r) => [r.Id, r]));
+    return part.hyperlinks().map((h) => {
+      const rel = h.rId ? rels.get(h.rId) : null;
+      return { ref: h.ref, href: rel ? rel.Target : null, location: h.location, display: h.display, tooltip: h.tooltip };
+    });
+  }
+
+  /**
+   * Put a hyperlink on a cell. An address (http, https, mailto) is a
+   * relationship marked external, as Excel writes one; a place in the
+   * workbook — C12, Sheet2!B4, a name — is a location and needs none.
+   */
+  setHyperlink(sheetName, ref, { href = null, location = null, tooltip = null, display = null } = {}) {
+    if (!href && !location) throw new Error('a hyperlink needs an address or a place in the workbook');
+    const { part } = this._sheetPart(sheetName);
+    const rId = href ? this.pkg.addRelationshipTo(this.partNameFor(sheetName), REL_HYPERLINK, href, { external: true }) : null;
+    part.setHyperlink({ ref, rId, location: href ? null : location, display, tooltip });
+    return this;
+  }
+
+  removeHyperlink(sheetName, ref) {
+    const { part } = this._sheetPart(sheetName);
+    return part.removeHyperlink(ref);
+  }
+
   setColWidthChars(sheetName, colIndex, widthChars) {
     const { part } = this._sheetPart(sheetName);
     part.setColWidth(colIndex, widthChars);

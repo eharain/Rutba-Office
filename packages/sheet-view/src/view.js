@@ -129,6 +129,8 @@ export class SheetView {
     for (const { name, part } of this.workbook.sheets()) {
       this.comments.set(name, this._readComments(part));
     }
+    /** sheet -> { suffix, map: ref -> link }, read when a sheet is first drawn and again whenever its tail changes (an edit, an undo). */
+    this.links = new Map();
 
     // A workbook with no sheet in it is not a workbook. Without this the view
     // carried an undefined active sheet all the way to the first frame and
@@ -517,6 +519,46 @@ export class SheetView {
 
   sheetNames() { return this.workbook.sheetNames(); }
 
+  /**
+   * The hyperlinks of a sheet by cell, from its tail. Read lazily — a sheet
+   * that is never shown is never parsed for them — and keyed on the tail's
+   * text, so an edit or an undo that changes the block is seen next frame.
+   */
+  _links(sheetName = this.activeSheet) {
+    const { part } = this.workbook._sheetPart(sheetName);
+    const cached = this.links.get(sheetName);
+    if (cached && cached.suffix === part.suffix) return cached.map;
+    const map = new Map(this.workbook.hyperlinks(sheetName).map((h) => [h.ref, h]));
+    this.links.set(sheetName, { suffix: part.suffix, map });
+    return map;
+  }
+
+  /**
+   * A hyperlink on a cell: an address that opens outside the suite, or a
+   * place in this workbook that is gone to. Both are the file's own
+   * hyperlinks block, so Excel sees them too.
+   */
+  setHyperlink({ row, col, href = null, location = null, tooltip = null }) {
+    const at = ref(row, col);
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    const parts = [sheetPartName];
+    const relsName = OoxmlPackage.relsPathFor(sheetPartName);
+    if (this.pkg.has(relsName)) parts.push(relsName);
+    return this._edit('hyperlink', null, [], () => {
+      this.workbook.setHyperlink(this.activeSheet, at, { href: href || null, location: href ? null : (location || null), tooltip: tooltip || null });
+      return this;
+    }, { parts, tracksNewParts: true });
+  }
+
+  removeHyperlink({ row, col }) {
+    const at = ref(row, col);
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    return this._edit('remove hyperlink', null, [], () => {
+      this.workbook.removeHyperlink(this.activeSheet, at);
+      return this;
+    }, { parts: [sheetPartName] });
+  }
+
   selectSheet(name) {
     if (!this.sheetNames().includes(name)) throw new Error('no such sheet: ' + name);
     this.activeSheet = name;
@@ -580,6 +622,7 @@ export class SheetView {
     // the sheet's tables, read once here and reused by the frame below.
     const cfCache = new Map();
     const sheetTables = this.sheetTables();
+    const links = this._links();
     for (const row of rowIndices) {
       const height = geo.rowHeight(row);
       if (height === 0) continue;
@@ -626,10 +669,11 @@ export class SheetView {
           }
         }
         const note = this.comments.get(this.activeSheet)?.get(ref(row, col)) ?? null;
+        const link = links.get(ref(row, col)) ?? null;
         // A styled but empty cell still has to be drawn: a shaded header with no
         // text in it is a real thing, and skipping it leaves a hole in the band.
         const decorated = Boolean(style && (style.fill || style.border)) || Boolean(cf?.bar)
-          || Boolean(cf?.icon) || Boolean(note);
+          || Boolean(cf?.icon) || Boolean(note) || Boolean(link);
         if (display.text === '' && !decorated && !merge && !this.selection.contains(row, col)) continue;
 
         const spanW = merge
@@ -662,6 +706,8 @@ export class SheetView {
           icon: cf?.icon ?? null,
           // The cell's comment, for the corner mark and its tooltip.
           note,
+          // The cell's hyperlink, for the underline, the tip and the follow.
+          link,
           merged: merge ? { ref: merge.ref, rows: merge.bottom - merge.top + 1, cols: merge.right - merge.left + 1 } : null,
           isError: isError(this.calc.getValue(this.activeSheet, row, col)),
           // A number never spills into its neighbours (Excel shows #### instead);
@@ -765,6 +811,10 @@ export class SheetView {
       merged: this.isSelectionMerged(),
       sheet: this.activeSheet,
       sheets: this.sheetNames(),
+      // The active cell's hyperlink, for the status bar and the Link dialog,
+      // and how many notes this sheet carries.
+      link: links.get(ref(active.row, active.col)) ?? null,
+      notes: this.comments.get(this.activeSheet)?.size ?? 0,
       // The defined names, for the Name Manager and the name box's jump list.
       names: this.names(),
       // The tables (ListObjects) on this sheet, for styling and the filter

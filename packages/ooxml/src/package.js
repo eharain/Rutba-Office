@@ -324,14 +324,16 @@ export class OoxmlPackage {
    * and the create-or-append split are exactly the kind of code that drifts
    * when copied.
    */
-  addRelationshipTo(fromPart, type, target) {
+  addRelationshipTo(fromPart, type, target, { external = false } = {}) {
     const relsPath = OoxmlPackage.relsPathFor(fromPart);
     const existing = this.has(relsPath) ? this.text(relsPath) : null;
     const used = new Set((existing ?? '').match(/Id="rId(\d+)"/g)?.map((s) => Number(/\d+/.exec(s)[0])) ?? []);
     let n = 1;
     while (used.has(n)) n += 1;
     const id = 'rId' + n;
-    const entry = '<Relationship Id="' + id + '" Type="' + type + '" Target="' + esc(target) + '"/>';
+    // A target outside the package — a hyperlink's address — is said to be,
+    // or Excel looks for a part by that name and calls the file corrupt.
+    const entry = '<Relationship Id="' + id + '" Type="' + type + '" Target="' + esc(target) + '"' + (external ? ' TargetMode="External"' : '') + '/>';
     if (existing) {
       this.write_(relsPath, existing.replace('</Relationships>', entry + '</Relationships>'));
     } else {

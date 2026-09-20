@@ -20,6 +20,8 @@ import { buildPptx } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { verifyViewer } from './verify-viewer.js';
+import { verifySheetLinks } from './verify-sheet-links.js';
+import { SheetView } from '@rutba/sheet-view';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -184,6 +186,23 @@ function makeFixtures(dir) {
     })
   );
 
+  // A workbook with a note on a cell and a link on another — what Review
+  // shows and Insert → Link makes. The note is a comments part as Excel
+  // writes one; the link is a place on the second sheet.
+  {
+    const view = SheetView.open(buildXlsx({
+      sheets: [
+        { name: 'Sales', rows: [['Region', 'Q1', 'Q2'], ['North', 1420, 1610], ['South', 860, 910], ['See the ledger', '', '']] },
+        { name: 'Ledger', rows: [['Ledger', 'Amount'], ['North', 1420]] },
+      ],
+    }));
+    const sheetPart = view.workbook.partNameFor('Sales');
+    view.pkg.addPart('xl/comments1.xml', '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><comments xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><authors><author>Kim Lee</author></authors><commentList><comment ref="B2" authorId="0"><text><r><t>Check this figure against the ledger.</t></r></text></comment></commentList></comments>', 'application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml');
+    view.pkg.addRelationshipTo(sheetPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments', '../comments1.xml');
+    view.setHyperlink({ row: 3, col: 0, location: 'Ledger!A2', tooltip: 'The ledger row' });
+    fs.writeFileSync(at('notes.xlsx'), view.save());
+  }
+
   fs.writeFileSync(
     at('deck.pptx'),
     buildPptx({
@@ -269,6 +288,7 @@ function makeFixtures(dir) {
     float: fs.existsSync(at('float.docx')) ? at('float.docx') : null,
     ruler: at('ruler.docx'),
     xlsx: at('sales.xlsx'),
+    notes: at('notes.xlsx'),
     pptx: at('deck.pptx'),
     wav: at('tone.wav'),
     vcf: at('contacts.vcf'),
@@ -1142,7 +1162,16 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifyViewer({ open, check, until, wait, errorsIn, capture }, { dir, wav: files.wav });
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer: those blocks alone, for working on them.
+  /* ── Worksheets: a note, a link, and a link put on a cell ────────────── */
+  const sheetLinks = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifySheetLinks({ open, check, until, wait, press, errorsIn, capture }, { file: files.notes });
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -1156,6 +1185,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('ruler')) await wordRuler();
     if (only.includes('update')) await updatePrompt();
     if (only.includes('viewer')) await viewer();
+    if (only.includes('links')) await sheetLinks();
     return done();
   }
 
@@ -1247,6 +1277,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordRuler();
   await updatePrompt();
   await viewer();
+  await sheetLinks();
   await polish();
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */

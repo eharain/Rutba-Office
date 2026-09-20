@@ -329,7 +329,7 @@ export default function SheetsRibbon({
             <Soon icon="filter" label="Slicer" why="A slicer is a separate part tied to a table or pivot; not written yet." />
           </Group>
           <Group label="Links">
-            <Soon tall icon="link" label="Link" why="A cell hyperlink needs the hyperlinks list and a relationship the engine does not write yet." />
+            <Button tall icon="link" label="Link" title="A link on this cell: an address, or a place in the workbook (Ctrl+K)" onClick={() => act('link')} />
           </Group>
           <Group label="Comments">
             <Soon tall icon="reply" label="Comment" why="Cell comments are a comments part plus VML the engine does not write yet." />

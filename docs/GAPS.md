@@ -81,10 +81,15 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
 The calculation engine is the strongest part of the suite; the sheet around
 it is where the gaps are.
 
-- **Things in a sheet that are not cells**: pictures, shapes, hyperlinks and
-  cell comments are drawn when a file has them and cannot be added — each
-  needs a part the writer does not yet write (a drawing anchor, the
-  hyperlinks list, the comments part plus its VML).
+- **Things in a sheet that are not cells**: pictures and shapes are drawn
+  when a file has them and cannot be added (a drawing anchor the writer
+  does not yet write). Since 2026-09-20 a hyperlink is read with its
+  target, drawn underlined, followed with Ctrl+click (an address opens
+  outside, a place in the workbook is gone to), and put on a cell, changed
+  or taken off with Ctrl+K — an external relationship, as Excel writes
+  one. A cell comment is drawn with its red corner and read on hover, and
+  the status bar counts a sheet's notes; writing one still needs the
+  comments part plus its VML.
 - **Format as Table**, slicers, sparklines: read, not written.
 - **Data tools**: text to columns, remove duplicates, multi-key sort,
   advanced filter with a criteria range, consolidate, flash fill, subtotals

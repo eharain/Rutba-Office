@@ -408,6 +408,53 @@ export function GoToDialog({ onClose, onGo, names = [] }) {
   );
 }
 
+/**
+ * A hyperlink on the active cell: an address that opens outside the suite
+ * (http, https, mailto — a bare domain or an email address is taken as
+ * one), or a place in this workbook (C12, Sheet2!B4, a defined name).
+ */
+export function LinkDialog({ current = null, cellRef = '', onClose, onSet, onRemove }) {
+  const [to, setTo] = useState(current?.href || current?.location || '');
+  const [tip, setTip] = useState(current?.tooltip || '');
+  const value = to.trim();
+  const place = /^(?:'[^']+'|[^!'\s]+)![A-Za-z]{1,3}\d+(?::[A-Za-z]{1,3}\d+)?$/.test(value) || Boolean(parseRef(value)) || /^[A-Za-z_][\w.]*$/.test(value) && !/^[A-Za-z]{1,3}\d+$/.test(value) && !/\./.test(value);
+  const address = /^(https?:\/\/|mailto:)/i.test(value) ? value
+    : /^[^\s@]+@[^\s@]+\.[a-z]{2,}$/i.test(value) ? 'mailto:' + value
+    : /^[\w-]+(\.[\w-]+)+(\/\S*)?$/i.test(value) ? 'https://' + value
+    : null;
+  const ok = Boolean(address || place);
+  const submit = () => {
+    if (!ok) return;
+    onSet(address ? { href: address, tooltip: tip.trim() || null } : { location: value, tooltip: tip.trim() || null });
+  };
+  return (
+    <Dialog
+      title={current ? `The link on ${cellRef}` : `A link on ${cellRef}`}
+      width={440}
+      onClose={onClose}
+      actions={
+        <>
+          {current ? <Button label="Remove link" className="sh-link-remove" onClick={onRemove} /> : null}
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label={current ? 'Change' : 'Add link'} className="sh-link-ok" disabled={!ok} onClick={submit} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="Link to" hint="An address such as rutba.io or hello@rutba.io, or a place in this workbook such as C12, Sheet2!B4 or a name.">
+          <Input className="sh-link-to" value={to} onChange={(e) => setTo(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} autoFocus placeholder="https://…  or  Sheet2!B4" />
+        </Field>
+        <Field label="Screen tip" hint="Shown when the pointer rests on the cell. Optional.">
+          <Input className="sh-link-tip" value={tip} onChange={(e) => setTip(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} placeholder="Where this goes" />
+        </Field>
+        <p className="sh-link-says" style={{ margin: 0, fontSize: 12, color: 'var(--ink-3)' }}>
+          {!value ? 'Nothing yet.' : address ? `Opens ${address} outside the suite.` : place ? `Goes to ${value} in this workbook.` : 'Not an address and not a place this workbook knows.'}
+        </p>
+      </div>
+    </Dialog>
+  );
+}
+
 /** Insert Function: Excel's categories, a pick starts `=NAME(` in the active cell. */
 export function FunctionDialog({ onClose, onPick, catalogue }) {
   const categories = Object.keys(catalogue);

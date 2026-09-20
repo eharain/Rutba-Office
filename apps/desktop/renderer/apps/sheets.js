@@ -17,7 +17,7 @@ import SheetsRibbon, { FUNCTIONS } from './sheets/ribbon.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import {
-  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, parseRef,
+  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, LinkDialog, parseRef,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -51,6 +51,13 @@ function withSelection(model, patch) {
   });
   return { ...model, ...patch, cells };
 }
+
+/** What the tip layer says over a cell: its note, or where its link goes. */
+const tipFor = (cell) => {
+  if (cell.note) return `${cell.note.author ? cell.note.author + ': ' : ''}${cell.note.text}`;
+  if (cell.link) return `${cell.link.tooltip ? cell.link.tooltip + ' — ' : ''}${cell.link.href || cell.link.location} (Ctrl+click to open)`;
+  return undefined;
+};
 
 export default function Sheets({ app, shell, boot }) {
   const toast = useToast();
@@ -289,6 +296,7 @@ export default function Sheets({ app, shell, boot }) {
       'edit.redo': { label: 'Redo', icon: 'redo', key: 'Mod+Y', run: async () => { const n = await shell.doc.redo({ id: doc.id }); setDoc(n); setModel(n.model); } },
       'edit.copy': { label: 'Copy', icon: 'copy', key: 'Mod+C', run: () => dispatch({ op: 'copy' }) },
       'edit.clear': { label: 'Clear', icon: 'close', key: 'Delete', run: () => dispatch({ op: 'clear' }) },
+      'insert.link': { label: 'Link…', icon: 'link', key: 'Mod+K', run: () => setDialog('link') },
       'sheet.autoSum': { label: 'AutoSum', icon: 'sum', run: () => dispatch({ op: 'autoSum', fn: 'SUM' }) },
       'sheet.merge': { label: 'Merge cells', icon: 'table', run: () => dispatch({ op: 'merge' }) },
       'sheet.insertRow': { label: 'Insert row', icon: 'plus', run: () => dispatch({ op: 'insertRows', at: model?.selection.top ?? 0, count: 1 }) },
@@ -723,6 +731,20 @@ export default function Sheets({ app, shell, boot }) {
         if (editing) putDraft((d) => (d ?? '') + arg);
         else await dispatch({ op: 'beginEdit', replace: true, initial: (model?.formulaBar ?? '') + arg });
         return;
+      case 'link': setDialog('link'); return;
+      // A link is followed: an address opens outside the suite, a place in
+      // the workbook (C12, Sheet2!B4, a name) is gone to.
+      case 'follow': {
+        const link = arg;
+        if (!link) return;
+        if (link.href) { shell.shell.openExternal({ url: link.href }); return; }
+        const place = String(link.location || '');
+        const m = /^(?:'([^']+)'|([^!]+))!(.+)$/.exec(place);
+        const sheetName = m ? (m[1] || m[2]) : null;
+        if (sheetName && sheetName !== model?.activeSheet) await dispatch({ op: 'sheet', name: sheetName });
+        await act('goto', m ? m[3] : place);
+        return;
+      }
       case 'help': shell.shell.openExternal({ url: SITE.help }); return;
       case 'feedback': shell.shell.openExternal({ url: SITE.contact }); return;
       case 'about': shell.win.create({ app: 'home', query: { about: 1 } }); return;
@@ -771,6 +793,8 @@ export default function Sheets({ app, shell, boot }) {
           ) : null}
           <Chip>{model?.activeSheet || ''}</Chip>
           <Chip>{sel?.ref || ''}</Chip>
+          {model?.link ? <Chip title="Ctrl+click the cell to open it">{model.link.href || model.link.location}</Chip> : null}
+          {model?.notes ? <Chip title="Rest the pointer on a marked cell to read its note">{model.notes} {model.notes === 1 ? 'note' : 'notes'}</Chip> : null}
           <ZoomSlider value={view.zoom ?? 1} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', 1)} />
         </>
       }
@@ -933,13 +957,17 @@ export default function Sheets({ app, shell, boot }) {
                 {model.cells.map((cell) => (
                   <div
                     key={cell.ref}
-                    className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}`}
+                    className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}`}
                     data-ref={cell.ref}
                     style={spillStyle(cell)}
-                    onMouseDown={(e) => dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
+                    onMouseDown={(e) => {
+                      // Ctrl+click on a link follows it, as in Word; a plain click selects, as in Excel.
+                      if (cell.link && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
+                      dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
+                    }}
                     onDoubleClick={() => dispatch({ op: 'beginEdit' })}
-                    onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.copy', 'edit.clear', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
-                    title={cell.note || undefined}
+                    onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.copy', 'edit.clear', '-', 'insert.link', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
+                    data-tip={tipFor(cell)}
                   >
                     {view.formulas && cell.formula ? cell.formula : cell.text}
                   </div>
@@ -1014,6 +1042,15 @@ export default function Sheets({ app, shell, boot }) {
 
       {dialog === 'goto' ? (
         <GoToDialog names={model?.names || []} onClose={() => setDialog(null)} onGo={async (ref) => { setDialog(null); await act('goto', ref); }} />
+      ) : null}
+      {dialog === 'link' ? (
+        <LinkDialog
+          current={model?.link || null}
+          cellRef={sel?.ref || ''}
+          onClose={() => setDialog(null)}
+          onRemove={async () => { setDialog(null); await dispatch({ op: 'removeHyperlink', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); }}
+          onSet={async (link) => { setDialog(null); await dispatch({ op: 'setHyperlink', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0, ...link }); }}
+        />
       ) : null}
       {dialog === 'function' ? (
         <FunctionDialog catalogue={FUNCTIONS} onClose={() => setDialog(null)} onPick={async (name) => { setDialog(null); await act('insertFunction', name); }} />
@@ -1310,6 +1347,10 @@ const CSS = `
   font-size: 12.5px; overflow: hidden; white-space: nowrap; background: var(--surface);
 }
 .sh-cell.sel { background: var(--selected); }
+/* A link: the accent, underlined, a hand; Ctrl+click follows it. */
+.sh-cell.link { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); cursor: pointer; }
+/* A note: Excel's red corner, and the note itself on hover through the tip layer. */
+.sh-cell.noted::after { content: ''; position: absolute; top: 0; right: 0; border: 4px solid transparent; border-top-color: #d0362f; border-right-color: #d0362f; }
 .sh-drawing { position: absolute; overflow: visible; z-index: 2; }
 .sh-drawing > svg { display: block; overflow: visible; }
 .sh-drawing.unsupported { display: grid; place-items: center; border: 1px dashed var(--line); color: var(--ink-3); font-size: 11px; background: rgba(255, 255, 255, 0.6); }
