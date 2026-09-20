@@ -354,6 +354,14 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
         y += fr.heightPx + IMAGE_GAP;
         continue;
       }
+      if (fr.kind === 'floatbox') {
+        // A text box beside the words, at the side it asked for, where the
+        // paginator put it; the lines round it were laid out shorter. It
+        // advances nothing, like a floating picture.
+        const bx = fr.side === 'right' ? xPx + Math.max(0, widthPx - fr.widthPx) : xPx;
+        drawTextBox(page, doc, { ...fr, hAlign: null }, { xPx: bx, yPx: m.top + fr.topPx, widthPx: fr.widthPx });
+        continue;
+      }
       if (fr.kind === 'note') {
         // An endnote: its number in the gutter, its words indented past it.
         y += fr.spaceBefore || 0;

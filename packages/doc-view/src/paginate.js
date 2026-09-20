@@ -394,6 +394,29 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
       }
     }
 
+    // A text box anchored to this paragraph that floats at the left or the
+    // right — a pull quote, a sidebar — stands beside the words the same
+    // way. Its size is the file's or its words', whichever is more; a box
+    // that would leave the lines no room is drawn under the words instead.
+    const boxesBeside = (block.textBoxes ?? []).filter((box) => floatsBeside(box) && Math.max(40, Math.min(width, box.widthPx || width)) <= width - 80);
+    if (boxesBeside.length) {
+      const laidBoxes = boxesBeside.map((box) => {
+        const widthPx = Math.max(40, Math.min(width, box.widthPx || width));
+        const paragraphs = (box.paragraphs || []).map((p) => layShown(p, widthPx - 2 * BOX_PAD_PX));
+        const heightPx = Math.min(height, Math.max(box.heightPx || 0, heightOf(paragraphs) + 2 * BOX_PAD_PX));
+        return { box, widthPx, heightPx, paragraphs };
+      });
+      const tallest = laidBoxes.reduce((h, b) => Math.max(h, b.heightPx + (b.box.dist?.t || 0) + (b.box.dist?.b ?? FLOAT_GAP_PX)), 0);
+      if (tallest + spaceBefore > remaining() && current.fragments.length) { newPage(); spaceBefore = 0; }
+      for (const { box, widthPx, heightPx, paragraphs } of laidBoxes) {
+        const side = box.hAlign === 'right' || box.hAlign === 'outside' ? 'right' : 'left';
+        const topPx = used + spaceBefore + (box.dist?.t || 0);
+        const gap = side === 'left' ? (box.dist?.r ?? FLOAT_GAP_PX * 2) : (box.dist?.l ?? FLOAT_GAP_PX * 2);
+        current.floats.push({ side, topPx, bottomPx: topPx + heightPx + (box.dist?.b ?? FLOAT_GAP_PX), insetPx: widthPx + gap });
+        place({ kind: 'floatbox', paragraphIndex: block.index, side, topPx, widthPx, heightPx, fill: box.fill || null, line: box.line || null, paragraphs }, 0);
+      }
+    }
+
     const around = current.floats.some((f) => f.bottomPx > used + spaceBefore);
     const { lines, style, indentPx, lineHeightPx } = around
       ? layoutAround(block, used + spaceBefore, { extraIndentPx })
@@ -540,6 +563,7 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     // tall as the file says or as its words need, whichever is more, and is
     // pushed whole onto the next sheet rather than cut.
     for (const box of block.textBoxes || []) {
+      if (boxesBeside.includes(box)) continue;
       const boxWidth = Math.max(40, Math.min(width, box.widthPx || width));
       const paragraphs = (box.paragraphs || []).map((p) => layShown(p, boxWidth - 2 * BOX_PAD_PX));
       const heightPx = Math.min(height, Math.max(box.heightPx || 0, heightOf(paragraphs) + 2 * BOX_PAD_PX));
