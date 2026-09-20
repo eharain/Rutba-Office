@@ -424,6 +424,13 @@ export default function Sheets({ app, shell, boot }) {
         } else if (e.key === 'Tab') {
           e.preventDefault();
           await commitDraft(e.shiftKey ? 'left' : 'right');
+        } else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && e.target !== editorRef.current) {
+          // The editor is drawn but has not taken focus yet — the frame
+          // between its render and the effect that focuses it — and a brisk
+          // typist's next character arrived at the grid instead. It is text:
+          // "4321" typed at 60 ms a key landed as "421" without this.
+          e.preventDefault();
+          putDraft((d) => (d ?? '') + e.key);
         }
         return;
       }
