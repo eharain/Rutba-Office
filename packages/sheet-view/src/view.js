@@ -45,6 +45,15 @@ import {
 import { drawingAnchorXml, chartPartXml } from '@rutba/ooxml/build';
 import { History } from '@rutba/editing';
 
+/**
+ * Rows and columns drawn beyond the viewport's edges, so a scroll shows
+ * cells before the next frame lands. A wheel notch moves a hundred pixels —
+ * five default rows — and a person scrolls up as briskly as down, so the
+ * rows are generous on both sides; columns move a notch at a time.
+ */
+const OVERSCAN_ROWS = 10;
+const OVERSCAN_COLS = 3;
+
 /** Sheet XML beyond which cell styles are read on demand rather than mapped up front. */
 const LAZY_STYLES_XML = 64 * 1024 * 1024;
 
@@ -605,6 +614,8 @@ export class SheetView {
       scrollY: this.scrollY,
       width: this.viewportWidth,
       height: this.viewportHeight,
+      overscan: OVERSCAN_ROWS,
+      overscanCols: OVERSCAN_COLS,
     });
 
     // Frozen rows and columns ride in EVERY frame, wherever the viewport has
@@ -831,17 +842,6 @@ export class SheetView {
       // Whether this sheet refuses edits to locked cells, and whether its
       // author sealed that with a password only Excel can lift.
       protection: this.protection(),
-      // The data block around the cursor, with its headings — what a New
-      // pivot panel offers as fields without the person typing them.
-      region: (() => {
-        const r = this._currentRegion(active.row, active.col);
-        if (r.bottom <= r.top || r.right < r.left) return null;
-        const headers = [];
-        for (let c = r.left; c <= r.right; c++) {
-          headers.push(String(this.displayValue(r.top, c).text ?? ''));
-        }
-        return headers.every((h) => h) ? { ref: areaRef(r), headers } : null;
-      })(),
       // The workbook's pivots — each says where it lives, what it summarises,
       // and why it cannot be refreshed when that is the case.
       pivots: this.pivots().map((p) => ({
@@ -1664,6 +1664,26 @@ export class SheetView {
   }
 
   // ---- sorting -----------------------------------------------------------
+
+  /**
+   * The data block around the cursor with its headings — what a pivot panel
+   * offers as fields without the person typing them — or null where the
+   * cursor is not in a block with a heading row.
+   *
+   * Asked for, never sent with a frame: growing the region walks every row
+   * of the block it finds, which on a sixty-thousand-row table is a third of
+   * a second, and four seconds the first time while the lazy sheet reads its
+   * rows. The frame carried it on every scroll step, and nothing read it.
+   */
+  regionAround(row = this.selection.active.row, col = this.selection.active.col) {
+    const r = this._currentRegion(row, col);
+    if (r.bottom <= r.top || r.right < r.left) return null;
+    const headers = [];
+    for (let c = r.left; c <= r.right; c++) {
+      headers.push(String(this.displayValue(r.top, c).text ?? ''));
+    }
+    return headers.every((h) => h) ? { ref: areaRef(r), headers } : null;
+  }
 
   /** The contiguous block of data around one cell — Excel's "current region". */
   _currentRegion(row, col) {

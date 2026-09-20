@@ -252,17 +252,43 @@ export default function Sheets({ app, shell, boot }) {
 
   /* ── viewport ────────────────────────────────────────────────────────── */
 
+  /**
+   * One frame on its way at a time.
+   *
+   * A scroll fires every animation frame and each one asked the engine for a
+   * frame, so a flick of the wheel queued a dozen requests behind the first
+   * and the grid caught up seconds later, drawing rows a person had already
+   * left. A scroll that arrives while a frame is on its way is noted, and
+   * when the frame lands one more is asked for from wherever the grid is
+   * now — every reply is a frame somebody can still see.
+   */
+  const frameBusy = useRef(false);
+  const frameAgain = useRef(false);
   const syncViewport = useCallback(async () => {
     const el = gridRef.current;
     if (!el || !doc) return;
-    const next = await shell.doc.viewport({
-      id: doc.id,
-      width: el.clientWidth,
-      height: el.clientHeight,
-      x: el.scrollLeft,
-      y: el.scrollTop,
-    });
-    setModel(next);
+    if (frameBusy.current) {
+      frameAgain.current = true;
+      return;
+    }
+    frameBusy.current = true;
+    try {
+      do {
+        frameAgain.current = false;
+        const next = await shell.doc.viewport({
+          id: doc.id,
+          width: el.clientWidth,
+          height: el.clientHeight,
+          x: el.scrollLeft,
+          y: el.scrollTop,
+        });
+        setModel(next);
+      } while (frameAgain.current && gridRef.current);
+    } catch {
+      // A frame that fails is a frame not drawn; the next scroll asks again.
+    } finally {
+      frameBusy.current = false;
+    }
   }, [doc, shell]);
 
   useEffect(() => {

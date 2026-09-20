@@ -17,8 +17,11 @@
  * pixel per column visibly misaligns a wide sheet, so it is reproduced exactly
  * rather than approximated.
  *
- * Offsets are computed rather than accumulated. A prefix-sum array over a
- * million rows would cost 8MB per sheet to save a multiplication.
+ * Offsets are computed, not accumulated: a prefix sum over a million rows
+ * would cost 8MB per sheet. What IS kept is the sorted list of exceptions —
+ * the rows and columns with a size of their own, or hidden — with a running
+ * total of their corrections, so an offset is a multiplication and one
+ * binary search whether a file has three custom rows or sixty thousand.
  */
 
 export const DEFAULT_MAX_DIGIT_WIDTH = 7; // Calibri 11
@@ -70,11 +73,81 @@ export const MIN_COL_WIDTH_PX = 16;
 export const MIN_ROW_HEIGHT_PX = 12;
 
 /**
+ * A Map or a Set that tells its owner when it changes, so the index built
+ * over it is dropped. The collections are public and written directly by the
+ * reader and by the view, which is why the tracking sits in them.
+ */
+class TrackedMap extends Map {
+  constructor(changed) {
+    super();
+    this._changed = changed;
+  }
+  set(key, value) {
+    this._changed?.();
+    return super.set(key, value);
+  }
+  delete(key) {
+    this._changed?.();
+    return super.delete(key);
+  }
+  clear() {
+    this._changed?.();
+    super.clear();
+  }
+}
+class TrackedSet extends Set {
+  constructor(changed) {
+    super();
+    this._changed = changed;
+  }
+  add(value) {
+    this._changed?.();
+    return super.add(value);
+  }
+  delete(value) {
+    this._changed?.();
+    return super.delete(value);
+  }
+  clear() {
+    this._changed?.();
+    super.clear();
+  }
+}
+
+/**
+ * The exceptions — every index with a size of its own or hidden — sorted,
+ * with the running total of what each adds to (or takes from) the default.
+ * `sum[i]` is the correction for everything before `at[i]`; the last entry
+ * is the correction for all of them.
+ */
+function buildIndex(sizes, hidden, correction) {
+  const keys = new Set(sizes.keys());
+  for (const h of hidden) keys.add(h);
+  const at = Int32Array.from(keys).sort();
+  const sum = new Float64Array(at.length + 1);
+  for (let i = 0; i < at.length; i++) sum[i + 1] = sum[i] + correction(at[i]);
+  return { at, sum };
+}
+
+/** The sum of the corrections of the exceptions before `index`. */
+function before({ at, sum }, index) {
+  let lo = 0;
+  let hi = at.length;
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (at[mid] < index) lo = mid + 1;
+    else hi = mid;
+  }
+  return sum[lo];
+}
+
+/**
  * Column and row sizing for one sheet.
  *
  * Overrides are sparse — a real sheet customises a handful of columns and leaves
  * the rest at the default — so they live in a Map and the common case costs one
- * multiplication.
+ * multiplication. A file that sizes every row (Excel writes `ht` on each row
+ * of many exports) is the other case, and costs one binary search.
  */
 export class SheetGeometry {
   constructor({
@@ -87,12 +160,17 @@ export class SheetGeometry {
     this.defaultRowHeight = defaultRowHeight;
     this.headerWidth = headerWidth;
     this.headerHeight = headerHeight;
+    const cols = () => { this._cols = null; };
+    const rows = () => { this._rows = null; };
     /** @type {Map<number, number>} column index -> pixels */
-    this.colWidths = new Map();
+    this.colWidths = new TrackedMap(cols);
     /** @type {Map<number, number>} row index -> pixels */
-    this.rowHeights = new Map();
-    this.hiddenCols = new Set();
-    this.hiddenRows = new Set();
+    this.rowHeights = new TrackedMap(rows);
+    this.hiddenCols = new TrackedSet(cols);
+    this.hiddenRows = new TrackedSet(rows);
+    // The exception indexes, built on first use after a change.
+    this._cols = null;
+    this._rows = null;
   }
 
   /** Read `<cols>` and row `ht` out of a sheet part's XML. */
@@ -137,22 +215,28 @@ export class SheetGeometry {
     return this.rowHeights.get(index) ?? this.defaultRowHeight;
   }
 
-  /** Pixel offset of a column's left edge, relative to the grid origin. */
+  /**
+   * Pixel offset of a column's left edge, relative to the grid origin.
+   *
+   * `index × default`, corrected by every column before it that is not the
+   * default. The corrections are summed once into the index and read back
+   * with one binary search: a workbook with a height on every one of sixty
+   * thousand rows used to walk all of them for every cell of every frame,
+   * three seconds a scroll step. A hidden row counts for nothing whether or
+   * not the file also gave it a height — it used to keep its height in the
+   * offsets while drawing at none, and every row below it sat too low.
+   */
   colOffset(index) {
-    let offset = index * this.defaultColWidth;
-    for (const [c, w] of this.colWidths) if (c < index) offset += w - this.defaultColWidth;
-    for (const c of this.hiddenCols) {
-      if (c < index && !this.colWidths.has(c)) offset -= this.defaultColWidth;
-    }
-    return offset;
+    return index * this.defaultColWidth + before(this._colIndex(), index);
   }
   rowOffset(index) {
-    let offset = index * this.defaultRowHeight;
-    for (const [r, h] of this.rowHeights) if (r < index) offset += h - this.defaultRowHeight;
-    for (const r of this.hiddenRows) {
-      if (r < index && !this.rowHeights.has(r)) offset -= this.defaultRowHeight;
-    }
-    return offset;
+    return index * this.defaultRowHeight + before(this._rowIndex(), index);
+  }
+  _colIndex() {
+    return this._cols ?? (this._cols = buildIndex(this.colWidths, this.hiddenCols, (c) => this.colWidth(c) - this.defaultColWidth));
+  }
+  _rowIndex() {
+    return this._rows ?? (this._rows = buildIndex(this.rowHeights, this.hiddenRows, (r) => this.rowHeight(r) - this.defaultRowHeight));
   }
 
   /** Which column contains this x offset. Binary search over computed offsets. */
@@ -181,12 +265,13 @@ export class SheetGeometry {
    * The window of cells to render for a given scroll position.
    *
    * `overscan` renders a little outside the viewport so a fast scroll does not
-   * show blank rows before the next frame.
+   * show blank rows before the next frame; a wheel notch is five rows, so the
+   * view asks for more rows than columns.
    *
    * @returns {{firstRow, lastRow, firstCol, lastCol, offsetX, offsetY}}
    */
-  viewport({ scrollX = 0, scrollY = 0, width, height, overscan = 3 }) {
-    const firstCol = Math.max(0, this.colAt(scrollX) - overscan);
+  viewport({ scrollX = 0, scrollY = 0, width, height, overscan = 3, overscanCols = overscan }) {
+    const firstCol = Math.max(0, this.colAt(scrollX) - overscanCols);
     const firstRow = Math.max(0, this.rowAt(scrollY) - overscan);
 
     let lastCol = firstCol;
@@ -196,7 +281,7 @@ export class SheetGeometry {
       x += this.colWidth(lastCol);
       lastCol += 1;
     }
-    lastCol = Math.min(MAX_COLS - 1, lastCol + overscan);
+    lastCol = Math.min(MAX_COLS - 1, lastCol + overscanCols);
 
     let lastRow = firstRow;
     let y = this.rowOffset(firstRow);
