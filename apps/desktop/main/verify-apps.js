@@ -1144,6 +1144,38 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('frame: a newer release is announced even after an older one was put away', again === true, await text());
       await js(`(() => { document.querySelector('.rw-update-later')?.click(); return 1; })()`);
       if (update) update.snooze({ version: null });
+
+      // The chip in the status bar: while a download runs it counts, and
+      // once the download is done it brings a prompt that was put away back.
+      broadcast('update:state', { ...base, state: 'downloading', available: '9.9.11', percent: 63, transferred: 63, total: 100 });
+      const chipCounts = await until(() => js(`/63%/.test(document.querySelector('.rw-status .rw-update-chip')?.textContent || '')`), 'the status chip while downloading', 4000).catch(() => false);
+      broadcast('update:state', { ...base, state: 'ready', available: '9.9.11', percent: 100 });
+      await until(() => js(`Boolean(document.querySelector('.rw-update-later'))`), 'the prompt for 9.9.11', 4000).catch(() => false);
+      await js(`(() => { document.querySelector('.rw-update-later')?.click(); return 1; })()`);
+      await wait(200);
+      broadcast('update:state', { ...base, state: 'ready', available: '9.9.11', percent: 100 });
+      const putAway = await until(() => js(`!document.querySelector('.rw-update') && /Update ready/.test(document.querySelector('.rw-status .rw-update-chip')?.textContent || '')`), 'the chip once the prompt is put away', 4000).catch(() => false);
+      await js(`(() => { document.querySelector('.rw-status .rw-update-chip')?.click(); return 1; })()`);
+      const broughtBack = await until(() => js(`Boolean(document.querySelector('.rw-update-restart'))`), 'the prompt brought back by the chip', 4000).catch(() => false);
+      check('frame: the status bar counts the download, and its chip brings a prompt that was put away back', chipCounts === true && putAway === true && broughtBack === true, `counts ${chipCounts}, put away ${putAway}, back ${broughtBack}`);
+      await js(`(() => { document.querySelector('.rw-update-later')?.click(); return 1; })()`);
+      if (update) update.snooze({ version: null });
+
+      // The first window of a new version says so, and What's new opens the
+      // release's own notes, bundled with the build.
+      const bundled = JSON.parse(fs.readFileSync(path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\//, '')), '..', 'build', 'out', 'whatsnew.json'), 'utf8'));
+      const firstHeading = (/^##\s+(.+)$/m.exec(bundled.notes || '')?.[1] || '').replace(/`/g, '');
+      broadcast('update:state', { ...base, state: 'current', available: null, arrived: { from: '1.12.0', to: bundled.version, at: Date.now(), seen: false } });
+      const said = await until(() => js(`(() => { const p = document.querySelector('.rw-update'); return Boolean(p) && p.dataset.state === 'arrived' && p.textContent.includes('is now ${bundled.version}') && p.textContent.includes('from 1.12.0') && Boolean(p.querySelector('.rw-update-whatsnew')); })()`), 'the arrival card', 5000).catch(() => false);
+      await js(`(() => { document.querySelector('.rw-update-whatsnew')?.click(); return 1; })()`);
+      const notesShown = await until(() => js(`(() => { const d = document.querySelector('.rw-whatsnew'); return Boolean(d) && d.textContent.includes(${JSON.stringify(bundled.version)}) && ${JSON.stringify(firstHeading)} !== '' && d.textContent.includes(${JSON.stringify(firstHeading)}); })()`), 'the notes', 6000).catch(() => false);
+      await wait(500);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'frame-whatsnew.png'), (await win.webContents.capturePage()).toPNG());
+      await js(`(() => { document.querySelector('.rw-whatsnew-close')?.click(); return 1; })()`);
+      const seenNow = update ? await until(() => { const a = update.state().arrived; return a == null || a.seen === true; }, 'the arrival marked seen', 4000).catch(() => false) : 'no service';
+      const cardGone = await until(() => js(`!document.querySelector('.rw-update') && !document.querySelector('.rw-whatsnew')`), 'the card to go', 4000).catch(() => false);
+      check('frame: the first window of a new version says which version arrived, What\'s new shows the release\'s notes, and Close marks it seen through the service', said === true && notesShown === true && seenNow === true && cardGone === true, `said ${said}, notes ${notesShown} ("${firstHeading.slice(0, 40)}"), seen ${seenNow}, gone ${cardGone}`);
+
       const complaints = await errorsIn(win);
       check('frame: the update prompt reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {
@@ -1171,7 +1203,57 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifySheetLinks({ open, check, until, wait, press, errorsIn, capture }, { file: files.notes });
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links: those blocks alone, for working on them.
+  /* ── The launcher's recent list ──────────────────────────────────────── */
+  //
+  // Thirty recent files in a window of ordinary height: the list scrolls
+  // inside its box with the last row whole at the end (it used to be
+  // clipped, the last row in reach cut in half and nothing to scroll), and a
+  // right-click offers to take a file off the list.
+  const launcherRecent = async () => {
+    try {
+      const copies = [];
+      for (let i = 1; i <= 34; i++) {
+        const p = path.join(dir, `recent-${String(i).padStart(2, '0')}.docx`);
+        fs.copyFileSync(files.docx, p);
+        copies.push(p);
+      }
+      // The list is the shell's; a Word window adds to it, and the launcher
+      // opened afterwards reads it.
+      const word = await open('word', files.docx);
+      await word.webContents.executeJavaScript(`(async () => { for (const p of ${JSON.stringify(copies)}) await window.rutbaOffice.app.addRecent({ path: p, app: 'word' }); return 1; })()`);
+      const win = await open('home');
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`document.querySelectorAll('.home-recent-row').length >= 30`), 'the recent list', 8000);
+      const list = await js(`(() => {
+        const box = document.querySelector('.home-recent');
+        const rows = box.querySelectorAll('.home-recent-row');
+        box.scrollTop = 1e6;
+        const last = rows[rows.length - 1].getBoundingClientRect();
+        const b = box.getBoundingClientRect();
+        return { rows: rows.length, scrolls: box.scrollHeight > box.clientHeight + 2, overflow: getComputedStyle(box).overflowY, box: Math.round(b.height), lastWhole: last.bottom <= b.bottom + 1 && last.top >= b.top - 1, window: innerHeight };
+      })()`);
+      check('launcher: thirty recent files scroll inside the list, and the last row is whole at the end', list.rows >= 30 && list.scrolls === true && list.overflow === 'auto' && list.lastWhole === true, JSON.stringify(list));
+      // An off-screen window paints on demand, and its last frame was the
+      // empty list before the recent files arrived: ask for a fresh one.
+      win.webContents.invalidate();
+      await wait(700);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'home-recent.png'), (await win.webContents.capturePage()).toPNG());
+
+      // A right-click offers to take a file off the list, and does.
+      const first = await js(`document.querySelector('.home-recent-row')?.title`);
+      await js(`(() => { const row = document.querySelector('.home-recent-row'); const r = row.getBoundingClientRect(); row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 30, clientY: r.top + 10 })); return 1; })()`);
+      const offered = await until(() => js(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim())`).then((names) => (names.includes('Remove from the list') && names.includes('Show in folder') && names.includes('Clear the list') && names.includes('Open') ? names : false)), 'the row menu', 4000).catch(() => false);
+      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => /Remove from the list/.test(b.textContent))?.click(); return 1; })()`);
+      const removed = await until(() => js(`(() => { const rows = [...document.querySelectorAll('.home-recent-row')]; return rows.length >= 29 && !rows.some((r) => r.title === ${JSON.stringify(first)}) && !document.querySelector('.rw-menu'); })()`), 'the row to go', 4000).catch(() => false);
+      check('launcher: a right-click on a recent file offers Open, Show in folder, Remove from the list and Clear the list, and Remove takes it off', offered !== false && removed === true, `offered ${JSON.stringify(offered)}, removed ${removed}`);
+      const complaints = await errorsIn(win);
+      check('launcher: the recent list reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('launcher: the recent list check ran', false, err.message);
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -1184,6 +1266,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('pics')) await wordPictures();
     if (only.includes('ruler')) await wordRuler();
     if (only.includes('update')) await updatePrompt();
+    if (only.includes('home')) await launcherRecent();
     if (only.includes('viewer')) await viewer();
     if (only.includes('links')) await sheetLinks();
     return done();
@@ -1276,6 +1359,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordPictures();
   await wordRuler();
   await updatePrompt();
+  await launcherRecent();
   await viewer();
   await sheetLinks();
   await polish();

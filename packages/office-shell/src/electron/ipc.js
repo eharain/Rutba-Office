@@ -84,6 +84,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     },
     recent: () => stores.recent.list(),
     addRecent: (p) => stores.recent.add(p),
+    removeRecent: (p) => stores.recent.remove(p),
     clearRecent: () => stores.recent.clear(),
     quit: () => {
       quitting.value = true;

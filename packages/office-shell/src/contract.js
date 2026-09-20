@@ -18,6 +18,7 @@ export const METHODS = {
     'paths',        // () -> { home, documents, pictures, videos, downloads, userData, temp }
     'recent',       // () -> [{ path, name, app, at }]
     'addRecent',    // ({ path, app }) -> [recent]
+    'removeRecent', // ({ path }) -> [recent]
     'clearRecent',  // () -> []
     'quit',         // () -> void
     'relaunch',     // () -> void
@@ -182,6 +183,7 @@ export const METHODS = {
     'install',      // () -> { installed }   quits, installs, returns
     'setAutomatic', // ({ on }) -> state
     'snooze',       // ({ version }) -> state   "not now": that version, for a day
+    'seen',         // () -> state   the arrival of this version has been seen
   ],
   // Making this the application a file opens with. What is possible
   // differs by platform, and the service says which.
@@ -243,7 +245,7 @@ export const EVENTS = [
   'mail:sent',        // { id, to }
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
   'theme:changed',    // { dark }
-  'update:state',     // { state, version, available, percent, automatic, snoozed, snoozedVersion }
+  'update:state',     // { state, version, available, percent, automatic, snoozed, snoozedVersion, arrived }
 ];
 
 /** Every method as a flat channel list, e.g. 'fs:read'. */

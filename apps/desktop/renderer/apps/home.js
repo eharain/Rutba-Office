@@ -6,10 +6,11 @@
 // suite is that you did not have to go and find seven separate downloads.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Icon, Search, Empty, Button, Chip, Spacer, formatBytes, formatWhen, basename } from '@rutba/office-ui';
+import { Icon, Search, Empty, Button, Chip, Spacer, useMenu, formatBytes, formatWhen, basename } from '@rutba/office-ui';
 import { APPS, NEW_DOCUMENTS, SITE } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension, KINDS } from '@rutba/office-formats/sniff';
 import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop } from '../shell.js';
+import { WhatsNew } from '../whatsnew.js';
 
 const ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pictures', 'image', 'video'];
 
@@ -39,6 +40,10 @@ export default function Home({ app, shell }) {
   const [query, setQuery] = useState('');
   const [version, setVersion] = useState(null);
   const [showAbout, setShowAbout] = useState(() => new URLSearchParams(location.search).has('about'));
+  // The release notes, asked for from any window's app menu.
+  const [showNotes, setShowNotes] = useState(() => new URLSearchParams(location.search).has('whatsnew'));
+  // A right-click on a recent file.
+  const rowMenu = useMenu();
   const [update, setUpdate] = useState(null);
   // What a crash took. The copies are written while a document is open and
   // deleted when it is saved or closed, so anything still here was never
@@ -93,7 +98,7 @@ export default function Home({ app, shell }) {
   }, [recent, query]);
 
   return (
-    <AppFrame app={app} shell={shell} title="Rutba Office" menu={menu} status={<HomeStatus version={version} recent={recent.length} shell={shell} update={update} />}>
+    <AppFrame app={app} shell={shell} title="Rutba Office" menu={menu} status={<HomeStatus version={version} recent={recent.length} shell={shell} />}>
       <style>{CSS}</style>
       <div className="home">
         <header className="home-hero">
@@ -191,7 +196,16 @@ export default function Home({ app, shell }) {
           <div className="home-section-head">
             <h2>Recent</h2>
             <Spacer />
-            <Search value={query} onChange={setQuery} placeholder="Search recent files" style={{ width: 240 }} />
+            <Search
+              value={query}
+              onChange={setQuery}
+              placeholder="Search recent files"
+              style={{ width: 240 }}
+              onKeyDown={(e) => {
+                // Enter opens the first match: type a few letters, press Enter.
+                if (e.key === 'Enter' && filtered[0]) openInApp(shell, filtered[0].path);
+              }}
+            />
           </div>
           {filtered.length ? (
             <div className="home-recent">
@@ -204,10 +218,15 @@ export default function Home({ app, shell }) {
                     type="button"
                     className="home-recent-row"
                     onClick={() => openInApp(shell, r.path)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      shell.shell.showInFolder({ path: r.path });
-                    }}
+                    onContextMenu={(e) =>
+                      rowMenu.open(e, [
+                        { label: 'Open', icon: 'open', run: () => openInApp(shell, r.path) },
+                        { label: 'Show in folder', icon: 'folder', run: () => shell.shell.showInFolder({ path: r.path }) },
+                        '-',
+                        { label: 'Remove from the list', icon: 'close', run: () => shell.app.removeRecent({ path: r.path }).then(setRecent).catch(() => {}) },
+                        { label: 'Clear the list', icon: 'trash', run: () => shell.app.clearRecent().then(() => setRecent([])).catch(() => {}) },
+                      ])
+                    }
                     title={r.path}
                   >
                     <span className="rr-glyph" data-app={which}>
@@ -241,6 +260,8 @@ export default function Home({ app, shell }) {
           onClose={() => setShowAbout(false)}
         />
       ) : null}
+      {showNotes ? <WhatsNew shell={shell} version={version?.version} onClose={() => setShowNotes(false)} /> : null}
+      {rowMenu.node}
     </AppFrame>
   );
 }
@@ -308,7 +329,7 @@ function Announcement({ shell }) {
   );
 }
 
-function HomeStatus({ version, recent, shell, update }) {
+function HomeStatus({ version, recent, shell }) {
   const open = (url) => shell.shell.openExternal({ url });
   return (
     <>
@@ -322,11 +343,6 @@ function HomeStatus({ version, recent, shell, update }) {
         Contact us
       </a>
       <Spacer />
-      {update?.state === 'ready' ? (
-        <Chip title={`Version ${update.available} is downloaded — restart to update, or it installs when you quit`}>Update ready</Chip>
-      ) : update?.state === 'downloading' ? (
-        <Chip title="Downloading in the background">Updating {Math.round(update.percent || 0)}%</Chip>
-      ) : null}
       <Chip title="Files you have opened">{recent} recent</Chip>
       <Chip title="Documents, mail and media all work with no network connection">Works offline</Chip>
     </>
@@ -514,7 +530,7 @@ const CSS = `
 .home-notice-close:hover { background: var(--hover); color: var(--ink); }
 
 .home {
-  flex: 1; overflow: auto; padding: 26px 30px 34px; display: flex; flex-direction: column; gap: 26px;
+  flex: 1; overflow: auto; padding: 24px 30px 28px; display: flex; flex-direction: column; gap: 22px;
   /* A wash of the accent behind the welcome, gone by the first row of tiles. */
   background:
     radial-gradient(900px 360px at 12% -20%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
@@ -531,14 +547,18 @@ const CSS = `
 .home-hero-actions .rw-btn.primary { border-color: transparent; }
 
 .home-section { display: flex; flex-direction: column; gap: 11px; }
-.home-section.grow { flex: 1; min-height: 220px; }
+/* The recent list takes what the tiles leave; at the launcher's own size
+   that is four rows without the page scrolling, more in a taller window. */
+.home-section.grow { flex: 1; min-height: 196px; }
 .home-section-head { display: flex; align-items: center; gap: 12px; }
 .home-section h2 {
   margin: 0; font-size: 11px; font-weight: 700; letter-spacing: 0.08em;
   text-transform: uppercase; color: var(--ink-3);
 }
 
-.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(216px, 1fr)); gap: 10px; }
+/* Five tiles across the launcher's own width, scrollbar or not: nine apps
+   in two rows leaves the recent list a screen it can be seen on. */
+.home-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(206px, 1fr)); gap: 10px; }
 .home-card {
   position: relative; display: flex; background: var(--surface);
   border: 1px solid var(--line); border-radius: var(--r-3); overflow: hidden;
@@ -581,8 +601,13 @@ const CSS = `
 .tpl-glyph[data-app='sheets'] { background: #0f9d58; }
 .tpl-glyph[data-app='slides'] { background: #d9534f; }
 
+/* The list takes what is left of the window and scrolls inside it. It used
+   to be clipped instead: a flex item that hides its overflow may shrink
+   below its content, so the last row in reach was cut in half and there
+   was nothing to scroll. */
 .home-recent {
-  border: 1px solid var(--line); border-radius: var(--r-3); overflow: hidden; background: var(--surface);
+  border: 1px solid var(--line); border-radius: var(--r-3); background: var(--surface);
+  overflow: auto; min-height: 0; overscroll-behavior: contain;
 }
 /* Work a crash took, offered back. Marked, because it is not an ordinary row
    in a list: it is the one thing on this window somebody might be looking
@@ -601,13 +626,13 @@ const CSS = `
 .home-recovered-text small { color: var(--ink-3); font-size: 11.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .home-recent-row {
-  display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 13px;
+  display: flex; align-items: center; gap: 12px; width: 100%; padding: 6px 13px;
   border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; color: var(--ink);
   font: inherit; text-align: left; transition: background var(--fast);
 }
 .home-recent-row:last-child { border-bottom: 0; }
 .home-recent-row:hover { background: var(--hover); }
-.rr-glyph { width: 26px; height: 26px; border-radius: 8px; display: grid; place-items: center; color: #fff; flex: none; }
+.rr-glyph { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; color: #fff; flex: none; }
 .rr-glyph[data-app] { background: var(--accent); }
 .rr-glyph[data-app='home'] { background: var(--n-50); }
 .rr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

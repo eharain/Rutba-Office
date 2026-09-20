@@ -75,8 +75,24 @@ const preloadOptions = {
   sourcemap: false,
 };
 
+/**
+ * What changed in this version, for the window that opens after an update.
+ *
+ * The notes are the release's own — docs/releases/v<version>.md, the file
+ * the GitHub release is published from — so the suite tells the same story
+ * offline that the release page tells online. A version with no notes yet
+ * ships `null`, and the dialog points at the releases page instead.
+ */
+function whatsNew() {
+  const { version } = JSON.parse(fs.readFileSync(path.join(app, 'package.json'), 'utf8'));
+  const file = path.resolve(app, '..', '..', 'docs', 'releases', `v${version}.md`);
+  const notes = fs.existsSync(file) ? fs.readFileSync(file, 'utf8') : null;
+  fs.writeFileSync(path.join(out, 'whatsnew.json'), JSON.stringify({ version, notes }));
+}
+
 async function run() {
   fs.writeFileSync(path.join(out, 'index.html'), html);
+  whatsNew();
 
   if (watch) {
     const a = await esbuild.context(rendererOptions);

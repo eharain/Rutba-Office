@@ -223,7 +223,12 @@ decoding wrongly.
 Installed copies check [github.com/eharain/Rutba-Office/releases](https://github.com/eharain/Rutba-Office/releases)
 for a newer version — twenty-five seconds after launch, then every six hours.
 A new release downloads in the background and installs the next time you quit;
-nothing is ever installed while you are working.
+nothing is ever installed while you are working. You are told at every step:
+a card in every window when a release is found, with the download's progress
+and then **Restart and update**; a chip in every status bar meanwhile; and,
+the first time the new version opens, a card that says which version it is
+now and which it was, with **What's new** opening the release's own notes
+(they ship with the build, so they read with the network off).
 
 That is one HTTPS request to GitHub's release feed. It carries no identifier and
 nothing about you, your machine or your files. **About → Check for updates

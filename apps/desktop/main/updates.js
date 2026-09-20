@@ -21,6 +21,14 @@
 // and "Not now" puts that version away for a day — after which it asks
 // again, because a copy that is never quit never installs on quit. A newer
 // release is never covered by an older "not now".
+//
+// And you are told AFTERWARDS (owner, 2026-09-20: "the auto update is very
+// silent"). The install happens on quit, so the next launch looked exactly
+// like the last one. The service remembers which version ran last; the
+// first launch of a new one carries the arrival in its state, every window
+// shows a card naming both versions with the release's notes a click away,
+// and `seen` puts the card away everywhere. While a download runs, every
+// window's status bar counts it and the taskbar button shows it.
 
 import { app } from 'electron';
 import { isSnoozed, snoozeFor } from './update-snooze.js';
@@ -32,8 +40,10 @@ const SIX_HOURS = 6 * 60 * 60 * 1000;
  * @param {object} o
  * @param {object} o.stores      settings, for the on/off switch
  * @param {Function} o.broadcast tell every window what the state is
+ * @param {Function} [o.taskbar]  show a download's progress on the windows
+ *                                (a fraction, or -1 for none)
  */
-export function createUpdateService({ stores, broadcast }) {
+export function createUpdateService({ stores, broadcast, taskbar = null }) {
   /** @type {'idle'|'checking'|'available'|'downloading'|'ready'|'current'|'error'|'off'|'unpackaged'} */
   let state = 'idle';
   let info = null;
@@ -54,6 +64,30 @@ export function createUpdateService({ stores, broadcast }) {
    */
   const enabled = () => stores.settings.get('updates.automatic', true) !== false;
 
+
+  /**
+   * The version that ran last time, so the first launch of a new one can
+   * say so. A copy installed fresh has nothing to say; a copy that was
+   * updated keeps the arrival until somebody has seen it.
+   */
+  const current = app.getVersion();
+  const lastRun = stores.settings.get('updates.lastRun', null);
+  if (lastRun !== current) {
+    stores.settings.set('updates.lastRun', current);
+    if (lastRun) stores.settings.set('updates.arrived', { from: lastRun, to: current, at: Date.now(), seen: false });
+  }
+  const arrived = () => {
+    const a = stores.settings.get('updates.arrived', null);
+    return a && a.to === current ? a : null;
+  };
+
+  const showProgress = (fraction) => {
+    try {
+      taskbar?.(fraction);
+    } catch {
+      // The taskbar is a nicety; a window on its way out must not fail a download.
+    }
+  };
 
   /** The version "not now" covers right now, or null. */
   const snoozedVersion = () => {
@@ -78,6 +112,8 @@ export function createUpdateService({ stores, broadcast }) {
       error,
       automatic: enabled(),
       channel: FEED.owner + '/' + FEED.repo,
+      // The version this copy replaced, until the card has been put away.
+      arrived: arrived(),
     };
     broadcast?.('update:state', payload);
     return payload;
@@ -117,12 +153,14 @@ export function createUpdateService({ stores, broadcast }) {
     updater.on('download-progress', (p) => {
       state = 'downloading';
       progress = p;
+      showProgress((p?.percent ?? 0) / 100);
       publish();
     });
     updater.on('update-downloaded', (next) => {
       state = 'ready';
       info = next;
       progress = null;
+      showProgress(-1);
       publish();
     });
     updater.on('error', (err) => {
@@ -130,6 +168,7 @@ export function createUpdateService({ stores, broadcast }) {
       // reported where somebody has asked to look, and nowhere else.
       state = 'error';
       error = err?.message || String(err);
+      showProgress(-1);
       publish();
     });
 
@@ -185,6 +224,12 @@ export function createUpdateService({ stores, broadcast }) {
     // quit go on regardless; only the asking stops.
     snooze: ({ version } = {}) => {
       stores.settings.set('updates.snoozed', snoozeFor(version ?? info?.version ?? null));
+      return publish();
+    },
+    // The arrival card has been read (or put away): every window drops it.
+    seen: () => {
+      const a = arrived();
+      if (a && !a.seen) stores.settings.set('updates.arrived', { ...a, seen: true });
       return publish();
     },
     setAutomatic: ({ on }) => {

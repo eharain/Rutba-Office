@@ -67,7 +67,20 @@ createShell({
       // Paper and PDFs, for every kind of document. It asks the document
       // service where the pages fall and hands the result to a hidden window.
       print: createPrintService({ docs: doc }),
-      update: updates = createUpdateService({ stores, broadcast }),
+      update: updates = createUpdateService({
+        stores,
+        broadcast,
+        // A download shows on every window's taskbar button while it runs.
+        taskbar: (fraction) => {
+          for (const w of BrowserWindow.getAllWindows()) {
+            try {
+              w.setProgressBar(fraction);
+            } catch {
+              // A window on its way out.
+            }
+          }
+        },
+      }),
       announce: createAnnouncementService({ stores, broadcast }),
       defaults: createDefaultsService({ associations: fileAssociations() }),
       discover: createDiscoveryService(),

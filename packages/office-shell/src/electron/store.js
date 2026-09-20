@@ -92,6 +92,11 @@ export function createStores() {
       } catch { /* jump list is a nicety, not a requirement */ }
       return recentApi.list();
     },
+    remove: ({ path: p }) => {
+      recent = recent.filter((r) => r.path !== p);
+      writeJson(recentFile, recent);
+      return recentApi.list();
+    },
     clear: () => {
       recent = [];
       writeJson(recentFile, recent);

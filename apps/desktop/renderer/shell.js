@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Window, TitleBar, Body, StatusBar, Menu, Icon, useToast, useTheme, Button, Progress } from '@rutba/office-ui';
 import { APPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
+import { WhatsNew } from './whatsnew.js';
 
 /** The menu behind the app mark: new, open, recent, and the way out. */
 export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
@@ -47,6 +48,7 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
       });
       items.push({ label: 'All apps', icon: 'grid', run: () => shell.win.create({ app: 'home' }) });
       items.push('-');
+      items.push({ label: 'What’s new', icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) });
       items.push({ label: 'About Rutba Office', icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) });
 
       setMenu({ x: rect.left, y: rect.bottom + 4, items });
@@ -146,9 +148,25 @@ export function openInApp(shell, filePath, fallback = 'home') {
   return shell.win.create({ app: which, file: filePath });
 }
 
+/** What the update service says, kept current in this window. */
+export function useUpdate(shell) {
+  const [update, setUpdate] = useState(null);
+  useEffect(() => {
+    if (!shell.update?.state) return;
+    shell.update.state().then(setUpdate).catch(() => {});
+  }, [shell]);
+  useEffect(() => shell.on('update:state', setUpdate), [shell]);
+  return update;
+}
+
 /** The frame. Apps supply the ribbon, the body and the status bar. */
 export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, menu, right, children }) {
   const [platform, setPlatform] = useState('win32');
+  const update = useUpdate(shell);
+  // The release this window said "Not now" to, and the one its status
+  // chip asked to see again.
+  const [away, setAway] = useState(null);
+  const [insist, setInsist] = useState(null);
 
   useEffect(() => {
     shell.win.state().then((s) => setPlatform(s.platform)).catch(() => {});
@@ -174,8 +192,21 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
       />
       {ribbon}
       <Body>{children}</Body>
-      <StatusBar>{status}</StatusBar>
-      <UpdatePrompt shell={shell} />
+      <StatusBar>
+        {status}
+        <UpdateChip update={update} onShow={() => setInsist(update?.available || null)} />
+      </StatusBar>
+      <style>{UPDATE_CSS}</style>
+      <UpdatePrompt
+        shell={shell}
+        update={update}
+        away={away}
+        insist={insist}
+        onAway={(v) => {
+          setAway(v);
+          setInsist(null);
+        }}
+      />
       {menu?.node}
     </Window>
   );
@@ -193,24 +224,53 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
  * window at once, and through the service for a day everywhere, after
  * which it asks again — the install on quit goes on either way. A newer
  * release is a new question, whatever was put away before.
+ *
+ * And once a release has installed, the first windows of the new version
+ * say so — which version this is now and which it was — with the release's
+ * notes behind "What's new". OK marks the arrival seen through the
+ * service, so every window drops the card at once.
  */
-export function UpdatePrompt({ shell }) {
-  const [update, setUpdate] = useState(null);
-  const [away, setAway] = useState(null);
-  useEffect(() => {
-    if (!shell.update?.state) return;
-    shell.update.state().then(setUpdate).catch(() => {});
-  }, [shell]);
-  useEffect(() => shell.on('update:state', setUpdate), [shell]);
-  if (!update || update.snoozed) return null;
-  if (!['available', 'downloading', 'ready'].includes(update.state)) return null;
-  if (away && away === update.available) return null;
+export function UpdatePrompt({ shell, update, away, insist, onAway }) {
+  const [notes, setNotes] = useState(false);
+  if (!update) return null;
+  const seen = () => shell.update.seen?.().catch(() => {});
+  if (!['available', 'downloading', 'ready'].includes(update.state)) {
+    const arrived = update.arrived && !update.arrived.seen ? update.arrived : null;
+    if (!arrived) return null;
+    return (
+      <>
+        <div className="rw-update" role="status" aria-live="polite" data-state="arrived">
+          <div className="rw-update-mark"><Icon name="star" size={18} /></div>
+          <div className="rw-update-body">
+            <div className="rw-update-title">Rutba Office is now {arrived.to}</div>
+            <div className="rw-update-text">Updated from {arrived.from}. What changed is a click away.</div>
+            <div className="rw-update-actions">
+              <Button primary className="rw-update-whatsnew" label="What’s new" onClick={() => setNotes(true)} />
+              <Button ghost className="rw-update-ok" label="OK" onClick={seen} />
+            </div>
+          </div>
+        </div>
+        {notes ? (
+          <WhatsNew
+            shell={shell}
+            version={arrived.to}
+            onClose={() => {
+              setNotes(false);
+              seen();
+            }}
+          />
+        ) : null}
+      </>
+    );
+  }
+  // Put away — by "Not now" here, or by the service for a day — unless the
+  // status chip asked to see it again.
+  if ((update.snoozed || away === update.available) && insist !== update.available) return null;
   const ready = update.state === 'ready';
   const percent = Math.round(update.percent || 0);
   const when = update.releasedAt ? new Date(update.releasedAt).toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' }) : null;
   return (
     <>
-      <style>{UPDATE_CSS}</style>
       <div className="rw-update" role="status" aria-live="polite" data-state={update.state}>
       <div className="rw-update-mark"><Icon name="download" size={18} /></div>
       <div className="rw-update-body">
@@ -226,12 +286,41 @@ export function UpdatePrompt({ shell }) {
         {!ready ? <Progress value={percent} max={100} /> : null}
         <div className="rw-update-actions">
           {ready ? <Button primary className="rw-update-restart" label="Restart and update" onClick={() => shell.update.install().catch(() => {})} /> : null}
-          <Button ghost className="rw-update-later" label="Not now" onClick={() => { setAway(update.available); shell.update.snooze?.({ version: update.available }).catch(() => {}); }} />
+          <Button ghost className="rw-update-later" label="Not now" onClick={() => { onAway(update.available); shell.update.snooze?.({ version: update.available }).catch(() => {}); }} />
         </div>
       </div>
       </div>
     </>
   );
+}
+
+/**
+ * The word in the status bar: a download counting up, or a release ready.
+ * The prompt can be put away; the chip stays, and brings it back.
+ */
+function UpdateChip({ update, onShow }) {
+  if (!update) return null;
+  if (update.state === 'downloading') {
+    return (
+      <span className="chip rw-update-chip" data-state="downloading" data-tip={`Downloading Rutba Office ${update.available} in the background`}>
+        <Icon name="download" size={11} /> Updating {Math.round(update.percent || 0)}%
+      </span>
+    );
+  }
+  if (update.state === 'ready') {
+    return (
+      <button
+        type="button"
+        className="chip rw-update-chip"
+        data-state="ready"
+        data-tip={`Rutba Office ${update.available} is downloaded — restart to update, or it installs when you quit`}
+        onClick={onShow}
+      >
+        <Icon name="download" size={11} /> Update ready
+      </button>
+    );
+  }
+  return null;
 }
 
 const UPDATE_CSS = `
@@ -250,6 +339,9 @@ const UPDATE_CSS = `
 .rw-update-text { margin-top: 3px; color: var(--ink-2); line-height: 1.4; }
 .rw-update .rw-progress { margin-top: 8px; }
 .rw-update-actions { display: flex; gap: 8px; margin-top: 10px; align-items: center; }
+.rw-status .rw-update-chip { color: var(--accent); background: var(--accent-soft); }
+.rw-status button.rw-update-chip { border: 0; font: inherit; cursor: pointer; }
+.rw-status button.rw-update-chip:hover { filter: brightness(0.94); }
 `;
 
 export { APPS, NEW_DOCUMENTS };
