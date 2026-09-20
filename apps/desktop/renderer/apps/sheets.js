@@ -626,6 +626,23 @@ export default function Sheets({ app, shell, boot }) {
   );
 
   /** A range's box in the cells layer, from the visible columns and rows; null when it is scrolled away. */
+  /**
+   * Frozen panes, pinned.
+   *
+   * The frame carries the frozen rows and columns in every viewport; the
+   * window drew them at their own place, so a frozen heading row scrolled
+   * away with the rest. They are drawn in layers that stick — the rows
+   * under the column headings, the columns beside the row headings, the
+   * corner at both — `position: sticky` in normal flow inside the cells
+   * layer, the way the headings already stick in the grid's own tracks.
+   */
+  const frozen = model?.frozen || { rows: 0, cols: 0 };
+  const frozenH = frozen.rows ? (model?.rows || []).reduce((m, r) => (r.index < frozen.rows ? Math.max(m, r.y + r.height) : m), 0) : 0;
+  const frozenW = frozen.cols ? (model?.columns || []).reduce((m, c) => (c.index < frozen.cols ? Math.max(m, c.x + c.width) : m), 0) : 0;
+  const headTop = view.headings ? model?.headerHeight ?? 0 : 0;
+  const headLeft = view.headings ? model?.headerWidth ?? 0 : 0;
+  const pane = (at) => (at.row < frozen.rows ? (at.col < frozen.cols ? 'corner' : 'rows') : at.col < frozen.cols ? 'cols' : 'main');
+
   const boxOf = (range) => {
     const left = (model?.columns || []).find((c) => c.index === range.left);
     const right = (model?.columns || []).find((c) => c.index === range.right);
@@ -636,14 +653,103 @@ export default function Sheets({ app, shell, boot }) {
   };
 
   const cellAt = (event) => {
-    const layer = event.currentTarget;
+    // A press inside a pinned layer is measured from the layer, which has
+    // slid with the scroll; the columns layer starts under the frozen rows.
+    const pin = event.target?.closest?.('.sh-pin');
+    const layer = pin || event.currentTarget;
     const rect = layer.getBoundingClientRect();
     const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top;
+    const y = event.clientY - rect.top + (pin && pin.classList.contains('sh-pin-cols') ? frozenH : 0);
     const col = (model?.columns || []).find((c) => x >= c.x && x < c.x + c.width);
     const row = (model?.rows || []).find((r) => y >= r.y && y < r.y + r.height);
     return col && row ? { row: row.index, col: col.index } : null;
   };
+
+  /** A cell, drawn where it sits — `dy` above it when its layer starts lower down. */
+  const cellNode = (cell, dy = 0) => (
+    <div
+      key={cell.ref}
+      className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}`}
+      data-ref={cell.ref}
+      style={dy ? { ...spillStyle(cell), top: cell.y - dy } : spillStyle(cell)}
+      onMouseDown={(e) => {
+        // Ctrl+click on a link follows it, as in Word; a plain click selects, as in Excel.
+        if (cell.link && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
+        dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
+      }}
+      onDoubleClick={() => dispatch({ op: 'beginEdit' })}
+      onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.copy', 'edit.clear', '-', 'insert.link', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
+      data-tip={tipFor(cell)}
+    >
+      {view.formulas && cell.formula ? cell.formula : cell.text}
+    </div>
+  );
+
+  /** The cell editor, over the active cell, in whichever layer holds it. */
+  const editorNode = (dy = 0) => {
+    const active = model.cells.find((c) => c.active);
+    return (
+      <input
+        ref={editorRef}
+        className="sh-editor"
+        value={draft ?? ''}
+        onChange={(e) => putDraft(e.target.value)}
+        onBlur={() => editing && commitDraft('none')}
+        style={{
+          left: editing.x ?? active?.x ?? 0,
+          top: (editing.y ?? active?.y ?? 0) - dy,
+          width: Math.max(80, active?.width ?? 80),
+          height: active?.height ?? 20,
+        }}
+      />
+    );
+  };
+
+  const colHead = (c) => (
+    <div
+      key={c.index}
+      className={`sh-head${c.index >= (sel?.left ?? -1) && c.index <= (sel?.right ?? -2) ? ' active' : ''}`}
+      // Both coordinates, always: an absolute heading with no top took its
+      // static place, which the pinned wrapper in flow had moved down.
+      style={{ left: c.x, top: 0, width: c.width, height: model.headerHeight }}
+      onClick={(e) => dispatch({ op: 'selectColumn', col: c.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
+      onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
+    >
+      {c.label || colLabel(c.index)}
+      <div
+        className="sh-grip col"
+        title="Drag to resize the column; double-click to fit its text"
+        onMouseDown={(e) => startResize(e, 'col', c.index, c.width, c.x)}
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          fitColumn(c.index);
+        }}
+      />
+    </div>
+  );
+
+  const rowHead = (r, dy = 0) => (
+    <div
+      key={r.index}
+      className={`sh-head${r.index >= (sel?.top ?? -1) && r.index <= (sel?.bottom ?? -2) ? ' active' : ''}`}
+      style={{ top: r.y - dy, left: 0, height: r.height, width: model.headerWidth }}
+      onClick={(e) => dispatch({ op: 'selectRow', row: r.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
+      onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertRow', 'sheet.deleteRow']))}
+    >
+      {r.label ?? r.index + 1}
+      <div
+        className="sh-grip row"
+        title="Drag to resize the row; double-click for the default height"
+        onMouseDown={(e) => startResize(e, 'row', r.index, r.height, r.y)}
+        onClick={(e) => e.stopPropagation()}
+        onDoubleClick={(e) => {
+          e.stopPropagation();
+          dispatch({ op: 'rowHeight', row: r.index, height: 20 });
+        }}
+      />
+    </div>
+  );
 
   if (error) {
     return (
@@ -897,51 +1003,21 @@ export default function Sheets({ app, shell, boot }) {
               <div className="sh-corner" />
 
               <div className="sh-colheads" style={{ height: model.headerHeight }}>
-                {(model.columns || []).map((c) => (
-                  <div
-                    key={c.index}
-                    className={`sh-head${c.index >= (sel?.left ?? -1) && c.index <= (sel?.right ?? -2) ? ' active' : ''}`}
-                    style={{ left: c.x, width: c.width, height: model.headerHeight }}
-                    onClick={(e) => dispatch({ op: 'selectColumn', col: c.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
-                    onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
-                  >
-                    {c.label || colLabel(c.index)}
-                    <div
-                      className="sh-grip col"
-                      title="Drag to resize the column; double-click to fit its text"
-                      onMouseDown={(e) => startResize(e, 'col', c.index, c.width, c.x)}
-                      onClick={(e) => e.stopPropagation()}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        fitColumn(c.index);
-                      }}
-                    />
+                {frozen.cols ? (
+                  <div className="sh-pin sh-pin-colheads" style={{ left: headLeft, width: frozenW, height: model.headerHeight }}>
+                    {(model.columns || []).filter((c) => c.index < frozen.cols).map((c) => colHead(c))}
                   </div>
-                ))}
+                ) : null}
+                {(model.columns || []).filter((c) => c.index >= frozen.cols).map((c) => colHead(c))}
               </div>
 
               <div className="sh-rowheads" style={{ width: model.headerWidth }}>
-                {(model.rows || []).map((r) => (
-                  <div
-                    key={r.index}
-                    className={`sh-head${r.index >= (sel?.top ?? -1) && r.index <= (sel?.bottom ?? -2) ? ' active' : ''}`}
-                    style={{ top: r.y, height: r.height, width: model.headerWidth }}
-                    onClick={(e) => dispatch({ op: 'selectRow', row: r.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
-                    onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertRow', 'sheet.deleteRow']))}
-                  >
-                    {r.label ?? r.index + 1}
-                    <div
-                      className="sh-grip row"
-                      title="Drag to resize the row; double-click for the default height"
-                      onMouseDown={(e) => startResize(e, 'row', r.index, r.height, r.y)}
-                      onClick={(e) => e.stopPropagation()}
-                      onDoubleClick={(e) => {
-                        e.stopPropagation();
-                        dispatch({ op: 'rowHeight', row: r.index, height: 20 });
-                      }}
-                    />
+                {frozen.rows ? (
+                  <div className="sh-pin sh-pin-rowheads" style={{ top: headTop, height: frozenH, width: model.headerWidth }}>
+                    {(model.rows || []).filter((r) => r.index < frozen.rows).map((r) => rowHead(r))}
                   </div>
-                ))}
+                ) : null}
+                {(model.rows || []).filter((r) => r.index >= frozen.rows).map((r) => rowHead(r))}
               </div>
 
               <div
@@ -959,11 +1035,31 @@ export default function Sheets({ app, shell, boot }) {
                   if (at) dispatch({ op: 'select', row: at.row, col: at.col }, { op: 'beginEdit' });
                 }}
               >
+                {frozen.rows ? (
+                  <div className="sh-pin sh-pin-rows" style={{ top: headTop, height: frozenH }}>
+                    {frozen.cols ? (
+                      <div className="sh-pin sh-pin-corner" style={{ left: headLeft, width: frozenW, height: frozenH }}>
+                        {model.cells.map((cell) => (pane(cell) === 'corner' ? cellNode(cell) : null))}
+                        {editing && pane(editing) === 'corner' ? editorNode(0) : null}
+                      </div>
+                    ) : null}
+                    {model.cells.map((cell) => (pane(cell) === 'rows' ? cellNode(cell) : null))}
+                    {editing && pane(editing) === 'rows' ? editorNode(0) : null}
+                  </div>
+                ) : null}
+                {frozen.cols ? (
+                  <div className="sh-pin sh-pin-cols" style={{ left: headLeft, width: frozenW, height: Math.max(0, model.total.height - frozenH) }}>
+                    {model.cells.map((cell) => (pane(cell) === 'cols' ? cellNode(cell, frozenH) : null))}
+                    {editing && pane(editing) === 'cols' ? editorNode(frozenH) : null}
+                  </div>
+                ) : null}
                 {(() => {
                   // The fill handle at the selection's corner, and the box a fill drag has reached.
+                  // A selection in a frozen pane keeps its handle out of the way: the handle is
+                  // drawn in the sliding layer, and a frozen cell is not there.
                   const active = model.cells.find((c) => c.active);
                   const source = sel?.range || (active ? { top: active.row, left: active.col, bottom: active.row, right: active.col } : null);
-                  const box = source ? boxOf(source) : null;
+                  const box = source && !(source.top < frozen.rows || source.left < frozen.cols) ? boxOf(source) : null;
                   const reach = filling ? boxOf(filling.target) : null;
                   return (
                     <>
@@ -980,24 +1076,7 @@ export default function Sheets({ app, shell, boot }) {
                     style={resizing.kind === 'col' ? { left: resizing.start + resizing.size, top: 0, height: model.total.height } : { top: resizing.start + resizing.size, left: 0, width: model.total.width }}
                   />
                 ) : null}
-                {model.cells.map((cell) => (
-                  <div
-                    key={cell.ref}
-                    className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}`}
-                    data-ref={cell.ref}
-                    style={spillStyle(cell)}
-                    onMouseDown={(e) => {
-                      // Ctrl+click on a link follows it, as in Word; a plain click selects, as in Excel.
-                      if (cell.link && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
-                      dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
-                    }}
-                    onDoubleClick={() => dispatch({ op: 'beginEdit' })}
-                    onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.copy', 'edit.clear', '-', 'insert.link', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
-                    data-tip={tipFor(cell)}
-                  >
-                    {view.formulas && cell.formula ? cell.formula : cell.text}
-                  </div>
-                ))}
+                {model.cells.map((cell) => (pane(cell) === 'main' ? cellNode(cell) : null))}
 
                 {/*
                   What is drawn over the cells: the shapes, pictures and charts
@@ -1019,22 +1098,7 @@ export default function Sheets({ app, shell, boot }) {
                   </div>
                 ))}
 
-                {editing ? (
-
-                  <input
-                    ref={editorRef}
-                    className="sh-editor"
-                    value={draft ?? ''}
-                    onChange={(e) => putDraft(e.target.value)}
-                    onBlur={() => editing && commitDraft('none')}
-                    style={{
-                      left: editing.x ?? model.cells.find((c) => c.active)?.x ?? 0,
-                      top: editing.y ?? model.cells.find((c) => c.active)?.y ?? 0,
-                      width: Math.max(80, model.cells.find((c) => c.active)?.width ?? 80),
-                      height: model.cells.find((c) => c.active)?.height ?? 20,
-                    }}
-                  />
-                ) : null}
+                {editing && pane(editing) === 'main' ? editorNode() : null}
               </div>
             </div>
           </div>
@@ -1346,6 +1410,22 @@ const CSS = `
 .sh-colheads, .sh-rowheads, .sh-cells { position: relative; }
 .sh-colheads { position: sticky; }
 .sh-rowheads { position: sticky; }
+/* Frozen panes: layers in normal flow that stick — the rows under the
+   column headings, the columns beside the row headings, the corner at
+   both — with their cells drawn at their own place inside the layer. */
+/* The order of the layers, bottom up: the sliding cells, the frozen columns,
+   the frozen rows (with the corner inside them), then the headings and
+   their corner over everything — the headings come first in the tree, so
+   they need the numbers to win. */
+.sh-corner { z-index: 8; }
+.sh-colheads, .sh-rowheads { z-index: 7; background: var(--surface-2); }
+.sh-pin { position: sticky; background: var(--surface); box-sizing: border-box; }
+.sh-pin-cols { z-index: 2; box-shadow: 1px 0 0 var(--line), 2px 0 5px color-mix(in srgb, var(--ink) 9%, transparent); }
+.sh-pin-rows { z-index: 3; box-shadow: 0 1px 0 var(--line), 0 2px 5px color-mix(in srgb, var(--ink) 9%, transparent); }
+.sh-pin-corner { z-index: 4; box-shadow: 1px 0 0 var(--line); }
+.sh-pin-rowheads, .sh-pin-colheads { z-index: 2; background: var(--surface-2); }
+.sh-pin-rowheads { box-shadow: 0 1px 0 var(--line); }
+.sh-pin-colheads { box-shadow: 1px 0 0 var(--line); }
 .sh-head {
   position: absolute; display: grid; place-items: center; font-size: 11.5px; color: var(--ink-2);
   background: var(--surface-2); border-right: 1px solid var(--line-soft); border-bottom: 1px solid var(--line);

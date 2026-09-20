@@ -90,9 +90,12 @@ it is where the gaps are.
   one. A cell comment is drawn with its red corner and read on hover, and
   the status bar counts a sheet's notes; writing one still needs the
   comments part plus its VML.
-- **Frozen panes** are read, written and chosen from the View tab, and the
-  frozen rows and columns ride in every frame; the window does not yet pin
-  them, so a frozen heading row scrolls away with the rest.
+- **Frozen panes** are read, written, chosen from the View tab and, since
+  2026-09-20, pinned on screen: the frozen rows sit under the column
+  headings, the frozen columns beside the row headings, the corner at both,
+  their headings with them. The fill handle keeps out of a frozen pane; a
+  merged range that crosses the freeze line is drawn by the pane its
+  top-left cell is in.
 - **Format as Table**, slicers, sparklines: read, not written.
 - **Data tools**: text to columns, remove duplicates, multi-key sort,
   advanced filter with a criteria range, consolidate, flash fill, subtotals

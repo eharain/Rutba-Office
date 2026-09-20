@@ -1253,7 +1253,85 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home: those blocks alone, for working on them.
+  /* ── Frozen panes, pinned ────────────────────────────────────────────── */
+  //
+  // Freeze at B2 — the top row and the first column — scroll away, and the
+  // heading row is still under the column headings, the first column still
+  // beside the row headings, the corner cell at both, their headings with
+  // them; a press on a pinned cell selects it.
+  const sheetFreeze = async () => {
+    try {
+      const rows = [];
+      for (let r = 0; r < 80; r++) {
+        const row = [];
+        for (let c = 0; c < 30; c++) row.push(r === 0 ? `Head ${c + 1}` : c === 0 ? `Row ${r + 1}` : r * 100 + c);
+        rows.push(row);
+      }
+      const file = path.join(dir, 'freeze.xlsx');
+      fs.writeFileSync(file, buildXlsx({ sheets: [{ name: 'Wide', rows }] }));
+      const win = await open('sheets', file);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="B2"]'))`), 'the grid', 8000);
+      // As a person would: select B2, View, Freeze Panes, at the selection.
+      await js(`(() => { document.querySelector('.sh-cell[data-ref="B2"]').dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
+      await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="B2"].active'))`), 'B2 active', 4000);
+      await js(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'View')?.click(); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('button')].find((b) => /Freeze Panes/.test(b.textContent)))`), 'the View tab', 4000);
+      await js(`(() => { [...document.querySelectorAll('button')].find((b) => /Freeze Panes/.test(b.textContent)).click(); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => /at the selection/.test(b.textContent)))`), 'the freeze menu', 4000);
+      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => /at the selection/.test(b.textContent)).click(); return 1; })()`);
+      await until(() => js(`Boolean(document.querySelector('.sh-pin-rows .sh-cell[data-ref="B1"]')) && Boolean(document.querySelector('.sh-pin-cols .sh-cell[data-ref="A2"]'))`), 'the pinned layers', 6000);
+
+      await js(`(() => { const g = document.querySelector('.sh-grid'); g.scrollTop = 500; g.scrollLeft = 400; return 1; })()`);
+      await until(() => js(`Boolean(document.querySelector('.sh-pin-cols .sh-cell[data-ref="A30"]')) && document.querySelector('.sh-grid').scrollTop >= 400`), 'the frame after the scroll', 6000);
+      await wait(300);
+      const seen = await js(`(() => {
+        const rect = (sel) => { const n = document.querySelector(sel); if (!n) return null; const b = n.getBoundingClientRect(); return { top: Math.round(b.top), left: Math.round(b.left), bottom: Math.round(b.bottom), right: Math.round(b.right) }; };
+        const heads = rect('.sh-colheads'), rowheads = rect('.sh-rowheads'), grid = rect('.sh-grid');
+        const g = document.querySelector('.sh-grid');
+        // The frame carries only the columns in view, so the pinned row's cell
+        // to read is whichever of them is on screen past the frozen column.
+        const box = (n) => { const b = n.getBoundingClientRect(); return { top: Math.round(b.top), left: Math.round(b.left), bottom: Math.round(b.bottom), right: Math.round(b.right) }; };
+        const cornerRight = rect('.sh-pin-corner')?.right ?? rowheads.right;
+        const rowCell = [...document.querySelectorAll('.sh-pin-rows > .sh-cell')].find((n) => box(n).left >= cornerRight && box(n).right <= grid.right);
+        const colCell = [...document.querySelectorAll('.sh-pin-cols .sh-cell')].find((n) => box(n).top > heads.bottom + 10 && box(n).bottom <= grid.bottom);
+        return { heads, rowheads, grid, scroll: { top: g.scrollTop, left: g.scrollLeft },
+          rowRef: rowCell?.dataset.ref || null, b1: rowCell ? box(rowCell) : null,
+          colRef: colCell?.dataset.ref || null, a30: colCell ? box(colCell) : null,
+          a1: rect('.sh-pin-corner .sh-cell[data-ref="A1"]'),
+          head1: rect('.sh-pin-rowheads .sh-head'), headA: rect('.sh-pin-colheads .sh-head'),
+          under: (() => { const b = rowCell?.getBoundingClientRect(); if (!b) return null; const hit = document.elementFromPoint(b.left + 8, b.top + 8); return hit?.dataset?.ref || hit?.className || null; })(),
+          // What is on top where the headings and the corner cell are: a heading, and the corner cell.
+          overHeads: (() => { const hit = document.elementFromPoint(grid.right - 120, heads.top + 8); return hit?.closest?.('.sh-head') ? 'sh-head' : hit?.className || null; })(),
+          overCorner: (() => { const b = document.querySelector('.sh-pin-corner .sh-cell[data-ref="A1"]')?.getBoundingClientRect(); if (!b) return null; const hit = document.elementFromPoint(b.left + 8, b.top + 8); return hit?.dataset?.ref || hit?.className || null; })(),
+          headings: document.querySelectorAll('.sh-colheads .sh-head').length };
+      })()`);
+      const near = (a, b) => a != null && b != null && Math.abs(a - b) <= 1;
+      const rowPinned = seen.b1 && near(seen.b1.top, seen.heads.bottom) && seen.b1.left > seen.rowheads.right && seen.b1.right <= seen.grid.right;
+      const colPinned = seen.a30 && near(seen.a30.left, seen.rowheads.right) && seen.a30.top > seen.heads.bottom + 10 && seen.a30.bottom <= seen.grid.bottom;
+      const cornerPinned = seen.a1 && near(seen.a1.top, seen.heads.bottom) && near(seen.a1.left, seen.rowheads.right);
+      const headsPinned = seen.head1 && near(seen.head1.top, seen.heads.bottom) && seen.headA && near(seen.headA.left, seen.rowheads.right);
+      check('sheets: frozen at B2 and scrolled away, the top row sits under the column headings, the first column beside the row headings, the corner at both, and their headings with them',
+        seen.scroll.top >= 400 && seen.scroll.left >= 300 && /^[A-Z]+1$/.test(seen.rowRef || '') && /^A\d+$/.test(seen.colRef || '') && rowPinned && colPinned && cornerPinned && headsPinned
+          && seen.under === seen.rowRef && seen.overCorner === 'A1' && /sh-head/.test(seen.overHeads || '') && seen.headings > 5,
+        JSON.stringify(seen));
+      await wait(500);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'sheet-freeze.png'), (await win.webContents.capturePage()).toPNG());
+
+      // A press on a pinned cell selects it, where it is drawn.
+      const target = seen.rowRef || 'B1';
+      await js(`(() => { document.querySelector('.sh-pin-rows .sh-cell[data-ref="${target}"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
+      const picked = await until(() => js(`Boolean(document.querySelector('.sh-pin-rows .sh-cell[data-ref="${target}"].active')) && !document.querySelector('.sh-cell[data-ref="B2"].active')`), `${target} active`, 4000).catch(() => false);
+      const stillScrolled = await js(`document.querySelector('.sh-grid').scrollTop >= 400`);
+      check('sheets: a press on a pinned cell selects it, and the grid stays where it was scrolled', picked === true && stillScrolled === true, `picked ${picked}, scrolled ${stillScrolled}`);
+      const complaints = await errorsIn(win);
+      check('sheets: frozen panes report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('sheets: the frozen panes check ran', false, err.message);
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -1267,6 +1345,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('ruler')) await wordRuler();
     if (only.includes('update')) await updatePrompt();
     if (only.includes('home')) await launcherRecent();
+    if (only.includes('freeze')) await sheetFreeze();
     if (only.includes('viewer')) await viewer();
     if (only.includes('links')) await sheetLinks();
     return done();
@@ -1360,6 +1439,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordRuler();
   await updatePrompt();
   await launcherRecent();
+  await sheetFreeze();
   await viewer();
   await sheetLinks();
   await polish();
