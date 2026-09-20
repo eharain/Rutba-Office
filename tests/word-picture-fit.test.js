@@ -38,11 +38,11 @@ test('a picture taller than the page prints to fit it, proportions kept; one tha
   }
 });
 
-test('a paragraph of four pictures prints as many to a page as fit, whole, and the rest on the next', () => {
+test('a paragraph of four wide pictures, one to a row, prints as many rows to a page as fit, whole, and the rest on the next', () => {
   const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Cards' }] }));
   view.setSelection({ block: 0, offset: 0 });
   for (let i = 0; i < 4; i++) {
-    view.insertImage({ name: `card ${i + 1}`, contentType: 'image/png', data: gradientPng(28, 40, [40, 120, 200], [230, 200, 60]), widthPx: 280, heightPx: 400 });
+    view.insertImage({ name: `card ${i + 1}`, contentType: 'image/png', data: gradientPng(60, 40, [40, 120, 200], [230, 200, 60]), widthPx: 600, heightPx: 400 });
   }
   const joined = openDocx(joinPictureParagraphs(view.save()));
   const blocks = joined.render({ pages: false }).blocks;
@@ -53,12 +53,40 @@ test('a paragraph of four pictures prints as many to a page as fit, whole, and t
   const inside = laid.contentHeightPx;
   const perPage = laid.pages.map((p) => p.fragments.filter((f) => f.kind === 'images').flatMap((f) => f.images).length);
   assert.equal(perPage.reduce((a, b) => a + b, 0), 4, 'every picture is placed once');
-  // The heading's line and two pictures with their gaps come to 838 px of the
-  // page's 930; a third would not fit, so two to a page.
+  // The heading's line and two rows with their gaps come to 838 px of the
+  // page's 930; a third would not fit, so two rows to a page.
   assert.deepEqual(perPage, [2, 2], `two to a page: ${JSON.stringify(perPage)}`);
   for (const page of laid.pages) {
     const used = page.fragments.filter((f) => f.kind === 'images').flatMap((f) => f.images).reduce((t, i) => t + i.heightPx, 0);
     assert.ok(used <= inside, 'no page holds more picture than fits');
     for (const img of page.fragments.filter((f) => f.kind === 'images').flatMap((f) => f.images)) assert.equal(img.heightPx, 400, 'a picture that fits is not scaled');
   }
+});
+
+test('a paragraph of only pictures prints them in rows, as many to a row as fit the column, and a paragraph with words one to a row', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Cards' }] }));
+  view.setSelection({ block: 0, offset: 0 });
+  for (let i = 0; i < 4; i++) {
+    view.insertImage({ name: `card ${i + 1}`, contentType: 'image/png', data: gradientPng(28, 45, [40, 120, 200], [230, 200, 60]), widthPx: 280, heightPx: 450 });
+  }
+  const joined = openDocx(joinPictureParagraphs(view.save()));
+  const laid = joined.pages;
+  const fragments = laid.pages.flatMap((p) => p.fragments.filter((f) => f.kind === 'images'));
+  const rows = fragments.flatMap((f) => f.rows);
+  assert.deepEqual(rows.map((r) => r.count), [2, 2], 'two to a row: the column is 602 px wide and two cards are 560');
+  assert.equal(rows[0].heightPx, 450, 'a row is as tall as its tallest picture');
+  assert.equal(fragments.flatMap((f) => f.images).length, 4, 'every card is placed once');
+  // The heading's line and two rows with their gaps come to more than the
+  // page's 930 px, so the second row heads the next page, whole.
+  assert.equal(laid.pages.length, 2);
+  assert.deepEqual(laid.pages.map((p) => p.fragments.filter((f) => f.kind === 'images').flatMap((f) => f.rows).length), [1, 1], 'one row a page');
+  assert.equal(fragments[0].align, null, 'a plain paragraph: the row starts at the left');
+
+  // The same four cards under words stay one to a row, as blocks under the text.
+  const worded = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Cards' }] }));
+  worded.setSelection({ block: 0, offset: 0 });
+  worded.insertImage({ name: 'card', contentType: 'image/png', data: gradientPng(28, 45, [40, 120, 200], [230, 200, 60]), widthPx: 280, heightPx: 450 });
+  worded.insertImage({ name: 'card', contentType: 'image/png', data: gradientPng(28, 45, [40, 120, 200], [230, 200, 60]), widthPx: 280, heightPx: 450 });
+  const stacked = worded.pages.pages.flatMap((p) => p.fragments.filter((f) => f.kind === 'images'));
+  for (const f of stacked) for (const r of f.rows) assert.equal(r.count, 1, 'one picture a row');
 });

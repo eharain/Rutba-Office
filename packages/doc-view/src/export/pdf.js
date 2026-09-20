@@ -321,10 +321,23 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
         continue;
       }
       if (fr.kind === 'images') {
-        for (const img of fr.images) {
-          const dx = img.hAlign === 'center' ? (widthPx - img.widthPx) / 2 : img.hAlign === 'right' ? widthPx - img.widthPx : 0;
-          drawImage(page, doc, img, xPx + Math.max(0, dx), y);
-          y += img.heightPx + IMAGE_GAP;
+        // Row by row: a paragraph of only pictures has several to a row,
+        // each standing on the row's baseline, the row placed by the
+        // paragraph's alignment; an anchored picture on its own keeps the
+        // side it asked for. A fragment without rows is one picture a row.
+        const rows = fr.rows || fr.images.map((img) => ({ count: 1, heightPx: img.heightPx }));
+        let at = 0;
+        for (const row of rows) {
+          const imgs = fr.images.slice(at, at + row.count);
+          at += row.count;
+          const rowWidth = imgs.reduce((s, img) => s + img.widthPx, 0);
+          const side = imgs.length === 1 && imgs[0].anchored ? imgs[0].hAlign : fr.align === 'center' || fr.align === 'right' ? fr.align : 'left';
+          let x = xPx + Math.max(0, side === 'center' ? (widthPx - rowWidth) / 2 : side === 'right' ? widthPx - rowWidth : 0);
+          for (const img of imgs) {
+            drawImage(page, doc, img, x, y + Math.max(0, row.heightPx - img.heightPx));
+            x += img.widthPx;
+          }
+          y += row.heightPx + IMAGE_GAP;
         }
         continue;
       }

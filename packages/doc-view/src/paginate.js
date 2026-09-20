@@ -493,24 +493,43 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
         const hAlign = img.anchored && img.hAlign === 'center' ? 'center' : img.anchored && (img.hAlign === 'right' || img.hAlign === 'outside') ? 'right' : 'left';
         return { ...img, widthPx: img.widthPx * scale, heightPx: img.heightPx * scale, hAlign };
       });
-      // A page at a time: the pictures that fit go down here and the rest
-      // head the next page — a sheet of four scanned cards runs to two pages
-      // rather than over the first one's edge. Each picture is still whole.
+      // A paragraph of only pictures lays them in rows, as many to a row as
+      // fit the column — as Word draws inline pictures and the screen does:
+      // a scanner's four cards go two by two. Under words a picture is a row
+      // of its own. Rows go down a page at a time: the ones that fit here
+      // and the rest at the head of the next page, each row whole.
+      const rowsOnly = !(block.text ?? '').length;
+      const rows = [];
+      for (const img of drawn) {
+        const last = rows[rows.length - 1];
+        if (rowsOnly && last && last.widthPx + img.widthPx <= width + 0.5) {
+          last.images.push(img);
+          last.widthPx += img.widthPx;
+          last.heightPx = Math.max(last.heightPx, img.heightPx);
+        } else rows.push({ images: [img], widthPx: img.widthPx, heightPx: img.heightPx });
+      }
+      const align = block.align ?? style.align ?? null;
       let batch = [];
       let cost = 0;
       const flush = () => {
         if (!batch.length) return;
-        place({ kind: 'images', paragraphIndex: block.index, images: batch }, cost);
+        place({
+          kind: 'images',
+          paragraphIndex: block.index,
+          images: batch.flatMap((row) => row.images),
+          rows: batch.map((row) => ({ count: row.images.length, heightPx: row.heightPx })),
+          align,
+        }, cost);
         batch = [];
         cost = 0;
       };
-      for (const img of drawn) {
-        const tall = img.heightPx + IMAGE_GAP;
+      for (const row of rows) {
+        const tall = row.heightPx + IMAGE_GAP;
         if (cost + tall > remaining()) {
           flush();
           if (tall > remaining() && current.fragments.length) newPage();
         }
-        batch.push(img);
+        batch.push(row);
         cost += tall;
       }
       flush();
