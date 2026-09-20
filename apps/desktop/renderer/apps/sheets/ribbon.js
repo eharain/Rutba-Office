@@ -316,7 +316,7 @@ export default function SheetsRibbon({
             <Button tall icon="table" label="Table" title="Table — the selection or the block of data round the cell, with a header row, banded rows and filters" onClick={tableMenu} />
           </Group>
           <Group label="Illustrations">
-            <Soon tall icon="picture" label="Pictures" why="A picture in a worksheet is a drawing part with an anchor; the engine draws them and does not yet write one." />
+            <Button tall icon="picture" label="Pictures" title="Pictures — a picture from a file, at the cell, at its own proportions" onClick={() => act('picture')} />
             <Button tall icon="shape" label="Shapes" onClick={(e) => menu.open(e, SHAPES.map(([geometry, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', geometry, text: '' }) })))} />
             <Soon icon="star" label="Icons" why="Icons are an online library." />
             <Soon icon="shape" label="SmartArt" why="SmartArt is a diagram part the engine does not write." />

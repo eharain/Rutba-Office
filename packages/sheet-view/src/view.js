@@ -617,6 +617,41 @@ export class SheetView {
     }, { parts, tracksNewParts: true });
   }
 
+  /**
+   * A picture at the active cell, as Excel keeps one: the bytes become a
+   * media part, the sheet's drawing part (made if it has none) gets a
+   * one-cell anchor at the cell pointing at them, at the size asked for.
+   * Drawn at once over the cells. One undo step, the parts going with it.
+   */
+  insertPicture({ name = 'Picture', contentType, data, widthPx, heightPx } = {}) {
+    const ext = { 'image/png': 'png', 'image/jpeg': 'jpeg', 'image/gif': 'gif', 'image/bmp': 'bmp', 'image/webp': 'webp' }[contentType];
+    if (!ext) throw new Error('unsupported image type: ' + contentType + ' (png, jpeg, gif, bmp or webp)');
+    const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data ?? ''), 'base64');
+    if (!bytes.length) throw new Error('the picture has no bytes');
+    const w = Math.round(Number(widthPx));
+    const h = Math.round(Number(heightPx));
+    if (!(w > 0) || !(h > 0)) throw new Error('a picture needs a positive width and height');
+    const { sheetPartName, parts } = this._drawingEditParts();
+    const { row, col } = this.selection.active;
+    return this._edit('insert picture', null, [], () => {
+      const drawingPart = this.workbook.ensureSheetDrawing(this.activeSheet);
+      // The package's part numbering counts XML parts; a media part has the
+      // picture's own extension, so the next free number is found here.
+      let n = 1;
+      while (this.pkg.partNames().some((p) => p.startsWith('xl/media/image' + n + '.'))) n += 1;
+      const mediaName = 'xl/media/image' + n + '.' + ext;
+      this.pkg.ensureDefault(ext, contentType);
+      this.pkg.addPart(mediaName, bytes);
+      const rId = this.pkg.addRelationshipTo(drawingPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', '../media/image' + n + '.' + ext);
+      this.workbook.appendDrawingAnchor(drawingPart, (id) => drawingAnchorXml({
+        kind: 'picture', id, name: String(name || 'Picture'), from: { col, row }, widthPx: w, heightPx: h,
+      }, () => rId));
+      this.drawings.set(this.activeSheet, this._readDrawings(sheetPartName));
+      this._structuralDirty = true;
+      return this;
+    }, { parts, tracksNewParts: true });
+  }
+
   removeNote({ row, col }) {
     const at = ref(row, col);
     return this._edit('remove note', null, [], () => {

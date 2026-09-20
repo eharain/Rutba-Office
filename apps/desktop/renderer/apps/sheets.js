@@ -410,6 +410,34 @@ export default function Sheets({ app, shell, boot }) {
     [dispatch, putDraft]
   );
 
+  /**
+   * Insert → Pictures: a file, put at the active cell at its own
+   * proportions, its longer side no more than 320 px. The size comes from
+   * the picture's own pixels, read here where an image can be decoded.
+   */
+  const insertPicture = useCallback(async () => {
+    const [file] = await shell.dialog.open({
+      title: 'Insert picture',
+      filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+    });
+    if (!file) return;
+    const { bytes, stat } = await shell.fs.read({ path: file });
+    const ext = String(stat?.ext || file.split('.').pop()).replace('.', '').toLowerCase();
+    const contentType = { png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' }[ext] || 'image/jpeg';
+    const size = await new Promise((resolve) => {
+      const url = URL.createObjectURL(new Blob([bytes], { type: contentType }));
+      const img = new Image();
+      img.onload = () => { URL.revokeObjectURL(url); resolve({ w: img.naturalWidth || 320, h: img.naturalHeight || 240 }); };
+      img.onerror = () => { URL.revokeObjectURL(url); resolve({ w: 320, h: 240 }); };
+      img.src = url;
+    });
+    const scale = Math.min(1, 320 / Math.max(1, size.w, size.h));
+    await dispatch({
+      op: 'insertPicture', name: stat?.name || file.split(/[\\/]/).pop(), contentType, data: bytes,
+      widthPx: Math.max(16, Math.round(size.w * scale)), heightPx: Math.max(16, Math.round(size.h * scale)),
+    });
+  }, [shell, dispatch]);
+
   const onKeyDown = useCallback(
     async (e) => {
       if (!model) return;
@@ -876,6 +904,7 @@ export default function Sheets({ app, shell, boot }) {
       case 'removeNote': await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); return;
       // Format as Table: over the selection, or the block of data round the cell.
       case 'table': await dispatch({ op: 'formatAsTable', style: arg?.style, stripes: arg?.stripes !== false }); return;
+      case 'picture': await insertPicture(); return;
       // A link is followed: an address opens outside the suite, a place in
       // the workbook (C12, Sheet2!B4, a name) is gone to.
       case 'follow': {

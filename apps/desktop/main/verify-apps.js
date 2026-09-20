@@ -1036,6 +1036,73 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Worksheets: a picture at the cell ─────────────────────────────────── */
+  //
+  // The picture goes in behind the window's back — the file dialog cannot
+  // be driven — through the same op the Pictures button dispatches, on a
+  // copy of the sales workbook; the window draws it over the cell, and the
+  // saved file carries it as Excel keeps a picture.
+  const sheetPicture = async () => {
+    if (!files.png) return check('sheets: the picture fixture exists', false, 'no png');
+    try {
+      const file = path.join(path.dirname(files.xlsx), 'picture.xlsx');
+      fs.copyFileSync(files.xlsx, file);
+      const win = await open('sheets', file);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      // The grid holds nodes for filled and active cells only: D6 exists once it is selected.
+      await until(() => js(`document.querySelectorAll('.sh-cell').length > 4`), 'the grid', 8000);
+      const applied = await js(`(async () => {
+        try {
+          const all = await window.rutbaOffice.doc.sessions({});
+          const mine = all.filter((s) => s.kind === 'sheet').pop();
+          if (!mine) return 'no sheet session among ' + all.map((s) => s.kind).join(',');
+          const { bytes, stat } = await window.rutbaOffice.fs.read({ path: ${JSON.stringify(files.png)} });
+          const r = await window.rutbaOffice.doc.apply({ id: mine.id, ops: [
+            { op: 'select', row: 5, col: 3 },
+            { op: 'insertPicture', name: stat.name, contentType: 'image/png', data: bytes, widthPx: 160, heightPx: 120 },
+          ] });
+          return 'applied: ' + JSON.stringify(r && (r.error || r.ok || Object.keys(r))).slice(0, 160);
+        } catch (e) { return 'apply failed: ' + e.message; }
+      })()`);
+      // The insert went in behind the window's back, so the page has not
+      // heard. Undo and redo, from the keyboard, put it through the window's
+      // own path — and prove a picture survives both.
+      await js(`document.querySelector('.sh')?.focus(), 'focused'`);
+      await press(win.webContents, 'z', { modifiers: ['control'] });
+      await wait(400);
+      await press(win.webContents, 'y', { modifiers: ['control'] });
+      await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="D6"]'))`), 'D6 to be drawn as the active cell', 6000).catch(() => {});
+      const cell = await js(`(() => { const c = document.querySelector('.sh-cell[data-ref="D6"]'); return c ? { x: parseFloat(c.style.left), y: parseFloat(c.style.top) } : { x: NaN, y: NaN }; })()`);
+      const readDrawn = `(() => { const d = [...document.querySelectorAll('.sh-drawing')].find((el) => el.querySelector('image')); return d ? { left: parseFloat(d.style.left), top: parseFloat(d.style.top), width: parseFloat(d.style.width), height: parseFloat(d.style.height), href: (d.querySelector('image').getAttribute('href') || d.querySelector('image').getAttribute('xlink:href') || '').slice(0, 15) } : false; })()`;
+      const drawnOk = await until(() => js(readDrawn), 'the picture over the cells', 6000).catch(() => false);
+      const drawn = drawnOk === true ? await js(readDrawn) : false;
+      check('sheets: Insert → Pictures puts the picture over the cell, at its size, from its own bytes',
+        drawn !== false && Math.abs(drawn.left - cell.x) < 1.5 && Math.abs(drawn.top - cell.y) < 1.5 && Math.round(drawn.width) === 160 && Math.round(drawn.height) === 120 && /^data:image\/png/.test(drawn.href),
+        `${applied}; ${JSON.stringify({ cell, drawn })}`);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'sheets-picture.png'), (await win.webContents.capturePage()).toPNG());
+
+      // Save through the quick bar's button (the harness's own click helper is declared further down this file).
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Save') && !n.disabled))`), 'the Save button', 3000).catch(() => {});
+      await js(`(() => { const b = [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith('Save') && !n.disabled); if (!b) return 'no Save'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
+      await until(() => {
+        try { return SheetView.open(fs.readFileSync(file)).pkg.partNames().some((n) => n.startsWith('xl/media/')); } catch { return false; }
+      }, 'the save to land', 8000).catch(() => false);
+      const re = SheetView.open(fs.readFileSync(file));
+      const media = re.pkg.partNames().filter((n) => n.startsWith('xl/media/'));
+      const sheetPart = re.workbook.partNameFor(re.activeSheet);
+      const drawingRel = re.pkg.rels(sheetPart).find((r) => String(r.Type).endsWith('/drawing'));
+      const drawingXml = drawingRel ? re.pkg.text('xl/' + drawingRel.Target.replace(/^\.\.\//, '')) : '';
+      const pictures = (re.render().drawings || []).filter((d) => d.kind === 'image');
+      check('sheets: the saved file carries the picture as Excel keeps one — the media part, the drawing part\'s one-cell anchor and its relationship',
+        media.length === 1 && /\.png$/.test(media[0]) && /<xdr:oneCellAnchor><xdr:from><xdr:col>3<\/xdr:col>[\s\S]*?<xdr:row>5<\/xdr:row>[\s\S]*?<xdr:pic>/.test(drawingXml) && pictures.length === 1 && re.pkg.contentTypes().defaults.get('png') === 'image/png',
+        `media ${JSON.stringify(media)}; pictures ${pictures.length}; anchor ${/<xdr:pic>/.test(drawingXml)}`);
+      const complaints = await errorsIn(win);
+      check('sheets: the picture reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('sheets: the picture check ran', false, err.message);
+    }
+  };
+
   /* ── Rutba Word: a paragraph of pictures splits between its lines ─────── */
   //
   // Six scans of a card in one paragraph, two to a line: the paragraph is
@@ -1454,6 +1521,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('freeze')) await sheetFreeze();
     if (only.includes('fit')) await wordPictureFits();
     if (only.includes('cards')) await wordCards();
+    if (only.includes('sheetpic')) await sheetPicture();
     if (only.includes('viewer')) await viewer();
     if (only.includes('links')) await sheetLinks();
     return done();
@@ -1550,6 +1618,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await updatePrompt();
   await launcherRecent();
   await sheetFreeze();
+  await sheetPicture();
   await viewer();
   await sheetLinks();
   await polish();

@@ -87,8 +87,10 @@ The calculation engine is the strongest part of the suite; the sheet around
 it is where the gaps are.
 
 - **Things in a sheet that are not cells**: pictures and shapes are drawn
-  when a file has them and cannot be added (a drawing anchor the writer
-  does not yet write). Since 2026-09-20 a hyperlink is read with its
+  when a file has them; since 2026-09-21 Insert → Pictures puts a picture
+  from a file at the cell, at its own proportions, written as Excel keeps
+  one (a media part, the drawing part's one-cell anchor and relationship).
+  Since 2026-09-20 a hyperlink is read with its
   target, drawn underlined, followed with Ctrl+click (an address opens
   outside, a place in the workbook is gone to), and put on a cell, changed
   or taken off with Ctrl+K — an external relationship, as Excel writes
@@ -227,9 +229,9 @@ stage keeps a picture until the next has decoded. What is still missing:
    text boxes beside the words print since 2026-09-20; the deck is left.
 6. **Shape formatting and text properties in the deck writer** — the largest
    single block of unbuilt controls in the suite.
-7. **Things in a sheet that are not cells**: ~~comments, hyperlinks~~ (both
-   read and written since 2026-09-20), ~~format as table~~ (written since
-   2026-09-21), pictures.
+7. ~~**Things in a sheet that are not cells**: comments, hyperlinks~~ (both
+   read and written since 2026-09-20), ~~format as table, pictures~~ (both
+   written since 2026-09-21).
 8. **Fields in the document**: bookmarks first, then cross-references,
    captions and a table of contents that refreshes.
 9. **Recording tracked changes**, then comparison and restricted editing.

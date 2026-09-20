@@ -885,6 +885,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setNote: (v, a) => v.setNote({ ...a, author: a.author || safeUserName() }),
     removeNote: (v, a) => v.removeNote(a),
     formatAsTable: (v, a) => v.formatAsTable(a),
+    insertPicture: (v, a) => v.insertPicture(a),
     deleteName: (v, a) => v.deleteName(a.name),
     gotoName: (v, a) => v.gotoName(a.name),
     autoFilter: (v) => v.toggleAutoFilter(),
