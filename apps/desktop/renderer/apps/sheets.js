@@ -874,6 +874,8 @@ export default function Sheets({ app, shell, boot }) {
       case 'link': setDialog('link'); return;
       case 'note': setDialog('note'); return;
       case 'removeNote': await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); return;
+      // Format as Table: over the selection, or the block of data round the cell.
+      case 'table': await dispatch({ op: 'formatAsTable', style: arg?.style, stripes: arg?.stripes !== false }); return;
       // A link is followed: an address opens outside the suite, a place in
       // the workbook (C12, Sheet2!B4, a name) is gone to.
       case 'follow': {

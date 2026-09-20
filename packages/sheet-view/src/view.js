@@ -583,6 +583,40 @@ export class SheetView {
     }, { parts: this._noteParts(), tracksNewParts: true });
   }
 
+  /**
+   * Format the selection — or, from one cell, the block of data round it —
+   * as a table: a header row, banded rows if asked, and a style Excel knows
+   * by name, written as Excel keeps a table (the part, the rels, the
+   * sheet's `<tableParts>`). The header row is the range's first row; a
+   * header cell with nothing in it is given the column's name, as Excel
+   * does, so the file and the sheet agree. Painted at once, in the
+   * renderer's own palette. One undo step. A range that already holds a
+   * table is refused.
+   */
+  formatAsTable({ style = 'TableStyleMedium2', stripes = true } = {}) {
+    const sel = this.selection.range;
+    const single = sel.top === sel.bottom && sel.left === sel.right;
+    const r = single ? { ...this._currentRegion(sel.top, sel.left) } : { top: sel.top, bottom: sel.bottom, left: sel.left, right: sel.right };
+    if (r.bottom < r.top + 1) r.bottom = r.top + 1;
+    const clash = this.sheetTables().some((t) => !(r.bottom < t.top || r.top > t.bottom || r.right < t.left || r.left > t.right));
+    if (clash) throw new Error('That range already has a table in it.');
+    const headers = [];
+    for (let c = r.left; c <= r.right; c++) headers.push(String(this.displayValue(r.top, c).text ?? '').trim());
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    const parts = [sheetPartName, '[Content_Types].xml'];
+    const relsName = OoxmlPackage.relsPathFor(sheetPartName);
+    if (this.pkg.has(relsName)) parts.push(relsName);
+    // Every header cell may be renamed — an empty one is given its column's
+    // name, a repeated one its unique name (Qty, Qty2) — so all of them are
+    // the edit's cells.
+    const touched = headers.map((_, i) => ({ row: r.top, col: r.left + i }));
+    return this._edit('format as table', null, touched, () => {
+      const written = this.workbook.addTable(this.activeSheet, areaRef(r), { style, stripes, headerNames: headers });
+      written.columns.forEach((name, i) => { if (name !== headers[i]) this._setCell(r.top, r.left + i, name); });
+      return this;
+    }, { parts, tracksNewParts: true });
+  }
+
   removeNote({ row, col }) {
     const at = ref(row, col);
     return this._edit('remove note', null, [], () => {

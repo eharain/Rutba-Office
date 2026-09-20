@@ -127,6 +127,41 @@ export async function verifySheetLinks(h, { file }) {
     const unnoted = await until(() => js(`(() => { const c = document.querySelector('.sh-cell[data-ref="C3"]'); return Boolean(c) && !c.classList.contains('noted'); })()`), 'the note to go', 4000).catch(() => false);
     check('sheets: Shift+F2 on a noted cell shows the note, and Delete takes it off', offeredNote === 'Confirm with the supplier.' && unnoted === true, `offered ${JSON.stringify(offeredNote)}, gone ${unnoted}`);
 
+    // Home → Format as Table: from A1, the block of data round it (A1:C4)
+    // becomes a table — the header row and the banding painted at once, and
+    // the saved file carrying the table as Excel keeps one.
+    await js(`(() => { const c = document.querySelector('.sh-cell[data-ref="A1"]'); c?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
+    await wait(200);
+    const clicked = await clickIn(win, 'Format as Table');
+    const menuShown = await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => /Medium, banded rows/.test(b.textContent)))`), 'the table styles', 3000).catch(() => false);
+    await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => /Medium, banded rows/.test(b.textContent))?.click(); return 1; })()`);
+    const paintRead = `(() => {
+      const bg = (ref) => { const el = document.querySelector('.sh-cell[data-ref="' + ref + '"]'); return el ? getComputedStyle(el).backgroundColor : ''; };
+      const clear = (v) => !v || v === 'rgba(0, 0, 0, 0)' || v === 'transparent' || v === 'rgb(255, 255, 255)';
+      const head = bg('A1'); const band = bg('A3'); const plain = bg('A2');
+      if (clear(head) || clear(band)) return false;
+      const weight = getComputedStyle(document.querySelector('.sh-cell[data-ref="A1"]')).fontWeight;
+      return { head, band, plainClear: clear(plain), weight };
+    })()`;
+    // `until` answers true, not what it polled: read the paint again once it is there.
+    const paintOk = await until(() => js(paintRead), 'the table paint', 5000).catch(() => false);
+    const painted = paintOk === true ? await js(paintRead) : false;
+    check('sheets: Home → Format as Table makes the block round the cell a table — the header row and the banding painted at once',
+      painted !== false && painted.plainClear === true && Number(painted.weight) >= 600, `${clicked}; menu ${menuShown}; ${JSON.stringify(painted)}`);
+    await capture(win, 'sheets-table.png');
+
+    await clickIn(win, 'Save');
+    await until(() => {
+      try { return SheetView.open(fs.readFileSync(file)).workbook.tables().length > 0; } catch { return false; }
+    }, 'the table to land in the file', 8000).catch(() => false);
+    const withTable = SheetView.open(fs.readFileSync(file));
+    const tables = withTable.workbook.tables();
+    const tableSheetXml = withTable.pkg.text(withTable.workbook.partNameFor('Sales'));
+    check('sheets: the file carries the table as Excel keeps one — the part with its style and columns, the sheet\'s rels and tableParts',
+      tables.length === 1 && tables[0].sheet === 'Sales' && tables[0].ref === 'A1:C4' && tables[0].styleName === 'TableStyleMedium2' && tables[0].showRowStripes === true
+        && tables[0].columns.join(',') === 'Region,Q1,Q2' && withTable.pkg.has(tables[0].part) && /<tableParts count="1"><tablePart r:id="[^"]+"\/><\/tableParts>/.test(tableSheetXml),
+      `${tables.length} table(s): ${JSON.stringify(tables.map((t) => [t.name, t.ref, t.styleName, t.columns]))}`);
+
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

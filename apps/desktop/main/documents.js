@@ -884,6 +884,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     // A note signed by whoever the window says, else by the account at the keyboard.
     setNote: (v, a) => v.setNote({ ...a, author: a.author || safeUserName() }),
     removeNote: (v, a) => v.removeNote(a),
+    formatAsTable: (v, a) => v.formatAsTable(a),
     deleteName: (v, a) => v.deleteName(a.name),
     gotoName: (v, a) => v.gotoName(a.name),
     autoFilter: (v) => v.toggleAutoFilter(),

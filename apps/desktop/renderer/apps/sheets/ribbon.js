@@ -131,6 +131,14 @@ export default function SheetsRibbon({
   };
 
   const setFormat = (delta) => dispatch({ op: 'setFormat', delta });
+  // Format as Table: Excel's own gallery names, so Excel shows the style it
+  // asked for; this window paints every table in its own palette.
+  const tableMenu = (event) => menu.open(event, [
+    { label: 'Light, banded rows', icon: 'table', run: () => act('table', { style: 'TableStyleLight9', stripes: true }) },
+    { label: 'Medium, banded rows', icon: 'table', run: () => act('table', { style: 'TableStyleMedium2', stripes: true }) },
+    { label: 'Medium, plain rows', icon: 'table', run: () => act('table', { style: 'TableStyleMedium2', stripes: false }) },
+    { label: 'Dark, banded rows', icon: 'table', run: () => act('table', { style: 'TableStyleDark1', stripes: true }) },
+  ]);
   const swatchMenu = (event, key, list) =>
     menu.open(
       event,
@@ -251,7 +259,7 @@ export default function SheetsRibbon({
 
           <Group label="Styles">
             <Button tall icon="wand" label="Conditional Formatting" onClick={() => openDialog('conditional')} />
-            <Soon tall icon="table" label="Format as Table" why="A styled table needs the table part written with a style; the engine reads tables and does not yet write one." />
+            <Button tall icon="table" label="Format as Table" title="Format as Table — a header row, banded rows and a style Excel knows by name, over the selection or the block of data round the cell" onClick={tableMenu} />
             <Button tall icon="grid" label="Cell Styles" title="Excel's cell styles: headings, totals, good, bad, input" onClick={(e) => menu.open(e, CELL_STYLES.map(([label, delta]) => ({ label, run: () => setFormat(delta) })))} />
           </Group>
 
@@ -305,7 +313,7 @@ export default function SheetsRibbon({
         <>
           <Group label="Tables">
             <Button tall icon="table" label="PivotTable" onClick={() => openDialog('pivot')} />
-            <Soon tall icon="table" label="Table" why="A styled table needs the table part written with a style; the engine reads tables and does not yet write one." />
+            <Button tall icon="table" label="Table" title="Table — the selection or the block of data round the cell, with a header row, banded rows and filters" onClick={tableMenu} />
           </Group>
           <Group label="Illustrations">
             <Soon tall icon="picture" label="Pictures" why="A picture in a worksheet is a drawing part with an anchor; the engine draws them and does not yet write one." />

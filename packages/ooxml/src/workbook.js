@@ -32,6 +32,8 @@ const CT_COMMENTS = 'application/vnd.openxmlformats-officedocument.spreadsheetml
 const CT_VML = 'application/vnd.openxmlformats-officedocument.vmlDrawing';
 /** Where `<legacyDrawing>` goes in a worksheet: after the drawing, before what follows it. */
 const AFTER_LEGACY_DRAWING = /<legacyDrawingHF\b|<picture\b|<oleObjects\b|<controls\b|<webPublishItems\b|<tableParts\b|<extLst\b|<\/worksheet>/;
+const REL_TABLE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/table';
+const CT_TABLE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.table+xml';
 /** Where `<hyperlinks>` goes when a sheet has none: after the data validations, before the print options. */
 const AFTER_HYPERLINKS = /<printOptions\b|<pageMargins\b|<pageSetup\b|<headerFooter\b|<rowBreaks\b|<colBreaks\b|<customProperties\b|<cellWatches\b|<ignoredErrors\b|<smartTags\b|<drawing\b|<legacyDrawing\b|<legacyDrawingHF\b|<picture\b|<oleObjects\b|<controls\b|<webPublishItems\b|<tableParts\b|<extLst\b|<\/worksheet>/;
 
@@ -737,6 +739,35 @@ class SheetPart {
     return true;
   }
 
+  /**
+   * Point this sheet at a table part: `<tableParts>` holds one
+   * `<tablePart>` per table, in schema position — after everything in the
+   * tail except extLst — its count kept right. The r prefix is declared on
+   * the root if the sheet never needed it before.
+   */
+  addTablePart(rId) {
+    const entry = '<tablePart r:id="' + esc(rId) + '"/>';
+    const empty = /<tableParts\b[^>]*\/>/.exec(this.suffix);
+    if (empty) {
+      this.suffix = this.suffix.slice(0, empty.index) + '<tableParts count="1">' + entry + '</tableParts>' + this.suffix.slice(empty.index + empty[0].length);
+    } else {
+      const block = /<tableParts\b[^>]*>([\s\S]*?)<\/tableParts>/.exec(this.suffix);
+      if (block) {
+        const count = (block[1].match(/<tablePart\b/g) || []).length + 1;
+        const replacement = '<tableParts count="' + count + '">' + block[1] + entry + '</tableParts>';
+        this.suffix = this.suffix.slice(0, block.index) + replacement + this.suffix.slice(block.index + block[0].length);
+      } else {
+        const before = /<extLst\b|<\/worksheet>/.exec(this.suffix);
+        this.suffix = this.suffix.slice(0, before.index) + '<tableParts count="1">' + entry + '</tableParts>' + this.suffix.slice(before.index);
+      }
+    }
+    if (!/\sxmlns:r=/.test(this.prefix)) {
+      this.prefix = this.prefix.replace(/<worksheet\b/, '<worksheet xmlns:r="' + XMLNS_R + '"');
+    }
+    this.dirty = true;
+    return this;
+  }
+
   addConditionalFormatting(block) {
     const close = '</conditionalFormatting>';
     const last = this.suffix.lastIndexOf(close);
@@ -1407,6 +1438,7 @@ export class Workbook {
         out.push({
           sheet: sheetName,
           part: partName,
+          id: Number(a.id) || null,
           name: a.displayName ?? a.name,
           ref: a.ref,
           headerRowCount: a.headerRowCount === undefined ? 1 : Number(a.headerRowCount),
@@ -1836,6 +1868,53 @@ export class Workbook {
     }
     this.pkg.write_(vml.name, withNoteBox(this.pkg.text(vml.name), parseRef(ref)));
     return this;
+  }
+
+  /**
+   * A table (ListObject) over a range, written as Excel keeps one: the table
+   * part with its columns, its autofilter and the style it asked for by
+   * name, the sheet's rels pointing at it and `<tableParts>` naming it. The
+   * column names are the header row's words; one that is empty or repeats
+   * another is made unique the way Excel does (Column1, Qty2). Returns what
+   * was written, columns included, so the caller can put a made-up name
+   * into the header cell it stands for.
+   */
+  addTable(sheetName, ref, { name = null, style = 'TableStyleMedium2', stripes = true, headerNames = [] } = {}) {
+    const sheetPartName = this.partNameFor(sheetName);
+    const { part } = this._sheetPart(sheetName);
+    const existing = this.tables();
+    const ids = existing.map((t) => t.id).filter((n) => Number.isFinite(n));
+    const id = (ids.length ? Math.max(...ids) : 0) + 1;
+    const taken = new Set(existing.map((t) => String(t.name || '').toLowerCase()));
+    let displayName = String(name || '').replace(/[^A-Za-z0-9_]/g, '_').replace(/^(\d)/, '_$1');
+    if (!displayName || taken.has(displayName.toLowerCase())) {
+      let k = id;
+      do { displayName = 'Table' + k; k += 1; } while (taken.has(displayName.toLowerCase()));
+    }
+    const seen = new Set();
+    const columns = headerNames.map((h, i) => {
+      const base = String(h ?? '').trim() || 'Column' + (i + 1);
+      let col = base;
+      let k = 2;
+      while (seen.has(col.toLowerCase())) { col = base + k; k += 1; }
+      seen.add(col.toLowerCase());
+      return col;
+    });
+    const n = this.pkg.nextPartNumber('xl/tables/', 'table');
+    const partName = 'xl/tables/table' + n + '.xml';
+    const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+      + '<table xmlns="' + XMLNS_MAIN + '" id="' + id + '" name="' + esc(displayName) + '" displayName="' + esc(displayName)
+      + '" ref="' + esc(ref) + '" totalsRowShown="0">'
+      + '<autoFilter ref="' + esc(ref) + '"/>'
+      + '<tableColumns count="' + columns.length + '">'
+      + columns.map((c, i) => '<tableColumn id="' + (i + 1) + '" name="' + esc(c) + '"/>').join('')
+      + '</tableColumns>'
+      + '<tableStyleInfo name="' + esc(style) + '" showFirstColumn="0" showLastColumn="0" showRowStripes="' + (stripes ? '1' : '0') + '" showColumnStripes="0"/>'
+      + '</table>';
+    this.pkg.addPart(partName, xml, CT_TABLE);
+    const rId = this.pkg.addRelationshipTo(sheetPartName, REL_TABLE, '../tables/table' + n + '.xml');
+    part.addTablePart(rId);
+    return { part: partName, id, name: displayName, columns };
   }
 
   /**

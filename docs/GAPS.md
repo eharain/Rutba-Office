@@ -97,7 +97,13 @@ it is where the gaps are.
   on a cell, changed or taken off with Shift+F2, the Review tab or the
   cell's menu, written as Excel keeps one — the comments part, the VML box
   it draws the words in, and the sheet pointing at both. Threaded comments
-  (Excel 365's replies) are read through their legacy shadow only.
+  (Excel 365's replies) are read through their legacy shadow only. Since
+  2026-09-21 Format as Table (Home, or Insert → Table) makes the selection
+  or the block of data round the cell a table — a header row, banded rows,
+  a style Excel knows by name — written as Excel keeps one: the table part
+  with its columns and autofilter, the sheet's rels and `tableParts`; an
+  empty header cell is given its column's name. Painted at once, in this
+  window's own palette, as tables from files already were.
 - **Frozen panes** are read, written, chosen from the View tab and, since
   2026-09-20, pinned on screen: the frozen rows sit under the column
   headings, the frozen columns beside the row headings, the corner at both,
@@ -222,7 +228,8 @@ stage keeps a picture until the next has decoded. What is still missing:
 6. **Shape formatting and text properties in the deck writer** — the largest
    single block of unbuilt controls in the suite.
 7. **Things in a sheet that are not cells**: ~~comments, hyperlinks~~ (both
-   read and written since 2026-09-20), pictures, format as table.
+   read and written since 2026-09-20), ~~format as table~~ (written since
+   2026-09-21), pictures.
 8. **Fields in the document**: bookmarks first, then cross-references,
    captions and a table of contents that refreshes.
 9. **Recording tracked changes**, then comparison and restricted editing.
