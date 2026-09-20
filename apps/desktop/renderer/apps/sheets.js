@@ -17,7 +17,7 @@ import SheetsRibbon, { FUNCTIONS } from './sheets/ribbon.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import {
-  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, LinkDialog, parseRef,
+  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, LinkDialog, NoteDialog, parseRef,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -323,6 +323,7 @@ export default function Sheets({ app, shell, boot }) {
       'edit.copy': { label: 'Copy', icon: 'copy', key: 'Mod+C', run: () => dispatch({ op: 'copy' }) },
       'edit.clear': { label: 'Clear', icon: 'close', key: 'Delete', run: () => dispatch({ op: 'clear' }) },
       'insert.link': { label: 'Link…', icon: 'link', key: 'Mod+K', run: () => setDialog('link') },
+      'insert.note': { label: 'Note…', icon: 'reply', key: 'Shift+F2', run: () => setDialog('note') },
       'sheet.autoSum': { label: 'AutoSum', icon: 'sum', run: () => dispatch({ op: 'autoSum', fn: 'SUM' }) },
       'sheet.merge': { label: 'Merge cells', icon: 'table', run: () => dispatch({ op: 'merge' }) },
       'sheet.insertRow': { label: 'Insert row', icon: 'plus', run: () => dispatch({ op: 'insertRows', at: model?.selection.top ?? 0, count: 1 }) },
@@ -678,7 +679,7 @@ export default function Sheets({ app, shell, boot }) {
         dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
       }}
       onDoubleClick={() => dispatch({ op: 'beginEdit' })}
-      onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.copy', 'edit.clear', '-', 'insert.link', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
+      onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.copy', 'edit.clear', '-', 'insert.link', 'insert.note', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
       data-tip={tipFor(cell)}
     >
       {view.formulas && cell.formula ? cell.formula : cell.text}
@@ -864,6 +865,8 @@ export default function Sheets({ app, shell, boot }) {
         else await dispatch({ op: 'beginEdit', replace: true, initial: (model?.formulaBar ?? '') + arg });
         return;
       case 'link': setDialog('link'); return;
+      case 'note': setDialog('note'); return;
+      case 'removeNote': await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); return;
       // A link is followed: an address opens outside the suite, a place in
       // the workbook (C12, Sheet2!B4, a name) is gone to.
       case 'follow': {
@@ -1140,6 +1143,15 @@ export default function Sheets({ app, shell, boot }) {
           onClose={() => setDialog(null)}
           onRemove={async () => { setDialog(null); await dispatch({ op: 'removeHyperlink', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); }}
           onSet={async (link) => { setDialog(null); await dispatch({ op: 'setHyperlink', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0, ...link }); }}
+        />
+      ) : null}
+      {dialog === 'note' ? (
+        <NoteDialog
+          current={model?.note || null}
+          cellRef={sel?.ref || ''}
+          onClose={() => setDialog(null)}
+          onRemove={async () => { setDialog(null); await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); }}
+          onSet={async (note) => { setDialog(null); await dispatch({ op: 'setNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0, ...note }); }}
         />
       ) : null}
       {dialog === 'function' ? (

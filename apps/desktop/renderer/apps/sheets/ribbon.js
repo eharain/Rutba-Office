@@ -332,7 +332,8 @@ export default function SheetsRibbon({
             <Button tall icon="link" label="Link" title="A link on this cell: an address, or a place in the workbook (Ctrl+K)" onClick={() => act('link')} />
           </Group>
           <Group label="Comments">
-            <Soon tall icon="reply" label="Comment" why="Cell comments are a comments part plus VML the engine does not write yet." />
+            <Button tall icon="reply" label="Note" title="A note on this cell, shown when the pointer rests on it (Shift+F2)" onClick={() => act('note')} />
+            <Button icon="close" label="Delete" title="Take the note off this cell" onClick={() => act('removeNote')} />
           </Group>
           <Group label="Text">
             <Button tall icon="textbox" label="Text Box" title="A rectangle with words in it" onClick={() => act('textBox')} />

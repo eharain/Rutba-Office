@@ -25,6 +25,13 @@ import { OoxmlPackage, attrs, esc } from './package.js';
 
 const REL_HYPERLINK = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
 const XMLNS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const XMLNS_MAIN = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
+const REL_COMMENTS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+const REL_VML = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing';
+const CT_COMMENTS = 'application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml';
+const CT_VML = 'application/vnd.openxmlformats-officedocument.vmlDrawing';
+/** Where `<legacyDrawing>` goes in a worksheet: after the drawing, before what follows it. */
+const AFTER_LEGACY_DRAWING = /<legacyDrawingHF\b|<picture\b|<oleObjects\b|<controls\b|<webPublishItems\b|<tableParts\b|<extLst\b|<\/worksheet>/;
 /** Where `<hyperlinks>` goes when a sheet has none: after the data validations, before the print options. */
 const AFTER_HYPERLINKS = /<printOptions\b|<pageMargins\b|<pageSetup\b|<headerFooter\b|<rowBreaks\b|<colBreaks\b|<customProperties\b|<cellWatches\b|<ignoredErrors\b|<smartTags\b|<drawing\b|<legacyDrawing\b|<legacyDrawingHF\b|<picture\b|<oleObjects\b|<controls\b|<webPublishItems\b|<tableParts\b|<extLst\b|<\/worksheet>/;
 
@@ -45,6 +52,67 @@ export function indexToCol(n) {
   }
   return s;
 }
+/** The notes in a comments part: `[{ ref, author, text }]`, the author by name. */
+export function parseComments(xml) {
+  const authors = [...(/<authors>([\s\S]*?)<\/authors>/.exec(xml)?.[1] ?? '').matchAll(/<author>([\s\S]*?)<\/author>/g)].map((m) => unesc(m[1]));
+  const out = [];
+  for (const m of xml.matchAll(/<comment\b([^>]*)>([\s\S]*?)<\/comment>/g)) {
+    const ref = /\bref="([A-Z]+\d+)"/.exec(m[1])?.[1];
+    if (!ref) continue;
+    const authorId = Number(/\bauthorId="(\d+)"/.exec(m[1])?.[1] ?? -1);
+    const text = [...m[2].matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((t) => unesc(t[1])).join('');
+    out.push({ ref, author: authors[authorId] ?? '', text });
+  }
+  return out;
+}
+
+/** A comments part from its notes; the authors listed once each, in order of first use. */
+export function commentsXml(list) {
+  const authors = [];
+  const items = list.map((c) => {
+    let i = authors.indexOf(c.author || '');
+    if (i < 0) {
+      authors.push(c.author || '');
+      i = authors.length - 1;
+    }
+    return '<comment ref="' + c.ref + '" authorId="' + i + '"><text><r><t xml:space="preserve">' + esc(c.text || '') + '</t></r></text></comment>';
+  });
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<comments xmlns="' + XMLNS_MAIN + '"><authors>' + authors.map((a) => '<author>' + esc(a) + '</author>').join('') + '</authors>'
+    + '<commentList>' + items.join('') + '</commentList></comments>';
+}
+
+/** The head of a VML drawing as Excel writes one for its notes: the layout and the note shape's type. */
+const VML_HEAD = '<xml xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">'
+  + '<o:shapelayout v:ext="edit"><o:idmap v:ext="edit" data="1"/></o:shapelayout>'
+  + '<v:shapetype id="_x0000_t202" coordsize="21600,21600" o:spt="202" path="m,l,21600r21600,l21600,xe"><v:stroke joinstyle="miter"/><v:path gradientshapeok="t" o:connecttype="rect"/></v:shapetype>';
+
+/** The box Excel draws a note in: hidden until the pointer rests on the cell, anchored beside it. */
+function noteBox({ row, col }, id, z) {
+  const left = col + 1;
+  const top = Math.max(0, row - 1);
+  return '<v:shape id="_x0000_s' + id + '" type="#_x0000_t202" style="position:absolute;margin-left:' + (left * 48) + 'pt;margin-top:' + (top * 11.25) + 'pt;width:108pt;height:59.25pt;z-index:' + z + ';visibility:hidden" fillcolor="#ffffe1" o:insetmode="auto">'
+    + '<v:fill color2="#ffffe1"/><v:shadow on="t" color="black" obscured="t"/><v:path o:connecttype="none"/>'
+    + '<v:textbox style="mso-direction-alt:auto"><div style="text-align:left"></div></v:textbox>'
+    + '<x:ClientData ObjectType="Note"><x:MoveWithCells/><x:SizeWithCells/>'
+    + '<x:Anchor>' + [left, 15, top, 2, left + 2, 15, top + 4, 16].join(', ') + '</x:Anchor>'
+    + '<x:AutoFill>False</x:AutoFill><x:Row>' + row + '</x:Row><x:Column>' + col + '</x:Column></x:ClientData></v:shape>';
+}
+const VML_SHAPE = /<v:shape\b[\s\S]*?<\/v:shape>/g;
+const isNoteBoxFor = (shape, { row, col }) =>
+  /ObjectType="Note"/.test(shape) && new RegExp('<x:Row>' + row + '</x:Row>\\s*<x:Column>' + col + '</x:Column>').test(shape);
+function withoutNoteBox(xml, at) {
+  return xml.replace(VML_SHAPE, (shape) => (isNoteBoxFor(shape, at) ? '' : shape));
+}
+function withNoteBox(xml, at) {
+  const without = withoutNoteBox(xml, at);
+  const ids = [...without.matchAll(/id="_x0000_s(\d+)"/g)].map((m) => Number(m[1]));
+  const id = ids.length ? Math.max(...ids) + 1 : 1025;
+  const z = (without.match(/<v:shape\b/g) || []).length + 1;
+  const end = without.lastIndexOf('</xml>');
+  return without.slice(0, end) + noteBox(at, id, z) + without.slice(end);
+}
+
 export function parseRef(ref) {
   const m = /^([A-Za-z]+)(\d+)$/.exec(String(ref).trim());
   if (!m) throw new Error('bad cell reference: ' + ref);
@@ -633,6 +701,23 @@ class SheetPart {
       this.suffix = this.suffix.slice(0, anchor.index) + '<hyperlinks>' + el + '</hyperlinks>' + this.suffix.slice(anchor.index);
     }
     if (rId && !/\sxmlns:r=/.test(this.prefix)) {
+      this.prefix = this.prefix.replace(/<worksheet\b/, '<worksheet xmlns:r="' + XMLNS_R + '"');
+    }
+    this.dirty = true;
+    return this;
+  }
+
+  /** The r:id of the sheet's legacy (VML) drawing — where its notes' boxes live — or null. */
+  legacyDrawingId() {
+    return /<legacyDrawing\b[^>]*\br:id="([^"]+)"/.exec(this.suffix)?.[1] ?? null;
+  }
+
+  /** Point the sheet at a VML drawing part, where the notes' boxes are. */
+  setLegacyDrawing(rId) {
+    if (this.legacyDrawingId()) return this;
+    const anchor = AFTER_LEGACY_DRAWING.exec(this.suffix);
+    this.suffix = this.suffix.slice(0, anchor.index) + '<legacyDrawing r:id="' + rId + '"/>' + this.suffix.slice(anchor.index);
+    if (!/\sxmlns:r=/.test(this.prefix)) {
       this.prefix = this.prefix.replace(/<worksheet\b/, '<worksheet xmlns:r="' + XMLNS_R + '"');
     }
     this.dirty = true;
@@ -1698,6 +1783,75 @@ export class Workbook {
   removeHyperlink(sheetName, ref) {
     const { part } = this._sheetPart(sheetName);
     return part.removeHyperlink(ref);
+  }
+
+  /** The notes on a sheet — `[{ ref, author, text }]` — from its comments part. */
+  comments(sheetName) {
+    const found = this._sheetRelTarget(sheetName, '/comments');
+    return found ? parseComments(this.pkg.text(found.name)) : [];
+  }
+
+  /** The part a sheet's relationship of one type points at, when it exists. */
+  _sheetRelTarget(sheetName, typeSuffix) {
+    const sheetPartName = this.partNameFor(sheetName);
+    const rel = this.pkg.rels(sheetPartName).find((r) => String(r.Type).endsWith(typeSuffix));
+    if (!rel) return null;
+    const name = OoxmlPackage.resolveTarget(sheetPartName, rel.Target);
+    return this.pkg.has(name) ? { name, rel } : null;
+  }
+
+  /**
+   * A note on a cell, as Excel keeps one: the comments part carries the
+   * words and who wrote them, and a VML drawing part carries the box Excel
+   * draws them in — without the box, Excel calls the file damaged. Both are
+   * made where the sheet has none; a note on a cell that has one replaces
+   * it. A box Excel drew for another note, or any other legacy shape in the
+   * drawing, is left as it was.
+   */
+  setComment(sheetName, ref, { author = '', text = '' } = {}) {
+    const sheetPartName = this.partNameFor(sheetName);
+    const { part } = this._sheetPart(sheetName);
+    let comments = this._sheetRelTarget(sheetName, '/comments');
+    if (!comments) {
+      const n = this.pkg.nextPartNumber('xl/', 'comments');
+      const name = 'xl/comments' + n + '.xml';
+      this.pkg.addPart(name, commentsXml([]), CT_COMMENTS);
+      this.pkg.addRelationshipTo(sheetPartName, REL_COMMENTS, '../comments' + n + '.xml');
+      comments = { name };
+    }
+    const list = parseComments(this.pkg.text(comments.name)).filter((c) => c.ref !== ref);
+    list.push({ ref, author: author || '', text: text || '' });
+    this.pkg.write_(comments.name, commentsXml(list));
+
+    let vml = this._sheetRelTarget(sheetName, '/vmlDrawing');
+    if (!vml) {
+      let n = 1;
+      while (this.pkg.has('xl/drawings/vmlDrawing' + n + '.vml')) n += 1;
+      const name = 'xl/drawings/vmlDrawing' + n + '.vml';
+      this.pkg.ensureDefault('vml', CT_VML);
+      this.pkg.addPart(name, VML_HEAD + '</xml>');
+      const rId = this.pkg.addRelationshipTo(sheetPartName, REL_VML, '../drawings/vmlDrawing' + n + '.vml');
+      part.setLegacyDrawing(rId);
+      vml = { name };
+    }
+    this.pkg.write_(vml.name, withNoteBox(this.pkg.text(vml.name), parseRef(ref)));
+    return this;
+  }
+
+  /**
+   * Take the note off a cell. The parts stay, emptied: an undo puts the
+   * note back into them, and a comments part with nothing in it is one
+   * Excel reads without a word. Returns whether there was one.
+   */
+  removeComment(sheetName, ref) {
+    const comments = this._sheetRelTarget(sheetName, '/comments');
+    if (!comments) return false;
+    const list = parseComments(this.pkg.text(comments.name));
+    if (!list.some((c) => c.ref === ref)) return false;
+    this.pkg.write_(comments.name, commentsXml(list.filter((c) => c.ref !== ref)));
+    const vml = this._sheetRelTarget(sheetName, '/vmlDrawing');
+    if (vml) this.pkg.write_(vml.name, withoutNoteBox(this.pkg.text(vml.name), parseRef(ref)));
+    return true;
   }
 
   setColWidthChars(sheetName, colIndex, widthChars) {

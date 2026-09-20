@@ -85,6 +85,48 @@ export async function verifySheetLinks(h, { file }) {
     const removed = await until(() => js(`!document.querySelector('.sh-cell[data-ref="C2"]')?.classList.contains('link') && !document.querySelector('.rw-dialog')`), 'the link to go', 5000).catch(() => false);
     check('sheets: Ctrl+K on a linked cell shows the link it has, and Remove takes it off', /rutba\.io\/office/.test(offered) && removed === true, `offered ${JSON.stringify(offered)}, removed ${removed}`);
 
+    // A note put on a cell through the dialog wears the corner and tells
+    // itself; the saved file carries it as Excel does — the comments part,
+    // the VML box, and the sheet pointing at both; Delete takes it off.
+    await js(`(() => { document.querySelector('.sh-cell[data-ref="C3"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
+    await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="C3"].active'))`), 'C3 active', 4000).catch(() => {});
+    await press(win.webContents, 'F2', { modifiers: ['shift'] });
+    const noteDialog = await until(() => js(`Boolean(document.querySelector('.sh-note-text'))`), 'the note dialog', 4000).catch(() => false);
+    await js(`(() => { const set = (sel, v) => { const el = document.querySelector(sel); const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, v); el.dispatchEvent(new Event('input', { bubbles: true })); }; set('.sh-note-text', 'Confirm with the supplier.'); set('.sh-note-author', 'Sam Roe'); return 1; })()`);
+    await until(() => js(`!document.querySelector('.sh-note-ok')?.disabled`), 'the OK button', 3000).catch(() => {});
+    await js(`(() => { document.querySelector('.sh-note-ok')?.click(); return 1; })()`);
+    const noted = await until(() => js(`(() => { const c = document.querySelector('.sh-cell[data-ref="C3"]'); return Boolean(c) && c.classList.contains('noted') && /Sam Roe: Confirm with the supplier\\./.test(c.dataset.tip || '') ? c.dataset.tip : false; })()`), 'the noted cell', 5000).catch(() => false);
+    const counted = await js(`/2 notes/.test(document.querySelector('.rw-status')?.textContent || '')`);
+    check('sheets: Shift+F2 puts a note on the cell through the dialog — it wears the corner, tells itself, and the status bar counts it', noteDialog === true && noted !== false && counted === true, `dialog ${noteDialog}, tip ${JSON.stringify(noted)}, counted ${counted}`);
+
+    await clickIn(win, 'Save');
+    await until(() => {
+      try {
+        return SheetView.open(fs.readFileSync(file)).workbook.comments('Sales').some((n) => n.ref === 'C3');
+      } catch { return false; }
+    }, 'the save to land', 8000).catch(() => false);
+    const withNote = SheetView.open(fs.readFileSync(file));
+    const notes = withNote.workbook.comments('Sales');
+    const sheetXml = withNote.pkg.text(withNote.workbook.partNameFor('Sales'));
+    const vmlRel = withNote.pkg.rels(withNote.workbook.partNameFor('Sales')).find((r) => /vmlDrawing$/.test(r.Type));
+    const vmlName = vmlRel ? 'xl/' + vmlRel.Target.replace(/^\.\.\//, '') : null;
+    const vml = vmlName && withNote.pkg.has(vmlName) ? withNote.pkg.text(vmlName) : '';
+    const legacyId = /<legacyDrawing r:id="([^"]+)"/.exec(sheetXml)?.[1];
+    check('sheets: the saved file carries the note as Excel does — the comments part, the VML box, and the sheet pointing at both',
+      notes.some((n) => n.ref === 'C3' && n.author === 'Sam Roe' && n.text === 'Confirm with the supplier.') && notes.some((n) => n.ref === 'B2' && n.author === 'Kim Lee')
+        && Boolean(vmlRel) && legacyId === vmlRel?.Id && /ObjectType="Note"/.test(vml) && /<x:Row>2<\/x:Row>\s*<x:Column>2<\/x:Column>/.test(vml)
+        && withNote.pkg.contentTypes().defaults.get('vml') === 'application/vnd.openxmlformats-officedocument.vmlDrawing',
+      `notes ${JSON.stringify(notes)}; legacyDrawing ${legacyId} vs rel ${vmlRel?.Id}; box ${/ObjectType="Note"/.test(vml)}`);
+
+    // The keys go to the grid, which the dialog took them from.
+    await js(`(() => { document.querySelector('.sh')?.focus(); return 1; })()`);
+    await press(win.webContents, 'F2', { modifiers: ['shift'] });
+    await until(() => js(`Boolean(document.querySelector('.sh-note-remove'))`), 'the note dialog with Delete', 4000).catch(() => {});
+    const offeredNote = await js(`document.querySelector('.sh-note-text')?.value || ''`);
+    await js(`(() => { document.querySelector('.sh-note-remove')?.click(); return 1; })()`);
+    const unnoted = await until(() => js(`(() => { const c = document.querySelector('.sh-cell[data-ref="C3"]'); return Boolean(c) && !c.classList.contains('noted'); })()`), 'the note to go', 4000).catch(() => false);
+    check('sheets: Shift+F2 on a noted cell shows the note, and Delete takes it off', offeredNote === 'Confirm with the supplier.' && unnoted === true, `offered ${JSON.stringify(offeredNote)}, gone ${unnoted}`);
+
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

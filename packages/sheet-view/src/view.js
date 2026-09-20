@@ -140,6 +140,8 @@ export class SheetView {
     }
     /** sheet -> { suffix, map: ref -> link }, read when a sheet is first drawn and again whenever its tail changes (an edit, an undo). */
     this.links = new Map();
+    /** sheet -> { xml, map: ref -> note }, read again whenever the comments part changes (a note put on, an undo). */
+    this.notes = new Map();
 
     // A workbook with no sheet in it is not a workbook. Without this the view
     // carried an undefined active sheet all the way to the first frame and
@@ -543,6 +545,53 @@ export class SheetView {
   }
 
   /**
+   * The notes of a sheet by cell, read again whenever the comments part
+   * changes — a note put on, an undo — the way the links follow the tail.
+   */
+  _notes(sheetName = this.activeSheet) {
+    const sheetPartName = this.workbook.partNameFor(sheetName);
+    const rel = this.pkg.rels(sheetPartName).find((r) => String(r.Type).endsWith('/comments'));
+    const partName = rel ? OoxmlPackage.resolveTarget(sheetPartName, rel.Target) : null;
+    const xml = partName && this.pkg.has(partName) ? this.pkg.text(partName) : '';
+    const cached = this.notes.get(sheetName);
+    if (cached && cached.xml === xml) return cached.map;
+    const map = this._readComments(sheetPartName);
+    this.notes.set(sheetName, { xml, map });
+    return map;
+  }
+
+  /** The parts a note lives in, for the undo record: the sheet, its rels, the comments part and the VML box. */
+  _noteParts() {
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    const parts = [sheetPartName];
+    const relsName = OoxmlPackage.relsPathFor(sheetPartName);
+    if (this.pkg.has(relsName)) parts.push(relsName);
+    for (const rel of this.pkg.rels(sheetPartName)) {
+      if (!/\/(comments|vmlDrawing)$/.test(String(rel.Type))) continue;
+      const name = OoxmlPackage.resolveTarget(sheetPartName, rel.Target);
+      if (this.pkg.has(name)) parts.push(name);
+    }
+    return parts;
+  }
+
+  /** A note on a cell — the words and who wrote them — as Excel keeps one. One undo step. */
+  setNote({ row, col, author = '', text = '' }) {
+    const at = ref(row, col);
+    return this._edit('note', null, [], () => {
+      this.workbook.setComment(this.activeSheet, at, { author, text });
+      return this;
+    }, { parts: this._noteParts(), tracksNewParts: true });
+  }
+
+  removeNote({ row, col }) {
+    const at = ref(row, col);
+    return this._edit('remove note', null, [], () => {
+      this.workbook.removeComment(this.activeSheet, at);
+      return this;
+    }, { parts: this._noteParts() });
+  }
+
+  /**
    * A hyperlink on a cell: an address that opens outside the suite, or a
    * place in this workbook that is gone to. Both are the file's own
    * hyperlinks block, so Excel sees them too.
@@ -634,6 +683,7 @@ export class SheetView {
     const cfCache = new Map();
     const sheetTables = this.sheetTables();
     const links = this._links();
+    const notes = this._notes();
     for (const row of rowIndices) {
       const height = geo.rowHeight(row);
       if (height === 0) continue;
@@ -679,7 +729,7 @@ export class SheetView {
             };
           }
         }
-        const note = this.comments.get(this.activeSheet)?.get(ref(row, col)) ?? null;
+        const note = notes.get(ref(row, col)) ?? null;
         const link = links.get(ref(row, col)) ?? null;
         // A styled but empty cell still has to be drawn: a shaded header with no
         // text in it is a real thing, and skipping it leaves a hole in the band.
@@ -825,7 +875,9 @@ export class SheetView {
       // The active cell's hyperlink, for the status bar and the Link dialog,
       // and how many notes this sheet carries.
       link: links.get(ref(active.row, active.col)) ?? null,
-      notes: this.comments.get(this.activeSheet)?.size ?? 0,
+      notes: notes.size,
+      // The active cell's note, for the status bar and the Note dialog.
+      note: notes.get(ref(active.row, active.col)) ?? null,
       // The defined names, for the Name Manager and the name box's jump list.
       names: this.names(),
       // The tables (ListObjects) on this sheet, for styling and the filter

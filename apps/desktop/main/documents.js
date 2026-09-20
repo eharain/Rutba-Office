@@ -11,10 +11,20 @@
 // about what it is about to write.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { SheetView } from '@rutba/sheet-view';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { buildXlsx, buildDocx } from '@rutba/ooxml/build';
+/** The account's name, or nothing: a machine that refuses to say is not an error. */
+function safeUserName() {
+  try {
+    return os.userInfo().username || '';
+  } catch {
+    return '';
+  }
+}
+
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';import { probeImage } from '@rutba/imaging/probe';
@@ -871,6 +881,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     defineName: (v, a) => v.defineName(a.name, a.ref),
     setHyperlink: (v, a) => v.setHyperlink(a),
     removeHyperlink: (v, a) => v.removeHyperlink(a),
+    // A note signed by whoever the window says, else by the account at the keyboard.
+    setNote: (v, a) => v.setNote({ ...a, author: a.author || safeUserName() }),
+    removeNote: (v, a) => v.removeNote(a),
     deleteName: (v, a) => v.deleteName(a.name),
     gotoName: (v, a) => v.gotoName(a.name),
     autoFilter: (v) => v.toggleAutoFilter(),

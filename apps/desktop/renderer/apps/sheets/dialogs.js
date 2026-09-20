@@ -455,6 +455,55 @@ export function LinkDialog({ current = null, cellRef = '', onClose, onSet, onRem
   );
 }
 
+/**
+ * A note on a cell: the words, and who wrote them. The author is remembered
+ * for the next note; the engine signs an unsigned one with the account at
+ * the keyboard.
+ */
+export function NoteDialog({ current = null, cellRef = '', onClose, onSet, onRemove }) {
+  const remembered = (() => { try { return localStorage.getItem('sheets.noteAuthor') || ''; } catch { return ''; } })();
+  const [text, setText] = useState(current?.text || '');
+  const [author, setAuthor] = useState(current?.author || remembered);
+  const ok = text.trim().length > 0;
+  const submit = () => {
+    if (!ok) return;
+    try { localStorage.setItem('sheets.noteAuthor', author.trim()); } catch { /* a private window */ }
+    onSet({ text: text.trim(), author: author.trim() });
+  };
+  return (
+    <Dialog
+      title={current ? `The note on ${cellRef}` : `A note on ${cellRef}`}
+      width={440}
+      onClose={onClose}
+      actions={
+        <>
+          {current ? <Button label="Delete note" className="sh-note-remove" onClick={onRemove} /> : null}
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label={current ? 'Change' : 'Add note'} className="sh-note-ok" disabled={!ok} onClick={submit} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="Note" hint="Shown when the pointer rests on the cell; Excel shows it the same way.">
+          <textarea
+            className="rw-input sh-note-text"
+            rows={5}
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) submit(); }}
+            autoFocus
+            placeholder="What to say about this cell"
+            style={{ resize: 'vertical', minHeight: 90, font: 'inherit', width: '100%', boxSizing: 'border-box' }}
+          />
+        </Field>
+        <Field label="Author" hint="Who signs it. Left empty, the note is signed with your account's name.">
+          <Input className="sh-note-author" value={author} onChange={(e) => setAuthor(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} placeholder="Your name" />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
 /** Insert Function: Excel's categories, a pick starts `=NAME(` in the active cell. */
 export function FunctionDialog({ onClose, onPick, catalogue }) {
   const categories = Object.keys(catalogue);

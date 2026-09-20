@@ -88,8 +88,11 @@ it is where the gaps are.
   outside, a place in the workbook is gone to), and put on a cell, changed
   or taken off with Ctrl+K — an external relationship, as Excel writes
   one. A cell comment is drawn with its red corner and read on hover, and
-  the status bar counts a sheet's notes; writing one still needs the
-  comments part plus its VML.
+  the status bar counts a sheet's notes; since the same day a note is put
+  on a cell, changed or taken off with Shift+F2, the Review tab or the
+  cell's menu, written as Excel keeps one — the comments part, the VML box
+  it draws the words in, and the sheet pointing at both. Threaded comments
+  (Excel 365's replies) are read through their legacy shadow only.
 - **Frozen panes** are read, written, chosen from the View tab and, since
   2026-09-20, pinned on screen: the frozen rows sit under the column
   headings, the frozen columns beside the row headings, the corner at both,
@@ -213,8 +216,8 @@ stage keeps a picture until the next has decoded. What is still missing:
    the words print since 2026-09-20; text boxes and the deck are left.
 6. **Shape formatting and text properties in the deck writer** — the largest
    single block of unbuilt controls in the suite.
-7. **Things in a sheet that are not cells**: comments, pictures, hyperlinks,
-   format as table.
+7. **Things in a sheet that are not cells**: ~~comments, hyperlinks~~ (both
+   read and written since 2026-09-20), pictures, format as table.
 8. **Fields in the document**: bookmarks first, then cross-references,
    captions and a table of contents that refreshes.
 9. **Recording tracked changes**, then comparison and restricted editing.
