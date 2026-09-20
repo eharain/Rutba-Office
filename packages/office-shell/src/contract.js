@@ -52,6 +52,11 @@ export const METHODS = {
     'temp',         // ({ ext, bytes }) -> { path }
     'exists',       // ({ path }) -> boolean
   ],
+  // Thumbnails are served over rutba://thumb; a window that drew one itself
+  // (a frame of a clip the system had no thumbnail for) hands it in here.
+  thumbs: [
+    'put',          // ({ path, bytes }) -> { stored }
+  ],
   dialog: [
     'open',         // ({ title, filters, multiple, directory, defaultPath }) -> [paths]
     'save',         // ({ title, filters, defaultPath }) -> path | null

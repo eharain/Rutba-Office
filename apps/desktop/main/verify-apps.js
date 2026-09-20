@@ -19,6 +19,7 @@ import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { verifyViewer } from './verify-viewer.js';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -42,7 +43,7 @@ const READY_IN = {
   word: '.wd-block',
   sheets: '.sh-cells',
   slides: '.sl-svg, .sl-thumb',
-  pictures: '.pv-image, .pv-pdf, .pv-video, .pv-audio, .pv-empty',
+  pictures: '.pv-image, .pv-pdf, .pv-video, .pv-audio, .pv-tile, .pv-empty',
   image: '.im-canvas',
   video: '.vd-clip, .vd-empty',
   mail: '.ml-row, .ml-list, .ml-compose-cta',
@@ -219,8 +220,9 @@ function makeFixtures(dir) {
   fs.writeFileSync(at('contacts.vcf'), ['BEGIN:VCARD', 'VERSION:3.0', 'FN:Kim Lee', 'N:Lee;Kim;;;', 'ORG:Tech Style Ltd', 'EMAIL;TYPE=WORK,PREF:kim@example.com', 'TEL;TYPE=CELL:+44 7700 900123', 'END:VCARD', 'BEGIN:VCARD', 'VERSION:3.0', 'FN:Sam Patel', 'N:Patel;Sam;;;', 'EMAIL;TYPE=WORK:sam@example.org', 'END:VCARD', ''].join('\r\n'));
   const day = new Date();
   const stamp = (d, h) => `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}T${String(h).padStart(2, '0')}0000`;
-  const tomorrow = new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1);
-  fs.writeFileSync(at('events.ics'), ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Rutba//checks//EN', 'X-WR-CALNAME:Checks', 'BEGIN:VEVENT', 'UID:check-1@rutba.io', `DTSTART:${stamp(day, 10)}`, `DTEND:${stamp(day, 11)}`, 'SUMMARY:Pricing review', 'LOCATION:Room 4', 'END:VEVENT', 'BEGIN:VEVENT', 'UID:check-2@rutba.io', `DTSTART;VALUE=DATE:${stamp(tomorrow, 0).slice(0, 8)}`, 'SUMMARY:Bank holiday', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n'));
+  // Both on today: an all-day event dated tomorrow fell into next week's band
+  // whenever the run happened on a Sunday, and the week check failed one day in seven.
+  fs.writeFileSync(at('events.ics'), ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Rutba//checks//EN', 'X-WR-CALNAME:Checks', 'BEGIN:VEVENT', 'UID:check-1@rutba.io', `DTSTART:${stamp(day, 10)}`, `DTEND:${stamp(day, 11)}`, 'SUMMARY:Pricing review', 'LOCATION:Room 4', 'END:VEVENT', 'BEGIN:VEVENT', 'UID:check-2@rutba.io', `DTSTART;VALUE=DATE:${stamp(day, 0).slice(0, 8)}`, 'SUMMARY:Bank holiday', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n'));
 
   // A real image: the application's own icon, which is a genuine PNG.
   const icon = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\//, '')), '..', 'resources', 'icon.png');
@@ -1127,7 +1129,18 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update: those blocks alone, for working on them.
+  /* ── Pictures: a large, mixed folder ─────────────────────────────────── */
+  //
+  // The viewer on three hundred pictures with clips among them (verify-viewer.js).
+  const viewer = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyViewer({ open, check, until, wait, errorsIn, capture }, { dir, wav: files.wav });
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -1140,6 +1153,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('pics')) await wordPictures();
     if (only.includes('ruler')) await wordRuler();
     if (only.includes('update')) await updatePrompt();
+    if (only.includes('viewer')) await viewer();
     return done();
   }
 
@@ -1230,6 +1244,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordPictures();
   await wordRuler();
   await updatePrompt();
+  await viewer();
   await polish();
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */
@@ -1334,7 +1349,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         shown ? `${shown.w} × ${shown.h}` : 'no image element'
       );
 
-      const tiles = await win.webContents.executeJavaScript(`document.querySelectorAll('.pv-tile').length`);
+      // With a picture open the folder is the filmstrip; the grid is a panel a person turns on.
+      const tiles = await win.webContents.executeJavaScript(`document.querySelectorAll('.pv-tile, .pv-strip-item').length`);
       check('pictures: the folder is listed', tiles > 0, `${tiles} tiles`);
     } catch (err) {
       check('pictures: the checks ran', false, err.message);

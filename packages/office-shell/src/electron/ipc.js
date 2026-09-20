@@ -45,7 +45,7 @@ function canWrite(p) {
   }
 }
 
-export function buildImplementations({ stores, windows, quitting }) {
+export function buildImplementations({ stores, windows, quitting, thumbnailer = null }) {
   const impl = {};
 
   impl.app = {
@@ -211,6 +211,10 @@ export function buildImplementations({ stores, windows, quitting }) {
       if (bytes) await fsp.writeFile(p, Buffer.from(bytes));
       return { path: p };
     },
+  };
+
+  impl.thumbs = {
+    put: async ({ path: p, bytes }) => (thumbnailer ? thumbnailer.put(p, bytes) : { stored: false }),
   };
 
   impl.dialog = {

@@ -13,7 +13,8 @@ import { app, BrowserWindow, Menu, dialog, nativeTheme, shell as electronShell }
 import path from 'node:path';
 import fs from 'node:fs';
 import { createStores } from './store.js';
-import { registerSchemePrivileges, installProtocol, fileUrl, holdBlob, releaseBlob, SCHEME } from './protocol.js';
+import { registerSchemePrivileges, installProtocol, fileUrl, thumbUrl, holdBlob, releaseBlob, SCHEME } from './protocol.js';
+import { createThumbnailer } from './thumbs.js';
 import { createWindowManager } from './windows.js';
 import { buildImplementations, installIpc, sendEvent, broadcast } from './ipc.js';
 
@@ -268,7 +269,15 @@ export function createShell({
   app.whenReady().then(async () => {
     stores = createStores();
 
-    installProtocol({ rendererDir, allowFile: () => true });
+    // Thumbnails live in the profile, keyed by the file they are of, so a
+    // folder visited before draws from a directory read.
+    let thumbnailer = null;
+    try {
+      thumbnailer = createThumbnailer({ dir: path.join(app.getPath('userData'), 'thumbnails') });
+    } catch (err) {
+      record('thumbnails', err);
+    }
+    installProtocol({ rendererDir, allowFile: () => true, thumbnailer });
 
     windows = createWindowManager({
       stores,
@@ -314,6 +323,8 @@ export function createShell({
       windows,
       openPath,
       fileUrl,
+      thumbUrl,
+      thumbnailer,
       holdBlob,
       releaseBlob,
       broadcast,
@@ -321,7 +332,7 @@ export function createShell({
       send,
     };
 
-    const base = buildImplementations({ stores, windows, quitting });
+    const base = buildImplementations({ stores, windows, quitting, thumbnailer });
     // A host namespace that fails to build must not take the whole
     // application with it: the shell's own methods still work, and the window
     // that opens says what it cannot do rather than never appearing.

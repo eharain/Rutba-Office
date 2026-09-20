@@ -1,8 +1,9 @@
 // The rutba:// scheme.
 //
-// Three hosts, one job each:
+// Four hosts, one job each:
 //   rutba://app/…            the renderer bundle, served from disk
 //   rutba://file/<b64url>    a local file, with byte-range support
+//   rutba://thumb/<b64url>   a small JPEG of a local file, made once and kept (thumbs.js)
 //   rutba://blob/<id>        bytes the main process is holding for one window
 //
 // The file host is why video works. A <video src="rutba://file/…"> asks for
@@ -89,6 +90,11 @@ export function fileUrl(p) {
   return `${SCHEME}://file/${encodePath(p)}`;
 }
 
+/** The thumbnail of a local file, for a grid tile. */
+export function thumbUrl(p, size = 256) {
+  return `${SCHEME}://thumb/${encodePath(p)}?s=${size}`;
+}
+
 const blobs = new Map();
 let blobSeq = 0;
 
@@ -103,13 +109,19 @@ export function releaseBlob(id) {
   blobs.delete(id);
 }
 
+// The renderer's page is the app host and a file is the file host: two
+// origins of one scheme. A window may read what it draws — a frame of a
+// clip drawn onto a canvas, say — only if the file host says so, and it
+// says so: the window can already read any file through the bridge.
+const CORS = { 'access-control-allow-origin': '*', 'access-control-expose-headers': 'content-length, content-range, accept-ranges' };
+
 function rangeResponse(filePath, rangeHeader, type) {
   const size = fs.statSync(filePath).size;
   const m = /^bytes=(\d*)-(\d*)$/.exec(rangeHeader || '');
   if (!m) {
     return new Response(fs.createReadStream(filePath), {
       status: 200,
-      headers: { 'content-type': type, 'content-length': String(size), 'accept-ranges': 'bytes' },
+      headers: { 'content-type': type, 'content-length': String(size), 'accept-ranges': 'bytes', ...CORS },
     });
   }
   let start = m[1] === '' ? null : Number(m[1]);
@@ -122,7 +134,7 @@ function rangeResponse(filePath, rangeHeader, type) {
     end = size - 1;
   }
   if (start > end || start >= size) {
-    return new Response(null, { status: 416, headers: { 'content-range': `bytes */${size}` } });
+    return new Response(null, { status: 416, headers: { 'content-range': `bytes */${size}`, ...CORS } });
   }
   return new Response(fs.createReadStream(filePath, { start, end }), {
     status: 206,
@@ -131,6 +143,7 @@ function rangeResponse(filePath, rangeHeader, type) {
       'content-length': String(end - start + 1),
       'content-range': `bytes ${start}-${end}/${size}`,
       'accept-ranges': 'bytes',
+      ...CORS,
     },
   });
 }
@@ -153,8 +166,9 @@ const CSP = [
  * @param {object} o
  * @param {string} o.rendererDir directory holding index.html and the bundle
  * @param {(p: string) => boolean} [o.allowFile] gate for rutba://file reads
+ * @param {object} [o.thumbnailer] the thumbnail maker (thumbs.js); without one the thumb host answers 404
  */
-export function installProtocol({ rendererDir, allowFile = () => true }) {
+export function installProtocol({ rendererDir, allowFile = () => true, thumbnailer = null }) {
   const root = path.resolve(rendererDir);
 
   protocol.handle(SCHEME, async (request) => {
@@ -192,6 +206,22 @@ export function installProtocol({ rendererDir, allowFile = () => true }) {
         return new Response('not found', { status: 404 });
       }
       return rangeResponse(target, request.headers.get('range'), mimeFor(target));
+    }
+
+    if (host === 'thumb') {
+      if (!thumbnailer) return new Response('no thumbnails', { status: 404, headers: { 'x-rutba-thumb': 'none' } });
+      const token = decodeURIComponent(url.pathname).replace(/^\/+/, '');
+      let target;
+      try {
+        target = decodePath(token);
+      } catch {
+        return new Response('bad path', { status: 400 });
+      }
+      if (!allowFile(target)) return new Response('forbidden', { status: 403 });
+      if (!fs.existsSync(target)) return new Response('not found', { status: 404 });
+      // One size, so a file has one thumbnail however many places show it.
+      const size = Math.max(64, Math.min(512, Number(url.searchParams.get('s')) || 256));
+      return thumbnailer.respond(target, { size, signal: request.signal });
     }
 
     if (host === 'blob') {

@@ -165,6 +165,22 @@ and both are written now. What is left in the table is the binary Office
 formats, which are read as text and never claimed as editable, and the
 encrypted package.
 
+## 6. Pictures — the viewer
+
+Rebuilt 2026-09-20 for the large, mixed folder: a tile is the platform's
+thumbnail kept on disk (never the file), a clip's tile is a frame rather than
+a live player, the grid and the filmstrip draw only what is in view, and the
+stage keeps a picture until the next has decoded. What is still missing:
+
+- **Thumbnails on Linux.** The platform there makes none; a picture is read
+  and shrunk by Electron's own decoder, which knows PNG and JPEG, and a clip's
+  frame is drawn by the window. HEIC, AVIF, TIFF and SVG tiles show the kind's
+  icon there. On Windows and macOS the system knows what it has a codec for.
+- **A clip's length on its tile**, and a folder's counts before it is entered.
+- **Ratings, tags, a search across folders**, and a slideshow with transitions.
+- **Edits from the viewer** — rotate the file, not only the view — belong to
+  the Image tool, which the viewer opens in one click.
+
 ---
 
 ## The order this should be built in
