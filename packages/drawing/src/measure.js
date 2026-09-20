@@ -78,6 +78,31 @@ export function wrapText(value, width, opts = {}) {
 }
 
 /**
+ * The first line of a wrap, and what is left for the next call — for a
+ * paragraph whose lines are not all the same width, because a picture floats
+ * beside some of them. Breaks exactly as wrapText does, one line at a time;
+ * a word wider than the line goes on a line of its own, never broken.
+ */
+export function wrapFirstLine(value, width, opts = {}) {
+  const text = String(value ?? '').replace(/^[^\S\t]+/, '');
+  if (!text) return { line: '', rest: '' };
+  const words = text.split(/[^\S\t]+/).filter(Boolean);
+  let line = words[0];
+  let taken = 1;
+  for (const word of words.slice(1)) {
+    const candidate = line + ' ' + word;
+    if (measureText(candidate, opts) > width) break;
+    line = candidate;
+    taken += 1;
+  }
+  // The rest is the text after the words taken, found in the original so the
+  // whitespace between the words is neither doubled nor lost.
+  let at = 0;
+  for (let i = 0; i < taken; i++) at = text.indexOf(words[i], at) + words[i].length;
+  return { line, rest: text.slice(at).replace(/^[^\S\t]+/, '') };
+}
+
+/**
  * Shorten to fit, with an ellipsis. Returns the original when it already fits,
  * so a caller can tell whether truncation happened by comparing.
  */

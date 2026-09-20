@@ -150,8 +150,10 @@ function drawParagraphLines(page, doc, { lines, fragment, runs, xPx, yPx, widthP
       : (runs && runs.length ? sliceRunSegments(runs, line.start, line.end) : [{ text: line.text }]);
     if (!segments.length) return;
     const lineWidth = widthOfSegments(doc, segments, fragment);
-    const room = widthPx * PT;
-    let x = xPx * PT;
+    // A line beside a floating picture is narrower than its column, and one
+    // beside a left float starts further in; the paginator says by how much.
+    const room = (line.widthPx ?? widthPx) * PT;
+    let x = (xPx + (line.offsetPx || 0)) * PT;
     let extraPerSpace = 0;
     if (align === 'center') x += Math.max(0, (room - lineWidth) / 2);
     else if (align === 'right' || align === 'end') x += Math.max(0, room - lineWidth);
@@ -320,9 +322,18 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
       }
       if (fr.kind === 'images') {
         for (const img of fr.images) {
-          drawImage(page, doc, img, xPx, y);
+          const dx = img.hAlign === 'center' ? (widthPx - img.widthPx) / 2 : img.hAlign === 'right' ? widthPx - img.widthPx : 0;
+          drawImage(page, doc, img, xPx + Math.max(0, dx), y);
           y += img.heightPx + IMAGE_GAP;
         }
+        continue;
+      }
+      if (fr.kind === 'float') {
+        // Beside the words, at the side it asked for, where the paginator
+        // put it — the lines round it were laid out shorter to leave the
+        // room. It advances nothing: the words carry on beside it.
+        const dx = fr.side === 'right' ? widthPx - fr.widthPx : 0;
+        drawImage(page, doc, fr.image, xPx + Math.max(0, dx), m.top + fr.topPx);
         continue;
       }
       if (fr.kind === 'textbox') {

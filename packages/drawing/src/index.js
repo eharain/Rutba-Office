@@ -32,7 +32,7 @@ export {
   EMU_PER_PIXEL, EMU_PER_POINT, emuToPx, pxToEmu,
 } from './scene.js';
 
-export { measureText, widestText, wrapText, truncateText, lineHeight, capHeight } from './measure.js';
+export { measureText, widestText, wrapText, wrapFirstLine, truncateText, lineHeight, capHeight } from './measure.js';
 export { renderSvg, svgDataUri, RASTER_REQUIRED_NOTE } from './svg.js';
 export {
   buildChart, normaliseSpec, niceScale, labelPolicy, describe, chartTable, CHART_TYPES,

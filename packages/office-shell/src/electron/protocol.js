@@ -221,7 +221,7 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
       if (!fs.existsSync(target)) return new Response('not found', { status: 404 });
       // One size, so a file has one thumbnail however many places show it.
       const size = Math.max(64, Math.min(512, Number(url.searchParams.get('s')) || 256));
-      return thumbnailer.respond(target, { size, signal: request.signal });
+      return thumbnailer.respond(target, { size });
     }
 
     if (host === 'blob') {

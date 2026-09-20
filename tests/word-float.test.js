@@ -100,3 +100,56 @@ test('setImageSize writes the extent and the transform, and nothing else moves',
   assert.equal(reopened.widthPx, 240, 'in the file');
   assert.throws(() => view.setImageSize({ block: 1, image: 0, widthPx: 0, heightPx: 10 }), /positive/);
 });
+
+test('a floating picture prints beside the words: the lines next to it are shorter, and it is drawn at its side', async () => {
+  const { renderPdf } = await import('@rutba/doc-view/export/pdf');
+  const lorem = 'The northern region grew fastest in absolute terms, and the margin it opened in the spring held through the autumn. ';
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Before.' }, { text: lorem.repeat(8) }, { text: 'After.' }] }));
+  view.setSelection({ block: 0, offset: 0 });
+  view.insertImage({ name: 'logo', contentType: 'image/png', data: PNG, widthPx: 160, heightPx: 160 });
+  const pictureBlock = view.render({ pages: false }).blocks.findIndex((b) => (b.images || []).length);
+  view.setImageLayout({ block: pictureBlock, image: 0, wrap: 'square', hAlign: 'right' });
+
+  const laid = view.pages;
+  const first = laid.pages[0];
+  const width = laid.contentWidthPx;
+  const float = first.fragments.find((f) => f.kind === 'float');
+  assert.ok(float, 'the picture is placed as a float on the page');
+  assert.equal(float.side, 'right');
+  assert.equal(float.widthPx, 160);
+  assert.ok(first.fragments.every((f) => f.kind !== 'images'), 'it is not also drawn as a block under the words');
+  // The picture goes into a paragraph of its own; the words that wrap round
+  // it are the paragraphs after it, for as far down as it reaches.
+  const paragraphs = first.fragments.filter((f) => f.kind === 'paragraph' && f.paragraphIndex > pictureBlock);
+  const lines = paragraphs.flatMap((f) => f.lines.map((l) => ({ ...l, lineHeightPx: f.lineHeightPx })));
+  const beside = lines.filter((l) => l.widthPx != null && l.widthPx < width - 160);
+  const clear = lines.filter((l) => l.widthPx == null || l.widthPx >= width - 1);
+  assert.ok(beside.length >= 3, `the lines beside the picture are shorter: ${beside.length} of ${lines.length}`);
+  assert.ok(clear.length >= 1, `the lines below the picture run the full column: ${clear.length}`);
+  const lastBeside = lines.lastIndexOf(beside[beside.length - 1]);
+  const firstClear = lines.indexOf(clear[0]);
+  assert.ok(firstClear > lastBeside, 'the shortened lines come first, the full ones after');
+  assert.ok(beside.every((l) => (l.offsetPx || 0) === 0), 'beside a right float the lines still start at the margin');
+  assert.ok(beside.every((l) => l.width <= l.widthPx), 'no line runs into the picture');
+  const cleared = beside.reduce((h, l) => h + l.lineHeightPx, 0);
+  assert.ok(cleared >= 160 + 6 - 2 * beside[0].lineHeightPx, `the picture's whole height is kept clear: ${cleared}px of lines`);
+
+  // A left float: the lines beside it start further in.
+  view.setImageLayout({ block: pictureBlock, image: 0, wrap: 'square', hAlign: 'left' });
+  const leftPage = view.pages.pages[0];
+  const leftLines = leftPage.fragments.filter((f) => f.kind === 'paragraph' && f.paragraphIndex > pictureBlock).flatMap((f) => f.lines);
+  assert.equal(leftPage.fragments.find((f) => f.kind === 'float').side, 'left');
+  assert.ok(leftLines.slice(0, 3).every((l) => l.offsetPx >= 160), `beside a left float the lines start past it: ${leftLines.map((l) => l.offsetPx).slice(0, 3)}`);
+
+  // Centred, top-and-bottom: a block under the words, centred.
+  view.setImageLayout({ block: pictureBlock, image: 0, wrap: 'topAndBottom', hAlign: 'center' });
+  const centred = view.pages.pages[0].fragments.find((f) => f.kind === 'images');
+  assert.ok(centred && centred.images[0].hAlign === 'center', 'a centred picture keeps its side as a block');
+
+  view.setImageLayout({ block: pictureBlock, image: 0, wrap: 'square', hAlign: 'right' });
+  const { buffer, pages } = renderPdf(view, { created: '2026-09-20T00:00:00Z' });
+  assert.equal(pages, 1);
+  const pdf = buffer.toString('latin1');
+  assert.ok(pdf.includes('/Subtype /Image'), 'the picture is embedded in the PDF');
+  assert.ok(/northern/.test(pdf), 'the words are printed');
+});

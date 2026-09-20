@@ -91,11 +91,10 @@ test('a thumbnail is keyed by the file, its size and its time; the queue runs th
   const queue = createQueue({ concurrency: 1, run: async (job) => { ran.push(job.id); if (job.id === 'first') await gate; return job.id; } });
   const first = queue.push({ id: 'first' });
   const second = queue.push({ id: 'second' });
-  const third = queue.push({ id: 'third', signal: { aborted: true } });
-  const fourth = queue.push({ id: 'fourth' });
+  const third = queue.push({ id: 'third' });
   release();
-  assert.deepEqual(await Promise.all([first, second, third, fourth]), ['first', 'second', null, 'fourth']);
-  assert.deepEqual(ran, ['first', 'fourth', 'second'], 'the newest waiting job ran first; the abandoned one never ran');
+  assert.deepEqual(await Promise.all([first, second, third]), ['first', 'second', 'third']);
+  assert.deepEqual(ran, ['first', 'third', 'second'], 'the newest waiting job ran first');
 });
 
 test('the thumbnailer makes once, keeps on disk, remembers a refusal, and takes one handed in', async () => {

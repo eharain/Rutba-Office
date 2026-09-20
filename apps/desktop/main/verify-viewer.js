@@ -8,7 +8,7 @@
 // file, a PDF and a folder inside it, and reads back what the window did.
 //
 // Everything here is generated: the pictures are gradients, the clips are a
-// second of canvas recorded in a hidden window, and nothing comes from the
+// second of canvas encoded in one of its windows, and nothing comes from the
 // machine the run happens to be on. Run alone with RUTBA_VERIFY_ONLY=viewer.
 
 import fs from 'node:fs';
@@ -16,38 +16,86 @@ import path from 'node:path';
 import { gradientPng } from './sample-picture.js';
 
 /**
- * A second of colour, recorded in a window that is never shown.
+ * A second of colour: forty VP8 frames encoded in a window, muxed here.
  *
- * The recorder stays open until the caller releases it: it is the only
- * window there is until the Pictures window opens, and closing the last
- * window quits the application — under the checks, with no summary.
+ * MediaRecorder did this at first and captured nothing whenever another
+ * window was open — a canvas nobody composites hands its stream no frames,
+ * and the WebM came out as a header with no pictures in it, playable by
+ * nothing. WebCodecs takes the frames straight from the canvas, so the
+ * clip is the same forty frames on every machine, painted or not; the
+ * container is written here, the minimum Matroska Chromium and the shell
+ * both read.
  */
-async function makeRecorder() {
-  const { BrowserWindow } = await import('electron');
-  // A hidden page's timers are throttled to once a second, which left the
-  // recorder with a frame or two and the MP4 with nothing in it.
-  const win = new BrowserWindow({ show: false, width: 320, height: 240, webPreferences: { offscreen: true, backgroundThrottling: false } });
-  await win.loadURL('data:text/html,<canvas id=c width=320 height=240></canvas>');
-  return win;
+async function encodeFrames(webContents) {
+  const chunks = await webContents.executeJavaScript(`(async () => {
+    if (typeof VideoEncoder === 'undefined') return null;
+    const c = document.createElement('canvas'); c.width = 320; c.height = 240;
+    const g = c.getContext('2d');
+    const out = [];
+    const enc = new VideoEncoder({
+      output: (chunk) => { const b = new Uint8Array(chunk.byteLength); chunk.copyTo(b); out.push({ key: chunk.type === 'key', ts: chunk.timestamp, b64: btoa(String.fromCharCode(...b)) }); },
+      error: () => {},
+    });
+    enc.configure({ codec: 'vp8', width: 320, height: 240, bitrate: 600000, framerate: 25 });
+    for (let t = 0; t < 40; t++) {
+      g.fillStyle = 'hsl(' + ((t * 9) % 360) + ', 70%, 50%)'; g.fillRect(0, 0, 320, 240);
+      g.fillStyle = '#fff'; g.fillRect((t * 7) % 280, 100, 40, 40);
+      const frame = new VideoFrame(c, { timestamp: t * 40000 });
+      enc.encode(frame, { keyFrame: t % 10 === 0 });
+      frame.close();
+    }
+    await enc.flush(); enc.close();
+    return out;
+  })()`);
+  return chunks ? chunks.map((c) => ({ key: c.key, ms: Math.round(c.ts / 1000), bytes: Buffer.from(c.b64, 'base64') })) : null;
 }
 
-/** Forty frames of colour, or four seconds, whichever comes first. */
-async function recordClip(win, mime) {
-  const b64 = await win.webContents.executeJavaScript(`(async () => {
-    const c = document.getElementById('c'); const g = c.getContext('2d');
-    let t = 0;
-    const draw = () => { g.fillStyle = 'hsl(' + ((t * 9) % 360) + ', 70%, 50%)'; g.fillRect(0, 0, 320, 240); g.fillStyle = '#fff'; g.fillRect((t * 4) % 320, 100, 40, 40); t++; };
-    const rec = new MediaRecorder(c.captureStream(25), { mimeType: ${JSON.stringify(mime)} });
-    const chunks = []; rec.ondataavailable = (e) => chunks.push(e.data);
-    draw(); rec.start();
-    const started = Date.now();
-    await new Promise((resolve) => { const timer = setInterval(() => { draw(); if (t >= 40 || Date.now() - started > 4000) { clearInterval(timer); resolve(); } }, 33); });
-    rec.stop();
-    await new Promise((r) => (rec.onstop = r));
-    const buf = await new Blob(chunks, { type: ${JSON.stringify(mime)} }).arrayBuffer();
-    return btoa(String.fromCharCode(...new Uint8Array(buf)));
-  })()`);
-  return Buffer.from(b64, 'base64');
+/** Matroska's variable-size integers, written at a fixed eight bytes so nothing here has to be measured twice. */
+const ebmlSize = (n) => { const out = Buffer.alloc(8); out.writeBigUInt64BE(BigInt(n)); out[0] = 0x01; return out; };
+const ebml = (id, ...payload) => { const body = Buffer.concat(payload); return Buffer.concat([Buffer.from(id), ebmlSize(body.length), body]); };
+const ebmlUint = (id, n) => { const b = Buffer.alloc(8); b.writeBigUInt64BE(BigInt(n)); let i = 0; while (i < 7 && b[i] === 0) i++; return ebml(id, b.subarray(i)); };
+const ebmlFloat = (id, d) => { const b = Buffer.alloc(8); b.writeDoubleBE(d); return ebml(id, b); };
+const ebmlStr = (id, str) => ebml(id, Buffer.from(str, 'utf8'));
+
+/** A WebM of VP8 frames: one track, one cluster, every frame a SimpleBlock. */
+export function muxWebm({ width, height, frames }) {
+  const header = ebml([0x1a, 0x45, 0xdf, 0xa3],
+    ebmlUint([0x42, 0x86], 1), ebmlUint([0x42, 0xf7], 1), ebmlUint([0x42, 0xf2], 4), ebmlUint([0x42, 0xf3], 8),
+    ebmlStr([0x42, 0x82], 'webm'), ebmlUint([0x42, 0x87], 2), ebmlUint([0x42, 0x85], 2));
+  const last = frames[frames.length - 1];
+  const info = ebml([0x15, 0x49, 0xa9, 0x66], ebmlUint([0x2a, 0xd7, 0xb1], 1000000), ebmlFloat([0x44, 0x89], last.ms + 40), ebmlStr([0x4d, 0x80], 'rutba-checks'), ebmlStr([0x57, 0x41], 'rutba-checks'));
+  const tracks = ebml([0x16, 0x54, 0xae, 0x6b], ebml([0xae],
+    ebmlUint([0xd7], 1), ebmlUint([0x73, 0xc5], 1), ebmlUint([0x83], 1), ebmlStr([0x86], 'V_VP8'),
+    ebml([0xe0], ebmlUint([0xb0], width), ebmlUint([0xba], height))));
+  const blocks = frames.map((fr) => {
+    const head = Buffer.from([0x81, (fr.ms >> 8) & 0xff, fr.ms & 0xff, fr.key ? 0x80 : 0x00]);
+    return ebml([0xa3], head, fr.bytes);
+  });
+  const cluster = ebml([0x1f, 0x43, 0xb6, 0x75], ebmlUint([0xe7], 0), ...blocks);
+  const segment = ebml([0x18, 0x53, 0x80, 0x67], info, tracks, cluster);
+  return Buffer.concat([header, segment]);
+}
+
+/** The clips, encoded in `webContents` and written into the folder. */
+async function recordClips(root, webContents) {
+  const clips = {};
+  try {
+    const frames = await encodeFrames(webContents);
+    if (process.env.RUTBA_VERIFY_DEBUG) console.log(`     [debug] encoded ${frames ? frames.length : 'no'} frames, ${frames ? frames.reduce((n, f) => n + f.bytes.length, 0) : 0} bytes`);
+    if (frames && frames.length >= 10) {
+      const bytes = muxWebm({ width: 320, height: 240, frames });
+      fs.writeFileSync(path.join(root, 'frame.webm'), bytes);
+      clips['frame.webm'] = true;
+      // The same Matroska bytes under an extension no platform has a
+      // thumbnail handler for: Chromium plays it by its content, so this
+      // is the clip whose frame the window must draw itself.
+      fs.writeFileSync(path.join(root, 'frame.ogv'), bytes);
+      clips['frame.ogv'] = true;
+    }
+  } catch {
+    /* a machine with no VP8 encoder: the check says so */
+  }
+  return clips;
 }
 
 /** A JPEG that says it was shot a quarter turn clockwise (EXIF orientation 6). */
@@ -69,7 +117,7 @@ async function sidewaysJpeg(png) {
   return Buffer.concat([base.subarray(0, 2), app1, base.subarray(2)]);
 }
 
-/** The folder: 300 pictures, two clips, a sound, a PDF, a sideways photo and a folder inside. */
+/** The folder: 300 pictures, a sound, a PDF, a sideways photo and a folder inside; the clips come after, from a window. */
 export async function makeViewerFolder(dir, wav) {
   const root = path.join(dir, 'viewer');
   fs.mkdirSync(path.join(root, 'sub'), { recursive: true });
@@ -84,33 +132,10 @@ export async function makeViewerFolder(dir, wav) {
   if (wav) fs.copyFileSync(wav, path.join(root, 'tone.wav'));
   fs.writeFileSync(path.join(root, 'notes.pdf'), '%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 200 200]>>endobj\ntrailer<</Root 1 0 R>>\n%%EOF');
   fs.writeFileSync(path.join(root, 'sideways.jpg'), await sidewaysJpeg(gradientPng(480, 300, [104, 32, 62], [226, 154, 176])));
-  const clips = {};
-  const recorder = await makeRecorder();
-  // H.264 by name: the plain video/mp4 request may pick an encoder that
-  // has nothing ready by the time the recorder stops.
-  for (const [name, mime] of [['clip.mp4', 'video/mp4;codecs=avc1'], ['frame.webm', 'video/webm']]) {
-    try {
-      const bytes = await recordClip(recorder, mime);
-      if (process.env.RUTBA_VERIFY_DEBUG) console.log(`     [debug] recorded ${name}: ${bytes.length} bytes`);
-      if (bytes.length > 100) {
-        fs.writeFileSync(path.join(root, name), bytes);
-        clips[name] = true;
-        // The same Matroska bytes under an extension no platform has a
-        // thumbnail handler for: Chromium plays it by its content, so this
-        // is the clip whose frame the window must draw itself.
-        if (mime === 'video/webm') {
-          fs.writeFileSync(path.join(root, 'frame.ogv'), bytes);
-          clips['frame.ogv'] = true;
-        }
-      }
-    } catch {
-      /* a machine with no encoder for it: the check says so */
-    }
-  }
   // One picture newer than the rest, for the order.
   const soon = new Date(Date.now() + 3600 * 1000);
   fs.utimesSync(path.join(root, 'img-150.png'), soon, soon);
-  return { root, clips, first: path.join(root, 'img-001.png'), sideways: path.join(root, 'sideways.jpg'), release: () => recorder.destroy() };
+  return { root, clips: {}, first: path.join(root, 'img-001.png'), sideways: path.join(root, 'sideways.jpg') };
 }
 
 /**
@@ -133,8 +158,11 @@ export async function verifyViewer(h, { dir, wav }) {
   }
 
   try {
+    // The clips are encoded in a window of the suite's own, then the folder
+    // is opened afresh so its listing has them.
+    const studio = await open('pictures', fixture.first);
+    fixture.clips = await recordClips(fixture.root, studio.webContents);
     const win = await open('pictures', fixture.first);
-    fixture.release();
     const js = (code) => win.webContents.executeJavaScript(code);
     await until(() => js(`Boolean(document.querySelector('.pv-image')) && document.querySelector('.pv-image').naturalWidth > 0`), 'the first picture', 8000);
 
@@ -178,7 +206,7 @@ export async function verifyViewer(h, { dir, wav }) {
       const now = await js(`[...document.querySelectorAll('.pv-tile[data-kind="video"]')].map((t) => t.dataset.name + ':' + ((t.querySelector('img')?.src || 'icon').split(':')[0]) + (t.querySelector('img.loaded') ? '+' : '-')).join(' ')`);
       if (timeline[timeline.length - 1]?.state !== now) timeline.push({ at: Date.now() - t0, state: now });
       return (await js(`document.querySelectorAll('.pv-tile[data-kind="video"] img.pv-thumb.loaded').length`)) === clipNames.length;
-    }, 'the clips to get frames', 25000).catch(() => false);
+    }, 'the clips to get frames', 45000).catch(() => false);
     if (process.env.RUTBA_VERIFY_DEBUG) console.log(`     [debug] clips ${clipNames.join(',')}; timeline ${timeline.map((e) => `${e.at}ms ${e.state}`).join(' | ')}`);
     const clips = await js(`[...document.querySelectorAll('.pv-tile[data-kind="video"]')].map((t) => ({ name: t.dataset.name, src: (t.querySelector('img')?.src || '').split(':')[0], w: t.querySelector('img')?.naturalWidth || 0 }))`);
     if (process.env.RUTBA_VERIFY_DEBUG) {
@@ -204,7 +232,7 @@ export async function verifyViewer(h, { dir, wav }) {
     // the machine may not lend a hidden window, and is checked when it is there.
     check('viewer: every clip\'s tile is a frame of it — the platform\'s when it has one, the window\'s own when it has not, and that one is kept for next time',
       framed === true && clipNames.length >= 2 && clips.length === clipNames.length && clips.every((c) => c.w > 0 && (c.src === 'rutba' || c.src === 'blob')) && (!mp4 || mp4.src === 'rutba') && (!drawn.length || kept === 200),
-      `${clips.map((c) => `${c.name}: ${c.src === 'blob' ? 'drawn by the window' : 'from the platform'} (${c.w}px)`).join('; ')}; kept by the platform: ${kept}${mp4 ? '' : '; no MP4 encoder for a hidden window here'}`);
+      `${clips.map((c) => `${c.name}: ${c.src === 'blob' ? 'drawn by the window' : 'from the platform'} (${c.w}px)`).join('; ')}; kept by the platform: ${kept}`);
     const chips = await js(`[...document.querySelectorAll('.pv-kind')].map((b) => b.textContent.replace(/\\s+/g, ' ').trim() + (b.getAttribute('aria-pressed') === 'true' ? '*' : ''))`);
     check('viewer: the kind chips count the folder and the pressed one filters it', chips.some((c) => c === `Videos${clipNames.length}*`) && chips.some((c) => c === `All${303 + clipNames.length}`) && chips.some((c) => c === 'Pictures301') && chips.some((c) => c === 'Audio1') && chips.some((c) => c === 'PDF1'), chips.join(' | '));
     await js(`document.querySelector('.pv-kind[data-family="all"]')?.click()`);

@@ -28,7 +28,7 @@
  * on-screen fragment carries the character offset it starts at so the shell can
  * map a click back.
  */
-import { measureText, wrapText, lineHeight } from '@rutba/drawing';
+import { measureText, wrapText, wrapFirstLine, lineHeight } from '@rutba/drawing';
 
 /** Points to CSS pixels, at 96dpi. Word's sizes are in half-points. */
 export const ptToPx = (pt) => (Number(pt) || 0) * 96 / 72;
@@ -207,6 +207,26 @@ const tableHeight = (table, width, cache = null) =>
 const MIN_ROW_HEIGHT = 22;
 const IMAGE_GAP = 8;
 const CELL_PADDING = 8;
+/** The room a floating picture keeps from the words when the file names none — Word's own defaults, near enough. */
+const FLOAT_GAP_PX = 6;
+/** The widest a picture is drawn: the column, or on screen 640 px, whichever is less. */
+const FLOAT_MAX_PX = 640;
+
+/**
+ * Does a picture stand beside the words? Anchored, wrapped square, tight
+ * or through, and not centred — the same rule the screen applies.
+ */
+export function floatsBeside(img) {
+  if (!img?.anchored) return false;
+  if (!['square', 'tight', 'through'].includes(img.wrap)) return false;
+  return img.hAlign !== 'center';
+}
+
+/** A floating picture's drawn size: the file's, capped at the column. */
+function floatBox(img, width) {
+  const scale = Math.min(1, Math.min(width, FLOAT_MAX_PX) / Math.max(1, img.widthPx || 1));
+  return { widthPx: (img.widthPx || 0) * scale, heightPx: (img.heightPx || 0) * scale };
+}
 /** A table needs its bottom rule; a paragraph does not. */
 const TABLE_SPACE_AFTER = 12;
 
@@ -240,8 +260,10 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     // `notes` are the footnotes this page carries at its foot, and
     // `notesHeightPx` the room they take — reserved from the page's height
     // the moment their reference lands here, so body text never runs over
-    // them. The watermark rides every page.
-    current = { index: pages.length, number: pages.length + 1, fragments: [], contentHeightPx: height, notes: [], notesHeightPx: 0, watermark };
+    // them. The watermark rides every page. `floats` are the pictures
+    // standing beside the words on this page, each with the band it takes
+    // and the side it takes it on; a float ends with its page.
+    current = { index: pages.length, number: pages.length + 1, fragments: [], contentHeightPx: height, notes: [], notesHeightPx: 0, watermark, floats: [] };
     pages.push(current);
     used = 0;
     return current;
@@ -252,6 +274,53 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
   const place = (fragment, cost) => {
     current.fragments.push(fragment);
     used += cost;
+  };
+
+  /**
+   * How much of the column the floats take from each side over a band of
+   * the page — the lines of a paragraph that fall in that band are that much
+   * shorter, and the ones beside a left float start that much further in.
+   */
+  const insetsFor = (top, bottom) => {
+    let left = 0;
+    let right = 0;
+    for (const f of current.floats) {
+      if (f.bottomPx <= top || f.topPx >= bottom) continue;
+      if (f.side === 'left') left = Math.max(left, f.insetPx);
+      else right = Math.max(right, f.insetPx);
+    }
+    return { left, right };
+  };
+
+  /**
+   * A paragraph laid out line by line round the floats on the page, each
+   * line as wide as the column leaves it at its own height. `y0` is where
+   * the first line lands. Lines past the foot of the page are wrapped at
+   * the full width, which is what they get on the next page.
+   */
+  const layoutAround = (block, y0, { extraIndentPx = 0 } = {}) => {
+    const s = styleOf(block.style, styles);
+    const indent = (s.indent ?? 0) + (block.indentPx ?? 0) + extraIndentPx;
+    const opts = { size: s.sizePx, weight: s.weight };
+    const lineHeightPx = withDirectLineHeight({ lineHeightPx: lineHeight(s.sizePx) }, block).lineHeightPx;
+    const text = block.text ?? '';
+    const lines = [];
+    let rest = text;
+    let cursor = 0;
+    do {
+      const top = y0 + lines.length * lineHeightPx;
+      const { left, right } = insetsFor(top, top + lineHeightPx);
+      const widthPx = Math.max(24, width - indent - left - right);
+      const { line, rest: next } = wrapFirstLine(rest, widthPx * WRAP_SAFETY, opts);
+      const at = line === '' ? cursor : text.indexOf(line, cursor);
+      const start = at < 0 ? cursor : at;
+      const end = start + line.length;
+      lines.push({ text: line, start, end, width: measureText(line, opts), offsetPx: left, widthPx });
+      cursor = end;
+      rest = next;
+    } while (rest.length);
+    if (lines.length) lines[lines.length - 1].end = text.length;
+    return { lines, style: s, indentPx: indent, lineHeightPx };
   };
 
   /**
@@ -299,13 +368,37 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     // Word applies whichever wins, and ListParagraph + a level indent summed
     // would march a flat list halfway across the page.
     const styleIndent = styleOf(block.style, styles).indent ?? 0;
-    const { lines, style, indentPx, lineHeightPx } = layoutParagraph(block, width, {
-      cache, styles, extraIndentPx: listing ? Math.max(0, listing.indentPx - styleIndent) : 0,
-    });
-    let cursor = 0;
+    const extraIndentPx = listing ? Math.max(0, listing.indentPx - styleIndent) : 0;
+    const blockStyle = styleOf(block.style, styles);
     // Direct paragraph spacing beats the style's, exactly as Word resolves it.
-    let spaceBefore = block.spacing?.beforePx ?? style.spaceBefore;
-    const spaceAfter = block.spacing?.afterPx ?? style.spaceAfter;
+    let spaceBefore = block.spacing?.beforePx ?? blockStyle.spaceBefore;
+    const spaceAfter = block.spacing?.afterPx ?? blockStyle.spaceAfter;
+
+    // A picture anchored to this paragraph that floats at the left or the
+    // right stands beside the words, as it does on screen: it is placed at
+    // the paragraph's top on the side it asks for, and the lines beside it
+    // — this paragraph's and the next ones', for as far down as it reaches
+    // — are laid out shorter. It goes whole onto the next page rather than
+    // being cut, and its paragraph goes with it.
+    const beside = (block.images ?? []).filter((img) => img.href && floatsBeside(img));
+    if (beside.length) {
+      const tallest = beside.reduce((h, img) => Math.max(h, floatBox(img, width).heightPx + (img.dist?.t || 0) + (img.dist?.b ?? FLOAT_GAP_PX)), 0);
+      if (tallest + spaceBefore > remaining() && current.fragments.length) { newPage(); spaceBefore = 0; }
+      for (const img of beside) {
+        const box = floatBox(img, width);
+        const side = img.hAlign === 'right' || img.hAlign === 'outside' ? 'right' : 'left';
+        const topPx = used + spaceBefore + (img.dist?.t || 0);
+        const gap = side === 'left' ? (img.dist?.r ?? FLOAT_GAP_PX * 2) : (img.dist?.l ?? FLOAT_GAP_PX * 2);
+        current.floats.push({ side, topPx, bottomPx: topPx + box.heightPx + (img.dist?.b ?? FLOAT_GAP_PX), insetPx: box.widthPx + gap });
+        place({ kind: 'float', paragraphIndex: block.index, side, topPx, widthPx: box.widthPx, heightPx: box.heightPx, image: { ...img, ...box } }, 0);
+      }
+    }
+
+    const around = current.floats.some((f) => f.bottomPx > used + spaceBefore);
+    const { lines, style, indentPx, lineHeightPx } = around
+      ? layoutAround(block, used + spaceBefore, { extraIndentPx })
+      : layoutParagraph(block, width, { cache, styles, extraIndentPx });
+    let cursor = 0;
 
     // The footnotes this paragraph references go at the foot of the page its
     // first line lands on — Word's rule — so their room is reserved before
@@ -383,15 +476,19 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
       if (!complete) newPage();
     }
 
-    // Pictures render as a block under the paragraph's text — the honest
-    // simplification recorded where they are parsed. They are placed as their
-    // own fragment so a caret never lands in one, and pushed whole onto the
-    // next sheet rather than sliced: half a logo is not a smaller logo.
-    const images = (block.images ?? []).filter((img) => img.href);
+    // Every other picture renders as a block under the paragraph's text: an
+    // inline one, one wrapped top-and-bottom, one behind or in front of the
+    // words (drawn in the flow rather than over it — the honest
+    // simplification). Placed as a fragment of its own so a caret never
+    // lands in one, and pushed whole onto the next sheet rather than sliced:
+    // half a logo is not a smaller logo. A centred or right-aligned one
+    // keeps its side.
+    const images = (block.images ?? []).filter((img) => img.href && !floatsBeside(img));
     if (images.length) {
       const drawn = images.map((img) => {
         const scale = Math.min(1, width / Math.max(1, img.widthPx));
-        return { ...img, widthPx: img.widthPx * scale, heightPx: img.heightPx * scale };
+        const hAlign = img.anchored && img.hAlign === 'center' ? 'center' : img.anchored && (img.hAlign === 'right' || img.hAlign === 'outside') ? 'right' : 'left';
+        return { ...img, widthPx: img.widthPx * scale, heightPx: img.heightPx * scale, hAlign };
       });
       const cost = drawn.reduce((total, img) => total + img.heightPx + IMAGE_GAP, 0);
       if (cost > remaining() && current.fragments.length) newPage();

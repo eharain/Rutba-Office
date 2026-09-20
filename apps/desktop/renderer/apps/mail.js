@@ -733,7 +733,9 @@ export default function Mail({ app, shell }) {
 
   const commands = useMemo(
     () => ({
-      'mail.sync': { label: 'Get mail', icon: 'refresh', key: 'Mod+R', run: sync },
+      // F5, the key every mail client fetches on; Ctrl+R is Reply, and one
+      // key cannot do both.
+      'mail.sync': { label: 'Get mail', icon: 'refresh', key: 'F5', run: sync },
       'mail.compose': { label: 'New message', icon: 'new', key: 'Mod+N', run: () => setCompose({ to: '', subject: '', text: '' }) },
       'mail.reply': { label: 'Reply', icon: 'reply', key: 'Mod+R', run: () => reply(false) },
       'mail.replyAll': { label: 'Reply all', icon: 'replyAll', run: () => reply(true) },

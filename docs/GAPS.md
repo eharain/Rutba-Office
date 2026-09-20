@@ -42,10 +42,13 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
 - **Floating layout.** On screen, since 2026-09-14, a picture or a text box
   anchored at the left or right floats there and the words wrap round it;
   Wrap Text and Position on the Layout tab move a picked picture between the
-  line, the sides and the middle, and the file keeps it. Print and PDF still
-  draw a floating picture as a block under its paragraph — the engine's
-  paginator wraps to one width. Align, Group, the selection pane and z-order
-  for a document's drawings are still to come.
+  line, the sides and the middle, and the file keeps it. Since 2026-09-20
+  print and PDF do the same for a picture: the paginator lays the lines
+  beside it shorter, for as far down as it reaches and into the paragraphs
+  after it, and a centred or right-aligned block keeps its side. A floating
+  text box still rides under its paragraph in print, and a picture behind
+  or in front of the words is drawn in the flow. Align, Group, the selection
+  pane and z-order for a document's drawings are still to come.
 - **Columns and section control.** `w:cols` is read and not honoured: the
   paginator lays one column. Line numbers, hyphenation and page borders are
   the same story. (Pages themselves arrived on screen on 2026-09-10: the
@@ -55,8 +58,8 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   taller than a page runs into the gap rather than being cut. Since
   2026-09-14 the ruler moves a paragraph's four indents, its tab stops,
   the page margins and a table's columns by hand, and grips on a table's
-  borders move its columns and rows; the print paginator does not yet
-  read the grid the page now draws from.)
+  borders move its columns and rows, and the print paginator lays a
+  table on the same grid.)
 - **Fields.** Bookmarks, cross-references, captions, an index, a table of
   authorities, citations and a bibliography, `SEQ`, `PAGE` outside the
   header — none are written, so the table of contents this suite inserts is
@@ -195,7 +198,8 @@ stage keeps a picture until the next has decoded. What is still missing:
 4. ~~**Calendar and contacts**, as a seventh and eighth app on the same shell.~~
    Both built 2026-09-09, and Mail answers an invitation from the message.
 5. **Floating layout in the document paginator.** One piece of work unlocks
-   eleven controls in Word and the same again in the deck.
+   eleven controls in Word and the same again in the deck. Pictures beside
+   the words print since 2026-09-20; text boxes and the deck are left.
 6. **Shape formatting and text properties in the deck writer** — the largest
    single block of unbuilt controls in the suite.
 7. **Things in a sheet that are not cells**: comments, pictures, hyperlinks,

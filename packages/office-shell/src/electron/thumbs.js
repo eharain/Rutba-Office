@@ -66,8 +66,11 @@ async function systemThumbnail(target, size) {
  * A queue that runs the newest job first, a few at a time.
  *
  * Newest first because a request is made when a tile comes into view: the
- * newest requests are the tiles in view now. A job whose request was
- * abandoned (the tile scrolled away before its turn) is dropped unrun.
+ * newest requests are the tiles in view now. A job is run even when the
+ * request that asked for it was abandoned (the tile scrolled away before
+ * its turn): the thumbnail is kept on disk for the next time, and a second
+ * request for the same file, sharing the job, must not inherit the first
+ * one's abandonment.
  */
 export function createQueue({ concurrency = 3, run }) {
   const waiting = [];
@@ -75,10 +78,6 @@ export function createQueue({ concurrency = 3, run }) {
   const pump = () => {
     while (running < concurrency && waiting.length) {
       const job = waiting.pop();
-      if (job.signal?.aborted) {
-        job.resolve(null);
-        continue;
-      }
       running += 1;
       Promise.resolve()
         .then(() => run(job))
@@ -135,7 +134,7 @@ export function createThumbnailer({ dir, make = systemThumbnail, concurrency = 3
   };
 
   /** The JPEG bytes for a file, from the cache or made now; null when there are none to be had. */
-  const bytesFor = async (target, { size = THUMB_SIZE, signal = null } = {}) => {
+  const bytesFor = async (target, { size = THUMB_SIZE } = {}) => {
     let key;
     try {
       key = keyFor(target, size);
@@ -151,7 +150,7 @@ export function createThumbnailer({ dir, make = systemThumbnail, concurrency = 3
     }
     if (refused.has(key)) return null;
     if (inflight.has(key)) return inflight.get(key);
-    const job = queue.push({ target, size, key, signal }).finally(() => inflight.delete(key));
+    const job = queue.push({ target, size, key }).finally(() => inflight.delete(key));
     inflight.set(key, job);
     return job;
   };

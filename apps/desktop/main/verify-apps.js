@@ -851,7 +851,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const fill = model().slide.shapes.find((s) => String(s.id) === shapeId).fill;
       const rgb = (hex) => { const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex || ''); return m ? `rgb(${parseInt(m[1], 16)}, ${parseInt(m[2], 16)}, ${parseInt(m[3], 16)})` : null; };
       check('slides: a theme swatch in the Format pane fills the shape with that colour', filled === true && rgb(fill?.color) === accent2, `fill ${JSON.stringify(fill)}, swatch ${accent2}`);
-      const drawn = await js(`document.querySelector('.sl-svg')?.innerHTML.includes(${JSON.stringify(String(fill?.color || '').toLowerCase())}) || document.querySelector('.sl-svg')?.innerHTML.includes(${JSON.stringify(String(fill?.color || '').toUpperCase())})`);
+      // The engine wrote the fill before the window redrew it: wait for the
+      // drawing, not for the model, or a loaded machine fails this by a frame.
+      const drawn = await until(() => js(`document.querySelector('.sl-svg')?.innerHTML.includes(${JSON.stringify(String(fill?.color || '').toLowerCase())}) || document.querySelector('.sl-svg')?.innerHTML.includes(${JSON.stringify(String(fill?.color || '').toUpperCase())})`), 'the slide to redraw with the fill', 4000).catch(() => false);
       check('slides: the slide is redrawn with the new fill', drawn === true, drawn ? 'the colour is in the drawing' : 'not in the drawing');
       await js(`(() => { [...document.querySelectorAll('.sl-format .sl-chip')].find((b) => b.textContent.trim() === 'No outline').click(); return 1; })()`);
       const noLine = await until(() => model().slide.shapes.find((s) => String(s.id) === shapeId).line?.type === 'none', 'the outline to go', 4000).catch(() => false);
