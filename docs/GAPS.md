@@ -54,7 +54,8 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   the same story. (Pages themselves arrived on screen on 2026-09-10: the
   flow is laid onto sheets by measuring the drawn page, paragraphs split at
   a line and tables at a row, and a manual page break heads a fresh page.
-  Footnotes still sit at the end of the document on screen. A paragraph
+  Since 2026-09-20 a footnote sits at the foot of the page its reference
+  lands on, on screen as in print. A paragraph
   splits at a line, a table at a row and, since 2026-09-20, a paragraph of
   pictures between its picture lines — on screen a paragraph of only
   pictures lays them side by side as Word does, while print still stacks

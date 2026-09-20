@@ -488,7 +488,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         const cs = getComputedStyle(page);
         const mTop = parseFloat(cs.paddingTop);
         const mBottom = parseFloat(cs.paddingBottom);
-        const flow = [...page.children].filter((el) => /wd-block|wd-table|wd-notes/.test(el.className));
+        const flow = [...page.children].filter((el) => /wd-block|wd-table|wd-notes/.test(el.className) && !el.classList.contains('wd-notes-measure'));
         const chip = [...document.querySelectorAll('.rw-status .chip')].map((c) => c.textContent).find((t) => /^Page \\d+ of \\d+$/.test(t)) || null;
         const out = { sheets: sheets.length, blocks: flow.length, outside: [], tall: 0, parts: page.querySelectorAll('.wd-block[data-from]').length, tableParts: page.querySelectorAll('.wd-table[data-row-from]').length, breakAt: null, chip };
         for (const el of flow) {
@@ -2272,8 +2272,32 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Insert')?.click(), 'inserted'`);
     await until(async () => (await engine()).footnotes === 1, 'the footnote', 5000).catch(() => {});
     const noted = await engine();
-    const painted = await js(`({ refs: document.querySelectorAll('.wd-page .wd-noteref').length, notes: document.querySelectorAll('.wd-notes .wd-note').length, words: document.querySelector('.wd-notes')?.textContent.trim() || '' })`);
-    check('word: References → Insert Footnote puts the number in the text and the note under the body', noted.footnotes === 1 && painted.refs === 1 && painted.notes === 1 && /regulation 57/.test(painted.words), `engine footnotes ${noted.footnotes}; painted ${JSON.stringify(painted)}`);
+    await wait(500);
+    const painted = await js(`({ refs: document.querySelectorAll('.wd-page .wd-noteref').length, notes: document.querySelectorAll('.wd-pagenotes .wd-note').length, words: document.querySelector('.wd-pagenotes')?.textContent.trim() || '' })`);
+    check('word: References → Insert Footnote puts the number in the text and the note at the foot of the page', noted.footnotes === 1 && painted.refs === 1 && painted.notes === 1 && /regulation 57/.test(painted.words), `engine footnotes ${noted.footnotes}; painted ${JSON.stringify(painted)}`);
+    // The note sits at the foot of the page its reference is on: above the
+    // bottom margin, below the last line of the body, on the same sheet.
+    const foot = await js(`(() => {
+      const page = document.querySelector('.wd-page');
+      const sheets = [...page.querySelectorAll('.wd-sheet')].map((s) => s.getBoundingClientRect());
+      const on = (r) => sheets.findIndex((s) => r.top >= s.top - 1 && r.bottom <= s.bottom + 1);
+      const ref = page.querySelector('.wd-noteref');
+      const notes = page.querySelector('.wd-pagenotes .wd-notes');
+      if (!ref || !notes) return { ref: Boolean(ref), notes: Boolean(notes) };
+      const r = ref.getBoundingClientRect();
+      const nb = notes.getBoundingClientRect();
+      const s = sheets[on(nb)];
+      const mBottom = parseFloat(getComputedStyle(page).paddingBottom);
+      const body = [...page.querySelectorAll('.wd-block, .wd-table')].map((b) => b.getBoundingClientRect()).filter((b) => s && b.height > 0 && b.top >= s.top && b.top < s.bottom);
+      const lastBody = body.length ? Math.max(...body.map((b) => b.bottom)) : null;
+      return { refPage: on(r), notesPage: on(nb), footGap: s ? Math.round(s.bottom - mBottom - nb.bottom) : null, belowBody: lastBody === null ? null : Math.round(nb.top - lastBody), measure: getComputedStyle(page.querySelector('.wd-notes-measure')).visibility };
+    })()`);
+    check('word: the footnote sits at the foot of its reference\'s page — under the body, on the bottom margin, the hidden copy hidden', foot.refPage >= 0 && foot.refPage === foot.notesPage && foot.footGap !== null && foot.footGap >= -1 && foot.footGap <= 4 && foot.belowBody !== null && foot.belowBody >= 0 && foot.measure === 'hidden', JSON.stringify(foot));
+    if (process.env.RUTBA_VERIFY_CAPTURE) {
+      await js(`document.querySelector('.wd-pagenotes')?.scrollIntoView({ block: 'end' }), 'scrolled to the foot'`);
+      await wait(300);
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-footnote.png'), (await win.webContents.capturePage()).toPNG());
+    }
 
     const complaints = await errorsIn(win);
     check('word: none of that reported an error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

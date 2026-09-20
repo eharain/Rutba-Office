@@ -33,6 +33,9 @@
 /** The desk showing between two sheets, in CSS pixels. */
 export const PAGE_GAP = 22;
 
+/** The rule above a page's footnotes with the space round it — what `.wd-pagenotes` draws. */
+export const NOTE_RULE_PX = 17;
+
 /** The geometry the pass works in: sheet height, the gap, the top and bottom margins. */
 export function geometryOf(section) {
   if (!section) return null;
@@ -71,7 +74,8 @@ export function sliceRuns(runs, from, to) {
 }
 
 const isFlow = (el) =>
-  el.nodeType === 1 && (el.classList.contains('wd-block') || el.classList.contains('wd-table') || el.classList.contains('wd-notes'));
+  el.nodeType === 1 &&
+  (el.classList.contains('wd-block') || el.classList.contains('wd-table') || (el.classList.contains('wd-notes') && !el.classList.contains('wd-notes-measure')));
 
 /**
  * The push this pass gave an element last time, if it is still in force.
@@ -263,13 +267,15 @@ const continues = (next, it) =>
  * forward its split point can move so the lines (or rows) that fit come back
  * up. -1 means all of them — the split goes away.
  */
-function pullBack(it, next, room) {
+function pullBack(it, next, room, noteCost = () => 0) {
   if (room < 4) return null;
   if (it.kind === 'p') {
     const lines = lineBoxes(next.el);
     const top = next.el.getBoundingClientRect().top;
+    // A line that comes back brings the footnotes it references; they need
+    // their room at the foot as well.
     let c = 0;
-    while (c < lines.length && lines[c].bottom - top <= room - 1) c += 1;
+    while (c < lines.length && lines[c].bottom - top + noteCost(lines[c].bottom) <= room - 1) c += 1;
     if (c === 0) return null;
     if (c === lines.length) return -1;
     if (lines.length - c < 2) return null;
@@ -317,9 +323,41 @@ function settle(fresh, old, seen) {
 export function layPages(page, geo, state) {
   const P = geo.H + geo.G;
   const ctop = (n) => n * P + geo.top;
-  const limit = (n) => n * P + geo.H - geo.bottom;
   const pageRect = page.getBoundingClientRect();
   const els = [...page.children].filter(isFlow);
+
+  // Footnotes go at the foot of the page their reference lands on — Word's
+  // rule, and the print paginator's. Their heights come from the hidden copy
+  // in the flow; a page reserves that much at its foot, plus the rule above
+  // the first, and its bottom limit moves up by it. The answer says which
+  // page each note is drawn on.
+  const noteHeight = new Map();
+  for (const el of page.querySelectorAll('.wd-notes-measure .wd-note[data-note]')) noteHeight.set(el.dataset.note, el.getBoundingClientRect().height);
+  const reserved = [];
+  const reservedAt = (k) => reserved[k] || 0;
+  const limit = (n) => n * P + geo.H - geo.bottom - reservedAt(n);
+  const notePages = {};
+  const refsOf = (el) =>
+    noteHeight.size
+      ? [...el.querySelectorAll('.wd-noteref[data-kind="footnote"][data-id]')]
+          .filter((r) => noteHeight.has(r.dataset.id))
+          .map((r) => ({ id: r.dataset.id, height: noteHeight.get(r.dataset.id), top: r.getBoundingClientRect().top }))
+      : [];
+  const costOf = (refs, k) => (refs.length ? refs.reduce((s, r) => s + r.height, 0) + (reservedAt(k) ? 0 : NOTE_RULE_PX) : 0);
+  const reserve = (it, costRefs, k, placedRefs) => {
+    it.noteCost = costOf(costRefs, k);
+    it.notePage = k;
+    it.noteIds = placedRefs.map((r) => r.id);
+    reserved[k] = reservedAt(k) + it.noteCost;
+    for (const r of placedRefs) notePages[r.id] = k;
+  };
+  const unreserve = (it) => {
+    if (!it.noteCost && !it.noteIds?.length) return;
+    reserved[it.notePage] = Math.max(0, reservedAt(it.notePage) - it.noteCost);
+    for (const id of it.noteIds) delete notePages[id];
+    it.noteCost = 0;
+    it.noteIds = [];
+  };
 
   // Fractional boxes, from the rects: offsetTop and offsetHeight are whole
   // pixels, and with lines 22.5 px tall the rounding put a pushed paragraph
@@ -347,6 +385,7 @@ export function layPages(page, geo, state) {
       breakBefore: el.dataset.break === '1',
       delta: 0, gap: 0, placedTop: 0, placedBottom: 0, first: false, pageIndex: 0,
       newSplit: null, startOverride: null, pulled: false, forceBreak: false,
+      noteCost: 0, notePage: 0, noteIds: [],
     };
   });
 
@@ -367,10 +406,32 @@ export function layPages(page, geo, state) {
     // A paragraph taller than a page's inside has to split somewhere: the
     // widow and orphan rules that would move it whole are waived for it.
     const tall = it.kind === 'p' && it.height > geo.H - geo.top - geo.bottom;
-    const trySplit = (d, heads) =>
-      it.kind === 'p' && !it.keepLines ? splitParagraph(it, placedY, d, limit(n), heads || tall)
-        : it.kind === 't' ? splitTable(it, natTop + d, limit(n))
-          : null;
+    // The footnotes this part references: they take room at the foot of the
+    // page the part lands on, so the part has to fit above that room.
+    const refs = it.kind === 'p' ? refsOf(it.el) : [];
+    const trySplit = (d, heads) => {
+      if (it.kind === 't') return splitTable(it, natTop + d, limit(n));
+      if (it.kind !== 'p' || it.keepLines) return null;
+      // Only the notes referenced on the lines that stay need room here,
+      // and which lines stay depends on that room: a few rounds settle it.
+      // If they do not, every note is given room and the ones above the
+      // cut are drawn here — space wasted rather than words overlapped.
+      const attempt = (keep) => {
+        const split = splitParagraph(it, placedY, d, limit(n) - costOf(keep, n), heads || tall);
+        if (!split) return null;
+        const cut = it.el.getBoundingClientRect().top + split.partHeight;
+        return { split, above: refs.filter((r) => r.top < cut - 0.5) };
+      };
+      let keep = refs;
+      for (let round = 0; round < 4; round++) {
+        const got = attempt(keep);
+        if (!got) return null;
+        if (got.above.length === keep.length && got.above.every((r, j) => r === keep[j])) return { ...got.split, notes: got.above, reserveFor: got.above };
+        keep = got.above;
+      }
+      const got = attempt(refs);
+      return got ? { ...got.split, notes: got.above, reserveFor: refs } : null;
+    };
 
     if ((it.breakBefore || it.forceBreak) && !first) {
       n += 1;
@@ -379,7 +440,7 @@ export function layPages(page, geo, state) {
     }
 
     let split = null;
-    if (bottomAt(delta) > limit(n) + 0.5) {
+    if (bottomAt(delta) > limit(n) - costOf(refs, n) + 0.5) {
       split = trySplit(delta, first);
       if (!split && !first) {
         // A heading kept with what follows goes over with it: take the
@@ -388,6 +449,7 @@ export function layPages(page, geo, state) {
         if (prev && prev.keep && !prev.first && !prev.pulled && !prev.newSplit && prev.startOverride === null && prev.pageIndex === n) {
           shift -= prev.delta - prev.oldDelta;
           prevBottom = i >= 2 ? items[i - 2].placedBottom : geo.top;
+          unreserve(prev);
           prev.pulled = true;
           prev.forceBreak = true;
           i -= 1;
@@ -396,7 +458,7 @@ export function layPages(page, geo, state) {
         n += 1;
         first = true;
         delta = ctop(n) - natTop;
-        if (bottomAt(delta) > limit(n) + 0.5) split = trySplit(delta, true);
+        if (bottomAt(delta) > limit(n) - costOf(refs, n) + 0.5) split = trySplit(delta, true);
       }
     }
 
@@ -404,8 +466,10 @@ export function layPages(page, geo, state) {
     it.placedTop = natTop + delta;
     it.first = first;
     it.pageIndex = n;
+    unreserve(it);
     if (split) {
       it.newSplit = split;
+      reserve(it, split.reserveFor || [], n, split.notes || []);
       it.placedBottom = it.placedTop + split.partHeight;
       const remainder = Math.max(0, it.height - split.partHeight);
       n += 1;
@@ -418,12 +482,13 @@ export function layPages(page, geo, state) {
       prevBottom = remainderTop + remainder;
       first = false;
     } else {
+      reserve(it, refs, n, refs);
       it.placedBottom = it.placedTop + it.height;
       prevBottom = it.placedBottom;
       first = false;
       const next = items[i + 1];
       if (next && continues(next, it)) {
-        const back = pullBack(it, next, limit(n) - it.placedBottom);
+        const back = pullBack(it, next, limit(n) - it.placedBottom, (cutBottom) => costOf(refsOf(next.el).filter((r) => r.top < cutBottom - 0.5), n));
         if (back !== null) {
           next.startOverride = back;
           // The parts below move once the lines do; nothing measured past
@@ -437,6 +502,19 @@ export function layPages(page, geo, state) {
   }
 
   for (let k = 0; k < i; k++) setPush(items[k].el, items[k].delta, items[k].gap);
+
+  // A note the placement never reached — its reference in a table, in the
+  // remainder of a split not yet drawn, or past where the pass stopped —
+  // goes on the page its reference is drawn on now; the next pass sees the
+  // truth. Read after the pushes are written, so it costs a layout only then.
+  for (const id of noteHeight.keys()) {
+    if (id in notePages) continue;
+    const ref = page.querySelector(`.wd-noteref[data-kind="footnote"][data-id="${CSS.escape(id)}"]`);
+    if (!ref) continue;
+    notePages[id] = Math.max(0, Math.floor((ref.getBoundingClientRect().top - pageRect.top + 1) / P));
+  }
+  const oldNotes = state.notes || {};
+  const notesChanged = Object.keys(notePages).length !== Object.keys(oldNotes).length || Object.keys(notePages).some((id) => oldNotes[id] !== notePages[id]);
 
   const fresh = { p: {}, t: {} };
   const seen = { p: new Set(), t: new Set() };
@@ -464,7 +542,7 @@ export function layPages(page, geo, state) {
   let count = n + 1;
   for (let k = 0; k < i; k++) count = Math.max(count, Math.floor(Math.max(0, items[k].placedBottom - 1) / P) + 1);
 
-  return { changed: splits.changed || tableSplits.changed, splits: splits.map, tableSplits: tableSplits.map, count, processed: i, items };
+  return { changed: splits.changed || tableSplits.changed || notesChanged, splits: splits.map, tableSplits: tableSplits.map, notes: notesChanged ? notePages : oldNotes, count, processed: i, items };
 }
 
 /** The page (0-based) an element's top falls on, read after the pass has written. */

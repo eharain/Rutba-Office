@@ -572,7 +572,7 @@ export default function Word({ app, shell, boot }) {
       passes.current += 1;
       // Synchronously, so the parts are drawn before the browser paints the
       // frame; otherwise the unsplit paragraph shows over the gap for a frame.
-      flushSync(() => setPages({ splits: laid.splits, tableSplits: laid.tableSplits, count: laid.count, at }));
+      flushSync(() => setPages({ splits: laid.splits, tableSplits: laid.tableSplits, notes: laid.notes, count: laid.count, at }));
     } else if (laid.count !== state.count || at !== state.at) {
       setPages({ ...state, count: laid.count, at });
     }
@@ -592,7 +592,7 @@ export default function Word({ app, shell, boot }) {
     return () => {
       live = false;
     };
-  }, [model, mounted, paged, geo, pages.splits, pages.tableSplits]);
+  }, [model, mounted, paged, geo, pages.splits, pages.tableSplits, pages.notes]);
   // Pictures that arrive and fonts that load change heights without a render.
   const hasPage = Boolean(!busy && model);
   useEffect(() => {
@@ -846,7 +846,7 @@ export default function Word({ app, shell, boot }) {
           return;
         }
         case 'showNotes': {
-          const notes = pageRef.current?.querySelector('.wd-notes');
+          const notes = pageRef.current?.querySelector('.wd-pagenotes .wd-notes, .wd-notes:not(.wd-notes-measure)');
           if (!notes) return toast('No footnotes in this document.', { ms: 4000 });
           notes.scrollIntoView({ block: 'start', behavior: 'smooth' });
           return;
@@ -1025,6 +1025,7 @@ export default function Word({ app, shell, boot }) {
                       ) : null}
                       <Band kind="header" bands={model.bands} section={section} page={k + 1} of={pages.count} top={k * (geo.H + geo.G)} height={geo.H} onEdit={() => setDialog('header')} />
                       <Band kind="footer" bands={model.bands} section={section} page={k + 1} of={pages.count} top={k * (geo.H + geo.G)} height={geo.H} onEdit={() => setDialog('footer')} />
+                      <PageNotes notes={model.footnotes} at={pages.notes} page={k} top={k * (geo.H + geo.G) + geo.top} height={geo.H - geo.top - geo.bottom} styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'footnote', id: note.id, initial: noteWords(note) })} />
                     </React.Fragment>
                   ))
                 : null}
@@ -1039,7 +1040,12 @@ export default function Word({ app, shell, boot }) {
 
               {picked ? <PictureHandles page={pageRef} picked={picked} model={model} pages={pages} onDrag={(on) => { pictureDrag.current = on; }} onResize={(size) => apply({ op: 'setImageSize', block: picked.block, image: picked.image, ...size })} /> : null}
               {tableAt ? <TableGrips page={pageRef} model={model} pages={pages} tableId={tableAt.id} gridPx={tableAt.gridPx} onColumn={resizeColumn} onRow={resizeRow} onDrag={(on) => { pictureDrag.current = on; }} /> : null}
-              <Notes notes={model.footnotes} kind="footnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'footnote', id: note.id, initial: noteWords(note) })} />
+              {/*
+                In print layout the footnotes are drawn on their pages (above);
+                this copy is hidden and measured. In the other layouts it is
+                the footnotes, under the body. Endnotes end the document.
+              */}
+              <Notes notes={model.footnotes} kind="footnotes" styles={model.resolvedStyles} measure={paged} onEdit={(note) => act('editNote', { kind: 'footnote', id: note.id, initial: noteWords(note) })} />
               <Notes notes={model.endnotes} kind="endnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'endnote', id: note.id, initial: noteWords(note) })} />
             </div>
           </div>
@@ -1205,7 +1211,7 @@ export default function Word({ app, shell, boot }) {
  * [data-block] so the caret, selection and typing keep working inside it.
  */
 /** No pages laid yet: one sheet, nothing split. */
-const NO_PAGES = { splits: {}, tableSplits: {}, count: 1, at: 1 };
+const NO_PAGES = { splits: {}, tableSplits: {}, notes: {}, count: 1, at: 1 };
 
 /** Flow items mounted before the first paint, and per slice afterwards. */
 const MOUNT_FIRST = 160;
@@ -1552,7 +1558,7 @@ function RunSpan({ run }) {
     // so the caret can step over it and Backspace can take it; the number is
     // drawn beside it by CSS.
     return (
-      <span className={run.noteRef ? 'wd-noteref' : 'wd-notemark'} data-n={n ?? '?'} title={run.noteRef ? `${run.noteRef.kind} ${n}` : undefined}>
+      <span className={run.noteRef ? 'wd-noteref' : 'wd-notemark'} data-n={n ?? '?'} data-kind={run.noteRef?.kind} data-id={run.noteRef?.id} title={run.noteRef ? `${run.noteRef.kind} ${n}` : undefined}>
         {run.noteRef ? <span className="wd-noteref-char">{run.text}</span> : null}
       </span>
     );
@@ -1633,12 +1639,12 @@ function TextBox({ box, styles }) {
 /** A note's words, for the dialog that changes them: every paragraph, the mark left out. */
 const noteWords = (note) => (note.paragraphs || []).map((p) => p.text || '').join('\n').trim();
 
-function Notes({ notes, kind, styles, onEdit }) {
+function Notes({ notes, kind, styles, onEdit, measure = false }) {
   if (!notes?.length) return null;
   return (
-    <div className={`wd-notes wd-${kind}`} contentEditable={false}>
+    <div className={`wd-notes wd-${kind}${measure ? ' wd-notes-measure' : ''}`} contentEditable={false} aria-hidden={measure || undefined}>
       {notes.map((note) => (
-        <div key={note.id} className="wd-note" id={`wd-${kind}-${note.n}`} title="Double-click to change the words" onDoubleClick={() => onEdit?.(note)}>
+        <div key={note.id} className="wd-note" id={measure ? undefined : `wd-${kind}-${note.n}`} data-note={note.id} title="Double-click to change the words" onDoubleClick={() => onEdit?.(note)}>
           {note.paragraphs.map((p, i) => (
             <p key={i} className="wd-box-p" style={paragraphCss(p, styles)}>
               {(p.runs || []).length ? p.runs.map((run, j) => <RunSpan key={j} run={run} />) : <br />}
@@ -1646,6 +1652,21 @@ function Notes({ notes, kind, styles, onEdit }) {
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+/**
+ * A page's footnotes, at its foot: the notes whose references the layout
+ * pass put on this page, drawn above the bottom margin under a short rule,
+ * as Word draws them. The pass reserved the room, so the body stops above.
+ */
+function PageNotes({ notes, at, page, top, height, styles, onEdit }) {
+  const mine = (notes || []).filter((note) => at?.[note.id] === page);
+  if (!mine.length) return null;
+  return (
+    <div className="wd-pagenotes" contentEditable={false} style={{ top, height }}>
+      <Notes notes={mine} kind="footnotes" styles={styles} onEdit={onEdit} />
     </div>
   );
 }
@@ -1975,8 +1996,16 @@ const CSS = `
 .wd-notes .wd-note { cursor: text; }
 .wd-notemark::after { margin-right: 3px; }
 .wd-notes { margin-top: 28px; padding-top: 6px; border-top: 1px solid #333; width: 33%; min-width: 220px; font-size: 0.85em; user-select: none; }
-.wd-notes .wd-note { width: 300%; }
+.wd-notes .wd-note { width: 300%; display: flow-root; }
 .wd-notes .wd-box-p { margin: 0 0 3px; white-space: pre-wrap; }
+/* Footnotes at the foot of their page: the copy in the flow is hidden and
+   measured, and each page draws its own above the bottom margin. */
+.wd-notes-measure { visibility: hidden; height: 0; overflow: hidden; margin: 0; padding: 0; border: 0; width: 100%; min-width: 0; pointer-events: none; }
+.wd-notes-measure .wd-note { width: auto; }
+.wd-pagenotes { position: absolute; left: var(--wd-margin-left, 96px); right: var(--wd-margin-right, 96px); display: flex; flex-direction: column; justify-content: flex-end; pointer-events: none; z-index: 1; }
+.wd-pagenotes > .wd-notes { margin: 0; padding-top: 10px; border-top: 0; width: auto; min-width: 0; pointer-events: auto; }
+.wd-pagenotes > .wd-notes::before { content: ''; display: block; width: 33%; min-width: 220px; border-top: 1px solid #333; margin-bottom: 6px; }
+.wd-pagenotes .wd-note { width: auto; }
 /* A text box: in flow under its paragraph, the caret kept out of it. */
 .wd-textbox { display: block; box-sizing: border-box; padding: 4px 8px; max-width: 100%; overflow: hidden; user-select: none; }
 .wd-textbox .wd-box-p { margin: 0; min-height: 1.2em; white-space: pre-wrap; }
