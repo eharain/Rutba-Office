@@ -18,7 +18,7 @@ import path from 'node:path';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
-import { gradientPng } from './sample-picture.js';
+import { gradientPng, joinPictureParagraphs } from './sample-picture.js';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { verifyViewer } from './verify-viewer.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
@@ -274,6 +274,19 @@ function makeFixtures(dir) {
     fs.writeFileSync(at('fit.docx'), view.save());
   }
 
+  // One paragraph of six scans of a card, two to a line, as a scanner's
+  // software writes them and the owner's cards-print.docx holds them: three
+  // picture lines, taller than a page, so the paragraph has to split between
+  // two of them (2026-09-20, "it still is the same").
+  {
+    const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Cards' }] }));
+    view.setSelection({ block: 0, offset: 0 });
+    for (let i = 0; i < 6; i++) {
+      view.insertImage({ name: `card ${i + 1}`, contentType: 'image/png', data: gradientPng(140, 225, [40 + i * 50, 120, 200 - i * 40], [230, 200 - i * 40, 60 + i * 40]), widthPx: 280, heightPx: 450 });
+    }
+    fs.writeFileSync(at('cards.docx'), joinPictureParagraphs(view.save()));
+  }
+
   // A paragraph with a first-line indent, one with two tab stops, and a
   // table of three fixed columns — what the ruler and the grips move.
   {
@@ -305,6 +318,7 @@ function makeFixtures(dir) {
     float: fs.existsSync(at('float.docx')) ? at('float.docx') : null,
     ruler: at('ruler.docx'),
     fit: at('fit.docx'),
+    cards: at('cards.docx'),
     xlsx: at('sales.xlsx'),
     notes: at('notes.xlsx'),
     pptx: at('deck.pptx'),
@@ -1020,6 +1034,48 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Rutba Word: a paragraph of pictures splits between its lines ─────── */
+  //
+  // Six scans of a card in one paragraph, two to a line: the paragraph is
+  // taller than a page, so the pass must split it between two picture lines
+  // rather than let a line run over the page's edge — the first line under
+  // the heading, the other two on the next page.
+  const wordCards = async () => {
+    try {
+      const win = await open('word', files.cards);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`document.querySelectorAll('.wd-image').length === 6 && [...document.querySelectorAll('.wd-image')].every((i) => i.complete && i.naturalHeight > 0)`), 'all six pictures', 10000);
+      await wait(900);
+      const seen = await js(`(() => {
+        const sheets = [...document.querySelectorAll('.wd-sheet')].map((s) => s.getBoundingClientRect());
+        const on = (r) => sheets.findIndex((s) => r.top >= s.top - 1 && r.bottom <= s.bottom + 1);
+        const pictures = [...document.querySelectorAll('.wd-image')].map((img) => { const r = img.getBoundingClientRect(); return { image: img.dataset.image, sheet: on(r), top: Math.round(r.top), left: Math.round(r.left), bottom: Math.round(r.bottom), height: Math.round(r.height) }; });
+        const parts = [...document.querySelectorAll('.wd-block[data-block="1"]')].map((p) => ({ from: p.dataset.from || '0', pictures: p.querySelectorAll('.wd-image').length }));
+        return { pictures, parts, sheets: sheets.length };
+      })()`);
+      const sheetsOf = seen.pictures.map((p) => p.sheet);
+      const sideBySide = seen.pictures.length === 6 && seen.pictures[1].top === seen.pictures[0].top && seen.pictures[1].left > seen.pictures[0].left + 200;
+      check('word: a paragraph of six pictures lays them two to a line and splits between the lines — the first two under the heading, the four others on page 2, none crossing an edge',
+        seen.sheets === 2 && sideBySide && sheetsOf.join(',') === '0,0,1,1,1,1' && seen.parts.length === 2 && seen.parts[1].from === '2',
+        JSON.stringify(seen));
+      // The caret can go into the second part — the pictures' page — and lands at the end of the paragraph's words, not past them.
+      const caret = await js(`(() => {
+        const part = document.querySelectorAll('.wd-block[data-block="1"]')[1];
+        if (!part) return null;
+        const r = document.createRange(); r.selectNodeContents(part); r.collapse(false);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        return 'placed';
+      })()`);
+      await wait(400);
+      const complaints = await errorsIn(win);
+      check('word: the caret goes into the pictures\' second page without an error', caret === 'placed' && complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-cards.png'), (await win.webContents.capturePage()).toPNG());
+    } catch (err) {
+      check('word: the cards check ran', false, err.message);
+    }
+  };
+
   /* ── Rutba Word: the ruler and the grips on a table ───────────────────── */
   //
   // The ruler's markers and the grips on a table's borders are dragged with
@@ -1395,6 +1451,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('home')) await launcherRecent();
     if (only.includes('freeze')) await sheetFreeze();
     if (only.includes('fit')) await wordPictureFits();
+    if (only.includes('cards')) await wordCards();
     if (only.includes('viewer')) await viewer();
     if (only.includes('links')) await sheetLinks();
     return done();
@@ -1486,6 +1543,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await sheetFill();
   await wordPictures();
   await wordPictureFits();
+  await wordCards();
   await wordRuler();
   await updatePrompt();
   await launcherRecent();

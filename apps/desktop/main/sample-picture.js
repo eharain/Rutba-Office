@@ -16,6 +16,20 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { OoxmlPackage } from '@rutba/ooxml';
+
+/**
+ * A document whose consecutive picture paragraphs become one paragraph of
+ * pictures — what a scanner's software writes: four scans of a card in one
+ * paragraph, two to a line. The engine inserts each picture as a paragraph
+ * of its own, so a fixture builds them that way and joins them here.
+ */
+export function joinPictureParagraphs(bytes) {
+  const pkg = OoxmlPackage.read(bytes);
+  const xml = pkg.text('word/document.xml').replace(/<\/w:drawing><\/w:r><\/w:p><w:p><w:r><w:drawing>/g, '</w:drawing></w:r><w:r><w:drawing>');
+  pkg.write_('word/document.xml', Buffer.from(xml, 'utf8'));
+  return pkg.write();
+}
 
 const crcTable = (() => {
   const t = new Int32Array(256);

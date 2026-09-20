@@ -493,9 +493,27 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
         const hAlign = img.anchored && img.hAlign === 'center' ? 'center' : img.anchored && (img.hAlign === 'right' || img.hAlign === 'outside') ? 'right' : 'left';
         return { ...img, widthPx: img.widthPx * scale, heightPx: img.heightPx * scale, hAlign };
       });
-      const cost = drawn.reduce((total, img) => total + img.heightPx + IMAGE_GAP, 0);
-      if (cost > remaining() && current.fragments.length) newPage();
-      place({ kind: 'images', paragraphIndex: block.index, images: drawn }, cost);
+      // A page at a time: the pictures that fit go down here and the rest
+      // head the next page — a sheet of four scanned cards runs to two pages
+      // rather than over the first one's edge. Each picture is still whole.
+      let batch = [];
+      let cost = 0;
+      const flush = () => {
+        if (!batch.length) return;
+        place({ kind: 'images', paragraphIndex: block.index, images: batch }, cost);
+        batch = [];
+        cost = 0;
+      };
+      for (const img of drawn) {
+        const tall = img.heightPx + IMAGE_GAP;
+        if (cost + tall > remaining()) {
+          flush();
+          if (tall > remaining() && current.fragments.length) newPage();
+        }
+        batch.push(img);
+        cost += tall;
+      }
+      flush();
     }
 
     // Text boxes ride under their paragraph like pictures do — the same

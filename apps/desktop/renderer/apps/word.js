@@ -44,8 +44,12 @@ import {
  */
 function offsetIn(blockEl, node, offset) {
   if (!blockEl || !node) return 0;
-  // The second part of a paragraph split across pages starts partway in.
-  return offsetWithin(blockEl, node, offset) + Number(blockEl.dataset?.from || 0);
+  // The second part of a paragraph split across pages starts partway in — and
+  // a part that holds only the paragraph's pictures starts past its text,
+  // where the caret has no business: it goes to the end of the words.
+  const at = offsetWithin(blockEl, node, offset) + Number(blockEl.dataset?.from || 0);
+  const length = Number(blockEl.dataset?.length);
+  return Number.isFinite(length) ? Math.min(at, length) : at;
 }
 
 function offsetWithin(blockEl, node, offset) {
@@ -1684,7 +1688,7 @@ const floatSide = (d) => (d.hAlign === 'right' || d.hAlign === 'outside' ? 'righ
  * the column; a floating picture keeps the distances the file gives it from
  * the words, with Word's own quarter-inch-ish defaults where it gives none.
  */
-function imageStyle(image, inner = null) {
+function imageStyle(image, inner = null, inline = false) {
   let width = image.widthPx ? Math.min(image.widthPx, 640) : undefined;
   // A picture taller than the page's inside is drawn to fit it, its
   // proportions kept: a sheet cannot hold more, and a picture that ran
@@ -1695,7 +1699,11 @@ function imageStyle(image, inner = null) {
   }
   const base = { width, height: 'auto', maxWidth: '100%' };
   const d = image.dist || {};
-  if (!image.anchored) return { ...base, display: 'block', margin: '6px 0' };
+  // An inline picture in a paragraph with no words sits in the line as Word
+  // draws it — several to a line while they fit, a scanner's four cards two
+  // to a line — and the paragraph's alignment places them. Under words it
+  // is a block beneath them (the engine keeps pictures apart from the runs).
+  if (!image.anchored) return inline ? { ...base, display: 'inline-block', verticalAlign: 'baseline', margin: '6px 0' } : { ...base, display: 'block', margin: '6px 0' };
   const side = image.hAlign === 'center' ? 'center' : floatSide(image);
   if (floatsBeside(image)) {
     return {
@@ -1801,11 +1809,12 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
       key={i}
       className={`wd-image${floatsBeside(image) ? ' wd-float' : ''}${image.anchored && image.wrap === 'none' ? (image.behind ? ' behind' : ' front') : ''}${pickedImage === i ? ' picked' : ''}`}
       contentEditable={false}
+      data-image={i}
       src={image.href}
       alt={image.name || ''}
       draggable={false}
       onClick={(e) => pick(e, i)}
-      style={imageStyle(image, inner)}
+      style={imageStyle(image, inner, inlineRow)}
     />
   );
   const runs = whole ? block.runs || [] : sliceRuns(block.runs, from, to);
@@ -1836,7 +1845,19 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
         ...(first ? {} : { textIndent: 0, marginTop: 0 }),
         ...(last ? {} : { marginBottom: 0, ...(style.textAlign === 'justify' ? { textAlignLast: 'justify' } : {}) }),
       };
-  const hasMedia = Boolean(block.images?.length || block.textBoxes?.length);
+  // The pictures drawn under the words continue the paragraph's address
+  // space after its text — offset `length + i` is picture i, and the text
+  // boxes come after every picture — so a split between two picture lines
+  // (a sheet of scanned cards, two to a line) sends the pictures after it to
+  // the next page and keeps the ones before it. The pass reads the two
+  // lengths off the element.
+  const length = (block.runs || []).reduce((n, r) => n + (r.text ?? '').length, 0);
+  const images = block.images || [];
+  const inlineRow = length === 0;
+  const tail = length + images.length;
+  const under = images.map((image, i) => !floatsBeside(image) && from <= length + i && length + i < to);
+  const boxesHere = from <= tail && tail < to;
+  const drawsUnder = under.some(Boolean) || (boxesHere && (block.textBoxes || []).some((box) => !floatsBeside(box)));
   return (
     <p
       ref={ref}
@@ -1844,6 +1865,8 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
       data-block={block.index}
       data-style={block.style || 'Normal'}
       data-from={from > 0 ? from : undefined}
+      data-length={images.length || block.textBoxes?.length ? length : undefined}
+      data-tail={images.length || block.textBoxes?.length ? tail : undefined}
       data-part={whole ? undefined : first ? 0 : 1}
       data-break={first && block.pageBreakBefore ? '1' : undefined}
       data-keep={block.keepNext || KEEP_WITH_NEXT.test(block.style || '') ? '1' : undefined}
@@ -1855,15 +1878,21 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
       {first ? (block.textBoxes || []).map((box, i) => (floatsBeside(box) ? <TextBox key={`f${i}`} box={box} styles={styles} /> : null)) : null}
       {first && label ? <span className="wd-marker" contentEditable={false} style={markerHang ? { display: 'inline-block', width: markerHang, textIndent: 0, marginRight: 0 } : undefined}>{label}</span> : null}
 
-      {runs.length ? runs.map((run, i) => <RunSpan key={i} run={run} />) : whole || !last || !hasMedia ? <br /> : null}
+      {/*
+        A paragraph with no words needs a line to have a height and to hold
+        the caret — unless pictures under the words give it both: a line
+        break there put an empty line above every inserted picture.
+      */}
+      {runs.length ? runs.map((run, i) => <RunSpan key={i} run={run} />) : drawsUnder ? null : <br />}
       {/*
         Pictures, charts and shapes sit under the paragraph's text as blocks —
         the engine's own honest simplification of float layout. Not editable:
         the caret has no business inside a picture, and letting the browser
-        put it there is how an image gets deleted by a stray Backspace.
+        put it there is how an image gets deleted by a stray Backspace. Each
+        goes in the part whose range holds it.
       */}
-      {last ? (block.images || []).map((image, i) => (floatsBeside(image) ? null : picture(image, i))) : null}
-      {last ? (block.textBoxes || []).map((box, i) => (floatsBeside(box) ? null : <TextBox key={i} box={box} styles={styles} />)) : null}
+      {images.map((image, i) => (under[i] ? picture(image, i) : null))}
+      {boxesHere ? (block.textBoxes || []).map((box, i) => (floatsBeside(box) ? null : <TextBox key={i} box={box} styles={styles} />)) : null}
     </p>
   );
 }

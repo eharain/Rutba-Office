@@ -54,8 +54,12 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   the same story. (Pages themselves arrived on screen on 2026-09-10: the
   flow is laid onto sheets by measuring the drawn page, paragraphs split at
   a line and tables at a row, and a manual page break heads a fresh page.
-  Footnotes still sit at the end of the document on screen, and a block
-  taller than a page runs into the gap rather than being cut. Since
+  Footnotes still sit at the end of the document on screen. A paragraph
+  splits at a line, a table at a row and, since 2026-09-20, a paragraph of
+  pictures between its picture lines — on screen a paragraph of only
+  pictures lays them side by side as Word does, while print still stacks
+  them one under another; a single line, row, picture or text box taller
+  than a page still runs into the gap rather than being cut. Since
   2026-09-14 the ruler moves a paragraph's four indents, its tab stops,
   the page margins and a table's columns by hand, and grips on a table's
   borders move its columns and rows, and the print paginator lays a

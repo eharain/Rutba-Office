@@ -205,19 +205,42 @@ function splitParagraph(it, placedY, delta, lim, first) {
   const elTop = it.el.getBoundingClientRect().top;
   let f = lines.findIndex((l) => placedY(l.bottom) + delta > lim + 0.5);
   if (f <= 0) return null;
-  if (lines.length - f === 1) f -= 1;
+  // Never leave one line alone on the next page: the split moves up a line —
+  // unless the paragraph heads its page (or is taller than one) and moving it
+  // up would leave nothing here, where the alternative is running over the
+  // page's edge. A sheet of two picture lines that heads the page splits
+  // between them.
+  if (lines.length - f === 1 && (f > 1 || !first)) f -= 1;
   // Two lines on each side — unless the paragraph already heads the page,
   // where the alternative is overflowing it.
   if (f < 2 && !first) return null;
   if (f < 1) return null;
+  const offset = offsetAtLine(it, lines[f].top);
+  if (offset === null || offset <= it.from) return null;
+  return { offset, partHeight: Math.max(0, lines[f].top - elTop) };
+}
+
+/**
+ * The block offset at which the line whose top is `lineTop` begins. A line of
+ * words starts at its first character. A line past the last character is a
+ * picture drawn under the words: the pictures continue the paragraph's
+ * address space after its text — the text's length plus the picture's index,
+ * which the part carries as `data-length` and each picture as `data-image` —
+ * so a split there sends that picture and the ones after it over, and the
+ * ones before it stay. A text box under the words comes after every picture
+ * (`data-tail`). Null when there is nothing to move.
+ */
+function offsetAtLine(it, lineTop) {
   const text = textNodesOf(it.el);
-  const local = lineStart(text, lines[f].top);
-  if (local <= 0) return null;
-  // A "line" past the last character is a picture or a text box under the
-  // words: the words stay, the picture goes over. Anything else at the end
-  // means the measurement found nothing to move.
-  if (local >= text.total && !it.el.querySelector('.wd-image, .wd-textbox')) return null;
-  return { offset: it.from + local, partHeight: Math.max(0, lines[f].top - elTop) };
+  const local = lineStart(text, lineTop);
+  if (local < text.total) return it.from + local;
+  const length = Number(it.el.dataset.length);
+  if (!Number.isFinite(length)) return null;
+  const pictures = [...it.el.querySelectorAll(':scope > .wd-image:not(.wd-float)')];
+  const k = pictures.findIndex((img) => img.getBoundingClientRect().top >= lineTop - 1);
+  if (k >= 0) return length + Number(pictures[k].dataset.image);
+  if (it.el.querySelector(':scope > .wd-textbox')) return Number(it.el.dataset.tail);
+  return null;
 }
 
 /** The row at which a table that crosses the page's bottom should break, if any. */
@@ -250,10 +273,9 @@ function pullBack(it, next, room) {
     if (c === 0) return null;
     if (c === lines.length) return -1;
     if (lines.length - c < 2) return null;
-    const text = textNodesOf(next.el);
-    const local = lineStart(text, lines[c].top);
-    if (local <= 0 || local >= text.total) return null;
-    return next.from + local;
+    const offset = offsetAtLine(next, lines[c].top);
+    if (offset === null || offset <= next.from) return null;
+    return offset;
   }
   const rows = [...(next.el.tBodies[0]?.rows || [])];
   const tableTop = next.el.getBoundingClientRect().top;
@@ -342,8 +364,11 @@ export function layPages(page, geo, state) {
     let delta = 0;
     const placedY = (y) => y - pageRect.top - it.oldDelta + shift;
     const bottomAt = (d) => natTop + d + it.height;
+    // A paragraph taller than a page's inside has to split somewhere: the
+    // widow and orphan rules that would move it whole are waived for it.
+    const tall = it.kind === 'p' && it.height > geo.H - geo.top - geo.bottom;
     const trySplit = (d, heads) =>
-      it.kind === 'p' && !it.keepLines ? splitParagraph(it, placedY, d, limit(n), heads)
+      it.kind === 'p' && !it.keepLines ? splitParagraph(it, placedY, d, limit(n), heads || tall)
         : it.kind === 't' ? splitTable(it, natTop + d, limit(n))
           : null;
 

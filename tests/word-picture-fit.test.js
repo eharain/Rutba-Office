@@ -9,7 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { buildDocx } from '@rutba/ooxml';
-import { gradientPng } from '../apps/desktop/main/sample-picture.js';
+import { gradientPng, joinPictureParagraphs } from '../apps/desktop/main/sample-picture.js';
 
 test('a picture taller than the page prints to fit it, proportions kept; one that fits is left alone', () => {
   const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'A letter' }, { text: 'With a scan.' }, { text: 'And a photograph.' }, { text: 'After.' }] }));
@@ -35,5 +35,30 @@ test('a picture taller than the page prints to fit it, proportions kept; one tha
       const cost = f.images.reduce((t, i) => t + i.heightPx, 0);
       assert.ok(cost <= inside, 'no picture block is taller than the page');
     }
+  }
+});
+
+test('a paragraph of four pictures prints as many to a page as fit, whole, and the rest on the next', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Cards' }] }));
+  view.setSelection({ block: 0, offset: 0 });
+  for (let i = 0; i < 4; i++) {
+    view.insertImage({ name: `card ${i + 1}`, contentType: 'image/png', data: gradientPng(28, 40, [40, 120, 200], [230, 200, 60]), widthPx: 280, heightPx: 400 });
+  }
+  const joined = openDocx(joinPictureParagraphs(view.save()));
+  const blocks = joined.render({ pages: false }).blocks;
+  assert.equal(blocks.filter((b) => (b.images || []).length).length, 1, 'one paragraph holds the pictures');
+  assert.equal(blocks.find((b) => (b.images || []).length).images.length, 4);
+
+  const laid = joined.pages;
+  const inside = laid.contentHeightPx;
+  const perPage = laid.pages.map((p) => p.fragments.filter((f) => f.kind === 'images').flatMap((f) => f.images).length);
+  assert.equal(perPage.reduce((a, b) => a + b, 0), 4, 'every picture is placed once');
+  // The heading's line and two pictures with their gaps come to 838 px of the
+  // page's 930; a third would not fit, so two to a page.
+  assert.deepEqual(perPage, [2, 2], `two to a page: ${JSON.stringify(perPage)}`);
+  for (const page of laid.pages) {
+    const used = page.fragments.filter((f) => f.kind === 'images').flatMap((f) => f.images).reduce((t, i) => t + i.heightPx, 0);
+    assert.ok(used <= inside, 'no page holds more picture than fits');
+    for (const img of page.fragments.filter((f) => f.kind === 'images').flatMap((f) => f.images)) assert.equal(img.heightPx, 400, 'a picture that fits is not scaled');
   }
 });
