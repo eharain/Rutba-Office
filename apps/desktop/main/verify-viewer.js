@@ -295,6 +295,8 @@ export async function verifyViewer(h, { dir, wav }) {
     const steady = samples.every((s) => s.has && s.complete && s.panels === 1);
     check('viewer: moving on never shows an empty frame, and the details panel stays put', steady && moved === true, `${from} → ${to}; ${samples.filter((s) => !(s.has && s.complete)).length} empty of ${samples.length}, panels ${[...new Set(samples.map((s) => s.panels))].join('/')}`);
 
+    // The strip marks the active item a render after the picture changes; under load that render lands late, so it is waited for.
+    await until(() => js(`document.querySelectorAll('.pv-strip .pv-strip-item.active').length === 1`), 'the active strip item', 3000).catch(() => {});
     const strip = await js(`(() => { const s = document.querySelector('.pv-strip'); return s ? { drawn: Number(s.dataset.drawn), count: Number(s.dataset.count), items: s.querySelectorAll('.pv-strip-item').length, videos: s.querySelectorAll('video').length, active: s.querySelectorAll('.pv-strip-item.active').length } : null; })()`);
     check('viewer: the filmstrip is drawn only where it can be seen, and holds no live video', Boolean(strip) && strip.count > 300 && strip.drawn < 60 && strip.items === strip.drawn && strip.videos === 0 && strip.active === 1, JSON.stringify(strip));
 

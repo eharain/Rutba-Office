@@ -948,7 +948,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         wc.sendInputEvent({ type: 'mouseMove', x: at.x, y: at.y + dy, button: 'left' });
         await wait(40);
       }
-      const guide = await js(`Boolean(document.querySelector('.sh-fillguide'))`);
+      // The guide is drawn by a render the drag queued; under load it lands
+      // after the last move, so it is waited for, the button still down.
+      const guide = await until(() => js(`Boolean(document.querySelector('.sh-fillguide'))`), 'the fill guide', 2500).catch(() => false);
       wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y + 36, button: 'left', clickCount: 1 });
       const filled = await until(() => String(cell('B4')?.text || '') !== '', 'B4 to be filled', 5000).catch(() => false);
       const picked = (model().cells || []).filter((c) => c.selected).map((c) => c.ref).sort();
@@ -2486,6 +2488,18 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // lived — 1,088 px wider each time. Every open Worksheets window did it,
     // and the main process was never idle again.
     const gridSize = () => js(`(() => { const g = document.querySelector('.sh-grid'); return g ? { width: g.clientWidth, canvas: g.scrollWidth, window: window.innerWidth } : null; })()`);
+    // The engine's first frame can still be on its way when the headers show
+    // — later on a loaded machine — and it widens the canvas once, which is
+    // not the growth this guards against. Two reads 300 ms apart have to
+    // agree before the idle spell starts; a canvas that keeps growing never
+    // agrees and still fails below.
+    let before = await gridSize();
+    for (let i = 0; i < 12; i++) {
+      await wait(300);
+      const now = await gridSize();
+      if (now && before && now.canvas === before.canvas && now.width === before.width) break;
+      before = now;
+    }
     const settled1 = await gridSize();
     await wait(2500);
     const settled2 = await gridSize();
