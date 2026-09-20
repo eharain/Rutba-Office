@@ -544,6 +544,9 @@ export default function Word({ app, shell, boot }) {
   pagesRef.current = pages;
   const paged = (view.mode || 'print') === 'print' && Boolean(section);
   const geo = useMemo(() => geometryOf(section), [section]);
+  // The tallest a picture may be drawn on a page: the sheet's inside, less a
+  // little for the paragraph's own spacing.
+  const inner = paged && geo ? geo.H - geo.top - geo.bottom - 12 : null;
   const passes = useRef(0);
   const repaginate = useCallback(() => {
     const page = pageRef.current;
@@ -597,8 +600,20 @@ export default function Word({ app, shell, boot }) {
       raf = requestAnimationFrame(() => repaginateRef.current());
     });
     ro.observe(page);
+    // A picture's bytes arrive after the pass that placed its paragraph, and
+    // the picture grows where the pass left it — over the page's edge when
+    // the paragraph sat near the foot. Its load is a fresh start for the
+    // passes, whatever the observer saw meanwhile.
+    const loaded = (e) => {
+      if (!e.target?.classList?.contains('wd-image')) return;
+      passes.current = 0;
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => repaginateRef.current());
+    };
+    page.addEventListener('load', loaded, true);
     return () => {
       ro.disconnect();
+      page.removeEventListener('load', loaded, true);
       cancelAnimationFrame(raf);
     };
   }, [hasPage]);
@@ -1013,7 +1028,7 @@ export default function Word({ app, shell, boot }) {
                 item.table ? (
                   <TableGroup key={`t${item.table.id}`} table={item.table} labels={model.listLabels} styles={model.resolvedStyles} tsplit={pages.tableSplits[item.table.id] || null} />
                 ) : (
-                  <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} split={pages.splits[item.index] || null} pickedImage={picked?.block === item.index ? picked.image : null} />
+                  <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} split={pages.splits[item.index] || null} pickedImage={picked?.block === item.index ? picked.image : null} inner={inner} />
                 )
               )}
               {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{`Laying out… ${Math.round((mounted / flowItems.length) * 100)}%`}</div> : null}
@@ -1638,13 +1653,13 @@ function Notes({ notes, kind, styles, onEdit }) {
  * Memoised, and the split array keeps its identity while it is unchanged,
  * so a keystroke re-renders the one paragraph it touched.
  */
-const Block = React.memo(function Block({ block, labels, styles, split, pickedImage = null }) {
-  if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last pickedImage={pickedImage} />;
+const Block = React.memo(function Block({ block, labels, styles, split, pickedImage = null, inner = null }) {
+  if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last pickedImage={pickedImage} inner={inner} />;
   const bounds = [0, ...split, Infinity];
   return (
     <>
       {bounds.slice(0, -1).map((from, j) => (
-        <Part key={j} block={block} labels={labels} styles={styles} from={from} to={bounds[j + 1]} first={j === 0} last={j === bounds.length - 2} pickedImage={pickedImage} />
+        <Part key={j} block={block} labels={labels} styles={styles} from={from} to={bounds[j + 1]} first={j === 0} last={j === bounds.length - 2} pickedImage={pickedImage} inner={inner} />
       ))}
     </>
   );
@@ -1669,8 +1684,16 @@ const floatSide = (d) => (d.hAlign === 'right' || d.hAlign === 'outside' ? 'righ
  * the column; a floating picture keeps the distances the file gives it from
  * the words, with Word's own quarter-inch-ish defaults where it gives none.
  */
-function imageStyle(image) {
-  const base = { width: image.widthPx ? Math.min(image.widthPx, 640) : undefined, height: 'auto', maxWidth: '100%' };
+function imageStyle(image, inner = null) {
+  let width = image.widthPx ? Math.min(image.widthPx, 640) : undefined;
+  // A picture taller than the page's inside is drawn to fit it, its
+  // proportions kept: a sheet cannot hold more, and a picture that ran
+  // over the edge was drawn across two sheets (owner, 2026-09-20).
+  if (width && inner && image.heightPx && image.widthPx) {
+    const height = image.heightPx * (width / image.widthPx);
+    if (height > inner) width = Math.max(16, Math.floor(width * (inner / height)));
+  }
+  const base = { width, height: 'auto', maxWidth: '100%' };
   const d = image.dist || {};
   if (!image.anchored) return { ...base, display: 'block', margin: '6px 0' };
   const side = image.hAlign === 'center' ? 'center' : floatSide(image);
@@ -1766,7 +1789,7 @@ function PictureHandles({ page, picked, model, pages, onResize, onDrag }) {
 /** The paragraphs a paginator keeps with what follows, by convention as much as by w:keepNext. */
 const KEEP_WITH_NEXT = /^(Heading[1-6]|Title|Subtitle)$/;
 
-function Part({ block, labels, styles, from, to, first, last, pickedImage = null }) {
+function Part({ block, labels, styles, from, to, first, last, pickedImage = null, inner = null }) {
   const ref = React.useRef(null);
   const whole = first && last;
   const pick = (e, i) => {
@@ -1782,7 +1805,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
       alt={image.name || ''}
       draggable={false}
       onClick={(e) => pick(e, i)}
-      style={imageStyle(image)}
+      style={imageStyle(image, inner)}
     />
   );
   const runs = whole ? block.runs || [] : sliceRuns(block.runs, from, to);

@@ -486,7 +486,10 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     const images = (block.images ?? []).filter((img) => img.href && !floatsBeside(img));
     if (images.length) {
       const drawn = images.map((img) => {
-        const scale = Math.min(1, width / Math.max(1, img.widthPx));
+        // To the page's width, and to its height: a picture taller than
+        // the page's inside is drawn to fit it, its proportions kept — the
+        // screen does the same, and a sheet cannot hold more.
+        const scale = Math.min(1, width / Math.max(1, img.widthPx), (height - IMAGE_GAP) / Math.max(1, img.heightPx));
         const hAlign = img.anchored && img.hAlign === 'center' ? 'center' : img.anchored && (img.hAlign === 'right' || img.hAlign === 'outside') ? 'right' : 'left';
         return { ...img, widthPx: img.widthPx * scale, heightPx: img.heightPx * scale, hAlign };
       });

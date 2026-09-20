@@ -18,6 +18,7 @@ import path from 'node:path';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
+import { gradientPng } from './sample-picture.js';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { verifyViewer } from './verify-viewer.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
@@ -257,6 +258,22 @@ function makeFixtures(dir) {
     fs.writeFileSync(at('float.docx'), view.save());
   }
 
+  // A picture whose paragraph lands at the foot of a page, and one taller
+  // than a page — a scanned card in a letter (owner, 2026-09-20: "word image
+  // across two pages").
+  {
+    const view = openDocx(buildDocx({ styles: true, paragraphs: [
+      { text: 'Pictures at the foot', style: 'Heading1' },
+      ...Array.from({ length: 26 }, (_, i) => ({ text: `Line ${i + 1} of the letter, short enough to stay on one line.` })),
+      { text: 'After the pictures.' },
+    ] }));
+    view.setSelection({ block: 26, offset: 0 });
+    view.insertImage({ name: 'card', contentType: 'image/png', data: gradientPng(200, 300, [60, 160, 90], [200, 50, 50]), widthPx: 400, heightPx: 600 });
+    view.setSelection({ block: 28, offset: 0 });
+    view.insertImage({ name: 'scan', contentType: 'image/png', data: gradientPng(300, 700, [50, 90, 200], [250, 200, 60]), widthPx: 600, heightPx: 1400 });
+    fs.writeFileSync(at('fit.docx'), view.save());
+  }
+
   // A paragraph with a first-line indent, one with two tab stops, and a
   // table of three fixed columns — what the ruler and the grips move.
   {
@@ -287,6 +304,7 @@ function makeFixtures(dir) {
     long: at('long.docx'),
     float: fs.existsSync(at('float.docx')) ? at('float.docx') : null,
     ruler: at('ruler.docx'),
+    fit: at('fit.docx'),
     xlsx: at('sales.xlsx'),
     notes: at('notes.xlsx'),
     pptx: at('deck.pptx'),
@@ -972,6 +990,36 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Rutba Word: a picture at the foot of a page ──────────────────────── */
+  //
+  // A picture whose paragraph sits near a page's foot goes whole to the
+  // next page, and one taller than a page is drawn to fit it: neither is
+  // cut by a sheet's edge, whenever its bytes arrive.
+  const wordPictureFits = async () => {
+    try {
+      const win = await open('word', files.fit);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`document.querySelectorAll('.wd-image').length === 2 && [...document.querySelectorAll('.wd-image')].every((i) => i.complete && i.naturalHeight > 0)`), 'both pictures', 10000);
+      await wait(900);
+      const seen = await js(`(() => {
+        const sheets = [...document.querySelectorAll('.wd-sheet')].map((s) => s.getBoundingClientRect());
+        const on = (r) => sheets.findIndex((s) => r.top >= s.top - 1 && r.bottom <= s.bottom + 1);
+        const pictures = [...document.querySelectorAll('.wd-image')].map((img) => { const r = img.getBoundingClientRect(); return { sheet: on(r), top: Math.round(r.top), bottom: Math.round(r.bottom), width: Math.round(r.width), height: Math.round(r.height) }; });
+        return { pictures, sheets: sheets.length, sheetHeight: Math.round(sheets[0]?.height || 0) };
+      })()`);
+      const [card, scan] = seen.pictures;
+      check('word: a picture at the foot of a page goes whole to the next, and one taller than a page is drawn to fit it — neither crosses a sheet\'s edge',
+        Boolean(card && scan) && card.sheet >= 0 && scan.sheet >= 0 && card.height >= 590 && card.width >= 390 && scan.height < seen.sheetHeight - 150 && scan.height > 700 && scan.width < 500,
+        JSON.stringify(seen));
+      await wait(300);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-fit.png'), (await win.webContents.capturePage()).toPNG());
+      const complaints = await errorsIn(win);
+      check('word: the pictures at the foot report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('word: the picture-fit check ran', false, err.message);
+    }
+  };
+
   /* ── Rutba Word: the ruler and the grips on a table ───────────────────── */
   //
   // The ruler's markers and the grips on a table's borders are dragged with
@@ -1331,7 +1379,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,fit: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -1346,6 +1394,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('update')) await updatePrompt();
     if (only.includes('home')) await launcherRecent();
     if (only.includes('freeze')) await sheetFreeze();
+    if (only.includes('fit')) await wordPictureFits();
     if (only.includes('viewer')) await viewer();
     if (only.includes('links')) await sheetLinks();
     return done();
@@ -1436,6 +1485,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slideShapes();
   await sheetFill();
   await wordPictures();
+  await wordPictureFits();
   await wordRuler();
   await updatePrompt();
   await launcherRecent();
