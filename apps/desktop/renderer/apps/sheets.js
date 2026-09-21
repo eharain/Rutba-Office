@@ -17,7 +17,7 @@ import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS } from './sheets/ribbon.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import {
-  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, LinkDialog, NoteDialog, parseRef,
+  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, LinkDialog, NoteDialog, HeaderFooterDialog, parseRef,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -861,6 +861,11 @@ export default function Sheets({ app, shell, boot }) {
           said = next.repeatRows ? `Rows 1 to ${next.repeatRows} repeat at the top of every page` : 'No rows repeat';
           if (arg.repeatRows === 'selection' && !next.repeatRows) said = 'Select rows from row 1 to repeat them';
         }
+        if (arg.header !== undefined || arg.footer !== undefined) {
+          next.header = arg.header || null;
+          next.footer = arg.footer || null;
+          said = next.header || next.footer ? 'Header and footer saved with the file' : 'No header or footer';
+        }
         if (arg.breaks) {
           // Excel's Breaks: a break goes above the cell's row and left of its
           // column (only one of them at the sheet's edge), comes off at the
@@ -980,6 +985,7 @@ export default function Sheets({ app, shell, boot }) {
         return;
       case 'link': setDialog('link'); return;
       case 'note': setDialog('note'); return;
+      case 'headerFooter': setDialog('headerFooter'); return;
       case 'removeNote': await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); return;
       // Format as Table: over the selection, or the block of data round the cell.
       case 'table': await dispatch({ op: 'formatAsTable', style: arg?.style, stripes: arg?.stripes !== false }); return;
@@ -1311,6 +1317,13 @@ export default function Sheets({ app, shell, boot }) {
           onClose={() => setDialog(null)}
           onRemove={async () => { setDialog(null); await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); }}
           onSet={async (note) => { setDialog(null); await dispatch({ op: 'setNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0, ...note }); }}
+        />
+      ) : null}
+      {dialog === 'headerFooter' ? (
+        <HeaderFooterDialog
+          current={view.page}
+          onClose={() => setDialog(null)}
+          onSet={async (hf) => { setDialog(null); await act('page', hf); }}
         />
       ) : null}
       {dialog === 'function' ? (

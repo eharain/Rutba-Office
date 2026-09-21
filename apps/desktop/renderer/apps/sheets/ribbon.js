@@ -379,7 +379,7 @@ export default function SheetsRibbon({
           </Group>
           <Group label="Text">
             <Button tall icon="textbox" label="Text Box" title="A rectangle with words in it" onClick={() => act('textBox')} />
-            <Soon icon="file" label="Header & Footer" why="Page headers and footers are print settings the engine does not write yet." />
+            <Button icon="file" label="Header & Footer" title="Header & Footer — what prints at the top and the foot of every page" onClick={() => act('headerFooter')} />
             <Soon icon="wand" label="WordArt" why="WordArt is DrawingML text effects the engine does not write." />
           </Group>
           <Group label="Symbols">

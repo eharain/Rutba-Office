@@ -180,6 +180,12 @@ export async function verifySheetLinks(h, { file }) {
       await press(win.webContents, 'Right', { modifiers: ['shift'] });
       await until(async () => (await selectedCells()) >= 4, 'the selection to reach C3', 1200).catch(() => {});
     }
+    if ((await selectedCells()) < 4) {
+      // The keys went astray (the focus was elsewhere): a Shift+click on C3
+      // extends the selection the same way a person's would.
+      await js(`(() => { document.querySelector('.sh-cell[data-ref="C3"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, shiftKey: true })); return 1; })()`);
+      await until(async () => (await selectedCells()) >= 4, 'the selection to reach C3 by Shift+click', 2000).catch(() => {});
+    }
     await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Page Layout')?.click(), 'tab'`);
     await wait(200);
     const areaRead = `(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); const s = await window.rutbaOffice.doc.pageSetup({ id: mine.id }); return s.area || ''; })()`;
@@ -280,6 +286,29 @@ export async function verifySheetLinks(h, { file }) {
     check('sheets: the saved file keeps the page break as Excel does — rowBreaks with one brk, man="1"',
       readPageSetup(withBreak, 'Sales').rowBreaks.join(',') === '2' && breakXml.includes('<rowBreaks count="1" manualBreakCount="1"><brk id="2" max="16383" man="1"/></rowBreaks>'),
       JSON.stringify(readPageSetup(withBreak, 'Sales').rowBreaks));
+
+    // Insert → Header & Footer: what prints at the top and the foot of every
+    // page, written as Excel keeps them.
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+    await wait(200);
+    const clickedHf = await clickIn(win, 'Header & Footer');
+    await until(() => js(`Boolean(document.querySelector('.sh-hf-ok'))`), 'the header and footer dialog', 4000).catch(() => {});
+    const typed = await js(`(() => {
+      const set = (sel, value) => { const el = document.querySelector(sel); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, value); el.dispatchEvent(new Event('input', { bubbles: true })); return true; };
+      return set('.sh-hf-header', 'Sales report') && set('.sh-hf-footer', 'Page &P of &N');
+    })()`);
+    await js(`(() => { document.querySelector('.sh-hf-ok')?.click(); return 1; })()`);
+    const hfRead = `(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); const s = await window.rutbaOffice.doc.pageSetup({ id: mine.id }); return JSON.stringify([s.header, s.footer]); })()`;
+    const hfSet = await until(async () => (await js(hfRead)) === '["Sales report","Page &P of &N"]', 'the header and footer', 5000).catch(() => false);
+    check('sheets: Insert → Header & Footer takes what prints at the top and the foot of every page',
+      clickedHf === 'clicked' && typed === true && hfSet === true, `${clickedHf}; typed ${typed}; ${await js(hfRead)}`);
+    await clickIn(win, 'Save');
+    await until(() => { try { return readPageSetup(SheetView.open(fs.readFileSync(file)), 'Sales').header === 'Sales report'; } catch { return false; } }, 'the header to land in the file', 8000).catch(() => false);
+    const withHf = SheetView.open(fs.readFileSync(file));
+    const hfXml = withHf.pkg.text(withHf.workbook.partNameFor('Sales'));
+    check('sheets: the saved file keeps the header and the footer as Excel does — oddHeader and oddFooter, before the page breaks',
+      readPageSetup(withHf, 'Sales').footer === 'Page &P of &N' && hfXml.includes('<headerFooter><oddHeader>Sales report</oddHeader><oddFooter>Page &amp;P of &amp;N</oddFooter></headerFooter><rowBreaks'),
+      JSON.stringify([readPageSetup(withHf, 'Sales').header, readPageSetup(withHf, 'Sales').footer]));
 
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

@@ -209,6 +209,14 @@ const esc = (s) =>
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
 
+/** The way back from `esc`, for text read out of the file. */
+const unescapeXml = (s) => String(s ?? '')
+  .replace(/&lt;/g, '<')
+  .replace(/&gt;/g, '>')
+  .replace(/&quot;/g, '"')
+  .replace(/&apos;/g, "'")
+  .replace(/&amp;/g, '&');
+
 /** A cell's appearance as inline CSS — the same properties the grid paints. */
 function cellCss(cell, setup) {
   const css = [];
@@ -253,6 +261,22 @@ function fields(text, { page, pages, sheet, file, date }) {
     .replace(/&amp;F/g, esc(file || ''))
     .replace(/&amp;D/g, esc(date.toLocaleDateString()))
     .replace(/&amp;T/g, esc(date.toLocaleTimeString()));
+}
+
+/**
+ * A header or footer line. Excel's &L, &C and &R start its left, centre and
+ * right parts; a line without them is one centred piece.
+ */
+function running(text, context) {
+  const s = String(text ?? '');
+  if (!/&[LCR]/.test(s)) return fields(s, context);
+  const parts = { L: '', C: '', R: '' };
+  let which = 'C';
+  for (const piece of s.split(/(&[LCR])/)) {
+    if (piece === '&L' || piece === '&C' || piece === '&R') which = piece[1];
+    else parts[which] += piece;
+  }
+  return ['L', 'C', 'R'].map((k) => `<span class="part ${k.toLowerCase()}">${fields(parts[k], context)}</span>`).join('');
 }
 
 const COLUMN_NAME = (index) => {
@@ -333,9 +357,9 @@ export function printHtml(view, options = {}) {
       const context = { page: pageNumber, pages: totalPages, sheet: name, file, date };
       sections.push(
         `<section class="page${setup.centre.horizontal ? ' centre-h' : ''}${setup.centre.vertical ? ' centre-v' : ''}">` +
-          (setup.header ? `<div class="running head">${fields(setup.header, context)}</div>` : '') +
+          (setup.header ? `<div class="running head">${running(setup.header, context)}</div>` : '') +
           `<div class="grid"><table><colgroup>${setup.headings ? '<col style="width:34px">' : ''}${widths}</colgroup>${headings}${body}</table></div>` +
-          (setup.footer ? `<div class="running foot">${fields(setup.footer, context)}</div>` : '') +
+          (setup.footer ? `<div class="running foot">${running(setup.footer, context)}</div>` : '') +
           '</section>'
       );
     }
@@ -361,8 +385,12 @@ export function printHtml(view, options = {}) {
   td, th { padding: 0 3px; overflow: hidden; text-overflow: clip; vertical-align: bottom; font-weight: inherit; }
   .ch th, th.rh { background: #f2f2f2; border: 1px solid #b7b7b7; font: 9pt Calibri, Arial, sans-serif; text-align: center; color: #333; }
   .running { font: 9pt Calibri, Arial, sans-serif; color: #444; padding: 2px 0; }
-  .running.head { border-bottom: 0; }
+  .running.head { border-bottom: 0; text-align: center; }
   .running.foot { margin-top: auto; text-align: center; }
+  .running:has(.part) { display: flex; }
+  .running .part { flex: 1; text-align: left; }
+  .running .part.c { text-align: center; }
+  .running .part.r { text-align: right; }
 </style>
 ${sections.join('\n')}
 `;
@@ -434,6 +462,20 @@ export function readPageSetup(view, sheetName = view.activeSheet) {
   setup.rowBreaks = breaksIn('rowBreaks');
   setup.colBreaks = breaksIn('colBreaks');
 
+  // The running header and footer as Excel keeps them: oddHeader and
+  // oddFooter inside headerFooter, &L, &C and &R for the three parts. A file
+  // with the element says what it prints, foot included; one without keeps
+  // the defaults — no header, "&P of &N" at the foot.
+  const hf = part.tailElement('headerFooter');
+  if (hf) {
+    const textOf = (tag) => {
+      const m = new RegExp('<' + tag + '[^>]*>([^<]*)</' + tag + '>').exec(hf);
+      return m ? unescapeXml(m[1]) : null;
+    };
+    setup.header = textOf('oddHeader');
+    setup.footer = textOf('oddFooter');
+  }
+
   // The two names, scoped to this sheet by its index in the tab order.
   const index = view.workbook.sheetNames().indexOf(sheetName);
   for (const name of view.workbook.definedNames()) {
@@ -492,6 +534,11 @@ export function writePageSetup(view, sheetName, options = {}) {
   };
   part.setTailElement('rowBreaks', breaksXml('rowBreaks', setup.rowBreaks, 16383));
   part.setTailElement('colBreaks', breaksXml('colBreaks', setup.colBreaks, 1048575));
+
+  // The header and footer as Excel keeps them, so Excel prints what this prints.
+  part.setTailElement('headerFooter', setup.header || setup.footer
+    ? `<headerFooter>${setup.header ? `<oddHeader>${esc(setup.header)}</oddHeader>` : ''}${setup.footer ? `<oddFooter>${esc(setup.footer)}</oddFooter>` : ''}</headerFooter>`
+    : null);
 
   // fitToPage lives on the sheet's properties, before the data, and Excel
   // ignores fitToWidth without it.

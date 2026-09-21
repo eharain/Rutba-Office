@@ -504,6 +504,45 @@ export function NoteDialog({ current = null, cellRef = '', onClose, onSet, onRem
   );
 }
 
+/**
+ * Insert → Header & Footer: what prints at the top and the foot of every
+ * page, with Excel's codes — &P page, &N pages, &A sheet, &F file, &D date,
+ * &T time — and &L, &C, &R starting the left, centre and right parts.
+ */
+export function HeaderFooterDialog({ current = null, onClose, onSet }) {
+  const [header, setHeader] = useState(current?.header || '');
+  const [footer, setFooter] = useState(current?.footer ?? '');
+  const submit = () => onSet({ header: header.trim(), footer: footer.trim() });
+  const picks = [['Page &P of &N', 'Page &P of &N'], ['Sheet name', '&A'], ['File name', '&F'], ['Date', '&D'], ['Left, centre, right', '&L&F&C&A&R&D']];
+  return (
+    <Dialog
+      title="Header and footer"
+      width={480}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="Set" className="sh-hf-ok" onClick={submit} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="Header" hint={'Printed at the top of every page. Codes: &P page, &N pages, &A sheet, &F file, &D date, &T time; &L, &C and &R start the left, centre and right parts.'}>
+          <Input className="sh-hf-header" value={header} onChange={(e) => setHeader(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} placeholder="Nothing at the top" autoFocus />
+        </Field>
+        <Field label="Footer" hint={'Printed at the foot of every page; empty prints nothing there.'}>
+          <Input className="sh-hf-footer" value={footer} onChange={(e) => setFooter(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} placeholder="Nothing at the foot" />
+        </Field>
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+          {picks.map(([label, code]) => (
+            <Button key={code} label={label} title={`Put ${code} in the footer`} onClick={() => setFooter((f) => (f ? f + ' ' : '') + code)} />
+          ))}
+        </div>
+      </div>
+    </Dialog>
+  );
+}
+
 /** Insert Function: Excel's categories, a pick starts `=NAME(` in the active cell. */
 export function FunctionDialog({ onClose, onPick, catalogue }) {
   const categories = Object.keys(catalogue);

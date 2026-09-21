@@ -186,3 +186,24 @@ test('a manual page break starts a page there, and is kept as Excel keeps it', (
   assert.deepEqual(readPageSetup(reset, 'Report').rowBreaks, [], 'reset takes the element away');
   assert.ok(!reset.pkg.text(reset.workbook._sheetPart('Report').sheet.part).includes('<rowBreaks'));
 });
+
+test('a header and footer are kept as Excel keeps them, and the parts print left, centre and right', () => {
+  const view = new SheetView(BOOK);
+  assert.equal(readPageSetup(view, 'Report').footer, '&P of &N', 'a file without a headerFooter keeps the default foot');
+
+  writePageSetup(view, 'Report', { header: '&L&F&C&A&R&D', footer: 'Page &P of &N' });
+  const back = new SheetView(view.save());
+  const read = readPageSetup(back, 'Report');
+  assert.equal(read.header, '&L&F&C&A&R&D');
+  assert.equal(read.footer, 'Page &P of &N');
+  const sheetXml = back.pkg.text(back.workbook._sheetPart('Report').sheet.part);
+  assert.ok(sheetXml.includes('<headerFooter><oddHeader>&amp;L&amp;F&amp;C&amp;A&amp;R&amp;D</oddHeader><oddFooter>Page &amp;P of &amp;N</oddFooter></headerFooter>'), 'as Excel writes them');
+  assert.ok(sheetXml.indexOf('<pageSetup') < sheetXml.indexOf('<headerFooter'), 'after pageSetup, in schema order');
+
+  const html = printHtml(back, read);
+  assert.ok(html.includes('class="part l"') && html.includes('class="part c">Report<') && html.includes('class="part r"'), 'three parts, the sheet name in the centre');
+  assert.ok(html.includes('Page 1 of '), 'the footer counts the pages');
+
+  writePageSetup(view, 'Report', { header: 'Only a head', footer: null });
+  assert.equal(readPageSetup(new SheetView(view.save()), 'Report').footer, null, 'a headerFooter without a foot prints none');
+});
