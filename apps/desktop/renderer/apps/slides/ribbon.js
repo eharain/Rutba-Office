@@ -43,7 +43,7 @@ const ANIMATION_WHY = 'Animations are preserved in the file when the deck has th
 
 export default function SlidesRibbon({
   tab, setTab, model, doc, commands, shell, menu, save, openFile, exportAs,
-  act, view = {}, index = 0, selected = null, format = {}, canPaste = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
+  act, view = {}, index = 0, selected = null, format = {}, canPaste = false, painter = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
 
 }) {
   const count = model?.count || 0;
@@ -92,7 +92,14 @@ export default function SlidesRibbon({
                 <Button icon="cut" label="Cut" title={needShape || 'Cut the shape (Ctrl+X)'} disabled={!hasShape} onClick={() => act('cutShape')} />
                 <Button icon="copy" label="Copy" title={needShape || 'Copy the shape (Ctrl+C)'} disabled={!hasShape} onClick={() => act('copyShape')} />
               </>
-              <Soon icon="wand" label="Format Painter" why="Comes with shape formatting." />
+              <Button
+                icon="wand"
+                label="Format Painter"
+                pressed={painter}
+                disabled={!hasShape && !painter}
+                title={painter ? 'Format Painter — armed: click a shape to give it this look; Esc puts it down' : (needShape || 'Format Painter — this shape’s fill, outline and font onto the next shape you click')}
+                onClick={() => act('painter')}
+              />
             </Rows>
           </Group>
           <Group label="Slides">

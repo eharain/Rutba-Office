@@ -32,6 +32,8 @@ export default function Slides({ app, shell, boot }) {
   const [editing, setEditing] = useState(null);
   /** The shape clipboard: one shape, copied in this window, pasted on any slide of it. */
   const [clip, setClip] = useState(null);
+  /** The Format Painter, armed with a shape's look: its fill, its outline and its first run's font. */
+  const [painter, setPainter] = useState(null);
   const [present, setPresent] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [blank, setBlank] = useState(false);
@@ -289,6 +291,31 @@ export default function Slides({ app, shell, boot }) {
 
   useFileDrop(useCallback((files) => files.forEach((f) => openInApp(shell, f, 'slides')), [shell]));
 
+  /**
+   * The Format Painter's second click: the armed look onto this shape — the
+   * fill and outline into its own properties, the font onto every run of
+   * its words — and the painter is put down, as PowerPoint's is after one.
+   */
+  const paintShape = useCallback(
+    async (target) => {
+      if (!painter) return;
+      setPainter(null);
+      if (!target || target.id === painter.from) return;
+      const fill = painter.fill?.type === 'none' ? 'none' : painter.fill?.color ? painter.fill.color : null;
+      const line = painter.line?.type === 'none' ? 'none' : painter.line?.color ? { color: painter.line.color, width: painter.line.width ?? 1, dash: painter.line.dash || null } : null;
+      if (fill || line) await apply({ op: 'setShapeStyle', slide: index, shape: target.id, fill, line });
+      if (painter.run && target.text) {
+        const paragraphs = (target.text.paragraphs || []).map((p) => {
+          const { runs, plain, ...props } = p;
+          return { ...props, runs: (runs || []).map((r) => ({ ...r, ...painter.run, text: r.text })) };
+        });
+        await apply({ op: 'setText', slide: index, shape: target.id, paragraphs });
+      }
+      toast('Painted.', { ms: 1500 });
+    },
+    [apply, index, painter],
+  );
+
   const commitText = useCallback(
     async (shapeId, text) => {
       // Each line keeps the paragraph it replaces — its level, bullet,
@@ -410,7 +437,7 @@ export default function Slides({ app, shell, boot }) {
   }, [present, model, shell]);
 
   // A new slide means a new selection: the shape ids belong to the slide.
-  useEffect(() => { setSelected(null); }, [index]);
+  useEffect(() => { setSelected(null); setPainter(null); }, [index]);
 
 
   const slide = model?.slide;
@@ -524,6 +551,15 @@ export default function Slides({ app, shell, boot }) {
         const next = await apply({ op: 'addShape', slide: index, preset: arg, x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h });
         const added = next?.model?.slide?.shapes?.slice(-1)[0];
         if (added) setSelected(added.id);
+        return;
+      }
+      case 'painter': {
+        if (painter) { setPainter(null); toast('Format Painter put down.', { ms: 2000 }); return; }
+        if (!selectedShape) return toast('Click a shape first.', { ms: 3000 });
+        const look = (selectedShape.text?.paragraphs || []).flatMap((p) => p.runs || []).find((r) => r.text && r.text !== '\n') || null;
+        const { text: _text, field: _field, break: _break, link: _link, ...runProps } = look || {};
+        setPainter({ from: selectedShape.id, fill: selectedShape.fill ?? null, line: selectedShape.line ?? null, run: look ? runProps : null });
+        toast('Format Painter: click a shape to give it this look. Esc puts it down.', { ms: 4000 });
         return;
       }
       case 'copyShape': {
@@ -680,6 +716,7 @@ export default function Slides({ app, shell, boot }) {
           selected={selected}
           format={format}
           canPaste={Boolean(clip)}
+          painter={Boolean(painter)}
           addSlide={addSlide}
           insertPicture={insertPicture}
           presentWithNotes={presentWithNotes}
@@ -743,7 +780,7 @@ export default function Slides({ app, shell, boot }) {
                 const nudge = { ArrowLeft: { dx: -step }, ArrowRight: { dx: step }, ArrowUp: { dy: -step }, ArrowDown: { dy: step } }[e.key];
                 if (nudge) { e.preventDefault(); act('nudge', nudge); }
                 else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); act('deleteShape'); }
-                else if (e.key === 'Escape') setSelected(null);
+                else if (e.key === 'Escape') { if (painter) setPainter(null); else setSelected(null); }
               }}
             >
               {slide && view.mode === 'sorter' ? (
@@ -789,7 +826,7 @@ export default function Slides({ app, shell, boot }) {
                         data-shape={s.id}
                         style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
                         onMouseDown={(e) => startDrag(e, s, 'move')}
-                        onClick={() => setSelected(s.id)}
+                        onClick={() => { if (painter) paintShape(s); setSelected(s.id); }}
                         onDoubleClick={() => (s.text ? setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) : null)}
                         onContextMenu={(e) => menu.open(e, [
                           ...(s.text ? [{ label: 'Edit text', icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) }] : []),

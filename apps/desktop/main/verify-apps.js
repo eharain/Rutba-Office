@@ -1196,6 +1196,38 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await until(() => { try { return inFile().length === before + 1; } catch { return false; } }, 'the paste to land in the file', 8000).catch(() => false);
       const kept = inFile();
       check('slides: the saved file carries the pasted shape', kept.length === before + 1 && words(kept[kept.length - 1]) === words(source), `slide 2 in the file: ${kept.length} shape(s), last ${JSON.stringify(words(kept[kept.length - 1]))}`);
+      // Format Painter: the look of one shape onto another. The pasted box
+      // is given a fill and an outline first, through the service; the
+      // window fetches the slide again when it comes back to it.
+      await wait(300);
+      const painted = model(1).slide.shapes[model(1).slide.shapes.length - 1];
+      const title = model(1).slide.shapes.find((s) => s.id !== painted.id && s.text);
+      if (!title) {
+        check('slides: a second text shape to paint', false, 'slide 2 has no other text shape');
+      } else {
+        await doc.apply({ id: sessionFor('deck').id, ops: [{ op: 'setShapeStyle', slide: 1, shape: painted.id, fill: '#FF9900', line: { color: '#333333', width: 2 } }] });
+        await js(`(() => { document.querySelectorAll('.sl-thumb')[0]?.click(); return 1; })()`);
+        await wait(400);
+        await js(`(() => { document.querySelectorAll('.sl-thumb')[1]?.click(); return 1; })()`);
+        await until(() => js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('active')`), 'the second slide again', 4000).catch(() => {});
+        await wait(400);
+        await js(`(() => { document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.click(); return 1; })()`);
+        await wait(300);
+        const armed = await clickRibbon('Format Painter');
+        const pressed = await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Format Painter — armed')))`), 'the painter armed', 3000).catch(() => false);
+        await js(`(() => { document.querySelector('.sl-hit[data-shape="${title.id}"]')?.click(); return 1; })()`);
+        const took = await until(() => { const s = model(1).slide.shapes.find((x) => x.id === title.id); return String(s?.fill?.color || '').toUpperCase() === '#FF9900' && s?.line?.width === 2; }, 'the look painted', 5000).catch(() => false);
+        const after = model(1).slide.shapes.find((x) => x.id === title.id);
+        await wait(400);
+        if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-painter.png'), (await win.webContents.capturePage()).toPNG());
+        check('slides: Format Painter carries a shape’s fill and outline onto the next shape clicked', armed === 'clicked' && pressed === true && took === true, `${armed}; armed ${pressed}; fill ${JSON.stringify(after?.fill)} line ${JSON.stringify(after?.line)}`);
+        await wait(300);
+        await clickRibbon('Save');
+        const savedTitle = () => { try { return Deck.open(fs.readFileSync(files.pptx)).slide(1).shapes.find((x) => x.id === title.id) || null; } catch { return null; } };
+        await until(() => String(savedTitle()?.fill?.color || '').toUpperCase() === '#FF9900', 'the painted look in the file', 8000).catch(() => false);
+        const saved = savedTitle();
+        check('slides: the saved file keeps the painted fill and outline in the shape’s own properties', String(saved?.fill?.color || '').toUpperCase() === '#FF9900' && saved?.line?.width === 2, `${JSON.stringify(saved?.fill)} ${JSON.stringify(saved?.line)}`);
+      }
       const complaints = await errorsIn(win);
       check('slides: the clipboard checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {
