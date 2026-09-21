@@ -865,6 +865,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     // cannot be filtered are not missing features here — they were missing
     // buttons, which is the same thing to the person using it.
     setFormat: (v, a) => v.setFormat(a.delta || {}),
+    // The Data tab's tools: one column split on a delimiter; repeated rows removed.
+    textToColumns: (v, a) => { v.lastResult = v.textToColumns({ delimiter: a.delimiter }); return v; },
+    removeDuplicates: (v) => { v.lastResult = v.removeDuplicates(); return v; },
     freeze: (v, a) => v.freezePanes(a.rows ?? 0, a.cols ?? 0),
     // The page setup belongs to the workbook, not to a dialog that closes:
     // Excel keeps it in the sheet and in two defined names, and so does this,

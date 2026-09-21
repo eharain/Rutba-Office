@@ -1021,6 +1021,25 @@ export default function Sheets({ app, shell, boot }) {
         for (const [row, height] of rows) await dispatch({ op: 'rowHeight', row, height });
         return;
       }
+      case 'textToColumns': {
+        // The engine refuses more than one column; its message is the toast.
+        try {
+          await dispatch({ op: 'textToColumns', delimiter: arg || 'comma' });
+          toast('Split into the cells to the right', { tone: 'good' });
+        } catch (err) {
+          toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
+        }
+        return;
+      }
+      case 'removeDuplicates': {
+        const before = await shell.doc.model({ id: doc.id }).catch(() => null);
+        const filledBefore = (before?.cells || []).filter((c) => c.text !== '').length;
+        await dispatch({ op: 'removeDuplicates' });
+        const after = await shell.doc.model({ id: doc.id }).catch(() => null);
+        const filledAfter = (after?.cells || []).filter((c) => c.text !== '').length;
+        toast(filledAfter < filledBefore ? 'Duplicate rows removed; the rest closed up' : 'No duplicate rows in the selection', { tone: 'good' });
+        return;
+      }
       case 'printArea': {
         const current = await shell.doc.pageSetup({ id: doc.id });
         if (arg === 'clear') {

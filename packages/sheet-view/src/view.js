@@ -1691,6 +1691,93 @@ export class SheetView {
     return this;
   }
 
+  // ---- Data tools --------------------------------------------------------
+
+  /**
+   * Text to Columns: each cell of ONE selected column split on a delimiter,
+   * the pieces written into the cells to its right (overwriting what is
+   * there, as Excel warns and does). One undo step.
+   *
+   * @param {{ delimiter?: 'comma'|'tab'|'semicolon'|'space'|string }} [spec]
+   * @returns {{ rows: number, columns: number }} rows split and the widest split
+   */
+  textToColumns({ delimiter = 'comma' } = {}) {
+    const sep = { comma: ',', tab: '\t', semicolon: ';', space: ' ' }[delimiter] ?? String(delimiter || ',');
+    const r = this.selection.range;
+    if (r.left !== r.right) throw new Error('Text to Columns takes one column at a time: select the cells of one column');
+    const col = r.left;
+    const splits = [];
+    for (let row = r.top; row <= r.bottom; row++) {
+      const input = this.calc.getInput(this.activeSheet, row, col);
+      if (input == null || input === '' || String(input).startsWith('=')) continue;
+      const parts = sep === ' ' ? String(input).trim().split(/\s+/) : String(input).split(sep).map((s) => s.trim());
+      if (parts.length > 1) splits.push({ row, parts });
+    }
+    if (!splits.length) return { rows: 0, columns: 0 };
+    const widest = Math.max(...splits.map((s) => s.parts.length));
+    const cells = [];
+    for (const s of splits) for (let k = 0; k < widest; k++) cells.push({ row: s.row, col: col + k });
+    this._edit('textToColumns', null, cells, () => {
+      for (const s of splits) s.parts.forEach((piece, k) => this._setCell(s.row, col + k, piece));
+      this.selection.collapseTo(r.top, col);
+      this.selection.extendTo(r.bottom, col + widest - 1);
+      return this;
+    });
+    return { rows: splits.length, columns: widest };
+  }
+
+  /**
+   * Remove Duplicates: the selected range (or the block of data round the
+   * cell) loses every row that repeats an earlier one, cell for cell across
+   * its columns; the rows that stay close up from the top and the rest of
+   * the range is cleared, as Excel does it. A header row, when the block
+   * has one, is left alone. One undo step.
+   *
+   * @returns {{ removed: number, kept: number, range: string }}
+   */
+  removeDuplicates() {
+    const sel = this.selection.range;
+    const single = sel.top === sel.bottom && sel.left === sel.right;
+    const r = single ? this._currentRegion(sel.top, sel.left) : sel;
+    // A header is only inferred for the block found round the cell: rows a person selected by hand are all data.
+    const hasHeader = single && this._looksLikeHeader(r);
+    const firstData = r.top + (hasHeader ? 1 : 0);
+    const inputsOf = (row) => {
+      const out = [];
+      for (let c = r.left; c <= r.right; c++) out.push(this.calc.getInput(this.activeSheet, row, c) ?? '');
+      return out;
+    };
+    const seen = new Set();
+    const kept = [];
+    let removed = 0;
+    for (let row = firstData; row <= r.bottom; row++) {
+      const inputs = inputsOf(row);
+      // A row with nothing in it is neither kept nor a duplicate: it drops out when the rest close up.
+      if (inputs.every((v) => String(v).trim() === '')) continue;
+      const key = JSON.stringify(inputs.map((v) => String(v).trim().toLowerCase()));
+      if (seen.has(key)) { removed += 1; continue; }
+      seen.add(key);
+      kept.push(inputs);
+    }
+    const range = ref(r.top, r.left) + ':' + ref(r.bottom, r.right);
+    if (!removed) return { removed: 0, kept: kept.length, range };
+    const cells = [];
+    for (let row = firstData; row <= r.bottom; row++) for (let c = r.left; c <= r.right; c++) cells.push({ row, col: c });
+    this._edit('removeDuplicates', null, cells, () => {
+      for (let i = 0; i < r.bottom - firstData + 1; i++) {
+        const inputs = kept[i];
+        for (let c = r.left; c <= r.right; c++) {
+          const value = inputs ? inputs[c - r.left] : '';
+          this._setCell(firstData + i, c, value === '' ? null : value);
+        }
+      }
+      this.selection.collapseTo(r.top, r.left);
+      this.selection.extendTo(r.bottom, r.right);
+      return this;
+    });
+    return { removed, kept: kept.length, range };
+  }
+
   // ---- AutoSum -----------------------------------------------------------
 
   _isNumberAt(row, col) {

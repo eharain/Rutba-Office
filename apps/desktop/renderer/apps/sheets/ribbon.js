@@ -527,9 +527,9 @@ export default function SheetsRibbon({
             <Soon icon="filter" label="Advanced" why="Criteria ranges are not built." />
           </Group>
           <Group label="Data Tools">
-            <Soon tall icon="table" label="Text to Columns" why="Splitting a column on a delimiter is on the list; Paste already splits tabs and commas." />
+            <Button tall icon="table" label="Text to Columns" title="Text to Columns — split the selected column's cells on a delimiter into the cells to the right" onClick={(e) => menu.open(e, [['Comma', 'comma'], ['Tab', 'tab'], ['Semicolon', 'semicolon'], ['Space', 'space']].map(([label, delimiter]) => ({ label, run: () => act('textToColumns', delimiter) })))} />
             <Soon icon="wand" label="Flash Fill" why="Pattern completion is not built." />
-            <Soon icon="minus" label="Remove Duplicates" why="Needs the engine to read the whole selection, not the part on screen; on the list." />
+            <Button icon="minus" label="Remove Duplicates" title="Remove Duplicates — rows that repeat an earlier one in the selection, or the block round the cell, go" onClick={() => act('removeDuplicates')} />
             <Button icon="check" label="Data Validation" onClick={() => openDialog('validation')} />
             <Soon icon="sum" label="Consolidate" why="Consolidating ranges across sheets is not built." />
           </Group>

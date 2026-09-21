@@ -310,6 +310,42 @@ export async function verifySheetLinks(h, { file }) {
       readPageSetup(withHf, 'Sales').footer === 'Page &P of &N' && hfXml.includes('<headerFooter><oddHeader>Sales report</oddHeader><oddFooter>Page &amp;P of &amp;N</oddFooter></headerFooter><rowBreaks'),
       JSON.stringify([readPageSetup(withHf, 'Sales').header, readPageSetup(withHf, 'Sales').footer]));
 
+    // Data → Text to Columns and Remove Duplicates. The cells they work on
+    // are typed through the document ops (the grid shows them on the next
+    // frame), the tools are pressed on the Data tab, and the engine and the
+    // saved file are read back.
+    const sheetId = await js(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); return all.filter((s) => s.kind === 'sheet').pop().id; })()`);
+    const applyOps = (ops) => js(`window.rutbaOffice.doc.apply({ id: ${JSON.stringify(sheetId)}, ops: ${JSON.stringify(ops)} }).then(() => 'ok').catch((e) => 'error: ' + e.message)`);
+    const cellRead = (ref) => js(`(async () => { const m = await window.rutbaOffice.doc.model({ id: ${JSON.stringify(sheetId)} }); const c = (m.cells || []).find((x) => x.ref === ${JSON.stringify(ref)}); return c ? c.text : ''; })()`);
+    const typedSplit = await applyOps([{ op: 'select', row: 3, col: 3 }, { op: 'beginEdit', replace: true }, { op: 'updateDraft', text: 'a,b,c' }, { op: 'commitEdit', move: 'none' }]);
+    const typedDup = await applyOps([
+      { op: 'select', row: 4, col: 0 }, { op: 'beginEdit', replace: true }, { op: 'updateDraft', text: 'North' }, { op: 'commitEdit', move: 'right' },
+      { op: 'beginEdit', replace: true }, { op: 'updateDraft', text: '1420' }, { op: 'commitEdit', move: 'right' },
+      { op: 'beginEdit', replace: true }, { op: 'updateDraft', text: '1610' }, { op: 'commitEdit', move: 'none' },
+    ]);
+    await applyOps([{ op: 'select', row: 3, col: 3 }]);
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Data')?.click(), 'tab'`);
+    await wait(200);
+    const pickedSplit = await pickPage('Text to Columns', 'Comma');
+    const split = await until(async () => (await cellRead('E4')) === 'b' && (await cellRead('F4')) === 'c' && (await cellRead('D4')) === 'a', 'the pieces to the right', 5000).catch(() => false);
+    check('sheets: Data → Text to Columns splits the cell on the comma into the cells to the right',
+      typedSplit === 'ok' && pickedSplit === 'picked' && split === true, `typed ${typedSplit}; ${pickedSplit}; D4:F4 ${await cellRead('D4')} | ${await cellRead('E4')} | ${await cellRead('F4')}`);
+
+    await applyOps([{ op: 'select', row: 1, col: 0 }]);
+    await wait(200);
+    const dupBefore = await cellRead('A5');
+    const clickedDup = await clickIn(win, 'Remove Duplicates');
+    const dupGone = await until(async () => (await cellRead('A5')) === '' && (await cellRead('A2')) === 'North', 'the repeated row to go', 5000).catch(() => false);
+    check('sheets: Data → Remove Duplicates drops the row that repeats an earlier one in the block round the cell, and keeps the header',
+      typedDup === 'ok' && dupBefore === 'North' && clickedDup === 'clicked' && dupGone === true, `typed ${typedDup}; A5 was ${JSON.stringify(dupBefore)}; ${clickedDup}; A5 now ${JSON.stringify(await cellRead('A5'))}, A2 ${JSON.stringify(await cellRead('A2'))}`);
+
+    await clickIn(win, 'Save');
+    await until(() => { try { const v = SheetView.open(fs.readFileSync(file)); return v.displayValue(3, 4).text === 'b'; } catch { return false; } }, 'the split to land in the file', 8000).catch(() => false);
+    const afterTools = SheetView.open(fs.readFileSync(file));
+    check('sheets: the saved file carries the split cells and not the repeated row',
+      afterTools.displayValue(3, 3).text === 'a' && afterTools.displayValue(3, 5).text === 'c' && !afterTools.isFilled(4, 0),
+      `D4 ${afterTools.displayValue(3, 3).text}, F4 ${afterTools.displayValue(3, 5).text}, A5 filled ${afterTools.isFilled(4, 0)}`);
+
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
