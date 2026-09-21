@@ -951,6 +951,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setText: (d, a) => d.setText(a.slide, a.shape, a.paragraphs),
     setGeometry: (d, a) => d.setGeometry(a.slide, a.shape, a),
     removeShape: (d, a) => d.removeShape(a.slide, a.shape),
+    // A shape copied with shapeClip, put on a slide with a fresh id and its relationships.
+    pasteShape: (d, a) => d.pasteShape(a.slide, a.clip, a.geometry || null),
     addTextBox: (d, a) => d.addTextBox(a.slide, a),
     duplicateSlide: (d, a) => d.duplicateSlide(a.slide),
     removeSlide: (d, a) => d.removeSlide(a.slide),
@@ -1328,6 +1330,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
      */
 
     /** The page setup this file carries, which is where a print dialog starts. */
+    /** A slide's shape as something to paste: its XML and the relationships it needs. */
+    shapeClip: ({ id, slide, shape }) => {
+      const session = get(id);
+      if (session.kind !== 'deck') return null;
+      return session.engine.shapeClip(Number(slide) || 0, shape);
+    },
+
     pageSetup: ({ id, sheet }) => {
       const session = get(id);
       if (session.kind !== 'sheet') return null;

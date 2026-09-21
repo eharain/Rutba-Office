@@ -990,6 +990,64 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Presentation: the shape clipboard ──────────────────────────────── */
+  //
+  // Copy on a selected shape, Paste on another slide: the shape appears
+  // there with the same words and a fresh id; Cut takes it away; the saved
+  // file carries the paste. Run alone with RUTBA_VERIFY_ONLY=clip.
+  const slideClipboard = async () => {
+    try {
+      const win = await open('slides', files.pptx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
+      const source = model(0).slide.shapes.find((s) => s.text);
+      if (!source) return check('slides: a text box to copy', false, 'no text shape on slide 1');
+      const words = (s) => (s?.text?.paragraphs || []).map((p) => (p.runs || []).map((r) => r.text).join('')).join('|');
+      const hit = `.sl-hit[data-shape="${source.id}"]`;
+      await until(() => js(`Boolean(document.querySelector(${JSON.stringify(hit)}))`), 'the hit area of the text box', 6000);
+      await js(`(() => { document.querySelector(${JSON.stringify(hit)}).click(); return 1; })()`);
+      await until(() => js(`document.querySelectorAll('.sl-handle').length === 8`), 'the eight handles', 4000).catch(() => {});
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const copied = await clickRibbon('Copy');
+      await wait(300);
+      await js(`(() => { document.querySelectorAll('.sl-thumb')[1]?.click(); return 1; })()`);
+      await until(() => js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('active')`), 'the second slide', 4000).catch(() => {});
+      await wait(300);
+      const before = model(1).slide.shapes.length;
+      const pasted = await clickRibbon('Paste');
+      const grew = await until(() => model(1).slide.shapes.length === before + 1, 'the pasted shape', 5000).catch(() => false);
+      const last = model(1).slide.shapes[model(1).slide.shapes.length - 1];
+      check('slides: Copy on a shape and Paste on another slide puts it there with the same words and a fresh id',
+        copied === 'clicked' && pasted === 'clicked' && grew === true && words(last) === words(source) && last.id !== source.id,
+        `${copied}, ${pasted}; slide 2 shapes ${before} → ${model(1).slide.shapes.length}; words ${JSON.stringify(words(last))}; ids ${source.id} → ${last.id}`);
+
+      await wait(300);
+      const cut = await clickRibbon('Cut');
+      const shrank = await until(() => model(1).slide.shapes.length === before, 'the shape to go', 5000).catch(() => false);
+      check('slides: Cut takes the selected shape away', cut === 'clicked' && shrank === true, `${cut}; slide 2 shapes now ${model(1).slide.shapes.length}`);
+
+      await wait(300);
+      await clickRibbon('Paste');
+      await until(() => model(1).slide.shapes.length === before + 1, 'the shape pasted again', 5000).catch(() => false);
+      await wait(300);
+      await clickRibbon('Save');
+      const inFile = () => Deck.open(fs.readFileSync(files.pptx)).slide(1).shapes;
+      await until(() => { try { return inFile().length === before + 1; } catch { return false; } }, 'the paste to land in the file', 8000).catch(() => false);
+      const kept = inFile();
+      check('slides: the saved file carries the pasted shape', kept.length === before + 1 && words(kept[kept.length - 1]) === words(source), `slide 2 in the file: ${kept.length} shape(s), last ${JSON.stringify(words(kept[kept.length - 1]))}`);
+      const complaints = await errorsIn(win);
+      check('slides: the clipboard checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('slides: the clipboard checks ran', false, err.message);
+    }
+  };
+
   /* ── Worksheets: the fill handle ─────────────────────────────────────── */
   //
   // The square at the selection's corner, dragged down two rows: the cells
@@ -1578,6 +1636,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('polish')) await polish();
     if (only.includes('shapes')) await slideShapes();
     if (only.includes('bullets')) await slideParagraphs();
+    if (only.includes('clip')) await slideClipboard();
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('ruler')) await wordRuler();
@@ -1676,6 +1735,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slidePanes();
   await slideShapes();
   await slideParagraphs();
+  await slideClipboard();
   await sheetFill();
   await wordPictures();
   await wordPictureFits();
@@ -2893,7 +2953,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await wait(120);
     const honest = await js(`(() => {
       const dead = [...document.querySelectorAll('.rw-ribbon .rw-btn[disabled]')];
-      return { count: dead.length, unexplained: dead.filter((b) => !/not built yet|Select a text box first|decides its own size|Changing it rescales/.test(b.title || b.dataset.tip || '') && !/^(Undo|Redo) /.test(b.title || b.dataset.tip || '')).map((b) => b.title || b.dataset.tip || b.textContent.trim()).slice(0, 5) };
+      return { count: dead.length, unexplained: dead.filter((b) => !/not built yet|Select a text box first|copy a shape first|decides its own size|Changing it rescales/.test(b.title || b.dataset.tip || '') && !/^(Undo|Redo) /.test(b.title || b.dataset.tip || '')).map((b) => b.title || b.dataset.tip || b.textContent.trim()).slice(0, 5) };
     })()`);
     check('slides: every disabled control explains itself', honest.unexplained.length === 0, `${honest.count} disabled on Home with nothing selected; unexplained: ${JSON.stringify(honest.unexplained)}`);
 

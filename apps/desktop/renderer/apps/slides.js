@@ -30,6 +30,8 @@ export default function Slides({ app, shell, boot }) {
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('home');
   const [editing, setEditing] = useState(null);
+  /** The shape clipboard: one shape, copied in this window, pasted on any slide of it. */
+  const [clip, setClip] = useState(null);
   const [present, setPresent] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
   const [blank, setBlank] = useState(false);
@@ -513,6 +515,34 @@ export default function Slides({ app, shell, boot }) {
         if (added) setSelected(added.id);
         return;
       }
+      case 'copyShape': {
+        if (!selectedShape) return toast('Click a shape first.', { ms: 3000 });
+        const got = await shell.doc.shapeClip({ id: doc.id, slide: index, shape: selectedShape.id });
+        if (!got) return;
+        setClip({ ...got, geometry: selectedShape.geometry });
+        toast('Copied. Paste puts it on the slide on screen, a little right and down.', { ms: 3000 });
+        return;
+      }
+      case 'cutShape': {
+        if (!selectedShape) return;
+        const got = await shell.doc.shapeClip({ id: doc.id, slide: index, shape: selectedShape.id });
+        if (!got) return;
+        setClip({ ...got, geometry: selectedShape.geometry });
+        await apply({ op: 'removeShape', slide: index, shape: selectedShape.id });
+        setSelected(null);
+        return;
+      }
+      case 'pasteShape': {
+        if (!clip) return toast('Nothing copied yet: click a shape and press Copy or Ctrl+C.', { ms: 3500 });
+        const g = clip.geometry || { x: 100, y: 100, w: 300, h: 80 };
+        await apply({ op: 'pasteShape', slide: index, clip: { xml: clip.xml, tag: clip.tag, rels: clip.rels }, geometry: { x: g.x + 20, y: g.y + 20, w: g.w, h: g.h, rot: g.rot } });
+        // The pasted shape is the last in the drawing order: select it, so a
+        // second paste or a nudge acts on it.
+        const fresh = await shell.doc.model({ id: doc.id, slide: index }).catch(() => null);
+        const shapes = fresh?.slide?.shapes || [];
+        if (shapes.length) setSelected(shapes[shapes.length - 1].id);
+        return;
+      }
       case 'deleteShape':
         if (!selectedShape) return;
 
@@ -627,6 +657,7 @@ export default function Slides({ app, shell, boot }) {
           index={index}
           selected={selected}
           format={format}
+          canPaste={Boolean(clip)}
           addSlide={addSlide}
           insertPicture={insertPicture}
           presentWithNotes={presentWithNotes}
@@ -682,7 +713,10 @@ export default function Slides({ app, shell, boot }) {
               onKeyDown={(e) => {
                 // The keyboard on the stage: arrows nudge the selected shape
                 // (a pixel, ten with Shift), Delete removes it, Escape lets go.
+                if (!editing && (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') { e.preventDefault(); act('pasteShape'); return; }
                 if (editing || !selectedShape) return;
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') { e.preventDefault(); act('copyShape'); return; }
+                if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') { e.preventDefault(); act('cutShape'); return; }
                 const step = e.shiftKey ? 10 : 1;
                 const nudge = { ArrowLeft: { dx: -step }, ArrowRight: { dx: step }, ArrowUp: { dy: -step }, ArrowDown: { dy: step } }[e.key];
                 if (nudge) { e.preventDefault(); act('nudge', nudge); }

@@ -107,6 +107,7 @@ export const METHODS = {
     'search',       // ({ id, query, options }) -> [hit]
     'asset',        // ({ id, ref }) -> { url, type, name }
     'pageSetup',    // ({ id, sheet }) -> the page setup the workbook carries
+    'shapeClip',    // ({ id, slide, shape }) -> { xml, tag, rels } — a slide's shape as something to paste
     'sessions',     // () -> [{ id, kind, path, dirty }]
     'recoverable',  // () -> [{ file, kind, name, path, at, size }] — what a crash left behind
     'recover',      // ({ file }) -> { id, kind, model, meta, recoveredFrom }

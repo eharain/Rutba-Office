@@ -388,3 +388,34 @@ test('a paragraph keeps its bullet, level and spacing through the writer, and ca
   assert.equal(again[1].bullet.type, 'number');
   assert.equal(again[0].runs[0].bold, true);
 });
+
+test('a shape copied from one slide pastes onto another with a fresh id, a picture pointing at the same bytes', () => {
+  const deck = Deck.open(DECK);
+  const title = deck.slide(1).shapes.find((s) => s.placeholder?.type === 'title');
+  const clip = deck.shapeClip(1, title.id);
+  assert.equal(clip.tag, '<p:sp>');
+  const words = (s) => s.text.paragraphs.map((p) => p.runs.map((r) => r.text).join('')).join('\n');
+
+  const before = deck.slide(2).shapes.length;
+  const id = deck.pasteShape(2, clip, { x: 40, y: 40, w: 400, h: 60 });
+  const pasted = deck.slide(2).shapes.find((s) => String(s.id) === String(id));
+  assert.ok(pasted, 'the pasted shape is on slide 3');
+  assert.equal(deck.slide(2).shapes.length, before + 1);
+  assert.notEqual(String(id), String(title.id), "a fresh id");
+  assert.equal(words(pasted), words(title), 'the same words');
+  assert.equal(Math.round(pasted.geometry.x), 40, 'where the caller put it');
+  assert.equal(pasted.placeholder, null, 'a title pasted where the slide has one is a plain shape');
+
+  const png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+  const pic = deck.addPicture(0, { data: png, contentType: 'image/png', x: 10, y: 10, w: 50, h: 50 });
+  const picClip = deck.shapeClip(0, pic.id);
+  assert.equal(picClip.rels.length, 1, 'the picture carries its media relationship');
+  const pastedPic = deck.pasteShape(1, picClip, { x: 20, y: 20, w: 50, h: 50 });
+
+  const reopened = Deck.open(deck.save());
+  const onTwo = reopened.slide(1).shapes.find((s) => String(s.id) === String(pastedPic));
+  assert.equal(onTwo.kind, 'picture');
+  assert.ok(onTwo.embed, 'the blip names a relationship of the second slide');
+  assert.ok(onTwo.source, 'and it resolves there');
+  assert.equal(reopened.slide(2).shapes.find((s) => String(s.id) === String(id)).kind, 'shape', 'the pasted text shape survived the save');
+});

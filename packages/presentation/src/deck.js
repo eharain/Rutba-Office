@@ -464,6 +464,71 @@ export class Deck {
     return true;
   }
 
+  /**
+   * A shape as something to paste elsewhere: its XML and the relationships
+   * it points at (a picture's media), so a paste on another slide can point
+   * that slide at the same parts.
+   */
+  shapeClip(slideIndex, shapeId) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) return null;
+    const shapeXml = xml.slice(range.start, range.end);
+    const rels = this.#relMap(part);
+    const used = [];
+    for (const m of shapeXml.matchAll(/\br:(?:embed|link|id|pict)="([^"]+)"/g)) {
+      const rel = rels.get(m[1]);
+      if (rel && !used.some((u) => u.id === rel.id)) used.push({ id: rel.id, type: rel.type, target: rel.target, mode: rel.mode });
+    }
+    return { xml: shapeXml, tag: range.tag, rels: used };
+  }
+
+  /**
+   * Paste a shape copied with `shapeClip` onto a slide: a fresh id, the
+   * relationships it needs added to this slide (or reused where the slide
+   * already points at the same part), a placeholder kept only where the
+   * slide has none of that kind, and the geometry the caller asks for.
+   *
+   * @returns {number} the new shape's id
+   */
+  pasteShape(slideIndex, clip, geometry = null) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (!clip || !clip.xml) throw new Error('nothing to paste');
+    let xml = this.pkg.text(part);
+    let shapeXml = String(clip.xml);
+
+    const have = this.#relMap(part);
+    for (const rel of clip.rels || []) {
+      const same = [...have.values()].find((r) => r.type === rel.type && r.target === rel.target && r.mode === rel.mode);
+      const rId = same ? same.id : this.pkg.addRelationshipTo(part, rel.type, rel.target, { external: rel.mode === 'External' });
+      if (rId !== rel.id) shapeXml = shapeXml.replace(new RegExp('(\\br:(?:embed|link|id|pict)=")' + rel.id + '"', 'g'), '$1' + rId + '"');
+    }
+    // A slide that has never had a relationship may not declare the prefix.
+    const head = xml.slice(0, Math.max(0, xml.indexOf('<p:cSld')));
+    if ((clip.rels || []).length && !/xmlns:r=/.test(head)) {
+      xml = xml.replace(/<p:sld\b/, '<p:sld xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"');
+    }
+
+    const id = nextShapeId(xml);
+    shapeXml = shapeXml.replace(/<p:cNvPr\b([^>]*?)\bid="\d+"/, (m, before) => `<p:cNvPr${before}id="${id}"`);
+    // A placeholder pasted where the slide already has one of that kind
+    // becomes a plain shape; otherwise it keeps its place in the layout.
+    const ph = /<p:ph\b([^>]*)\/>/.exec(shapeXml);
+    if (ph) {
+      const type = /\btype="([^"]+)"/.exec(ph[1])?.[1] || 'body';
+      const taken = new RegExp('<p:ph\\b[^>]*\\btype="' + type + '"').test(xml) || (type === 'body' && /<p:ph\b(?![^>]*\btype=)[^>]*\/>/.test(xml));
+      if (taken) shapeXml = shapeXml.replace(ph[0], '');
+    }
+    const at = xml.lastIndexOf('</p:spTree>');
+    if (at < 0) throw new Error('slide has no shape tree');
+    this.#writeSlide(part, xml.slice(0, at) + shapeXml + xml.slice(at));
+    if (geometry) this.setGeometry(slideIndex, id, geometry);
+    return id;
+  }
+
   /** Remove a shape from a slide. */
   removeShape(slideIndex, shapeId) {
     const part = this.slideParts[slideIndex]?.part;
