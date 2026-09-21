@@ -1282,6 +1282,16 @@ export class DocView {
     });
   }
 
+  /** A number beside every line, down the left margin — or none. One undo step. */
+  setLineNumbers(spec) {
+    if (typeof this.doc.setLineNumbers !== 'function') throw new Error('this document backend has no lines to number');
+    return this._edit('line numbers', null, () => {
+      this.doc.setLineNumbers(spec ?? null);
+      this._invalidate();
+      return this;
+    });
+  }
+
   setPageSetup(spec) {
     if (typeof this.doc.setPageSetup !== 'function' || !this.section) {
       throw new Error('this document backend has no page to set up');

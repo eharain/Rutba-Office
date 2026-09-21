@@ -117,7 +117,7 @@ export function clearPages(page) {
 }
 
 /** The line boxes of a paragraph, in viewport coordinates, top to bottom. */
-function lineBoxes(el) {
+export function lineBoxes(el) {
   const range = document.createRange();
   range.selectNodeContents(el);
   const rects = [...range.getClientRects()].filter((r) => r.height > 0.5).sort((a, b) => a.top - b.top);

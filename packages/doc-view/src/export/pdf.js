@@ -344,8 +344,14 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
   const xPx = m.left + (m.gutter || 0);
   const widthPx = section.contentWidthPx;
 
+  // Line numbers count every body line; the count starts again on each
+  // page when the section says so.
+  const numbering = section.lineNumbers || null;
+  let lineNo = numbering ? numbering.start || 1 : 1;
+
   for (const sheet of frame.pages.pages) {
     const page = doc.addPage();
+    if (numbering && numbering.restart === 'newPage') lineNo = numbering.start || 1;
     // The page colour under everything, edge to edge, as Word prints it
     // when asked to print background colours.
     if (section.background) page.rect(0, 0, section.widthPx * PT, section.heightPx * PT, { fill: section.background });
@@ -430,6 +436,19 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
           page.rect(xPx * PT, y * PT, widthPx * PT, heightPx * PT, { fill: `#${String(block.shading).replace('#', '')}` });
         }
         drawParagraphBorders(page, block.borders, { xPx, yPx: y, widthPx, heightPx });
+      }
+      // The line numbers down the left margin: every line counted, every
+      // countBy-th shown, in the gap Word leaves before the text.
+      if (numbering && fr.lines && !(block && block.container)) {
+        const gapPx = numbering.distancePx != null ? numbering.distancePx : 24;
+        fr.lines.forEach((line, i) => {
+          const n = lineNo++;
+          if (n % numbering.countBy !== 0) return;
+          const label = String(n);
+          const size = 8;
+          const baseline = (y + i * fr.lineHeightPx + fr.lineHeightPx * BASELINE) * PT;
+          page.text(label, (xPx - gapPx) * PT - label.length * size * 0.556, baseline, { font: 'Helvetica', size, colour: '#666666' });
+        });
       }
       y += drawParagraphLines(page, doc, {
         lines: fr.lines, fragment: fr, runs: block ? block.runs : null,

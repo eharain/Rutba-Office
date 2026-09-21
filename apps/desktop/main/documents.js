@@ -950,6 +950,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     // Design → Page Colour: a colour behind every page, kept as Word keeps it.
     setPageColour: (v, a) => v.setPageColour(a.colour ?? null),
     setPageBorders: (v, a) => v.setPageBorders(a.borders ?? null),
+    setLineNumbers: (v, a) => v.setLineNumbers(a.spec ?? null),
     tableOp: (v, a) => v.tableOp(a.op, a.arg),
     // A border dragged on the page: the columns either side of it, or a row's height.
     setTableColumnWidths: (v, a) => v.setTableColumnWidths(a),

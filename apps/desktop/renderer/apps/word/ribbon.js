@@ -375,7 +375,12 @@ export default function WordRibbon({
                 { label: 'Section break — not built yet', disabled: true },
               ])
             } />
-            <Soon icon="listNumber" label="Line Numbers" why="Line numbering is w:lnNumType on the section, not written yet." />
+            <Button icon="listNumber" label="Line Numbers" title="Line Numbers — a number beside every line, down the left margin" onClick={(e) => menu.open(e, [
+              { label: 'None', icon: 'close', run: () => dispatch({ op: 'setLineNumbers', spec: null }) },
+              { label: 'Continuous', run: () => dispatch({ op: 'setLineNumbers', spec: { countBy: 1, restart: 'continuous' } }) },
+              { label: 'Restart each page', run: () => dispatch({ op: 'setLineNumbers', spec: { countBy: 1, restart: 'newPage' } }) },
+              { label: 'Every fifth line', run: () => dispatch({ op: 'setLineNumbers', spec: { countBy: 5, restart: 'continuous' } }) },
+            ])} />
             <Soon icon="minus" label="Hyphenation" why="Hyphenation is a layout setting the paginator does not honour yet." />
           </Group>
           <Group label="Paragraph">

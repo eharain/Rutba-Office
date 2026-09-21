@@ -235,6 +235,8 @@ export class OoxmlBackend {
   setPageColour(colour) { return this.doc.setPageColour(colour); }
   /** The page borders, set or cleared, in the section as Word keeps them. */
   setPageBorders(borders) { return this.doc.setPageBorders(borders); }
+  /** Line numbering, set or cleared, in the section as Word keeps it. */
+  setLineNumbers(spec) { return this.doc.setLineNumbers(spec); }
   /** Headers and footers, by reference type — pagination gives them a home. */
   headerFooters() { return this.doc.headerFooters(); }
   /** The document's comments, anchored to edit-space paragraphs. */

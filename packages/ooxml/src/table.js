@@ -318,6 +318,25 @@ export function parseTable(tblXml) {
  * space is measured in from the page edge or out from the text. null when
  * the section has none, or only nil sides.
  */
+/**
+ * Line numbering, `<w:lnNumType>` in the section: how often a number is
+ * shown, where the count starts again (Word's default when unsaid is every
+ * page), the first number, and the gap to the text in pixels when the file
+ * says one. null when the section has none.
+ */
+function parseLineNumbers(sectPr) {
+  const m = sectPr ? /<w:lnNumType\b([^>]*?)\/?>/.exec(sectPr) : null;
+  if (!m) return null;
+  const a = attrs(m[1]);
+  const restart = a['w:restart'];
+  return {
+    countBy: Math.max(1, Number(a['w:countBy'] ?? 1) || 1),
+    restart: restart === 'continuous' || restart === 'newSection' ? restart : 'newPage',
+    start: Math.max(1, Number(a['w:start'] ?? 1) || 1),
+    distancePx: a['w:distance'] !== undefined ? twipsToPx(a['w:distance']) : null,
+  };
+}
+
 function parsePageBorders(sectPr) {
   const m = sectPr ? /<w:pgBorders\b([^>]*)>([\s\S]*?)<\/w:pgBorders>/.exec(sectPr) : null;
   if (!m) return null;
@@ -362,6 +381,7 @@ export function parseSection(bodyXml) {
     heightPx: twipsToPx(heightTwips),
     orientation: sz['w:orient'] === 'landscape' || widthTwips > heightTwips ? 'landscape' : 'portrait',
     pageBorders: parsePageBorders(sectPr),
+    lineNumbers: parseLineNumbers(sectPr),
     margins: {
       top: margin('top', 1440),
       right: margin('right', 1440),

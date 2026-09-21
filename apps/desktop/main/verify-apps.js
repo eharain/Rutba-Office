@@ -1138,6 +1138,22 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('word: the saved file keeps the watermark as Word does — a VML text path first in the header, with the namespaces it needs',
         savedMark?.text === 'DRAFT' && savedMark?.rotation === 315 && /<v:shape\b[^>]*fillcolor="silver"[^>]*>[\s\S]*?<v:textpath\b[^>]*string="DRAFT"/.test(headerXml) && /<w:hdr\b[^>]*xmlns:v="urn:schemas-microsoft-com:vml"/.test(headerXml),
         `${JSON.stringify(savedMark)}; ${headerXml.slice(0, 200)}`);
+      // Layout → Line Numbers: a number beside every line, and lnNumType
+      // in the section after the page borders.
+      await wait(300);
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Layout')?.click(), 'tab'`);
+      await wait(200);
+      const pickedNumbers = await pick('Line Numbers', 'Continuous');
+      const numbered = await until(() => js(`document.querySelectorAll('.wd-linenos span').length >= 3`), 'the numbers down the margin', 5000).catch(() => false);
+      await wait(400);
+      const nos = await js(`[...document.querySelectorAll('.wd-linenos span')].slice(0, 4).map((s) => s.textContent)`);
+      const numberGap = await js(`(() => { const s = document.querySelector('.wd-linenos span'); const b = document.querySelector('.wd-page [data-block="0"]'); if (!s || !b) return null; return Math.round(b.getBoundingClientRect().left - s.getBoundingClientRect().right); })()`);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-linenos.png'), (await win.webContents.capturePage()).toPNG());
+      check('word: Layout → Line Numbers numbers every line down the left margin, a gap before the text', pickedNumbers === 'clicked' && numbered === true && JSON.stringify((nos || []).slice(0, 3)) === '["1","2","3"]' && numberGap > 8, `${pickedNumbers}; ${JSON.stringify(nos)}; gap ${numberGap}`);
+      await clickRibbon('Save');
+      await until(() => { try { return /<w:lnNumType/.test(documentXml()); } catch { return false; } }, 'the numbering to land in the file', 8000).catch(() => false);
+      const sectPrNow = (() => { const m = /<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(documentXml()); return m ? m[0] : ''; })();
+      check('word: the saved file keeps the line numbering in the section after the page borders, as Word does', /<\/w:pgBorders><w:lnNumType w:countBy="1" w:restart="continuous"\/>/.test(sectPrNow), sectPrNow.slice(0, 320));
       const complaints = await errorsIn(win);
       check('word: the shading and border checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {

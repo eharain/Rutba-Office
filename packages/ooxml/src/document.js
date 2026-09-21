@@ -1161,6 +1161,41 @@ export class Document {
     return this;
   }
 
+  /**
+   * Line numbering — Layout → Line Numbers: `<w:lnNumType>` in the section,
+   * after the page borders where the schema puts it. { countBy, restart
+   * ('continuous' | 'newPage' | 'newSection'), start, distancePx }; null
+   * takes it off.
+   */
+  setLineNumbers(spec) {
+    const { prefix, body, suffix } = this._body();
+    const at = /<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(body);
+    if (!at) throw new Error('this document has no section properties to number');
+    let sectPr = at[0];
+    if (/^<w:sectPr\b[^>]*\/>$/.test(sectPr)) sectPr = sectPr.replace(/\/>$/, '>') + '</w:sectPr>';
+    sectPr = sectPr.replace(/<w:lnNumType\b[^>]*\/>|<w:lnNumType\b[^>]*>[\s\S]*?<\/w:lnNumType>/, '');
+    if (spec) {
+      const countBy = Math.max(1, Math.round(Number(spec.countBy) || 1));
+      const restart = ['continuous', 'newPage', 'newSection'].includes(spec.restart) ? spec.restart : 'continuous';
+      const start = Math.max(1, Math.round(Number(spec.start) || 1));
+      const distance = spec.distancePx != null ? ' w:distance="' + Math.max(0, Math.round(Number(spec.distancePx) * 15)) + '"' : '';
+      const xml = '<w:lnNumType w:countBy="' + countBy + '"' + (start !== 1 ? ' w:start="' + start + '"' : '') + distance + ' w:restart="' + restart + '"/>';
+      let before = -1;
+      for (const m of sectPr.matchAll(/<w:(?:headerReference|footerReference|footnotePr|endnotePr|type|pgSz|pgMar|paperSrc|pgBorders)\b[^>]*?(?:\/>|>[\s\S]*?<\/w:(?:footnotePr|endnotePr|pgBorders)>)/g)) {
+        before = m.index + m[0].length;
+      }
+      const later = /<w:(?:pgNumType|cols|formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings|sectPrChange)\b/.exec(sectPr);
+      sectPr = before >= 0
+        ? sectPr.slice(0, before) + xml + sectPr.slice(before)
+        : later
+          ? sectPr.slice(0, later.index) + xml + sectPr.slice(later.index)
+          : sectPr.replace('</w:sectPr>', xml + '</w:sectPr>');
+    }
+    this.xml = prefix + body.slice(0, at.index) + sectPr + body.slice(at.index + at[0].length) + suffix;
+    this.dirty = true;
+    return this;
+  }
+
   setPageSetup({ orientation, size, margins } = {}) {
     const PAPER = { A4: [11906, 16838], Letter: [12240, 15840], Legal: [12240, 20160] };
     const MARGIN_PRESETS = {

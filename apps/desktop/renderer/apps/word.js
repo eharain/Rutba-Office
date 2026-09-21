@@ -30,6 +30,7 @@ import {
   LinkDialog, TableDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
   DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog, WatermarkDialog,
 } from './word/dialogs.js';
+import { lineBoxes } from './word/pages.js';
 
 /**
  * Character offset of a DOM position within its block element.
@@ -546,6 +547,9 @@ export default function Word({ app, shell, boot }) {
   const [pages, setPages] = useState(NO_PAGES);
   const pagesRef = useRef(pages);
   pagesRef.current = pages;
+  /** Line numbers, measured from the drawn lines after every layout: [{ top, height, n }], page-relative. */
+  const [lineNos, setLineNos] = useState(null);
+  const lineNosKey = useRef('');
   const paged = (view.mode || 'print') === 'print' && Boolean(section);
   const geo = useMemo(() => geometryOf(section), [section]);
   // The tallest a picture may be drawn on a page: the sheet's inside, less a
@@ -593,6 +597,33 @@ export default function Word({ app, shell, boot }) {
       live = false;
     };
   }, [model, mounted, paged, geo, pages.splits, pages.tableSplits, pages.notes]);
+  // The numbers down the margin, from the line boxes the browser drew — after
+  // the layout pass, in the same commit. Only the body's paragraphs count,
+  // as in Word: not a table's cells, not the notes.
+  useLayoutEffect(() => {
+    const page = pageRef.current;
+    const spec = section?.lineNumbers;
+    if (!page || !spec) {
+      if (lineNosKey.current !== '') { lineNosKey.current = ''; setLineNos(null); }
+      return;
+    }
+    const pageTop = page.getBoundingClientRect().top;
+    const stride = paged && geo ? geo.H + geo.G : Infinity;
+    const items = [];
+    let n = spec.start || 1;
+    let lastPage = 0;
+    for (const el of page.querySelectorAll(':scope > .wd-block')) {
+      for (const box of lineBoxes(el)) {
+        const top = box.top - pageTop;
+        const k = Number.isFinite(stride) ? Math.floor(top / stride) : 0;
+        if (spec.restart === 'newPage' && k !== lastPage) { n = spec.start || 1; lastPage = k; }
+        const mine = n++;
+        if (mine % spec.countBy === 0) items.push({ top: Math.round(top), height: Math.max(8, Math.round(box.bottom - box.top)), n: mine });
+      }
+    }
+    const key = JSON.stringify(items);
+    if (key !== lineNosKey.current) { lineNosKey.current = key; setLineNos(items); }
+  }, [model, mounted, paged, geo, pages, section]);
   // Pictures that arrive and fonts that load change heights without a render.
   const hasPage = Boolean(!busy && model);
   useEffect(() => {
@@ -1022,6 +1053,12 @@ export default function Word({ app, shell, boot }) {
               {!paged && model.bands?.watermark ? (
                 <div className="wd-watermark" contentEditable={false} aria-hidden="true" style={{ top: Math.round((section?.heightPx ?? 1123) / 3), color: model.bands.watermark.colour || 'silver', transform: `rotate(${model.bands.watermark.rotation ?? 315}deg)` }}>
                   {model.bands.watermark.text}
+                </div>
+              ) : null}
+              {/* Line numbers, down the left margin, beside the lines the browser drew. */}
+              {lineNos?.length ? (
+                <div className="wd-linenos" contentEditable={false} aria-hidden="true" style={{ left: Math.max(0, (section?.margins.left ?? 96) - (section?.lineNumbers?.distancePx ?? 24) - 28) }}>
+                  {lineNos.map((l) => <span key={`${l.n}-${l.top}`} style={{ top: l.top, height: l.height, lineHeight: `${l.height}px` }}>{l.n}</span>)}
                 </div>
               ) : null}
               {/* The page borders: a frame on each sheet, or one around the flow. */}
@@ -2032,6 +2069,9 @@ const CSS = `
 :root[data-theme='dark'] .wd-sheet { background: #f7f7f5; }
 /* The page borders: a frame in the margins, over the sheet and under nothing it could hide. */
 .wd-pgborders { position: absolute; z-index: 1; box-sizing: border-box; pointer-events: none; }
+/* Line numbers: a column down the left margin, each beside the line it counts. */
+.wd-linenos { position: absolute; top: 0; width: 28px; z-index: 1; pointer-events: none; user-select: none; }
+.wd-linenos span { position: absolute; left: 0; width: 28px; text-align: right; font: 11px Calibri, "Segoe UI", sans-serif; color: #8a8f98; }
 /* Headers and footers sit in the margins, greyed while the body has the caret. */
 .wd-band { position: absolute; left: 0; right: 0; z-index: 1; color: #777; font-size: 13px; line-height: 1.35; user-select: none; cursor: default; }
 .wd-band .wd-band-line { margin: 0; padding: 0 var(--wd-margin-right, 96px) 0 var(--wd-margin-left, 96px); min-height: 1.2em; white-space: pre-wrap; }
