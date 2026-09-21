@@ -152,8 +152,8 @@ document and workbook writers.
   levels, line spacing, strikethrough, character spacing, change case and
   a highlight are written from the Home tab, and a slide's own bullets,
   spacing and run looks survive an edit (until then a format press or an
-  edited line dropped them). Text direction, vertical alignment, columns
-  in a box and WordArt are still read past.
+  edited line dropped them), and the box's own anchor, text direction
+  and columns are written from the same tab. WordArt is still read past.
 - **What can be put on a slide**: a table and a chart are read and drawn —
   a chart since 2026-09-10, through the same chart kit a worksheet uses,
   found by the corpus deck whose six chart slides showed an empty frame

@@ -425,6 +425,8 @@ export default function Slides({ app, shell, boot }) {
     return {
       bold: Boolean(r.bold), italic: Boolean(r.italic), underline: Boolean(r.underline), size: r.size || 18, color: r.color || null, font: r.font || '', align: p?.align || 'left',
       strike: Boolean(r.strike), spacing: r.spacing || 0, highlight: r.highlight || null,
+      // The box's own: where the words sit, which way they run, how many columns.
+      anchor: selectedShape?.text?.anchor || 'top', vert: selectedShape?.text?.vert || 'horz', columns: selectedShape?.text?.columns || 1,
       // The first paragraph's own list look: the bullet kind, its level and its line spacing.
       bullet: p?.bullet?.type || null, level: p?.level || 0, lineHeight: p?.lineHeight || null,
     };
@@ -488,6 +490,11 @@ export default function Slides({ app, shell, boot }) {
       case 'resetSlide':
         await apply({ op: 'resetSlide', slide: index });
         return;
+      case 'body': {
+        if (!selectedShape?.text) return toast('Click a text box first.', { ms: 3500 });
+        await apply({ op: 'setBodyProps', slide: index, shape: selectedShape.id, ...arg });
+        return;
+      }
       case 'applyLayout':
         await apply({ op: 'applyLayout', slide: index, layout: arg });
         return;

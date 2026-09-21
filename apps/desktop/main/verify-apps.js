@@ -982,6 +982,29 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('slides: Strikethrough rides on the run, and the stage draws the line through the words',
         clickedStrike === 'clicked' && struck === true && lined === true, `${clickedStrike}; strike ${first().runs?.[0]?.strike}; drawn ${lined}`);
 
+      // The box's own: Align text → Middle sits on the body, and Text
+      // direction → rotated up turns the drawing.
+      await wait(300);
+      const bodyOf = () => model().slide.shapes.find((s) => String(s.id) === shapeId)?.text || {};
+      const pickBody = async (button, label) => {
+        const clicked = await clickRibbon(button);
+        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))`), `the ${button} menu`, 3000).catch(() => {});
+        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)}))?.click(); return 1; })()`);
+        return clicked;
+      };
+      const clickedAlign = await pickBody('Align text', 'Middle');
+      const anchored = await until(() => bodyOf().anchor === 'middle', 'the middle anchor', 4000).catch(() => false);
+      await wait(300);
+      const clickedDirection = await pickBody('Text direction', 'Rotate all text 270');
+      const turned = await until(() => bodyOf().vert === 'vert270', 'the words to run up', 4000).catch(() => false);
+      const drawnTurned = await until(() => js(`[...document.querySelectorAll('svg g[transform]')].some((g) => /rotate\\(-90 /.test(g.getAttribute('transform') || ''))`), 'the stage to turn the words', 4000).catch(() => false);
+      check('slides: Align text → Middle and Text direction → rotated up sit on the text body, and the stage turns the words',
+        clickedAlign === 'clicked' && anchored === true && clickedDirection === 'clicked' && turned === true && drawnTurned === true,
+        `${clickedAlign} anchor ${bodyOf().anchor}; ${clickedDirection} vert ${bodyOf().vert}; drawn ${drawnTurned}`);
+      await wait(300);
+      await pickBody('Text direction', 'Horizontal');
+      await until(() => bodyOf().vert === 'horz', 'the words horizontal again', 4000).catch(() => {});
+
       await wait(300);
       await clickRibbon('Save');
       const inFile = () => Deck.open(fs.readFileSync(files.pptx)).slide(0).shapes.find((s) => String(s.id) === shapeId).text.paragraphs[0];

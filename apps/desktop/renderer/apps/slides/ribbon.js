@@ -146,9 +146,9 @@ export default function SlidesRibbon({
                 <Button icon="chevronRight" title={needShape || 'Increase list level'} disabled={!hasShape} onClick={() => fmt({ level: 1 })} />
                 <Button icon="list" title={needShape || `Line spacing — now ${format.lineHeight ? String(format.lineHeight) : 'as the layout has it'}`} disabled={!hasShape} onClick={(e) => menu.open(e, [1, 1.15, 1.5, 2].map((v) => ({ label: String(v), icon: format.lineHeight === v ? 'check' : undefined, run: () => fmt({ lineHeight: v }) })))} />
                 <Separator />
-                <Soon icon="grid" label="" why="Columns inside a text box are a body property the deck writer does not write yet." />
-                <Soon icon="rotate" label="" why="Text direction comes with body properties." />
-                <Soon icon="chevronUp" label="" why="Vertical alignment inside the box comes with body properties." />
+                <Button icon="grid" title={needShape || `Columns — now ${format.columns || 1}`} disabled={!hasShape} onClick={(e) => menu.open(e, [['One column', 1], ['Two columns', 2], ['Three columns', 3]].map(([label, n]) => ({ label, icon: (format.columns || 1) === n ? 'check' : undefined, run: () => act('body', { columns: n }) })))} />
+                <Button icon="rotate" title={needShape || `Text direction — now ${({ horz: 'horizontal', vert270: 'rotated up', vert: 'rotated down', eaVert: 'stacked' })[format.vert] || 'horizontal'}`} disabled={!hasShape} onClick={(e) => menu.open(e, [['Horizontal', 'horz'], ['Rotate all text 90° (reads down)', 'vert'], ['Rotate all text 270° (reads up)', 'vert270']].map(([label, v]) => ({ label, icon: (format.vert || 'horz') === v ? 'check' : undefined, run: () => act('body', { vert: v }) })))} />
+                <Button icon="chevronUp" title={needShape || `Align text — now ${format.anchor || 'top'}`} disabled={!hasShape} onClick={(e) => menu.open(e, [['Top', 'top'], ['Middle', 'middle'], ['Bottom', 'bottom']].map(([label, a]) => ({ label, icon: (format.anchor || 'top') === a ? 'check' : undefined, run: () => act('body', { anchor: a }) })))} />
               </>
               <>
                 <Button icon="alignLeft" title={needShape || 'Align left'} pressed={format.align === 'left'} disabled={!hasShape} onClick={() => fmt({ align: 'left' })} />

@@ -228,7 +228,44 @@ export function layoutText(body, box, { scale = 1, baseSize = 18 } = {}) {
 }
 
 function textSvg(body, box, opts) {
+  // Words running up or down: laid out in the box turned on its side, then
+  // the drawing turned back — PowerPoint's vert270 (up) and vert (down).
+  const vert = body.vert === 'vert' || body.vert === 'vert270' ? body.vert : null;
+  if (vert) {
+    const cx = box.x + box.w / 2;
+    const cy = box.y + box.h / 2;
+    const turned = { x: cx - box.h / 2, y: cy - box.w / 2, w: box.h, h: box.w };
+    const inner = textSvg({ ...body, vert: 'horz' }, turned, opts);
+    return inner ? `<g transform="rotate(${vert === 'vert270' ? -90 : 90} ${cx.toFixed(2)} ${cy.toFixed(2)})">${inner}</g>` : '';
+  }
+  // Columns: the box split across, the words filling one column to its
+  // foot before the next, as PowerPoint fills them.
+  const columns = Math.max(1, Math.min(16, Number(body.columns) || 1));
+  if (columns > 1) {
+    const colW = box.w / columns;
+    const laid = layoutText(body, { ...box, w: colW }, opts);
+    if (!laid.lines.length) return '';
+    const room = box.h - (laid.insets?.t || 0) - (laid.insets?.b || 0);
+    let out = '';
+    let i = 0;
+    for (let c = 0; c < columns && i < laid.lines.length; c++) {
+      const top = laid.lines[i].y - laid.lines[i].size;
+      const slice = [];
+      // The last column takes whatever is left, running on below the box as PowerPoint lets it.
+      while (i < laid.lines.length && (!slice.length || c === columns - 1 || laid.lines[i].y - top <= room)) {
+        slice.push({ ...laid.lines[i], y: laid.lines[i].y - top });
+        i += 1;
+      }
+      out += drawLines({ ...body, anchor: 'top' }, { x: box.x + c * colW, y: box.y, w: colW, h: box.h }, opts, slice, slice[slice.length - 1].y, laid.insets);
+    }
+    return out;
+  }
   const { lines, height, insets } = layoutText(body, box, opts);
+  return drawLines(body, box, opts, lines, height, insets);
+}
+
+/** The laid-out lines of one text body, as SVG. */
+function drawLines(body, box, opts, lines, height, insets) {
   if (!lines.length) return '';
   const anchor = body.anchor || 'top';
   const inner = box.h - (insets?.t || 0) - (insets?.b || 0);

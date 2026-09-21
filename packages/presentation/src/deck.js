@@ -551,6 +551,38 @@ export class Deck {
     return count;
   }
 
+  /**
+   * The text body's own properties — where the words sit in the box
+   * (anchor: top, middle, bottom), which way they run (vert: horz, vert,
+   * vert270) and how many columns — written on a:bodyPr as PowerPoint keeps
+   * them. null, 'horz' and one column take the attribute off.
+   */
+  setBodyProps(slideIndex, shapeId, { anchor, vert, columns } = {}) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found on slide ${slideIndex + 1}`);
+    let shapeXml = xml.slice(range.start, range.end);
+    if (!/<a:bodyPr\b/.test(shapeXml)) {
+      if (!/<p:txBody>/.test(shapeXml)) throw new Error('the shape has no text body');
+      shapeXml = shapeXml.replace('<p:txBody>', '<p:txBody><a:bodyPr/>');
+    }
+    const set = (attrs, name, value) => {
+      const without = attrs.replace(new RegExp(' ?' + name + '="[^"]*"'), '');
+      return value == null ? without : `${without} ${name}="${value}"`;
+    };
+    shapeXml = shapeXml.replace(/<a:bodyPr\b([^>]*?)(\/?)>/, (m, attrs, close) => {
+      let next = attrs;
+      if (anchor !== undefined) next = set(next, 'anchor', anchor === null ? null : ({ top: 't', middle: 'ctr', bottom: 'b' }[anchor] || 't'));
+      if (vert !== undefined) next = set(next, 'vert', vert === null || vert === 'horz' ? null : vert);
+      if (columns !== undefined) next = set(next, 'numCol', columns === null || Number(columns) <= 1 ? null : Math.min(16, Math.round(Number(columns))));
+      return `<a:bodyPr${next}${close}>`;
+    });
+    this.#writeSlide(part, xml.slice(0, range.start) + shapeXml + xml.slice(range.end));
+    return true;
+  }
+
   /** Remove a shape from a slide. */
   removeShape(slideIndex, shapeId) {
     const part = this.slideParts[slideIndex]?.part;

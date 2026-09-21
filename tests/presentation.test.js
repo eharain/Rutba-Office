@@ -458,3 +458,36 @@ test('Reset puts a moved placeholder back where its layout has it', () => {
   const xfrms = (x) => (x.match(/<a:xfrm\b/g) || []).length;
   assert.equal(xfrms(Deck.open(deck.save()).pkg.text('ppt/slides/slide2.xml')), xfrms(Deck.open(DECK).pkg.text('ppt/slides/slide2.xml')), 'the placeholder states no geometry of its own again');
 });
+
+test('a text body is anchored, turned and split into columns as PowerPoint keeps it, and drawn that way', () => {
+  const deck = Deck.open(DECK);
+  const title = deck.slide(1).shapes.find((s) => s.placeholder?.type === 'title');
+  deck.setBodyProps(1, title.id, { anchor: 'middle', vert: 'vert270', columns: 2 });
+  const xml = deck.pkg.text('ppt/slides/slide2.xml');
+  assert.match(xml, /<a:bodyPr[^>]*anchor="ctr"/, 'anchored in the middle');
+  assert.match(xml, /<a:bodyPr[^>]*vert="vert270"/, 'the words run up');
+  assert.match(xml, /<a:bodyPr[^>]*numCol="2"/, 'two columns');
+
+  const back = Deck.open(deck.save());
+  const shape = back.slide(1).shapes.find((s) => String(s.id) === String(title.id));
+  assert.equal(shape.text.anchor, 'middle');
+  assert.equal(shape.text.vert, 'vert270');
+  assert.equal(shape.text.columns, 2);
+  assert.match(renderSlide(back.slide(1)), /rotate\(-90 /, 'the stage turns the words');
+
+  deck.setBodyProps(1, title.id, { anchor: null, vert: 'horz', columns: 1 });
+  const plain = deck.pkg.text('ppt/slides/slide2.xml');
+  assert.doesNotMatch(plain, /anchor="|vert="|numCol="/, 'one column, horizontal, the layout anchoring: no attribute at all');
+
+  // Columns: a body with many lines fills one column before the next.
+  const body = deck.slide(1).shapes.find((s) => s.text && String(s.id) !== String(title.id));
+  assert.ok(body, 'a second text shape on slide 2');
+  deck.setGeometry(1, body.id, { x: 40, y: 120, w: 600, h: 90 });   // room for three or four lines a column
+  deck.setText(1, body.id, Array.from({ length: 12 }, (_, i) => ({ runs: [{ text: `Line ${i + 1}` }] })));
+  const oneColumn = renderSlide(deck.slide(1));
+  deck.setBodyProps(1, body.id, { columns: 2 });
+  const twoColumns = renderSlide(deck.slide(1));
+  const xOf = (svg, label) => Number(new RegExp('<text x="([0-9.]+)"[^>]*>(?:<tspan[^>]*>)?' + label + '<').exec(svg)?.[1]);
+  assert.equal(xOf(oneColumn, 'Line 1'), xOf(oneColumn, 'Line 12'), 'one column: every line starts at the same x');
+  assert.ok(xOf(twoColumns, 'Line 12') > xOf(twoColumns, 'Line 1'), 'two columns: the last line has moved into the second');
+});

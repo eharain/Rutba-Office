@@ -206,6 +206,10 @@ function readTextBody(txBody, theme) {
   return {
     paragraphs,
     anchor: anchorMap[bodyPr?.attrs.anchor] || 'top',
+    // Which way the words run and how many columns they fill: PowerPoint's
+    // vert (horz, vert = down, vert270 = up, eaVert = stacked) and numCol.
+    vert: bodyPr?.attrs.vert || 'horz',
+    columns: Number(bodyPr?.attrs.numCol || 1) || 1,
     wrap: bodyPr?.attrs.wrap !== 'none',
     autofit: Boolean(kids(bodyPr || { children: [] }, A('normAutofit'))[0]),
     insets: {

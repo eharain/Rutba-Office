@@ -805,7 +805,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
               geometry: s.geometry,
               placeholder: s.placeholder,
               text: (s.text || s.inheritedText)
-                ? { paragraphs: (s.text || s.inheritedText).paragraphs.map((p) => ({ ...p, plain: p.runs.map((r) => r.text).join('') })) }
+                ? { paragraphs: (s.text || s.inheritedText).paragraphs.map((p) => ({ ...p, plain: p.runs.map((r) => r.text).join('') })), anchor: (s.text || s.inheritedText).anchor || 'top', vert: (s.text || s.inheritedText).vert || 'horz', columns: (s.text || s.inheritedText).columns || 1 }
                 : null,
             })),
           }
@@ -976,6 +976,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     applyLayout: (d, a) => d.applyLayout(a.slide, a.layout),
     // Home → Reset: the placeholders back where the layout puts them.
     resetSlide: (d, a) => d.resetSlide(a.slide),
+    // A text body's anchor, direction and columns, on a:bodyPr.
+    setBodyProps: (d, a) => d.setBodyProps(a.slide, a.shape, { anchor: a.anchor, vert: a.vert, columns: a.columns }),
     // The Format pane: a shape's fill and outline.
     setShapeStyle: (d, a) => d.setShapeStyle(a.slide, a.shape, { fill: a.fill ?? null, line: a.line ?? null }),
 
