@@ -46,6 +46,14 @@ const BORDERS = [
   ['Bottom border', { bottom: LINE }], ['Top border', { top: LINE }], ['Left border', { left: LINE }], ['Right border', { right: LINE }],
   ['Outside borders', { top: LINE, bottom: LINE, left: LINE, right: LINE }], ['No border', null],
 ];
+/** Page Borders: Word's Box setting in four lines, measured 24 pt in from the page edge as Word measures it. */
+const FRAME = (style, widthPx) => ({ style, widthPx, colour: null, spacePt: 24 });
+const BOX = (line) => ({ offsetFrom: 'page', top: line, left: line, bottom: line, right: line });
+const PAGE_BORDERS = [
+  ['Box — thin line', BOX(FRAME('single', 1))], ['Box — thick line', BOX(FRAME('single', 3))],
+  ['Box — double line', BOX(FRAME('double', 3))], ['Box — dashed line', BOX(FRAME('dashed', 1))],
+  ['No page border', null],
+];
 const PAGE_SIZES = [['A4', 'A4 — 21 × 29.7 cm'], ['Letter', 'Letter — 8.5 × 11 in'], ['Legal', 'Legal — 8.5 × 14 in']];
 const MARGINS = [['normal', 'Normal — 2.54 cm all round'], ['narrow', 'Narrow — 1.27 cm all round'], ['wide', 'Wide — 5.08 cm at the sides']];
 const SHAPES = [
@@ -337,7 +345,7 @@ export default function WordRibbon({
           <Group label="Page Background">
             <Soon tall icon="shield" label="Watermark" why="A watermark is a header shape; headers hold text only so far." />
             <Button tall icon="contrast" label="Page Colour" title="Page Colour — a colour behind every page" onClick={(e) => menu.open(e, SHADES.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => dispatch({ op: 'setPageColour', colour: value }) })))} />
-            <Soon tall icon="grid" label="Page Borders" why="Page borders are w:pgBorders, not written yet." />
+            <Button tall icon="grid" label="Page Borders" title="Page Borders — a frame around every page" onClick={(e) => menu.open(e, PAGE_BORDERS.map(([label, borders]) => ({ label, icon: borders ? undefined : 'close', run: () => dispatch({ op: 'setPageBorders', borders }) })))} />
           </Group>
         </>
       ) : null}

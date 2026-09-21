@@ -312,6 +312,33 @@ export function parseTable(tblXml) {
  * Landscape is `w:orient`, but the width and height are already swapped in the
  * file when it is set, so it is reported rather than applied twice.
  */
+/**
+ * The page borders, `<w:pgBorders>` in the section: each side present as
+ * { style, widthPx, colour, spacePt }, with `offsetFrom` saying whether the
+ * space is measured in from the page edge or out from the text. null when
+ * the section has none, or only nil sides.
+ */
+function parsePageBorders(sectPr) {
+  const m = sectPr ? /<w:pgBorders\b([^>]*)>([\s\S]*?)<\/w:pgBorders>/.exec(sectPr) : null;
+  if (!m) return null;
+  const head = attrs(m[1]);
+  const sides = {};
+  for (const side of m[2].matchAll(/<w:(top|left|bottom|right)\b([^>]*)\/>/g)) {
+    const a = attrs(side[2]);
+    const style = a['w:val'] || 'single';
+    if (style === 'nil' || style === 'none') continue;
+    const colour = a['w:color'] && a['w:color'] !== 'auto' ? '#' + a['w:color'].toUpperCase() : '#000000';
+    sides[side[1]] = {
+      style,
+      widthPx: Math.max(1, Math.round((Number(a['w:sz'] ?? 4) / 8) * (96 / 72))),
+      colour,
+      spacePt: Number(a['w:space'] ?? 0) || 0,
+    };
+  }
+  if (!Object.keys(sides).length) return null;
+  return { offsetFrom: head['w:offsetFrom'] === 'page' ? 'page' : 'text', ...sides };
+}
+
 export function parseSection(bodyXml) {
   const sectPr = firstElement(bodyXml, 'w:sectPr');
   const pgSz = sectPr ? firstElement(sectPr, 'w:pgSz') : null;
@@ -334,6 +361,7 @@ export function parseSection(bodyXml) {
     widthPx: twipsToPx(widthTwips),
     heightPx: twipsToPx(heightTwips),
     orientation: sz['w:orient'] === 'landscape' || widthTwips > heightTwips ? 'landscape' : 'portrait',
+    pageBorders: parsePageBorders(sectPr),
     margins: {
       top: margin('top', 1440),
       right: margin('right', 1440),

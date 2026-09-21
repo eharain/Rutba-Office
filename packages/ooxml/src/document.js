@@ -1086,6 +1086,50 @@ export class Document {
    * `w:orient` as the label), which is how Word writes it — the parser
    * reports the same way, so the two agree by construction.
    */
+  /**
+   * Set or clear the page borders: `<w:pgBorders>` in the body's
+   * `w:sectPr`, where the schema puts it — after the margins, before the
+   * line numbering, page numbering and columns. Sides come as
+   * { top, left, bottom, right } of { style, widthPx, colour, spacePt } and
+   * `offsetFrom` 'page' (the default, Word's own: 24 pt in from the edge)
+   * or 'text' (out from the text by the space). null, or no sides, takes
+   * the element off.
+   */
+  setPageBorders(borders) {
+    const { prefix, body, suffix } = this._body();
+    const at = /<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(body);
+    if (!at) throw new Error('this document has no section properties to border');
+    let sectPr = at[0];
+    if (/^<w:sectPr\b[^>]*\/>$/.test(sectPr)) sectPr = sectPr.replace(/\/>$/, '>') + '</w:sectPr>';
+    sectPr = sectPr.replace(/<w:pgBorders\b[^>]*\/>|<w:pgBorders\b[^>]*>[\s\S]*?<\/w:pgBorders>/, '');
+    const sides = ['top', 'left', 'bottom', 'right'].filter((s) => borders && borders[s]);
+    if (sides.length) {
+      const offsetFrom = borders.offsetFrom === 'text' ? 'text' : 'page';
+      const xml = '<w:pgBorders w:offsetFrom="' + offsetFrom + '">' + sides.map((s) => {
+        const b = borders[s];
+        const sz = Math.max(2, Math.round((Number(b.widthPx) || 1) * 6));
+        const colour = b.colour ? String(b.colour).replace('#', '').toUpperCase() : 'auto';
+        const space = b.spacePt === undefined ? (offsetFrom === 'page' ? 24 : 4) : Math.max(0, Math.round(Number(b.spacePt) || 0));
+        return '<w:' + s + ' w:val="' + (b.style || 'single') + '" w:sz="' + sz + '" w:space="' + space + '" w:color="' + colour + '"/>';
+      }).join('') + '</w:pgBorders>';
+      // After the last child the schema puts before it; failing one, before
+      // the first it puts after; failing both, at the end.
+      let before = -1;
+      for (const m of sectPr.matchAll(/<w:(?:headerReference|footerReference|footnotePr|endnotePr|type|pgSz|pgMar|paperSrc)\b[^>]*?(?:\/>|>[\s\S]*?<\/w:(?:footnotePr|endnotePr)>)/g)) {
+        before = m.index + m[0].length;
+      }
+      const later = /<w:(?:lnNumType|pgNumType|cols|formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings|sectPrChange)\b/.exec(sectPr);
+      sectPr = before >= 0
+        ? sectPr.slice(0, before) + xml + sectPr.slice(before)
+        : later
+          ? sectPr.slice(0, later.index) + xml + sectPr.slice(later.index)
+          : sectPr.replace('</w:sectPr>', xml + '</w:sectPr>');
+    }
+    this.xml = prefix + body.slice(0, at.index) + sectPr + body.slice(at.index + at[0].length) + suffix;
+    this.dirty = true;
+    return this;
+  }
+
   setPageSetup({ orientation, size, margins } = {}) {
     const PAPER = { A4: [11906, 16838], Letter: [12240, 15840], Legal: [12240, 20160] };
     const MARGIN_PRESETS = {

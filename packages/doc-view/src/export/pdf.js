@@ -151,11 +151,35 @@ function drawParagraphBorders(page, borders, { xPx, yPx, widthPx, heightPx }) {
     if (!b || !b.style || b.style === 'none' || b.style === 'nil') continue;
     const width = Math.max(0.5, (Number(b.widthPx) || 1) * 0.75);
     const colour = b.colour && /^#?[0-9a-fA-F]{6}$/.test(String(b.colour)) ? `#${String(b.colour).replace('#', '')}` : '#000000';
-    if (side === 'top') page.line(x1, y1, x2, y1, { width, colour });
-    else if (side === 'bottom') page.line(x1, y2, x2, y2, { width, colour });
-    else if (side === 'left') page.line(x1, y1, x1, y2, { width, colour });
-    else page.line(x2, y1, x2, y2, { width, colour });
+    // A double border is two lines of the weight, a weight apart, the inner
+    // one inside the box.
+    const offsets = b.style === 'double' ? [0, width * 2] : [0];
+    for (const o of offsets) {
+      if (side === 'top') page.line(x1, y1 + o, x2, y1 + o, { width, colour });
+      else if (side === 'bottom') page.line(x1, y2 - o, x2, y2 - o, { width, colour });
+      else if (side === 'left') page.line(x1 + o, y1, x1 + o, y2, { width, colour });
+      else page.line(x2 - o, y1, x2 - o, y2, { width, colour });
+    }
   }
+}
+
+/**
+ * The page borders: a box on the sheet, each side in from the page edge by
+ * its space (Word's default), or out from the text by it — that is, the
+ * margin less the space. Drawn with the paragraph-border pen.
+ */
+function drawPageBorders(page, borders, section) {
+  const m = section.margins;
+  const inset = (side) => {
+    const b = borders[side];
+    const spacePx = ((b && b.spacePt) || 0) * (96 / 72);
+    if (borders.offsetFrom !== 'text') return spacePx;
+    const margin = side === 'top' ? m.top : side === 'bottom' ? m.bottom : side === 'left' ? m.left + (m.gutter || 0) : m.right;
+    return Math.max(0, margin - spacePx);
+  };
+  const x1 = inset('left');
+  const y1 = inset('top');
+  drawParagraphBorders(page, borders, { xPx: x1, yPx: y1, widthPx: section.widthPx - inset('right') - x1, heightPx: section.heightPx - inset('bottom') - y1 });
 }
 
 function drawParagraphLines(page, doc, { lines, fragment, runs, xPx, yPx, widthPx, listLabel = null, lastIsFinal = true }) {
@@ -325,6 +349,8 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
     // The page colour under everything, edge to edge, as Word prints it
     // when asked to print background colours.
     if (section.background) page.rect(0, 0, section.widthPx * PT, section.heightPx * PT, { fill: section.background });
+    // The page borders next, so the text and the bands draw over them.
+    if (section.pageBorders) drawPageBorders(page, section.pageBorders, section);
     // The watermark first, so everything else draws over it: the header's
     // WordArt, rising across the page in the grey Word draws it in.
     if (sheet.watermark?.text) drawWatermark(page, doc, sheet.watermark, section);

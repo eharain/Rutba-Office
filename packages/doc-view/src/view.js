@@ -1272,6 +1272,16 @@ export class DocView {
     });
   }
 
+  /** A frame around every page — sides of { style, widthPx, colour, spacePt } — or none. One undo step. */
+  setPageBorders(borders) {
+    if (typeof this.doc.setPageBorders !== 'function') throw new Error('this document backend has no page to border');
+    return this._edit('page borders', null, () => {
+      this.doc.setPageBorders(borders ?? null);
+      this._invalidate();
+      return this;
+    });
+  }
+
   setPageSetup(spec) {
     if (typeof this.doc.setPageSetup !== 'function' || !this.section) {
       throw new Error('this document backend has no page to set up');

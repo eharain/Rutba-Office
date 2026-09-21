@@ -1102,6 +1102,24 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await until(() => { try { return /<w:background w:color="DEEBF7"\/>/.test(documentXml()); } catch { return false; } }, 'the page colour to land in the file', 8000).catch(() => false);
       const xmlHead = documentXml().slice(0, 400);
       check('word: the saved file keeps the page colour before the body, as Word does', /<w:document\b[^>]*><w:background w:color="DEEBF7"\/>/.test(xmlHead), xmlHead.slice(xmlHead.indexOf('<w:document'), xmlHead.indexOf('<w:document') + 160));
+      // Design → Page Borders: a frame on every sheet, and w:pgBorders in the
+      // section after the margins.
+      await wait(300);
+      const pickedFrame = await pick('Page Borders', 'Box — thin line');
+      const frame = () => js(`(() => { const el = document.querySelector('.wd-pgborders'); if (!el) return null; const cs = getComputedStyle(el); return { top: cs.borderTopWidth + ' ' + cs.borderTopStyle, left: cs.borderLeftWidth + ' ' + cs.borderLeftStyle, inset: el.offsetLeft, count: document.querySelectorAll('.wd-pgborders').length }; })()`);
+      const framed = await until(async () => /^[1-9][0-9.]*px solid$/.test((await frame())?.top || ''), 'the frame painted', 5000).catch(() => false);
+      const frameNow = await frame();
+      check('word: Design → Page Borders draws a box on every page, 24 pt in from the edge', pickedFrame === 'clicked' && framed === true && frameNow?.inset === 32 && frameNow?.count >= 1, `${pickedFrame}; ${JSON.stringify(frameNow)}`);
+      await wait(400);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-frame.png'), (await win.webContents.capturePage()).toPNG());
+      await clickRibbon('Save');
+      await until(() => { try { return /<w:pgBorders/.test(documentXml()); } catch { return false; } }, 'the page border to land in the file', 8000).catch(() => false);
+      const sectPrXml = (() => { const m = /<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(documentXml()); return m ? m[0] : ''; })();
+      // The fixture's section is empty, so the borders are its only child;
+      // the engine test holds the order against the margins.
+      check('word: the saved file keeps the page border in the section, all four sides as Word writes them',
+        /<w:sectPr\b[^>]*><w:pgBorders w:offsetFrom="page"><w:top w:val="single" w:sz="6" w:space="24" w:color="auto"\/><w:left [^>]*\/><w:bottom [^>]*\/><w:right [^>]*\/><\/w:pgBorders>/.test(sectPrXml),
+        sectPrXml.slice(0, 320));
       const complaints = await errorsIn(win);
       check('word: the shading and border checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {

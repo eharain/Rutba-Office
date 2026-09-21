@@ -1018,6 +1018,18 @@ export default function Word({ app, shell, boot }) {
                     <div key={`s${k}`} className="wd-sheet" contentEditable={false} aria-hidden="true" style={{ top: k * (geo.H + geo.G), height: geo.H, background: section?.background || undefined }} />
                   ))
                 : null}
+              {/* The page borders: a frame on each sheet, or one around the flow. */}
+              {section?.pageBorders
+                ? (paged ? Array.from({ length: pages.count }, (_, k) => k) : [null]).map((k) => (
+                    <div
+                      key={`pb${k ?? 'flow'}`}
+                      className="wd-pgborders"
+                      contentEditable={false}
+                      aria-hidden="true"
+                      style={pageBordersStyle(section, k === null ? null : { top: k * (geo.H + geo.G), height: geo.H })}
+                    />
+                  ))
+                : null}
               {paged
                 ? Array.from({ length: pages.count }, (_, k) => (
                     <React.Fragment key={`b${k}`}>
@@ -1479,6 +1491,43 @@ function planTabs(p, stops) {
 }
 
 /** Paragraph borders as CSS: one line per side, in the file's colour and weight. */
+/**
+ * Where the page borders sit: each side in from the page edge by its space
+ * (Word's default), or out from the text by it — the margin less the space.
+ * `sheet` places the frame on one sheet of print layout; null frames the flow.
+ */
+function pageBordersStyle(section, sheet) {
+  const b = section.pageBorders;
+  const m = section.margins;
+  const inset = (side) => {
+    const s = b[side];
+    const spacePx = ((s && s.spacePt) || 0) * (96 / 72);
+    if (b.offsetFrom !== 'text') return Math.round(spacePx);
+    const margin = side === 'top' ? m.top : side === 'bottom' ? m.bottom : side === 'left' ? m.left + (m.gutter || 0) : m.right;
+    return Math.round(Math.max(0, margin - spacePx));
+  };
+  const line = (side) => {
+    const s = b[side];
+    if (!s || s.style === 'none' || s.style === 'nil') return 'none';
+    const css = BORDER_CSS[s.style] || 'solid';
+    // A double line needs three pixels before the browser draws two.
+    const width = css === 'double' ? Math.max(3, s.widthPx || 1) : Math.max(1, s.widthPx || 1);
+    return `${width}px ${css} ${s.colour || '#000'}`;
+  };
+  const top = inset('top');
+  const bottom = inset('bottom');
+  return {
+    left: inset('left'),
+    right: inset('right'),
+    top: sheet ? sheet.top + top : top,
+    ...(sheet ? { height: Math.max(0, sheet.height - top - bottom) } : { bottom }),
+    borderTop: line('top'),
+    borderLeft: line('left'),
+    borderBottom: line('bottom'),
+    borderRight: line('right'),
+  };
+}
+
 const BORDER_CSS = { single: 'solid', thick: 'solid', double: 'double', dotted: 'dotted', dashed: 'dashed', dashSmallGap: 'dashed', dotDash: 'dashed', dotDotDash: 'dashed', wave: 'solid', thinThickSmallGap: 'double', thickThinSmallGap: 'double' };
 function borderStyle(borders) {
   if (!borders) return {};
@@ -1964,6 +2013,8 @@ const CSS = `
   box-shadow: 0 0 0 1px rgba(15, 20, 30, 0.05), 0 2px 6px rgba(15, 20, 30, 0.07), 0 14px 36px rgba(15, 20, 30, 0.1);
 }
 :root[data-theme='dark'] .wd-sheet { background: #f7f7f5; }
+/* The page borders: a frame in the margins, over the sheet and under nothing it could hide. */
+.wd-pgborders { position: absolute; z-index: 1; box-sizing: border-box; pointer-events: none; }
 /* Headers and footers sit in the margins, greyed while the body has the caret. */
 .wd-band { position: absolute; left: 0; right: 0; z-index: 1; color: #777; font-size: 13px; line-height: 1.35; user-select: none; cursor: default; }
 .wd-band .wd-band-line { margin: 0; padding: 0 var(--wd-margin-right, 96px) 0 var(--wd-margin-left, 96px); min-height: 1.2em; white-space: pre-wrap; }
