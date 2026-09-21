@@ -487,7 +487,7 @@ export default function SheetsRibbon({
             <Button icon="formula" label="Use in Formula" onClick={(e) => menu.open(e, (model?.names || []).length
               ? model.names.map((n) => ({ label: n.name, run: () => act('insertFunction', n.name, { bare: true }) }))
               : [{ label: 'No names defined yet', run: () => openDialog('names') }])} />
-            <Soon icon="table" label="Create from Selection" why="Naming a range from its header row is on the list; the name manager does it one at a time today." />
+            <Button icon="table" label="Create from Selection" title="Create from Selection — a name for each column of the block, from its header" onClick={() => act('namesFromSelection')} />
           </Group>
           <Group label="Formula Auditing">
             <Button icon="chevronRight" label="Trace Precedents" title="Trace Precedents — arrows from the cells this formula reads" onClick={() => act('trace', 'precedents')} />

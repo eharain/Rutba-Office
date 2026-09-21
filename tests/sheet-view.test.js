@@ -2612,3 +2612,29 @@ test('a sort by several keys: the first decides, the next breaks its ties, blank
   view.undo();
   assert.deepEqual(col(0), ['North', 'South', 'North', '', 'South', 'East'], 'one undo step');
 });
+
+test('Create from Selection names each column from its header, made valid the way Excel does', () => {
+  const view = new SheetView(buildXlsx({ sheets: [{ name: 'S', rows: [
+    ['Region', 'Q1 Sales', '2024', '', 'AB12'], ['North', 1, 2, 9, 5], ['South', 3, 4, 9, 6],
+  ] }] }));
+  view.select(0, 0);
+  const done = view.namesFromSelection();
+  assert.deepEqual(done.made, ['Region', 'Q1_Sales', '_2024', 'AB12_'], 'spaces to underscores, a digit led, a cell-like name trailed');
+  assert.deepEqual(done.skipped, ['D'], 'the empty header is skipped');
+  assert.equal(done.range, 'A1:E3');
+  const names = Object.fromEntries(view.workbook.definedNames().map((n) => [n.name, n.ref]));
+  assert.equal(names.Region, 'S!$A$2:$A$3');
+  assert.equal(names.Q1_Sales, 'S!$B$2:$B$3');
+
+  view.select(3, 0);
+  view.beginEdit({ replace: true });
+  view.updateDraft('=SUM(Q1_Sales)');
+  view.commitEdit('none');
+  assert.equal(view.displayValue(3, 0).text, '4', 'the name is live in a formula at once');
+
+  const reopened = new SheetView(view.save());
+  assert.equal(Object.fromEntries(reopened.workbook.definedNames().map((n) => [n.name, n.ref]))._2024, 'S!$C$2:$C$3', 'kept in the file');
+  view.select(0, 0);
+  view.select(0, 4, { extend: true });
+  assert.throws(() => view.namesFromSelection(), /at least one row of data/);
+});

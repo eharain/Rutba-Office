@@ -882,6 +882,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     goalSeek: (v, a) => v.goalSeek({ set: a.set, to: a.to, by: a.by }),
     dataTable: (v, a) => v.dataTable({ range: a.range, rowInput: a.rowInput, colInput: a.colInput }),
     defineName: (v, a) => v.defineName(a.name, a.ref),
+    // Formulas → Create from Selection: a name a column, from the header row.
+    namesFromSelection: (v) => { v.lastResult = v.namesFromSelection(); return v; },
     setHyperlink: (v, a) => v.setHyperlink(a),
     removeHyperlink: (v, a) => v.removeHyperlink(a),
     // A note signed by whoever the window says, else by the account at the keyboard.

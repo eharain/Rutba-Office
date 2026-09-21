@@ -2988,6 +2988,42 @@ export class SheetView {
     return this;
   }
 
+  /**
+   * Formulas → Create from Selection: a name for each column of the
+   * selection (or the block round the cell), from its header cell, pointing
+   * at the rows below it. A header that is not a valid name is made one the
+   * way Excel does — spaces and punctuation to underscores, a leading digit
+   * given an underscore, a cell-like name a trailing one; an empty header is
+   * skipped.
+   *
+   * @returns {{ made: string[], skipped: string[], range: string }}
+   */
+  namesFromSelection() {
+    const sel = this.selection.range;
+    const single = sel.top === sel.bottom && sel.left === sel.right;
+    const r = single ? this._currentRegion(sel.top, sel.left) : sel;
+    if (r.top === r.bottom) throw new Error('Create from Selection needs a header row with at least one row of data under it');
+    const sheet = this.activeSheet;
+    const quoted = /[^A-Za-z0-9_]/.test(sheet) ? "'" + sheet.replace(/'/g, "''") + "'" : sheet;
+    const made = [];
+    const skipped = [];
+    for (let c = r.left; c <= r.right; c++) {
+      const head = String(this.displayValue(r.top, c).text ?? '').trim();
+      let name = head.replace(/[^A-Za-z0-9_.]+/g, '_').replace(/^_+|_+$/g, '');
+      if (!name) { skipped.push(colName(c)); continue; }
+      if (!/^[A-Za-z_]/.test(name)) name = '_' + name;
+      if (/^[A-Za-z]{1,3}\d+$/.test(name)) name = name + '_';
+      const target = quoted + '!$' + colName(c) + '$' + (r.top + 2) + ':$' + colName(c) + '$' + (r.bottom + 1);
+      try {
+        this.defineName(name, target);
+        made.push(name);
+      } catch {
+        skipped.push(name);
+      }
+    }
+    return { made, skipped, range: ref(r.top, r.left) + ':' + ref(r.bottom, r.right) };
+  }
+
   /** Remove a defined name. Cells using it show #NAME? on the next pass. */
   deleteName(name) {
     const trimmed = String(name ?? '').trim();

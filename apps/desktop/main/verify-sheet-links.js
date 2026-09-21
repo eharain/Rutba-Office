@@ -386,6 +386,19 @@ export async function verifySheetLinks(h, { file }) {
     const arrowsGone = await until(() => js(`document.querySelectorAll('.sh-arrows').length === 0`), 'the arrows to go', 4000).catch(() => false);
     check('sheets: Remove Arrows takes them off the grid', clickedRemove === 'clicked' && arrowsGone === true, `${clickedRemove}; arrows left ${await js(`document.querySelectorAll('.sh-arrows .sh-arrow').length`)}`);
 
+    // Formulas → Create from Selection on the block: a name a column, from
+    // the header row, kept in the file.
+    await applyOps([{ op: 'select', row: 0, col: 0 }]);
+    await wait(200);
+    const clickedNames = await clickIn(win, 'Create from Selection');
+    await wait(400);
+    await clickIn(win, 'Save');
+    const namesInFile = () => { try { return Object.fromEntries(SheetView.open(fs.readFileSync(file)).workbook.definedNames().map((n) => [n.name, n.ref])); } catch { return {}; } };
+    await until(() => Boolean(namesInFile().Region), 'the names to land in the file', 8000).catch(() => false);
+    const names = namesInFile();
+    check('sheets: Formulas → Create from Selection names each column of the block from its header, kept in the file',
+      clickedNames === 'clicked' && /^Sales!\$A\$2:\$A\$\d+$/.test(names.Region || '') && /^Sales!\$B\$2/.test(names.Q1_ || ''), `${clickedNames}; ${JSON.stringify({ Region: names.Region, Q1_: names.Q1_, Q2_: names.Q2_ })}`);
+
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

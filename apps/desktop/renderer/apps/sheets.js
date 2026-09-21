@@ -1080,6 +1080,15 @@ export default function Sheets({ app, shell, boot }) {
       case 'removeArrows':
         setArrows([]);
         return;
+      case 'namesFromSelection': {
+        try {
+          await dispatch({ op: 'namesFromSelection' });
+          toast('A name for each column, from its header — the Name Manager lists them', { tone: 'good', ms: 4000 });
+        } catch (err) {
+          toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
+        }
+        return;
+      }
       case 'textToColumns': {
         // The engine refuses more than one column; its message is the toast.
         try {
