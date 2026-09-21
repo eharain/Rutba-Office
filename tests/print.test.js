@@ -151,3 +151,17 @@ test('the page setup belongs to the workbook, not to the dialog', () => {
   back.activeSheet = 'Report';
   assert.equal(printSummary(back, readPageSetup(back, 'Report')).sheets[0].ref, 'A1:B3');
 });
+
+test('fit to height: all the rows down one page, read and written as Excel keeps it', () => {
+  const view = new SheetView(BOOK);
+  const tall = printSummary(view, { fit: 'height' });
+  assert.equal(tall.pages, 1, 'a 121-row report on one page down');
+  assert.ok(tall.sheets[0].scale < 1, `scaled to ${tall.sheets[0].scale}`);
+
+  writePageSetup(view, 'Report', { fit: 'height' });
+  const back = new SheetView(view.save());
+  assert.equal(readPageSetup(back, 'Report').fit, 'height');
+  const sheetXml = back.pkg.text(back.workbook._sheetPart('Report').sheet.part);
+  assert.match(sheetXml, /fitToWidth="0" fitToHeight="1"/);
+  assert.match(sheetXml, /fitToPage="1"/, 'Excel ignores fitToHeight without it');
+});

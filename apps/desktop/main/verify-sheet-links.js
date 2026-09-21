@@ -10,6 +10,7 @@
 
 import fs from 'node:fs';
 import { SheetView } from '@rutba/sheet-view';
+import { readPageSetup } from '@rutba/sheet-view/print';
 
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, capture
@@ -233,6 +234,33 @@ export async function verifySheetLinks(h, { file }) {
     const kept = stateInFile();
     check('sheets: the file keeps the indent and the rotation in the alignment of the cell, as Excel reads them',
       kept.indent === 2 && kept.rotation === 90 && kept.align === 'left', JSON.stringify({ indent: kept.indent, rotation: kept.rotation, align: kept.align }));
+
+    // Page Layout → Orientation, Print Titles and Width write the file's
+    // own page setup — the one the print dialog and Excel start from — and
+    // the saved file keeps all three.
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Page Layout')?.click(), 'tab'`);
+    await wait(200);
+    const setupRead = `(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); const s = await window.rutbaOffice.doc.pageSetup({ id: mine.id }); return [s.orientation, s.fit, s.repeatRows, s.paper].join(' '); })()`;
+    const pickPage = async (button, label) => {
+      await clickIn(win, button);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))`), `the ${button} menu`, 3000).catch(() => {});
+      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    };
+    const setupBefore = await js(setupRead);
+    const pickedLandscape = await pickPage('Orientation', 'Landscape');
+    const landscape = await until(async () => (await js(setupRead)).startsWith('landscape'), 'landscape', 5000).catch(() => false);
+    const pickedTitles = await pickPage('Print Titles', 'Repeat row 1');
+    const titled = await until(async () => (await js(setupRead)).split(' ')[2] === '1', 'the repeated row', 5000).catch(() => false);
+    const pickedWidth = await pickPage('Width', '1 page');
+    const fitted = await until(async () => (await js(setupRead)).split(' ')[1] === 'width', 'fit to width', 5000).catch(() => false);
+    check('sheets: Page Layout → Orientation, Print Titles and Width write the page setup of the file, the one the print dialog and Excel start from',
+      pickedLandscape === 'picked' && pickedTitles === 'picked' && pickedWidth === 'picked' && landscape === true && titled === true && fitted === true,
+      `${setupBefore} → ${await js(setupRead)}; ${pickedLandscape} ${pickedTitles} ${pickedWidth}`);
+    await clickIn(win, 'Save');
+    await until(() => { try { return readPageSetup(SheetView.open(fs.readFileSync(file)), 'Sales').fit === 'width'; } catch { return false; } }, 'the setup to land in the file', 8000).catch(() => false);
+    const inFile = readPageSetup(SheetView.open(fs.readFileSync(file)), 'Sales');
+    check('sheets: the saved file keeps the orientation, the repeated row and the fit, as Excel reads them',
+      inFile.orientation === 'landscape' && inFile.repeatRows === 1 && inFile.fit === 'width', JSON.stringify([inFile.orientation, inFile.repeatRows, inFile.fit]));
 
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

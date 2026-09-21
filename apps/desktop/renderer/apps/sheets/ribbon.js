@@ -76,6 +76,24 @@ const ORIENTATIONS = [
   ['Rotate text down', 180],
 ];
 
+/** Excel's three margin presets, in millimetres. */
+export const MARGIN_PRESETS = {
+  normal: { top: 19.1, right: 17.8, bottom: 19.1, left: 17.8 },
+  narrow: { top: 19.1, right: 6.4, bottom: 19.1, left: 6.4 },
+  wide: { top: 25.4, right: 25.4, bottom: 25.4, left: 25.4 },
+};
+
+/** Which preset a file's margins are, or null when they are its own. */
+export function marginsName(margins) {
+  if (!margins) return null;
+  for (const [name, m] of Object.entries(MARGIN_PRESETS)) {
+    if (['top', 'right', 'bottom', 'left'].every((side) => Math.abs((Number(margins[side]) || 0) - m[side]) < 0.3)) return name;
+  }
+  return null;
+}
+
+const capital = (s) => s[0].toUpperCase() + s.slice(1);
+
 export const CELL_STYLES = [
   ['Normal', { bold: false, italic: false, fill: null, fontColour: null, border: { top: null, bottom: null, left: null, right: null }, numberFormat: 'General' }],
   ['Heading 1', { bold: true, fontSize: 15, fontColour: '#1F3864', border: { bottom: { style: 'medium', colour: '#4472C4' } } }],
@@ -401,28 +419,33 @@ export default function SheetsRibbon({
             <Soon icon="wand" label="Effects" why="Comes with themes." />
           </Group>
           <Group label="Page Setup">
-            <Button tall icon="file" label="Margins" title={`Now ${view.page?.margins || 'normal'}`} onClick={(e) => menu.open(e, [
-              { label: 'Normal', run: () => act('page', { margins: 'normal' }) },
-              { label: 'Narrow', run: () => act('page', { margins: 'narrow' }) },
-              { label: 'Wide', run: () => act('page', { margins: 'wide' }) },
-            ])} />
-            <Button tall icon="rotate" label="Orientation" title={`Now ${view.page?.orientation || 'portrait'}`} onClick={(e) => menu.open(e, [
-              { label: 'Portrait', run: () => act('page', { orientation: 'portrait' }) },
-              { label: 'Landscape', run: () => act('page', { orientation: 'landscape' }) },
-            ])} />
-            <Button tall icon="file" label="Size" title={`Now ${view.page?.size || 'A4'}`} onClick={(e) => menu.open(e, ['A4', 'Letter', 'Legal', 'A3'].map((s) => ({ label: s, run: () => act('page', { size: s }) })))} />
+            <Button tall icon="file" label="Margins" title={`Margins — now ${marginsName(view.page?.margins) || (view.page?.margins ? `${view.page.margins.top} mm top and bottom, ${view.page.margins.left} mm at the sides` : 'normal')}`} onClick={(e) => menu.open(e, ['normal', 'narrow', 'wide'].map((m) => ({ label: capital(m), icon: marginsName(view.page?.margins) === m ? 'check' : undefined, run: () => act('page', { margins: m }) })))} />
+            <Button tall icon="rotate" label="Orientation" title={`Orientation — now ${view.page?.orientation || 'portrait'}`} onClick={(e) => menu.open(e, ['portrait', 'landscape'].map((o) => ({ label: capital(o), icon: (view.page?.orientation || 'portrait') === o ? 'check' : undefined, run: () => act('page', { orientation: o }) })))} />
+            <Button tall icon="file" label="Size" title={`Size — now ${view.page?.paper || 'A4'}`} onClick={(e) => menu.open(e, ['A4', 'Letter', 'Legal', 'A3'].map((s) => ({ label: s, icon: (view.page?.paper || 'A4') === s ? 'check' : undefined, run: () => act('page', { size: s }) })))} />
             <Button icon="grid" label="Print Area" title="Print Area — the selection becomes what prints, or the print area is cleared" onClick={(e) => menu.open(e, [
               { label: 'Set print area (the selection)', icon: 'grid', run: () => act('printArea', 'set') },
               { label: 'Clear print area', run: () => act('printArea', 'clear') },
             ])} />
             <Soon icon="minus" label="Breaks" why="Manual page breaks are print settings the engine does not write yet." />
             <Soon icon="picture" label="Background" why="A sheet background is a picture part the engine does not write yet." />
-            <Soon icon="table" label="Print Titles" why="Print titles are a defined name (_xlnm.Print_Titles) not written yet." />
+            <Button icon="table" label="Print Titles" title={`Print Titles — ${view.page?.repeatRows ? `rows 1 to ${view.page.repeatRows} repeat at the top of every page` : 'no rows repeat yet'}`} onClick={(e) => menu.open(e, [
+              { label: 'Repeat row 1 at the top of every page', icon: view.page?.repeatRows === 1 ? 'check' : undefined, run: () => act('page', { repeatRows: 1 }) },
+              { label: 'Repeat rows 1 to 2', icon: view.page?.repeatRows === 2 ? 'check' : undefined, run: () => act('page', { repeatRows: 2 }) },
+              { label: 'Repeat rows 1 to 3', icon: view.page?.repeatRows === 3 ? 'check' : undefined, run: () => act('page', { repeatRows: 3 }) },
+              { label: 'Repeat the selected rows, from row 1', run: () => act('page', { repeatRows: 'selection' }) },
+              { label: 'No repeated rows', icon: !view.page?.repeatRows ? 'check' : undefined, run: () => act('page', { repeatRows: 0 }) },
+            ])} />
           </Group>
           <Group label="Scale to Fit">
-            <Soon icon="minus" label="Width" why="Scaling is a print setting the engine does not write yet." />
-            <Soon icon="minus" label="Height" why="Comes with scaling." />
-            <Soon icon="zoomIn" label="Scale" why="Comes with scaling." />
+            <Button icon="minus" label="Width" title={`Width — ${view.page?.fit === 'width' || view.page?.fit === 'page' ? 'all the columns on one page across' : 'automatic'}`} onClick={(e) => menu.open(e, [
+              { label: 'Automatic', icon: view.page?.fit === 'width' || view.page?.fit === 'page' ? undefined : 'check', run: () => act('page', { fit: view.page?.fit === 'page' ? 'height' : 'none' }) },
+              { label: '1 page', icon: view.page?.fit === 'width' || view.page?.fit === 'page' ? 'check' : undefined, run: () => act('page', { fit: view.page?.fit === 'height' ? 'page' : 'width' }) },
+            ])} />
+            <Button icon="minus" label="Height" title={`Height — ${view.page?.fit === 'height' || view.page?.fit === 'page' ? 'all the rows on one page down' : 'automatic'}`} onClick={(e) => menu.open(e, [
+              { label: 'Automatic', icon: view.page?.fit === 'height' || view.page?.fit === 'page' ? undefined : 'check', run: () => act('page', { fit: view.page?.fit === 'page' ? 'width' : 'none' }) },
+              { label: '1 page', icon: view.page?.fit === 'height' || view.page?.fit === 'page' ? 'check' : undefined, run: () => act('page', { fit: view.page?.fit === 'width' ? 'page' : 'height' }) },
+            ])} />
+            <Button icon="zoomIn" label="Scale" title={`Scale — now ${Math.round((view.page?.scale ?? 1) * 100)}%${view.page?.fit && view.page.fit !== 'none' ? ', set aside while fitting' : ''}`} onClick={(e) => menu.open(e, [50, 75, 100, 125, 150].map((p) => ({ label: `${p}%`, icon: Math.round((view.page?.scale ?? 1) * 100) === p && (view.page?.fit ?? 'none') === 'none' ? 'check' : undefined, run: () => act('page', { scale: p / 100 }) })))} />
           </Group>
           <Group label="Sheet Options">
             <Button icon="grid" label="Gridlines" pressed={view.gridlines !== false} title="Show the gridlines on screen" onClick={() => act('toggleGridlines')} />

@@ -47,7 +47,7 @@ export const DEFAULT_PAGE_SETUP = {
   paper: 'A4',
   orientation: 'portrait',
   margins: { top: 12.7, right: 12.7, bottom: 12.7, left: 12.7 },
-  /** 'none' keeps the sheet's own size; 'width' fits all columns across; 'page' fits everything on one. */
+  /** 'none' keeps the sheet's own size; 'width' fits all columns across; 'height' all rows down; 'page' fits everything on one. */
   fit: 'none',
   scale: 1,
   gridlines: false,
@@ -147,6 +147,7 @@ export function paginate({ geo, range, setup, maxPages = 2000 }) {
   // unevenly to fit would change the shape of the report.
   let scale = Number(setup.scale) || 1;
   if (setup.fit === 'width' && total.width > 0) scale = Math.min(scale, area.width / total.width);
+  else if (setup.fit === 'height' && total.height > 0) scale = Math.min(scale, area.height / total.height);
   else if (setup.fit === 'page' && total.width > 0 && total.height > 0) {
     scale = Math.min(scale, area.width / total.width, area.height / total.height);
   }
@@ -403,6 +404,7 @@ export function readPageSetup(view, sheetName = view.activeSheet) {
   if (/fitToPage="1"/.test(part.prefix || '')) {
     if (fitWidth === 1 && fitHeight === 1) setup.fit = 'page';
     else if (fitWidth === 1) setup.fit = 'width';
+    else if (fitHeight === 1) setup.fit = 'height';
   }
 
   const margins = attrsOf(part.tailElement('pageMargins'));
@@ -453,7 +455,9 @@ export function writePageSetup(view, sheetName, options = {}) {
     'pageMargins',
     `<pageMargins left="${inch(setup.margins.left)}" right="${inch(setup.margins.right)}" top="${inch(setup.margins.top)}" bottom="${inch(setup.margins.bottom)}" header="0.3" footer="0.3"/>`
   );
-  const fit = setup.fit === 'page' ? ' fitToWidth="1" fitToHeight="1"' : setup.fit === 'width' ? ' fitToWidth="1" fitToHeight="0"' : '';
+  const fit = setup.fit === 'page' ? ' fitToWidth="1" fitToHeight="1"'
+    : setup.fit === 'width' ? ' fitToWidth="1" fitToHeight="0"'
+    : setup.fit === 'height' ? ' fitToWidth="0" fitToHeight="1"' : '';
   part.setTailElement(
     'pageSetup',
     `<pageSetup paperSize="${CODE_FOR_PAPER[setup.paper] || 9}" orientation="${setup.orientation}"` +

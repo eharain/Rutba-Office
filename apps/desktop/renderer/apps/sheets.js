@@ -13,7 +13,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
-import SheetsRibbon, { FUNCTIONS } from './sheets/ribbon.js';
+import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS } from './sheets/ribbon.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import {
@@ -84,7 +84,9 @@ export default function Sheets({ app, shell, boot }) {
   const [view, setView] = useState({
     zoom: 1,
     gridlines: true, headings: true, formulaBar: true, formulas: false,
-    page: { orientation: 'portrait', margins: 'normal', size: 'A4' },
+    // The file's own page setup, read once the workbook is open: what the
+    // Page Layout tab says now, and what a press there changes.
+    page: null,
   });
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
   const gridRef = useRef(null);
@@ -144,6 +146,12 @@ export default function Sheets({ app, shell, boot }) {
 
   /* ── opening ─────────────────────────────────────────────────────────── */
 
+  /** The page setup as the file keeps it, for the Page Layout tab. */
+  const refreshPage = useCallback((id) => {
+    if (!id) return;
+    shell.doc.pageSetup({ id }).then((page) => patchView({ page })).catch(() => {});
+  }, [shell, patchView]);
+
   const load = useCallback(
     async (fn) => {
       setBusy(true);
@@ -152,6 +160,7 @@ export default function Sheets({ app, shell, boot }) {
         const opened = await fn();
         setDoc(opened);
         setModel(opened.model);
+        refreshPage(opened.id);
         if (opened.path) shell.app.addRecent({ path: opened.path, app: 'sheets' }).catch(() => {});
         if (opened.converted?.from) {
           // What saving will actually do: a .csv opened here saves as .csv,
@@ -828,7 +837,35 @@ export default function Sheets({ app, shell, boot }) {
       case 'toggleHeadings': patchView((v) => ({ headings: v.headings === false })); return;
       case 'toggleFormulaBar': patchView((v) => ({ formulaBar: v.formulaBar === false })); return;
       case 'toggleFormulas': patchView((v) => ({ formulas: !v.formulas })); return;
-      case 'page': patchView((v) => ({ page: { ...v.page, ...arg } })); return;
+      case 'page': {
+        // Margins, Orientation, Size, Print Titles and Scale to Fit write the
+        // file's own page setup — what the print dialog and Excel start from
+        // — through the op the dialog uses; until 2026-09-21 they changed a
+        // note in this window that nothing read. The setup is read first and
+        // sent back whole, since the writer rebuilds it from what it is given.
+        const current = await shell.doc.pageSetup({ id: doc.id });
+        const next = { ...current };
+        let said = 'Page setup saved with the file';
+        if (arg.orientation) { next.orientation = arg.orientation; said = `Orientation: ${arg.orientation}`; }
+        if (arg.size) { next.paper = arg.size; said = `Paper: ${arg.size}`; }
+        if (arg.margins && MARGIN_PRESETS[arg.margins]) { next.margins = { ...MARGIN_PRESETS[arg.margins] }; said = `Margins: ${arg.margins}`; }
+        if (arg.fit !== undefined) {
+          next.fit = arg.fit;
+          said = { none: 'No scaling', width: 'All the columns on one page across', height: 'All the rows on one page down', page: 'The sheet on one page' }[arg.fit] || 'Scaling set';
+        }
+        if (arg.scale !== undefined) { next.scale = arg.scale; next.fit = 'none'; said = `Scale: ${Math.round(arg.scale * 100)}%`; }
+        if (arg.repeatRows !== undefined) {
+          next.repeatRows = arg.repeatRows === 'selection'
+            ? (sel && Number.isFinite(sel.top) && sel.top === 0 ? sel.bottom + 1 : 0)
+            : Number(arg.repeatRows) || 0;
+          said = next.repeatRows ? `Rows 1 to ${next.repeatRows} repeat at the top of every page` : 'No rows repeat';
+          if (arg.repeatRows === 'selection' && !next.repeatRows) said = 'Select rows from row 1 to repeat them';
+        }
+        await dispatch({ op: 'setPageSetup', setup: next });
+        patchView({ page: next });
+        toast(said, { tone: 'good' });
+        return;
+      }
       case 'view': return;
       case 'zoom': {
         // The window's zoom is additive on a factor; reset first so a chosen
