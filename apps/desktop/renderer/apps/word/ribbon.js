@@ -173,7 +173,10 @@ export default function WordRibbon({
                 <Separator />
                 <Button icon="chevronLeft" title="Decrease indent" disabled={!format.indentLevel} onClick={() => para({ indentDelta: -1 })} />
                 <Button icon="chevronRight" title="Increase indent" onClick={() => para({ indentDelta: 1 })} />
-                <Soon icon="sort" label="" why="Sort paragraphs — coming with the table sorter." />
+                <Button icon="sort" title="Sort paragraphs — A to Z or Z to A; the whole document when nothing is selected" onClick={(e) => menu.open(e, [
+                  { label: 'A to Z', run: () => dispatch({ op: 'sortParagraphs', descending: false }) },
+                  { label: 'Z to A', run: () => dispatch({ op: 'sortParagraphs', descending: true }) },
+                ])} />
                 <Button icon="formula" title="Show formatting marks (¶)" pressed={Boolean(view.marks)} onClick={() => act('toggleMarks')} />
               </>
               <>

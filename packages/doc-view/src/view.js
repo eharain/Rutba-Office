@@ -797,6 +797,26 @@ export class DocView {
     return this._edit('paragraph', null, () => this._setParagraphFormat(delta));
   }
 
+  /**
+   * The selected paragraphs in the order of their words — A to Z, or Z to
+   * A. With nothing selected, the whole body, as Word offers. One undo
+   * step; the caret lands on the first of them.
+   */
+  sortParagraphs({ descending = false } = {}) {
+    if (typeof this.doc.sortParagraphs !== 'function') throw new Error('this document backend cannot sort paragraphs');
+    const { from, to } = this.selection;
+    const collapsed = from.block === to.block && from.offset === to.offset;
+    const first = collapsed ? 0 : from.block;
+    const last = collapsed ? this.blocks.length - 1 : to.block;
+    if (last <= first) return this;
+    return this._edit('sort paragraphs', null, () => {
+      this.doc.sortParagraphs(first, last, { descending });
+      this._invalidate();
+      this.collapseTo({ block: first, offset: 0 });
+      return this;
+    });
+  }
+
   _setParagraphFormat(delta) {
     const { from, to } = this.selection;
     for (let i = from.block; i <= to.block; i++) this._editable(i);

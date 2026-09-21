@@ -2437,6 +2437,33 @@ export class Document {
     return this;
   }
 
+  /**
+   * A run of body paragraphs in the order of their words — Home → Sort:
+   * A to Z or Z to A, numbers in their order and case set aside, as Word's
+   * sort does for paragraphs of text. Each paragraph moves whole, its look
+   * with it. The run must be body paragraphs with nothing else between
+   * them: not a table's cells, which the table sorts by its own rows.
+   */
+  sortParagraphs(from, to, { descending = false } = {}) {
+    const ps = [];
+    for (let i = from; i <= to; i++) {
+      const p = this.editParagraph(i);
+      if (!p) throw new Error('no paragraph at index ' + i);
+      if (p.container) throw new Error("Sort works on the body's paragraphs; a table sorts by its own rows.");
+      this._assertEditable(p, 'sorting it');
+      ps.push(p);
+    }
+    if (ps.length < 2) return this;
+    const { body } = this._body();
+    if (body.slice(ps[0].start, ps[ps.length - 1].end) !== ps.map((p) => p.xml).join('')) {
+      throw new Error('Something other than paragraphs sits inside the selection; select a plain run of paragraphs to sort.');
+    }
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+    const order = ps.map((_, i) => i).sort((a, b) => (collator.compare(ps[a].text, ps[b].text) * (descending ? -1 : 1)) || a - b);
+    this._spliceBody(ps[0].start, ps[ps.length - 1].end, order.map((i) => ps[i].xml).join(''));
+    return this;
+  }
+
   // ---- the edit address space's write half --------------------------------
   //
   // The same five operations, addressed by `editParagraphs()` index — the

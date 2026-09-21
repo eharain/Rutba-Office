@@ -955,6 +955,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setPageColour: (v, a) => v.setPageColour(a.colour ?? null),
     setPageBorders: (v, a) => v.setPageBorders(a.borders ?? null),
     setLineNumbers: (v, a) => v.setLineNumbers(a.spec ?? null),
+    sortParagraphs: (v, a) => v.sortParagraphs({ descending: Boolean(a.descending) }),
     tableOp: (v, a) => v.tableOp(a.op, a.arg),
     // A border dragged on the page: the columns either side of it, or a row's height.
     setTableColumnWidths: (v, a) => v.setTableColumnWidths(a),

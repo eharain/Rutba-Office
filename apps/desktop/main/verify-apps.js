@@ -1199,6 +1199,37 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await clickRibbon('Save');
       await until(() => { try { return !/<w:numPr>/.test(documentXml()); } catch { return false; } }, 'the list off again in the file', 8000).catch(() => false);
       check('word: the look checks leave the paragraphs out of the list again', !/<w:numPr>/.test(documentXml()), 'no numPr left in the file');
+      // Home → Sort: the two body paragraphs A to Z, the file following, then
+      // back again for the checks after this one.
+      const selectBody = () => js(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'doc').pop(); await window.rutbaOffice.doc.apply({ id: mine.id, ops: [{ op: 'setSelection', anchor: { block: 1, offset: 0 }, focus: { block: 2, offset: 0 } }] }); return 1; })()`);
+      // The block's own words: a list marker the page still shows from the
+      // list taken off through the service (the window's model lags a
+      // direct apply) is not part of them.
+      const blockText = (i) => js(`(() => { const b = document.querySelector('.wd-page [data-block="${i}"]'); if (!b) return ''; const c = b.cloneNode(true); c.querySelectorAll('.wd-marker').forEach((m) => m.remove()); return c.textContent.trim(); })()`);
+      // Earlier checks may have edited the words, so the order is judged
+      // against what is on the page now, the way the engine judges it.
+      await wait(300);
+      const original = [await blockText(1), await blockText(2)];
+      const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+      const ascending = [...original].sort((a, b) => collator.compare(a, b));
+      const startsAs = async (i, text) => (await blockText(i)).slice(0, 20) === text.slice(0, 20);
+      await selectBody();
+      await wait(300);
+      const sortedAZ = await pick('Sort paragraphs', 'A to Z');
+      const sorted = await until(async () => (await startsAs(1, ascending[0])) && (await startsAs(2, ascending[1])), 'the paragraphs sorted', 5000).catch(() => false);
+      check('word: Home → Sort puts the selected paragraphs A to Z, each moving whole', sortedAZ === 'clicked' && sorted === true && original[0] !== ascending[0], `${sortedAZ}; block 1 ${JSON.stringify((await blockText(1)).slice(0, 30))}, block 2 ${JSON.stringify((await blockText(2)).slice(0, 30))}; was ${JSON.stringify(original.map((t) => t.slice(0, 20)))}`);
+      await clickRibbon('Save');
+      const orderInFile = () => { try { const d = openDocx(fs.readFileSync(files.docx)); return [1, 2].map((i) => d.block(i).text.slice(0, 20)); } catch { return []; } };
+      await until(() => orderInFile()[0] === ascending[0].slice(0, 20), 'the order in the file', 8000).catch(() => false);
+      check('word: the saved file keeps the sorted order', orderInFile()[0] === ascending[0].slice(0, 20) && orderInFile()[1] === ascending[1].slice(0, 20), JSON.stringify(orderInFile()));
+      // And back in the original order, whichever way that is, for the checks after this one.
+      await wait(300);
+      await selectBody();
+      await wait(300);
+      await pick('Sort paragraphs', original[0] === ascending[0] ? 'A to Z' : 'Z to A');
+      await until(async () => startsAs(1, original[0]), 'the paragraphs back', 5000).catch(() => false);
+      await clickRibbon('Save');
+      await until(() => orderInFile()[0] === original[0].slice(0, 20), 'the order back in the file', 8000).catch(() => false);
       const complaints = await errorsIn(win);
       check('word: the shading and border checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {

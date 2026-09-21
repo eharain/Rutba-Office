@@ -35,6 +35,7 @@ export class OoxmlBackend {
   insertTable(index, rows, cols) { this.doc.insertTableAfter(index, rows, cols); return this; }
   /** Insert a picture as its own paragraph — the ribbon's Insert picture. */
   insertImage(index, spec) { this.doc.insertImageParagraph(index, spec); return this; }
+  sortParagraphs(from, to, options) { this.doc.sortParagraphs(from, to, options); return this; }
   removeImage(index, image) { this.doc.removeImage(index, image); return this; }
   setImageLayout(index, image, spec) { this.doc.setImageLayout(index, image, spec); return this; }
   setImageSize(index, image, spec) { this.doc.setImageSize(index, image, spec); return this; }
