@@ -378,10 +378,12 @@ export default function Sheets({ app, shell, boot }) {
 
   useEffect(() => {
     if (editing) putDraft((d) => (d == null ? editing.draft ?? '' : d));
-    else {
-      putDraft(null);
-      startingRef.current = false;
-    }
+    // The editor has gone (a commit, a cancel): its draft goes with it —
+    // unless the next edit is already on its way. Keys typed briskly after
+    // Enter arrive between the render that drops the editor and this effect,
+    // and wiping the draft here threw them away: "=A1*2" typed straight
+    // after "42⏎" reached the cell as "2".
+    else if (!startingRef.current) putDraft(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Boolean(editing), editing?.row, editing?.col]);
 
@@ -390,6 +392,9 @@ export default function Sheets({ app, shell, boot }) {
       const el = editorRef.current;
       el.focus();
       el.setSelectionRange(el.value.length, el.value.length);
+      // From here the editor holds the keys; the next printable key that
+      // reaches the grid starts a fresh edit.
+      startingRef.current = false;
     }
   }, [editing?.row, editing?.col]);
 
