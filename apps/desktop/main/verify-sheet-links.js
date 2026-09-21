@@ -399,6 +399,42 @@ export async function verifySheetLinks(h, { file }) {
     check('sheets: Formulas → Create from Selection names each column of the block from its header, kept in the file',
       clickedNames === 'clicked' && /^Sales!\$A\$2:\$A\$\d+$/.test(names.Region || '') && /^Sales!\$B\$2/.test(names.Q1_ || ''), `${clickedNames}; ${JSON.stringify({ Region: names.Region, Q1_: names.Q1_, Q2_: names.Q2_ })}`);
 
+    // The tabs: + adds a sheet, its menu renames and deletes it, and the
+    // saved file follows each step.
+    const tabNames = () => js(`[...document.querySelectorAll('.sh-tab:not(.sh-tab-add)')].map((t) => t.textContent.trim())`);
+    const tabsBefore = await tabNames();
+    await js(`(() => { document.querySelector('.sh-tab-add')?.click(); return 1; })()`);
+    const added = await until(async () => (await tabNames()).length === tabsBefore.length + 1, 'a new tab', 5000).catch(() => false);
+    const activeTab = await js(`document.querySelector('.sh-tab.active')?.textContent.trim()`);
+    check('sheets: + at the end of the tabs adds a sheet and goes to it', added === true && activeTab === 'Sheet3', `tabs ${JSON.stringify(tabsBefore)} → ${JSON.stringify(await tabNames())}; active ${activeTab}`);
+
+    const tabMenu = async (label) => {
+      await js(`(() => { const t = document.querySelector('.sh-tab.active'); const r = t.getBoundingClientRect(); t.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 10, clientY: r.top + 5 })); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})))`), `the tab menu (${label})`, 3000).catch(() => {});
+      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim().startsWith(${JSON.stringify(label)})); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    };
+    const pickedRename = await tabMenu('Rename sheet');
+    await until(() => js(`Boolean(document.querySelector('.sh-sheetname'))`), 'the rename dialog', 4000).catch(() => {});
+    await js(`(() => { const el = document.querySelector('.sh-sheetname'); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, 'Budget'); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+    await js(`(() => { document.querySelector('.sh-sheetname-ok')?.click(); return 1; })()`);
+    const renamed = await until(async () => (await tabNames()).includes('Budget'), 'the renamed tab', 5000).catch(() => false);
+    await clickIn(win, 'Save');
+    await until(() => { try { return SheetView.open(fs.readFileSync(file)).sheetNames().includes('Budget'); } catch { return false; } }, 'the new sheet in the file', 8000).catch(() => false);
+    const namesInFileAfterRename = (() => { try { return SheetView.open(fs.readFileSync(file)).sheetNames(); } catch { return []; } })();
+    check('sheets: the tab menu renames the sheet, and the saved file has the new sheet under its new name',
+      pickedRename === 'picked' && renamed === true && namesInFileAfterRename.includes('Budget'), `${pickedRename}; tabs ${JSON.stringify(await tabNames())}; file ${JSON.stringify(namesInFileAfterRename)}`);
+
+    const pickedDelete = await tabMenu('Delete sheet');
+    await until(() => js(`Boolean(document.querySelector('.sh-sheetdelete-ok'))`), 'the delete dialog', 4000).catch(() => {});
+    await js(`(() => { document.querySelector('.sh-sheetdelete-ok')?.click(); return 1; })()`);
+    const deleted = await until(async () => (await tabNames()).length === tabsBefore.length, 'the tab to go', 5000).catch(() => false);
+    await clickIn(win, 'Save');
+    await until(() => { try { return !SheetView.open(fs.readFileSync(file)).sheetNames().includes('Budget'); } catch { return false; } }, 'the sheet gone from the file', 8000).catch(() => false);
+    const pkgAfter = SheetView.open(fs.readFileSync(file)).pkg;
+    check('sheets: Delete sheet asks first, then takes the sheet and its part out of the file',
+      pickedDelete === 'picked' && deleted === true && !pkgAfter.has('xl/worksheets/sheet3.xml') && !SheetView.open(fs.readFileSync(file)).sheetNames().includes('Budget'),
+      `${pickedDelete}; tabs ${JSON.stringify(await tabNames())}; part left ${pkgAfter.has('xl/worksheets/sheet3.xml')}`);
+
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

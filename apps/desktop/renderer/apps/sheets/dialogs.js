@@ -668,6 +668,52 @@ export function SortDialog({ columns, onClose, onSort }) {
   );
 }
 
+/** Rename a sheet tab: Excel's rules, said in the hint; Enter renames. */
+export function SheetNameDialog({ current, onClose, onRename }) {
+  const [value, setValue] = useState(current || '');
+  const ok = value.trim().length > 0 && value.trim().length <= 31 && !/[\[\]:*?\/\\]/.test(value);
+  return (
+    <Dialog
+      title="Rename sheet"
+      width={380}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="Rename" className="sh-sheetname-ok" disabled={!ok} onClick={() => onRename(value.trim())} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="Name" hint={'Up to 31 characters; none of [ ] : * ? / or the backslash. Formulas that read the sheet follow the new name.'}>
+          <Input className="sh-sheetname" value={value} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onRename(value.trim()); }} autoFocus />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
+/** Delete a sheet: Excel says it cannot be undone, and so does this. */
+export function SheetDeleteDialog({ name, onClose, onDelete }) {
+  return (
+    <Dialog
+      title="Delete sheet"
+      width={380}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="Delete" className="sh-sheetdelete-ok" onClick={onDelete} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <p style={{ margin: 0 }}>{`Delete the sheet "${name}" and everything on it? This cannot be undone.`}</p>
+      </div>
+    </Dialog>
+  );
+}
+
 export function SizeDialog({ kind, current, onClose, onApply }) {
   const [value, setValue] = useState(String(current || (kind === 'row' ? 20 : 64)));
   const n = Number(value);

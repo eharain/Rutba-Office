@@ -17,7 +17,7 @@ import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS } from './sheets/ribbon.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import {
-  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, parseRef,
+  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, parseRef,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -91,6 +91,8 @@ export default function Sheets({ app, shell, boot }) {
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
   /** Tracing arrows on the grid: each a range and the cell it points at, or from. */
   const [arrows, setArrows] = useState([]);
+  /** The sheet tab a rename or delete dialog is about. */
+  const [sheetTarget, setSheetTarget] = useState(null);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -1108,6 +1110,14 @@ export default function Sheets({ app, shell, boot }) {
         toast(filledAfter < filledBefore ? 'Duplicate rows removed; the rest closed up' : 'No duplicate rows in the selection', { tone: 'good' });
         return;
       }
+      case 'addSheet': {
+        try {
+          await dispatch({ op: 'addSheet' });
+        } catch (err) {
+          toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
+        }
+        return;
+      }
       case 'printArea': {
         const current = await shell.doc.pageSetup({ id: doc.id });
         if (arg === 'clear') {
@@ -1372,10 +1382,16 @@ export default function Sheets({ app, shell, boot }) {
                 type="button"
                 className={`sh-tab${name === model.activeSheet ? ' active' : ''}`}
                 onClick={() => dispatch({ op: 'sheet', name })}
+                onContextMenu={(e) => menu.open(e, [
+                  { label: 'Rename sheet…', icon: 'textbox', run: () => { setSheetTarget(name); setDialog('renameSheet'); } },
+                  { label: 'Delete sheet…', icon: 'trash', run: () => { setSheetTarget(name); setDialog('deleteSheet'); } },
+                  { label: 'New sheet', icon: 'plus', run: () => act('addSheet') },
+                ])}
               >
                 {name}
               </button>
             ))}
+            <button type="button" className="sh-tab sh-tab-add" title="New sheet — at the end of the tabs" onClick={() => act('addSheet')}>+</button>
           </div>
           {menu.node}
         </div>
@@ -1411,6 +1427,26 @@ export default function Sheets({ app, shell, boot }) {
           onClose={() => setDialog(null)}
           onRemove={async () => { setDialog(null); await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); }}
           onSet={async (note) => { setDialog(null); await dispatch({ op: 'setNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0, ...note }); }}
+        />
+      ) : null}
+      {dialog === 'renameSheet' && sheetTarget ? (
+        <SheetNameDialog
+          current={sheetTarget}
+          onClose={() => setDialog(null)}
+          onRename={async (to) => {
+            setDialog(null);
+            try { await dispatch({ op: 'renameSheet', from: sheetTarget, to }); } catch (err) { toast(String(err?.message || err), { tone: 'warn', ms: 5000 }); }
+          }}
+        />
+      ) : null}
+      {dialog === 'deleteSheet' && sheetTarget ? (
+        <SheetDeleteDialog
+          name={sheetTarget}
+          onClose={() => setDialog(null)}
+          onDelete={async () => {
+            setDialog(null);
+            try { await dispatch({ op: 'removeSheet', name: sheetTarget }); toast(`Sheet "${sheetTarget}" deleted`, { tone: 'good' }); } catch (err) { toast(String(err?.message || err), { tone: 'warn', ms: 5000 }); }
+          }}
         />
       ) : null}
       {dialog === 'sort' ? (
@@ -1790,4 +1826,6 @@ const CSS = `
 }
 .sh-tab:hover { background: var(--hover); }
 .sh-tab.active { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: var(--shadow-1); }
+/* The + at the end of the tabs: a new sheet, as every spreadsheet has it. */
+.sh-tab-add { min-width: 28px; font-weight: 600; color: var(--ink-2); }
 `;

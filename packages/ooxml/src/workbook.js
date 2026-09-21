@@ -1231,6 +1231,120 @@ export class Workbook {
 
   sheetNames() { return this.sheets().map((s) => s.name); }
 
+  /** A sheet name Excel would take: 1–31 characters, none of []:*?/\, not quoted, unique. */
+  _checkSheetName(name, { except = null } = {}) {
+    const trimmed = String(name ?? '').trim();
+    if (!trimmed || trimmed.length > 31) throw new Error('a sheet name is 1 to 31 characters');
+    if (/[\[\]:*?\/\\]/.test(trimmed)) throw new Error('a sheet name cannot contain [ ] : * ? / or \\');
+    if (trimmed.startsWith("'") || trimmed.endsWith("'")) throw new Error('a sheet name cannot start or end with an apostrophe');
+    const taken = this.sheetNames().some((n) => n !== except && n.toLowerCase() === trimmed.toLowerCase());
+    if (taken) throw new Error('there is already a sheet called "' + trimmed + '"');
+    return trimmed;
+  }
+
+  /**
+   * A new, empty worksheet at the end of the tab order: the part, its
+   * content type, the relationship from the workbook and the `<sheet>` entry
+   * with the next sheetId — everything Excel needs to find it.
+   *
+   * @returns {{ name: string, part: string }}
+   */
+  addSheet(name) {
+    const clean = this._checkSheetName(name);
+    const n = this.pkg.nextPartNumber('xl/worksheets/', 'sheet');
+    const part = 'xl/worksheets/sheet' + n + '.xml';
+    this.pkg.addPart(
+      part,
+      '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheetData/></worksheet>',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml',
+    );
+    const rId = this.pkg.addRelationshipTo(this.mainPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet', 'worksheets/sheet' + n + '.xml');
+    let xml = this.pkg.text(this.mainPart);
+    const ids = [...xml.matchAll(/<sheet\b[^>]*\bsheetId="(\d+)"/g)].map((m) => Number(m[1]));
+    const sheetId = (ids.length ? Math.max(...ids) : 0) + 1;
+    if (!/<\/sheets>/.test(xml)) throw new Error('the workbook lists no sheets');
+    xml = xml.replace('</sheets>', '<sheet name="' + esc(clean) + '" sheetId="' + sheetId + '" r:id="' + rId + '"/></sheets>');
+    this.pkg.write_(this.mainPart, xml);
+    this._sheets = null;
+    return { name: clean, part };
+  }
+
+  /**
+   * Take a sheet out of the workbook: its entry, its relationship and its
+   * part go; names scoped to later sheets move down one, names scoped to
+   * it go with it, and the active tab is the first sheet again. The last
+   * sheet cannot go — a workbook with no sheet in it is not a workbook.
+   */
+  removeSheet(name) {
+    const sheets = this.sheets();
+    const index = sheets.findIndex((s) => s.name === name);
+    if (index < 0) throw new Error('no such sheet: ' + name);
+    if (sheets.length <= 1) throw new Error('a workbook keeps at least one sheet');
+    const entry = sheets[index];
+    let xml = this.pkg.text(this.mainPart);
+    xml = xml.replace(new RegExp('<sheet\\b[^>]*\\br:id="' + entry.rId + '"[^>]*/>'), '');
+    xml = xml.replace(/<definedName\b([^>]*)>([\s\S]*?)<\/definedName>/g, (m, attrsText, inner) => {
+      const scoped = /\blocalSheetId="(\d+)"/.exec(attrsText);
+      if (!scoped) return m;
+      const k = Number(scoped[1]);
+      if (k === index) return '';
+      if (k > index) return '<definedName' + attrsText.replace(/\blocalSheetId="\d+"/, 'localSheetId="' + (k - 1) + '"') + '>' + inner + '</definedName>';
+      return m;
+    });
+    xml = xml.replace(/<definedNames>\s*<\/definedNames>/, '');
+    xml = xml.replace(/(<workbookView\b[^>]*?)\s*activeTab="\d+"/, '$1');
+    this.pkg.write_(this.mainPart, xml);
+    const relsPart = 'xl/_rels/workbook.xml.rels';
+    if (this.pkg.has(relsPart)) {
+      const rels = this.pkg.text(relsPart);
+      this.pkg.write_(relsPart, rels.replace(new RegExp('<Relationship\\b[^>]*\\bId="' + entry.rId + '"[^>]*/>'), ''));
+    }
+    this.pkg.removePart(entry.part);
+    this._loaded.delete(entry.part);
+    this._sheets = null;
+    return true;
+  }
+
+  /**
+   * Rename a sheet, and everything that names it: the entry, the defined
+   * names that point into it, and every formula in every sheet that reads
+   * it — as Excel does when a tab is renamed.
+   *
+   * @returns {string[]} the parts rewritten besides the workbook part
+   */
+  renameSheet(from, to) {
+    const sheets = this.sheets();
+    const entry = sheets.find((s) => s.name === from);
+    if (!entry) throw new Error('no such sheet: ' + from);
+    const clean = this._checkSheetName(to, { except: from });
+    if (clean === from) return [];
+    const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const quotedTo = /[^A-Za-z0-9_]/.test(clean) || /^\d/.test(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
+    // A reference to the old name: quoted or bare, followed by the bang.
+    const refRx = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'g');
+    const rewrite = (text) => text.replace(refRx, '$1' + quotedTo + '!');
+
+    let xml = this.pkg.text(this.mainPart);
+    xml = xml.replace(new RegExp('(<sheet\\b[^>]*\\bname=")' + rx(esc(from)) + '(")'), '$1' + esc(clean) + '$2');
+    xml = xml.replace(/<definedName\b([^>]*)>([\s\S]*?)<\/definedName>/g, (m, attrsText, inner) => '<definedName' + attrsText + '>' + esc(rewrite(unesc(inner))) + '</definedName>');
+    this.pkg.write_(this.mainPart, xml);
+
+    const touched = [];
+    for (const s of sheets) {
+      const loaded = this._loaded.get(s.part);
+      const source = loaded ? loaded.render() : this.pkg.text(s.part);
+      if (!source.includes(from)) continue;
+      const next = source.replace(/<f\b([^>]*)>([^<]*)<\/f>/g, (m, attrsText, f) => '<f' + attrsText + '>' + esc(rewrite(unesc(f))) + '</f>');
+      if (next !== source) {
+        this.pkg.write_(s.part, next);
+        this._loaded.delete(s.part);
+        touched.push(s.part);
+      }
+    }
+    this._sheets = null;
+    return touched;
+  }
+
   _sheetPart(sheetName) {
     const sheet = this.sheets().find((s) => s.name === sheetName);
     if (!sheet) throw new Error('no such sheet: ' + sheetName);

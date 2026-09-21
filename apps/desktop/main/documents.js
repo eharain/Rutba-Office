@@ -840,6 +840,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setCell: (v, a) => v.setCell(a.row, a.col, a.value),
     clear: (v) => v.clearSelection(),
     sheet: (v, a) => v.selectSheet(a.name),
+    // The tabs: a new sheet, a renamed one, one taken out.
+    addSheet: (v, a) => v.addSheet(a.name),
+    renameSheet: (v, a) => v.renameSheet(a.from, a.to),
+    removeSheet: (v, a) => v.removeSheet(a.name),
     merge: (v) => v.mergeSelection(),
     unmerge: (v) => v.unmergeSelection(),
     colWidth: (v, a) => v.setColWidth(a.col, a.width),

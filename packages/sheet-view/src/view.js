@@ -686,6 +686,67 @@ export class SheetView {
     }, { parts: [sheetPartName] });
   }
 
+  /** The next free "SheetN", as Excel names a new tab. */
+  _freshSheetName() {
+    const taken = new Set(this.sheetNames().map((n) => n.toLowerCase()));
+    let n = taken.size + 1;
+    while (taken.has('sheet' + n)) n += 1;
+    return 'Sheet' + n;
+  }
+
+  /**
+   * A new sheet at the end of the tabs, and the view on it. One undo step:
+   * undoing takes the part out again.
+   */
+  addSheet(name) {
+    const proposed = String(name ?? '').trim() || this._freshSheetName();
+    this.workbook._checkSheetName(proposed);
+    this._edit('add sheet', null, [], () => {
+      this.workbook.addSheet(proposed);
+      this._rebuildDerivedState();
+      this._structuralDirty = true;
+      return this;
+    }, { parts: [this.workbook.mainPart, 'xl/_rels/workbook.xml.rels'], tracksNewParts: true, structural: true });
+    this.selectSheet(proposed);
+    return proposed;
+  }
+
+  /**
+   * Rename a sheet: the tab, the names that point into it and every formula
+   * that reads it. One undo step over every part it touched.
+   */
+  renameSheet(from, to) {
+    const clean = this.workbook._checkSheetName(to, { except: from });
+    if (clean === from) return this;
+    const parts = [this.workbook.mainPart, ...this.workbook.sheets().map((s) => s.part)];
+    this._edit('rename sheet', null, [], () => {
+      this.workbook.renameSheet(from, clean);
+      if (this.activeSheet === from) this.activeSheet = clean;
+      for (const map of [this.links, this.notes, this.geometry, this.cellStyles, this.merges, this.validations, this.conditionals]) {
+        if (map.has(from)) { map.set(clean, map.get(from)); map.delete(from); }
+      }
+      this._rebuildDerivedState();
+      this._structuralDirty = true;
+      return this;
+    }, { parts, structural: true });
+    return this;
+  }
+
+  /**
+   * Delete a sheet. Not undoable — the part is gone from the package, as in
+   * Excel, which says so before it does it; the window asks first.
+   */
+  removeSheet(name) {
+    this.workbook.removeSheet(name);
+    if (this.activeSheet === name) this.activeSheet = this.sheetNames()[0];
+    this.selection = Selection.at(0, 0);
+    for (const map of [this.links, this.notes, this.geometry, this.cellStyles, this.merges, this.validations, this.conditionals]) map.delete(name);
+    this._rebuildDerivedState();
+    this.history = new History();
+    this._structuralDirty = true;
+    return this;
+  }
+
   selectSheet(name) {
     if (!this.sheetNames().includes(name)) throw new Error('no such sheet: ' + name);
     this.activeSheet = name;
