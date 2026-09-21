@@ -234,7 +234,7 @@ export default function SlidesRibbon({
           </Group>
           <Group label="Links">
             <Soon tall icon="zoomIn" label="Zoom" why="Slide zooms are a PowerPoint-only feature." />
-            <Soon tall icon="link" label="Link" why="A hyperlink on a shape needs a relationship the deck writer does not write yet." />
+            <Button tall icon="link" label="Link" disabled={!hasShape} title={needShape || 'Link — a web address on the selected shape’s words (Ctrl+K); Ctrl+click follows it'} onClick={() => act('link')} />
             <Soon tall icon="play" label="Action" why="Comes with links." />
           </Group>
           <Group label="Comments">

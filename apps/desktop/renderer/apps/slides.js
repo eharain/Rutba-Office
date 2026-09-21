@@ -40,6 +40,8 @@ export default function Slides({ app, shell, boot }) {
   const [footerOpen, setFooterOpen] = useState(null);
   /** Find and replace across the deck. */
   const [findOpen, setFindOpen] = useState(false);
+  /** Insert → Link on the selected shape. */
+  const [linkOpen, setLinkOpen] = useState(false);
   /** A shape to select once the slide a match is on has been shown. */
   const pendingSelect = useRef(null);
   const [blank, setBlank] = useState(false);
@@ -409,6 +411,7 @@ export default function Slides({ app, shell, boot }) {
       'file.save': { label: 'Save', icon: 'save', key: 'Mod+S', run: () => save(false) },
       'file.print': { label: 'Print…', icon: 'print', key: 'Mod+P', global: true, run: () => setPrinting(true) },
       'edit.find': { label: 'Find and replace…', icon: 'find', key: 'Mod+F', global: true, run: () => setFindOpen(true) },
+      'insert.link': { label: 'Link…', icon: 'link', key: 'Mod+K', run: () => act('link') },
       'slide.next': { label: 'Next slide', icon: 'chevronRight', key: 'arrowdown', run: () => setIndex((i) => Math.min(i + 1, (model?.count || 1) - 1)) },
       'slide.prev': { label: 'Previous slide', icon: 'chevronLeft', key: 'arrowup', run: () => setIndex((i) => Math.max(0, i - 1)) },
       'slide.new': { label: 'Duplicate slide', icon: 'plus', run: () => apply({ op: 'duplicateSlide', slide: index }) },
@@ -573,6 +576,11 @@ export default function Slides({ app, shell, boot }) {
       }
       case 'find': {
         setFindOpen(true);
+        return;
+      }
+      case 'link': {
+        if (!selectedShape?.text) return toast('Click a text box first.', { ms: 3000 });
+        setLinkOpen(true);
         return;
       }
       case 'painter': {
@@ -848,7 +856,11 @@ export default function Slides({ app, shell, boot }) {
                         data-shape={s.id}
                         style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
                         onMouseDown={(e) => startDrag(e, s, 'move')}
-                        onClick={() => { if (painter) paintShape(s); setSelected(s.id); }}
+                        onClick={(e) => {
+                          if ((e.ctrlKey || e.metaKey) && linkOf(s)) { shell.shell.openExternal({ url: linkOf(s) }); return; }
+                          if (painter) paintShape(s);
+                          setSelected(s.id);
+                        }}
                         onDoubleClick={() => (s.text ? setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) : null)}
                         onContextMenu={(e) => menu.open(e, [
                           ...(s.text ? [{ label: 'Edit text', icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) }] : []),
@@ -858,7 +870,7 @@ export default function Slides({ app, shell, boot }) {
                           '-',
                           { label: 'Delete shape', icon: 'trash', run: () => apply({ op: 'removeShape', slide: index, shape: s.id }) },
                         ])}
-                        title={s.text ? `${s.name || 'Shape'} — drag to move, double-click to edit` : `${s.name || s.kind} — drag to move`}
+                        title={(s.text ? `${s.name || 'Shape'} — drag to move, double-click to edit` : `${s.name || s.kind} — drag to move`) + (linkOf(s) ? ` — Ctrl+click to follow ${linkOf(s)}` : '')}
                       />
                     );
                   })}
@@ -940,6 +952,22 @@ export default function Slides({ app, shell, boot }) {
           kind="deck"
           onClose={() => setPrinting(false)}
           onSaveAs={(options) => exportAs('pdf', options)}
+        />
+      ) : null}
+
+      {linkOpen && selectedShape ? (
+        <ShapeLinkDialog
+          current={linkOf(selectedShape)}
+          words={(selectedShape.text?.paragraphs || []).map((p) => (p.runs || []).map((r) => r.text).join('')).join(' ').trim()}
+          onClose={() => setLinkOpen(false)}
+          onApply={async (url) => {
+            await apply({ op: 'setLink', slide: index, shape: selectedShape.id, url });
+            setLinkOpen(false);
+          }}
+          onRemove={async () => {
+            await apply({ op: 'setLink', slide: index, shape: selectedShape.id, url: null });
+            setLinkOpen(false);
+          }}
         />
       ) : null}
 
@@ -1389,6 +1417,47 @@ function SlidesShortcutsDialog({ onClose }) {
  * slide, one paragraph per line, and stored in the file rather than beside it,
  * so they travel with the deck to PowerPoint and back.
  */
+/** The first address a shape's words carry, or ''. */
+function linkOf(shape) {
+  return (shape?.text?.paragraphs || []).flatMap((p) => p.runs || []).map((r) => (r.link && typeof r.link === 'object' ? r.link.url : null)).find(Boolean) || '';
+}
+
+/** `office.rutba.io` is an address; `office.rutba.io` with no scheme is not. */
+function normaliseAddress(url) {
+  const text = String(url || '').trim();
+  if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return text;
+  if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(text)) return `mailto:${text}`;
+  return `https://${text}`;
+}
+
+/** Insert → Link: a web address on the selected shape's words. */
+function ShapeLinkDialog({ current, words, onClose, onApply, onRemove }) {
+  const [url, setUrl] = useState(current || '');
+  return (
+    <Dialog
+      title="Link"
+      width={480}
+      onClose={onClose}
+      actions={
+        <>
+          {current ? <Button label="Remove link" className="sl-link-remove" onClick={onRemove} /> : null}
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label={current ? 'Update' : 'Add link'} className="sl-link-ok" disabled={!url.trim()} onClick={() => onApply(normaliseAddress(url))} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="Words">
+          <input className="rw-input" value={words || ''} disabled />
+        </Field>
+        <Field label="Address" hint="A web address, or mailto: for an email link. Ctrl+click the shape to follow it.">
+          <input className="rw-input sl-link-url" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && url.trim()) onApply(normaliseAddress(url)); }} placeholder="https://office.rutba.io" autoFocus />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
 /** Home → Editing: the words found on every slide, each match a step to its shape, and replaced across the deck. */
 function FindDialog({ onClose, onFind, onGoto, onReplaceAll }) {
   const [find, setFind] = useState('');

@@ -1471,6 +1471,47 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('slides: the saved file keeps the shadow after the outline in the shape’s own properties',
         /<\/a:ln><a:effectLst><a:outerShdw blurRad="50800" dist="38100" dir="2700000" algn="ctr" rotWithShape="0"><a:srgbClr val="000000"><a:alpha val="40000"\/><\/a:srgbClr><\/a:outerShdw><\/a:effectLst>/.test(spXml),
         spXml.slice(Math.max(0, spXml.indexOf('<a:ln')), Math.max(0, spXml.indexOf('<a:ln')) + 260));
+
+      // Insert → Link: an address on the pasted box's words, drawn as a link,
+      // offered to follow, and an External relationship in the file. Nothing
+      // is followed: a check never touches the network.
+      await wait(300);
+      await js(`(() => { document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.click(); return 1; })()`);
+      await wait(300);
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await wait(200);
+      const linked = await clickRibbon('Link');
+      await until(() => js(`Boolean(document.querySelector('.sl-link-url'))`), 'the link dialog', 4000).catch(() => {});
+      await js(`(() => { const el = document.querySelector('.sl-link-url'); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, 'office.rutba.io/help'); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      await wait(100);
+      await js(`(() => { document.querySelector('.sl-link-ok')?.click(); return 1; })()`);
+      const linkOf = (s) => (s?.text?.paragraphs || []).flatMap((p) => p.runs || []).map((r) => (r.link && typeof r.link === 'object' ? r.link.url : null)).find(Boolean) || null;
+      const boxNow = () => model(1).slide.shapes.find((x) => x.id === painted.id);
+      const gotLink = await until(() => linkOf(boxNow()) === 'https://office.rutba.io/help', 'the link on the words', 5000).catch(() => false);
+      // The stage redraws a render after the window hears back; the link is
+      // the underline or the link blue on the words.
+      const drawnLink = await until(() => js(`/text-decoration="underline"|fill="#0563C1"/i.test(document.querySelector('.sl-stage svg')?.innerHTML || '')`), 'the link drawn', 10000).catch(() => false);
+      await wait(300);
+      const hitTip = await js(`document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.title || ''`);
+      check('slides: Insert → Link puts an address on the shape’s words, drawn underlined, with Ctrl+click offered to follow it',
+        linked === 'clicked' && gotLink === true && drawnLink === true && / — Ctrl\+click to follow https:\/\/office\.rutba\.io\/help$/.test(hitTip),
+        `${linked}; link ${linkOf(boxNow())}; drawn ${drawnLink}; tip ${JSON.stringify(hitTip)}`);
+      await clickRibbon('Save');
+      const linkFile = () => {
+        try {
+          const d = Deck.open(fs.readFileSync(files.pptx));
+          const part = d.slideParts[1].part;
+          const relsPart = part.replace(/\/([^/]+)$/, '/_rels/$1.rels');
+          const x = d.pkg.text(part);
+          const m = new RegExp('<p:cNvPr id="' + painted.id + '"[\\s\\S]*?</p:sp>').exec(x);
+          return { sp: m ? m[0] : '', rels: d.pkg.has(relsPart) ? d.pkg.text(relsPart) : '' };
+        } catch { return { sp: '', rels: '' }; }
+      };
+      await until(() => /TargetMode="External"/.test(linkFile().rels), 'the link in the file', 8000).catch(() => false);
+      const saved = linkFile();
+      check('slides: the saved file keeps the link as PowerPoint writes it — hlinkClick on the run, an External relationship on the slide',
+        /<a:hlinkClick r:id="rId\d+"/.test(saved.sp) && /Type="[^"]*\/hyperlink" Target="https:\/\/office\.rutba\.io\/help" TargetMode="External"/.test(saved.rels),
+        `${saved.sp.slice(Math.max(0, saved.sp.indexOf('<a:rPr')), Math.max(0, saved.sp.indexOf('<a:rPr')) + 200)}; rels ${saved.rels.slice(-220)}`);
       const complaints = await errorsIn(win);
       check('slides: the clipboard checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {

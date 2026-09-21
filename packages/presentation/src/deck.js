@@ -32,6 +32,7 @@ const REL = {
   theme: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme',
   image: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
   notes: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide',
+  hyperlink: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
 };/** The picture types PowerPoint itself embeds; anything else is converted first. */
 const IMAGE_EXTENSIONS = {
   'image/png': 'png',
@@ -329,7 +330,7 @@ export class Deck {
       master: masterPart,
       size: this.size,
       background: scene.background,
-      shapes: withSlideNumber(scene.shapes, index + 1),
+      shapes: withLinks(withSlideNumber(scene.shapes, index + 1), rel),
       notes,
       theme: { colors: theme.colors, fonts: theme.fonts },
     };
@@ -845,6 +846,34 @@ export class Deck {
   }
 
   /**
+   * A link on a shape's words — Insert → Link: every run of the shape points
+   * at an External relationship the slide carries, as PowerPoint writes one;
+   * null takes the link off every run (the relationship stays, unreferenced,
+   * as an undone edit leaves it). Returns the relationship id, or null.
+   */
+  setLink(slideIndex, shapeId, url) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const shape = this.slide(slideIndex).shapes.find((s) => String(s.id) === String(shapeId));
+    if (!shape) throw new Error(`shape ${shapeId} not found`);
+    if (!shape.text?.paragraphs) throw new Error('A link needs a shape with words.');
+    const address = url == null ? '' : String(url).trim();
+    const rId = address ? this.pkg.addRelationshipTo(part, REL.hyperlink, address, { external: true }) : null;
+    const paragraphs = shape.text.paragraphs.map((p) => {
+      const { plain, runs, ...props } = p;
+      return {
+        ...props,
+        runs: (runs || []).map((r) => {
+          const { link, ...rest } = r;
+          return rId && r.text && !r.break ? { ...rest, link: rId } : rest;
+        }),
+      };
+    });
+    this.setText(slideIndex, shapeId, paragraphs);
+    return rId;
+  }
+
+  /**
    * Every place the words appear across the deck — per slide and shape, how
    * many times, with the shape's words to show. Case-insensitive unless
    * asked. Only shapes with a text body are searched: a picture has none,
@@ -1278,6 +1307,29 @@ function colourXml(c) {
   return mods ? `<a:schemeClr val="${escapeXml(c.scheme)}">${mods}</a:schemeClr>` : `<a:schemeClr val="${escapeXml(c.scheme)}"/>`;
 }
 
+/** A run's link, the relationship id the reader gives, resolved to { id, url } through the slide's relationships. */
+function withLinks(shapes, rel) {
+  if (typeof rel !== 'function') return shapes;
+  return shapes.map((s) => {
+    const paragraphs = s.text?.paragraphs;
+    if (!paragraphs || !paragraphs.some((p) => (p.runs || []).some((r) => typeof r.link === 'string'))) return s;
+    return {
+      ...s,
+      text: {
+        ...s.text,
+        paragraphs: paragraphs.map((p) => ({
+          ...p,
+          runs: (p.runs || []).map((r) => {
+            if (typeof r.link !== 'string') return r;
+            const target = rel(r.link);
+            return { ...r, link: { id: r.link, url: target?.external ? target.target : target?.target || null } };
+          }),
+        })),
+      },
+    };
+  });
+}
+
 /** The slide-number fields say the slide's own number, wherever the slide has moved to. */
 function withSlideNumber(shapes, number) {
   const text = String(number);
@@ -1362,8 +1414,12 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
         // A highlight sits after the fill and before the font in rPr's order.
         const highlight = r.highlight ? `<a:highlight><a:srgbClr val="${String(r.highlight).replace('#', '')}"/></a:highlight>` : '';
         const font = r.font ? `<a:latin typeface="${escapeXml(r.font)}"/>` : '';
-        const rPr = fill || highlight || font
-          ? `<a:rPr ${bits.join(' ')}>${fill}${highlight}${font}</a:rPr>`
+        // A link is the run's relationship id — as the reader gives it, or
+        // inside the { id, url } the scene resolves it to — last in rPr.
+        const rId = typeof r.link === 'string' ? r.link : r.link?.id;
+        const link = rId && /^rId\d+$/.test(rId) ? `<a:hlinkClick r:id="${rId}" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>` : '';
+        const rPr = fill || highlight || font || link
+          ? `<a:rPr ${bits.join(' ')}>${fill}${highlight}${font}${link}</a:rPr>`
           : `<a:rPr ${bits.join(' ')}/>`;
         // `xml:space` keeps leading and trailing spaces, which a title often has.
         return `<a:r>${rPr}<a:t xml:space="preserve">${escapeXml(r.text)}</a:t></a:r>`;

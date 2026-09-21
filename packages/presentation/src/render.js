@@ -304,8 +304,10 @@ function drawLines(body, box, opts, lines, height, insets) {
         const attrs = [];
         if (s.bold) attrs.push('font-weight="700"');
         if (s.italic) attrs.push('font-style="italic"');
-        if (s.underline || s.strike) attrs.push(`text-decoration="${[s.underline ? 'underline' : '', s.strike ? 'line-through' : ''].filter(Boolean).join(' ')}"`);
+        // A link is underlined, in Office's link blue unless the run says otherwise.
+        if (s.underline || s.strike || s.link) attrs.push(`text-decoration="${[s.underline || s.link ? 'underline' : '', s.strike ? 'line-through' : ''].filter(Boolean).join(' ')}"`);
         if (s.color) attrs.push(`fill="${s.color}"`);
+        else if (s.link) attrs.push('fill="#0563C1"');
         if (s.size && s.size !== line.size) attrs.push(`font-size="${(s.size * (opts?.scale || 1)).toFixed(2)}"`);
         if (s.font) {
           const condensed = CAPS_ONLY_FONTS.has(String(s.font).toLowerCase()) ? `${CONDENSED_FALLBACK}, ` : '';
