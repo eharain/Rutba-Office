@@ -196,6 +196,44 @@ export async function verifySheetLinks(h, { file }) {
     const cleared = await until(async () => (await js(areaRead)) === '', 'the print area to clear', 5000).catch(() => false);
     check('sheets: Clear print area takes it away', pickedClear === 'picked' && cleared === true, `${pickedClear}; area ${JSON.stringify(await js(areaRead))}`);
 
+    // Home → Increase indent twice, then Text orientation → Rotate text up,
+    // on A2: the words move in by two of Excel's indent units and stand on
+    // end (the row growing to hold them), and the saved file keeps both in
+    // the cell's alignment.
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(), 'tab'`);
+    await js(`(() => { document.querySelector('.sh-cell[data-ref="A2"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
+    await until(() => js(`document.querySelector('.sh-cell.active')?.dataset.ref === 'A2'`), 'A2 to be active', 4000).catch(() => {});
+    const padRead = `(() => { const c = document.querySelector('.sh-cell[data-ref="A2"]'); return c ? parseFloat(getComputedStyle(c).paddingLeft) : -1; })()`;
+    const padBefore = await js(padRead);
+    const clickedIn = await clickIn(win, 'Increase indent');
+    await until(async () => (await js(padRead)) > padBefore, 'the first indent', 4000).catch(() => {});
+    const padOne = await js(padRead);
+    await clickIn(win, 'Increase indent');
+    await until(async () => (await js(padRead)) > padOne, 'the second indent', 4000).catch(() => {});
+    const padTwo = await js(padRead);
+    check('sheets: Home → Increase indent moves the words in the cell in by one Excel indent unit a press',
+      clickedIn === 'clicked' && padOne > padBefore && padTwo > padOne && Math.round(padTwo - padBefore) === 18, `${clickedIn}; padding ${padBefore} → ${padOne} → ${padTwo}`);
+
+    const heightBefore = await js(`document.querySelector('.sh-cell[data-ref="A2"]')?.getBoundingClientRect().height || 0`);
+    await clickIn(win, 'Text orientation');
+    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.includes('Rotate text up')))`), 'the orientation menu', 3000).catch(() => {});
+    const pickedUp = await js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.includes('Rotate text up')); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    // rotate(-90deg) is the matrix (0, -1, 1, 0, …), give or take a rounding.
+    const turnRead = `(() => { const s = document.querySelector('.sh-cell[data-ref="A2"] .sh-rot'); if (!s) return null; const m = /matrix\\(([^)]*)\\)/.exec(getComputedStyle(s).transform); return m ? m[1].split(',').slice(0, 4).map((n) => Math.round(Number(n) * 1000) / 1000).join(',') : getComputedStyle(s).transform; })()`;
+    const turned = await until(async () => (await js(turnRead)) === '0,-1,1,0', 'the words to stand on end', 4000).catch(() => false);
+    const grown = await until(async () => (await js(`document.querySelector('.sh-cell[data-ref="A2"]')?.getBoundingClientRect().height || 0`)) > heightBefore + 10, 'the row to grow', 4000).catch(() => false);
+    const heightAfter = await js(`document.querySelector('.sh-cell[data-ref="A2"]')?.getBoundingClientRect().height || 0`);
+    check('sheets: Text orientation → Rotate text up stands the words in the cell on end, and the row grows to hold them',
+      pickedUp === 'picked' && turned === true && grown === true, `${pickedUp}; turn ${JSON.stringify(await js(turnRead))}; row ${heightBefore} → ${heightAfter}`);
+    await capture(win, 'sheets-orientation.png');
+
+    await clickIn(win, 'Save');
+    const stateInFile = () => { const v = SheetView.open(fs.readFileSync(file)); v.select(1, 0); return v.formatState(); };
+    await until(() => { try { return stateInFile().rotation === 90; } catch { return false; } }, 'the rotation to land in the file', 8000).catch(() => false);
+    const kept = stateInFile();
+    check('sheets: the file keeps the indent and the rotation in the alignment of the cell, as Excel reads them',
+      kept.indent === 2 && kept.rotation === 90 && kept.align === 'left', JSON.stringify({ indent: kept.indent, rotation: kept.rotation, align: kept.align }));
+
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

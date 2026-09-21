@@ -229,6 +229,16 @@ function cellCss(cell, setup) {
   return css.join(';');
 }
 
+/**
+ * Excel's textRotation as CSS on the words alone — the same turn the grid
+ * draws: 1..90 anticlockwise, 91..180 clockwise by the value less 90, 255
+ * stacked upright.
+ */
+function rotationCss(r) {
+  if (r === 255) return 'writing-mode:vertical-lr;text-orientation:upright;line-height:1.1';
+  return `display:inline-block;transform:rotate(${r > 90 ? r - 90 : -r}deg);transform-origin:center;white-space:nowrap`;
+}
+
 /** &P, &N, &A, &D, &F — the header and footer codes people already know. */
 function fields(text, { page, pages, sheet, file, date }) {
   return esc(String(text ?? ''))
@@ -297,13 +307,15 @@ export function printHtml(view, options = {}) {
                 valign: style?.align?.vertical ?? null,
                 wrap: Boolean(style?.align?.wrap),
                 indent: style?.align?.indent ?? 0,
+                rotation: style?.align?.rotation ?? 0,
                 colour: display.colour,
                 style: style ? { font: style.font, fill: style.fill, border: style.border } : null,
               };
               const span = merge
                 ? ` colspan="${Math.min(merge.right, page.cols[page.cols.length - 1].index) - merge.left + 1}" rowspan="${Math.min(merge.bottom, rows[rows.length - 1].index) - merge.top + 1}"`
                 : '';
-              return `<td${span} style="${cellCss(cell, setup)}">${esc(cell.text)}</td>`;
+              const words = cell.rotation ? `<span style="${rotationCss(cell.rotation)}">${esc(cell.text)}</span>` : esc(cell.text);
+              return `<td${span} style="${cellCss(cell, setup)}">${words}</td>`;
             })
             .join('');
           const heading = setup.headings ? `<th class="rh">${row.index + 1}</th>` : '';

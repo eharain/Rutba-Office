@@ -112,7 +112,11 @@ it is where the gaps are.
   their headings with them. The fill handle keeps out of a frozen pane; a
   merged range that crosses the freeze line is drawn by the pane its
   top-left cell is in.
-- **Format as Table**, slicers, sparklines: read, not written.
+- **A cell's alignment** is written in full since 2026-09-21: the Home
+  tab's indent arrows move the words in and out by Excel's units, and Text
+  orientation angles, turns or stacks them, on screen and on the printed
+  page, kept in the file as Excel keeps them.
+- **Slicers and sparklines**: read, not written.
 - **Data tools**: text to columns, remove duplicates, multi-key sort,
   advanced filter with a criteria range, consolidate, flash fill, subtotals
   and outlining, forecast sheets.

@@ -826,6 +826,9 @@ export class SheetView {
           valign: style?.align?.vertical ?? null,
           wrap: Boolean(style?.align?.wrap),
           indent: style?.align?.indent ?? 0,
+          // Excel's textRotation, for the painter: 1..90 anticlockwise,
+          // 91..180 clockwise less 90, 255 stacked upright, 0 horizontal.
+          rotation: style?.align?.rotation ?? 0,
           colour: display.colour,
           style: style ? { font: style.font, fill: style.fill, border: style.border } : null,
           // A data bar rides beside the style: length as a fraction, so the
@@ -3933,7 +3936,7 @@ export class SheetView {
     if (!xml || !cells.length) {
       return {
         bold: false, italic: false, underline: false, strike: false,
-        align: null, valign: null, wrap: false, numberFormat: 'General',
+        align: null, valign: null, wrap: false, indent: 0, rotation: 0, numberFormat: 'General',
         locked: true,
       };
     }
@@ -3948,6 +3951,10 @@ export class SheetView {
       // valign reconciles like horizontal align: a selection carrying two
       // different vertical alignments has none to show, so it reads null.
       if (all.valign !== at.valign) all.valign = null;
+      // Indent and rotation the same way: two values read as none, so the
+      // orientation menu marks nothing and the indent arrows step each cell.
+      if (all.indent !== at.indent) all.indent = null;
+      if (all.rotation !== at.rotation) all.rotation = null;
       // A selection spanning two different formats has no single one to show, so
       // a toolbar reads null and lights nothing rather than the corner cell's.
       if (all.numberFormat !== at.numberFormat) all.numberFormat = null;
@@ -3983,7 +3990,7 @@ export class SheetView {
     // of border edges are SET to what was asked for, or to null to clear. There
     // is no sensible "toggle Georgia", and pressing a colour twice should leave
     // the colour rather than removing it — which is what a toggle would do.
-    for (const k of ['fontName', 'fontSize', 'fontColour', 'fill', 'border', 'numberFormat', 'valign', 'wrap', 'locked']) {
+    for (const k of ['fontName', 'fontSize', 'fontColour', 'fill', 'border', 'numberFormat', 'valign', 'wrap', 'indent', 'indentBy', 'rotation', 'locked']) {
       if (delta[k] !== undefined) resolved[k] = delta[k];
     }
     if (!Object.keys(resolved).length) return this;

@@ -533,6 +533,15 @@ export default function Sheets({ app, shell, boot }) {
     return sp ? { ...base, left: sp.x, width: sp.width, zIndex: 1 } : base;
   };
 
+  /**
+   * Excel's textRotation as CSS on the cell's words: 1..90 turns them
+   * anticlockwise (CSS turns clockwise, hence the sign), 91..180 clockwise by
+   * the value less 90, and 255 stacks the letters upright.
+   */
+  const rotationStyle = (r) => (r === 255
+    ? { writingMode: 'vertical-lr', textOrientation: 'upright', lineHeight: 1.1 }
+    : { display: 'inline-block', transform: `rotate(${r > 90 ? r - 90 : -r}deg)`, transformOrigin: 'center', whiteSpace: 'nowrap' });
+
   const cellStyle = (cell) => {
     const s = cell.style || {};
     const font = s.font || {};
@@ -557,6 +566,10 @@ export default function Sheets({ app, shell, boot }) {
       whiteSpace: cell.wrap ? 'normal' : undefined,
       justifyContent: cell.align === 'center' ? 'center' : cell.align === 'right' ? 'flex-end' : undefined,
       alignItems: cell.valign === 'center' || cell.valign === 'middle' ? 'center' : cell.valign === 'top' ? 'flex-start' : undefined,
+      // Excel's indent, from the side the alignment reads from: one unit is
+      // about three characters, nine pixels at the grid's size.
+      paddingLeft: cell.indent && cell.align !== 'right' ? `${5 + cell.indent * 9}px` : undefined,
+      paddingRight: cell.indent && cell.align === 'right' ? `${5 + cell.indent * 9}px` : undefined,
     };
   };
 
@@ -717,7 +730,9 @@ export default function Sheets({ app, shell, boot }) {
       onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.copy', 'edit.clear', '-', 'insert.link', 'insert.note', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
       data-tip={tipFor(cell)}
     >
-      {view.formulas && cell.formula ? cell.formula : cell.text}
+      {cell.rotation
+        ? <span className="sh-rot" style={rotationStyle(cell.rotation)}>{view.formulas && cell.formula ? cell.formula : cell.text}</span>
+        : (view.formulas && cell.formula ? cell.formula : cell.text)}
     </div>
   );
 
@@ -908,6 +923,29 @@ export default function Sheets({ app, shell, boot }) {
       // Page Layout → Print Area: the page setup is rebuilt from what it is
       // given, so the file's own setup is read first and sent back with the
       // area changed — what the print dialog does.
+      case 'orientation': {
+        const rotation = Number(arg) || 0;
+        await dispatch({ op: 'setFormat', delta: { rotation } });
+        if (!rotation || !sel || !Number.isFinite(sel.top)) return;
+        // Excel grows a row to fit the turned words; measure each selected
+        // cell's text at its font and ask for the tallest, never shorter.
+        const ctx = document.createElement('canvas').getContext('2d');
+        const rows = new Map();
+        for (const c of model?.cells || []) {
+          if (c.row < sel.top || c.row > sel.bottom || c.col < sel.left || c.col > sel.right || !c.text) continue;
+          const font = c.style?.font || {};
+          const px = font.sizePt ? (font.sizePt * 4) / 3 : 12.5;
+          ctx.font = `${font.bold ? '700 ' : ''}${px}px ${font.family || 'Calibri, Arial, sans-serif'}`;
+          const width = ctx.measureText(String(c.text)).width;
+          const line = px * 1.25;
+          const need = rotation === 255 ? String(c.text).length * line + 6
+            : rotation === 90 || rotation === 180 ? width + 10
+            : Math.abs(Math.sin(((rotation > 90 ? rotation - 90 : rotation) * Math.PI) / 180)) * width + line + 6;
+          if (need > (c.height || 0)) rows.set(c.row, Math.max(rows.get(c.row) || 0, Math.ceil(need)));
+        }
+        for (const [row, height] of rows) await dispatch({ op: 'rowHeight', row, height });
+        return;
+      }
       case 'printArea': {
         const current = await shell.doc.pageSetup({ id: doc.id });
         if (arg === 'clear') {

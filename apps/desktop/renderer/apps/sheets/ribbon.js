@@ -63,6 +63,19 @@ const SHAPES = [
  * Excel's cell styles, as the formatting they apply. Each is one `setFormat`
  * delta, so "Good" is exactly the green Excel means and "Normal" clears it.
  */
+/**
+ * Excel's Orientation menu, as the textRotation each writes: 0 horizontal,
+ * 1..90 anticlockwise, 91..180 clockwise by the value less 90, 255 stacked.
+ */
+const ORIENTATIONS = [
+  ['Horizontal text', 0],
+  ['Angle anticlockwise', 45],
+  ['Angle clockwise', 135],
+  ['Vertical text', 255],
+  ['Rotate text up', 90],
+  ['Rotate text down', 180],
+];
+
 export const CELL_STYLES = [
   ['Normal', { bold: false, italic: false, fill: null, fontColour: null, border: { top: null, bottom: null, left: null, right: null }, numberFormat: 'General' }],
   ['Heading 1', { bold: true, fontSize: 15, fontColour: '#1F3864', border: { bottom: { style: 'medium', colour: '#4472C4' } } }],
@@ -220,7 +233,7 @@ export default function SheetsRibbon({
                 <Button icon="chevronUp" title="Top align" pressed={format.valign === 'top'} onClick={() => setFormat({ valign: 'top' })} />
                 <Button icon="minus" title="Middle align" pressed={format.valign === 'center'} onClick={() => setFormat({ valign: 'center' })} />
                 <Button icon="chevronDown" title="Bottom align" pressed={format.valign === 'bottom'} onClick={() => setFormat({ valign: 'bottom' })} />
-                <Soon icon="rotate" label="" why="Text orientation (angled or vertical text) is a cell alignment the engine does not write yet." />
+                <Button icon="rotate" title="Text orientation" pressed={Boolean(format.rotation)} onClick={(e) => menu.open(e, ORIENTATIONS.map(([label, rotation]) => ({ label, icon: (format.rotation ?? -1) === rotation ? 'check' : undefined, run: () => act('orientation', rotation) })))} />
                 <Separator />
                 <Button icon="listBullet" label="Wrap Text" pressed={format.wrap} onClick={() => setFormat({ wrap: !format.wrap })} />
               </>
@@ -228,8 +241,8 @@ export default function SheetsRibbon({
                 <Button icon="alignLeft" title="Align left" pressed={format.align === 'left'} onClick={() => setFormat({ align: 'left' })} />
                 <Button icon="alignCenter" title="Centre" pressed={format.align === 'center'} onClick={() => setFormat({ align: 'center' })} />
                 <Button icon="alignRight" title="Align right" pressed={format.align === 'right'} onClick={() => setFormat({ align: 'right' })} />
-                <Soon icon="chevronLeft" label="" why="Decrease indent is a cell alignment the engine does not write yet." />
-                <Soon icon="chevronRight" label="" why="Increase indent is a cell alignment the engine does not write yet." />
+                <Button icon="chevronLeft" title="Decrease indent" disabled={format.indent === 0} onClick={() => setFormat({ indentBy: -1 })} />
+                <Button icon="chevronRight" title="Increase indent" onClick={() => setFormat({ indentBy: 1 })} />
                 <Separator />
                 <Button icon="table" label="Merge & Centre" title="Merge the selected cells into one, and centre it" onClick={() => act('mergeCentre')} />
                 <Button icon="table" title="Merge cells" onClick={() => dispatch({ op: 'merge' })} />

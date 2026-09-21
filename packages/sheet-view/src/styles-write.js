@@ -195,6 +195,9 @@ function fillXml(colour) {
 /** The four edges, in the order the schema declares them. */
 const EDGE_ORDER = ['left', 'right', 'top', 'bottom'];
 
+/** The horizontal alignments an indent can ride with — Excel's rule. */
+const INDENTABLE = new Set(['left', 'right', 'distributed']);
+
 /**
  * A border element from a per-edge map.
  *
@@ -396,6 +399,9 @@ export function applyFormat(xml, base, delta) {
   if (delta.align !== undefined) {
     if (delta.align === null) delete alignAttrs.horizontal;
     else alignAttrs.horizontal = delta.align;
+    // An indent belongs to a left, right or distributed alignment; centring
+    // a cell (or clearing it back to General) drops the indent, as Excel does.
+    if (alignAttrs.indent && !INDENTABLE.has(alignAttrs.horizontal)) delete alignAttrs.indent;
   }
   // Vertical alignment uses the OOXML vocabulary verbatim (top/center/bottom);
   // null clears the attr back to the format's own default, exactly as horizontal
@@ -410,7 +416,34 @@ export function applyFormat(xml, base, delta) {
     if (delta.wrap) alignAttrs.wrapText = '1';
     else delete alignAttrs.wrapText;
   }
-  const alignTouched = delta.align !== undefined || delta.valign !== undefined || delta.wrap !== undefined;
+  // Indent counts in Excel's own units, 0..250. A relative step (`indentBy`)
+  // moves each cell from ITS OWN indent, which is what the ribbon's two arrows
+  // do — a mixed selection steps rather than levelling. Excel keeps an indent
+  // only beside a left, right or distributed alignment, so a cell without one
+  // is given left, exactly what Excel writes when the arrow is pressed.
+  if (delta.indent !== undefined || delta.indentBy !== undefined) {
+    const current = Number(alignAttrs.indent ?? 0) || 0;
+    const wanted = delta.indent !== undefined
+      ? (delta.indent === null ? 0 : Number(delta.indent) || 0)
+      : current + (Number(delta.indentBy) || 0);
+    const indent = Math.max(0, Math.min(250, Math.round(wanted)));
+    if (indent > 0) {
+      alignAttrs.indent = String(indent);
+      if (!INDENTABLE.has(alignAttrs.horizontal)) alignAttrs.horizontal = 'left';
+    } else {
+      delete alignAttrs.indent;
+    }
+  }
+  // Text orientation is OOXML's textRotation: 1..90 anticlockwise, 91..180
+  // clockwise (the value less 90), 255 for letters stacked upright. Zero and
+  // null take the attr off, which is horizontal text.
+  if (delta.rotation !== undefined) {
+    const r = delta.rotation === null ? 0 : Math.round(Number(delta.rotation) || 0);
+    if (r === 255 || (r >= 1 && r <= 180)) alignAttrs.textRotation = String(r);
+    else delete alignAttrs.textRotation;
+  }
+  const alignTouched = delta.align !== undefined || delta.valign !== undefined || delta.wrap !== undefined
+    || delta.indent !== undefined || delta.indentBy !== undefined || delta.rotation !== undefined;
   const alignPairs = Object.entries(alignAttrs).filter(([, v]) => v !== undefined && v !== '');
   const alignXml = alignPairs.length
     ? '<alignment ' + alignPairs.map(([k, v]) => k + '="' + esc(v) + '"').join(' ') + '/>'
@@ -515,7 +548,7 @@ export function formatOf(xml, index) {
   const fontsBlock = block(xml, 'fonts');
   const none = {
     bold: false, italic: false, underline: false, strike: false, align: null,
-    valign: null, wrap: false,
+    valign: null, wrap: false, indent: 0, rotation: 0,
     fontName: null, fontSize: null, fontColour: null, fill: null, border: {},
     numberFormat: 'General',
     locked: true,
@@ -542,6 +575,8 @@ export function formatOf(xml, index) {
     align: alignEl ? (attrsOf(alignEl[1]).horizontal ?? null) : null,
     valign: alignEl ? (attrsOf(alignEl[1]).vertical ?? null) : null,
     wrap: alignEl ? attrsOf(alignEl[1]).wrapText === '1' : false,
+    indent: alignEl ? (Number(attrsOf(alignEl[1]).indent ?? 0) || 0) : 0,
+    rotation: alignEl ? (Number(attrsOf(alignEl[1]).textRotation ?? 0) || 0) : 0,
     fontName: valueOf('name') ?? valueOf('rFont'),
     fontSize: valueOf('sz') === null ? null : Number(valueOf('sz')),
     fontColour: colourEl ? (attrsOf(colourEl[1]).rgb ?? null) : null,
