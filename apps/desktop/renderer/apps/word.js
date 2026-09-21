@@ -1015,6 +1015,15 @@ export default function Word({ app, shell, boot }) {
                 syncSelection();
               }}
               onKeyDown={(e) => {
+                // A picked picture goes with Delete or Backspace — its block
+                // with it when the block held nothing else.
+                if ((e.key === 'Delete' || e.key === 'Backspace') && picked) {
+                  e.preventDefault();
+                  const target = picked;
+                  setPicked(null);
+                  apply({ op: 'removeImage', block: target.block, image: target.image });
+                  return;
+                }
                 // Arrow keys and Home/End move the caret without an edit, so the
                 // engine is told where it landed — after the browser has moved
                 // it, which is why this waits a tick.

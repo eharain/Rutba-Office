@@ -2749,6 +2749,20 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await until(() => js(`document.querySelectorAll('.wd-page img').length > 0`), 'the picture to be drawn', 4000).catch(() => {});
       const pictured = await state();
       const drawnImage = await js(`document.querySelectorAll('.wd-page img').length`);
+      // The bytes survived the trip from the file dialog: what the page drew
+      // decodes, and is the file's own. A part written from the digits of a
+      // byte array — which is what happened until 2026-09-21 — draws nothing.
+      const decoded = await until(() => js(`(() => { const i = document.querySelector('.wd-page img'); return Boolean(i && i.complete && i.naturalWidth > 0); })()`), 'the picture to decode', 4000).catch(() => false);
+      const srcAttr = await js(`document.querySelector('.wd-page img')?.getAttribute('src') || ''`);
+      const sameBytes = (srcAttr.split(',')[1] || '') === fs.readFileSync(files.png).toString('base64');
+      check('word: the picture the page drew decodes, and is the file’s own bytes', decoded === true && sameBytes, `decoded ${decoded}; same bytes ${sameBytes} (${srcAttr.length} chars of src, ${fs.readFileSync(files.png).length} bytes of file)`);
+      // Picked with a click and deleted from the keyboard: its block goes too.
+      await js(`(() => { document.querySelector('.wd-page img')?.click(); return 1; })()`);
+      await until(() => js(`Boolean(document.querySelector('.wd-page img.picked'))`), 'the picture picked', 3000).catch(() => {});
+      await js(`document.querySelector('.wd-page')?.focus(), 'focused'`);
+      await press(win.webContents, 'Delete');
+      const gone = await until(async () => (await state()).blocksTotal === before && (await js(`document.querySelectorAll('.wd-page img').length`)) === 0, 'the picture deleted', 5000).catch(() => false);
+      check('word: a picked picture goes with the Delete key, its block with it', gone === true, `${(await state()).blocksTotal} blocks (was ${before}), ${await js(`document.querySelectorAll('.wd-page img').length`)} image(s)`);
       check('word: a picture inserts as its own block and is drawn', pictured.blocksTotal > before && drawnImage > 0, `${inserted}; ${before} → ${pictured.blocksTotal} blocks, ${drawnImage} image(s) on the page`);
     }
 

@@ -1175,6 +1175,20 @@ export class DocView {
     });
   }
 
+  /** The picked picture out of its paragraph — the paragraph too when it held nothing else. One undo step. */
+  removeImage({ block, image = 0 } = {}) {
+    if (typeof this.doc.removeImage !== 'function') {
+      throw new Error('this document backend does not support pictures');
+    }
+    return this._edit('remove picture', null, () => {
+      this.doc.removeImage(block, image);
+      this._invalidate();
+      const last = Math.max(0, this.blocks.length - 1);
+      this.collapseTo({ block: Math.min(block, last), offset: 0 });
+      return this;
+    });
+  }
+
   /**
    * Insert a chart AFTER the caret's table, drawn from the table's own
    * figures: the header row names the series, the first column names the

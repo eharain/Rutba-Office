@@ -387,7 +387,7 @@ const EMPTY_COMMENTS_XML =
   '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
   '<w:comments xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"></w:comments>';
 /** The image formats the insert accepts — what every Word since 2007 renders. */
-const IMAGE_EXTENSIONS = { 'image/png': 'png', 'image/jpeg': 'jpeg', 'image/gif': 'gif' };
+const IMAGE_EXTENSIONS = { 'image/png': 'png', 'image/jpeg': 'jpeg', 'image/gif': 'gif', 'image/bmp': 'bmp', 'image/webp': 'webp' };
 /** CSS pixels to EMUs, the unit DrawingML measures in. 1px at 96dpi = 9525. */
 const PX_TO_EMU = 9525;
 
@@ -1632,9 +1632,11 @@ export class Document {
   insertImageParagraph(index, { name = 'Picture', contentType, data, widthPx, heightPx }) {
     const ext = IMAGE_EXTENSIONS[contentType];
     if (!ext) {
-      throw new Error('unsupported image type: ' + contentType + ' (png, jpeg or gif)');
+      throw new Error('unsupported image type: ' + contentType + ' (png, jpeg, gif, bmp or webp)');
     }
-    const bytes = Buffer.isBuffer(data) ? data : Buffer.from(String(data), 'base64');
+    // Bytes come as a Buffer, as the Uint8Array a file dialog's read hands
+    // over the IPC, or as base64 text — never as the digits of an array.
+    const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data), 'base64');
     if (!bytes.length) throw new Error('the image has no bytes');
     const w = Math.round(Number(widthPx));
     const h = Math.round(Number(heightPx));
@@ -1666,6 +1668,37 @@ export class Document {
       '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
       '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>';
     this._spliceBody(p.end, p.end, '<w:p><w:r>' + drawing + '</w:r></w:p>');
+    return this;
+  }
+
+  /**
+   * The nth picture out of a paragraph — its run, so a paragraph of words
+   * keeps them; a paragraph that held only the picture goes with it, unless
+   * it is the body's last, which is left empty. The media part stays in the
+   * package, unreferenced and harmless, as an undone insert leaves it.
+   */
+  removeImage(index, imageIndex = 0) {
+    const p = this.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    const xml = p.xml;
+    let seen = -1;
+    let hit = null;
+    for (const m of xml.matchAll(/<w:drawing\b[^>]*>[\s\S]*?<\/w:drawing>/g)) {
+      if (!/<a:blip\b/.test(m[0])) continue;
+      seen += 1;
+      if (seen === Number(imageIndex)) { hit = m; break; }
+    }
+    if (!hit) throw new Error('no picture ' + imageIndex + ' in paragraph ' + index);
+    const runOpen = Math.max(xml.lastIndexOf('<w:r>', hit.index), xml.lastIndexOf('<w:r ', hit.index));
+    const runClose = xml.indexOf('</w:r>', hit.index + hit[0].length);
+    if (runOpen < 0 || runClose < 0) throw new Error('the picture is not in a run');
+    const without = xml.slice(0, runOpen) + xml.slice(runClose + '</w:r>'.length);
+    const empty = !/<w:r\b/.test(without.replace(/<w:pPr\b[\s\S]*?<\/w:pPr>/, ''));
+    if (empty && this.editParagraphCount() > 1 && !p.container) {
+      this._spliceBody(p.start, p.end, '');
+    } else {
+      this._spliceBody(p.start, p.end, empty ? p.open + (p.pPr || '') + '</w:p>' : without);
+    }
     return this;
   }
 

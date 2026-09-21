@@ -937,7 +937,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setParagraphFormat: (v, a) => v.setParagraphFormat(a.delta),
     setLink: (v, a) => v.setLink(a.url),
     insertTable: (v, a) => v.insertTable(a),
-    insertImage: (v, a) => v.insertImage(a),
+    // The bytes reach this process as a Uint8Array over the IPC, not a
+    // Buffer: a picture inserted from the window's own file dialog was
+    // written as the digits of its array until they were normalised here.
+    insertImage: (v, a) => v.insertImage({ ...a, data: Buffer.isBuffer(a.data) ? a.data : a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64') }),
+    removeImage: (v, a) => v.removeImage({ block: a.block, image: a.image ?? 0 }),
     // Wrap Text and Position: a picture in the line, or floating with the text round it.
     setImageLayout: (v, a) => v.setImageLayout(a),
     setImageSize: (v, a) => v.setImageSize(a),
