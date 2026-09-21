@@ -131,7 +131,7 @@ export default function SlidesRibbon({
                 </Select>
                 <Button icon="chevronUp" title={needShape || 'Increase font size'} disabled={!hasShape} onClick={() => fmt({ size: nearer(1) })} />
                 <Button icon="chevronDown" title={needShape || 'Decrease font size'} disabled={!hasShape} onClick={() => fmt({ size: nearer(-1) })} />
-                <Soon icon="undo" label="" why="Clear all formatting comes with shape formatting." />
+                <Button icon="undo" title={needShape || 'Clear all formatting — the words keep only their links'} disabled={!hasShape} onClick={() => act('clearFormat')} />
               </>
               <>
                 <Button icon="bold" title={needShape || 'Bold (Ctrl+B)'} pressed={format.bold} disabled={!hasShape} onClick={() => fmt({ bold: 'toggle' })} />

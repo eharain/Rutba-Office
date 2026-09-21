@@ -846,6 +846,32 @@ export class Deck {
   }
 
   /**
+   * The formatting off a shape's words — Home → Clear all formatting: every
+   * run keeps its text, its link, a field or a break, and nothing else, so
+   * the words fall back to what the placeholder and the theme give them.
+   * A paragraph's own properties — level, bullet, alignment — stay.
+   */
+  clearTextFormat(slideIndex, shapeId) {
+    const shape = this.slide(slideIndex).shapes.find((s) => String(s.id) === String(shapeId));
+    if (!shape) throw new Error(`shape ${shapeId} not found`);
+    if (!shape.text?.paragraphs) throw new Error('Clear formatting needs a shape with words.');
+    const paragraphs = shape.text.paragraphs.map((p) => {
+      const { plain, runs, ...props } = p;
+      return {
+        ...props,
+        runs: (runs || []).map((r) => ({
+          text: r.text,
+          ...(r.link ? { link: r.link } : {}),
+          ...(r.field ? { field: r.field } : {}),
+          ...(r.break ? { break: true } : {}),
+        })),
+      };
+    });
+    this.setText(slideIndex, shapeId, paragraphs);
+    return true;
+  }
+
+  /**
    * A link on a shape's words — Insert → Link: every run of the shape points
    * at an External relationship the slide carries, as PowerPoint writes one;
    * null takes the link off every run (the relationship stays, unreferenced,

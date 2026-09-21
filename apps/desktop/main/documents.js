@@ -1003,6 +1003,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setBodyProps: (d, a) => d.setBodyProps(a.slide, a.shape, { anchor: a.anchor, vert: a.vert, columns: a.columns }),
     // The Format pane: a shape's fill and outline.
     setShapeStyle: (d, a) => d.setShapeStyle(a.slide, a.shape, { fill: a.fill ?? null, line: a.line ?? null, effects: a.effects ?? null }),
+    // Home → Clear all formatting: the selected shape's words keep only their links.
+    clearTextFormat: (d, a) => d.clearTextFormat(a.slide, a.shape),
     // Insert → Link: an address on the selected shape's words, or none.
     setLink: (d, a) => d.setLink(a.slide, a.shape, a.url ?? null),
     // Home → Editing: the words replaced across every slide.

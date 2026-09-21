@@ -583,6 +583,11 @@ export default function Slides({ app, shell, boot }) {
         setLinkOpen(true);
         return;
       }
+      case 'clearFormat': {
+        if (!selectedShape?.text) return toast('Click a text box first.', { ms: 3000 });
+        await apply({ op: 'clearTextFormat', slide: index, shape: selectedShape.id });
+        return;
+      }
       case 'painter': {
         if (painter) { setPainter(null); toast('Format Painter put down.', { ms: 2000 }); return; }
         if (!selectedShape) return toast('Click a shape first.', { ms: 3000 });

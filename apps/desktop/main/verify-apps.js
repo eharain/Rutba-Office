@@ -1543,6 +1543,24 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('slides: the saved file keeps the link as PowerPoint writes it — hlinkClick on the run, an External relationship on the slide',
         /<a:hlinkClick r:id="rId\d+"/.test(saved.sp) && /Type="[^"]*\/hyperlink" Target="https:\/\/office\.rutba\.io\/help" TargetMode="External"/.test(saved.rels),
         `${saved.sp.slice(Math.max(0, saved.sp.indexOf('<a:rPr')), Math.max(0, saved.sp.indexOf('<a:rPr')) + 200)}; rels ${saved.rels.slice(-220)}`);
+      // Home → Clear all formatting: Bold put on the pasted box's words, then
+      // taken off with everything else — the link stays.
+      await wait(300);
+      await js(`(() => { document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.click(); return 1; })()`);
+      await wait(300);
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(), 'tab'`);
+      await wait(200);
+      const bolded = await clickRibbon('Bold');
+      const boxRuns = () => (boxNow()?.text?.paragraphs || []).flatMap((p) => p.runs || []).filter((r) => r.text && r.text !== '\n');
+      const wentBold = await until(() => boxRuns().some((r) => r.bold), 'a bold run', 5000).catch(() => false);
+      const cleared = await clickRibbon('Clear all formatting');
+      const plainAgain = await until(() => boxRuns().length > 0 && boxRuns().every((r) => !r.bold && !r.italic && !r.size && !r.color && !r.font) && boxRuns().some((r) => r.link?.url === 'https://office.rutba.io/help'), 'the formatting off, the link on', 5000).catch(() => false);
+      check('slides: Home → Clear all formatting takes Bold and the rest off the words and keeps their link', bolded === 'clicked' && wentBold === true && cleared === 'clicked' && plainAgain === true, `${bolded} ${cleared}; bold first ${wentBold}; runs now ${JSON.stringify(boxRuns().map((r) => ({ text: r.text.slice(0, 12), bold: r.bold ?? null, size: r.size ?? null, link: r.link?.url ?? null })))}`);
+      await wait(300);
+      await clickRibbon('Save');
+      await until(() => /<a:rPr lang="en-US"><a:hlinkClick/.test(linkFile().sp) && !/ b="1"/.test(linkFile().sp), 'the plain runs in the file', 8000).catch(() => false);
+      const plainSp = linkFile().sp;
+      check('slides: the saved file keeps the words plain, the link on them', /<a:rPr lang="en-US"><a:hlinkClick r:id="rId\d+"/.test(plainSp) && !/ b="1"| sz="/.test(plainSp), plainSp.slice(Math.max(0, plainSp.indexOf('<a:p>')), Math.max(0, plainSp.indexOf('<a:p>')) + 220));
       const complaints = await errorsIn(win);
       check('slides: the clipboard checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {
