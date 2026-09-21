@@ -1691,6 +1691,53 @@ export class SheetView {
     return this;
   }
 
+  // ---- Formula auditing --------------------------------------------------
+
+  /**
+   * Trace Precedents / Trace Dependents: the cells a formula reads, or the
+   * formulas that read a cell, on this sheet — as ranges to draw arrows to.
+   * Names and structured references are counted but not drawn; references
+   * to other sheets are counted as `elsewhere`.
+   *
+   * @param {number} row
+   * @param {number} col
+   * @param {'precedents'|'dependents'} kind
+   * @returns {{ kind: string, at: { row: number, col: number }, arrows: Array<{ top: number, left: number, bottom: number, right: number }>, elsewhere: number }}
+   */
+  traceOf(row, col, kind = 'precedents') {
+    const sheet = this.activeSheet;
+    const arrows = [];
+    let elsewhere = 0;
+    const onThisSheet = (dep) => !dep.sheet || dep.sheet === sheet;
+    const rangeOf = (dep) => (dep.type === 'cell'
+      ? { top: dep.row, left: dep.col, bottom: dep.row, right: dep.col }
+      : dep.type === 'range'
+        ? { top: Math.min(dep.start.row, dep.end.row), left: Math.min(dep.start.col, dep.end.col), bottom: Math.max(dep.start.row, dep.end.row), right: Math.max(dep.start.col, dep.end.col) }
+        : null);
+    if (kind === 'dependents') {
+      for (const c of this.calc.sheets.get(sheet)?.values() ?? []) {
+        if (!c.deps || c.tombstone) continue;
+        const reads = c.deps.some((dep) => {
+          if (!onThisSheet(dep)) return false;
+          const r = rangeOf(dep);
+          return r && row >= r.top && row <= r.bottom && col >= r.left && col <= r.right;
+        });
+        if (reads) arrows.push({ top: c.row, left: c.col, bottom: c.row, right: c.col });
+      }
+    } else {
+      const cell = this.calc.cell(sheet, row, col);
+      for (const dep of cell?.deps ?? []) {
+        if (!onThisSheet(dep)) { elsewhere += 1; continue; }
+        const r = rangeOf(dep);
+        if (!r) { elsewhere += 1; continue; }
+        // A whole column or row is drawn as far as the sheet has anything.
+        const { maxRow, maxCol } = this.bounds;
+        arrows.push({ top: r.top, left: r.left, bottom: Math.min(r.bottom, maxRow), right: Math.min(r.right, maxCol) });
+      }
+    }
+    return { kind, at: { row, col }, arrows, elsewhere };
+  }
+
   // ---- Data tools --------------------------------------------------------
 
   /**

@@ -364,6 +364,28 @@ export async function verifySheetLinks(h, { file }) {
       clickedSort === 'clicked' && setA === true && setDesc === true && setB === true && sorted === true,
       `${clickedSort}; selects ${setA} ${setDesc} ${setB}; A2:A4 ${await cellRead('A2')} | ${await cellRead('A3')} | ${await cellRead('A4')}`);
 
+    // Formulas → Trace Precedents on a formula typed into E2: two arrows on
+    // the grid, one from each cell it reads; Remove Arrows takes them off.
+    await applyOps([{ op: 'select', row: 1, col: 4 }, { op: 'beginEdit', replace: true }, { op: 'updateDraft', text: '=B2+C2' }, { op: 'commitEdit', move: 'none' }, { op: 'select', row: 1, col: 4 }]);
+    await wait(200);
+    // The window's own model is behind a direct apply: two key presses of its own bring it up to date, ending on E2.
+    await js(`document.querySelector('.sh')?.focus(), 'focused'`);
+    await wait(150);
+    await press(win.webContents, 'Right');
+    await wait(200);
+    await press(win.webContents, 'Left');
+    await until(() => js(`document.querySelector('.sh-cell.active')?.dataset.ref === 'E2'`), 'E2 to be active in the window', 4000).catch(() => {});
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Formulas')?.click(), 'tab'`);
+    await wait(200);
+    const clickedTrace = await clickIn(win, 'Trace Precedents');
+    const arrowsDrawn = await until(() => js(`document.querySelectorAll('.sh-arrows .sh-arrow line').length === 2`), 'two arrows', 5000).catch(() => false);
+    const arrowGeometry = await js(`(() => { const cell = (ref) => document.querySelector('.sh-cell[data-ref="' + ref + '"]')?.getBoundingClientRect(); const lines = [...document.querySelectorAll('.sh-arrows .sh-arrow line')].map((l) => l.getBoundingClientRect()); const e2 = cell('E2'); return { lines: lines.length, endsAtE2: e2 ? lines.every((r) => r.right >= e2.left - 1 && r.right <= e2.right + 1) : null }; })()`);
+    check('sheets: Formulas → Trace Precedents draws an arrow from each cell the formula reads to the formula',
+      clickedTrace === 'clicked' && arrowsDrawn === true && arrowGeometry?.endsAtE2 === true, `${clickedTrace}; ${JSON.stringify(arrowGeometry)}`);
+    const clickedRemove = await clickIn(win, 'Remove Arrows');
+    const arrowsGone = await until(() => js(`document.querySelectorAll('.sh-arrows').length === 0`), 'the arrows to go', 4000).catch(() => false);
+    check('sheets: Remove Arrows takes them off the grid', clickedRemove === 'clicked' && arrowsGone === true, `${clickedRemove}; arrows left ${await js(`document.querySelectorAll('.sh-arrows .sh-arrow').length`)}`);
+
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

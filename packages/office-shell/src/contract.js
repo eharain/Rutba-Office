@@ -108,6 +108,7 @@ export const METHODS = {
     'asset',        // ({ id, ref }) -> { url, type, name }
     'pageSetup',    // ({ id, sheet }) -> the page setup the workbook carries
     'shapeClip',    // ({ id, slide, shape }) -> { xml, tag, rels } — a slide's shape as something to paste
+    'trace',        // ({ id, kind, row, col }) -> { kind, at, arrows, elsewhere } — a cell's precedents or dependents
     'sessions',     // () -> [{ id, kind, path, dirty }]
     'recoverable',  // () -> [{ file, kind, name, path, at, size }] — what a crash left behind
     'recover',      // ({ file }) -> { id, kind, model, meta, recoveredFrom }

@@ -490,9 +490,9 @@ export default function SheetsRibbon({
             <Soon icon="table" label="Create from Selection" why="Naming a range from its header row is on the list; the name manager does it one at a time today." />
           </Group>
           <Group label="Formula Auditing">
-            <Soon icon="chevronRight" label="Trace Precedents" why="Tracing arrows need the dependency graph drawn on the grid; the engine has the graph, the grid does not draw it yet." />
-            <Soon icon="chevronLeft" label="Trace Dependents" why="Comes with tracing." />
-            <Soon icon="close" label="Remove Arrows" why="Comes with tracing." />
+            <Button icon="chevronRight" label="Trace Precedents" title="Trace Precedents — arrows from the cells this formula reads" onClick={() => act('trace', 'precedents')} />
+            <Button icon="chevronLeft" label="Trace Dependents" title="Trace Dependents — arrows to the formulas that read this cell" onClick={() => act('trace', 'dependents')} />
+            <Button icon="close" label="Remove Arrows" title="Remove Arrows — take the tracing arrows off the grid" onClick={() => act('removeArrows')} />
             <Button icon="formula" label="Show Formulas" pressed={Boolean(view.formulas)} title="Show every formula instead of its result (Ctrl+`)" onClick={() => act('toggleFormulas')} />
             <Soon icon="check" label="Error Checking" why="Error checking walks the graph for #REF! and circularity; on the list." />
             <Soon icon="eye" label="Evaluate Formula" why="Step evaluation needs the engine to expose each step; on the list." />

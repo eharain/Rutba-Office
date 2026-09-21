@@ -121,9 +121,9 @@ it is where the gaps are.
 - **Data tools**: advanced filter with a criteria range, consolidate,
   flash fill, subtotals and outlining, forecast sheets. (Text to columns,
   remove duplicates and a sort by up to three keys are built, 2026-09-21.)
-- **Auditing**: trace precedents and dependents, evaluate step by step, the
-  watch window, error checking. The dependency graph exists; nothing draws
-  it.
+- **Auditing**: evaluate step by step, the watch window, error checking.
+  (Trace precedents and dependents draw the dependency graph on the grid
+  since 2026-09-21.)
 - **Page-break preview** and a sheet background. (The print settings live
   in the file, and since 2026-09-21 the Page Layout tab writes them:
   margins, orientation, paper, print titles, scale to fit and manual page

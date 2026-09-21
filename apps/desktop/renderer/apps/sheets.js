@@ -89,6 +89,8 @@ export default function Sheets({ app, shell, boot }) {
     page: null,
   });
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
+  /** Tracing arrows on the grid: each a range and the cell it points at, or from. */
+  const [arrows, setArrows] = useState([]);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -728,6 +730,47 @@ export default function Sheets({ app, shell, boot }) {
     return col && row ? { row: row.index, col: col.index } : null;
   };
 
+  /** The tracing arrows, drawn over the cells: a dot at the source, a head at the target, a box round a range. */
+  const arrowsNode = () => {
+    if (!arrows.length) return null;
+    const colAt = (c) => (model?.columns || model?.cols || []).find((x) => x.index === c);
+    const rowAt = (r) => (model?.rows || []).find((x) => x.index === r);
+    const centre = ({ row, col }) => {
+      const c = colAt(col);
+      const r = rowAt(row);
+      return c && r ? { x: c.x + c.width / 2, y: r.y + r.height / 2 } : null;
+    };
+    return (
+      <svg className="sh-arrows" style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none', zIndex: 4 }}>
+        <defs>
+          <marker id="sh-arrowhead" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="userSpaceOnUse">
+            <path d="M0,0 L8,4 L0,8 z" fill="#1f5f8b" />
+          </marker>
+        </defs>
+        {arrows.map((a, i) => {
+          const rangeCell = { row: a.top, col: a.left };
+          const from = centre(a.kind === 'precedents' ? rangeCell : a.at);
+          const to = centre(a.kind === 'precedents' ? a.at : rangeCell);
+          if (!from || !to) return null;
+          const c1 = colAt(a.left);
+          const c2 = colAt(a.right);
+          const r1 = rowAt(a.top);
+          const r2 = rowAt(a.bottom);
+          const box = (a.top !== a.bottom || a.left !== a.right) && c1 && c2 && r1 && r2
+            ? <rect x={c1.x} y={r1.y} width={c2.x + c2.width - c1.x} height={r2.y + r2.height - r1.y} fill="rgba(31, 95, 139, 0.08)" stroke="#1f5f8b" strokeWidth="1" />
+            : null;
+          return (
+            <g key={i} className="sh-arrow">
+              {box}
+              <circle cx={from.x} cy={from.y} r="3" fill="#1f5f8b" />
+              <line x1={from.x} y1={from.y} x2={to.x} y2={to.y} stroke="#1f5f8b" strokeWidth="1.5" markerEnd="url(#sh-arrowhead)" />
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
   /** A cell, drawn where it sits — `dy` above it when its layer starts lower down. */
   const cellNode = (cell, dy = 0) => (
     <div
@@ -1022,6 +1065,21 @@ export default function Sheets({ app, shell, boot }) {
         for (const [row, height] of rows) await dispatch({ op: 'rowHeight', row, height });
         return;
       }
+      case 'trace': {
+        const at = sel?.active || { row: 0, col: 0 };
+        const got = await shell.doc.trace({ id: doc.id, kind: arg, row: at.row, col: at.col }).catch(() => null);
+        if (!got) return;
+        if (!got.arrows.length) {
+          toast(arg === 'dependents' ? 'No formula on this sheet reads this cell' : (got.elsewhere ? 'This formula reads other sheets or names only' : 'This cell reads no other cell'), { ms: 3500 });
+          return;
+        }
+        setArrows((prev) => [...prev, ...got.arrows.map((a) => ({ ...a, kind: arg, at: { row: at.row, col: at.col } }))]);
+        if (got.elsewhere) toast(`${got.elsewhere} reference${got.elsewhere === 1 ? '' : 's'} on other sheets or by name not drawn`, { ms: 3500 });
+        return;
+      }
+      case 'removeArrows':
+        setArrows([]);
+        return;
       case 'textToColumns': {
         // The engine refuses more than one column; its message is the toast.
         try {
@@ -1215,6 +1273,7 @@ export default function Sheets({ app, shell, boot }) {
 
               <div
                 className="sh-cells"
+                data-arrows={arrows.length}
                 onMouseDown={(e) => {
                   // A press on a drawn cell is handled by the cell. Anywhere else
                   // is empty grid, and empty grid is still grid.
@@ -1270,6 +1329,7 @@ export default function Sheets({ app, shell, boot }) {
                   />
                 ) : null}
                 {model.cells.map((cell) => (pane(cell) === 'main' ? cellNode(cell) : null))}
+                {arrowsNode()}
 
                 {/*
                   What is drawn over the cells: the shapes, pictures and charts

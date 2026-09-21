@@ -1339,6 +1339,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
      */
 
     /** The page setup this file carries, which is where a print dialog starts. */
+    /** Formulas → Trace: the cells a formula reads, or the formulas that read a cell. */
+    trace: ({ id, kind, row, col }) => {
+      const session = get(id);
+      if (session.kind !== 'sheet') return null;
+      return session.engine.traceOf(Number(row) || 0, Number(col) || 0, kind === 'dependents' ? 'dependents' : 'precedents');
+    },
+
     /** A slide's shape as something to paste: its XML and the relationships it needs. */
     shapeClip: ({ id, slide, shape }) => {
       const session = get(id);
