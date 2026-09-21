@@ -529,6 +529,28 @@ export class Deck {
     return id;
   }
 
+  /**
+   * Home → Reset: the slide's placeholders go back where its layout puts
+   * them. A placeholder's own position and size are dropped so the layout's
+   * apply again; the words stay.
+   *
+   * @returns {number} how many placeholders were reset
+   */
+  resetSlide(slideIndex) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    let count = 0;
+    const next = xml.replace(/<p:sp>[\s\S]*?<\/p:sp>/g, (sp) => {
+      if (!/<p:nvPr>\s*<p:ph\b/.test(sp)) return sp;
+      const out = sp.replace(/<a:xfrm\b[^>]*>[\s\S]*?<\/a:xfrm>/, '');
+      if (out !== sp) count += 1;
+      return out;
+    });
+    if (count) this.#writeSlide(part, next);
+    return count;
+  }
+
   /** Remove a shape from a slide. */
   removeShape(slideIndex, shapeId) {
     const part = this.slideParts[slideIndex]?.part;
@@ -1120,10 +1142,18 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
         if (r.bold != null) bits.push(`b="${r.bold ? 1 : 0}"`);
         if (r.italic != null) bits.push(`i="${r.italic ? 1 : 0}"`);
         if (r.underline) bits.push('u="sng"');
+        // The rest of what the reader reads, so an edit keeps it: strike,
+        // character spacing (points, spc is hundredths), caps, super/sub.
+        if (r.strike) bits.push('strike="sngStrike"');
+        if (r.spacing) bits.push(`spc="${Math.round(Number(r.spacing) * 100)}"`);
+        if (r.caps) bits.push(`cap="${r.caps === 'small' ? 'small' : 'all'}"`);
+        if (r.baseline) bits.push(`baseline="${r.baseline === 'super' ? 30000 : -25000}"`);
         const fill = r.color ? `<a:solidFill><a:srgbClr val="${String(r.color).replace('#', '')}"/></a:solidFill>` : '';
+        // A highlight sits after the fill and before the font in rPr's order.
+        const highlight = r.highlight ? `<a:highlight><a:srgbClr val="${String(r.highlight).replace('#', '')}"/></a:highlight>` : '';
         const font = r.font ? `<a:latin typeface="${escapeXml(r.font)}"/>` : '';
-        const rPr = fill || font
-          ? `<a:rPr ${bits.join(' ')}>${fill}${font}</a:rPr>`
+        const rPr = fill || highlight || font
+          ? `<a:rPr ${bits.join(' ')}>${fill}${highlight}${font}</a:rPr>`
           : `<a:rPr ${bits.join(' ')}/>`;
         // `xml:space` keeps leading and trailing spaces, which a title often has.
         return `<a:r>${rPr}<a:t xml:space="preserve">${escapeXml(r.text)}</a:t></a:r>`;

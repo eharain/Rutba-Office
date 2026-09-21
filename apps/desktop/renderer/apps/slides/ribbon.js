@@ -99,8 +99,8 @@ export default function SlidesRibbon({
             <Button tall icon="plus" label="New Slide" onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
             <Rows>
               <>
-                <Soon icon="grid" label="Layout" why="Changing an existing slide's layout re-parents its placeholders; the engine inserts with a layout and does not yet swap one." />
-                <Soon icon="undo" label="Reset" why="Comes with layouts." />
+                <Button icon="grid" label="Layout" title="Layout — put this slide on another of the deck's layouts" onClick={(e) => menu.open(e, (model?.layouts || []).map((l) => ({ label: l.name || l.part, icon: l.part === model?.slide?.layout ? 'check' : undefined, run: () => act('applyLayout', l.part) })))} />
+                <Button icon="undo" label="Reset" title="Reset — the placeholders back where the layout puts them" onClick={() => act('resetSlide')} />
                 <Soon icon="list" label="Section" why="Sections are a presentation-part list the engine does not write yet." />
               </>
               <>
@@ -128,11 +128,11 @@ export default function SlidesRibbon({
                 <Button icon="bold" title={needShape || 'Bold (Ctrl+B)'} pressed={format.bold} disabled={!hasShape} onClick={() => fmt({ bold: 'toggle' })} />
                 <Button icon="italic" title={needShape || 'Italic (Ctrl+I)'} pressed={format.italic} disabled={!hasShape} onClick={() => fmt({ italic: 'toggle' })} />
                 <Button icon="underline" title={needShape || 'Underline (Ctrl+U)'} pressed={format.underline} disabled={!hasShape} onClick={() => fmt({ underline: 'toggle' })} />
-                <Soon icon="strike" label="" why="Strikethrough is a run property the deck writer does not write yet." />
-                <Soon icon="textbox" label="AV" why="Character spacing is a run property the deck writer does not write yet." />
-                <Soon icon="textbox" label="Aa" why="Change case comes with text selection inside a box." />
+                <Button icon="strike" title={needShape || 'Strikethrough'} pressed={format.strike} disabled={!hasShape} onClick={() => fmt({ strike: 'toggle' })} />
+                <Button icon="textbox" label="AV" title={needShape || `Character spacing — now ${format.spacing ? `${format.spacing} pt` : 'normal'}`} disabled={!hasShape} onClick={(e) => menu.open(e, [['Very tight', -1.5], ['Tight', -0.75], ['Normal', 0], ['Loose', 1.5], ['Very loose', 3]].map(([label, v]) => ({ label, icon: (format.spacing || 0) === v ? 'check' : undefined, run: () => fmt({ spacing: v }) })))} />
+                <Button icon="textbox" label="Aa" title={needShape || 'Change case'} disabled={!hasShape} onClick={(e) => menu.open(e, [['Sentence case', 'sentence'], ['lowercase', 'lower'], ['UPPERCASE', 'upper'], ['Capitalise Each Word', 'title']].map(([label, mode]) => ({ label, run: () => fmt({ case: mode }) })))} />
                 <Separator />
-                <Soon icon="wand" label="" why="Text highlight is a run property the deck writer does not write yet." />
+                <Button icon="wand" title={needShape || 'Text highlight colour'} pressed={Boolean(format.highlight)} disabled={!hasShape} onClick={(e) => menu.open(e, [['#FFFF00', 'Yellow'], ['#00FF00', 'Bright green'], ['#00FFFF', 'Turquoise'], ['#FF00FF', 'Pink'], [null, 'No colour']].map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => fmt({ highlight: value }) })))} />
                 <Button icon="contrast" title={needShape || 'Font colour'} disabled={!hasShape} onClick={(e) => menu.open(e, COLOURS.map(([value, label]) => ({ label, run: () => fmt({ color: value }) })))} />
               </>
             </Rows>

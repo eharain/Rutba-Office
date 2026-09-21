@@ -976,12 +976,35 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         clickedLevel === 'clicked' && levelled === true && clickedSpacing === 'clicked' && spaced === true, `level ${first().level}, spacing ${first().lineHeight}`);
 
       await wait(300);
+      const clickedStrike = await clickRibbon('Strikethrough');
+      const struck = await until(() => Boolean(first().runs?.[0]?.strike), 'the strikethrough', 4000).catch(() => false);
+      const lined = await until(() => js(`[...document.querySelectorAll('svg tspan')].some((t) => /line-through/.test(t.getAttribute('text-decoration') || ''))`), 'the line through the words', 4000).catch(() => false);
+      check('slides: Strikethrough rides on the run, and the stage draws the line through the words',
+        clickedStrike === 'clicked' && struck === true && lined === true, `${clickedStrike}; strike ${first().runs?.[0]?.strike}; drawn ${lined}`);
+
+      await wait(300);
       await clickRibbon('Save');
       const inFile = () => Deck.open(fs.readFileSync(files.pptx)).slide(0).shapes.find((s) => String(s.id) === shapeId).text.paragraphs[0];
       await until(() => { try { return inFile().lineHeight === 1.5; } catch { return false; } }, 'the paragraph to land in the file', 8000).catch(() => false);
       const kept = inFile();
       check('slides: the saved file keeps the bullet, the level and the spacing as PowerPoint does',
         kept.bullet?.char === '•' && kept.level === 1 && kept.lineHeight === 1.5, JSON.stringify({ bullet: kept.bullet, level: kept.level, lineHeight: kept.lineHeight }));
+
+      // Home → Layout: the slide goes onto another of the deck's layouts.
+      await wait(300);
+      const layouts = model().layouts || [];
+      const current = model().slide.layout;
+      const other = layouts.find((l) => l.part !== current);
+      if (other) {
+        const clickedLayout = await clickRibbon('Layout');
+        const itemName = other.name || other.part;
+        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(itemName)}))`), 'the layouts menu', 3000).catch(() => {});
+        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(itemName)})?.click(); return 1; })()`);
+        const moved = await until(() => model().slide.layout === other.part, 'the slide on the other layout', 5000).catch(() => false);
+        check('slides: Home → Layout puts the slide on another layout of the deck', clickedLayout === 'clicked' && moved === true, `${clickedLayout}; now on ${model().slide.layout}`);
+      } else {
+        check('slides: Home → Layout puts the slide on another layout of the deck', false, 'no other layout in the deck');
+      }
       if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-bullets.png'), (await win.webContents.capturePage()).toPNG());
       const complaints = await errorsIn(win);
       check('slides: the paragraph checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

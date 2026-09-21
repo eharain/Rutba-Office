@@ -419,3 +419,42 @@ test('a shape copied from one slide pastes onto another with a fresh id, a pictu
   assert.ok(onTwo.source, 'and it resolves there');
   assert.equal(reopened.slide(2).shapes.find((s) => String(s.id) === String(id)).kind, 'shape', 'the pasted text shape survived the save');
 });
+
+test('strikethrough, character spacing, caps, super/sub and a highlight are written as read', () => {
+  const deck = Deck.open(DECK);
+  const title = deck.slide(1).shapes.find((s) => s.placeholder?.type === 'title');
+  deck.setText(1, title.id, [{ runs: [
+    { text: 'Struck', strike: true, spacing: 1.5, caps: 'all', highlight: '#FFFF00' },
+    { text: 'up', baseline: 'super' },
+  ] }]);
+  const xml = deck.pkg.text('ppt/slides/slide2.xml');
+  assert.ok(xml.includes('strike="sngStrike"'), 'strike');
+  assert.ok(xml.includes('spc="150"'), 'spacing in hundredths of a point');
+  assert.ok(xml.includes('cap="all"'), 'caps');
+  assert.ok(xml.includes('baseline="30000"'), 'superscript');
+  assert.ok(xml.includes('<a:highlight><a:srgbClr val="FFFF00"/></a:highlight>'), 'the highlight');
+
+  const back = Deck.open(deck.save()).slide(1).shapes.find((s) => String(s.id) === String(title.id)).text.paragraphs[0].runs;
+  assert.equal(back[0].strike, true);
+  assert.equal(back[0].spacing, 1.5);
+  assert.equal(back[0].caps, 'all');
+  assert.equal(String(back[0].highlight).toUpperCase(), '#FFFF00');
+  assert.equal(back[1].baseline, 'super');
+});
+
+test('Reset puts a moved placeholder back where its layout has it', () => {
+  const deck = Deck.open(DECK);
+  const title = deck.slide(1).shapes.find((s) => s.placeholder?.type === 'title');
+  const home = { ...title.geometry };
+  deck.setGeometry(1, title.id, { x: 5, y: 5, w: 200, h: 40 });
+  assert.equal(Math.round(deck.slide(1).shapes.find((s) => String(s.id) === String(title.id)).geometry.x), 5, 'moved');
+
+  assert.equal(deck.resetSlide(1), 1, 'one placeholder had its own place');
+  const after = deck.slide(1).shapes.find((s) => String(s.id) === String(title.id)).geometry;
+  assert.equal(Math.round(after.x), Math.round(home.x), 'back where the layout puts it');
+  assert.equal(Math.round(after.w), Math.round(home.w));
+  assert.equal(deck.resetSlide(1), 0, 'nothing left to reset');
+  // The shape tree's own xfrm stays; the placeholder's is gone again.
+  const xfrms = (x) => (x.match(/<a:xfrm\b/g) || []).length;
+  assert.equal(xfrms(Deck.open(deck.save()).pkg.text('ppt/slides/slide2.xml')), xfrms(Deck.open(DECK).pkg.text('ppt/slides/slide2.xml')), 'the placeholder states no geometry of its own again');
+});

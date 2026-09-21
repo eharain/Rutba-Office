@@ -246,6 +246,16 @@ function textSvg(body, box, opts) {
     else if (line.align === 'right') x = originX + Math.max(0, width - lineWidth);
     const y = originY + line.y;
 
+    // A highlighted run: its colour behind the words, as PowerPoint draws it.
+    let runX = x;
+    for (const s of line.segments) {
+      const w = measureText(s.text, { size: s.size || line.size, weight: s.bold ? 'bold' : 'normal' }) + spacingPx(s, opts?.scale || 1) * s.text.length;
+      if (s.highlight && w > 0) {
+        const h = (s.size || line.size) * 1.15;
+        out.push(`<rect x="${runX.toFixed(2)}" y="${(y - h * 0.8).toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="${s.highlight}"/>`);
+      }
+      runX += w;
+    }
     if (line.bullet) {
       out.push(
         `<text x="${(x - line.size * 0.9).toFixed(2)}" y="${y.toFixed(2)}" font-size="${line.size.toFixed(2)}" ` +
@@ -257,7 +267,7 @@ function textSvg(body, box, opts) {
         const attrs = [];
         if (s.bold) attrs.push('font-weight="700"');
         if (s.italic) attrs.push('font-style="italic"');
-        if (s.underline) attrs.push('text-decoration="underline"');
+        if (s.underline || s.strike) attrs.push(`text-decoration="${[s.underline ? 'underline' : '', s.strike ? 'line-through' : ''].filter(Boolean).join(' ')}"`);
         if (s.color) attrs.push(`fill="${s.color}"`);
         if (s.size && s.size !== line.size) attrs.push(`font-size="${(s.size * (opts?.scale || 1)).toFixed(2)}"`);
         if (s.font) {

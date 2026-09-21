@@ -149,11 +149,11 @@ document and workbook writers.
   effects (shadow, glow, reflection), gradients and picture fills are still
   read-only.
 - **Text inside a shape**: since 2026-09-21 bullets, numbering, list
-  levels and line spacing are written from the Home tab, and a slide's own
-  bullets and spacing survive an edit (until then a format press or an
-  edited line dropped them). Character spacing, strikethrough, highlight,
-  text direction, vertical alignment, columns in a box and WordArt are
-  still read past.
+  levels, line spacing, strikethrough, character spacing, change case and
+  a highlight are written from the Home tab, and a slide's own bullets,
+  spacing and run looks survive an edit (until then a format press or an
+  edited line dropped them). Text direction, vertical alignment, columns
+  in a box and WordArt are still read past.
 - **What can be put on a slide**: a table and a chart are read and drawn —
   a chart since 2026-09-10, through the same chart kit a worksheet uses,
   found by the corpus deck whose six chart slides showed an empty frame
@@ -161,7 +161,9 @@ document and workbook writers.
   can be inserted.
 - **The master and layouts.** Masters and layouts are read and inherited
   from, and since 2026-09-10 the Designs pane puts an existing slide on
-  another of the deck's layouts and starts a new slide from one; editing
+  another of the deck's layouts and starts a new slide from one (since
+  2026-09-21 the Home tab's Layout does the same, and Reset puts moved
+  placeholders back where the layout has them); editing
   them, swapping a theme, background styles, headers and footers, slide
   numbers and date fields all need the writer to reach the master. The
   Layers pane of the same day gives the drawing order, hiding and naming;

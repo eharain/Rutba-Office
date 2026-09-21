@@ -974,6 +974,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     renameShape: (d, a) => d.renameShape(a.slide, a.shape, a.name),
     // The Designs pane: this slide on another of the deck's layouts.
     applyLayout: (d, a) => d.applyLayout(a.slide, a.layout),
+    // Home → Reset: the placeholders back where the layout puts them.
+    resetSlide: (d, a) => d.resetSlide(a.slide),
     // The Format pane: a shape's fill and outline.
     setShapeStyle: (d, a) => d.setShapeStyle(a.slide, a.shape, { fill: a.fill ?? null, line: a.line ?? null }),
 

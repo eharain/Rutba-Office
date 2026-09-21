@@ -424,6 +424,7 @@ export default function Slides({ app, shell, boot }) {
     const r = p?.runs?.[0] || {};
     return {
       bold: Boolean(r.bold), italic: Boolean(r.italic), underline: Boolean(r.underline), size: r.size || 18, color: r.color || null, font: r.font || '', align: p?.align || 'left',
+      strike: Boolean(r.strike), spacing: r.spacing || 0, highlight: r.highlight || null,
       // The first paragraph's own list look: the bullet kind, its level and its line spacing.
       bullet: p?.bullet?.type || null, level: p?.level || 0, lineHeight: p?.lineHeight || null,
     };
@@ -483,6 +484,9 @@ export default function Slides({ app, shell, boot }) {
         return;
       case 'renameShape':
         await apply({ op: 'renameShape', slide: index, shape: arg.id, name: arg.name });
+        return;
+      case 'resetSlide':
+        await apply({ op: 'resetSlide', slide: index });
         return;
       case 'applyLayout':
         await apply({ op: 'applyLayout', slide: index, layout: arg });
@@ -557,6 +561,13 @@ export default function Slides({ app, shell, boot }) {
       }
       case 'format': {
         if (!selectedShape?.text) return toast('Click a text box first.', { ms: 3500 });
+        // Change case rewrites the letters, as PowerPoint's does: sentence
+        // case from the paragraph's first run, the rest per run.
+        const recase = (s, mode, first) => mode === 'upper' ? s.toUpperCase()
+          : mode === 'lower' ? s.toLowerCase()
+          : mode === 'title' ? s.replace(/(^|\s)(\S)/g, (m, sp, ch) => sp + ch.toUpperCase())
+          : mode === 'sentence' ? (first ? s.charAt(0).toUpperCase() + s.slice(1).toLowerCase() : s.toLowerCase())
+          : s;
         const paragraphs = selectedShape.text.paragraphs.map((p) => {
           const { plain, ...rest } = p;
           // Bullets, numbering, the list level (a step from the paragraph's
@@ -572,11 +583,15 @@ export default function Slides({ app, shell, boot }) {
             bullet,
             lineHeight: 'lineHeight' in arg ? arg.lineHeight : p.lineHeight,
             align: arg.align ?? p.align,
-            runs: (p.runs || []).map((r) => ({
+            runs: (p.runs || []).map((r, ri) => ({
               ...r,
+              text: arg.case && r.text && r.text !== '\n' ? recase(r.text, arg.case, ri === 0) : r.text,
               bold: arg.bold === 'toggle' ? !r.bold : arg.bold ?? r.bold,
               italic: arg.italic === 'toggle' ? !r.italic : arg.italic ?? r.italic,
               underline: arg.underline === 'toggle' ? !r.underline : arg.underline ?? r.underline,
+              strike: arg.strike === 'toggle' ? !r.strike : arg.strike ?? r.strike,
+              spacing: 'spacing' in arg ? (arg.spacing || undefined) : r.spacing,
+              highlight: 'highlight' in arg ? (arg.highlight || undefined) : r.highlight,
               size: arg.size ?? r.size,
               color: arg.color ?? r.color,
               font: 'font' in arg ? (arg.font || undefined) : r.font,

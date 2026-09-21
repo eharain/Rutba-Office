@@ -137,6 +137,8 @@ function readRunProps(rPr, theme) {
     out.color = color.hex;
     if (color.alpha < 1) out.colorAlpha = color.alpha;
   }
+  const highlight = kids(rPr, A('highlight'))[0];
+  if (highlight) out.highlight = colorChildOf(highlight, theme)?.hex || null;
   if (latin?.attrs.typeface) out.font = theme?.font(latin.attrs.typeface) || latin.attrs.typeface;
   if (hlink) out.link = hlink.attrs['r:id'] || true;
   return out;
