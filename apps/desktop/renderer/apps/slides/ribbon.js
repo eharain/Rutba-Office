@@ -240,10 +240,10 @@ export default function SlidesRibbon({
           </Group>
           <Group label="Text">
             <Button tall icon="textbox" label="Text Box" onClick={() => commands['slide.textbox']?.run?.()} />
-            <Soon tall icon="file" label="Header & Footer" why="Headers and footers are placeholders on the master the engine does not write yet." />
+            <Button tall icon="file" label="Header & Footer" title="Header & Footer — the date, the slide number and the footer's words, on this slide or all of them" onClick={() => act('footer')} />
             <Soon tall icon="wand" label="WordArt" why="WordArt is text effects the deck writer does not write." />
-            <Soon icon="clock" label="Date & Time" why="A date field is a placeholder on the master." />
-            <Soon icon="list" label="Slide Number" why="A slide-number field is a placeholder on the master." />
+            <Button icon="clock" label="Date & Time" title="Date & Time — a date along the bottom, kept current or fixed" onClick={() => act('footer', 'date')} />
+            <Button icon="list" label="Slide Number" title="Slide Number — the slide's number along the bottom, following it when slides move" onClick={() => act('footer', 'number')} />
             <Soon icon="file" label="Object" why="Embedded objects are not built." />
           </Group>
           <Group label="Symbols">

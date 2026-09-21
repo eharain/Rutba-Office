@@ -307,7 +307,7 @@ export class Deck {
     const slideXml = this.pkg.text(slidePart);
     const notesPart = [...rels.values()].find((r) => r.type === REL.notes && this.pkg.has(r.resolved))?.resolved || null;
     const notesXml = notesPart ? this.pkg.text(notesPart) : '';
-    const cacheKey = slideXml.length + ':' + notesXml.length + ':' + slideXml + notesXml;
+    const cacheKey = index + ':' + slideXml.length + ':' + notesXml.length + ':' + slideXml + notesXml;
     const cached = this._scenes.get(slidePart);
     if (cached && cached.key === cacheKey) return cached.scene;
 
@@ -329,7 +329,7 @@ export class Deck {
       master: masterPart,
       size: this.size,
       background: scene.background,
-      shapes: scene.shapes,
+      shapes: withSlideNumber(scene.shapes, index + 1),
       notes,
       theme: { colors: theme.colors, fonts: theme.fonts },
     };
@@ -754,6 +754,87 @@ export class Deck {
   }
 
   /** Append a text box, which is how the editor adds new content. */
+  /**
+   * The footer band — Insert → Header & Footer: the footer's words, the
+   * slide number and the date, each a placeholder as PowerPoint writes
+   * them (`ftr`, `sldNum`, `dt`; the number and an automatic date are
+   * fields). A layout or master that places the placeholder places it
+   * here too; failing both, it goes along the bottom where PowerPoint's
+   * own templates put it. A string sets the footer, '' or null takes it
+   * off; `slideNumber` true or false; `date` { auto: true }, { text }
+   * or false. Anything left undefined is left alone.
+   */
+  setFooter(slideIndex, { footer, slideNumber, date } = {}) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    let xml = this.pkg.text(part);
+    const layoutPart = this.#layoutFor(part);
+    const masterPart = layoutPart ? this.#masterFor(layoutPart) : null;
+    const theme = this.#themeFor(masterPart);
+    const placed = (type) => this.#placeholders(layoutPart, theme).get(`type:${type}`)?.geometry
+      || this.#placeholders(masterPart, theme).get(`type:${type}`)?.geometry || null;
+    const { cx, cy } = this.size;
+    // PowerPoint's own band: the date left, the footer centred, the number right.
+    const BAND = {
+      dt: { x: 0.0693, w: 0.2354, algn: 'l' },
+      ftr: { x: 0.3403, w: 0.3194, algn: 'ctr' },
+      sldNum: { x: 0.7104, w: 0.2203, algn: 'r' },
+    };
+    const IDX = { dt: 10, ftr: 11, sldNum: 12 };
+    const NAME = { dt: 'Date Placeholder', ftr: 'Footer Placeholder', sldNum: 'Slide Number Placeholder' };
+    const blockOf = (type) => {
+      const re = /<p:sp>[\s\S]*?<\/p:sp>/g;
+      let m;
+      while ((m = re.exec(xml))) {
+        if (new RegExp('<p:ph\\b[^>]*\\btype="' + type + '"').test(m[0])) return { start: m.index, end: m.index + m[0].length, xml: m[0] };
+      }
+      return null;
+    };
+    const guid = () => '{' + [8, 4, 4, 4, 12].map((n) => Array.from({ length: n }, () => '0123456789ABCDEF'[Math.floor(Math.random() * 16)]).join('')).join('-') + '}';
+    const runXml = (type, text) => {
+      const safe = escapeXml(String(text));
+      if (type === 'sldNum') return `<a:fld id="${guid()}" type="slidenum"><a:rPr lang="en-US"/><a:t>${safe}</a:t></a:fld>`;
+      if (type === 'dt' && text === true) {
+        const now = new Date();
+        const shown = String(now.getDate()).padStart(2, '0') + '/' + String(now.getMonth() + 1).padStart(2, '0') + '/' + now.getFullYear();
+        return `<a:fld id="${guid()}" type="datetime1"><a:rPr lang="en-US"/><a:t>${shown}</a:t></a:fld>`;
+      }
+      return `<a:r><a:rPr lang="en-US" dirty="0"/><a:t>${safe}</a:t></a:r>`;
+    };
+    const bodyXml = (type, text, inherited) => {
+      const pPr = inherited ? '' : `<a:pPr algn="${BAND[type].algn}"/>`;
+      return `<p:txBody><a:bodyPr/><a:lstStyle/><a:p>${pPr}${runXml(type, text)}</a:p></p:txBody>`;
+    };
+    const put = (type, text) => {
+      const had = blockOf(type);
+      if (text === false || text === null || text === '') {
+        if (had) xml = xml.slice(0, had.start) + xml.slice(had.end);
+        return;
+      }
+      const inherited = Boolean(placed(type));
+      if (had) {
+        const body = /<p:txBody>[\s\S]*?<\/p:txBody>/.exec(had.xml);
+        const next = body ? had.xml.slice(0, body.index) + bodyXml(type, text, inherited) + had.xml.slice(body.index + body[0].length) : had.xml;
+        xml = xml.slice(0, had.start) + next + xml.slice(had.end);
+        return;
+      }
+      const id = nextShapeId(xml);
+      const spPr = inherited
+        ? '<p:spPr/>'
+        : `<p:spPr><a:xfrm><a:off x="${Math.round(cx * BAND[type].x)}" y="${Math.round(cy * 0.9046)}"/><a:ext cx="${Math.round(cx * BAND[type].w)}" cy="${Math.round(cy * 0.0533)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>`;
+      const sp = `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${NAME[type]} ${id}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr>`
+        + `<p:nvPr><p:ph type="${type}" sz="quarter" idx="${IDX[type]}"/></p:nvPr></p:nvSpPr>${spPr}${bodyXml(type, text, inherited)}</p:sp>`;
+      const at = xml.lastIndexOf('</p:spTree>');
+      if (at < 0) throw new Error('slide has no shape tree');
+      xml = xml.slice(0, at) + sp + xml.slice(at);
+    };
+    if (footer !== undefined) put('ftr', footer == null ? '' : String(footer).trim());
+    if (slideNumber !== undefined) put('sldNum', slideNumber ? String(slideIndex + 1) : '');
+    if (date !== undefined) put('dt', !date ? '' : date.auto ? true : String(date.text ?? '').trim());
+    this.#writeSlide(part, xml);
+    return true;
+  }
+
   addTextBox(slideIndex, { x, y, w, h, paragraphs, name = 'TextBox' }) {
     const part = this.slideParts[slideIndex]?.part;
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
@@ -1118,6 +1199,26 @@ function colourXml(c) {
   if (typeof c === 'string') return `<a:srgbClr val="${escapeXml(c.replace('#', '').toUpperCase())}"/>`;
   const mods = c.lumMod != null ? `<a:lumMod val="${Math.round(c.lumMod * 1000)}"/>` : '';
   return mods ? `<a:schemeClr val="${escapeXml(c.scheme)}">${mods}</a:schemeClr>` : `<a:schemeClr val="${escapeXml(c.scheme)}"/>`;
+}
+
+/** The slide-number fields say the slide's own number, wherever the slide has moved to. */
+function withSlideNumber(shapes, number) {
+  const text = String(number);
+  return shapes.map((s) => {
+    const paragraphs = s.text?.paragraphs;
+    if (!paragraphs || !paragraphs.some((p) => (p.runs || []).some((r) => r.field === 'slidenum' && r.text !== text))) return s;
+    return {
+      ...s,
+      text: {
+        ...s.text,
+        paragraphs: paragraphs.map((p) => ({
+          ...p,
+          runs: (p.runs || []).map((r) => (r.field === 'slidenum' ? { ...r, text } : r)),
+          plain: (p.runs || []).map((r) => (r.field === 'slidenum' ? text : r.text)).join(''),
+        })),
+      },
+    };
+  });
 }
 
 function nextShapeId(xml) {

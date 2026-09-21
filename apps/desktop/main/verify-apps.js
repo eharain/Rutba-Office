@@ -1150,6 +1150,88 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // Copy on a selected shape, Paste on another slide: the shape appears
   // there with the same words and a fresh id; Cut takes it away; the saved
   // file carries the paste. Run alone with RUTBA_VERIFY_ONLY=clip.
+  /* ── Presentation: the footer band ──────────────────────────────────── */
+  //
+  // Insert → Slide Number opens the Header & Footer dialog with the number
+  // ticked; the footer's words are typed and Apply to All puts both on every
+  // slide, the second slide saying 2. The dialog then opens with the slide's
+  // own settings, and Apply changes that slide alone.
+  const slideFooter = async () => {
+    try {
+      const win = await open('slides', files.pptx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
+      await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const ofType = (slide, type) => model(slide).slide.shapes.find((s) => s.placeholder?.type === type) || null;
+      const words = (s) => (s?.text?.paragraphs || []).map((p) => (p.runs || []).map((r) => r.text).join('')).join('');
+      await js(`(() => { document.querySelectorAll('.sl-thumb')[0]?.click(); return 1; })()`);
+      await until(() => js(`document.querySelectorAll('.sl-thumb')[0]?.classList.contains('active')`), 'the first slide', 4000).catch(() => {});
+      await wait(300);
+      const hitsBefore = await js(`document.querySelectorAll('.sl-hit').length`);
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await wait(300);
+      const opened = await clickRibbon('Slide Number');
+      await until(() => js(`Boolean(document.querySelector('.sl-hf-number'))`), 'the Header & Footer dialog', 4000).catch(() => {});
+      const ticked = await js(`document.querySelector('.sl-hf-number')?.checked`);
+      await js(`(() => { const on = document.querySelector('.sl-hf-footer-on'); if (on && !on.checked) on.click(); return 1; })()`);
+      await wait(150);
+      await js(`(() => { const el = document.querySelector('.sl-hf-footer'); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, 'Rutba Office beta'); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      await wait(150);
+      await js(`(() => { document.querySelector('.sl-hf-all')?.click(); return 1; })()`);
+      const landed = await until(() => words(ofType(1, 'ftr')) === 'Rutba Office beta' && words(ofType(1, 'sldNum')) === '2' && words(ofType(0, 'sldNum')) === '1', 'the footer on every slide', 6000).catch(() => false);
+      check('slides: Insert → Slide Number opens Header & Footer with the number ticked, and Apply to All puts the number and the words on every slide',
+        opened === 'clicked' && ticked === true && landed === true,
+        `${opened}; ticked ${ticked}; slide 2 footer ${JSON.stringify(words(ofType(1, 'ftr')))} number ${JSON.stringify(words(ofType(1, 'sldNum')))}; slide 1 number ${JSON.stringify(words(ofType(0, 'sldNum')))}`);
+
+      // Drawn on the stage: two more shapes to click, and the words on the slide.
+      const drawn = await until(() => js(`document.querySelectorAll('.sl-hit').length === ${hitsBefore} + 2`), 'the placeholders on the stage', 5000).catch(() => false);
+      await wait(400);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-footer.png'), (await win.webContents.capturePage()).toPNG());
+      const onStage = await js(`(document.querySelector('.sl-stage')?.textContent || '').includes('Rutba Office beta')`);
+      check('slides: the footer band is drawn on the slide — two more shapes, the words among them', drawn === true && onStage === true, `hits ${hitsBefore} → ${await js(`document.querySelectorAll('.sl-hit').length`)}; on stage ${onStage}`);
+
+      await wait(300);
+      await clickRibbon('Save');
+      const saved = () => {
+        try {
+          const d = Deck.open(fs.readFileSync(files.pptx));
+          return { f1: words(d.slide(0).shapes.find((s) => s.placeholder?.type === 'ftr')), n2: words(d.slide(1).shapes.find((s) => s.placeholder?.type === 'sldNum')), xml: d.pkg.text(d.slideParts[1].part) };
+        } catch { return null; }
+      };
+      await until(() => saved()?.n2 === '2', 'the footer in the file', 8000).catch(() => false);
+      const inFile = saved();
+      check('slides: the saved file carries the placeholders as PowerPoint writes them, the number a field',
+        inFile?.f1 === 'Rutba Office beta' && inFile?.n2 === '2' && /<p:ph type="sldNum" sz="quarter" idx="12"\/>/.test(inFile?.xml || '') && /<a:fld id="\{[0-9A-F-]{36}\}" type="slidenum">/.test(inFile?.xml || '') && /<p:ph type="ftr" sz="quarter" idx="11"\/>/.test(inFile?.xml || ''),
+        `footer ${JSON.stringify(inFile?.f1)} number ${JSON.stringify(inFile?.n2)}; ${(inFile?.xml || '').slice((inFile?.xml || '').indexOf('<p:ph type="sldNum"'), (inFile?.xml || '').indexOf('<p:ph type="sldNum"') + 120)}`);
+
+      // The dialog opens with the slide's own settings; Apply changes this slide alone.
+      await js(`(() => { document.querySelectorAll('.sl-thumb')[1]?.click(); return 1; })()`);
+      await until(() => js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('active')`), 'the second slide', 4000).catch(() => {});
+      await wait(300);
+      const reopened = await clickRibbon('Header & Footer');
+      await until(() => js(`Boolean(document.querySelector('.sl-hf-footer'))`), 'the dialog again', 4000).catch(() => {});
+      const prefilled = await js(`(() => ({ footer: document.querySelector('.sl-hf-footer')?.value, on: document.querySelector('.sl-hf-footer-on')?.checked, number: document.querySelector('.sl-hf-number')?.checked }))()`);
+      await js(`(() => { document.querySelector('.sl-hf-footer-on')?.click(); return 1; })()`);
+      await wait(150);
+      await js(`(() => { document.querySelector('.sl-hf-apply')?.click(); return 1; })()`);
+      const gone = await until(() => ofType(1, 'ftr') === null && words(ofType(0, 'ftr')) === 'Rutba Office beta' && words(ofType(1, 'sldNum')) === '2', 'the footer off slide 2 alone', 5000).catch(() => false);
+      check('slides: Header & Footer opens with the slide’s own settings, and Apply changes this slide alone',
+        reopened === 'clicked' && prefilled?.footer === 'Rutba Office beta' && prefilled?.on === true && prefilled?.number === true && gone === true,
+        `${reopened}; ${JSON.stringify(prefilled)}; slide 2 footer ${JSON.stringify(words(ofType(1, 'ftr')))}, slide 1 footer ${JSON.stringify(words(ofType(0, 'ftr')))}`);
+      const complaints = await errorsIn(win);
+      check('slides: the footer checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('slides: the footer checks ran', false, err.message);
+    }
+  };
+
   const slideClipboard = async () => {
     try {
       const win = await open('slides', files.pptx);
@@ -1824,6 +1906,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('shapes')) await slideShapes();
     if (only.includes('bullets')) await slideParagraphs();
     if (only.includes('clip')) await slideClipboard();
+    if (only.includes('footer')) await slideFooter();
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('look')) await wordLook();
@@ -1924,6 +2007,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slideShapes();
   await slideParagraphs();
   await slideClipboard();
+  await slideFooter();
   await sheetFill();
   await wordPictures();
   await wordLook();

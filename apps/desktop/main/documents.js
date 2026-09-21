@@ -996,6 +996,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setBodyProps: (d, a) => d.setBodyProps(a.slide, a.shape, { anchor: a.anchor, vert: a.vert, columns: a.columns }),
     // The Format pane: a shape's fill and outline.
     setShapeStyle: (d, a) => d.setShapeStyle(a.slide, a.shape, { fill: a.fill ?? null, line: a.line ?? null }),
+    // Insert → Header & Footer: this slide, or every slide.
+    setFooter: (d, a) => {
+      const slides = a.all ? Array.from({ length: d.slideCount }, (_, i) => i) : [a.slide];
+      for (const s of slides) d.setFooter(s, { footer: a.footer, slideNumber: a.slideNumber, date: a.date });
+      return true;
+    },
 
   };
 

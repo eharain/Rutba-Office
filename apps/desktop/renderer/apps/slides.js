@@ -36,6 +36,8 @@ export default function Slides({ app, shell, boot }) {
   const [painter, setPainter] = useState(null);
   const [present, setPresent] = useState(false);
   const [notesOpen, setNotesOpen] = useState(false);
+  /** The Header & Footer dialog, open with a box pre-ticked ('date' | 'number') or as it stands. */
+  const [footerOpen, setFooterOpen] = useState(null);
   const [blank, setBlank] = useState(false);
   // Set when a presenter window is driving, so this one follows rather than leads.
   const [led, setLed] = useState(false);
@@ -553,6 +555,10 @@ export default function Slides({ app, shell, boot }) {
         if (added) setSelected(added.id);
         return;
       }
+      case 'footer': {
+        setFooterOpen(arg || 'open');
+        return;
+      }
       case 'painter': {
         if (painter) { setPainter(null); toast('Format Painter put down.', { ms: 2000 }); return; }
         if (!selectedShape) return toast('Click a shape first.', { ms: 3000 });
@@ -918,6 +924,21 @@ export default function Slides({ app, shell, boot }) {
           kind="deck"
           onClose={() => setPrinting(false)}
           onSaveAs={(options) => exportAs('pdf', options)}
+        />
+      ) : null}
+
+      {footerOpen ? (
+        <FooterDialog
+          key={index}
+          slide={index}
+          shapes={slide?.shapes || []}
+          preset={footerOpen}
+          onClose={() => setFooterOpen(null)}
+          onApply={async (spec, all) => {
+            await apply({ op: 'setFooter', slide: index, all, ...spec });
+            setFooterOpen(null);
+            toast(all ? 'Footer applied to every slide' : 'Footer applied to this slide', { tone: 'good' });
+          }}
         />
       ) : null}
 
@@ -1295,6 +1316,54 @@ function SlidesShortcutsDialog({ onClose }) {
  * slide, one paragraph per line, and stored in the file rather than beside it,
  * so they travel with the deck to PowerPoint and back.
  */
+/** Insert → Header & Footer: the date, the slide number and the footer's words, on this slide or all of them. */
+function FooterDialog({ slide, shapes, preset, onClose, onApply }) {
+  const found = (type) => shapes.find((s) => s.placeholder?.type === type) || null;
+  const words = (s) => (s?.text?.paragraphs || []).map((p) => (p.runs || []).map((r) => r.text).join('')).join(' ').trim();
+  const dt = found('dt');
+  const [dateOn, setDateOn] = useState(Boolean(dt) || preset === 'date');
+  const [dateAuto, setDateAuto] = useState(!dt || Boolean(dt.text?.paragraphs?.[0]?.runs?.some((r) => r.field)));
+  const [dateText, setDateText] = useState(dt && !dt.text?.paragraphs?.[0]?.runs?.some((r) => r.field) ? words(dt) : '');
+  const [numberOn, setNumberOn] = useState(Boolean(found('sldNum')) || preset === 'number');
+  const [footerOn, setFooterOn] = useState(Boolean(found('ftr')));
+  const [footerText, setFooterText] = useState(words(found('ftr')));
+  const spec = () => ({
+    date: dateOn ? (dateAuto ? { auto: true } : { text: dateText }) : false,
+    slideNumber: numberOn,
+    footer: footerOn ? footerText : '',
+  });
+  const row = { display: 'flex', alignItems: 'center', gap: 8 };
+  return (
+    <Dialog
+      title="Header and footer"
+      width={480}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button label="Apply to All" className="sl-hf-all" onClick={() => onApply(spec(), true)} />
+          <Button primary label="Apply" className="sl-hf-apply" onClick={() => onApply(spec(), false)} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <label style={row}><input type="checkbox" className="sl-hf-date-on" checked={dateOn} onChange={(e) => setDateOn(e.target.checked)} /> Date and time</label>
+        <div style={{ ...row, paddingLeft: 24 }}>
+          <label style={row}><input type="radio" name="sl-hf-date" className="sl-hf-date-auto" disabled={!dateOn} checked={dateAuto} onChange={() => setDateAuto(true)} /> Update automatically</label>
+          <label style={row}><input type="radio" name="sl-hf-date" disabled={!dateOn} checked={!dateAuto} onChange={() => setDateAuto(false)} /> Fixed</label>
+          <input className="rw-input sl-hf-date-text" style={{ flex: 1 }} disabled={!dateOn || dateAuto} value={dateText} onChange={(e) => setDateText(e.target.value)} placeholder="Spring 2026" />
+        </div>
+        <label style={row}><input type="checkbox" className="sl-hf-number" checked={numberOn} onChange={(e) => setNumberOn(e.target.checked)} /> Slide number</label>
+        <label style={row}><input type="checkbox" className="sl-hf-footer-on" checked={footerOn} onChange={(e) => setFooterOn(e.target.checked)} /> Footer</label>
+        <input className="rw-input sl-hf-footer" style={{ marginLeft: 24 }} disabled={!footerOn} value={footerText} onChange={(e) => setFooterText(e.target.value)} placeholder="The words along the bottom" autoFocus={footerOn} />
+        <p className="rw-hint" style={{ margin: 0 }}>
+          Slide {slide + 1} takes these with Apply; every slide with Apply to All. The number follows the slide when slides move.
+        </p>
+      </div>
+    </Dialog>
+  );
+}
+
 function NotesDialog({ slide, text, onClose, onSave }) {
   const [draft, setDraft] = useState(text || '');
   return (
