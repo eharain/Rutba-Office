@@ -1036,6 +1036,64 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Word: paragraph shading and borders ───────────────────────────── */
+  //
+  // Home → Shading puts a colour behind the paragraph and Borders a line
+  // under it; the page paints both at once, and the saved file keeps them
+  // where Word does. Run alone with RUTBA_VERIFY_ONLY=look.
+  const wordLook = async () => {
+    try {
+      const win = await open('word', files.docx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="0"]'))`), 'the first paragraph', 8000);
+      // The caret into the first paragraph, the way a click puts it there.
+      await js(`(() => {
+        const b = document.querySelector('.wd-page [data-block="0"]');
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+        const r = document.createRange(); r.selectNodeContents(b); r.collapse(true);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        document.dispatchEvent(new Event('selectionchange'));
+        return 1;
+      })()`);
+      await wait(300);
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const pick = async (button, label) => {
+        const clicked = await clickRibbon(button);
+        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${button} menu`, 3000).catch(() => {});
+        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click(); return 1; })()`);
+        return clicked;
+      };
+      const paint = () => js(`(() => { const b = document.querySelector('.wd-page [data-block="0"]'); if (!b) return null; const cs = getComputedStyle(b); return { background: cs.backgroundColor, bottom: cs.borderBottomWidth + ' ' + cs.borderBottomStyle }; })()`);
+      const pickedShade = await pick('Shading', 'Light yellow');
+      const shaded = await until(async () => (await paint())?.background === 'rgb(255, 242, 204)', 'the shading painted', 5000).catch(() => false);
+      await wait(300);
+      const pickedBorder = await pick('Borders', 'Bottom border');
+      const ruled = await until(async () => /^[1-9][0-9.]*px solid$/.test((await paint())?.bottom || ''), 'the rule painted', 5000).catch(() => false);
+      check('word: Home → Shading and Borders paint a colour behind the paragraph and a rule under it at once',
+        pickedShade === 'clicked' && shaded === true && pickedBorder === 'clicked' && ruled === true, `${pickedShade} ${pickedBorder}; ${JSON.stringify(await paint())}`);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-look.png'), (await win.webContents.capturePage()).toPNG());
+
+      await wait(300);
+      await clickRibbon('Save');
+      const pPrInFile = () => openDocx(fs.readFileSync(files.docx)).doc.doc.editParagraph(0).pPr || '';
+      await until(() => { try { return /w:shd/.test(pPrInFile()); } catch { return false; } }, 'the look to land in the file', 8000).catch(() => false);
+      const pPr = pPrInFile();
+      check('word: the saved file keeps the shading and the border where Word does — pBdr then shd in the paragraph properties',
+        /<w:pBdr><w:bottom w:val="single"[^>]*\/><\/w:pBdr>/.test(pPr) && /<w:shd w:val="clear" w:color="auto" w:fill="FFF2CC"\/>/.test(pPr) && pPr.indexOf('<w:pBdr>') < pPr.indexOf('<w:shd'),
+        pPr.slice(0, 220));
+      const complaints = await errorsIn(win);
+      check('word: the shading and border checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('word: the shading and border checks ran', false, err.message);
+    }
+  };
+
   /* ── Presentation: the shape clipboard ──────────────────────────────── */
   //
   // Copy on a selected shape, Paste on another slide: the shape appears
@@ -1685,6 +1743,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('clip')) await slideClipboard();
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
+    if (only.includes('look')) await wordLook();
     if (only.includes('ruler')) await wordRuler();
     if (only.includes('update')) await updatePrompt();
     if (only.includes('home')) await launcherRecent();
@@ -1784,6 +1843,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slideClipboard();
   await sheetFill();
   await wordPictures();
+  await wordLook();
   await wordPictureFits();
   await wordCards();
   await wordRuler();

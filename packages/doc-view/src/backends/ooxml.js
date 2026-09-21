@@ -705,8 +705,42 @@ function withPageBreakBefore(pPr, on) {
   return joinPPr(open, insertOrdered(without, 'pageBreakBefore', '<w:pageBreakBefore/>'), close);
 }
 
+/** Paragraph shading: `<w:shd w:val="clear" w:color="auto" w:fill="RRGGBB"/>`; null takes it off. */
+function withShd(pPr, colour) {
+  const { open, inner, close } = splitPPr(pPr);
+  const existing = pPrChildren(inner).find((c) => c.tag === 'shd');
+  const without = existing ? inner.slice(0, existing.start) + inner.slice(existing.end) : inner;
+  if (colour == null) return joinPPr(open, without, close);
+  const hex = String(colour).replace('#', '').toUpperCase();
+  if (!/^[0-9A-F]{6}$/.test(hex)) throw new Error('shading wants a six-digit colour: ' + colour);
+  return joinPPr(open, insertOrdered(without, 'shd', '<w:shd w:val="clear" w:color="auto" w:fill="' + hex + '"/>'), close);
+}
+
+/**
+ * Paragraph borders: `<w:pBdr>` with the sides given — { top, left, bottom,
+ * right, between } each { style, widthPx, colour, spacePt } as the reader
+ * gives them back. null, or no sides, takes the element off. Word's sz is
+ * eighths of a point, so a pixel is six of them.
+ */
+function withPBdr(pPr, borders) {
+  const { open, inner, close } = splitPPr(pPr);
+  const existing = pPrChildren(inner).find((c) => c.tag === 'pBdr');
+  const without = existing ? inner.slice(0, existing.start) + inner.slice(existing.end) : inner;
+  const sides = ['top', 'left', 'bottom', 'right', 'between'].filter((s) => borders && borders[s]);
+  if (!sides.length) return joinPPr(open, without, close);
+  const xml = '<w:pBdr>' + sides.map((s) => {
+    const b = borders[s];
+    const sz = Math.max(2, Math.round((Number(b.widthPx) || 1) * 6));
+    const colour = b.colour ? String(b.colour).replace('#', '').toUpperCase() : 'auto';
+    return '<w:' + s + ' w:val="' + (b.style || 'single') + '" w:sz="' + sz + '" w:space="' + (Number(b.spacePt) || 1) + '" w:color="' + colour + '"/>';
+  }).join('') + '</w:pBdr>';
+  return joinPPr(open, insertOrdered(without, 'pBdr', xml), close);
+}
+
 /** Set or clear one paragraph property. Neutral in, docx out. */
 function withParagraphProp(pPr, prop, value) {
+  if (prop === 'shading') return withShd(pPr, value);
+  if (prop === 'borders') return withPBdr(pPr, value);
   if (prop === 'align') {
     if (value == null) return withJc(pPr, null);
     const docx = TO_DOCX_ALIGN[value];

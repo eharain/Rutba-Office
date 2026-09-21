@@ -786,13 +786,14 @@ export class DocView {
     const hasStyle = ('styleId' in delta);
     const hasList = ('list' in delta);
     const hasSpacing = ('lineSpacing' in delta) || ('spaceBefore' in delta) || ('spaceAfter' in delta);
-    if ((hasAlignOrIndent || hasStyle || hasSpacing) && typeof this.doc.setParagraphProp !== 'function') {
+    const hasLook = ('shading' in delta) || ('borders' in delta);
+    if ((hasAlignOrIndent || hasStyle || hasSpacing || hasLook) && typeof this.doc.setParagraphProp !== 'function') {
       throw new Error('this document backend does not support paragraph formatting');
     }
     if (hasList && typeof this.doc.setParagraphList !== 'function') {
       throw new Error('this document backend does not support list formatting');
     }
-    if (!hasAlignOrIndent && !hasList && !hasStyle && !hasSpacing) return this;
+    if (!hasAlignOrIndent && !hasList && !hasStyle && !hasSpacing && !hasLook) return this;
     return this._edit('paragraph', null, () => this._setParagraphFormat(delta));
   }
 
@@ -829,6 +830,9 @@ export class DocView {
       if ('spaceAfter' in delta) {
         this.doc.setParagraphProp(i, 'spaceAfterPts', delta.spaceAfter ?? null);
       }
+      // A colour behind the paragraph and lines round it, as Word keeps them.
+      if ('shading' in delta) this.doc.setParagraphProp(i, 'shading', delta.shading ?? null);
+      if ('borders' in delta) this.doc.setParagraphProp(i, 'borders', delta.borders ?? null);
     }
     // A list toggle can add a definition to numbering.xml, and applying a
     // named style can add the standard styles part to a file that had none —

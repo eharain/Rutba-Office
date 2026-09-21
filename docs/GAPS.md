@@ -77,8 +77,9 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   nothing to act on. Document comparison and Restrict Editing sit behind it.
 - **Text effects and equations.** WordArt, outline/shadow/glow, drop caps,
   SmartArt, OMML equations: read past, not written.
-- **Paragraph shading and borders**, page colour, a real watermark (the
-  header holds text only), multilevel list definitions.
+- **Page colour**, a real watermark (the header holds text only),
+  multilevel list definitions. (Paragraph shading and borders are written
+  from the Home tab since 2026-09-21, and printed.)
 - **Building blocks** (Quick Parts) and a default template.
 
 ## 2. Worksheets — the workbook

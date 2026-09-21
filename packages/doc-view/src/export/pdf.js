@@ -139,6 +139,25 @@ function drawSegments(page, doc, segments, x, baseline, fragment, { extraPerSpac
  * Lines of one paragraph fragment, left-aligned, centred, right-aligned or
  * justified inside `widthPx` starting at `xPx`. Returns the height used (px).
  */
+/** A paragraph's borders: one line a side, in the file's weight and colour. */
+function drawParagraphBorders(page, borders, { xPx, yPx, widthPx, heightPx }) {
+  if (!borders) return;
+  const x1 = xPx * PT;
+  const x2 = (xPx + widthPx) * PT;
+  const y1 = yPx * PT;
+  const y2 = (yPx + heightPx) * PT;
+  for (const side of ['top', 'bottom', 'left', 'right']) {
+    const b = borders[side];
+    if (!b || !b.style || b.style === 'none' || b.style === 'nil') continue;
+    const width = Math.max(0.5, (Number(b.widthPx) || 1) * 0.75);
+    const colour = b.colour && /^#?[0-9a-fA-F]{6}$/.test(String(b.colour)) ? `#${String(b.colour).replace('#', '')}` : '#000000';
+    if (side === 'top') page.line(x1, y1, x2, y1, { width, colour });
+    else if (side === 'bottom') page.line(x1, y2, x2, y2, { width, colour });
+    else if (side === 'left') page.line(x1, y1, x1, y2, { width, colour });
+    else page.line(x2, y1, x2, y2, { width, colour });
+  }
+}
+
 function drawParagraphLines(page, doc, { lines, fragment, runs, xPx, yPx, widthPx, listLabel = null, lastIsFinal = true }) {
   const lineHeightPx = fragment.lineHeightPx;
   const align = fragment.align || null;
@@ -374,6 +393,15 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
       }
       y += fr.spaceBefore || 0;
       const block = byIndex.get(fr.paragraphIndex) || null;
+      // The paragraph's shading and borders, edge to edge of the column,
+      // over the lines it has on this page — as the screen draws them.
+      if (block && (block.shading || block.borders)) {
+        const heightPx = fr.lines.length * fr.lineHeightPx;
+        if (block.shading && /^#?[0-9a-fA-F]{6}$/.test(String(block.shading))) {
+          page.rect(xPx * PT, y * PT, widthPx * PT, heightPx * PT, { fill: `#${String(block.shading).replace('#', '')}` });
+        }
+        drawParagraphBorders(page, block.borders, { xPx, yPx: y, widthPx, heightPx });
+      }
       y += drawParagraphLines(page, doc, {
         lines: fr.lines, fragment: fr, runs: block ? block.runs : null,
         xPx: xPx + (fr.indent || 0), yPx: y, widthPx: widthPx - (fr.indent || 0),

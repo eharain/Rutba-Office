@@ -39,6 +39,13 @@ const HIGHLIGHTS = [
   ['darkMagenta', 'Violet'], ['darkRed', 'Dark red'], ['darkYellow', 'Dark yellow'], ['darkGray', 'Grey 50%'], ['lightGray', 'Grey 25%'], ['black', 'Black'],
 ];
 const SPACING = [[1, '1.0'], [1.15, '1.15'], [1.5, '1.5'], [2, '2.0'], [2.5, '2.5'], [3, '3.0']];
+/** Word's half-point rule, for the Borders menu. */
+const LINE = { style: 'single', widthPx: 1, colour: null, spacePt: 1 };
+const SHADES = [['#FFF2CC', 'Light yellow'], ['#DEEBF7', 'Light blue'], ['#E2EFDA', 'Light green'], ['#FCE4D6', 'Light orange'], ['#EDEDED', 'Light grey'], [null, 'No colour']];
+const BORDERS = [
+  ['Bottom border', { bottom: LINE }], ['Top border', { top: LINE }], ['Left border', { left: LINE }], ['Right border', { right: LINE }],
+  ['Outside borders', { top: LINE, bottom: LINE, left: LINE, right: LINE }], ['No border', null],
+];
 const PAGE_SIZES = [['A4', 'A4 — 21 × 29.7 cm'], ['Letter', 'Letter — 8.5 × 11 in'], ['Legal', 'Legal — 8.5 × 14 in']];
 const MARGINS = [['normal', 'Normal — 2.54 cm all round'], ['narrow', 'Narrow — 1.27 cm all round'], ['wide', 'Wide — 5.08 cm at the sides']];
 const SHAPES = [
@@ -175,8 +182,8 @@ export default function WordRibbon({
                     { label: 'Remove space after paragraph', run: () => para({ spaceAfter: 0 }) },
                   ])
                 } />
-                <Soon icon="wand" label="" why="Paragraph shading needs w:shd on the paragraph, which the engine does not write yet." />
-                <Soon icon="grid" label="" why="Paragraph borders need w:pBdr, which the engine does not write yet." />
+                <Button icon="wand" title="Shading — a colour behind the paragraph" onClick={(e) => menu.open(e, SHADES.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => para({ shading: value }) })))} />
+                <Button icon="grid" title="Borders — lines round the paragraph" onClick={(e) => menu.open(e, BORDERS.map(([label, value]) => ({ label, icon: value ? undefined : 'close', run: () => para({ borders: value }) })))} />
               </>
             </Rows>
           </Group>
