@@ -28,7 +28,7 @@ installWordStyles();
 installRulerStyles();
 import {
   LinkDialog, TableDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
-  DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog,
+  DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog, WatermarkDialog,
 } from './word/dialogs.js';
 
 /**
@@ -1018,6 +1018,12 @@ export default function Word({ app, shell, boot }) {
                     <div key={`s${k}`} className="wd-sheet" contentEditable={false} aria-hidden="true" style={{ top: k * (geo.H + geo.G), height: geo.H, background: section?.background || undefined }} />
                   ))
                 : null}
+              {/* Around a flow the watermark rides the one page; print layout puts it on every sheet below. */}
+              {!paged && model.bands?.watermark ? (
+                <div className="wd-watermark" contentEditable={false} aria-hidden="true" style={{ top: Math.round((section?.heightPx ?? 1123) / 3), color: model.bands.watermark.colour || 'silver', transform: `rotate(${model.bands.watermark.rotation ?? 315}deg)` }}>
+                  {model.bands.watermark.text}
+                </div>
+              ) : null}
               {/* The page borders: a frame on each sheet, or one around the flow. */}
               {section?.pageBorders
                 ? (paged ? Array.from({ length: pages.count }, (_, k) => k) : [null]).map((k) => (
@@ -1114,6 +1120,17 @@ export default function Word({ app, shell, boot }) {
           kind="doc"
           onClose={() => setDialog(null)}
           onSaveAs={(options) => exportAs('pdf', options)}
+        />
+      ) : null}
+
+      {dialog === 'watermark' ? (
+        <WatermarkDialog
+          current={model?.bands?.watermark?.text || ''}
+          onClose={() => setDialog(null)}
+          onApply={async (text) => {
+            await apply({ op: 'setWatermark', text });
+            setDialog(null);
+          }}
         />
       ) : null}
 

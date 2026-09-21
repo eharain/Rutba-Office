@@ -35,6 +35,9 @@ function parseBand(xml) {
   const out = [];
   for (const m of String(xml).matchAll(/<w:p\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:p>)/g)) {
     const inner = m[1] ?? '';
+    // The watermark's paragraph holds a shape and no words: not a line of
+    // the band. `headerFooters` reports it apart, as the watermark.
+    if (/<v:textpath\b/.test(inner)) continue;
     const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/.exec(inner);
     const jc = pPr ? /<w:jc\b[^>]*w:val="([^"]*)"/.exec(pPr[0]) : null;
 

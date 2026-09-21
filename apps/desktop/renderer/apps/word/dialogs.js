@@ -142,6 +142,33 @@ export function BandDialog({ band, current, onClose, onApply }) {
 
 /* ── comments ────────────────────────────────────────────────────────────── */
 
+/* ── watermark ─────────────────────────────────────────────────────────── */
+
+/** Custom watermark: the words, faint and rising across every page. */
+export function WatermarkDialog({ current, onClose, onApply }) {
+  const [text, setText] = useState(current || '');
+  const ok = text.trim().length > 0;
+  return (
+    <Dialog
+      title="Watermark"
+      width={420}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="Apply" className="wd-watermark-ok" disabled={!ok} onClick={() => onApply(text.trim())} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="Words" hint="Faint and rising across every page, behind the text — drawn as Word draws its own.">
+          <Input className="wd-watermark-text" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onApply(text.trim()); }} autoFocus />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
 export function CommentDialog({ onClose, onAdd }) {
   const [text, setText] = useState('');
   return (

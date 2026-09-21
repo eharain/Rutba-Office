@@ -1509,6 +1509,19 @@ export class DocView {
     });
   }
 
+  /** Faint words across every page — DRAFT, in silver, rising — or none. One undo step. */
+  setWatermark(text, options = {}) {
+    if (typeof this.doc.setWatermark !== 'function' || !this.section) {
+      throw new Error('this document backend has no header to carry a watermark');
+    }
+    if (typeof this.doc.registerBandUndo === 'function') this.doc.registerBandUndo('header');
+    return this._edit('watermark', null, () => {
+      this.doc.setWatermark(text ?? null, options);
+      this._invalidate();
+      return this;
+    });
+  }
+
   /**
    * Add a comment at the caret's paragraph — a point comment, so the
    * paragraph it discusses stays editable. Allowed on structural paragraphs

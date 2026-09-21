@@ -703,6 +703,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       wordCount: frame.wordCount,
       characterCount: frame.characterCount,
       section: frame.section,
+      // The bands too: a header, footer or watermark edit changes no block,
+      // and without this the window kept the bands it opened with.
+      bands: safely(() => view.doc?.headerFooters?.()),
       canUndo: view.canUndo,
       canRedo: view.canRedo,
     };
@@ -957,6 +960,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     // Headers and footers. A report without a page number is a draft, and the
     // engine has been able to write one since bands existed.
     setBand: (v, a) => v.setBand(a.band, a.lines ?? [a.text ?? '']),
+    setWatermark: (v, a) => v.setWatermark(a.text ?? null, { colour: a.colour ?? 'silver', rotation: a.rotation ?? 315 }),
   };
 
   const DECK_OPS = {

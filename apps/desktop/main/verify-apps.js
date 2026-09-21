@@ -1120,6 +1120,24 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('word: the saved file keeps the page border in the section, all four sides as Word writes them',
         /<w:sectPr\b[^>]*><w:pgBorders w:offsetFrom="page"><w:top w:val="single" w:sz="6" w:space="24" w:color="auto"\/><w:left [^>]*\/><w:bottom [^>]*\/><w:right [^>]*\/><\/w:pgBorders>/.test(sectPrXml),
         sectPrXml.slice(0, 320));
+      // Design → Watermark: DRAFT rises across the page; the header part
+      // carries Word's shape and the reopened file reports it.
+      await wait(300);
+      const pickedMark = await pick('Watermark', 'DRAFT');
+      const mark = () => js(`(() => { const el = document.querySelector('.wd-watermark'); if (!el) return null; const cs = getComputedStyle(el); return { text: el.textContent.trim(), colour: cs.color, turned: cs.transform !== 'none' }; })()`);
+      const marked = await until(async () => (await mark())?.text === 'DRAFT', 'the watermark drawn', 5000).catch(() => false);
+      await wait(400);
+      const markNow = await mark();
+      check('word: Design → Watermark writes DRAFT across the page, silver and rising', pickedMark === 'clicked' && marked === true && markNow?.colour === 'rgb(192, 192, 192)' && markNow?.turned === true, `${pickedMark}; ${JSON.stringify(markNow)}`);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-watermark.png'), (await win.webContents.capturePage()).toPNG());
+      await clickRibbon('Save');
+      const markInFile = () => { try { return openDocx(fs.readFileSync(files.docx)).doc.doc.headerFooters().watermark || null; } catch { return null; } };
+      await until(() => markInFile()?.text === 'DRAFT', 'the watermark to land in the file', 8000).catch(() => false);
+      const savedMark = markInFile();
+      const headerXml = (() => { try { const d = openDocx(fs.readFileSync(files.docx)).doc.doc; const b = d.headerFooters().headers.default; return b ? d.pkg.text(b.part) : ''; } catch { return ''; } })();
+      check('word: the saved file keeps the watermark as Word does — a VML text path first in the header, with the namespaces it needs',
+        savedMark?.text === 'DRAFT' && savedMark?.rotation === 315 && /<v:shape\b[^>]*fillcolor="silver"[^>]*>[\s\S]*?<v:textpath\b[^>]*string="DRAFT"/.test(headerXml) && /<w:hdr\b[^>]*xmlns:v="urn:schemas-microsoft-com:vml"/.test(headerXml),
+        `${JSON.stringify(savedMark)}; ${headerXml.slice(0, 200)}`);
       const complaints = await errorsIn(win);
       check('word: the shading and border checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {

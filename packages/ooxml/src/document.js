@@ -348,6 +348,37 @@ const HEADER_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/r
 const FOOTER_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer';
 /** What makes a band un-editable as plain text — flattening these loses them. */
 const BAND_STRUCTURE = /<w:(fldSimple|fldChar|sdt)\b/;
+/** The watermark's paragraph: the one holding a VML text path. */
+const WATERMARK_P = /<v:textpath\b/;
+const VML_NS = 'urn:schemas-microsoft-com:vml';
+const VML_OFFICE_NS = 'urn:schemas-microsoft-com:office:office';
+/** WordArt's plain-text shape, as Word declares it before every watermark. */
+const SHAPETYPE_136 = '<v:shapetype id="_x0000_t136" coordsize="21600,21600" o:spt="136" adj="10800" path="m@7,l@8,m@5,21600l@6,21600e">'
+  + '<v:formulas><v:f eqn="sum #0 0 10800"/><v:f eqn="prod #0 2 1"/><v:f eqn="sum 21600 0 @1"/><v:f eqn="sum 0 0 @2"/>'
+  + '<v:f eqn="sum 21600 0 @3"/><v:f eqn="if @0 @3 0"/><v:f eqn="if @0 21600 @1"/><v:f eqn="if @0 0 @2"/><v:f eqn="if @0 @4 21600"/>'
+  + '<v:f eqn="mid @5 @6"/><v:f eqn="mid @8 @5"/><v:f eqn="mid @7 @8"/><v:f eqn="mid @6 @7"/><v:f eqn="sum @6 0 @5"/></v:formulas>'
+  + '<v:path textpathok="t" o:connecttype="custom" o:connectlocs="@9,0;@10,10800;@11,21600;@12,10800" o:connectangles="270,180,90,0"/>'
+  + '<v:textpath on="t" fitshape="t"/><v:handles><v:h position="#0,bottomRight" xrange="6629,14971"/></v:handles>'
+  + '<o:lock v:ext="edit" text="t" shapetype="t"/></v:shapetype>';
+
+/**
+ * The watermark's paragraph as Word writes one: the shape type, then the
+ * shape — centred on the margins, rotated, filled in the colour at half
+ * opacity, its words a text path — in a run the spell checker leaves alone.
+ */
+function watermarkParagraph(text, colour, rotation) {
+  const attr = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const fill = /^#?[0-9a-fA-F]{6}$/.test(String(colour)) ? '#' + String(colour).replace('#', '').toLowerCase() : String(colour || 'silver');
+  const deg = Math.round(Number(rotation) || 0);
+  return '<w:p><w:r><w:rPr><w:noProof/></w:rPr><w:pict>' + SHAPETYPE_136
+    + '<v:shape id="PowerPlusWaterMarkObject1" o:spid="_x0000_s2049" type="#_x0000_t136"'
+    + ' style="position:absolute;margin-left:0;margin-top:0;width:527.85pt;height:131.95pt;rotation:' + deg
+    + ';z-index:-251658752;mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-position-vertical:center;mso-position-vertical-relative:margin"'
+    + ' o:allowincell="f" fillcolor="' + attr(fill) + '" stroked="f">'
+    + '<v:fill opacity=".5"/>'
+    + '<v:textpath style="font-family:&quot;Calibri&quot;;font-size:1pt" string="' + attr(text) + '"/>'
+    + '</v:shape></w:pict></w:r></w:p>';
+}
 const COMMENTS_CT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
 const COMMENTS_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
 const CHART_CT = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
@@ -1696,6 +1727,38 @@ export class Document {
   }
 
   /**
+   * The watermark: faint words across every page, as Word keeps them — a
+   * WordArt shape (a VML text path) in the default header's first
+   * paragraph, rotated, in a fill colour, behind the body. Text sets or
+   * replaces it; null takes it out and leaves the header's words alone. A
+   * document with no header gets one for it.
+   */
+  setWatermark(text, { colour = 'silver', rotation = 315 } = {}) {
+    const words = text == null ? '' : String(text).trim();
+    let band = this.headerFooters().headers.default ?? null;
+    if (!band) {
+      if (!words) return this;
+      this._addBand('header', '<w:p/>');
+      band = this.headerFooters().headers.default;
+    }
+    let xml = this.pkg.text(band.part);
+    // Whatever paragraph was the watermark's goes; the words stay.
+    xml = xml.replace(/<w:p\b[^>]*?(?:\/>|>[\s\S]*?<\/w:p>)/g, (p) => (WATERMARK_P.test(p) ? '' : p));
+    if (words) {
+      const root = /<w:hdr\b[^>]*>/.exec(xml);
+      if (!root) throw new Error('unrecognised header part: ' + band.part);
+      let open = root[0];
+      if (!/\bxmlns:v=/.test(open)) open = open.replace(/>$/, ' xmlns:v="' + VML_NS + '">');
+      if (!/\bxmlns:o=/.test(open)) open = open.replace(/>$/, ' xmlns:o="' + VML_OFFICE_NS + '">');
+      xml = xml.slice(0, root.index) + open + watermarkParagraph(words, colour, rotation) + xml.slice(root.index + root[0].length);
+    }
+    if (!/<w:p\b/.test(xml)) xml = xml.replace(/<\/w:hdr>/, '<w:p/></w:hdr>');
+    this.pkg.write_(band.part, xml);
+    this._undoParts.add(band.part);
+    return this;
+  }
+
+  /**
    * Replace the default header's or footer's text, line per paragraph —
    * creating the band, its content type, its relationship and its
    * `sectPr` reference when the document never had one.
@@ -1720,7 +1783,11 @@ export class Document {
       if (BAND_STRUCTURE.test(xml)) {
         throw new Error('This ' + which + ' carries a field or a content control — editing it as text would flatten that.');
       }
-      const olds = [...xml.matchAll(/<w:p\b[^>]*?(?:\/>|>[\s\S]*?<\/w:p>)/g)].map((m) => m[0]);
+      // The watermark's paragraph is the band's shape, not its words: it
+      // stays first, and the lines follow it.
+      const all = [...xml.matchAll(/<w:p\b[^>]*?(?:\/>|>[\s\S]*?<\/w:p>)/g)].map((m) => m[0]);
+      const watermark = all.find((p) => WATERMARK_P.test(p)) || '';
+      const olds = all.filter((p) => !WATERMARK_P.test(p));
       const shape = (i) => {
         const src = olds[Math.min(i, olds.length - 1)] ?? null;
         if (!src) return { pPr: '', rPr: null };
@@ -1733,17 +1800,21 @@ export class Document {
       }).join('') || '<w:p/>';
       const root = /^([\s\S]*?<w:(?:hdr|ftr)\b[^>]*>)[\s\S]*(<\/w:(?:hdr|ftr)>[\s\S]*)$/.exec(xml);
       if (!root) throw new Error('unrecognised ' + which + ' part: ' + existing.part);
-      this.pkg.write_(existing.part, root[1] + body + root[2]);
+      this.pkg.write_(existing.part, root[1] + watermark + body + root[2]);
       this._undoParts.add(existing.part);
       return this;
     }
 
     // No band yet: a part, a content type, a relationship, a reference.
+    return this._addBand(which, texts.map((t) => '<w:p>' + (t === '' ? '' : renderRun(null, t)) + '</w:p>').join('') || '<w:p/>');
+  }
+
+  /** A new default band around the paragraphs given: its part, content type, relationship and `sectPr` reference. */
+  _addBand(which, body) {
     const tag = which === 'header' ? 'hdr' : 'ftr';
     let n = 1;
     while (this.pkg.has('word/' + which + n + '.xml')) n += 1;
     const partName = 'word/' + which + n + '.xml';
-    const body = texts.map((t) => '<w:p>' + (t === '' ? '' : renderRun(null, t)) + '</w:p>').join('') || '<w:p/>';
     this.pkg.addPart(partName,
       '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
       '<w:' + tag + ' xmlns:w="' + WORD_NS + '">' + body + '</w:' + tag + '>',

@@ -54,6 +54,8 @@ const PAGE_BORDERS = [
   ['Box — double line', BOX(FRAME('double', 3))], ['Box — dashed line', BOX(FRAME('dashed', 1))],
   ['No page border', null],
 ];
+/** Watermark: Word's own stock words, then a custom one. */
+const WATERMARKS = ['DRAFT', 'CONFIDENTIAL', 'SAMPLE', 'DO NOT COPY', 'URGENT'];
 const PAGE_SIZES = [['A4', 'A4 — 21 × 29.7 cm'], ['Letter', 'Letter — 8.5 × 11 in'], ['Legal', 'Legal — 8.5 × 14 in']];
 const MARGINS = [['normal', 'Normal — 2.54 cm all round'], ['narrow', 'Narrow — 1.27 cm all round'], ['wide', 'Wide — 5.08 cm at the sides']];
 const SHAPES = [
@@ -343,7 +345,11 @@ export default function WordRibbon({
             <Soon icon="check" label="Set as Default" why="A default template is a file the suite does not keep yet." />
           </Group>
           <Group label="Page Background">
-            <Soon tall icon="shield" label="Watermark" why="A watermark is a header shape; headers hold text only so far." />
+            <Button tall icon="shield" label="Watermark" title="Watermark — faint words behind every page" onClick={(e) => menu.open(e, [
+              ...WATERMARKS.map((text) => ({ label: text, run: () => dispatch({ op: 'setWatermark', text }) })),
+              { label: 'Custom watermark…', icon: 'textbox', run: () => openDialog('watermark') },
+              { label: 'Remove watermark', icon: 'close', run: () => dispatch({ op: 'setWatermark', text: null }) },
+            ])} />
             <Button tall icon="contrast" label="Page Colour" title="Page Colour — a colour behind every page" onClick={(e) => menu.open(e, SHADES.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => dispatch({ op: 'setPageColour', colour: value }) })))} />
             <Button tall icon="grid" label="Page Borders" title="Page Borders — a frame around every page" onClick={(e) => menu.open(e, PAGE_BORDERS.map(([label, borders]) => ({ label, icon: borders ? undefined : 'close', run: () => dispatch({ op: 'setPageBorders', borders }) })))} />
           </Group>
