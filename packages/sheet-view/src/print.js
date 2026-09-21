@@ -54,6 +54,9 @@ export const DEFAULT_PAGE_SETUP = {
   headings: false,
   /** Rows repeated at the top of every page, as a count from row 1. */
   repeatRows: 0,
+  /** Manual page breaks: the 0-based rows that start a page, and the columns. */
+  rowBreaks: [],
+  colBreaks: [],
   /** An A1:D40 range to print instead of the used range. */
   area: null,
   /** Centre the block on the page, as Excel's "center on page" does. */
@@ -153,7 +156,7 @@ export function paginate({ geo, range, setup, maxPages = 2000 }) {
   }
   scale = Math.max(0.1, Math.min(1, scale));
 
-  const fit = (items, room) => {
+  const fit = (items, room, breaks = new Set()) => {
     const bands = [];
     let band = [];
     let used = 0;
@@ -166,7 +169,8 @@ export function paginate({ geo, range, setup, maxPages = 2000 }) {
       const size = item.size * scale;
       // A single item taller or wider than the page still gets its own page:
       // an empty page helps nobody.
-      if (band.length && used + size > limit) {
+      // A manual break starts a page above this row or left of this column.
+      if (band.length && (used + size > limit || breaks.has(item.index))) {
         bands.push(band);
         band = [];
         used = 0;
@@ -178,8 +182,8 @@ export function paginate({ geo, range, setup, maxPages = 2000 }) {
     return bands.length ? bands : [[]];
   };
 
-  const colBands = fit(cols, area.width);
-  const rowBands = fit(rows, Math.max(1, area.height - titleHeight * scale));
+  const colBands = fit(cols, area.width, new Set((setup.colBreaks || []).map(Number)));
+  const rowBands = fit(rows, Math.max(1, area.height - titleHeight * scale), new Set((setup.rowBreaks || []).map(Number)));
 
   const pages = [];
   const down = setup.order !== 'across';
@@ -417,6 +421,19 @@ export function readPageSetup(view, sheetName = view.activeSheet) {
   setup.headings = options.headings === '1' || options.headings === 'true';
   setup.centre = { horizontal: options.horizontalCentered === '1', vertical: options.verticalCentered === '1' };
 
+  // Manual page breaks: a brk id is the 0-based row (or column) the new
+  // page starts at — Excel's "breaks occur above the row, left of the column".
+  const breaksIn = (tag) => {
+    const el = part.tailElement(tag);
+    if (!el) return [];
+    return [...el.matchAll(/<brk\b[^>]*\/?>/g)]
+      .map((m) => Number(attrsOf(m[0]).id))
+      .filter((n) => Number.isFinite(n) && n > 0)
+      .sort((a, b) => a - b);
+  };
+  setup.rowBreaks = breaksIn('rowBreaks');
+  setup.colBreaks = breaksIn('colBreaks');
+
   // The two names, scoped to this sheet by its index in the tab order.
   const index = view.workbook.sheetNames().indexOf(sheetName);
   for (const name of view.workbook.definedNames()) {
@@ -463,6 +480,18 @@ export function writePageSetup(view, sheetName, options = {}) {
     `<pageSetup paperSize="${CODE_FOR_PAPER[setup.paper] || 9}" orientation="${setup.orientation}"` +
       `${setup.fit === 'none' && setup.scale !== 1 ? ` scale="${Math.round(setup.scale * 100)}"` : ''}${fit}/>`
   );
+
+  // Manual page breaks, as Excel keeps them: one brk per row (or column)
+  // that starts a page, man="1" saying a person put it there, max the far
+  // edge of the sheet. None takes the element away.
+  const breaksXml = (tag, ids, max) => {
+    const list = [...new Set((ids || []).map(Number).filter((n) => Number.isFinite(n) && n > 0))].sort((a, b) => a - b);
+    return list.length
+      ? `<${tag} count="${list.length}" manualBreakCount="${list.length}">${list.map((id) => `<brk id="${id}" max="${max}" man="1"/>`).join('')}</${tag}>`
+      : null;
+  };
+  part.setTailElement('rowBreaks', breaksXml('rowBreaks', setup.rowBreaks, 16383));
+  part.setTailElement('colBreaks', breaksXml('colBreaks', setup.colBreaks, 1048575));
 
   // fitToPage lives on the sheet's properties, before the data, and Excel
   // ignores fitToWidth without it.

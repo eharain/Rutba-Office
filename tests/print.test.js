@@ -165,3 +165,24 @@ test('fit to height: all the rows down one page, read and written as Excel keeps
   assert.match(sheetXml, /fitToWidth="0" fitToHeight="1"/);
   assert.match(sheetXml, /fitToPage="1"/, 'Excel ignores fitToHeight without it');
 });
+
+test('a manual page break starts a page there, and is kept as Excel keeps it', () => {
+  const view = new SheetView(BOOK);
+  assert.equal(printSummary(view, {}).pages, 3, 'the report is three pages on its own');
+  assert.equal(printSummary(view, { rowBreaks: [60] }).pages, 4, 'a break in the middle of a page adds one');
+
+  writePageSetup(view, 'Report', { rowBreaks: [60], colBreaks: [3] });
+  const back = new SheetView(view.save());
+  const read = readPageSetup(back, 'Report');
+  assert.deepEqual(read.rowBreaks, [60], 'the row the new page starts at, 0-based');
+  assert.deepEqual(read.colBreaks, [3]);
+  const sheetXml = back.pkg.text(back.workbook._sheetPart('Report').sheet.part);
+  assert.ok(sheetXml.includes('<rowBreaks count="1" manualBreakCount="1"><brk id="60" max="16383" man="1"/></rowBreaks>'), 'rowBreaks as Excel writes them');
+  assert.ok(sheetXml.includes('<colBreaks count="1" manualBreakCount="1"><brk id="3" max="1048575" man="1"/></colBreaks>'), 'colBreaks after them');
+  assert.ok(sheetXml.indexOf('<pageSetup') < sheetXml.indexOf('<rowBreaks'), 'and in schema order, after pageSetup');
+
+  writePageSetup(view, 'Report', { rowBreaks: [], colBreaks: [] });
+  const reset = new SheetView(view.save());
+  assert.deepEqual(readPageSetup(reset, 'Report').rowBreaks, [], 'reset takes the element away');
+  assert.ok(!reset.pkg.text(reset.workbook._sheetPart('Report').sheet.part).includes('<rowBreaks'));
+});

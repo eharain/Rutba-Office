@@ -123,11 +123,11 @@ it is where the gaps are.
 - **Auditing**: trace precedents and dependents, evaluate step by step, the
   watch window, error checking. The dependency graph exists; nothing draws
   it.
-- **Page-break preview**, manual page breaks, a sheet background. (The
-  print settings live in the file, and since 2026-09-21 the Page Layout
-  tab writes them: margins, orientation, paper, print titles, scale to
-  fit — before that its buttons changed a note in the window that nothing
-  read.)
+- **Page-break preview** and a sheet background. (The print settings live
+  in the file, and since 2026-09-21 the Page Layout tab writes them:
+  margins, orientation, paper, print titles, scale to fit and manual page
+  breaks — before that its buttons changed a note in the window that
+  nothing read.)
 - **Workbook protection** (structure), editable ranges on a protected sheet,
   custom views, manual calculation.
 - **The formula language**, where it stops: `LAMBDA`. Array constants and

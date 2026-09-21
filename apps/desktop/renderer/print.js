@@ -16,7 +16,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Dialog, Field, Input, Select, Button, Chip, useToast } from '@rutba/office-ui';
 
 const PAPERS = ['A4', 'Letter', 'Legal', 'A3', 'A5'];
-const MARGIN_PRESETS = {
+export const MARGIN_PRESETS = {
   Normal: { top: 12.7, right: 12.7, bottom: 12.7, left: 12.7 },
   Narrow: { top: 6.4, right: 6.4, bottom: 6.4, left: 6.4 },
   Wide: { top: 25.4, right: 25.4, bottom: 25.4, left: 25.4 },

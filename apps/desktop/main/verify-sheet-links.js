@@ -262,6 +262,25 @@ export async function verifySheetLinks(h, { file }) {
     check('sheets: the saved file keeps the orientation, the repeated row and the fit, as Excel reads them',
       inFile.orientation === 'landscape' && inFile.repeatRows === 1 && inFile.fit === 'width', JSON.stringify([inFile.orientation, inFile.repeatRows, inFile.fit]));
 
+    // Page Layout → Breaks → Insert page break at A3 starts a page above
+    // row 3: the four-row sheet prints on two pages, and the file keeps the
+    // break as Excel does.
+    const pagesRead = `(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); const s = await window.rutbaOffice.doc.pageSetup({ id: mine.id }); const sum = await window.rutbaOffice.print.summary({ id: mine.id, options: s }); return JSON.stringify([s.rowBreaks || [], s.colBreaks || [], sum.pages]); })()`;
+    const pagesBefore = await js(pagesRead);
+    await js(`(() => { document.querySelector('.sh-cell[data-ref="A3"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
+    await until(() => js(`document.querySelector('.sh-cell.active')?.dataset.ref === 'A3'`), 'A3 to be active', 4000).catch(() => {});
+    const pickedBreak = await pickPage('Breaks', 'Insert page break');
+    const broken = await until(async () => (await js(pagesRead)) === '[[2],[],2]', 'the page break', 5000).catch(() => false);
+    check('sheets: Page Layout → Breaks puts a page break above the row of the cell, and the sheet prints on two pages',
+      pickedBreak === 'picked' && broken === true, `${pagesBefore} → ${await js(pagesRead)}; ${pickedBreak}`);
+    await clickIn(win, 'Save');
+    await until(() => { try { return readPageSetup(SheetView.open(fs.readFileSync(file)), 'Sales').rowBreaks.length === 1; } catch { return false; } }, 'the break to land in the file', 8000).catch(() => false);
+    const withBreak = SheetView.open(fs.readFileSync(file));
+    const breakXml = withBreak.pkg.text(withBreak.workbook.partNameFor('Sales'));
+    check('sheets: the saved file keeps the page break as Excel does — rowBreaks with one brk, man="1"',
+      readPageSetup(withBreak, 'Sales').rowBreaks.join(',') === '2' && breakXml.includes('<rowBreaks count="1" manualBreakCount="1"><brk id="2" max="16383" man="1"/></rowBreaks>'),
+      JSON.stringify(readPageSetup(withBreak, 'Sales').rowBreaks));
+
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

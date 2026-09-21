@@ -11,6 +11,7 @@ import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select } from '@rutba/office-ui';
 import { catalogByCategory } from '@rutba/formula';
 import { NUMBER_FORMATS } from './dialogs.js';
+import { MARGIN_PRESETS as PRINT_MARGINS } from '../../print.js';
 
 /** The palette a toolbar offers before it offers a colour picker. */
 const SWATCHES = [
@@ -76,12 +77,8 @@ const ORIENTATIONS = [
   ['Rotate text down', 180],
 ];
 
-/** Excel's three margin presets, in millimetres. */
-export const MARGIN_PRESETS = {
-  normal: { top: 19.1, right: 17.8, bottom: 19.1, left: 17.8 },
-  narrow: { top: 19.1, right: 6.4, bottom: 19.1, left: 6.4 },
-  wide: { top: 25.4, right: 25.4, bottom: 25.4, left: 25.4 },
-};
+/** The print dialog's three margin presets by their lower-case names, so the tab and the dialog agree. */
+export const MARGIN_PRESETS = Object.fromEntries(Object.entries(PRINT_MARGINS).map(([name, m]) => [name.toLowerCase(), m]));
 
 /** Which preset a file's margins are, or null when they are its own. */
 export function marginsName(margins) {
@@ -93,6 +90,12 @@ export function marginsName(margins) {
 }
 
 const capital = (s) => s[0].toUpperCase() + s.slice(1);
+
+/** How many page breaks a person has put in the sheet, for the Breaks tip. */
+function breaksSaid(page) {
+  const n = (page?.rowBreaks?.length || 0) + (page?.colBreaks?.length || 0);
+  return n ? `${n} page break${n === 1 ? '' : 's'} put by hand` : 'no page breaks put by hand';
+}
 
 export const CELL_STYLES = [
   ['Normal', { bold: false, italic: false, fill: null, fontColour: null, border: { top: null, bottom: null, left: null, right: null }, numberFormat: 'General' }],
@@ -426,7 +429,11 @@ export default function SheetsRibbon({
               { label: 'Set print area (the selection)', icon: 'grid', run: () => act('printArea', 'set') },
               { label: 'Clear print area', run: () => act('printArea', 'clear') },
             ])} />
-            <Soon icon="minus" label="Breaks" why="Manual page breaks are print settings the engine does not write yet." />
+            <Button icon="minus" label="Breaks" title={`Breaks — ${breaksSaid(view.page)}`} onClick={(e) => menu.open(e, [
+              { label: 'Insert page break — above the row and left of the column of the cell', icon: 'minus', run: () => act('page', { breaks: 'insert' }) },
+              { label: 'Remove page break at the cell', run: () => act('page', { breaks: 'remove' }) },
+              { label: 'Reset all page breaks', run: () => act('page', { breaks: 'reset' }) },
+            ])} />
             <Soon icon="picture" label="Background" why="A sheet background is a picture part the engine does not write yet." />
             <Button icon="table" label="Print Titles" title={`Print Titles — ${view.page?.repeatRows ? `rows 1 to ${view.page.repeatRows} repeat at the top of every page` : 'no rows repeat yet'}`} onClick={(e) => menu.open(e, [
               { label: 'Repeat row 1 at the top of every page', icon: view.page?.repeatRows === 1 ? 'check' : undefined, run: () => act('page', { repeatRows: 1 }) },

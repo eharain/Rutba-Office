@@ -861,6 +861,33 @@ export default function Sheets({ app, shell, boot }) {
           said = next.repeatRows ? `Rows 1 to ${next.repeatRows} repeat at the top of every page` : 'No rows repeat';
           if (arg.repeatRows === 'selection' && !next.repeatRows) said = 'Select rows from row 1 to repeat them';
         }
+        if (arg.breaks) {
+          // Excel's Breaks: a break goes above the cell's row and left of its
+          // column (only one of them at the sheet's edge), comes off at the
+          // cell, or they all go.
+          const rowsSet = new Set(current.rowBreaks || []);
+          const colsSet = new Set(current.colBreaks || []);
+          const at = sel && Number.isFinite(sel.top) && Number.isFinite(sel.left) ? sel : null;
+          const colName = (n) => { let s = ''; let k = n + 1; while (k > 0) { const m = (k - 1) % 26; s = String.fromCharCode(65 + m) + s; k = Math.floor((k - 1) / 26); } return s; };
+          if (arg.breaks === 'reset') {
+            rowsSet.clear(); colsSet.clear();
+            said = 'All page breaks removed';
+          } else if (!at) {
+            return;
+          } else if (arg.breaks === 'insert') {
+            if (at.top > 0) rowsSet.add(at.top);
+            if (at.left > 0) colsSet.add(at.left);
+            said = at.top > 0 && at.left > 0 ? `Page break above row ${at.top + 1} and left of column ${colName(at.left)}`
+              : at.top > 0 ? `Page break above row ${at.top + 1}`
+              : at.left > 0 ? `Page break left of column ${colName(at.left)}`
+              : 'A page break goes above the row and left of the column of the cell: pick one past A1';
+          } else if (arg.breaks === 'remove') {
+            const had = rowsSet.delete(at.top) | colsSet.delete(at.left);
+            said = had ? 'Page break removed' : 'No page break at the cell';
+          }
+          next.rowBreaks = [...rowsSet].sort((a, b) => a - b);
+          next.colBreaks = [...colsSet].sort((a, b) => a - b);
+        }
         await dispatch({ op: 'setPageSetup', setup: next });
         patchView({ page: next });
         toast(said, { tone: 'good' });
