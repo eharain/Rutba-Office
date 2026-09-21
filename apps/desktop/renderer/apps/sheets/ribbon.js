@@ -398,7 +398,10 @@ export default function SheetsRibbon({
               { label: 'Landscape', run: () => act('page', { orientation: 'landscape' }) },
             ])} />
             <Button tall icon="file" label="Size" title={`Now ${view.page?.size || 'A4'}`} onClick={(e) => menu.open(e, ['A4', 'Letter', 'Legal', 'A3'].map((s) => ({ label: s, run: () => act('page', { size: s }) })))} />
-            <Soon icon="grid" label="Print Area" why="A print area is a defined name (_xlnm.Print_Area); the name manager can make one, this button will soon." />
+            <Button icon="grid" label="Print Area" title="Print Area — the selection becomes what prints, or the print area is cleared" onClick={(e) => menu.open(e, [
+              { label: 'Set print area (the selection)', icon: 'grid', run: () => act('printArea', 'set') },
+              { label: 'Clear print area', run: () => act('printArea', 'clear') },
+            ])} />
             <Soon icon="minus" label="Breaks" why="Manual page breaks are print settings the engine does not write yet." />
             <Soon icon="picture" label="Background" why="A sheet background is a picture part the engine does not write yet." />
             <Soon icon="table" label="Print Titles" why="Print titles are a defined name (_xlnm.Print_Titles) not written yet." />

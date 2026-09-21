@@ -162,6 +162,40 @@ export async function verifySheetLinks(h, { file }) {
         && tables[0].columns.join(',') === 'Region,Q1,Q2' && withTable.pkg.has(tables[0].part) && /<tableParts count="1"><tablePart r:id="[^"]+"\/><\/tableParts>/.test(tableSheetXml),
       `${tables.length} table(s): ${JSON.stringify(tables.map((t) => [t.name, t.ref, t.styleName, t.columns]))}`);
 
+    // Page Layout → Print Area: B2:C3, selected with Shift and the arrows,
+    // becomes what prints — the sheet's _xlnm.Print_Area, as the page setup
+    // reads it — and Clear takes it away.
+    await js(`(() => { document.querySelector('.sh-cell[data-ref="B2"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
+    await until(() => js(`document.querySelector('.sh-cell.active')?.dataset.ref === 'B2'`), 'B2 to be active', 4000).catch(() => {});
+    await js(`document.querySelector('.sh')?.focus(), 'focused'`);
+    await wait(150);
+    // Each extension is waited for: a key sent before the grid holds focus is lost.
+    const selectedCells = () => js(`document.querySelectorAll('.sh-cell.sel').length`);
+    for (let tries = 0; tries < 3 && (await selectedCells()) < 2; tries++) {
+      await press(win.webContents, 'Down', { modifiers: ['shift'] });
+      await until(async () => (await selectedCells()) >= 2, 'the selection to reach B3', 1200).catch(() => {});
+    }
+    for (let tries = 0; tries < 3 && (await selectedCells()) < 4; tries++) {
+      await press(win.webContents, 'Right', { modifiers: ['shift'] });
+      await until(async () => (await selectedCells()) >= 4, 'the selection to reach C3', 1200).catch(() => {});
+    }
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Page Layout')?.click(), 'tab'`);
+    await wait(200);
+    const areaRead = `(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); const s = await window.rutbaOffice.doc.pageSetup({ id: mine.id }); return s.area || ''; })()`;
+    const pickArea = async (label) => {
+      await clickIn(win, 'Print Area');
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.includes(${JSON.stringify(label)})))`), 'the print area menu', 3000).catch(() => {});
+      return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.includes(${JSON.stringify(label)})); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
+    };
+    const picked = await pickArea('Set print area');
+    const areaSet = await until(async () => (await js(areaRead)) === 'B2:C3', 'the print area', 5000).catch(() => false);
+    const said = await js(`[...document.querySelectorAll('.rw-toast, [class*="toast"]')].map((t) => t.textContent.trim()).join(' | ')`);
+    const selectedNow = await js(`(() => { const a = document.querySelector('.sh-cell.active'); return (a ? a.dataset.ref : '?') + ' selected ' + document.querySelectorAll('.sh-cell.sel').length; })()`);
+    check('sheets: Page Layout → Print Area makes the selection what prints, kept as the sheet\'s print area', picked === 'picked' && areaSet === true, `${picked}; area ${JSON.stringify(await js(areaRead))}; toast ${JSON.stringify(said)}; ${selectedNow}`);
+    const pickedClear = await pickArea('Clear print area');
+    const cleared = await until(async () => (await js(areaRead)) === '', 'the print area to clear', 5000).catch(() => false);
+    check('sheets: Clear print area takes it away', pickedClear === 'picked' && cleared === true, `${pickedClear}; area ${JSON.stringify(await js(areaRead))}`);
+
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

@@ -905,6 +905,25 @@ export default function Sheets({ app, shell, boot }) {
       // Format as Table: over the selection, or the block of data round the cell.
       case 'table': await dispatch({ op: 'formatAsTable', style: arg?.style, stripes: arg?.stripes !== false }); return;
       case 'picture': await insertPicture(); return;
+      // Page Layout → Print Area: the page setup is rebuilt from what it is
+      // given, so the file's own setup is read first and sent back with the
+      // area changed — what the print dialog does.
+      case 'printArea': {
+        const current = await shell.doc.pageSetup({ id: doc.id });
+        if (arg === 'clear') {
+          await dispatch({ op: 'setPageSetup', setup: { ...current, area: '' } });
+          toast('Print area cleared', { tone: 'good' });
+          return;
+        }
+        // The frame's selection is flat: the range's top, bottom, left and right sit beside `active`.
+        const r = sel && Number.isFinite(sel.top) && Number.isFinite(sel.left) ? sel : null;
+        if (!r) return;
+        const letters = (n) => { let s = ''; let k = n + 1; while (k > 0) { const m = (k - 1) % 26; s = String.fromCharCode(65 + m) + s; k = Math.floor((k - 1) / 26); } return s; };
+        const area = `${letters(r.left)}${r.top + 1}:${letters(r.right)}${r.bottom + 1}`;
+        await dispatch({ op: 'setPageSetup', setup: { ...current, area } });
+        toast(`Print area: ${area}`, { tone: 'good' });
+        return;
+      }
       // A link is followed: an address opens outside the suite, a place in
       // the workbook (C12, Sheet2!B4, a name) is gone to.
       case 'follow': {
