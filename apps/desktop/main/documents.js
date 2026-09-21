@@ -937,6 +937,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     replaceAll: (v, a) => v.replaceAll(a.find, a.replace, { matchCase: a.matchCase }),
     pasteText: (v, a) => v.pasteText(a.text),
     setPageSetup: (v, a) => v.setPageSetup(a.spec),
+    // Design → Page Colour: a colour behind every page, kept as Word keeps it.
+    setPageColour: (v, a) => v.setPageColour(a.colour ?? null),
     tableOp: (v, a) => v.tableOp(a.op, a.arg),
     // A border dragged on the page: the columns either side of it, or a row's height.
     setTableColumnWidths: (v, a) => v.setTableColumnWidths(a),

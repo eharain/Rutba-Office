@@ -1087,6 +1087,21 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('word: the saved file keeps the shading and the border where Word does — pBdr then shd in the paragraph properties',
         /<w:pBdr><w:bottom w:val="single"[^>]*\/><\/w:pBdr>/.test(pPr) && /<w:shd w:val="clear" w:color="auto" w:fill="FFF2CC"\/>/.test(pPr) && pPr.indexOf('<w:pBdr>') < pPr.indexOf('<w:shd'),
         pPr.slice(0, 220));
+      // Design → Page Colour: the page (or the sheets behind the flow in
+      // print layout) takes the colour, and the file keeps it before the body.
+      await wait(300);
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Design')?.click(), 'tab'`);
+      await wait(200);
+      const pickedPage = await pick('Page Colour', 'Light blue');
+      const pageBg = () => js(`(() => { const el = document.querySelector('.wd-sheet') || document.querySelector('.wd-page'); return el ? getComputedStyle(el).backgroundColor : null; })()`);
+      const coloured = await until(async () => (await pageBg()) === 'rgb(222, 235, 247)', 'the page colour painted', 5000).catch(() => false);
+      check('word: Design → Page Colour paints the page', pickedPage === 'clicked' && coloured === true, `${pickedPage}; page ${await pageBg()}`);
+      await wait(300);
+      await clickRibbon('Save');
+      const documentXml = () => openDocx(fs.readFileSync(files.docx)).doc.doc.xml;
+      await until(() => { try { return /<w:background w:color="DEEBF7"\/>/.test(documentXml()); } catch { return false; } }, 'the page colour to land in the file', 8000).catch(() => false);
+      const xmlHead = documentXml().slice(0, 400);
+      check('word: the saved file keeps the page colour before the body, as Word does', /<w:document\b[^>]*><w:background w:color="DEEBF7"\/>/.test(xmlHead), xmlHead.slice(xmlHead.indexOf('<w:document'), xmlHead.indexOf('<w:document') + 160));
       const complaints = await errorsIn(win);
       check('word: the shading and border checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {

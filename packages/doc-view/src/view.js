@@ -1262,6 +1262,16 @@ export class DocView {
    * cache keys on the usable width, so every paragraph re-wraps to the new
    * page on the next render without any special invalidation.
    */
+  /** A colour behind every page ('#RRGGBB'), or none. One undo step. */
+  setPageColour(colour) {
+    if (typeof this.doc.setPageColour !== 'function') throw new Error('this document backend has no page to colour');
+    return this._edit('page colour', null, () => {
+      this.doc.setPageColour(colour ?? null);
+      this._invalidate();
+      return this;
+    });
+  }
+
   setPageSetup(spec) {
     if (typeof this.doc.setPageSetup !== 'function' || !this.section) {
       throw new Error('this document backend has no page to set up');

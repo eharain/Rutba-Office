@@ -336,7 +336,7 @@ export default function WordRibbon({
           </Group>
           <Group label="Page Background">
             <Soon tall icon="shield" label="Watermark" why="A watermark is a header shape; headers hold text only so far." />
-            <Soon tall icon="contrast" label="Page Colour" why="Page colour is w:background, not written yet." />
+            <Button tall icon="contrast" label="Page Colour" title="Page Colour — a colour behind every page" onClick={(e) => menu.open(e, SHADES.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => dispatch({ op: 'setPageColour', colour: value }) })))} />
             <Soon tall icon="grid" label="Page Borders" why="Page borders are w:pgBorders, not written yet." />
           </Group>
         </>

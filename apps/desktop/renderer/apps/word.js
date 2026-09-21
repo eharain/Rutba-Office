@@ -1000,6 +1000,9 @@ export default function Word({ app, shell, boot }) {
                 paddingRight: section?.margins.right ?? 96,
                 paddingBottom: section?.margins.bottom ?? 96,
                 paddingLeft: section?.margins.left ?? 96,
+                // The page colour, on the page itself when the flow is one sheet;
+                // in print layout the sheets behind the flow carry it.
+                background: !paged && section?.background ? section.background : undefined,
                 // The bands read the margins too, to line up with the body.
                 '--wd-margin-left': `${section?.margins.left ?? 96}px`,
                 '--wd-margin-right': `${section?.margins.right ?? 96}px`,
@@ -1012,7 +1015,7 @@ export default function Word({ app, shell, boot }) {
               */}
               {paged
                 ? Array.from({ length: pages.count }, (_, k) => (
-                    <div key={`s${k}`} className="wd-sheet" contentEditable={false} aria-hidden="true" style={{ top: k * (geo.H + geo.G), height: geo.H }} />
+                    <div key={`s${k}`} className="wd-sheet" contentEditable={false} aria-hidden="true" style={{ top: k * (geo.H + geo.G), height: geo.H, background: section?.background || undefined }} />
                   ))
                 : null}
               {paged

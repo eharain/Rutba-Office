@@ -708,8 +708,48 @@ export class Document {
     seq.forEach((b, i) => { b.blockIndex = inside[i].index; });
   }
 
-  /** Page size and margins from `w:sectPr`, in CSS pixels. */
-  section() { return parseSection(this._body().body); }
+  /** Page size and margins from `w:sectPr`, in CSS pixels — and the page colour. */
+  section() { return { ...parseSection(this._body().body), background: this.pageColour() }; }
+
+  /** The page colour, `<w:background w:color="RRGGBB"/>` before the body, as '#RRGGBB' or null. */
+  pageColour() {
+    const head = this.xml.slice(0, Math.max(0, this.xml.indexOf('<w:body')));
+    const m = /<w:background\b[^>]*\bw:color="([0-9A-Fa-f]{6})"/.exec(head);
+    return m ? '#' + m[1].toUpperCase() : null;
+  }
+
+  /**
+   * Set or clear the page colour: `<w:background>` as the document's first
+   * child, and `<w:displayBackgroundShape/>` in the settings so Word shows
+   * it (without that, Word keeps the colour and draws a white page).
+   */
+  setPageColour(colour) {
+    const open = /<w:document\b[^>]*>/.exec(this.xml);
+    if (!open) throw new Error('document has no <w:document>');
+    const withoutOld = this.xml.replace(/<w:background\b[^>]*(?:\/>|>[\s\S]*?<\/w:background>)/, '');
+    if (colour == null) {
+      this.xml = withoutOld;
+      this.dirty = true;
+      return this;
+    }
+    const hex = String(colour).replace('#', '').toUpperCase();
+    if (!/^[0-9A-F]{6}$/.test(hex)) throw new Error('a page colour is six hex digits: ' + colour);
+    const at = /<w:document\b[^>]*>/.exec(withoutOld);
+    this.xml = withoutOld.slice(0, at.index + at[0].length) + '<w:background w:color="' + hex + '"/>' + withoutOld.slice(at.index + at[0].length);
+    this.dirty = true;
+
+    const settingsPart = 'word/settings.xml';
+    if (this.pkg.has(settingsPart)) {
+      const settings = this.pkg.text(settingsPart);
+      if (!/<w:displayBackgroundShape\b/.test(settings)) {
+        this.pkg.write_(settingsPart, Buffer.from(settings.replace(/(<w:settings\b[^>]*>)/, '$1<w:displayBackgroundShape/>'), 'utf8'));
+      }
+    } else {
+      this.pkg.addPart(settingsPart, Buffer.from('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:displayBackgroundShape/></w:settings>', 'utf8'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml');
+      this.pkg.addRelationshipTo(this.mainPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings', 'settings.xml');
+    }
+    return this;
+  }
 
   /**
    * Pictures embedded in one paragraph, as data URIs — with, for a picture

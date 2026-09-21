@@ -322,6 +322,9 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
 
   for (const sheet of frame.pages.pages) {
     const page = doc.addPage();
+    // The page colour under everything, edge to edge, as Word prints it
+    // when asked to print background colours.
+    if (section.background) page.rect(0, 0, section.widthPx * PT, section.heightPx * PT, { fill: section.background });
     // The watermark first, so everything else draws over it: the header's
     // WordArt, rising across the page in the grey Word draws it in.
     if (sheet.watermark?.text) drawWatermark(page, doc, sheet.watermark, section);
