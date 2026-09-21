@@ -844,6 +844,74 @@ export class Deck {
     return true;
   }
 
+  /**
+   * Every place the words appear across the deck — per slide and shape, how
+   * many times, with the shape's words to show. Case-insensitive unless
+   * asked. Only shapes with a text body are searched: a picture has none,
+   * a table's cells are the table's.
+   */
+  findText(query, { matchCase = false } = {}) {
+    const needle = String(query ?? '');
+    if (!needle) return [];
+    const target = matchCase ? needle : needle.toLowerCase();
+    const hits = [];
+    for (let i = 0; i < this.slideCount; i++) {
+      for (const s of this.slide(i).shapes) {
+        const paragraphs = s.text?.paragraphs;
+        if (!paragraphs) continue;
+        let count = 0;
+        const words = [];
+        for (const p of paragraphs) {
+          const text = (p.runs || []).map((r) => r.text).join('');
+          words.push(text);
+          const hay = matchCase ? text : text.toLowerCase();
+          for (let at = hay.indexOf(target); at !== -1; at = hay.indexOf(target, at + target.length)) count += 1;
+        }
+        if (count) hits.push({ slide: i, shape: s.id, name: s.name || s.kind, count, text: words.join(' ').replace(/\s+/g, ' ').trim().slice(0, 80) });
+      }
+    }
+    return hits;
+  }
+
+  /**
+   * The words replaced everywhere they appear, run by run so each keeps its
+   * look; a field's text and a match straddling two runs are left alone.
+   * Returns how many were replaced.
+   */
+  replaceText(query, replacement, { matchCase = false } = {}) {
+    const needle = String(query ?? '');
+    if (!needle) return 0;
+    const target = matchCase ? needle : needle.toLowerCase();
+    const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi');
+    const after = String(replacement ?? '');
+    let total = 0;
+    for (let i = 0; i < this.slideCount; i++) {
+      for (const s of this.slide(i).shapes) {
+        const paragraphs = s.text?.paragraphs;
+        if (!paragraphs || s.kind !== 'shape') continue;
+        let count = 0;
+        const next = paragraphs.map((p) => {
+          const { plain, runs, ...props } = p;
+          return {
+            ...props,
+            runs: (runs || []).map((r) => {
+              if (!r.text || r.field || r.break) return r;
+              const hay = matchCase ? r.text : r.text.toLowerCase();
+              if (!hay.includes(target)) return r;
+              count += (r.text.match(re) || []).length;
+              return { ...r, text: r.text.replace(re, () => after) };
+            }),
+          };
+        });
+        if (count) {
+          this.setText(i, s.id, next);
+          total += count;
+        }
+      }
+    }
+    return total;
+  }
+
   addTextBox(slideIndex, { x, y, w, h, paragraphs, name = 'TextBox' }) {
     const part = this.slideParts[slideIndex]?.part;
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);

@@ -38,6 +38,10 @@ export default function Slides({ app, shell, boot }) {
   const [notesOpen, setNotesOpen] = useState(false);
   /** The Header & Footer dialog, open with a box pre-ticked ('date' | 'number') or as it stands. */
   const [footerOpen, setFooterOpen] = useState(null);
+  /** Find and replace across the deck. */
+  const [findOpen, setFindOpen] = useState(false);
+  /** A shape to select once the slide a match is on has been shown. */
+  const pendingSelect = useRef(null);
   const [blank, setBlank] = useState(false);
   // Set when a presenter window is driving, so this one follows rather than leads.
   const [led, setLed] = useState(false);
@@ -404,6 +408,7 @@ export default function Slides({ app, shell, boot }) {
       'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
       'file.save': { label: 'Save', icon: 'save', key: 'Mod+S', run: () => save(false) },
       'file.print': { label: 'Print…', icon: 'print', key: 'Mod+P', global: true, run: () => setPrinting(true) },
+      'edit.find': { label: 'Find and replace…', icon: 'find', key: 'Mod+F', global: true, run: () => setFindOpen(true) },
       'slide.next': { label: 'Next slide', icon: 'chevronRight', key: 'arrowdown', run: () => setIndex((i) => Math.min(i + 1, (model?.count || 1) - 1)) },
       'slide.prev': { label: 'Previous slide', icon: 'chevronLeft', key: 'arrowup', run: () => setIndex((i) => Math.max(0, i - 1)) },
       'slide.new': { label: 'Duplicate slide', icon: 'plus', run: () => apply({ op: 'duplicateSlide', slide: index }) },
@@ -439,7 +444,7 @@ export default function Slides({ app, shell, boot }) {
   }, [present, model, shell]);
 
   // A new slide means a new selection: the shape ids belong to the slide.
-  useEffect(() => { setSelected(null); setPainter(null); }, [index]);
+  useEffect(() => { setSelected(pendingSelect.current ?? null); pendingSelect.current = null; setPainter(null); }, [index]);
 
 
   const slide = model?.slide;
@@ -564,6 +569,10 @@ export default function Slides({ app, shell, boot }) {
       }
       case 'footer': {
         setFooterOpen(arg || 'open');
+        return;
+      }
+      case 'find': {
+        setFindOpen(true);
         return;
       }
       case 'painter': {
@@ -931,6 +940,36 @@ export default function Slides({ app, shell, boot }) {
           kind="deck"
           onClose={() => setPrinting(false)}
           onSaveAs={(options) => exportAs('pdf', options)}
+        />
+      ) : null}
+
+      {findOpen ? (
+        <FindDialog
+          onClose={() => setFindOpen(false)}
+          onFind={async (find, matchCase) => {
+            const count = model?.count || 1;
+            const target = matchCase ? find : find.toLowerCase();
+            const hits = [];
+            for (let i = 0; i < count; i++) {
+              const m = await shell.doc.model({ id: doc.id, slide: i }).catch(() => null);
+              for (const s of m?.slide?.shapes || []) {
+                const words = (s.text?.paragraphs || []).map((p) => (p.runs || []).map((r) => r.text).join('')).join(' ');
+                const hay = matchCase ? words : words.toLowerCase();
+                let n = 0;
+                for (let at = hay.indexOf(target); at !== -1; at = hay.indexOf(target, at + target.length)) n += 1;
+                if (n) hits.push({ slide: i, shape: s.id, name: s.name || s.kind, count: n, text: words.replace(/\s+/g, ' ').trim().slice(0, 80) });
+              }
+            }
+            return hits;
+          }}
+          onGoto={(hit) => {
+            if (hit.slide === index) setSelected(hit.shape);
+            else { pendingSelect.current = hit.shape; setIndex(hit.slide); }
+          }}
+          onReplaceAll={async (find, replace, matchCase, expected) => {
+            const next = await apply({ op: 'replaceText', find, replace, matchCase });
+            return next ? `Replaced ${expected} across the deck.` : 'Nothing was replaced.';
+          }}
         />
       ) : null}
 
@@ -1350,6 +1389,63 @@ function SlidesShortcutsDialog({ onClose }) {
  * slide, one paragraph per line, and stored in the file rather than beside it,
  * so they travel with the deck to PowerPoint and back.
  */
+/** Home → Editing: the words found on every slide, each match a step to its shape, and replaced across the deck. */
+function FindDialog({ onClose, onFind, onGoto, onReplaceAll }) {
+  const [find, setFind] = useState('');
+  const [replace, setReplace] = useState('');
+  const [matchCase, setMatchCase] = useState(false);
+  const [hits, setHits] = useState(null);
+  const [note, setNote] = useState(null);
+  const search = async () => {
+    if (!find) return;
+    const found = await onFind(find, matchCase);
+    setHits(found);
+    setNote(found.length ? null : 'Nothing matched.');
+  };
+  const total = (hits || []).reduce((n, h) => n + h.count, 0);
+  return (
+    <Dialog
+      title="Find and replace"
+      width={520}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Close" onClick={onClose} />
+          <Button label="Replace all" className="sl-find-replace" disabled={!find} onClick={async () => { const found = hits ?? await onFind(find, matchCase); setNote(await onReplaceAll(find, replace, matchCase, found.reduce((n, h) => n + h.count, 0))); setHits(null); }} />
+          <Button primary label="Find" className="sl-find-go" disabled={!find} onClick={search} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="Find">
+          <input className="rw-input sl-find-text" value={find} onChange={(e) => { setFind(e.target.value); setHits(null); }} onKeyDown={(e) => { if (e.key === 'Enter') search(); }} autoFocus />
+        </Field>
+        <Field label="Replace with">
+          <input className="rw-input sl-find-with" value={replace} onChange={(e) => setReplace(e.target.value)} />
+        </Field>
+        <label className="about-auto">
+          <input type="checkbox" className="sl-find-case" checked={matchCase} onChange={(e) => { setMatchCase(e.target.checked); setHits(null); }} />
+          <span>Match case</span>
+        </label>
+        {hits?.length ? (
+          <div className="ml-import-folders" style={{ maxHeight: 260 }}>
+            {hits.map((h) => (
+              <button key={`${h.slide}:${h.shape}`} type="button" className="ml-found-item sl-find-hit" style={{ border: 0, borderBottom: '1px solid var(--line-soft)', borderRadius: 0 }} onClick={() => onGoto(h)}>
+                <span className="grow">
+                  <div className="who">Slide {h.slide + 1} — {h.name}{h.count > 1 ? ` (${h.count})` : ''}</div>
+                  <div className="what">{h.text}</div>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : null}
+        {hits?.length ? <p className="rw-hint" style={{ margin: 0 }}>{total} in {hits.length} shape{hits.length === 1 ? '' : 's'}. Click one to go to it.</p> : null}
+        {note ? <div className="ml-note sl-find-note"><Icon name="info" size={14} />{note}</div> : null}
+      </div>
+    </Dialog>
+  );
+}
+
 /** Insert → Header & Footer: the date, the slide number and the footer's words, on this slide or all of them. */
 function FooterDialog({ slide, shapes, preset, onClose, onApply }) {
   const found = (type) => shapes.find((s) => s.placeholder?.type === type) || null;

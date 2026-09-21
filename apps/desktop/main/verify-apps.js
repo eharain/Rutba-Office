@@ -1293,6 +1293,84 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Presentation: find and replace ──────────────────────────────────── */
+  //
+  // Home → Find: the words typed, Find lists every shape they are on, a
+  // match clicked goes to its slide and selects the shape, and Replace all
+  // rewrites them across the deck, each run keeping its look.
+  const slideFind = async () => {
+    try {
+      const win = await open('slides', files.pptx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
+      await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const type = (selector, value) => js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      const words = (s) => (s?.text?.paragraphs || []).map((p) => (p.runs || []).map((r) => r.text).join('')).join(' ');
+      // Start on slide 2, so going to a match on slide 1 is a real move.
+      await js(`(() => { document.querySelectorAll('.sl-thumb')[1]?.click(); return 1; })()`);
+      await until(() => js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('active')`), 'the second slide', 4000).catch(() => {});
+      await wait(300);
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(), 'tab'`);
+      await wait(200);
+      // The phrase, case-exact: earlier checks may have left footers and a
+      // pasted box saying it too, so the list is read for what it must hold
+      // and the count for what the dialog itself found.
+      const opened = await clickRibbon('Find and replace');
+      await until(() => js(`Boolean(document.querySelector('.sl-find-text'))`), 'the find dialog', 4000).catch(() => {});
+      await type('.sl-find-text', 'Rutba Office');
+      await js(`(() => { const c = document.querySelector('.sl-find-case'); if (c && !c.checked) c.click(); return 1; })()`);
+      await wait(100);
+      await js(`(() => { document.querySelector('.sl-find-go')?.click(); return 1; })()`);
+      const listed = await until(() => js(`document.querySelectorAll('.sl-find-hit').length >= 1`), 'the matches', 5000).catch(() => false);
+      const hitText = await js(`[...document.querySelectorAll('.sl-find-hit .who')].map((n) => n.textContent.trim())`);
+      const found = await js(`Number((document.querySelector('.rw-dialog .rw-hint')?.textContent || '').match(/^(\\d+) in/)?.[1] || 0)`);
+      await wait(400);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-find.png'), (await win.webContents.capturePage()).toPNG());
+      check('slides: Home → Find lists every shape the words are on, across the deck, the title of slide 1 first', opened === 'clicked' && listed === true && /^Slide 1 — Title/.test((hitText || [])[0] || '') && found >= 1, `${opened}; ${JSON.stringify(hitText)}; ${found} found`);
+
+      const firstHit = model(0).slide.shapes.find((s) => /Rutba Office/.test(words(s)));
+      await js(`(() => { document.querySelector('.sl-find-hit')?.click(); return 1; })()`);
+      const went = await until(() => js(`document.querySelectorAll('.sl-thumb')[0]?.classList.contains('active') && document.querySelector('.sl-hit.selected')?.dataset.shape === ${JSON.stringify(String(firstHit?.id))}`), 'the match on its slide, selected', 5000).catch(() => false);
+      check('slides: a match clicked goes to its slide and selects the shape', went === true, `selected ${await js(`document.querySelector('.sl-hit.selected')?.dataset.shape`)} on slide ${await js(`[...document.querySelectorAll('.sl-thumb')].findIndex((t) => t.classList.contains('active')) + 1`)}; wanted ${firstHit?.id}`);
+
+      await type('.sl-find-with', 'Rutba Suite');
+      await js(`(() => { document.querySelector('.sl-find-replace')?.click(); return 1; })()`);
+      const everywhere = () => { const all = []; for (let i = 0; i < (model(0).count || 2); i++) all.push(...model(i).slide.shapes.map(words)); return all; };
+      const replaced = await until(() => everywhere().some((t) => /Rutba Suite/.test(t)) && !everywhere().some((t) => /Rutba Office/.test(t)), 'the words replaced', 6000).catch(() => false);
+      // The note is drawn a render after the engine answers.
+      await until(() => js(`Boolean(document.querySelector('.sl-find-note'))`), 'the note', 4000).catch(() => {});
+      const noteText = await js(`document.querySelector('.sl-find-note')?.textContent.trim() || null`);
+      check('slides: Replace all rewrites the words on every shape, the lower-case ones left alone, and says how many', replaced === true && noteText === `Replaced ${found} across the deck.` && everywhere().some((t) => /A free office suite/.test(t)), `${JSON.stringify(noteText)}; ${JSON.stringify(everywhere())}`);
+      await clickRibbon('Save');
+      const inFile = () => { try { const d = Deck.open(fs.readFileSync(files.pptx)); return d.slide(0).shapes.map(words); } catch { return []; } };
+      await until(() => inFile().some((t) => /Rutba Suite/.test(t)), 'the replacement in the file', 8000).catch(() => false);
+      check('slides: the saved file carries the replaced words', inFile().some((t) => /Rutba Suite/.test(t)) && !inFile().some((t) => /Rutba Office/.test(t)), JSON.stringify(inFile()));
+
+      // And back again, so the deck is as the checks after this one expect it.
+      await type('.sl-find-text', 'Rutba Suite');
+      await type('.sl-find-with', 'Rutba Office');
+      await wait(100);
+      await js(`(() => { document.querySelector('.sl-find-replace')?.click(); return 1; })()`);
+      await until(() => everywhere().some((t) => /Rutba Office/.test(t)) && !everywhere().some((t) => /Rutba Suite/.test(t)), 'the words put back', 6000).catch(() => false);
+      await js(`(() => { [...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Close')?.click(); return 1; })()`);
+      await wait(300);
+      await clickRibbon('Save');
+      await until(() => inFile().some((t) => /Rutba Office/.test(t)), 'the deck as it was', 8000).catch(() => false);
+      check('slides: the find checks leave the deck as they found it', inFile().some((t) => /^Rutba Office$/.test(t)) && !inFile().some((t) => /Suite/.test(t)), JSON.stringify(inFile()));
+      const complaints = await errorsIn(win);
+      check('slides: the find checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('slides: the find checks ran', false, err.message);
+    }
+  };
+
   const slideClipboard = async () => {
     try {
       const win = await open('slides', files.pptx);
@@ -1990,6 +2068,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('bullets')) await slideParagraphs();
     if (only.includes('clip')) await slideClipboard();
     if (only.includes('footer')) await slideFooter();
+    if (only.includes('find')) await slideFind();
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('look')) await wordLook();
@@ -2091,6 +2170,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slideParagraphs();
   await slideClipboard();
   await slideFooter();
+  await slideFind();
   await sheetFill();
   await wordPictures();
   await wordLook();

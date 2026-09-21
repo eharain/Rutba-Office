@@ -192,7 +192,7 @@ export default function SlidesRibbon({
             <Button icon="wand" label="Shape Effects" disabled={!hasShape} title={needShape || 'Shape Effects — a shadow under the selected shape'} onClick={(e) => menu.open(e, SHADOW_MENU.map(([key, label]) => ({ label, icon: key === 'none' ? 'close' : undefined, run: () => act('shapeShadow', key) })))} />
           </Group>
           <Group label="Editing">
-            <Soon tall icon="find" label="Editing" why="Find, Replace and Select across a deck are on the list." />
+            <Button tall icon="find" label="Find" title="Find and replace — words on every slide (Ctrl+F)" onClick={() => act('find')} />
           </Group>
           <Group label="Voice">
             <Soon tall icon="volume" label="Dictate" why="Dictation is an online speech service this suite does not call." />
