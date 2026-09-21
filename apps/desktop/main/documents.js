@@ -849,7 +849,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     insertCols: (v, a) => v.insertCols(a.at, a.count || 1),
     deleteCols: (v, a) => v.deleteCols(a.at, a.count || 1),
     autoSum: (v, a) => v.autoSum(a.fn || 'SUM'),
-    sort: (v, a) => v.sortSelection({ ascending: a.ascending !== false }),
+    sort: (v, a) => v.sortSelection({ ascending: a.ascending !== false, keys: Array.isArray(a.keys) ? a.keys : null }),
     paste: (v, a) => v.pasteText(a.text, a.html),
     copy: (v) => v.markClipboard(),
     fill: (v, a) => v.fill(a.target),

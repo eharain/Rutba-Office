@@ -17,7 +17,7 @@ import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS } from './sheets/ribbon.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import {
-  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, LinkDialog, NoteDialog, HeaderFooterDialog, parseRef,
+  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, parseRef,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -991,6 +991,7 @@ export default function Sheets({ app, shell, boot }) {
       case 'link': setDialog('link'); return;
       case 'note': setDialog('note'); return;
       case 'headerFooter': setDialog('headerFooter'); return;
+      case 'sortDialog': setDialog('sort'); return;
       case 'removeNote': await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); return;
       // Format as Table: over the selection, or the block of data round the cell.
       case 'table': await dispatch({ op: 'formatAsTable', style: arg?.style, stripes: arg?.stripes !== false }); return;
@@ -1341,6 +1342,34 @@ export default function Sheets({ app, shell, boot }) {
           onClose={() => setDialog(null)}
           onRemove={async () => { setDialog(null); await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); }}
           onSet={async (note) => { setDialog(null); await dispatch({ op: 'setNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0, ...note }); }}
+        />
+      ) : null}
+      {dialog === 'sort' ? (
+        <SortDialog
+          columns={(() => {
+            // The columns to offer: the selection's when it spans more than one
+            // cell, else the filled run round the active cell on its row; each
+            // named by its heading when the row above reads as one.
+            const r = sel && Number.isFinite(sel.left) ? sel : null;
+            const active = model?.cells?.find((c) => c.active);
+            const filled = (c) => model?.cells?.some((x) => x.col === c && x.text !== '');
+            let left = r ? r.left : (active?.col ?? 0);
+            let right = r ? r.right : (active?.col ?? 0);
+            if (!r || (r.left === r.right && r.top === r.bottom)) {
+              while (left > 0 && filled(left - 1)) left -= 1;
+              while (filled(right + 1)) right += 1;
+            }
+            const top = r ? r.top : (active?.row ?? 0);
+            const name = (c) => { let s = ''; let k = c + 1; while (k > 0) { const m = (k - 1) % 26; s = String.fromCharCode(65 + m) + s; k = Math.floor((k - 1) / 26); } return s; };
+            const out = [];
+            for (let c = left; c <= right; c++) {
+              const head = model?.cells?.find((x) => x.col === c && x.row === Math.max(0, top - (r && r.top !== r.bottom ? 0 : 1)) && !x.numeric && x.text);
+              out.push({ col: c, name: head ? `${name(c)} — ${head.text}` : `Column ${name(c)}` });
+            }
+            return out;
+          })()}
+          onClose={() => setDialog(null)}
+          onSort={async (keys) => { setDialog(null); await dispatch({ op: 'sort', keys }); toast('Sorted', { tone: 'good' }); }}
         />
       ) : null}
       {dialog === 'headerFooter' ? (

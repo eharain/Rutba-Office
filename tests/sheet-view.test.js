@@ -2597,3 +2597,18 @@ test('built-in format 14 is the short date this computer writes, not the America
   assert.equal(formatValue(46275, 'dd/mm/yyyy').text, '10/09/2026');
   assert.equal(formatValue(46275, BUILTIN_FORMATS[14]).text, formatValue(46275, localeShortDate()).text);
 });
+
+test('a sort by several keys: the first decides, the next breaks its ties, blanks last either way', () => {
+  const view = new SheetView(buildXlsx({ sheets: [{ name: 'S', rows: [
+    ['Region', 'Q1'], ['North', 30], ['South', 10], ['North', 20], ['', 5], ['South', 40], ['East', 25],
+  ] }] }));
+  view.select(1, 0);
+  view.sortSelection({ keys: [{ col: 0, ascending: false }, { col: 1, ascending: true }] });
+  const col = (c) => [1, 2, 3, 4, 5, 6].map((r) => view.displayValue(r, c).text);
+  assert.deepEqual(col(0), ['South', 'South', 'North', 'North', 'East', ''], 'Z to A on Region, the blank last');
+  assert.deepEqual(col(1), ['10', '40', '20', '30', '25', '5'], 'and Q1 small to large inside each region');
+  assert.equal(view.displayValue(0, 0).text, 'Region', 'the header stayed');
+
+  view.undo();
+  assert.deepEqual(col(0), ['North', 'South', 'North', '', 'South', 'East'], 'one undo step');
+});

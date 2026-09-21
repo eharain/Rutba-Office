@@ -521,7 +521,7 @@ export default function SheetsRibbon({
           <Group label="Sort & Filter">
             <Button tall icon="sort" label="A → Z" title="Sort the selection ascending by its first column" onClick={() => commands['sheet.sortAsc'].run()} />
             <Button tall icon="sort" label="Z → A" title="Sort the selection descending by its first column" onClick={() => commands['sheet.sortDesc'].run()} />
-            <Soon tall icon="sort" label="Sort" why="Sorting by several columns at once needs a keys list the engine does not take yet." />
+            <Button tall icon="sort" label="Sort" title="Sort by up to three columns, each A to Z or Z to A" onClick={() => act('sortDialog')} />
             <Button tall icon="filter" label="Filter" pressed={model?.filtered} onClick={() => dispatch({ op: 'autoFilter' })} />
             <Soon icon="close" label="Clear" why="Comes with the filter dialog." />
             <Soon icon="filter" label="Advanced" why="Criteria ranges are not built." />

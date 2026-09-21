@@ -1949,7 +1949,7 @@ export class SheetView {
    * sort is stable, formulas shift by how far their row moved, styles move
    * with their cells, and the whole thing is one undo step.
    */
-  sortSelection({ ascending = true } = {}) {
+  sortSelection({ ascending = true, keys = null } = {}) {
     let range = { ...this.selection.range };
     const keyCol = Math.min(Math.max(this.selection.active.col, range.left), range.right);
     if (range.top === range.bottom && range.left === range.right) {
@@ -1957,6 +1957,11 @@ export class SheetView {
       if (this._looksLikeHeader(range)) range = { ...range, top: range.top + 1 };
     }
     if (range.top === range.bottom) return this;
+    // Several keys, each its own way, as Excel's Sort dialog takes them:
+    // the first decides, the next breaks its ties. One key is the active
+    // cell's column, the way the A→Z and Z→A buttons have always sorted.
+    const keyList = (Array.isArray(keys) && keys.length ? keys : [{ col: keyCol, ascending }])
+      .map((k) => ({ col: Math.min(Math.max(Number(k.col), range.left), range.right), dir: k.ascending === false ? -1 : 1 }));
 
     const rows = [];
     for (let r = range.top; r <= range.bottom; r++) {
@@ -1964,7 +1969,7 @@ export class SheetView {
       for (let c = range.left; c <= range.right; c++) {
         cells.push({ input: this.calc.getInput(this.activeSheet, r, c), styleIndex: this._styleIndexAt(this.activeSheet, r, c) });
       }
-      rows.push({ from: r, cells, key: this.calc.getValue(this.activeSheet, r, keyCol) });
+      rows.push({ from: r, cells, keys: keyList.map((k) => this.calc.getValue(this.activeSheet, r, k.col)) });
     }
 
     const kind = (v) => {
@@ -1974,20 +1979,25 @@ export class SheetView {
       if (typeof v === 'boolean') return 2;
       return 3; // errors
     };
-    const dir = ascending ? 1 : -1;
-    const order = rows.map((rec, i) => ({ rec, i })).sort((a, b) => {
-      const ka = kind(a.rec.key);
-      const kb = kind(b.rec.key);
-      if (ka === 4 || kb === 4) return ka === kb ? a.i - b.i : ka - kb; // blanks sink regardless of direction
+    const compareKey = (va, vb, dir) => {
+      const ka = kind(va);
+      const kb = kind(vb);
+      if (ka === 4 || kb === 4) return ka === kb ? 0 : ka - kb; // blanks sink regardless of direction
       if (ka !== kb) return (ka - kb) * dir;
       let cmp = 0;
-      if (ka === 0) cmp = a.rec.key - b.rec.key;
+      if (ka === 0) cmp = va - vb;
       else if (ka === 1) {
-        const x = a.rec.key.toUpperCase();
-        const y = b.rec.key.toUpperCase();
+        const x = va.toUpperCase();
+        const y = vb.toUpperCase();
         cmp = x < y ? -1 : x > y ? 1 : 0;
-      } else if (ka === 2) cmp = (a.rec.key ? 1 : 0) - (b.rec.key ? 1 : 0);
-      if (cmp !== 0) return cmp * dir;
+      } else if (ka === 2) cmp = (va ? 1 : 0) - (vb ? 1 : 0);
+      return cmp * dir;
+    };
+    const order = rows.map((rec, i) => ({ rec, i })).sort((a, b) => {
+      for (let k = 0; k < keyList.length; k++) {
+        const cmp = compareKey(a.rec.keys[k], b.rec.keys[k], keyList[k].dir);
+        if (cmp !== 0) return cmp;
+      }
       return a.i - b.i; // stable
     });
 

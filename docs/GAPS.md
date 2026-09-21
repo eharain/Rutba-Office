@@ -118,9 +118,9 @@ it is where the gaps are.
   orientation angles, turns or stacks them, on screen and on the printed
   page, kept in the file as Excel keeps them.
 - **Slicers and sparklines**: read, not written.
-- **Data tools**: multi-key sort, advanced filter with a criteria range,
-  consolidate, flash fill, subtotals and outlining, forecast sheets. (Text
-  to columns and remove duplicates are built, 2026-09-21.)
+- **Data tools**: advanced filter with a criteria range, consolidate,
+  flash fill, subtotals and outlining, forecast sheets. (Text to columns,
+  remove duplicates and a sort by up to three keys are built, 2026-09-21.)
 - **Auditing**: trace precedents and dependents, evaluate step by step, the
   watch window, error checking. The dependency graph exists; nothing draws
   it.

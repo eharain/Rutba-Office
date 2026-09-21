@@ -623,6 +623,51 @@ export function SheetShortcutsDialog({ onClose }) {
 }
 
 /** Row height or column width, in pixels, for the rows or columns selected. */
+/**
+ * Data → Sort: up to three keys, each a column of the block and a direction,
+ * the first deciding and the next breaking its ties — Excel's Sort dialog,
+ * to the level people use.
+ */
+export function SortDialog({ columns, onClose, onSort }) {
+  const first = columns[0]?.col ?? 0;
+  const [keys, setKeys] = useState([{ col: first, ascending: true }]);
+  const set = (i, patch) => setKeys((ks) => ks.map((k, j) => (j === i ? { ...k, ...patch } : k)));
+  const ok = keys.length > 0 && keys.every((k) => Number.isFinite(k.col));
+  return (
+    <Dialog
+      title="Sort"
+      width={440}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="Sort" className="sh-sort-ok" disabled={!ok} onClick={() => onSort(keys)} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        {keys.map((k, i) => (
+          <div key={i} style={{ display: 'flex', gap: 8, alignItems: 'end' }}>
+            <Field label={i === 0 ? 'Sort by' : 'Then by'} style={{ flex: 1 }}>
+              <Select className={`sh-sort-col-${i}`} value={String(k.col)} onChange={(e) => set(i, { col: Number(e.target.value) })} style={{ width: '100%' }}>
+                {columns.map((c) => <option key={c.col} value={String(c.col)}>{c.name}</option>)}
+              </Select>
+            </Field>
+            <Field label="Order">
+              <Select className={`sh-sort-dir-${i}`} value={k.ascending ? 'asc' : 'desc'} onChange={(e) => set(i, { ascending: e.target.value === 'asc' })} style={{ width: 150 }}>
+                <option value="asc">A to Z, small to large</option>
+                <option value="desc">Z to A, large to small</option>
+              </Select>
+            </Field>
+            {i > 0 ? <Button icon="close" title="Remove this level" onClick={() => setKeys((ks) => ks.filter((_, j) => j !== i))} /> : null}
+          </div>
+        ))}
+        {keys.length < 3 ? <Button label="Add a level" onClick={() => setKeys((ks) => [...ks, { col: columns[Math.min(ks.length, columns.length - 1)]?.col ?? first, ascending: true }])} /> : null}
+      </div>
+    </Dialog>
+  );
+}
+
 export function SizeDialog({ kind, current, onClose, onApply }) {
   const [value, setValue] = useState(String(current || (kind === 'row' ? 20 : 64)));
   const n = Number(value);

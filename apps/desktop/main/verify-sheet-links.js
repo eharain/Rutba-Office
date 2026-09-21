@@ -346,6 +346,24 @@ export async function verifySheetLinks(h, { file }) {
       afterTools.displayValue(3, 3).text === 'a' && afterTools.displayValue(3, 5).text === 'c' && !afterTools.isFilled(4, 0),
       `D4 ${afterTools.displayValue(3, 3).text}, F4 ${afterTools.displayValue(3, 5).text}, A5 filled ${afterTools.isFilled(4, 0)}`);
 
+    // Data → Sort: two keys through the dialog, Region Z to A then Q1 small
+    // to large, on the block; the rows land in that order.
+    await applyOps([{ op: 'select', row: 1, col: 0 }, { op: 'select', row: 3, col: 2, extend: true }]);
+    await wait(200);
+    const clickedSort = await clickIn(win, 'Sort by');
+    await until(() => js(`Boolean(document.querySelector('.sh-sort-ok'))`), 'the sort dialog', 4000).catch(() => {});
+    const setSelect = (sel, value) => js(`(() => { const el = document.querySelector(${JSON.stringify(sel)}); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; setter.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('change', { bubbles: true })); return true; })()`);
+    const setA = await setSelect('.sh-sort-col-0', '0');
+    const setDesc = await setSelect('.sh-sort-dir-0', 'desc');
+    await js(`(() => { [...document.querySelectorAll('.rw-dialog button, .rw-btn')].find((b) => b.textContent.trim() === 'Add a level')?.click(); return 1; })()`);
+    await until(() => js(`Boolean(document.querySelector('.sh-sort-col-1'))`), 'the second level', 3000).catch(() => {});
+    const setB = await setSelect('.sh-sort-col-1', '1');
+    await js(`(() => { document.querySelector('.sh-sort-ok')?.click(); return 1; })()`);
+    const sorted = await until(async () => (await cellRead('A2')) === 'South' && (await cellRead('A4')) === 'North', 'the rows sorted', 5000).catch(() => false);
+    check('sheets: Data → Sort by two columns through the dialog puts the rows in that order',
+      clickedSort === 'clicked' && setA === true && setDesc === true && setB === true && sorted === true,
+      `${clickedSort}; selects ${setA} ${setDesc} ${setB}; A2:A4 ${await cellRead('A2')} | ${await cellRead('A3')} | ${await cellRead('A4')}`);
+
     const complaints = await errorsIn(win);
     check('sheets: the link and note checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
