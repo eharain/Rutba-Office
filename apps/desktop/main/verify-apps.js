@@ -1154,6 +1154,51 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await until(() => { try { return /<w:lnNumType/.test(documentXml()); } catch { return false; } }, 'the numbering to land in the file', 8000).catch(() => false);
       const sectPrNow = (() => { const m = /<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(documentXml()); return m ? m[0] : ''; })();
       check('word: the saved file keeps the line numbering in the section after the page borders, as Word does', /<\/w:pgBorders><w:lnNumType w:countBy="1" w:restart="continuous"\/>/.test(sectPrNow), sectPrNow.slice(0, 320));
+      // Home → Multilevel list on two paragraphs, then Increase indent on
+      // the second: 1. and 1.1., and the file says level 1 of a nine-level list.
+      await wait(300);
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(), 'tab'`);
+      await wait(200);
+      // A real click on the paragraph's first words: once the page has been
+      // edited, a DOM range put in by script no longer moves the caret.
+      const caretTo = async (block) => {
+        const at = await js(`(() => { const b = document.querySelector('.wd-page [data-block="${block}"]'); if (!b) return null; const q = b.getBoundingClientRect(); return { x: Math.round(q.left + 12), y: Math.round(q.top + q.height / 2) }; })()`);
+        if (!at) return false;
+        win.webContents.sendInputEvent({ type: 'mouseDown', x: at.x, y: at.y, button: 'left', clickCount: 1 });
+        win.webContents.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y, button: 'left', clickCount: 1 });
+        return true;
+      };
+      const markerOf = (block) => js(`document.querySelector('.wd-page [data-block="${block}"] .wd-marker')?.textContent.trim() || null`);
+      await caretTo(1);
+      await wait(300);
+      const outlined = await clickRibbon('Multilevel list');
+      await until(async () => (await markerOf(1)) === '1.', 'the first number', 5000).catch(() => false);
+      await wait(300);
+      await caretTo(2);
+      await wait(300);
+      await clickRibbon('Multilevel list');
+      await until(async () => (await markerOf(2)) === '2.', 'the second number', 5000).catch(() => false);
+      await wait(300);
+      const deeper = await clickRibbon('Increase indent');
+      const nested = await until(async () => (await markerOf(2)) === '1.1.', 'the nested number', 5000).catch(() => false);
+      await wait(400);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-multilevel.png'), (await win.webContents.capturePage()).toPNG());
+      check('word: Home → Multilevel list numbers 1., 2., and Increase indent makes the second 1.1.', outlined === 'clicked' && deeper === 'clicked' && nested === true && (await markerOf(1)) === '1.', `${outlined} ${deeper}; markers ${await markerOf(1)} ${await markerOf(2)}`);
+      await clickRibbon('Save');
+      await until(() => { try { return /<w:ilvl w:val="1"\/>/.test(documentXml()); } catch { return false; } }, 'the level to land in the file', 8000).catch(() => false);
+      const saved2 = (() => { try { const d = openDocx(fs.readFileSync(files.docx)).doc.doc; return { pPr: d.editParagraph(2).pPr || '', numbering: d.pkg.has('word/numbering.xml') ? d.pkg.text('word/numbering.xml') : '' }; } catch { return { pPr: '', numbering: '' }; } })();
+      const levelsInFile = (saved2.numbering.match(/<w:lvl w:ilvl="/g) || []).length;
+      check('word: the saved file keeps the paragraph at level 1 of a nine-level list whose second level says 1.1., as Word writes it',
+        /<w:numPr><w:ilvl w:val="1"\/><w:numId w:val="\d+"\/><\/w:numPr>/.test(saved2.pPr) && levelsInFile >= 9 && /<w:lvl w:ilvl="1">[\s\S]*?<w:lvlText w:val="%1\.%2\."\/>/.test(saved2.numbering),
+        `pPr ${saved2.pPr.slice(0, 160)}; levels ${levelsInFile}`);
+      // The list off again and the file saved as it was: the hand-driven
+      // checks later open this same report.docx and measure block 1's first
+      // span, which must be its words and not a list marker.
+      await js(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'doc').pop(); await window.rutbaOffice.doc.apply({ id: mine.id, ops: [ { op: 'setSelection', anchor: { block: 1, offset: 0 }, focus: { block: 2, offset: 0 } }, { op: 'setParagraphFormat', delta: { list: null } } ] }); return 1; })()`);
+      await wait(300);
+      await clickRibbon('Save');
+      await until(() => { try { return !/<w:numPr>/.test(documentXml()); } catch { return false; } }, 'the list off again in the file', 8000).catch(() => false);
+      check('word: the look checks leave the paragraphs out of the list again', !/<w:numPr>/.test(documentXml()), 'no numPr left in the file');
       const complaints = await errorsIn(win);
       check('word: the shading and border checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {
@@ -2527,7 +2572,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const span = document.querySelector('.wd-page [data-block="1"] span');
       const cs = span ? getComputedStyle(span) : null;
       const p = document.querySelector('.wd-page [data-block="1"]');
-      return cs ? { weight: cs.fontWeight, size: cs.fontSize, colour: cs.color, align: getComputedStyle(p).textAlign } : null;
+      return cs ? { weight: cs.fontWeight, size: cs.fontSize, colour: cs.color, align: getComputedStyle(p).textAlign, span: (span.className || span.tagName) + ':' + span.textContent.slice(0, 24) } : null;
     })()`);
 
     const selected = await selectBlock1();
@@ -2539,7 +2584,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await until(async () => (await state()).block1?.runs?.some((r) => r.bold), 'the engine to hold bold', 4000).catch(() => {});
     const afterBold = await state();
     const paintBold = await painted();
-    check('word: the Bold button makes the selection bold', afterBold.block1?.runs?.some((r) => r.bold) && paintBold?.weight === '700', `${b}; engine bold=${afterBold.block1?.runs?.some((r) => r.bold)}, page weight=${paintBold?.weight}`);
+    check('word: the Bold button makes the selection bold', afterBold.block1?.runs?.some((r) => r.bold) && paintBold?.weight === '700', `${b}; measured ${JSON.stringify(paintBold)}; engine bold=${afterBold.block1?.runs?.some((r) => r.bold)}, page weight=${paintBold?.weight}`);
 
     // Font size, from the dropdown, and it has to paint at that size.
     await selectBlock1();

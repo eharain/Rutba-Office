@@ -169,7 +169,7 @@ export default function WordRibbon({
               <>
                 <Button icon="listBullet" title="Bullets" pressed={format.listType === 'bullet'} onClick={() => toggleList('bullet')} />
                 <Button icon="listNumber" title="Numbering" pressed={format.listType === 'number'} onClick={() => toggleList('number')} />
-                <Soon icon="listNumber" label="" why="Multilevel lists need a numbering definition the engine does not write." />
+                <Button icon="listNumber" title="Multilevel list — 1. 1.1. 1.1.1., deeper with Increase indent" pressed={format.listType === 'number' && (format.listLevel || 0) > 0} onClick={() => para({ list: 'outline' })} />
                 <Separator />
                 <Button icon="chevronLeft" title="Decrease indent" disabled={!format.indentLevel} onClick={() => para({ indentDelta: -1 })} />
                 <Button icon="chevronRight" title="Increase indent" onClick={() => para({ indentDelta: 1 })} />

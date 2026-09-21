@@ -2003,7 +2003,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
       {/* Floats first, so the lines that follow run round them. */}
       {first ? (block.images || []).map((image, i) => (floatsBeside(image) ? picture(image, i) : null)) : null}
       {first ? (block.textBoxes || []).map((box, i) => (floatsBeside(box) ? <TextBox key={`f${i}`} box={box} styles={styles} /> : null)) : null}
-      {first && label ? <span className="wd-marker" contentEditable={false} style={markerHang ? { display: 'inline-block', width: markerHang, textIndent: 0, marginRight: 0 } : undefined}>{label}</span> : null}
+      {first && label ? <span className="wd-marker" contentEditable={false} style={markerHang ? { display: 'inline-block', minWidth: markerHang, whiteSpace: 'nowrap', textIndent: 0, marginRight: 0 } : undefined}>{label}</span> : null}
 
       {/*
         A paragraph with no words needs a line to have a height and to hold

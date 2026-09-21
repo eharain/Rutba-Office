@@ -391,20 +391,42 @@ const IMAGE_EXTENSIONS = { 'image/png': 'png', 'image/jpeg': 'jpeg', 'image/gif'
 /** CSS pixels to EMUs, the unit DrawingML measures in. 1px at 96dpi = 9525. */
 const PX_TO_EMU = 9525;
 
-const bulletAbstract = (id) =>
-  '<w:abstractNum w:abstractNumId="' + id + '">' +
-  '<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/>' +
-  '<w:lvlText w:val="&#61623;"/><w:lvlJc w:val="left"/>' +
-  '<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr>' +
-  '<w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol" w:hint="default"/></w:rPr>' +
-  '</w:lvl></w:abstractNum>';
+/** One level of a list definition: its number format and text, half an inch further in per level. */
+const lvlXml = (i, fmt, text, rPr = '') =>
+  '<w:lvl w:ilvl="' + i + '"><w:start w:val="1"/><w:numFmt w:val="' + fmt + '"/>' +
+  '<w:lvlText w:val="' + text + '"/><w:lvlJc w:val="left"/>' +
+  '<w:pPr><w:ind w:left="' + (720 * (i + 1)) + '" w:hanging="360"/></w:pPr>' + rPr +
+  '</w:lvl>';
 
-const numberAbstract = (id) =>
-  '<w:abstractNum w:abstractNumId="' + id + '">' +
-  '<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/>' +
-  '<w:lvlText w:val="%1."/><w:lvlJc w:val="left"/>' +
-  '<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr>' +
-  '</w:lvl></w:abstractNum>';
+/** Word's bullet list: a round bullet, then a hollow one, then a square, and round again below. */
+const bulletAbstract = (id) => {
+  const BULLETS = [
+    ['&#61623;', '<w:rPr><w:rFonts w:ascii="Symbol" w:hAnsi="Symbol" w:hint="default"/></w:rPr>'],
+    ['o', '<w:rPr><w:rFonts w:ascii="Courier New" w:hAnsi="Courier New" w:cs="Courier New" w:hint="default"/></w:rPr>'],
+    ['&#61607;', '<w:rPr><w:rFonts w:ascii="Wingdings" w:hAnsi="Wingdings" w:hint="default"/></w:rPr>'],
+  ];
+  let xml = '<w:abstractNum w:abstractNumId="' + id + '"><w:multiLevelType w:val="hybridMultilevel"/>';
+  for (let i = 0; i < 9; i++) xml += lvlXml(i, 'bullet', BULLETS[i % 3][0], BULLETS[i % 3][1]);
+  return xml + '</w:abstractNum>';
+};
+
+/** Word's numbered list: 1. a. i. and round again — nine levels, so Increase indent has somewhere to go. */
+const numberAbstract = (id) => {
+  const FMT = ['decimal', 'lowerLetter', 'lowerRoman'];
+  let xml = '<w:abstractNum w:abstractNumId="' + id + '"><w:multiLevelType w:val="hybridMultilevel"/>';
+  for (let i = 0; i < 9; i++) xml += lvlXml(i, FMT[i % 3], '%' + (i + 1) + '.');
+  return xml + '</w:abstractNum>';
+};
+
+/** The multilevel list — 1. 1.1. 1.1.1. — each level's number carrying the ones above it. */
+const outlineAbstract = (id) => {
+  let xml = '<w:abstractNum w:abstractNumId="' + id + '"><w:multiLevelType w:val="multilevel"/>';
+  for (let i = 0; i < 9; i++) {
+    const text = Array.from({ length: i + 1 }, (_, k) => '%' + (k + 1)).join('.') + '.';
+    xml += lvlXml(i, 'decimal', text);
+  }
+  return xml + '</w:abstractNum>';
+};
 
 const numDef = (numId, abstractId) =>
   '<w:num w:numId="' + numId + '"><w:abstractNumId w:val="' + abstractId + '"/></w:num>';
@@ -940,7 +962,7 @@ export class Document {
    * absent it is created — with its content-type override and a numbering
    * relationship on the main document — exactly as Word would have written them.
    *
-   * @returns {{bullet: string, number: string}} the numIds to write into numPr
+   * @returns {{bullet: string, number: string, outline: string}} the numIds to write into numPr
    */
   ensureListNumbering() {
     const part = 'word/numbering.xml';
@@ -950,7 +972,8 @@ export class Document {
 
     let bulletId = found.bullet;
     let numberId = found.number;
-    if (bulletId && numberId) return { bullet: bulletId, number: numberId };
+    let outlineId = found.outline;
+    if (bulletId && numberId && outlineId) return { bullet: bulletId, number: numberId, outline: outlineId };
 
     let nextAbstract = found.maxAbstract + 1;
     let nextNum = found.maxNum + 1;
@@ -971,6 +994,13 @@ export class Document {
       nums.push(numDef(nId, aId));
       numberId = String(nId);
     }
+    if (!outlineId) {
+      const aId = nextAbstract++;
+      const nId = nextNum++;
+      abstracts.push(outlineAbstract(aId));
+      nums.push(numDef(nId, aId));
+      outlineId = String(nId);
+    }
 
     if (!has) {
       const body =
@@ -981,7 +1011,7 @@ export class Document {
     } else {
       this.pkg.write_(part, this._spliceNumbering(xml, abstracts.join(''), nums.join('')));
     }
-    return { bullet: bulletId, number: numberId };
+    return { bullet: bulletId, number: numberId, outline: outlineId };
   }
 
   /**
@@ -990,17 +1020,22 @@ export class Document {
    * to reuse or to mint fresh ids that cannot collide.
    */
   _classifyNumbering(xml) {
-    const out = { bullet: null, number: null, maxNum: 0, maxAbstract: -1 };
+    const out = { bullet: null, number: null, outline: null, maxNum: 0, maxAbstract: -1 };
     if (!xml) return out;
 
     // A `<w:num>` points at a `<w:abstractNum>`; the abstract's level-0 numFmt
-    // (its first, since level 0 is written first) is what says bullet vs number.
+    // (its first, since level 0 is written first) is what says bullet vs number,
+    // and a second level whose text carries the first's number — "%1.%2." —
+    // is what says multilevel.
     const absFmt = new Map();
+    const absOutline = new Set();
     for (const m of xml.matchAll(/<w:abstractNum\b([^>]*)>([\s\S]*?)<\/w:abstractNum>/g)) {
       const id = attrs(m[1])['w:abstractNumId'];
       if (id !== undefined) out.maxAbstract = Math.max(out.maxAbstract, Number(id));
       const fmt = /<w:numFmt\b[^>]*\bw:val="([^"]*)"/.exec(m[2]);
       absFmt.set(String(id), fmt ? fmt[1] : 'decimal');
+      const lvl1 = /<w:lvl w:ilvl="1"[^>]*>([\s\S]*?)<\/w:lvl>/.exec(m[2]);
+      if (lvl1 && /<w:lvlText\b[^>]*\bw:val="%1\.%2\.?"/.test(lvl1[1])) absOutline.add(String(id));
     }
     for (const m of xml.matchAll(/<w:num\b([^>]*)>([\s\S]*?)<\/w:num>/g)) {
       const numId = attrs(m[1])['w:numId'];
@@ -1009,6 +1044,7 @@ export class Document {
       const absId = /<w:abstractNumId\b[^>]*\bw:val="([^"]*)"/.exec(m[2]);
       const fmt = absId ? absFmt.get(absId[1]) : undefined;
       if (fmt === 'bullet') { if (!out.bullet) out.bullet = String(numId); }
+      else if (fmt === 'decimal' && absId && absOutline.has(absId[1])) { if (!out.outline) out.outline = String(numId); }
       else if (fmt === 'decimal') { if (!out.number) out.number = String(numId); }
     }
     return out;

@@ -106,6 +106,8 @@ export class OoxmlBackend {
     // learn that a bullet is a numbering definition whose level-0 numFmt is
     // "bullet". Anything that is not a bullet counts as a number.
     props.listType = this._listTypeOf(p.numbering);
+    // And how deep in its list it sits — 0 at the top — for Increase indent to move.
+    props.listLevel = p.numbering ? Number(p.numbering.level) || 0 : null;
     return props;
   }
 
@@ -204,9 +206,22 @@ export class OoxmlBackend {
     let numId = null;
     if (listType != null) {
       const ids = this.doc.ensureListNumbering();
-      numId = listType === 'bullet' ? ids.bullet : ids.number;
+      numId = listType === 'bullet' ? ids.bullet : listType === 'outline' ? ids.outline : ids.number;
     }
     return this._replacePPr(p, withNumPr(p.pPr, numId));
+  }
+
+  /**
+   * A list paragraph's level — its `<w:ilvl>`, 0 to 8 — deeper or
+   * shallower, the list itself unchanged. A paragraph in no list is left
+   * alone; the view moves its indent instead.
+   */
+  setParagraphListLevel(index, level) {
+    const p = this.doc.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    if (!p.numbering) return this;
+    const lvl = Math.max(0, Math.min(8, Math.round(Number(level) || 0)));
+    return this._replacePPr(p, withNumPr(p.pPr, p.numbering.numId, lvl));
   }
 
   /**
@@ -557,12 +572,12 @@ const joinPPr = (open, inner, close) => (inner === '' ? null : open + inner + cl
  * its own schema slot (after pStyle, before jc/ind), which `insertOrdered`
  * places for us, so numbering, alignment and indentation coexist correctly.
  */
-function withNumPr(pPr, numId) {
+function withNumPr(pPr, numId, level = 0) {
   const { open, inner, close } = splitPPr(pPr);
   const existing = pPrChildren(inner).find((c) => c.tag === 'numPr');
   const without = existing ? inner.slice(0, existing.start) + inner.slice(existing.end) : inner;
   if (numId == null) return joinPPr(open, without, close);
-  const element = '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="' + numId + '"/></w:numPr>';
+  const element = '<w:numPr><w:ilvl w:val="' + level + '"/><w:numId w:val="' + numId + '"/></w:numPr>';
   return joinPPr(open, insertOrdered(without, 'numPr', element), close);
 }
 

@@ -809,8 +809,15 @@ export class DocView {
         this.doc.setParagraphProp(i, 'align', delta.align ?? null);
       }
       if (delta.indentDelta) {
-        const current = this.doc.getParagraphProps(i)?.indentTwips ?? 0;
-        this.doc.setParagraphProp(i, 'indentTwips', Math.max(0, current + delta.indentDelta * INDENT_STEP));
+        const pp = this.doc.getParagraphProps(i);
+        // In a list, in and out are the list's levels — 1. to a. to i. — as
+        // Word's Increase indent has them; elsewhere, the paragraph's own indent.
+        if (pp?.listType && typeof this.doc.setParagraphListLevel === 'function') {
+          this.doc.setParagraphListLevel(i, (pp.listLevel || 0) + delta.indentDelta);
+        } else {
+          const current = pp?.indentTwips ?? 0;
+          this.doc.setParagraphProp(i, 'indentTwips', Math.max(0, current + delta.indentDelta * INDENT_STEP));
+        }
       }
       // The ruler: a marker was dragged to a place, so the value is absolute.
       for (const key of RULER_KEYS) {
@@ -895,6 +902,7 @@ export class DocView {
     // null. Named apart from the run fields for the same reason alignment is: it
     // belongs to the PARAGRAPH, not the character under the caret.
     base.listType = null;
+    base.listLevel = null;
     // The caret paragraph's NAMED style id, or null for the default — what the
     // ribbon's Style dropdown shows as selected.
     base.paragraphStyle = null;
@@ -906,8 +914,9 @@ export class DocView {
       const pp = this.doc.getParagraphProps(block);
       if (pp) {
         base.paragraphAlign = pp.align ?? 'left';
-        base.indentLevel = pp.indentTwips ? Math.round(pp.indentTwips / INDENT_STEP) : 0;
+        base.indentLevel = pp.listType ? (pp.listLevel || 0) : pp.indentTwips ? Math.round(pp.indentTwips / INDENT_STEP) : 0;
         base.listType = pp.listType ?? null;
+        base.listLevel = pp.listType ? (pp.listLevel || 0) : null;
         base.paragraphStyle = pp.style ?? null;
         base.lineSpacing = pp.lineSpacing ?? null;
         base.spaceBefore = pp.spaceBeforePts ?? null;
