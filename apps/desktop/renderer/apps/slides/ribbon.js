@@ -37,6 +37,8 @@ const ANIMATIONS = ['None', 'Appear', 'Fade', 'Fly In', 'Float In', 'Split'];
 const Soon = ({ icon, label, tall, why }) => (
   <Button tall={tall} icon={icon} label={label} disabled title={`${label} — not built yet. ${why}`} />
 );
+/** Shape Effects: the shadows PowerPoint offers first, and none. */
+const SHADOW_MENU = [['br', 'Shadow: bottom right'], ['b', 'Shadow: below'], ['r', 'Shadow: right'], ['tl', 'Shadow: top left'], ['c', 'Shadow: all round'], ['none', 'No shadow']];
 const INK = 'Ink is a drawing part (ink ML) the engine does not write, and the stage has no pen surface yet.';
 const TRANSITION_WHY = 'A transition is preserved in the file when the deck has one; authoring one (writing p:transition) is not built.';
 const ANIMATION_WHY = 'Animations are preserved in the file when the deck has them; authoring one (writing p:timing) is not built.';
@@ -187,7 +189,7 @@ export default function SlidesRibbon({
             <Button tall icon="wand" label="Quick Styles" disabled={!hasShape} title={needShape || 'The theme\'s own looks: filled in an accent, outlined in the same'} onClick={(e) => menu.open(e, [1, 2, 3, 4, 5, 6].map((n) => ({ label: `Accent ${n}`, icon: 'shape', run: () => act('quickStyle', n) })))} />
             <Button icon="wand" label="Shape Fill" disabled={!hasShape} title={needShape || 'The fill of the selected shape, in the Format pane'} onClick={() => act('formatPane')} />
             <Button icon="shape" label="Shape Outline" disabled={!hasShape} title={needShape || 'The outline of the selected shape, in the Format pane'} onClick={() => act('formatPane')} />
-            <Soon icon="wand" label="Shape Effects" why="Comes with shape formatting." />
+            <Button icon="wand" label="Shape Effects" disabled={!hasShape} title={needShape || 'Shape Effects — a shadow under the selected shape'} onClick={(e) => menu.open(e, SHADOW_MENU.map(([key, label]) => ({ label, icon: key === 'none' ? 'close' : undefined, run: () => act('shapeShadow', key) })))} />
           </Group>
           <Group label="Editing">
             <Soon tall icon="find" label="Editing" why="Find, Replace and Select across a deck are on the list." />

@@ -630,7 +630,7 @@ export class Deck {
    * takes an outline as a frame; a table or chart frame has no spPr and
    * says so.
    */
-  setShapeStyle(slideIndex, shapeId, { fill = null, line = null } = {}) {
+  setShapeStyle(slideIndex, shapeId, { fill = null, line = null, effects = null } = {}) {
     const part = this.slideParts[slideIndex]?.part;
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
@@ -648,6 +648,15 @@ export class Deck {
     const lnRe = /<a:ln\b[^>]*\/>|<a:ln\b[^>]*>[\s\S]*?<\/a:ln>/;
     const hadLine = lnRe.exec(inner)?.[0] ?? '';
     inner = inner.replace(lnRe, '');
+    // The effects after both: `effects` is 'none' (an empty list, which turns a
+    // style's shadow off too), { shadow: { dist, dir, blur, color, alpha } }
+    // in points, degrees and a 0–1 alpha, or null to leave them as they are.
+    const effectRe = /<a:effectLst\b[^>]*\/>|<a:effectLst\b[^>]*>[\s\S]*?<\/a:effectLst>/;
+    const hadEffects = effectRe.exec(inner)?.[0] ?? '';
+    inner = inner.replace(effectRe, '');
+    const shadowXml = (sh) => `<a:effectLst><a:outerShdw blurRad="${Math.round((sh.blur ?? 4) * 12700)}" dist="${Math.round((sh.dist ?? 3) * 12700)}" dir="${Math.round((sh.dir ?? 45) * 60000)}" algn="ctr" rotWithShape="0">`
+      + `<a:srgbClr val="${String(sh.color || '#000000').replace('#', '').toUpperCase()}"><a:alpha val="${Math.round(Math.min(1, Math.max(0, sh.alpha ?? 0.4)) * 100000)}"/></a:srgbClr></a:outerShdw></a:effectLst>`;
+    const effectXml = effects === null ? hadEffects : effects === 'none' || !effects.shadow ? '<a:effectLst/>' : shadowXml(effects.shadow);
     const fillRe = /<a:(noFill|solidFill|gradFill|blipFill|pattFill|grpFill)\b[^>]*\/>|<a:(noFill|solidFill|gradFill|blipFill|pattFill|grpFill)\b[^>]*>[\s\S]*?<\/a:\2>/;
     const hadFill = fillRe.exec(inner)?.[0] ?? '';
     inner = inner.replace(fillRe, '');
@@ -661,7 +670,7 @@ export class Deck {
     const geom = /<a:(prstGeom|custGeom)\b[^>]*\/>|<a:(prstGeom|custGeom)\b[^>]*>[\s\S]*?<\/a:\2>/.exec(inner);
     const xfrm = geom ? null : /<a:xfrm\b[^>]*\/>|<a:xfrm\b[^>]*>[\s\S]*?<\/a:xfrm>/.exec(inner);
     const at = geom ? geom.index + geom[0].length : xfrm ? xfrm.index + xfrm[0].length : 0;
-    inner = inner.slice(0, at) + fillXml + lineXml + inner.slice(at);
+    inner = inner.slice(0, at) + fillXml + lineXml + effectXml + inner.slice(at);
     shapeXml = shapeXml.slice(0, m.index) + open + inner + '</p:spPr>' + shapeXml.slice(m.index + m[0].length);
     this.#writeSlide(part, xml.slice(0, range.start) + shapeXml + xml.slice(range.end));
     return true;

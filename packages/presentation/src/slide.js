@@ -102,6 +102,28 @@ function readFill(spPr, theme) {
   return null;
 }
 
+/**
+ * Effects on a shape — the outer shadow, in pixels and degrees (DrawingML's
+ * dir runs clockwise from the right). null when the shape states none; an
+ * empty effect list, which turns a style's shadow off, is { shadow: null }.
+ */
+function readEffects(spPr, theme) {
+  const lst = spPr && kids(spPr, A('effectLst'))[0];
+  if (!lst) return null;
+  const sh = kids(lst, A('outerShdw'))[0];
+  if (!sh) return { shadow: null };
+  const c = colorChildOf(sh, theme);
+  return {
+    shadow: {
+      blurPx: (Number(sh.attrs.blurRad || 0) / 12700) * (96 / 72),
+      distPx: (Number(sh.attrs.dist || 0) / 12700) * (96 / 72),
+      dir: Number(sh.attrs.dir || 0) / 60000,
+      color: c?.hex || '#000000',
+      alpha: c?.alpha ?? 1,
+    },
+  };
+}
+
 function readLine(spPr, theme) {
   const ln = spPr && kids(spPr, A('ln'))[0];
   if (!ln) return null;
@@ -385,6 +407,7 @@ function readShape(sp, ctx, offset) {
     geometry,
     fill,
     line,
+    effects: readEffects(spPr, ctx.theme),
     preset: first(spPr, A('prstGeom'))?.attrs.prst || (kids(spPr || { children: [] }, A('custGeom'))[0] ? 'custom' : 'rect'),
     adjustments: readAdjustments(spPr),
     // A custom geometry's outline, as SVG path data in the path's own units

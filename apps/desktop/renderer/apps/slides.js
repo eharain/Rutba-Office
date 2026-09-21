@@ -501,6 +501,13 @@ export default function Slides({ app, shell, boot }) {
         await apply({ op: 'setShapeStyle', slide: index, shape: selectedShape.id, line });
         return;
       }
+      case 'shapeShadow': {
+        if (!selectedShape) return;
+        const preset = SHADOW_PRESETS[arg];
+        if (preset === undefined) return;
+        await apply({ op: 'setShapeStyle', slide: index, shape: selectedShape.id, effects: preset });
+        return;
+      }
       case 'quickStyle':
         // Filled in an accent, outlined in the same accent darkened — the theme's own look.
         if (!selectedShape) return;
@@ -997,6 +1004,25 @@ const LINE_DASHES = [['solid', 'Solid'], ['sysDash', 'Round dot'], ['dash', 'Das
  * or no outline. Each press is one engine operation on the shape's own
  * properties, which the file keeps.
  */
+/** Shape Effects: PowerPoint's offset shadows, in points and degrees, and none. */
+const SHADOW_PRESETS = {
+  none: 'none',
+  br: { shadow: { dist: 3, dir: 45, blur: 4, color: '#000000', alpha: 0.4 } },
+  b: { shadow: { dist: 3, dir: 90, blur: 4, color: '#000000', alpha: 0.4 } },
+  r: { shadow: { dist: 3, dir: 0, blur: 4, color: '#000000', alpha: 0.4 } },
+  tl: { shadow: { dist: 3, dir: 225, blur: 4, color: '#000000', alpha: 0.4 } },
+  c: { shadow: { dist: 0, dir: 0, blur: 6, color: '#000000', alpha: 0.45 } },
+};
+const SHADOW_LABELS = [['none', 'None'], ['br', 'Bottom right'], ['b', 'Below'], ['r', 'Right'], ['tl', 'Top left'], ['c', 'All round']];
+/** Which preset a shape's shadow is, for the pane to mark. */
+function shadowKeyOf(effects) {
+  const sh = effects?.shadow;
+  if (!sh) return 'none';
+  if (Math.round(sh.distPx) === 0) return 'c';
+  const dir = Math.round(sh.dir);
+  return dir === 45 ? 'br' : dir === 90 ? 'b' : dir === 0 ? 'r' : dir === 225 ? 'tl' : null;
+}
+
 function FormatPane({ shape, theme, act }) {
   if (!shape) return <div className="sl-pane-empty">Click a shape on the slide to format it.</div>;
   if (shape.kind === 'table' || shape.kind === 'chart' || shape.kind === 'unsupported') return <div className="sl-pane-empty">A table or chart frame has no fill or outline of its own.</div>;
@@ -1049,6 +1075,14 @@ function FormatPane({ shape, theme, act }) {
               {LINE_DASHES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
             </select>
           </label>
+        </div>
+      </section>
+      <section className="sl-format-shadow">
+        <h4>Shadow</h4>
+        <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
+          {SHADOW_LABELS.map(([key, label]) => (
+            <button key={key} type="button" className={`sl-chip sl-shadow-${key}${shadowKeyOf(shape.effects) === key ? ' current' : ''}`} onClick={() => act('shapeShadow', key)}>{label}</button>
+          ))}
         </div>
       </section>
     </div>

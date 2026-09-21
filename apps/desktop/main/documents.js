@@ -805,6 +805,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
               hidden: Boolean(s.hidden),
               fill: s.fill ?? null,
               line: s.line ?? null,
+              effects: s.effects ?? null,
               geometry: s.geometry,
               placeholder: s.placeholder,
               text: (s.text || s.inheritedText)
@@ -995,7 +996,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     // A text body's anchor, direction and columns, on a:bodyPr.
     setBodyProps: (d, a) => d.setBodyProps(a.slide, a.shape, { anchor: a.anchor, vert: a.vert, columns: a.columns }),
     // The Format pane: a shape's fill and outline.
-    setShapeStyle: (d, a) => d.setShapeStyle(a.slide, a.shape, { fill: a.fill ?? null, line: a.line ?? null }),
+    setShapeStyle: (d, a) => d.setShapeStyle(a.slide, a.shape, { fill: a.fill ?? null, line: a.line ?? null, effects: a.effects ?? null }),
     // Insert → Header & Footer: this slide, or every slide.
     setFooter: (d, a) => {
       const slides = a.all ? Array.from({ length: d.slideCount }, (_, i) => i) : [a.slide];

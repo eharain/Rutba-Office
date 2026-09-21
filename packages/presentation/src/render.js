@@ -364,6 +364,20 @@ export function renderSlide(slide, opts = {}) {
 
   const defs = [];
   let gradSeq = 0;
+  let shadowSeq = 0;
+  // An outer shadow is an SVG drop shadow: the offset from the direction
+  // (clockwise from the right, as DrawingML has it) and the blur's radius.
+  const registerShadow = (effects) => {
+    const sh = effects?.shadow;
+    if (!sh) return '';
+    const id = `sh${++shadowSeq}`;
+    const rad = ((sh.dir || 0) * Math.PI) / 180;
+    const dx = (sh.distPx || 0) * Math.cos(rad);
+    const dy = (sh.distPx || 0) * Math.sin(rad);
+    const std = Math.max(0, (sh.blurPx || 0) / 2);
+    defs.push(`<filter id="${id}" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="${dx.toFixed(2)}" dy="${dy.toFixed(2)}" stdDeviation="${std.toFixed(2)}" flood-color="${sh.color || '#000000'}" flood-opacity="${(sh.alpha ?? 1).toFixed(2)}"/></filter>`);
+    return ` filter="url(#${id})"`;
+  };
   const registerFill = (fill) => {
     if (fill?.type === 'gradient') {
       fill._id = `g${++gradSeq}`;
@@ -437,7 +451,7 @@ export function renderSlide(slide, opts = {}) {
       : '';
     const fillValue = fillAttr(fill, shape.kind === 'connector' ? 'none' : 'none');
     const opacity = fill?.alpha != null && fill.alpha < 1 ? ` fill-opacity="${fill.alpha}"` : '';
-    body.push(`${geom} fill="${fillValue}"${opacity}${strokeBits}${transform}/>`);
+    body.push(`${geom} fill="${fillValue}"${opacity}${strokeBits}${registerShadow(shape.effects)}${transform}/>`);
 
     const text = shape.text && shape.text.paragraphs?.length ? shape.text : null;
     if (text) body.push(`<g${transform}>${textSvg(text, g, { scale: 1, baseSize: defaultSizeFor(shape.placeholder) })}</g>`);

@@ -1310,6 +1310,28 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         const saved = savedTitle();
         check('slides: the saved file keeps the painted fill and outline in the shape’s own properties', String(saved?.fill?.color || '').toUpperCase() === '#FF9900' && saved?.line?.width === 2, `${JSON.stringify(saved?.fill)} ${JSON.stringify(saved?.line)}`);
       }
+      // Shape Effects: a shadow under the pasted box, from the ribbon's menu,
+      // drawn on the stage and written after the outline.
+      await wait(300);
+      await js(`(() => { document.querySelector('.sl-hit[data-shape="${painted.id}"]')?.click(); return 1; })()`);
+      await wait(300);
+      const shadowed = await clickRibbon('Shape Effects');
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Shadow: bottom right'))`), 'the effects menu', 3000).catch(() => {});
+      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Shadow: bottom right')?.click(); return 1; })()`);
+      const shadowOf = () => model(1).slide.shapes.find((x) => x.id === painted.id)?.effects || null;
+      const cast = await until(() => Math.round(shadowOf()?.shadow?.dir ?? -1) === 45, 'the shadow in the model', 5000).catch(() => false);
+      const drawnShadow = await until(() => js(`Boolean(document.querySelector('.sl-stage svg filter feDropShadow'))`), 'the shadow drawn', 4000).catch(() => false);
+      await wait(400);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-shadow.png'), (await win.webContents.capturePage()).toPNG());
+      check('slides: Shape Effects puts a shadow under the shape, drawn on the stage', shadowed === 'clicked' && cast === true && drawnShadow === true, `${shadowed}; model ${JSON.stringify(shadowOf())}; drawn ${drawnShadow}`);
+      await wait(300);
+      await clickRibbon('Save');
+      const shadowInFile = () => { try { const d = Deck.open(fs.readFileSync(files.pptx)); const x = d.pkg.text(d.slideParts[1].part); const m = new RegExp('<p:cNvPr id="' + painted.id + '"[\\s\\S]*?</p:sp>').exec(x); return m ? m[0] : ''; } catch { return ''; } };
+      await until(() => /<a:effectLst><a:outerShdw/.test(shadowInFile()), 'the shadow in the file', 8000).catch(() => false);
+      const spXml = shadowInFile();
+      check('slides: the saved file keeps the shadow after the outline in the shape’s own properties',
+        /<\/a:ln><a:effectLst><a:outerShdw blurRad="50800" dist="38100" dir="2700000" algn="ctr" rotWithShape="0"><a:srgbClr val="000000"><a:alpha val="40000"\/><\/a:srgbClr><\/a:outerShdw><\/a:effectLst>/.test(spXml),
+        spXml.slice(Math.max(0, spXml.indexOf('<a:ln')), Math.max(0, spXml.indexOf('<a:ln')) + 260));
       const complaints = await errorsIn(win);
       check('slides: the clipboard checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {
