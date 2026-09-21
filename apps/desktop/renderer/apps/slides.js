@@ -289,11 +289,23 @@ export default function Slides({ app, shell, boot }) {
 
   const commitText = useCallback(
     async (shapeId, text) => {
-      const paragraphs = String(text).split('\n').map((line) => ({ runs: [{ text: line }] }));
+      // Each line keeps the paragraph it replaces — its level, bullet,
+      // alignment and spacing — and the look of that paragraph's first run;
+      // a line past the end takes the last paragraph's. Until 2026-09-21 the
+      // words came back plain: a bulleted list edited once lost its bullets
+      // and every bold word.
+      const before = model?.slide?.shapes?.find((s) => s.id === shapeId)?.text?.paragraphs || [];
+      const paragraphs = String(text).split('\n').map((line, i) => {
+        const src = before[Math.min(i, before.length - 1)] || {};
+        const { runs, plain, ...props } = src;
+        const look = (runs || []).find((r) => r.text && r.text !== '\n') || {};
+        const { text: _text, field: _field, break: _break, link: _link, ...runProps } = look;
+        return { ...props, runs: [{ ...runProps, text: line }] };
+      });
       await apply({ op: 'setText', slide: index, shape: shapeId, paragraphs });
       setEditing(null);
     },
-    [apply, index]
+    [apply, index, model]
   );
 
   /**
@@ -408,7 +420,11 @@ export default function Slides({ app, shell, boot }) {
   const format = useMemo(() => {
     const p = selectedShape?.text?.paragraphs?.[0];
     const r = p?.runs?.[0] || {};
-    return { bold: Boolean(r.bold), italic: Boolean(r.italic), underline: Boolean(r.underline), size: r.size || 18, color: r.color || null, font: r.font || '', align: p?.align || 'left' };
+    return {
+      bold: Boolean(r.bold), italic: Boolean(r.italic), underline: Boolean(r.underline), size: r.size || 18, color: r.color || null, font: r.font || '', align: p?.align || 'left',
+      // The first paragraph's own list look: the bullet kind, its level and its line spacing.
+      bullet: p?.bullet?.type || null, level: p?.level || 0, lineHeight: p?.lineHeight || null,
+    };
   }, [selectedShape]);
 
   /**
@@ -513,8 +529,18 @@ export default function Slides({ app, shell, boot }) {
         if (!selectedShape?.text) return toast('Click a text box first.', { ms: 3500 });
         const paragraphs = selectedShape.text.paragraphs.map((p) => {
           const { plain, ...rest } = p;
+          // Bullets, numbering, the list level (a step from the paragraph's
+          // own) and line spacing ride on the paragraph; the rest is as read.
+          const level = 'level' in arg ? Math.max(0, Math.min(8, (p.level || 0) + Number(arg.level || 0))) : p.level;
+          const bullet = arg.bullet === 'char' ? { type: 'char', char: '•' }
+            : arg.bullet === 'number' ? { type: 'number', scheme: 'arabicPeriod', start: 1 }
+            : arg.bullet === 'none' ? { type: 'none' }
+            : p.bullet;
           return {
             ...rest,
+            level: level || undefined,
+            bullet,
+            lineHeight: 'lineHeight' in arg ? arg.lineHeight : p.lineHeight,
             align: arg.align ?? p.align,
             runs: (p.runs || []).map((r) => ({
               ...r,

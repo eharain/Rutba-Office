@@ -1023,9 +1023,29 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
   }
   const ps = (paragraphs || []).map((p) => {
     const pPrBits = [];
+    if (p.indent != null) pPrBits.push(`marL="${pxToEmu(p.indent)}"`);
     if (p.level) pPrBits.push(`lvl="${p.level}"`);
+    if (p.hanging != null) pPrBits.push(`indent="${pxToEmu(p.hanging)}"`);
     if (p.align) pPrBits.push(`algn="${{ left: 'l', center: 'ctr', right: 'r', justify: 'just' }[p.align] || 'l'}"`);
-    const pPr = pPrBits.length ? `<a:pPr ${pPrBits.join(' ')}/>` : '';
+    // The paragraph's own spacing and bullet, in schema order (lnSpc, spcBef,
+    // spcAft, buClr, then one of buNone / buAutoNum / buChar) — the shape the
+    // reader gives back, so a format press keeps a bullet the slide already
+    // had instead of silently dropping it.
+    const kids = [];
+    if (p.lineHeight) kids.push(`<a:lnSpc><a:spcPct val="${Math.round(Number(p.lineHeight) * 100000)}"/></a:lnSpc>`);
+    else if (p.lineHeightPt) kids.push(`<a:lnSpc><a:spcPts val="${Math.round(Number(p.lineHeightPt) * 100)}"/></a:lnSpc>`);
+    if (p.spaceBefore != null) kids.push(`<a:spcBef><a:spcPts val="${Math.round(Number(p.spaceBefore) * 100)}"/></a:spcBef>`);
+    if (p.spaceAfter != null) kids.push(`<a:spcAft><a:spcPts val="${Math.round(Number(p.spaceAfter) * 100)}"/></a:spcAft>`);
+    const bullet = p.bullet === false ? { type: 'none' } : p.bullet;
+    if (bullet && bullet.type) {
+      if (bullet.color) kids.push(`<a:buClr><a:srgbClr val="${String(bullet.color).replace('#', '')}"/></a:buClr>`);
+      if (bullet.type === 'none') kids.push('<a:buNone/>');
+      else if (bullet.type === 'number') kids.push(`<a:buAutoNum type="${escapeXml(bullet.scheme || 'arabicPeriod')}"${bullet.start && Number(bullet.start) !== 1 ? ` startAt="${Number(bullet.start)}"` : ''}/>`);
+      else kids.push(`<a:buChar char="${escapeXml(bullet.char || '•')}"/>`);
+    }
+    const pPr = kids.length
+      ? `<a:pPr${pPrBits.length ? ' ' + pPrBits.join(' ') : ''}>${kids.join('')}</a:pPr>`
+      : pPrBits.length ? `<a:pPr ${pPrBits.join(' ')}/>` : '';
     const runs = (p.runs || [])
       .filter((r) => r.text != null)
       .map((r) => {

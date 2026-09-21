@@ -16,7 +16,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
-import { buildPptx } from '@rutba/presentation';
+import { buildPptx, Deck } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
 import { gradientPng, joinPictureParagraphs } from './sample-picture.js';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
@@ -926,6 +926,70 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Presentation: bullets, list level and line spacing ─────────────── */
+  //
+  // Home → Bullets on a text box gives its paragraphs a bullet the stage
+  // draws; Increase list level and Line spacing → 1.5 ride on the paragraph;
+  // the saved file carries all three as PowerPoint keeps them. Run alone
+  // with RUTBA_VERIFY_ONLY=bullets.
+  const slideParagraphs = async () => {
+    try {
+      const win = await open('slides', files.pptx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
+      const shape = model().slide.shapes.find((s) => s.text && s.placeholder?.type !== 'title') || model().slide.shapes.find((s) => s.text);
+      if (!shape) return check('slides: a text box to give bullets', false, 'no text shape on slide 1');
+      const shapeId = String(shape.id);
+      const hit = `.sl-hit[data-shape="${shapeId}"]`;
+      await until(() => js(`Boolean(document.querySelector(${JSON.stringify(hit)}))`), 'the hit area of the text box', 6000);
+      await js(`(() => { document.querySelector(${JSON.stringify(hit)}).click(); return 1; })()`);
+      await until(() => js(`document.querySelectorAll('.sl-handle').length === 8`), 'the eight handles', 4000).catch(() => {});
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const first = () => model().slide.shapes.find((s) => String(s.id) === shapeId)?.text?.paragraphs?.[0] || {};
+      const had = first().bullet?.type || 'none';
+      const clickedBullets = await clickRibbon('Bullets');
+      const toggled = await until(() => (first().bullet?.type || 'none') === (had === 'char' ? 'none' : 'char'), 'the bullet to toggle', 4000).catch(() => false);
+      if (had === 'char') {
+        await clickRibbon('Bullets');
+        await until(() => first().bullet?.type === 'char', 'the bullet back', 4000).catch(() => {});
+      }
+      const glyph = await until(() => js(`[...document.querySelectorAll('.sl-slide text, .sl-stage text, svg text')].some((t) => t.textContent.trim() === '•')`), 'the bullet glyph drawn', 4000).catch(() => false);
+      check('slides: Home → Bullets gives the paragraph a bullet, and the stage draws it',
+        clickedBullets === 'clicked' && toggled === true && glyph === true, `${clickedBullets}; had ${had}; now ${JSON.stringify(first().bullet)}; glyph ${glyph}`);
+
+      const clickedLevel = await clickRibbon('Increase list level');
+      const levelled = await until(() => first().level === 1, 'the list level', 4000).catch(() => false);
+      // The window's own model follows the engine's a tick later: a press on
+      // its heels would format the paragraph as it was before the last one.
+      await wait(300);
+      const clickedSpacing = await clickRibbon('Line spacing');
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === '1.5'))`), 'the spacing menu', 3000).catch(() => {});
+      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === '1.5')?.click(); return 1; })()`);
+      const spaced = await until(() => first().lineHeight === 1.5, 'the line spacing', 4000).catch(() => false);
+      check('slides: Increase list level and Line spacing → 1.5 ride on the paragraph',
+        clickedLevel === 'clicked' && levelled === true && clickedSpacing === 'clicked' && spaced === true, `level ${first().level}, spacing ${first().lineHeight}`);
+
+      await wait(300);
+      await clickRibbon('Save');
+      const inFile = () => Deck.open(fs.readFileSync(files.pptx)).slide(0).shapes.find((s) => String(s.id) === shapeId).text.paragraphs[0];
+      await until(() => { try { return inFile().lineHeight === 1.5; } catch { return false; } }, 'the paragraph to land in the file', 8000).catch(() => false);
+      const kept = inFile();
+      check('slides: the saved file keeps the bullet, the level and the spacing as PowerPoint does',
+        kept.bullet?.char === '•' && kept.level === 1 && kept.lineHeight === 1.5, JSON.stringify({ bullet: kept.bullet, level: kept.level, lineHeight: kept.lineHeight }));
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-bullets.png'), (await win.webContents.capturePage()).toPNG());
+      const complaints = await errorsIn(win);
+      check('slides: the paragraph checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('slides: the paragraph checks ran', false, err.message);
+    }
+  };
+
   /* ── Worksheets: the fill handle ─────────────────────────────────────── */
   //
   // The square at the selection's corner, dragged down two rows: the cells
@@ -1513,6 +1577,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('float')) await wordFloat();
     if (only.includes('polish')) await polish();
     if (only.includes('shapes')) await slideShapes();
+    if (only.includes('bullets')) await slideParagraphs();
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('ruler')) await wordRuler();
@@ -1610,6 +1675,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await sheetGrips();
   await slidePanes();
   await slideShapes();
+  await slideParagraphs();
   await sheetFill();
   await wordPictures();
   await wordPictureFits();

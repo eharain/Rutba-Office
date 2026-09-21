@@ -356,3 +356,35 @@ test('a thumbnail leaves out a custom path with a hundred thousand points; the s
   assert.doesNotMatch(thumb, /<path d="M/, 'the thumbnail leaves it out');
   assert.ok(thumb.length < full.length / 4, `the thumbnail is small (${thumb.length} vs ${full.length})`);
 });
+
+test('a paragraph keeps its bullet, level and spacing through the writer, and can be given them', () => {
+  const deck = Deck.open(DECK);
+  const slide = deck.slide(1);
+  const body = slide.shapes.find((s) => s.placeholder?.type === 'body') || slide.shapes.find((s) => s.text && s.placeholder?.type !== 'title');
+  assert.ok(body, 'a body placeholder on slide 2');
+  deck.setText(1, body.id, [
+    { bullet: { type: 'char', char: '•' }, lineHeight: 1.5, spaceBefore: 6, runs: [{ text: 'First point' }] },
+    { level: 1, bullet: { type: 'number', scheme: 'arabicPeriod', start: 3 }, runs: [{ text: 'Third of the second level' }] },
+    { bullet: { type: 'none' }, align: 'center', runs: [{ text: 'No bullet, centred' }] },
+  ]);
+  const xml = deck.pkg.text('ppt/slides/slide2.xml');
+  assert.ok(xml.includes('<a:pPr><a:lnSpc><a:spcPct val="150000"/></a:lnSpc><a:spcBef><a:spcPts val="600"/></a:spcBef><a:buChar char="•"/></a:pPr>'), 'spacing then the bullet, in schema order');
+  assert.ok(xml.includes('<a:pPr lvl="1"><a:buAutoNum type="arabicPeriod" startAt="3"/></a:pPr>'), 'numbering with its start');
+  assert.ok(xml.includes('<a:pPr algn="ctr"><a:buNone/></a:pPr>'), 'no bullet, said so');
+
+  const reopened = Deck.open(deck.save());
+  const back = reopened.slide(1).shapes.find((s) => s.id === body.id).text.paragraphs;
+  assert.equal(back[0].bullet.char, '•');
+  assert.equal(back[0].lineHeight, 1.5);
+  assert.equal(back[0].spaceBefore, 6);
+  assert.equal(back[1].level, 1);
+  assert.deepEqual([back[1].bullet.type, back[1].bullet.start], ['number', 3]);
+  assert.equal(back[2].bullet.type, 'none');
+
+  // A format press sends the paragraphs back as read: the bullet survives.
+  reopened.setText(1, body.id, back.map((p) => ({ ...p, runs: p.runs.map((r) => ({ ...r, bold: true })) })));
+  const again = Deck.open(reopened.save()).slide(1).shapes.find((s) => s.id === body.id).text.paragraphs;
+  assert.equal(again[0].bullet.char, '•', 'the bullet came through the rewrite');
+  assert.equal(again[1].bullet.type, 'number');
+  assert.equal(again[0].runs[0].bold, true);
+});

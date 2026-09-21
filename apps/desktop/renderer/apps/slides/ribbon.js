@@ -140,11 +140,11 @@ export default function SlidesRibbon({
           <Group label="Paragraph">
             <Rows>
               <>
-                <Soon icon="listBullet" label="" why="Bullets are a paragraph property (a:buChar) the deck writer does not write yet." />
-                <Soon icon="listNumber" label="" why="Numbering comes with bullets." />
-                <Soon icon="chevronLeft" label="" why="Indent levels come with bullets." />
-                <Soon icon="chevronRight" label="" why="Indent levels come with bullets." />
-                <Soon icon="list" label="" why="Line spacing is a paragraph property the deck writer does not write yet." />
+                <Button icon="listBullet" title={needShape || 'Bullets'} pressed={format.bullet === 'char'} disabled={!hasShape} onClick={() => fmt({ bullet: format.bullet === 'char' ? 'none' : 'char' })} />
+                <Button icon="listNumber" title={needShape || 'Numbering'} pressed={format.bullet === 'number'} disabled={!hasShape} onClick={() => fmt({ bullet: format.bullet === 'number' ? 'none' : 'number' })} />
+                <Button icon="chevronLeft" title={needShape || 'Decrease list level'} disabled={!hasShape || !format.level} onClick={() => fmt({ level: -1 })} />
+                <Button icon="chevronRight" title={needShape || 'Increase list level'} disabled={!hasShape} onClick={() => fmt({ level: 1 })} />
+                <Button icon="list" title={needShape || `Line spacing — now ${format.lineHeight ? String(format.lineHeight) : 'as the layout has it'}`} disabled={!hasShape} onClick={(e) => menu.open(e, [1, 1.15, 1.5, 2].map((v) => ({ label: String(v), icon: format.lineHeight === v ? 'check' : undefined, run: () => fmt({ lineHeight: v }) })))} />
                 <Separator />
                 <Soon icon="grid" label="" why="Columns inside a text box are a body property the deck writer does not write yet." />
                 <Soon icon="rotate" label="" why="Text direction comes with body properties." />

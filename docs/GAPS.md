@@ -148,9 +148,12 @@ document and workbook writers.
   theme's looks, and every shape moves and resizes by hand on the stage;
   effects (shadow, glow, reflection), gradients and picture fills are still
   read-only.
-- **Text inside a shape**: bullets and numbering, indent levels, line
-  spacing, character spacing, strikethrough, highlight, text direction,
-  vertical alignment, columns in a box, WordArt.
+- **Text inside a shape**: since 2026-09-21 bullets, numbering, list
+  levels and line spacing are written from the Home tab, and a slide's own
+  bullets and spacing survive an edit (until then a format press or an
+  edited line dropped them). Character spacing, strikethrough, highlight,
+  text direction, vertical alignment, columns in a box and WordArt are
+  still read past.
 - **What can be put on a slide**: a table and a chart are read and drawn —
   a chart since 2026-09-10, through the same chart kit a worksheet uses,
   found by the corpus deck whose six chart slides showed an empty frame
