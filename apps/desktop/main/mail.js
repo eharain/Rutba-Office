@@ -18,7 +18,7 @@ import { scan, read as readArchive, identify } from '@rutba/mailbox/import';
 import { writeMbox } from '@rutba/mailbox/mbox';
 import { insightFor } from './mail-insight.js';
 import { planRules, applyPlan } from './mail-rules.js';
-import { discoverMailServers } from './mail-discover.js';
+import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
 
 // A check run never asks the network where a mail server is.
 const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE);
@@ -217,6 +217,30 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      */
     autodiscover: ({ email, seed = null, offline = false }) =>
       discoverMailServers(email, { offline: offline || CHECK_RUN, seed }),
+
+    /**
+     * The providers worth a tile of their own in Add account — Gmail,
+     * Outlook, Yahoo and the rest — as plain data the dialog can draw
+     * without a search: choosing one fills the servers with no network.
+     */
+    providers: () => providerTiles(),
+
+    /** One provider's full table entry, whatever its id — plain data, no RegExp. */
+    provider: ({ id }) => {
+      const entry = KNOWN.find((k) => k.id === id) || knownProvider(String(id || ''));
+      if (!entry) return null;
+      return {
+        id: entry.id,
+        label: entry.label,
+        tileLabel: entry.tileLabel || entry.label,
+        domain: entry.domain || null,
+        imap: entry.imap,
+        smtp: entry.smtp,
+        oauth: entry.oauth || null,
+        note: entry.note || null,
+        appPassword: entry.appPassword || null,
+      };
+    },
 
     addAccount: ({ account, password }) => {
       const id = account.id || crypto.randomUUID().slice(0, 8);

@@ -6,7 +6,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { discoverMailServers, parseAutoconfig, knownProvider } from '../apps/desktop/main/mail-discover.js';
+import { discoverMailServers, parseAutoconfig, knownProvider, providerTiles, KNOWN } from '../apps/desktop/main/mail-discover.js';
 
 const nothing = { resolveMx: async () => [], resolveSrv: async () => { throw new Error('ENODATA'); }, resolveCname: async () => [] };
 const noFetch = async (url) => { throw new Error(`404 from ${new URL(url).host}`); };
@@ -127,4 +127,44 @@ test('not an address: says so, asks nothing', async () => {
   const r = await discoverMailServers('nobody', { dns: nothing, fetchText: noFetch, probe: silence });
   assert.equal(r.imap, null);
   assert.equal(r.steps[0].status, 'failed');
+});
+
+/* ── the table itself, and the tiles it offers ───────────────────────────── */
+
+const PORTS = new Set([143, 993, 25, 465, 587, 1025, 1143]);
+
+test('every known provider has an id, a label, and servers on a real port', () => {
+  for (const k of KNOWN) {
+    assert.ok(k.id, `an id: ${JSON.stringify(k)}`);
+    assert.ok(k.label, `a label: ${k.id}`);
+    for (const [kind, server] of [['imap', k.imap], ['smtp', k.smtp]]) {
+      assert.ok(server?.host, `${k.id} ${kind} host`);
+      assert.ok(PORTS.has(server.port), `${k.id} ${kind} port ${server.port} is not one mail actually uses`);
+      assert.equal(typeof server.secure, 'boolean', `${k.id} ${kind} secure is a boolean`);
+    }
+    if (k.appPassword) assert.match(k.appPassword.url, /^https:\/\//, `${k.id}'s app password page is https`);
+  }
+});
+
+test('providerTiles() is plain data — no RegExp, JSON round-trips it unchanged — and there are enough of them to be worth a choice', () => {
+  const tiles = providerTiles();
+  assert.ok(tiles.length >= 8, `only ${tiles.length} tiles`);
+  const roundTripped = JSON.parse(JSON.stringify(tiles));
+  assert.deepEqual(roundTripped, tiles);
+  const search = (v) => (v instanceof RegExp ? true : v && typeof v === 'object' ? Object.values(v).some(search) : false);
+  assert.equal(search(tiles), false, 'a RegExp cannot cross the IPC bridge');
+  assert.ok(tiles.some((t) => t.id === 'yahoo'));
+  assert.ok(tiles.every((t) => t.label && t.domain && t.imap && t.smtp));
+});
+
+test('a Yahoo, iCloud, Hotmail or Google address is recognised, whichever domain it uses', () => {
+  assert.equal(knownProvider('yahoo.co.uk').id, 'yahoo');
+  assert.equal(knownProvider('ymail.com').id, 'yahoo');
+  assert.equal(knownProvider('hotmail.com').id, 'microsoft');
+  assert.equal(knownProvider('icloud.com').id, 'icloud');
+});
+
+test('a Yahoo address carries its app password page, offline', async () => {
+  const r = await discoverMailServers('a@yahoo.com', { offline: true });
+  assert.equal(r.appPassword?.url, 'https://login.yahoo.com/myaccount/security/app-password');
 });

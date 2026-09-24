@@ -33,36 +33,52 @@ import dns from 'node:dns';
 import net from 'node:net';
 import tls from 'node:tls';
 
-/** The providers most people use. `oauth` names the browser sign-in that replaces a password. */
+/**
+ * The providers most people use. `oauth` names the browser sign-in that
+ * replaces a password. `appPassword` is the provider's own page for making
+ * an app-specific password, with one sentence saying when it is wanted —
+ * shown in the dialog next to a "Make an app password" button, whether the
+ * address was typed or a tile was chosen. `tile` marks the providers worth
+ * a tile of their own in the Add account dialog, with `tileLabel` where the
+ * tile's words should differ from `label` and `domain` giving the address
+ * placeholder a tile fills in.
+ */
 export const KNOWN = [
-  { id: 'google', label: 'Google', match: /^(gmail\.com|googlemail\.com)$/i, oauth: 'google',
-    imap: { host: 'imap.gmail.com', port: 993, secure: true }, smtp: { host: 'smtp.gmail.com', port: 465, secure: true } },
-  { id: 'microsoft', label: 'Microsoft', match: /^(outlook\.(com|co\.uk|de|fr|es|it|jp|com\.au)|hotmail\.(com|co\.uk|de|fr|es|it)|live\.(com|co\.uk|de|fr|it|nl)|msn\.com)$/i, oauth: 'microsoft',
-    imap: { host: 'outlook.office365.com', port: 993, secure: true }, smtp: { host: 'smtp-mail.outlook.com', port: 587, secure: false, starttls: true } },
+  { id: 'google', label: 'Google', tile: true, tileLabel: 'Gmail', domain: 'gmail.com',
+    match: /^(gmail\.com|googlemail\.com)$/i, oauth: 'google',
+    imap: { host: 'imap.gmail.com', port: 993, secure: true }, smtp: { host: 'smtp.gmail.com', port: 465, secure: true },
+    appPassword: { url: 'https://myaccount.google.com/apppasswords', note: 'An app password is needed only if this build cannot sign in with Google yet.' } },
+  { id: 'microsoft', label: 'Microsoft', tile: true, tileLabel: 'Outlook, Hotmail and Microsoft 365', domain: 'outlook.com',
+    match: /^(outlook\.(com|co\.uk|de|fr|es|it|jp|com\.au)|hotmail\.(com|co\.uk|de|fr|es|it)|live\.(com|co\.uk|de|fr|it|nl)|msn\.com)$/i, oauth: 'microsoft',
+    imap: { host: 'outlook.office365.com', port: 993, secure: true }, smtp: { host: 'smtp-mail.outlook.com', port: 587, secure: false, starttls: true },
+    appPassword: { url: 'https://account.live.com/proofs/AppPassword', note: 'An app password is needed only if this build cannot sign in with Microsoft yet.' } },
   { id: 'microsoft365', label: 'Microsoft 365', match: /^onmicrosoft\.com$/i, oauth: 'microsoft',
     imap: { host: 'outlook.office365.com', port: 993, secure: true }, smtp: { host: 'smtp.office365.com', port: 587, secure: false, starttls: true } },
-  { id: 'yahoo', label: 'Yahoo', match: /^(yahoo\.[a-z.]+|ymail\.com|rocketmail\.com)$/i,
+  { id: 'yahoo', label: 'Yahoo', tile: true, domain: 'yahoo.com', match: /^(yahoo\.[a-z.]+|ymail\.com|rocketmail\.com)$/i,
     imap: { host: 'imap.mail.yahoo.com', port: 993, secure: true }, smtp: { host: 'smtp.mail.yahoo.com', port: 465, secure: true },
-    note: 'Yahoo wants an app password, made in the account\'s security settings.' },
-  { id: 'icloud', label: 'iCloud', match: /^(icloud\.com|me\.com|mac\.com)$/i,
+    appPassword: { url: 'https://login.yahoo.com/myaccount/security/app-password', note: 'Yahoo wants an app password, made in the account\'s security settings.' } },
+  { id: 'icloud', label: 'iCloud', tile: true, domain: 'icloud.com', match: /^(icloud\.com|me\.com|mac\.com)$/i,
     imap: { host: 'imap.mail.me.com', port: 993, secure: true }, smtp: { host: 'smtp.mail.me.com', port: 587, secure: false, starttls: true },
-    note: 'iCloud wants an app-specific password, made at appleid.apple.com.' },
-  { id: 'aol', label: 'AOL', match: /^(aol\.com|aim\.com|verizon\.net)$/i,
-    imap: { host: 'imap.aol.com', port: 993, secure: true }, smtp: { host: 'smtp.aol.com', port: 465, secure: true } },
-  { id: 'zoho', label: 'Zoho', match: /^zoho(mail)?\.(com|eu|in|com\.au)$/i,
-    imap: { host: 'imap.zoho.com', port: 993, secure: true }, smtp: { host: 'smtp.zoho.com', port: 465, secure: true } },
-  { id: 'fastmail', label: 'Fastmail', match: /^(fastmail\.(com|fm|net|org|us|co\.uk)|sent\.com|messagingengine\.com)$/i,
+    appPassword: { url: 'https://appleid.apple.com/account/manage', note: 'iCloud wants an app-specific password, made under Sign-In and Security → App-Specific Passwords.' } },
+  { id: 'aol', label: 'AOL', tile: true, domain: 'aol.com', match: /^(aol\.com|aim\.com|verizon\.net)$/i,
+    imap: { host: 'imap.aol.com', port: 993, secure: true }, smtp: { host: 'smtp.aol.com', port: 465, secure: true },
+    appPassword: { url: 'https://login.aol.com/myaccount/security/app-password', note: 'AOL wants an app password, made in the account\'s security settings.' } },
+  { id: 'zoho', label: 'Zoho', tile: true, domain: 'zoho.com', match: /^zoho(mail)?\.(com|eu|in|com\.au)$/i,
+    imap: { host: 'imap.zoho.com', port: 993, secure: true }, smtp: { host: 'smtp.zoho.com', port: 465, secure: true },
+    appPassword: { url: 'https://accounts.zoho.com/home#security/security_password', note: 'Zoho wants an app password, made in the account\'s security settings.' } },
+  { id: 'fastmail', label: 'Fastmail', tile: true, domain: 'fastmail.com', match: /^(fastmail\.(com|fm|net|org|us|co\.uk)|sent\.com|messagingengine\.com)$/i,
     imap: { host: 'imap.fastmail.com', port: 993, secure: true }, smtp: { host: 'smtp.fastmail.com', port: 465, secure: true },
-    note: 'Fastmail wants an app password, made in Settings → Privacy & Security.' },
+    appPassword: { url: 'https://app.fastmail.com/settings/security/apps', note: 'Fastmail wants an app password, made in Settings → Privacy & Security.' } },
   { id: 'gmx', label: 'GMX', match: /^gmx\.(com|net|de|at|ch|co\.uk|fr|es|it)$/i,
     imap: { host: 'imap.gmx.com', port: 993, secure: true }, smtp: { host: 'mail.gmx.com', port: 587, secure: false, starttls: true } },
   { id: 'webde', label: 'WEB.DE', match: /^web\.de$/i,
     imap: { host: 'imap.web.de', port: 993, secure: true }, smtp: { host: 'smtp.web.de', port: 587, secure: false, starttls: true } },
   { id: 'yandex', label: 'Yandex', match: /^(yandex\.(com|ru|ua|kz|by)|ya\.ru)$/i,
-    imap: { host: 'imap.yandex.com', port: 993, secure: true }, smtp: { host: 'smtp.yandex.com', port: 465, secure: true } },
+    imap: { host: 'imap.yandex.com', port: 993, secure: true }, smtp: { host: 'smtp.yandex.com', port: 465, secure: true },
+    appPassword: { url: 'https://id.yandex.com/security/app-passwords', note: 'Yandex wants an app password, made in the account\'s security settings.' } },
   { id: 'mailcom', label: 'mail.com', match: /^(mail\.com|email\.com|usa\.com|consultant\.com|engineer\.com|post\.com)$/i,
     imap: { host: 'imap.mail.com', port: 993, secure: true }, smtp: { host: 'smtp.mail.com', port: 587, secure: false, starttls: true } },
-  { id: 'proton', label: 'Proton', match: /^(proton\.me|protonmail\.(com|ch)|pm\.me)$/i,
+  { id: 'proton', label: 'Proton', tile: true, domain: 'proton.me', match: /^(proton\.me|protonmail\.(com|ch)|pm\.me)$/i,
     imap: { host: '127.0.0.1', port: 1143, secure: false, starttls: true }, smtp: { host: '127.0.0.1', port: 1025, secure: false, starttls: true },
     note: 'Proton Mail reaches a mail program through Proton Mail Bridge, which runs on this computer; the servers are the bridge\'s.' },
   { id: 'bt', label: 'BT', match: /^(btinternet\.com|btopenworld\.com)$/i,
@@ -81,7 +97,52 @@ export const KNOWN = [
     imap: { host: 'imap.orange.fr', port: 993, secure: true }, smtp: { host: 'smtp.orange.fr', port: 465, secure: true } },
   { id: 'free', label: 'Free', match: /^free\.fr$/i,
     imap: { host: 'imap.free.fr', port: 993, secure: true }, smtp: { host: 'smtp.free.fr', port: 465, secure: true } },
+  { id: 'mailru', label: 'Mail.ru', match: /^mail\.ru$/i,
+    imap: { host: 'imap.mail.ru', port: 993, secure: true }, smtp: { host: 'smtp.mail.ru', port: 465, secure: true } },
+  { id: 'qq', label: 'QQ Mail', match: /^qq\.com$/i,
+    imap: { host: 'imap.qq.com', port: 993, secure: true }, smtp: { host: 'smtp.qq.com', port: 465, secure: true },
+    note: 'QQ Mail wants an authorisation code in place of the account password, made in Settings → Account.' },
+  { id: '163', label: '163.com', match: /^163\.com$/i,
+    imap: { host: 'imap.163.com', port: 993, secure: true }, smtp: { host: 'smtp.163.com', port: 465, secure: true },
+    note: '163.com wants an authorisation code in place of the account password, made in Settings → POP3/SMTP/IMAP.' },
+  { id: 'naver', label: 'Naver', match: /^naver\.com$/i,
+    imap: { host: 'imap.naver.com', port: 993, secure: true }, smtp: { host: 'smtp.naver.com', port: 465, secure: true },
+    note: 'Naver wants an app password, made in the account\'s security settings.' },
+  { id: 'libero', label: 'Libero', match: /^libero\.it$/i,
+    imap: { host: 'imapmail.libero.it', port: 993, secure: true }, smtp: { host: 'smtp.libero.it', port: 465, secure: true } },
+  { id: 'laposte', label: 'La Poste', match: /^laposte\.net$/i,
+    imap: { host: 'imap.laposte.net', port: 993, secure: true }, smtp: { host: 'smtp.laposte.net', port: 465, secure: true } },
+  { id: 'sfr', label: 'SFR', match: /^sfr\.fr$/i,
+    imap: { host: 'imap.sfr.fr', port: 993, secure: true }, smtp: { host: 'smtp.sfr.fr', port: 465, secure: true } },
+  { id: 'bluewin', label: 'Bluewin', match: /^bluewin\.ch$/i,
+    imap: { host: 'imaps.bluewin.ch', port: 993, secure: true }, smtp: { host: 'smtpauths.bluewin.ch', port: 465, secure: true } },
+  { id: 'cox', label: 'Cox', match: /^cox\.net$/i,
+    imap: { host: 'imap.cox.net', port: 993, secure: true }, smtp: { host: 'smtp.cox.net', port: 465, secure: true } },
+  { id: 'telstra', label: 'Telstra', match: /^(telstra\.com|bigpond\.com)$/i,
+    imap: { host: 'imap.telstra.com', port: 993, secure: true }, smtp: { host: 'smtp.telstra.com', port: 465, secure: true } },
+  { id: 'optus', label: 'Optus', match: /^optusnet\.com\.au$/i,
+    imap: { host: 'mail.optusnet.com.au', port: 993, secure: true }, smtp: { host: 'mail.optusnet.com.au', port: 465, secure: true } },
+  { id: 'xtra', label: 'Xtra', match: /^xtra\.co\.nz$/i,
+    imap: { host: 'imap.xtra.co.nz', port: 993, secure: true }, smtp: { host: 'send.xtra.co.nz', port: 465, secure: true } },
 ];
+
+/**
+ * The providers worth a tile of their own in the Add account dialog, as
+ * plain data — no RegExp in it, so it can cross the IPC bridge untouched.
+ */
+export function providerTiles() {
+  return KNOWN.filter((k) => k.tile).map((k) => ({
+    id: k.id,
+    label: k.label,
+    tileLabel: k.tileLabel || k.label,
+    domain: k.domain,
+    imap: k.imap,
+    smtp: k.smtp,
+    oauth: k.oauth || null,
+    note: k.note || null,
+    appPassword: k.appPassword || null,
+  }));
+}
 
 /** What the MX host says about who hosts the mail. */
 const MX_HINTS = [
@@ -302,7 +363,7 @@ function guesses(domain, mxHosts = []) {
  * @param {object} [options]
  * @param {boolean} [options.offline]  the table only — a check run, or no network
  * @param {object}  [options.seed]     settings that came from another client on this computer; they are kept and checked
- * @returns {Promise<{email, domain, imap, smtp, oauth, provider, note, source, steps, candidates}>}
+ * @returns {Promise<{email, domain, imap, smtp, oauth, provider, appPassword, note, source, steps, candidates}>}
  */
 export async function discoverMailServers(email, options = {}) {
   const address = String(email || '').trim();
@@ -314,7 +375,7 @@ export async function discoverMailServers(email, options = {}) {
   };
   const steps = [];
   const step = (name, status, detail) => steps.push({ name, status, detail: detail || '' });
-  const result = { email: address, domain, imap: null, smtp: null, oauth: null, provider: null, note: null, source: 'none', steps, candidates: [] };
+  const result = { email: address, domain, imap: null, smtp: null, oauth: null, provider: null, appPassword: null, note: null, source: 'none', steps, candidates: [] };
   if (!domain) {
     step('address', 'failed', 'not an email address');
     return result;
@@ -389,6 +450,7 @@ export async function discoverMailServers(email, options = {}) {
   result.candidates = ranked;
   result.provider = provider ? { id: provider.id, label: provider.label } : null;
   result.oauth = provider?.oauth || null;
+  result.appPassword = provider?.appPassword || null;
   result.source = result.imap?.source || 'none';
   result.note = provider?.note || (result.imap ? noteFor(result.imap, result.smtp) : `Nothing at ${domain} said where its mail server is. The advanced settings take the names from your provider.`);
   return result;
@@ -415,4 +477,4 @@ function noteFor(imap, smtp) {
   return `Found ${how[imap.source] || imap.source}${verified}${smtp && !smtp.verified && imap.verified ? '; the outgoing server has not answered yet' : ''}.`;
 }
 
-export default { discoverMailServers, parseAutoconfig, knownProvider, KNOWN };
+export default { discoverMailServers, parseAutoconfig, knownProvider, providerTiles, KNOWN };

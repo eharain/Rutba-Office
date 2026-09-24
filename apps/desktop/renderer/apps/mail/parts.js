@@ -413,6 +413,25 @@ select.rw-input { appearance: auto; }
 .ml-found-item .what { color: var(--ink-3); font-size: 11.5px; }
 .ml-found-logo { width: 30px; height: 30px; border-radius: var(--r-1); display: grid; place-items: center; background: var(--sunken); flex: none; }
 
+/* choosing a provider ----------------------------------------------------- */
+.ml-providers { display: flex; flex-direction: column; gap: 8px; margin-bottom: 2px; }
+.ml-providers-head { font-weight: 600; font-size: 12.5px; color: var(--ink-2); }
+.ml-providers-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.ml-provider {
+  display: flex; flex-direction: column; gap: 3px; align-items: flex-start; text-align: left;
+  min-width: 108px; padding: 9px 12px; border: 1px solid var(--line); border-radius: var(--r-2);
+  background: var(--chrome); font: inherit; color: var(--ink); cursor: pointer;
+}
+.ml-provider:hover { border-color: var(--accent-line); background: var(--selected); }
+.ml-provider .label { font-weight: 600; font-size: 12.5px; }
+.ml-provider .domain { color: var(--ink-3); font-size: 11.5px; }
+.ml-provider-change {
+  align-self: flex-start; border: 0; background: none; padding: 0; margin-bottom: 2px;
+  color: var(--accent); font: inherit; font-size: 12px; cursor: pointer;
+}
+.ml-note .grow { flex: 1; min-width: 0; }
+.ml-app-password { flex: none; }
+
 /* compose ---------------------------------------------------------------- */
 .ml-compose-body { font-family: var(--font); resize: vertical; min-height: 200px; }
 .ml-rich {

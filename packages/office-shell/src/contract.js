@@ -121,6 +121,8 @@ export const METHODS = {
     'removeAccount',// ({ id }) -> void
     'testAccount',  // ({ account, password }) -> { imap, smtp, error }
     'autodiscover', // ({ email }) -> { imap, smtp, source }
+    'providers',    // () -> the providers worth a tile in Add account, as plain data
+    'provider',     // ({ id }) -> one provider's full table entry, or null
     'importAccounts', // ({ path, only, test }) -> { added, skipped, failed, total } — a file of accounts, set up at once
     'attachmentText', // ({ accountId, folder, id, index }) -> { name, type, text }
     'folders',      // ({ accountId }) -> [folder]

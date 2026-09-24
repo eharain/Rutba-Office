@@ -219,6 +219,34 @@ export function ImportPreview({ found, onCancel, onImport }) {
   );
 }
 
+/* ── choosing a provider ─────────────────────────────────────────────────── */
+
+/**
+ * The tile row above the address field: Gmail, Outlook, Yahoo and the rest,
+ * each filling its own servers with no network and saying exactly what it
+ * wants — a browser sign-in, or an app password with a link to make one.
+ * "Other" asks for nothing; it just gets out of the way of the address field.
+ */
+function ProviderTiles({ providers, onChoose, onOther }) {
+  return (
+    <div className="ml-providers">
+      <div className="ml-providers-head">Choose your provider</div>
+      <div className="ml-providers-row">
+        {providers.map((p) => (
+          <button key={p.id} type="button" className="ml-provider" data-provider={p.id} onClick={() => onChoose(p)}>
+            <span className="label">{p.tileLabel}</span>
+            <span className="domain">@{p.domain}</span>
+          </button>
+        ))}
+        <button type="button" className="ml-provider" data-provider="other" onClick={onOther}>
+          <span className="label">Other</span>
+          <span className="domain">Enter your address and the servers are found for you</span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 /* ── account setup ───────────────────────────────────────────────────────── */
 
 export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts, toast }) {
@@ -250,8 +278,24 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
   const [adding, setAdding] = useState(false);
   const [result, setResult] = useState(null);
   const [signingIn, setSigningIn] = useState(false);
+  const [providers, setProviders] = useState([]);
+  // null lets the tiles show or hide by themselves — address empty, or its
+  // provider not known yet; 'open'/'closed' is the person overriding that,
+  // with Change provider or by picking a tile (or Other).
+  const [tilesOverride, setTilesOverride] = useState(null);
   const lookedUp = useRef('');
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  useEffect(() => {
+    let live = true;
+    shell.mail
+      .providers()
+      .then((list) => live && setProviders(list || []))
+      .catch(() => {});
+    return () => {
+      live = false;
+    };
+  }, [shell]);
 
   const discover = useCallback(
     async (email) => {
@@ -260,6 +304,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
       lookedUp.current = domain;
       setLooking(true);
       setResult(null);
+      setTilesOverride(null); // a fresh search decides for itself whether the tiles are still wanted
       try {
         const r = await shell.mail.autodiscover({
           email,
@@ -281,6 +326,41 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
     },
     [shell, seed]
   );
+
+  // A tile fills exactly what a matching typed address would have found — the
+  // same servers, the same note, the same sign-in card — but with no network,
+  // because the provider is already known.
+  const chooseTile = useCallback(
+    async (entry) => {
+      lookedUp.current = entry.domain || '';
+      setFound({
+        imap: { ...entry.imap, verified: false, source: 'provider' },
+        smtp: { ...entry.smtp, verified: false, source: 'provider' },
+        provider: { id: entry.id, label: entry.tileLabel || entry.label, domain: entry.domain },
+        oauth: entry.oauth || null,
+        appPassword: entry.appPassword || null,
+        note: entry.note || `${entry.tileLabel || entry.label}'s servers, filled in — nothing was searched.`,
+        steps: [],
+      });
+      set({
+        imapHost: entry.imap.host, imapPort: entry.imap.port, imapSecurity: security(entry.imap),
+        smtpHost: entry.smtp.host, smtpPort: entry.smtp.port, smtpSecurity: security(entry.smtp),
+      });
+      setTilesOverride('closed');
+      if (entry.oauth) {
+        const p = await shell.oauth.provider({ email: form.email.trim(), id: entry.oauth }).catch(() => null);
+        setProvider(p || null);
+      } else {
+        setProvider(null);
+      }
+    },
+    [shell, form.email]
+  );
+
+  const otherTile = useCallback(() => {
+    setTilesOverride('closed');
+    document.getElementById('ml-address')?.focus();
+  }, []);
 
   // A provider the address alone names — Gmail, Outlook.com — is offered its
   // sign-in the moment the address is typed, before the search confirms it;
@@ -372,6 +452,8 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
   }, [shell, form, test, onSaved, toast]);
 
   const ready = form.email.includes('@') && form.imapHost && form.smtpHost;
+  const showTiles = tilesOverride ? tilesOverride === 'open' : !form.email.trim() || !found?.provider;
+  const addressPlaceholder = found?.provider?.domain ? `you@${found.provider.domain}` : 'you@example.com';
   const label = (s) => ({ tls: 'TLS', starttls: 'STARTTLS', none: 'None' }[s] || s);
   const server = (host, port, sec, verified) => (
     <>
@@ -396,8 +478,17 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
       }
     >
       <div className="ml-form">
+        {showTiles ? (
+          <ProviderTiles providers={providers} onChoose={chooseTile} onOther={otherTile} />
+        ) : (
+          <button type="button" className="ml-provider-change" onClick={() => setTilesOverride('open')}>
+            Change provider
+          </button>
+        )}
+
         <Field label="Email address">
           <Input
+            id="ml-address"
             value={form.email}
             autoFocus
             onChange={(e) => set({ email: e.target.value })}
@@ -405,7 +496,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
               const domain = (e.target.value.split('@')[1] || '').toLowerCase();
               if (domain.includes('.') && domain !== lookedUp.current) discover(e.target.value.trim());
             }}
-            placeholder="you@example.com"
+            placeholder={addressPlaceholder}
           />
         </Field>
 
@@ -450,7 +541,20 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
                   <span>Outgoing {server(found.smtp.host, found.smtp.port, security(found.smtp), found.smtp.verified)}</span>
                 </div>
               ) : null}
-              {found.note ? <div className="ml-note"><Icon name="info" size={14} />{found.note}</div> : null}
+              {found.note ? (
+                <div className="ml-note">
+                  <Icon name="info" size={14} />
+                  <span className="grow">{found.note}</span>
+                  {found.appPassword ? (
+                    <Button
+                      className="ml-app-password"
+                      label="Make an app password"
+                      title={`Make an app password for ${found.provider?.label || 'this account'} — ${found.appPassword.url}`}
+                      onClick={() => shell.shell.openExternal({ url: found.appPassword.url })}
+                    />
+                  ) : null}
+                </div>
+              ) : null}
               {found.steps?.length ? (
                 <button type="button" className="ml-steps-toggle" onClick={() => setShowSteps((s) => !s)}>
                   {showSteps ? 'Hide what was checked' : 'What was checked'}

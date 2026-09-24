@@ -2617,7 +2617,61 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,fit,sections,hidden,effects,bookmarks: those blocks alone, for working on them.
+  /**
+   * Mail: the big providers are a tile away.
+   *
+   * The Add account dialog offers a row of tiles above the address field —
+   * Gmail, Outlook, Yahoo and the rest — each filling its own servers with no
+   * network and saying what that provider wants: a browser sign-in, or an
+   * app password with a link to make one.
+   */
+  const mailProviders = async () => {
+    try {
+      const win = await open('mail');
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`Boolean([...document.querySelectorAll('button')].find((b) => /Add account/.test(b.textContent)))`), 'an Add account button', 8000);
+      await js(`[...document.querySelectorAll('button')].find((b) => /Add account/.test(b.textContent)).click(), 'clicked'`);
+      await until(() => js(`Boolean(document.querySelector('#ml-address'))`), 'the account dialog', 5000);
+
+      const tiles = await js(`(() => ({ count: document.querySelectorAll('.ml-provider').length, yahoo: Boolean(document.querySelector('.ml-provider[data-provider="yahoo"]')) }))()`);
+      check('mail: the Add account dialog offers a tile for the big providers', tiles.count >= 8 && tiles.yahoo, JSON.stringify(tiles));
+
+      await js(`document.querySelector('.ml-provider[data-provider="yahoo"]').click(), 'clicked'`);
+      await until(() => js(`Boolean(document.querySelector('.ml-provider-change'))`), 'the tiles to collapse once Yahoo is chosen', 4000);
+      await js(`[...document.querySelectorAll('.rw-btn, button')].find((b) => /^Advanced/.test(b.textContent.trim()))?.click(), 'advanced'`);
+      await until(() => js(`Boolean(document.querySelector('.ml-advanced'))`), 'the advanced fields', 3000);
+      const advanced = await js(`(() => {
+        const a = document.querySelector('.ml-advanced');
+        if (!a) return null;
+        const ports = [...a.querySelectorAll('.ml-servers3 input[type="number"]')].map((i) => i.value);
+        return { imap: a.querySelector('input[placeholder="imap.example.com"]')?.value, imapPort: ports[0], smtp: a.querySelector('input[placeholder="smtp.example.com"]')?.value, smtpPort: ports[1] };
+      })()`);
+      check('mail: choosing the Yahoo tile fills the advanced fields with no network', advanced && advanced.imap === 'imap.mail.yahoo.com' && String(advanced.imapPort) === '993' && advanced.smtp === 'smtp.mail.yahoo.com' && String(advanced.smtpPort) === '465', JSON.stringify(advanced));
+
+      const appPw = await js(`(() => { const b = document.querySelector('.ml-app-password'); return { present: Boolean(b), title: b?.title || '' }; })()`);
+      check('mail: the Yahoo tile offers a link to make an app password', appPw.present && /yahoo/i.test(appPw.title), JSON.stringify(appPw));
+
+      const placeholder = await js(`document.querySelector('#ml-address')?.placeholder || ''`);
+      check('mail: choosing a provider sets the address placeholder to its domain', /yahoo\.com$/.test(placeholder), placeholder);
+
+      await js(`document.querySelector('.ml-provider-change')?.click(), 'change'`);
+      await until(() => js(`Boolean(document.querySelector('.ml-provider[data-provider="google"]'))`), 'the tiles again', 3000);
+      await js(`document.querySelector('.ml-provider[data-provider="google"]').click(), 'clicked'`);
+      await until(() => js(`Boolean(document.querySelector('.ml-found-item'))`), 'the Google sign-in card', 4000);
+      const google = await js(`(() => {
+        const item = document.querySelector('.ml-found-item');
+        return { signIn: /Sign in with Google/.test(item?.textContent || ''), appPassword: Boolean(document.querySelector('.ml-app-password')) };
+      })()`);
+      check('mail: choosing the Gmail tile offers its sign-in card and an app-password line', google.signIn && google.appPassword, JSON.stringify(google));
+
+      const complaints = await errorsIn(win);
+      check('mail: choosing a provider tile reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('mail: the provider tiles check ran', false, err.message);
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,fit,sections,hidden,effects,bookmarks,providers: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -2647,6 +2701,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('sheetpic')) await sheetPicture();
     if (only.includes('viewer')) await viewer();
     if (only.includes('links')) await sheetLinks();
+    if (only.includes('providers')) await mailProviders();
     return done();
   }
 
@@ -4361,6 +4416,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('mail: the account dialog checks ran', false, err.message);
   }
+  await mailProviders();
 
   /* ── OpenDocument goes out as OpenDocument ───────────────────────────── */
   try {
