@@ -835,14 +835,18 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         input.dispatchEvent(new Event('change', { bubbles: true }));
         return true;
       })()`);
+      // The slider scales the page alone since 2026-09-24 — the window's
+      // own factor stays at 1 — so what is read is the page's drawn width
+      // against its own; the `zoom` block covers the ribbon and the slider.
+      const pageZoom = () => js(`(() => { const p = document.querySelector('.wd-page'); return p ? p.getBoundingClientRect().width / p.offsetWidth : 0; })()`);
       const had = await setRange(1.5);
-      const zoomed = await until(() => Math.abs(wc.getZoomFactor() - 1.5) < 0.02, 'the window to zoom', 4000).catch(() => false);
+      const zoomed = await until(async () => Math.abs((await pageZoom()) - 1.5) < 0.02, 'the page to zoom', 4000).catch(() => false);
       const pct = (await until(() => js(`document.querySelector('.rw-zoom-pct')?.textContent === '150%'`), 'the level to read 150%', 3000).catch(() => false)) ? '150%' : await js(`document.querySelector('.rw-zoom-pct')?.textContent`);
-      check('frame: the status bar\'s zoom slider zooms the window', had && zoomed === true && pct === '150%', `factor ${wc.getZoomFactor()}, level reads ${pct}`);
+      check('frame: the status bar\'s zoom slider zooms the page, and the window stays at 100%', had && zoomed === true && pct === '150%' && Math.abs(wc.getZoomFactor() - 1) < 0.001, `page ${(await pageZoom()).toFixed(2)}, window factor ${wc.getZoomFactor()}, level reads ${pct}`);
       await js(`(() => { document.querySelector('.rw-zoom-pct').click(); return 1; })()`);
-      const back = await until(() => Math.abs(wc.getZoomFactor() - 1) < 0.02, 'the window to reset', 4000).catch(() => false);
+      const back = await until(async () => Math.abs((await pageZoom()) - 1) < 0.02, 'the page to reset', 4000).catch(() => false);
       const reads100 = await until(() => js(`document.querySelector('.rw-zoom-pct')?.textContent === '100%'`), 'the level to read 100%', 3000).catch(() => false);
-      check('frame: the level button puts the zoom back to 100%', back === true && reads100 === true, `factor ${wc.getZoomFactor()}, level reads ${await js(`document.querySelector('.rw-zoom-pct')?.textContent`)}`);
+      check('frame: the level button puts the zoom back to 100%', back === true && reads100 === true, `page ${(await pageZoom()).toFixed(2)}, level reads ${await js(`document.querySelector('.rw-zoom-pct')?.textContent`)}`);
 
       // A deck's slider scales the slide; the level button fits it to the window again.
       const deck = await open('slides', files.pptx);
@@ -3061,7 +3065,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
       await press(win.webContents, 'Escape');
       const left = await until(() => js(`!document.querySelector('.pv-show')`), 'the show to close on Escape', 4000).catch(() => false);
-      const stoppedOn = await js(`document.querySelector('.pv-image')?.src || ''`);
+      // The show may have reached the clip by the time Escape lands, so its
+      // viewer counts as much as a picture's.
+      const stoppedOn = await js(`document.querySelector('.pv-image, .pv-video, .pv-audio')?.src || ''`);
       check('pictures: Escape leaves the show and selects the picture it stopped on', left === true && Boolean(stoppedOn), `left ${left}, showing ${stoppedOn.slice(-28)}`);
 
       const complaints = await errorsIn(win);
@@ -5038,7 +5044,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await wait(120);
     await pushLabel('Slide Sorter');
     await until(() => js(`document.querySelectorAll('.sl-sortergrid .sl-sortercard').length > 0`), 'the sorter', 4000).catch(() => {});
-    const sorted = await js(`({ cards: document.querySelectorAll('.sl-sortergrid .sl-sortercard').length, pics: document.querySelectorAll('.sl-sortergrid .sl-thumb-pic svg').length })`);
+    const sorted = await js(`({ cards: document.querySelectorAll('.sl-sortergrid .sl-sortercard').length, pics: document.querySelectorAll('.sl-sortergrid .sl-thumb-pic > svg').length })`);
     const count = (await deckModel()).count;
     await pushLabel('Normal');
     await until(() => js(`Boolean(document.querySelector('.sl-slide'))`), 'the normal view', 4000).catch(() => {});
