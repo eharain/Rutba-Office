@@ -549,8 +549,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         check(name, text.indexOf('Ω') === where.from, `landed at ${text.indexOf('Ω')}; the part starts at ${where.from}`);
       } else check(name, false, 'no split paragraph to type into');
 
-      // A page break inserted at the front makes one more page.
-      const before = await js(`document.querySelectorAll('.wd-sheet').length`);
+      // A page break inserted at the front makes one more page. The count is
+      // read once it has held still: the typing just above re-lays the pages,
+      // and a count read mid-pass (6 of 11, once) made the check lie.
+      let before = await js(`document.querySelectorAll('.wd-sheet').length`);
+      for (let same = 0; same < 3;) {
+        await wait(250);
+        const now = await js(`document.querySelectorAll('.wd-sheet').length`);
+        if (now === before) same += 1; else { before = now; same = 0; }
+      }
       await js(`(() => {
         const page = document.querySelector('.wd-page');
         const block = page.querySelector('[data-block="0"]');

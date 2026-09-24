@@ -79,8 +79,10 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   nothing to act on. Document comparison and Restrict Editing sit behind it.
 - **Text effects and equations.** Outline, shadow and glow arrived
   2026-09-24 from Home → Text Effects, drawn on the page and, outline and
-  shadow, in print; a glow is not printed. WordArt, drop caps, SmartArt,
-  OMML equations: read past, not written.
+  shadow, in print; a glow is not printed. Drop caps arrived the same day:
+  Insert → Drop Cap, dropped, two lines, or in margin, the letter framed
+  with `w:framePr` and laid as a float on screen and in print. WordArt,
+  SmartArt, OMML equations: read past, not written.
 - **A real watermark** (the header holds text only), multilevel list
   definitions. (Paragraph shading and borders, and the page colour, are
   written from the ribbon since 2026-09-21, and printed.)
@@ -125,7 +127,9 @@ it is where the gaps are.
 - **Data tools**: advanced filter with a criteria range, consolidate,
   flash fill, subtotals and outlining, forecast sheets. (Text to columns,
   remove duplicates and a sort by up to three keys are built, 2026-09-21.)
-- **Auditing**: evaluate step by step, the watch window, error checking.
+- **Auditing**: evaluate step by step, the watch window. Error checking
+  arrived 2026-09-24: Formulas → Error Checking opens a pane listing every
+  error cell and circular reference, with Next and Previous to walk them.
   (Trace precedents and dependents draw the dependency graph on the grid
   since 2026-09-21.)
 - **Page-break preview** and a sheet background. (The print settings live
@@ -169,9 +173,12 @@ document and workbook writers.
   another of the deck's layouts and starts a new slide from one (since
   2026-09-21 the Home tab's Layout does the same, and Reset puts moved
   placeholders back where the layout has them); editing
-  them, swapping a theme, background styles, headers and footers, slide
-  numbers and date fields all need the writer to reach the master. The
-  Layers pane of the same day gives the drawing order, hiding and naming;
+  them, swapping a theme, headers and footers, slide numbers and date
+  fields all need the writer to reach the master. Background styles
+  arrived 2026-09-24: Design → Background Styles gives a slide its own
+  `p:bg` — a solid colour, a theme colour or a gradient — with Apply to
+  all, though the master's own background is still not editable there.
+  The Layers pane of the same day gives the drawing order, hiding and naming;
   grouping and alignment across shapes are still to come.
 - **Structure**: since 2026-09-24 Home → Section adds, renames and removes
   sections, drawn as headings above their first slide in the thumbnail strip
@@ -230,8 +237,12 @@ stage keeps a picture until the next has decoded. What is still missing:
   and shrunk by Electron's own decoder, which knows PNG and JPEG, and a clip's
   frame is drawn by the window. HEIC, AVIF, TIFF and SVG tiles show the kind's
   icon there. On Windows and macOS the system knows what it has a codec for.
-- **A clip's length on its tile**, and a folder's counts before it is entered.
-- **Ratings, tags, a search across folders**, and a slideshow with transitions.
+- **A clip's length on its tile** arrived 2026-09-24, read once from the
+  clip's own metadata and kept for the window's life, as the frames are.
+- **A slideshow with transitions** arrived 2026-09-24: View → Slideshow
+  (F5) crossfades through the folder's pictures at an interval you choose.
+  A folder's counts before it is entered, ratings, tags and a search across
+  folders are still to come.
 - **Edits from the viewer** — rotate the file, not only the view — belong to
   the Image tool, which the viewer opens in one click.
 
