@@ -599,8 +599,18 @@ export function layPages(page, geo, state) {
   const splits = settle(fresh.p, state.splits || {}, seen.p);
   const tableSplits = settle(fresh.t, state.tableSplits || {}, seen.t);
 
+  // Stopping early (`pullBack` above) leaves everything past `i` unmeasured
+  // and unpushed this pass — still exactly where the last pass drew it. The
+  // count has to cover those too, or a pass that stops halfway through an
+  // eleven-page document reports six: real sheets vanishing from under real
+  // words for as long as the next pass takes to come round. An unprocessed
+  // element's own top and height, read before this pass touched anything,
+  // is where it still sits, so that stands in for its placed bottom.
   let count = n + 1;
-  for (let k = 0; k < i; k++) count = Math.max(count, Math.floor(Math.max(0, items[k].placedBottom - 1) / P) + 1);
+  for (let k = 0; k < items.length; k++) {
+    const bottom = k < i ? items[k].placedBottom : items[k].top + items[k].height;
+    count = Math.max(count, Math.floor(Math.max(0, bottom - 1) / P) + 1);
+  }
 
   return { changed: splits.changed || tableSplits.changed || notesChanged, splits: splits.map, tableSplits: tableSplits.map, notes: notesChanged ? notePages : oldNotes, count, processed: i, items };
 }
