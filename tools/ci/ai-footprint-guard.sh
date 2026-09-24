@@ -54,14 +54,14 @@ done < <(git rev-list "${BASE_SHA}..${HEAD_SHA}" 2>/dev/null || true)
 
 # Added lines from changed files, computed once for the whole range
 git diff -U0 --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" \
-  | awk '
-      /^\+\+\+ b\// { file = substr($0, 7); next }
-      /^\+/ && !/^\+\+\+ / {
-        if (file != "") {
-          print file "\t" substr($0, 2);
-        }
-      }
-    ' > "$ADDED_LINES_FILE"
+  | grep '^+' \
+  | grep -v '^+++' > "$ADDED_LINES_FILE" || true
+
+if grep -qiE "$PATTERN" "$ADDED_LINES_FILE"; then
+  record_hit "FILE_CONTENT: added lines in this change set"
+elif grep -qiE "$CURSOR_PATTERN" "$ADDED_LINES_FILE"; then
+  record_hit "FILE_CONTENT: added lines in this change set"
+fi
 
 # Changed file names (new/renamed/modified/copied)
 git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" "$HEAD_SHA" | tr '\0' '\n' > "$PATHS_FILE"
@@ -79,13 +79,6 @@ while IFS= read -r path; do
     record_hit "FILE_NAME: $path"
   fi
 
-  added_lines="$(awk -F '\t' -v p="$path" '$1 == p { sub(/^[^\t]*\t/, ""); print }' "$ADDED_LINES_FILE")"
-
-  if printf '%s' "$added_lines" | grep -qiE "$PATTERN"; then
-    record_hit "FILE_CONTENT: $path"
-  elif printf '%s' "$added_lines" | grep -qiE "$CURSOR_PATTERN"; then
-    record_hit "FILE_CONTENT: $path"
-  fi
 done < "$PATHS_FILE"
 
 if [[ -s "$HITS_FILE" ]]; then
