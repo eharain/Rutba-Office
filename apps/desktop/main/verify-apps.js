@@ -15,6 +15,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx, Deck } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
@@ -245,7 +246,7 @@ function makeFixtures(dir) {
   fs.writeFileSync(at('events.ics'), ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Rutba//checks//EN', 'X-WR-CALNAME:Checks', 'BEGIN:VEVENT', 'UID:check-1@rutba.io', `DTSTART:${stamp(day, 10)}`, `DTEND:${stamp(day, 11)}`, 'SUMMARY:Pricing review', 'LOCATION:Room 4', 'END:VEVENT', 'BEGIN:VEVENT', 'UID:check-2@rutba.io', `DTSTART;VALUE=DATE:${stamp(day, 0).slice(0, 8)}`, 'SUMMARY:Bank holiday', 'END:VEVENT', 'END:VCALENDAR', ''].join('\r\n'));
 
   // A real image: the application's own icon, which is a genuine PNG.
-  const icon = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\//, '')), '..', 'resources', 'icon.png');
+  const icon = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'resources', 'icon.png');
   if (fs.existsSync(icon)) fs.copyFileSync(icon, at('picture.png'));
 
   // Two pictures of their own, a different colour each — what the
@@ -2745,7 +2746,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
       // The first window of a new version says so, and What's new opens the
       // release's own notes, bundled with the build.
-      const bundled = JSON.parse(fs.readFileSync(path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\//, '')), '..', 'build', 'out', 'whatsnew.json'), 'utf8'));
+      const bundled = JSON.parse(fs.readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'build', 'out', 'whatsnew.json'), 'utf8'));
       const firstHeading = (/^##\s+(.+)$/m.exec(bundled.notes || '')?.[1] || '').replace(/`/g, '');
       broadcast('update:state', { ...base, state: 'current', available: null, arrived: { from: '1.12.0', to: bundled.version, at: Date.now(), seen: false } });
       const said = await until(() => js(`(() => { const p = document.querySelector('.rw-update'); return Boolean(p) && p.dataset.state === 'arrived' && p.textContent.includes('is now ${bundled.version}') && p.textContent.includes('from 1.12.0') && Boolean(p.querySelector('.rw-update-whatsnew')); })()`), 'the arrival card', 5000).catch(() => false);
