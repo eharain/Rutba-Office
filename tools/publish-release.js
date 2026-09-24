@@ -125,6 +125,9 @@ async function main() {
       method: 'POST',
       body: {
         tag_name: tag,
+        // A tag not yet pushed is made by the release itself, at the commit
+        // being released — the one a workflow checked out, or HEAD here.
+        target_commitish: process.env.GITHUB_SHA || undefined,
         name: `Rutba Office ${tag.replace(/^v/, '')}`,
         body: NOTES,
         draft: false,

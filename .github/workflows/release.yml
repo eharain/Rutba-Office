@@ -1,0 +1,37 @@
+# Builds the Windows installers on a Windows runner and publishes them as a
+# pre-release on GitHub, using the repository's own token — the same
+# tools/publish-release.js the owner runs by hand, so the release body comes
+# from docs/releases/<tag>.md and the update feed (latest.yml) and the
+# blockmap go up with the installers.
+#
+# Run it from the Actions tab (workflow_dispatch) on the branch to release;
+# the tag is v<version> from package.json, created by the release if it is
+# not there yet, at the commit the workflow ran on.
+name: release
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Engine tests
+        run: npm test
+      - name: Build the installers
+        run: npm run dist:win
+      - name: Publish the pre-release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node tools/publish-release.js
