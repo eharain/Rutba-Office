@@ -1132,9 +1132,15 @@ export class DocView {
     // The size the drop set is an override this letter never asked for on
     // its own account; clearing it puts the run back to riding the style,
     // the same honest simplification the drop's OWN size resolution makes.
-    this.doc.setParagraphRuns(dropIndex, dropBlock.runs.map((r) => ({ ...r, rPr: this.doc.setRunProp(r.rPr, 'fontSize', null) })));
+    // An rPr left empty by the clearing is no rPr at all, so the letter's
+    // run reads the same as the body's and the two join back into one run
+    // rather than leaving a one-letter run at the paragraph's head.
+    const bare = (rPr) => (rPr && /^<w:rPr\b[^>]*>\s*<\/w:rPr>$|^<w:rPr\b[^>]*\/>$/.test(rPr) ? null : rPr);
+    this.doc.setParagraphRuns(dropIndex, dropBlock.runs.map((r) => ({ ...r, rPr: bare(this.doc.setRunProp(r.rPr, 'fontSize', null)) })));
     this._invalidate();
     this.doc.mergeWithNext(dropIndex);
+    this._invalidate();
+    this.doc.setParagraphRuns(dropIndex, coalesce(this.block(dropIndex).runs));
     this._invalidate();
     this.collapseTo({ block: dropIndex, offset: 0 });
     return this;

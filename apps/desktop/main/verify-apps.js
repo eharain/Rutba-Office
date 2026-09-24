@@ -1052,7 +1052,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
         const r = document.createRange(); r.selectNodeContents(b); r.collapse(true);
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
-        document.dispatchEvent(new Event('selectionchange'));
+        // The window learns the caret on mouseup, as a click gives it.
+        document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
         return 1;
       })()`);
       await wait(300);
@@ -1257,7 +1258,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
         const r = document.createRange(); r.selectNodeContents(b); r.collapse(true);
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
-        document.dispatchEvent(new Event('selectionchange'));
+        // The window learns the caret on mouseup, as a click gives it.
+        document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
         return 1;
       })()`);
       await wait(300);
@@ -1306,7 +1308,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         r.selectNodeContents(body);
         const rects = [...r.getClientRects()];
         const bodyLeft = rects.length ? rects[0].left : null;
-        return { float: cs.float, fontSize: parseFloat(cs.fontSize), bodyLeft, dropRight: drop.getBoundingClientRect().right };
+        // The size is on the letter's run, not the paragraph's box.
+        const letter = drop.querySelector('span') || drop;
+        return { float: cs.float, fontSize: parseFloat(getComputedStyle(letter).fontSize), bodyLeft, dropRight: drop.getBoundingClientRect().right };
       })()`);
       const painted = await paint();
       check('word: the drop cap floats left of the page at a size past an ordinary letter, and the body starts clear of it',
@@ -1338,6 +1342,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         5000
       ).catch(() => false);
       check('word: Drop Cap → None merges the letter back into its paragraph, the words unchanged', merged === true, JSON.stringify((model().blocks[1] || {}).text));
+      // Saved again, so the fixture the later blocks open is the one they expect.
+      await clickRibbon('Save');
+      await until(() => { try { return !/<w:framePr/.test(openDocx(fs.readFileSync(files.docx)).doc.doc.xml); } catch { return false; } }, 'the frame gone from the file', 8000).catch(() => {});
 
       const complaints = await errorsIn(win);
       check('word: the drop cap checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
@@ -1365,7 +1372,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
         const r = document.createRange(); r.selectNodeContents(b); r.collapse(true);
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
-        document.dispatchEvent(new Event('selectionchange'));
+        // The window learns the caret on mouseup, as a click gives it.
+        document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
         return 1;
       })()`);
       await wait(300);
@@ -1470,12 +1478,18 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`(() => {
         const b = document.querySelector('.wd-page [data-block="1"]');
         b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
-        const text = b.querySelector('span')?.firstChild || b.firstChild;
+        // The first three characters, whatever runs they fall in: a paragraph
+        // an earlier block merged back can start with a one-letter run.
+        const walker = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
+        const first = walker.nextNode();
+        let node = first; let left = 3;
+        while (node && node.nodeValue.length < left) { left -= node.nodeValue.length; node = walker.nextNode(); }
         const r = document.createRange();
-        r.setStart(text, 0);
-        r.setEnd(text, 3);
+        r.setStart(first, 0);
+        r.setEnd(node || first, node ? left : first.nodeValue.length);
         const s = getSelection(); s.removeAllRanges(); s.addRange(r);
-        document.dispatchEvent(new Event('selectionchange'));
+        // The window learns the caret on mouseup, as a click gives it.
+        document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
         return 1;
       })()`);
       await wait(300);
@@ -1796,14 +1810,20 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         started === 'clicked' && bar1.startsWith('1 / ') && bar2.startsWith(`${expectAfterRight + 1} / `),
         `${started}; bar ${JSON.stringify(bar1)} → ${JSON.stringify(bar2)}; expected slide ${expectAfterRight + 1}`);
 
-      // Hide Slide pressed again shows the slide.
+      // Hide Slide pressed again shows the slide — on the second slide, which
+      // the show left: it opened on the first shown slide and stayed there.
+      await js(`(() => { document.querySelectorAll('.sl-thumb')[1]?.click(); return 1; })()`);
+      await until(() => js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('active')`), 'the second slide again', 4000).catch(() => {});
+      await wait(200);
       const shownAgain = await clickRibbon('Hide Slide');
-      const unhidden = await until(() => model(1).slide.hidden === false, 'the slide shown again', 5000).catch(() => false);
-      await wait(150);
+      const unhidden = await until(() => model(1).outline?.[1]?.hidden === false && model(1).slide.hidden === false, 'the slide shown again', 5000).catch(() => false);
+      await until(() => js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('hidden') === false`), 'the strip to show it again', 4000).catch(() => {});
       const thumbShown = await js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('hidden')`);
+      const stripState = await js(`[...document.querySelectorAll('.sl-thumb')].map((t) => t.className)`);
+      const outlineState = model(1).outline?.map((o) => o.hidden);
       check('slides: Hide Slide pressed again shows the slide, in the model and the strip',
         shownAgain === 'clicked' && unhidden === true && thumbShown === false,
-        `${shownAgain}; hidden ${unhidden}; thumb class ${thumbShown}`);
+        `${shownAgain}; hidden ${unhidden}; thumb class ${thumbShown}; strip ${JSON.stringify(stripState)}; outline ${JSON.stringify(outlineState)}`);
 
       const complaints = await errorsIn(win);
       check('slides: the hide-slide checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
@@ -2573,6 +2593,66 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifyViewer({ open, check, until, wait, errorsIn, capture }, { dir, wav: files.wav });
   };
 
+  /* ── Pictures: a clip's length on its tile, and the slideshow ────────── */
+  const slideshow = async () => {
+    const clickIn = async (win, title) => {
+      const find = `[...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || n.textContent || '').trim().startsWith(${JSON.stringify(title)}) && !n.disabled)`;
+      await until(() => win.webContents.executeJavaScript(`Boolean(${find})`), `the ${title} button`, 3000).catch(() => {});
+      return win.webContents.executeJavaScript(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(title)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked'; })()`);
+    };
+    try {
+      // The folder itself, so the picture is browsed rather than opened —
+      // the ribbon is never collapsed there, which the slideshow's own
+      // controls need to be reachable.
+      const win = await open('pictures', dir);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`document.querySelectorAll('.pv-tile').length >= 3`), 'the folder’s tiles (two pictures, one clip)', 6000);
+
+      const badgeShown = await until(
+        () => js(`/^\\d+:\\d{2}$/.test(document.querySelector('.pv-tile[data-name="tone.wav"] .pv-length')?.textContent || '')`),
+        'the clip’s length badge',
+        8000
+      ).catch(() => false);
+      const badge = await js(`document.querySelector('.pv-tile[data-name="tone.wav"] .pv-length')?.textContent || ''`);
+      check('pictures: a clip’s length is on its tile, as m:ss', badgeShown === true, `badge "${badge}"`);
+
+      // The View tab, where Fit/100% and the slideshow live; 2 seconds
+      // chosen before the show starts, so the interval check does not wait
+      // out the four-second default.
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'View')?.click()`);
+      await until(() => js(`Boolean(document.querySelector('select[data-role="show-seconds"]'))`), 'the slideshow’s seconds menu', 4000);
+      await js(`(() => { const s = document.querySelector('select[data-role="show-seconds"]'); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(s, '2'); s.dispatchEvent(new Event('change', { bubbles: true })); })()`);
+
+      const shownSrc = `(document.querySelector('.pv-show-layer.on')?.src || document.querySelector('.pv-show-media')?.src || '')`;
+      await clickIn(win, 'Slideshow');
+      await until(() => js(`Boolean(document.querySelector('.pv-show')) && ${shownSrc}.length > 0`), 'the show to open, on the first picture', 4000);
+      const first = await js(shownSrc);
+      check('pictures: the slideshow opens full-window, on the first picture', Boolean(first), first ? first.slice(-28) : 'nothing shown');
+
+      const movedOn = await until(
+        () => js(`${shownSrc} !== ${JSON.stringify(first)} && ${shownSrc}.length > 0`),
+        'the show to move on past its interval',
+        6000
+      ).catch(() => false);
+      const second = movedOn ? await js(shownSrc) : first;
+      check('pictures: it advances to the next picture once its interval has passed', movedOn === true, `${first.slice(-28)} → ${movedOn ? second.slice(-28) : '(unchanged)'}`);
+
+      await press(win.webContents, 'Space');
+      const paused = await until(() => js(`Boolean(document.querySelector('.pv-show-chip'))`), 'the Paused chip', 3000).catch(() => false);
+      check('pictures: Space pauses the show, with a chip that says so', paused === true, `paused chip shown: ${paused}`);
+
+      await press(win.webContents, 'Escape');
+      const left = await until(() => js(`!document.querySelector('.pv-show')`), 'the show to close on Escape', 4000).catch(() => false);
+      const stoppedOn = await js(`document.querySelector('.pv-image')?.src || ''`);
+      check('pictures: Escape leaves the show and selects the picture it stopped on', left === true && Boolean(stoppedOn), `left ${left}, showing ${stoppedOn.slice(-28)}`);
+
+      const complaints = await errorsIn(win);
+      check('pictures: the slideshow and the length badge report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('pictures: the slideshow checks ran', false, err.message);
+    }
+  };
+
   /* ── Worksheets: a note, a link, and a link put on a cell ────────────── */
   const sheetLinks = async () => {
     const capture = async (win, name) => {
@@ -2922,7 +3002,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       })()`);
       check('mail: choosing the Yahoo tile fills the advanced fields with no network', advanced && advanced.imap === 'imap.mail.yahoo.com' && String(advanced.imapPort) === '993' && advanced.smtp === 'smtp.mail.yahoo.com' && String(advanced.smtpPort) === '465', JSON.stringify(advanced));
 
-      const appPw = await js(`(() => { const b = document.querySelector('.ml-app-password'); return { present: Boolean(b), title: b?.title || '' }; })()`);
+      const appPw = await js(`(() => { const b = document.querySelector('.ml-app-password'); return { present: Boolean(b), title: b?.title || b?.dataset.tip || '' }; })()`);
       check('mail: the Yahoo tile offers a link to make an app password', appPw.present && /yahoo/i.test(appPw.title), JSON.stringify(appPw));
 
       const placeholder = await js(`document.querySelector('#ml-address')?.placeholder || ''`);

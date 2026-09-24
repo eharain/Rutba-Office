@@ -712,6 +712,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       // The bands too: a header, footer or watermark edit changes no block,
       // and without this the window kept the bands it opened with.
       bands: safely(() => view.doc?.headerFooters?.()),
+      // And the bookmarks: adding one changes no block's text, and the
+      // dialog lists them from the model it holds.
+      bookmarks: frame.bookmarks,
       canUndo: view.canUndo,
       canRedo: view.canRedo,
     };
