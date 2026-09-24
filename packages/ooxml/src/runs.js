@@ -122,8 +122,20 @@ function runFromInner(inner, link = null) {
     underline: hasToggle(rPr, 'u'),
     // `w:strike` never matches `w:dstrike` — the regex wants the exact tag.
     strike: hasToggle(rPr, 'strike'),
+    // An explicit size, in points, when the run sets its own rather than
+    // riding its style's — a drop cap's letter always does. Undefined
+    // (never null) when the run sets none, so a spread onto a run record
+    // never plants the key.
+    ...(sizeOf(rPr) !== undefined ? { fontSize: sizeOf(rPr) } : {}),
     ...(link !== null ? { link } : {}),
   };
+}
+
+/** A run's own explicit size, in points, off `<w:sz>` — undefined when it sets none. */
+function sizeOf(rPr) {
+  if (!rPr) return undefined;
+  const m = /<w:sz\b[^>]*\bw:val="(\d+)"/.exec(rPr);
+  return m ? Number(m[1]) / 2 : undefined;
 }
 
 /** Every text run in a fragment, flat — the pre-hyperlink behaviour. */

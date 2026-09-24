@@ -2032,6 +2032,12 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
     if (hasTabs && ref.current) scheduleTabs(ref.current, tabStops(block, styles));
   });
   const style = paragraphCss(block, styles);
+  // A drop cap's own paragraph floats beside the words that follow it — the
+  // CSS class gives it its float and its close line-height, but the space
+  // the engine put above and below the ORIGINAL paragraph would otherwise
+  // land here too and push the body down a line for nothing, so it is
+  // cleared for this half; the body paragraph keeps its own.
+  if (block.dropCap) { style.marginTop = 0; style.marginBottom = 0; }
 
   // A list marker arrives as `{ label, indentPx, bullet }` — the text to draw,
   // how far in it sits, and whether it is a bullet or a number. Drawing the
@@ -2070,7 +2076,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
   return (
     <p
       ref={ref}
-      className="wd-block"
+      className={`wd-block${block.dropCap ? ' wd-dropcap' : ''}${block.dropCap?.kind === 'margin' ? ' wd-dropcap-margin' : ''}`}
       data-block={block.index}
       data-style={block.style || 'Normal'}
       data-from={from > 0 ? from : undefined}
@@ -2163,6 +2169,13 @@ const CSS = `
 /* pre-wrap: a run of spaces, a line break inside a paragraph (w:br) and a tab
    all mean what they meant in Word, instead of collapsing to one space. */
 .wd-block { margin: 0 0 0.55em; min-height: 1.2em; white-space: pre-wrap; }
+/* A drop cap's letter: its own tiny paragraph, floated so the body
+   paragraph after it wraps round it exactly as the browser wraps text
+   round any float. "In margin" then paints it shifted fully out of that
+   reserved space by its own rendered width — a transform costs no layout
+   pass, unlike measuring the glyph to write a pixel margin. */
+.wd-block.wd-dropcap { float: left; margin: 0 6px 0 0; padding: 0; line-height: 0.8; }
+.wd-block.wd-dropcap-margin { transform: translateX(-100%); }
 .wd-tab { display: inline-block; white-space: pre; tab-size: 0; overflow: hidden; vertical-align: baseline; min-width: 2px; }
 .wd-tab[data-leader="dot"] { background: radial-gradient(circle, currentColor 0.6px, transparent 0.9px) 0 calc(100% - 3px) / 4px 2px repeat-x; }
 .wd-tab[data-leader="hyphen"] { background: linear-gradient(currentColor, currentColor) 0 calc(100% - 3px) / 3px 1px repeat-x; }

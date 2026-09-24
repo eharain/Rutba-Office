@@ -1237,6 +1237,115 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Word: drop cap — Insert → Drop Cap frames the first letter ──────── */
+  //
+  // Word's own trick: the paragraph's first letter becomes its own paragraph,
+  // framed (`w:framePr`) to stand three lines tall and sized to match, the
+  // body paragraph flowing round it; None merges the letter back in. Run
+  // alone with RUTBA_VERIFY_ONLY=dropcap.
+  const wordDropCap = async () => {
+    try {
+      const win = await open('word', files.docx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const session = sessionFor('doc');
+      const model = () => doc.model({ id: session.id });
+
+      await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="1"]'))`), 'the second paragraph', 8000);
+      // The caret into the second paragraph, the way wordBookmarks puts it there.
+      await js(`(() => {
+        const b = document.querySelector('.wd-page [data-block="1"]');
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+        const r = document.createRange(); r.selectNodeContents(b); r.collapse(true);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        document.dispatchEvent(new Event('selectionchange'));
+        return 1;
+      })()`);
+      await wait(300);
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await wait(200);
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const pick = async (button, label) => {
+        const clicked = await clickRibbon(button);
+        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${button} menu`, 3000).catch(() => {});
+        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click(); return 1; })()`);
+        return clicked;
+      };
+      const original = (model().blocks[1] || {}).text || '';
+
+      const droppedClicked = await pick('Drop Cap', 'Dropped');
+      const inModel = await until(
+        () => {
+          const b = model().blocks;
+          const d = b.findIndex((x) => x.dropCap?.lines === 3);
+          return d >= 0 && b[d].text.length === 1 && b[d + 1]?.text === original.slice(1);
+        },
+        'the drop cap split in the model',
+        5000
+      ).catch(() => false);
+      const blocksNow = model().blocks;
+      const dropIndex = blocksNow.findIndex((b) => b.dropCap?.lines === 3);
+      check('word: Insert → Drop Cap splits the first letter into its own three-line paragraph, the rest staying put',
+        droppedClicked === 'clicked' && inModel === true,
+        `${droppedClicked}; ${JSON.stringify(blocksNow.slice(0, 4).map((b) => [b.dropCap || null, (b.text || '').slice(0, 12)]))}`);
+
+      // The page: the letter's own block floats left, well past a normal
+      // letter's size, and the body's first line starts clear of it.
+      await wait(300);
+      const paint = () => js(`(() => {
+        const drop = document.querySelector('.wd-dropcap');
+        const body = document.querySelector('.wd-page [data-block="${dropIndex + 1}"]');
+        if (!drop || !body) return null;
+        const cs = getComputedStyle(drop);
+        const r = document.createRange();
+        r.selectNodeContents(body);
+        const rects = [...r.getClientRects()];
+        const bodyLeft = rects.length ? rects[0].left : null;
+        return { float: cs.float, fontSize: parseFloat(cs.fontSize), bodyLeft, dropRight: drop.getBoundingClientRect().right };
+      })()`);
+      const painted = await paint();
+      check('word: the drop cap floats left of the page at a size past an ordinary letter, and the body starts clear of it',
+        painted?.float === 'left' && painted?.fontSize > 30 && painted?.bodyLeft != null && painted.bodyLeft >= painted.dropRight - 1,
+        JSON.stringify(painted));
+
+      await wait(300);
+      await clickRibbon('Save');
+      const dropParagraph = () => {
+        try {
+          return openDocx(fs.readFileSync(files.docx)).doc.doc.editParagraph(dropIndex);
+        } catch {
+          return null;
+        }
+      };
+      await until(() => /w:framePr/.test(dropParagraph()?.pPr || ''), 'the frame to land in the file', 8000).catch(() => false);
+      const dropSaved = dropParagraph();
+      const pPr = dropSaved?.pPr || '';
+      check('word: the saved file frames the letter\'s paragraph exactly as Word does, its run sized',
+        /<w:framePr w:dropCap="drop" w:lines="3" w:wrap="around" w:vAnchor="text" w:hAnchor="text"\/>/.test(pPr) && /<w:sz w:val="\d+"\/>/.test(dropSaved?.xml || ''),
+        `${pPr.slice(0, 200)}`);
+
+      // None: the letter merges back into the body, the original words whole again.
+      await wait(300);
+      await pick('Drop Cap', 'None');
+      const merged = await until(
+        () => (model().blocks[1] || {}).text === original,
+        'the paragraph merged back',
+        5000
+      ).catch(() => false);
+      check('word: Drop Cap → None merges the letter back into its paragraph, the words unchanged', merged === true, JSON.stringify((model().blocks[1] || {}).text));
+
+      const complaints = await errorsIn(win);
+      check('word: the drop cap checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('word: the drop cap checks ran', false, err.message);
+    }
+  };
+
   /* ── Word: bookmarks — Insert → Bookmark names a span of paragraphs ──── */
   //
   // Word's older, position-based anchor: a name on a paragraph (or a run of
@@ -2689,6 +2798,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('look')) await wordLook();
+    if (only.includes('dropcap')) await wordDropCap();
     if (only.includes('bookmarks')) await wordBookmarks();
     if (only.includes('effects')) await wordEffects();
     if (only.includes('ruler')) await wordRuler();
@@ -2797,6 +2907,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await sheetFill();
   await wordPictures();
   await wordLook();
+  await wordDropCap();
   await wordBookmarks();
   await wordEffects();
   await wordPictureFits();

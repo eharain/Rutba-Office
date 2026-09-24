@@ -948,6 +948,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setImageLayout: (v, a) => v.setImageLayout(a),
     setImageSize: (v, a) => v.setImageSize(a),
     insertPageBreak: (v) => v.insertPageBreak(),
+    // Insert → Drop Cap: the ribbon's spec, or null to take one off.
+    setDropCap: (v, a) => v.setDropCap(a.spec ?? null),
     insertChart: (v, a) => v.insertChart(a),
     insertShape: (v, a) => v.insertShape(a),
     replaceAll: (v, a) => v.replaceAll(a.find, a.replace, { matchCase: a.matchCase }),

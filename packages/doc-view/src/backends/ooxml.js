@@ -148,6 +148,8 @@ export class OoxmlBackend {
    *   prop 'spaceBeforePts' value points of space above, null clears
    *   prop 'spaceAfterPts'  value points of space below, null clears
    *   prop 'pageBreakBefore' true starts the paragraph on a fresh page, falsy clears
+   *   prop 'dropCap'         { kind: 'drop'|'margin', lines } frames the paragraph
+   *                         as a drop cap's letter; null clears the frame
    *   prop 'leftTwips'      an explicit left indent, zero included; null clears
    *   prop 'firstLineTwips' a first-line indent (clears a hanging one); null clears
    *   prop 'hangingTwips'   a hanging indent (clears a first-line one); null clears
@@ -567,8 +569,17 @@ function readParagraphProps(pPr) {
     align: null, indentTwips: null, style: null,
     lineSpacing: null, spaceBeforePts: null, spaceAfterPts: null,
     firstLineTwips: null, hangingTwips: null, rightTwips: null, tabs: null,
+    dropCap: null,
   };
   if (!pPr) return out;
+  const framePr = /<w:framePr\b([^>]*)\/?>/.exec(pPr);
+  if (framePr) {
+    const kind = /\bw:dropCap="([^"]*)"/.exec(framePr[1])?.[1];
+    if (kind === 'drop' || kind === 'margin') {
+      const lines = /\bw:lines="(\d+)"/.exec(framePr[1]);
+      out.dropCap = { kind, lines: lines ? Number(lines[1]) : 3 };
+    }
+  }
   const pStyle = /<w:pStyle\b[^>]*\bw:val="([^"]*)"/.exec(pPr);
   if (pStyle) out.style = unesc(pStyle[1]);
   const jc = /<w:jc\b[^>]*\bw:val="([^"]*)"/.exec(pPr);
@@ -840,6 +851,24 @@ function withPageBreakBefore(pPr, on) {
   return joinPPr(open, insertOrdered(without, 'pageBreakBefore', '<w:pageBreakBefore/>'), close);
 }
 
+/**
+ * Set or clear a drop cap: `<w:framePr w:dropCap="drop|margin" w:lines="N"
+ * w:wrap="around" w:vAnchor="text" w:hAnchor="text"/>`. This is the only
+ * shape of `framePr` the editor writes — a pull-quote frame is Word's own
+ * business and never lands here — so a set always writes the whole element
+ * rather than patching one attribute at a time. `null` removes it.
+ */
+function withFramePr(pPr, spec) {
+  const { open, inner, close } = splitPPr(pPr);
+  const existing = pPrChildren(inner).find((c) => c.tag === 'framePr');
+  const without = existing ? inner.slice(0, existing.start) + inner.slice(existing.end) : inner;
+  if (!spec) return joinPPr(open, without, close);
+  const kind = spec.kind === 'margin' ? 'margin' : 'drop';
+  const lines = Math.max(1, Math.round(Number(spec.lines) || 3));
+  const element = '<w:framePr w:dropCap="' + kind + '" w:lines="' + lines + '" w:wrap="around" w:vAnchor="text" w:hAnchor="text"/>';
+  return joinPPr(open, insertOrdered(without, 'framePr', element), close);
+}
+
 /** Paragraph shading: `<w:shd w:val="clear" w:color="auto" w:fill="RRGGBB"/>`; null takes it off. */
 function withShd(pPr, colour) {
   const { open, inner, close } = splitPPr(pPr);
@@ -907,6 +936,9 @@ function withParagraphProp(pPr, prop, value) {
   }
   if (prop === 'pageBreakBefore') {
     return withPageBreakBefore(pPr, Boolean(value));
+  }
+  if (prop === 'dropCap') {
+    return withFramePr(pPr, value ? { kind: value.kind, lines: value.lines } : null);
   }
   // The ruler's four indents and its tab stops, absolute rather than stepped.
   if (prop === 'leftTwips') {

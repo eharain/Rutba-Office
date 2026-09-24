@@ -416,6 +416,18 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
         drawImage(page, doc, fr.image, xPx + Math.max(0, dx), m.top + fr.topPx);
         continue;
       }
+      if (fr.kind === 'dropcap') {
+        // A drop cap's letter, standing beside the words the same way a
+        // floating picture does — one glyph, drawn once, its baseline set
+        // so its bottom lines up with the bottom of the last line it
+        // stands as tall as. "In margin" hangs it left of the column
+        // instead of taking room from it.
+        const s = styleOfRun((fr.runs || [])[0] || {}, fr);
+        const x = (xPx + (fr.indentPx || 0) + (fr.inMargin ? -fr.widthPx : 0)) * PT;
+        const baseline = (m.top + fr.topPx + fr.heightPx - fr.sizePx * 0.22) * PT;
+        page.text(fr.text, x, baseline, { font: s.font, size: s.size, colour: s.colour });
+        continue;
+      }
       if (fr.kind === 'textbox') {
         drawTextBox(page, doc, fr, { xPx, yPx: y, widthPx });
         y += fr.heightPx + IMAGE_GAP;

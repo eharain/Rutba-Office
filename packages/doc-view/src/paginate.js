@@ -346,7 +346,9 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     return { n: note.n, id: note.id, paragraphs, heightPx: heightOf(paragraphs) + 2 };
   };
 
-  for (const entry of flow ?? []) {
+  const flowList = flow ?? [];
+  for (let flowIdx = 0; flowIdx < flowList.length; flowIdx++) {
+    const entry = flowList[flowIdx];
     if (pages.length > maxPages) break;
 
     if (entry.kind === 'table') {
@@ -373,6 +375,42 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     // Direct paragraph spacing beats the style's, exactly as Word resolves it.
     let spaceBefore = block.spacing?.beforePx ?? blockStyle.spaceBefore;
     const spaceAfter = block.spacing?.afterPx ?? blockStyle.spaceAfter;
+
+    // A drop cap — Word's own trick, the first letter split into its own
+    // paragraph and framed to stand `lines` deep — is never laid out as a
+    // paragraph of its own: it floats beside the words that follow it,
+    // exactly as a floating picture does, and the paragraph after it lays
+    // out round it via the same `floats`/`layoutAround` machinery. A drop
+    // cap with nothing after it (the last paragraph in the flow) has no
+    // words to stand beside, so it falls through and prints as its one
+    // short ordinary line.
+    const nextEntry = flowList[flowIdx + 1];
+    const nextBlock = nextEntry && nextEntry.kind !== 'table' ? byIndex.get(nextEntry.paragraphIndex) : null;
+    if (block.dropCap && nextBlock) {
+      const run0 = (block.runs || [])[0] ?? {};
+      const bold = Boolean(run0.bold) || blockStyle.weight === 'bold';
+      const weight = bold ? 'bold' : 'normal';
+      const sizePx = run0.fontSize ? Number(run0.fontSize) * (96 / 72) : blockStyle.sizePx;
+      const text = block.text ?? '';
+      const widthPx = measureText(text, { size: sizePx, weight });
+      const { lineHeightPx: nextLineHeightPx } = layoutParagraph(nextBlock, width, { cache, styles });
+      const heightPx = block.dropCap.lines * nextLineHeightPx;
+      if (heightPx + spaceBefore > remaining() && current.fragments.length) { newPage(); spaceBefore = 0; }
+      const topPx = used + spaceBefore;
+      // "In margin" hangs the letter in the left margin rather than taking
+      // room from the column — Word's own second style — but only when the
+      // margin actually has the room; a narrow margin falls back to standing
+      // in the column like an ordinary drop, the honest simplification.
+      const inMargin = block.dropCap.kind === 'margin' && section.margins.left >= widthPx;
+      const insetPx = inMargin ? 6 : widthPx + 6;
+      current.floats.push({ side: 'left', topPx, bottomPx: topPx + heightPx, insetPx });
+      place({
+        kind: 'dropcap', paragraphIndex: block.index, topPx, widthPx, heightPx, sizePx, weight, text,
+        runs: block.runs, style: blockStyle, indentPx: (blockStyle.indent ?? 0) + (block.indentPx ?? 0),
+        ...(inMargin ? { inMargin: true } : {}),
+      }, 0);
+      continue;
+    }
 
     // A picture anchored to this paragraph that floats at the left or the
     // right stands beside the words, as it does on screen: it is placed at

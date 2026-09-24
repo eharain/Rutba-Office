@@ -931,6 +931,9 @@ export class DocView {
     base.lineSpacing = null;
     base.spaceBefore = null;
     base.spaceAfter = null;
+    // Whether the caret sits in a drop cap's letter or its body — { kind,
+    // lines } or null — for the ribbon's Drop Cap menu to tick.
+    base.dropCap = null;
     if (b && typeof this.doc.getParagraphProps === 'function') {
       const pp = this.doc.getParagraphProps(block);
       if (pp) {
@@ -942,6 +945,10 @@ export class DocView {
         base.lineSpacing = pp.lineSpacing ?? null;
         base.spaceBefore = pp.spaceBeforePts ?? null;
         base.spaceAfter = pp.spaceAfterPts ?? null;
+        // A drop cap's own paragraph carries it; the caret usually lands in
+        // the BODY straight after setting one, so the ribbon checks the
+        // pair's spec there too rather than only on the letter's paragraph.
+        base.dropCap = pp.dropCap ?? (block > 0 ? this.doc.getParagraphProps(block - 1)?.dropCap ?? null : null);
       }
     }
     if (this.pendingFormat) {
@@ -1045,6 +1052,92 @@ export class DocView {
       this._invalidate();
       return this;
     });
+  }
+
+  /**
+   * A drop cap — Insert → Drop Cap. Word's own trick: the first letter
+   * becomes its own paragraph, framed (`framePr`) to stand `lines` lines
+   * deep, its run sized to match; the paragraph after it is the body,
+   * unchanged. `{ lines = 3, kind = 'drop' | 'margin' }` sets one, on the
+   * caret's paragraph — or, when the caret already sits in a drop cap's
+   * letter or its body, on that existing pair, so picking a different
+   * style restyles it rather than nesting a second split inside the first.
+   * `null` clears it, merging the letter back into its paragraph.
+   */
+  setDropCap(spec) {
+    if (typeof this.doc.setParagraphProp !== 'function') {
+      throw new Error('this document backend does not support drop caps');
+    }
+    return this._edit('drop cap', null, () => (spec ? this._setDropCap(spec) : this._clearDropCap()));
+  }
+
+  /** The drop-cap pair a block belongs to — its own, or the one it is the body of. */
+  _dropCapPairAt(block) {
+    const b = this.block(block);
+    if (b?.dropCap) return { dropIndex: block, bodyIndex: block + 1 };
+    const prev = block > 0 ? this.block(block - 1) : null;
+    if (prev?.dropCap) return { dropIndex: block - 1, bodyIndex: block };
+    return null;
+  }
+
+  _setDropCap({ lines = 3, kind = 'drop' } = {}) {
+    const { block } = this.focus;
+    const pair = this._dropCapPairAt(block);
+    let dropIndex;
+    if (pair) {
+      dropIndex = pair.dropIndex;
+    } else {
+      const b = this.block(block);
+      // The same refusal for every reason the caret cannot start one here —
+      // an empty paragraph, one that opens with a picture (no text at all,
+      // the same shape), a table cell, or a structural paragraph. One
+      // sentence rather than four keeps the control's excuse honest without
+      // making the person read a taxonomy of docx paragraph kinds.
+      const text = b && !b.structural && b.container == null ? (b.text ?? '') : '';
+      const firstLetter = /\S/.exec(text);
+      if (!firstLetter) throw new Error('Put the caret in a paragraph that starts with a letter');
+      const runs = b.runs.length ? b.runs : [{ rPr: null, text: '' }];
+      const { runIndex, runOffset } = locate(runs, firstLetter.index + 1, 'left');
+      this.doc.splitParagraph(block, runIndex, runOffset);
+      this._invalidate();
+      dropIndex = block;
+    }
+
+    const dropBlock = this._editable(dropIndex);
+    // The letter's size: its own run's, the paragraph style's resolved size,
+    // or 11pt — the same resolution `formatAtCaret` gives the toolbar, so a
+    // drop cap looks proportioned to text that had no explicit size at all.
+    const run0 = dropBlock.runs[0] ?? { rPr: null };
+    let base = typeof this.doc.readRunProps === 'function' ? this.doc.readRunProps(run0.rPr).fontSize : null;
+    if (base == null) {
+      const resolved = this.docStyles?.[dropBlock.style || 'Normal'] ?? this.docStyles?.['*default*'];
+      if (resolved?.sizePx) base = resolved.sizePx * 72 / 96;
+    }
+    if (base == null) base = 11;
+    const fontSize = Math.round(lines * base * 1.15 * 2) / 2;
+
+    this.doc.setParagraphProp(dropIndex, 'dropCap', { kind, lines });
+    this.doc.setParagraphRuns(dropIndex, dropBlock.runs.map((r) => ({ ...r, rPr: this.doc.setRunProp(r.rPr, 'fontSize', fontSize) })));
+    this._invalidate();
+    this.collapseTo({ block: dropIndex + 1, offset: 0 });
+    return this;
+  }
+
+  _clearDropCap() {
+    const pair = this._dropCapPairAt(this.focus.block);
+    if (!pair) return this;
+    const { dropIndex } = pair;
+    const dropBlock = this._editable(dropIndex);
+    this.doc.setParagraphProp(dropIndex, 'dropCap', null);
+    // The size the drop set is an override this letter never asked for on
+    // its own account; clearing it puts the run back to riding the style,
+    // the same honest simplification the drop's OWN size resolution makes.
+    this.doc.setParagraphRuns(dropIndex, dropBlock.runs.map((r) => ({ ...r, rPr: this.doc.setRunProp(r.rPr, 'fontSize', null) })));
+    this._invalidate();
+    this.doc.mergeWithNext(dropIndex);
+    this._invalidate();
+    this.collapseTo({ block: dropIndex, offset: 0 });
+    return this;
   }
 
   /**
@@ -1873,6 +1966,7 @@ export class DocView {
         ...(b.pageBreakBefore ? { pageBreakBefore: true } : {}),
         ...(b.keepNext ? { keepNext: true } : {}),
         ...(b.keepLines ? { keepLines: true } : {}),
+        ...(b.dropCap ? { dropCap: b.dropCap } : {}),
         ...(b.inSdt ? { inSdt: true } : {}),
         // Text boxes anchored here, their paragraphs shaped like blocks so the
         // painter draws them with the same code — read-only, no index.

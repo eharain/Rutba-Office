@@ -112,6 +112,24 @@ const KEEP_NEXT = /<w:keepNext\b(?![^>]*w:val="(?:0|false)")/;
 const KEEP_LINES = /<w:keepLines\b(?![^>]*w:val="(?:0|false)")/;
 
 /**
+ * A drop cap, off `<w:framePr>`. Word makes one by splitting the initial
+ * letter into its own paragraph and framing it — `w:dropCap="drop"` (the
+ * letter sits in the column) or `"margin"` (it hangs in the margin) — with
+ * `w:lines` saying how many lines deep it stands. Any other framePr (a pull
+ * quote frame, say) reads back as no drop cap; this file only ever WRITES
+ * the drop-cap shape, so that is the only shape it needs to recognise.
+ */
+const FRAME_PR = /<w:framePr\b([^>]*)\/?>/;
+function readDropCap(pPr) {
+  const m = FRAME_PR.exec(pPr || '');
+  if (!m) return null;
+  const kind = /\bw:dropCap="([^"]*)"/.exec(m[1])?.[1];
+  if (kind !== 'drop' && kind !== 'margin') return null;
+  const lines = /\bw:lines="(\d+)"/.exec(m[1]);
+  return { kind, lines: lines ? Number(lines[1]) : 3 };
+}
+
+/**
  * A paragraph's own `<w:spacing>` — the DIRECT formatting, distinct from the
  * spacing its style resolves (docstyles reads that). Neutral units on the way
  * out: pixels for the gaps, a multiplier for `lineRule="auto"` (240 twentieths
@@ -2277,6 +2295,10 @@ export class Document {
       pageBreakBefore: PAGE_BREAK_BEFORE.test(pPr ? pPr[0] : '') || EXPLICIT_BREAK.test(p.xml),
       keepNext: KEEP_NEXT.test(pPr ? pPr[0] : ''),
       keepLines: KEEP_LINES.test(pPr ? pPr[0] : ''),
+      // A drop cap rides the same way — a paragraph property the paginator
+      // and the painter both read straight off the block, not something
+      // they have to ask the format layer for.
+      dropCap: readDropCap(pPr ? pPr[0] : ''),
       // Direct paragraph spacing, if the paragraph sets any — the paginator
       // lets it beat the style's spacing, exactly as Word does.
       spacing: readDirectSpacing(pPr ? pPr[0] : ''),

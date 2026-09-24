@@ -292,7 +292,12 @@ export default function WordRibbon({
             <Soon tall icon="textbox" label="Text Box" why="A text box is a floating shape with text; the engine draws shapes but does not lay out text in them yet." />
             <Soon icon="file" label="Quick Parts" why="Building blocks need the glossary part, which the engine does not write." />
             <Soon icon="wand" label="WordArt" why="WordArt is DrawingML text the engine does not write." />
-            <Soon icon="textbox" label="Drop Cap" why="A drop cap is a framed paragraph the layout does not do yet." />
+            <Button icon="textbox" label="Drop Cap" title="Drop Cap — the first letter, framed to stand tall beside the words that follow it" onClick={(e) => menu.open(e, [
+              { label: 'None', icon: !format.dropCap ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: null }) },
+              { label: 'Dropped', icon: format.dropCap?.kind === 'drop' && format.dropCap?.lines === 3 ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: { kind: 'drop', lines: 3 } }) },
+              { label: 'Dropped, two lines', icon: format.dropCap?.kind === 'drop' && format.dropCap?.lines === 2 ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: { kind: 'drop', lines: 2 } }) },
+              { label: 'In margin', icon: format.dropCap?.kind === 'margin' ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: { kind: 'margin', lines: 3 } }) },
+            ])} />
             <Soon icon="check" label="Signature Line" why="Signature lines are content controls plus a signature part; not written yet." />
             <Button icon="clock" label="Date & Time" onClick={() => openDialog('dateTime')} />
             <Soon icon="file" label="Object" why="Embedded objects (OLE) need an embeddings part the engine does not write." />
