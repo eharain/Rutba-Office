@@ -10,7 +10,7 @@
 // rewrites one slide's XML and leaves every other part of the file alone.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, ZoomSlider, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { SITE } from '@rutba/office-formats/registry';
@@ -42,6 +42,8 @@ export default function Slides({ app, shell, boot }) {
   const [findOpen, setFindOpen] = useState(false);
   /** Insert → Link on the selected shape. */
   const [linkOpen, setLinkOpen] = useState(false);
+  /** The chart data dialog: the id of the chart shape it is editing, or null. */
+  const [chartDataOpen, setChartDataOpen] = useState(null);
   /** Home → Section → Rename: the section (by index) and the name it has now. */
   const [sectionRename, setSectionRename] = useState(null);
   /** A shape to select once the slide a match is on has been shown. */
@@ -612,6 +614,20 @@ export default function Slides({ app, shell, boot }) {
         if (added) setSelected(added.id);
         return;
       }
+      case 'addChart': {
+        // A sample chart — Q1..Q4, Sales and Costs — centred at the engine's
+        // own default size; selected, so Arrange and Delete act on it at
+        // once. A pie takes only the first series: two slices of the same
+        // pie are one measure, not two.
+        const categories = ['Q1', 'Q2', 'Q3', 'Q4'];
+        const series = arg.type === 'pie'
+          ? [{ name: 'Sales', values: [12, 18, 15, 22] }]
+          : [{ name: 'Sales', values: [12, 18, 15, 22] }, { name: 'Costs', values: [8, 9, 10, 11] }];
+        const next = await apply({ op: 'addChart', slide: index, type: arg.type, categories, series });
+        const added = next?.model?.slide?.shapes?.slice(-1)[0];
+        if (added) setSelected(added.id);
+        return;
+      }
       // Right-click a cell: a row or column added or taken away.
       case 'tableRow':
         await apply({ op: arg.remove ? 'removeTableRow' : 'insertTableRow', slide: index, shape: arg.shape, at: arg.at });
@@ -945,9 +961,13 @@ export default function Slides({ app, shell, boot }) {
                           if (painter) paintShape(s);
                           setSelected(s.id);
                         }}
-                        onDoubleClick={() => (s.text ? setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) : null)}
+                        onDoubleClick={() => {
+                          if (s.kind === 'chart') { setSelected(s.id); setChartDataOpen(s.id); return; }
+                          if (s.text) setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') });
+                        }}
                         onContextMenu={(e) => menu.open(e, [
                           ...(s.text ? [{ label: 'Edit text', icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) }] : []),
+                          ...(s.kind === 'chart' ? [{ label: 'Edit Data…', icon: 'table', run: () => { setSelected(s.id); setChartDataOpen(s.id); } }] : []),
                           { label: 'Format shape…', icon: 'wand', run: () => { setSelected(s.id); act('formatPane'); } },
                           { label: 'Bring to front', icon: 'chevronUp', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'front' }); } },
                           { label: 'Send to back', icon: 'chevronDown', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'back' }); } },
@@ -1118,6 +1138,21 @@ export default function Slides({ app, shell, boot }) {
           }}
         />
       ) : null}
+
+      {chartDataOpen != null ? (() => {
+        const chartShape = slide?.shapes?.find((s) => s.id === chartDataOpen);
+        if (!chartShape?.chart) return null;
+        return (
+          <ChartDataDialog
+            chart={chartShape.chart}
+            onClose={() => setChartDataOpen(null)}
+            onApply={async (data) => {
+              await apply({ op: 'setChartData', slide: index, shape: chartDataOpen, ...data });
+              setChartDataOpen(null);
+            }}
+          />
+        );
+      })() : null}
 
       {sectionRename ? (
         <SectionNameDialog
@@ -1692,6 +1727,121 @@ function ShapeLinkDialog({ current, words, onClose, onApply, onRemove }) {
         <Field label="Address" hint="A web address, or mailto: for an email link. Ctrl+click the shape to follow it.">
           <input className="rw-input sl-link-url" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && url.trim()) onApply(normaliseAddress(url)); }} placeholder="https://office.rutba.io" autoFocus />
         </Field>
+      </div>
+    </Dialog>
+  );
+}
+
+/** Insert → Chart → double-click, or Edit Data…: the categories, the series and their values, rewritten into the chart part. */
+function ChartDataDialog({ chart, onClose, onApply }) {
+  const [type, setType] = useState(chart.type || 'column');
+  const [title, setTitle] = useState(chart.title || '');
+  const [categories, setCategories] = useState([...(chart.categories || [])]);
+  const [series, setSeries] = useState((chart.series || []).map((s) => ({ name: s.name || '', values: [...(s.values || [])] })));
+
+  const setCategory = (row, value) => setCategories((c) => c.map((v, i) => (i === row ? value : v)));
+  const setSeriesName = (col, value) => setSeries((list) => list.map((s, i) => (i === col ? { ...s, name: value } : s)));
+  const setValue = (row, col, value) => setSeries((list) => list.map((s, i) => (i === col ? { ...s, values: s.values.map((v, ri) => (ri === row ? value : v)) } : s)));
+
+  const addRow = () => {
+    setCategories((c) => [...c, `Category ${c.length + 1}`]);
+    setSeries((list) => list.map((s) => ({ ...s, values: [...s.values, 0] })));
+  };
+  const removeRow = (row) => {
+    setCategories((c) => c.filter((_, i) => i !== row));
+    setSeries((list) => list.map((s) => ({ ...s, values: s.values.filter((_, i) => i !== row) })));
+  };
+  const addColumn = () => setSeries((list) => [...list, { name: `Series ${list.length + 1}`, values: categories.map(() => 0) }]);
+  const removeColumn = (col) => setSeries((list) => list.filter((_, i) => i !== col));
+
+  const cell = { padding: '2px 4px' };
+  return (
+    <Dialog
+      title="Edit chart data"
+      width={600}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button
+            primary
+            label="Apply"
+            className="sl-chart-apply"
+            disabled={!categories.length || !series.length}
+            onClick={() => onApply({
+              type,
+              title: title.trim() || null,
+              categories,
+              series: series.map((s) => ({ name: s.name, values: s.values.map((v) => (v === '' || v == null ? null : Number(v))) })),
+            })}
+          />
+        </>
+      }
+    >
+      <div className="ml-form sl-chart-data">
+        <div style={{ display: 'flex', gap: 12 }}>
+          <div style={{ flex: '0 0 160px' }}>
+            <Field label="Chart type">
+              <Select className="sl-chart-type" value={type} onChange={(e) => setType(e.target.value)}>
+                <option value="column">Column</option>
+                <option value="bar">Bar</option>
+                <option value="line">Line</option>
+                <option value="pie">Pie</option>
+              </Select>
+            </Field>
+          </div>
+          <div style={{ flex: 1 }}>
+            <Field label="Title">
+              <input className="rw-input sl-chart-title" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="No title" />
+            </Field>
+          </div>
+        </div>
+        <div style={{ overflowX: 'auto' }}>
+          <table style={{ borderCollapse: 'collapse', width: '100%' }}>
+            <thead>
+              <tr>
+                <th style={cell} />
+                {series.map((s, ci) => (
+                  <th key={ci} style={cell}>
+                    <input className="rw-input sl-chart-series-name" data-col={ci} value={s.name} onChange={(e) => setSeriesName(ci, e.target.value)} style={{ width: 90 }} />
+                  </th>
+                ))}
+                <th style={{ ...cell, width: 28 }}>
+                  <Button icon="plus" title="Add a series" onClick={addColumn} />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {categories.map((catName, ri) => (
+                <tr key={ri}>
+                  <td style={cell}>
+                    <input className="rw-input sl-chart-category" data-row={ri} value={catName} onChange={(e) => setCategory(ri, e.target.value)} style={{ width: 90 }} />
+                  </td>
+                  {series.map((s, ci) => (
+                    <td key={ci} style={cell}>
+                      <input
+                        className="rw-input sl-chart-cell"
+                        data-row={ri}
+                        data-col={ci}
+                        value={s.values[ri] ?? ''}
+                        onChange={(e) => setValue(ri, ci, e.target.value)}
+                        style={{ width: 70 }}
+                      />
+                    </td>
+                  ))}
+                  <td style={cell}>
+                    <Button icon="trash" title="Remove this category" disabled={categories.length <= 1} onClick={() => removeRow(ri)} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <Button icon="plus" label="Category" onClick={addRow} />
+          {series.length > 1 ? <Button icon="trash" label="Remove last series" onClick={() => removeColumn(series.length - 1)} /> : null}
+        </div>
+        <p className="rw-hint" style={{ margin: 0 }}>A pie chart draws only its first series.</p>
       </div>
     </Dialog>
   );

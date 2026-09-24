@@ -34,6 +34,10 @@ const TRANSITIONS = ['None', 'Morph', 'Fade', 'Push', 'Wipe', 'Split', 'Reveal',
 const TABLE_SIZES = [
   [2, 2, '2 × 2'], [3, 3, '3 × 3'], [4, 3, '4 × 3'], [5, 4, '5 × 4'],
 ];
+/** Insert → Chart: the kinds `chartPartXml` writes — the ones a chart on a slide can be. */
+const CHART_TYPES = [
+  ['column', 'Column'], ['bar', 'Bar'], ['line', 'Line'], ['pie', 'Pie'],
+];
 
 /** Design → Background Styles: the theme backgrounds PowerPoint's gallery offers first, then a few flat colours. */
 const BACKGROUND_STYLES = [
@@ -257,7 +261,7 @@ export default function SlidesRibbon({
             <Soon tall icon="star" label="Icons" why="Icons are an online library." />
             <Soon tall icon="shape" label="3D Models" why="3D models are an online library." />
             <Soon tall icon="shape" label="SmartArt" why="SmartArt is a diagram part the engine does not write." />
-            <Soon tall icon="chart" label="Chart" why="A chart on a slide is a chart part plus a graphic frame; the Word and Worksheets chart writer will reach here." />
+            <Button tall icon="chart" label="Chart" title="Chart — a sample chart, drawn from the writer Word and Worksheets already use; double-click it to edit its data" onClick={(e) => menu.open(e, CHART_TYPES.map(([type, label]) => ({ label, icon: 'chart', run: () => act('addChart', { type }) })))} />
           </Group>
           <Group label="Forms">
             <Soon tall icon="check" label="Forms" why="Forms is a Microsoft cloud service." />

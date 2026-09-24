@@ -15,6 +15,8 @@ import { parse, kids, first, all, escapeXml } from '@rutba/office-formats/xml';
 import { emuToPx, pxToEmu, ptToSz } from './units.js';
 import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText } from './slide.js';
 import { slideXml } from './build.js';
+import { chartPartXml } from '@rutba/ooxml/build';
+import { parseChartXml } from '@rutba/drawing';
 
 const A = (n) => `a:${n}`;
 const P = (n) => `p:${n}`;
@@ -24,6 +26,7 @@ const CT = {
   layout: 'application/vnd.openxmlformats-officedocument.presentationml.slideLayout+xml',
   master: 'application/vnd.openxmlformats-officedocument.presentationml.slideMaster+xml',
   notes: 'application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml',
+  chart: 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
 };
 const REL = {
   slide: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide',
@@ -33,7 +36,10 @@ const REL = {
   image: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
   notes: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/notesSlide',
   hyperlink: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
-};/** The picture types PowerPoint itself embeds; anything else is converted first. */
+  chart: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart',
+};
+/** The chart kinds `chartPartXml` can write — Insert → Chart and its data editor may only ask for one of these. */
+const CHART_KINDS = ['column', 'bar', 'line', 'area', 'pie', 'doughnut'];/** The picture types PowerPoint itself embeds; anything else is converted first. */
 const IMAGE_EXTENSIONS = {
   'image/png': 'png',
   'image/jpeg': 'jpeg',
@@ -1354,6 +1360,123 @@ export class Deck {
     if (at < 0) throw new Error('slide has no shape tree');
     this.#writeSlide(part, xml.slice(0, at) + frame + xml.slice(at));
     return id;
+  }
+
+  /**
+   * A chart on a slide — Insert → Chart.
+   *
+   * Written the way PowerPoint writes a chart it has just drawn: a part of
+   * its own (`chartPartXml`, the writer Word and Worksheets already use), a
+   * relationship from the slide to it, and a graphic frame whose
+   * `a:graphicData` names the DrawingML chart namespace and points at the
+   * part through `c:chart r:id`. The one thing PowerPoint's own gallery adds
+   * that this does not is an embedded workbook — `chartPartXml` bakes the
+   * values into the part as a cache instead, which is exactly what a chart
+   * with nothing to reference needs, and the same shape PowerPoint itself
+   * reads happily whenever a chart's embedding has gone missing.
+   *
+   * @param {number} slideIndex
+   * @param {{ type?: 'column'|'bar'|'line'|'area'|'pie'|'doughnut', title?: string,
+   *   categories?: string[], series: Array<{ name?: string, values: Array<number|null> }>,
+   *   x?: number, y?: number, w?: number, h?: number }} spec pixels; the frame
+   *   defaults to centred, six tenths of the slide wide and just over half tall.
+   * @returns {number} the frame's id
+   */
+  addChart(slideIndex, { type = 'column', title = null, categories = [], series = [], x, y, w, h } = {}) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (!CHART_KINDS.includes(type)) throw new Error(`unknown chart type: ${type}`);
+    if (!series.length) throw new Error('a chart needs at least one series');
+
+    const { cx, cy } = this.size;
+    const frameW = w != null ? pxToEmu(w) : Math.round(cx * 0.6);
+    const frameH = h != null ? pxToEmu(h) : Math.round(cy * 0.55);
+    const frameX = x != null ? pxToEmu(x) : Math.round((cx - frameW) / 2);
+    const frameY = y != null ? pxToEmu(y) : Math.round((cy - frameH) / 2);
+
+    const n = this.pkg.nextPartNumber('ppt/charts/', 'chart');
+    const chartPart = `ppt/charts/chart${n}.xml`;
+    this.pkg.addPart(chartPart, chartPartXml({
+      kind: type,
+      title: title || undefined,
+      categories: { values: categories },
+      series: series.map((s) => ({ name: s.name, values: s.values })),
+    }), CT.chart);
+    const rId = this.pkg.addRelationshipTo(part, REL.chart, `../charts/chart${n}.xml`);
+
+    let xml = this.pkg.text(part);
+    // A slide that has never had a relationship may not declare the prefix.
+    const head = xml.slice(0, Math.max(0, xml.indexOf('<p:cSld')));
+    if (!/xmlns:r=/.test(head)) {
+      xml = xml.replace(/<p:sld\b/, '<p:sld xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"');
+    }
+    const id = nextShapeId(xml);
+    const frame =
+      `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Chart ${id}"/>` +
+      `<p:cNvGraphicFramePr/><p:nvPr/></p:nvGraphicFramePr>` +
+      `<p:xfrm><a:off x="${frameX}" y="${frameY}"/><a:ext cx="${frameW}" cy="${frameH}"/></p:xfrm>` +
+      `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/chart">` +
+      `<c:chart xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart" ` +
+      `xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="${rId}"/>` +
+      `</a:graphicData></a:graphic></p:graphicFrame>`;
+    const at = xml.lastIndexOf('</p:spTree>');
+    if (at < 0) throw new Error('slide has no shape tree');
+    this.#writeSlide(part, xml.slice(0, at) + frame + xml.slice(at));
+    return id;
+  }
+
+  /** The chart part a chart frame's `c:chart r:id` resolves to. */
+  #chartPartFor(slideIndex, shapeId) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found on slide ${slideIndex + 1}`);
+    const frameXml = xml.slice(range.start, range.end);
+    const m = /<c:chart\b[^>]*\br:id="([^"]+)"/.exec(frameXml);
+    if (!m) throw new Error(`shape ${shapeId} is not a chart`);
+    const rel = this.#relMap(part).get(m[1]);
+    const chartPart = rel?.resolved;
+    if (!chartPart || !this.pkg.has(chartPart)) throw new Error(`shape ${shapeId}'s chart part is missing`);
+    return chartPart;
+  }
+
+  /**
+   * A chart's data, read back from its own part — the same reader that
+   * paints it. Plain data: a type, a title (or null), the categories and
+   * each series with its name and values.
+   */
+  chartData(slideIndex, shapeId) {
+    const chartPart = this.#chartPartFor(slideIndex, shapeId);
+    const spec = parseChartXml(this.pkg.text(chartPart));
+    if (!spec) throw new Error(`shape ${shapeId}'s chart part could not be read`);
+    return {
+      type: spec.type,
+      title: spec.title,
+      categories: spec.categories,
+      series: spec.series.map((s) => ({ name: s.name, values: s.values })),
+    };
+  }
+
+  /**
+   * The chart data dialog's Apply: the chart part rewritten from new values
+   * with `chartPartXml`, the way `addChart` first wrote it. The frame itself
+   * — its id, its name, its position — is untouched.
+   */
+  setChartData(slideIndex, shapeId, { type, title, categories = [], series = [] } = {}) {
+    const chartPart = this.#chartPartFor(slideIndex, shapeId);
+    if (!series.length) throw new Error('a chart needs at least one series');
+    const kind = type ?? parseChartXml(this.pkg.text(chartPart))?.type ?? 'column';
+    if (!CHART_KINDS.includes(kind)) throw new Error(`unknown chart type: ${kind}`);
+    const xml = chartPartXml({
+      kind,
+      title: title || undefined,
+      categories: { values: categories },
+      series: series.map((s) => ({ name: s.name, values: s.values })),
+    });
+    this.pkg.write_(chartPart, Buffer.from(xml, 'utf8'));
+    this.dirty = true;
+    return true;
   }
 
   /** The range of a table's `a:tbl` within its graphic frame, on the slide's own XML. */

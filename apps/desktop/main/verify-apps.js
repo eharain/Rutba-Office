@@ -17,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
+import { OoxmlPackage } from '@rutba/ooxml/package';
 import { buildPptx, Deck } from '@rutba/presentation';
 import { consoleMessage } from './console-message.js';
 import { gradientPng, joinPictureParagraphs } from './sample-picture.js';
@@ -2013,6 +2014,93 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Presentation: Insert → Chart ─────────────────────────────────────── */
+  //
+  // Insert → Chart → Column drops a sample chart, drawn by the chart writer
+  // Word and Worksheets already use and framed the way PowerPoint frames
+  // one; a double-click opens its data, Apply rewrites the part, and Save
+  // writes a chart PowerPoint itself reads.
+  const slideChart = async () => {
+    try {
+      const win = await open('slides', files.pptx);
+      const wc = win.webContents;
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
+      await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const pickMenu = async (label) => {
+        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} item`, 4000);
+        return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
+      };
+      const setValue = (selector, value) => js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, ${JSON.stringify(String(value))}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      const saved = () => {
+        try { return Deck.open(fs.readFileSync(files.pptx)); } catch { return null; }
+      };
+      const chartShape = () => model().slide.shapes.find((s) => s.kind === 'chart');
+
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await wait(200);
+      const opened = await clickRibbon('Chart');
+      const picked = await pickMenu('Column');
+      const added = await until(() => chartShape()?.chart?.categories?.length === 4, 'the chart on the model', 5000).catch(() => false);
+      check('slides: Insert → Chart → Column puts a chart with four categories on the slide',
+        opened === 'clicked' && picked === 'picked' && added === true,
+        `${opened}; ${picked}; ${JSON.stringify(model().slide.shapes.map((s) => s.kind))}`);
+
+      const shapeId = chartShape()?.id;
+      const barsDrawn = await until(() => js(`document.querySelectorAll('.sl-svg .marks path').length >= 8`), 'at least eight bars', 5000).catch(() => false);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-chart.png'), (await win.webContents.capturePage()).toPNG());
+      check('slides: the chart is drawn on the stage as bars — two series of four categories',
+        barsDrawn === true, `${await js(`document.querySelectorAll('.sl-svg .marks path').length`)} bar(s)`);
+
+      // A double-click on the chart's own hit area opens its data.
+      await js(`(() => { document.querySelector('.sl-hit[data-shape="${shapeId}"]')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true })); return 1; })()`);
+      await until(() => js(`Boolean(document.querySelector('.sl-chart-data'))`), 'the chart data dialog', 4000);
+      await setValue('.sl-chart-cell[data-row="0"][data-col="0"]', 30);
+      await js(`(() => { document.querySelector('.sl-chart-apply')?.click(); return 1; })()`);
+      const edited = await until(() => chartShape()?.chart?.series?.[0]?.values?.[0] === 30, 'the first value edited to 30', 5000).catch(() => false);
+      check('slides: a double-click opens the chart data dialog, and Apply rewrites the first value',
+        edited === true, JSON.stringify(chartShape()?.chart?.series?.[0]));
+
+      await clickRibbon('Save');
+      await until(() => /<c:v>30<\/c:v>/.test(saved()?.pkg.text('ppt/charts/chart1.xml') || ''), 'the edited value in the file', 8000).catch(() => {});
+      const slideXml = saved()?.pkg.text(saved()?.slideParts[0]?.part || '') || '';
+      const frameMatch = /<a:graphicData uri="http:\/\/schemas\.openxmlformats\.org\/drawingml\/2006\/chart"><c:chart[^>]*\br:id="([^"]+)"/.exec(slideXml);
+      const rels = saved()?.pkg.rels(saved().slideParts[0].part) || [];
+      const chartRel = rels.find((r) => r.Id === frameMatch?.[1]);
+      const chartPart = chartRel && OoxmlPackage.resolveTarget(saved().slideParts[0].part, chartRel.Target);
+      const chartXml = chartPart ? saved()?.pkg.text(chartPart) || '' : '';
+      check('slides: the saved file carries the chart as PowerPoint writes one — the frame\'s graphicData and c:chart r:id resolve to a chart part with a barChart, a vertical bar direction and the edited value',
+        Boolean(frameMatch) && chartPart === 'ppt/charts/chart1.xml'
+          && /<c:barChart>/.test(chartXml) && /<c:barDir val="col"\/>/.test(chartXml)
+          && /<c:v>30<\/c:v>/.test(chartXml),
+        `frame r:id ${frameMatch?.[1]}; chart part ${chartPart}; ${chartXml.slice(0, 200)}`);
+      const contentTypesXml = saved()?.pkg.text('[Content_Types].xml') || '';
+      check('slides: the saved file declares the chart part\'s content type',
+        contentTypesXml.includes('PartName="/ppt/charts/chart1.xml" ContentType="application/vnd.openxmlformats-officedocument.drawingml.chart+xml"'),
+        contentTypesXml.slice(-300));
+
+      // Deleted like any other shape: selected, then the Delete key.
+      await js(`(() => { document.querySelector('.sl-hit[data-shape="${shapeId}"]')?.click(); return 1; })()`);
+      await until(() => js(`document.querySelector('.sl-hit.selected')?.dataset.shape === ${JSON.stringify(String(shapeId))}`), 'the chart selected', 4000).catch(() => {});
+      await js(`(() => { document.querySelector('.sl-stage').focus(); return 1; })()`);
+      await press(wc, 'Delete');
+      const gone = await until(() => !model().slide.shapes.some((s) => s.id === shapeId), 'the chart gone', 5000).catch(() => false);
+      check('slides: Delete removes the chart', gone === true, JSON.stringify(model().slide.shapes.map((s) => s.kind)));
+
+      const complaints = await errorsIn(win);
+      check('slides: the chart checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('slides: the chart checks ran', false, err.message);
+    }
+  };
+
   /* ── Presentation: find and replace ──────────────────────────────────── */
   //
   // Home → Find: the words typed, Find lists every shape they are on, a
@@ -3156,6 +3244,142 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   };
 
   /**
+   * Insert → Sparklines: a line, then a column, from the ribbon's own
+   * dialog, drawn in the grid at once, kept through a save, and taken off
+   * again — the window end of the extension the engine writes.
+   */
+  const sheetSparklines = async () => {
+    try {
+      const win = await open('sheets', files.xlsx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = () => js(`(async () => {
+        const all = await window.rutbaOffice.doc.sessions({});
+        const mine = all.filter((s) => s.kind === 'sheet').pop();
+        return window.rutbaOffice.doc.model({ id: mine.id });
+      })()`);
+      // A mousedown on the first cell, a shift-click on the last — as a
+      // person selects a range, and the only way that reaches the WINDOW's
+      // own selection state (a raw doc.apply moves the engine but leaves
+      // the React model nobody told to catch up).
+      const selectRange = async (from, to) => {
+        await js(`(() => { document.querySelector('.sh-cell[data-ref="${from}"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); return 1; })()`);
+        await wait(80);
+        await js(`(() => { document.querySelector('.sh-cell[data-ref="${to}"]')?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, shiftKey: true })); return 1; })()`);
+        await until(async () => (await model()).selection?.ref === from + ':' + to, `the selection to become ${from}:${to}`, 4000);
+      };
+      // The Sparklines group's own buttons — scoped past the Charts group,
+      // which the same ribbon also labels "Line" for its line CHART.
+      const clickSparkline = (label) => js(`(() => {
+        const group = [...document.querySelectorAll('.rw-group')].find((g) => g.querySelector('.rw-group-label')?.textContent.trim() === 'Sparklines');
+        const b = group && [...group.querySelectorAll('.rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)});
+        if (!b) return 'no button ' + ${JSON.stringify(label)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
+      })()`);
+      const setField = (selector, value) => js(`(() => {
+        const el = document.querySelector(${JSON.stringify(selector)});
+        if (!el) return 'no field ' + ${JSON.stringify(selector)};
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+        setter.call(el, ${JSON.stringify(value)});
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return 'set';
+      })()`);
+
+      await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="B2"]'))`), 'the grid', 8000);
+      await selectRange('B2', 'C2');
+
+      await js(`(() => { [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Insert')?.click(); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-group-label')].find((g) => g.textContent.trim() === 'Sparklines'))`), 'the Insert tab', 4000);
+
+      const clickedLine = await clickSparkline('Line');
+      await until(() => js(`Boolean(document.querySelector('.sh-sparkline-data'))`), 'the sparkline dialog', 4000);
+      const prefill = await js(`({ data: document.querySelector('.sh-sparkline-data')?.value, at: document.querySelector('.sh-sparkline-at')?.value })`);
+      check('sheets: Insert → Sparklines → Line opens prefilled from the selection, to the cell past it',
+        clickedLine === 'clicked' && prefill.data === 'B2:C2' && prefill.at === 'D2', `${clickedLine}; ${JSON.stringify(prefill)}`);
+
+      await js(`document.querySelector('.sh-sparkline-ok')?.click(), 'ok'`);
+      await until(async () => (await model()).sparklines?.some((s) => s.at.row === 1 && s.at.col === 3 && s.type === 'line'), 'D2 to carry a line sparkline', 4000);
+      const atD2 = (await model()).sparklines.find((s) => s.at.row === 1 && s.at.col === 3);
+      check('sheets: the model carries a line sparkline at D2 with the row\'s two values',
+        atD2?.type === 'line' && Array.isArray(atD2.values) && atD2.values.length === 2, JSON.stringify(atD2));
+
+      await until(() => js(`Boolean(document.querySelector('.sh-spark[data-ref="D2"] polyline'))`), 'D2 drawn as a line sparkline', 4000);
+      const drawnLine = await js(`Boolean(document.querySelector('.sh-spark[data-ref="D2"] polyline'))`);
+      check('sheets: the cell layer draws D2 as a line sparkline (a polyline)', drawnLine === true, `drawn ${drawnLine}`);
+
+      let wasSaved = fs.statSync(files.xlsx).mtimeMs;
+      await press(win.webContents, 's', { modifiers: ['control'] });
+      await until(() => fs.statSync(files.xlsx).mtimeMs !== wasSaved, 'the file to be written', 5000);
+
+      let saved = SheetView.open(fs.readFileSync(files.xlsx));
+      let groups = saved.sparklineGroups('Sales');
+      const savedLine = groups.find((g) => g.sparklines.some((s) => s.at === 'D2'));
+      check('sheets: the saved file carries the line sparkline as Excel writes one, Sales!B2:C2 into D2',
+        Boolean(savedLine) && savedLine.type === 'line'
+          && savedLine.sparklines.some((s) => s.at === 'D2' && s.data === 'Sales!B2:C2'),
+        JSON.stringify(groups));
+
+      // A column sparkline, from the same numbers, beside the first — not
+      // on top of it, so the location is changed before OK.
+      await selectRange('B2', 'C2');
+      const clickedColumn = await clickSparkline('Column');
+      console.log('DEBUG clickedColumn', clickedColumn);
+      await until(() => js(`Boolean(document.querySelector('.sh-sparkline-data'))`), 'the sparkline dialog again', 4000);
+      console.log('DEBUG dialogs open', await js(`document.querySelectorAll('.rw-dialog').length`), await js(`document.querySelector('.rw-dialog-head')?.textContent`));
+      const setResult = await setField('.sh-sparkline-at', 'E2');
+      console.log('DEBUG setField', setResult);
+      await wait(100);
+      const dbg = await js(`({ data: document.querySelector('.sh-sparkline-data')?.value, at: document.querySelector('.sh-sparkline-at')?.value, okDisabled: document.querySelector('.sh-sparkline-ok')?.disabled, count: document.querySelectorAll('.sh-sparkline-ok').length })`);
+      console.log('DEBUG dialog', dbg);
+      const clickRes = await js(`(() => { const b = document.querySelector('.sh-sparkline-ok'); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked-ok'; })()`);
+      console.log('DEBUG clickRes', clickRes);
+      await wait(200);
+      console.log('DEBUG dialogs after click', await js(`document.querySelectorAll('.rw-dialog').length`));
+      console.log('DEBUG toast', await js(`[...document.querySelectorAll('.rw-toast')].map((t) => t.textContent).join(' | ')`));
+      console.log('DEBUG model.sparklines', JSON.stringify((await model()).sparklines));
+      const rawResult = await js(`(async () => {
+        const all = await window.rutbaOffice.doc.sessions({});
+        const mine = all.filter((s) => s.kind === 'sheet').pop();
+        try {
+          const r = await window.rutbaOffice.doc.apply({ id: mine.id, ops: [{ op: 'addSparklines', type: 'column', data: 'B2:C2', at: 'E2' }] });
+          return { ok: true, sparklines: r.model.sparklines };
+        } catch (e) {
+          return { ok: false, error: e.message };
+        }
+      })()`);
+      console.log('DEBUG rawResult', JSON.stringify(rawResult));
+      await until(async () => (await model()).sparklines?.some((s) => s.at.row === 1 && s.at.col === 4 && s.type === 'column'), 'E2 to carry a column sparkline', 4000);
+      check('sheets: Insert → Sparklines → Column opens and applies to a chosen cell', clickedColumn === 'clicked', clickedColumn);
+
+      await until(() => js(`Boolean(document.querySelector('.sh-spark[data-ref="E2"] rect'))`), 'E2 drawn as bars', 4000);
+      const drawnBars = await js(`document.querySelectorAll('.sh-spark[data-ref="E2"] rect').length`);
+      check('sheets: the cell layer draws E2 as a column sparkline (bars)', drawnBars >= 1, `${drawnBars} rects`);
+
+      // Remove the line sparkline at D2; the column one at E2 rides through.
+      await js(`(() => { document.querySelector('.sh-cell[data-ref="D2"]').dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2 })); return 1; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => /Remove sparkline/.test(b.textContent)))`), 'the Remove sparkline item', 4000);
+      await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => /Remove sparkline/.test(b.textContent)).click(); return 1; })()`);
+      await until(async () => !(await model()).sparklines?.some((s) => s.at.col === 3), 'D2 to drop off the model', 4000);
+      const stillE2 = (await model()).sparklines?.some((s) => s.at.col === 4);
+      check('sheets: Remove sparkline takes it off the model, and leaves the other one', stillE2 === true, JSON.stringify((await model()).sparklines));
+      check('sheets: the cell layer stops drawing the removed one', await js(`!document.querySelector('.sh-spark[data-ref="D2"]')`) === true, 'D2 still drawn');
+
+      wasSaved = fs.statSync(files.xlsx).mtimeMs;
+      await press(win.webContents, 's', { modifiers: ['control'] });
+      await until(() => fs.statSync(files.xlsx).mtimeMs !== wasSaved, 'the second save to be written', 5000);
+      saved = SheetView.open(fs.readFileSync(files.xlsx));
+      groups = saved.sparklineGroups('Sales');
+      const stillInFile = groups.some((g) => g.sparklines.some((s) => s.at === 'D2'));
+      const columnInFile = groups.some((g) => g.type === 'column' && g.sparklines.some((s) => s.at === 'E2'));
+      check('sheets: the removal is saved to the file, the survivor kept', !stillInFile && columnInFile, JSON.stringify(groups));
+
+      const complaints = await errorsIn(win);
+      check('sheets: sparklines report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('sheets: the sparklines check ran', false, err.message);
+    }
+  };
+
+  /**
    * Mail: the big providers are a tile away.
    *
    * The Add account dialog offers a row of tiles above the address field —
@@ -3226,6 +3450,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('hidden')) await slideHidden();
     if (only.includes('background')) await slideBackground();
     if (only.includes('table')) await slideTable();
+    if (only.includes('chart')) await slideChart();
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('look')) await wordLook();
@@ -3340,6 +3565,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slideHidden();
   await slideBackground();
   await slideTable();
+  await slideChart();
   await sheetFill();
   await wordPictures();
   await wordLook();

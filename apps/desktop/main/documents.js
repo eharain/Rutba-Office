@@ -839,6 +839,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
                     }))),
                   }
                 : null,
+              // A chart's data, plain: the type, the title, the categories and
+              // each series — read back through the engine's own reader, the
+              // data-edit dialog's starting point.
+              chart: s.kind === 'chart' ? safely(() => deck.chartData(index, s.id)) : null,
             })),
           }
         : null,
@@ -1076,6 +1080,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     removeTableRow: (d, a) => d.removeTableRow(a.slide, a.shape, a.at),
     insertTableColumn: (d, a) => d.insertTableColumn(a.slide, a.shape, a.at),
     removeTableColumn: (d, a) => d.removeTableColumn(a.slide, a.shape, a.at),
+    // Insert → Chart: a chart part written with the writer Word and Worksheets
+    // already use, framed the way PowerPoint frames one.
+    addChart: (d, a) => d.addChart(a.slide, a),
+    // The chart data dialog's Apply: the part rewritten from new values; the frame is untouched.
+    setChartData: (d, a) => d.setChartData(a.slide, a.shape, a),
 
   };
 
