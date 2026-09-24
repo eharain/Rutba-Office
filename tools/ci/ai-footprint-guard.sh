@@ -68,6 +68,8 @@ git -c core.quotepath=false diff -U0 --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" 
           || path ~ /^tools\/ci\/ai-footprint-guard\.sh$/
       }
       /^diff --git / { file = ""; exempt = 0; next }
+      /^rename to / { file = substr($0, 11); exempt = is_exempt(file); next }
+      /^copy to / { file = substr($0, 9); exempt = is_exempt(file); next }
       /^\+\+\+ b\// { file = substr($0, 7); exempt = is_exempt(file); next }
       /^\+\+\+ / { next }
       /^--- / { next }
