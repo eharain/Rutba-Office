@@ -9,7 +9,6 @@ permissions:
 
 jobs:
   guard:
-    if: ${{ !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -22,4 +21,11 @@ jobs:
         run: |
           BASE_SHA="$(git merge-base '${{ github.event.pull_request.base.sha }}' '${{ github.event.pull_request.head.sha }}')"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
-          bash tools/ci/ai-footprint-guard.sh "$BASE_SHA" "$HEAD_SHA"
+          SCRIPT_PATH="/tmp/ai-footprint-guard.sh"
+          if git cat-file -e '${{ github.event.pull_request.base.sha }}:tools/ci/ai-footprint-guard.sh' 2>/dev/null; then
+            git show '${{ github.event.pull_request.base.sha }}:tools/ci/ai-footprint-guard.sh' > "$SCRIPT_PATH"
+          else
+            cp tools/ci/ai-footprint-guard.sh "$SCRIPT_PATH"
+          fi
+          chmod +x "$SCRIPT_PATH"
+          bash "$SCRIPT_PATH" "$BASE_SHA" "$HEAD_SHA"
