@@ -71,6 +71,26 @@ export const SHEET_FILTER = '#sheet';
  */
 export const CHART_KINDS = ['column', 'bar', 'line', 'area', 'pie', 'doughnut'];
 
+/**
+ * Error Checking: the plain-English reason behind each error type, keyed by
+ * the error text the engine stores on the cell. `#CIRCULAR!` is not a real
+ * Excel error type — it is how this engine settles a cell it could not order
+ * (see `Spreadsheet#recalculate`) — but it reads the same to a person as any
+ * other error, so it gets a row too. Anything else (`#SPILL!`, `#CALC!`)
+ * falls back to a generic reason rather than going unexplained.
+ */
+const ERROR_KIND = {
+  '#DIV/0!': { kind: 'div0', reason: 'Divides by zero' },
+  '#REF!': { kind: 'ref', reason: 'Refers to a cell that was deleted' },
+  '#NAME?': { kind: 'name', reason: 'Uses a name that is not defined' },
+  '#VALUE!': { kind: 'value', reason: 'Uses the wrong kind of value' },
+  '#N/A': { kind: 'na', reason: 'A lookup found nothing' },
+  '#NUM!': { kind: 'num', reason: 'A number that cannot be represented' },
+  '#NULL!': { kind: 'null', reason: 'Ranges that do not intersect' },
+  '#CIRCULAR!': { kind: 'circular', reason: 'Refers to itself, directly or through other cells' },
+};
+const DEFAULT_ERROR_KIND = { kind: 'error', reason: 'The formula could not be calculated' };
+
 export class SheetView {
   constructor(buf, { now, viewportWidth = 900, viewportHeight = 500, mode = 'light' } = {}) {
     this.mode = mode;
@@ -1797,6 +1817,46 @@ export class SheetView {
       }
     }
     return { kind, at: { row, col }, arrows, elsewhere };
+  }
+
+  /**
+   * Error Checking: every cell whose calculated value is an error — divide
+   * by zero, a broken reference, an undefined name and the rest — plus every
+   * cell the recalc engine settled as part of a circular reference. One pass
+   * over the cells the calc model already holds (a formula, or a value
+   * someone typed); nothing is recalculated.
+   *
+   * @param {{ sheet?: string, all?: boolean }} [opts] `all` walks every sheet,
+   *   in workbook order, instead of just `sheet` (the active sheet by default).
+   * @returns {Array<{ ref: string, row: number, col: number, sheet: string,
+   *   formula: string|null, value: string, kind: string, reason: string }>}
+   *   In row-major order per sheet.
+   */
+  errorCells({ sheet = this.activeSheet, all = false } = {}) {
+    const sheetNames = all ? this.workbook.sheetNames() : [sheet];
+    const out = [];
+    for (const sheetName of sheetNames) {
+      const cells = this.calc.sheets.get(sheetName);
+      if (!cells) continue;
+      const found = [];
+      for (const cell of cells.values()) {
+        if (cell.tombstone || !isError(cell.value)) continue;
+        const { kind, reason } = ERROR_KIND[cell.value.type] ?? DEFAULT_ERROR_KIND;
+        found.push({
+          ref: ref(cell.row, cell.col),
+          row: cell.row,
+          col: cell.col,
+          sheet: sheetName,
+          formula: cell.formula ?? null,
+          value: cell.value.type,
+          kind,
+          reason,
+        });
+      }
+      found.sort((a, b) => (a.row - b.row) || (a.col - b.col));
+      out.push(...found);
+    }
+    return out;
   }
 
   // ---- Data tools --------------------------------------------------------

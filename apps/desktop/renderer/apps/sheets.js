@@ -869,6 +869,43 @@ export default function Sheets({ app, shell, boot }) {
     </div>
   );
 
+  /**
+   * Formulas → Error Checking: the list pane, or nothing while the check is
+   * off. `model.errors` is only ever an array (the check is on, even at zero
+   * errors) or null (off) — see sheetModel in documents.js — so that alone
+   * decides whether the pane shows.
+   */
+  const errorsPane = () => {
+    const list = model?.errors;
+    if (!Array.isArray(list)) return null;
+    return (
+      <div className="sh-errors">
+        <div className="sh-errors-head">
+          <strong>{list.length ? `${list.length} error${list.length === 1 ? '' : 's'}` : 'No errors found'}</strong>
+          <Spacer />
+          <Button className="sh-error-prev" icon="chevronUp" title="Previous error" disabled={!list.length} onClick={() => act('stepError', 'prev')} />
+          <Button className="sh-error-next" icon="chevronDown" title="Next error" disabled={!list.length} onClick={() => act('stepError', 'next')} />
+          <Button icon="close" title="Close — turns Error Checking off" onClick={() => act('errorCheck', false)} />
+        </div>
+        {list.length ? (
+          <div className="sh-errors-list">
+            {list.map((err) => (
+              <div key={`${err.sheet}!${err.ref}`} className="sh-error" data-ref={err.ref} onClick={() => act('gotoError', err)}>
+                <div className="sh-error-line">
+                  {err.sheet !== model.activeSheet ? <span className="sh-error-sheet">{err.sheet}</span> : null}
+                  <span className="sh-error-ref">{err.ref}</span>
+                  <span className="sh-error-value">{err.value}</span>
+                </div>
+                {err.formula ? <div className="sh-error-formula">{err.formula}</div> : null}
+                <div className="sh-error-reason">{err.reason}</div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   if (error) {
     return (
       <AppFrame app={app} shell={shell} title="Worksheets" menu={appMenu}>
@@ -1158,6 +1195,33 @@ export default function Sheets({ app, shell, boot }) {
         await act('goto', m ? m[3] : place);
         return;
       }
+      // Formulas → Error Checking: the ribbon button toggles it (no arg);
+      // the pane's own Close passes false so it always ends up off.
+      case 'errorCheck':
+        await dispatch({ op: 'errorCheck', on: arg });
+        return;
+      // A row in the error pane, or Next/Previous: select the cell it names,
+      // switching sheet first when it is on another one — `select` scrolls
+      // it into view itself (SheetView#ensureVisible).
+      case 'gotoError': {
+        const err = arg;
+        if (!err) return;
+        const ops = [];
+        if (err.sheet && err.sheet !== model?.activeSheet) ops.push({ op: 'sheet', name: err.sheet });
+        ops.push({ op: 'select', row: err.row, col: err.col });
+        await dispatch(...ops);
+        return;
+      }
+      case 'stepError': {
+        const list = Array.isArray(model?.errors) ? model.errors : [];
+        if (!list.length) return;
+        const active = sel?.active;
+        const at = list.findIndex((e) => e.sheet === model.activeSheet && active && e.row === active.row && e.col === active.col);
+        const dir = arg === 'prev' ? -1 : 1;
+        const next = at === -1 ? (dir > 0 ? 0 : list.length - 1) : (at + dir + list.length) % list.length;
+        await act('gotoError', list[next]);
+        return;
+      }
       case 'help': shell.shell.openExternal({ url: SITE.help }); return;
       case 'feedback': shell.shell.openExternal({ url: SITE.contact }); return;
       case 'about': shell.win.create({ app: 'home', query: { about: 1 } }); return;
@@ -1273,6 +1337,7 @@ export default function Sheets({ app, shell, boot }) {
             edges, the headers stick to one each, and none of them displaces the
             cells the way stacked block elements would.
           */}
+          <div className="sh-body">
           <div className="sh-grid" ref={gridRef} style={{ zoom: view.zoom && Math.abs(view.zoom - 1) > 0.001 ? view.zoom : undefined }}>
             <div
               className="sh-canvas"
@@ -1384,6 +1449,8 @@ export default function Sheets({ app, shell, boot }) {
                 {editing && pane(editing) === 'main' ? editorNode() : null}
               </div>
             </div>
+          </div>
+          {errorsPane()}
           </div>
 
           <div className="sh-tabs">
@@ -1750,7 +1817,30 @@ const CSS = `
 }
 .sh-formula .rw-input:focus { box-shadow: 0 0 0 3px var(--accent-soft); border-color: var(--accent); }
 
+.sh-body { flex: 1; display: flex; position: relative; min-width: 0; min-height: 0; }
 .sh-grid { flex: 1; overflow: auto; position: relative; min-width: 0; min-height: 0; background: var(--surface); }
+
+/* Formulas → Error Checking: a floating pane over the grid, under the ribbon
+   — there is no other right-hand pane in this app to match. */
+.sh-errors {
+  position: absolute; top: 10px; right: 10px; bottom: 10px; width: 320px; z-index: 15;
+  display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 20%, transparent);
+  overflow: hidden;
+}
+.sh-errors-head {
+  display: flex; align-items: center; gap: 4px; padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft); font-size: 12.5px;
+}
+.sh-errors-list { overflow: auto; }
+.sh-error { padding: 8px 10px; border-bottom: 1px solid var(--line-soft); cursor: pointer; font-size: 12px; }
+.sh-error:hover { background: var(--selected); }
+.sh-error-line { display: flex; align-items: baseline; gap: 6px; }
+.sh-error-sheet { color: var(--ink-3); font-size: 11px; }
+.sh-error-ref { font-weight: 600; font-variant-numeric: tabular-nums; }
+.sh-error-value { color: var(--bad); font-weight: 600; }
+.sh-error-formula { font-family: var(--mono); color: var(--ink-2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-error-reason { color: var(--ink-3); margin-top: 2px; }
 .sh-canvas { display: grid; }
 .sh-corner {
   position: sticky; left: 0; top: 0; z-index: 4; background: var(--chrome);

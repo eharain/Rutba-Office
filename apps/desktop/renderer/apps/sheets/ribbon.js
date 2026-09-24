@@ -494,7 +494,7 @@ export default function SheetsRibbon({
             <Button icon="chevronLeft" label="Trace Dependents" title="Trace Dependents — arrows to the formulas that read this cell" onClick={() => act('trace', 'dependents')} />
             <Button icon="close" label="Remove Arrows" title="Remove Arrows — take the tracing arrows off the grid" onClick={() => act('removeArrows')} />
             <Button icon="formula" label="Show Formulas" pressed={Boolean(view.formulas)} title="Show every formula instead of its result (Ctrl+`)" onClick={() => act('toggleFormulas')} />
-            <Soon icon="check" label="Error Checking" why="Error checking walks the graph for #REF! and circularity; on the list." />
+            <Button icon="check" label="Error Checking" pressed={Boolean(model?.errors)} title="Error Checking — every cell whose value is an error, or part of a circular reference" onClick={() => act('errorCheck')} />
             <Soon icon="eye" label="Evaluate Formula" why="Step evaluation needs the engine to expose each step; on the list." />
             <Soon icon="eye" label="Watch Window" why="Comes with evaluation." />
           </Group>

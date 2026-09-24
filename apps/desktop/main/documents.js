@@ -620,6 +620,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       frozen: typeof view.frozenPane === 'function' ? view.frozenPane() : null,
       tables: typeof view.sheetTables === 'function' ? view.sheetTables() : [],
       filtered: typeof view.sheetFilter === 'function' ? Boolean(view.sheetFilter()) : false,
+      // Formulas → Error Checking: the list is only built while the pane is
+      // open (view.errorChecking, set by the errorCheck op below), so a
+      // workbook nobody is checking pays nothing for it. Live, because it is
+      // read fresh off the model on every frame: fixing a cell drops its row
+      // the moment the next frame is drawn.
+      errors: view.errorChecking ? view.errorCells({ all: true }) : null,
     };
   }
 
@@ -898,6 +904,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     defineName: (v, a) => v.defineName(a.name, a.ref),
     // Formulas → Create from Selection: a name a column, from the header row.
     namesFromSelection: (v) => { v.lastResult = v.namesFromSelection(); return v; },
+    // Formulas → Error Checking: a toggle, not an edit — it changes nothing
+    // in the file, only whether sheetModel builds the `errors` list. With no
+    // `on` the ribbon button flips it; the pane's Close button passes false.
+    errorCheck: (v, a) => { v.errorChecking = a.on === undefined ? !v.errorChecking : Boolean(a.on); return true; },
     setHyperlink: (v, a) => v.setHyperlink(a),
     removeHyperlink: (v, a) => v.removeHyperlink(a),
     // A note signed by whoever the window says, else by the account at the keyboard.
@@ -1074,7 +1084,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

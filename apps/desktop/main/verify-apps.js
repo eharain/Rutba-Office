@@ -2803,6 +2803,95 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   };
 
   /**
+   * Formulas → Error Checking: type two broken formulas into the sample
+   * workbook, open the pane from the ribbon, and walk it — click a row,
+   * step with Next, watch a fix drop a row off live, then close it.
+   */
+  const sheetErrors = async () => {
+    try {
+      const win = await open('sheets', files.xlsx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = () => js(`(async () => {
+        const all = await window.rutbaOffice.doc.sessions({});
+        const mine = all.filter((s) => s.kind === 'sheet').pop();
+        return window.rutbaOffice.doc.model({ id: mine.id });
+      })()`);
+      const tabTo = (label) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
+      const pushLabel = (label) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+        if (!b) return 'no live button ' + ${JSON.stringify(label)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
+      })()`);
+      // Move the selection by reference through the engine, the way Go To does.
+      const act_goto = async (ref) => {
+        await js(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); const col = ${JSON.stringify(ref)}.charCodeAt(0) - 65; const row = Number(${JSON.stringify(ref)}.slice(1)) - 1; await window.rutbaOffice.doc.apply({ id: mine.id, ops: [{ op: 'select', row, col }] }); return 'moved'; })()`);
+        await wait(150);
+      };
+      const typeInto = async (ref, text) => {
+        await act_goto(ref);
+        await js(`document.querySelector('.sh')?.focus(), 'ok'`);
+        await typeText(win.webContents, text);
+        await press(win.webContents, 'Return', { char: true });
+      };
+
+      await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="A1"]'))`), 'the grid', 8000);
+
+      // D8 divides by zero; D9 calls a function the engine does not know —
+      // ZZZ1 alone parses as a (blank) cell reference rather than a broken
+      // name, so an unknown function is what actually forces #NAME?.
+      await typeInto('D8', '=1/0');
+      await until(async () => (await model()).cells?.some((c) => c.ref === 'D8' && c.text === '#DIV/0!'), 'D8 to calculate to #DIV/0!', 4000);
+      await typeInto('D9', '=NOSUCHFN(1)');
+      await until(async () => (await model()).cells?.some((c) => c.ref === 'D9' && /^#/.test(c.text || '')), 'D9 to calculate to an error', 4000);
+
+      await tabTo('Formulas');
+      await wait(120);
+      await pushLabel('Error Checking');
+      await until(() => js(`document.querySelectorAll('.sh-error').length >= 2`), 'the error rows', 4000);
+
+      const rows = await js(`[...document.querySelectorAll('.sh-error')].map((r) => ({
+        ref: r.dataset.ref,
+        value: r.querySelector('.sh-error-value')?.textContent || '',
+        formula: r.querySelector('.sh-error-formula')?.textContent || '',
+        reason: r.querySelector('.sh-error-reason')?.textContent || '',
+      }))`);
+      const d8 = rows.find((r) => r.ref === 'D8');
+      const d9 = rows.find((r) => r.ref === 'D9');
+      check('sheets: Error Checking lists D8 as #DIV/0!, with its formula and reason', Boolean(d8) && d8.value === '#DIV/0!' && d8.formula === '=1/0' && /divides by zero/i.test(d8.reason), JSON.stringify(d8));
+      check('sheets: Error Checking lists D9 as its own error, with a formula and a reason', Boolean(d9) && /^#/.test(d9.value) && d9.formula === '=NOSUCHFN(1)' && d9.reason.length > 0, JSON.stringify(d9));
+
+      // A click on a row selects the cell.
+      await js(`document.querySelector('.sh-error[data-ref="D8"]')?.dispatchEvent(new MouseEvent('click', { bubbles: true }))`);
+      await until(async () => (await model()).selection?.active?.ref === 'D8', 'D8 to become active', 4000);
+      const afterClick = (await model()).selection?.active?.ref;
+      check('sheets: clicking an error row selects that cell', afterClick === 'D8', `active ${afterClick}`);
+
+      // Next steps from D8 to D9.
+      await js(`document.querySelector('.sh-error-next')?.click(), 'next'`);
+      await until(async () => (await model()).selection?.active?.ref === 'D9', 'D9 to become active', 4000);
+      const afterNext = (await model()).selection?.active?.ref;
+      check('sheets: Next walks from D8 to D9', afterNext === 'D9', `active ${afterNext}`);
+
+      // Fixing D8 drops its row the moment the next frame lands.
+      await typeInto('D8', '=1');
+      await until(() => js(`!document.querySelector('.sh-error[data-ref="D8"]')`), 'D8 to drop off the list once fixed', 4000);
+      const stillD9 = await js(`Boolean(document.querySelector('.sh-error[data-ref="D9"]'))`);
+      check('sheets: fixing a cell drops it from the list live', stillD9 === true, 'D9 should still be listed once D8 is fixed');
+
+      // Close turns the checking off: the pane goes and the button lifts.
+      await js(`[...document.querySelectorAll('.sh-errors .rw-btn')].find((b) => /Close/.test(b.title || b.dataset.tip || ''))?.click(), 'close'`);
+      await until(() => js(`!document.querySelector('.sh-errors')`), 'the pane to close', 4000);
+      const stillPressed = await js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => (b.title || b.dataset.tip || '').startsWith('Error Checking') && b.getAttribute('aria-pressed') === 'true'))`);
+      check('sheets: Close turns Error Checking off, the pane gone and the button not pressed', !stillPressed, `pressed ${stillPressed}`);
+
+      const complaints = await errorsIn(win);
+      check('sheets: error checking reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('sheets: the error checking check ran', false, err.message);
+    }
+  };
+
+  /**
    * Mail: the big providers are a tile away.
    *
    * The Add account dialog offers a row of tiles above the address field —
@@ -2882,6 +2971,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('update')) await updatePrompt();
     if (only.includes('home')) await launcherRecent();
     if (only.includes('freeze')) await sheetFreeze();
+    if (only.includes('errors')) await sheetErrors();
     if (only.includes('zoom')) await zoomStaysOnThePage();
     if (only.includes('fit')) await wordPictureFits();
     if (only.includes('cards')) await wordCards();
@@ -2994,6 +3084,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await updatePrompt();
   await launcherRecent();
   await sheetFreeze();
+  await sheetErrors();
   await zoomStaysOnThePage();
   await sheetPicture();
   await viewer();
