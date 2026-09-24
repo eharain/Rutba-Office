@@ -1195,6 +1195,128 @@ export function adjustFormula(text, ctx) {
   return out;
 }
 
+// ── sparklines (the x14 extension Excel writes them as) ─────────────────────
+
+const SPARKLINE_EXT_URI = '{05C60535-1F16-4fd2-B633-F4F36F0B64E0}';
+const XMLNS_X14 = 'http://schemas.microsoft.com/office/spreadsheetml/2009/9/main';
+const XMLNS_XM = 'http://schemas.microsoft.com/office/excel/2006/main';
+/** Excel's own defaults for a fresh sparkline group — the colours nobody has chosen otherwise. */
+const SPARKLINE_COLOURS = '<x14:colorSeries rgb="FF376092"/><x14:colorNegative rgb="FFD00000"/>'
+  + '<x14:colorAxis rgb="FF000000"/><x14:colorMarkers rgb="FFD00000"/><x14:colorFirst rgb="FFD00000"/>'
+  + '<x14:colorLast rgb="FFD00000"/><x14:colorHigh rgb="FFD00000"/><x14:colorLow rgb="FFD00000"/>';
+
+/** A range ref's bounds, 0-based and ordered — `normalizeRange`'s numbers rather than its text. */
+function rangeBounds(rangeRef) {
+  const [a, b] = String(rangeRef).split(':');
+  const from = parseRef(a);
+  const to = b ? parseRef(b) : from;
+  return {
+    top: Math.min(from.row, to.row), bottom: Math.max(from.row, to.row),
+    left: Math.min(from.col, to.col), right: Math.max(from.col, to.col),
+  };
+}
+const boundsRef = (b) => {
+  const a = makeRef(b.top, b.left);
+  const c = makeRef(b.bottom, b.right);
+  return a === c ? a : a + ':' + c;
+};
+
+/**
+ * One sparkline per row of `at` (each taking the matching row of `data`) —
+ * or, when `at` is itself a single row, one per COLUMN, matching columns
+ * instead. A single-cell `at` takes the whole of `data` as its one series,
+ * which is what a plain "select a row, sparkline in the next cell" makes.
+ */
+function planSparklines(dataRef, atRef) {
+  const data = rangeBounds(dataRef);
+  const at = rangeBounds(atRef);
+  const atRows = at.bottom - at.top + 1;
+  const atCols = at.right - at.left + 1;
+  if (atRows === 1 && atCols === 1) {
+    return [{ at: boundsRef(at), data: boundsRef(data) }];
+  }
+  if (atCols === 1 && atRows > 1) {
+    if (data.bottom - data.top + 1 !== atRows) {
+      throw new Error('the data and the sparklines need the same number of rows');
+    }
+    return Array.from({ length: atRows }, (_, i) => ({
+      at: makeRef(at.top + i, at.left),
+      data: boundsRef({ top: data.top + i, bottom: data.top + i, left: data.left, right: data.right }),
+    }));
+  }
+  if (atRows === 1 && atCols > 1) {
+    if (data.right - data.left + 1 !== atCols) {
+      throw new Error('the data and the sparklines need the same number of columns');
+    }
+    return Array.from({ length: atCols }, (_, i) => ({
+      at: makeRef(at.top, at.left + i),
+      data: boundsRef({ top: data.top, bottom: data.bottom, left: data.left + i, right: data.left + i }),
+    }));
+  }
+  throw new Error('the sparklines need a single row or a single column to sit in');
+}
+
+/** A sheet name, quoted the way a formula quotes one when it needs to be. */
+const qualifySheetName = (name) =>
+  (/^[A-Za-z_][A-Za-z0-9_.]*$/.test(name) ? name : "'" + String(name).replace(/'/g, "''") + "'");
+
+function sparklineGroupXml(type, sheetName, items) {
+  const sparklines = items.map((it) =>
+    '<x14:sparkline><xm:f>' + esc(qualifySheetName(sheetName) + '!' + it.data) + '</xm:f><xm:sqref>' + esc(it.at) + '</xm:sqref></x14:sparkline>').join('');
+  return '<x14:sparklineGroup' + (type === 'column' ? ' type="column"' : '') + ' displayEmptyCellsAs="gap">'
+    + SPARKLINE_COLOURS + '<x14:sparklines>' + sparklines + '</x14:sparklines></x14:sparklineGroup>';
+}
+
+const sparklineExtXml = (groupXml) => '<ext uri="' + SPARKLINE_EXT_URI + '" xmlns:x14="' + XMLNS_X14 + '">'
+  + '<x14:sparklineGroups xmlns:xm="' + XMLNS_XM + '">' + groupXml + '</x14:sparklineGroups></ext>';
+
+/** The sparkline groups an `extLst` block carries, decoded to `{type, colour, sparklines}`. */
+function parseSparklineExt(extLstXml) {
+  if (!extLstXml || !/<x14:sparklineGroups\b/.test(extLstXml)) return [];
+  const groups = [];
+  for (const gm of extLstXml.matchAll(/<x14:sparklineGroup\b([^>]*)>([\s\S]*?)<\/x14:sparklineGroup>/g)) {
+    const gAttrs = attrs(gm[1]);
+    const type = gAttrs.type === 'column' ? 'column' : 'line';
+    const rgb = /<x14:colorSeries\b[^>]*\brgb="([^"]*)"/.exec(gm[2])?.[1] ?? 'FF376092';
+    const colour = rgb.length === 8 ? rgb.slice(2) : rgb;
+    const sparklines = [];
+    for (const sm of gm[2].matchAll(/<x14:sparkline\b[^>]*>([\s\S]*?)<\/x14:sparkline>/g)) {
+      const f = /<xm:f>([\s\S]*?)<\/xm:f>/.exec(sm[1]);
+      const sq = /<xm:sqref>([\s\S]*?)<\/xm:sqref>/.exec(sm[1]);
+      if (!f || !sq) continue;
+      sparklines.push({ data: unesc(f[1]), at: unesc(sq[1]) });
+    }
+    groups.push({ type, colour, sparklines });
+  }
+  return groups;
+}
+
+/** Every sparkline whose cell falls in `at` (a single cell or a range) taken out; an emptied group, and an emptied ext, go with the last one. */
+function removeSparklinesFromExt(extLstXml, at) {
+  const bounds = rangeBounds(at);
+  let removed = 0;
+  let next = extLstXml.replace(/<x14:sparklineGroup\b([^>]*)>([\s\S]*?)<\/x14:sparklineGroup>/g, (whole, gAttrs, inner) => {
+    const kept = inner.replace(/<x14:sparkline\b[^>]*>([\s\S]*?)<\/x14:sparkline>/g, (one, body) => {
+      const sq = /<xm:sqref>([\s\S]*?)<\/xm:sqref>/.exec(body);
+      if (!sq) return one;
+      let cell;
+      try { cell = parseRef(unesc(sq[1]).split(':')[0]); } catch { return one; }
+      if (cell.row >= bounds.top && cell.row <= bounds.bottom && cell.col >= bounds.left && cell.col <= bounds.right) {
+        removed += 1;
+        return '';
+      }
+      return one;
+    });
+    if (!/<x14:sparkline\b/.test(kept)) return '';
+    return '<x14:sparklineGroup' + gAttrs + '>' + kept + '</x14:sparklineGroup>';
+  });
+  if (!removed) return { removed: 0, xml: extLstXml };
+  // An emptied sparklineGroups ext goes with it; whatever other ext elements
+  // the sheet carries — the x14ac uid, a data bar's rule — ride through.
+  next = next.replace(/<ext\b[^>]*\buri="\{05C60535-1F16-4fd2-B633-F4F36F0B64E0\}"[^>]*>\s*<x14:sparklineGroups\b[^>]*>\s*<\/x14:sparklineGroups>\s*<\/ext>/, '');
+  return { removed, xml: next };
+}
+
 export class Workbook {
   constructor(pkg) {
     this.pkg = pkg;
@@ -1663,6 +1785,43 @@ export class Workbook {
   /** Remove the sheet's CF blocks the predicate claims (by sqref). */
   removeConditionalFormattings(sheetName, pred) {
     return this._sheetPart(sheetName).part.removeConditionalFormattings(pred);
+  }
+
+  /** The sparkline groups Excel wrote on this sheet (or this engine did): `{type, colour, sparklines: [{data, at}]}`. */
+  sparklineGroups(sheetName) {
+    return parseSparklineExt(this._sheetPart(sheetName).part.tailElement('extLst') || '');
+  }
+
+  /**
+   * Insert → Sparklines: one group, written exactly as Excel writes one — an
+   * `x14:sparklineGroups` extension at the end of the sheet — merged into any
+   * `extLst` the sheet already carries, after whatever other extensions are
+   * there. `type` is 'line' or 'column'; `data` and `at` are plain ranges on
+   * this sheet, shaped as `planSparklines` above describes.
+   */
+  addSparklines(sheetName, { type, data, at }) {
+    if (type !== 'line' && type !== 'column') throw new Error('a sparkline is "line" or "column"');
+    const groupXml = sparklineGroupXml(type, sheetName, planSparklines(data, at));
+    const { part } = this._sheetPart(sheetName);
+    const extLst = part.tailElement('extLst');
+    if (extLst && /<x14:sparklineGroups\b/.test(extLst)) {
+      part.setTailElement('extLst', extLst.replace('</x14:sparklineGroups>', groupXml + '</x14:sparklineGroups>'));
+    } else if (extLst) {
+      part.setTailElement('extLst', extLst.replace('</extLst>', sparklineExtXml(groupXml) + '</extLst>'));
+    } else {
+      part.setTailElement('extLst', '<extLst>' + sparklineExtXml(groupXml) + '</extLst>');
+    }
+    return this;
+  }
+
+  /** Take the sparkline(s) off a cell or range. Returns how many went. */
+  removeSparklines(sheetName, at) {
+    const { part } = this._sheetPart(sheetName);
+    const extLst = part.tailElement('extLst');
+    if (!extLst) return 0;
+    const { removed, xml } = removeSparklinesFromExt(extLst, at);
+    if (removed) part.setTailElement('extLst', /<ext\b/.test(xml) ? xml : null);
+    return removed;
   }
 
   /** Replace ONE column's value filter in the sheet-level autofilter. */

@@ -505,6 +505,43 @@ export function NoteDialog({ current = null, cellRef = '', onClose, onSet, onRem
 }
 
 /**
+ * Insert → Sparklines: a small line or set of bars, drawn in one cell from
+ * the numbers in a range beside it. Prefilled the way a person reaches for
+ * it — the current selection as the data, and the cell past its last
+ * column as where the sparkline goes (one per row, for a selection of more
+ * than one) — so OK alone is usually enough.
+ */
+export function SparklineDialog({ type, data: dataDefault = '', at: atDefault = '', onClose, onApply }) {
+  const [data, setData] = useState(dataDefault);
+  const [at, setAt] = useState(atDefault);
+  const ok = data.trim().length > 0 && at.trim().length > 0;
+  const submit = () => { if (ok) onApply({ type, data: data.trim(), at: at.trim() }); };
+  const label = type === 'column' ? 'Column' : 'Line';
+  return (
+    <Dialog
+      title={label + ' sparklines'}
+      width={380}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="OK" className="sh-sparkline-ok" disabled={!ok} onClick={submit} />
+        </>
+      }
+    >
+      <div className="ml-form sh-sparkline">
+        <Field label="Data range" hint="The numbers each sparkline is drawn from.">
+          <Input className="sh-sparkline-data" value={data} onChange={(e) => setData(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ok) submit(); }} autoFocus placeholder="B2:F2" />
+        </Field>
+        <Field label="Location range" hint="Where the sparkline goes — one cell, or one per row of the data.">
+          <Input className="sh-sparkline-at" value={at} onChange={(e) => setAt(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ok) submit(); }} placeholder="G2" />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
  * Insert → Header & Footer: what prints at the top and the foot of every
  * page, with Excel's codes — &P page, &N pages, &A sheet, &F file, &D date,
  * &T time — and &L, &C, &R starting the left, centre and right parts.

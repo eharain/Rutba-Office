@@ -363,8 +363,8 @@ export default function SheetsRibbon({
             <Soon icon="chart" label="PivotChart" why="Comes with a pivot table that can be charted." />
           </Group>
           <Group label="Sparklines">
-            <Soon icon="chart" label="Line" why="Sparklines are an extension part (x14) the engine does not write." />
-            <Soon icon="chart" label="Column" why="Comes with sparklines." />
+            <Button tall icon="chart" label="Line" title="Line sparkline — a small line, in the cell after the selection, from the numbers in it" onClick={() => openDialog('sparklineLine')} />
+            <Button icon="chart" label="Column" title="Column sparkline — small bars, in the cell after the selection, from the numbers in it" onClick={() => openDialog('sparklineColumn')} />
           </Group>
           <Group label="Filters">
             <Button tall icon="filter" label="Filter" pressed={model?.filtered} onClick={() => dispatch({ op: 'autoFilter' })} />

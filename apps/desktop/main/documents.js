@@ -26,6 +26,7 @@ function safeUserName() {
 }
 
 import { OoxmlPackage } from '@rutba/ooxml/package';
+import { parseRef } from '@rutba/ooxml/workbook';
 import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';import { probeImage } from '@rutba/imaging/probe';
 import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
@@ -599,6 +600,53 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
 
   /* ── models ───────────────────────────────────────────────────────────── */
 
+  const numericOrNull = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+
+  /** A sheet-qualified range's sheet and its plain range text, quoted or not. */
+  function splitSheetRange(text) {
+    const m = /^(?:'([^']*)'|([^!']+))!(.+)$/.exec(String(text));
+    return m ? [m[1] ?? m[2], m[3]] : [null, text];
+  }
+
+  /**
+   * The sparklines drawn in the cells currently in view: `{at, type, colour,
+   * values}`, the values read from each sparkline's own data range through
+   * the calculation. Cheap on purpose — a lookup per visible cell against
+   * the sheet's (usually few) groups, not a walk of the whole sheet.
+   */
+  function sheetSparklines(view, frame) {
+    if (typeof view.sparklineGroups !== 'function') return [];
+    const groups = view.sparklineGroups(view.activeSheet);
+    if (!groups.length) return [];
+    // Not `frame.cells` — that list is sparse, leaving out a blank cell with
+    // nothing else to draw, which is exactly what a sparkline cell normally
+    // is. `columns`/`rows` name every index in the viewport regardless.
+    const rows = new Set((frame.rows || []).map((r) => r.index));
+    const cols = new Set((frame.columns || []).map((c) => c.index));
+    if (!rows.size || !cols.size) return [];
+    const out = [];
+    for (const group of groups) {
+      for (const spark of group.sparklines) {
+        let at;
+        try { at = parseRef(String(spark.at).split(':')[0]); } catch { continue; }
+        if (!rows.has(at.row) || !cols.has(at.col)) continue;
+        const [dataSheet, rangeText] = splitSheetRange(spark.data);
+        const [a, b] = rangeText.split(':');
+        let from;
+        let to;
+        try { from = parseRef(a); to = b ? parseRef(b) : from; } catch { continue; }
+        const values = [];
+        if (from.row === to.row) {
+          for (let c = from.col; c <= to.col; c++) values.push(numericOrNull(view.calc.getValue(dataSheet ?? view.activeSheet, from.row, c)));
+        } else {
+          for (let r = from.row; r <= to.row; r++) values.push(numericOrNull(view.calc.getValue(dataSheet ?? view.activeSheet, r, from.col)));
+        }
+        out.push({ at, type: group.type, colour: group.colour, values });
+      }
+    }
+    return out;
+  }
+
   function sheetModel(session) {
     const view = session.engine;
     // The editor never reads pages; paginating on every keystroke is what made
@@ -626,6 +674,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       // read fresh off the model on every frame: fixing a cell drops its row
       // the moment the next frame is drawn.
       errors: view.errorChecking ? view.errorCells({ all: true }) : null,
+      // Insert → Sparklines: one entry per sparkline cell in view, with the
+      // values already resolved — the grid draws them straight, no lookup
+      // of its own into the groups.
+      sparklines: sheetSparklines(view, frame),
     };
   }
 

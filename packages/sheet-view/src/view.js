@@ -834,6 +834,13 @@ export class SheetView {
     const sheetTables = this.sheetTables();
     const links = this._links();
     const notes = this._notes();
+    // A sparkline cell is normally blank, and a blank cell that draws
+    // nothing else is otherwise left out of the frame entirely — so its ref
+    // is read once here, the way a note's or a link's is, to keep it in.
+    const sparklineCells = new Set();
+    for (const g of this.sparklineGroups()) {
+      for (const s of g.sparklines) sparklineCells.add(String(s.at).split(':')[0]);
+    }
     for (const row of rowIndices) {
       const height = geo.rowHeight(row);
       if (height === 0) continue;
@@ -884,7 +891,7 @@ export class SheetView {
         // A styled but empty cell still has to be drawn: a shaded header with no
         // text in it is a real thing, and skipping it leaves a hole in the band.
         const decorated = Boolean(style && (style.fill || style.border)) || Boolean(cf?.bar)
-          || Boolean(cf?.icon) || Boolean(note) || Boolean(link);
+          || Boolean(cf?.icon) || Boolean(note) || Boolean(link) || sparklineCells.has(ref(row, col));
         if (display.text === '' && !decorated && !merge && !this.selection.contains(row, col)) continue;
 
         const spanW = merge
@@ -2875,6 +2882,47 @@ export class SheetView {
       removed = this.workbook.removeDataValidations(this.activeSheet, all ? () => true : inside);
       const xml = this.workbook.snapshotParts([sheetPartName])[sheetPartName];
       this.validations.set(this.activeSheet, readDataValidations(xml));
+      this._structuralDirty = true;
+      return this;
+    }, { parts: [sheetPartName] });
+    return removed;
+  }
+
+  // ---- sparklines ----------------------------------------------------------
+
+  /** The sparkline groups on a sheet, as the engine reads them (or wrote them). */
+  sparklineGroups(sheetName = this.activeSheet) {
+    return this.workbook.sparklineGroups(sheetName);
+  }
+
+  /**
+   * Insert → Sparklines: a line or column spark from the numbers in `data`,
+   * one per cell of `at` — see the engine for the shapes this accepts. One
+   * undo step, the sheet part travelling with it the way a validation rule's
+   * does.
+   */
+  addSparklines({ type, data, at }) {
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected — unprotect it before adding a sparkline.');
+    }
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    this._edit('sparkline', null, [], () => {
+      this.workbook.addSparklines(this.activeSheet, { type, data, at });
+      this._structuralDirty = true;
+      return this;
+    }, { parts: [sheetPartName] });
+    return this;
+  }
+
+  /** Remove Sparkline: every sparkline whose cell is in `at` (a cell or a range). Returns how many went. */
+  removeSparklines(at) {
+    if (this.protection().sheet) {
+      throw protectionError('This sheet is protected — unprotect it before removing a sparkline.');
+    }
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    let removed = 0;
+    this._edit('remove sparkline', null, [], () => {
+      removed = this.workbook.removeSparklines(this.activeSheet, at);
       this._structuralDirty = true;
       return this;
     }, { parts: [sheetPartName] });

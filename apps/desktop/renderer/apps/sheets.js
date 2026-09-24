@@ -17,7 +17,7 @@ import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS } from './sheets/ribbon.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import {
-  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, parseRef,
+  GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -32,6 +32,9 @@ const colLabel = (n) => {
   }
   return s;
 };
+
+/** A 0-based row/column as Excel writes a cell reference, e.g. (1, 4) → "E2". */
+const refText = (row, col) => colLabel(col) + (row + 1);
 
 /**
  * A selection move that scrolled nothing answers with the selection and the
@@ -516,6 +519,18 @@ export default function Sheets({ app, shell, boot }) {
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
+        // Delete on an empty sparkline cell takes the sparkline off — a
+        // sparkline cell is normally empty, so this is the natural way to
+        // clear one without hunting for the ribbon or a right-click.
+        if (e.key === 'Delete') {
+          const active = model.selection?.active;
+          const activeCell = active && (model.cells || []).find((c) => c.row === active.row && c.col === active.col);
+          const spark = active && (model.sparklines || []).find((s) => s.at.row === active.row && s.at.col === active.col);
+          if (spark && !activeCell?.text) {
+            await dispatch({ op: 'removeSparklines', at: active.ref });
+            return;
+          }
+        }
         await dispatch({ op: 'clear' });
         return;
       }
@@ -781,27 +796,88 @@ export default function Sheets({ app, shell, boot }) {
     );
   };
 
+  /** Sparklines in view, keyed by "row:col" so a cell paints its own without scanning the list. */
+  const sparkAt = useMemo(() => {
+    const m = new Map();
+    for (const s of model?.sparklines || []) m.set(s.at.row + ':' + s.at.col, s);
+    return m;
+  }, [model?.sparklines]);
+
+  /**
+   * A sparkline drawn in its own cell: a line through the values (blanks as
+   * gaps, the line breaking over them rather than crossing), or a bar per
+   * value — both scaled to the cell's box with a pixel of padding, in the
+   * group's own colour. The cell's own text still paints over it, as Excel
+   * does; a sparkline cell is normally empty.
+   */
+  const sparkSvg = (spark, width, height) => {
+    const w = Math.max(1, width - 2);
+    const h = Math.max(1, height - 2);
+    const n = spark.values.length;
+    if (!n || !spark.values.some((v) => typeof v === 'number')) return null;
+    const nums = spark.values.filter((v) => typeof v === 'number');
+    const min = Math.min(0, ...nums);
+    const max = Math.max(0, ...nums);
+    const span = max - min || 1;
+    const colour = '#' + (spark.colour || '376092');
+    const x = (i) => 1 + (n > 1 ? (i * w) / (n - 1) : w / 2);
+    const yOf = (v) => 1 + h - ((v - min) / span) * h;
+    if (spark.type === 'column') {
+      const gap = Math.min(2, w / (n * 4));
+      const bw = Math.max(1, w / n - gap);
+      return (
+        <svg className="sh-spark" data-ref={refText(spark.at.row, spark.at.col)} width={width} height={height}>
+          {spark.values.map((v, i) => (typeof v === 'number' ? (
+            <rect key={i} x={1 + (i * w) / n + gap / 2} y={Math.min(yOf(v), yOf(0))} width={bw} height={Math.max(0.5, Math.abs(yOf(v) - yOf(0)))} fill={colour} />
+          ) : null))}
+        </svg>
+      );
+    }
+    // One polyline per unbroken run of numbers — a blank cell in the data
+    // range is a gap in the line, not a dip to zero.
+    const segments = [];
+    let run = [];
+    spark.values.forEach((v, i) => {
+      if (typeof v === 'number') run.push(x(i) + ',' + yOf(v));
+      else if (run.length) { segments.push(run); run = []; }
+    });
+    if (run.length) segments.push(run);
+    return (
+      <svg className="sh-spark" data-ref={refText(spark.at.row, spark.at.col)} width={width} height={height}>
+        {segments.map((seg, i) => <polyline key={i} points={seg.join(' ')} fill="none" stroke={colour} strokeWidth="1" />)}
+      </svg>
+    );
+  };
+
   /** A cell, drawn where it sits — `dy` above it when its layer starts lower down. */
-  const cellNode = (cell, dy = 0) => (
-    <div
-      key={cell.ref}
-      className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}`}
-      data-ref={cell.ref}
-      style={dy ? { ...spillStyle(cell), top: cell.y - dy } : spillStyle(cell)}
-      onMouseDown={(e) => {
-        // Ctrl+click on a link follows it, as in Word; a plain click selects, as in Excel.
-        if (cell.link && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
-        dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
-      }}
-      onDoubleClick={() => dispatch({ op: 'beginEdit' })}
-      onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.copy', 'edit.clear', '-', 'insert.link', 'insert.note', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
-      data-tip={tipFor(cell)}
-    >
-      {cell.rotation
-        ? <span className="sh-rot" style={rotationStyle(cell.rotation)}>{view.formulas && cell.formula ? cell.formula : cell.text}</span>
-        : (view.formulas && cell.formula ? cell.formula : cell.text)}
-    </div>
-  );
+  const cellNode = (cell, dy = 0) => {
+    const spark = sparkAt.get(cell.row + ':' + cell.col);
+    return (
+      <div
+        key={cell.ref}
+        className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}`}
+        data-ref={cell.ref}
+        style={dy ? { ...spillStyle(cell), top: cell.y - dy } : spillStyle(cell)}
+        onMouseDown={(e) => {
+          // Ctrl+click on a link follows it, as in Word; a plain click selects, as in Excel.
+          if (cell.link && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
+          dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
+        }}
+        onDoubleClick={() => dispatch({ op: 'beginEdit' })}
+        onContextMenu={(e) => menu.open(e, spark
+          ? menuItems(commands, ['edit.copy', 'edit.clear', '-']).concat([
+            { label: 'Remove sparkline', icon: 'close', run: () => dispatch({ op: 'removeSparklines', at: cell.ref }) },
+          ])
+          : menuItems(commands, ['edit.copy', 'edit.clear', '-', 'insert.link', 'insert.note', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
+        data-tip={tipFor(cell)}
+      >
+        {spark ? sparkSvg(spark, cell.width, cell.height) : null}
+        {cell.rotation
+          ? <span className="sh-rot" style={rotationStyle(cell.rotation)}>{view.formulas && cell.formula ? cell.formula : cell.text}</span>
+          : (view.formulas && cell.formula ? cell.formula : cell.text)}
+      </div>
+    );
+  };
 
   /** The cell editor, over the active cell, in whichever layer holds it. */
   const editorNode = (dy = 0) => {
@@ -1507,6 +1583,19 @@ export default function Sheets({ app, shell, boot }) {
           onSet={async (note) => { setDialog(null); await dispatch({ op: 'setNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0, ...note }); }}
         />
       ) : null}
+      {dialog === 'sparklineLine' || dialog === 'sparklineColumn' ? (
+        <SparklineDialog
+          type={dialog === 'sparklineColumn' ? 'column' : 'line'}
+          data={sel?.ref || ''}
+          // The cell past the selection's last column, one per row — where a
+          // person reaches for the sparkline to go once the numbers are picked.
+          at={sel ? (sel.bottom > sel.top
+            ? refText(sel.top, sel.right + 1) + ':' + refText(sel.bottom, sel.right + 1)
+            : refText(sel.top, sel.right + 1)) : ''}
+          onClose={() => setDialog(null)}
+          onApply={async (spec) => { setDialog(null); await dispatch({ op: 'addSparklines', ...spec }); }}
+        />
+      ) : null}
       {dialog === 'renameSheet' && sheetTarget ? (
         <SheetNameDialog
           current={sheetTarget}
@@ -1900,6 +1989,8 @@ const CSS = `
 .sh-cell.link { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); cursor: pointer; }
 /* A note: Excel's red corner, and the note itself on hover through the tip layer. */
 .sh-cell.noted::after { content: ''; position: absolute; top: 0; right: 0; border: 4px solid transparent; border-top-color: #d0362f; border-right-color: #d0362f; }
+/* A sparkline: drawn under the cell's own text, which is normally empty. */
+.sh-spark { position: absolute; left: 0; top: 0; pointer-events: none; }
 .sh-drawing { position: absolute; overflow: visible; z-index: 2; }
 .sh-drawing > svg { display: block; overflow: visible; }
 .sh-drawing.unsupported { display: grid; place-items: center; border: 1px dashed var(--line); color: var(--ink-3); font-size: 11px; background: rgba(255, 255, 255, 0.6); }

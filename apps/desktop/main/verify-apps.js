@@ -3463,29 +3463,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const clickedColumn = await clickSparkline('Column');
       console.log('DEBUG clickedColumn', clickedColumn);
       await until(() => js(`Boolean(document.querySelector('.sh-sparkline-data'))`), 'the sparkline dialog again', 4000);
-      console.log('DEBUG dialogs open', await js(`document.querySelectorAll('.rw-dialog').length`), await js(`document.querySelector('.rw-dialog-head')?.textContent`));
-      const setResult = await setField('.sh-sparkline-at', 'E2');
-      console.log('DEBUG setField', setResult);
-      await wait(100);
-      const dbg = await js(`({ data: document.querySelector('.sh-sparkline-data')?.value, at: document.querySelector('.sh-sparkline-at')?.value, okDisabled: document.querySelector('.sh-sparkline-ok')?.disabled, count: document.querySelectorAll('.sh-sparkline-ok').length })`);
-      console.log('DEBUG dialog', dbg);
-      const clickRes = await js(`(() => { const b = document.querySelector('.sh-sparkline-ok'); if (!b) return 'no button'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked-ok'; })()`);
-      console.log('DEBUG clickRes', clickRes);
-      await wait(200);
-      console.log('DEBUG dialogs after click', await js(`document.querySelectorAll('.rw-dialog').length`));
-      console.log('DEBUG toast', await js(`[...document.querySelectorAll('.rw-toast')].map((t) => t.textContent).join(' | ')`));
-      console.log('DEBUG model.sparklines', JSON.stringify((await model()).sparklines));
-      const rawResult = await js(`(async () => {
-        const all = await window.rutbaOffice.doc.sessions({});
-        const mine = all.filter((s) => s.kind === 'sheet').pop();
-        try {
-          const r = await window.rutbaOffice.doc.apply({ id: mine.id, ops: [{ op: 'addSparklines', type: 'column', data: 'B2:C2', at: 'E2' }] });
-          return { ok: true, sparklines: r.model.sparklines };
-        } catch (e) {
-          return { ok: false, error: e.message };
-        }
-      })()`);
-      console.log('DEBUG rawResult', JSON.stringify(rawResult));
+      await setField('.sh-sparkline-at', 'E2');
+      await js(`document.querySelector('.sh-sparkline-ok')?.click(), 'ok'`);
       await until(async () => (await model()).sparklines?.some((s) => s.at.row === 1 && s.at.col === 4 && s.type === 'column'), 'E2 to carry a column sparkline', 4000);
       check('sheets: Insert → Sparklines → Column opens and applies to a chosen cell', clickedColumn === 'clicked', clickedColumn);
 
@@ -3603,6 +3582,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('home')) await launcherRecent();
     if (only.includes('freeze')) await sheetFreeze();
     if (only.includes('errors')) await sheetErrors();
+    if (only.includes('sparklines')) await sheetSparklines();
     if (only.includes('zoom')) await zoomStaysOnThePage();
     if (only.includes('fit')) await wordPictureFits();
     if (only.includes('cards')) await wordCards();
@@ -3721,6 +3701,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await launcherRecent();
   await sheetFreeze();
   await sheetErrors();
+  await sheetSparklines();
   await zoomStaysOnThePage();
   await sheetPicture();
   await viewer();
