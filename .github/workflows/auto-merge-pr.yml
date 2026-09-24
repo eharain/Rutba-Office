@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   enable-auto-merge:
-    if: ${{ github.event.pull_request.state == 'open' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && ((vars.AUTO_MERGE_ALLOWED_USER != '' && (github.actor == vars.AUTO_MERGE_ALLOWED_USER || format('@{0}', github.actor) == vars.AUTO_MERGE_ALLOWED_USER)) || (vars.AUTO_MERGE_ALLOWED_USER == '' && github.actor == 'eharain')) }}
+    if: ${{ github.event.pull_request.state == 'open' && !github.event.pull_request.draft && github.event.pull_request.head.repo.full_name == github.repository && ((vars.AUTO_MERGE_ALLOWED_USER != '' && ((startsWith(vars.AUTO_MERGE_ALLOWED_USER, '@') && format('@{0}', github.actor) == vars.AUTO_MERGE_ALLOWED_USER) || (!startsWith(vars.AUTO_MERGE_ALLOWED_USER, '@') && github.actor == vars.AUTO_MERGE_ALLOWED_USER))) || (vars.AUTO_MERGE_ALLOWED_USER == '' && github.actor == 'eharain')) }}
     runs-on: ubuntu-latest
     steps:
       - name: Enable auto-merge (squash)
