@@ -65,18 +65,22 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   the page margins and a table's columns by hand, and grips on a table's
   borders move its columns and rows, and the print paginator lays a
   table on the same grid.)
-- **Fields.** Bookmarks, cross-references, captions, an index, a table of
-  authorities, citations and a bibliography, `SEQ`, `PAGE` outside the
-  header — none are written, so the table of contents this suite inserts is
-  text rather than a field that refreshes.
+- **Fields.** Bookmarks arrived 2026-09-24, Insert → Bookmark naming a span
+  of paragraphs (`w:bookmarkStart`/`w:bookmarkEnd`) that Go To finds again
+  and a bookmarked paragraph stays editable through it. Cross-references,
+  captions, an index, a table of authorities, citations and a bibliography,
+  `SEQ`, `PAGE` outside the header — none are written, so the table of
+  contents this suite inserts is text rather than a field that refreshes.
 - **Mail merge**, envelopes and labels: a data source, merge fields, a
   preview and a run. Nothing of it exists, and Mail beside it is exactly
   what would make it worth having.
 - **Recording tracked changes.** Tracked changes are read and shown;
   `w:ins`/`w:del` are not written as edits happen, so Accept and Reject have
   nothing to act on. Document comparison and Restrict Editing sit behind it.
-- **Text effects and equations.** WordArt, outline/shadow/glow, drop caps,
-  SmartArt, OMML equations: read past, not written.
+- **Text effects and equations.** Outline, shadow and glow arrived
+  2026-09-24 from Home → Text Effects, drawn on the page and, outline and
+  shadow, in print; a glow is not printed. WordArt, drop caps, SmartArt,
+  OMML equations: read past, not written.
 - **A real watermark** (the header holds text only), multilevel list
   definitions. (Paragraph shading and borders, and the page colour, are
   written from the ribbon since 2026-09-21, and printed.)
@@ -173,8 +177,10 @@ document and workbook writers.
   sections, drawn as headings above their first slide in the thumbnail strip
   and in Slide Sorter view, written as PowerPoint's own `p14:sectionLst`
   extension list and kept in step as slides are added, duplicated, moved or
-  deleted; hidden slides, custom shows and saving as a show are still to
-  come.
+  deleted; hidden slides arrived the same day, Slide Show → Hide Slide
+  marking a slide `show="0"` so the show steps over it while the strip,
+  Slide Sorter and printing still draw it; custom shows and saving as a
+  show are still to come.
 - **The show**: recorded narration and timings, transitions and animations
   as anything but ribbon tabs, export to video.
 - **Review**: comments on a slide, tracked changes, find and replace across
