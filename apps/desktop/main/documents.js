@@ -790,6 +790,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       index,
       size: deck.size,
       outline: deck.outline().map((o) => ({ ...o, thumbnail: thumbnailOf(o, Math.abs(o.index - index) <= 2) })),
+      // The deck's sections, for the headings in the strip and the sorter; none for most decks.
+      sections: safely(() => deck.sections()) || [],
       // The deck's layouts, for the Designs pane. Read once: nothing edits
       // a layout, and reading them draws every placeholder of every one.
       layouts: (session.layouts ||= safely(() => deck.layoutList()) || []),
@@ -1009,6 +1011,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setLink: (d, a) => d.setLink(a.slide, a.shape, a.url ?? null),
     // Home → Editing: the words replaced across every slide.
     replaceText: (d, a) => d.replaceText(a.find, a.replace, { matchCase: Boolean(a.matchCase) }),
+    // Home → Section: a section before this slide, its name, one taken away, or all of them.
+    addSection: (d, a) => d.addSection(a.slide, a.name ?? 'Untitled Section'),
+    renameSection: (d, a) => d.renameSection(a.section, a.name),
+    removeSection: (d, a) => d.removeSection(a.section),
+    removeAllSections: (d) => d.removeAllSections(),
     // Insert → Header & Footer: this slide, or every slide.
     setFooter: (d, a) => {
       const slides = a.all ? Array.from({ length: d.slideCount }, (_, i) => i) : [a.slide];

@@ -197,10 +197,176 @@ export class Deck {
     this.themes = new Map();
     this.layouts = new Map();
     this.masters = new Map();
+
+    // Sections — PowerPoint 2010's p14:sectionLst, an extension on the
+    // presentation part — as lists of sldId ids. A section naming a slide
+    // that is not in the show is tolerated on the way in and dropped on the
+    // way out, which is what PowerPoint does with the same file.
+    this._sections = readSectionList(xml);
   }
 
   get slideCount() {
     return this.slideParts.length;
+  }
+
+  // ---- sections ----------------------------------------------------------
+
+  /**
+   * The deck's sections in order, each with the indexes of the slides it
+   * holds. Empty when the deck has none: every slide is then in no section,
+   * which the window draws as a plain strip.
+   */
+  sections() {
+    const pos = new Map(this.slideParts.map((s, i) => [String(s.id), i]));
+    return this._sections.map((s, index) => ({
+      index,
+      name: s.name,
+      id: s.id,
+      slides: s.slideIds.map((id) => pos.get(String(id))).filter((i) => i != null),
+    }));
+  }
+
+  /** The index of the section a slide is in, or -1. */
+  sectionOf(slideIndex) {
+    return this.sections().findIndex((s) => s.slides.includes(slideIndex));
+  }
+
+  /**
+   * A section starting at the slide at `index`, as Home → Section → Add
+   * Section makes one before the selected slide. A deck with no sections
+   * gets a "Default Section" for the slides before it first, as PowerPoint
+   * does, since every slide of a sectioned deck is in some section. The
+   * section the slide was in keeps the slides before it. A slide that already
+   * starts a section starts that one still: nothing changes and its index is
+   * returned.
+   * @returns {number} the index of the section that starts at the slide
+   */
+  addSection(index, name = 'Untitled Section') {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+    const ids = this.slideParts.map((s) => String(s.id));
+    if (!this._sections.length) {
+      const before = ids.slice(0, index);
+      const next = [];
+      if (before.length) next.push({ name: 'Default Section', id: sectionGuid(), slideIds: before });
+      next.push({ name, id: sectionGuid(), slideIds: ids.slice(index) });
+      this.#writeSections(next);
+      return next.length - 1;
+    }
+    const sections = this.sections();
+    const at = sections.findIndex((s) => s.slides.includes(index));
+    if (at < 0) {
+      // A slide no section lists — a file another program wrote — joins
+      // the sections the way an added slide does, then the split is retried.
+      this.#syncSections();
+      return this.addSection(index, name);
+    }
+    if (sections[at].slides[0] === index) return at;
+    const own = this._sections[at];
+    const keep = own.slideIds.filter((id) => (this.slideParts.findIndex((s) => String(s.id) === String(id))) < index);
+    const moved = own.slideIds.filter((id) => !keep.includes(id));
+    const next = this._sections.map((s) => ({ ...s, slideIds: [...s.slideIds] }));
+    next[at] = { ...own, slideIds: keep };
+    next.splice(at + 1, 0, { name, id: sectionGuid(), slideIds: moved });
+    this.#writeSections(next);
+    return at + 1;
+  }
+
+  /** A section's new name. */
+  renameSection(index, name) {
+    const own = this._sections[index];
+    if (!own) throw new RangeError(`no section at index ${index}`);
+    const clean = String(name ?? '').trim() || 'Untitled Section';
+    if (clean === own.name) return false;
+    const next = this._sections.map((s, i) => (i === index ? { ...s, name: clean } : { ...s }));
+    this.#writeSections(next);
+    return true;
+  }
+
+  /**
+   * A section taken away, its slides staying in the show: they join the
+   * section before it, or — for the first — the one after. The last section
+   * standing takes the list with it, so the deck is back to having none.
+   */
+  removeSection(index) {
+    const own = this._sections[index];
+    if (!own) throw new RangeError(`no section at index ${index}`);
+    if (this._sections.length === 1) return this.removeAllSections();
+    const next = this._sections.map((s) => ({ ...s, slideIds: [...s.slideIds] }));
+    const into = index > 0 ? index - 1 : 1;
+    next[into].slideIds = index > 0 ? [...next[into].slideIds, ...own.slideIds] : [...own.slideIds, ...next[into].slideIds];
+    next.splice(index, 1);
+    this.#writeSections(next);
+    return true;
+  }
+
+  /** Every section gone; the slides stay as they are. */
+  removeAllSections() {
+    if (!this._sections.length) return false;
+    this.#writeSections([]);
+    return true;
+  }
+
+  /**
+   * The section list written into presentation.xml as PowerPoint writes it:
+   * one p:ext with PowerPoint's section-list URI, the p14 namespace declared
+   * on the list, each section a name, a GUID and its slide ids in show order.
+   * An empty list takes the extension out, and the extLst with it when
+   * nothing else is in there.
+   */
+  #writeSections(sections) {
+    const presXml = this.pkg.text('ppt/presentation.xml');
+    const order = new Map(this.slideParts.map((s, i) => [String(s.id), i]));
+    const kept = sections.map((s) => ({
+      name: s.name,
+      id: s.id || sectionGuid(),
+      slideIds: [...new Set(s.slideIds.map(String))].filter((id) => order.has(id)).sort((a, b) => order.get(a) - order.get(b)),
+    }));
+    const extRe = /<p:ext\b[^>]*uri="\{521415D9-36F7-43E2-AB2F-B90AF26B5E84\}"[^>]*>[\s\S]*?<\/p:ext>/;
+    let next;
+    if (!kept.length) {
+      next = presXml.replace(extRe, '').replace(/<p:extLst>\s*<\/p:extLst>/, '');
+    } else {
+      const ext =
+        `<p:ext uri="{521415D9-36F7-43E2-AB2F-B90AF26B5E84}">` +
+        `<p14:sectionLst xmlns:p14="${P14_NS}">` +
+        kept.map((s) => `<p14:section name="${escapeXml(s.name)}" id="${s.id}">${s.slideIds.length ? `<p14:sldIdLst>${s.slideIds.map((id) => `<p14:sldId id="${id}"/>`).join('')}</p14:sldIdLst>` : '<p14:sldIdLst/>'}</p14:section>`).join('') +
+        `</p14:sectionLst></p:ext>`;
+      if (extRe.test(presXml)) next = presXml.replace(extRe, ext);
+      else if (/<\/p:extLst>\s*<\/p:presentation>/.test(presXml)) next = presXml.replace(/<\/p:extLst>(\s*<\/p:presentation>)/, `${ext}</p:extLst>$1`);
+      else next = presXml.replace(/<\/p:presentation>\s*$/, `<p:extLst>${ext}</p:extLst></p:presentation>`);
+    }
+    if (next === presXml) return;
+    this.pkg.write_('ppt/presentation.xml', Buffer.from(next, 'utf8'));
+    this.dirty = true;
+    this._sections = kept;
+  }
+
+  /**
+   * The sections brought into step with the slide list after a slide is
+   * added, removed or moved: a slide no section lists joins the section of
+   * the slide before it (the first section when it is first), a slide gone
+   * from the show goes from its section, and each section lists its slides
+   * in show order. `loose` names slide ids to place afresh — a moved slide
+   * belongs where it landed, not where it came from.
+   */
+  #syncSections(loose = []) {
+    if (!this._sections.length) return;
+    const order = this.slideParts.map((s) => String(s.id));
+    const known = new Set(order);
+    const free = new Set(loose.map(String));
+    const lists = this._sections.map((s) => s.slideIds.map(String).filter((id) => known.has(id) && !free.has(id)));
+    const where = new Map();
+    lists.forEach((ids, si) => ids.forEach((id) => where.set(id, si)));
+    let previous = 0;
+    for (const id of order) {
+      if (where.has(id)) { previous = where.get(id); continue; }
+      lists[previous].push(id);
+      where.set(id, previous);
+    }
+    const next = this._sections.map((s, i) => ({ ...s, slideIds: lists[i] }));
+    const same = next.every((s, i) => s.slideIds.join() === this._sections[i].slideIds.map(String).join());
+    if (!same) this.#writeSections(next);
   }
 
   #masterFor(layoutPart) {
@@ -349,6 +515,9 @@ export class Deck {
    * the deck weighs.
    */
   outline() {
+    // The section each slide is in, by index into `sections()`, or null.
+    const sectionAt = new Map();
+    for (const s of this.sections()) for (const i of s.slides) sectionAt.set(i, s.index);
     return this.slideParts.map((entry, i) => {
       const xml = this.pkg.text(entry.part);
       const rels = this.#relMap(entry.part);
@@ -359,6 +528,7 @@ export class Deck {
         title: outlineTitle(xml),
         shapes: (xml.match(/<p:(sp|pic|graphicFrame|grpSp|cxnSp)\b/g) || []).length,
         notes: notesPart ? plainTextOf(this.pkg.text(notesPart)) : '',
+        section: sectionAt.has(i) ? sectionAt.get(i) : null,
       };
     });
   }
@@ -1121,6 +1291,7 @@ export class Deck {
     this.pkg.write_('ppt/presentation.xml', Buffer.from(next, 'utf8'));
     this.dirty = true;
     this.#load();
+    this.#syncSections();
     return this.slideParts.findIndex((s) => s.part === newPart);
   }
 
@@ -1191,6 +1362,7 @@ export class Deck {
     this.pkg.write_('ppt/presentation.xml', Buffer.from(next, 'utf8'));
     this.dirty = true;
     this.#load();
+    this.#syncSections();
     return this.slideParts.findIndex((s) => s.part === newPart);
   }
 
@@ -1262,6 +1434,7 @@ export class Deck {
     this.pkg.write_('ppt/presentation.xml', Buffer.from(next, 'utf8'));
     this.dirty = true;
     this.#load();
+    this.#syncSections();
     return true;
   }
 
@@ -1280,6 +1453,8 @@ export class Deck {
     this.pkg.write_('ppt/presentation.xml', Buffer.from(next, 'utf8'));
     this.dirty = true;
     this.#load();
+    // The moved slide belongs to the section it landed in, not the one it left.
+    this.#syncSections([entry.id]);
     return true;
   }
 
@@ -1297,6 +1472,40 @@ const unescapeXml = (s) =>
     .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
     .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
     .replace(/&amp;/g, '&');
+
+const P14_NS = 'http://schemas.microsoft.com/office/powerpoint/2010/main';
+
+/** A GUID in braces, upper case, the way PowerPoint names a section. */
+function sectionGuid() {
+  const hex = '0123456789ABCDEF';
+  let out = '';
+  for (let i = 0; i < 32; i++) {
+    let n = Math.floor(Math.random() * 16);
+    if (i === 12) n = 4;
+    if (i === 16) n = 8 + (n & 3);
+    out += hex[n];
+    if (i === 7 || i === 11 || i === 15 || i === 19) out += '-';
+  }
+  return `{${out}}`;
+}
+
+/**
+ * The sections of a presentation part: PowerPoint's p14:sectionLst, each
+ * section its name, its GUID and the ids of the slides it lists. A deck with
+ * no list has no sections.
+ */
+function readSectionList(xml) {
+  const list = /<p14:sectionLst\b[^>]*>([\s\S]*?)<\/p14:sectionLst>/.exec(String(xml));
+  if (!list) return [];
+  const out = [];
+  for (const m of list[1].matchAll(/<p14:section\b([^>]*?)(?:\/>|>([\s\S]*?)<\/p14:section>)/g)) {
+    const name = /\bname="([^"]*)"/.exec(m[1])?.[1];
+    const id = /\bid="([^"]*)"/.exec(m[1])?.[1];
+    const slideIds = [...String(m[2] || '').matchAll(/<p14:sldId\b[^>]*\bid="(\d+)"/g)].map((s) => s[1]);
+    out.push({ name: name != null ? unescapeXml(name) : 'Untitled Section', id: id || sectionGuid(), slideIds });
+  }
+  return out;
+}
 
 /** Every run of text in a fragment, as one line. */
 function plainTextOf(xml) {

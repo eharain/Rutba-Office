@@ -57,6 +57,8 @@ export default function SlidesRibbon({
   };
   const fmt = (delta) => act('format', delta);
   const needShape = hasShape ? undefined : 'Select a text box first — click it once';
+  const hasSections = (model?.sections || []).length > 0;
+  const inSection = (model?.sections || []).some((s) => s.slides.includes(index));
 
   return (
     <Ribbon
@@ -110,7 +112,17 @@ export default function SlidesRibbon({
               <>
                 <Button icon="grid" label="Layout" title="Layout — put this slide on another of the deck's layouts" onClick={(e) => menu.open(e, (model?.layouts || []).map((l) => ({ label: l.name || l.part, icon: l.part === model?.slide?.layout ? 'check' : undefined, run: () => act('applyLayout', l.part) })))} />
                 <Button icon="undo" label="Reset" title="Reset — the placeholders back where the layout puts them" onClick={() => act('resetSlide')} />
-                <Soon icon="list" label="Section" why="Sections are a presentation-part list the engine does not write yet." />
+                <Button
+                  icon="list"
+                  label="Section"
+                  title="Section — a section before this slide, its name, or one taken away"
+                  onClick={(e) => menu.open(e, [
+                    { label: 'Add Section', icon: 'plus', run: () => act('addSection') },
+                    { label: 'Rename Section…', icon: 'textbox', disabled: !inSection, run: () => act('renameSection') },
+                    { label: 'Remove Section', icon: 'trash', disabled: !inSection, run: () => act('removeSection') },
+                    { label: 'Remove All Sections', icon: 'close', disabled: !hasSections, run: () => act('removeAllSections') },
+                  ])}
+                />
               </>
               <>
                 <Button icon="copy" label="Duplicate" onClick={() => commands['slide.new']?.run?.()} />

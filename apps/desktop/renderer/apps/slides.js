@@ -42,6 +42,8 @@ export default function Slides({ app, shell, boot }) {
   const [findOpen, setFindOpen] = useState(false);
   /** Insert → Link on the selected shape. */
   const [linkOpen, setLinkOpen] = useState(false);
+  /** Home → Section → Rename: the section (by index) and the name it has now. */
+  const [sectionRename, setSectionRename] = useState(null);
   /** A shape to select once the slide a match is on has been shown. */
   const pendingSelect = useRef(null);
   const [blank, setBlank] = useState(false);
@@ -583,6 +585,29 @@ export default function Slides({ app, shell, boot }) {
         setLinkOpen(true);
         return;
       }
+      // Sections: PowerPoint's Home → Section menu. A new one starts at this
+      // slide and is named at once; Rename and Remove act on this slide's.
+      case 'addSection': {
+        const next = await apply({ op: 'addSection', slide: index, name: 'Untitled Section' });
+        const at = (next?.model?.sections || []).findIndex((s) => s.slides.includes(index));
+        if (at >= 0) setSectionRename({ section: at, name: next.model.sections[at].name });
+        return;
+      }
+      case 'renameSection': {
+        const own = (model?.sections || []).find((s) => s.slides.includes(index));
+        if (!own) return toast('This slide is in no section. Add Section starts one at it.', { ms: 3500 });
+        setSectionRename({ section: own.index, name: own.name });
+        return;
+      }
+      case 'removeSection': {
+        const own = (model?.sections || []).find((s) => s.slides.includes(index));
+        if (!own) return toast('This slide is in no section.', { ms: 3000 });
+        await apply({ op: 'removeSection', section: own.index });
+        return;
+      }
+      case 'removeAllSections':
+        await apply({ op: 'removeAllSections' });
+        return;
       case 'clearFormat': {
         if (!selectedShape?.text) return toast('Click a text box first.', { ms: 3000 });
         await apply({ op: 'clearTextFormat', slide: index, shape: selectedShape.id });
@@ -780,21 +805,24 @@ export default function Slides({ app, shell, boot }) {
           <Panel width={196} resizable title="Slides">
             <div className="sl-sorter">
               {(model.outline || []).map((o, i) => (
-                <button
-                  key={o.part || i}
-                  type="button"
-                  className={`sl-thumb${i === index ? ' active' : ''}`}
-                  onClick={() => setIndex(i)}
-                  onContextMenu={(e) => menu.open(e, menuItems(commands, ['slide.new', 'slide.delete']))}
-                >
-                  <span className="sl-thumb-n">{i + 1}</span>
-                  <span className="sl-thumb-card" title={o.title || `Slide ${i + 1}`}>
-                    {o.thumbnail
-                      ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} />
-                      : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
-                  </span>
-                </button>
+                <React.Fragment key={o.part || i}>
+                  {sectionHeading(model, o, i, (s) => setSectionRename({ section: s.index, name: s.name }), () => setIndex(i))}
+                  <button
+                    type="button"
+                    className={`sl-thumb${i === index ? ' active' : ''}`}
+                    onClick={() => setIndex(i)}
+                    onContextMenu={(e) => menu.open(e, menuItems(commands, ['slide.new', 'slide.delete']))}
+                  >
+                    <span className="sl-thumb-n">{i + 1}</span>
+                    <span className="sl-thumb-card" title={o.title || `Slide ${i + 1}`}>
+                      {o.thumbnail
+                        ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} />
+                        : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
+                    </span>
+                  </button>
+                </React.Fragment>
               ))}
+              {emptySectionHeadings(model, (s) => setSectionRename({ section: s.index, name: s.name }))}
             </div>
           </Panel>
 
@@ -821,11 +849,15 @@ export default function Slides({ app, shell, boot }) {
               {slide && view.mode === 'sorter' ? (
                 <div className="sl-sortergrid">
                   {(model.outline || []).map((o, i) => (
-                    <button key={o.part || i} type="button" className={`sl-sortercard${i === index ? ' active' : ''}`} onClick={() => { setIndex(i); patchView({ mode: 'normal' }); }} title={o.title || `Slide ${i + 1}`}>
-                      {o.thumbnail ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} /> : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
-                      <span className="sl-sortern">{i + 1}</span>
-                    </button>
+                    <React.Fragment key={o.part || i}>
+                      {sectionHeading(model, o, i, (s) => setSectionRename({ section: s.index, name: s.name }), () => setIndex(i))}
+                      <button type="button" className={`sl-sortercard${i === index ? ' active' : ''}`} onClick={() => { setIndex(i); patchView({ mode: 'normal' }); }} title={o.title || `Slide ${i + 1}`}>
+                        {o.thumbnail ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} /> : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
+                        <span className="sl-sortern">{i + 1}</span>
+                      </button>
+                    </React.Fragment>
                   ))}
+                  {emptySectionHeadings(model, (s) => setSectionRename({ section: s.index, name: s.name }))}
                 </div>
               ) : slide && view.mode === 'outline' ? (
                 <div className="sl-outline">
@@ -972,6 +1004,17 @@ export default function Slides({ app, shell, boot }) {
           onRemove={async () => {
             await apply({ op: 'setLink', slide: index, shape: selectedShape.id, url: null });
             setLinkOpen(false);
+          }}
+        />
+      ) : null}
+
+      {sectionRename ? (
+        <SectionNameDialog
+          name={sectionRename.name}
+          onClose={() => setSectionRename(null)}
+          onApply={async (name) => {
+            await apply({ op: 'renameSection', section: sectionRename.section, name });
+            setSectionRename(null);
           }}
         />
       ) : null}
@@ -1327,6 +1370,13 @@ const CSS = `
 .sl-design-new:hover { color: var(--accent); border-color: var(--accent); }
 
 .sl-sorter { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+/* A section's heading, above its first slide, as PowerPoint draws one: the name and how many slides. */
+.sl-section { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding: 6px 2px 0 20px; border: 0; background: transparent; text-align: left; cursor: pointer; }
+.sl-sortergrid .sl-section { grid-column: 1 / -1; padding-left: 2px; }
+.sl-section + .sl-section, .sl-sorter .sl-section:first-child { padding-top: 0; }
+.sl-section-name { font-size: 11.5px; font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl-section:hover .sl-section-name { color: var(--accent); }
+.sl-section-count { font-size: 10.5px; color: var(--ink-3); flex: none; }
 .sl-thumb { display: flex; align-items: stretch; gap: 7px; border: 0; background: transparent; padding: 0; text-align: left; }
 .sl-thumb-n { width: 16px; font-size: 11px; color: var(--ink-3); padding-top: 3px; flex: none; text-align: right; }
 .sl-thumb-card {
@@ -1423,6 +1473,35 @@ function SlidesShortcutsDialog({ onClose }) {
  * so they travel with the deck to PowerPoint and back.
  */
 /** The first address a shape's words carry, or ''. */
+/**
+ * The heading a section draws above its first slide in the strip and the
+ * sorter — its name and how many slides it holds — or nothing. A slide
+ * starts a section when the one before it is in a different one, which
+ * also draws a heading for a file whose sections are out of order. A click
+ * goes to the slide; a double-click renames the section.
+ */
+function sectionHeading(model, entry, i, onRename, onGo) {
+  const at = entry.section;
+  if (at == null) return null;
+  const before = i > 0 ? model.outline[i - 1] : null;
+  if (before && before.section === at) return null;
+  const section = (model.sections || [])[at];
+  if (!section) return null;
+  return (
+    <button
+      type="button"
+      className="sl-section"
+      data-section={at}
+      title={`${section.name} — ${section.slides.length} slide${section.slides.length === 1 ? '' : 's'}. Double-click to rename.`}
+      onClick={onGo}
+      onDoubleClick={() => onRename(section)}
+    >
+      <span className="sl-section-name">{section.name}</span>
+      <span className="sl-section-count">{section.slides.length}</span>
+    </button>
+  );
+}
+
 function linkOf(shape) {
   return (shape?.text?.paragraphs || []).flatMap((p) => p.runs || []).map((r) => (r.link && typeof r.link === 'object' ? r.link.url : null)).find(Boolean) || '';
 }
@@ -1433,6 +1512,44 @@ function normaliseAddress(url) {
   if (/^[a-z][a-z0-9+.-]*:/i.test(text)) return text;
   if (/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(text)) return `mailto:${text}`;
   return `https://${text}`;
+}
+
+/**
+ * The sections left with no slides — every slide of one deleted — drawn after
+ * the last slide so they are not lost: PowerPoint keeps an empty section, and
+ * so does the file. A double-click renames one; Remove All Sections takes it.
+ */
+function emptySectionHeadings(model, onRename) {
+  return (model?.sections || []).filter((s) => !s.slides.length).map((s) => (
+    <button key={`empty${s.index}`} type="button" className="sl-section" data-section={s.index} title={`${s.name} — no slides. Double-click to rename; Remove All Sections takes it away.`} onDoubleClick={() => onRename(s)}>
+      <span className="sl-section-name">{s.name}</span>
+      <span className="sl-section-count">0</span>
+    </button>
+  ));
+}
+
+/** Home → Section → Rename: the section's name, as PowerPoint asks for it. */
+function SectionNameDialog({ name: current, onClose, onApply }) {
+  const [name, setName] = useState(current || '');
+  return (
+    <Dialog
+      title="Rename section"
+      width={400}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="Rename" className="sl-section-ok" disabled={!name.trim()} onClick={() => onApply(name.trim())} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="Section name">
+          <input className="rw-input sl-section-input" value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) onApply(name.trim()); }} onFocus={(e) => e.target.select()} autoFocus />
+        </Field>
+      </div>
+    </Dialog>
+  );
 }
 
 /** Insert → Link: a web address on the selected shape's words. */

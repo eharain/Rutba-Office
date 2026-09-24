@@ -1324,6 +1324,102 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Presentation: sections ──────────────────────────────────────────── */
+  //
+  // Home → Section → Add Section on the second slide starts one there and
+  // asks for its name; the strip and the saved file carry a Default Section
+  // for the first slide and the named one for the second; Remove Section
+  // folds it back, and Remove All Sections takes the list out of the file.
+  // Run alone with RUTBA_VERIFY_ONLY=sections.
+  const slideSections = async () => {
+    try {
+      const win = await open('slides', files.pptx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
+      await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const pickMenu = async (label) => {
+        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} item`, 4000);
+        return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
+      };
+      const headings = () => js(`[...document.querySelectorAll('.sl-sorter .sl-section')].map((h) => [h.querySelector('.sl-section-name')?.textContent, h.querySelector('.sl-section-count')?.textContent])`);
+      const names = (m) => (m?.sections || []).map((s) => [s.name, s.slides]);
+      // Earlier blocks may have left the fixture with more than its two slides: the first is one section, the rest the other.
+      const count = model(0).count;
+      const rest = Array.from({ length: count - 1 }, (_, i) => i + 1);
+      const all = Array.from({ length: count }, (_, i) => i);
+
+      // The second slide selected; Home → Section → Add Section.
+      await js(`(() => { document.querySelectorAll('.sl-thumb')[1]?.click(); return 1; })()`);
+      await until(() => js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('active')`), 'the second slide', 4000).catch(() => {});
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Home')?.click(), 'tab'`);
+      await wait(300);
+      const before = await headings();
+      const opened = await clickRibbon('Section');
+      const added = await pickMenu('Add Section');
+      await until(() => js(`Boolean(document.querySelector('.sl-section-name'))`), 'the section headings', 5000).catch(() => {});
+      const asked = await until(() => js(`document.querySelector('.sl-section-input')?.value === 'Untitled Section'`), 'the name asked for', 4000).catch(() => false);
+      check('slides: Home → Section → Add Section on the second slide starts a section there, the first slide in a Default Section, and asks for the name',
+        opened === 'clicked' && added === 'picked' && before.length === 0 && asked === true && JSON.stringify(names(model(1))) === JSON.stringify([['Default Section', [0]], ['Untitled Section', rest]]),
+        `${opened}; ${added}; headings before ${JSON.stringify(before)}; asked ${asked}; sections ${JSON.stringify(names(model(1)))}`);
+
+      // The name typed and Rename pressed: the heading says so, and the file has the list as PowerPoint writes it.
+      await js(`(() => { const el = document.querySelector('.sl-section-input'); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, 'Closing'); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      await wait(150);
+      await js(`(() => { document.querySelector('.sl-section-ok')?.click(); return 1; })()`);
+      const renamed = await until(() => names(model(1))[1]?.[0] === 'Closing', 'the section renamed', 5000).catch(() => false);
+      await wait(300);
+      const drawn = await headings();
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-sections.png'), (await win.webContents.capturePage()).toPNG());
+      check('slides: the name typed into the dialog is the heading drawn above the slide in the strip, with the slide count beside it',
+        renamed === true && JSON.stringify(drawn) === JSON.stringify([['Default Section', '1'], ['Closing', String(rest.length)]]),
+        `renamed ${renamed}; headings ${JSON.stringify(drawn)}`);
+
+      await clickRibbon('Save');
+      const saved = () => {
+        try {
+          const d = Deck.open(fs.readFileSync(files.pptx));
+          return { sections: names({ sections: d.sections() }), xml: d.pkg.text('ppt/presentation.xml') };
+        } catch { return null; }
+      };
+      await until(() => saved()?.sections.length === 2, 'the sections in the file', 8000).catch(() => false);
+      const inFile = saved();
+      const ids = [...(inFile?.xml || '').matchAll(/<p:sldId id="(\d+)"/g)].map((m) => m[1]);
+      check('slides: the saved file carries the sections as PowerPoint writes them — one p:ext with the section-list URI, each section a name, a GUID and its slide ids',
+        JSON.stringify(inFile?.sections) === JSON.stringify([['Default Section', [0]], ['Closing', rest]]) && ids.length === count &&
+          new RegExp('<p:extLst><p:ext uri="\\{521415D9-36F7-43E2-AB2F-B90AF26B5E84\\}"><p14:sectionLst xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main"><p14:section name="Default Section" id="\\{[0-9A-F-]{36}\\}"><p14:sldIdLst><p14:sldId id="' + ids[0] + '"/></p14:sldIdLst></p14:section><p14:section name="Closing" id="\\{[0-9A-F-]{36}\\}"><p14:sldIdLst>' + ids.slice(1).map((id) => '<p14:sldId id="' + id + '"/>').join('') + '</p14:sldIdLst></p14:section></p14:sectionLst></p:ext></p:extLst></p:presentation>$').test(inFile?.xml || ''),
+        `sections ${JSON.stringify(inFile?.sections)}; ${(inFile?.xml || '').slice((inFile?.xml || '').indexOf('<p:extLst>')).slice(0, 200)}`);
+
+      // Remove Section on the second slide folds Closing into the Default Section; Remove All Sections takes the list out.
+      const reopened = await clickRibbon('Section');
+      const removed = await pickMenu('Remove Section');
+      const folded = await until(() => JSON.stringify(names(model(1))) === JSON.stringify([['Default Section', all]]), 'the section folded back', 5000).catch(() => false);
+      await wait(200);
+      const one = await headings();
+      const again = await clickRibbon('Section');
+      const cleared = await pickMenu('Remove All Sections');
+      const none = await until(() => names(model(1)).length === 0, 'no sections', 5000).catch(() => false);
+      await wait(200);
+      const gone = await headings();
+      await clickRibbon('Save');
+      await until(() => saved()?.sections.length === 0, 'no sections in the file', 8000).catch(() => false);
+      const cleanXml = saved()?.xml || '';
+      check('slides: Remove Section folds the section into the one before it, and Remove All Sections takes the list out of the strip and the file',
+        reopened === 'clicked' && removed === 'picked' && folded === true && JSON.stringify(one) === JSON.stringify([['Default Section', String(count)]]) && again === 'clicked' && cleared === 'picked' && none === true && gone.length === 0 && !/sectionLst|<p:extLst>/.test(cleanXml),
+        `${removed}; folded ${folded}; headings ${JSON.stringify(one)} → ${JSON.stringify(gone)}; ${cleared}; none ${none}; file ${/sectionLst/.test(cleanXml) ? 'still has the list' : 'clean'}`);
+      const complaints = await errorsIn(win);
+      check('slides: the section checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('slides: the section checks ran', false, err.message);
+    }
+  };
+
   /* ── Presentation: find and replace ──────────────────────────────────── */
   //
   // Home → Find: the words typed, Find lists every shape they are on, a
@@ -2146,7 +2242,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,fit: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,fit,sections: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -2159,6 +2255,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('clip')) await slideClipboard();
     if (only.includes('footer')) await slideFooter();
     if (only.includes('find')) await slideFind();
+    if (only.includes('sections')) await slideSections();
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('look')) await wordLook();
@@ -2261,6 +2358,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slideClipboard();
   await slideFooter();
   await slideFind();
+  await slideSections();
   await sheetFill();
   await wordPictures();
   await wordLook();
