@@ -11,6 +11,8 @@
 // Checking the DOM would only prove the browser did what browsers do; checking
 // the model proves the edit reached the thing that saves the file.
 
+import { clipboard } from 'electron';
+
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 
 /** Wait for a condition rather than for a guess at how long it takes. */
@@ -180,6 +182,83 @@ export async function verifyEditing({ windows, doc }) {
       `[...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent)`
     );
     check('word: bold raises no error', complaints.length === 0, complaints.join(' | ') || 'nothing was reported');
+
+    // A selection that ends on the page itself, not in a paragraph — what a
+    // drag into the margin, a triple-click or Ctrl+A leaves — must still
+    // reach the engine as a range, or Delete takes one character and a paste
+    // lands beside the selected words instead of over them (owner, 2026-09-24).
+    // A second paragraph first, so the selection can run past the first.
+    await word.webContents.executeJavaScript(`(() => {
+      const page = document.querySelector('.wd-page');
+      const block = page.querySelector('[data-block="0"]');
+      const range = document.createRange();
+      range.selectNodeContents(block);
+      range.collapse(false);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return 'ok';
+    })()`);
+    await wait(250);
+    await press(word.webContents, 'Return', { char: true });
+    await wait(300);
+    word.webContents.insertText('World');
+    await wait(400);
+    const two = doc.model({ id: sessionFor('doc').id });
+    const twoBlocks = two?.blocks?.length ?? 0;
+    const selectedPast = await word.webContents.executeJavaScript(`(() => {
+      const page = document.querySelector('.wd-page');
+      const first = page.querySelector('[data-block="0"]');
+      const second = page.querySelector('[data-block="1"]');
+      if (!first || !second) return 'no second paragraph';
+      const walker = document.createTreeWalker(first, NodeFilter.SHOW_TEXT);
+      const text = walker.nextNode();
+      if (!text) return 'no text';
+      const range = document.createRange();
+      range.setStart(text, 2);
+      // The end on the page itself, after the second paragraph's element.
+      const parent = second.parentNode;
+      range.setEnd(parent, [...parent.childNodes].indexOf(second) + 1);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return sel.focusNode === parent ? 'on the page' : 'in ' + (sel.focusNode.nodeName || '?');
+    })()`);
+    await wait(300);
+    const ranged = doc.model({ id: sessionFor('doc').id })?.selection;
+    check('word: a selection that ends on the page itself reaches the engine as a range',
+      twoBlocks === 2 && ranged && !ranged.collapsed && ranged.from?.block === 0 && ranged.from?.offset === 2 && ranged.to?.block >= 1,
+      `${twoBlocks} paragraphs; selection end ${selectedPast}; engine has ${JSON.stringify(ranged)}`);
+
+    await press(word.webContents, 'Delete');
+    await wait(400);
+    const afterRange = doc.model({ id: sessionFor('doc').id });
+    const left = afterRange?.blocks?.map((b) => b.runs?.map((r) => r.text).join('') ?? '') ?? [];
+    check('word: Delete over that selection takes the selected words and the paragraph mark between them',
+      left.length === 1 && left[0] === 'He',
+      `paragraphs now ${JSON.stringify(left)}`);
+
+    // Paste over a selection replaces it — the clipboard's words where the
+    // selected ones were, nothing of the old ones left.
+    clipboard.writeText('Pasted');
+    await word.webContents.executeJavaScript(`(() => {
+      const page = document.querySelector('.wd-page');
+      const block = page.querySelector('[data-block="0"]');
+      const range = document.createRange();
+      range.selectNodeContents(block);
+      const sel = getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return 'selected';
+    })()`);
+    await wait(300);
+    word.webContents.paste();
+    await wait(500);
+    const pasted = doc.model({ id: sessionFor('doc').id })?.blocks?.map((b) => b.runs?.map((r) => r.text).join('') ?? '') ?? [];
+    check('word: a paste over a selection replaces the selected words', pasted.length === 1 && pasted[0] === 'Pasted', `paragraphs now ${JSON.stringify(pasted)}`);
   } catch (err) {
     check('word: the checks ran', false, err.message);
   }

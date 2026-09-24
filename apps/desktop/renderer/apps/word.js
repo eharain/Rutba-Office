@@ -380,19 +380,42 @@ export default function Word({ app, shell, boot }) {
     return el;
   };
 
+  /**
+   * A DOM selection end as a block position. Inside a paragraph it is the
+   * character offset. A selection dragged into the margin, a triple-click or
+   * Ctrl+A ends on the page itself (or a sheet behind the words) with a child
+   * index, not in any paragraph — and reading that as no position at all
+   * meant the engine never learnt the range: Delete took one character and a
+   * paste landed at the old caret, with the selected words untouched. Such an
+   * end is the start of the first paragraph at or after that index, or the
+   * end of the last paragraph before it.
+   */
+  const pointOf = (node, offset) => {
+    const el = blockOf(node);
+    if (el) return { block: Number(el.dataset.block), offset: offsetIn(el, node, offset) };
+    if (!node || node.nodeType !== Node.ELEMENT_NODE || !pageRef.current) return null;
+    const blocks = [...pageRef.current.querySelectorAll('[data-block]')];
+    if (!blocks.length) return null;
+    const marker = node.childNodes[offset] || null;
+    if (marker) {
+      const after = blocks.find((b) => marker === b || marker.contains(b) || Boolean(marker.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING));
+      if (after) return { block: Number(after.dataset.block), offset: Number(after.dataset.from || 0) };
+    }
+    const before = [...blocks].reverse().find((b) => node.contains(b) ? Boolean(node.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_CONTAINED_BY) && (!marker || Boolean(marker.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING)) : Boolean(node.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_PRECEDING));
+    if (before) return { block: Number(before.dataset.block), offset: offsetIn(before, before, before.childNodes.length) };
+    return { block: Number(blocks[0].dataset.block), offset: 0 };
+  };
+
   const currentPosition = useCallback(() => {
     const sel = window.getSelection();
     if (!sel || !sel.focusNode) return null;
-    const el = blockOf(sel.focusNode);
-    if (!el) return null;
-    const index = Number(el.dataset.block);
+    const focus = pointOf(sel.focusNode, sel.focusOffset);
+    if (!focus) return null;
     return {
-      anchor: (() => {
-        const a = blockOf(sel.anchorNode);
-        return a ? { block: Number(a.dataset.block), offset: offsetIn(a, sel.anchorNode, sel.anchorOffset) } : null;
-      })(),
-      focus: { block: index, offset: offsetIn(el, sel.focusNode, sel.focusOffset) },
+      anchor: sel.anchorNode ? pointOf(sel.anchorNode, sel.anchorOffset) : null,
+      focus,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   /**
