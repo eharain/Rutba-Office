@@ -54,7 +54,7 @@ done < <(git rev-list "${BASE_SHA}..${HEAD_SHA}" 2>/dev/null || true)
 
 
 # Added lines from changed files, computed once for the whole range
-git diff -U0 --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" \
+git -c core.quotepath=false diff -U0 --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" \
   | awk '
       function is_exempt(path) {
         return path ~ /^\.githooks\// \
