@@ -22,17 +22,36 @@ function toBytes(input) {
 
 const latin1 = new TextDecoder('latin1');
 
+/**
+ * One byte per character, for the header block specifically.
+ *
+ * `TextDecoder('latin1')` is not actually Latin-1: the encoding standard
+ * defines it as Windows-1252, which reads bytes 0x80-0x9F as the euro sign,
+ * the curly quotes and their neighbours rather than as themselves. That is
+ * fine for a body, which is never read back byte-for-byte, but it is fatal
+ * here: `repairUtf8` below only recognises a raw UTF-8 header (RFC 6532,
+ * no `=?charset?...?=`) by every one of its bytes still sitting at its own
+ * character code, and a byte reported as U+20AC cannot be turned back into
+ * 0x80. Decoding by hand keeps the round trip exact, the same fix `mbox.js`
+ * makes for message bytes and for the same reason.
+ */
+function headerText(bytes) {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 8192) out += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  return out;
+}
+
 /** Split a message into its raw header block and body bytes. */
 export function splitMessage(input) {
   const bytes = toBytes(input);
   // The blank line that ends the headers, tolerating CRLF, LF and CR.
   for (let i = 0; i < bytes.length - 1; i++) {
-    if (bytes[i] === 10 && bytes[i + 1] === 10) return { head: latin1.decode(bytes.subarray(0, i)), body: bytes.subarray(i + 2) };
+    if (bytes[i] === 10 && bytes[i + 1] === 10) return { head: headerText(bytes.subarray(0, i)), body: bytes.subarray(i + 2) };
     if (bytes[i] === 13 && bytes[i + 1] === 10 && bytes[i + 2] === 13 && bytes[i + 3] === 10) {
-      return { head: latin1.decode(bytes.subarray(0, i)), body: bytes.subarray(i + 4) };
+      return { head: headerText(bytes.subarray(0, i)), body: bytes.subarray(i + 4) };
     }
   }
-  return { head: latin1.decode(bytes), body: new Uint8Array(0) };
+  return { head: headerText(bytes), body: new Uint8Array(0) };
 }
 
 /** Unfold and split header lines into ordered name/value pairs. */

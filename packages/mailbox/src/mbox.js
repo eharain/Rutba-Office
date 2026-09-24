@@ -37,16 +37,16 @@ export function scanMbox(input) {
     let bodyStart = from;
     while (bodyStart < to && bytes[bodyStart] !== 10) bodyStart++;
     bodyStart++;
-    ranges.push({ start: bodyStart, end: to, separator: new TextDecoder('latin1').decode(bytes.subarray(from, bodyStart - 1)) });
+    ranges.push({ start: bodyStart, end: to, separator: latin1Text(bytes.subarray(from, bodyStart - 1)) });
   }
   return { bytes, ranges };
 }
 
 /** Undo `>From ` quoting, and any run of `>` before it (mboxrd). */
 function unescape(bytes) {
-  const text = new TextDecoder('latin1').decode(bytes);
+  const text = latin1Text(bytes);
   if (!/^>+From /m.test(text)) return bytes;
-  return new TextEncoder().encode(text.replace(/^(>+)(From )/gm, (m, gt, rest) => gt.slice(1) + rest));
+  return latin1Bytes(text.replace(/^(>+)(From )/gm, (m, gt, rest) => gt.slice(1) + rest));
 }
 
 /**
@@ -94,11 +94,22 @@ export class Mbox {
  * One byte per character, which is what a message body is.
  *
  * The escaping pass below works on text, and message bytes are not text — they
- * are whatever encoding the sender used. Decoding them as latin1 makes each
- * byte one character; encoding them back the same way returns exactly the bytes
- * that came in. Going out through UTF-8 instead would turn every byte above 127
- * into two, which is how an em-dash becomes three mojibake characters.
+ * are whatever encoding the sender used. Reading each byte as one character
+ * and writing each character back as one byte returns exactly the bytes that
+ * came in. Going out through UTF-8 instead would turn every byte above 127
+ * into two, which is how an em-dash becomes three mojibake characters. The
+ * pair is written by hand rather than with `TextDecoder('latin1')`, which is
+ * Windows-1252 by the encoding standard: it reads the bytes 0x80–0x9F as
+ * the euro sign, the curly quotes and their neighbours, whose code points
+ * do not come back to the byte they were — an em-dash in a UTF-8 body
+ * (E2 80 94) went out as E2 AC 1D.
  */
+function latin1Text(bytes) {
+  let out = '';
+  for (let i = 0; i < bytes.length; i += 8192) out += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+  return out;
+}
+
 function latin1Bytes(text) {
   const out = new Uint8Array(text.length);
   for (let i = 0; i < text.length; i++) out[i] = text.charCodeAt(i) & 0xff;
@@ -115,7 +126,7 @@ export function writeMbox(messages) {
     const from = m.from?.address || 'unknown@localhost';
     const when = m.date ? new Date(m.date) : new Date();
     chunks.push(enc.encode(`From ${from} ${when.toUTCString()}\n`));
-    const text = new TextDecoder('latin1').decode(raw).replace(/^(>*From )/gm, '>$1');
+    const text = latin1Text(raw).replace(/^(>*From )/gm, '>$1');
     chunks.push(latin1Bytes(text));
     chunks.push(enc.encode('\n\n'));
   }
