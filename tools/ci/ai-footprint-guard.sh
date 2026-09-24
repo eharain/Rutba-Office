@@ -67,11 +67,11 @@ git diff -U0 --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" \
           || path ~ /^\.github\/workflows\/ai-footprint-guard\.yml$/ \
           || path ~ /^tools\/ci\/ai-footprint-guard\.sh$/
       }
+      /^diff --git / { file = ""; exempt = 0; next }
       /^\+\+\+ b\// { file = substr($0, 7); exempt = is_exempt(file); next }
       /^\+\+\+ / { next }
       /^--- / { next }
       /^@@/ { next }
-      /^diff --git / { next }
       /^index / { next }
       /^\+/ && !exempt { print substr($0, 2) }
     ' > "$ADDED_LINES_FILE" || true
