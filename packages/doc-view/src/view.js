@@ -596,7 +596,7 @@ export class DocView {
       throw new Error('this document backend does not support character formatting');
     }
     const props = {};
-    for (const key of ['fontName', 'fontSize', 'fontColour', 'highlight', 'vertAlign']) {
+    for (const key of ['fontName', 'fontSize', 'fontColour', 'highlight', 'vertAlign', 'outline', 'shadow', 'glow']) {
       if (delta && key in delta) props[key] = delta[key];
     }
     if (Object.keys(props).length === 0) return this;
@@ -896,6 +896,7 @@ export class DocView {
     const base = {
       bold: false, italic: false, underline: false, strike: false,
       fontName: null, fontSize: null, fontColour: null, highlight: null,
+      outline: false, shadow: false, glow: null,
       link: null,
     };
     if (b && b.runs.length) {
@@ -950,6 +951,7 @@ export class DocView {
         Object.assign(base, {
           bold: false, italic: false, underline: false, strike: false,
           fontName: null, fontSize: null, fontColour: null, highlight: null,
+          outline: false, shadow: false, glow: null,
         });
       }
       for (const [key, value] of Object.entries(this.pendingFormat)) {
@@ -1704,6 +1706,12 @@ export class DocView {
       if (props.vertAlign != null) out.vertAlign = props.vertAlign;
       if (props.caps) out.caps = true;
       if (props.smallCaps) out.smallCaps = true;
+      // The three text effects: outline and shadow are on/off, glow carries
+      // its own colour and radius. Left off the frame when unset, like the
+      // other value properties above.
+      if (props.outline) out.outline = true;
+      if (props.shadow) out.shadow = true;
+      if (props.glow) out.glow = props.glow;
     }
     // The painter gets the TARGET, never the token: the frame stays
     // format-free, and a dangling id degrades to plain text.

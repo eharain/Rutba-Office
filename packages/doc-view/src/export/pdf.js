@@ -80,6 +80,10 @@ function styleOfRun(run, fragment) {
     underline: Boolean(run.underline),
     strike: Boolean(run.strike),
     highlight: run.highlight && HIGHLIGHTS[run.highlight] ? HIGHLIGHTS[run.highlight] : null,
+    // Outline and shadow print; glow does not — see `drawSegments`.
+    outline: Boolean(run.outline),
+    shadow: Boolean(run.shadow),
+    glow: run.glow || null,
   };
 }
 
@@ -126,7 +130,16 @@ function drawSegments(page, doc, segments, x, baseline, fragment, { extraPerSpac
       const w = doc.widthOf(part, { font: s.font, size: s.size });
       if (part === ' ') { cursor += w + extraPerSpace; continue; }
       if (s.highlight) page.rect(cursor, baseline - s.size * 0.8, w, s.size * 1.05, { fill: s.highlight });
-      page.text(part, cursor, baseline, { font: s.font, size: s.size, colour: s.colour });
+      // A shadow is the same word drawn once more first, a shade back and
+      // down, so the real glyph paints over its own offset copy.
+      if (s.shadow) page.text(part, cursor + 0.7, baseline + 0.7, { font: s.font, size: s.size, colour: '#808080' });
+      // Outline hollows the letters the way Word draws them: stroked, not
+      // filled — the writer's stroke render mode, no fill colour at all.
+      // Glow is not drawn here: a soft blur outward from the glyphs is not
+      // something this vector writer can fake with a stroke or a fill, so
+      // print leaves it off rather than drawing something misleading.
+      if (s.outline) page.text(part, cursor, baseline, { font: s.font, size: s.size, stroke: s.colour || '#000000', strokeWidth: 0.5 });
+      else page.text(part, cursor, baseline, { font: s.font, size: s.size, colour: s.colour });
       cursor += w;
     }
     if (s.underline) page.line(startX, baseline + s.size * 0.12, cursor, baseline + s.size * 0.12, { width: Math.max(0.4, s.size * 0.06), colour: s.colour || '#000000' });

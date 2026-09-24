@@ -442,7 +442,10 @@ export default function Word({ app, shell, boot }) {
     const selected = pos.anchor && (pos.anchor.block !== pos.focus.block || pos.anchor.offset !== pos.focus.offset);
     if (brush && selected) {
       const here = model?.format || {};
-      ops.push({ op: 'setRunFormat', delta: { fontName: brush.fontName ?? null, fontSize: brush.fontSize ?? null, fontColour: brush.fontColour ?? null, highlight: brush.highlight ?? null } });
+      ops.push({ op: 'setRunFormat', delta: {
+        fontName: brush.fontName ?? null, fontSize: brush.fontSize ?? null, fontColour: brush.fontColour ?? null, highlight: brush.highlight ?? null,
+        outline: Boolean(brush.outline), shadow: Boolean(brush.shadow), glow: brush.glow ?? null,
+      } });
       for (const key of ['bold', 'italic', 'underline', 'strike']) {
         if (Boolean(brush[key]) !== Boolean(here[key])) ops.push({ op: 'toggleFormat', tag: key });
       }
@@ -823,7 +826,10 @@ export default function Word({ app, shell, boot }) {
         case 'formatPainter': {
           if (view.painting) return patchView({ painting: null });
           const f = model?.format || {};
-          patchView({ painting: { bold: f.bold, italic: f.italic, underline: f.underline, strike: f.strike, fontName: f.fontName, fontSize: f.fontSize, fontColour: f.fontColour, highlight: f.highlight } });
+          patchView({ painting: {
+            bold: f.bold, italic: f.italic, underline: f.underline, strike: f.strike, fontName: f.fontName, fontSize: f.fontSize, fontColour: f.fontColour, highlight: f.highlight,
+            outline: f.outline, shadow: f.shadow, glow: f.glow,
+          } });
           toast('Formatting copied — select the words to paint it onto.', { ms: 4000 });
           return;
         }
@@ -1697,6 +1703,22 @@ function paragraphCss(block, styles) {
 /** The tab stops that apply: the paragraph's own, else its style's. */
 const tabStops = (block, styles) => block.tabs ?? (styles ? (styles[block.style] ?? styles['*default*'])?.tabs : null) ?? null;
 
+/**
+ * Word's Outline/Shadow/Glow text effects, in CSS. Outline hollows the
+ * letters out — a stroke instead of a fill, the way Word draws it — and a
+ * shadow and a glow are both `text-shadow`, so a run wearing both gets two
+ * layers in the one property.
+ */
+function effectsStyle(run) {
+  const shadows = [];
+  if (run.shadow) shadows.push('1px 1px 0 rgba(0,0,0,.55)');
+  if (run.glow?.colour) shadows.push(`0 0 ${Math.round(run.glow.radiusPt * 96 / 72)}px #${run.glow.colour}`);
+  return {
+    ...(run.outline ? { WebkitTextStroke: '0.6px currentColor', WebkitTextFillColor: 'transparent' } : {}),
+    textShadow: shadows.length ? shadows.join(', ') : undefined,
+  };
+}
+
 /** One run of text: its direct formatting, its link, its tabs. */
 function RunSpan({ run }) {
   // A footnote/endnote reference, or the mark at the head of the note: the
@@ -1734,6 +1756,7 @@ function RunSpan({ run }) {
         ...(run.vertAlign === 'superscript' ? { verticalAlign: 'super', fontSize: '0.65em' } : run.vertAlign === 'subscript' ? { verticalAlign: 'sub', fontSize: '0.65em' } : {}),
         textTransform: run.caps ? 'uppercase' : undefined,
         fontVariant: run.smallCaps ? 'small-caps' : undefined,
+        ...effectsStyle(run),
       }}
     >
       {withTabs(run.text)}

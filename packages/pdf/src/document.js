@@ -85,13 +85,20 @@ class Page {
    * positions by, and converting in two places is how text drifts by an
    * ascent.
    */
-  text(value, x, y, { font = 'Helvetica', size = 10, colour: fill = null, late = false, rotate = 0 } = {}) {
+  text(value, x, y, { font = 'Helvetica', size = 10, colour: fill = null, late = false, rotate = 0, stroke = null, strokeWidth = 0.5 } = {}) {
     const name = this._use(font);
     const bytes = encode(value);
     if (!bytes.length) return 0;
     const ops = [];
     const rgb = colour(fill);
-    if (rgb) ops.push('q', `${rgb.join(' ')} rg`);
+    // A stroke outlines the glyphs instead of filling them — Word's Outline
+    // text effect, hollow letters with just their edge inked. Render mode 1
+    // strokes only; 2 would fill and stroke too, which nothing here asks for.
+    const strokeRgb = colour(stroke);
+    const wrapped = Boolean(rgb || strokeRgb);
+    if (wrapped) ops.push('q');
+    if (rgb) ops.push(`${rgb.join(' ')} rg`);
+    if (strokeRgb) ops.push(`${strokeRgb.join(' ')} RG`, `${num(strokeWidth)} w`);
     // `rotate` turns the text counter-clockwise about its own origin, in
     // degrees — a watermark rising across the page. The text matrix carries
     // the rotation; nothing else on the page is touched.
@@ -101,11 +108,12 @@ class Page {
     ops.push(
       'BT',
       `/${name} ${num(size)} Tf`,
+      ...(strokeRgb ? [`${rgb ? 2 : 1} Tr`] : []),
       `${num(c)} ${num(s)} ${num(-s)} ${num(c)} ${num(x)} ${num(this.height - y)} Tm`,
       `${pdfString(value)} Tj`,
       'ET',
     );
-    if (rgb) ops.push('Q');
+    if (wrapped) ops.push('Q');
     (late ? this.lateOps : this.ops).push(ops.join('\n'));
     return widthOfBytes(bytes, font, size);
   }

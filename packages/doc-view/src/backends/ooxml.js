@@ -8,7 +8,7 @@
  * This is the ONLY file in `@rutba/doc-view` that imports `@rutba/ooxml`. Mail
  * imports the HTML backend instead and never pulls the format layer in.
  */
-import { Document, withToggle, esc, unesc, STANDARD_PARAGRAPH_STYLES } from '@rutba/ooxml';
+import { Document, withToggle, hasToggle, esc, unesc, STANDARD_PARAGRAPH_STYLES } from '@rutba/ooxml';
 import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene } from '@rutba/drawing';
 import { DocView } from '../view.js';
 
@@ -83,7 +83,18 @@ export class OoxmlBackend {
    * strips it. Everything else in `<w:rPr>` is preserved exactly, the same way
    * the toggles preserve fonts and colours around them.
    */
-  setRunProp(rPr, prop, value) { return withRunProp(rPr, prop, value); }
+  setRunProp(rPr, prop, value) {
+    // Glow is the one property whose write depends on the FILE, not just the
+    // run: it needs its own namespace declared once, either on the element
+    // itself or, when the document already carries it, not at all.
+    return withRunProp(rPr, prop, value, prop === 'glow' ? this._declaresW14() : false);
+  }
+
+  /** Whether `<w:document>` already declares xmlns:w14 — glow can then ride bare. */
+  _declaresW14() {
+    const open = /<w:document\b[^>]*>/.exec(this.doc.xml || '');
+    return Boolean(open && /\bxmlns:w14=/.test(open[0]));
+  }
 
   /** Read family/size/colour back off an rPr — the toolbar's caret state. */
   readRunProps(rPr) { return readRunProps(rPr, typeof this.doc.themeFonts === 'function' ? this.doc.themeFonts() : null); }
@@ -348,6 +359,92 @@ function withElement(rPr, tag, element) {
   return rPr.replace('</w:rPr>', element + '</w:rPr>');
 }
 
+// ---- outline, shadow, glow: the text effects the "A" button turns on ------
+//
+// Outline and shadow are legacy toggle elements, bare (`<w:outline/>`), but
+// unlike b/i/u/strike they sit at a fixed slot in the schema rather than at
+// the front of rPr — Word puts them after the strike toggles and before the
+// state and colour that follow, and a document that carries them out of
+// order is still read, but is not what Word itself writes. Glow is newer
+// (Word 2010's DrawingML-flavoured `w14:glow`) and rides at the very END of
+// rPr regardless, because it is an extension element the older toggles know
+// nothing about.
+
+/** A slice of the `<w:rPr>` schema order — just enough to seat `outline` and
+ * `shadow` correctly among the properties this file ever writes. */
+const RPR_ORDER = [
+  'rStyle', 'rFonts', 'b', 'bCs', 'i', 'iCs', 'caps', 'smallCaps',
+  'strike', 'dstrike', 'outline', 'shadow', 'emboss', 'imprint', 'noProof',
+  'vanish', 'color', 'spacing', 'w', 'kern', 'position', 'sz', 'szCs',
+  'highlight', 'u', 'effect', 'vertAlign', 'lang',
+];
+const rankOfRPr = (tag) => { const i = RPR_ORDER.indexOf(tag); return i === -1 ? RPR_ORDER.length : i; };
+
+/** Insert `element` into an rPr's inner content at its schema slot — the rPr sibling of `insertOrdered`. */
+function insertOrderedRPr(inner, tag, element) {
+  const rank = rankOfRPr(tag);
+  for (const child of pPrChildren(inner)) {
+    if (rankOfRPr(child.tag) > rank) return inner.slice(0, child.start) + element + inner.slice(child.start);
+  }
+  return inner + element;
+}
+
+/**
+ * Set or clear a bare toggle element (`outline`, `shadow`) at its schema slot
+ * rather than at the front the way `withToggle` places b/i/u/strike. Any
+ * `w14:glow` already on the run is held aside first and put back at the end,
+ * so an outline or shadow added after a glow never lands past it.
+ */
+function withOrderedElement(rPr, tag, on, element) {
+  if (!rPr) return on ? '<w:rPr>' + element + '</w:rPr>' : null;
+  if (/<w:rPr\b[^>]*\/>/.test(rPr)) return on ? '<w:rPr>' + element + '</w:rPr>' : null;
+  const open = /^<w:rPr\b[^>]*>/.exec(rPr)[0];
+  let inner = rPr.slice(open.length, rPr.length - '</w:rPr>'.length);
+  const glowMatch = /<w14:glow\b[^>]*(?:\/>|>[\s\S]*?<\/w14:glow>)/.exec(inner);
+  const glowXml = glowMatch ? glowMatch[0] : '';
+  if (glowMatch) inner = inner.slice(0, glowMatch.index) + inner.slice(glowMatch.index + glowMatch[0].length);
+  inner = inner.replace(new RegExp('<w:' + tag + '\\b[^>]*/?>', 'g'), '');
+  if (on) inner = insertOrderedRPr(inner, tag, element);
+  const rebuilt = inner + glowXml;
+  return rebuilt === '' ? null : open + rebuilt + '</w:rPr>';
+}
+
+/** `<w14:glow>` off an rPr: `{ colour: 'RRGGBB', radiusPt } | null`. A
+ * `w14:schemeClr` glow (a theme colour, not RGB) reads with colour null and
+ * the radius kept — we do not resolve theme colours here. */
+function readGlow(rPr) {
+  if (!rPr) return null;
+  const el = /<w14:glow\b[^>]*(?:\/>|>[\s\S]*?<\/w14:glow>)/.exec(rPr);
+  if (!el) return null;
+  const rad = /\bw14:rad="(\d+)"/.exec(el[0]);
+  if (!rad) return null;
+  const srgb = /<w14:srgbClr\b[^>]*\bw14:val="([0-9A-Fa-f]{6})"/.exec(el[0]);
+  return { colour: srgb ? srgb[1].toUpperCase() : null, radiusPt: Math.round((Number(rad[1]) / 12700) * 100) / 100 };
+}
+
+/** Write `<w14:glow>` — points to EMU (× 12700), the namespace declared
+ * inline unless the document root already carries it. */
+function glowElement(glow, declaresW14) {
+  const nsAttr = declaresW14 ? '' : ' xmlns:w14="http://schemas.microsoft.com/office/word/2010/wordml"';
+  const rad = Math.round(Number(glow.radiusPt) * 12700);
+  const colourEl = glow.colour ? '<w14:srgbClr w14:val="' + normaliseColour(glow.colour) + '"/>' : '';
+  return '<w14:glow' + nsAttr + ' w14:rad="' + rad + '">' + colourEl + '</w14:glow>';
+}
+
+/** Set or clear the glow effect, always at the very end of rPr — the one
+ * element in this file that is never given a schema-ordered slot, because
+ * as a DrawingML extension it stands outside the WordprocessingML sequence
+ * `RPR_ORDER` places everything else in. */
+function withGlow(rPr, glow, declaresW14) {
+  const existingRe = /<w14:glow\b[^>]*(?:\/>|>[\s\S]*?<\/w14:glow>)/g;
+  if (!rPr || /<w:rPr\b[^>]*\/>/.test(rPr)) {
+    return glow ? '<w:rPr>' + glowElement(glow, declaresW14) + '</w:rPr>' : (rPr ?? null);
+  }
+  const stripped = rPr.replace(existingRe, '');
+  if (!glow) return /<w:rPr\b[^>]*>\s*<\/w:rPr>/.test(stripped) ? null : stripped;
+  return stripped.replace('</w:rPr>', glowElement(glow, declaresW14) + '</w:rPr>');
+}
+
 /**
  * Set (or clear) the font family, keeping any other `<w:rFonts>` attributes —
  * an eastAsia face, a hint — that the run already carried. Word stores the Latin
@@ -386,7 +483,10 @@ function withFontName(rPr, name) {
 }
 
 /** Set or clear one value run property. `null` clears; anything else sets. */
-function withRunProp(rPr, prop, value) {
+function withRunProp(rPr, prop, value, declaresW14 = false) {
+  if (prop === 'outline') return withOrderedElement(rPr, 'outline', Boolean(value), '<w:outline/>');
+  if (prop === 'shadow') return withOrderedElement(rPr, 'shadow', Boolean(value), '<w:shadow/>');
+  if (prop === 'glow') return withGlow(rPr, value, declaresW14);
   if (prop === 'fontName') return withFontName(rPr, value == null ? null : value);
   if (prop === 'fontSize') {
     return withElement(rPr, 'sz', value == null ? null : '<w:sz w:val="' + ptToHalfPoints(value) + '"/>');
@@ -406,7 +506,10 @@ function withRunProp(rPr, prop, value) {
 
 /** Family/size/colour/highlight off an rPr — the inverse of `withRunProp`. */
 function readRunProps(rPr, themeFonts = null) {
-  const out = { fontName: null, fontSize: null, fontColour: null, highlight: null };
+  const out = {
+    fontName: null, fontSize: null, fontColour: null, highlight: null,
+    outline: false, shadow: false, glow: null,
+  };
   if (!rPr) return out;
   const font = /<w:rFonts\b[^>]*\bw:ascii="([^"]*)"/.exec(rPr);
   if (font) out.fontName = unesc(font[1]);
@@ -430,6 +533,9 @@ function readRunProps(rPr, themeFonts = null) {
 
   const highlight = /<w:highlight\b[^>]*\bw:val="([^"]*)"/.exec(rPr);
   if (highlight && highlight[1] !== 'none') out.highlight = highlight[1];
+  out.outline = hasToggle(rPr, 'outline');
+  out.shadow = hasToggle(rPr, 'shadow');
+  out.glow = readGlow(rPr);
   return out;
 }
 

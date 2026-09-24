@@ -66,6 +66,8 @@ const SHAPES = [
 ];
 const CHARTS = [['column', 'Column'], ['bar', 'Bar'], ['line', 'Line'], ['pie', 'Pie']];
 const CASES = [['sentence', 'Sentence case.'], ['lower', 'lowercase'], ['upper', 'UPPERCASE'], ['title', 'Capitalize Each Word'], ['toggle', 'tOGGLE cASE']];
+/** The "A" button's glow colours — Word's own accent palette, 4pt radius. */
+const GLOWS = [['FFC000', 'gold'], ['4472C4', 'blue'], ['70AD47', 'green'], ['FF0000', 'red']];
 
 /** A control that is drawn where Word draws it, and says why it is not live. */
 const Soon = ({ icon, label, tall, why }) => (
@@ -157,7 +159,15 @@ export default function WordRibbon({
                 <Button icon="chevronDown" label="x₂" title="Subscript" pressed={format.vertAlign === 'subscript'} onClick={() => run({ vertAlign: format.vertAlign === 'subscript' ? null : 'subscript' })} />
                 <Button icon="chevronUp" label="x²" title="Superscript" pressed={format.vertAlign === 'superscript'} onClick={() => run({ vertAlign: format.vertAlign === 'superscript' ? null : 'superscript' })} />
                 <Separator />
-                <Soon icon="wand" label="A" why="Text effects (outline, shadow, glow) are DrawingML the engine does not write." />
+                <Button icon="wand" label="A" title="Text effects — an outline, a shadow or a glow on the selected words" onClick={(e) => menu.open(e, [
+                  { label: 'Outline', icon: format.outline ? 'check' : undefined, run: () => run({ outline: !format.outline }) },
+                  { label: 'Shadow', icon: format.shadow ? 'check' : undefined, run: () => run({ shadow: !format.shadow }) },
+                  '-',
+                  ...GLOWS.map(([colour, label]) => ({ label: `Glow: ${label}`, icon: format.glow?.colour === colour ? 'check' : undefined, run: () => run({ glow: { colour, radiusPt: 4 } }) })),
+                  { label: 'No glow', run: () => run({ glow: null }) },
+                  '-',
+                  { label: 'Clear effects', run: () => run({ outline: false, shadow: false, glow: null }) },
+                ])} />
                 <Button icon="wand" title="Text highlight colour" pressed={Boolean(format.highlight)} onClick={(e) => colourMenu(e, 'highlight', HIGHLIGHTS)} />
                 <Button icon="contrast" title="Font colour" onClick={(e) => colourMenu(e, 'fontColour', TEXT_COLOURS)} />
               </>
