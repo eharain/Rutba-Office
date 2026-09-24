@@ -49,10 +49,16 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   the same day a floating text box prints beside the words the same way.
   A picture behind or in front of the words is drawn in the flow. Align, Group, the selection
   pane and z-order for a document's drawings are still to come.
-- **Columns and section control.** `w:cols` is read and not honoured: the
-  paginator lays one column. Line numbers, hyphenation and page borders are
-  the same story. (Pages themselves arrived on screen on 2026-09-10: the
-  flow is laid onto sheets by measuring the drawn page, paragraphs split at
+- **Columns and section control.** Columns arrived 2026-09-24: Layout →
+  Columns writes `w:cols`, and print and PDF flow the words into them,
+  each column filled to the foot of the page before the next starts, its
+  own floats and footnotes at its foot and a separator drawn down the gap
+  when asked for. On screen the editable flow is laid at the first
+  column's width in print layout, as Word's own draft view does, and at
+  the browser's own columns in draft layout. Line numbers, hyphenation
+  and page borders are the same story still. (Pages themselves arrived on
+  screen on 2026-09-10: the flow is laid onto sheets by measuring the
+  drawn page, paragraphs split at
   a line and tables at a row, and a manual page break heads a fresh page.
   Since 2026-09-20 a footnote sits at the foot of the page its reference
   lands on, on screen as in print. A paragraph
@@ -67,10 +73,13 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   table on the same grid.)
 - **Fields.** Bookmarks arrived 2026-09-24, Insert → Bookmark naming a span
   of paragraphs (`w:bookmarkStart`/`w:bookmarkEnd`) that Go To finds again
-  and a bookmarked paragraph stays editable through it. Cross-references,
-  captions, an index, a table of authorities, citations and a bibliography,
-  `SEQ`, `PAGE` outside the header — none are written, so the table of
-  contents this suite inserts is text rather than a field that refreshes.
+  and a bookmarked paragraph stays editable through it. Cross-references
+  arrived the same day: Insert → Cross-reference puts a REF field on a
+  bookmark, and Update Fields (F9) refreshes them from the bookmark's
+  words. Captions, an index, a table of authorities, citations and a
+  bibliography, `SEQ`, `PAGE` outside the header — none are written, so
+  the table of contents this suite inserts is text rather than a field
+  that refreshes.
 - **Mail merge**, envelopes and labels: a data source, merge fields, a
   preview and a run. Nothing of it exists, and Mail beside it is exactly
   what would make it worth having.
@@ -123,7 +132,11 @@ it is where the gaps are.
   tab's indent arrows move the words in and out by Excel's units, and Text
   orientation angles, turns or stacks them, on screen and on the printed
   page, kept in the file as Excel keeps them.
-- **Slicers and sparklines**: read, not written.
+- **Slicers and sparklines.** Sparklines arrived 2026-09-24: Insert →
+  Sparklines draws a line or a column chart in a cell, written as Excel
+  writes them — the x14 sparkline groups in the worksheet's extension
+  list — and drawn in the cell layer under the cell's own words. Slicers
+  are still read, not written.
 - **Data tools**: advanced filter with a criteria range, consolidate,
   flash fill, subtotals and outlining, forecast sheets. (Text to columns,
   remove duplicates and a sort by up to three keys are built, 2026-09-21.)
@@ -166,8 +179,12 @@ document and workbook writers.
 - **What can be put on a slide**: a table and a chart are read and drawn —
   a chart since 2026-09-10, through the same chart kit a worksheet uses,
   found by the corpus deck whose six chart slides showed an empty frame
-  each; video, audio, SmartArt and a hyperlink are named and boxed. None
-  can be inserted.
+  each. Both arrived to insert 2026-09-24: Insert → Table puts one on the
+  slide with its cells edited in place, and rows and columns added and
+  removed from a right-click; Insert → Chart puts a cached chart part on
+  the slide, no embedded workbook, its data edited from a dialog. Video,
+  audio, SmartArt and a hyperlink are still named and boxed, not
+  insertable.
 - **The master and layouts.** Masters and layouts are read and inherited
   from, and since 2026-09-10 the Designs pane puts an existing slide on
   another of the deck's layouts and starts a new slide from one (since
