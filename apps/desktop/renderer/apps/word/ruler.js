@@ -8,7 +8,7 @@
 // with a guide line following the hand until then.
 
 import React from 'react';
-import { rectOf } from './pages.js';
+import { rectOf, columnBoxesOf } from './pages.js';
 
 const PX_PER_CM = 96 / 2.54;
 const TWIPS_PER_PX = 15;
@@ -102,6 +102,13 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
   const W = section ? Math.round(section.widthPx) : 794;
   const ML = Math.round(section?.margins?.left ?? 96);
   const MR = Math.round(section?.margins?.right ?? 96);
+  // Layout → Columns: light marks at each column's own edges, so the ruler
+  // says where the print layout will actually break the line even though
+  // the page beneath it is still drawn as one flow.
+  const columnBoxes = section ? columnBoxesOf(section) : null;
+  const columnMarks = columnBoxes && columnBoxes.length > 1
+    ? columnBoxes.flatMap((box, i) => (i === 0 ? [] : [ML + Math.round(box.xPx)]))
+    : [];
   const ref = React.useRef(null);
   const [para, setPara] = React.useState(null);
   const [table, setTable] = React.useState(null);
@@ -191,6 +198,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
       <div className="wd-ruler-margin" style={{ left: rightBound, width: W - rightBound }} />
       <div className="wd-ruler-band" style={{ left: ML, width: Math.max(0, W - ML - MR) }} onMouseDown={addStop} />
       {ticks}
+      {columnMarks.map((x) => <span key={`col${x}`} className="wd-ruler-column" style={{ left: x }} />)}
       <button
         type="button"
         className="wd-ruler-type"
@@ -419,6 +427,9 @@ const CSS = `
 .wd-ruler-tick { position: absolute; bottom: 4px; width: 1px; height: 3px; background: var(--ink-3); pointer-events: none; opacity: .8; }
 .wd-ruler-tick.half { height: 5px; }
 .wd-ruler-tick.major { width: 14px; margin-left: -7px; height: auto; bottom: 3px; background: none; text-align: center; line-height: 1; opacity: 1; }
+/* A column boundary: a light mark, not a draggable one — Layout → Columns
+   writes the gap for the whole section, not one column edge at a time. */
+.wd-ruler-column { position: absolute; top: 2px; bottom: 2px; width: 1px; background: var(--ink-3); opacity: .4; pointer-events: none; }
 .wd-ruler-first, .wd-ruler-hang, .wd-ruler-right {
   position: absolute; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent;
   cursor: ew-resize; z-index: 2;

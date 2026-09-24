@@ -22,7 +22,7 @@ import { NavigationPane, installWordStyles } from './word/panes.js';
 import { Ruler, TableGrips, installRulerStyles } from './word/ruler.js';
 import { selectionToSend } from './word/caret.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
-import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement } from './word/pages.js';
+import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement, columnBoxesOf } from './word/pages.js';
 
 installWordStyles();
 installRulerStyles();
@@ -586,6 +586,16 @@ export default function Word({ app, shell, boot }) {
   // The tallest a picture may be drawn on a page: the sheet's inside, less a
   // little for the paragraph's own spacing.
   const inner = paged && geo ? geo.H - geo.top - geo.bottom - 12 : null;
+  // Layout → Columns: the editable page is ONE contenteditable flow — the
+  // caret, the IME, the spell checker all depend on that — and cannot show
+  // true side-by-side columns without a different editor entirely. So on
+  // screen it does what Word's own Draft view does: lay the single flow at
+  // the width of the FIRST column, narrower than the page, and be honest
+  // about the difference in the status bar. Print and PDF flow the words
+  // into the real columns — see paginate.js — because those are not typed
+  // into live.
+  const columnBoxes = useMemo(() => columnBoxesOf(section), [section]);
+  const multiColumn = Boolean(columnBoxes && columnBoxes.length > 1);
   const passes = useRef(0);
   const repaginate = useCallback(() => {
     const page = pageRef.current;
@@ -1011,6 +1021,11 @@ export default function Word({ app, shell, boot }) {
           <span>{doc?.path || 'Not saved yet'}</span>
           <Spacer />
           {paged ? <Chip>{`Page ${pages.at} of ${pages.count}`}</Chip> : null}
+          {multiColumn ? (
+            <span className="wd-columns-chip">
+              <Chip title="One flow on screen for a native caret; the print and PDF layout actually splits it into columns">{`${columnBoxes.length} columns — laid as one on screen, flowed into columns in print`}</Chip>
+            </span>
+          ) : null}
           <Chip>{model?.wordCount ?? 0} words</Chip>
           <Chip>{model?.characterCount ?? 0} characters</Chip>
           <Chip>{model?.blocks?.length ?? 0} paragraphs</Chip>
@@ -1079,12 +1094,26 @@ export default function Word({ app, shell, boot }) {
                 width: section ? Math.round(section.widthPx) : 794,
                 minHeight: paged ? pages.count * geo.H + (pages.count - 1) * geo.G : section ? Math.round(section.heightPx) : 1123,
                 paddingTop: section?.margins.top ?? 96,
-                paddingRight: section?.margins.right ?? 96,
+                // In print layout the single flow is laid as wide as the
+                // FIRST column only — see the note above `columnBoxes` — by
+                // padding out the rest of the page on the right; the real
+                // right margin is folded into that padding.
+                paddingRight: paged && multiColumn
+                  ? Math.round(section.widthPx - section.margins.left - columnBoxes[0].widthPx)
+                  : section?.margins.right ?? 96,
                 paddingBottom: section?.margins.bottom ?? 96,
                 paddingLeft: section?.margins.left ?? 96,
                 // The page colour, on the page itself when the flow is one sheet;
                 // in print layout the sheets behind the flow carry it.
                 background: !paged && section?.background ? section.background : undefined,
+                // Outside print layout the flow is one box with no page
+                // edges to break at, so the browser is asked to flow it into
+                // columns itself, the way any web page's `column-count` does.
+                ...(!paged && multiColumn ? {
+                  columnCount: columnBoxes.length,
+                  columnGap: (section.columns?.spacePx ?? 36),
+                  columnRule: section.columns?.separator ? '0.5pt solid #808080' : 'none',
+                } : {}),
                 // The bands read the margins too, to line up with the body.
                 '--wd-margin-left': `${section?.margins.left ?? 96}px`,
                 '--wd-margin-right': `${section?.margins.right ?? 96}px`,
@@ -2189,6 +2218,9 @@ const CSS = `
 .wd-handle { position: absolute; width: 10px; height: 10px; background: #fff; border: 1.5px solid var(--accent); border-radius: 2px; box-sizing: border-box; pointer-events: auto; }
 .wd-image.behind { opacity: .92; }
 .wd-mounting { margin: 12px 0 0; font-size: 12px; color: var(--ink-3); user-select: none; }
+/* A wrapper only so the status bar's columns chip has its own selector; it
+   must not become an extra flex item of its own beside the chip it holds. */
+.wd-columns-chip { display: contents; }
 
 /* A watermark: the header's WordArt, drawn behind the body as Word does. */
 .wd-watermark {

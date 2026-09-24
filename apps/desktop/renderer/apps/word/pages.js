@@ -48,6 +48,31 @@ export function geometryOf(section) {
 }
 
 /**
+ * A section's column boxes, in px from the content's left edge — the same
+ * arithmetic `parseSection`'s `columnBoxes` getter does in the engine, but
+ * worked from the plain fields `section` sends across the window. A getter
+ * is not a value a window message necessarily keeps, so the screen works it
+ * out itself from `widthPx`, `margins` and `columns`, which are.
+ */
+export function columnBoxesOf(section) {
+  if (!section) return null;
+  const contentWidthPx = section.widthPx - (section.margins?.left ?? 0) - (section.margins?.right ?? 0) - (section.margins?.gutter ?? 0);
+  const cols = section.columns;
+  const n = Math.max(1, cols?.count || 1);
+  if (n <= 1) return [{ xPx: 0, widthPx: contentWidthPx }];
+  const spacePx = cols.spacePx || 0;
+  const boxes = [];
+  let x = 0;
+  if (cols.widths && cols.widths.length === n) {
+    for (const w of cols.widths) { boxes.push({ xPx: x, widthPx: w }); x += w + spacePx; }
+  } else {
+    const w = Math.max(1, (contentWidthPx - spacePx * (n - 1)) / n);
+    for (let i = 0; i < n; i++) { boxes.push({ xPx: x, widthPx: w }); x += w + spacePx; }
+  }
+  return boxes;
+}
+
+/**
  * The runs of a paragraph between two character offsets — what one part of a
  * split paragraph draws. A run cut by the boundary keeps its formatting and
  * loses the characters on the other side; an empty run stays with the part

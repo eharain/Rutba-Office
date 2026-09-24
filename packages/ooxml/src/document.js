@@ -1250,7 +1250,17 @@ export class Document {
     return this;
   }
 
-  setPageSetup({ orientation, size, margins } = {}) {
+  /**
+   * Layout → Columns: `<w:cols>` in the section, after the page numbering
+   * where the schema puts it (see the `later` regex below, which already
+   * knew that before this wrote anything there). `{ count, spaceTwips =
+   * 720, separator = false, widths }`; `widths` — one per column, in
+   * twips — is how Word's own Left and Right presets write two columns of
+   * different widths (`w:equalWidth="0"` plus a `w:col` each); leaving it
+   * out shares the content width equally, the ordinary case. `count` 1, or
+   * null, takes the element off — Word never writes `w:cols` for one column.
+   */
+  setPageSetup({ orientation, size, margins, columns } = {}) {
     const PAPER = { A4: [11906, 16838], Letter: [12240, 15840], Legal: [12240, 20160] };
     const MARGIN_PRESETS = {
       normal: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
@@ -1307,6 +1317,33 @@ export class Document {
         if (preset[side] !== undefined) changes['w:' + side] = String(Math.max(0, Math.round(preset[side])));
       }
       setChildAttrs('pgMar', changes);
+    }
+
+    if (columns !== undefined) {
+      sectPr = sectPr.replace(/<w:cols\b[^>]*\/>|<w:cols\b[^>]*>[\s\S]*?<\/w:cols>/, '');
+      const count = columns ? Math.max(1, Math.min(12, Math.round(Number(columns.count) || 1))) : 1;
+      if (columns && count > 1) {
+        const spaceTwips = Math.max(0, Math.round(Number(columns.spaceTwips ?? 720)));
+        const sep = columns.separator ? ' w:sep="1"' : '';
+        const widths = Array.isArray(columns.widths) && columns.widths.length === count ? columns.widths : null;
+        const xml = widths
+          ? '<w:cols w:num="' + count + '" w:space="' + spaceTwips + '"' + sep + ' w:equalWidth="0">' +
+            widths.map((w, i) => '<w:col w:w="' + Math.max(1, Math.round(Number(w) || 0)) + '"' + (i < widths.length - 1 ? ' w:space="' + spaceTwips + '"' : '') + '/>').join('') +
+            '</w:cols>'
+          : '<w:cols w:num="' + count + '" w:space="' + spaceTwips + '"' + sep + '/>';
+        // Before the last child the schema puts before `w:cols` (through
+        // `w:pgNumType`); failing that, before the first it puts after.
+        let before = -1;
+        for (const m of sectPr.matchAll(/<w:(?:headerReference|footerReference|footnotePr|endnotePr|type|pgSz|pgMar|paperSrc|pgBorders|lnNumType|pgNumType)\b[^>]*?(?:\/>|>[\s\S]*?<\/w:(?:footnotePr|endnotePr|pgBorders)>)/g)) {
+          before = m.index + m[0].length;
+        }
+        const later = /<w:(?:formProt|vAlign|noEndnote|titlePg|textDirection|bidi|rtlGutter|docGrid|printerSettings|sectPrChange)\b/.exec(sectPr);
+        sectPr = before >= 0
+          ? sectPr.slice(0, before) + xml + sectPr.slice(before)
+          : later
+            ? sectPr.slice(0, later.index) + xml + sectPr.slice(later.index)
+            : sectPr.replace('</w:sectPr>', xml + '</w:sectPr>');
+      }
     }
 
     this.xml = prefix + body.slice(0, at.index) + sectPr + body.slice(at.index + at[0].length) + suffix;

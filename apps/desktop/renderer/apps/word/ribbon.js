@@ -82,6 +82,27 @@ export default function WordRibbon({
   const section = model?.section || null;
   const comments = model?.comments || [];
   const landscape = section?.orientation === 'landscape';
+  // Layout → Columns: the section's own `columns` (count 1 with no
+  // `w:cols` at all), and Word's five presets in its own vocabulary — the
+  // engine works out `w:col` widths for Left and Right from the content
+  // width it already knows in twips.
+  const columns = section?.columns || { count: 1, spacePx: 0, separator: false, widths: null };
+  const colCount = columns.count || 1;
+  const contentTwips = section ? Math.round(section.contentWidthPx * 15) : 9360;
+  const setColumns = (spec) => dispatch({ op: 'setPageSetup', spec: { columns: spec } });
+  const unevenSpec = (leftNarrow) => {
+    const spaceTwips = 720;
+    const usable = Math.max(2, contentTwips - spaceTwips);
+    const narrow = Math.round(usable / 3);
+    const wide = usable - narrow;
+    return { count: 2, spaceTwips, separator: Boolean(columns.separator), widths: leftNarrow ? [narrow, wide] : [wide, narrow] };
+  };
+  const isColumnPreset = (name) => {
+    if (name === 'one') return colCount <= 1;
+    if (!columns.widths) return (name === 'two' && colCount === 2) || (name === 'three' && colCount === 3);
+    if (colCount !== 2) return false;
+    return name === 'left' ? columns.widths[0] < columns.widths[1] : name === 'right' && columns.widths[0] > columns.widths[1];
+  };
 
   const run = (delta) => dispatch({ op: 'setRunFormat', delta });
   const para = (delta) => dispatch({ op: 'setParagraphFormat', delta });
@@ -386,7 +407,21 @@ export default function WordRibbon({
               ])
             } />
             <Button tall icon="file" label="Size" onClick={(e) => menu.open(e, PAGE_SIZES.map(([v, l]) => ({ label: l, run: () => dispatch({ op: 'setPageSetup', spec: { size: v } }) })))} />
-            <Soon tall icon="grid" label="Columns" why="Columns are w:cols on the section; the layout does not flow text into columns yet." />
+            <Button tall icon="grid" label="Columns" title={`Columns — now ${colCount > 1 ? colCount : 'one'}`} onClick={(e) => menu.open(e, [
+              { label: 'One', icon: isColumnPreset('one') ? 'check' : undefined, run: () => setColumns(null) },
+              { label: 'Two', icon: isColumnPreset('two') ? 'check' : undefined, run: () => setColumns({ count: 2, spaceTwips: 720, separator: Boolean(columns.separator) }) },
+              { label: 'Three', icon: isColumnPreset('three') ? 'check' : undefined, run: () => setColumns({ count: 3, spaceTwips: 720, separator: Boolean(columns.separator) }) },
+              { label: 'Left', icon: isColumnPreset('left') ? 'check' : undefined, run: () => setColumns(unevenSpec(true)) },
+              { label: 'Right', icon: isColumnPreset('right') ? 'check' : undefined, run: () => setColumns(unevenSpec(false)) },
+              '-',
+              {
+                label: 'Line between', icon: columns.separator ? 'check' : undefined, disabled: colCount <= 1,
+                run: () => setColumns({
+                  count: colCount, spaceTwips: Math.round((columns.spacePx || 36) * 15), separator: !columns.separator,
+                  ...(columns.widths ? { widths: columns.widths.map((w) => Math.round(w * 15)) } : {}),
+                }),
+              },
+            ])} />
             <Button icon="file" label="Breaks" onClick={(e) =>
               menu.open(e, [
                 { label: 'Page break', icon: 'file', run: () => dispatch({ op: 'insertPageBreak' }) },

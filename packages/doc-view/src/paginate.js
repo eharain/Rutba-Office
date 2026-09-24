@@ -245,7 +245,16 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
   // saying so is better than inventing A4 for it.
   if (!section) return null;
 
-  const width = section.contentWidthPx;
+  // More than one column: Word fills the first column top to bottom, then
+  // the next, and starts a fresh PAGE only once the last column is full —
+  // `newColumn` below is that rule. One column, the ordinary case and every
+  // section that existed before this read `w:cols`, must come out of this
+  // function BYTE-IDENTICAL to what it produced before, so every
+  // column-aware path here is reached only through `columnBoxes`, which
+  // stays null for one column.
+  const columnBoxes = section.columns && section.columns.count > 1 ? section.columnBoxes : null;
+
+  let width = columnBoxes ? columnBoxes[0].widthPx : section.contentWidthPx;
   const height = Math.max(
     120,
     section.heightPx - section.margins.top - section.margins.bottom,
@@ -255,24 +264,69 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
   const pages = [];
   let current = null;
   let used = 0;
+  let colIdx = 0;
+  // Notes finished in earlier columns of the page being laid out now —
+  // `current.notes` below is always just the COLUMN being laid out, so
+  // `remaining()` reserves the right room for that column alone, and a
+  // finished column's notes wait here, each still knowing its column, until
+  // the whole page is done and they can be published together.
+  let notesDone = [];
+
+  // A column's notes and the room they took, folded into `notesDone` — called
+  // before moving off a column, to the next one or to a fresh page. A
+  // one-column section never calls this: its `current.notes` IS the page's
+  // notes, exactly as before `w:cols` was read at all.
+  const finishColumn = () => {
+    if (!columnBoxes) return;
+    for (const n of current.notes) notesDone.push({ ...n, column: colIdx });
+    current.notes = [];
+    current.notesHeightPx = 0;
+  };
 
   const newPage = () => {
-    // `notes` are the footnotes this page carries at its foot, and
-    // `notesHeightPx` the room they take — reserved from the page's height
-    // the moment their reference lands here, so body text never runs over
-    // them. The watermark rides every page. `floats` are the pictures
-    // standing beside the words on this page, each with the band it takes
-    // and the side it takes it on; a float ends with its page.
+    if (current && columnBoxes) {
+      finishColumn();
+      current.notes = notesDone;
+      current.notesHeightPx = notesDone.reduce((s, n) => s + n.heightPx, 0);
+    }
+    // `notes` are the footnotes this page (or, mid-page, this column) carries
+    // at its foot, and `notesHeightPx` the room they take — reserved from the
+    // page's height the moment their reference lands here, so body text
+    // never runs over them. The watermark rides every page. `floats` are the
+    // pictures standing beside the words on this page, each with the band it
+    // takes and the side it takes it on; a float ends with its column.
     current = { index: pages.length, number: pages.length + 1, fragments: [], contentHeightPx: height, notes: [], notesHeightPx: 0, watermark, floats: [] };
+    if (columnBoxes) current.columns = columnBoxes;
     pages.push(current);
     used = 0;
+    colIdx = 0;
+    notesDone = [];
+    width = columnBoxes ? columnBoxes[0].widthPx : section.contentWidthPx;
     return current;
   };
   newPage();
 
+  // Advance to the next column of the CURRENT page — Word's rule for "no room
+  // here" in a multi-column section — or start a fresh page once the last
+  // column is full. Every place below that used to mean "start a fresh page,
+  // this does not fit" now means this instead; a one-column section has no
+  // second column to advance to, so it falls straight through to `newPage`,
+  // unchanged.
+  const newColumn = () => {
+    if (!columnBoxes || colIdx + 1 >= columnBoxes.length) { newPage(); return; }
+    finishColumn();
+    colIdx += 1;
+    width = columnBoxes[colIdx].widthPx;
+    used = 0;
+    current.floats = [];
+  };
+
   const remaining = () => height - used - current.notesHeightPx;
   const place = (fragment, cost) => {
-    current.fragments.push(fragment);
+    // The column a fragment landed in rides with it only in a multi-column
+    // section — a one-column fragment must stay exactly the shape it always
+    // was, for the byte-identical guarantee above.
+    current.fragments.push(columnBoxes ? { ...fragment, column: colIdx } : fragment);
     used += cost;
   };
 
@@ -352,7 +406,21 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     if (pages.length > maxPages) break;
 
     if (entry.kind === 'table') {
-      layTable(entry.table, { width, height, place, remaining, newPage, cache });
+      // A table wider than the column it must now sit in — the file's own
+      // width, or the file's own column widths, were set for the page before
+      // it grew columns — is scaled down to fit, grid and all; the fragment
+      // carries the scaled table, so the paint downstream needs no scale of
+      // its own. Single-column tables are never wider than `width` is here
+      // (it IS the file's content width), so this never touches them.
+      let table = entry.table;
+      if (columnBoxes && table.columns.length) {
+        const natural = table.columns.reduce((a, b) => a + b, 0);
+        if (natural > width && natural > 0) {
+          const scale = width / natural;
+          table = { ...table, columns: table.columns.map((c) => c * scale) };
+        }
+      }
+      layTable(table, { width, height, place, remaining, newPage: newColumn, cache });
       continue;
     }
 
@@ -395,7 +463,7 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
       const widthPx = measureText(text, { size: sizePx, weight });
       const { lineHeightPx: nextLineHeightPx } = layoutParagraph(nextBlock, width, { cache, styles });
       const heightPx = block.dropCap.lines * nextLineHeightPx;
-      if (heightPx + spaceBefore > remaining() && current.fragments.length) { newPage(); spaceBefore = 0; }
+      if (heightPx + spaceBefore > remaining() && current.fragments.length) { newColumn(); spaceBefore = 0; }
       const topPx = used + spaceBefore;
       // "In margin" hangs the letter in the left margin rather than taking
       // room from the column — Word's own second style — but only when the
@@ -421,7 +489,7 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     const beside = (block.images ?? []).filter((img) => img.href && floatsBeside(img));
     if (beside.length) {
       const tallest = beside.reduce((h, img) => Math.max(h, floatBox(img, width).heightPx + (img.dist?.t || 0) + (img.dist?.b ?? FLOAT_GAP_PX)), 0);
-      if (tallest + spaceBefore > remaining() && current.fragments.length) { newPage(); spaceBefore = 0; }
+      if (tallest + spaceBefore > remaining() && current.fragments.length) { newColumn(); spaceBefore = 0; }
       for (const img of beside) {
         const box = floatBox(img, width);
         const side = img.hAlign === 'right' || img.hAlign === 'outside' ? 'right' : 'left';
@@ -445,7 +513,7 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
         return { box, widthPx, heightPx, paragraphs };
       });
       const tallest = laidBoxes.reduce((h, b) => Math.max(h, b.heightPx + (b.box.dist?.t || 0) + (b.box.dist?.b ?? FLOAT_GAP_PX)), 0);
-      if (tallest + spaceBefore > remaining() && current.fragments.length) { newPage(); spaceBefore = 0; }
+      if (tallest + spaceBefore > remaining() && current.fragments.length) { newColumn(); spaceBefore = 0; }
       for (const { box, widthPx, heightPx, paragraphs } of laidBoxes) {
         const side = box.hAlign === 'right' || box.hAlign === 'outside' ? 'right' : 'left';
         const topPx = used + spaceBefore + (box.dist?.t || 0);
@@ -470,7 +538,7 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
       .map((r) => layNote(noteById.get(r.noteRef.id)));
     if (pageNotes.length) {
       const cost = pageNotes.reduce((s, n) => s + n.heightPx, 0) + (current.notes.length ? 0 : NOTE_RULE_PX);
-      if (remaining() - spaceBefore - cost < lineHeightPx && current.fragments.length) { newPage(); spaceBefore = 0; }
+      if (remaining() - spaceBefore - cost < lineHeightPx && current.fragments.length) { newColumn(); spaceBefore = 0; }
       current.notesHeightPx += pageNotes.reduce((s, n) => s + n.heightPx, 0) + (current.notes.length ? 0 : NOTE_RULE_PX);
       current.notes.push(...pageNotes);
     }
@@ -489,7 +557,7 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
         // which case a single line is taller than the page and forcing another
         // break would loop for ever.
         if (current.fragments.length === 0) fits = 1;
-        else { newPage(); spaceBefore = 0; continue; }
+        else { newColumn(); spaceBefore = 0; continue; }
       }
 
       // Widow and orphan control, the cheap version: never leave one line of a
@@ -497,7 +565,7 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
       // moving it costs nothing but a little whitespace.
       const left = lines.length - cursor;
       if (fits < left && left - fits === 1 && fits > 1) fits -= 1;
-      if (fits === 1 && left > 2 && current.fragments.length) { newPage(); spaceBefore = 0; continue; }
+      if (fits === 1 && left > 2 && current.fragments.length) { newColumn(); spaceBefore = 0; continue; }
 
       const slice = lines.slice(cursor, cursor + fits);
       const complete = cursor + fits >= lines.length;
@@ -534,7 +602,7 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
 
       cursor += fits;
       spaceBefore = 0;
-      if (!complete) newPage();
+      if (!complete) newColumn();
     }
 
     // Every other picture renders as a block under the paragraph's text: an
@@ -588,7 +656,7 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
         const tall = row.heightPx + IMAGE_GAP;
         if (cost + tall > remaining()) {
           flush();
-          if (tall > remaining() && current.fragments.length) newPage();
+          if (tall > remaining() && current.fragments.length) newColumn();
         }
         batch.push(row);
         cost += tall;
@@ -605,7 +673,7 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
       const boxWidth = Math.max(40, Math.min(width, box.widthPx || width));
       const paragraphs = (box.paragraphs || []).map((p) => layShown(p, boxWidth - 2 * BOX_PAD_PX));
       const heightPx = Math.min(height, Math.max(box.heightPx || 0, heightOf(paragraphs) + 2 * BOX_PAD_PX));
-      if (heightPx > remaining() && current.fragments.length) newPage();
+      if (heightPx > remaining() && current.fragments.length) newColumn();
       place({
         kind: 'textbox', paragraphIndex: block.index, widthPx: boxWidth, heightPx,
         fill: box.fill || null, line: box.line || null, hAlign: box.hAlign || null, paragraphs,
@@ -624,9 +692,22 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     }
   }
 
+  // The last column of the last page never gets a `newPage()` call after it
+  // to publish its notes the way every earlier one does — this closes it out
+  // the same way, so its footnotes are not left stranded in `notesDone`.
+  if (columnBoxes) {
+    finishColumn();
+    current.notes = notesDone;
+    current.notesHeightPx = notesDone.reduce((s, n) => s + n.heightPx, 0);
+  }
+
   const count = pages.length;
   for (const page of pages) page.of = count;
-  return { pages, count, contentWidthPx: width, contentHeightPx: height };
+  // `width` is the CURRENT COLUMN's width by the time the flow ends, not the
+  // section's — the section's own is what a reader means by "how wide is the
+  // page", so that is what is reported, not whatever column happened to be
+  // laid out last.
+  return { pages, count, contentWidthPx: section.contentWidthPx, contentHeightPx: height };
 }
 
 /** The room a note takes from the page: its indent, and the rule above the first. */

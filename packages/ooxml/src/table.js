@@ -337,6 +337,28 @@ function parseLineNumbers(sectPr) {
   };
 }
 
+/**
+ * Columns, `<w:cols>` in the section: how many, the gap between them in px,
+ * and whether Word draws a rule down the gap. `widths` holds each column's
+ * own width in px when the file says the columns are NOT equal width
+ * (`w:equalWidth="0"` and a `w:col` per column) — Word's own Left and Right
+ * presets write it that way; null means "share the content width equally",
+ * which is both the ordinary case and the case of no `<w:cols>` at all (one
+ * column, Word's default).
+ */
+function parseColumns(sectPr) {
+  const m = sectPr ? /<w:cols\b([^>]*?)(?:\/>|>([\s\S]*?)<\/w:cols>)/.exec(sectPr) : null;
+  if (!m) return { count: 1, spacePx: 0, separator: false, widths: null };
+  const head = attrs(m[1]);
+  const count = Math.max(1, Math.round(Number(head['w:num']) || 1));
+  const spacePx = twipsToPx(head['w:space'] !== undefined ? head['w:space'] : 720);
+  const separator = head['w:sep'] === '1' || head['w:sep'] === 'true';
+  const equalWidth = head['w:equalWidth'] !== '0' && head['w:equalWidth'] !== 'false';
+  const cols = m[2] ? [...m[2].matchAll(/<w:col\b([^>]*)\/>/g)].map((c) => attrs(c[1])) : [];
+  const widths = !equalWidth && cols.length === count ? cols.map((c) => twipsToPx(c['w:w'])) : null;
+  return { count, spacePx, separator, widths };
+}
+
 function parsePageBorders(sectPr) {
   const m = sectPr ? /<w:pgBorders\b([^>]*)>([\s\S]*?)<\/w:pgBorders>/.exec(sectPr) : null;
   if (!m) return null;
@@ -382,6 +404,7 @@ export function parseSection(bodyXml) {
     orientation: sz['w:orient'] === 'landscape' || widthTwips > heightTwips ? 'landscape' : 'portrait',
     pageBorders: parsePageBorders(sectPr),
     lineNumbers: parseLineNumbers(sectPr),
+    columns: parseColumns(sectPr),
     margins: {
       top: margin('top', 1440),
       right: margin('right', 1440),
@@ -394,6 +417,24 @@ export function parseSection(bodyXml) {
     // Everything the renderer actually lays text into.
     get contentWidthPx() {
       return this.widthPx - this.margins.left - this.margins.right - this.margins.gutter;
+    },
+    // Where the flow lays each column, in px from the content's left edge —
+    // explicit widths honoured (Word's own Left and Right presets), else
+    // equal shares of the content width less the gaps between them. One
+    // column, the ordinary case, is just the content box itself.
+    get columnBoxes() {
+      const { count, spacePx, widths } = this.columns;
+      const n = Math.max(1, count);
+      if (n <= 1) return [{ xPx: 0, widthPx: this.contentWidthPx }];
+      const boxes = [];
+      let x = 0;
+      if (widths && widths.length === n) {
+        for (const w of widths) { boxes.push({ xPx: x, widthPx: w }); x += w + spacePx; }
+      } else {
+        const w = Math.max(1, (this.contentWidthPx - spacePx * (n - 1)) / n);
+        for (let i = 0; i < n; i++) { boxes.push({ xPx: x, widthPx: w }); x += w + spacePx; }
+      }
+      return boxes;
     },
     // Which header/footer references actually apply. Without titlePg a file can
     // carry a first-page header Word never shows.

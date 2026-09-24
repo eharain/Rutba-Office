@@ -380,10 +380,33 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
       drawBand(page, doc, sheet.footer, { xPx, yPx: section.heightPx - (m.footer || m.bottom / 2) - rows * lh, widthPx });
     }
 
+    // Columns: the paginator hands back the boxes it laid the flow into,
+    // relative to the content's own left edge — only on a section of more
+    // than one, so a page with none draws exactly as it always has, at the
+    // page's own xPx and widthPx (`fxPx`/`fwidthPx` below just echo them).
+    const columns = sheet.columns || null;
+    if (columns && section.columns?.separator) {
+      // A thin rule down the middle of every gap, Word's own "line between",
+      // over the column's whole height — the content area's, not whatever a
+      // short last page happened to fill.
+      const topPx = m.top;
+      const botPx = m.top + (sheet.contentHeightPx ?? (section.heightPx - m.top - m.bottom));
+      for (let i = 0; i < columns.length - 1; i++) {
+        const gapMid = xPx + (columns[i].xPx + columns[i].widthPx + columns[i + 1].xPx) / 2;
+        page.line(gapMid * PT, topPx * PT, gapMid * PT, botPx * PT, { width: 0.5, colour: '#808080' });
+      }
+    }
+
     let y = m.top;
+    let yCol = 0; // the column `y` is currently counting down — reset the moment a fragment names a different one
     for (const fr of sheet.fragments) {
+      const col = columns ? (fr.column ?? 0) : 0;
+      if (columns && col !== yCol) { y = m.top; yCol = col; }
+      const fxPx = columns ? xPx + columns[col].xPx : xPx;
+      const fwidthPx = columns ? columns[col].widthPx : widthPx;
+
       if (fr.kind === 'table') {
-        y += drawTable(page, doc, fr.table, fr.rows, { xPx, yPx: y, widthPx, labelOf });
+        y += drawTable(page, doc, fr.table, fr.rows, { xPx: fxPx, yPx: y, widthPx: fwidthPx, labelOf });
         if (!fr.continues) y += TABLE_SPACE_AFTER;
         continue;
       }
@@ -399,7 +422,7 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
           at += row.count;
           const rowWidth = imgs.reduce((s, img) => s + img.widthPx, 0);
           const side = imgs.length === 1 && imgs[0].anchored ? imgs[0].hAlign : fr.align === 'center' || fr.align === 'right' ? fr.align : 'left';
-          let x = xPx + Math.max(0, side === 'center' ? (widthPx - rowWidth) / 2 : side === 'right' ? widthPx - rowWidth : 0);
+          let x = fxPx + Math.max(0, side === 'center' ? (fwidthPx - rowWidth) / 2 : side === 'right' ? fwidthPx - rowWidth : 0);
           for (const img of imgs) {
             drawImage(page, doc, img, x, y + Math.max(0, row.heightPx - img.heightPx));
             x += img.widthPx;
@@ -412,8 +435,8 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
         // Beside the words, at the side it asked for, where the paginator
         // put it — the lines round it were laid out shorter to leave the
         // room. It advances nothing: the words carry on beside it.
-        const dx = fr.side === 'right' ? widthPx - fr.widthPx : 0;
-        drawImage(page, doc, fr.image, xPx + Math.max(0, dx), m.top + fr.topPx);
+        const dx = fr.side === 'right' ? fwidthPx - fr.widthPx : 0;
+        drawImage(page, doc, fr.image, fxPx + Math.max(0, dx), m.top + fr.topPx);
         continue;
       }
       if (fr.kind === 'dropcap') {
@@ -423,13 +446,13 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
         // stands as tall as. "In margin" hangs it left of the column
         // instead of taking room from it.
         const s = styleOfRun((fr.runs || [])[0] || {}, fr);
-        const x = (xPx + (fr.indentPx || 0) + (fr.inMargin ? -fr.widthPx : 0)) * PT;
+        const x = (fxPx + (fr.indentPx || 0) + (fr.inMargin ? -fr.widthPx : 0)) * PT;
         const baseline = (m.top + fr.topPx + fr.heightPx - fr.sizePx * 0.22) * PT;
         page.text(fr.text, x, baseline, { font: s.font, size: s.size, colour: s.colour });
         continue;
       }
       if (fr.kind === 'textbox') {
-        drawTextBox(page, doc, fr, { xPx, yPx: y, widthPx });
+        drawTextBox(page, doc, fr, { xPx: fxPx, yPx: y, widthPx: fwidthPx });
         y += fr.heightPx + IMAGE_GAP;
         continue;
       }
@@ -437,16 +460,16 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
         // A text box beside the words, at the side it asked for, where the
         // paginator put it; the lines round it were laid out shorter. It
         // advances nothing, like a floating picture.
-        const bx = fr.side === 'right' ? xPx + Math.max(0, widthPx - fr.widthPx) : xPx;
+        const bx = fr.side === 'right' ? fxPx + Math.max(0, fwidthPx - fr.widthPx) : fxPx;
         drawTextBox(page, doc, { ...fr, hAlign: null }, { xPx: bx, yPx: m.top + fr.topPx, widthPx: fr.widthPx });
         continue;
       }
       if (fr.kind === 'note') {
         // An endnote: its number in the gutter, its words indented past it.
         y += fr.spaceBefore || 0;
-        drawNoteNumber(page, doc, fr.note, xPx, y, fr);
+        drawNoteNumber(page, doc, fr.note, fxPx, y, fr);
         y += drawParagraphLines(page, doc, {
-          lines: fr.lines, fragment: fr, runs: fr.runs, xPx: xPx + NOTE_INDENT_PX, yPx: y, widthPx: widthPx - NOTE_INDENT_PX,
+          lines: fr.lines, fragment: fr, runs: fr.runs, xPx: fxPx + NOTE_INDENT_PX, yPx: y, widthPx: fwidthPx - NOTE_INDENT_PX,
         });
         y += fr.spaceAfter || 0;
         continue;
@@ -458,12 +481,14 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
       if (block && (block.shading || block.borders)) {
         const heightPx = fr.lines.length * fr.lineHeightPx;
         if (block.shading && /^#?[0-9a-fA-F]{6}$/.test(String(block.shading))) {
-          page.rect(xPx * PT, y * PT, widthPx * PT, heightPx * PT, { fill: `#${String(block.shading).replace('#', '')}` });
+          page.rect(fxPx * PT, y * PT, fwidthPx * PT, heightPx * PT, { fill: `#${String(block.shading).replace('#', '')}` });
         }
-        drawParagraphBorders(page, block.borders, { xPx, yPx: y, widthPx, heightPx });
+        drawParagraphBorders(page, block.borders, { xPx: fxPx, yPx: y, widthPx: fwidthPx, heightPx });
       }
-      // The line numbers down the left margin: every line counted, every
-      // countBy-th shown, in the gap Word leaves before the text.
+      // The line numbers down the PAGE's own left margin: every line
+      // counted, every countBy-th shown, in the gap Word leaves before the
+      // text — the page's margin whatever column the line is actually in,
+      // as Word itself numbers a multi-column section.
       if (numbering && fr.lines && !(block && block.container)) {
         const gapPx = numbering.distancePx != null ? numbering.distancePx : 24;
         fr.lines.forEach((line, i) => {
@@ -477,7 +502,7 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
       }
       y += drawParagraphLines(page, doc, {
         lines: fr.lines, fragment: fr, runs: block ? block.runs : null,
-        xPx: xPx + (fr.indent || 0), yPx: y, widthPx: widthPx - (fr.indent || 0),
+        xPx: fxPx + (fr.indent || 0), yPx: y, widthPx: fwidthPx - (fr.indent || 0),
         listLabel: fr.listLabel || null, lastIsFinal: Boolean(fr.last),
       });
       y += fr.spaceAfter || 0;
@@ -485,7 +510,30 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
 
     // The page's footnotes, at its foot: a short rule, then each note with
     // its number in the gutter — in the room the paginator kept for them.
-    if (sheet.notes?.length) {
+    // In a multi-column section a note sits at the foot of ITS OWN column
+    // (Word's own rule), so each column's notes are drawn — and their rule
+    // positioned — from that column's own total, not the whole page's.
+    if (columns) {
+      for (let col = 0; col < columns.length; col++) {
+        const colNotes = (sheet.notes || []).filter((n) => (n.column ?? 0) === col);
+        if (!colNotes.length) continue;
+        const total = colNotes.reduce((s, n) => s + n.heightPx, 0) + NOTE_RULE_PX;
+        const colXPx = xPx + columns[col].xPx;
+        const colWidthPx = columns[col].widthPx;
+        let ny = m.top + (sheet.contentHeightPx ?? (section.heightPx - m.top - m.bottom)) - total + 4;
+        page.line(colXPx * PT, ny * PT, (colXPx + colWidthPx / 3) * PT, ny * PT, { width: 0.6, colour: '#333333' });
+        ny += NOTE_RULE_PX - 4;
+        for (const note of colNotes) {
+          for (const p of note.paragraphs) {
+            ny += p.spaceBefore || 0;
+            if (p === note.paragraphs[0]) drawNoteNumber(page, doc, note.n, colXPx, ny, p);
+            ny += drawParagraphLines(page, doc, { lines: p.lines, fragment: p, runs: p.runs, xPx: colXPx + NOTE_INDENT_PX, yPx: ny, widthPx: colWidthPx - NOTE_INDENT_PX });
+            ny += p.spaceAfter || 0;
+          }
+          ny += 2;
+        }
+      }
+    } else if (sheet.notes?.length) {
       let ny = m.top + (sheet.contentHeightPx ?? (section.heightPx - m.top - m.bottom)) - sheet.notesHeightPx + 4;
       page.line(xPx * PT, ny * PT, (xPx + widthPx / 3) * PT, ny * PT, { width: 0.6, colour: '#333333' });
       ny += NOTE_RULE_PX - 4;

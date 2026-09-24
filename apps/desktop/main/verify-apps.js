@@ -2497,6 +2497,85 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Word: Layout → Columns ──────────────────────────────────────────── */
+  //
+  // Columns used to be a Soon button. This picks Two from the ribbon on the
+  // long report, checks the section says so and the screen is honest about
+  // laying the single flow as wide as the first column only, saves and reads
+  // the file's own `w:cols` back, prints it and checks the PDF actually put
+  // words at two different x positions on the first page, then turns columns
+  // off again and checks the element is gone.
+  const wordColumns = async () => {
+    try {
+      const win = await open('word', files.long);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const modelOf = () => doc.model({ id: sessionFor('doc').id });
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const pick = async (button, label) => {
+        const clicked = await clickRibbon(button);
+        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${button} menu`, 3000).catch(() => {});
+        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click(); return 1; })()`);
+        return clicked;
+      };
+
+      await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="0"]'))`), 'the long report', 8000);
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Layout')?.click(), 'tab'`);
+      await wait(200);
+
+      const pickedTwo = await pick('Columns', 'Two');
+      const two = await until(() => modelOf().section?.columns?.count === 2, 'the section to say two columns', 5000).catch(() => false);
+      await wait(300);
+      const boxes = modelOf().section.columns;
+      const contentWidthPx = modelOf().section.widthPx - modelOf().section.margins.left - modelOf().section.margins.right - (modelOf().section.margins.gutter || 0);
+      const col0WidthPx = boxes.widths ? boxes.widths[0] : (contentWidthPx - (boxes.spacePx || 0)) / 2;
+      const screen = await js(`(() => {
+        const p = document.querySelector('.wd-page');
+        const cs = getComputedStyle(p);
+        return { content: p.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight), chip: document.querySelector('.wd-columns-chip')?.textContent || null };
+      })()`);
+      check('word: Layout → Columns → Two writes two columns on the section', pickedTwo === 'clicked' && two === true, `${pickedTwo}; ${JSON.stringify(modelOf().section?.columns)}`);
+      check('word: the flow on screen is laid as wide as the first column, honestly, and the status bar says so',
+        Math.abs(screen.content - col0WidthPx) <= 2 && /2 columns.*laid as one on screen.*flowed into columns in print/.test(screen.chip || ''),
+        `content ${screen.content} px vs column ${col0WidthPx} px; chip ${JSON.stringify(screen.chip)}`);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-columns.png'), (await win.webContents.capturePage()).toPNG());
+
+      await clickRibbon('Save');
+      await until(() => { try { return /<w:cols/.test(openDocx(fs.readFileSync(files.long)).doc.doc.xml); } catch { return false; } }, 'the columns to land in the file', 8000).catch(() => {});
+      const sectPr = (() => { try { const m = /<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(openDocx(fs.readFileSync(files.long)).doc.doc.xml); return m ? m[0] : ''; } catch { return ''; } })();
+      check('word: the saved file keeps the columns as w:cols in the section', /<w:cols w:num="2" w:space="720"\/>/.test(sectPr), sectPr.slice(0, 200));
+
+      // Printed: the same document's PDF actually flows the words into two
+      // columns, not just one — the same path Ctrl+P and the Print button use.
+      const id = sessionFor('doc').id;
+      const target = path.join(path.dirname(files.long), 'print-word-columns.pdf');
+      await js(`window.rutbaOffice.print.pdf({ id: ${JSON.stringify(id)}, path: ${JSON.stringify(target)}, options: {} })`);
+      const pdfBytes = fs.readFileSync(target);
+      const pdfText = pdfBytes.toString('latin1');
+      const xs = [...pdfText.matchAll(/1 0 0 1 ([\d.]+) [\d.]+ Tm/g)].map((m) => Math.round(parseFloat(m[1])));
+      const distinctXs = [...new Set(xs)];
+      check('word: the printed PDF draws the report\'s words from two different x positions on the page', distinctXs.length >= 2, `x origins seen: ${distinctXs.slice(0, 6).join(', ')}`);
+
+      // Columns off again: the element is gone from the section and the file.
+      const pickedOne = await pick('Columns', 'One');
+      const one = await until(() => (modelOf().section?.columns?.count ?? 1) === 1, 'the section to say one column again', 5000).catch(() => false);
+      check('word: Layout → Columns → One takes the columns off again', pickedOne === 'clicked' && one === true, `${pickedOne}; ${JSON.stringify(modelOf().section?.columns)}`);
+      await clickRibbon('Save');
+      await until(() => { try { return !/<w:cols/.test(openDocx(fs.readFileSync(files.long)).doc.doc.xml); } catch { return false; } }, 'the columns to leave the file', 8000).catch(() => {});
+      check('word: the saved file drops w:cols again for one column', !/<w:cols/.test(openDocx(fs.readFileSync(files.long)).doc.doc.xml), 'w:cols still in the file');
+
+      const complaints = await errorsIn(win);
+      check('word: Layout → Columns reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('word: the columns check ran', false, err.message);
+    }
+  };
+
   /* ── The update prompt, in every window ──────────────────────────────── */
   //
   // A check run contacts nothing, so the service never finds a release here;
@@ -3033,7 +3112,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,errors,fit,sections,hidden,background,effects,bookmarks,providers: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,freeze,errors,fit,sections,hidden,background,effects,bookmarks,providers: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -3056,6 +3135,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('bookmarks')) await wordBookmarks();
     if (only.includes('effects')) await wordEffects();
     if (only.includes('ruler')) await wordRuler();
+    if (only.includes('columns')) await wordColumns();
     if (only.includes('update')) await updatePrompt();
     if (only.includes('home')) await launcherRecent();
     if (only.includes('freeze')) await sheetFreeze();
@@ -3170,6 +3250,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordPictureFits();
   await wordCards();
   await wordRuler();
+  await wordColumns();
   await updatePrompt();
   await launcherRecent();
   await sheetFreeze();
