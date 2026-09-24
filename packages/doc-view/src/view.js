@@ -398,6 +398,27 @@ export class DocView {
       return this;
     }
 
+    // A field run's text is a cached RESULT, not words to splice into: typing
+    // at its start goes before it, and typing anywhere else in it — at its
+    // end, or (a caret that should never rest there) inside it — goes after
+    // the whole run, exactly as Backspace and Delete take the whole run at
+    // once. See positions.js's `sliceRuns` for the same rule on deletion.
+    if (target.field) {
+      const before = runOffset === 0;
+      const runStart = offset - runOffset;
+      const insertAt = before ? runStart : runStart + target.text.length;
+      const neighbour = before ? runs[runIndex - 1] : runs[runIndex + 1];
+      let rPr = neighbour && !neighbour.field && !neighbour.noteRef && !neighbour.noteMark ? neighbour.rPr : null;
+      if (this.pendingFormat) rPr = this._applyPending(rPr);
+      const at = before ? runIndex : runIndex + 1;
+      const next = [...runs.slice(0, at), { rPr, text }, ...runs.slice(at)];
+      this.doc.setParagraphRuns(block, coalesce(next));
+      this._invalidate();
+      this.pendingFormat = null;
+      this.collapseTo({ block, offset: insertAt + text.length });
+      return this;
+    }
+
     let rPr = target.rPr;
     if (this.pendingFormat) rPr = this._applyPending(rPr);
 
@@ -1789,6 +1810,50 @@ export class DocView {
   }
 
   /**
+   * Insert → Cross-reference: a REF field at the caret naming a bookmark, its
+   * result the bookmark's own words right now — `\h` makes it a hyperlink to
+   * the bookmark, so Ctrl+click on the field goes there (`gotoBookmark`
+   * again). A selection is replaced, as typing would; the field then behaves
+   * like the atomic run it is (see positions.js and `_insertText` above).
+   */
+  insertCrossReference(name) {
+    if (typeof this.doc.addBookmark !== 'function') {
+      throw new Error('this document backend does not support bookmarks');
+    }
+    const mark = this.bookmarks().find((b) => b.name === name);
+    if (!mark) throw new Error('no bookmark named ' + name);
+    return this._edit('cross-reference', null, () => {
+      if (!this.collapsed) this.deleteSelection();
+      const { block, offset } = this.focus;
+      const b = this._editable(block);
+      const words = this.blocks.slice(mark.from, mark.to + 1).map((p) => p.text).join(' ');
+      const field = { rPr: null, text: words, field: { instr: ' REF ' + name + ' \\h ', kind: 'ref', name } };
+      const next = [...sliceRuns(b.runs, 0, offset), field, ...sliceRuns(b.runs, offset, Infinity)];
+      this.doc.setParagraphRuns(block, coalesce(next));
+      this._invalidate();
+      this.pendingFormat = null;
+      this.collapseTo({ block, offset: offset + words.length });
+      return this;
+    });
+  }
+
+  /**
+   * References → Update Fields (F9): every REF field's words refreshed from
+   * its bookmark, right now — as a person would run it before printing.
+   * Returns how many fields changed, for the toast.
+   */
+  updateFields() {
+    if (typeof this.doc.refreshRefFields !== 'function') {
+      throw new Error('this document backend does not support fields');
+    }
+    return this._edit('update fields', null, () => {
+      const n = this.doc.refreshRefFields();
+      this._invalidate();
+      return n;
+    });
+  }
+
+  /**
    * Fill a content control — the business-data binding path, allowed inside
    * structure. Optional in the port: an email body has no named anchors.
    */
@@ -1825,6 +1890,9 @@ export class DocView {
     // of a note carries the kind, numbered by `_notes` too.
     if (r.noteRef) out.noteRef = { ...r.noteRef, n: this._noteNumbers?.get(r) ?? null };
     if (r.noteMark) out.noteMark = r.noteMark;
+    // A field's own code and kind — REF Summary, PAGE, DATE — so the page can
+    // shade it and Ctrl+click can follow a REF to its bookmark.
+    if (r.field) out.field = r.field;
     // The run's CHARACTER style — Hyperlink, FootnoteReference, Strong —
     // fills in what the run does not set itself. Word paints a hyperlink
     // blue and underlined only because its style says so; a TOC entry that

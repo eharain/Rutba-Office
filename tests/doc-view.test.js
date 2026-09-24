@@ -72,9 +72,16 @@ test('a real letter opens into editable blocks', () => {
 
 test('paragraphs carrying structure are flagged, not silently editable', () => {
   const frame = openDocx(LETTER).render();
+  // A simple field (`w:fldSimple`) no longer makes a paragraph structural —
+  // it is one atomic run among the others, see word-xref.test.js — so the
+  // structural case here is the content control instead.
+  const withControl = frame.blocks.find((b) => b.text.includes('PKR.'));
+  assert.equal(withControl.structural, true);
+  assert.ok(withControl.structuralTags.includes('w:sdt'));
+
   const withField = frame.blocks.find((b) => b.text.startsWith('Ref:'));
-  assert.equal(withField.structural, true);
-  assert.ok(withField.structuralTags.includes('w:fldSimple'));
+  assert.equal(withField.structural, false, 'a DOCPROPERTY field keeps the paragraph editable');
+  assert.ok(withField.runs.some((r) => r.field?.kind === 'docproperty'), 'the field survives as a run');
 
   const plainItem = frame.blocks.find((b) => b.text === 'Payments received');
   assert.equal(plainItem.structural, false);
@@ -157,9 +164,9 @@ test('a selection spanning paragraphs deletes and joins them', () => {
 
 test('typing into a structural paragraph is refused with a reason', () => {
   const view = openDocx(LETTER);
-  view.collapseTo({ block: 1, offset: 4 }); // the Ref: field paragraph
+  view.collapseTo({ block: 3, offset: 4 }); // the content-control paragraph
   assert.equal(view.canEdit, false);
-  assert.throws(() => view.insertText('x'), /w:fldSimple.*content control/s);
+  assert.throws(() => view.insertText('x'), /w:sdt.*content control/s);
   assert.throws(() => view.splitParagraph(), /cannot be typed into/);
 });
 

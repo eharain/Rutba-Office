@@ -933,6 +933,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     // A note signed by whoever the window says, else by the account at the keyboard.
     setNote: (v, a) => v.setNote({ ...a, author: a.author || safeUserName() }),
     removeNote: (v, a) => v.removeNote(a),
+    // `addSparklines` returns the view itself (so it chains like the rest of
+    // the engine's authoring calls); that is not an `opResult` a session
+    // wants to cross the IPC wire, so it is dropped here rather than handed
+    // back verbatim the way `v.addSparklines(...)` alone would.
+    addSparklines: (v, a) => { v.addSparklines({ type: a.type, data: a.data, at: a.at }); },
+    removeSparklines: (v, a) => v.removeSparklines(a.at),
     formatAsTable: (v, a) => v.formatAsTable(a),
     insertPicture: (v, a) => v.insertPicture(a),
     deleteName: (v, a) => v.deleteName(a.name),
@@ -1004,6 +1010,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     addBookmark: (v, a) => v.addBookmark(a.name),
     removeBookmark: (v, a) => v.removeBookmark(a.name),
     gotoBookmark: (v, a) => v.gotoBookmark(a.name),
+    // Insert → Cross-reference: a REF field naming a bookmark. References →
+    // Update Fields refreshes every one; the count it returns rides back as
+    // `opResult` (see `apply`, below) so the ribbon can toast how many.
+    insertCrossReference: (v, a) => v.insertCrossReference(a.name),
+    updateFields: (v) => v.updateFields(),
     insertNote: (v, a) => v.insertNote(a.kind ?? 'footnote', a.text),
     setNoteText: (v, a) => v.setNoteText(a.kind ?? 'footnote', a.id, a.text),
     tabCell: (v, a) => v.tabCell({ back: a.back }),
@@ -1350,10 +1361,17 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       const view = session.kind === 'sheet' ? session.engine : null;
       const before = view ? { x: view.scrollX, y: view.scrollY, sheet: view.activeSheet, editing: Boolean(view.editing) } : null;
       let touched = false;
+      // The last op's own return value, e.g. Update Fields' count of fields
+      // changed — most ops answer `this` (the engine, for chaining) or
+      // nothing, neither of which crosses IPC; only a plain primitive rides
+      // along, so a caller after a specific number or string gets it and
+      // everything else stays silent rather than failing the whole call.
+      let opResult;
       for (const op of ops || []) {
         const fn = table[op.op];
         if (!fn) throw new Error(`${session.kind} documents have no operation "${op.op}"`);
-        fn(session.engine, op);
+        const result = fn(session.engine, op);
+        if (['number', 'string', 'boolean'].includes(typeof result)) opResult = result;
         if (!CLEAN_OPS.has(op.op)) touched = true;
       }
       if (touched) {
@@ -1374,8 +1392,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       }
       // A document answers with the difference; the other kinds are already
       // small — a sheet sends only the viewport, a deck one slide.
-      if (session.kind === 'doc' && delta) return { ...session.meta(), ...docDelta(session) };
-      return { ...session.meta(), model: modelOf(session, { width, slide }) };
+      if (session.kind === 'doc' && delta) return { ...session.meta(), ...docDelta(session), opResult };
+      return { ...session.meta(), model: modelOf(session, { width, slide }), opResult };
     },
 
     viewport: ({ id, width, height, x, y }) => {

@@ -69,6 +69,15 @@ export function orderedRange(anchor, focus) {
  * Slice a run list by character range, preserving each run's properties.
  * Used by delete, by copy, and by formatting — all of which need "the runs that
  * cover exactly this span, split at the boundaries".
+ *
+ * A field run — a `REF`, one atomic character wide as far as its cached
+ * words are concerned — is never split: a range that covers it wholly keeps
+ * it whole, and a range that only clips it (the caret sat inside it, or a
+ * selection ended partway through it) drops it rather than hand back half a
+ * field. Composed the way `removeRange` composes this function — a "before"
+ * slice and an "after" slice meeting at the same boundary — that is exactly
+ * "a deletion cutting into a field removes the whole field": the field is
+ * excluded from both halves, so it does not survive in either.
  */
 export function sliceRuns(runs, from, to) {
   const out = [];
@@ -78,6 +87,7 @@ export function sliceRuns(runs, from, to) {
     const end = seen + run.text.length;
     seen = end;
     if (end <= from || start >= to) continue;
+    if (run.field && !(from <= start && to >= end)) continue;
     const text = run.text.slice(Math.max(0, from - start), Math.min(run.text.length, to - start));
     if (text !== '') out.push({ ...run, text });
   }
@@ -104,8 +114,10 @@ export function coalesce(runs) {
     const last = out[out.length - 1];
     // A link is part of a run's identity: merging a linked run into a plain
     // neighbour would stretch or swallow the link. A note reference is a run
-    // of its own for the same reason — its one character IS the reference.
-    const marker = Boolean(run.noteRef || run.noteMark || last?.noteRef || last?.noteMark);
+    // of its own for the same reason — its one character IS the reference —
+    // and a field run the same again: its text is a cached RESULT, not words
+    // to fold into whatever sits beside it.
+    const marker = Boolean(run.noteRef || run.noteMark || run.field || last?.noteRef || last?.noteMark || last?.field);
     if (last && !marker && last.rPr === run.rPr && (last.link ?? null) === (run.link ?? null)) last.text += run.text;
     else out.push({ ...run });
   }

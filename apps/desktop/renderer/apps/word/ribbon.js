@@ -299,7 +299,7 @@ export default function WordRibbon({
           <Group label="Links">
             <Button tall icon="link" label="Link" title="Link (Ctrl+K)" pressed={Boolean(format.link)} onClick={() => openDialog('link')} />
             <Button icon="flag" label="Bookmark" title="Bookmark — name this place in the document, so Go To and a cross-reference can find it" onClick={() => openDialog('bookmark')} />
-            <Soon icon="link" label="Cross-reference" why="Cross-references are REF fields, which the engine does not write yet." />
+            <Button icon="link" label="Cross-reference" title="Cross-reference — a REF field to a bookmark, its words kept live by Update Fields" onClick={() => openDialog('crossReference')} />
           </Group>
           <Group label="Comments">
             <Button tall icon="reply" label="Comment" onClick={() => openDialog('comment')} />
@@ -503,7 +503,10 @@ export default function WordRibbon({
           <Group label="Captions">
             <Soon tall icon="textbox" label="Insert Caption" why="A caption is a SEQ field; fields are not written yet." />
             <Soon icon="listBullet" label="Table of Figures" why="Comes with captions." />
-            <Soon icon="link" label="Cross-reference" why="Cross-references are REF fields, which the engine does not write yet." />
+            <Button icon="link" label="Cross-reference" title="Cross-reference — a REF field to a bookmark, its words kept live by Update Fields" onClick={() => openDialog('crossReference')} />
+          </Group>
+          <Group label="Fields">
+            <Button tall icon="refresh" label="Update Fields" title="Update Fields (F9) — refresh every cross-reference to its bookmark's current words" onClick={() => commands['field.update']?.run?.()} />
           </Group>
           <Group label="Index">
             <Soon tall icon="flag" label="Mark Entry" why="Index entries are XE fields, not written yet." />

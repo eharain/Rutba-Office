@@ -26,8 +26,13 @@ export function textOf(xmlFragment) {
   for (const m of String(xmlFragment).matchAll(re)) {
     const tag = m[0];
     if (tag.startsWith('<w:tab')) out += '\t';
-    else if (tag.includes('Reference')) out += NOTE_MARK;
     else if (tag.startsWith('<w:t')) out += unesc(m[1] ?? '');
+    // A reference is told apart by its OWN tag, not by whether the words it
+    // sits beside happen to contain "Reference" — a run reading "See the
+    // Reference guide" (or Word's own "Error! Reference source not found.")
+    // is not a footnote, and `tag` here is the WHOLE match, words and all,
+    // so a substring check on it read that word as the element.
+    else if (/^<w:(?:footnote|endnote)Reference\b/.test(tag)) out += NOTE_MARK;
     else out += '\n';
   }
   return out;
@@ -146,22 +151,58 @@ function flatRuns(fragment, out, link = null) {
   }
 }
 
+/**
+ * A simple field's instruction, split the way Word's own fields are: the
+ * first word says what kind of field it is; a REF's second word is the
+ * bookmark it names. `PAGE`, `DATE`, `SEQ` and the rest carry no name — the
+ * editor only ever follows a REF, so that is the only one worth a second word.
+ */
+function parseFieldInstr(instr) {
+  const words = String(instr).trim().split(/\s+/);
+  const kind = (words[0] || '').toLowerCase();
+  return { kind, name: kind === 'ref' ? (words[1] ?? null) : null };
+}
+
+/**
+ * A `<w:fldSimple>` — Word's cached-result field — as ONE run. Its `w:instr`
+ * attribute is the field code (` REF Summary \h `); its content is the last
+ * result Word computed, a run like any other, which is why the run inside is
+ * read with `runFromInner` rather than reinvented. A field with no readable
+ * run inside (an empty result) still becomes a run, with no text, so an
+ * empty REF is not silently dropped from the paragraph.
+ */
+function fieldRunFromFldSimple(attrsText, inner) {
+  const instrMatch = /\bw:instr="([^"]*)"/.exec(attrsText);
+  const instr = instrMatch ? unesc(instrMatch[1]) : '';
+  const runMatch = /<w:r\b(?![a-zA-Z])[^>]*>([\s\S]*?)<\/w:r>/.exec(inner);
+  const inside = runMatch ? runFromInner(runMatch[1]) : null;
+  return {
+    rPr: inside?.rPr ?? null,
+    text: inside?.text ?? '',
+    field: { instr, ...parseFieldInstr(instr) },
+  };
+}
+
 export function parseRuns(paragraphXml) {
   const xml = String(paragraphXml);
   const runs = [];
 
   // A `<w:hyperlink>` is a GROUP of runs wearing a target: its runs are as
   // editable as any others, and `link` — the wrapper's attributes, verbatim —
-  // is what lets a rebuild put the wrapper back. Everything else at the top
+  // is what lets a rebuild put the wrapper back. A `<w:fldSimple>` is the
+  // opposite shape — Word's cached-result field collapses to ONE run, its
+  // instruction and result carried on `field` — so it is read here rather
+  // than flattened into the run(s) it wraps. Everything else at the top
   // level (an sdt's body, a smart tag) contributes its text runs flat, exactly
   // as this function always has; nesting inside those is display-only because
   // paragraphs carrying them are structural and never rebuilt.
-  const re = /<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>/g;
+  const re = /<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>|<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>/g;
   let cursor = 0;
   let m;
   while ((m = re.exec(xml))) {
     flatRuns(xml.slice(cursor, m.index), runs);
-    flatRuns(m[2], runs, m[1]);
+    if (m[1] !== undefined) flatRuns(m[2], runs, m[1]);
+    else runs.push(fieldRunFromFldSimple(m[3], m[4]));
     cursor = m.index + m[0].length;
   }
   flatRuns(xml.slice(cursor), runs);
@@ -203,14 +244,18 @@ export function withToggle(rPr, tag, on) {
 export function renderRuns(runs) {
   const out = [];
   let openLink = null;
-  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark)) {
+  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark || run.field)) {
     const link = r.link ?? null;
     if (link !== openLink) {
       if (openLink !== null) out.push('</w:hyperlink>');
       if (link !== null) out.push('<w:hyperlink' + link + '>');
       openLink = link;
     }
-    out.push(renderRun(r.rPr, r.text, r));
+    // A field run wraps its rendered run in the `<w:fldSimple>` its `field`
+    // remembers — the cached result Word shows until Update Fields is next
+    // pressed, right where parseRuns found it among the paragraph's runs.
+    if (r.field) out.push('<w:fldSimple w:instr="' + esc(r.field.instr) + '">' + renderRun(r.rPr, r.text) + '</w:fldSimple>');
+    else out.push(renderRun(r.rPr, r.text, r));
   }
   if (openLink !== null) out.push('</w:hyperlink>');
   return out.join('');

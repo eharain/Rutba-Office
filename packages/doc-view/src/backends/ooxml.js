@@ -277,6 +277,10 @@ export class OoxmlBackend {
   bookmarks() { return this.doc.bookmarks(); }
   addBookmark(name, from, to) { return this.doc.addBookmark(name, from, to); }
   removeBookmark(name) { return this.doc.removeBookmark(name); }
+  /** Simple fields — REF, PAGE, DATE and the rest of `<w:fldSimple>`. */
+  fields() { return this.doc.fields(); }
+  /** References → Update Fields: every REF refreshed from its bookmark. */
+  refreshRefFields() { return this.doc.refreshRefFields(); }
   /** The default bands as an editing panel sees them, and their edit path. */
   bandInfo() { return this.doc.bandInfo(); }
   registerBandUndo(which) { this.doc.registerBandUndo(which); return this; }

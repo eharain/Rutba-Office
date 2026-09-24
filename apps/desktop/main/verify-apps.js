@@ -1477,6 +1477,145 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Word: cross-reference — Insert → Cross-reference writes a REF field ── */
+  //
+  // A REF field to a bookmark: the bookmark's own words at the caret, kept as
+  // a field in the file, refreshed on demand by Update Fields (F9) — and the
+  // paragraph carrying it stays editable, the same promise a bookmark makes.
+  // Run alone with RUTBA_VERIFY_ONLY=xref.
+  const wordCrossRef = async () => {
+    try {
+      const win = await open('word', files.docx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const session = sessionFor('doc');
+      const model = () => doc.model({ id: session.id });
+
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const closeDialog = () => js(`(() => { [...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Close')?.click(); return 1; })()`);
+      const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+      // A collapsed caret at the given end of a block, and the mouseup the
+      // window learns it from — exactly as wordBookmarks places one.
+      const caretIn = (block, atEnd) => js(`(() => {
+        const b = document.querySelector('.wd-page [data-block="${block}"]');
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+        const r = document.createRange(); r.selectNodeContents(b); r.collapse(${atEnd ? 'false' : 'true'});
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        return 1;
+      })()`);
+
+      await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="2"]'))`), 'the third paragraph', 8000);
+
+      // The bookmark on the second paragraph, exactly as wordBookmarks makes one.
+      await caretIn(1, false);
+      await wait(200);
+      await clickTab('Insert');
+      await wait(200);
+      await clickRibbon('Bookmark');
+      await until(() => js(`Boolean(document.querySelector('.wd-bookmark-name'))`), 'the Bookmark dialog', 5000);
+      await js(`(() => { const el = document.querySelector('.wd-bookmark-name'); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, 'Summary'); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      await wait(150);
+      await js(`(() => { document.querySelector('.wd-bookmark-add')?.click(); return 1; })()`);
+      // Waited on the PAGE's own state, not just the engine's: the engine
+      // has the bookmark the moment the main process answers, but the page
+      // learns it on its own following round trip, and the Cross-reference
+      // dialog reads the page's model — opening it before that lands is
+      // exactly the "No bookmarks" empty state, wrongly.
+      await until(() => js(`Boolean(document.querySelector('.wd-bookmark-row'))`), 'the bookmark to show in the dialog', 5000);
+      await closeDialog();
+      await wait(200);
+
+      // The caret at the END of the third paragraph, then Insert → Cross-reference.
+      await caretIn(2, true);
+      await wait(200);
+      const pressed = await clickRibbon('Cross-reference');
+      await until(() => js(`Boolean(document.querySelector('.wd-xref-row'))`), 'the Cross-reference dialog', 5000);
+      await js(`(() => { [...document.querySelectorAll('.wd-xref-row')].find((r) => r.textContent.includes('Summary'))?.click(); return 1; })()`);
+      await wait(150);
+      await js(`(() => { document.querySelector('.wd-xref-insert')?.click(); return 1; })()`);
+
+      const summaryText = model().blocks[1]?.text || '';
+      const inserted = await until(
+        () => (model().blocks[2]?.runs || []).some((r) => r.field?.kind === 'ref' && r.field?.name === 'Summary' && r.text === summaryText),
+        'the REF field in the model',
+        5000
+      ).catch(() => false);
+      check(
+        "word: Insert → Cross-reference writes a REF field with the bookmark's words, at the caret",
+        pressed === 'clicked' && inserted === true,
+        `${pressed}; block 2 runs ${JSON.stringify(model().blocks[2]?.runs)}`
+      );
+
+      const fieldShown = await js(`Boolean([...document.querySelectorAll('[data-block="2"] .wd-field')].find((s) => s.textContent === ${JSON.stringify(summaryText)}))`);
+      check('word: the page shows the field, shaded grey', fieldShown === true, `field shown: ${fieldShown}`);
+
+      await clickRibbon('Save');
+      const paragraphXml = () => {
+        try {
+          return openDocx(fs.readFileSync(files.docx)).doc.doc.paragraph(2).xml || '';
+        } catch {
+          return '';
+        }
+      };
+      await until(() => /w:fldSimple/.test(paragraphXml()), 'the field to land in the file', 8000).catch(() => false);
+      const pXml = paragraphXml();
+      const hasField = pXml.includes('<w:fldSimple w:instr=" REF Summary \\h "><w:r>') && pXml.includes(summaryText);
+      check(
+        "word: the saved file writes the REF field with the words, and the paragraph stays editable",
+        hasField && model().blocks[2]?.structural === false,
+        pXml.slice(-320)
+      );
+
+      // Edit the bookmarked paragraph, then Update Fields — the field picks it up.
+      await caretIn(1, false);
+      await wait(200);
+      await win.webContents.insertText('X');
+      await wait(200);
+      await clickTab('References');
+      await wait(200);
+      await clickRibbon('Update Fields');
+      const refreshed = await until(
+        () => (model().blocks[2]?.runs || []).some((r) => r.field?.kind === 'ref' && String(r.text).startsWith('X')),
+        'the field refreshed from the edited bookmark',
+        5000
+      ).catch(() => false);
+      check("word: Update Fields refreshes a REF to its bookmark's current words", refreshed === true, JSON.stringify(model().blocks[2]?.runs));
+
+      // Remove the bookmark, Update again — the field reads Word's own error text.
+      await clickTab('Insert');
+      await wait(200);
+      await clickRibbon('Bookmark');
+      await until(() => js(`Boolean(document.querySelector('.wd-bookmark-row'))`), 'the bookmark row', 5000);
+      await js(`(() => { [...document.querySelectorAll('.wd-bookmark-row')].find((r) => r.textContent.includes('Summary'))?.click(); return 1; })()`);
+      await wait(150);
+      await js(`(() => { document.querySelector('.wd-bookmark-delete')?.click(); return 1; })()`);
+      await until(() => (model().bookmarks || []).length === 0, 'the bookmark removed', 5000).catch(() => false);
+      await closeDialog();
+      await wait(200);
+
+      await clickTab('References');
+      await wait(200);
+      await clickRibbon('Update Fields');
+      const errored = await until(
+        () => (model().blocks[2]?.runs || []).some((r) => r.field?.kind === 'ref' && r.text === 'Error! Reference source not found.'),
+        'the field to read the missing-bookmark error',
+        5000
+      ).catch(() => false);
+      check("word: Update Fields writes Word's own error text once the bookmark is gone", errored === true, JSON.stringify(model().blocks[2]?.runs));
+
+      const complaints = await errorsIn(win);
+      check('word: the cross-reference checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('word: the cross-reference checks ran', false, err.message);
+    }
+  };
+
   /* ── Word: text effects — outline, shadow, glow ────────────────────── */
   //
   // Home → the "A" button: Outline hollows the selected words, Shadow casts
@@ -3433,7 +3572,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,freeze,errors,fit,sections,hidden,background,effects,bookmarks,providers: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,freeze,errors,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,providers: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -3456,6 +3595,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('look')) await wordLook();
     if (only.includes('dropcap')) await wordDropCap();
     if (only.includes('bookmarks')) await wordBookmarks();
+    if (only.includes('xref')) await wordCrossRef();
     if (only.includes('effects')) await wordEffects();
     if (only.includes('ruler')) await wordRuler();
     if (only.includes('columns')) await wordColumns();
@@ -3571,6 +3711,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordLook();
   await wordDropCap();
   await wordBookmarks();
+  await wordCrossRef();
   await wordEffects();
   await wordPictureFits();
   await wordCards();

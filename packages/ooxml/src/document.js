@@ -2178,6 +2178,60 @@ export class Document {
     return true;
   }
 
+  /**
+   * Every simple field in the body, in paragraph order — `<w:fldSimple>`,
+   * read as `parseRuns` reads it: one run per field, carrying the code Word
+   * wrote (`instr`), what kind of field it is, a REF's bookmark name, and
+   * the cached words currently shown. `index` is the field run's position
+   * among that paragraph's runs, so a caller can find the same field again
+   * after an edit moves nothing but its neighbours.
+   */
+  fields() {
+    const out = [];
+    for (const entry of this.paragraphs()) {
+      const p = this.paragraph(entry.index);
+      p.runs.forEach((r, index) => {
+        if (!r.field) return;
+        out.push({ paragraph: p.index, index, instr: r.field.instr, kind: r.field.kind, name: r.field.name, text: r.text });
+      });
+    }
+    return out;
+  }
+
+  /**
+   * References → Update Fields (or F9): every REF field's words refreshed
+   * from its bookmark — the text of paragraphs `from`..`to`, joined with a
+   * space, the way a multi-paragraph bookmark collapses onto a field's one
+   * line. A REF whose bookmark has since been removed gets the words Word
+   * itself puts there rather than leave the old, now-wrong ones standing.
+   * Returns how many fields actually changed, for the ribbon's toast.
+   */
+  refreshRefFields() {
+    const NOT_FOUND = 'Error! Reference source not found.';
+    const marks = new Map(this.bookmarks().map((b) => [b.name, b]));
+    const paragraphs = this.paragraphs();
+    let changed = 0;
+    for (const entry of paragraphs) {
+      if (!/<w:fldSimple\b/.test(entry.xml)) continue;
+      const p = this.paragraph(entry.index);
+      let touched = false;
+      const next = p.runs.map((r) => {
+        if (!r.field || r.field.kind !== 'ref') return r;
+        const mark = marks.get(r.field.name);
+        const words = mark
+          ? paragraphs.slice(mark.from, mark.to + 1).map((q) => q.text).join(' ')
+          : NOT_FOUND;
+        if (words === r.text) return r;
+        touched = true;
+        changed += 1;
+        return { ...r, text: words };
+      });
+      if (touched) this.setParagraphRuns(p.index, next);
+    }
+    if (changed) this.dirty = true;
+    return changed;
+  }
+
   // ---- writing -------------------------------------------------------------
 
   /**
@@ -2298,7 +2352,13 @@ export class Document {
     // w:bookmarkStart left the list 2026-09-24: the rebuilders now carry a
     // paragraph's bookmark marks through via `_leadFragments`/`_keptFragments`
     // (see those), so a bookmarked paragraph no longer has to go read-only.
-    const structural = ['w:fldSimple', 'w:fldChar', 'w:commentRangeStart', 'w:sdt', 'w:ins', 'w:del', 'w:txbxContent']
+    // w:fldSimple left the list the same day a REF field needed one: parseRuns
+    // now reads a simple field as ONE run carrying `field`, and renderRuns
+    // writes the `<w:fldSimple>` wrapper back from it — see runs.js. A
+    // COMPLEX field (`w:fldChar` begin/separate/end, `w:instrText`) is not
+    // this lucky: its result is split across several runs with no single one
+    // to own the wrapper, so it stays structural.
+    const structural = ['w:fldChar', 'w:commentRangeStart', 'w:sdt', 'w:ins', 'w:del', 'w:txbxContent']
       .filter((tag) => new RegExp('<' + tag + '\\b').test(p.xml)); // \b: w:ins is a prefix of w:instrText
     // A paragraph INSIDE a body-level content control carries no sdt tag of
     // its own; it is read-only for the same reason one that does is.

@@ -29,7 +29,7 @@ installRulerStyles();
 import {
   LinkDialog, TableDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
   DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog, WatermarkDialog,
-  BookmarkDialog,
+  BookmarkDialog, CrossReferenceDialog,
 } from './word/dialogs.js';
 import { lineBoxes, rectOf } from './word/pages.js';
 
@@ -970,9 +970,21 @@ export default function Word({ app, shell, boot }) {
       'insert.table': { label: 'Table', icon: 'table', run: () => apply({ op: 'insertTable', rows: 3, cols: 3 }) },
       'insert.break': { label: 'Page break', icon: 'file', run: () => apply({ op: 'insertPageBreak' }) },
       'insert.image': { label: 'Picture…', icon: 'picture', run: () => insertPictureRef.current?.() },
+      // References → Update Fields, or F9: every REF's words refreshed from
+      // its bookmark. The count comes back as `opResult` (documents.js's
+      // `apply`), which is the only way this toast can say how many.
+      'field.update': {
+        label: 'Update Fields', icon: 'refresh', key: 'F9', global: true,
+        run: async () => {
+          const next = await apply({ op: 'updateFields' });
+          if (!next) return;
+          const n = next.opResult ?? 0;
+          toast(`${n} field${n === 1 ? '' : 's'} updated`, { tone: 'good' });
+        },
+      },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc, apply, save, openFile, exportAs, shell]
+    [doc, apply, save, openFile, exportAs, shell, toast]
   );
 
   useCommands(commands, [doc, model]);
@@ -1067,6 +1079,13 @@ export default function Word({ app, shell, boot }) {
               onMouseUp={(e) => {
                 // A press on a picture or its handles is a pick, not a caret move.
                 if (pictureDrag.current || e.target.closest?.('.wd-handles, .wd-image')) return;
+                // Ctrl+click (Cmd+click on a Mac) a REF field to go to the
+                // bookmark it names — Word's own way into a cross-reference.
+                const field = e.target.closest?.('.wd-field');
+                if (field && (e.ctrlKey || e.metaKey) && field.dataset.name) {
+                  apply({ op: 'gotoBookmark', name: field.dataset.name });
+                  return;
+                }
                 syncSelection();
               }}
               onKeyDown={(e) => {
@@ -1312,6 +1331,17 @@ export default function Word({ app, shell, boot }) {
           onDelete={(name) => apply({ op: 'removeBookmark', name })}
           onGoto={async (name) => {
             await apply({ op: 'gotoBookmark', name });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'crossReference' ? (
+        <CrossReferenceDialog
+          bookmarks={model?.bookmarks || []}
+          onClose={() => setDialog(null)}
+          onInsert={async (name) => {
+            await apply({ op: 'insertCrossReference', name });
             setDialog(null);
           }}
         />
@@ -1780,6 +1810,15 @@ function RunSpan({ run }) {
   }
   return (
     <span
+      // A field's shading rides the same span as its formatting — Word
+      // shades a field grey whatever else it carries — and `data-instr` and
+      // `data-name` are what the page's Ctrl+click handler reads to follow a
+      // REF to its bookmark (`gotoBookmark`), without the engine's frame
+      // having to carry anything more than the run already does.
+      className={run.field ? 'wd-field' : undefined}
+      data-instr={run.field ? run.field.instr : undefined}
+      data-name={run.field?.kind === 'ref' ? run.field.name : undefined}
+      title={run.field ? (run.field.kind === 'ref' ? `REF ${run.field.name} — Ctrl+click to go to the bookmark` : run.field.instr.trim()) : undefined}
       style={{
         fontWeight: run.bold ? 700 : undefined,
         fontStyle: run.italic ? 'italic' : undefined,
@@ -2231,6 +2270,9 @@ const CSS = `
 /* Footnote references and the notes themselves. */
 .wd-noteref::after, .wd-notemark::after { content: attr(data-n); vertical-align: super; font-size: 0.65em; line-height: 0; }
 .wd-noteref-char { font-size: 0; }
+/* A field — a REF, a PAGE, anything cached by <w:fldSimple> — shaded grey the
+   way Word shades every field, so its words read as computed rather than typed. */
+.wd-field { background: rgba(0, 0, 0, 0.08); border-radius: 2px; }
 .wd-notes .wd-note { cursor: text; }
 .wd-notemark::after { margin-right: 3px; }
 .wd-notes { margin-top: 28px; padding-top: 6px; border-top: 1px solid #333; width: 33%; min-width: 220px; font-size: 0.85em; user-select: none; }

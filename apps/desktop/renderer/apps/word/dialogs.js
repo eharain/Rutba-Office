@@ -339,6 +339,59 @@ export function BookmarkDialog({ bookmarks, onClose, onAdd, onDelete, onGoto }) 
   );
 }
 
+/**
+ * Insert → Cross-reference: a REF field to a bookmark, so its words follow
+ * the bookmark wherever the document goes — Update Fields refreshes it, the
+ * way Word's own F9 does. There is nothing to type here; picking a bookmark
+ * is the whole dialog, so a double-click or Enter on the picked row inserts
+ * it too, the way Word's own list does.
+ */
+export function CrossReferenceDialog({ bookmarks, onClose, onInsert }) {
+  const [selected, setSelected] = useState(null);
+  const picked = (bookmarks || []).some((b) => b.name === selected);
+
+  const insert = (name) => { if (name) onInsert(name); };
+
+  return (
+    <Dialog
+      title="Cross-reference"
+      width={460}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Close" onClick={onClose} />
+          <Button primary className="wd-xref-insert" label="Insert" disabled={!picked} onClick={() => insert(selected)} />
+        </>
+      }
+    >
+      <div className="ml-form" onKeyDown={(e) => { if (e.key === 'Enter' && picked) { e.preventDefault(); insert(selected); } }}>
+        {bookmarks?.length ? (
+          <div className="ml-import-folders" style={{ maxHeight: 240 }}>
+            {bookmarks.map((b) => (
+              <button
+                key={b.name}
+                type="button"
+                className={'ml-found-item wd-xref-row' + (selected === b.name ? ' picked' : '')}
+                style={{ border: 0, borderBottom: '1px solid var(--line-soft)', borderRadius: 0 }}
+                onClick={() => setSelected(b.name)}
+                onDoubleClick={() => insert(b.name)}
+              >
+                <span className="ml-found-logo"><Icon name="flag" size={14} /></span>
+                <span className="grow">
+                  <div className="who">{b.name}</div>
+                  <div className="what">{bookmarkSpan(b)}</div>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <Empty icon="flag" title="No bookmarks">Add a bookmark first: Insert → Bookmark.</Empty>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
 /* ── find and replace ────────────────────────────────────────────────────── */
 
 export function FindDialog({ onClose, onReplaceAll }) {
