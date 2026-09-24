@@ -607,8 +607,8 @@ export default function SheetsRibbon({
           <Group label="Zoom">
             <Button tall icon="zoomIn" label="Zoom" onClick={(e) => menu.open(e, [50, 75, 100, 125, 150, 200].map((z) => ({ label: `${z}%`, run: () => act('zoom', z / 100) })))} />
             <Button icon="check" label="100%" onClick={() => act('zoom', 1)} />
-            <Button icon="zoomIn" title="Zoom in" onClick={() => shell.win.zoom({ delta: 0.1 })} />
-            <Button icon="zoomOut" title="Zoom out" onClick={() => shell.win.zoom({ delta: -0.1 })} />
+            <Button icon="zoomIn" title="Zoom in" onClick={() => act('zoom', (view.zoom ?? 1) + 0.1)} />
+            <Button icon="zoomOut" title="Zoom out" onClick={() => act('zoom', (view.zoom ?? 1) - 0.1)} />
           </Group>
           <Group label="Window">
             <Button tall icon="new" label="New Window" title="This workbook in a second window" onClick={() => act('newWindow')} />

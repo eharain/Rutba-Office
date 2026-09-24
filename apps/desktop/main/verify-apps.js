@@ -2258,6 +2258,98 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // heading row is still under the column headings, the first column still
   // beside the row headings, the corner cell at both, their headings with
   // them; a press on a pinned cell selects it.
+  /* ── Zoom scales the page, not the window ─────────────────────────────── */
+  //
+  // The slider in Rutba Word and Worksheets used to zoom the whole window
+  // — the ribbon, the status bar and the slider itself grew under the
+  // pointer, which made it unusable (owner, 2026-09-24). Now the page (or
+  // the grid) alone is scaled with CSS zoom: the ribbon keeps its height,
+  // the window's own zoom factor stays 1, Word's pages still fall where they
+  // did, and a press on a Worksheets cell at its zoomed place still selects
+  // that cell. Run alone with RUTBA_VERIFY_ONLY=zoom.
+  const zoomStaysOnThePage = async () => {
+    try {
+      const win = await open('word', files.docx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`document.querySelectorAll('.wd-page .wd-block').length > 2`), 'the document', 8000);
+      const setSlider = (v) => js(`(() => {
+        const el = document.querySelector('.rw-zoom input[type="range"]');
+        if (!el) return 'no slider';
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        setter.call(el, ${JSON.stringify(String(v))});
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return 'set';
+      })()`);
+      const shape = () => js(`(() => {
+        const page = document.querySelector('.wd-page');
+        const ribbon = document.querySelector('.rw-ribbon');
+        const slider = document.querySelector('.rw-zoom');
+        return {
+          pageRect: page.getBoundingClientRect().width, pageOwn: page.offsetWidth,
+          ribbon: ribbon ? ribbon.getBoundingClientRect().height : 0,
+          slider: slider ? slider.getBoundingClientRect().width : 0,
+          sheets: document.querySelectorAll('.wd-sheet').length,
+          pct: document.querySelector('.rw-zoom-pct')?.textContent,
+        };
+      })()`);
+      const before = await shape();
+      const set = await setSlider(1.5);
+      await until(async () => (await shape()).pct === '150%', 'the slider to say 150%', 4000).catch(() => {});
+      await wait(600);
+      const after = await shape();
+      const factor = win.webContents.getZoomFactor();
+      check('word: the zoom slider scales the page alone — the page draws half as wide again, the ribbon and the slider keep their size, the window stays at 100%',
+        set === 'set' && after.pct === '150%' && Math.abs(after.pageRect / after.pageOwn - 1.5) < 0.02 && Math.abs(after.ribbon - before.ribbon) < 1 && Math.abs(after.slider - before.slider) < 1 && Math.abs(factor - 1) < 0.001,
+        `${set}; ${after.pct}; page ${after.pageRect.toFixed(0)}/${after.pageOwn} (was ${before.pageRect.toFixed(0)}/${before.pageOwn}); ribbon ${before.ribbon} → ${after.ribbon}; slider ${before.slider} → ${after.slider}; window factor ${factor}`);
+      check('word: the pages fall where they did at 100%', after.sheets === before.sheets && after.sheets > 0, `${before.sheets} → ${after.sheets} sheets`);
+      await js(`(() => { document.querySelector('.rw-zoom-pct')?.click(); return 1; })()`);
+      await until(async () => (await shape()).pct === '100%', 'the slider back to 100%', 4000).catch(() => {});
+      const reset = await shape();
+      check('word: the percentage puts the page back to 100%', reset.pct === '100%' && Math.abs(reset.pageRect / reset.pageOwn - 1) < 0.02, `${reset.pct}; page ${reset.pageRect.toFixed(0)}/${reset.pageOwn}`);
+      const complaints = await errorsIn(win);
+      check('word: the zoom checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+
+      // Worksheets: the grid scaled, and a press on a cell at its zoomed place.
+      const sheet = await open('sheets', files.xlsx);
+      const sjs = (code) => sheet.webContents.executeJavaScript(code);
+      await until(() => sjs(`document.querySelectorAll('.sh-cell').length > 4`), 'the grid', 8000);
+      const gridBefore = await sjs(`(() => { const g = document.querySelector('.sh-grid'); const r = document.querySelector('.rw-ribbon'); return { grid: g.getBoundingClientRect().width / g.offsetWidth, ribbon: r ? r.getBoundingClientRect().height : 0 }; })()`);
+      const sset = await sjs(`(() => {
+        const el = document.querySelector('.rw-zoom input[type="range"]');
+        if (!el) return 'no slider';
+        const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
+        setter.call(el, '1.5');
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return 'set';
+      })()`);
+      await until(() => sjs(`document.querySelector('.rw-zoom-pct')?.textContent === '150%'`), 'the grid slider to say 150%', 4000).catch(() => {});
+      await wait(600);
+      const gridAfter = await sjs(`(() => { const g = document.querySelector('.sh-grid'); const r = document.querySelector('.rw-ribbon'); return { grid: g.getBoundingClientRect().width / g.offsetWidth, ribbon: r ? r.getBoundingClientRect().height : 0, cells: document.querySelectorAll('.sh-cell').length }; })()`);
+      const sfactor = sheet.webContents.getZoomFactor();
+      check('sheets: the zoom slider scales the grid alone, the ribbon keeping its height and the window at 100%',
+        sset === 'set' && Math.abs(gridAfter.grid - 1.5) < 0.02 && Math.abs(gridAfter.ribbon - gridBefore.ribbon) < 1 && Math.abs(sfactor - 1) < 0.001 && gridAfter.cells > 4,
+        `${sset}; grid ${gridBefore.grid.toFixed(2)} → ${gridAfter.grid.toFixed(2)}; ribbon ${gridBefore.ribbon} → ${gridAfter.ribbon}; window factor ${sfactor}; ${gridAfter.cells} cells`);
+      // A press in the middle of B2's zoomed rectangle, on the cells layer, selects B2.
+      const pressed = await sjs(`(() => {
+        const c = document.querySelector('.sh-cell[data-ref="B2"]');
+        const layer = document.querySelector('.sh-cells');
+        if (!c || !layer) return 'no B2';
+        const r = c.getBoundingClientRect();
+        layer.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 }));
+        return 'pressed';
+      })()`);
+      const activeRef = () => { const m = doc.model({ id: sessionFor('sheet').id }); return m?.active?.ref || m?.cells?.find((c) => c.active)?.ref || null; };
+      const landed = await until(() => activeRef() === 'B2', 'B2 selected', 4000).catch(() => false);
+      check('sheets: a press on a cell at its zoomed place selects that cell', pressed === 'pressed' && landed === true, `${pressed}; active ${activeRef()}`);
+      const sComplaints = await errorsIn(sheet);
+      check('sheets: the zoom checks report nothing', sComplaints.length === 0, sComplaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('zoom: the checks ran', false, err.message);
+    }
+  };
+
   const sheetFreeze = async () => {
     try {
       const rows = [];
@@ -2352,6 +2444,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('update')) await updatePrompt();
     if (only.includes('home')) await launcherRecent();
     if (only.includes('freeze')) await sheetFreeze();
+    if (only.includes('zoom')) await zoomStaysOnThePage();
     if (only.includes('fit')) await wordPictureFits();
     if (only.includes('cards')) await wordCards();
     if (only.includes('sheetpic')) await sheetPicture();
@@ -2458,6 +2551,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await updatePrompt();
   await launcherRecent();
   await sheetFreeze();
+  await zoomStaysOnThePage();
   await sheetPicture();
   await viewer();
   await sheetLinks();

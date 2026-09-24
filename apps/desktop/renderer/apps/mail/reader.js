@@ -13,6 +13,7 @@ import { bodyDocument, avatarFor, displayName } from './parts.js';
 
 export default function Reader({
   message,
+  zoom = 1,
   insight,
   remote,
   dark,
@@ -56,7 +57,7 @@ export default function Reader({
   const auth = insight?.auth;
 
   return (
-    <div className="ml-reader">
+    <div className="ml-reader" style={{ zoom: Math.abs(zoom - 1) > 0.001 ? zoom : undefined }}>
       <header className="ml-head">
         <h2>
           {message.flagged ? <Icon name="star" size={16} /> : null}

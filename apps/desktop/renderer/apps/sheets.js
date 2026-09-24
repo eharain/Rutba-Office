@@ -195,6 +195,10 @@ export default function Sheets({ app, shell, boot }) {
     if (recover) load(() => shell.doc.recover({ file: recover }).then((r) => { toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 }); return r; }));
     else if (boot.file) load(() => shell.doc.open({ path: boot.file, kind: 'sheet' }));
     else load(() => shell.doc.new({ kind: 'sheets', template: template && template !== 'blank' ? template : 'sheet' }));
+    // A window an earlier build zoomed stays zoomed across restarts — the
+    // level is kept per origin — and the grid carries the zoom now, so the
+    // window itself goes back to 100%.
+    shell.win.zoom({ reset: true }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -617,7 +621,8 @@ export default function Sheets({ app, shell, boot }) {
       let next = size;
       setResizing({ kind, index, size, start });
       const move = (ev) => {
-        next = Math.max(min, Math.min(max, Math.round(size + ((kind === 'col' ? ev.clientX : ev.clientY) - origin))));
+        // Pointer travel is in screen pixels; the grid's sizes are its own, zoomed.
+        next = Math.max(min, Math.min(max, Math.round(size + ((kind === 'col' ? ev.clientX : ev.clientY) - origin) / (view.zoom || 1))));
         setResizing({ kind, index, size: next, start });
       };
       const stop = () => {
@@ -629,7 +634,7 @@ export default function Sheets({ app, shell, boot }) {
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', stop);
     },
-    [dispatch]
+    [dispatch, view.zoom]
   );
 
   const fitColumn = useCallback(
@@ -656,13 +661,14 @@ export default function Sheets({ app, shell, boot }) {
       const layer = gridRef.current?.querySelector('.sh-cells');
       if (!layer) return;
       const rect = layer.getBoundingClientRect();
+      const z = view.zoom || 1;
       const columns = model?.columns || [];
       const rows = model?.rows || [];
-      const corner = { x: e.clientX - rect.left, y: e.clientY - rect.top };
+      const corner = { x: (e.clientX - rect.left) / z, y: (e.clientY - rect.top) / z };
       let target = source;
       const move = (ev) => {
-        const px = ev.clientX - rect.left;
-        const py = ev.clientY - rect.top;
+        const px = (ev.clientX - rect.left) / z;
+        const py = (ev.clientY - rect.top) / z;
         const col = columns.find((c) => px >= c.x && px < c.x + c.width) || (px >= (columns[columns.length - 1]?.x ?? 0) ? columns[columns.length - 1] : columns[0]);
         const row = rows.find((r) => py >= r.y && py < r.y + r.height) || (py >= (rows[rows.length - 1]?.y ?? 0) ? rows[rows.length - 1] : rows[0]);
         if (!col || !row) return;
@@ -689,7 +695,7 @@ export default function Sheets({ app, shell, boot }) {
       window.addEventListener('mousemove', move);
       window.addEventListener('mouseup', stop);
     },
-    [dispatch, model]
+    [dispatch, model, view.zoom]
   );
 
   /** A range's box in the cells layer, from the visible columns and rows; null when it is scrolled away. */
@@ -724,9 +730,11 @@ export default function Sheets({ app, shell, boot }) {
     // slid with the scroll; the columns layer starts under the frozen rows.
     const pin = event.target?.closest?.('.sh-pin');
     const layer = pin || event.currentTarget;
+    // Screen pixels to the grid's own: the grid is zoomed, the pointer is not.
     const rect = layer.getBoundingClientRect();
-    const x = event.clientX - rect.left;
-    const y = event.clientY - rect.top + (pin && pin.classList.contains('sh-pin-cols') ? frozenH : 0);
+    const z = view.zoom || 1;
+    const x = (event.clientX - rect.left) / z;
+    const y = (event.clientY - rect.top) / z + (pin && pin.classList.contains('sh-pin-cols') ? frozenH : 0);
     const col = (model?.columns || []).find((c) => x >= c.x && x < c.x + c.width);
     const row = (model?.rows || []).find((r) => y >= r.y && y < r.y + r.height);
     return col && row ? { row: row.index, col: col.index } : null;
@@ -950,11 +958,14 @@ export default function Sheets({ app, shell, boot }) {
       }
       case 'view': return;
       case 'zoom': {
-        // The window's zoom is additive on a factor; reset first so a chosen
-        // level is that level and not that level times the last one.
-        await shell.win.zoom({ reset: true });
-        if (arg && arg !== 1) await shell.win.zoom({ delta: arg - 1 });
-        patchView({ zoom: Math.round((arg || 1) * 100) / 100 });
+        // The grid alone is scaled, with CSS zoom on its scroll container. It
+        // used to be the window's zoom — ribbon, status bar and the slider
+        // under the pointer all grew with the cells, which made the slider
+        // unusable (owner, 2026-09-24). Under CSS zoom the container's own
+        // scroll and client sizes stay in its pixels, so the viewport it asks
+        // for is right as it is; only pointer positions, which arrive in
+        // screen pixels, are divided by the level.
+        patchView({ zoom: Math.max(0.3, Math.min(3, Math.round((Number(arg) || 1) * 100) / 100)) });
         return;
       }
       case 'newWindow':
@@ -1262,7 +1273,7 @@ export default function Sheets({ app, shell, boot }) {
             edges, the headers stick to one each, and none of them displaces the
             cells the way stacked block elements would.
           */}
-          <div className="sh-grid" ref={gridRef}>
+          <div className="sh-grid" ref={gridRef} style={{ zoom: view.zoom && Math.abs(view.zoom - 1) > 0.001 ? view.zoom : undefined }}>
             <div
               className="sh-canvas"
               style={{

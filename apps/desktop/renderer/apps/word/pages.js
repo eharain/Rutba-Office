@@ -116,11 +116,46 @@ export function clearPages(page) {
   for (const el of page.querySelectorAll('[data-push-mt]')) setPush(el, 0, 0);
 }
 
+/**
+ * The page's zoom — View → Zoom scales the page with CSS `zoom`, and under it
+ * a client rect comes back in screen pixels while the page's own layout (its
+ * offsets, the geometry in `geo`, every style written back) stays in its own
+ * pixels. Every rect read here is divided by it, so a pass at 150% sees the
+ * same numbers as one at 100%. Read from the page itself — its drawn width
+ * over its laid-out width — so nothing has to be told the level, and cached
+ * for a frame because a pass reads thousands of rects.
+ */
+let zoomCache = { page: null, z: 1, at: -1 };
+export function zoomOf(page) {
+  if (!page) return 1;
+  const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+  if (zoomCache.page === page && now - zoomCache.at < 16) return zoomCache.z;
+  const w = page.offsetWidth;
+  const z = w > 0 ? page.getBoundingClientRect().width / w : 1;
+  zoomCache = { page, z: Number.isFinite(z) && z > 0 ? z : 1, at: now };
+  return zoomCache.z;
+}
+const pageOf = (node) => {
+  const el = node instanceof Range ? node.startContainer : node;
+  const from = el?.nodeType === 3 ? el.parentElement : el;
+  return from?.closest?.('.wd-page') || null;
+};
+const scaled = (r, z) => (z === 1 ? r : { top: r.top / z, bottom: r.bottom / z, left: r.left / z, right: r.right / z, width: r.width / z, height: r.height / z });
+/** An element's client rect in the page's own pixels, whatever the zoom. */
+export function rectOf(el) {
+  return scaled(el.getBoundingClientRect(), zoomOf(pageOf(el)));
+}
+/** A range's client rects in the page's own pixels. */
+export function rectsOf(range) {
+  const z = zoomOf(pageOf(range));
+  return [...range.getClientRects()].map((r) => scaled(r, z));
+}
+
 /** The line boxes of a paragraph, in viewport coordinates, top to bottom. */
 export function lineBoxes(el) {
   const range = document.createRange();
   range.selectNodeContents(el);
-  const rects = [...range.getClientRects()].filter((r) => r.height > 0.5).sort((a, b) => a.top - b.top);
+  const rects = [...rectsOf(range)].filter((r) => r.height > 0.5).sort((a, b) => a.top - b.top);
   const lines = [];
   for (const r of rects) {
     const last = lines[lines.length - 1];
@@ -129,7 +164,7 @@ export function lineBoxes(el) {
     } else lines.push({ top: r.top, bottom: r.bottom });
   }
   if (!lines.length) {
-    const r = el.getBoundingClientRect();
+    const r = rectOf(el);
     lines.push({ top: r.top, bottom: r.bottom });
   }
   return lines;
@@ -173,7 +208,7 @@ function charTop(nodes, o) {
       const r = document.createRange();
       r.setStart(t.node, o - t.start);
       r.setEnd(t.node, o - t.start + 1);
-      return r.getBoundingClientRect().top;
+      return rectOf(r).top;
     }
   }
   return Infinity;
@@ -206,7 +241,7 @@ function lineStart(text, lineTop) {
 function splitParagraph(it, placedY, delta, lim, first) {
   const lines = lineBoxes(it.el);
   if (lines.length < 2) return null;
-  const elTop = it.el.getBoundingClientRect().top;
+  const elTop = rectOf(it.el).top;
   let f = lines.findIndex((l) => placedY(l.bottom) + delta > lim + 0.5);
   if (f <= 0) return null;
   // Never leave one line alone on the next page: the split moves up a line —
@@ -241,7 +276,7 @@ function offsetAtLine(it, lineTop) {
   const length = Number(it.el.dataset.length);
   if (!Number.isFinite(length)) return null;
   const pictures = [...it.el.querySelectorAll(':scope > .wd-image:not(.wd-float)')];
-  const k = pictures.findIndex((img) => img.getBoundingClientRect().top >= lineTop - 1);
+  const k = pictures.findIndex((img) => rectOf(img).top >= lineTop - 1);
   if (k >= 0) return length + Number(pictures[k].dataset.image);
   if (it.el.querySelector(':scope > .wd-textbox')) return Number(it.el.dataset.tail);
   return null;
@@ -251,8 +286,8 @@ function offsetAtLine(it, lineTop) {
 function splitTable(it, placedTop, lim) {
   const rows = [...(it.el.tBodies[0]?.rows || [])];
   if (rows.length < 2) return null;
-  const tableTop = it.el.getBoundingClientRect().top;
-  const boxes = rows.map((row) => row.getBoundingClientRect());
+  const tableTop = rectOf(it.el).top;
+  const boxes = rows.map((row) => rectOf(row));
   const r = boxes.findIndex((b) => placedTop + (b.bottom - tableTop) > lim + 0.5);
   if (r <= 0) return null;
   return { row: it.rowFrom + r, partHeight: boxes[r].top - tableTop };
@@ -271,7 +306,7 @@ function pullBack(it, next, room, noteCost = () => 0) {
   if (room < 4) return null;
   if (it.kind === 'p') {
     const lines = lineBoxes(next.el);
-    const top = next.el.getBoundingClientRect().top;
+    const top = rectOf(next.el).top;
     // A line that comes back brings the footnotes it references; they need
     // their room at the foot as well.
     let c = 0;
@@ -284,9 +319,9 @@ function pullBack(it, next, room, noteCost = () => 0) {
     return offset;
   }
   const rows = [...(next.el.tBodies[0]?.rows || [])];
-  const tableTop = next.el.getBoundingClientRect().top;
+  const tableTop = rectOf(next.el).top;
   let c = 0;
-  while (c < rows.length && rows[c].getBoundingClientRect().bottom - tableTop <= room - 1) c += 1;
+  while (c < rows.length && rectOf(rows[c]).bottom - tableTop <= room - 1) c += 1;
   if (c === 0) return null;
   if (c === rows.length) return -1;
   return next.rowFrom + c;
@@ -323,7 +358,7 @@ function settle(fresh, old, seen) {
 export function layPages(page, geo, state) {
   const P = geo.H + geo.G;
   const ctop = (n) => n * P + geo.top;
-  const pageRect = page.getBoundingClientRect();
+  const pageRect = rectOf(page);
   const els = [...page.children].filter(isFlow);
 
   // Footnotes go at the foot of the page their reference lands on — Word's
@@ -332,7 +367,7 @@ export function layPages(page, geo, state) {
   // the first, and its bottom limit moves up by it. The answer says which
   // page each note is drawn on.
   const noteHeight = new Map();
-  for (const el of page.querySelectorAll('.wd-notes-measure .wd-note[data-note]')) noteHeight.set(el.dataset.note, el.getBoundingClientRect().height);
+  for (const el of page.querySelectorAll('.wd-notes-measure .wd-note[data-note]')) noteHeight.set(el.dataset.note, rectOf(el).height);
   const reserved = [];
   const reservedAt = (k) => reserved[k] || 0;
   const limit = (n) => n * P + geo.H - geo.bottom - reservedAt(n);
@@ -341,7 +376,7 @@ export function layPages(page, geo, state) {
     noteHeight.size
       ? [...el.querySelectorAll('.wd-noteref[data-kind="footnote"][data-id]')]
           .filter((r) => noteHeight.has(r.dataset.id))
-          .map((r) => ({ id: r.dataset.id, height: noteHeight.get(r.dataset.id), top: r.getBoundingClientRect().top }))
+          .map((r) => ({ id: r.dataset.id, height: noteHeight.get(r.dataset.id), top: rectOf(r).top }))
       : [];
   const costOf = (refs, k) => (refs.length ? refs.reduce((s, r) => s + r.height, 0) + (reservedAt(k) ? 0 : NOTE_RULE_PX) : 0);
   const reserve = (it, costRefs, k, placedRefs) => {
@@ -365,11 +400,11 @@ export function layPages(page, geo, state) {
   const items = els.map((el) => {
     const was = applied(el);
     const kind = el.classList.contains('wd-block') ? 'p' : el.classList.contains('wd-table') ? 't' : 'n';
-    const rect = el.getBoundingClientRect();
+    const rect = rectOf(el);
     // A float beside the words can hang below its paragraph's last line;
     // the block is as tall as the float, or the next page cuts the picture.
     let bottom = rect.bottom;
-    for (const f of el.querySelectorAll('.wd-float')) bottom = Math.max(bottom, f.getBoundingClientRect().bottom);
+    for (const f of el.querySelectorAll('.wd-float')) bottom = Math.max(bottom, rectOf(f).bottom);
     return {
       el,
       kind,
@@ -419,7 +454,7 @@ export function layPages(page, geo, state) {
       const attempt = (keep) => {
         const split = splitParagraph(it, placedY, d, limit(n) - costOf(keep, n), heads || tall);
         if (!split) return null;
-        const cut = it.el.getBoundingClientRect().top + split.partHeight;
+        const cut = rectOf(it.el).top + split.partHeight;
         return { split, above: refs.filter((r) => r.top < cut - 0.5) };
       };
       let keep = refs;
@@ -511,7 +546,7 @@ export function layPages(page, geo, state) {
     if (id in notePages) continue;
     const ref = page.querySelector(`.wd-noteref[data-kind="footnote"][data-id="${CSS.escape(id)}"]`);
     if (!ref) continue;
-    notePages[id] = Math.max(0, Math.floor((ref.getBoundingClientRect().top - pageRect.top + 1) / P));
+    notePages[id] = Math.max(0, Math.floor((rectOf(ref).top - pageRect.top + 1) / P));
   }
   const oldNotes = state.notes || {};
   const notesChanged = Object.keys(notePages).length !== Object.keys(oldNotes).length || Object.keys(notePages).some((id) => oldNotes[id] !== notePages[id]);
@@ -551,6 +586,6 @@ export function pageOfElement(el, geo) {
   const page = el.closest('.wd-page');
   if (!page) return 0;
   const P = geo.H + geo.G;
-  const top = el.getBoundingClientRect().top - page.getBoundingClientRect().top;
+  const top = rectOf(el).top - rectOf(page).top;
   return Math.max(0, Math.floor((top + 1) / P));
 }

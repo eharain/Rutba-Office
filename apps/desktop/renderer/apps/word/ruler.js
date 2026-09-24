@@ -8,6 +8,7 @@
 // with a guide line following the hand until then.
 
 import React from 'react';
+import { rectOf } from './pages.js';
 
 const PX_PER_CM = 96 / 2.54;
 const TWIPS_PER_PX = 15;
@@ -32,8 +33,8 @@ function measureParagraph(page, index) {
   const el = page?.querySelector(`.wd-block[data-block="${index}"]`);
   if (!el) return null;
   const cs = getComputedStyle(el);
-  const r = el.getBoundingClientRect();
-  const p = page.getBoundingClientRect();
+  const r = rectOf(el);
+  const p = rectOf(page);
   const paddingLeft = num(cs.paddingLeft);
   const textIndent = num(cs.textIndent);
   const left = r.left - p.left + paddingLeft;
@@ -56,21 +57,21 @@ function measureParagraph(page, index) {
  */
 function measureTable(page, tableId, gridPx) {
   if (!page || !tableId || !gridPx?.length) return null;
-  const p = page.getBoundingClientRect();
+  const p = rectOf(page);
   const parts = [...page.querySelectorAll(`.wd-table[data-table="${tableId}"]`)];
   if (!parts.length) return null;
   const sum = gridPx.reduce((a, b) => a + b, 0);
   return parts.map((table) => {
-    const t = table.getBoundingClientRect();
+    const t = rectOf(table);
     const scale = sum > 0 ? t.width / sum : 1;
     const rows = [...table.querySelectorAll(':scope > tbody > tr')];
     const plain = rows.find((tr) => tr.children.length === gridPx.length && ![...tr.children].some((td) => td.colSpan > 1));
     const xs = plain
-      ? [...plain.children].map((td, i) => ({ k: i + 1, x: td.getBoundingClientRect().right - p.left }))
+      ? [...plain.children].map((td, i) => ({ k: i + 1, x: rectOf(td).right - p.left }))
       : gridPx.map((_, i) => ({ k: i + 1, x: t.left - p.left + gridPx.slice(0, i + 1).reduce((a, b) => a + b, 0) * scale }));
     const from = Number(table.dataset.rowFrom || 0);
     const ys = rows.map((tr, i) => {
-      const r = tr.getBoundingClientRect();
+      const r = rectOf(tr);
       return { r: from + i, y: r.bottom - p.top, top: r.top - p.top };
     });
     return { left: t.left - p.left, top: t.top - p.top, width: t.width, height: t.height, scale, xs, ys };
@@ -97,7 +98,7 @@ function useResize(page, measure) {
  * a drag off the ruler removes; and, with the caret in a table, the
  * column edges. Everything writes through the callbacks, once, on release.
  */
-export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, onMargin, onColumn }) {
+export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, onMargin, onColumn, zoom = 1 }) {
   const W = section ? Math.round(section.widthPx) : 794;
   const ML = Math.round(section?.margins?.left ?? 96);
   const MR = Math.round(section?.margins?.right ?? 96);
@@ -141,7 +142,8 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
     let off = false;
     setDrag({ kind: spec.kind, index: spec.index, x, off });
     const move = (ev) => {
-      x = clamp(spec.x + ev.clientX - x0, spec.min, spec.max);
+      // Pointer travel is in screen pixels; the ruler's are the page's, zoomed.
+      x = clamp(spec.x + (ev.clientX - x0) / (zoom || 1), spec.min, spec.max);
       off = spec.kind === 'tab' && (ev.clientY > bar.bottom + 24 || ev.clientY < bar.top - 24);
       setDrag({ kind: spec.kind, index: spec.index, x, off });
     };
@@ -161,7 +163,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
   // A click on the bare ruler, between the margins, adds a stop of the chosen type.
   const addStop = (e) => {
     if (e.button !== 0 || !block || !onParagraph) return;
-    const x = e.clientX - ref.current.getBoundingClientRect().left;
+    const x = (e.clientX - ref.current.getBoundingClientRect().left) / (zoom || 1);
     if (x <= ML || x >= W - MR) return;
     e.preventDefault();
     writeStops([...stops, { align: tabType, posPx: Math.round(x - ML) }]);
@@ -184,7 +186,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
   const bar = drag && ref.current ? ref.current.getBoundingClientRect() : null;
 
   return (
-    <div className="wd-ruler" ref={ref} style={{ width: W }} aria-hidden="true" data-tab-type={tabType}>
+    <div className="wd-ruler" ref={ref} style={{ width: W, zoom: zoom !== 1 ? zoom : undefined }} aria-hidden="true" data-tab-type={tabType}>
       <div className="wd-ruler-margin" style={{ left: 0, width: leftBound }} />
       <div className="wd-ruler-margin" style={{ left: rightBound, width: W - rightBound }} />
       <div className="wd-ruler-band" style={{ left: ML, width: Math.max(0, W - ML - MR) }} onMouseDown={addStop} />
@@ -324,7 +326,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
  * new height. `onDrag` lets the page know a drag is on, so the mouse-up
  * that ends it is not read as a caret move.
  */
-export function TableGrips({ page, model, pages, tableId, gridPx, onColumn, onRow, onDrag }) {
+export function TableGrips({ page, model, pages, tableId, gridPx, onColumn, onRow, onDrag, zoom = 1 }) {
   const [parts, setParts] = React.useState(null);
   const [guide, setGuide] = React.useState(null);
   const measure = React.useCallback(() => setParts(measureTable(page.current, tableId, gridPx)), [page, tableId, gridPx]);
@@ -343,7 +345,8 @@ export function TableGrips({ page, model, pages, tableId, gridPx, onColumn, onRo
     onDrag?.(true);
     setGuide({ axis: spec.axis, at, part: spec.part });
     const move = (ev) => {
-      at = clamp(spec.at + ((spec.axis === 'x' ? ev.clientX : ev.clientY) - start), spec.min, spec.max);
+      // Pointer travel is in screen pixels; the grips sit in the page's, zoomed.
+      at = clamp(spec.at + ((spec.axis === 'x' ? ev.clientX : ev.clientY) - start) / (zoom || 1), spec.min, spec.max);
       setGuide({ axis: spec.axis, at, part: spec.part });
     };
     const up = () => {

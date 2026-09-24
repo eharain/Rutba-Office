@@ -30,7 +30,7 @@ import {
   LinkDialog, TableDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
   DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog, WatermarkDialog,
 } from './word/dialogs.js';
-import { lineBoxes } from './word/pages.js';
+import { lineBoxes, rectOf } from './word/pages.js';
 
 /**
  * Character offset of a DOM position within its block element.
@@ -310,6 +310,10 @@ export default function Word({ app, shell, boot }) {
       }
     };
     run();
+    // A window an earlier build zoomed stays zoomed across restarts — the
+    // level is kept per origin — and the page carries the zoom now, so the
+    // window itself goes back to 100%.
+    shell.win.zoom({ reset: true }).catch(() => {});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -630,7 +634,7 @@ export default function Word({ app, shell, boot }) {
       if (lineNosKey.current !== '') { lineNosKey.current = ''; setLineNos(null); }
       return;
     }
-    const pageTop = page.getBoundingClientRect().top;
+    const pageTop = rectOf(page).top;
     const stride = paged && geo ? geo.H + geo.G : Infinity;
     const items = [];
     let n = spec.start || 1;
@@ -773,13 +777,18 @@ export default function Word({ app, shell, boot }) {
           return;
         }
         case 'zoom': {
-          // The window's zoom is additive on a factor; reset first so a chosen
-          // level is that level and not that level times the last one.
-          await shell.win.zoom({ reset: true });
-          const page = model?.section?.widthPx || 794;
-          const target = arg === 'width' ? (window.innerWidth - 120) / page : arg === 'page' ? (window.innerHeight - 200) / (model?.section?.heightPx || 1123) : arg === 'pages' ? 0.5 : Number(arg) || 1;
+          // The page alone is scaled, with CSS zoom on the page element. It
+          // used to be the window's zoom — the ribbon, the status bar and
+          // the slider under the pointer all grew with the page, which made
+          // the slider unusable (owner, 2026-09-24). The paginator, the ruler
+          // and the picture handles read their rects through pages.js, which
+          // divides them by the level, so the layout is the same at any zoom.
+          const pageWidth = model?.section?.widthPx || 794;
+          const scroll = document.querySelector('.wd-scroll');
+          const roomW = (scroll?.clientWidth || window.innerWidth) - 48;
+          const roomH = (scroll?.clientHeight || window.innerHeight) - 60;
+          const target = arg === 'width' ? roomW / pageWidth : arg === 'page' ? roomH / (model?.section?.heightPx || 1123) : arg === 'pages' ? 0.5 : Number(arg) || 1;
           const level = Math.max(0.3, Math.min(3, target));
-          if (Math.abs(level - 1) > 0.01) await shell.win.zoom({ delta: level - 1 });
           patchView({ zoom: Math.round(level * 100) / 100 });
           return;
         }
@@ -1016,6 +1025,7 @@ export default function Word({ app, shell, boot }) {
             {view.ruler ? (
               <Ruler
                 section={section}
+                zoom={view.zoom ?? 1}
                 page={pageRef}
                 model={model}
                 at={at}
@@ -1054,6 +1064,8 @@ export default function Word({ app, shell, boot }) {
               }}
               onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.undo', 'edit.redo', '-', 'format.bold', 'format.italic', 'format.underline', '-', 'edit.find']))}
               style={{
+                // View → Zoom: the page scaled on its own, the window's chrome left alone.
+                zoom: view.zoom && Math.abs(view.zoom - 1) > 0.001 ? view.zoom : undefined,
                 // The document's own base font, from its stylesheet's defaults.
                 fontFamily: model.resolvedStyles?.['*default*']?.fontName || undefined,
                 fontSize: model.resolvedStyles?.['*default*']?.sizePx ? `${model.resolvedStyles['*default*'].sizePx}px` : undefined,
@@ -1129,7 +1141,7 @@ export default function Word({ app, shell, boot }) {
               {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{`Laying out… ${Math.round((mounted / flowItems.length) * 100)}%`}</div> : null}
 
               {picked ? <PictureHandles page={pageRef} picked={picked} model={model} pages={pages} onDrag={(on) => { pictureDrag.current = on; }} onResize={(size) => apply({ op: 'setImageSize', block: picked.block, image: picked.image, ...size })} /> : null}
-              {tableAt ? <TableGrips page={pageRef} model={model} pages={pages} tableId={tableAt.id} gridPx={tableAt.gridPx} onColumn={resizeColumn} onRow={resizeRow} onDrag={(on) => { pictureDrag.current = on; }} /> : null}
+              {tableAt ? <TableGrips page={pageRef} zoom={view.zoom ?? 1} model={model} pages={pages} tableId={tableAt.id} gridPx={tableAt.gridPx} onColumn={resizeColumn} onRow={resizeRow} onDrag={(on) => { pictureDrag.current = on; }} /> : null}
               {/*
                 In print layout the footnotes are drawn on their pages (above);
                 this copy is hidden and measured. In the other layouts it is
@@ -1521,7 +1533,7 @@ function planTabs(p, stops) {
   // put that stop 29 px past the edge, and its page number on the next line.
   const host = p.closest('.wd-textbox, .wd-notes, .wd-band, .wd-page') || p;
   const edge = host.classList.contains('wd-band') ? p : host;
-  const left = host.getBoundingClientRect().left + (parseFloat(getComputedStyle(edge).paddingLeft) || 0);
+  const left = rectOf(host).left + (parseFloat(getComputedStyle(edge).paddingLeft) || 0);
   const custom = (stops || []).filter((s) => s && s.posPx > 0);
   const image = p.querySelector('.wd-image');
   const plan = [];
@@ -1534,7 +1546,7 @@ function planTabs(p, stops) {
   let carried = 0;
   let lineTop = null;
   for (const span of tabs) {
-    const rect = span.getBoundingClientRect();
+    const rect = rectOf(span);
     if (lineTop === null || Math.abs(rect.top - lineTop) > 1) {
       carried = 0;
       lineTop = rect.top;
@@ -1558,7 +1570,7 @@ function planTabs(p, stops) {
         next = next.nextSibling;
       }
       if (end) range.setEndBefore(end); else range.setEnd(p, p.childNodes.length);
-      let w = range.getBoundingClientRect().width;
+      let w = rectOf(range).width;
       if (stop.align === 'decimal') {
         // The point's position, taken as its share of the text's width — an
         // estimate, but a decimal stop lines up a column of figures, and the
@@ -1901,8 +1913,9 @@ function PictureHandles({ page, picked, model, pages, onResize, onDrag }) {
   const measure = React.useCallback(() => {
     const img = find();
     if (!img || !page.current) return setBox(null);
-    const r = img.getBoundingClientRect();
-    const p = page.current.getBoundingClientRect();
+    // In the page's own pixels, whatever the zoom: the handles live inside the page.
+    const r = rectOf(img);
+    const p = rectOf(page.current);
     setBox({ left: r.left - p.left, top: r.top - p.top, width: r.width, height: r.height });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [picked, page]);

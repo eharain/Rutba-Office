@@ -79,6 +79,8 @@ export default function Mail({ app, shell }) {
     threaded: true,
     layout: 'right',
     density: 'cosy',
+    // View → Zoom: the message alone, not the window.
+    zoom: 1,
   });
   const setPref = useCallback(
     (patch) =>
@@ -110,6 +112,10 @@ export default function Mail({ app, shell }) {
       .get({ key: 'mail.view', fallback: null })
       .then((saved) => saved && setPrefs((p) => ({ ...p, ...saved })))
       .catch(() => {});
+    // A window an earlier build zoomed stays zoomed across restarts — the
+    // level is kept per origin — and the message carries the zoom now, so
+    // the window itself goes back to 100%.
+    shell.win.zoom({ reset: true }).catch(() => {});
   }, [shell]);
 
   const loadAccounts = useCallback(async () => {
@@ -976,8 +982,10 @@ export default function Mail({ app, shell }) {
                 <Button icon="file" label="Plain text" pressed={plain} onClick={() => setPlain((p) => !p)} />
               </Group>
               <Group label="Zoom">
-                <Button icon="zoomOut" label="Out" onClick={() => shell.win.zoom({ delta: -0.1 })} />
-                <Button icon="zoomIn" label="In" onClick={() => shell.win.zoom({ delta: 0.1 })} />
+                {/* The message alone is scaled; zooming the window took the list and the ribbon with it. */}
+                <Button icon="zoomOut" label="Out" title={`Zoom out — the message at ${Math.round((prefs.zoom ?? 1) * 100)}%`} onClick={() => setPref({ zoom: Math.max(0.5, Math.round(((prefs.zoom ?? 1) - 0.1) * 100) / 100) })} />
+                <Button icon="zoomIn" label="In" title={`Zoom in — the message at ${Math.round((prefs.zoom ?? 1) * 100)}%`} onClick={() => setPref({ zoom: Math.min(3, Math.round(((prefs.zoom ?? 1) + 0.1) * 100) / 100) })} />
+                <Button icon="check" label="100%" disabled={Math.abs((prefs.zoom ?? 1) - 1) < 0.001} title="100% — the message at its own size" onClick={() => setPref({ zoom: 1 })} />
               </Group>
             </>
           ) : (
@@ -1248,6 +1256,7 @@ export default function Mail({ app, shell }) {
                   {message ? (
                     <Reader
                       message={message}
+                      zoom={prefs.zoom ?? 1}
                       insight={insight}
                       invitation={invitation}
                       onRespond={respondToInvitation}
