@@ -36,11 +36,16 @@ record_hit() {
 while IFS= read -r commit; do
   [[ -z "$commit" ]] && continue
   msg="$(git show -s --format=%B "$commit")"
+  robot_hit=1
+  case "$msg" in
+    *"$ROBOT"*) robot_hit=0 ;;
+  esac
+
   if printf '%s' "$msg" | grep -qiE "$PATTERN"; then
     record_hit "COMMIT_MESSAGE: $commit"
   elif printf '%s' "$msg" | grep -qiE "$COAUTHOR_PATTERN" && printf '%s' "$msg" | grep -qiE "$PATTERN|$CURSOR_PATTERN"; then
     record_hit "COMMIT_MESSAGE: $commit"
-  elif printf '%s' "$msg" | grep -q "$ROBOT"; then
+  elif [[ "$robot_hit" -eq 0 ]]; then
     record_hit "COMMIT_MESSAGE: $commit"
   fi
 done < <(git rev-list "${BASE_SHA}..${HEAD_SHA}" 2>/dev/null || true)
@@ -61,20 +66,11 @@ while IFS= read -r path; do
     record_hit "FILE_NAME: $path"
   fi
 
-  case "$path" in
-    package-lock.json|*/package-lock.json|npm-shrinkwrap.json|*/npm-shrinkwrap.json|yarn.lock|*/yarn.lock|pnpm-lock.yaml|*/pnpm-lock.yaml)
-      continue ;;
-  esac
+  added_lines="$(git diff -U0 "$BASE_SHA" "$HEAD_SHA" -- "$path" | grep '^+' | grep -v '^+++' || true)"
 
-  if git diff -U0 "$BASE_SHA" "$HEAD_SHA" -- "$path" \
-      | grep '^+' \
-      | grep -v '^+++' \
-      | grep -qiE "$PATTERN"; then
+  if printf '%s' "$added_lines" | grep -qiE "$PATTERN"; then
     record_hit "FILE_CONTENT: $path"
-  elif git diff -U0 "$BASE_SHA" "$HEAD_SHA" -- "$path" \
-      | grep '^+' \
-      | grep -v '^+++' \
-      | grep -qiE "$CURSOR_PATTERN"; then
+  elif printf '%s' "$added_lines" | grep -qiE "$CURSOR_PATTERN"; then
     record_hit "FILE_CONTENT: $path"
   fi
 done < "$PATHS_FILE"
