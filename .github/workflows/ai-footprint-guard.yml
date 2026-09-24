@@ -19,7 +19,7 @@ jobs:
 
       - name: Check for AI footprints in commits and changed files
         run: |
-          git fetch --no-tags --prune --depth=1 origin "${{ github.event.pull_request.base.ref }}"
+          git fetch --no-tags --prune origin "${{ github.event.pull_request.base.ref }}"
           BASE_SHA="$(git merge-base 'origin/${{ github.event.pull_request.base.ref }}' '${{ github.event.pull_request.head.sha }}')"
           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
           SCRIPT_PATH="/tmp/ai-footprint-guard.sh"
