@@ -38,8 +38,10 @@ export default function Slides({ app, shell, boot }) {
   const [notesOpen, setNotesOpen] = useState(false);
   /** The Header & Footer dialog, open with a box pre-ticked ('date' | 'number') or as it stands. */
   const [footerOpen, setFooterOpen] = useState(null);
-  /** Find and replace across the deck. */
+  /** Home → Find (Ctrl+F) and Replace (Ctrl+H): the pane's own mode, or closed. */
   const [findOpen, setFindOpen] = useState(false);
+  /** The shape the find pane's current hit is on, so the stage can mark it apart from a plain selection. */
+  const [findHit, setFindHit] = useState(null);
   /** Insert → Link on the selected shape. */
   const [linkOpen, setLinkOpen] = useState(false);
   /** The chart data dialog: the id of the chart shape it is editing, or null. */
@@ -436,7 +438,8 @@ export default function Slides({ app, shell, boot }) {
       'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
       'file.save': { label: 'Save', icon: 'save', key: 'Mod+S', run: () => save(false) },
       'file.print': { label: 'Print…', icon: 'print', key: 'Mod+P', global: true, run: () => setPrinting(true) },
-      'edit.find': { label: 'Find and replace…', icon: 'find', key: 'Mod+F', global: true, run: () => setFindOpen(true) },
+      'edit.find': { label: 'Find…', icon: 'find', key: 'Mod+F', global: true, run: () => setFindOpen('find') },
+      'edit.replace': { label: 'Replace…', icon: 'find', key: 'Mod+H', global: true, run: () => setFindOpen('replace') },
       'insert.link': { label: 'Link…', icon: 'link', key: 'Mod+K', run: () => act('link') },
       'slide.next': { label: 'Next slide', icon: 'chevronRight', key: 'arrowdown', run: () => setIndex((i) => Math.min(i + 1, (model?.count || 1) - 1)) },
       'slide.prev': { label: 'Previous slide', icon: 'chevronLeft', key: 'arrowup', run: () => setIndex((i) => Math.max(0, i - 1)) },
@@ -640,7 +643,11 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'find': {
-        setFindOpen(true);
+        setFindOpen('find');
+        return;
+      }
+      case 'replace': {
+        setFindOpen('replace');
         return;
       }
       case 'link': {
@@ -909,6 +916,28 @@ export default function Slides({ app, shell, boot }) {
                 else if (e.key === 'Escape') { if (painter) setPainter(null); else setSelected(null); }
               }}
             >
+              {findOpen ? (
+                <FindPane
+                  key={findOpen}
+                  mode={findOpen}
+                  onClose={() => { setFindOpen(false); setFindHit(null); }}
+                  onSearch={(text, matchCase) => (doc ? shell.doc.deckFind({ id: doc.id, query: text, options: { matchCase } }) : Promise.resolve([]))}
+                  onGoto={(hit) => {
+                    setFindHit(hit ? hit.shape : null);
+                    if (!hit) return;
+                    if (hit.slide === index) setSelected(hit.shape);
+                    else { pendingSelect.current = hit.shape; setIndex(hit.slide); }
+                  }}
+                  onReplaceOne={async (hit, replacement) => {
+                    const next = await apply({ op: 'replaceHit', hit, replacement });
+                    return Boolean(next?.opResult);
+                  }}
+                  onReplaceAll={async (find, replace, matchCase) => {
+                    const next = await apply({ op: 'replaceAllHits', find, replace, matchCase });
+                    return next?.opResult ?? 0;
+                  }}
+                />
+              ) : null}
               {slide && view.mode === 'sorter' ? (
                 <div className="sl-sortergrid">
                   {(model.outline || []).map((o, i) => (
@@ -952,7 +981,7 @@ export default function Slides({ app, shell, boot }) {
                       <button
                         key={s.id}
                         type="button"
-                        className={`sl-hit${selected === s.id ? ' selected' : ''}${drag?.id === s.id ? ' dragging' : ''}`}
+                        className={`sl-hit${selected === s.id ? ' selected' : ''}${drag?.id === s.id ? ' dragging' : ''}${findHit === s.id ? ' find-current' : ''}`}
                         data-shape={s.id}
                         style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
                         onMouseDown={(e) => startDrag(e, s, 'move')}
@@ -1161,36 +1190,6 @@ export default function Slides({ app, shell, boot }) {
           onApply={async (name) => {
             await apply({ op: 'renameSection', section: sectionRename.section, name });
             setSectionRename(null);
-          }}
-        />
-      ) : null}
-
-      {findOpen ? (
-        <FindDialog
-          onClose={() => setFindOpen(false)}
-          onFind={async (find, matchCase) => {
-            const count = model?.count || 1;
-            const target = matchCase ? find : find.toLowerCase();
-            const hits = [];
-            for (let i = 0; i < count; i++) {
-              const m = await shell.doc.model({ id: doc.id, slide: i }).catch(() => null);
-              for (const s of m?.slide?.shapes || []) {
-                const words = (s.text?.paragraphs || []).map((p) => (p.runs || []).map((r) => r.text).join('')).join(' ');
-                const hay = matchCase ? words : words.toLowerCase();
-                let n = 0;
-                for (let at = hay.indexOf(target); at !== -1; at = hay.indexOf(target, at + target.length)) n += 1;
-                if (n) hits.push({ slide: i, shape: s.id, name: s.name || s.kind, count: n, text: words.replace(/\s+/g, ' ').trim().slice(0, 80) });
-              }
-            }
-            return hits;
-          }}
-          onGoto={(hit) => {
-            if (hit.slide === index) setSelected(hit.shape);
-            else { pendingSelect.current = hit.shape; setIndex(hit.slide); }
-          }}
-          onReplaceAll={async (find, replace, matchCase, expected) => {
-            const next = await apply({ op: 'replaceText', find, replace, matchCase });
-            return next ? `Replaced ${expected} across the deck.` : 'Nothing was replaced.';
           }}
         />
       ) : null}
@@ -1544,7 +1543,7 @@ const CSS = `
 .sl-thumb.hidden .sl-thumb-n, .sl-sortercard.hidden .sl-sortern { text-decoration: line-through; }
 .sl-fit { position: relative; flex: none; }
 
-.sl-stage { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 22px; background: var(--window); }
+.sl-stage { position: relative; flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 22px; background: var(--window); }
 .sl-slide { position: relative; box-shadow: var(--shadow-2); background: #fff; }
 .sl-svg svg { display: block; width: 100%; height: 100%; }
 .sl-hit { position: absolute; border: 1px solid transparent; background: transparent; border-radius: 2px; min-height: 8px; min-width: 8px; cursor: move; }
@@ -1553,6 +1552,24 @@ const CSS = `
 .sl-stage:focus { outline: none; }
 
 .sl-hit:hover { border-color: var(--accent-line); background: rgba(43, 95, 217, 0.06); }
+/* Home → Find (Ctrl+F) and Replace (Ctrl+H): a small pane pinned to the
+   stage's own top right, over whatever slide is on screen — Word's find
+   pane, not a dialog that covers the slide. It sits above the stage's
+   scroll, the way an absolutely positioned child of a relatively positioned
+   scroller always does. */
+.sl-find {
+  position: absolute; top: 12px; right: 22px; z-index: 20; display: flex; flex-direction: column; gap: 6px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-3);
+  padding: 8px 10px; box-shadow: var(--shadow-2); width: 268px;
+}
+.sl-find-row { display: flex; align-items: center; gap: 6px; }
+.sl-find-row .rw-input { flex: 1; min-width: 0; }
+.sl-find-count { font-size: 12px; color: var(--ink-3); white-space: nowrap; min-width: 3.5em; text-align: right; }
+.sl-find-case { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--ink-2); white-space: nowrap; }
+.sl-find-note { font-size: 12px; color: var(--ink-3); }
+/* The shape the pane is on now, over its ordinary selection ring, so
+   stepping through hits reads as something distinct from a plain click. */
+.sl-hit.find-current { border-color: #d9a300; box-shadow: 0 0 0 2px rgba(217, 163, 0, 0.35); }
 /* A table's per-cell hit layer, over the grid the SVG already drew. */
 .sl-cell-hit { position: absolute; z-index: 2; cursor: text; border: 1px solid transparent; box-sizing: border-box; }
 .sl-cell-hit:hover { border-color: var(--accent-line); background: rgba(43, 95, 217, 0.06); }
@@ -1848,59 +1865,109 @@ function ChartDataDialog({ chart, onClose, onApply }) {
 }
 
 /** Home → Editing: the words found on every slide, each match a step to its shape, and replaced across the deck. */
-function FindDialog({ onClose, onFind, onGoto, onReplaceAll }) {
+/**
+ * Home → Find (Ctrl+F) and Replace (Ctrl+H): a small pane at the stage's own
+ * top right, the way Word's find pane sits over the page rather than
+ * covering it. Hits are recomputed as the words typed change (a short pause
+ * so a fast typist is not chased by a search on every letter); Next and
+ * Previous walk them one at a time, each landing on the hit's slide and
+ * shape. `mode` decides whether the replace row shows from the start —
+ * Ctrl+F opens to find only, Ctrl+H with it open — but either can reach the
+ * other's row once open.
+ */
+function FindPane({ mode, onClose, onSearch, onGoto, onReplaceOne, onReplaceAll }) {
   const [find, setFind] = useState('');
   const [replace, setReplace] = useState('');
   const [matchCase, setMatchCase] = useState(false);
-  const [hits, setHits] = useState(null);
+  const [hits, setHits] = useState([]);
+  const [at, setAt] = useState(0);
   const [note, setNote] = useState(null);
-  const search = async () => {
-    if (!find) return;
-    const found = await onFind(find, matchCase);
-    setHits(found);
-    setNote(found.length ? null : 'Nothing matched.');
+  const [showReplace, setShowReplace] = useState(mode === 'replace');
+  const atRef = useRef(0);
+  atRef.current = at;
+  const seq = useRef(0);
+
+  const runSearch = useCallback(
+    async (text, mc, { keepAt = false } = {}) => {
+      const mine = ++seq.current;
+      const found = text ? await onSearch(text, mc) : [];
+      if (mine !== seq.current) return; // a later search landed first
+      setHits(found);
+      setNote(text && !found.length ? 'No matches.' : null);
+      const nextAt = found.length ? (keepAt ? Math.min(atRef.current, found.length - 1) : 0) : 0;
+      setAt(nextAt);
+      onGoto(found.length ? found[nextAt] : null);
+    },
+    [onSearch, onGoto]
+  );
+
+  useEffect(() => {
+    const t = setTimeout(() => runSearch(find, matchCase), 150);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [find, matchCase]);
+
+  const step = (dir) => {
+    if (!hits.length) return;
+    const next = (at + dir + hits.length) % hits.length;
+    setAt(next);
+    onGoto(hits[next]);
   };
-  const total = (hits || []).reduce((n, h) => n + h.count, 0);
+
+  const replaceOne = async () => {
+    if (!hits.length) return;
+    const ok = await onReplaceOne(hits[at], replace);
+    if (ok) await runSearch(find, matchCase, { keepAt: true });
+  };
+
+  const replaceAll = async () => {
+    if (!find) return;
+    const n = await onReplaceAll(find, replace, matchCase);
+    setNote(`Replaced ${n} across the deck.`);
+    await runSearch(find, matchCase);
+  };
+
   return (
-    <Dialog
-      title="Find and replace"
-      width={520}
-      onClose={onClose}
-      actions={
-        <>
-          <Button label="Close" onClick={onClose} />
-          <Button label="Replace all" className="sl-find-replace" disabled={!find} onClick={async () => { const found = hits ?? await onFind(find, matchCase); setNote(await onReplaceAll(find, replace, matchCase, found.reduce((n, h) => n + h.count, 0))); setHits(null); }} />
-          <Button primary label="Find" className="sl-find-go" disabled={!find} onClick={search} />
-        </>
-      }
+    <div
+      className="sl-find"
+      // The pane sits inside the stage so it can be pinned over it; without
+      // this the stage's own keyboard handler (nudge, delete, copy) would
+      // see every keystroke typed here too, since it listens on a parent.
+      onKeyDown={(e) => {
+        e.stopPropagation();
+        if (e.key === 'Escape') { onClose(); return; }
+        if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); }
+      }}
     >
-      <div className="ml-form">
-        <Field label="Find">
-          <input className="rw-input sl-find-text" value={find} onChange={(e) => { setFind(e.target.value); setHits(null); }} onKeyDown={(e) => { if (e.key === 'Enter') search(); }} autoFocus />
-        </Field>
-        <Field label="Replace with">
-          <input className="rw-input sl-find-with" value={replace} onChange={(e) => setReplace(e.target.value)} />
-        </Field>
-        <label className="about-auto">
-          <input type="checkbox" className="sl-find-case" checked={matchCase} onChange={(e) => { setMatchCase(e.target.checked); setHits(null); }} />
-          <span>Match case</span>
-        </label>
-        {hits?.length ? (
-          <div className="ml-import-folders" style={{ maxHeight: 260 }}>
-            {hits.map((h) => (
-              <button key={`${h.slide}:${h.shape}`} type="button" className="ml-found-item sl-find-hit" style={{ border: 0, borderBottom: '1px solid var(--line-soft)', borderRadius: 0 }} onClick={() => onGoto(h)}>
-                <span className="grow">
-                  <div className="who">Slide {h.slide + 1} — {h.name}{h.count > 1 ? ` (${h.count})` : ''}</div>
-                  <div className="what">{h.text}</div>
-                </span>
-              </button>
-            ))}
-          </div>
-        ) : null}
-        {hits?.length ? <p className="rw-hint" style={{ margin: 0 }}>{total} in {hits.length} shape{hits.length === 1 ? '' : 's'}. Click one to go to it.</p> : null}
-        {note ? <div className="ml-note sl-find-note"><Icon name="info" size={14} />{note}</div> : null}
+      <div className="sl-find-row">
+        <Icon name="find" size={14} />
+        <input autoFocus className="rw-input sl-find-text" placeholder="Find" value={find} onChange={(e) => setFind(e.target.value)} />
+        <span className="sl-find-count">{find ? `${hits.length ? at + 1 : 0} of ${hits.length}` : ''}</span>
       </div>
-    </Dialog>
+      <div className="sl-find-row">
+        <Button icon="chevronUp" title="Previous match" className="sl-find-prev" disabled={!hits.length} onClick={() => step(-1)} />
+        <Button icon="chevronDown" title="Next match" className="sl-find-next" disabled={!hits.length} onClick={() => step(1)} />
+        <label className="sl-find-case">
+          <input type="checkbox" className="sl-find-case-box" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />
+          Match case
+        </label>
+        <Spacer />
+        {showReplace ? null : <Button label="Replace…" className="sl-find-toggle-replace" onClick={() => setShowReplace(true)} />}
+        <Button icon="close" title="Close" className="sl-find-close" onClick={onClose} />
+      </div>
+      {showReplace ? (
+        <>
+          <div className="sl-find-row">
+            <input className="rw-input sl-find-with" placeholder="Replace with" value={replace} onChange={(e) => setReplace(e.target.value)} />
+          </div>
+          <div className="sl-find-row">
+            <Button label="Replace" className="sl-find-replace-one" disabled={!hits.length} onClick={replaceOne} />
+            <Button primary label="Replace all" className="sl-find-replace" disabled={!find} onClick={replaceAll} />
+          </div>
+        </>
+      ) : null}
+      {note ? <div className="sl-find-note">{note}</div> : null}
+    </div>
   );
 }
 

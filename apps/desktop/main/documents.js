@@ -1137,6 +1137,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setLink: (d, a) => d.setLink(a.slide, a.shape, a.url ?? null),
     // Home → Editing: the words replaced across every slide.
     replaceText: (d, a) => d.replaceText(a.find, a.replace, { matchCase: Boolean(a.matchCase) }),
+    // The find pane's Next/Previous and Replace: one hit, exactly as
+    // `deckFind` (below) gave it, rewritten in place; and its Replace All,
+    // counted precisely rather than the shape-by-shape count `replaceText` gives.
+    replaceHit: (d, a) => d.replace(a.hit, a.replacement),
+    replaceAllHits: (d, a) => d.replaceAll(a.find, a.replace, { matchCase: Boolean(a.matchCase) }),
     // Home → Section: a section before this slide, its name, one taken away, or all of them.
     addSection: (d, a) => d.addSection(a.slide, a.name ?? 'Untitled Section'),
     renameSection: (d, a) => d.renameSection(a.section, a.name),
@@ -1541,6 +1546,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       const session = get(id);
       if (session.kind !== 'deck') return null;
       return session.engine.shapeClip(Number(slide) || 0, shape);
+    },
+
+    /** Home → Find: every occurrence across the deck, for the find pane to walk. */
+    deckFind: ({ id, query, options }) => {
+      const session = get(id);
+      if (session.kind !== 'deck') return [];
+      return session.engine.find(query, { matchCase: Boolean(options?.matchCase) });
     },
 
     pageSetup: ({ id, sheet }) => {

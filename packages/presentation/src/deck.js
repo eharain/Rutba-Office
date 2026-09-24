@@ -1192,6 +1192,99 @@ export class Deck {
     return total;
   }
 
+  /**
+   * Every occurrence across the deck, one entry per match rather than one
+   * per shape — the find pane's own list, in slide/shape/paragraph/run
+   * order, precise enough for `replace` to rewrite exactly one of them. A
+   * table's cells are walked too, each hit carrying the row and column it
+   * is in; a shape's own words carry neither. A field's cached text and a
+   * line break are never searched, the way `findText` skips them.
+   *
+   * A match that would straddle two runs is not reported: the boundary
+   * between two runs is where their look can change, and rewriting across
+   * it would either lose the second run's formatting or have to invent a
+   * blend of the two — so `find` only reports what `replace` can rewrite
+   * cleanly, a match that sits inside a single run.
+   */
+  find(text, { matchCase = false } = {}) {
+    const needle = String(text ?? '');
+    if (!needle) return [];
+    const target = matchCase ? needle : needle.toLowerCase();
+    const hits = [];
+    const walk = (paragraphs, extra) => {
+      paragraphs.forEach((p, pi) => {
+        (p.runs || []).forEach((r, ri) => {
+          if (!r.text || r.field || r.break) return;
+          const hay = matchCase ? r.text : r.text.toLowerCase();
+          for (let at = hay.indexOf(target); at !== -1; at = hay.indexOf(target, at + target.length)) {
+            hits.push({ ...extra, paragraph: pi, run: ri, offset: at, length: needle.length, text: r.text.slice(at, at + needle.length) });
+          }
+        });
+      });
+    };
+    for (let i = 0; i < this.slideCount; i++) {
+      for (const s of this.slide(i).shapes) {
+        if (s.text?.paragraphs) walk(s.text.paragraphs, { slide: i, shape: s.id, row: null, col: null });
+        if (s.table) {
+          s.table.rows.forEach((row, ri) => {
+            row.cells.forEach((cell, ci) => {
+              if (cell.text?.paragraphs) walk(cell.text.paragraphs, { slide: i, shape: s.id, row: ri, col: ci });
+            });
+          });
+        }
+      }
+    }
+    return hits;
+  }
+
+  /**
+   * One hit, exactly as `find` returned it, rewritten where it sits — the
+   * run it is in keeps every other thing about its look, since only the
+   * slice of its words that matched is replaced. Returns whether the shape
+   * (or cell) and run were still there to rewrite: a hit kept past an edit
+   * that removed its shape is simply skipped rather than thrown at.
+   */
+  replace(hit, replacement) {
+    if (!hit) return false;
+    const after = String(replacement ?? '');
+    const scene = this.slideParts[hit.slide] ? this.slide(hit.slide) : null;
+    const shape = scene?.shapes.find((s) => String(s.id) === String(hit.shape));
+    const paragraphs = hit.row != null ? shape?.table?.rows?.[hit.row]?.cells?.[hit.col]?.text?.paragraphs : shape?.text?.paragraphs;
+    const run = paragraphs?.[hit.paragraph]?.runs?.[hit.run];
+    if (!run || run.text == null) return false;
+    const text = run.text.slice(0, hit.offset) + after + run.text.slice(hit.offset + hit.length);
+    const nextParagraphs = paragraphs.map((p, pi) => {
+      const { plain, runs, ...props } = p;
+      if (pi !== hit.paragraph) return { ...props, runs };
+      return { ...props, runs: runs.map((r, ri) => (ri === hit.run ? { ...r, text } : r)) };
+    });
+    if (hit.row != null) this.setTableCell(hit.slide, hit.shape, hit.row, hit.col, nextParagraphs);
+    else this.setText(hit.slide, hit.shape, nextParagraphs);
+    return true;
+  }
+
+  /**
+   * Every occurrence of `text` rewritten to `replacement`, across the whole
+   * deck. Within one shape (or cell) the hits go last first — the last
+   * paragraph, the last run, the rightmost offset — so replacing one never
+   * shifts the offset of a hit still waiting its turn in the same run.
+   * Returns how many were replaced.
+   */
+  replaceAll(text, replacement, { matchCase = false } = {}) {
+    const groups = new Map();
+    for (const hit of this.find(text, { matchCase })) {
+      const key = `${hit.slide}:${hit.shape}:${hit.row ?? ''}:${hit.col ?? ''}`;
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(hit);
+    }
+    let total = 0;
+    for (const group of groups.values()) {
+      group.sort((a, b) => b.paragraph - a.paragraph || b.run - a.run || b.offset - a.offset);
+      for (const hit of group) if (this.replace(hit, replacement)) total += 1;
+    }
+    return total;
+  }
+
   addTextBox(slideIndex, { x, y, w, h, paragraphs, name = 'TextBox' }) {
     const part = this.slideParts[slideIndex]?.part;
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);

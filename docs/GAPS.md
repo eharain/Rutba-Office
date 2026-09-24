@@ -215,8 +215,16 @@ document and workbook writers.
   show are still to come.
 - **The show**: recorded narration and timings, transitions and animations
   as anything but ribbon tabs, export to video.
-- **Review**: comments on a slide, tracked changes, find and replace across
-  a deck.
+- **Review**: comments on a slide, tracked changes. Find and replace across
+  a deck arrived 2026-09-24: Home → Find (Ctrl+F) and Replace (Ctrl+H) open
+  a small pane at the stage's own top right, the way Word's find pane does
+  rather than a dialog over the slide; Next and Previous walk every hit in
+  slide order, reading "n of m" and landing on the hit's slide and shape,
+  Match case narrows the search, and Replace and Replace All rewrite a hit
+  or every hit while keeping each run's own look. A match that would
+  straddle two runs is not offered, since rewriting across the boundary
+  where a run's formatting changes would either lose the second run's look
+  or have to invent a blend of the two.
 
 ## 4. Mail — the one with no register
 
