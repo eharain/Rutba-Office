@@ -19,7 +19,8 @@ fi
 
 AI_ANYWHERE='claude|anthropic|copilot|chatgpt|openai|gpt-[0-9]|codeium|tabnine|windsurf|deepseek|grok|mistral|perplexity'
 AI_WORD='codex|kimi|gemini|llama'
-PATTERN="$AI_ANYWHERE|\\b($AI_WORD)\\b"
+AI_WORD_BOUNDARY="(^|[^[:alnum:]_])($AI_WORD)([^[:alnum:]_]|$)"
+PATTERN="$AI_ANYWHERE|$AI_WORD_BOUNDARY"
 COAUTHOR_PATTERN='co-?authored-?by:|generated with|authored by|written by|assisted by|created by|powered by'
 CURSOR_PATTERN='(co-?authored|generated|written|authored|created|assisted|made|built|powered)([^a-z]|[a-z]){0,24}cursor|cursor\.(sh|so|com|ai|dev)|cursor[-_ ](ide|editor|ai|agent|composer|rules)|\.cursorrules|\.cursor/'
 ROBOT="🤖"
@@ -81,9 +82,9 @@ elif grep -qiE "$CURSOR_PATTERN" "$ADDED_LINES_FILE"; then
   record_hit "FILE_CONTENT: added lines in this change set"
 fi
 
-# Changed file names (new/renamed/modified/copied)
-git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" "$HEAD_SHA" | tr '\0' '\n' > "$PATHS_FILE"
-while IFS= read -r path; do
+# Changed file names (new/renamed/modified/copied), keeping NUL delimiters intact
+git diff --name-only --diff-filter=ACMR -z "$BASE_SHA" "$HEAD_SHA" > "$PATHS_FILE"
+while IFS= read -r -d '' path; do
   [[ -z "$path" ]] && continue
 
   case "$path" in
