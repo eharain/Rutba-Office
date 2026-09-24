@@ -19,6 +19,7 @@ export const METHODS = {
     'recent',       // () -> [{ path, name, app, at }]
     'addRecent',    // ({ path, app }) -> [recent]
     'removeRecent', // ({ path }) -> [recent]
+    'renameRecent', // ({ path, name }) -> [recent]   renames the file on disk too
     'clearRecent',  // () -> []
     'quit',         // () -> void
     'relaunch',     // () -> void

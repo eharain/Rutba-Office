@@ -6,7 +6,7 @@
 // suite is that you did not have to go and find seven separate downloads.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Icon, Search, Empty, Button, Chip, Spacer, useMenu, formatBytes, formatWhen, basename } from '@rutba/office-ui';
+import { Icon, Search, Empty, Button, Chip, Spacer, useMenu, useToast, formatBytes, formatWhen, basename } from '@rutba/office-ui';
 import { APPS, NEW_DOCUMENTS, SITE } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension, KINDS } from '@rutba/office-formats/sniff';
 import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop } from '../shell.js';
@@ -44,6 +44,9 @@ export default function Home({ app, shell }) {
   const [showNotes, setShowNotes] = useState(() => new URLSearchParams(location.search).has('whatsnew'));
   // A right-click on a recent file.
   const rowMenu = useMenu();
+  // The path currently turned into a text box, while it is being renamed.
+  const [renaming, setRenaming] = useState(null);
+  const toast = useToast();
   const [update, setUpdate] = useState(null);
   // What a crash took. The copies are written while a document is open and
   // deleted when it is saved or closed, so anything still here was never
@@ -90,6 +93,29 @@ export default function Home({ app, shell }) {
   );
 
   const menu = useAppMenu({ shell, appKey: 'home', onOpen: openFile });
+
+  const removeRecent = useCallback(
+    (p) => shell.app.removeRecent({ path: p }).then(setRecent).catch(() => {}),
+    [shell]
+  );
+
+  const startRename = useCallback((r) => setRenaming(r.path), []);
+
+  // Applies a rename typed into the row's own text box. The backend decides
+  // what a refusal says — the name is taken, the file has gone, it is open
+  // somewhere — this only shows it and leaves the row as it was.
+  const applyRename = useCallback(
+    async (p, name) => {
+      setRenaming(null);
+      if (!name || !name.trim()) return;
+      try {
+        setRecent(await shell.app.renameRecent({ path: p, name: name.trim() }));
+      } catch (err) {
+        toast(err?.message || 'That name did not work.', { tone: 'bad' });
+      }
+    },
+    [shell, toast]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -212,18 +238,36 @@ export default function Home({ app, shell }) {
               {filtered.map((r) => {
                 const kind = kindFromExtension(r.path);
                 const which = r.app || appFor(kind) || 'home';
+                const editing = renaming === r.path;
+                const shownName = r.name || basename(r.path);
                 return (
-                  <button
+                  <div
                     key={r.path}
-                    type="button"
+                    role="button"
+                    tabIndex={0}
+                    aria-label={`Open ${shownName}`}
                     className="home-recent-row"
-                    onClick={() => openInApp(shell, r.path)}
+                    onClick={() => { if (!editing) openInApp(shell, r.path); }}
+                    onKeyDown={(e) => {
+                      if (editing) return;
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        openInApp(shell, r.path);
+                      } else if (e.key === 'F2') {
+                        e.preventDefault();
+                        startRename(r);
+                      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+                        e.preventDefault();
+                        removeRecent(r.path);
+                      }
+                    }}
                     onContextMenu={(e) =>
                       rowMenu.open(e, [
                         { label: 'Open', icon: 'open', run: () => openInApp(shell, r.path) },
                         { label: 'Show in folder', icon: 'folder', run: () => shell.shell.showInFolder({ path: r.path }) },
                         '-',
-                        { label: 'Remove from the list', icon: 'close', run: () => shell.app.removeRecent({ path: r.path }).then(setRecent).catch(() => {}) },
+                        { label: 'Rename…', icon: 'textbox', run: () => startRename(r) },
+                        { label: 'Remove from the list', icon: 'close', run: () => removeRecent(r.path) },
                         { label: 'Clear the list', icon: 'trash', run: () => shell.app.clearRecent().then(() => setRecent([])).catch(() => {}) },
                       ])
                     }
@@ -232,10 +276,43 @@ export default function Home({ app, shell }) {
                     <span className="rr-glyph" data-app={which}>
                       <Icon name={APPS[which]?.icon || 'file'} size={15} />
                     </span>
-                    <span className="rr-name">{r.name || basename(r.path)}</span>
+                    {editing ? (
+                      <input
+                        type="text"
+                        className="rw-input home-recent-rename"
+                        autoFocus
+                        defaultValue={shownName}
+                        onClick={(e) => e.stopPropagation()}
+                        onFocus={(e) => {
+                          const dot = e.target.value.lastIndexOf('.');
+                          e.target.setSelectionRange(0, dot > 0 ? dot : e.target.value.length);
+                        }}
+                        onKeyDown={(e) => {
+                          e.stopPropagation();
+                          if (e.key === 'Enter') applyRename(r.path, e.target.value);
+                          else if (e.key === 'Escape') setRenaming(null);
+                        }}
+                        onBlur={() => setRenaming(null)}
+                      />
+                    ) : (
+                      <span className="rr-name">{shownName}</span>
+                    )}
                     <span className="rr-kind">{KINDS[kind]?.label || ''}</span>
                     <span className="rr-when">{formatWhen(r.at)}</span>
-                  </button>
+                    <button
+                      type="button"
+                      className="home-recent-remove"
+                      title="Remove from the list"
+                      aria-label="Remove from the list"
+                      tabIndex={-1}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeRecent(r.path);
+                      }}
+                    >
+                      <Icon name="close" size={11} />
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -628,14 +705,24 @@ const CSS = `
 .home-recent-row {
   display: flex; align-items: center; gap: 12px; width: 100%; padding: 6px 13px;
   border: 0; border-bottom: 1px solid var(--line-soft); background: transparent; color: var(--ink);
-  font: inherit; text-align: left; transition: background var(--fast);
+  font: inherit; text-align: left; transition: background var(--fast); cursor: pointer; outline: none;
 }
 .home-recent-row:last-child { border-bottom: 0; }
-.home-recent-row:hover { background: var(--hover); }
+.home-recent-row:hover, .home-recent-row:focus-visible { background: var(--hover); }
 .rr-glyph { width: 24px; height: 24px; border-radius: 7px; display: grid; place-items: center; color: #fff; flex: none; }
 .rr-glyph[data-app] { background: var(--accent); }
 .rr-glyph[data-app='home'] { background: var(--n-50); }
 .rr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The row's name becomes this in place, rather than a dialog elsewhere. */
+.home-recent-rename { flex: 1; min-width: 0; padding: 2px 6px; font-size: inherit; }
+/* Hidden until the row is worth looking at — hovered or focused — so the
+   list does not read as a row of little grey crosses at rest. */
+.home-recent-remove {
+  flex: none; width: 20px; height: 20px; border-radius: 6px; border: 0; background: transparent;
+  color: var(--ink-3); display: grid; place-items: center; opacity: 0; transition: opacity var(--fast), background var(--fast), color var(--fast);
+}
+.home-recent-row:hover .home-recent-remove, .home-recent-row:focus-within .home-recent-remove { opacity: 1; }
+.home-recent-remove:hover { background: var(--hover-strong, var(--hover)); color: var(--bad); }
 .rr-kind { color: var(--ink-3); font-size: 11.5px; flex: none; }
 .rr-when { color: var(--ink-3); font-size: 11.5px; width: 84px; text-align: right; flex: none; }
 

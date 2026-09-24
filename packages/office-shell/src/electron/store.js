@@ -8,6 +8,7 @@
 import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
+import { removeEntry, renameEntry } from '../recent-store.js';
 
 function readJson(file, fallback) {
   try {
@@ -93,7 +94,14 @@ export function createStores() {
       return recentApi.list();
     },
     remove: ({ path: p }) => {
-      recent = recent.filter((r) => r.path !== p);
+      recent = removeEntry(recent, p);
+      writeJson(recentFile, recent);
+      return recentApi.list();
+    },
+    // The file on disk has already been renamed by the caller; this just
+    // points the entry at where it went.
+    rename: ({ path: p, to }) => {
+      recent = renameEntry(recent, p, to);
       writeJson(recentFile, recent);
       return recentApi.list();
     },

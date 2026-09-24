@@ -30,6 +30,33 @@ const app = path.resolve(here, '..');
 let services = null;
 let updates = null;
 
+/**
+ * Renaming a recent file from the launcher: the file on disk moves, and the
+ * recent list is told where it went. Refused — with a plain sentence, never
+ * a stack trace — when the file is missing, when a file of that name
+ * already exists, when the name is empty or has a path separator in it, or
+ * when the document is open in a window; an open session has its own idea
+ * of the path and would go on saving to a file that no longer answers to
+ * that name, so that one has to close first.
+ */
+function renameRecent({ stores, doc, path: from, name }) {
+  const trimmed = String(name || '').trim();
+  if (!from) throw new Error('No file was given to rename.');
+  if (!trimmed) throw new Error('Enter a name.');
+  if (/[\\/]/.test(trimmed)) throw new Error('The name cannot contain a path separator.');
+  if (!fs.existsSync(from)) throw new Error('That file no longer exists.');
+
+  const dir = path.dirname(from);
+  const finalName = path.extname(trimmed) ? trimmed : `${trimmed}${path.extname(from)}`;
+  const to = path.join(dir, finalName);
+
+  if (to !== from && fs.existsSync(to)) throw new Error('A file with that name already exists.');
+  if (doc.sessions().some((s) => s.path === from)) throw new Error('That file is open in a window. Close it first.');
+
+  if (to !== from) fs.renameSync(from, to);
+  return stores.recent.rename({ path: from, to });
+}
+
 // A screenshot build asks for a device scale of its own (`RUTBA_SCREEN_SCALE=2`),
 // so a capture is crisp at twice the window's size whatever display it ran on.
 if (process.env.RUTBA_SCREEN_SCALE) electron.commandLine.appendSwitch('force-device-scale-factor', process.env.RUTBA_SCREEN_SCALE);
@@ -113,6 +140,13 @@ createShell({
         },
       }),
       calendar: createCalendarService({ stores, broadcast, mail: { accounts: () => services?.mail?.accounts?.() || [] } }),
+      // Renaming touches the file system and the document service both,
+      // which the shell's own `app` namespace knows about neither — so this
+      // adds just the one method, on top of recent(), addRecent() and
+      // removeRecent() the shell already provides.
+      app: {
+        renameRecent: (p) => renameRecent({ stores, doc, ...p }),
+      },
     });
   },
 

@@ -3130,6 +3130,100 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── The launcher's recent list: rename and remove in place ──────────── */
+  //
+  // Rename… turns a row's own name into a text box rather than a dialog,
+  // and the small × a hover reveals removes a row with no menu at all —
+  // both act on the file, not only the list, so the check follows each one
+  // onto disk.
+  const homeRecentEdit = async () => {
+    try {
+      const a = path.join(dir, 'recent-edit-a.docx');
+      const b = path.join(dir, 'recent-edit-b.docx');
+      const taken = path.join(dir, 'recent-edit-taken.docx');
+      fs.copyFileSync(files.docx, a);
+      fs.copyFileSync(files.docx, b);
+      fs.copyFileSync(files.docx, taken);
+      // The list is the shell's; a Word window adds to it, and the launcher
+      // opened afterwards reads it — the same arrangement launcherRecent uses.
+      const word = await open('word', files.docx);
+      await word.webContents.executeJavaScript(
+        `(async () => { await window.rutbaOffice.app.addRecent({ path: ${JSON.stringify(b)}, app: 'word' }); await window.rutbaOffice.app.addRecent({ path: ${JSON.stringify(a)}, app: 'word' }); return 1; })()`
+      );
+      const win = await open('home');
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const setValue = (selector, value) =>
+        js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      const pressEnterOn = (selector) =>
+        js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); el?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); return 1; })()`);
+      const rightClickFirstRow = () =>
+        js(`(() => { const row = document.querySelector('.home-recent-row'); const r = row.getBoundingClientRect(); row.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: r.left + 30, clientY: r.top + 10 })); return 1; })()`);
+      const clickMenuItem = (pattern) =>
+        js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => ${pattern}.test(b.textContent))?.click(); return 1; })()`);
+
+      await until(() => js(`document.querySelectorAll('.home-recent-row').length >= 2`), 'the recent list', 8000);
+
+      // Rename the row on top — the file added last, `a` — through the menu.
+      await rightClickFirstRow();
+      await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => /Rename/.test(b.textContent))`), 'the Rename item', 4000);
+      await clickMenuItem('/Rename/');
+      await until(() => js(`!!document.querySelector('.home-recent-rename')`), 'the rename box', 4000);
+      await setValue('.home-recent-rename', 'renamed-edit-a.docx');
+      await pressEnterOn('.home-recent-rename');
+
+      const renamedTo = path.join(dir, 'renamed-edit-a.docx');
+      const shown = await until(
+        () => js(`[...document.querySelectorAll('.rr-name')].some((n) => n.textContent === 'renamed-edit-a.docx')`),
+        'the renamed row',
+        4000
+      ).catch(() => false);
+      check(
+        'launcher: Rename… on a recent file renames it on disk and the row shows the new name',
+        shown === true && fs.existsSync(renamedTo) === true && fs.existsSync(a) === false,
+        `shown ${shown}, new file ${fs.existsSync(renamedTo)}, old file gone ${!fs.existsSync(a)}`
+      );
+
+      // Hover — or just press — the × on the other row, and it goes, but the
+      // file it named does not. The row count on its own says nothing here —
+      // launcherRecent may have left the list over its 30-row window, so a
+      // removal can still show 30 rows with a different one at the bottom —
+      // so what matters is that this row's own title is gone.
+      await js(
+        `(() => { const row = [...document.querySelectorAll('.home-recent-row')].find((r) => r.title === ${JSON.stringify(b)}); row?.querySelector('.home-recent-remove')?.click(); return 1; })()`
+      );
+      const gone = await until(
+        () => js(`![...document.querySelectorAll('.home-recent-row')].some((r) => r.title === ${JSON.stringify(b)})`),
+        'the × to remove the row',
+        4000
+      ).catch(() => false);
+      check('launcher: the × on a recent row removes it from the list and leaves the file on disk', gone === true && fs.existsSync(b) === true, `gone ${gone}, file still there ${fs.existsSync(b)}`);
+
+      // Renaming to a name already taken in the folder is refused, and says so.
+      await rightClickFirstRow();
+      await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => /Rename/.test(b.textContent))`), 'the Rename item again', 4000);
+      await clickMenuItem('/Rename/');
+      await until(() => js(`!!document.querySelector('.home-recent-rename')`), 'the rename box again', 4000);
+      await setValue('.home-recent-rename', 'recent-edit-taken.docx');
+      await pressEnterOn('.home-recent-rename');
+      await until(() => js(`!!document.querySelector('.rw-toast.bad')`), 'the refusal toast', 4000).catch(() => {});
+      const refusal = await js(`document.querySelector('.rw-toast.bad')?.textContent || ''`);
+      check(
+        'launcher: renaming to a name already taken is refused, and the launcher says so',
+        /already exists/i.test(refusal) && fs.existsSync(renamedTo) === true,
+        `refusal "${refusal}", file still there ${fs.existsSync(renamedTo)}`
+      );
+      // The toast the refusal put up is a genuine `.rw-toast.bad` — let it
+      // clear on its own before the check below treats any left standing as
+      // something gone wrong, rather than the refusal working as meant.
+      await until(() => js(`!document.querySelector('.rw-toast.bad')`), 'the toast to clear', 5000).catch(() => {});
+
+      const complaints = await errorsIn(win);
+      check('launcher: the recent rename and remove checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('launcher: the recent rename and remove checks ran', false, err.message);
+    }
+  };
+
   /* ── Frozen panes, pinned ────────────────────────────────────────────── */
   //
   // Freeze at B2 — the top row and the first column — scroll away, and the
@@ -3557,7 +3651,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,freeze,errors,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,providers: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,providers: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -3586,6 +3680,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('columns')) await wordColumns();
     if (only.includes('update')) await updatePrompt();
     if (only.includes('home')) await launcherRecent();
+    if (only.includes('recent')) await homeRecentEdit();
     if (only.includes('freeze')) await sheetFreeze();
     if (only.includes('errors')) await sheetErrors();
     if (only.includes('sparklines')) await sheetSparklines();
@@ -3705,6 +3800,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordColumns();
   await updatePrompt();
   await launcherRecent();
+  await homeRecentEdit();
   await sheetFreeze();
   await sheetErrors();
   await sheetSparklines();
