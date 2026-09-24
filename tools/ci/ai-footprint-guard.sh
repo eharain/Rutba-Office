@@ -54,8 +54,14 @@ done < <(git rev-list "${BASE_SHA}..${HEAD_SHA}" 2>/dev/null || true)
 
 # Added lines from changed files, computed once for the whole range
 git diff -U0 --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" \
-  | grep '^+' \
-  | grep -v '^+++' > "$ADDED_LINES_FILE" || true
+  | awk '
+      /^\+\+\+ / { next }
+      /^--- / { next }
+      /^@@/ { next }
+      /^diff --git / { next }
+      /^index / { next }
+      /^\+/ { print substr($0, 2) }
+    ' > "$ADDED_LINES_FILE" || true
 
 if grep -qiE "$PATTERN" "$ADDED_LINES_FILE"; then
   record_hit "FILE_CONTENT: added lines in this change set"
