@@ -27,8 +27,8 @@ jobs:
           if git cat-file -e "$BASE_REF:tools/ci/ai-footprint-guard.sh" 2>/dev/null; then
             git show "$BASE_REF:tools/ci/ai-footprint-guard.sh" > "$SCRIPT_PATH"
           else
-            echo "Trusted guard script not yet present on base branch; skipping enforcement for rollout compatibility."
-            exit 0
+            echo "Trusted guard script not found on base branch; refusing to skip enforcement." >&2
+            exit 1
           fi
           chmod +x "$SCRIPT_PATH"
           bash "$SCRIPT_PATH" "$BASE_SHA" "$HEAD_SHA"
