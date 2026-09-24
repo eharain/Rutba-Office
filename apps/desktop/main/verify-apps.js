@@ -3752,7 +3752,88 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,providers: those blocks alone, for working on them.
+  /**
+   * Mail: a signature belongs to the account, not the person.
+   *
+   * Set from that account's own settings — the Folder tab, not a preference
+   * shared by every account in the mailbox — it turns up at the end of a new
+   * message after a blank line and the "-- " line mail readers use to spot
+   * one, and above the quote rather than below it on a reply, where it sits
+   * under the cursor instead of under words that were already sent.
+   */
+  const mailSignature = async () => {
+    let win = null;
+    let accountId = null;
+    const SIGNATURE = 'Verify Signature Line\nSecond line of it';
+    try {
+      win = await open('mail');
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the seeded account in the sidebar', 8000);
+      accountId = await js(`(async () => (await window.rutbaOffice.mail.accounts())[0]?.id || null)()`);
+
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Folder')?.click(), 'tab'`);
+      await until(() => js(`Boolean([...document.querySelectorAll('button')].find((b) => /^Signature$/.test(b.textContent.trim()) && !b.disabled))`), 'the account\'s Signature button', 5000);
+      await js(`[...document.querySelectorAll('button')].find((b) => /^Signature$/.test(b.textContent.trim()) && !b.disabled)?.click(), 'clicked'`);
+      await until(() => js(`Boolean(document.querySelector('.ml-signature-text'))`), 'the signature editor', 5000);
+      await js(`(() => {
+        const el = document.querySelector('.ml-signature-text');
+        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
+        setter.call(el, ${JSON.stringify(SIGNATURE)});
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return 'set';
+      })()`);
+      await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => /^Save$/.test(b.textContent.trim()))?.click(), 'saved'`);
+      await until(() => js(`!document.querySelector('.ml-signature-text')`), 'the signature editor to close', 5000);
+
+      // A new message: the signature at the end, after a blank line and "-- ".
+      // The plain-text body is read rather than the rich editor's rendering,
+      // which is free to collapse the trailing space "-- " depends on.
+      await js(`document.querySelector('.ml-compose-cta button')?.click(), 'clicked'`);
+      await until(() => js(`Boolean(document.querySelector('.ml-toolbar button[data-tip="Plain text"]'))`), 'the composer', 5000);
+      await js(`document.querySelector('.ml-toolbar button[data-tip="Plain text"]')?.click(), 'plain'`);
+      await until(() => js(`Boolean(document.querySelector('.ml-compose-body'))`), 'the plain-text body', 4000);
+      const fresh = await js(`document.querySelector('.ml-compose-body')?.value || ''`);
+      check(
+        'mail: a new message carries the account\'s signature, after a blank line and the "-- " line',
+        fresh === `\n\n-- \n${SIGNATURE}`,
+        JSON.stringify(fresh)
+      );
+      await js(`[...document.querySelectorAll('button')].find((b) => /^Discard$/.test(b.textContent.trim()))?.click(), 'closed'`);
+      await until(() => js(`!document.querySelector('.ml-compose-body, .ml-rich')`), 'the composer to close', 4000).catch(() => {});
+
+      // A reply: the signature above the quote, below the cursor.
+      await until(() => js(`document.querySelectorAll('.ml-row').length > 0`), 'the seeded messages', 8000);
+      await js(`document.querySelector('.ml-row')?.click(), 'opened'`);
+      await until(() => js(`Boolean(document.querySelector('.rw-btn[data-tip="Reply"]'))`), 'the reading pane', 8000);
+      await js(`document.querySelector('.rw-btn[data-tip="Reply"]')?.click(), 'reply'`);
+      await until(() => js(`Boolean(document.querySelector('.ml-toolbar button[data-tip="Plain text"]'))`), 'the reply composer', 5000);
+      await js(`document.querySelector('.ml-toolbar button[data-tip="Plain text"]')?.click(), 'plain'`);
+      await until(() => js(`Boolean(document.querySelector('.ml-compose-body'))`), 'the plain-text reply body', 4000);
+      const replied = await js(`document.querySelector('.ml-compose-body')?.value || ''`);
+      const sigAt = replied.indexOf(SIGNATURE);
+      const quoteAt = replied.search(/wrote:/);
+      check(
+        'mail: a reply carries the signature above the quote, below the cursor',
+        replied.startsWith(`\n\n-- \n${SIGNATURE}`) && sigAt >= 0 && quoteAt > sigAt,
+        JSON.stringify({ replied: replied.slice(0, 160), sigAt, quoteAt })
+      );
+
+      const complaints = await errorsIn(win);
+      check('mail: the signature checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('mail: the signature check ran', false, err.message);
+    } finally {
+      // The account is a fixture every other mail check shares; leaving a
+      // signature on it is not this check's to decide.
+      if (win && accountId) {
+        await win.webContents
+          .executeJavaScript(`window.rutbaOffice.mail.updateAccount({ id: ${JSON.stringify(accountId)}, patch: { signature: '' } })`)
+          .catch(() => {});
+      }
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,providers,signature: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -3794,6 +3875,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('slideshow')) await slideshow();
     if (only.includes('links')) await sheetLinks();
     if (only.includes('providers')) await mailProviders();
+    if (only.includes('signature')) await mailSignature();
     return done();
   }
 
@@ -5520,6 +5602,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('mail: the account dialog checks ran', false, err.message);
   }
   await mailProviders();
+  await mailSignature();
 
   /* ── OpenDocument goes out as OpenDocument ───────────────────────────── */
   try {

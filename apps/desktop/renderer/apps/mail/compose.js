@@ -15,6 +15,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Dialog, Field, Input, Icon, Select, Separator, formatBytes } from '@rutba/office-ui';
 import { stripTags } from './parts.js';
+import { swapSignature } from '@rutba/mailbox/signature';
 
 const exec = (command, value) => {
   try {
@@ -116,6 +117,31 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
   const [showCc, setShowCc] = useState(Boolean(draft.cc || draft.bcc));
   const [scheduling, setScheduling] = useState(false);
   const account = accounts.find((a) => a.id === accountId);
+
+  // Changing the From account swaps its signature in place of the one that
+  // was there — but only the block itself, and only when it is still exactly
+  // what was inserted. Anything else about the body, including a signature
+  // the person has since edited, is left alone.
+  const prevSignature = useRef(account?.signature || '');
+  useEffect(() => {
+    const nextSignature = accounts.find((a) => a.id === accountId)?.signature || '';
+    const oldSignature = prevSignature.current;
+    prevSignature.current = nextSignature;
+    if (oldSignature === nextSignature) return;
+    const el = bodyRef.current;
+    if (rich && el) {
+      const current = el.innerText || '';
+      const swapped = swapSignature(current, oldSignature, nextSignature);
+      if (swapped !== current) el.innerText = swapped;
+    } else {
+      const current = draft.text || '';
+      const swapped = swapSignature(current, oldSignature, nextSignature);
+      if (swapped !== current) onChange({ ...draft, text: swapped });
+    }
+    // Only the account switch itself should trigger this — not every
+    // keystroke, and not a stray re-render of the accounts list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountId]);
 
   // The editor is uncontrolled on purpose: writing innerHTML back on every
   // keystroke destroys the caret, and a compose box that loses your place after

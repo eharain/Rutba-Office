@@ -14,7 +14,8 @@
     "./olm": "./src/olm.js",
     "./import": "./src/import.js",
     "./store": "./src/store.js",
-    "./props": "./src/props.js"
+    "./props": "./src/props.js",
+    "./signature": "./src/signature.js"
   },
   "dependencies": {
     "@rutba/office-formats": "*",

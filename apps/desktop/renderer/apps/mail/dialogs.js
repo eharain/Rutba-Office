@@ -13,6 +13,75 @@ import {
 } from '@rutba/office-ui';
 import { avatarFor, displayName } from './parts.js';
 
+/* ── signature ────────────────────────────────────────────────────────────── */
+
+/**
+ * A signature lives on the account, not on the person, because the one thing
+ * every mail client gets wrong at least once is sending a work reply carrying
+ * a personal sign-off. `accountId` picks which one opens; a mailbox with more
+ * than one account gets a picker so a wrong account is a correction, not a
+ * surprise the next time that account is used to write something.
+ */
+export function SignatureDialog({ shell, accounts, accountId, onClose, onSaved, toast }) {
+  const [id, setId] = useState(accountId || accounts[0]?.id || '');
+  const account = accounts.find((a) => a.id === id) || null;
+  const [text, setText] = useState(account?.signature || '');
+  const [saving, setSaving] = useState(false);
+
+  // Switching the picker loads that account's own text — it does not carry
+  // over unsaved edits from the one before it.
+  useEffect(() => {
+    setText((accounts.find((a) => a.id === id) || {}).signature || '');
+  }, [id, accounts]);
+
+  const save = useCallback(async () => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      await shell.mail.updateAccount({ id, patch: { signature: text } });
+      toast('Signature saved', { tone: 'good' });
+      onSaved();
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    } finally {
+      setSaving(false);
+    }
+  }, [shell, id, text, onSaved, toast]);
+
+  return (
+    <Dialog
+      title="Signature"
+      width={520}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label={saving ? 'Saving…' : 'Save'} disabled={saving || !id} onClick={save} />
+        </>
+      }
+    >
+      {accounts.length > 1 ? (
+        <Field label="Account">
+          <select className="rw-input ml-signature-account" value={id} onChange={(e) => setId(e.target.value)}>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.name ? `${a.name} <${a.email}>` : a.email}</option>
+            ))}
+          </select>
+        </Field>
+      ) : null}
+      <Field label="Added to the end of new messages, and above the quote when you reply or forward">
+        <textarea
+          className="rw-input ml-compose-body ml-signature-text"
+          rows={7}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder="Left blank, nothing is added."
+        />
+      </Field>
+    </Dialog>
+  );
+}
+
 /* ── found on this computer ──────────────────────────────────────────────── */
 
 const SOURCE_ICON = { Outlook: 'mail', Thunderbird: 'globe', 'Apple Mail': 'mail', 'Windows Live Mail': 'mail' };

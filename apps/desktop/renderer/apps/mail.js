@@ -29,8 +29,9 @@ import { DefaultsDialog } from '../defaults.js';
 import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags } from './mail/parts.js';
 import Reader from './mail/reader.js';
 import Compose from './mail/compose.js';
-import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView } from './mail/dialogs.js';
+import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog } from './mail/dialogs.js';
 import { RulesDialog } from './mail/rules.js';
+import { withSignature } from '@rutba/mailbox/signature';
 
 installStyles();
 
@@ -397,10 +398,10 @@ export default function Mail({ app, shell }) {
 
   /* ── writing ──────────────────────────────────────────────────────────── */
 
-  const signature = useCallback(async () => {
-    const text = await shell.store.get({ key: 'mail.signature', fallback: '' });
-    return text ? `\n\n-- \n${text}` : '';
-  }, [shell]);
+  // Each account keeps its own signature; the account a message is going out
+  // from is the one whose text belongs in it, not whichever account happens
+  // to be selected in the sidebar.
+  const signatureFor = useCallback((id) => accounts.find((a) => a.id === id)?.signature || '', [accounts]);
 
   const quoted = useCallback((m) => {
     const body = m.text || stripTags(m.html || '');
@@ -411,9 +412,10 @@ export default function Mail({ app, shell }) {
   }, []);
 
   const reply = useCallback(
-    async (all = false) => {
+    (all = false) => {
       if (!message) return;
-      const me = accounts.find((a) => a.id === (selected?.accountId || accountId))?.email?.toLowerCase();
+      const fromId = selected?.accountId || accountId;
+      const me = accounts.find((a) => a.id === fromId)?.email?.toLowerCase();
       const to = [message.replyTo?.[0]?.address || message.from?.[0]?.address].filter(Boolean);
       const cc = all
         ? [...(message.to || []), ...(message.cc || [])]
@@ -424,26 +426,28 @@ export default function Mail({ app, shell }) {
         to: to.join(', '),
         cc: [...new Set(cc)].join(', '),
         subject: /^re:/i.test(message.subject || '') ? message.subject : `Re: ${message.subject || ''}`,
-        text: (await signature()) + quoted(message),
+        text: withSignature(quoted(message), signatureFor(fromId), { reply: true }),
         inReplyTo: message.messageId,
+        accountId: fromId || undefined,
       });
     },
-    [message, accounts, selected, accountId, signature, quoted]
+    [message, accounts, selected, accountId, signatureFor, quoted]
   );
 
-  const forward = useCallback(async () => {
+  const forward = useCallback(() => {
     if (!message) return;
+    const fromId = selected?.accountId || accountId;
+    const body = `\n\n---------- Forwarded message ----------\nFrom: ${displayName(message.from?.[0])}\nDate: ${formatWhen(message.date, { long: true })}\nSubject: ${message.subject || ''}\nTo: ${(message.to || []).map((t) => t.address).join(', ')}\n\n${message.text || stripTags(message.html || '')}`;
     setCompose({
       to: '',
       subject: /^fwd:/i.test(message.subject || '') ? message.subject : `Fwd: ${message.subject || ''}`,
-      text:
-        (await signature()) +
-        `\n\n---------- Forwarded message ----------\nFrom: ${displayName(message.from?.[0])}\nDate: ${formatWhen(message.date, { long: true })}\nSubject: ${message.subject || ''}\nTo: ${(message.to || []).map((t) => t.address).join(', ')}\n\n${message.text || stripTags(message.html || '')}`,
+      text: withSignature(body, signatureFor(fromId), { reply: true }),
+      accountId: fromId || undefined,
       // Forwarding carries the files. They are already on disk here, so this
       // costs nothing until the message is actually sent.
       attachments: (message.attachments || []).filter((a) => !a.inline && a.stored).map((a) => ({ filename: a.filename, size: a.size, fromMessage: { ...selected, index: message.attachments.indexOf(a) } })),
     });
-  }, [message, selected, signature]);
+  }, [message, selected, accountId, signatureFor]);
 
   const doSend = useCallback(
     async (draft, at) => {
@@ -742,7 +746,15 @@ export default function Mail({ app, shell }) {
       // F5, the key every mail client fetches on; Ctrl+R is Reply, and one
       // key cannot do both.
       'mail.sync': { label: 'Get mail', icon: 'refresh', key: 'F5', run: sync },
-      'mail.compose': { label: 'New message', icon: 'new', key: 'Mod+N', run: () => setCompose({ to: '', subject: '', text: '' }) },
+      'mail.compose': {
+        label: 'New message',
+        icon: 'new',
+        key: 'Mod+N',
+        run: () => {
+          const fromId = accountId && accountId !== EVERYTHING ? accountId : accounts[0]?.id || null;
+          setCompose({ to: '', subject: '', text: withSignature('', signatureFor(fromId)), accountId: fromId || undefined });
+        },
+      },
       'mail.reply': { label: 'Reply', icon: 'reply', key: 'Mod+R', run: () => reply(false) },
       'mail.replyAll': { label: 'Reply all', icon: 'replyAll', run: () => reply(true) },
       'mail.forward': { label: 'Forward', icon: 'forward', run: forward },
@@ -757,7 +769,7 @@ export default function Mail({ app, shell }) {
       'mail.account': { label: 'Add account…', icon: 'plus', run: () => setDialog({ kind: 'account' }) },
       'mail.search': { label: 'Search', icon: 'find', key: 'Mod+F', run: () => document.querySelector('.rw-search input')?.focus() },
     }),
-    [sync, reply, forward, act]
+    [sync, reply, forward, act, accountId, accounts, signatureFor]
   );
 
   useCommands(commands, [selected, message, folder, accountId, checked]);
@@ -904,6 +916,13 @@ export default function Mail({ app, shell }) {
                 <Button tall icon="plus" label="Add" onClick={() => setDialog({ kind: 'account' })} />
                 <Button
                   tall
+                  icon="word"
+                  label="Signature"
+                  disabled={!account}
+                  onClick={() => setDialog({ kind: 'signature', accountId: account.id })}
+                />
+                <Button
+                  tall
                   icon="trash"
                   label="Remove"
                   disabled={!account}
@@ -1011,10 +1030,8 @@ export default function Mail({ app, shell }) {
                   tall
                   icon="word"
                   label="Signature"
-                  onClick={async () => {
-                    const text = await shell.store.get({ key: 'mail.signature', fallback: '' });
-                    setDialog({ kind: 'signature', text });
-                  }}
+                  disabled={!accounts.length}
+                  onClick={() => setDialog({ kind: 'signature', accountId: accountId && accountId !== EVERYTHING ? accountId : accounts[0]?.id })}
                 />
               </Group>
               <Group label="Privacy">
@@ -1378,34 +1395,17 @@ export default function Mail({ app, shell }) {
       ) : null}
 
       {dialog?.kind === 'signature' ? (
-        <Dialog
-          title="Signature"
-          width={520}
+        <SignatureDialog
+          shell={shell}
+          accounts={accounts}
+          accountId={dialog.accountId}
           onClose={() => setDialog(null)}
-          actions={
-            <>
-              <Button label="Cancel" onClick={() => setDialog(null)} />
-              <Button
-                primary
-                label="Save"
-                onClick={async () => {
-                  await shell.store.set({ key: 'mail.signature', value: dialog.text });
-                  toast('Signature saved', { tone: 'good' });
-                  setDialog(null);
-                }}
-              />
-            </>
-          }
-        >
-          <Field label="Added to the bottom of everything you write">
-            <textarea
-              className="rw-input ml-compose-body"
-              rows={7}
-              value={dialog.text}
-              onChange={(e) => setDialog((d) => ({ ...d, text: e.target.value }))}
-            />
-          </Field>
-        </Dialog>
+          onSaved={() => {
+            setDialog(null);
+            loadAccounts();
+          }}
+          toast={toast}
+        />
       ) : null}
 
       {dialog?.kind === 'undo' ? (
