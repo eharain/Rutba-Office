@@ -498,6 +498,7 @@ export class Deck {
       background: scene.background,
       shapes: withLinks(withSlideNumber(scene.shapes, index + 1), rel),
       notes,
+      hidden: slideHiddenFrom(slideXml),
       theme: { colors: theme.colors, fonts: theme.fonts },
     };
     this._scenes.set(slidePart, { key: cacheKey, scene: result });
@@ -529,6 +530,7 @@ export class Deck {
         shapes: (xml.match(/<p:(sp|pic|graphicFrame|grpSp|cxnSp)\b/g) || []).length,
         notes: notesPart ? plainTextOf(this.pkg.text(notesPart)) : '',
         section: sectionAt.has(i) ? sectionAt.get(i) : null,
+        hidden: slideHiddenFrom(xml),
       };
     });
   }
@@ -1458,6 +1460,34 @@ export class Deck {
     return true;
   }
 
+  /** Whether a slide is left out of the show — Slide Show → Hide Slide. */
+  isSlideHidden(index) {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+    return slideHiddenFrom(this.pkg.text(entry.part));
+  }
+
+  /**
+   * Hide a slide, or bring it back — Slide Show → Hide Slide. PowerPoint
+   * marks a hidden slide `show="0"` on the slide's own root tag, and writes
+   * no such attribute at all once the slide is shown again, so un-hiding
+   * takes the attribute off rather than writing `show="1"`.
+   *
+   * @returns {boolean} true when the slide's state changed
+   */
+  setSlideHidden(index, hidden) {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+    const xml = this.pkg.text(entry.part);
+    const m = /<p:sld\b[^>]*>/.exec(xml);
+    if (!m) throw new Error(`slide ${index + 1} has no root element`);
+    const cleaned = m[0].replace(/\s+show="[^"]*"/, '');
+    const next = hidden ? cleaned.replace(/>$/, ' show="0">') : cleaned;
+    if (next === m[0]) return false;
+    this.#writeSlide(entry.part, xml.slice(0, m.index) + next + xml.slice(m.index + m[0].length));
+    return true;
+  }
+
   save() {
     return this.pkg.write();
   }
@@ -1514,6 +1544,11 @@ function plainTextOf(xml) {
     .join(' ')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+/** Whether a slide part's root tag marks it left out of the show. */
+function slideHiddenFrom(xml) {
+  return /<p:sld\b[^>]*\sshow="0"/.test(xml);
 }
 
 /** The text of a slide's title placeholder, straight from its XML. */

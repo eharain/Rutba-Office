@@ -14,7 +14,7 @@ import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Fie
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { SITE } from '@rutba/office-formats/registry';
-import Presenter from './slides/presenter.js';
+import Presenter, { nextShown } from './slides/presenter.js';
 import SlidesRibbon from './slides/ribbon.js';
 
 export default function Slides({ app, shell, boot }) {
@@ -435,8 +435,9 @@ export default function Slides({ app, shell, boot }) {
     if (!present) return undefined;
     const onKey = (e) => {
       if (e.key === 'Escape') setPresent(false);
-      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') setIndex((i) => Math.min(i + 1, (model?.count || 1) - 1));
-      if (e.key === 'ArrowLeft' || e.key === 'PageUp') setIndex((i) => Math.max(0, i - 1));
+      // The show steps over a hidden slide rather than landing on it.
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') setIndex((i) => nextShown(model, i, 1));
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp') setIndex((i) => nextShown(model, i, -1));
     };
     window.addEventListener('keydown', onKey);
     if (!reading) shell.win.fullscreen({ on: true });
@@ -480,7 +481,8 @@ export default function Slides({ app, shell, boot }) {
   const act = async (name, arg) => {
     switch (name) {
       case 'present':
-        if (arg === 'start') setIndex(0);
+        // A hidden slide never opens the show — PowerPoint starts on the first shown one.
+        if (arg === 'start') setIndex(nextShown(model, -1, 1));
         if (arg === 'reading') setReading(true);
         setPresent(true);
         return;
@@ -529,6 +531,10 @@ export default function Slides({ app, shell, boot }) {
         return;
       case 'hideShape':
         await apply({ op: 'setShapeHidden', slide: index, shape: arg.id, hidden: arg.hidden });
+        return;
+      // Slide Show → Hide Slide: left out of the show; everything else still draws it.
+      case 'hideSlide':
+        await apply({ op: 'setSlideHidden', slide: index, hidden: !model?.slide?.hidden });
         return;
       case 'renameShape':
         await apply({ op: 'renameShape', slide: index, shape: arg.id, name: arg.name });
@@ -738,7 +744,7 @@ export default function Slides({ app, shell, boot }) {
     return (
       <div
         className="sl-present"
-        onClick={() => (led ? shell.present.set({ index: Math.min(index + 1, (model.count || 1) - 1) }) : setIndex((i) => Math.min(i + 1, (model.count || 1) - 1)))}
+        onClick={() => (led ? shell.present.set({ index: nextShown(model, index, 1) }) : setIndex((i) => nextShown(model, i, 1)))}
       >
         <style>{CSS}</style>
         {/* A black screen is a thing speakers ask for by name: attention back on them. */}
@@ -809,12 +815,12 @@ export default function Slides({ app, shell, boot }) {
                   {sectionHeading(model, o, i, (s) => setSectionRename({ section: s.index, name: s.name }), () => setIndex(i))}
                   <button
                     type="button"
-                    className={`sl-thumb${i === index ? ' active' : ''}`}
+                    className={`sl-thumb${i === index ? ' active' : ''}${o.hidden ? ' hidden' : ''}`}
                     onClick={() => setIndex(i)}
                     onContextMenu={(e) => menu.open(e, menuItems(commands, ['slide.new', 'slide.delete']))}
                   >
                     <span className="sl-thumb-n">{i + 1}</span>
-                    <span className="sl-thumb-card" title={o.title || `Slide ${i + 1}`}>
+                    <span className="sl-thumb-card" title={`${o.title || `Slide ${i + 1}`}${o.hidden ? ' — hidden' : ''}`}>
                       {o.thumbnail
                         ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} />
                         : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
@@ -851,7 +857,7 @@ export default function Slides({ app, shell, boot }) {
                   {(model.outline || []).map((o, i) => (
                     <React.Fragment key={o.part || i}>
                       {sectionHeading(model, o, i, (s) => setSectionRename({ section: s.index, name: s.name }), () => setIndex(i))}
-                      <button type="button" className={`sl-sortercard${i === index ? ' active' : ''}`} onClick={() => { setIndex(i); patchView({ mode: 'normal' }); }} title={o.title || `Slide ${i + 1}`}>
+                      <button type="button" className={`sl-sortercard${i === index ? ' active' : ''}${o.hidden ? ' hidden' : ''}`} onClick={() => { setIndex(i); patchView({ mode: 'normal' }); }} title={`${o.title || `Slide ${i + 1}`}${o.hidden ? ' — hidden' : ''}`}>
                         {o.thumbnail ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} /> : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
                         <span className="sl-sortern">{i + 1}</span>
                       </button>
@@ -1393,6 +1399,9 @@ const CSS = `
 .sl-thumb-card:has(.sl-thumb-pic) { padding: 0; background: #fff; }
 .sl-thumb-pic { display: block; line-height: 0; }
 .sl-thumb-pic svg { display: block; width: 100%; height: auto; }
+/* Slide Show → Hide Slide: left dim, the way PowerPoint fades a hidden slide, its number struck through. */
+.sl-thumb.hidden .sl-thumb-card, .sl-sortercard.hidden .sl-thumb-pic, .sl-sortercard.hidden .sl-thumb-title { opacity: .45; }
+.sl-thumb.hidden .sl-thumb-n, .sl-sortercard.hidden .sl-sortern { text-decoration: line-through; }
 .sl-fit { position: relative; flex: none; }
 
 .sl-stage { flex: 1; min-height: 0; overflow: auto; display: grid; place-items: center; padding: 22px; background: var(--window); }

@@ -391,7 +391,14 @@ export default function SlidesRibbon({
           </Group>
           <Group label="Set Up">
             <Soon tall icon="settings" label="Set Up Slide Show" why="Show settings (kiosk, loop, pen colour) are not built." />
-            <Soon tall icon="eye" label="Hide Slide" why="Hiding a slide is a show attribute the engine does not write yet." />
+            <Button
+              tall
+              icon="eye"
+              label="Hide Slide"
+              pressed={Boolean(model?.slide?.hidden)}
+              title={model?.slide?.hidden ? 'Hide Slide — this slide is hidden from the show; press again to show it' : 'Hide Slide — leave this slide out of the show'}
+              onClick={() => act('hideSlide')}
+            />
             <Soon tall icon="clock" label="Rehearse Timings" why="Comes with recorded timings." />
             <Soon tall icon="video" label="Record" why="Recording narration is not built." />
             <Soon icon="check" label="Keep Slides Updated" why="Live co-authoring is not built." />

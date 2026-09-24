@@ -996,6 +996,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     // The Layers pane's verbs: the drawing order, a shape hidden or shown, a name.
     reorderShape: (d, a) => d.reorderShape(a.slide, a.shape, a.to),
     setShapeHidden: (d, a) => d.setShapeHidden(a.slide, a.shape, Boolean(a.hidden)),
+    // Slide Show → Hide Slide: this slide left out of the show.
+    setSlideHidden: (d, a) => d.setSlideHidden(a.slide, Boolean(a.hidden)),
     renameShape: (d, a) => d.renameShape(a.slide, a.shape, a.name),
     // The Designs pane: this slide on another of the deck's layouts.
     applyLayout: (d, a) => d.applyLayout(a.slide, a.layout),

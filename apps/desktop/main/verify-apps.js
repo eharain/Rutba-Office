@@ -1420,6 +1420,94 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Presentation: Slide Show → Hide Slide ───────────────────────────── */
+  //
+  // A hidden slide stays in the file — PowerPoint's show="0" on the slide's
+  // own root tag — and everywhere but the show itself (the strip, the
+  // sorter, printing) still draws it, dimmed with its number struck
+  // through. Only the show steps over it.
+  // Run alone with RUTBA_VERIFY_ONLY=hidden.
+  const slideHidden = async () => {
+    try {
+      const win = await open('slides', files.pptx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
+      await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const pressedState = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        return b ? b.getAttribute('aria-pressed') : null;
+      })()`);
+
+      // The second slide selected, then Slide Show → Hide Slide.
+      await js(`(() => { document.querySelectorAll('.sl-thumb')[1]?.click(); return 1; })()`);
+      await until(() => js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('active')`), 'the second slide', 4000).catch(() => {});
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(), 'tab'`);
+      await wait(200);
+      const hidStart = await clickRibbon('Hide Slide');
+      const hiddenInModel = await until(() => model(1).slide.hidden === true, 'the slide marked hidden', 5000).catch(() => false);
+      await wait(150);
+      const thumbHidden = await js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('hidden')`);
+      const struck = await js(`getComputedStyle(document.querySelectorAll('.sl-thumb')[1]?.querySelector('.sl-thumb-n')).textDecorationLine`);
+      const btnPressed = await pressedState('Hide Slide');
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-hidden.png'), (await win.webContents.capturePage()).toPNG());
+      check('slides: Slide Show → Hide Slide marks the slide hidden, strikes its number through in the strip, and the button stays pressed',
+        hidStart === 'clicked' && hiddenInModel === true && thumbHidden === true && /line-through/.test(struck || '') && btnPressed === 'true',
+        `${hidStart}; hidden ${hiddenInModel}; thumb class ${thumbHidden}; decoration ${struck}; pressed ${btnPressed}`);
+
+      await clickRibbon('Save');
+      const saved = () => {
+        try { return Deck.open(fs.readFileSync(files.pptx)); } catch { return null; }
+      };
+      await until(() => saved()?.isSlideHidden(1) === true, 'the hidden slide in the file', 8000).catch(() => {});
+      const d = saved();
+      const xml1 = d ? d.pkg.text(d.slideParts[1].part) : '';
+      const xml0 = d ? d.pkg.text(d.slideParts[0].part) : '';
+      check('slides: the saved file carries the hidden slide as PowerPoint writes one — show="0" on the slide\'s own root tag, and no other slide touched',
+        Boolean(d) && d.isSlideHidden(1) === true && /<p:sld\b[^>]*\sshow="0"/.test(xml1) && !/<p:sld\b[^>]*\sshow="0"/.test(xml0),
+        `hidden ${d?.isSlideHidden(1)}; slide 2 root ${xml1.slice(0, 80)}`);
+
+      // Start the show: a hidden slide never opens it, and is stepped over.
+      const started = await clickRibbon('Start from the beginning');
+      await until(() => js(`Boolean(document.querySelector('.sl-present-bar'))`), 'the show', 5000).catch(() => {});
+      const barText = () => js(`document.querySelector('.sl-present-bar')?.textContent || ''`);
+      const bar1 = await barText();
+      const outline = model(0).outline || [];
+      let expectAfterRight = 0;
+      for (let i = 1; i < outline.length; i++) {
+        if (!outline[i].hidden) { expectAfterRight = i; break; }
+      }
+      await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }))`);
+      await wait(300);
+      const bar2 = await barText();
+      await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))`);
+      await until(() => js(`!document.querySelector('.sl-present-bar')`), 'the show to close', 5000).catch(() => {});
+      check('slides: the show starts on the first shown slide and steps over a hidden one; Escape leaves it',
+        started === 'clicked' && bar1.startsWith('1 / ') && bar2.startsWith(`${expectAfterRight + 1} / `),
+        `${started}; bar ${JSON.stringify(bar1)} → ${JSON.stringify(bar2)}; expected slide ${expectAfterRight + 1}`);
+
+      // Hide Slide pressed again shows the slide.
+      const shownAgain = await clickRibbon('Hide Slide');
+      const unhidden = await until(() => model(1).slide.hidden === false, 'the slide shown again', 5000).catch(() => false);
+      await wait(150);
+      const thumbShown = await js(`document.querySelectorAll('.sl-thumb')[1]?.classList.contains('hidden')`);
+      check('slides: Hide Slide pressed again shows the slide, in the model and the strip',
+        shownAgain === 'clicked' && unhidden === true && thumbShown === false,
+        `${shownAgain}; hidden ${unhidden}; thumb class ${thumbShown}`);
+
+      const complaints = await errorsIn(win);
+      check('slides: the hide-slide checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('slides: the hide-slide checks ran', false, err.message);
+    }
+  };
+
   /* ── Presentation: find and replace ──────────────────────────────────── */
   //
   // Home → Find: the words typed, Find lists every shape they are on, a
@@ -2242,7 +2330,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,fit,sections: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,fit,sections,hidden: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -2256,6 +2344,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('footer')) await slideFooter();
     if (only.includes('find')) await slideFind();
     if (only.includes('sections')) await slideSections();
+    if (only.includes('hidden')) await slideHidden();
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('look')) await wordLook();
@@ -2359,6 +2448,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slideFooter();
   await slideFind();
   await slideSections();
+  await slideHidden();
   await sheetFill();
   await wordPictures();
   await wordLook();

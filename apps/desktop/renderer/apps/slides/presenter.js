@@ -13,6 +13,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Icon, Spinner, Empty } from '@rutba/office-ui';
 
+/**
+ * The nearest slide from `from` in the direction of `delta` (±1) that is not
+ * hidden — Slide Show → Hide Slide leaves a slide in the file but out of the
+ * show, so the show steps over it rather than landing on it. `from` comes
+ * back unchanged when nothing further that way is shown, which is how the
+ * show stays put at either end rather than running off the deck.
+ */
+export function nextShown(model, from, delta) {
+  const outline = model?.outline || [];
+  for (let i = from + delta; i >= 0 && i < outline.length; i += delta) {
+    if (!outline[i]?.hidden) return i;
+  }
+  return from;
+}
+
 /** hh:mm:ss, or mm:ss for a talk that has not gone on too long. */
 function elapsed(from) {
   if (!from) return '0:00';
@@ -70,8 +85,7 @@ export default function Presenter({ shell, docId }) {
 
   const move = useCallback(
     (delta) => {
-      const count = model?.count ?? 1;
-      shell.present.set({ index: Math.max(0, Math.min(count - 1, index + delta)) }).catch(() => {});
+      shell.present.set({ index: nextShown(model, index, delta) }).catch(() => {});
     },
     [shell, model, index]
   );
@@ -81,8 +95,8 @@ export default function Presenter({ shell, docId }) {
       if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); move(1); }
       else if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'Backspace') { e.preventDefault(); move(-1); }
       else if (e.key === 'b' || e.key === '.') shell.present.set({ blank: !state.blank }).catch(() => {});
-      else if (e.key === 'Home') shell.present.set({ index: 0 }).catch(() => {});
-      else if (e.key === 'End') shell.present.set({ index: (model?.count ?? 1) - 1 }).catch(() => {});
+      else if (e.key === 'Home') shell.present.set({ index: nextShown(model, -1, 1) }).catch(() => {});
+      else if (e.key === 'End') shell.present.set({ index: nextShown(model, model?.count ?? 1, -1) }).catch(() => {});
       else if (e.key === 'Escape') shell.present.set({ running: false }).catch(() => {});
     };
     window.addEventListener('keydown', onKey);
