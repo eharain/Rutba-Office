@@ -55,12 +55,24 @@ done < <(git rev-list "${BASE_SHA}..${HEAD_SHA}" 2>/dev/null || true)
 # Added lines from changed files, computed once for the whole range
 git diff -U0 --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" \
   | awk '
+      function is_exempt(path) {
+        return path ~ /^\.githooks\// \
+          || path ~ /^AGENTS\.md$/ \
+          || path ~ /^RULES\.md$/ \
+          || path ~ /^\.ai-rules\.md$/ \
+          || path ~ /\/AGENTS\.md$/ \
+          || path ~ /\/RULES\.md$/ \
+          || path ~ /\/\.ai-rules\.md$/ \
+          || path ~ /^\.github\/workflows\/ai-footprint-guard\.yml$/ \
+          || path ~ /^tools\/ci\/ai-footprint-guard\.sh$/
+      }
+      /^\+\+\+ b\// { file = substr($0, 7); exempt = is_exempt(file); next }
       /^\+\+\+ / { next }
       /^--- / { next }
       /^@@/ { next }
       /^diff --git / { next }
       /^index / { next }
-      /^\+/ { print substr($0, 2) }
+      /^\+/ && !exempt { print substr($0, 2) }
     ' > "$ADDED_LINES_FILE" || true
 
 if grep -qiE "$PATTERN" "$ADDED_LINES_FILE"; then
