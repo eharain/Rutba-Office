@@ -963,6 +963,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setTableColumnWidths: (v, a) => v.setTableColumnWidths(a),
     setTableRowHeight: (v, a) => v.setTableRowHeight(a),
     addComment: (v, a) => v.addComment(a.text, { author: a.author }),
+    // Insert → Bookmark: name a span of paragraphs, take the name off again,
+    // or jump to it — the last one only moves the caret (see CLEAN_OPS).
+    addBookmark: (v, a) => v.addBookmark(a.name),
+    removeBookmark: (v, a) => v.removeBookmark(a.name),
+    gotoBookmark: (v, a) => v.gotoBookmark(a.name),
     insertNote: (v, a) => v.insertNote(a.kind ?? 'footnote', a.text),
     setNoteText: (v, a) => v.setNoteText(a.kind ?? 'footnote', a.id, a.text),
     tabCell: (v, a) => v.tabCell({ back: a.back }),
@@ -1057,7 +1062,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

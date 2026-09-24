@@ -2013,14 +2013,114 @@ export class Document {
     return out;
   }
 
-  /** Bookmark names, the older anchor mechanism. Read-only for now. */
+  /**
+   * Bookmark spans — Word's older anchor mechanism, a NAME on a range rather
+   * than a content control's tag on a spot. `from`/`to` are paragraph indexes
+   * in `paragraphs()` order: where the `w:bookmarkStart` sits, and where the
+   * matching `w:bookmarkEnd` (same `w:id`) does. An end that lands at body
+   * level between two paragraphs belongs to the one before it — a mark
+   * cannot reach into a paragraph it never touches; an end that cannot be
+   * found at all collapses the span onto its start. Word's own bookmarks
+   * (`_GoBack` and friends) are left out, as `_`-prefixed names always are.
+   */
   bookmarks() {
-    const out = [];
-    for (const m of this.xml.matchAll(/<w:bookmarkStart\b([^>]*)\/>/g)) {
+    const { body } = this._body();
+    const paragraphs = this.paragraphs();
+    const paragraphAt = (offset) => {
+      for (let i = 0; i < paragraphs.length; i++) {
+        const p = paragraphs[i];
+        if (offset >= p.start && offset <= p.end) return i;
+        if (offset < p.start) return Math.max(0, i - 1);
+      }
+      return paragraphs.length - 1;
+    };
+    const starts = new Map();
+    for (const m of body.matchAll(/<w:bookmarkStart\b([^>]*)\/>/g)) {
       const a = attrs(m[1]);
-      if (a['w:name'] && !a['w:name'].startsWith('_')) out.push({ id: a['w:id'], name: a['w:name'] });
+      if (!a['w:name'] || a['w:name'].startsWith('_')) continue;
+      starts.set(Number(a['w:id']), { name: a['w:name'], offset: m.index });
+    }
+    const ends = new Map();
+    for (const m of body.matchAll(/<w:bookmarkEnd\b([^>]*)\/>/g)) {
+      ends.set(Number(attrs(m[1])['w:id']), m.index);
+    }
+    const out = [];
+    for (const [id, { name, offset }] of starts) {
+      const from = paragraphAt(offset);
+      const endOffset = ends.get(id);
+      const to = endOffset === undefined ? from : Math.max(from, paragraphAt(endOffset));
+      out.push({ id, name, from, to });
     }
     return out;
+  }
+
+  /**
+   * Mint a bookmark over paragraphs `from`..`to` (inclusive, `paragraphs()`
+   * order) — Insert > Bookmark. Word's own name rule: letters, digits and
+   * underscores, starting with a letter, forty characters at most; a name
+   * outside that is one Word itself would refuse, so it is an error here too.
+   *
+   * Word's Add REPLACES a bookmark of the same name rather than stacking a
+   * second one on it, matched here so a document that has been through this
+   * twice does not surprise anyone who knows Word's own dialog. The new id is
+   * one past the highest `w:bookmarkStart` id already in the body.
+   *
+   * The end is spliced in first: it sits at or after the start, so writing it
+   * first leaves the start paragraph's offset untouched for the second splice.
+   */
+  addBookmark(name, from, to = from) {
+    if (!/^[A-Za-z][A-Za-z0-9_]{0,39}$/.test(String(name))) {
+      throw new Error('a bookmark name is letters, digits and underscores, starting with a letter, up to 40 characters');
+    }
+    this.removeBookmark(name);
+
+    let maxId = -1;
+    for (const m of this.xml.matchAll(/<w:bookmarkStart\b[^>]*\bw:id="(\d+)"/g)) {
+      maxId = Math.max(maxId, Number(m[1]));
+    }
+    const id = maxId + 1;
+    const startXml = '<w:bookmarkStart w:id="' + id + '" w:name="' + esc(String(name)) + '"/>';
+    const endXml = '<w:bookmarkEnd w:id="' + id + '"/>';
+
+    // A self-closing `<w:p/>` has nowhere to hang a mark — opened up first,
+    // the way the model's own `open` normalises it.
+    const openUp = (p) => (/^<w:p\b[^>]*\/>$/.test(p.xml) ? p.open + '</w:p>' : p.xml);
+
+    const pTo = this.paragraph(to);
+    if (!pTo) throw new Error('no paragraph at index ' + to);
+    const toXml = openUp(pTo);
+    const withEnd = toXml.slice(0, toXml.length - '</w:p>'.length) + endXml + '</w:p>';
+    this._spliceBody(pTo.start, pTo.end, withEnd);
+
+    const pFrom = this.paragraph(from);
+    if (!pFrom) throw new Error('no paragraph at index ' + from);
+    const fromXml = openUp(pFrom);
+    const headLen = pFrom.open.length + (pFrom.pPr ? pFrom.pPr.length : 0);
+    const withStart = fromXml.slice(0, headLen) + startXml + fromXml.slice(headLen);
+    this._spliceBody(pFrom.start, pFrom.end, withStart);
+
+    this.dirty = true;
+    return id;
+  }
+
+  /** Take a bookmark's `w:bookmarkStart`/`w:bookmarkEnd` out. True if one was there. */
+  removeBookmark(name) {
+    const { prefix, body, suffix } = this._body();
+    const ids = [];
+    for (const m of body.matchAll(/<w:bookmarkStart\b([^>]*)\/>/g)) {
+      const a = attrs(m[1]);
+      if (a['w:name'] === String(name)) ids.push(a['w:id']);
+    }
+    if (!ids.length) return false;
+    let next = body;
+    for (const id of ids) {
+      const safe = String(id).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      next = next.replace(new RegExp('<w:bookmarkStart\\b[^>]*w:id="' + safe + '"[^>]*/>'), '');
+      next = next.replace(new RegExp('<w:bookmarkEnd\\b[^>]*w:id="' + safe + '"[^>]*/>'), '');
+    }
+    this.xml = prefix + next + suffix;
+    this.dirty = true;
+    return true;
   }
 
   // ---- writing -------------------------------------------------------------
@@ -2140,7 +2240,10 @@ export class Document {
     // and would drop the box the paragraph anchors, words and all.
     // A note reference is NOT on the list: it is a run of its own with one
     // character of text, and the rebuild writes the element back from it.
-    const structural = ['w:fldSimple', 'w:fldChar', 'w:bookmarkStart', 'w:commentRangeStart', 'w:sdt', 'w:ins', 'w:del', 'w:txbxContent']
+    // w:bookmarkStart left the list 2026-09-24: the rebuilders now carry a
+    // paragraph's bookmark marks through via `_leadFragments`/`_keptFragments`
+    // (see those), so a bookmarked paragraph no longer has to go read-only.
+    const structural = ['w:fldSimple', 'w:fldChar', 'w:commentRangeStart', 'w:sdt', 'w:ins', 'w:del', 'w:txbxContent']
       .filter((tag) => new RegExp('<' + tag + '\\b').test(p.xml)); // \b: w:ins is a prefix of w:instrText
     // A paragraph INSIDE a body-level content control carries no sdt tag of
     // its own; it is read-only for the same reason one that does is.
@@ -2305,6 +2408,10 @@ export class Document {
     let m;
     const push = (childTag, chunk) => {
       if (childTag === 'w:pPr') return;
+      // A bookmarkStart is pulled out to `_leadFragments` instead, and pinned
+      // at the paragraph's own start rather than wherever it happened to
+      // sit — see that method.
+      if (childTag === 'w:bookmarkStart') return;
       // The rule is about CONTENT, not tag names: a chunk carrying `<w:t>`
       // anywhere is text the model owns — parseRuns read it and the rebuild
       // rewrites it — so keeping the chunk whole would DOUBLE the text (a
@@ -2348,8 +2455,39 @@ export class Document {
     return kept.join('');
   }
 
+  /**
+   * A paragraph's own `w:bookmarkStart` marks — top-level ones, siblings of
+   * its runs rather than something a run wraps. Word can plant one mid-
+   * paragraph; a rebuild from runs has no run to hang it inside of, so every
+   * one of them is pinned right after `w:pPr` instead, ahead of the text.
+   * That widens a mid-paragraph mark to the paragraph's own start the first
+   * time the paragraph is edited — the honest cost of a bookmarked paragraph
+   * staying editable rather than going read-only forever.
+   */
+  _leadFragments(p) {
+    if (/^<w:p\b[^>]*\/>$/.test(p.xml)) return '';
+    const openRaw = /<w:p\b[^>]*?>/.exec(p.xml)[0];
+    const inner = p.xml.slice(openRaw.length, p.xml.length - '</w:p>'.length);
+    const kept = [];
+    const re = /<([A-Za-z0-9]+:[A-Za-z0-9]+)\b[^>]*?(\/?)>|<\/([A-Za-z0-9]+:[A-Za-z0-9]+)\s*>/g;
+    let depth = 0;
+    let m;
+    while ((m = re.exec(inner))) {
+      if (m[1]) {
+        if (m[2] === '/') {
+          if (depth === 0 && m[1] === 'w:bookmarkStart') kept.push(m[0]);
+        } else {
+          depth += 1;
+        }
+      } else if (m[3] && depth > 0) {
+        depth -= 1;
+      }
+    }
+    return kept.join('');
+  }
+
   _setRuns(p, runs) {
-    const rebuilt = p.open + (p.pPr ?? '') + renderRuns(runs) + this._keptFragments(p) + '</w:p>';
+    const rebuilt = p.open + (p.pPr ?? '') + this._leadFragments(p) + renderRuns(runs) + this._keptFragments(p) + '</w:p>';
     this._spliceBody(p.start, p.end, rebuilt);
   }
 
@@ -2364,10 +2502,11 @@ export class Document {
         after.push({ ...run, text: run.text.slice(offset) });
       }
     });
-    // The kept fragments stay with the FIRST half: a split is Enter at the
-    // caret, and the image the paragraph carried does not follow the caret
-    // onto the new line.
-    const first = p.open + (p.pPr ?? '') + renderRuns(before) + this._keptFragments(p) + '</w:p>';
+    // The kept fragments — and the paragraph's own bookmark marks — stay with
+    // the FIRST half: a split is Enter at the caret, and neither the image
+    // nor the bookmark the paragraph carried follows the caret onto the new
+    // line.
+    const first = p.open + (p.pPr ?? '') + this._leadFragments(p) + renderRuns(before) + this._keptFragments(p) + '</w:p>';
     const second = p.open + (p.pPr ?? '') + renderRuns(after) + '</w:p>';
     this._spliceBody(p.start, p.end, first + second);
   }
@@ -2388,6 +2527,7 @@ export class Document {
       );
     }
     const merged = p.open + (p.pPr ?? '')
+      + this._leadFragments(p) + this._leadFragments(next)
       + renderRuns([...p.runs, ...next.runs])
       + this._keptFragments(p) + this._keptFragments(next)
       + '</w:p>';

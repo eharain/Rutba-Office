@@ -271,6 +271,10 @@ export class OoxmlBackend {
   comments() { return this.doc.comments(); }
   registerCommentUndo() { this.doc.registerCommentUndo(); return this; }
   addComment(index, spec) { this.doc.addComment(index, spec); return this; }
+  /** Bookmark spans — Word's older, position-based, name-per-span anchor. */
+  bookmarks() { return this.doc.bookmarks(); }
+  addBookmark(name, from, to) { return this.doc.addBookmark(name, from, to); }
+  removeBookmark(name) { return this.doc.removeBookmark(name); }
   /** The default bands as an editing panel sees them, and their edit path. */
   bandInfo() { return this.doc.bandInfo(); }
   registerBandUndo(which) { this.doc.registerBandUndo(which); return this; }

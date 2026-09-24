@@ -1640,6 +1640,55 @@ export class DocView {
     });
   }
 
+  /** Bookmark spans, read-only — the dialog's list and what Go To searches. Optional in the port. */
+  bookmarks() {
+    return typeof this.doc.bookmarks === 'function' ? this.doc.bookmarks() : [];
+  }
+
+  /**
+   * Name the selected paragraphs — Insert > Bookmark. Ordered anchor -> focus
+   * regardless of which way the selection was dragged; a collapsed caret
+   * bookmarks its own paragraph. Optional in the port: an email body has no
+   * bookmarks.
+   */
+  addBookmark(name) {
+    if (typeof this.doc.addBookmark !== 'function') {
+      throw new Error('this document backend does not support bookmarks');
+    }
+    const { from, to } = this.selection;
+    return this._edit('bookmark', null, () => {
+      this.doc.addBookmark(name, from.block, to.block);
+      this._invalidate();
+      return this;
+    });
+  }
+
+  removeBookmark(name) {
+    if (typeof this.doc.removeBookmark !== 'function') {
+      throw new Error('this document backend does not support bookmarks');
+    }
+    return this._edit('bookmark', null, () => {
+      this.doc.removeBookmark(name);
+      this._invalidate();
+      return this;
+    });
+  }
+
+  /**
+   * Jump to a named bookmark, selecting its whole span — Word's Go To. Moving
+   * the caret is not an edit: no snapshot, no history entry. False, selection
+   * untouched, when the name is not there.
+   */
+  gotoBookmark(name) {
+    const mark = this.bookmarks().find((b) => b.name === name);
+    if (!mark) return false;
+    this.setSelection(
+      { block: mark.from, offset: 0 },
+      { block: mark.to, offset: this.blocks[mark.to]?.text.length ?? 0 },
+    );
+    return true;
+  }
+
   /**
    * Fill a content control — the business-data binding path, allowed inside
    * structure. Optional in the port: an email body has no named anchors.
@@ -1883,6 +1932,8 @@ export class DocView {
       bands: typeof this.doc.bandInfo === 'function' ? this.doc.bandInfo() : null,
       // Comments, read-only, for the margin markers and the Review listing.
       comments: typeof this.doc.comments === 'function' ? this.doc.comments() : [],
+      // Bookmark spans, read-only, for the Bookmark dialog's list.
+      bookmarks: this.bookmarks(),
       // Every list label by block index — how a TABLE CELL's list items get
       // their bullets and numbers, since cells have no fragments to carry
       // one. Computed on the same counters pagination used, so the body and

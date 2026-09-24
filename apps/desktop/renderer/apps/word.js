@@ -29,6 +29,7 @@ installRulerStyles();
 import {
   LinkDialog, TableDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
   DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog, WatermarkDialog,
+  BookmarkDialog,
 } from './word/dialogs.js';
 import { lineBoxes, rectOf } from './word/pages.js';
 
@@ -1272,6 +1273,19 @@ export default function Word({ app, shell, boot }) {
 
       {dialog === 'comments' ? (
         <CommentsDialog comments={model?.comments || []} onClose={() => setDialog(null)} onGoto={() => setDialog(null)} />
+      ) : null}
+
+      {dialog === 'bookmark' ? (
+        <BookmarkDialog
+          bookmarks={model?.bookmarks || []}
+          onClose={() => setDialog(null)}
+          onAdd={(name) => apply({ op: 'addBookmark', name })}
+          onDelete={(name) => apply({ op: 'removeBookmark', name })}
+          onGoto={async (name) => {
+            await apply({ op: 'gotoBookmark', name });
+            setDialog(null);
+          }}
+        />
       ) : null}
 
       {dialog === 'find' ? (

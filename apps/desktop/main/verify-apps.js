@@ -1237,6 +1237,201 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Word: bookmarks — Insert → Bookmark names a span of paragraphs ──── */
+  //
+  // Word's older, position-based anchor: a name on a paragraph (or a run of
+  // them), so Go To finds the spot again and — once the engine writes REF
+  // fields — a cross-reference will too. Run alone with RUTBA_VERIFY_ONLY=bookmarks.
+  const wordBookmarks = async () => {
+    try {
+      const win = await open('word', files.docx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const session = sessionFor('doc');
+      const model = () => doc.model({ id: session.id });
+
+      await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="1"]'))`), 'the second paragraph', 8000);
+      // The caret into the second paragraph, the way wordLook puts it into the first.
+      await js(`(() => {
+        const b = document.querySelector('.wd-page [data-block="1"]');
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+        const r = document.createRange(); r.selectNodeContents(b); r.collapse(true);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        document.dispatchEvent(new Event('selectionchange'));
+        return 1;
+      })()`);
+      await wait(300);
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await wait(200);
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const closeDialog = () => js(`(() => { [...document.querySelectorAll('.rw-dialog button')].find((b) => b.textContent.trim() === 'Close')?.click(); return 1; })()`);
+      const pickRow = () => js(`(() => { [...document.querySelectorAll('.wd-bookmark-row')].find((r) => r.textContent.includes('Summary'))?.click(); return 1; })()`);
+
+      const pressed = await clickRibbon('Bookmark');
+      await until(() => js(`Boolean(document.querySelector('.wd-bookmark-name'))`), 'the Bookmark dialog', 5000);
+      await js(`(() => { const el = document.querySelector('.wd-bookmark-name'); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, 'Summary'); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      await wait(150);
+      await js(`(() => { document.querySelector('.wd-bookmark-add')?.click(); return 1; })()`);
+
+      const added = await until(
+        () => (model().bookmarks || []).some((b) => b.name === 'Summary' && b.from === 1 && b.to === 1),
+        'the bookmark in the model',
+        5000
+      ).catch(() => false);
+      const m1 = model();
+      check(
+        'word: Insert → Bookmark names the selected paragraph, in the model, and it stays editable',
+        pressed === 'clicked' && added === true && m1.blocks[1]?.structural === false,
+        `${pressed}; bookmarks ${JSON.stringify(m1.bookmarks)}; block 1 structural=${m1.blocks[1]?.structural}`
+      );
+
+      const rowShown = await js(`Boolean([...document.querySelectorAll('.wd-bookmark-row')].find((r) => r.textContent.includes('Summary')))`);
+      check('word: the new bookmark shows in the dialog', rowShown === true, `row present: ${rowShown}`);
+
+      // The ribbon sits under the dialog; close it before reaching for Save.
+      await closeDialog();
+      await wait(200);
+      await clickRibbon('Save');
+      const paragraphXml = () => {
+        try {
+          return openDocx(fs.readFileSync(files.docx)).doc.doc.paragraph(1).xml || '';
+        } catch {
+          return '';
+        }
+      };
+      await until(() => /w:bookmarkStart/.test(paragraphXml()), 'the bookmark to land in the file', 8000).catch(() => false);
+      const pXml = paragraphXml();
+      const startMatch = /<w:p\b[^>]*>(<w:pPr>[\s\S]*?<\/w:pPr>)?<w:bookmarkStart w:id="(\d+)" w:name="Summary"\/>/.exec(pXml);
+      const id = startMatch ? startMatch[2] : null;
+      const endOk = id !== null && new RegExp('<w:bookmarkEnd w:id="' + id + '"/></w:p>$').test(pXml);
+      check(
+        'word: the saved file writes the bookmark as Word does — bookmarkStart right after pPr, bookmarkEnd right before the paragraph closes',
+        Boolean(startMatch) && endOk,
+        pXml.slice(0, 240)
+      );
+
+      // Go To: reopen, select the row, press Go To — the selection lands on
+      // the bookmarked paragraph.
+      await clickRibbon('Bookmark');
+      await until(() => js(`Boolean(document.querySelector('.wd-bookmark-row'))`), 'the bookmark row', 5000);
+      await pickRow();
+      await wait(150);
+      await js(`(() => { document.querySelector('.wd-bookmark-goto')?.click(); return 1; })()`);
+      await wait(300);
+      const afterGoto = model();
+      check('word: Go To selects the bookmarked paragraph', afterGoto.selection?.focus?.block === 1, JSON.stringify(afterGoto.selection));
+
+      // Delete: reopen, select, Delete — the bookmark is gone from the model.
+      await clickRibbon('Bookmark');
+      await until(() => js(`Boolean(document.querySelector('.wd-bookmark-row'))`), 'the bookmark row again', 5000);
+      await pickRow();
+      await wait(150);
+      await js(`(() => { document.querySelector('.wd-bookmark-delete')?.click(); return 1; })()`);
+      const removed = await until(() => (model().bookmarks || []).length === 0, 'the bookmark removed', 5000).catch(() => false);
+      check('word: Delete removes the bookmark', removed === true, JSON.stringify(model().bookmarks));
+      await closeDialog();
+
+      const complaints = await errorsIn(win);
+      check('word: the bookmark checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('word: the bookmark checks ran', false, err.message);
+    }
+  };
+
+  /* ── Word: text effects — outline, shadow, glow ────────────────────── */
+  //
+  // Home → the "A" button: Outline hollows the selected words, Shadow casts
+  // one behind them, Glow rings them in a colour — each at once on the
+  // page, and the saved file keeps them where Word does: the toggles after
+  // strike, the glow last with its own namespace. Run alone with
+  // RUTBA_VERIFY_ONLY=effects.
+  const wordEffects = async () => {
+    try {
+      const win = await open('word', files.docx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="1"]'))`), 'the second paragraph', 8000);
+      // The first word of the second paragraph, selected the way wordLook
+      // puts the caret in — a real mousedown, then a DOM range — but spanning
+      // "The" rather than collapsed, so the format lands on the run at once.
+      await js(`(() => {
+        const b = document.querySelector('.wd-page [data-block="1"]');
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+        const text = b.querySelector('span')?.firstChild || b.firstChild;
+        const r = document.createRange();
+        r.setStart(text, 0);
+        r.setEnd(text, 3);
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        document.dispatchEvent(new Event('selectionchange'));
+        return 1;
+      })()`);
+      await wait(300);
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const pick = async (button, label) => {
+        const clicked = await clickRibbon(button);
+        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${button} menu`, 3000).catch(() => {});
+        await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click(); return 1; })()`);
+        return clicked;
+      };
+      const model = () => doc.model({ id: sessionFor('doc').id });
+      const spanStyle = () => js(`(() => { const b = document.querySelector('.wd-page [data-block="1"]'); const s = b?.querySelector('span'); if (!s) return null; const cs = getComputedStyle(s); return { stroke: cs.webkitTextStrokeWidth, shadow: cs.textShadow }; })()`);
+
+      const pickedOutline = await pick('Text effects', 'Outline');
+      const outlineOn = await until(() => model().format.outline === true, 'the outline in the model', 5000).catch(() => false);
+      const stroked = await until(async () => parseFloat((await spanStyle())?.stroke || '0') > 0, 'the outline painted', 5000).catch(() => false);
+      check('word: Home → Text effects → Outline turns the run hollow, in the model and on the page',
+        pickedOutline === 'clicked' && outlineOn === true && stroked === true, `${pickedOutline}; outline ${JSON.stringify(model().format.outline)}; ${JSON.stringify(await spanStyle())}`);
+
+      await wait(200);
+      const pickedShadow = await pick('Text effects', 'Shadow');
+      const shadowOn = await until(() => model().format.shadow === true, 'the shadow in the model', 5000).catch(() => false);
+      check('word: Home → Text effects → Shadow marks the run in the model',
+        pickedShadow === 'clicked' && shadowOn === true, `${pickedShadow}; shadow ${JSON.stringify(model().format.shadow)}`);
+
+      await wait(200);
+      const pickedGlow = await pick('Text effects', 'Glow: gold');
+      const glowOn = await until(() => model().format.glow?.colour === 'FFC000', 'the glow in the model', 5000).catch(() => false);
+      const glowed = await until(async () => (await spanStyle())?.shadow.includes('rgb(255, 192, 0)'), 'the glow painted', 5000).catch(() => false);
+      check('word: Home → Text effects → Glow: gold marks the run in the model and glows gold on the page',
+        pickedGlow === 'clicked' && glowOn === true && glowed === true, `${pickedGlow}; glow ${JSON.stringify(model().format.glow)}; ${JSON.stringify(await spanStyle())}`);
+
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-effects.png'), (await win.webContents.capturePage()).toPNG());
+
+      await wait(300);
+      await clickRibbon('Save');
+      const pInFile = () => openDocx(fs.readFileSync(files.docx)).doc.doc.editParagraph(1).xml || '';
+      await until(() => { try { return /<w:outline\/>/.test(pInFile()); } catch { return false; } }, 'the effects to land in the file', 8000).catch(() => false);
+      const pXml = pInFile();
+      check('word: the saved file keeps the outline, the shadow and the glow on the run, Word\'s own way',
+        /<w:outline\/>/.test(pXml) && /<w:shadow\/>/.test(pXml) && /<w14:glow\b[^>]*w14:rad="50800"[^>]*>/.test(pXml) && /FFC000/.test(pXml),
+        pXml.slice(0, 400));
+
+      // Clear effects, and back to nothing — the model agrees at the caret.
+      await wait(300);
+      await pick('Text effects', 'Clear effects');
+      const cleared = await until(() => {
+        const f = model().format;
+        return f.outline === false && f.shadow === false && f.glow === null;
+      }, 'the effects cleared', 5000).catch(() => false);
+      check('word: Home → Text effects → Clear effects turns all three off again', cleared === true, JSON.stringify(model().format));
+
+      const complaints = await errorsIn(win);
+      check('word: the text effects checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('word: the text effects checks ran', false, err.message);
+    }
+  };
+
   /* ── Presentation: the shape clipboard ──────────────────────────────── */
   //
   // Copy on a selected shape, Paste on another slide: the shape appears
@@ -2422,7 +2617,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,fit,sections,hidden: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,fit,sections,hidden,effects,bookmarks: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -2440,6 +2635,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('look')) await wordLook();
+    if (only.includes('bookmarks')) await wordBookmarks();
+    if (only.includes('effects')) await wordEffects();
     if (only.includes('ruler')) await wordRuler();
     if (only.includes('update')) await updatePrompt();
     if (only.includes('home')) await launcherRecent();
@@ -2545,6 +2742,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await sheetFill();
   await wordPictures();
   await wordLook();
+  await wordBookmarks();
+  await wordEffects();
   await wordPictureFits();
   await wordCards();
   await wordRuler();

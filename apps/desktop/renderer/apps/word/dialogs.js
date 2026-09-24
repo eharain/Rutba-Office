@@ -262,6 +262,83 @@ export function CommentsDialog({ comments, onClose, onGoto }) {
   );
 }
 
+/* ── bookmarks ───────────────────────────────────────────────────────────── */
+
+const BOOKMARK_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
+
+function bookmarkSpan(b) {
+  return b.from === b.to ? `paragraph ${b.from + 1}` : `paragraphs ${b.from + 1}–${b.to + 1}`;
+}
+
+/**
+ * Insert > Bookmark — Word's older, position-based anchor: a name on a span
+ * of paragraphs, so Go To (and, once the engine writes them, a cross-
+ * reference) can find the spot again. Adding clears the name field and
+ * leaves the dialog open, the way Word's own does, so a document gets several
+ * bookmarks in one visit.
+ */
+export function BookmarkDialog({ bookmarks, onClose, onAdd, onDelete, onGoto }) {
+  const [name, setName] = useState('');
+  const [selected, setSelected] = useState(null);
+  const valid = BOOKMARK_NAME_RE.test(name);
+  const picked = (bookmarks || []).some((b) => b.name === selected);
+
+  const add = () => {
+    if (!valid) return;
+    onAdd(name);
+    setName('');
+  };
+
+  return (
+    <Dialog
+      title="Bookmark"
+      width={460}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Close" onClick={onClose} />
+          <Button className="wd-bookmark-delete" label="Delete" disabled={!picked} onClick={() => { onDelete(selected); setSelected(null); }} />
+          <Button className="wd-bookmark-goto" label="Go To" disabled={!picked} onClick={() => onGoto(selected)} />
+          <Button primary className="wd-bookmark-add" label="Add" disabled={!valid} onClick={add} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="Bookmark name" hint="Letters, digits and underscores, starting with a letter — up to 40 characters.">
+          <Input
+            className="wd-bookmark-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && valid) add(); }}
+            autoFocus
+          />
+        </Field>
+        {bookmarks?.length ? (
+          <div className="ml-import-folders" style={{ maxHeight: 240 }}>
+            {bookmarks.map((b) => (
+              <button
+                key={b.name}
+                type="button"
+                className={'ml-found-item wd-bookmark-row' + (selected === b.name ? ' picked' : '')}
+                style={{ border: 0, borderBottom: '1px solid var(--line-soft)', borderRadius: 0 }}
+                onClick={() => setSelected(b.name)}
+              >
+                <span className="ml-found-logo"><Icon name="flag" size={14} /></span>
+                <span className="grow">
+                  <div className="who">{b.name}</div>
+                  <div className="what">{bookmarkSpan(b)}</div>
+                </span>
+              </button>
+            ))}
+          </div>
+        ) : (
+          <Empty icon="flag" title="No bookmarks">Name the selected paragraphs, so Go To can find them again.</Empty>
+        )}
+      </div>
+    </Dialog>
+  );
+}
+
 /* ── find and replace ────────────────────────────────────────────────────── */
 
 export function FindDialog({ onClose, onReplaceAll }) {
