@@ -169,7 +169,12 @@ document and workbook writers.
   numbers and date fields all need the writer to reach the master. The
   Layers pane of the same day gives the drawing order, hiding and naming;
   grouping and alignment across shapes are still to come.
-- **Structure**: sections, hidden slides, custom shows, saving as a show.
+- **Structure**: since 2026-09-24 Home → Section adds, renames and removes
+  sections, drawn as headings above their first slide in the thumbnail strip
+  and in Slide Sorter view, written as PowerPoint's own `p14:sectionLst`
+  extension list and kept in step as slides are added, duplicated, moved or
+  deleted; hidden slides, custom shows and saving as a show are still to
+  come.
 - **The show**: recorded narration and timings, transitions and animations
   as anything but ribbon tabs, export to video.
 - **Review**: comments on a slide, tracked changes, find and replace across
