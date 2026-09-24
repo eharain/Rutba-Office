@@ -826,6 +826,19 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
               text: (s.text || s.inheritedText)
                 ? { paragraphs: (s.text || s.inheritedText).paragraphs.map((p) => ({ ...p, plain: p.runs.map((r) => r.text).join('') })), anchor: (s.text || s.inheritedText).anchor || 'top', vert: (s.text || s.inheritedText).vert || 'horz', columns: (s.text || s.inheritedText).columns || 1 }
                 : null,
+              // A table's rows and columns, plain data: each cell's words
+              // the way a text box's are, and its box in slide pixels so the
+              // window can put an editor exactly over the cell double-clicked.
+              table: s.table
+                ? {
+                    rows: s.table.rows.length,
+                    cols: s.table.columns.length,
+                    cells: s.table.rows.map((row) => row.cells.map((cell) => ({
+                      paragraphs: (cell.text?.paragraphs || []).map((p) => ({ ...p, plain: p.runs.map((r) => r.text).join('') })),
+                      box: cell.box || null,
+                    }))),
+                  }
+                : null,
             })),
           }
         : null,
@@ -1054,6 +1067,15 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       for (const s of slides) d.setBackground(s, a.spec ?? null);
       return true;
     },
+    // Insert → Table: a grid of cells, PowerPoint's own default style.
+    addTable: (d, a) => d.addTable(a.slide, a),
+    // A cell's words rewritten in place, its runs kept the way a text box's are.
+    setTableCell: (d, a) => d.setTableCell(a.slide, a.shape, a.row, a.col, a.paragraphs),
+    // Right-click a cell: a row or column added or taken away.
+    insertTableRow: (d, a) => d.insertTableRow(a.slide, a.shape, a.at),
+    removeTableRow: (d, a) => d.removeTableRow(a.slide, a.shape, a.at),
+    insertTableColumn: (d, a) => d.insertTableColumn(a.slide, a.shape, a.at),
+    removeTableColumn: (d, a) => d.removeTableColumn(a.slide, a.shape, a.at),
 
   };
 

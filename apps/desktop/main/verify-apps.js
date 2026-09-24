@@ -1923,6 +1923,95 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Presentation: a table ───────────────────────────────────────────── */
+  //
+  // Insert → Table: a grid of cells written PowerPoint's own way, drawn on
+  // the stage with a hit area over every cell, a cell edited in place, a
+  // row added and the table deleted. Run alone with RUTBA_VERIFY_ONLY=table.
+  const slideTable = async () => {
+    try {
+      const win = await open('slides', files.pptx);
+      const wc = win.webContents;
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = () => doc.model({ id: sessionFor('deck').id, slide: 0 });
+      await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const pickMenu = async (label) => {
+        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} item`, 4000);
+        return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
+      };
+      const saved = () => {
+        try { return Deck.open(fs.readFileSync(files.pptx)); } catch { return null; }
+      };
+      const tableShape = () => model().slide.shapes.find((s) => s.kind === 'table');
+
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+      await wait(200);
+      const opened = await clickRibbon('Table');
+      const picked = await pickMenu('3 × 3');
+      const added = await until(() => tableShape()?.table?.rows === 3 && tableShape()?.table?.cols === 3, 'the table on the model', 5000).catch(() => false);
+      check('slides: Insert → Table → 3 × 3 puts a 3-by-3 table on the slide',
+        opened === 'clicked' && picked === 'picked' && added === true,
+        `${opened}; ${picked}; ${JSON.stringify(model().slide.shapes.map((s) => s.kind))}`);
+
+      const shapeId = tableShape()?.id;
+      const cellsOnStage = await until(() => js(`document.querySelectorAll('.sl-cell-hit').length === 9`), 'nine cell hit areas', 5000).catch(() => false);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-table.png'), (await win.webContents.capturePage()).toPNG());
+      check('slides: the table is drawn on the stage, with a hit area over every cell',
+        cellsOnStage === true, `${await js(`document.querySelectorAll('.sl-cell-hit').length`)} cell hit area(s)`);
+
+      // A double-click opens the editor over the cell; Enter commits its words.
+      await js(`(() => { document.querySelector('.sl-cell-hit[data-row="0"][data-col="0"]')?.dispatchEvent(new MouseEvent('dblclick', { bubbles: true, cancelable: true })); return 1; })()`);
+      await until(() => js(`Boolean(document.querySelector('.sl-editor'))`), 'the cell editor', 4000);
+      await js(`(() => { const ta = document.querySelector('.sl-editor'); const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set; setter.call(ta, 'Sales'); ta.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+      await js(`(() => { document.querySelector('.sl-editor')?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })); return 1; })()`);
+      const typed = await until(() => (tableShape()?.table?.cells?.[0]?.[0]?.paragraphs || []).map((p) => p.plain).join('') === 'Sales', 'the cell to read Sales', 5000).catch(() => false);
+      check('slides: a double-click opens an editor over the cell, and Enter commits its words',
+        typed === true, JSON.stringify(tableShape()?.table?.cells?.[0]?.[0]));
+
+      await clickRibbon('Save');
+      await until(() => /<a:t[^>]*>Sales<\/a:t>/.test(saved()?.pkg.text(saved().slideParts[0].part) || ''), 'the cell in the file', 8000).catch(() => {});
+      const xml = saved()?.pkg.text(saved().slideParts[0].part) || '';
+      const tblAt = xml.indexOf('<a:tbl>');
+      check('slides: the saved file carries the table as PowerPoint writes one — tblPr, the style id, three columns, three rows, and the edited word',
+        /<a:tbl><a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>\{5C22544A-7EE6-4342-B048-85BDC9FD1C3A\}<\/a:tableStyleId><\/a:tblPr><a:tblGrid>(?:<a:gridCol[^\/]*\/>){3}<\/a:tblGrid>/.test(xml)
+          && (xml.match(/<a:tr h="\d+">/g) || []).length === 3
+          && /<a:t[^>]*>Sales<\/a:t>/.test(xml),
+        xml.slice(tblAt, tblAt + 400));
+
+      // A row added: the cell's own right-click menu, the way PowerPoint's table offers it.
+      await js(`(() => { document.querySelector('.sl-cell-hit[data-row="0"][data-col="0"]')?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })); return 1; })()`);
+      await pickMenu('Insert row below');
+      const gotRow = await until(() => tableShape()?.table?.rows === 4, 'the row added', 5000).catch(() => false);
+      check('slides: a right-click on a cell offers Insert row, and the table grows a row', gotRow === true, `rows ${tableShape()?.table?.rows}`);
+
+      await clickRibbon('Save');
+      await until(() => (saved()?.pkg.text(saved().slideParts[0].part).match(/<a:tr h="\d+">/g) || []).length === 4, 'four rows in the file', 8000).catch(() => {});
+      const xml2 = saved()?.pkg.text(saved().slideParts[0].part) || '';
+      const tblAt2 = xml2.indexOf('<a:tbl>');
+      check('slides: the saved file carries the added row', (xml2.match(/<a:tr h="\d+">/g) || []).length === 4, xml2.slice(tblAt2, tblAt2 + 200));
+
+      // Deleted like any other shape: selected, then the Delete key.
+      await js(`(() => { document.querySelector('.sl-hit[data-shape="${shapeId}"]')?.click(); return 1; })()`);
+      await until(() => js(`document.querySelector('.sl-hit.selected')?.dataset.shape === ${JSON.stringify(String(shapeId))}`), 'the table selected', 4000).catch(() => {});
+      await js(`(() => { document.querySelector('.sl-stage').focus(); return 1; })()`);
+      await press(wc, 'Delete');
+      const gone = await until(() => !model().slide.shapes.some((s) => s.id === shapeId), 'the table gone', 5000).catch(() => false);
+      check('slides: Delete removes the table', gone === true, JSON.stringify(model().slide.shapes.map((s) => s.kind)));
+
+      const complaints = await errorsIn(win);
+      check('slides: the table checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('slides: the table checks ran', false, err.message);
+    }
+  };
+
   /* ── Presentation: find and replace ──────────────────────────────────── */
   //
   // Home → Find: the words typed, Find lists every shape they are on, a
@@ -3135,6 +3224,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('sections')) await slideSections();
     if (only.includes('hidden')) await slideHidden();
     if (only.includes('background')) await slideBackground();
+    if (only.includes('table')) await slideTable();
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('look')) await wordLook();
@@ -3248,6 +3338,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slideSections();
   await slideHidden();
   await slideBackground();
+  await slideTable();
   await sheetFill();
   await wordPictures();
   await wordLook();

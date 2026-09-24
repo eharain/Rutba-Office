@@ -1313,6 +1313,178 @@ export class Deck {
     return id;
   }
 
+  /**
+   * A table on a slide — Insert → Table.
+   *
+   * Written exactly as PowerPoint writes one it has just drawn: a graphic
+   * frame holding `a:tbl`, `firstRow`/`bandRow` banding and Medium Style 2 —
+   * Accent 1 (the gallery's own first pick), equal columns, and a row per
+   * entry whose cell is a run of words or, empty, just an `endParaRPr` so it
+   * still measures a line's height.
+   *
+   * @param {number} slideIndex
+   * @param {{ rows?: number, cols?: number, x?: number, y?: number, w?: number, h?: number, cells?: string[][] }} [spec] pixels; cells[row][col] is that cell's words
+   * @returns {number} the frame's id
+   */
+  addTable(slideIndex, { rows = 3, cols = 3, x, y, w, h, cells = null } = {}) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const r = Math.max(1, Math.round(rows));
+    const c = Math.max(1, Math.round(cols));
+    const { cx, cy } = this.size;
+    const frameW = w != null ? pxToEmu(w) : Math.round(cx * 0.6);
+    const frameH = h != null ? pxToEmu(h) : TABLE_ROW_H * r;
+    const frameX = x != null ? pxToEmu(x) : Math.round((cx - frameW) / 2);
+    const frameY = y != null ? pxToEmu(y) : Math.round((cy - frameH) / 2);
+    const colW = Math.round(frameW / c);
+
+    const xml = this.pkg.text(part);
+    const id = nextShapeId(xml);
+    const grid = `<a:tblGrid>${Array.from({ length: c }, () => `<a:gridCol w="${colW}"/>`).join('')}</a:tblGrid>`;
+    const rowsXml = Array.from({ length: r }, (_, ri) =>
+      `<a:tr h="${TABLE_ROW_H}">${Array.from({ length: c }, (_, ci) => tableCellXml(cells?.[ri]?.[ci] ?? null)).join('')}</a:tr>`
+    ).join('');
+    const tbl = `<a:tbl><a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>${TABLE_STYLE_ID}</a:tableStyleId></a:tblPr>${grid}${rowsXml}</a:tbl>`;
+    const frame =
+      `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Table ${id}"/>` +
+      `<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>` +
+      `<p:xfrm><a:off x="${frameX}" y="${frameY}"/><a:ext cx="${frameW}" cy="${frameH}"/></p:xfrm>` +
+      `<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/table">${tbl}</a:graphicData></a:graphic></p:graphicFrame>`;
+    const at = xml.lastIndexOf('</p:spTree>');
+    if (at < 0) throw new Error('slide has no shape tree');
+    this.#writeSlide(part, xml.slice(0, at) + frame + xml.slice(at));
+    return id;
+  }
+
+  /** The range of a table's `a:tbl` within its graphic frame, on the slide's own XML. */
+  #tableRange(slideIndex, shapeId) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found on slide ${slideIndex + 1}`);
+    const frameXml = xml.slice(range.start, range.end);
+    const tbl = /<a:tbl>[\s\S]*<\/a:tbl>/.exec(frameXml);
+    if (!tbl) throw new Error(`shape ${shapeId} is not a table`);
+    return { part, xml, range, frameXml, tbl };
+  }
+
+  /**
+   * One cell's words rewritten through `buildTextBody`, the way a text box's
+   * are — runs and their looks kept, only the words themselves replaced.
+   */
+  setTableCell(slideIndex, shapeId, row, col, paragraphs) {
+    const { part, xml, range, frameXml, tbl } = this.#tableRange(slideIndex, shapeId);
+    const trs = [...tbl[0].matchAll(TR_RE)];
+    const tr = trs[row];
+    if (!tr) throw new Error(`no row ${row} in table`);
+    const tcs = [...tr[0].matchAll(TC_RE)];
+    const tc = tcs[col];
+    if (!tc) throw new Error(`no column ${col} in table`);
+    const cellXml = tc[0];
+    const bodyStart = cellXml.indexOf('<a:txBody>');
+    const bodyEnd = cellXml.indexOf('</a:txBody>');
+    const body = buildTextBody(paragraphs, cellXml, bodyStart, bodyEnd)
+      .replace(/^<p:txBody>/, '<a:txBody>')
+      .replace(/<\/p:txBody>$/, '</a:txBody>');
+    const newCell = bodyStart < 0
+      ? cellXml.slice(0, cellXml.lastIndexOf('</a:tc>')) + body + cellXml.slice(cellXml.lastIndexOf('</a:tc>'))
+      : cellXml.slice(0, bodyStart) + body + cellXml.slice(bodyEnd + '</a:txBody>'.length);
+    const newRow = tr[0].slice(0, tc.index) + newCell + tr[0].slice(tc.index + tc[0].length);
+    const newTbl = tbl[0].slice(0, tr.index) + newRow + tbl[0].slice(tr.index + tr[0].length);
+    const newFrame = frameXml.slice(0, tbl.index) + newTbl + frameXml.slice(tbl.index + tbl[0].length);
+    this.#writeSlide(part, xml.slice(0, range.start) + newFrame + xml.slice(range.end));
+    return true;
+  }
+
+  /**
+   * A row added to a table, at `at` (append when omitted): a cell per grid
+   * column, empty, in the neighbouring row's height — the frame's own
+   * `p:xfrm` height grows by that same amount, so the table does not
+   * overlap what is drawn beneath it.
+   */
+  insertTableRow(slideIndex, shapeId, at) {
+    const { part, xml, range, frameXml, tbl } = this.#tableRange(slideIndex, shapeId);
+    const trs = [...tbl[0].matchAll(TR_RE)];
+    const cols = (tbl[0].match(/<a:gridCol\b/g) || []).length || 1;
+    const insertAt = Math.max(0, Math.min(trs.length, at == null ? trs.length : at));
+    const near = trs[Math.min(insertAt, trs.length - 1)]?.[0] || trs[0]?.[0] || '';
+    const rowH = Number(/\bh="(\d+)"/.exec(near)?.[1]) || TABLE_ROW_H;
+    const newRow = `<a:tr h="${rowH}">${Array.from({ length: cols }, () => tableCellXml(null)).join('')}</a:tr>`;
+    const at2 = insertAt < trs.length ? trs[insertAt].index : tbl[0].lastIndexOf('</a:tbl>');
+    const newTbl = tbl[0].slice(0, at2) + newRow + tbl[0].slice(at2);
+    const newFrame = growFrameHeight(frameXml.slice(0, tbl.index) + newTbl + frameXml.slice(tbl.index + tbl[0].length), rowH);
+    this.#writeSlide(part, xml.slice(0, range.start) + newFrame + xml.slice(range.end));
+    return true;
+  }
+
+  /** A row taken out of a table; the frame's own height shrinks by its own. */
+  removeTableRow(slideIndex, shapeId, at) {
+    const { part, xml, range, frameXml, tbl } = this.#tableRange(slideIndex, shapeId);
+    const trs = [...tbl[0].matchAll(TR_RE)];
+    if (trs.length <= 1) throw new Error('a table needs at least one row');
+    const tr = trs[at];
+    if (!tr) throw new Error(`no row ${at} in table`);
+    const rowH = Number(/\bh="(\d+)"/.exec(tr[0])?.[1]) || TABLE_ROW_H;
+    const newTbl = tbl[0].slice(0, tr.index) + tbl[0].slice(tr.index + tr[0].length);
+    const newFrame = growFrameHeight(frameXml.slice(0, tbl.index) + newTbl + frameXml.slice(tbl.index + tbl[0].length), -rowH);
+    this.#writeSlide(part, xml.slice(0, range.start) + newFrame + xml.slice(range.end));
+    return true;
+  }
+
+  /**
+   * A column added to a table, at `at` (append when omitted): a `gridCol`
+   * and an empty cell in every row. Widths share the frame's own width —
+   * the frame itself does not grow, the way inserting a row grows its
+   * height, because PowerPoint keeps a table's own width and only splits it
+   * differently among more columns.
+   */
+  insertTableColumn(slideIndex, shapeId, at) {
+    const { part, xml, range, frameXml, tbl } = this.#tableRange(slideIndex, shapeId);
+    const grid = /<a:tblGrid>[\s\S]*?<\/a:tblGrid>/.exec(tbl[0]);
+    if (!grid) throw new Error('the table has no grid');
+    const cols = [...grid[0].matchAll(GRIDCOL_RE)];
+    const insertAt = Math.max(0, Math.min(cols.length, at == null ? cols.length : at));
+    const frameW = frameExtCx(frameXml);
+    const nextCount = cols.length + 1;
+    const colW = Math.round(frameW / nextCount);
+    const newGrid = `<a:tblGrid>${Array.from({ length: nextCount }, () => `<a:gridCol w="${colW}"/>`).join('')}</a:tblGrid>`;
+    let newTbl = tbl[0].slice(0, grid.index) + newGrid + tbl[0].slice(grid.index + grid[0].length);
+    newTbl = newTbl.replace(TR_RE, (rowXml) => {
+      const tcs = [...rowXml.matchAll(TC_RE)];
+      const pos = insertAt < tcs.length ? tcs[insertAt].index : rowXml.lastIndexOf('</a:tr>');
+      return rowXml.slice(0, pos) + tableCellXml(null) + rowXml.slice(pos);
+    });
+    const newFrame = frameXml.slice(0, tbl.index) + newTbl + frameXml.slice(tbl.index + tbl[0].length);
+    this.#writeSlide(part, xml.slice(0, range.start) + newFrame + xml.slice(range.end));
+    return true;
+  }
+
+  /** A column taken out of a table — its `gridCol` and the cell it gave every row. */
+  removeTableColumn(slideIndex, shapeId, at) {
+    const { part, xml, range, frameXml, tbl } = this.#tableRange(slideIndex, shapeId);
+    const grid = /<a:tblGrid>[\s\S]*?<\/a:tblGrid>/.exec(tbl[0]);
+    if (!grid) throw new Error('the table has no grid');
+    const cols = [...grid[0].matchAll(GRIDCOL_RE)];
+    if (cols.length <= 1) throw new Error('a table needs at least one column');
+    const col = cols[at];
+    if (!col) throw new Error(`no column ${at} in table`);
+    const frameW = frameExtCx(frameXml);
+    const nextCount = cols.length - 1;
+    const colW = Math.round(frameW / nextCount);
+    const newGrid = `<a:tblGrid>${Array.from({ length: nextCount }, () => `<a:gridCol w="${colW}"/>`).join('')}</a:tblGrid>`;
+    let newTbl = tbl[0].slice(0, grid.index) + newGrid + tbl[0].slice(grid.index + grid[0].length);
+    newTbl = newTbl.replace(TR_RE, (rowXml) => {
+      const tcs = [...rowXml.matchAll(TC_RE)];
+      const tc = tcs[at];
+      if (!tc) return rowXml;
+      return rowXml.slice(0, tc.index) + rowXml.slice(tc.index + tc[0].length);
+    });
+    const newFrame = frameXml.slice(0, tbl.index) + newTbl + frameXml.slice(tbl.index + tbl[0].length);
+    this.#writeSlide(part, xml.slice(0, range.start) + newFrame + xml.slice(range.end));
+    return true;
+  }
+
   /** Duplicate a slide, which is the cheapest way to add one that matches. */
   duplicateSlide(index) {
     const src = this.slideParts[index];
@@ -1813,6 +1985,35 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
   });
   if (!ps.length) ps.push('<a:p/>');
   return `<p:txBody>${bodyPr}${lstStyle}${ps.join('')}</p:txBody>`;
+}
+
+/** PowerPoint's own "Medium Style 2 — Accent 1" — the table gallery's first pick, and what a table gets when nobody chooses otherwise. */
+const TABLE_STYLE_ID = '{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}';
+/** A new row's height in EMU — PowerPoint's own default for a freshly inserted table. */
+const TABLE_ROW_H = 370840;
+const TR_RE = /<a:tr\b[^>]*>[\s\S]*?<\/a:tr>/g;
+const TC_RE = /<a:tc\b[^>]*>[\s\S]*?<\/a:tc>/g;
+const GRIDCOL_RE = /<a:gridCol\b[^>]*\/>|<a:gridCol\b[^>]*>[\s\S]*?<\/a:gridCol>/g;
+
+/** One table cell: a run of words, or — empty — just enough to measure a line's height. */
+function tableCellXml(text) {
+  const body = text
+    ? `<a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" dirty="0"/><a:t>${escapeXml(String(text))}</a:t></a:r></a:p></a:txBody>`
+    : `<a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US" dirty="0"/></a:p></a:txBody>`;
+  return `<a:tc>${body}<a:tcPr/></a:tc>`;
+}
+
+/** A graphic frame's own width, in EMU, off its `p:xfrm`. */
+function frameExtCx(frameXml) {
+  return Number(/<p:xfrm\b[^>]*>[\s\S]*?<a:ext\b[^>]*\bcx="(\d+)"/.exec(frameXml)?.[1]) || 0;
+}
+
+/** A graphic frame's `p:xfrm` height grown (or, negative, shrunk) by a row going in or out. */
+function growFrameHeight(frameXml, deltaEmu) {
+  return frameXml.replace(
+    /(<p:xfrm\b[^>]*>[\s\S]*?<a:ext\b[^>]*\bcy=")(\d+)(")/,
+    (m, pre, cy, post) => `${pre}${Math.max(1, Number(cy) + deltaEmu)}${post}`
+  );
 }
 
 export { Theme, buildTextBody, resolveTarget };

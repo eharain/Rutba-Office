@@ -30,6 +30,10 @@ const SHAPES = [
   ['rightArrow', 'Arrow: Right'], ['chevron', 'Chevron'], ['line', 'Line'],
 ];
 const TRANSITIONS = ['None', 'Morph', 'Fade', 'Push', 'Wipe', 'Split', 'Reveal', 'Cut', 'Random Bars', 'Shape', 'Uncover'];
+/** Insert → Table: the sizes PowerPoint's own gallery offers first. */
+const TABLE_SIZES = [
+  [2, 2, '2 × 2'], [3, 3, '3 × 3'], [4, 3, '4 × 3'], [5, 4, '5 × 4'],
+];
 
 /** Design → Background Styles: the theme backgrounds PowerPoint's gallery offers first, then a few flat colours. */
 const BACKGROUND_STYLES = [
@@ -236,7 +240,7 @@ export default function SlidesRibbon({
             <Button tall icon="plus" label="New Slide" onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
           </Group>
           <Group label="Tables">
-            <Soon tall icon="table" label="Table" why="A table on a slide is a graphic frame the engine reads and does not yet write." />
+            <Button tall icon="table" label="Table" title="Table — a grid of cells, in PowerPoint's own default style" onClick={(e) => menu.open(e, TABLE_SIZES.map(([rows, cols, label]) => ({ label, icon: 'table', run: () => act('addTable', { rows, cols }) })))} />
           </Group>
           <Group label="Images">
             <Button tall icon="picture" label="Pictures" title="Pictures — a picture from this device, onto this slide" onClick={insertPicture} />

@@ -326,6 +326,28 @@ export default function Slides({ app, shell, boot }) {
     [apply, index, painter],
   );
 
+  /**
+   * A table cell's words, committed the same way a text box's are: each
+   * line keeps the cell's own look, only the words change.
+   */
+  const commitTableCell = useCallback(
+    async (shapeId, row, col, text) => {
+      const shape = model?.slide?.shapes?.find((s) => s.id === shapeId);
+      const before = shape?.table?.cells?.[row]?.[col]?.paragraphs || [];
+      const paragraphs = String(text).split('\n').map((line, i) => {
+        const src = before[Math.min(i, before.length - 1)] || {};
+        const { runs, plain, ...props } = src;
+        const look = (runs || []).find((r) => r.text && r.text !== '\n') || {};
+        const { text: _text, field: _field, break: _break, link: _link, ...runProps } = look;
+        return { ...props, runs: [{ ...runProps, text: line }] };
+      });
+      const next = await apply({ op: 'setTableCell', slide: index, shape: shapeId, row, col, paragraphs });
+      setEditing(null);
+      return next;
+    },
+    [apply, index, model]
+  );
+
   const commitText = useCallback(
     async (shapeId, text) => {
       // Each line keeps the paragraph it replaces — its level, bullet,
@@ -582,6 +604,21 @@ export default function Slides({ app, shell, boot }) {
         if (added) setSelected(added.id);
         return;
       }
+      case 'addTable': {
+        // Centred, PowerPoint's own default size and style; selected, so
+        // Arrange and Delete act on it at once.
+        const next = await apply({ op: 'addTable', slide: index, rows: arg.rows, cols: arg.cols });
+        const added = next?.model?.slide?.shapes?.slice(-1)[0];
+        if (added) setSelected(added.id);
+        return;
+      }
+      // Right-click a cell: a row or column added or taken away.
+      case 'tableRow':
+        await apply({ op: arg.remove ? 'removeTableRow' : 'insertTableRow', slide: index, shape: arg.shape, at: arg.at });
+        return;
+      case 'tableColumn':
+        await apply({ op: arg.remove ? 'removeTableColumn' : 'insertTableColumn', slide: index, shape: arg.shape, at: arg.at });
+        return;
       case 'footer': {
         setFooterOpen(arg || 'open');
         return;
@@ -921,6 +958,42 @@ export default function Slides({ app, shell, boot }) {
                       />
                     );
                   })}
+                  {/*
+                    A table draws its own grid in the SVG; a transparent hit
+                    layer per cell sits over it, so a double-click edits that
+                    cell in place and a right-click offers the row and
+                    column verbs, the way PowerPoint's own table does.
+                  */}
+                  {slide.shapes.filter((s) => s.kind === 'table' && s.table && !s.hidden).flatMap((s) =>
+                    s.table.cells.flatMap((row, ri) => row.map((cell, ci) => (
+                      <div
+                        key={`${s.id}-${ri}-${ci}`}
+                        className="sl-cell-hit"
+                        data-row={ri}
+                        data-col={ci}
+                        style={cell.box ? { left: cell.box.x, top: cell.box.y, width: cell.box.w, height: cell.box.h } : {}}
+                        onMouseDown={(e) => { setSelected(s.id); startDrag(e, s, 'move'); }}
+                        onDoubleClick={(e) => {
+                          e.stopPropagation();
+                          setSelected(s.id);
+                          setEditing({ id: s.id, row: ri, col: ci, text: (cell.paragraphs || []).map((p) => p.plain).join('\n') });
+                        }}
+                        onContextMenu={(e) => {
+                          setSelected(s.id);
+                          menu.open(e, [
+                            { label: 'Insert row above', run: () => act('tableRow', { shape: s.id, at: ri }) },
+                            { label: 'Insert row below', run: () => act('tableRow', { shape: s.id, at: ri + 1 }) },
+                            { label: 'Insert column left', run: () => act('tableColumn', { shape: s.id, at: ci }) },
+                            { label: 'Insert column right', run: () => act('tableColumn', { shape: s.id, at: ci + 1 }) },
+                            '-',
+                            { label: 'Delete row', run: () => act('tableRow', { shape: s.id, at: ri, remove: true }) },
+                            { label: 'Delete column', run: () => act('tableColumn', { shape: s.id, at: ci, remove: true }) },
+                          ]);
+                        }}
+                        title="Double-click to edit this cell — right-click for rows and columns"
+                      />
+                    )))
+                  )}
                   {selectedShape?.geometry && !selectedShape.hidden && !editing
                     ? HANDLES.map(([name, fx, fy, cursor]) => {
                         const g = drag?.id === selectedShape.id ? drag.g : selectedShape.geometry;
@@ -943,12 +1016,40 @@ export default function Slides({ app, shell, boot }) {
                       defaultValue={editing.text}
                       style={(() => {
                         const s = slide.shapes.find((x) => x.id === editing.id);
+                        if (editing.row != null) {
+                          const box = s?.table?.cells?.[editing.row]?.[editing.col]?.box;
+                          return box ? { left: box.x, top: box.y, width: box.w, height: box.h } : {};
+                        }
                         return s?.geometry ? { left: s.geometry.x, top: s.geometry.y, width: s.geometry.w, height: s.geometry.h } : {};
                       })()}
-                      onBlur={(e) => commitText(editing.id, e.target.value)}
+                      onBlur={(e) => (editing.row != null ? commitTableCell(editing.id, editing.row, editing.col, e.target.value) : commitText(editing.id, e.target.value))}
                       onKeyDown={(e) => {
-                        if (e.key === 'Escape') setEditing(null);
-                        if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) commitText(editing.id, e.target.value);
+                        if (e.key === 'Escape') { setEditing(null); return; }
+                        if (editing.row == null) {
+                          if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) commitText(editing.id, e.target.value);
+                          return;
+                        }
+                        // A table cell: Enter commits (Shift+Enter is a new
+                        // line), Tab commits and moves on to the next cell —
+                        // PowerPoint's own keys.
+                        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commitTableCell(editing.id, editing.row, editing.col, e.target.value); return; }
+                        if (e.key === 'Tab') {
+                          e.preventDefault();
+                          const s = slide.shapes.find((x) => x.id === editing.id);
+                          const cols = s?.table?.cols || 1;
+                          const rows = s?.table?.rows || 1;
+                          let row = editing.row;
+                          let col = editing.col + (e.shiftKey ? -1 : 1);
+                          if (col >= cols) { col = 0; row += 1; }
+                          if (col < 0) { col = cols - 1; row -= 1; }
+                          const value = e.target.value;
+                          commitTableCell(editing.id, editing.row, editing.col, value).then((next) => {
+                            if (row < 0 || row >= rows) return;
+                            const ns = next?.model?.slide?.shapes?.find((x) => x.id === editing.id);
+                            const cell = ns?.table?.cells?.[row]?.[col];
+                            setEditing({ id: editing.id, row, col, text: (cell?.paragraphs || []).map((p) => p.plain).join('\n') });
+                          });
+                        }
                       }}
                     />
                   ) : null}
@@ -1417,6 +1518,9 @@ const CSS = `
 .sl-stage:focus { outline: none; }
 
 .sl-hit:hover { border-color: var(--accent-line); background: rgba(43, 95, 217, 0.06); }
+/* A table's per-cell hit layer, over the grid the SVG already drew. */
+.sl-cell-hit { position: absolute; z-index: 2; cursor: text; border: 1px solid transparent; box-sizing: border-box; }
+.sl-cell-hit:hover { border-color: var(--accent-line); background: rgba(43, 95, 217, 0.06); }
 .sl-editor {
   position: absolute; border: 2px solid var(--accent); border-radius: 3px; padding: 4px 6px;
   font: inherit; font-size: 15px; background: #fff; color: #111; resize: none; outline: none; z-index: 5;

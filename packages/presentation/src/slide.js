@@ -257,20 +257,42 @@ function nameOf(sp) {
   return { id: cNv?.attrs.id || null, name: cNv?.attrs.name || '', hidden: cNv?.attrs.hidden === '1' };
 }
 
-function readTable(graphicFrame, theme) {
+/**
+ * `<a:tbl>` → columns and rows, each cell with its own box — x, y, w, h in
+ * px relative to the slide, computed from the grid's widths and the rows'
+ * heights against the frame's own geometry — so the window can put an
+ * editor exactly over the cell that was double-clicked, the way it puts one
+ * over a text box.
+ */
+function readTable(graphicFrame, theme, geom) {
   const tbl = first(graphicFrame, A('tbl'));
   if (!tbl) return null;
   const grid = kids(first(tbl, A('tblGrid')) || { children: [] }, A('gridCol')).map((g) => emuToPx(g.attrs.w));
-  const rows = kids(tbl, A('tr')).map((tr) => ({
-    height: emuToPx(tr.attrs.h),
-    cells: kids(tr, A('tc')).map((tc) => ({
-      text: readTextBody(kids(tc, A('txBody'))[0], theme),
-      fill: readFill(kids(tc, A('tcPr'))[0], theme),
-      colspan: Number(tc.attrs.gridSpan || 1),
-      rowspan: Number(tc.attrs.rowSpan || 1),
-      merged: tc.attrs.hMerge === '1' || tc.attrs.vMerge === '1',
-    })),
-  }));
+  const totalW = grid.reduce((a, b) => a + b, 0) || geom?.w || 0;
+  const scaleX = geom && totalW ? geom.w / totalW : 1;
+  let top = geom?.y || 0;
+  const rows = kids(tbl, A('tr')).map((tr) => {
+    const h = emuToPx(tr.attrs.h);
+    const tcs = kids(tr, A('tc'));
+    let left = geom?.x || 0;
+    const cells = tcs.map((tc, ci) => {
+      const span = Number(tc.attrs.gridSpan || 1);
+      const ownW = (grid[ci] || totalW / tcs.length) * scaleX;
+      const w = grid.length ? grid.slice(ci, ci + span).reduce((a, b) => a + b, 0) * scaleX || ownW : ownW * span;
+      const box = { x: left, y: top, w, h };
+      left += ownW;
+      return {
+        text: readTextBody(kids(tc, A('txBody'))[0], theme),
+        fill: readFill(kids(tc, A('tcPr'))[0], theme),
+        colspan: span,
+        rowspan: Number(tc.attrs.rowSpan || 1),
+        merged: tc.attrs.hMerge === '1' || tc.attrs.vMerge === '1',
+        box,
+      };
+    });
+    top += h;
+    return { height: h, cells };
+  });
   return { columns: grid, rows };
 }
 
@@ -313,7 +335,7 @@ export function readSlideScene(xml, ctx = {}) {
               h: emuToPx(kids(spPr, A('ext'))[0]?.attrs.cy),
             }
           : null;
-        const table = readTable(node, ctx.theme);
+        const table = readTable(node, ctx.theme, geom);
         const meta = nameOf(node);
         if (table) shapes.push({ kind: 'table', ...meta, geometry: geom, table });
         else {
