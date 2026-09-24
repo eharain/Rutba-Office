@@ -24,3 +24,4 @@ export {
 } from './geometry.js';
 export { Selection, colName, ref } from './selection.js';
 export { SheetView, coerceInput } from './view.js';
+export { addWatches, removeWatch, resolveWatches } from './watch.js';

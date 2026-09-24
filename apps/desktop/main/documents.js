@@ -13,7 +13,7 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import { SheetView } from '@rutba/sheet-view';
+import { SheetView, addWatches, removeWatch, resolveWatches } from '@rutba/sheet-view';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { buildXlsx, buildDocx } from '@rutba/ooxml/build';
 /** The account's name, or nothing: a machine that refuses to say is not an error. */
@@ -674,6 +674,14 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       // read fresh off the model on every frame: fixing a cell drops its row
       // the moment the next frame is drawn.
       errors: view.errorChecking ? view.errorCells({ all: true }) : null,
+      // Formulas → Watch Window: same shape as Error Checking — rows are
+      // only resolved while the pane is open — but the refs themselves
+      // (view.watches, kept by the watchAdd/watchRemove ops below) live for
+      // as long as the session does, so closing the pane or switching
+      // sheets never loses what was being watched. Nothing here is ever
+      // written to the file: Excel does not keep a watch window in the
+      // workbook either.
+      watches: view.watchOpen ? resolveWatches(view.watches || [], view) : null,
       // Insert → Sparklines: one entry per sparkline cell in view, with the
       // values already resolved — the grid draws them straight, no lookup
       // of its own into the groups.
@@ -980,6 +988,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     // in the file, only whether sheetModel builds the `errors` list. With no
     // `on` the ribbon button flips it; the pane's Close button passes false.
     errorCheck: (v, a) => { v.errorChecking = a.on === undefined ? !v.errorChecking : Boolean(a.on); return true; },
+    // Formulas → Watch Window: watchOpen toggles the pane the same way
+    // errorCheck does; watchAdd and watchRemove edit the list of watched
+    // cells itself, which the pane keeps showing whether it is open or not.
+    watchOpen: (v, a) => { v.watchOpen = a.on === undefined ? !v.watchOpen : Boolean(a.on); return true; },
+    watchAdd: (v, a) => { v.watches = addWatches(v.watches || [], a.refs || []); return true; },
+    watchRemove: (v, a) => { v.watches = removeWatch(v.watches || [], a.ref); return true; },
     setHyperlink: (v, a) => v.setHyperlink(a),
     removeHyperlink: (v, a) => v.removeHyperlink(a),
     // A note signed by whoever the window says, else by the account at the keyboard.
@@ -1181,7 +1195,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

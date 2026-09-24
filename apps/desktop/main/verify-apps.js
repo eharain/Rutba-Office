@@ -3491,6 +3491,100 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   };
 
   /**
+   * Formulas → Watch Window: select a formula cell already in the sample
+   * workbook, open the pane from the ribbon, Add Watch, read the row it
+   * shows, edit the precedent the formula reads through the ordinary
+   * engine ops and watch the row's value follow it live, then take the
+   * watch off again and see the row go.
+   */
+  const sheetWatch = async () => {
+    try {
+      const win = await open('sheets', files.xlsx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = () => js(`(async () => {
+        const all = await window.rutbaOffice.doc.sessions({});
+        const mine = all.filter((s) => s.kind === 'sheet').pop();
+        return window.rutbaOffice.doc.model({ id: mine.id });
+      })()`);
+      const tabTo = (label) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(label)})?.click(), 'tab'`);
+      const pushLabel = (label) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+        if (!b) return 'no live button ' + ${JSON.stringify(label)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
+      })()`);
+      // The watch pane's own buttons — Add Watch, Delete Watch, Close —
+      // live over the grid, not in the ribbon, so they need their own root.
+      const pushPane = (label) => js(`(() => {
+        const b = [...document.querySelectorAll('.sh-watch .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)} && !n.disabled);
+        if (!b) return 'no live button ' + ${JSON.stringify(label)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b.click(); return 'clicked';
+      })()`);
+      const act_goto = async (ref) => {
+        await js(`(async () => { const all = await window.rutbaOffice.doc.sessions({}); const mine = all.filter((s) => s.kind === 'sheet').pop(); const col = ${JSON.stringify(ref)}.charCodeAt(0) - 65; const row = Number(${JSON.stringify(ref)}.slice(1)) - 1; await window.rutbaOffice.doc.apply({ id: mine.id, ops: [{ op: 'select', row, col }] }); return 'moved'; })()`);
+        await wait(150);
+      };
+      const typeInto = async (ref, text) => {
+        await act_goto(ref);
+        await js(`document.querySelector('.sh')?.focus(), 'ok'`);
+        await typeText(win.webContents, text);
+        await press(win.webContents, 'Return', { char: true });
+      };
+      const watchRow = (ref) => js(`(() => {
+        const r = document.querySelector('.sh-watch-row[data-ref="${ref}"]');
+        if (!r) return null;
+        return {
+          sheet: r.querySelector('.sh-watch-sheet')?.textContent || '',
+          cell: r.querySelector('.sh-watch-cell')?.textContent || '',
+          value: r.querySelector('.sh-watch-value')?.textContent || '',
+          formula: r.querySelector('.sh-watch-formula')?.textContent || '',
+        };
+      })()`);
+
+      await until(() => js(`Boolean(document.querySelector('.sh-cell[data-ref="A1"]'))`), 'the grid', 8000);
+
+      // D2 already holds =SUM(B2:C2) — 1420 + 1610 — in the sample workbook.
+      await act_goto('D2');
+      await tabTo('Formulas');
+      await wait(120);
+      await pushLabel('Watch Window');
+      await until(() => js(`Boolean(document.querySelector('.sh-watch'))`), 'the watch pane', 4000);
+      await pushPane('Add Watch');
+      await until(() => js(`Boolean(document.querySelector('.sh-watch-row[data-ref="D2"]'))`), 'the D2 watch row', 4000);
+
+      const row = await watchRow('D2');
+      check(
+        'sheets: Add Watch lists D2 with its sheet, value and formula',
+        Boolean(row) && row.sheet === 'Sales' && row.cell === 'D2' && row.value === '3030' && row.formula === '=SUM(B2:C2)',
+        JSON.stringify(row),
+      );
+
+      // B2 is a precedent of D2's formula: changing it must move the watch
+      // live, with nothing telling the pane to refresh.
+      await typeInto('B2', '5000');
+      await until(async () => (await watchRow('D2'))?.value === '6610', 'the watched value to follow B2', 4000);
+      const after = await watchRow('D2');
+      check('sheets: the watched value follows a precedent edited elsewhere', after?.value === '6610', JSON.stringify(after));
+
+      // The row's own × takes the watch off, live.
+      await js(`document.querySelector('.sh-watch-row[data-ref="D2"] .sh-watch-x')?.click(), 'remove'`);
+      await until(() => js(`!document.querySelector('.sh-watch-row[data-ref="D2"]')`), 'the D2 row to go', 4000);
+      const gone = await js(`Boolean(document.querySelector('.sh-watch-row[data-ref="D2"]'))`);
+      check("sheets: a row's × removes the watch", gone === false, `still there: ${gone}`);
+
+      // Close turns the window off: the pane goes and the button lifts.
+      await js(`[...document.querySelectorAll('.sh-watch .rw-btn')].find((b) => /Close/.test(b.title || b.dataset.tip || ''))?.click(), 'close'`);
+      await until(() => js(`!document.querySelector('.sh-watch')`), 'the pane to close', 4000);
+      const stillPressed = await js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => (b.title || b.dataset.tip || '').startsWith('Watch Window') && b.getAttribute('aria-pressed') === 'true'))`);
+      check('sheets: Close turns the Watch Window off, the pane gone and the button not pressed', !stillPressed, `pressed ${stillPressed}`);
+
+      const complaints = await errorsIn(win);
+      check('sheets: the watch window reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('sheets: the watch window check ran', false, err.message);
+    }
+  };
+
+  /**
    * Insert → Sparklines: a line, then a column, from the ribbon's own
    * dialog, drawn in the grid at once, kept through a save, and taken off
    * again — the window end of the extension the engine writes.
@@ -3690,6 +3784,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('recent')) await homeRecentEdit();
     if (only.includes('freeze')) await sheetFreeze();
     if (only.includes('errors')) await sheetErrors();
+    if (only.includes('watch')) await sheetWatch();
     if (only.includes('sparklines')) await sheetSparklines();
     if (only.includes('zoom')) await zoomStaysOnThePage();
     if (only.includes('fit')) await wordPictureFits();
@@ -3810,6 +3905,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await homeRecentEdit();
   await sheetFreeze();
   await sheetErrors();
+  await sheetWatch();
   await sheetSparklines();
   await zoomStaysOnThePage();
   await sheetPicture();

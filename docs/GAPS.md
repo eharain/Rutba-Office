@@ -140,11 +140,15 @@ it is where the gaps are.
 - **Data tools**: advanced filter with a criteria range, consolidate,
   flash fill, subtotals and outlining, forecast sheets. (Text to columns,
   remove duplicates and a sort by up to three keys are built, 2026-09-21.)
-- **Auditing**: evaluate step by step, the watch window. Error checking
-  arrived 2026-09-24: Formulas → Error Checking opens a pane listing every
-  error cell and circular reference, with Next and Previous to walk them.
-  (Trace precedents and dependents draw the dependency graph on the grid
-  since 2026-09-21.)
+- **Auditing**: evaluate step by step. Error checking and the watch window
+  both arrived 2026-09-24: Formulas → Error Checking opens a pane listing
+  every error cell and circular reference, with Next and Previous to walk
+  them; Formulas → Watch Window opens a pane listing cells chosen with Add
+  Watch — sheet, cell, value and formula — that keeps reading their values
+  live as the workbook recalculates, for as long as the document stays
+  open (nothing is written to the file, the same as Excel's own watch
+  window). (Trace precedents and dependents draw the dependency graph on
+  the grid since 2026-09-21.)
 - **Page-break preview** and a sheet background. (The print settings live
   in the file, and since 2026-09-21 the Page Layout tab writes them:
   margins, orientation, paper, print titles, scale to fit and manual page

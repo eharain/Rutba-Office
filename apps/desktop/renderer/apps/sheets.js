@@ -96,6 +96,8 @@ export default function Sheets({ app, shell, boot }) {
   const [arrows, setArrows] = useState([]);
   /** The sheet tab a rename or delete dialog is about. */
   const [sheetTarget, setSheetTarget] = useState(null);
+  /** Formulas → Watch Window: which row in the pane is selected, for Delete Watch. */
+  const [watchSel, setWatchSel] = useState(null);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -982,6 +984,68 @@ export default function Sheets({ app, shell, boot }) {
     );
   };
 
+  /**
+   * Formulas → Watch Window: a pane docked along the bottom, one row per
+   * watched cell — Sheet, Cell, Value, Formula — read fresh off the model
+   * every render, exactly like the errors pane, so a value follows the
+   * workbook as it recalculates. `model.watches` is the same two-state
+   * shape as `model.errors` (an array once the pane is open, null while
+   * it is closed), but the refs behind it live on the session for as long
+   * as the workbook is open, closed pane or not — see sheetModel and the
+   * watchAdd/watchRemove ops in documents.js. Which row is selected, for
+   * Delete Watch, is this component's own state; it means nothing to the
+   * engine.
+   */
+  const watchPane = () => {
+    const list = model?.watches;
+    if (!Array.isArray(list)) return null;
+    const keyOf = (w) => `${w.sheet}!${w.ref}`;
+    const selKey = watchSel ? keyOf(watchSel) : null;
+    return (
+      <div className="sh-watch">
+        <div className="sh-watch-head">
+          <strong>{list.length ? `${list.length} cell${list.length === 1 ? '' : 's'} watched` : 'No cells watched'}</strong>
+          <Spacer />
+          <Button icon="plus" label="Add Watch" title="Add Watch — every cell in the current selection" onClick={() => act('addWatch')} />
+          <Button icon="trash" label="Delete Watch" title="Delete Watch — the selected row" disabled={!watchSel} onClick={() => act('deleteWatch')} />
+          <Button icon="close" title="Close — turns the Watch Window off" onClick={() => act('watchOpen', false)} />
+        </div>
+        {list.length ? (
+          <div className="sh-watch-list">
+            <div className="sh-watch-row sh-watch-cols">
+              <span>Sheet</span>
+              <span>Cell</span>
+              <span>Value</span>
+              <span>Formula</span>
+              <span />
+            </div>
+            {list.map((w) => (
+              <div
+                key={keyOf(w)}
+                className={`sh-watch-row${selKey === keyOf(w) ? ' selected' : ''}`}
+                data-sheet={w.sheet}
+                data-ref={w.ref}
+                onClick={() => setWatchSel(w)}
+                onDoubleClick={() => act('gotoWatch', w)}
+              >
+                <span className="sh-watch-sheet">{w.sheet}</span>
+                <span className="sh-watch-cell">{w.ref}</span>
+                <span className="sh-watch-value">{w.value}</span>
+                <span className="sh-watch-formula">{w.formula || ''}</span>
+                <Button
+                  className="sh-watch-x"
+                  icon="close"
+                  title="Remove this watch"
+                  onClick={(e) => { e.stopPropagation(); if (selKey === keyOf(w)) setWatchSel(null); act('removeWatch', w); }}
+                />
+              </div>
+            ))}
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   if (error) {
     return (
       <AppFrame app={app} shell={shell} title="Worksheets" menu={appMenu}>
@@ -1298,6 +1362,48 @@ export default function Sheets({ app, shell, boot }) {
         await act('gotoError', list[next]);
         return;
       }
+      // Formulas → Watch Window: the ribbon button toggles it (no arg); the
+      // pane's own Close passes false, the same shape as errorCheck.
+      case 'watchOpen':
+        await dispatch({ op: 'watchOpen', on: arg });
+        return;
+      // Add Watch: every cell of the current selection, not only the active
+      // one — a person who wants one cell selects one cell. A selection
+      // bigger than the cap (a whole row or column picked by its header)
+      // adds only the first of it rather than flooding the pane.
+      case 'addWatch': {
+        const cap = 500;
+        const all = [];
+        for (let row = range.top; row <= range.bottom && all.length <= cap; row++) {
+          for (let col = range.left; col <= range.right; col++) all.push({ sheet: model.activeSheet, row, col });
+        }
+        const refs = all.slice(0, cap);
+        await dispatch({ op: 'watchAdd', refs });
+        if (all.length > cap) toast(`Only the first ${cap} cells of the selection were added`, { tone: 'warn', ms: 4000 });
+        return;
+      }
+      // A row's own × button: remove that one watch.
+      case 'removeWatch':
+        if (!arg) return;
+        await dispatch({ op: 'watchRemove', ref: arg });
+        return;
+      // Delete Watch: the row selected in the pane, if any.
+      case 'deleteWatch':
+        if (!watchSel) return;
+        await dispatch({ op: 'watchRemove', ref: watchSel });
+        setWatchSel(null);
+        return;
+      // A double-clicked row: go to that cell, switching sheet first when
+      // it is on another one — the same move gotoError makes.
+      case 'gotoWatch': {
+        const w = arg;
+        if (!w) return;
+        const ops = [];
+        if (w.sheet && w.sheet !== model?.activeSheet) ops.push({ op: 'sheet', name: w.sheet });
+        ops.push({ op: 'select', row: w.row, col: w.col });
+        await dispatch(...ops);
+        return;
+      }
       case 'help': shell.shell.openExternal({ url: SITE.help }); return;
       case 'feedback': shell.shell.openExternal({ url: SITE.contact }); return;
       case 'about': shell.win.create({ app: 'home', query: { about: 1 } }); return;
@@ -1527,6 +1633,7 @@ export default function Sheets({ app, shell, boot }) {
             </div>
           </div>
           {errorsPane()}
+          {watchPane()}
           </div>
 
           <div className="sh-tabs">
@@ -1930,6 +2037,34 @@ const CSS = `
 .sh-error-value { color: var(--bad); font-weight: 600; }
 .sh-error-formula { font-family: var(--mono); color: var(--ink-2); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sh-error-reason { color: var(--ink-3); margin-top: 2px; }
+
+/* Formulas → Watch Window: docked along the bottom of the grid rather than
+   the right, the way Excel's own Watch Window sits — a table, not a list,
+   fits the four columns better and leaves the error pane's corner free for
+   both to be open together. */
+.sh-watch {
+  position: absolute; left: 10px; right: 10px; bottom: 10px; max-height: 45%; z-index: 15;
+  display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 20%, transparent);
+  overflow: hidden;
+}
+.sh-watch-head {
+  display: flex; align-items: center; gap: 4px; padding: 8px 10px;
+  border-bottom: 1px solid var(--line-soft); font-size: 12.5px;
+}
+.sh-watch-list { overflow: auto; }
+.sh-watch-row {
+  display: grid; grid-template-columns: 120px 70px 140px 1fr 26px; gap: 10px; align-items: center;
+  padding: 6px 10px; border-bottom: 1px solid var(--line-soft); font-size: 12px; cursor: pointer;
+}
+.sh-watch-row:hover { background: var(--selected); }
+.sh-watch-row.selected { background: var(--selected); }
+.sh-watch-cols { font-weight: 600; color: var(--ink-3); cursor: default; }
+.sh-watch-cols:hover { background: none; }
+.sh-watch-cell { font-weight: 600; font-variant-numeric: tabular-nums; }
+.sh-watch-value { font-variant-numeric: tabular-nums; }
+.sh-watch-formula { font-family: var(--mono); color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-watch-x { justify-self: end; }
 .sh-canvas { display: grid; }
 .sh-corner {
   position: sticky; left: 0; top: 0; z-index: 4; background: var(--chrome);
