@@ -3065,9 +3065,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
       await press(win.webContents, 'Escape');
       const left = await until(() => js(`!document.querySelector('.pv-show')`), 'the show to close on Escape', 4000).catch(() => false);
-      // The show may have reached the clip by the time Escape lands, so its
-      // viewer counts as much as a picture's.
-      const stoppedOn = await js(`document.querySelector('.pv-image, .pv-video, .pv-audio')?.src || ''`);
+      // The show may have reached the clip, or a PDF another block printed
+      // into the folder, by the time Escape lands, so their viewers count
+      // as much as a picture's.
+      const stoppedOn = await js(`document.querySelector('.pv-image, .pv-video, .pv-audio, .pv-pdf')?.src || ''`);
       check('pictures: Escape leaves the show and selects the picture it stopped on', left === true && Boolean(stoppedOn), `left ${left}, showing ${stoppedOn.slice(-28)}`);
 
       const complaints = await errorsIn(win);
