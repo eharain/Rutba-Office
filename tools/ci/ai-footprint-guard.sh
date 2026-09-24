@@ -75,6 +75,14 @@ git -c core.quotepath=false diff -U0 --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" 
       /^--- / { next }
       /^@@/ { next }
       /^index / { next }
+      /^new file mode / { next }
+      /^deleted file mode / { next }
+      /^old mode / { next }
+      /^new mode / { next }
+      /^similarity index / { next }
+      /^dissimilarity index / { next }
+      /^rename from / { next }
+      /^copy from / { next }
       /^\+/ && !exempt { print substr($0, 2) }
     ' > "$ADDED_LINES_FILE" || true
 
