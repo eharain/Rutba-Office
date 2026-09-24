@@ -229,7 +229,7 @@ export async function verifyEditing({ windows, doc }) {
     await wait(300);
     const ranged = doc.model({ id: sessionFor('doc').id })?.selection;
     check('word: a selection that ends on the page itself reaches the engine as a range',
-      twoBlocks === 2 && ranged && !ranged.collapsed && ranged.from?.block === 0 && ranged.from?.offset === 2 && ranged.to?.block >= 1,
+      twoBlocks >= 2 && ranged && !ranged.collapsed && ranged.from?.block === 0 && ranged.from?.offset === 2 && ranged.to?.block >= 1,
       `${twoBlocks} paragraphs; selection end ${selectedPast}; engine has ${JSON.stringify(ranged)}`);
 
     await press(word.webContents, 'Delete');

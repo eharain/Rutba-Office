@@ -248,6 +248,14 @@ function makeFixtures(dir) {
   const icon = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\//, '')), '..', 'resources', 'icon.png');
   if (fs.existsSync(icon)) fs.copyFileSync(icon, at('picture.png'));
 
+  // Two pictures of their own, a different colour each — what the
+  // slideshow check needs to see the show move from one to the next. Made
+  // the way the sample pictures elsewhere here are, rather than from the
+  // application's icon above, so the check does not depend on that file
+  // being where the icon is expected to be.
+  fs.writeFileSync(at('show-a.png'), gradientPng(200, 160, [40, 120, 200], [230, 200, 60]));
+  fs.writeFileSync(at('show-b.png'), gradientPng(200, 160, [180, 40, 90], [250, 220, 120]));
+
   // A picture floating at the right of a long paragraph, the words wrapping
   // round it — what a logo beside a letter's opening looks like in Word.
   if (fs.existsSync(icon)) {
@@ -3057,6 +3065,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('cards')) await wordCards();
     if (only.includes('sheetpic')) await sheetPicture();
     if (only.includes('viewer')) await viewer();
+    if (only.includes('slideshow')) await slideshow();
     if (only.includes('links')) await sheetLinks();
     if (only.includes('providers')) await mailProviders();
     return done();
@@ -3168,6 +3177,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await zoomStaysOnThePage();
   await sheetPicture();
   await viewer();
+  await slideshow();
   await sheetLinks();
   await polish();
 

@@ -31,6 +31,8 @@ import {
   fitColumns, gridWindow, stripWindow, stripCentre, neighbours, fileUrl, thumbUrl,
 } from './pictures/library.js';
 import { frameOf } from './pictures/frames.js';
+import { durationOf, peekLength } from './pictures/durations.js';
+import { nextIndex, formatLength, advanceAfter } from './pictures/show.js';
 
 const INTERVALS = [
   { label: '2s', value: 2000 },
@@ -39,6 +41,13 @@ const INTERVALS = [
   { label: '10s', value: 10000 },
   { label: '30s', value: 30000 },
 ];
+
+// The slideshow's own timing, kept apart from the folder's Play button
+// above — that one leaves a clip running and stops at the ends unless
+// asked to loop; the show always loops and always waits out a clip.
+const SHOW_SECONDS = [2, 4, 8, 15];
+const SHOW_KEY = 'pictures.slideshow';
+const SHOW_DEFAULTS = { seconds: 4, sound: false };
 
 const GAP = 6;
 const STRIP_ITEM = 74;
@@ -95,6 +104,24 @@ export default function Pictures({ app, shell, boot }) {
   const [interval, setIntervalMs] = useState(3000);
   const [loop, setLoop] = useState(true);
   const [shuffle, setShuffle] = useState(false);
+
+  // The slideshow: a full-window show of the folder in its current order,
+  // one item at a time, always looping. `showAt` is an index into `files`,
+  // kept apart from `current` so leaving the folder to start a show, or
+  // reordering it while a show plays, cannot lose the picture it was on.
+  const [showOpen, setShowOpen] = useState(false);
+  const [showAt, setShowAt] = useState(0);
+  const [showPaused, setShowPaused] = useState(false);
+  const [showSeconds, setShowSeconds] = useState(SHOW_DEFAULTS.seconds);
+  const [showSound, setShowSound] = useState(SHOW_DEFAULTS.sound);
+  // Two stacked layers: the next picture is decoded into whichever is
+  // behind, then that one is brought to the front, which is what fades it
+  // in over the one still showing.
+  const [showLayers, setShowLayers] = useState(['', '']);
+  const [showTop, setShowTop] = useState(0);
+  const showTopRef = useRef(0);
+  showTopRef.current = showTop;
+  const showVideoRef = useRef(null);
 
   // Animated stills can be held still.
   const [frozen, setFrozen] = useState(false);
@@ -320,6 +347,123 @@ export default function Pictures({ app, shell, boot }) {
     return () => clearTimeout(timer);
   }, [playing, interval, files.length, kind, step, current]);
 
+  /* ── the slideshow ─────────────────────────────────────────────────────
+   *
+   * A full-window show of the folder in its current sort and filter,
+   * cross-fading between pictures and playing a clip through — its own
+   * mode, not the folder's Play button above.
+   */
+
+  // The chosen interval and the sound toggle, remembered on this machine.
+  useEffect(() => {
+    let alive = true;
+    shell.store.get({ key: SHOW_KEY, fallback: SHOW_DEFAULTS }).then((v) => {
+      if (!alive || !v) return;
+      setShowSeconds(SHOW_SECONDS.includes(v.seconds) ? v.seconds : SHOW_DEFAULTS.seconds);
+      setShowSound(Boolean(v.sound));
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [shell]);
+
+  const chooseShowSeconds = useCallback((seconds) => {
+    setShowSeconds(seconds);
+    shell.store.set({ key: SHOW_KEY, value: { seconds, sound: showSound } }).catch(() => {});
+  }, [shell, showSound]);
+
+  const toggleShowSound = useCallback(() => {
+    setShowSound((sound) => {
+      const next = !sound;
+      shell.store.set({ key: SHOW_KEY, value: { seconds: showSeconds, sound: next } }).catch(() => {});
+      return next;
+    });
+  }, [shell, showSeconds]);
+
+  const startShow = useCallback(() => {
+    if (!files.length) return;
+    setShowAt(at >= 0 ? at : 0);
+    setShowPaused(false);
+    setShowOpen(true);
+    shell.win.fullscreen({ on: true }).catch(() => {});
+  }, [files.length, at, shell]);
+
+  const stopShow = useCallback(() => {
+    const f = files[showAt];
+    setShowOpen(false);
+    shell.win.fullscreen({ on: false }).catch(() => {});
+    if (f) {
+      setCurrent(f.path);
+      setZoom(0);
+      setSpin(0);
+    }
+  }, [files, showAt, shell]);
+
+  const showStep = useCallback((delta) => {
+    setShowAt((idx) => nextIndex(files.length, idx, delta));
+  }, [files.length]);
+
+  const showItem = showOpen ? files[showAt] : null;
+  const showKind = showItem ? kindOf(showItem.path) : null;
+  const showIsMedia = showKind === 'video' || showKind === 'audio';
+
+  // The next picture is decoded into whichever layer is behind, then that
+  // layer is brought to the front — the ordinary stage does the same thing
+  // with one layer (`shown`, above); this is the two-layer, cross-fading
+  // version of it.
+  useEffect(() => {
+    if (!showOpen || !showItem || showIsMedia) return undefined;
+    let alive = true;
+    const url = fileUrl(showItem.path);
+    const img = new Image();
+    img.decoding = 'async';
+    const arrive = () => {
+      if (!alive) return;
+      const back = showTopRef.current ? 0 : 1;
+      setShowLayers((s) => {
+        const next = s.slice();
+        next[back] = url;
+        return next;
+      });
+      setShowTop(back);
+    };
+    img.src = url;
+    img.decode().then(arrive, arrive);
+    return () => { alive = false; };
+  }, [showOpen, showItem, showIsMedia]);
+
+  // A picture waits out its chosen interval; a clip is left to play (its
+  // own `ended`, on the element below) with this as the cap under it —
+  // its own length when that has been read and is short, a minute otherwise.
+  useEffect(() => {
+    if (!showOpen || showPaused || !showItem) return undefined;
+    const seconds = advanceAfter(
+      { kind: showKind, duration: showIsMedia ? peekLength(showItem.path) : undefined },
+      showSeconds
+    );
+    const timer = setTimeout(() => showStep(1), seconds * 1000);
+    return () => clearTimeout(timer);
+  }, [showOpen, showPaused, showItem, showKind, showIsMedia, showSeconds, showStep]);
+
+  // A clip pauses and resumes with the show; a picture has nothing to pause.
+  useEffect(() => {
+    const v = showVideoRef.current;
+    if (!v) return undefined;
+    if (showPaused) v.pause();
+    else v.play().catch(() => {});
+    return undefined;
+  }, [showPaused, showItem]);
+
+  useEffect(() => {
+    if (!showOpen) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); stopShow(); }
+      else if (e.key === ' ') { e.preventDefault(); setShowPaused((p) => !p); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); showStep(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); showStep(1); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showOpen, stopShow, showStep]);
+
   /* ── animated stills: hold the frame ─────────────────────────────────── */
 
   const freeze = useCallback(() => {
@@ -391,13 +535,16 @@ export default function Pictures({ app, shell, boot }) {
     () => ({
       'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
       'file.folder': { label: 'Open folder…', icon: 'folderOpen', run: openFolder },
-      'nav.back': { label: 'Back to the folder', icon: 'grid', key: 'Escape', run: () => current && back() },
+      // Escape, Space and the arrows are the slideshow's own keys while it
+      // plays — its own keydown listener handles them; these step aside.
+      'nav.back': { label: 'Back to the folder', icon: 'grid', key: 'Escape', when: () => !showOpen, run: () => current && back() },
       'nav.up': { label: 'Up a folder', icon: 'chevronUp', key: 'Backspace', run: () => hasParent && !current && enterFolder(parent) },
       'nav.first': { label: 'First', icon: 'skipBack', key: 'Home', run: () => goTo(0) },
-      'nav.prev': { label: 'Previous', icon: 'chevronLeft', key: 'arrowleft', run: () => step(-1) },
-      'nav.next': { label: 'Next', icon: 'chevronRight', key: 'arrowright', run: () => step(1) },
+      'nav.prev': { label: 'Previous', icon: 'chevronLeft', key: 'arrowleft', when: () => !showOpen, run: () => step(-1) },
+      'nav.next': { label: 'Next', icon: 'chevronRight', key: 'arrowright', when: () => !showOpen, run: () => step(1) },
       'nav.last': { label: 'Last', icon: 'skipForward', key: 'End', run: () => goTo(files.length - 1) },
-      'nav.play': { label: playing ? 'Stop' : 'Play automatically', icon: playing ? 'pause' : 'play', key: ' ', run: () => setPlaying((p) => !p) },
+      'nav.play': { label: playing ? 'Stop' : 'Play automatically', icon: playing ? 'pause' : 'play', key: ' ', when: () => !showOpen, run: () => setPlaying((p) => !p) },
+      'view.slideshow': { label: 'Slideshow', icon: 'play', key: 'F5', when: () => Boolean(files.length) && !showOpen, run: startShow },
       'view.fit': { label: 'Fit to window', icon: 'maximize', key: 'Mod+0', run: () => setZoom(0) },
       'view.actual': { label: 'Actual size', icon: 'check', key: 'Mod+1', run: () => setZoom(1) },
       'view.in': { label: 'Zoom in', icon: 'zoomIn', key: 'Mod+Plus', run: () => setZoom((z) => Math.min(12, (z || 1) * 1.25)) },
@@ -433,7 +580,7 @@ export default function Pictures({ app, shell, boot }) {
         },
       },
     }),
-    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip]
+    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip, showOpen, startShow]
   );
 
   useCommands(commands, [files, at, current, folder, playing, frozen]);
@@ -456,6 +603,31 @@ export default function Pictures({ app, shell, boot }) {
       stacked={Boolean(current)}
     />
   );
+
+  if (showOpen) {
+    return (
+      <div className="pv-show" onClick={stopShow}>
+        {!showIsMedia ? (
+          <>
+            <img className={`pv-show-layer${showTop === 0 ? ' on' : ''}`} src={showLayers[0] || undefined} alt="" draggable={false} />
+            <img className={`pv-show-layer${showTop === 1 ? ' on' : ''}`} src={showLayers[1] || undefined} alt="" draggable={false} />
+          </>
+        ) : showItem ? (
+          <video
+            ref={showVideoRef}
+            key={showItem.path}
+            className="pv-show-media"
+            src={fileUrl(showItem.path)}
+            autoPlay
+            muted={!showSound}
+            onEnded={() => showStep(1)}
+          />
+        ) : null}
+        {showPaused ? <span className="pv-show-chip">Paused</span> : null}
+        <style>{CSS}</style>
+      </div>
+    );
+  }
 
   return (
     <AppFrame
@@ -542,6 +714,21 @@ export default function Pictures({ app, shell, boot }) {
                 <Button icon="zoomIn" label="In" onClick={() => commands['view.in'].run()} />
                 <Button icon="maximize" label="Fit" pressed={zoom === 0} onClick={() => setZoom(0)} />
                 <Button icon="check" label="100%" pressed={zoom === 1} onClick={() => setZoom(1)} />
+              </Group>
+              <Group label="Slideshow">
+                <Button tall icon="play" label="Slideshow" disabled={!files.length} onClick={startShow} />
+                <Select
+                  data-role="show-seconds"
+                  value={showSeconds}
+                  onChange={(e) => chooseShowSeconds(Number(e.target.value))}
+                  style={{ width: 60 }}
+                  title="How long each picture is shown"
+                >
+                  {SHOW_SECONDS.map((s) => (
+                    <option key={s} value={s}>{s}s</option>
+                  ))}
+                </Select>
+                <Button icon="volume" label="Sound" pressed={showSound} title="Play a clip's sound in the show" onClick={toggleShowSound} />
               </Group>
               <Group label="Orientation">
                 <Button tall icon="rotate" label="Rotate" onClick={() => setSpin((s) => (s + 1) % 4)} />
@@ -884,6 +1071,38 @@ function Thumb({ file, shell }) {
   return <img ref={ref} className={`pv-thumb${state === 'loaded' ? ' loaded' : ''}`} src={src} alt="" decoding="async" draggable={false} onLoad={onLoad} onError={onError} />;
 }
 
+/**
+ * A clip's length, read once per window and kept (durations.js) —
+ * `undefined` while it is still being read, `null` when it could not be.
+ */
+function useClipLength(file, isMedia) {
+  const kind = kindOf(file.path);
+  const [seconds, setSeconds] = useState(() => (isMedia ? peekLength(file.path) : undefined));
+  useEffect(() => {
+    if (!isMedia) return undefined;
+    const known = peekLength(file.path);
+    if (known !== undefined) {
+      setSeconds(known);
+      return undefined;
+    }
+    let alive = true;
+    durationOf(file.path, kind).then((value) => {
+      if (alive) setSeconds(value);
+    });
+    return () => { alive = false; };
+  }, [file.path, isMedia, kind]);
+  return seconds;
+}
+
+/** The length badge a clip's tile, and its filmstrip item, both show. */
+function LengthBadge({ file }) {
+  const kind = kindOf(file.path);
+  const isMedia = kind === 'video' || kind === 'audio';
+  const seconds = useClipLength(file, isMedia);
+  if (!isMedia || !Number.isFinite(seconds)) return null;
+  return <span className="pv-length">{formatLength(seconds)}</span>;
+}
+
 const Tile = React.memo(function Tile({ file, active, size, onOpen, onMenu, shell }) {
   const kind = kindOf(file.path);
   return (
@@ -894,6 +1113,7 @@ const Tile = React.memo(function Tile({ file, active, size, onOpen, onMenu, shel
       ) : kind === 'pdf' ? (
         <span className="pv-tile-badge text">PDF</span>
       ) : null}
+      <LengthBadge file={file} />
       <span className="pv-tile-name">{file.name}</span>
     </button>
   );
@@ -919,6 +1139,7 @@ function Strip({ files, at, onGo, shell }) {
     items.push(
       <button key={f.path} type="button" className={`pv-strip-item${i === at ? ' active' : ''}`} onClick={() => onGo(i)} title={f.name}>
         <Thumb file={f} shell={shell} />
+        <LengthBadge file={f} />
       </button>
     );
   }
@@ -1153,4 +1374,28 @@ const CSS = `
 .pv-details dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: 11.5px; }
 .pv-details dt { color: var(--ink-3); }
 .pv-details dd { margin: 0; word-break: break-word; }
+
+/* ── a clip's length, on its tile and in the strip ── */
+.pv-length {
+  position: absolute; right: 5px; bottom: 4px; padding: 1px 5px; border-radius: 4px;
+  background: rgba(0, 0, 0, 0.62); color: #fff; font-size: 9.5px; font-weight: 700;
+  letter-spacing: 0.02em; font-variant-numeric: tabular-nums; pointer-events: none; z-index: 1;
+}
+
+/* ── the slideshow: fills the window, on black, fading one picture into the next ── */
+.pv-show {
+  position: fixed; inset: 0; background: #000; z-index: 500;
+  display: grid; place-items: center; cursor: pointer; overflow: hidden;
+}
+.pv-show-layer {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
+  opacity: 0; transition: opacity 600ms ease; pointer-events: none;
+}
+.pv-show-layer.on { opacity: 1; }
+.pv-show-media { max-width: 100%; max-height: 100%; object-fit: contain; display: block; background: #000; }
+.pv-show-chip {
+  position: absolute; top: 16px; left: 16px; padding: 4px 10px; border-radius: 999px;
+  background: rgba(0, 0, 0, 0.6); color: #fff; font-size: 11.5px; font-weight: 600; letter-spacing: 0.02em;
+  backdrop-filter: blur(3px);
+}
 `;
