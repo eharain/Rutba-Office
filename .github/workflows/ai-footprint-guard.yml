@@ -25,7 +25,8 @@ jobs:
           if git cat-file -e '${{ github.event.pull_request.base.sha }}:tools/ci/ai-footprint-guard.sh' 2>/dev/null; then
             git show '${{ github.event.pull_request.base.sha }}:tools/ci/ai-footprint-guard.sh' > "$SCRIPT_PATH"
           else
-            cp tools/ci/ai-footprint-guard.sh "$SCRIPT_PATH"
+            echo "Trusted guard script not found on base branch; refusing to run untrusted PR-branch script." >&2
+            exit 1
           fi
           chmod +x "$SCRIPT_PATH"
           bash "$SCRIPT_PATH" "$BASE_SHA" "$HEAD_SHA"
