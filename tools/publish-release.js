@@ -23,16 +23,27 @@ const REPO = 'Rutba-Office';
 
 const tag = process.argv[2] || `v${JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8')).version}`;
 
-/** The token git already holds for github.com. */
+/**
+ * The token git already holds for github.com — or, where git holds none
+ * because the credential lives in the environment (a build box whose
+ * proxy signs the requests, a runner with GH_TOKEN set), that.
+ */
 function credential() {
-  const out = execFileSync('git', ['credential', 'fill'], {
-    input: 'protocol=https\nhost=github.com\n\n',
-    encoding: 'utf8',
-    cwd: root,
-  });
-  const password = /^password=(.*)$/m.exec(out)?.[1];
-  if (!password) throw new Error('git has no stored credential for github.com');
-  return password;
+  try {
+    const out = execFileSync('git', ['credential', 'fill'], {
+      input: 'protocol=https\nhost=github.com\n\n',
+      encoding: 'utf8',
+      cwd: root,
+      stdio: ['pipe', 'pipe', 'ignore'],
+    });
+    const password = /^password=(.*)$/m.exec(out)?.[1];
+    if (password) return password;
+  } catch {
+    /* no stored credential; the environment may carry one */
+  }
+  const fromEnv = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+  if (fromEnv) return fromEnv;
+  throw new Error('git has no stored credential for github.com, and neither GH_TOKEN nor GITHUB_TOKEN is set');
 }
 
 const token = credential();

@@ -759,7 +759,14 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((b) => b.textContent.trim() === 'Wrap Text').click(); return 1; })()`);
       await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'In line with text'))`), 'the Wrap Text menu', 4000);
       await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'In line with text').click(); return 1; })()`);
-      await until(() => js(`Boolean(document.querySelector('.wd-image')) && !document.querySelector('.wd-image.wd-float')`), 'the picture to leave the words', 5000);
+      // Leaving the float is the heaviest step here: the paragraph regains the
+      // picture's height under its words, pushing what follows down and
+      // sometimes over a page, so the paginator redoes more work than the
+      // still-floating toggles round it do. Xvfb's software rendering, with a
+      // busy main process behind it, can turn that into real seconds rather
+      // than the milliseconds it costs on the owner's machine (see the "busy"
+      // clock above) — the same margin the picture's first float already gets.
+      await until(() => js(`Boolean(document.querySelector('.wd-image')) && !document.querySelector('.wd-image.wd-float')`), 'the picture to leave the words', 8000);
       await wait(300);
       const inline = await measure();
       check('word: Wrap Text → In line with text puts the picture in its own line, the words below',
@@ -3461,7 +3468,6 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // on top of it, so the location is changed before OK.
       await selectRange('B2', 'C2');
       const clickedColumn = await clickSparkline('Column');
-      console.log('DEBUG clickedColumn', clickedColumn);
       await until(() => js(`Boolean(document.querySelector('.sh-sparkline-data'))`), 'the sparkline dialog again', 4000);
       await setField('.sh-sparkline-at', 'E2');
       await js(`document.querySelector('.sh-sparkline-ok')?.click(), 'ok'`);
