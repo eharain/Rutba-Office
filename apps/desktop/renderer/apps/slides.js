@@ -550,6 +550,10 @@ export default function Slides({ app, shell, boot }) {
       case 'applyLayout':
         await apply({ op: 'applyLayout', slide: index, layout: arg });
         return;
+      // Design → Background Styles: this slide's own background, or every slide's.
+      case 'background':
+        await apply({ op: 'setBackground', slide: index, spec: arg.spec ?? null, all: Boolean(arg.all) });
+        return;
       case 'newSlideFrom': {
         // A slide after this one on the chosen layout, with the words a new
         // slide of that kind starts with.

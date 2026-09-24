@@ -1018,6 +1018,53 @@ export class Deck {
   }
 
   /**
+   * Design → Background Styles: this slide's own background, or null to take
+   * it off and let the layout's or master's show through again. `spec` is
+   * `{ colour: 'RRGGBB' }` (a solid colour), `{ scheme, lumMod?, lumOff? }`
+   * (a theme colour, as `colourXml` writes one) or
+   * `{ gradient: { from, to, angle? } }` — a two-stop linear gradient, `from`
+   * and `to` each a colour spec of their own, `angle` in degrees (default 90,
+   * top to bottom).
+   *
+   * Written as PowerPoint writes it: `<p:bg><p:bgPr>FILL<a:effectLst/>
+   * </p:bgPr></p:bg>` as the first child of `<p:cSld>`, before `<p:spTree>`,
+   * replacing whatever `<p:bg>` the slide already had — a `<p:bgPr>` or a
+   * `<p:bgRef>` — and null takes the element out altogether.
+   *
+   * @returns {boolean} true when the slide's own background changed
+   */
+  setBackground(slideIndex, spec) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const openCSld = /<p:cSld\b[^>]*>/.exec(xml);
+    if (!openCSld) throw new Error(`slide ${slideIndex + 1} has no cSld`);
+    const had = /<p:bg>[\s\S]*?<\/p:bg>/.exec(xml);
+    const bgXml = spec ? backgroundXml(spec) : '';
+    let next;
+    if (had) next = xml.slice(0, had.index) + bgXml + xml.slice(had.index + had[0].length);
+    else if (bgXml) {
+      const at = openCSld.index + openCSld[0].length;
+      next = xml.slice(0, at) + bgXml + xml.slice(at);
+    } else return false;
+    if (next === xml) return false;
+    this.#writeSlide(part, next);
+    return true;
+  }
+
+  /**
+   * The slide's own background — what `setBackground` would need to write to
+   * reproduce it — distinct from `slide(index).background`, which is this
+   * when the slide states one and the layout's or master's otherwise. null
+   * when the slide states none of its own.
+   */
+  background(slideIndex) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    return readOwnBackground(this.pkg.text(part));
+  }
+
+  /**
    * The formatting off a shape's words — Home → Clear all formatting: every
    * run keeps its text, its link, a field or a break, and nothing else, so
    * the words fall back to what the placeholder and the theme give them.
@@ -1570,11 +1617,78 @@ const PRESET_NAMES = {
   rightArrow: 'Arrow: Right', chevron: 'Chevron', line: 'Straight Connector',
 };
 
-/** A colour as DrawingML writes it: a hex string, or a scheme colour with an optional luminance modifier. */
+/** A colour as DrawingML writes it: a hex string, or a scheme colour with an optional luminance modifier and offset. */
 function colourXml(c) {
   if (typeof c === 'string') return `<a:srgbClr val="${escapeXml(c.replace('#', '').toUpperCase())}"/>`;
-  const mods = c.lumMod != null ? `<a:lumMod val="${Math.round(c.lumMod * 1000)}"/>` : '';
-  return mods ? `<a:schemeClr val="${escapeXml(c.scheme)}">${mods}</a:schemeClr>` : `<a:schemeClr val="${escapeXml(c.scheme)}"/>`;
+  const mods = [];
+  if (c.lumMod != null) mods.push(`<a:lumMod val="${Math.round(c.lumMod * 1000)}"/>`);
+  if (c.lumOff != null) mods.push(`<a:lumOff val="${Math.round(c.lumOff * 1000)}"/>`);
+  return mods.length ? `<a:schemeClr val="${escapeXml(c.scheme)}">${mods.join('')}</a:schemeClr>` : `<a:schemeClr val="${escapeXml(c.scheme)}"/>`;
+}
+
+/** A background colour spec — a hex string, `{ colour }` or `{ scheme, lumMod?, lumOff? }` — through `colourXml`. */
+function bgColourXml(c) {
+  if (typeof c === 'string') return colourXml(c);
+  if (c && c.colour) return colourXml(c.colour);
+  if (c && c.scheme) return colourXml(c);
+  throw new Error('a background colour needs a colour or a scheme');
+}
+
+/** A background spec, as `setBackground` writes the fill inside `<p:bgPr>`. */
+function backgroundXml(spec) {
+  const fillXml = spec.gradient
+    ? `<a:gradFill><a:gsLst><a:gs pos="0">${bgColourXml(spec.gradient.from)}</a:gs>` +
+      `<a:gs pos="100000">${bgColourXml(spec.gradient.to)}</a:gs></a:gsLst>` +
+      `<a:lin ang="${Math.round((spec.gradient.angle != null ? spec.gradient.angle : 90) * 60000)}"/></a:gradFill>`
+    : `<a:solidFill>${bgColourXml(spec)}</a:solidFill>`;
+  return `<p:bg><p:bgPr>${fillXml}<a:effectLst/></p:bgPr></p:bg>`;
+}
+
+/** A colour node (`a:srgbClr` or `a:schemeClr`) read back into a background colour spec. */
+function colourSpecOf(node) {
+  if (!node) return null;
+  if (node.name === A('srgbClr')) return { colour: String(node.attrs.val || '').toUpperCase() };
+  if (node.name === A('schemeClr')) {
+    const out = { scheme: node.attrs.val };
+    for (const mod of kids(node)) {
+      if (mod.name === A('lumMod')) out.lumMod = Number(mod.attrs.val) / 1000;
+      if (mod.name === A('lumOff')) out.lumOff = Number(mod.attrs.val) / 1000;
+    }
+    return out;
+  }
+  return null;
+}
+
+/**
+ * A slide's own `<p:bg>`, read back into what `setBackground` would need to
+ * reproduce it. null when the slide has none of its own — the common case,
+ * since most slides take their background from the layout or master.
+ */
+function readOwnBackground(xml) {
+  const root = parse(xml);
+  const sld = first(root, P('sld')) || root;
+  const cSld = first(sld, P('cSld'));
+  const bg = cSld && first(cSld, P('bg'));
+  if (!bg) return null;
+  const bgPr = first(bg, P('bgPr'));
+  if (bgPr) {
+    const solid = first(bgPr, A('solidFill'));
+    if (solid) return colourSpecOf(kids(solid)[0]);
+    const grad = first(bgPr, A('gradFill'));
+    if (grad) {
+      const gsLst = first(grad, A('gsLst'));
+      const stops = kids(gsLst || { children: [] }, A('gs'));
+      const at = (pos) => {
+        const gs = stops.find((s) => s.attrs.pos === pos);
+        return gs ? colourSpecOf(kids(gs)[0]) : null;
+      };
+      const lin = first(grad, A('lin'));
+      return { gradient: { from: at('0'), to: at('100000'), angle: lin?.attrs.ang != null ? Number(lin.attrs.ang) / 60000 : 90 } };
+    }
+    return null;
+  }
+  const ref = first(bg, P('bgRef'));
+  return ref ? colourSpecOf(kids(ref)[0]) : null;
 }
 
 /** A run's link, the relationship id the reader gives, resolved to { id, url } through the slide's relationships. */

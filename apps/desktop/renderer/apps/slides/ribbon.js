@@ -31,6 +31,20 @@ const SHAPES = [
 ];
 const TRANSITIONS = ['None', 'Morph', 'Fade', 'Push', 'Wipe', 'Split', 'Reveal', 'Cut', 'Random Bars', 'Shape', 'Uncover'];
 
+/** Design → Background Styles: the theme backgrounds PowerPoint's gallery offers first, then a few flat colours. */
+const BACKGROUND_STYLES = [
+  ['Background 1', { scheme: 'bg1' }],
+  ['Background 2', { scheme: 'bg2' }],
+  ['Text 1', { scheme: 'tx1' }],
+  ['Text 2', { scheme: 'tx2' }],
+  ['Accent 1 gradient', { gradient: { from: { scheme: 'accent1' }, to: { scheme: 'accent1', lumMod: 75 } } }],
+  '-',
+  ['White', { colour: 'FFFFFF' }],
+  ['Black', { colour: '000000' }],
+  ['Light grey', { colour: 'F2F2F2' }],
+  ['Dark blue', { colour: '1F3864' }],
+];
+
 const ANIMATIONS = ['None', 'Appear', 'Fade', 'Fly In', 'Float In', 'Split'];
 
 /** A control that is drawn where PowerPoint draws it, and says why it is not live. */
@@ -314,7 +328,23 @@ export default function SlidesRibbon({
             <Soon icon="contrast" label="Colours" why="Comes with themes." />
             <Soon icon="textbox" label="Fonts" why="Comes with themes." />
             <Soon icon="wand" label="Effects" why="Comes with themes." />
-            <Soon icon="picture" label="Background Styles" why="A slide background is cSld/bg the deck writer does not write yet." />
+            <Button
+              tall
+              icon="picture"
+              label="Background Styles"
+              title="Background Styles — a solid or gradient background for this slide, or every slide"
+              onClick={(e) => {
+                const own = model?.slide?.ownBackground ?? null;
+                const same = (spec) => JSON.stringify(spec ?? null) === JSON.stringify(own);
+                menu.open(e, [
+                  ...BACKGROUND_STYLES.map((row) => (row === '-' ? '-' : { label: row[0], icon: same(row[1]) ? 'check' : undefined, run: () => act('background', { spec: row[1] }) })),
+                  '-',
+                  { label: "Reset to the layout's", icon: same(null) ? 'check' : undefined, run: () => act('background', { spec: null }) },
+                  '-',
+                  { label: 'Apply to all slides', run: () => act('background', { spec: own, all: true }) },
+                ]);
+              }}
+            />
           </Group>
           <Group label="Slides">
             <Button tall icon="grid" label="Layouts" pressed={view.pane === 'designs'} title="The deck's layouts in a pane — put this slide on one, or start a new slide from it" onClick={() => act('pane', 'designs')} />

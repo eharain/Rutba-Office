@@ -1812,6 +1812,82 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Presentation: Design → Background Styles ────────────────────────── */
+  //
+  // A slide's own background — PowerPoint's p:bg, the first child of p:cSld
+  // — drawn on the stage and the thumbnails, chosen from the ribbon for this
+  // slide or every slide, and taken off again to let the layout's show
+  // through. Run alone with RUTBA_VERIFY_ONLY=background.
+  const slideBackground = async () => {
+    try {
+      const win = await open('slides', files.pptx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const model = (slide) => doc.model({ id: sessionFor('deck').id, slide });
+      await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const pickMenu = async (label) => {
+        await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}))`), `the ${label} item`, 4000);
+        return js(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)}); if (b.disabled) return 'disabled'; b.click(); return 'picked'; })()`);
+      };
+      const stageFill = () => js(`(document.querySelector('.sl-svg svg rect')?.getAttribute('fill') || '').toLowerCase()`);
+      const thumbFill = (i) => js(`(document.querySelectorAll('.sl-thumb-pic')[${i}]?.querySelector('rect')?.getAttribute('fill') || '').toLowerCase()`);
+      const saved = () => {
+        try { return Deck.open(fs.readFileSync(files.pptx)); } catch { return null; }
+      };
+
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Design')?.click(), 'tab'`);
+      await wait(200);
+      const opened = await clickRibbon('Background Styles');
+      const picked = await pickMenu('Dark blue');
+      const gotOwn = await until(() => JSON.stringify(model(0).slide.ownBackground) === JSON.stringify({ colour: '1F3864' }), "the slide's own background", 5000).catch(() => false);
+      await wait(200);
+      const svgFill = await stageFill();
+      const thumb0 = await thumbFill(0);
+      if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-background.png'), (await win.webContents.capturePage()).toPNG());
+      check('slides: Design → Background Styles → Dark blue gives this slide its own background, ticked in the menu and drawn on the stage and the first thumbnail',
+        opened === 'clicked' && picked === 'picked' && gotOwn === true && svgFill === '#1f3864' && thumb0 === '#1f3864',
+        `${opened}; ${picked}; own ${gotOwn}; stage ${svgFill}; thumb ${thumb0}`);
+
+      await clickRibbon('Save');
+      await until(() => /<p:bg>/.test(saved()?.pkg.text(saved().slideParts[0].part) || ''), 'the background in the file', 8000).catch(() => {});
+      const xml0 = saved()?.pkg.text(saved().slideParts[0].part) || '';
+      const xml1 = saved()?.pkg.text(saved().slideParts[1].part) || '';
+      check('slides: the saved file carries the background as PowerPoint writes one — p:bg the first child of cSld — and touches no other slide',
+        /<p:cSld><p:bg><p:bgPr><a:solidFill><a:srgbClr val="1F3864"\/><\/a:solidFill><a:effectLst\/><\/p:bgPr><\/p:bg><p:spTree>/.test(xml0) && !/<p:bg>/.test(xml1),
+        `slide 1 ${xml0.slice(0, 120)}; slide 2 has bg: ${/<p:bg>/.test(xml1)}`);
+
+      const opened2 = await clickRibbon('Background Styles');
+      const applied = await pickMenu('Apply to all slides');
+      const spreadToAll = await until(() => JSON.stringify(model(1).slide.ownBackground) === JSON.stringify({ colour: '1F3864' }), "every slide's own background", 5000).catch(() => false);
+      check('slides: Background Styles → Apply to all slides gives every slide this slide’s own background',
+        opened2 === 'clicked' && applied === 'picked' && spreadToAll === true,
+        `${opened2}; ${applied}; slide 2 own ${JSON.stringify(model(1).slide.ownBackground)}`);
+
+      const opened3 = await clickRibbon('Background Styles');
+      const reset = await pickMenu("Reset to the layout's");
+      const clearedOwn = await until(() => model(0).slide.ownBackground === null, "the slide's own background cleared", 5000).catch(() => false);
+      check('slides: Background Styles → Reset to the layout’s takes this slide’s own background off, so the layout’s or master’s shows through again',
+        opened3 === 'clicked' && reset === 'picked' && clearedOwn === true,
+        `${opened3}; ${reset}; own ${JSON.stringify(model(0).slide.ownBackground)}`);
+
+      await clickRibbon('Save');
+      await until(() => !/<p:bg>/.test(saved()?.pkg.text(saved().slideParts[0].part) || 'still has it'), 'the background gone from the file', 8000).catch(() => {});
+      const cleanXml = saved()?.pkg.text(saved().slideParts[0].part) || '';
+      check('slides: the reset background is no longer in the saved file', !/<p:bg>/.test(cleanXml), cleanXml.slice(0, 120));
+
+      const complaints = await errorsIn(win);
+      check('slides: the background checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('slides: the background checks ran', false, err.message);
+    }
+  };
+
   /* ── Presentation: find and replace ──────────────────────────────────── */
   //
   // Home → Find: the words typed, Find lists every shape they are on, a
@@ -2780,7 +2856,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,fit,sections,hidden,effects,bookmarks,providers: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,update,viewer,links,home,freeze,errors,fit,sections,hidden,background,effects,bookmarks,providers: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -2795,6 +2871,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('find')) await slideFind();
     if (only.includes('sections')) await slideSections();
     if (only.includes('hidden')) await slideHidden();
+    if (only.includes('background')) await slideBackground();
     if (only.includes('fill')) await sheetFill();
     if (only.includes('pics')) await wordPictures();
     if (only.includes('look')) await wordLook();
@@ -2904,6 +2981,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slideFind();
   await slideSections();
   await slideHidden();
+  await slideBackground();
   await sheetFill();
   await wordPictures();
   await wordLook();

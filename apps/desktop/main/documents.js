@@ -800,6 +800,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
         ? {
             ...current,
             svg: renderSlide(current, { width, resolveImage }),
+            // This slide's own background, distinct from `background` above
+            // (which the scene shows, inherited when the slide states none)
+            // — so the ribbon can tick the choice that is actually this slide's.
+            ownBackground: safely(() => deck.background(index)) ?? null,
             shapes: current.shapes.map((s) => ({
               id: s.id,
               kind: s.kind,
@@ -1029,6 +1033,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     setFooter: (d, a) => {
       const slides = a.all ? Array.from({ length: d.slideCount }, (_, i) => i) : [a.slide];
       for (const s of slides) d.setFooter(s, { footer: a.footer, slideNumber: a.slideNumber, date: a.date });
+      return true;
+    },
+    // Design → Background Styles: this slide's own background, or every slide's.
+    setBackground: (d, a) => {
+      const slides = a.all ? Array.from({ length: d.slideCount }, (_, i) => i) : [a.slide];
+      for (const s of slides) d.setBackground(s, a.spec ?? null);
       return true;
     },
 
