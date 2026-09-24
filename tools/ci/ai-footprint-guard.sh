@@ -58,6 +58,7 @@ git -c core.quotepath=false diff -U0 --diff-filter=ACMR "$BASE_SHA" "$HEAD_SHA" 
   | awk '
       function is_exempt(path) {
         return path ~ /^\.githooks\// \
+          || path ~ /\/\.githooks\// \
           || path ~ /^AGENTS\.md$/ \
           || path ~ /^RULES\.md$/ \
           || path ~ /^\.ai-rules\.md$/ \
