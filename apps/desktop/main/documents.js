@@ -775,6 +775,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       // And the bookmarks: adding one changes no block's text, and the
       // dialog lists them from the model it holds.
       bookmarks: frame.bookmarks,
+      // Fields, the same reason: the Caption dialog's "Figure 3" preview
+      // reads this rather than waiting for a block to change.
+      fields: frame.fields,
       canUndo: view.canUndo,
       canRedo: view.canRedo,
     };
@@ -1081,6 +1084,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     // `opResult` (see `apply`, below) so the ribbon can toast how many.
     insertCrossReference: (v, a) => v.insertCrossReference(a.name),
     updateFields: (v) => v.updateFields(),
+    // Insert → Captions → Insert Caption: a label, a live SEQ number and the
+    // caller's own words, as a new paragraph after the caret's.
+    insertCaption: (v, a) => v.insertCaption({ label: a.label, text: a.text ?? '' }),
     insertNote: (v, a) => v.insertNote(a.kind ?? 'footnote', a.text),
     setNoteText: (v, a) => v.setNoteText(a.kind ?? 'footnote', a.id, a.text),
     tabCell: (v, a) => v.tabCell({ back: a.back }),

@@ -501,7 +501,7 @@ export default function WordRibbon({
             <Soon icon="listBullet" label="Bibliography" why="Comes with citations." />
           </Group>
           <Group label="Captions">
-            <Soon tall icon="textbox" label="Insert Caption" why="A caption is a SEQ field; fields are not written yet." />
+            <Button tall icon="textbox" label="Insert Caption" title="Insert Caption — a label, a running number kept live by Update Fields, and your own words" onClick={() => openDialog('caption')} />
             <Soon icon="listBullet" label="Table of Figures" why="Comes with captions." />
             <Button icon="link" label="Cross-reference" title="Cross-reference — a REF field to a bookmark, its words kept live by Update Fields" onClick={() => openDialog('crossReference')} />
           </Group>

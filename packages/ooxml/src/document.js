@@ -55,7 +55,7 @@ export {
   textOf, parseRuns, hasToggle, withToggle, renderRuns, renderRun, firstRunProps, RPR_RE,
 } from './runs.js';
 import {
-  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE,
+  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults,
 } from './runs.js';
 
 /**
@@ -1159,6 +1159,26 @@ export class Document {
   }
 
   /**
+   * The "Caption" style, written once — Word's own on a document that never
+   * had one: italic, 9pt, a little space after so two captions in a row do
+   * not run together. `ensureParagraphStyles` above only ever writes the
+   * WHOLE part fresh, for a document that has none at all; this instead adds
+   * one STYLE to an existing styles.xml, the way `ensureListNumbering` adds
+   * one numbering definition to an existing numbering.xml rather than
+   * replacing the file — an existing catalogue is a template author's own
+   * and is never rewritten, only ever added to.
+   */
+  _ensureCaptionStyle() {
+    this.ensureParagraphStyles();
+    const part = 'word/styles.xml';
+    const xml = this.pkg.text(part);
+    if (/<w:style\b[^>]*\bw:styleId="Caption"/.test(xml)) return;
+    const style = '<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/>'
+      + '<w:pPr><w:spacing w:after="200"/></w:pPr><w:rPr><w:i/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:style>';
+    this.pkg.write_(part, xml.replace('</w:styles>', style + '</w:styles>'));
+  }
+
+  /**
    * Page setup — orientation, paper size, margin presets — by editing the
    * body's `w:sectPr` in place. Everything not named rides through: header
    * and footer distances, the gutter, section type, header references.
@@ -2179,12 +2199,13 @@ export class Document {
   }
 
   /**
-   * Every simple field in the body, in paragraph order — `<w:fldSimple>`,
-   * read as `parseRuns` reads it: one run per field, carrying the code Word
-   * wrote (`instr`), what kind of field it is, a REF's bookmark name, and
-   * the cached words currently shown. `index` is the field run's position
-   * among that paragraph's runs, so a caller can find the same field again
-   * after an edit moves nothing but its neighbours.
+   * Every field in the body, in paragraph order — a `<w:fldSimple>` and a
+   * COMPLETE complex field alike, since `parseRuns` folds the latter to the
+   * same one-run shape before either reaches here: the code Word wrote
+   * (`instr`), what kind of field it is, a REF's bookmark or a SEQ's label
+   * (`name`), and the cached words currently shown. `index` is the field
+   * run's position among that paragraph's runs, so a caller can find the
+   * same field again after an edit moves nothing but its neighbours.
    */
   fields() {
     const out = [];
@@ -2204,6 +2225,12 @@ export class Document {
    * space, the way a multi-paragraph bookmark collapses onto a field's one
    * line. A REF whose bookmark has since been removed gets the words Word
    * itself puts there rather than leave the old, now-wrong ones standing.
+   *
+   * Every SEQ field is renumbered in the same pass — see
+   * `_renumberSeqFields` — because F9 in Word refreshes every field kind at
+   * once, not REF alone; a caption inserted mid-document, or one deleted,
+   * leaves the rest wrong until this runs.
+   *
    * Returns how many fields actually changed, for the ribbon's toast.
    */
   refreshRefFields() {
@@ -2228,8 +2255,86 @@ export class Document {
       });
       if (touched) this.setParagraphRuns(p.index, next);
     }
+    changed += this._renumberSeqFields();
     if (changed) this.dirty = true;
     return changed;
+  }
+
+  /**
+   * Every SEQ field's cached number, right now: the 1-based count of that
+   * label's SEQ fields up to and including this one, in document order —
+   * `Figure 1`, `Figure 2`, `Table 1`, each label counted on its own, the
+   * way Word's own captions are. A complex field stays structural (see
+   * `_decorate`), so this rewrites the paragraph's raw XML directly rather
+   * than going through `setParagraphRuns`, touching only the result run's
+   * `<w:t>` and leaving the begin/instrText/separate/end markers exactly as
+   * they were. Returns how many results actually changed.
+   */
+  _renumberSeqFields() {
+    const counts = new Map();
+    let changed = 0;
+    const total = this.paragraphCount();
+    for (let i = 0; i < total; i += 1) {
+      const p = this.paragraph(i);
+      if (!/<w:fldChar\b[^>]*\bw:fldCharType="begin"/.test(p.xml)) continue;
+      const next = mapComplexFieldResults(p.xml, (instr, text) => {
+        const m = /^\s*SEQ\s+(\S+)/i.exec(instr);
+        if (!m) return undefined;
+        const label = m[1];
+        const n = (counts.get(label) ?? 0) + 1;
+        counts.set(label, n);
+        return String(n) === text ? undefined : String(n);
+      });
+      if (next !== p.xml) {
+        this._spliceBody(p.start, p.end, next);
+        changed += 1;
+      }
+    }
+    return changed;
+  }
+
+  /**
+   * Insert → Captions → Insert Caption: a new paragraph after `at`
+   * (`paragraphs()` order — the block the caret sits in, or a picture's or
+   * table's own paragraph when the caller resolved the caret there first),
+   * styled "Caption" (written once, see `_ensureCaptionStyle`), reading
+   * `Figure 3: <text>` the way Word's own dialog writes one.
+   *
+   * The running number is a SEQ field — `SEQ Figure \* ARABIC`, a COMPLEX
+   * field (`w:fldChar` begin/separate/end around an `<w:instrText>`), the
+   * shape Word itself writes for a caption; a REF's `w:fldSimple` is a
+   * different, simpler thing. Its result is written as a placeholder and
+   * then corrected by `_renumberSeqFields` in the same call — inserting a
+   * caption ahead of others with the same label must renumber THEM too, not
+   * just count what already existed, and that is the one place this engine
+   * already knows how to do it.
+   */
+  addCaption({ label, text = '', at }) {
+    if (!['Figure', 'Table', 'Equation'].includes(label)) {
+      throw new Error('a caption\'s label is Figure, Table or Equation');
+    }
+    const p = this.paragraph(at);
+    if (!p) throw new Error('no paragraph at index ' + at);
+    this._ensureCaptionStyle();
+
+    const instr = ' SEQ ' + label + ' \\* ARABIC ';
+    const seqXml =
+      '<w:r><w:fldChar w:fldCharType="begin"/></w:r>' +
+      '<w:r><w:instrText xml:space="preserve">' + esc(instr) + '</w:instrText></w:r>' +
+      '<w:r><w:fldChar w:fldCharType="separate"/></w:r>' +
+      '<w:r><w:t xml:space="preserve">1</w:t></w:r>' +
+      '<w:r><w:fldChar w:fldCharType="end"/></w:r>';
+
+    const xml =
+      '<w:p><w:pPr><w:pStyle w:val="Caption"/></w:pPr>' +
+      renderRun(null, label + ' ') +
+      seqXml +
+      renderRun(null, ': ' + String(text)) +
+      '</w:p>';
+
+    this._spliceBody(p.end, p.end, xml);
+    this._renumberSeqFields();
+    return this;
   }
 
   // ---- writing -------------------------------------------------------------

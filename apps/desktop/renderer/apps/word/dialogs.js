@@ -392,6 +392,53 @@ export function CrossReferenceDialog({ bookmarks, onClose, onInsert }) {
   );
 }
 
+const CAPTION_LABELS = ['Figure', 'Table', 'Equation'];
+
+/**
+ * Insert → Captions → Insert Caption: a label, the caption's own words, and
+ * a running SEQ number Update Fields keeps live — `Figure 3: a diagram of
+ * it`, previewed here the way Word's own dialog previews it before OK is
+ * pressed. The preview counts `fields` (every SEQ this label already has,
+ * from the model), the same count the engine itself makes when the caption
+ * actually lands — it only differs when the caption is about to be inserted
+ * ahead of others with the same label, and Update Fields (or the next
+ * caption) settles that, the same as it would after Word's own dialog.
+ */
+export function CaptionDialog({ fields, onClose, onInsert }) {
+  const [label, setLabel] = useState('Figure');
+  const [text, setText] = useState('');
+  const n = (fields || []).filter((f) => f.kind === 'seq' && f.name === label).length + 1;
+  const preview = `${label} ${n}: ${text}`;
+
+  const insert = () => onInsert(label, text);
+
+  return (
+    <Dialog
+      title="Caption"
+      width={440}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary className="wd-caption-insert" label="OK" onClick={insert} />
+        </>
+      }
+    >
+      <div className="ml-form" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); insert(); } }}>
+        <Field label="Label">
+          <Select className="wd-caption-label" value={label} onChange={(e) => setLabel(e.target.value)}>
+            {CAPTION_LABELS.map((l) => <option key={l} value={l}>{l}</option>)}
+          </Select>
+        </Field>
+        <Field label="Caption text">
+          <Input className="wd-caption-text" value={text} onChange={(e) => setText(e.target.value)} autoFocus />
+        </Field>
+        <p className="wd-caption-preview" style={{ marginTop: 0, fontSize: 12.5, color: 'var(--text-soft)' }}>{preview}</p>
+      </div>
+    </Dialog>
+  );
+}
+
 /* ── find and replace ────────────────────────────────────────────────────── */
 
 export function FindDialog({ onClose, onReplaceAll }) {

@@ -29,7 +29,7 @@ installRulerStyles();
 import {
   LinkDialog, TableDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
   DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog, WatermarkDialog,
-  BookmarkDialog, CrossReferenceDialog,
+  BookmarkDialog, CrossReferenceDialog, CaptionDialog,
 } from './word/dialogs.js';
 import { lineBoxes, rectOf } from './word/pages.js';
 
@@ -1343,6 +1343,18 @@ export default function Word({ app, shell, boot }) {
           onInsert={async (name) => {
             await apply({ op: 'insertCrossReference', name });
             setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'caption' ? (
+        <CaptionDialog
+          fields={model?.fields || []}
+          onClose={() => setDialog(null)}
+          onInsert={async (label, text) => {
+            await apply({ op: 'insertCaption', label, text });
+            setDialog(null);
+            toast('Caption inserted', { tone: 'good' });
           }}
         />
       ) : null}

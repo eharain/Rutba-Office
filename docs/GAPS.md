@@ -76,10 +76,14 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   and a bookmarked paragraph stays editable through it. Cross-references
   arrived the same day: Insert → Cross-reference puts a REF field on a
   bookmark, and Update Fields (F9) refreshes them from the bookmark's
-  words. Captions, an index, a table of authorities, citations and a
-  bibliography, `SEQ`, `PAGE` outside the header — none are written, so
-  the table of contents this suite inserts is text rather than a field
-  that refreshes.
+  words. Captions arrived the same day too: Insert → Caption writes a
+  labelled, numbered paragraph — a SEQ field, `w:fldChar` begin/separate/end
+  around ` SEQ Figure \* ARABIC `, the complex-field shape Word itself
+  writes for one — and Update Fields renumbers every label's captions from
+  where they now sit, the same pass that refreshes a REF. An index, a table
+  of authorities, citations and a bibliography, `PAGE` outside the header —
+  none are written, so the table of contents this suite inserts is text
+  rather than a field that refreshes.
 - **Mail merge**, envelopes and labels: a data source, merge fields, a
   preview and a run. Nothing of it exists, and Mail beside it is exactly
   what would make it worth having.
@@ -289,8 +293,9 @@ stage keeps a picture until the next has decoded. What is still missing:
 7. ~~**Things in a sheet that are not cells**: comments, hyperlinks~~ (both
    read and written since 2026-09-20), ~~format as table, pictures~~ (both
    written since 2026-09-21).
-8. **Fields in the document**: bookmarks first, then cross-references,
-   captions and a table of contents that refreshes.
+8. ~~**Fields in the document**: bookmarks first, then cross-references,
+   captions~~ (all three built 2026-09-24) **and a table of contents that
+   refreshes.**
 9. **Recording tracked changes**, then comparison and restricted editing.
 10. ~~**The formula language's remaining corners**: array constants, `LET`,
     `TEXT()` through the formatter the suite already owns.~~ Built 2026-09-09,

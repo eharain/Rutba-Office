@@ -152,15 +152,93 @@ function flatRuns(fragment, out, link = null) {
 }
 
 /**
- * A simple field's instruction, split the way Word's own fields are: the
- * first word says what kind of field it is; a REF's second word is the
- * bookmark it names. `PAGE`, `DATE`, `SEQ` and the rest carry no name — the
- * editor only ever follows a REF, so that is the only one worth a second word.
+ * A field's instruction, split the way Word's own fields are: the first
+ * word says what kind of field it is; a REF's second word is the bookmark
+ * it names, a SEQ's the sequence (label) it counts — `Figure`, `Table`,
+ * `Equation`, or a document's own. `PAGE`, `DATE` and the rest carry no
+ * name — the editor only ever follows a REF or groups a SEQ by it, so those
+ * are the only two kinds worth a second word.
  */
 function parseFieldInstr(instr) {
   const words = String(instr).trim().split(/\s+/);
   const kind = (words[0] || '').toLowerCase();
-  return { kind, name: kind === 'ref' ? (words[1] ?? null) : null };
+  return { kind, name: (kind === 'ref' || kind === 'seq') ? (words[1] ?? null) : null };
+}
+
+/**
+ * A COMPLETE complex field — `w:fldChar` begin/separate/end around an
+ * `<w:instrText>` — matched as three pieces: the run carrying `begin`, the
+ * runs between it and the run carrying `end` (the instruction and, after
+ * `separate`, the cached result), and the `end` run itself. `[\s\S]*?`
+ * non-greedy between `<w:r>` and its own `</w:r>` keeps one run's fldChar
+ * from swallowing its neighbour's; a run with no text between its tags
+ * still matches, which is exactly the shape `begin` and `end` runs are.
+ * Incomplete (no `separate`, the way a hand-built fixture sometimes is, or
+ * a field mid-edit Word never actually saves) is left to the caller to
+ * notice and skip — this regex only finds the begin…end SPAN.
+ */
+const COMPLEX_FIELD_RE = () => /(<w:r\b[^>]*>(?:(?!<\/w:r>)[\s\S])*?<w:fldChar\b[^>]*\bw:fldCharType="begin"[^>]*\/>(?:(?!<\/w:r>)[\s\S])*?<\/w:r>)([\s\S]*?)(<w:r\b[^>]*>(?:(?!<\/w:r>)[\s\S])*?<w:fldChar\b[^>]*\bw:fldCharType="end"[^>]*\/>(?:(?!<\/w:r>)[\s\S])*?<\/w:r>)/g;
+
+/**
+ * Visit every complete complex field in a fragment. `visit` gets the field
+ * code, the run holding its current cached result (or null for an empty
+ * one), and the raw pieces a caller needs to rewrite just the result — and
+ * returns either `undefined` (leave this field exactly as it was) or a
+ * replacement for the WHOLE matched span. Shared by `foldComplexFields`
+ * (turns one into the one-run shape `fieldRunFromFldSimple` already reads)
+ * and `mapComplexFieldResults` (rewrites a SEQ's cached number on Update
+ * Fields) — one reading of the begin/separate/end shape, two uses of it.
+ */
+function forEachComplexField(xml, visit) {
+  return String(xml).replace(COMPLEX_FIELD_RE(), (whole, begin, middle, end) => {
+    const sep = /<w:fldChar\b[^>]*\bw:fldCharType="separate"[^>]*\/>/.exec(middle);
+    if (!sep) return whole; // incomplete — no cached result to read or fold
+    const instrPart = middle.slice(0, sep.index);
+    const instr = [...instrPart.matchAll(/<w:instrText\b[^>]*>([\s\S]*?)<\/w:instrText>/g)]
+      .map((m) => unesc(m[1])).join('');
+    if (!instr) return whole;
+    const resultPart = middle.slice(sep.index + sep[0].length);
+    const runMatch = /<w:r\b[^>]*>([\s\S]*?)<\/w:r>/.exec(resultPart);
+    const replacement = visit({ begin, middle, end, instr, runMatch, resultPart, sepIndex: sep.index, sepTag: sep[0] });
+    return replacement === undefined ? whole : replacement;
+  });
+}
+
+/**
+ * A complex field folded to look like a `<w:fldSimple>` — same one-run
+ * shape, same `field` record — so a SEQ caption shades and reads exactly
+ * as a REF does, with nothing downstream needing to learn a second field
+ * shape. Called before anything else in this module sees the paragraph's
+ * XML, the way `<w:hyperlink>` and `<w:fldSimple>` already are.
+ */
+function foldComplexFields(xml) {
+  return forEachComplexField(xml, ({ instr, runMatch }) =>
+    '<w:fldSimple w:instr="' + esc(instr) + '">' + (runMatch ? runMatch[0] : '<w:r><w:t xml:space="preserve"></w:t></w:r>') + '</w:fldSimple>');
+}
+
+/**
+ * Update Fields for a SEQ caption: every complex field in a fragment gets
+ * its cached result run offered to `mapper(instr, currentText)`; a string
+ * back replaces just that run's words (its `w:rPr`, if it had one, rides
+ * along), `undefined` or the same text leaves the field untouched. Only the
+ * result changes — the instruction, the begin/separate/end markers, and
+ * everything else in the paragraph are byte-identical to what was there.
+ */
+export function mapComplexFieldResults(xml, mapper) {
+  return forEachComplexField(xml, ({ begin, middle, end, instr, runMatch, resultPart, sepIndex, sepTag }) => {
+    const currentText = runMatch ? textOf(runMatch[1]) : '';
+    const next = mapper(instr, currentText);
+    if (next === undefined || next === currentText) return undefined;
+    let newResultPart;
+    if (runMatch) {
+      const rPrMatch = RPR_RE.exec(runMatch[1]);
+      const newRun = '<w:r>' + (rPrMatch ? rPrMatch[0] : '') + '<w:t xml:space="preserve">' + esc(next) + '</w:t></w:r>';
+      newResultPart = resultPart.slice(0, runMatch.index) + newRun + resultPart.slice(runMatch.index + runMatch[0].length);
+    } else {
+      newResultPart = '<w:r><w:t xml:space="preserve">' + esc(next) + '</w:t></w:r>' + resultPart;
+    }
+    return begin + middle.slice(0, sepIndex) + sepTag + newResultPart + end;
+  });
 }
 
 /**
@@ -184,7 +262,10 @@ function fieldRunFromFldSimple(attrsText, inner) {
 }
 
 export function parseRuns(paragraphXml) {
-  const xml = String(paragraphXml);
+  // A complex field is folded to a `<w:fldSimple>`-shaped span BEFORE
+  // anything else here reads the paragraph, so a SEQ caption's number is
+  // one run carrying `field`, same as a REF's — see `foldComplexFields`.
+  const xml = foldComplexFields(String(paragraphXml));
   const runs = [];
 
   // A `<w:hyperlink>` is a GROUP of runs wearing a target: its runs are as

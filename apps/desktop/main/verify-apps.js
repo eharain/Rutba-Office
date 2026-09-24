@@ -1627,6 +1627,116 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── Word: captions — Insert → Caption writes a SEQ field ────────────── */
+  //
+  // A labelled, numbered paragraph after the caret's: the label, a SEQ
+  // field — a COMPLEX field, the shape Word itself writes for a caption —
+  // then the words. A second caption of the same label numbers itself from
+  // where it lands, not from a counter the dialog remembers. Run alone with
+  // RUTBA_VERIFY_ONLY=captions.
+  const wordCaptions = async () => {
+    try {
+      const win = await open('word', files.docx);
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const session = sessionFor('doc');
+      const model = () => doc.model({ id: session.id });
+
+      const clickRibbon = (title) => js(`(() => {
+        const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+        if (!b) return 'no button ' + ${JSON.stringify(title)};
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+        b.click();
+        return 'clicked';
+      })()`);
+      const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+      // A collapsed caret at the given end of a block, the way wordBookmarks
+      // and wordCrossRef both place one.
+      const caretIn = (block, atEnd) => js(`(() => {
+        const b = document.querySelector('.wd-page [data-block="${block}"]');
+        b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+        const r = document.createRange(); r.selectNodeContents(b); r.collapse(${atEnd ? 'false' : 'true'});
+        const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+        document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+        return 1;
+      })()`);
+      const setCaptionText = (text) => js(`(() => { const el = document.querySelector('.wd-caption-text'); const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set; setter.call(el, ${JSON.stringify(text)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+
+      await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="2"]'))`), 'the third paragraph', 8000);
+
+      await caretIn(2, true);
+      await wait(200);
+      await clickTab('References');
+      await wait(200);
+
+      const pressed = await clickRibbon('Insert Caption');
+      await until(() => js(`Boolean(document.querySelector('.wd-caption-text'))`), 'the Caption dialog', 5000);
+      await setCaptionText('a diagram of the pipeline');
+      await wait(150);
+      await js(`(() => { document.querySelector('.wd-caption-insert')?.click(); return 1; })()`);
+
+      const firstText = await until(
+        () => (model().blocks || []).some((b) => b.text === 'Figure 1: a diagram of the pipeline'),
+        'the first caption in the model',
+        5000
+      ).catch(() => false);
+      check(
+        'word: Insert → Caption writes a labelled, numbered paragraph at the caret',
+        pressed === 'clicked' && firstText === true,
+        `${pressed}; blocks ${JSON.stringify((model().blocks || []).map((b) => b.text))}`
+      );
+
+      const onPage = await js(`document.querySelector('.wd-page')?.textContent.includes('Figure 1: a diagram of the pipeline')`);
+      check('word: the page reads the caption', onPage === true, `on page: ${onPage}`);
+
+      const shaded = await js(`Boolean([...document.querySelectorAll('.wd-field')].find((s) => s.textContent === '1'))`);
+      check("word: the caption's SEQ number is shaded like any other field", shaded === true, `shaded: ${shaded}`);
+
+      // A second caption, at the end of the document now — numbered from
+      // where it lands.
+      const lastBlock = () => (model().blocks || []).length - 1;
+      await caretIn(lastBlock(), true);
+      await wait(200);
+      await clickRibbon('Insert Caption');
+      await until(() => js(`Boolean(document.querySelector('.wd-caption-text'))`), 'the Caption dialog again', 5000);
+      await setCaptionText('a screenshot of the report');
+      await wait(150);
+      await js(`(() => { document.querySelector('.wd-caption-insert')?.click(); return 1; })()`);
+
+      const secondText = await until(
+        () => (model().blocks || []).some((b) => b.text === 'Figure 2: a screenshot of the report'),
+        'the second caption in the model',
+        5000
+      ).catch(() => false);
+      check(
+        'word: a second caption of the same label numbers itself 2',
+        secondText === true,
+        JSON.stringify((model().blocks || []).map((b) => b.text))
+      );
+
+      await clickRibbon('Save');
+      const bodyXml = () => {
+        try {
+          const engine = openDocx(fs.readFileSync(files.docx)).doc.doc;
+          return engine.paragraphs().map((p) => p.xml).join('');
+        } catch {
+          return '';
+        }
+      };
+      await until(() => /SEQ Figure/.test(bodyXml()), 'the SEQ field to land in the file', 8000).catch(() => false);
+      const xml = bodyXml();
+      const hasSeq = xml.includes('<w:instrText xml:space="preserve"> SEQ Figure \\* ARABIC </w:instrText>')
+        && /<w:fldChar w:fldCharType="begin"\/>/.test(xml)
+        && /<w:fldChar w:fldCharType="separate"\/>/.test(xml)
+        && /<w:fldChar w:fldCharType="end"\/>/.test(xml);
+      check("word: the saved file writes the SEQ field as a complex field, Word's own shape", hasSeq, xml.slice(-500));
+
+      const complaints = await errorsIn(win);
+      check('word: the caption checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('word: the caption checks ran', false, err.message);
+    }
+  };
+
   /* ── Word: text effects — outline, shadow, glow ────────────────────── */
   //
   // Home → the "A" button: Outline hollows the selected words, Shadow casts
@@ -3833,7 +3943,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,providers,signature: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -3857,6 +3967,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('dropcap')) await wordDropCap();
     if (only.includes('bookmarks')) await wordBookmarks();
     if (only.includes('xref')) await wordCrossRef();
+    if (only.includes('captions')) await wordCaptions();
     if (only.includes('effects')) await wordEffects();
     if (only.includes('ruler')) await wordRuler();
     if (only.includes('columns')) await wordColumns();
@@ -3977,6 +4088,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordDropCap();
   await wordBookmarks();
   await wordCrossRef();
+  await wordCaptions();
   await wordEffects();
   await wordPictureFits();
   await wordCards();

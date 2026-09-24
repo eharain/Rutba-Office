@@ -1838,6 +1838,28 @@ export class DocView {
   }
 
   /**
+   * Insert → Captions → Insert Caption: a new paragraph after the one the
+   * caret sits in — a picture's own paragraph when the caret is in it,
+   * since an inline picture is its paragraph's whole content here. `label`
+   * is 'Figure' | 'Table' | 'Equation'; the running number is the engine's
+   * own count, not the dialog's (see `Document#addCaption`), so a caption
+   * inserted ahead of others with the same label still comes out right.
+   */
+  insertCaption({ label, text = '' }) {
+    if (typeof this.doc.addCaption !== 'function') {
+      throw new Error('this document backend does not support captions');
+    }
+    return this._edit('caption', null, () => {
+      const { block } = this.focus;
+      if (!this.block(block)) throw new Error('no paragraph at index ' + block);
+      this.doc.addCaption({ label, text, at: block });
+      this._invalidate();
+      this.collapseTo({ block: block + 1, offset: 0 });
+      return this;
+    });
+  }
+
+  /**
    * References → Update Fields (F9): every REF field's words refreshed from
    * its bookmark, right now — as a person would run it before printing.
    * Returns how many fields changed, for the toast.
@@ -2102,6 +2124,10 @@ export class DocView {
       comments: typeof this.doc.comments === 'function' ? this.doc.comments() : [],
       // Bookmark spans, read-only, for the Bookmark dialog's list.
       bookmarks: this.bookmarks(),
+      // Every field, read-only — the Caption dialog previews "Figure 3"
+      // from this before OK is even pressed, counting the SEQ fields this
+      // label already has.
+      fields: typeof this.doc.fields === 'function' ? this.doc.fields() : [],
       // Every list label by block index — how a TABLE CELL's list items get
       // their bullets and numbers, since cells have no fragments to carry
       // one. Computed on the same counters pagination used, so the body and

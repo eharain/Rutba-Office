@@ -45,7 +45,7 @@ mistake, and they never take the keyboard from you. Set
 `RUTBA_WINDOW_DISPLAY=secondary` to watch a run on a second display
 instead. `RUTBA_SMOKE_THEME=dark npm run smoke` photographs every window
 in the dark theme, which is how a change to the look is checked in both.
-`RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,bullets,clip,footer,find,sections,hidden,background,table,chart,fill,pics,look,dropcap,effects,bookmarks,xref,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,zoom,fit,cards,sheetpic,providers,signature npm run verify:apps` runs only the
+`RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,bullets,clip,footer,find,sections,hidden,background,table,chart,fill,pics,look,dropcap,effects,bookmarks,xref,captions,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,zoom,fit,cards,sheetpic,providers,signature npm run verify:apps` runs only the
 named blocks of application checks — the ones for a feature being worked
 on, in seconds rather than minutes — and `RUTBA_VERIFY_CAPTURE=<dir>`
 makes those blocks photograph the window at the moment that matters (a
