@@ -146,9 +146,11 @@ it is where the gaps are.
   writes them — the x14 sparkline groups in the worksheet's extension
   list — and drawn in the cell layer under the cell's own words. Slicers
   are still read, not written.
-- **Data tools**: advanced filter with a criteria range, consolidate,
-  flash fill, subtotals and outlining, forecast sheets. (Text to columns,
-  remove duplicates and a sort by up to three keys are built, 2026-09-21.)
+- **Data tools**: consolidate and forecast sheets. (Text to columns,
+  remove duplicates and a sort by up to three keys are built, 2026-09-21;
+  group and outline, subtotals, advanced filter with a criteria range and
+  flash fill, 2026-09-25 — Auto Outline, SUBTOTAL 101–111 and an advanced
+  filter copied to another sheet are not.)
 - **Auditing**: evaluate step by step. Error checking and the watch window
   both arrived 2026-09-24: Formulas → Error Checking opens a pane listing
   every error cell and circular reference, with Next and Previous to walk
