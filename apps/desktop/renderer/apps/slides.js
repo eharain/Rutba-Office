@@ -1888,12 +1888,14 @@ function FindPane({ mode, onClose, onSearch, onGoto, onReplaceOne, onReplaceAll 
   const seq = useRef(0);
 
   const runSearch = useCallback(
-    async (text, mc, { keepAt = false } = {}) => {
+    async (text, mc, { keepAt = false, note = null } = {}) => {
       const mine = ++seq.current;
       const found = text ? await onSearch(text, mc) : [];
       if (mine !== seq.current) return; // a later search landed first
       setHits(found);
-      setNote(text && !found.length ? 'No matches.' : null);
+      // A note the caller already has (Replace All's count) outranks the
+      // search's own, or the count flashes and is gone.
+      setNote(note || (text && !found.length ? 'No matches.' : null));
       const nextAt = found.length ? (keepAt ? Math.min(atRef.current, found.length - 1) : 0) : 0;
       setAt(nextAt);
       onGoto(found.length ? found[nextAt] : null);
@@ -1923,8 +1925,7 @@ function FindPane({ mode, onClose, onSearch, onGoto, onReplaceOne, onReplaceAll 
   const replaceAll = async () => {
     if (!find) return;
     const n = await onReplaceAll(find, replace, matchCase);
-    setNote(`Replaced ${n} across the deck.`);
-    await runSearch(find, matchCase);
+    await runSearch(find, matchCase, { note: `Replaced ${n} across the deck.` });
   };
 
   return (
