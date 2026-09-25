@@ -6,3 +6,4 @@ export * as units from './units.js';
 export { TRANSITIONS, readTransition, transitionXml } from './motion.js';
 export { EFFECTS, EFFECT_DIRECTIONS, readAnimations, effectXml } from './timing.js';
 export { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS, COLOUR_SLOTS, COLOUR_SLOT_NAMES, themePartXml, variantsOf } from './themes.js';
+export { ommlForSlide, equationShapeXml } from './equations.js';

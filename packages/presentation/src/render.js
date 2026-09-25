@@ -269,7 +269,58 @@ export function layoutText(body, box, { scale = 1, baseSize = 18, levels = null 
   return { lines, height: y, insets };
 }
 
+const MATHML_NS = 'http://www.w3.org/1998/Math/MathML';
+const MATH_FACE = "'Cambria Math', 'STIX Two Math', 'Latin Modern Math', math";
+
+/**
+ * A text body with equations in it, drawn by the page itself: its
+ * paragraphs as HTML in a `foreignObject`, the words as spans and each
+ * equation as the MathML the Word page draws, laid out by Chromium's own
+ * MathML — one drawing for the stage, the strip, the show and the printed
+ * page alike. The box's insets, anchor, alignment and the inherited size,
+ * colour and face apply as they do to plain text.
+ */
+function htmlTextSvg(body, box, opts = {}) {
+  const levels = opts.levels || null;
+  const ins = body.insets || { l: 7.2, t: 3.6, r: 7.2, b: 3.6 };
+  const justify = { top: 'flex-start', middle: 'center', bottom: 'flex-end' }[body.anchor || 'top'] || 'flex-start';
+  const base = levels?.[0] || {};
+  const paras = (body.paragraphs || []).map((p) => {
+    const lv = levels?.[Math.min(8, p.level || 0)] || {};
+    const hasDisplay = p.runs.some((r) => r.math?.display);
+    const align = p.align || lv.align || (hasDisplay ? 'center' : 'left');
+    const size = p.runs.find((r) => r.size && !r.math)?.size || p.endProps?.size || lv.size || opts.baseSize || 18;
+    const runs = p.runs.map((r) => {
+      if (r.math) {
+        const side = { left: 'left', right: 'right' }[r.math.jc] || null;
+        const mathml = String(r.math.mathml || '').replace(/<math\b(?![^>]*\bxmlns=)/g, `<math xmlns="${MATHML_NS}"`).replace(/<math\b/g, `<math style="font-family:${MATH_FACE}"`);
+        return r.math.display ? `<div style="text-align:${side || 'center'}">${mathml}</div>` : mathml;
+      }
+      if (r.break) return '<br/>';
+      const look = { ...definedOnly({ bold: lv.bold, italic: lv.italic, color: lv.color, font: lv.font }), ...definedOnly(r) };
+      const css = [
+        look.bold ? 'font-weight:700' : '',
+        look.italic ? 'font-style:italic' : '',
+        look.color ? `color:${look.color}` : '',
+        look.size && look.size !== size ? `font-size:${look.size}px` : '',
+        look.font ? `font-family:${fontStack(look.font).replace(/"/g, "'")}` : '',
+        look.underline || look.link ? 'text-decoration:underline' : '',
+      ].filter(Boolean).join(';');
+      return `<span${css ? ` style="${css}"` : ''}>${escapeXml(r.text || '')}</span>`;
+    }).join('');
+    return `<div style="margin:0;text-align:${align};font-size:${size}px;line-height:1.2">${runs || '&#8203;'}</div>`;
+  }).join('');
+  const colour = base.color || '#1a1a1a';
+  const face = base.font ? fontStack(base.font).replace(/"/g, "'") : DEFAULT_FONT;
+  return `<foreignObject x="${box.x.toFixed(2)}" y="${box.y.toFixed(2)}" width="${Math.max(1, box.w).toFixed(2)}" height="${Math.max(1, box.h).toFixed(2)}" overflow="visible">` +
+    `<div xmlns="http://www.w3.org/1999/xhtml" style="box-sizing:border-box;width:100%;height:100%;padding:${ins.t}px ${ins.r}px ${ins.b}px ${ins.l}px;display:flex;flex-direction:column;justify-content:${justify};color:${colour};font-family:${face};white-space:pre-wrap;overflow:visible">${paras}</div></foreignObject>`;
+}
+
+/** Whether a text body holds an equation. */
+const hasMath = (body) => Boolean(body?.paragraphs?.some((p) => (p.runs || []).some((r) => r.math)));
+
 function textSvg(body, box, opts) {
+  if (hasMath(body)) return htmlTextSvg(body, box, opts);
   // Words running up or down: laid out in the box turned on its side, then
   // the drawing turned back — PowerPoint's vert270 (up) and vert (down).
   const vert = body.vert === 'vert' || body.vert === 'vert270' ? body.vert : null;

@@ -21,6 +21,7 @@ import { parse, kids, first, all, textOf } from '@rutba/office-formats/xml';
 import { bulletGlyph } from '@rutba/drawing/glyphs';
 import { parseChartXml } from '@rutba/drawing';
 import { emuToPx, szToPt, rotToDeg, applyColorTransforms, PRESET_COLORS, pctOf } from './units.js';
+import { ommlToMathml, ommlToLinear, ommlInfo } from '@rutba/ooxml/math';
 
 const A = (n) => `a:${n}`;
 const P = (n) => `p:${n}`;
@@ -330,6 +331,14 @@ function mergeLevels(...lists) {
   return out;
 }
 
+/** A parsed element back to XML, exactly enough to hand an equation's OMML to the math reader. */
+function serializeNode(node) {
+  if (typeof node === 'string') return node.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const attrs = Object.entries(node.attrs || {}).map(([k, v]) => ` ${k}="${String(v).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;')}"`).join('');
+  const inner = (node.children || []).map(serializeNode).join('');
+  return inner ? `<${node.name}${attrs}>${inner}</${node.name}>` : `<${node.name}${attrs}/>`;
+}
+
 /** `<p:txBody>` → paragraphs of runs. */
 function readTextBody(txBody, theme) {
   if (!txBody) return null;
@@ -347,6 +356,19 @@ function readTextBody(txBody, theme) {
         runs.push({ text: textOf(t), ...readRunProps(kids(child, A('rPr'))[0], theme) });
       } else if (child.name === A('br')) {
         runs.push({ text: '\n', break: true });
+      } else if (child.name === 'a14:m') {
+        // An equation, as PowerPoint writes one in a text run: Office Math
+        // (the same OMML Word writes) inside `a14:m`. Its XML is kept to be
+        // written back and drawn as MathML; its linear form stands for its
+        // words wherever plain text is wanted — search, the outline.
+        const xml = kids(child).map(serializeNode).join('');
+        let mathml = '';
+        let linear = '';
+        let info = { display: false, jc: null };
+        try { mathml = ommlToMathml(xml); } catch { mathml = ''; }
+        try { linear = ommlToLinear(xml); } catch { linear = textOf(child); }
+        try { info = ommlInfo(xml); } catch { /* inline */ }
+        runs.push({ text: linear || textOf(child), math: { xml, mathml, linear, display: Boolean(info.display), jc: info.jc || null } });
       } else if (child.name === A('fld')) {
         // A field — slide number, date. Its cached text is what PowerPoint drew.
         const t = kids(child, A('t'))[0];
@@ -555,6 +577,22 @@ export function readSlideScene(xml, ctx = {}) {
             : null;
           if (spec) shapes.push({ kind: 'chart', ...meta, groupId, geometry: geom, spec, part: r.part });
           else shapes.push({ kind: 'unsupported', ...meta, groupId, geometry: geom, what: chartNode ? 'chart' : 'graphic' });
+        }
+      } else if (node.name === 'mc:AlternateContent') {
+        // Markup compatibility: the first choice this reader understands —
+        // an equation's text box (a14) — or else the fallback PowerPoint
+        // wrote for readers like the ones that do not, a picture as a rule.
+        const choice = kids(node, 'mc:Choice').find((c) => String(c.attrs.Requires || '').split(/\s+/).every((r) => r === 'a14'));
+        const fallback = kids(node, 'mc:Fallback')[0] || null;
+        const chosen = choice || fallback;
+        if (!chosen) continue;
+        const before = shapes.length;
+        walkTree(chosen, container, groupId);
+        const blip = choice && fallback ? first(fallback, A('blip')) : null;
+        const embed = blip?.attrs['r:embed'] || null;
+        for (let i = before; i < shapes.length; i++) {
+          shapes[i] = { ...shapes[i], alt: Boolean(choice) };
+          if (embed) shapes[i].fallback = { embed, source: ctx.rel ? ctx.rel(embed) : null };
         }
       } else if (node.name === P('cxnSp')) {
         const spPr = kids(node, P('spPr'))[0];

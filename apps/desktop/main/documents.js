@@ -33,6 +33,7 @@ import { parseRef } from '@rutba/ooxml/workbook';
 import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES, THEMES as DECK_THEMES, PALETTES as DECK_PALETTES, FONT_PAIRS as DECK_FONT_PAIRS, EFFECT_PRESETS as DECK_EFFECTS } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';
 import { linearToOmml } from '@rutba/ooxml/math-linear';
+import { ommlToMathml } from '@rutba/ooxml/math';
 import { probeImage } from '@rutba/imaging/probe';
 import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
 import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
@@ -2091,6 +2092,61 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         items = DECK_EFFECTS.map((p) => ({ id: p.id, name: p.name, description: p.description, current: info.effects === p.id, svg: safely(() => renderThumbnail(deck.effectsSample(p.id, index), 150)) || null }));
       }
       return { info, items };
+    },
+
+    /**
+     * Insert → Equation on a slide, or an equation there edited again: the
+     * linear form built into Office Math by Word's own builder, laid out by
+     * Chromium's MathML (the page the Word printout measures with) for its
+     * size and its picture — the PNG PowerPoint keeps as the fallback — and
+     * written as PowerPoint writes one. One undo step. Without a measurer
+     * (a test, the service outside Electron) the size is estimated and the
+     * fallback holds the linear form as words.
+     */
+    deckEquation: async ({ id, slide = 0, shape = null, linear, display = true, size = 28, width = 1280 }) => {
+      const session = get(id);
+      if (session.kind !== 'deck') throw new Error('Equations here are for a presentation.');
+      const deck = session.engine;
+      const built = linearToOmml(String(linear ?? ''), { display: display !== false });
+      if (!built.ok) throw new Error(`That equation cannot be built: ${built.error}.`);
+      const mathml = ommlToMathml(built.xml);
+      let measured = null;
+      if (measureMath) {
+        try {
+          const got = await measureMath([{ key: 'deck-eq', mathml, display: display !== false }]);
+          measured = got.get('deck-eq') || null;
+        } catch {
+          measured = null;
+        }
+      }
+      // The box: the equation at the type size, with the text box's own insets round it.
+      const w = measured ? Math.ceil(measured.widthEm * size + 14.4) : Math.max(120, Math.min(deck.size.width * 0.8, String(linear).length * size * 0.55 + 14.4));
+      const h = measured ? Math.ceil(measured.heightEm * size + 7.2) : Math.ceil(size * 2.2);
+      const png = measured?.png || null;
+      const snap = deck.snapshot();
+      let result;
+      if (shape != null) {
+        deck.setEquation(slide, shape, { omml: built.xml, png, w, h });
+        result = String(shape);
+      } else {
+        // In the middle of the slide, as PowerPoint puts one — or, when that
+        // spot is taken, the first free one below it, so a new equation is
+        // never drawn over one already there.
+        const boxes = (safely(() => deck.slide(slide).shapes) || []).filter((s) => s.geometry && s.groupId == null && !s.placeholder).map((s) => s.geometry);
+        const x = (deck.size.width - w) / 2;
+        let y = (deck.size.height - h) / 2;
+        const clashes = (top) => boxes.some((g) => x < g.x + g.w && x + w > g.x && top < g.y + g.h && top + h > g.y);
+        while (clashes(y) && y + h + 24 < deck.size.height) {
+          const below = Math.max(...boxes.filter((g) => x < g.x + g.w && x + w > g.x && y < g.y + g.h && y + h > g.y).map((g) => g.y + g.h));
+          y = below + 16;
+        }
+        if (y + h > deck.size.height) y = (deck.size.height - h) / 2;
+        result = String(deck.addEquation(slide, { omml: built.xml, png, x, y, w, h, size, linear: String(linear) }));
+      }
+      deck.pushUndo(snap);
+      session.dirty = true;
+      session.version++;
+      return { ...session.meta(), model: modelOf(session, { width, slide }), opResult: result };
     },
 
     // The thumbnails an open model left out, drawn on request and cached

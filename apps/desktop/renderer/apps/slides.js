@@ -22,6 +22,7 @@ import { clickCount } from './slides/animate.js';
 import { Markup } from './slides/markup.js';
 import { DesignGallery, CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 import { CommentsPane, markerSpots, personColour, COMMENTS_CSS } from './slides/comments.js';
+import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 
 export default function Slides({ app, shell, boot }) {
   // A presenter window is the same app pointed at the same open document,
@@ -43,6 +44,8 @@ export default function Slides({ app, shell, boot }) {
   const [masterPart, setMasterPart] = useState(null);
   const masterRef = useRef(null);
   masterRef.current = masterPart;
+  /** Insert → Equation, or an equation double-clicked: { shape, initial, display } while the editor is open. */
+  const [equationOpen, setEquationOpen] = useState(null);
   /** Review → the comment thread picked in the pane or on the stage, and a new one being written ({ shape }). */
   const [commentSel, setCommentSel] = useState(null);
   const [commentDraft, setCommentDraft] = useState(null);
@@ -932,6 +935,24 @@ export default function Slides({ app, shell, boot }) {
         return;
       case 'customColours': setDesignOpen(null); setCustomColours(arg || model?.design || {}); return;
       case 'customFonts': setDesignOpen(null); setCustomFonts(arg || model?.design || {}); return;
+      // Insert → Equation: Word's equation editor, over the slide.
+      case 'equation':
+        if (masterPart) return toast('Equations go on slides — Close Master View first.', { ms: 3200 });
+        setEquationOpen({ shape: null, initial: '', display: true });
+        return;
+      case 'putEquation': {
+        const open = equationOpen || {};
+        try {
+          const next = await shell.doc.deckEquation({ id: doc.id, slide: index, shape: open.shape ?? null, linear: arg.linear, display: arg.display, width: 1280 });
+          setDoc(next);
+          setModel(next.model);
+          setEquationOpen(null);
+          if (next.opResult != null) setSelected(String(next.opResult));
+        } catch (err) {
+          toast(err.message, { tone: 'bad' });
+        }
+        return;
+      }
       // Review → Comments: a new thread, a post, a reply, Resolve, Delete,
       // Previous and Next across the deck, and the pane.
       case 'newComment':
@@ -1493,7 +1514,7 @@ export default function Slides({ app, shell, boot }) {
         </div>
       ) : (
         <>
-          <style>{CSS + DESIGN_CSS + COMMENTS_CSS}</style>
+          <style>{CSS + DESIGN_CSS + COMMENTS_CSS + EQUATION_CSS}</style>
           <Panel width={196} resizable title={model.masterView ? 'Slide Master' : 'Slides'}>
             {model.masterView ? (
               <div className="sl-sorter sl-masterstrip">
@@ -1669,6 +1690,9 @@ export default function Slides({ app, shell, boot }) {
                         }}
                         onDoubleClick={() => {
                           if (s.kind === 'chart') { setSelected(s.id); setChartDataOpen(s.id); return; }
+                          // An equation opens in the equation editor, in its linear form.
+                          const eq = (s.text?.paragraphs || []).flatMap((p) => p.runs || []).find((r) => r.math);
+                          if (eq && !masterPart) { setSelected(s.id); setEquationOpen({ shape: s.id, initial: eq.math.linear || '', display: eq.math.display !== false }); return; }
                           if (s.text) setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') });
                         }}
                         onContextMenu={(e) => {
@@ -1942,6 +1966,16 @@ export default function Slides({ app, shell, boot }) {
       )}
 
       {shortcutsOpen ? <SlidesShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
+
+      {equationOpen ? (
+        <EquationDialog
+          initial={equationOpen.initial || ''}
+          display={equationOpen.display !== false}
+          editing={equationOpen.shape != null}
+          onClose={() => setEquationOpen(null)}
+          onInsert={(linear, display) => act('putEquation', { linear, display })}
+        />
+      ) : null}
 
       {partRename ? (
         <PartNameDialog

@@ -109,6 +109,9 @@ export function createMathMeasurer() {
         }
         const em = REF_PX * SCALE;
         out.set(batch[i].key, {
+          // The same picture as a PNG, for a reader that keeps one — a
+          // slide's equation carries it as PowerPoint's fallback.
+          png: image.toPNG(),
           widthEm: box.w / em,
           heightEm: box.h / em,
           baselineEm: box.base / em,

@@ -447,7 +447,7 @@ export default function SlidesRibbon({
             <Soon icon="file" label="Object" why="Embedded objects are not built." />
           </Group>
           <Group label="Symbols">
-            <Soon tall icon="formula" label="Equation" why="Equations are OMML the engine does not write." />
+            <Button tall icon="formula" label="Equation" title="Equation — Office Math on this slide, typed in Word's linear format with a live preview; double-click one to edit it" onClick={() => act('equation')} />
             <Soon tall icon="plus" label="Symbol" why="Comes with text selection inside a box." />
           </Group>
           <Group label="Media">

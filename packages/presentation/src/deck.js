@@ -15,6 +15,7 @@ import { parse, kids, first, all, escapeXml } from '@rutba/office-formats/xml';
 import { emuToPx, pxToEmu, ptToSz } from './units.js';
 import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText, composeGroupChild, REFLECTION_PRESETS, readLevels, mergeLevels, readFill } from './slide.js';
 import { COMMENT_REL, COMMENT_CT, COMMENT_REL_EXT, CREATION_ID_EXT, NS as CM_NS, guid as commentGuid, stamp, initialsOf, readAuthors, authorsXml, readModernComments, readLegacyAuthors, readLegacyComments, commentXml, commentListXml, threadRange } from './comments.js';
+import { equationShapeXml, ommlForSlide } from './equations.js';
 import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS, COLOUR_SLOTS, themePartXml, clrSchemeXml, fontSchemeXml, fmtSchemeXml, masterBackgroundXml, clrMapAttrs, variantsOf, themeById } from './themes.js';
 import { slideXml } from './build.js';
 import { chartPartXml } from '@rutba/ooxml/build';
@@ -87,19 +88,22 @@ function topLevelShapes(xml, bounds = null) {
     end = xml.lastIndexOf('</p:spTree>');
     if (start < 0 || end < 0) return [];
   }
-  const re = /<(\/?)p:(sp|pic|graphicFrame|cxnSp|grpSp)\b[^>]*?(\/?)>/g;
+  // An mc:AlternateContent — an equation and the picture it falls back to —
+  // is one child too, whatever shapes it holds.
+  const re = /<(\/?)(?:p:(sp|pic|graphicFrame|cxnSp|grpSp)|mc:(AlternateContent))\b[^>]*?(\/?)>/g;
   re.lastIndex = start;
   const out = [];
   const stack = [];
   let m;
   while ((m = re.exec(xml)) && m.index < end) {
     const closing = m[1] === '/';
+    const tag = m[2] || m[3];
     if (!closing) {
-      if (m[3] === '/') {
-        if (!stack.length) out.push({ tag: m[2], start: m.index, end: m.index + m[0].length, id: null });
+      if (m[4] === '/') {
+        if (!stack.length) out.push({ tag, start: m.index, end: m.index + m[0].length, id: null });
         continue;
       }
-      stack.push({ tag: m[2], start: m.index });
+      stack.push({ tag, start: m.index });
       continue;
     }
     const open = stack.pop();
@@ -971,6 +975,13 @@ export class Deck {
       end = xml.indexOf(closeTag, at);
     }
     if (end < 0) return null;
+    // Inside an mc:AlternateContent (an equation's text box and its picture
+    // fallback), the shape is the pair: moved, copied and deleted together.
+    const ac = xml.lastIndexOf('<mc:AlternateContent', start);
+    if (ac >= 0 && xml.lastIndexOf('</mc:AlternateContent>', start) < ac) {
+      const acEnd = xml.indexOf('</mc:AlternateContent>', start);
+      if (acEnd > start) return { start: ac, end: acEnd + '</mc:AlternateContent>'.length, tag: '<mc:AlternateContent>', alt: true };
+    }
     return { start, end: end + closeTag.length, tag };
   }
 
@@ -988,6 +999,7 @@ export class Deck {
     const xml = this.pkg.text(part);
     const range = this.#shapeRange(xml, shapeId);
     if (!range) throw new Error(`shape ${shapeId} not found on slide ${slideIndex + 1}`);
+    if (range.alt || /<a14:m\b/.test(xml.slice(range.start, range.end))) throw new Error('An equation is edited in the equation editor — double-click it.');
     const shapeXml = xml.slice(range.start, range.end);
     const bodyStart = shapeXml.indexOf('<p:txBody>');
     const bodyEnd = shapeXml.indexOf('</p:txBody>');
@@ -1020,40 +1032,47 @@ export class Deck {
     const xml = this.pkg.text(part);
     const range = this.#shapeRange(xml, shapeId);
     if (!range) throw new Error(`shape ${shapeId} not found`);
-    let shapeXml = xml.slice(range.start, range.end);
+    const whole = xml.slice(range.start, range.end);
+    const move = (input) => {
+      let shapeXml = input;
 
-    const offRe = /<a:off\b[^>]*\/>/;
-    const extRe = /<a:ext\b[^>]*\/>/;
-    const hasXfrm = /<a:xfrm\b/.test(shapeXml);
+      const offRe = /<a:off\b[^>]*\/>/;
+      const extRe = /<a:ext\b[^>]*\/>/;
+      const hasXfrm = /<a:xfrm\b/.test(shapeXml);
 
-    const offXml = `<a:off x="${pxToEmu(x)}" y="${pxToEmu(y)}"/>`;
-    const extXml = `<a:ext cx="${Math.max(1, pxToEmu(w))}" cy="${Math.max(1, pxToEmu(h))}"/>`;
-    const touchesTransform = rot !== undefined || flipH !== undefined || flipV !== undefined;
+      const offXml = `<a:off x="${pxToEmu(x)}" y="${pxToEmu(y)}"/>`;
+      const extXml = `<a:ext cx="${Math.max(1, pxToEmu(w))}" cy="${Math.max(1, pxToEmu(h))}"/>`;
+      const touchesTransform = rot !== undefined || flipH !== undefined || flipV !== undefined;
 
-    if (hasXfrm) {
-      shapeXml = offRe.test(shapeXml) ? shapeXml.replace(offRe, offXml) : shapeXml.replace(/<a:xfrm\b[^>]*>/, (m) => m + offXml);
-      shapeXml = extRe.test(shapeXml) ? shapeXml.replace(extRe, extXml) : shapeXml.replace(offXml, offXml + extXml);
-      if (touchesTransform) {
-        shapeXml = shapeXml.replace(/<a:xfrm\b([^>]*)>/, (m, attrs) => {
-          let next = attrs;
-          if (rot !== undefined) { next = next.replace(/\s*rot="[^"]*"/, ''); if (rot) next += ` rot="${Math.round(rot * 60000)}"`; }
-          if (flipH !== undefined) { next = next.replace(/\s*flipH="[^"]*"/, ''); if (flipH) next += ' flipH="1"'; }
-          if (flipV !== undefined) { next = next.replace(/\s*flipV="[^"]*"/, ''); if (flipV) next += ' flipV="1"'; }
-          return `<a:xfrm${next}>`;
-        });
+      if (hasXfrm) {
+        shapeXml = offRe.test(shapeXml) ? shapeXml.replace(offRe, offXml) : shapeXml.replace(/<a:xfrm\b[^>]*>/, (m) => m + offXml);
+        shapeXml = extRe.test(shapeXml) ? shapeXml.replace(extRe, extXml) : shapeXml.replace(offXml, offXml + extXml);
+        if (touchesTransform) {
+          shapeXml = shapeXml.replace(/<a:xfrm\b([^>]*)>/, (m, attrs) => {
+            let next = attrs;
+            if (rot !== undefined) { next = next.replace(/\s*rot="[^"]*"/, ''); if (rot) next += ` rot="${Math.round(rot * 60000)}"`; }
+            if (flipH !== undefined) { next = next.replace(/\s*flipH="[^"]*"/, ''); if (flipH) next += ' flipH="1"'; }
+            if (flipV !== undefined) { next = next.replace(/\s*flipV="[^"]*"/, ''); if (flipV) next += ' flipV="1"'; }
+            return `<a:xfrm${next}>`;
+          });
+        }
+      } else {
+        // The shape inherited its geometry; state it explicitly now that the user
+        // has moved it, inserting the xfrm as the first child of spPr.
+        const rotAttr = rot ? ` rot="${Math.round(rot * 60000)}"` : '';
+        const flipAttr = `${flipH ? ' flipH="1"' : ''}${flipV ? ' flipV="1"' : ''}`;
+        shapeXml = shapeXml.replace(
+          /<p:spPr\s*\/>|<p:spPr\b[^>]*>/,
+          (m) => (m.endsWith('/>')
+            ? `<p:spPr><a:xfrm${rotAttr}${flipAttr}>${offXml}${extXml}</a:xfrm></p:spPr>`
+            : `${m}<a:xfrm${rotAttr}${flipAttr}>${offXml}${extXml}</a:xfrm>`)
+        );
       }
-    } else {
-      // The shape inherited its geometry; state it explicitly now that the user
-      // has moved it, inserting the xfrm as the first child of spPr.
-      const rotAttr = rot ? ` rot="${Math.round(rot * 60000)}"` : '';
-      const flipAttr = `${flipH ? ' flipH="1"' : ''}${flipV ? ' flipV="1"' : ''}`;
-      shapeXml = shapeXml.replace(
-        /<p:spPr\s*\/>|<p:spPr\b[^>]*>/,
-        (m) => (m.endsWith('/>')
-          ? `<p:spPr><a:xfrm${rotAttr}${flipAttr}>${offXml}${extXml}</a:xfrm></p:spPr>`
-          : `${m}<a:xfrm${rotAttr}${flipAttr}>${offXml}${extXml}</a:xfrm>`)
-      );
-    }
+      return shapeXml;
+    };
+    // An equation is two shapes — the one PowerPoint draws and the picture it
+    // falls back to — and both move together.
+    const shapeXml = range.alt ? whole.replace(/<p:sp>[\s\S]*?<\/p:sp>/g, (sp) => move(sp)) : move(whole);
     this.#writeSlide(part, xml.slice(0, range.start) + shapeXml + xml.slice(range.end));
     return true;
   }
@@ -1107,7 +1126,9 @@ export class Deck {
     }
 
     const id = nextShapeId(xml);
-    shapeXml = shapeXml.replace(/<p:cNvPr\b([^>]*?)\bid="\d+"/, (m, before) => `<p:cNvPr${before}id="${id}"`);
+    const oldId = /<p:cNvPr\b[^>]*?\bid="(\d+)"/.exec(shapeXml)?.[1];
+    // An equation's pair both carry the shape's id; a group's members keep theirs.
+    shapeXml = shapeXml.replace(/<p:cNvPr\b([^>]*?)\bid="(\d+)"/g, (m, before, was) => (was === oldId ? `<p:cNvPr${before}id="${id}"` : m));
     // A placeholder pasted where the slide already has one of that kind
     // becomes a plain shape; otherwise it keeps its place in the layout.
     const ph = /<p:ph\b([^>]*)\/>/.exec(shapeXml);
@@ -1687,6 +1708,65 @@ export class Deck {
     // was; the scene it holds was built on the old layout.
     this._scenes.delete(part);
     this.dirty = true;
+    return true;
+  }
+
+  // ---- equations -------------------------------------------------------------
+
+  /**
+   * Insert → Equation: an equation's text box, as PowerPoint writes one —
+   * the Office Math in `a14:m`, and a picture of it (PNG bytes, when the
+   * window drew one) as the fallback for readers without math. `omml` is
+   * Word's OMML (its Word run properties are rewritten for a slide);
+   * geometry in pixels, centred on the slide when not given.
+   * @returns {number} the new shape's id
+   */
+  addEquation(slideIndex, { omml, png = null, x = null, y = null, w = 320, h = 80, size = 28, linear = '' } = {}) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (!omml || !/<m:oMath/.test(String(omml))) throw new Error('an equation needs its Office Math');
+    let xml = this.pkg.text(part);
+    const embed = png ? this.#embedImage(part, { data: png, contentType: 'image/png' }).rId : null;
+    xml = this.pkg.text(part);
+    if (embed && !/<p:sld\b[^>]*xmlns:r=/.test(xml)) xml = xml.replace(/<p:sld\b/, '<p:sld xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"');
+    const id = nextShapeId(xml);
+    const px = x ?? (this.size.width - w) / 2;
+    const py = y ?? (this.size.height - h) / 2;
+    const sp = equationShapeXml({ id, x: pxToEmu(px), y: pxToEmu(py), cx: Math.max(1, pxToEmu(w)), cy: Math.max(1, pxToEmu(h)), omml, size, embed, linear });
+    const at = xml.lastIndexOf('</p:spTree>');
+    if (at < 0) throw new Error('slide has no shape tree');
+    this.#writeSlide(part, xml.slice(0, at) + sp + xml.slice(at));
+    return id;
+  }
+
+  /**
+   * An equation edited again: its Office Math replaced, its picture
+   * fallback redrawn (the same picture part, rewritten, when it is a PNG),
+   * and its box resized from where it stands.
+   */
+  setEquation(slideIndex, shapeId, { omml, png = null, w = null, h = null } = {}) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (!omml || !/<m:oMath/.test(String(omml))) throw new Error('an equation needs its Office Math');
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found`);
+    let shapeXml = xml.slice(range.start, range.end);
+    if (!/<a14:m>/.test(shapeXml)) throw new Error('that shape holds no equation');
+    shapeXml = shapeXml.replace(/<a14:m>[\s\S]*?<\/a14:m>/, () => `<a14:m>${ommlForSlide(omml)}</a14:m>`);
+    if (png) {
+      const embed = /<mc:Fallback>[\s\S]*?<a:blip\b[^>]*\br:embed="([^"]+)"/.exec(shapeXml)?.[1];
+      const media = embed ? this.#relMap(part).get(embed)?.resolved : null;
+      if (media && /\.png$/i.test(media) && this.pkg.has(media)) this.pkg.write_(media, Buffer.isBuffer(png) ? png : Buffer.from(png));
+      else if (range.alt) {
+        const { rId } = this.#embedImage(part, { data: png, contentType: 'image/png' });
+        shapeXml = embed
+          ? shapeXml.replace(`r:embed="${embed}"`, `r:embed="${rId}"`)
+          : shapeXml;
+      }
+    }
+    if (w > 0 && h > 0) shapeXml = shapeXml.replace(/<a:ext\b[^>]*\/>/g, `<a:ext cx="${pxToEmu(w)}" cy="${pxToEmu(h)}"/>`);
+    this.#writeSlide(part, this.pkg.text(part).slice(0, range.start) + shapeXml + this.pkg.text(part).slice(range.end));
     return true;
   }
 
