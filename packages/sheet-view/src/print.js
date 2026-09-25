@@ -123,6 +123,31 @@ export function runningHeight(setup) {
 }
 
 export function paginate({ geo, range, setup, maxPages = 2000 }) {
+  const { colBands, rowBands, titleRows, scale, area, total } = planBands({ geo, range, setup });
+  const pages = [];
+  const down = setup.order !== 'across';
+  const outer = down ? colBands : rowBands;
+  const inner = down ? rowBands : colBands;
+  for (let o = 0; o < outer.length; o++) {
+    for (let i = 0; i < inner.length; i++) {
+      if (pages.length >= maxPages) return { pages, scale, area, truncated: true, total };
+      pages.push({
+        cols: down ? colBands[o] : colBands[i],
+        rows: down ? rowBands[i] : rowBands[o],
+        titleRows,
+      });
+    }
+  }
+  return { pages, scale, area, truncated: false, total };
+}
+
+/**
+ * The cuts alone: the bands of columns across and of rows down, the print
+ * titles, the one scale and the room on a page. `paginate` crosses them
+ * into pages; View → Page Layout lays the same bands out as paper, so the
+ * screen and the printer cut the sheet in the same places.
+ */
+export function planBands({ geo, range, setup }) {
   const full = printableArea(setup);
   const area = { ...full, height: Math.max(1, full.height - runningHeight(setup)) };
   const cols = [];
@@ -184,22 +209,7 @@ export function paginate({ geo, range, setup, maxPages = 2000 }) {
 
   const colBands = fit(cols, area.width, new Set((setup.colBreaks || []).map(Number)));
   const rowBands = fit(rows, Math.max(1, area.height - titleHeight * scale), new Set((setup.rowBreaks || []).map(Number)));
-
-  const pages = [];
-  const down = setup.order !== 'across';
-  const outer = down ? colBands : rowBands;
-  const inner = down ? rowBands : colBands;
-  for (let o = 0; o < outer.length; o++) {
-    for (let i = 0; i < inner.length; i++) {
-      if (pages.length >= maxPages) return { pages, scale, area, truncated: true, total };
-      pages.push({
-        cols: down ? colBands[o] : colBands[i],
-        rows: down ? rowBands[i] : rowBands[o],
-        titleRows,
-      });
-    }
-  }
-  return { pages, scale, area, truncated: false, total };
+  return { colBands, rowBands, titleRows, scale, area, total };
 }
 
 const esc = (s) =>

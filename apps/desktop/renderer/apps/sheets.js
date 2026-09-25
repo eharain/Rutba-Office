@@ -19,7 +19,7 @@ import { SymbolDialog } from './word/dialogs.js';
 import {
   GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
   OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog,
-  ProtectDialog, PasswordDialog, EditRangesDialog,
+  ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -130,6 +130,8 @@ export default function Sheets({ app, shell, boot }) {
   const [passwordAsk, setPasswordAsk] = useState(null);
   /** An edit refused because its cell is in a password range: the window asks for the password (set below). */
   const rangeLockRef = useRef(null);
+  /** Page Layout → Background: the picture's part and the address its bytes are drawn from. */
+  const [backdrop, setBackdrop] = useState(null);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -400,6 +402,20 @@ export default function Sheets({ app, shell, boot }) {
     el.addEventListener('wheel', onWheel, { passive: false });
     return () => el.removeEventListener('wheel', onWheel);
   }, [navigate, hasModel]);
+
+  /**
+   * Page Layout → Background: the frame names the picture's part; its bytes
+   * are fetched once, as an address the grid tiles behind the cells.
+   */
+  const backgroundPart = model?.background || null;
+  useEffect(() => {
+    if (!doc || !backgroundPart) { setBackdrop(null); return undefined; }
+    let live = true;
+    shell.doc.asset({ id: doc.id, ref: backgroundPart })
+      .then((a) => { if (live) setBackdrop(a?.url ? { part: backgroundPart, url: a.url } : null); })
+      .catch(() => { if (live) setBackdrop(null); });
+    return () => { live = false; };
+  }, [doc?.id, backgroundPart, shell]);
 
   /* ── commands ────────────────────────────────────────────────────────── */
 
@@ -1348,6 +1364,108 @@ export default function Sheets({ app, shell, boot }) {
   };
 
   /**
+   * View → Page Layout: each sheet of paper under its cells — white, with
+   * its margins, a shadow on the desk, a ruler above and beside it when the
+   * ruler is on, the header and footer where they print (a faint "Click to
+   * add header" in the margin when there is none; a click opens Header &
+   * Footer), and "Click to add data" on the blank pages past the printed
+   * range. The engine has already put every cell where it lies on its page.
+   */
+  const pageLayoutNode = () => {
+    const pl = model?.pageLayout;
+    if (!pl) return null;
+    const cm = (96 / 2.54) / (pl.scale || 1);
+    const date = new Date();
+    const fields = (text, n) => String(text || '')
+      .replace(/&P/g, String(n ?? ''))
+      .replace(/&N/g, String(pl.count))
+      .replace(/&A/g, model.activeSheet || '')
+      .replace(/&F/g, doc?.name || '')
+      .replace(/&D/g, date.toLocaleDateString())
+      .replace(/&T/g, date.toLocaleTimeString());
+    const parts = (text, n) => {
+      const s = String(text || '');
+      if (!/&[LCR]/.test(s)) return { L: '', C: fields(s, n), R: '' };
+      const out = { L: '', C: '', R: '' };
+      let which = 'C';
+      for (const piece of s.split(/(&[LCR])/)) {
+        if (piece === '&L' || piece === '&C' || piece === '&R') which = piece[1];
+        else out[which] += piece;
+      }
+      return { L: fields(out.L, n), C: fields(out.C, n), R: fields(out.R, n) };
+    };
+    const zone = (kind, p) => {
+      const has = kind === 'head' ? Boolean(pl.header) : Boolean(pl.footer);
+      const m = pl.margins;
+      const width = p.box.width;
+      const top = kind === 'head'
+        ? (has ? p.box.y - p.y : Math.max(6, m.top / 2 - 12))
+        : (has ? p.box.y - p.y + p.box.height - pl.foot : p.height - Math.max(6, m.bottom / 2 + 12));
+      const height = has ? (kind === 'head' ? pl.head : pl.foot) : 24;
+      const said = has && p.n ? parts(kind === 'head' ? pl.header : pl.footer, p.n) : null;
+      const label = kind === 'head' ? 'Click to add header' : 'Click to add footer';
+      return (
+        <div
+          className={`sh-pl-zone ${kind}${has ? ' set' : ''}`}
+          data-zone={kind}
+          data-tip={has ? (kind === 'head' ? 'Header — click to change it' : 'Footer — click to change it') : label}
+          style={{ left: p.box.x - p.x, top, width, height }}
+          onMouseDown={(e) => { e.stopPropagation(); }}
+          onClick={() => act('headerFooter')}
+        >
+          {said ? (
+            <>
+              <span className="l">{said.L}</span>
+              <span className="c">{said.C}</span>
+              <span className="r">{said.R}</span>
+            </>
+          ) : has ? null : <span className="c ask">{label}</span>}
+        </div>
+      );
+    };
+    const ruler = (p, axis) => {
+      const length = axis === 'x' ? p.width : p.height;
+      const lo = axis === 'x' ? pl.margins.left : pl.margins.top;
+      const hi = length - (axis === 'x' ? pl.margins.right : pl.margins.bottom);
+      const ticks = [];
+      for (let k = 0, at = 0; at <= length + 0.5; k++, at = (k * cm) / 2) {
+        const whole = k % 2 === 0;
+        const n = k / 2;
+        ticks.push(axis === 'x'
+          ? <line key={k} x1={at} x2={at} y1={whole ? 9 : 12} y2={16} />
+          : <line key={k} y1={at} y2={at} x1={whole ? 9 : 12} x2={16} />);
+        if (whole && n > 0 && n % 1 === 0 && at < length - 8) {
+          ticks.push(axis === 'x'
+            ? <text key={'t' + k} x={at} y={7.5} textAnchor="middle">{n}</text>
+            : <text key={'t' + k} x={7.5} y={at + 3} textAnchor="middle">{n}</text>);
+        }
+      }
+      return (
+        <svg className={`sh-pl-ruler ${axis}`} width={axis === 'x' ? length : 16} height={axis === 'x' ? 16 : length}
+          style={axis === 'x' ? { left: 0, top: -22 } : { left: -22, top: 0 }}>
+          <rect className="margin" x={0} y={0} width={axis === 'x' ? lo : 16} height={axis === 'x' ? 16 : lo} />
+          <rect className="margin" x={axis === 'x' ? hi : 0} y={axis === 'x' ? 0 : hi} width={axis === 'x' ? length - hi : 16} height={axis === 'x' ? 16 : length - hi} />
+          {ticks}
+        </svg>
+      );
+    };
+    return (
+      <div className="sh-pl" data-pages={pl.count}>
+        {pl.pages.map((p) => (
+          <div key={p.col + ':' + p.row} className={`sh-pl-page${p.blank ? ' blank' : ''}`} data-page={p.n ?? ''} style={{ left: p.x, top: p.y, width: p.width, height: p.height }}>
+            {pl.ruler ? ruler(p, 'x') : null}
+            {pl.ruler && p.col === 0 ? ruler(p, 'y') : null}
+            <div className="sh-pl-box" style={{ left: p.box.x - p.x, top: p.box.y - p.y, width: p.box.width, height: p.box.height }} />
+            {zone('head', p)}
+            {zone('foot', p)}
+            {p.blank ? <div className="sh-pl-blank" style={{ left: p.box.x - p.x, top: p.box.y - p.y, width: p.box.width, height: p.box.height }}><span>Click to add data</span></div> : null}
+          </div>
+        ))}
+      </div>
+    );
+  };
+
+  /**
    * View → Split: the bars between the panes, over the grid where the
    * panes meet. Dragged, a bar moves the split to the nearest row or column
    * edge; dragged to the window's edge, that split goes.
@@ -1655,14 +1773,43 @@ export default function Sheets({ app, shell, boot }) {
       }
       // View → Normal / Page Break Preview, and the status bar's buttons.
       case 'view': {
-        if (arg !== 'normal' && arg !== 'pageBreakPreview') return;
-        if ((model?.viewMode || 'normal') === arg) return;
+        if (arg !== 'normal' && arg !== 'pageBreakPreview' && arg !== 'pageLayout') return;
+        const was = model?.viewMode || 'normal';
+        if (was === arg) return;
         // Each view keeps its own zoom, as Excel's do: the preview opens at
-        // 60% — whole pages in sight — and Normal goes back to where it was.
-        patchView((v) => (arg === 'pageBreakPreview'
-          ? { normalZoom: v.zoom ?? 1, zoom: v.previewZoom ?? 0.6 }
-          : { previewZoom: v.zoom ?? 0.6, zoom: v.normalZoom ?? 1 }));
+        // 60% — whole pages in sight — Page Layout at the zoom Normal had,
+        // and each goes back to where it was.
+        const keys = { normal: 'normalZoom', pageBreakPreview: 'previewZoom', pageLayout: 'layoutZoom' };
+        const first = { normal: 1, pageBreakPreview: 0.6 };
+        patchView((v) => ({ [keys[was]]: v.zoom ?? 1, zoom: v[keys[arg]] ?? first[arg] ?? v.zoom ?? 1 }));
         await dispatch({ op: 'setViewMode', mode: arg });
+        gridRef.current?.scrollTo?.(0, 0);
+        return;
+      }
+      // View → Ruler, in Page Layout.
+      case 'toggleRuler':
+        await dispatch({ op: 'setShowRuler', on: !(model?.showRuler !== false) });
+        return;
+      // View → Custom Views, greyed with Excel's reason in a workbook with a table.
+      case 'customViews':
+        if (model?.customViewsBlocked) { toast(`Custom Views are ${model.customViewsBlocked}`, { ms: 4000 }); return; }
+        setDialog('customViews');
+        return;
+      // Page Layout → Background, or Delete Background when the sheet has one.
+      case 'background': {
+        if (model?.background) {
+          if (await dispatch({ op: 'deleteBackground' })) toast('Background deleted', { tone: 'good' });
+          return;
+        }
+        const [file] = await shell.dialog.open({
+          title: 'Sheet Background',
+          filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+        });
+        if (!file) return;
+        const { bytes, stat } = await shell.fs.read({ path: file });
+        const ext = String(stat?.ext || file.split('.').pop()).replace('.', '').toLowerCase();
+        const contentType = { png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' }[ext] || 'image/jpeg';
+        if (await dispatch({ op: 'setBackground', contentType, data: bytes })) toast('Background set — it is drawn behind the cells and not printed, as in Excel', { tone: 'good', ms: 4200 });
         return;
       }
       // View → Split, a toggle at the active cell.
@@ -2181,8 +2328,11 @@ export default function Sheets({ app, shell, boot }) {
             <button type="button" className="sh-calc-pending" data-tip="Calculate — formulas are waiting for Calculate Now (F9)" onClick={() => act('calculate', 'workbook')}>Calculate</button>
           ) : null}
           <span className="sh-viewbtns">
-            <button type="button" className={`sh-viewbtn${model?.viewMode !== 'pageBreakPreview' ? ' on' : ''}`} data-view="normal" data-tip="Normal" onClick={() => act('view', 'normal')}>
+            <button type="button" className={`sh-viewbtn${(model?.viewMode || 'normal') === 'normal' ? ' on' : ''}`} data-view="normal" data-tip="Normal" onClick={() => act('view', 'normal')}>
               <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1" /><path d="M1.5 5.2h11M1.5 8.8h11M5.2 1.5v11M8.8 1.5v11" /></svg>
+            </button>
+            <button type="button" className={`sh-viewbtn${model?.viewMode === 'pageLayout' ? ' on' : ''}`} data-view="pageLayout" data-tip="Page Layout" onClick={() => act('view', 'pageLayout')}>
+              <svg width="14" height="14" viewBox="0 0 14 14"><rect x="2.5" y="1.5" width="9" height="11" rx="0.8" /><path d="M4.3 4h5.4M4.3 6.2h5.4M4.3 8.4h5.4M4.3 10.6h3.2" /></svg>
             </button>
             <button type="button" className={`sh-viewbtn${model?.viewMode === 'pageBreakPreview' ? ' on' : ''}`} data-view="pageBreakPreview" data-tip="Page Break Preview" onClick={() => act('view', 'pageBreakPreview')}>
               <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1" /><path d="M7 1.5v11" strokeDasharray="1.6 1.4" /><path d="M1.5 7h11" /></svg>
@@ -2197,7 +2347,7 @@ export default function Sheets({ app, shell, boot }) {
           <Spinner style={{ width: 22, height: 22 }} />
         </div>
       ) : (
-        <div className={`sh${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
+        <div className={`sh${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
           <style>{CSS}</style>
 
           <div className="sh-formula" hidden={view.formulaBar === false}>
@@ -2301,10 +2451,12 @@ export default function Sheets({ app, shell, boot }) {
               <div
                 className="sh-cells"
                 data-arrows={arrows.length}
+                style={backdrop && model.viewMode !== 'pageLayout' ? { backgroundImage: `url("${backdrop.url}")`, backgroundRepeat: 'repeat', backgroundPosition: '0 0' } : undefined}
+                data-background={backdrop && model.viewMode !== 'pageLayout' ? backdrop.part : undefined}
                 onMouseDown={(e) => {
                   // A press on a drawn cell is handled by the cell. Anywhere else
                   // is empty grid, and empty grid is still grid.
-                  if (e.button !== 0 || e.target.closest('.sh-cell, .sh-editor, .sh-drawing, .sh-card')) return;
+                  if (e.button !== 0 || e.target.closest('.sh-cell, .sh-editor, .sh-drawing, .sh-card, .sh-pl-zone')) return;
                   const at = cellAt(e);
                   if (at) dispatch({ op: 'select', row: at.row, col: at.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
                 }}
@@ -2373,6 +2525,7 @@ export default function Sheets({ app, shell, boot }) {
                     style={resizing.kind === 'col' ? { left: resizing.start + resizing.size, top: 0, height: model.total.height } : { top: resizing.start + resizing.size, left: 0, width: model.total.width }}
                   />
                 ) : null}
+                {pageLayoutNode()}
                 {model.cells.map((cell) => (inMain(cell) ? cellNode(cell) : null))}
                 {arrowsNode()}
                 {breaksNode()}
@@ -2757,6 +2910,25 @@ export default function Sheets({ app, shell, boot }) {
             } else {
               toast(ask.kind === 'sheet' ? 'Sheet unprotected' : 'Workbook unprotected — sheets can be added, moved and renamed again', { tone: 'good' });
             }
+          }}
+        />
+      ) : null}
+
+      {dialog === 'customViews' ? (
+        <CustomViewsDialog
+          views={model?.customViews || []}
+          onClose={() => setDialog(null)}
+          onAdd={(spec) => tryOps({ op: 'addCustomView', ...spec, zoom: view.zoom ?? 1, windowWidth: window.innerWidth, windowHeight: window.innerHeight })}
+          onDelete={(name) => tryOps({ op: 'deleteCustomView', name })}
+          onShow={async (name) => {
+            setDialog(null);
+            const next = await dispatch({ op: 'showCustomView', name });
+            if (!next) return;
+            let kept = null;
+            try { kept = JSON.parse(next.opResult || 'null'); } catch { kept = null; }
+            if (kept?.zoom) patchView({ zoom: Math.max(0.3, Math.min(3, kept.zoom)) });
+            refreshPage(doc.id);
+            toast(`Custom view "${name}" shown`, { tone: 'good' });
           }}
         />
       ) : null}
@@ -3191,6 +3363,41 @@ const CSS = `
 .sh-eval-message { margin: 6px 0 0; font-size: 12px; color: var(--ink-3); }
 /* The + at the end of the tabs: a new sheet, as every spreadsheet has it. */
 .sh-tab-add { min-width: 28px; font-weight: 600; color: var(--ink-2); }
+/* View → Page Layout: the paper on a desk. The cells sit on the pages the
+   engine put them on; the pages sit under them, each with a soft shadow. */
+.sh.pl { --pl-desk: color-mix(in srgb, var(--ink) 11%, var(--surface)); }
+.sh.pl .sh-grid { background: var(--pl-desk); }
+.sh.pl .sh-cells { background: transparent; }
+.sh.pl .sh-colheads, .sh.pl .sh-rowheads, .sh.pl .sh-corner { background: var(--pl-desk); }
+.sh.pl .sh-head { background: color-mix(in srgb, var(--surface-2) 80%, var(--pl-desk)); }
+.sh-pl { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 0; }
+.sh-pl-page { position: absolute; background: var(--surface); box-shadow: 0 1px 2px color-mix(in srgb, #000 16%, transparent), 0 6px 18px color-mix(in srgb, #000 10%, transparent); border-radius: 1px; }
+.sh-pl-page.blank { background: color-mix(in srgb, var(--surface) 92%, var(--pl-desk)); }
+/* The printable box: a hairline where the margins end, as Excel shows it on hover. */
+.sh-pl-box { position: absolute; pointer-events: none; outline: 1px dashed transparent; }
+.sh-pl-page:hover .sh-pl-box { outline-color: color-mix(in srgb, var(--ink) 14%, transparent); }
+.sh-pl-blank { position: absolute; display: grid; place-items: center; pointer-events: none; }
+.sh-pl-blank span { font-size: 15px; color: color-mix(in srgb, var(--ink) 30%, transparent); letter-spacing: 0.01em; }
+.sh-pl-zone {
+  position: absolute; z-index: 2; display: grid; grid-template-columns: 1fr 1fr 1fr; align-items: center; gap: 6px;
+  box-sizing: border-box; padding: 0 6px; border: 1px dashed transparent; border-radius: 2px; cursor: text;
+  font: 9pt Calibri, Arial, sans-serif; color: #444;
+}
+.sh-pl-zone .l { text-align: left; } .sh-pl-zone .c { text-align: center; } .sh-pl-zone .r { text-align: right; }
+.sh-pl-zone span { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.sh-pl-zone .ask { grid-column: 1 / 4; color: color-mix(in srgb, var(--ink) 34%, transparent); font-size: 12px; transition: color var(--fast); }
+.sh-pl-zone:hover { border-color: color-mix(in srgb, var(--accent) 55%, transparent); background: color-mix(in srgb, var(--accent) 6%, transparent); }
+.sh-pl-zone:hover .ask { color: var(--accent); }
+.sh-pl-ruler { position: absolute; overflow: visible; pointer-events: none; }
+.sh-pl-ruler rect.margin { fill: color-mix(in srgb, var(--ink) 9%, transparent); }
+.sh-pl-ruler line { stroke: color-mix(in srgb, var(--ink) 42%, transparent); stroke-width: 1; shape-rendering: crispEdges; }
+.sh-pl-ruler text { font: 8.5px Calibri, Arial, sans-serif; fill: color-mix(in srgb, var(--ink) 58%, transparent); }
+.sh-pl-ruler.x { border-bottom: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); background: var(--surface); }
+.sh-pl-ruler.y { border-right: 1px solid color-mix(in srgb, var(--ink) 18%, transparent); background: var(--surface); }
+/* Page Layout → Background: the picture tiled behind the cells; a cell with
+   no fill of its own lets it through, as Excel's do. */
+.sh.has-bg .sh-cell { background-color: transparent; }
+.sh.has-bg .sh-cell.sel { background-color: color-mix(in srgb, var(--selected) 70%, transparent); }
 .sh-tab-add:disabled { color: var(--ink-4, #b0b4bc); cursor: default; background: transparent; }
 /* Review → Protect Workbook on: a padlock at the end of the tabs, which cannot change. */
 .sh-tabs-lock { display: inline-grid; place-items: center; padding: 0 6px; color: var(--ink-3); }
@@ -3209,7 +3416,8 @@ const CSS = `
 .sh-ranges-row .c { font-variant-numeric: tabular-nums; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sh-ranges-empty { padding: 26px 12px; font-size: 12px; color: var(--ink-3); text-align: center; }
 .sh-ranges-buttons { display: flex; flex-direction: column; gap: 6px; min-width: 96px; }
-.sh-ranges-buttons .rw-btn { justify-content: center; border: 1px solid var(--line); background: var(--surface); min-height: 28px; }
-.sh-ranges-buttons .rw-btn:hover:not(:disabled) { background: var(--hover); }
+.sh-ranges-buttons .rw-btn { justify-content: center; min-height: 28px; }
+.sh-ranges-buttons .rw-btn:not(.primary) { border: 1px solid var(--line); background: var(--surface); }
+.sh-ranges-buttons .rw-btn:not(.primary):hover:not(:disabled) { background: var(--hover); }
 .sh-ranges-locked { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
 `;

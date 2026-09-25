@@ -29,7 +29,7 @@ test('the view is written to sheetView and read back; Normal takes the attribute
   again.setViewMode('normal');
   assert.doesNotMatch(sheetXml(again), /view="/);
   assert.equal(again.render().pageBreaks, null, 'Normal draws no pages');
-  assert.throws(() => again.setViewMode('pageLayout'), /normal or as a page break preview/);
+  assert.throws(() => again.setViewMode('outline'), /normal, as a page break preview or as its page layout/);
 });
 
 test('the pages are the printer\'s own: the same count, numbered down and then across', () => {

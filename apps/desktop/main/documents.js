@@ -1226,7 +1226,17 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // View → Normal / Page Break Preview, and Split: kept in the sheet's
     // view the way Excel keeps them. The top and left panes of a split
     // scroll on their own (scrollSplit), which changes nothing in the file.
-    setViewMode: (v, a) => { v.setViewMode(a.mode === 'pageBreakPreview' ? 'pageBreakPreview' : 'normal'); },
+    setViewMode: (v, a) => { v.setViewMode(a.mode === 'pageBreakPreview' || a.mode === 'pageLayout' ? a.mode : 'normal'); },
+    // View → Ruler in Page Layout; View → Custom Views (Show answers the
+    // zoom it kept, as text); Page Layout → Background and its Delete.
+    setShowRuler: (v, a) => { v.setShowRuler(a.on !== false); },
+    addCustomView: (v, a) => v.addCustomView({
+      name: a.name, printSettings: a.printSettings !== false, hiddenRowCol: a.hiddenRowCol !== false, zoom: a.zoom ?? 1, windowWidth: a.windowWidth, windowHeight: a.windowHeight,
+    }),
+    showCustomView: (v, a) => JSON.stringify(v.showCustomView(a.name)),
+    deleteCustomView: (v, a) => { v.deleteCustomView(a.name); },
+    setBackground: (v, a) => v.setBackground({ contentType: a.contentType, data: Buffer.isBuffer(a.data) ? a.data : a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64') }),
+    deleteBackground: (v) => { v.deleteBackground(); },
     toggleSplit: (v) => { v.toggleSplit(); },
     setSplit: (v, a) => { v.setSplit({ width: a.width, height: a.height, top: a.top, left: a.left }); },
     scrollSplit: (v, a) => { v.scrollSplit({ rows: a.rows, cols: a.cols }); },
@@ -2065,6 +2075,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
 
     asset: ({ id, ref }) => {
       const session = get(id);
+      // A sheet's own picture parts — a background — straight from the open
+      // package, typed by their extension so a window can draw them.
+      if (session.kind === 'sheet' && /^xl\/media\//.test(String(ref)) && session.engine.pkg.has(ref)) {
+        const ext = String(ref).split('.').pop().toLowerCase();
+        const type = { png: 'image/png', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp', svg: 'image/svg+xml' }[ext] || 'image/jpeg';
+        return holdBlob(session.engine.pkg.read(ref), type, path.basename(ref));
+      }
       if (session.kind === 'deck') {
         const bytes = session.engine.media(ref);
         if (!bytes) return null;

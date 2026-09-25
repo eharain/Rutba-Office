@@ -438,7 +438,9 @@ export default function SheetsRibbon({
               { label: 'Remove page break at the cell', run: () => act('page', { breaks: 'remove' }) },
               { label: 'Reset all page breaks', run: () => act('page', { breaks: 'reset' }) },
             ])} />
-            <Soon icon="picture" label="Background" why="A sheet background is a picture part the engine does not write yet." />
+            <Button icon="picture" label={model?.background ? 'Delete Background' : 'Background'}
+              title={model?.background ? 'Delete Background — take the picture from behind the cells' : 'Background — a picture tiled behind the cells, shown on screen and not printed, as in Excel'}
+              onClick={() => act('background')} />
             <Button icon="table" label="Print Titles" title={`Print Titles — ${view.page?.repeatRows ? `rows 1 to ${view.page.repeatRows} repeat at the top of every page` : 'no rows repeat yet'}`} onClick={(e) => menu.open(e, [
               { label: 'Repeat row 1 at the top of every page', icon: view.page?.repeatRows === 1 ? 'check' : undefined, run: () => act('page', { repeatRows: 1 }) },
               { label: 'Repeat rows 1 to 2', icon: view.page?.repeatRows === 2 ? 'check' : undefined, run: () => act('page', { repeatRows: 2 }) },
@@ -620,15 +622,20 @@ export default function SheetsRibbon({
       {tab === 'view' ? (
         <>
           <Group label="Workbook Views">
-            <Button tall icon="grid" label="Normal" title="Normal — the sheet as a grid" pressed={model?.viewMode !== 'pageBreakPreview'} onClick={() => act('view', 'normal')} />
+            <Button tall icon="grid" label="Normal" title="Normal — the sheet as a grid" pressed={(model?.viewMode || 'normal') === 'normal'} onClick={() => act('view', 'normal')} />
             <Button tall icon="file" label="Page Break Preview" title="Page Break Preview — where the pages will break when printed; drag a break to move it" pressed={model?.viewMode === 'pageBreakPreview'} onClick={() => act('view', 'pageBreakPreview')} />
-            <Soon tall icon="file" label="Page Layout" why="Comes with page breaks." />
-            <Soon icon="list" label="Custom Views" why="Saved views are a workbook part not written yet." />
+            <Button tall icon="file" label="Page Layout" title="Page Layout — the sheet on the pages it prints on, with margins, header and footer; click a header to write it" pressed={model?.viewMode === 'pageLayout'} onClick={() => act('view', 'pageLayout')} />
+            <Button icon="list" label="Custom Views" disabled={Boolean(model?.customViewsBlocked)}
+              title={model?.customViewsBlocked ? `Custom Views — ${model.customViewsBlocked}` : `Custom Views — keep the way the workbook looks under a name, and show it again${(model?.customViews || []).length ? ` (${model.customViews.length} kept)` : ''}`}
+              onClick={() => act('customViews')} />
           </Group>
           <Group label="Show">
             <Button icon="grid" label="Gridlines" pressed={view.gridlines !== false} onClick={() => act('toggleGridlines')} />
             <Button icon="formula" label="Formula Bar" pressed={view.formulaBar !== false} onClick={() => act('toggleFormulaBar')} />
             <Button icon="list" label="Headings" pressed={view.headings !== false} onClick={() => act('toggleHeadings')} />
+            <Button icon="minus" label="Ruler" pressed={model?.viewMode === 'pageLayout' && model?.showRuler !== false} disabled={model?.viewMode !== 'pageLayout'}
+              title={model?.viewMode === 'pageLayout' ? 'Ruler — centimetres along the top and side of the pages' : 'Ruler — shown in Page Layout view'}
+              onClick={() => act('toggleRuler')} />
           </Group>
           <Group label="Zoom">
             <Button tall icon="zoomIn" label="Zoom" onClick={(e) => menu.open(e, [50, 75, 100, 125, 150, 200].map((z) => ({ label: `${z}%`, run: () => act('zoom', z / 100) })))} />

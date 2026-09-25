@@ -256,6 +256,13 @@ class SheetPart {
       this.body = xml.slice(open.index + open[0].length, close);
       this.suffix = xml.slice(close + '</sheetData>'.length);
     }
+    // View → Custom Views keep copies of the sheet's own page setup, breaks
+    // and autofilter inside `<customSheetViews>`; held apart from the tail,
+    // every lookup and anchor in the tail finds the sheet's own and never a
+    // copy. It goes back in its schema place when the part is written.
+    const views = /<customSheetViews\b[^>]*>[\s\S]*?<\/customSheetViews>|<customSheetViews\b[^>]*\/>/.exec(this.suffix);
+    this.customViewsXml = views ? views[0] : null;
+    if (views) this.suffix = this.suffix.slice(0, views.index) + this.suffix.slice(views.index + views[0].length);
     this.rows = this._parseRows();
     this._rowsChanged();
     this.dirty = false;
@@ -1180,6 +1187,11 @@ class SheetPart {
 
   /** Replace, insert or remove one element in the sheet's tail, in schema order. */
   setTailElement(name, xml) {
+    if (name === 'customSheetViews') {
+      this.customViewsXml = xml || null;
+      this.dirty = true;
+      return this;
+    }
     const existing = new RegExp('<' + name + '\\b[^>]*(?:/>|>[\\s\\S]*?</' + name + '>)');
     if (existing.test(this.suffix)) {
       this.suffix = this.suffix.replace(existing, xml ?? '');
@@ -1197,6 +1209,7 @@ class SheetPart {
 
   /** One element of the tail, as it stands. */
   tailElement(name) {
+    if (name === 'customSheetViews') return this.customViewsXml;
     return (new RegExp('<' + name + '\\b[^>]*(?:/>|>[\\s\\S]*?</' + name + '>)').exec(this.suffix) ?? [null])[0];
   }
 
@@ -1256,7 +1269,16 @@ class SheetPart {
     const body = this.rows
       .map((r) => (r.dirty ? '<row' + r.attrsStr + '>' + r.inner + '</row>' : r.xml))
       .join('');
-    return this.prefix + this.openTag + body + '</sheetData>' + this.suffix;
+    return this.prefix + this.openTag + body + '</sheetData>' + this._suffixWithViews();
+  }
+
+  /** The tail with the custom sheet views put back where the schema has them. */
+  _suffixWithViews() {
+    if (!this.customViewsXml) return this.suffix;
+    const after = SheetPart.TAIL_ORDER.slice(SheetPart.TAIL_ORDER.indexOf('customSheetViews') + 1);
+    const anchor = new RegExp('<(?:' + after.join('|') + ')\\b|</worksheet>').exec(this.suffix);
+    const at = anchor ? anchor.index : this.suffix.length;
+    return this.suffix.slice(0, at) + this.customViewsXml + this.suffix.slice(at);
   }
 }
 
@@ -2487,6 +2509,132 @@ export class Workbook {
     });
     part.setTailElement('protectedRanges', items.length ? '<protectedRanges>' + items.join('') + '</protectedRanges>' : null);
     return this;
+  }
+
+  // ---- View → Custom Views ---------------------------------------------------
+
+  /**
+   * The workbook's custom views, from `<customWorkbookViews>`: each one's
+   * name, GUID, active sheet and whether it keeps print settings and
+   * hidden rows, columns and filter settings (both default on, as the
+   * schema says).
+   */
+  customWorkbookViews() {
+    const xml = this.pkg.text(this.mainPart);
+    const block = /<customWorkbookViews\b[^>]*>([\s\S]*?)<\/customWorkbookViews>/.exec(xml);
+    if (!block) return [];
+    const off = (v) => v === '0' || v === 'false';
+    return [...block[1].matchAll(/<customWorkbookView\b([^>]*?)(?:\/>|>[\s\S]*?<\/customWorkbookView>)/g)].map((m) => {
+      const a = attrs(m[1]);
+      return {
+        name: a.name ?? '',
+        guid: a.guid ?? '',
+        activeSheetId: a.activeSheetId ?? null,
+        printSettings: !off(a.includePrintSettings),
+        hiddenRowCol: !off(a.includeHiddenRowCol),
+        xml: m[0],
+      };
+    });
+  }
+
+  /**
+   * Write the workbook's custom views (each entry's `xml`), or take the
+   * block away when there are none — where the schema puts it: after
+   * `calcPr` and `oleSize`, before `pivotCaches` and what follows.
+   */
+  setCustomWorkbookViews(list) {
+    let xml = this.pkg.text(this.mainPart).replace(/<customWorkbookViews\b[^>]*>[\s\S]*?<\/customWorkbookViews>|<customWorkbookViews\b[^>]*\/>/, '');
+    if (list.length) {
+      const block = '<customWorkbookViews>' + list.map((v) => v.xml).join('') + '</customWorkbookViews>';
+      const next = /<(pivotCaches|smartTagPr|smartTagTypes|webPublishing|fileRecoveryPr|webPublishObjects|extLst)\b|<\/workbook>/.exec(xml);
+      const at = next ? next.index : xml.length;
+      xml = xml.slice(0, at) + block + xml.slice(at);
+    }
+    this.pkg.write_(this.mainPart, xml);
+    return this;
+  }
+
+  /** A sheet's `<customSheetView>` elements, verbatim, by GUID. */
+  customSheetViews(sheetName) {
+    const block = this._sheetPart(sheetName).part.tailElement('customSheetViews');
+    const out = new Map();
+    if (!block) return out;
+    for (const m of block.matchAll(/<customSheetView\b([^>]*?)(?:\/>|>[\s\S]*?<\/customSheetView>)/g)) {
+      const guid = attrs(m[1]).guid;
+      if (guid) out.set(guid, m[0]);
+    }
+    return out;
+  }
+
+  /** Write a sheet's custom sheet views (a Map of GUID to element), or none. */
+  setCustomSheetViews(sheetName, map) {
+    const items = [...map.values()];
+    this._sheetPart(sheetName).part.setTailElement('customSheetViews', items.length ? '<customSheetViews>' + items.join('') + '</customSheetViews>' : null);
+    return this;
+  }
+
+  /** The `sheetId` of a sheet, and the sheet with a `sheetId`. */
+  sheetIdOf(sheetName) {
+    return this.sheets().find((s) => s.name === sheetName)?.sheetId ?? null;
+  }
+
+  sheetWithId(sheetId) {
+    return this.sheets().find((s) => String(s.sheetId) === String(sheetId))?.name ?? null;
+  }
+
+  // ---- Page Layout → Background ----------------------------------------------
+
+  /** The part a sheet's background picture is (`<picture r:id>`), or null. */
+  sheetBackground(sheetName) {
+    const { sheet, part } = this._sheetPart(sheetName);
+    const el = part.tailElement('picture');
+    if (!el) return null;
+    const rId = attrs(el)['r:id'];
+    const rel = this.pkg.rels(sheet.part).find((r) => r.Id === rId);
+    if (!rel) return null;
+    const target = OoxmlPackage.resolveTarget(sheet.part, rel.Target);
+    return this.pkg.has(target) ? target : null;
+  }
+
+  /**
+   * Put a picture behind a sheet's cells, as Page Layout → Background does:
+   * the image as a media part, an image relationship from the sheet, and
+   * `<picture r:id>` in the sheet's tail — replacing the one it had.
+   */
+  setSheetBackground(sheetName, bytes, ext, contentType) {
+    this.removeSheetBackground(sheetName);
+    const { sheet, part } = this._sheetPart(sheetName);
+    let n = 1;
+    while (this.pkg.partNames().some((p) => p.startsWith('xl/media/image' + n + '.'))) n += 1;
+    const media = 'xl/media/image' + n + '.' + ext;
+    this.pkg.ensureDefault(ext, contentType);
+    this.pkg.addPart(media, bytes);
+    const rId = this.pkg.addRelationshipTo(sheet.part, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', '../media/image' + n + '.' + ext);
+    part.setTailElement('picture', '<picture r:id="' + esc(rId) + '" xmlns:r="' + XMLNS_R + '"/>');
+    return media;
+  }
+
+  /**
+   * Delete Background: the `<picture>`, its relationship and — when nothing
+   * else points at it — the image itself.
+   */
+  removeSheetBackground(sheetName) {
+    const { sheet, part } = this._sheetPart(sheetName);
+    const el = part.tailElement('picture');
+    if (!el) return false;
+    const rId = attrs(el)['r:id'];
+    const media = this.sheetBackground(sheetName);
+    part.setTailElement('picture', null);
+    const relsPart = OoxmlPackage.relsPathFor(sheet.part);
+    if (rId && this.pkg.has(relsPart)) {
+      this.pkg.write_(relsPart, this.pkg.text(relsPart).replace(new RegExp('<Relationship\\b[^>]*\\bId="' + rId + '"[^>]*/>'), ''));
+    }
+    if (media) {
+      const target = media.replace(/^xl\//, '');
+      const stillUsed = this.pkg.partNames().some((p) => p.endsWith('.rels') && this.pkg.text(p).includes('media/' + target.replace(/^media\//, '')));
+      if (!stillUsed) this.pkg.removePart(media);
+    }
+    return true;
   }
 
   /** Does `password` open this sheet's edit range? */

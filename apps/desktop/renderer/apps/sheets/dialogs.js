@@ -1274,3 +1274,91 @@ export function EditRangesDialog({ ranges = [], sheetProtected, selection = '', 
     </Dialog>
   );
 }
+
+/* ── View → Custom Views ─────────────────────────────────────────────────── */
+
+/**
+ * Excel's Custom Views dialog: the views kept in the workbook, Show, Close,
+ * Add… and Delete; Add asks a name and whether the view keeps the print
+ * settings and the hidden rows, columns and filter settings.
+ */
+export function CustomViewsDialog({ views = [], onClose, onShow, onAdd, onDelete }) {
+  const [picked, setPicked] = useState(views[0]?.name ?? null);
+  const [adding, setAdding] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (picked === null || !views.some((v) => v.name === picked)) setPicked(views[0]?.name ?? null);
+  }, [views, picked]);
+  const add = async () => {
+    const said = await onAdd({ name: adding.name.trim(), printSettings: adding.print, hiddenRowCol: adding.hidden });
+    if (said) { setError(said); return; }
+    setPicked(adding.name.trim());
+    setAdding(null);
+  };
+  if (adding) {
+    return (
+      <Dialog
+        title="Add View"
+        width={420}
+        onClose={() => setAdding(null)}
+        actions={
+          <>
+            <Button label="Cancel" onClick={() => setAdding(null)} />
+            <Button primary label="OK" className="sh-cview-ok" disabled={!adding.name.trim()} onClick={add} />
+          </>
+        }
+      >
+        <div className="ml-form">
+          <Field label="Name">
+            <Input className="sh-cview-name" value={adding.name} onChange={(e) => setAdding((a) => ({ ...a, name: e.target.value }))} onKeyDown={(e) => { if (e.key === 'Enter' && adding.name.trim()) add(); }} autoFocus />
+          </Field>
+          <Field label="Include in view">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={CHECK_ROW}><input type="checkbox" className="sh-cview-print" checked={adding.print} onChange={(e) => setAdding((a) => ({ ...a, print: e.target.checked }))} /> Print settings</label>
+              <label style={CHECK_ROW}><input type="checkbox" className="sh-cview-hidden" checked={adding.hidden} onChange={(e) => setAdding((a) => ({ ...a, hidden: e.target.checked }))} /> Hidden rows, columns and filter settings</label>
+            </div>
+          </Field>
+          {views.some((v) => v.name.toLowerCase() === adding.name.trim().toLowerCase())
+            ? <p className="sh-protect-note">A view called “{adding.name.trim()}” exists — OK replaces it.</p> : null}
+          {error ? <p className="sh-protect-warn">{error}</p> : null}
+        </div>
+      </Dialog>
+    );
+  }
+  return (
+    <Dialog
+      title="Custom Views"
+      width={500}
+      onClose={onClose}
+      actions={<Button label="Close" className="sh-cviews-close" onClick={onClose} />}
+    >
+      <div className="sh-ranges">
+        <div className="sh-ranges-body">
+          <div className="sh-ranges-list sh-cviews-list" role="listbox">
+            <div className="sh-ranges-head"><span>Views</span><span>Keeps</span></div>
+            {views.length ? views.map((v) => (
+              <button
+                key={v.name}
+                type="button"
+                role="option"
+                aria-selected={v.name === picked}
+                className={`sh-ranges-row${v.name === picked ? ' on' : ''}`}
+                data-view={v.name}
+                onClick={() => setPicked(v.name)}
+                onDoubleClick={() => onShow(v.name)}
+              >
+                <span className="t">{v.name}</span>
+                <span className="c">{[v.printSettings ? 'print settings' : null, v.hiddenRowCol ? 'hidden rows' : null].filter(Boolean).join(', ') || 'zoom and selection'}</span>
+              </button>
+            )) : <div className="sh-ranges-empty">No views yet — Add… keeps the way the workbook looks now.</div>}
+          </div>
+          <div className="sh-ranges-buttons">
+            <Button primary label="Show" className="sh-cviews-show" disabled={!picked} title="Show — the workbook as the picked view kept it" onClick={() => picked && onShow(picked)} />
+            <Button label="Add…" className="sh-cviews-add" title="Add… — keep the way the workbook looks now under a name" onClick={() => { setError(''); setAdding({ name: '', print: true, hidden: true }); }} />
+            <Button label="Delete" className="sh-cviews-delete" disabled={!picked} title="Delete — the picked view" onClick={() => picked && onDelete(picked)} />
+          </div>
+        </div>
+      </div>
+    </Dialog>
+  );
+}

@@ -43,13 +43,14 @@ import {
   clearOutline, outlineFrame, selectionAxis, subtotal, removeSubtotals, listFields,
 } from './outline.js';
 import { advancedFilter, clearAdvancedFilter, filterNames } from './advanced-filter.js';
-import { paginate, pageSetup, readPageSetup, parseArea } from './print.js';
+import { paginate, planBands, pageSetup, readPageSetup, parseArea, PAPER, PX_PER_MM } from './print.js';
 import { inferProgram, runProgram } from './flash-fill.js';
 import {
   readSheetDrawings, buildChart, buildShape, buildPicture, renderSvg, scene,
   SUPPORTED_GEOMETRY,
 } from '@rutba/drawing';
 import { drawingAnchorXml, chartPartXml } from '@rutba/ooxml/build';
+import { newGuid } from '@rutba/ooxml/workbook';
 import { History } from '@rutba/editing';
 
 /**
@@ -985,7 +986,40 @@ export class SheetView {
    * Everything on screen right now. This is the whole contract with the shell:
    * hand it this object and it can draw a frame.
    */
+  /**
+   * The frame the window draws. In View → Page Layout the window scrolls
+   * over paper: its scroll is turned into the sheet's before the grid frame
+   * is built, and every position in the frame is then put where it lies on
+   * its page (see `_pageLayout`).
+   */
   render() {
+    if (this.viewMode() !== 'pageLayout') return this._renderGrid();
+    const layout = this._pageLayout();
+    const paper = { x: this.scrollX, y: this.scrollY };
+    this.scrollX = layout.toSheetX(paper.x);
+    this.scrollY = layout.toSheetY(paper.y);
+    this._inPageLayout = true;
+    let frame;
+    try {
+      frame = this._renderGrid();
+    } finally {
+      this.scrollX = paper.x;
+      this.scrollY = paper.y;
+      this._inPageLayout = false;
+    }
+    // The layout reaches a little past what has been seen, and grows as the
+    // window scrolls toward its end — the way the grid's own canvas spreads.
+    const vp = frame.viewport;
+    const ext = this._plExtent?.sheet === this.activeSheet ? this._plExtent : { sheet: this.activeSheet, rows: 0, cols: 0 };
+    if (vp.lastRow > layout.rowsTo - 60 || vp.lastCol > layout.colsTo - 6) {
+      this._plExtent = { sheet: this.activeSheet, rows: Math.max(ext.rows, vp.lastRow + 400), cols: Math.max(ext.cols, vp.lastCol + 20) };
+    }
+    return pageLayoutFrame(frame, layout, this.geo, {
+      x: paper.x, y: paper.y, width: this.viewportWidth, height: this.viewportHeight,
+    });
+  }
+
+  _renderGrid() {
     const geo = this.geo;
     const vp = geo.viewport({
       scrollX: this.scrollX,
@@ -998,7 +1032,8 @@ export class SheetView {
 
     // Frozen rows and columns ride in EVERY frame, wherever the viewport has
     // scrolled — the client pins them while the rest slides underneath.
-    const frozen = this.frozenPane();
+    // Page Layout draws the sheet as paper: no pane is frozen or split there.
+    const frozen = this._inPageLayout ? { rows: 0, cols: 0 } : this.frozenPane();
     let rowIndices = [];
     for (let r = 0; r < frozen.rows && r < vp.firstRow; r++) rowIndices.push(r);
     for (let r = vp.firstRow; r <= vp.lastRow; r++) rowIndices.push(r);
@@ -1008,7 +1043,7 @@ export class SheetView {
 
     // A split window's top and left panes scroll on their own: their rows
     // and columns ride in every frame too, from wherever each pane is.
-    const split = this.splitPane();
+    const split = this._inPageLayout ? null : this.splitPane();
     let splitFrame = null;
     if (split) {
       const rowsTop = [];
@@ -1232,7 +1267,7 @@ export class SheetView {
       } catch (e) {
         unsupported = e.message;
       }
-      return { id: d.id, kind: d.kind, name: d.name, x, y, width, height, svg, unsupported };
+      return { id: d.id, kind: d.kind, name: d.name, x, y, width, height, svg, unsupported, anchor: d.from ? { row: d.from.row, col: d.from.col } : null };
     }).filter(Boolean);
 
     const active = this.selection.active;
@@ -1283,6 +1318,13 @@ export class SheetView {
       hiddenSheets: this.hiddenSheets(),
       editRanges: this.editRanges(),
       rangeLock: this.rangeLockAt(active.row, active.col),
+      // View → Custom Views — the list, and Excel's reason when it is greyed —
+      // and Page Layout → Background, the picture's part (the window fetches
+      // its bytes once), and View → Ruler for Page Layout.
+      customViews: this.customViews(),
+      customViewsBlocked: this.customViewsBlocked(),
+      background: this.sheetBackground(),
+      showRuler: this.showRuler(),
       // The workbook's pivots — each says where it lives, what it summarises,
       // and why it cannot be refreshed when that is the case.
       pivots: this.pivots().map((p) => ({
@@ -1324,7 +1366,7 @@ export class SheetView {
       // The outline: per axis its depth and the groups near the viewport,
       // with their pixel extents, for the gutter's brackets and buttons.
       // Null when nothing on the sheet is grouped.
-      outline: outlineFrame(geo, vp, frozen),
+      outline: this._inPageLayout ? null : outlineFrame(geo, vp, frozen),
       // View → Split: the two (or four) panes' sizes, where the top and left
       // ones have scrolled to, and the rows and columns they show; null
       // when the window is not split.
@@ -1407,7 +1449,7 @@ export class SheetView {
       note: this._notes().get(ref(active.row, active.col)) ?? null,
       thread: this._threads().get(ref(active.row, active.col)) ?? null,
       rangeLock: this.rangeLockAt(active.row, active.col),
-      total: this._stickyTotal(geo, {
+      total: this.viewMode() === 'pageLayout' ? this._pageLayout().total : this._stickyTotal(geo, {
         maxRow: Math.max(this.bounds.maxRow, this.selection.range.bottom, vp.lastRow),
         maxCol: Math.max(this.bounds.maxCol, this.selection.range.right, vp.lastCol),
       }),
@@ -1483,6 +1525,19 @@ export class SheetView {
 
   ensureVisible() {
     const { row, col } = this.selection.active;
+    if (this.viewMode() === 'pageLayout') {
+      // On paper: the active cell's place on its page, kept in the window.
+      const layout = this._pageLayout();
+      const y = layout.mapY(row);
+      const x = layout.mapX(col);
+      const h = this.geo.rowHeight(row);
+      const w = this.geo.colWidth(col);
+      if (y < this.scrollY) this.scrollY = Math.max(0, y - 12);
+      else if (y + h > this.scrollY + this.viewportHeight) this.scrollY = y + h - this.viewportHeight + 12;
+      if (x < this.scrollX) this.scrollX = Math.max(0, x - 12);
+      else if (x + w > this.scrollX + this.viewportWidth) this.scrollX = x + w - this.viewportWidth + 12;
+      return this;
+    }
     const next = this.geo.scrollToShow({
       row, col,
       scrollX: this.scrollX,
@@ -4490,11 +4545,346 @@ export class SheetView {
    * in the file and never on the undo list.
    */
   setViewMode(mode) {
-    if (!['normal', 'pageBreakPreview'].includes(mode)) throw new Error('a sheet is shown normal or as a page break preview');
+    if (!['normal', 'pageBreakPreview', 'pageLayout'].includes(mode)) throw new Error('a sheet is shown normal, as a page break preview or as its page layout');
     if (mode === this.viewMode()) return this;
     this.workbook.setSheetViewMode(this.activeSheet, mode);
+    // Each view scrolls over its own canvas — cells, or paper — so the
+    // window starts the new one at its top.
+    this.scrollX = 0;
+    this.scrollY = 0;
     this._structuralDirty = true;
     return this;
+  }
+
+  // ---- View → Custom Views ---------------------------------------------------
+
+  /**
+   * Why Custom Views cannot be used, or null. Excel greys the command in a
+   * workbook that has a table (a ListObject) anywhere in it; so does this.
+   */
+  customViewsBlocked() {
+    return this.pkg.partNames().some((p) => /^xl\/tables\/[^/]+\.xml$/.test(p))
+      ? 'not available in a workbook that contains a table, as in Excel'
+      : null;
+  }
+
+  /** The workbook's custom views: name, whether each keeps print settings and hidden rows, and its sheet. */
+  customViews() {
+    return this.workbook.customWorkbookViews().map((v) => ({
+      name: v.name, printSettings: v.printSettings, hiddenRowCol: v.hiddenRowCol, sheet: this.workbook.sheetWithId(v.activeSheetId),
+    }));
+  }
+
+  /**
+   * View → Custom Views → Add: the way the workbook looks now, kept under a
+   * name, written as Excel writes it — a `<customWorkbookView>` with a GUID
+   * in workbook.xml, a `<customSheetView>` of that GUID in every sheet
+   * (its zoom, selection, first cell shown and view; with print settings
+   * its margins, setup, header and footer and breaks; with hidden rows,
+   * columns and filter settings its autofilter), and Excel's hidden
+   * `Z_<GUID>_.wvu.Rows`, `.wvu.Cols`, `.wvu.PrintArea`,
+   * `.wvu.PrintTitles` and `.wvu.FilterData` names for what it hides and
+   * prints. A view of the same name is replaced, as Excel offers to. Not an
+   * edit that undoes: like Excel's, it clears the undo list.
+   */
+  addCustomView({ name, printSettings = true, hiddenRowCol = true, zoom = 1, windowWidth = 1440, windowHeight = 900 } = {}) {
+    const blocked = this.customViewsBlocked();
+    if (blocked) throw new Error('Custom Views are ' + blocked + '.');
+    const clean = String(name ?? '').trim();
+    if (!clean) throw new Error('A custom view needs a name.');
+    if (clean.length > 255) throw new Error('A custom view name is 255 characters at most.');
+    if (this.customViews().some((v) => v.name.toLowerCase() === clean.toLowerCase())) this.deleteCustomView(this.customViews().find((v) => v.name.toLowerCase() === clean.toLowerCase()).name);
+    const guid = newGuid();
+    const names = this.sheetNames();
+    names.forEach((sheet, index) => {
+      const xml = this._customSheetViewXml(sheet, index, guid, { printSettings, hiddenRowCol, zoom });
+      const map = this.workbook.customSheetViews(sheet);
+      map.set(guid, xml);
+      this.workbook.setCustomSheetViews(sheet, map);
+    });
+    const list = this.workbook.customWorkbookViews();
+    list.push({
+      xml: '<customWorkbookView name="' + escapeXml(clean) + '" guid="' + guid + '"'
+        + (printSettings ? '' : ' includePrintSettings="0"')
+        + (hiddenRowCol ? '' : ' includeHiddenRowCol="0"')
+        + ' maximized="1" xWindow="-8" yWindow="-8" windowWidth="' + Math.max(1, Math.round(windowWidth)) + '" windowHeight="' + Math.max(1, Math.round(windowHeight))
+        + '" activeSheetId="' + this.workbook.sheetIdOf(this.activeSheet) + '"/>',
+    });
+    this.workbook.setCustomWorkbookViews(list);
+    this.history = new History();
+    this._structuralDirty = true;
+    return clean;
+  }
+
+  /** Excel's name for what a custom view keeps of a sheet: `Z_<GUID, underscores>_.wvu.<kind>`. */
+  _wvuName(guid, kind) {
+    return 'Z_' + String(guid).replace(/[{}]/g, '').replace(/-/g, '_') + '_.wvu.' + kind;
+  }
+
+  _customSheetViewXml(sheet, index, guid, { printSettings, hiddenRowCol, zoom }) {
+    const wb = this.workbook;
+    const { part } = wb._sheetPart(sheet);
+    const geo = this.geometry.get(sheet);
+    const own = part.sheetViewAttrs();
+    const active = sheet === this.activeSheet;
+    const quoted = /[^A-Za-z0-9_]/.test(sheet) || /^\d/.test(sheet) ? "'" + sheet.replace(/'/g, "''") + "'" : sheet;
+    const scale = active ? Math.round((Number(zoom) || 1) * 100) : Number(own.zoomScale || 100);
+    const mode = wb.sheetViewMode(sheet);
+    let topLeft = own.topLeftCell || null;
+    let selection = (/<selection\b[^>]*\/>/.exec(part.prefix) ?? [null])[0];
+    if (active) {
+      const scroll = mode === 'pageLayout'
+        ? { x: this._pageLayout().toSheetX(this.scrollX), y: this._pageLayout().toSheetY(this.scrollY) }
+        : { x: this.scrollX, y: this.scrollY };
+      topLeft = ref(geo.rowAt(scroll.y), geo.colAt(scroll.x));
+      const r = this.selection.range;
+      const a = this.selection.active;
+      const sqref = r.top === r.bottom && r.left === r.right ? ref(r.top, r.left) : ref(r.top, r.left) + ':' + ref(r.bottom, r.right);
+      selection = '<selection activeCell="' + ref(a.row, a.col) + '" sqref="' + sqref + '"/>';
+    }
+    const hiddenRows = [...(geo?.hiddenRows ?? [])].sort((x, y) => x - y);
+    const hiddenCols = [...(geo?.hiddenCols ?? [])].sort((x, y) => x - y);
+    const filter = part.autoFilterXml();
+    const setup = readPageSetup(this, sheet);
+    const hidden = wb.hiddenSheets().includes(sheet);
+    const attrsText = ' guid="' + guid + '"'
+      + (scale !== 100 ? ' scale="' + scale + '"' : '')
+      + (hiddenRowCol && filter ? ' filter="1" showAutoFilter="1"' : '')
+      + (hiddenRowCol && hiddenRows.length ? ' hiddenRows="1"' : '')
+      + (hiddenRowCol && hiddenCols.length ? ' hiddenColumns="1"' : '')
+      + (printSettings && setup.area ? ' printArea="1"' : '')
+      + (printSettings && setup.fit !== 'none' ? ' fitToPage="1"' : '')
+      + (hidden ? ' state="hidden"' : '')
+      + (mode !== 'normal' ? ' view="' + mode + '"' : '')
+      + (topLeft && topLeft !== 'A1' ? ' topLeftCell="' + topLeft + '"' : '');
+    const kids = [];
+    if (selection) kids.push(selection);
+    if (printSettings) {
+      for (const tag of ['rowBreaks', 'colBreaks', 'pageMargins', 'printOptions', 'pageSetup', 'headerFooter']) {
+        const el = part.tailElement(tag);
+        if (el) kids.push(el);
+      }
+    }
+    if (hiddenRowCol && filter) kids.push(filter);
+    // What it hides and prints, in Excel's hidden names scoped to the sheet.
+    const runs = (list, fmt) => {
+      const out = [];
+      for (let k = 0; k < list.length; k++) {
+        let end = k;
+        while (end + 1 < list.length && list[end + 1] === list[end] + 1) end += 1;
+        out.push(quoted + '!' + fmt(list[k]) + ':' + fmt(list[end]));
+        k = end;
+      }
+      return out.join(',');
+    };
+    const scope = { localSheetId: index, hidden: 1 };
+    if (hiddenRowCol && hiddenRows.length) wb.setDefinedName(this._wvuName(guid, 'Rows'), runs(hiddenRows, (r) => '$' + (r + 1)), scope);
+    if (hiddenRowCol && hiddenCols.length) wb.setDefinedName(this._wvuName(guid, 'Cols'), runs(hiddenCols, (c) => '$' + colName(c)), scope);
+    if (hiddenRowCol && filter) {
+      const at = /\bref="([^"]+)"/.exec(filter)?.[1];
+      if (at) wb.setDefinedName(this._wvuName(guid, 'FilterData'), quoted + '!' + at.replace(/([A-Z]+)(\d+)/g, '$$$1$$$2'), scope);
+    }
+    if (printSettings && setup.area) wb.setDefinedName(this._wvuName(guid, 'PrintArea'), quoted + '!' + setup.area.toUpperCase().replace(/([A-Z]+)(\d+)/g, '$$$1$$$2'), scope);
+    if (printSettings && setup.repeatRows > 0) wb.setDefinedName(this._wvuName(guid, 'PrintTitles'), quoted + '!$1:$' + setup.repeatRows, scope);
+    return '<customSheetView' + attrsText + (kids.length ? '>' + kids.join('') + '</customSheetView>' : '/>');
+  }
+
+  /**
+   * View → Custom Views → Show: the workbook as the view kept it — its
+   * sheet, and on every sheet the zoom, selection, first cell shown and
+   * view, with the print settings and the hidden rows, columns and filter
+   * when the view kept them. Answers the sheet and the zoom, which the
+   * window's own. Not undoable, as in Excel.
+   */
+  showCustomView(name) {
+    const blocked = this.customViewsBlocked();
+    if (blocked) throw new Error('Custom Views are ' + blocked + '.');
+    const view = this.workbook.customWorkbookViews().find((v) => v.name === name);
+    if (!view) throw new Error('No custom view is called "' + name + '".');
+    const wb = this.workbook;
+    const defined = wb.definedNames();
+    const nameFor = (kind, index) => defined.find((d) => d.name === this._wvuName(view.guid, kind) && attrsOfText(d.attrsStr).localSheetId === String(index))?.ref ?? null;
+    const target = wb.sheetWithId(view.activeSheetId) ?? this.activeSheet;
+    let zoom = 1;
+    let selection = null;
+    let topLeft = null;
+    this.sheetNames().forEach((sheet, index) => {
+      const xml = wb.customSheetViews(sheet).get(view.guid);
+      if (!xml) return;
+      const a = attrsOfText(/<customSheetView\b([^>]*?)\/?>/.exec(xml)[1]);
+      const { part } = wb._sheetPart(sheet);
+      if (view.hiddenRowCol) {
+        const hiddenRows = new Set();
+        const hiddenCols = new Set();
+        for (const piece of String(nameFor('Rows', index) ?? '').split(',')) {
+          const m = /\$?(\d+):\$?(\d+)\s*$/.exec(piece);
+          if (m) for (let r = Number(m[1]) - 1; r <= Number(m[2]) - 1; r++) hiddenRows.add(r);
+        }
+        for (const piece of String(nameFor('Cols', index) ?? '').split(',')) {
+          const m = /\$?([A-Z]+):\$?([A-Z]+)\s*$/i.exec(piece);
+          if (m) for (let c = colIndexOf(m[1]); c <= colIndexOf(m[2]); c++) hiddenCols.add(c);
+        }
+        const geo = this.geometry.get(sheet);
+        for (const r of new Set([...(geo?.hiddenRows ?? []), ...hiddenRows])) part.setRowOutline(r, { hidden: hiddenRows.has(r) });
+        for (const c of new Set([...(geo?.hiddenCols ?? []), ...hiddenCols])) part.setColOutline(c, { hidden: hiddenCols.has(c) });
+        part.setAutoFilter((/<autoFilter\b[^>]*(?:\/>|>[\s\S]*?<\/autoFilter>)/.exec(xml) ?? [null])[0]);
+        part.dirty = true;
+      }
+      if (view.printSettings) {
+        for (const tag of ['printOptions', 'pageMargins', 'pageSetup', 'headerFooter', 'rowBreaks', 'colBreaks']) {
+          part.setTailElement(tag, (new RegExp('<' + tag + '\\b[^>]*(?:/>|>[\\s\\S]*?</' + tag + '>)').exec(xml) ?? [null])[0]);
+        }
+        const area = nameFor('PrintArea', index);
+        const titles = nameFor('PrintTitles', index);
+        wb.setDefinedName('_xlnm.Print_Area', area, { localSheetId: index });
+        wb.setDefinedName('_xlnm.Print_Titles', titles, { localSheetId: index });
+      }
+      wb.setSheetViewMode(sheet, a.view === 'pageLayout' || a.view === 'pageBreakPreview' ? a.view : 'normal');
+      if (a.state === 'hidden' || a.state === 'veryHidden') {
+        if (sheet !== target) wb.setSheetHidden(sheet, true);
+      } else if (wb.hiddenSheets().includes(sheet)) {
+        wb.setSheetHidden(sheet, false);
+      }
+      if (sheet === target) {
+        zoom = (Number(a.scale) || 100) / 100;
+        selection = attrsOfText((/<selection\b([^>]*)\/?>/.exec(xml) ?? ['', ''])[1]);
+        topLeft = a.topLeftCell || 'A1';
+      }
+    });
+    this._rebuildDerivedState();
+    this.activeSheet = target;
+    this.selection = Selection.at(0, 0);
+    try {
+      if (selection?.sqref) {
+        const [first] = String(selection.sqref).split(/\s+/);
+        const [p, q] = first.split(':');
+        const [r1, c1] = parseRefPair(p);
+        const [r2, c2] = q ? parseRefPair(q) : [r1, c1];
+        const [ar, ac] = selection.activeCell ? parseRefPair(selection.activeCell) : [r1, c1];
+        const sel = Selection.at(r1, c1);
+        sel.extendTo(r2, c2);
+        sel.active = { row: ar, col: ac };
+        this.selection = sel;
+      }
+    } catch { /* a view whose selection cannot be read starts at A1 */ }
+    let [tr, tc] = [0, 0];
+    try { [tr, tc] = parseRefPair(topLeft || 'A1'); } catch { /* A1 */ }
+    if (this.viewMode() === 'pageLayout') {
+      const L = this._pageLayout();
+      this.scrollX = Math.max(0, L.pageX(0) - PAGE_LAYOUT_EDGE);
+      this.scrollY = Math.max(0, L.mapY(tr) - L.margins.top - L.head - PAGE_LAYOUT_EDGE);
+    } else {
+      this.scrollX = this.geo.colOffset(tc);
+      this.scrollY = this.geo.rowOffset(tr);
+    }
+    this.history = new History();
+    this._structuralDirty = true;
+    return { sheet: target, zoom };
+  }
+
+  /** View → Custom Views → Delete: the view, its sheet views and its hidden names. */
+  deleteCustomView(name) {
+    const list = this.workbook.customWorkbookViews();
+    const view = list.find((v) => v.name === name);
+    if (!view) return this;
+    this.workbook.setCustomWorkbookViews(list.filter((v) => v !== view));
+    for (const sheet of this.sheetNames()) {
+      const map = this.workbook.customSheetViews(sheet);
+      if (map.delete(view.guid)) this.workbook.setCustomSheetViews(sheet, map);
+    }
+    const prefix = this._wvuName(view.guid, '');
+    for (const d of this.workbook.definedNames()) {
+      if (d.name.startsWith(prefix)) this.workbook.deleteDefinedName(d.name);
+    }
+    this.history = new History();
+    this._structuralDirty = true;
+    return this;
+  }
+
+  // ---- Page Layout → Background ---------------------------------------------------
+
+  /** The active sheet's background picture's part, or null. */
+  sheetBackground() {
+    return this.workbook.sheetBackground(this.activeSheet);
+  }
+
+  /**
+   * Page Layout → Background: a picture tiled behind the cells, written as
+   * Excel writes it (`<picture r:id>` and the image part). Excel neither
+   * prints it nor undoes it — the undo list is cleared, as Excel clears it.
+   */
+  setBackground({ contentType, data } = {}) {
+    const ext = { 'image/png': 'png', 'image/jpeg': 'jpeg', 'image/gif': 'gif', 'image/bmp': 'bmp', 'image/webp': 'webp' }[contentType];
+    if (!ext) throw new Error('A background is a PNG, JPEG, GIF, BMP or WebP picture.');
+    const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data ?? ''), 'base64');
+    if (!bytes.length) throw new Error('the picture has no bytes');
+    const part = this.workbook.setSheetBackground(this.activeSheet, bytes, ext, contentType);
+    this.history = new History();
+    this._structuralDirty = true;
+    return part;
+  }
+
+  /** Page Layout → Delete Background. */
+  deleteBackground() {
+    if (!this.workbook.removeSheetBackground(this.activeSheet)) return this;
+    this.history = new History();
+    this._structuralDirty = true;
+    return this;
+  }
+
+  /** View → Ruler, shown in Page Layout: `<sheetView showRuler>`, on unless it says "0". */
+  showRuler() {
+    const v = this.workbook._sheetPart(this.activeSheet).part.sheetViewAttrs().showRuler;
+    return !(v === '0' || v === 'false');
+  }
+
+  setShowRuler(on) {
+    if (Boolean(on) === this.showRuler()) return this;
+    this.workbook._sheetPart(this.activeSheet).part.setSheetViewAttr('showRuler', on ? null : '0');
+    this._structuralDirty = true;
+    return this;
+  }
+
+  /**
+   * View → Page Layout: the sheet laid out as the printer will cut it — the
+   * same page setup and the same bands (`planBands`, which the print's own
+   * `paginate` crosses into pages) — each band of rows and of columns a
+   * sheet of paper with its margins, header and footer, the pages in a grid
+   * with a gap between them. Past the printed range the same cutting goes
+   * on, as blank pages to type onto, as Excel's does. The bands are cached
+   * until the setup, the sizes or the reach change.
+   *
+   * Positions are the sheet's own pixels at 100%: a page is the paper's size
+   * over the print's scale, so the cells keep their size and a page scaled
+   * to fit holds as many of them as the printed page will.
+   */
+  _pageLayout() {
+    const sheet = this.activeSheet;
+    const geo = this.geo;
+    const setup = pageSetup(readPageSetup(this, sheet));
+    const bounds = this.calc.usedBounds(sheet);
+    const printRange = parseArea(setup.area) || { top: 0, left: 0, bottom: bounds.maxRow, right: bounds.maxCol };
+    const ext = this._plExtent?.sheet === sheet ? this._plExtent : { rows: 0, cols: 0 };
+    const rowsTo = Math.min(MAX_ROWS - 1, Math.max(printRange.bottom + 60, this.selection.range.bottom + 60, ext.rows, 199));
+    const colsTo = Math.min(MAX_COLS - 1, Math.max(printRange.right + 12, this.selection.range.right + 12, ext.cols, 29));
+    const ruler = this.showRuler();
+    const key = [sheet, JSON.stringify(setup), JSON.stringify(printRange), rowsTo, colsTo, ruler].join('|');
+    const rowsIndex = geo._rowIndex();
+    const colsIndex = geo._colIndex();
+    const hit = this._plCache;
+    if (hit && hit.key === key && hit.geo === geo && hit.rows === rowsIndex && hit.cols === colsIndex) return hit.layout;
+    // The print's own cut, for its scale and its page count…
+    const printed = planBands({ geo, range: printRange, setup });
+    // …then the same cut carried on past it, at that scale.
+    const laid = planBands({ geo, range: { top: 0, left: 0, bottom: rowsTo, right: colsTo }, setup: { ...setup, fit: 'none', scale: printed.scale } });
+    const layout = buildPageLayout(geo, laid, setup, {
+      rowsTo, colsTo, ruler,
+      printedCols: printed.colBands.length,
+      printedRows: printed.rowBands.length,
+      printCount: printed.colBands.length * printed.rowBands.length,
+    });
+    this._plCache = { key, geo, rows: rowsIndex, cols: colsIndex, layout };
+    return layout;
   }
 
   /**
@@ -5295,6 +5685,139 @@ export class SheetView {
   }
 }
 
+/** Page Layout's paper: the space round the pages, and between them. */
+export const PAGE_LAYOUT_EDGE = 36;
+export const PAGE_LAYOUT_GAP = 36;
+
+/**
+ * View → Page Layout, as geometry: the pages' size and margins in the
+ * sheet's pixels, where each band of rows and columns starts and ends, and
+ * the maps from a row or column to its place on paper and back from a
+ * scroll position on paper to the sheet's.
+ */
+function buildPageLayout(geo, laid, setup, info) {
+  const s = laid.scale || 1;
+  const paper = PAPER[setup.paper] || PAPER.A4;
+  const landscape = setup.orientation === 'landscape';
+  const mm = (v) => (Number(v) || 0) * PX_PER_MM / s;
+  const pageW = mm(landscape ? paper.height : paper.width);
+  const pageH = mm(landscape ? paper.width : paper.height);
+  const margins = { top: mm(setup.margins.top), right: mm(setup.margins.right), bottom: mm(setup.margins.bottom), left: mm(setup.margins.left) };
+  // The running header and footer take a line of the printed area each, as they do on paper.
+  const head = setup.header ? 22 / s : 0;
+  const foot = setup.footer ? 22 / s : 0;
+  const bandsOf = (bands, first) => bands.map((b, i) => ({
+    start: i === 0 ? first : (b[0]?.index ?? first),
+    end: b.length ? b[b.length - 1].index : first,
+  }));
+  const cols = bandsOf(laid.colBands, 0);
+  const rows = bandsOf(laid.rowBands, 0);
+  // Print titles belong to the first band of rows: they are its top.
+  if (laid.titleRows?.length && rows.length) rows[0].start = 0;
+  const E = PAGE_LAYOUT_EDGE;
+  const G = PAGE_LAYOUT_GAP;
+  const pageX = (i) => E + i * (pageW + G);
+  const pageY = (j) => E + j * (pageH + G);
+  const find = (bands, index) => {
+    let lo = 0;
+    let hi = bands.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (bands[mid].start <= index) lo = mid;
+      else hi = mid - 1;
+    }
+    return lo;
+  };
+  const contentX = (i) => pageX(i) + margins.left;
+  const contentY = (j) => pageY(j) + margins.top + head;
+  const mapX = (col) => { const i = find(cols, col); return contentX(i) + geo.colOffset(col) - geo.colOffset(cols[i].start); };
+  const mapY = (row) => { const j = find(rows, row); return contentY(j) + geo.rowOffset(row) - geo.rowOffset(rows[j].start); };
+  const spanX = (i) => geo.colOffset(cols[i].end) + geo.colWidth(cols[i].end) - geo.colOffset(cols[i].start);
+  const spanY = (j) => geo.rowOffset(rows[j].end) + geo.rowHeight(rows[j].end) - geo.rowOffset(rows[j].start);
+  const band = (p, first, size, n) => Math.max(0, Math.min(n - 1, Math.floor((p - first) / size)));
+  const toSheetX = (px) => {
+    const i = band(px, E, pageW + G, cols.length);
+    return geo.colOffset(cols[i].start) + Math.max(0, Math.min(spanX(i), px - contentX(i)));
+  };
+  const toSheetY = (py) => {
+    const j = band(py, E, pageH + G, rows.length);
+    return geo.rowOffset(rows[j].start) + Math.max(0, Math.min(spanY(j), py - contentY(j)));
+  };
+  return {
+    scale: s, pageW, pageH, margins, head, foot, cols, rows, pageX, pageY, contentX, contentY, spanX, spanY,
+    mapX, mapY, toSheetX, toSheetY,
+    rowsTo: info.rowsTo, colsTo: info.colsTo, ruler: info.ruler,
+    printedCols: info.printedCols, printedRows: info.printedRows, printCount: info.printCount,
+    order: setup.order === 'across' ? 'across' : 'down',
+    header: setup.header || '', footer: setup.footer || '',
+    total: { width: Math.ceil(E + cols.length * (pageW + G)), height: Math.ceil(E + rows.length * (pageH + G)) },
+  };
+}
+
+/**
+ * The grid's frame put onto paper: every row, column, cell and drawing moved
+ * to its place on its page, the canvas the size of the pages, and the pages
+ * in sight listed — each with its number as printed (none past the printed
+ * range: those are Excel's blank pages to type onto), its printable box and
+ * where its header and footer go.
+ */
+function pageLayoutFrame(frame, L, geo, sight) {
+  // What lies past the last page laid out is left for the next frame, when the layout has grown to it.
+  const lastRow = L.rows[L.rows.length - 1].end;
+  const lastCol = L.cols[L.cols.length - 1].end;
+  frame.cells = frame.cells.filter((c) => c.row <= lastRow && c.col <= lastCol);
+  frame.columns = frame.columns.filter((c) => c.index <= lastCol);
+  frame.rows = frame.rows.filter((r) => r.index <= lastRow);
+  for (const c of frame.cells) { c.x = L.mapX(c.col); c.y = L.mapY(c.row); }
+  for (const c of frame.columns) c.x = L.mapX(c.index);
+  for (const r of frame.rows) r.y = L.mapY(r.index);
+  for (const d of frame.drawings) {
+    if (!d.anchor) continue;
+    d.x = L.mapX(d.anchor.col) + (d.x - geo.colOffset(d.anchor.col));
+    d.y = L.mapY(d.anchor.row) + (d.y - geo.rowOffset(d.anchor.row));
+  }
+  const E = PAGE_LAYOUT_EDGE;
+  const G = PAGE_LAYOUT_GAP;
+  const firstI = Math.max(0, Math.floor((sight.x - E) / (L.pageW + G)) - 1);
+  const lastI = Math.min(L.cols.length - 1, Math.floor((sight.x + sight.width - E) / (L.pageW + G)) + 1);
+  const firstJ = Math.max(0, Math.floor((sight.y - E) / (L.pageH + G)) - 1);
+  const lastJ = Math.min(L.rows.length - 1, Math.floor((sight.y + sight.height - E) / (L.pageH + G)) + 1);
+  const pages = [];
+  for (let i = firstI; i <= lastI; i++) {
+    for (let j = firstJ; j <= lastJ; j++) {
+      const printed = i < L.printedCols && j < L.printedRows;
+      const n = printed ? (L.order === 'down' ? i * L.printedRows + j + 1 : j * L.printedCols + i + 1) : null;
+      pages.push({
+        n, blank: !printed, col: i, row: j,
+        x: L.pageX(i), y: L.pageY(j), width: L.pageW, height: L.pageH,
+        // The printable box: inside the margins, the header's line and the footer's included.
+        box: { x: L.contentX(i), y: L.pageY(j) + L.margins.top, width: L.pageW - L.margins.left - L.margins.right, height: L.pageH - L.margins.top - L.margins.bottom },
+        first: { row: L.rows[j].start, col: L.cols[i].start },
+      });
+    }
+  }
+  return {
+    ...frame,
+    total: L.total,
+    frozen: { rows: 0, cols: 0, width: 0, height: 0 },
+    split: null,
+    pageBreaks: null,
+    pageLayout: {
+      pages,
+      count: L.printCount,
+      scale: L.scale,
+      pageWidth: L.pageW,
+      pageHeight: L.pageH,
+      margins: L.margins,
+      head: L.head,
+      foot: L.foot,
+      header: L.header,
+      footer: L.footer,
+      ruler: L.ruler,
+    },
+  };
+}
+
 /**
  * Page Break Preview's layout of a pagination: the printed area, every
  * page's box in the sheet's pixels with its number, and every break between
@@ -5525,6 +6048,23 @@ function tableLookAt(tables, row, col, theme) {
  * layer can tell "the sheet said no, in a sentence for the person" apart
  * from a genuine fault it must not swallow.
  */
+/** Attributes of an element's text, for the custom views' XML. */
+function attrsOfText(text) {
+  const out = {};
+  for (const m of String(text || '').matchAll(/([\w:.-]+)="([^"]*)"/g)) out[m[1]] = m[2];
+  return out;
+}
+
+/** A column's letters to its 0-based index. */
+function colIndexOf(letters) {
+  return [...String(letters).toUpperCase()].reduce((n, ch) => n * 26 + (ch.charCodeAt(0) - 64), 0) - 1;
+}
+
+/** Text for an XML attribute. */
+function escapeXml(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 function protectionError(message, extra = {}) {
   const e = new Error(message);
   e.protection = true;
