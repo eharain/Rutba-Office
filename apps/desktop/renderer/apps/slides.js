@@ -21,6 +21,7 @@ import { describeTransition } from './slides/motion.js';
 import { clickCount } from './slides/animate.js';
 import { Markup } from './slides/markup.js';
 import { DesignGallery, CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
+import { CommentsPane, markerSpots, personColour, COMMENTS_CSS } from './slides/comments.js';
 
 export default function Slides({ app, shell, boot }) {
   // A presenter window is the same app pointed at the same open document,
@@ -42,6 +43,9 @@ export default function Slides({ app, shell, boot }) {
   const [masterPart, setMasterPart] = useState(null);
   const masterRef = useRef(null);
   masterRef.current = masterPart;
+  /** Review → the comment thread picked in the pane or on the stage, and a new one being written ({ shape }). */
+  const [commentSel, setCommentSel] = useState(null);
+  const [commentDraft, setCommentDraft] = useState(null);
   /** Slide Master → Rename: the part and the name it has now. */
   const [partRename, setPartRename] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -701,6 +705,13 @@ export default function Slides({ app, shell, boot }) {
 
 
   const slide = model?.slide;
+  // Review → this slide's comment threads, and each slide's count for the strip.
+  const slideComments = useMemo(() => (model?.comments || []).filter((c) => c.slide === index), [model?.comments, index]);
+  const commentCount = useMemo(() => {
+    const m = new Map();
+    for (const c of model?.comments || []) m.set(c.slide, (m.get(c.slide) || 0) + 1);
+    return m;
+  }, [model?.comments]);
   const selectedShape = selected ? slide?.shapes?.find((s) => s.id === selected) || null : null;
   // Animations: the slide's sequence, and the effect the Animations tab
   // acts on — the one picked in the pane (while its shape stays
@@ -921,6 +932,61 @@ export default function Slides({ app, shell, boot }) {
         return;
       case 'customColours': setDesignOpen(null); setCustomColours(arg || model?.design || {}); return;
       case 'customFonts': setDesignOpen(null); setCustomFonts(arg || model?.design || {}); return;
+      // Review → Comments: a new thread, a post, a reply, Resolve, Delete,
+      // Previous and Next across the deck, and the pane.
+      case 'newComment':
+        if (masterPart) return toast('Comments are on slides — Close Master View first.', { ms: 3200 });
+        setCommentDraft({ shape: selected ?? null });
+        setCommentSel(null);
+        patchView({ pane: 'comments' });
+        return;
+      case 'postComment': {
+        const draft = commentDraft || { shape: null };
+        const next = await apply({ op: 'addComment', slide: index, text: arg, shape: draft.shape ?? null });
+        if (next) {
+          setCommentDraft(null);
+          if (typeof next.opResult === 'string') setCommentSel(next.opResult);
+        }
+        return;
+      }
+      case 'replyComment':
+        await apply({ op: 'replyComment', slide: arg.thread.slide, id: arg.thread.id, text: arg.text });
+        return;
+      case 'resolveComment':
+        await apply({ op: 'resolveComment', slide: arg.thread.slide, id: arg.thread.id, resolved: arg.resolved });
+        return;
+      case 'deleteComment': {
+        const t = arg || (model?.comments || []).find((c) => c.id === commentSel);
+        if (!t) return toast('Pick a comment first — in the pane or on the slide.', { ms: 3000 });
+        const next = await apply({ op: 'removeComment', slide: t.slide, id: t.id });
+        if (next && commentSel === t.id) setCommentSel(null);
+        return;
+      }
+      case 'deleteReply':
+        await apply({ op: 'removeComment', slide: arg.thread.slide, id: arg.thread.id, reply: arg.reply.id });
+        return;
+      case 'deleteComments': {
+        const next = await apply({ op: 'removeAllComments', slide: index, all: arg === 'all' });
+        if (next) { setCommentSel(null); toast(arg === 'all' ? 'Every comment in the presentation deleted' : 'Every comment on this slide deleted', { ms: 2400 }); }
+        return;
+      }
+      case 'commentStep': {
+        const list = model?.comments || [];
+        if (!list.length) return toast('There are no comments in this presentation.', { ms: 2600 });
+        const at = list.findIndex((c) => c.id === commentSel);
+        const target = at >= 0
+          ? list[(at + arg + list.length) % list.length]
+          : arg > 0 ? list.find((c) => c.slide >= index) || list[0] : [...list].reverse().find((c) => c.slide <= index) || list[list.length - 1];
+        setCommentSel(target.id);
+        setCommentDraft(null);
+        if (target.slide !== index) setIndex(target.slide);
+        patchView({ pane: 'comments' });
+        return;
+      }
+      case 'selectComment':
+        setCommentSel(arg);
+        patchView({ pane: 'comments' });
+        return;
       // View → Slide Master, and the Slide Master tab's verbs.
       case 'masterView': {
         const layout = model?.slide?.layout || null;
@@ -1427,7 +1493,7 @@ export default function Slides({ app, shell, boot }) {
         </div>
       ) : (
         <>
-          <style>{CSS + DESIGN_CSS}</style>
+          <style>{CSS + DESIGN_CSS + COMMENTS_CSS}</style>
           <Panel width={196} resizable title={model.masterView ? 'Slide Master' : 'Slides'}>
             {model.masterView ? (
               <div className="sl-sorter sl-masterstrip">
@@ -1468,6 +1534,7 @@ export default function Slides({ app, shell, boot }) {
                     <span className="sl-thumb-n">
                       {i + 1}
                       {/* PowerPoint's little star under the number: this slide has a transition. */}
+                      {commentCount.get(i) ? <span className="sl-thumb-cm" data-comments={commentCount.get(i)} title={`${commentCount.get(i)} comment${commentCount.get(i) === 1 ? '' : 's'}`}><Icon name="reply" size={10} /></span> : null}
                       {o.transition || o.animated ? <span className="sl-thumb-fx" data-fx={[o.transition ? 'transition' : null, o.animated ? 'animations' : null].filter(Boolean).join(' ')} title={[o.transition ? `Transition: ${describeTransition({ type: o.transition })}` : null, o.animated ? 'Has animations' : null].filter(Boolean).join(' · ')}><Icon name="star" size={10} /></span> : null}
                     </span>
                     <span className="sl-thumb-card" title={`${o.title || `Slide ${i + 1}`}${o.hidden ? ' — hidden' : ''}`}>
@@ -1753,6 +1820,27 @@ export default function Slides({ app, shell, boot }) {
                         });
                       })()
                     : null}
+                  {/* Review → Comments: a marker where each thread on this slide is anchored. */}
+                  {!masterPart && slideComments.length && !preview
+                    ? markerSpots(slideComments, slide.shapes).map(({ thread, x, y }) => {
+                        const size = 26 / scale;
+                        return (
+                          <button
+                            key={`cm-${thread.id}`}
+                            type="button"
+                            className={`sl-cm-marker${thread.status === 'resolved' ? ' resolved' : ''}${commentSel === thread.id ? ' current' : ''}`}
+                            data-comment={thread.id}
+                            style={{ left: Math.max(0, Math.min(x, model.size.width - size)), top: Math.max(0, y), width: size, height: size, fontSize: 10 / scale, background: personColour(thread.author), borderWidth: 2 / scale }}
+                            data-tip={`${thread.author}: ${thread.text.slice(0, 80)}${thread.replies.length ? ` (${thread.replies.length} repl${thread.replies.length === 1 ? 'y' : 'ies'})` : ''}`}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => { e.stopPropagation(); act('selectComment', thread.id); }}
+                          >
+                            {thread.initials}
+                            {thread.replies.length ? <span className="sl-cm-more">{thread.replies.length + 1}</span> : null}
+                          </button>
+                        );
+                      })
+                    : null}
                   {editing ? (
                     <textarea
                       className="sl-editor"
@@ -1819,10 +1907,26 @@ export default function Slides({ app, shell, boot }) {
               right
               width={252}
               resizable
-              title={view.pane === 'layers' ? 'Layers' : view.pane === 'designs' ? 'Designs' : view.pane === 'animations' ? 'Animation Pane' : 'Format'}
+              title={view.pane === 'layers' ? 'Layers' : view.pane === 'designs' ? 'Designs' : view.pane === 'animations' ? 'Animation Pane' : view.pane === 'comments' ? 'Comments' : 'Format'}
               actions={<Button icon="close" title="Close the pane" onClick={() => act('pane', view.pane)} />}
             >
-              {view.pane === 'layers' ? (
+              {view.pane === 'comments' ? (
+                <CommentsPane
+                  threads={slideComments}
+                  draft={commentDraft}
+                  selected={commentSel}
+                  shapes={slide?.shapes || []}
+                  me={model.me || 'You'}
+                  onSelect={(id) => setCommentSel(id)}
+                  onNew={() => act('newComment')}
+                  onPost={(text) => act('postComment', text)}
+                  onCancelDraft={() => setCommentDraft(null)}
+                  onReply={(thread, text) => act('replyComment', { thread, text })}
+                  onResolve={(thread, resolved) => act('resolveComment', { thread, resolved })}
+                  onDelete={(thread) => act('deleteComment', thread)}
+                  onDeleteReply={(thread, reply) => act('deleteReply', { thread, reply })}
+                />
+              ) : view.pane === 'layers' ? (
                 <LayersPane slide={slide} selected={selected} selectedIds={selectedIds} onSelect={setSelected} onToggle={toggleSelected} act={act} />
               ) : view.pane === 'animations' ? (
                 <AnimationPane slide={slide} current={currentAnim} act={act} playing={preview?.kind === 'animation'} />
@@ -2735,7 +2839,7 @@ function PartNameDialog({ name: current, kind, onClose, onApply }) {
 }
 
 /** What only a slide can take: refused while Slide Master view is on the stage. */
-const MASTER_REFUSED = new Set(['insertSlide', 'duplicateSlide', 'removeSlide', 'moveSlide', 'setNotes', 'setTransition', 'applyTransitionToAll', 'addAnimation', 'setAnimation', 'removeAnimation', 'moveAnimation', 'removeShapeAnimations', 'setSlideHidden', 'addSection', 'renameSection', 'removeSection', 'removeAllSections', 'applyLayout', 'resetSlide', 'setFooter', 'replaceText', 'replaceHit', 'replaceAllHits', 'addTable', 'addChart', 'setChartData', 'setTableCell', 'insertTableRow', 'removeTableRow', 'insertTableColumn', 'removeTableColumn']);
+const MASTER_REFUSED = new Set(['addComment', 'replyComment', 'resolveComment', 'removeComment', 'removeAllComments', 'insertSlide', 'duplicateSlide', 'removeSlide', 'moveSlide', 'setNotes', 'setTransition', 'applyTransitionToAll', 'addAnimation', 'setAnimation', 'removeAnimation', 'moveAnimation', 'removeShapeAnimations', 'setSlideHidden', 'addSection', 'renameSection', 'removeSection', 'removeAllSections', 'applyLayout', 'resetSlide', 'setFooter', 'replaceText', 'replaceHit', 'replaceAllHits', 'addTable', 'addChart', 'setChartData', 'setTableCell', 'insertTableRow', 'removeTableRow', 'insertTableColumn', 'removeTableColumn']);
 
 function SectionNameDialog({ name: current, onClose, onApply }) {
   const [name, setName] = useState(current || '');

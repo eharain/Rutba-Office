@@ -14,6 +14,7 @@ import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parse, kids, first, all, escapeXml } from '@rutba/office-formats/xml';
 import { emuToPx, pxToEmu, ptToSz } from './units.js';
 import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText, composeGroupChild, REFLECTION_PRESETS, readLevels, mergeLevels, readFill } from './slide.js';
+import { COMMENT_REL, COMMENT_CT, COMMENT_REL_EXT, CREATION_ID_EXT, NS as CM_NS, guid as commentGuid, stamp, initialsOf, readAuthors, authorsXml, readModernComments, readLegacyAuthors, readLegacyComments, commentXml, commentListXml, threadRange } from './comments.js';
 import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS, COLOUR_SLOTS, themePartXml, clrSchemeXml, fontSchemeXml, fmtSchemeXml, masterBackgroundXml, clrMapAttrs, variantsOf, themeById } from './themes.js';
 import { slideXml } from './build.js';
 import { chartPartXml } from '@rutba/ooxml/build';
@@ -1685,6 +1686,284 @@ export class Deck {
     // The scene cache is keyed on the slide's XML, which this leaves as it
     // was; the scene it holds was built on the old layout.
     this._scenes.delete(part);
+    this.dirty = true;
+    return true;
+  }
+
+  // ---- comments ----------------------------------------------------------------
+  //
+  // Review → New Comment and its neighbours, written as PowerPoint 365
+  // writes them (see comments.js): one modern comments part per slide,
+  // related from the slide and named in its extension list, the people in
+  // ppt/authors.xml. A slide's older-format comments are read beside them.
+
+  /** The part a relationship of this type from `from` points at, or null. */
+  #relTarget(from, type) {
+    for (const r of this.#relMap(from).values()) if (r.type === type && r.mode !== 'External' && this.pkg.has(r.resolved)) return r.resolved;
+    return null;
+  }
+
+  /** The deck's people who comment: the authors part and who is in it. */
+  #authorsPart() {
+    return this.#relTarget('ppt/presentation.xml', COMMENT_REL.authors);
+  }
+
+  /** An author by name — the one already listed, or a new entry in ppt/authors.xml (made when missing). */
+  #authorFor(name) {
+    const clean = String(name || '').trim() || 'Rutba Office user';
+    let part = this.#authorsPart();
+    const list = part ? [...readAuthors(this.pkg.text(part)).values()] : [];
+    const known = list.find((a) => a.name === clean);
+    if (known) return known;
+    const author = { id: commentGuid(), name: clean, initials: initialsOf(clean) };
+    const xml = authorsXml([...list, author]);
+    if (part) this.pkg.write_(part, Buffer.from(xml, 'utf8'));
+    else {
+      part = 'ppt/authors.xml';
+      this.pkg.addPart(part, Buffer.from(xml, 'utf8'), COMMENT_CT.authors);
+      this.pkg.addRelationshipTo('ppt/presentation.xml', COMMENT_REL.authors, 'authors.xml');
+    }
+    return author;
+  }
+
+  /**
+   * A slide's creation id (`p14:creationId`), the number a comment's
+   * moniker names; one is given to a slide that has none, the way
+   * PowerPoint gives every slide one.
+   */
+  #creationIdOf(part) {
+    const xml = this.pkg.text(part);
+    const had = /<p14:creationId\b[^>]*\bval="(\d+)"/.exec(xml);
+    if (had) return had[1];
+    const val = String(Math.floor(1000000000 + Math.random() * 3000000000));
+    this.#writeSlide(part, withSlideExt(xml, CREATION_ID_EXT, `<p14:creationId xmlns:p14="${CM_NS.p14}" val="${val}"/>`));
+    return val;
+  }
+
+  /** A shape's own creation id (`a16:creationId`), given one when it has none, for a comment anchored to it. */
+  #shapeCreationId(part, shapeId) {
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found`);
+    const shapeXml = xml.slice(range.start, range.end);
+    const had = /<a16:creationId\b[^>]*\bid="(\{[^"]+\})"/.exec(shapeXml);
+    if (had) return had[1];
+    const id = commentGuid();
+    const ext = `<a:ext uri="{FF2B5EF4-FFF2-40B4-BE49-F238E27FC236}"><a16:creationId xmlns:a16="${CM_NS.a16}" id="${id}"/></a:ext>`;
+    const cNvPr = new RegExp(`<p:cNvPr\\b[^>]*\\bid="${shapeId}"[^>]*?(/>|>)`).exec(shapeXml);
+    if (!cNvPr) throw new Error(`shape ${shapeId} has no properties`);
+    let next;
+    if (cNvPr[1] === '/>') {
+      next = shapeXml.slice(0, cNvPr.index) + cNvPr[0].replace(/\/>$/, `><a:extLst>${ext}</a:extLst></p:cNvPr>`) + shapeXml.slice(cNvPr.index + cNvPr[0].length);
+    } else {
+      const close = shapeXml.indexOf('</p:cNvPr>', cNvPr.index);
+      const inner = shapeXml.slice(cNvPr.index + cNvPr[0].length, close);
+      const nextInner = /<a:extLst>/.test(inner) ? inner.replace('</a:extLst>', `${ext}</a:extLst>`) : `${inner}<a:extLst>${ext}</a:extLst>`;
+      next = shapeXml.slice(0, cNvPr.index + cNvPr[0].length) + nextInner + shapeXml.slice(close);
+    }
+    this.#writeSlide(part, xml.slice(0, range.start) + next + xml.slice(range.end));
+    return id;
+  }
+
+  /** A slide's modern comments part — made, related and named in the slide's extensions when `create` and missing. */
+  #commentsPart(index, create = false) {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+    const had = this.#relTarget(entry.part, COMMENT_REL.modern);
+    if (had || !create) return had;
+    const cId = this.#creationIdOf(entry.part);
+    const name = `modernComment_${Number(entry.id).toString(16).toUpperCase()}_${Number(cId).toString(16).toUpperCase()}.xml`;
+    const part = `ppt/comments/${name}`;
+    this.pkg.addPart(part, Buffer.from(commentListXml(''), 'utf8'), COMMENT_CT.modern);
+    const rId = this.pkg.addRelationshipTo(entry.part, COMMENT_REL.modern, `../comments/${name}`);
+    const xml = this.pkg.text(entry.part);
+    const withNs = /<p:sld\b[^>]*xmlns:r=/.test(xml) ? xml : xml.replace(/<p:sld\b/, `<p:sld xmlns:r="${CM_NS.r}"`);
+    this.#writeSlide(entry.part, withSlideExt(withNs, COMMENT_REL_EXT, `<p188:commentRel xmlns:p188="${CM_NS.p188}" r:id="${rId}"/>`));
+    this._scenes.delete(entry.part);
+    return part;
+  }
+
+  /**
+   * Every comment thread in the deck, slide by slide, in the order the
+   * files hold them: each with its slide's index, author, time, words,
+   * status, anchor (a shape's id or the slide), position in pixels when it
+   * has one, replies, and whether it is an older-format comment.
+   */
+  comments() {
+    const authorsPart = this.#authorsPart();
+    const authors = readAuthors(authorsPart ? this.pkg.text(authorsPart) : '');
+    const legacyAuthorsPart = this.#relTarget('ppt/presentation.xml', COMMENT_REL.legacyAuthors);
+    const legacyAuthors = readLegacyAuthors(legacyAuthorsPart ? this.pkg.text(legacyAuthorsPart) : '');
+    const out = [];
+    this.slideParts.forEach((entry, slide) => {
+      const legacy = this.#relTarget(entry.part, COMMENT_REL.legacy);
+      const modern = this.#relTarget(entry.part, COMMENT_REL.modern);
+      const threads = [
+        ...(legacy ? safeList(() => readLegacyComments(this.pkg.text(legacy), legacyAuthors)) : []),
+        ...(modern ? safeList(() => readModernComments(this.pkg.text(modern), authors)) : []),
+      ];
+      for (const t of threads) out.push({ ...t, slide, pos: t.pos ? { x: emuToPx(t.pos.x), y: emuToPx(t.pos.y) } : null });
+    });
+    return out;
+  }
+
+  /**
+   * Review → New Comment: a thread on a slide, anchored to one of its
+   * shapes or to the slide itself (at a point, in pixels, when given).
+   * @returns {string} the new thread's id
+   */
+  addComment(slideIndex, { text, author, shape = null, x = null, y = null } = {}) {
+    const words = String(text ?? '').trim();
+    if (!words) throw new Error('a comment needs some words');
+    const entry = this.slideParts[slideIndex];
+    if (!entry) throw new RangeError(`no slide at index ${slideIndex}`);
+    const who = this.#authorFor(author);
+    const part = this.#commentsPart(slideIndex, true);
+    const cId = this.#creationIdOf(entry.part);
+    const anchor = shape != null ? { id: String(shape), creationId: this.#shapeCreationId(entry.part, shape) } : null;
+    const id = commentGuid();
+    const cm = commentXml({
+      id, authorId: who.id, created: stamp(), sldId: entry.id, cId, shape: anchor,
+      pos: anchor || x == null || y == null ? null : { x: pxToEmu(x), y: pxToEmu(y) },
+      text: words,
+    });
+    const xml = this.pkg.text(part);
+    this.pkg.write_(part, Buffer.from(xml.replace('</p188:cmLst>', `${cm}</p188:cmLst>`), 'utf8'));
+    this.dirty = true;
+    return id;
+  }
+
+  /** A reply at the end of a thread. @returns {string} the reply's id */
+  replyComment(slideIndex, id, { text, author } = {}) {
+    const words = String(text ?? '').trim();
+    if (!words) throw new Error('a reply needs some words');
+    if (String(id).startsWith('legacy:')) throw new Error('This comment was made in an older version of PowerPoint; it can be read and deleted, not replied to.');
+    const part = this.#commentsPart(slideIndex, false);
+    const range = part && threadRange(this.pkg.text(part), id);
+    if (!range) throw new Error('no such comment on this slide');
+    const who = this.#authorFor(author);
+    const replyId = commentGuid();
+    const reply = `<p188:reply id="${replyId}" authorId="${who.id}" created="${stamp()}"><p188:txBody><a:bodyPr/><a:lstStyle/>${words.split('\n').map((l) => (l ? `<a:p><a:r><a:rPr lang="en-US"/><a:t>${escapeXml(l)}</a:t></a:r></a:p>` : '<a:p><a:endParaRPr lang="en-US"/></a:p>')).join('')}</p188:txBody></p188:reply>`;
+    let cm = range.xml;
+    if (/<p188:replyLst>/.test(cm)) cm = cm.replace('</p188:replyLst>', `${reply}</p188:replyLst>`);
+    else {
+      // The reply list goes after the anchor and position, before the thread's own words.
+      const at = cm.lastIndexOf('<p188:txBody>');
+      cm = cm.slice(0, at) + `<p188:replyLst>${reply}</p188:replyLst>` + cm.slice(at);
+    }
+    const xml = this.pkg.text(part);
+    this.pkg.write_(part, Buffer.from(xml.slice(0, range.start) + cm + xml.slice(range.end), 'utf8'));
+    this.dirty = true;
+    return replyId;
+  }
+
+  /** Resolve (or reopen) a thread — PowerPoint 365's status="resolved". */
+  resolveComment(slideIndex, id, resolved = true) {
+    if (String(id).startsWith('legacy:')) throw new Error('This comment was made in an older version of PowerPoint; it can be read and deleted, not resolved.');
+    const part = this.#commentsPart(slideIndex, false);
+    const range = part && threadRange(this.pkg.text(part), id);
+    if (!range) throw new Error('no such comment on this slide');
+    const open = /^<p188:cm\b[^>]*>/.exec(range.xml)[0];
+    const bare = open.replace(/\s+status="[^"]*"/, '');
+    const next = resolved ? bare.replace(/\bauthorId="([^"]*)"/, (m) => `${m} status="resolved"`) : bare;
+    if (next === open) return false;
+    const xml = this.pkg.text(part);
+    this.pkg.write_(part, Buffer.from(xml.slice(0, range.start) + next + range.xml.slice(open.length) + xml.slice(range.end), 'utf8'));
+    this.dirty = true;
+    return true;
+  }
+
+  /**
+   * Delete a thread (with its replies), or one reply of it. A slide left
+   * with no modern comments loses the part, its relationship and the
+   * extension naming it; an older-format comment goes from its own list.
+   */
+  removeComment(slideIndex, id, { reply = null } = {}) {
+    const entry = this.slideParts[slideIndex];
+    if (!entry) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (String(id).startsWith('legacy:')) return this.#removeLegacyComment(entry.part, id);
+    const part = this.#commentsPart(slideIndex, false);
+    let xml = part ? this.pkg.text(part) : '';
+    const range = part && threadRange(xml, id);
+    if (!range) throw new Error('no such comment on this slide');
+    if (reply) {
+      const re = new RegExp(`<p188:reply\\b[^>]*\\bid="${String(reply).replace(/[{}]/g, (c) => `\\${c}`)}"[^>]*>[\\s\\S]*?</p188:reply>`);
+      let cm = range.xml.replace(re, '');
+      cm = cm.replace(/<p188:replyLst><\/p188:replyLst>/, '');
+      if (cm === range.xml) throw new Error('no such reply');
+      xml = xml.slice(0, range.start) + cm + xml.slice(range.end);
+      this.pkg.write_(part, Buffer.from(xml, 'utf8'));
+      this.dirty = true;
+      return true;
+    }
+    xml = xml.slice(0, range.start) + xml.slice(range.end);
+    if (/<p188:cm\b/.test(xml)) {
+      this.pkg.write_(part, Buffer.from(xml, 'utf8'));
+    } else {
+      this.#dropCommentsPart(entry.part, part);
+    }
+    this.dirty = true;
+    return true;
+  }
+
+  /** Delete every comment on a slide, or — with no slide — in the deck. @returns {number} how many threads went */
+  removeAllComments(slideIndex = null) {
+    const slides = slideIndex == null ? this.slideParts.map((_, i) => i) : [slideIndex];
+    let n = 0;
+    for (const i of slides) {
+      for (const t of this.comments().filter((c) => c.slide === i)) {
+        this.removeComment(i, t.id);
+        n += 1;
+      }
+    }
+    return n;
+  }
+
+  #dropCommentsPart(slidePart, part) {
+    const rel = [...this.#relMap(slidePart).values()].find((r) => r.resolved === part);
+    this.pkg.removePart(part);
+    if (rel) {
+      const relsPath = slidePart.replace(/([^/]+)$/, '_rels/$1.rels');
+      this.pkg.write_(relsPath, Buffer.from(this.pkg.text(relsPath).replace(new RegExp(`<Relationship\\b[^>]*\\bId="${rel.id}"[^>]*/>`), ''), 'utf8'));
+      const xml = this.pkg.text(slidePart);
+      let next = xml.replace(new RegExp(`<p:ext uri="${COMMENT_REL_EXT.replace(/[{}]/g, (c) => `\\${c}`)}">[\\s\\S]*?</p:ext>`), '');
+      next = next.replace(/<p:extLst><\/p:extLst>(\s*<\/p:sld>)/, '$1');
+      if (next !== xml) this.#writeSlide(slidePart, next);
+    }
+  }
+
+  #removeLegacyComment(slidePart, id) {
+    const part = this.#relTarget(slidePart, COMMENT_REL.legacy);
+    if (!part) throw new Error('no such comment on this slide');
+    const [, authorId, idx] = String(id).split(':');
+    let xml = this.pkg.text(part);
+    const re = /<p:cm\b[^>]*>[\s\S]*?<\/p:cm>/g;
+    const doomed = new Set([`${authorId}:${idx}`]);
+    // A thread goes with its replies.
+    for (const m of xml.matchAll(re)) {
+      const parent = /<p15:parentCm\b[^>]*\bauthorId="(\d+)"[^>]*\bidx="(\d+)"/.exec(m[0]);
+      if (parent && doomed.has(`${parent[1]}:${parent[2]}`)) {
+        const own = /<p:cm\b[^>]*\bauthorId="(\d+)"[^>]*\bidx="(\d+)"/.exec(m[0]);
+        if (own) doomed.add(`${own[1]}:${own[2]}`);
+      }
+    }
+    const before = xml;
+    xml = xml.replace(re, (m) => {
+      const own = /<p:cm\b[^>]*\bauthorId="(\d+)"[^>]*\bidx="(\d+)"/.exec(m) || /<p:cm\b[^>]*\bidx="(\d+)"[^>]*\bauthorId="(\d+)"/.exec(m);
+      if (!own) return m;
+      const key = /authorId="(\d+)"/.exec(m)[1] + ':' + /idx="(\d+)"/.exec(m)[1];
+      return doomed.has(key) ? '' : m;
+    });
+    if (xml === before) throw new Error('no such comment on this slide');
+    if (/<p:cm\b/.test(xml)) this.pkg.write_(part, Buffer.from(xml, 'utf8'));
+    else {
+      const rel = [...this.#relMap(slidePart).values()].find((r) => r.resolved === part);
+      this.pkg.removePart(part);
+      if (rel) {
+        const relsPath = slidePart.replace(/([^/]+)$/, '_rels/$1.rels');
+        this.pkg.write_(relsPath, Buffer.from(this.pkg.text(relsPath).replace(new RegExp(`<Relationship\\b[^>]*\\bId="${rel.id}"[^>]*/>`), ''), 'utf8'));
+      }
+    }
     this.dirty = true;
     return true;
   }
@@ -3479,6 +3758,33 @@ function editListStyle(xml, tag, props, levels) {
   const rank = (el) => (nameOfEl(el) === 'a:defPPr' ? 0 : nameOfEl(el) === 'a:extLst' ? 99 : Number(/^<a:lvl(\d)pPr/.exec(el)?.[1] || 50));
   kept.sort((a, b) => rank(a) - rank(b));
   return `${open}${kept.join('')}</${tag}>`;
+}
+
+/** A list read by a reader that may refuse a file another program wrote: none, rather than a deck that will not open. */
+function safeList(read) {
+  try {
+    return read();
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * An extension on a slide's own extension list (after its colour map,
+ * transition and timing — the last child of `p:sld`), replacing one with
+ * the same uri, or starting the list.
+ */
+function withSlideExt(xml, uri, inner) {
+  const ext = `<p:ext uri="${uri}">${inner}</p:ext>`;
+  const esc = uri.replace(/[{}]/g, (c) => `\\${c}`);
+  const existing = new RegExp(`<p:ext uri="${esc}">[\\s\\S]*?</p:ext>`);
+  const tail = /<p:extLst>((?:(?!<p:extLst>)[\s\S])*)<\/p:extLst>(\s*<\/p:sld>\s*)$/.exec(xml);
+  if (tail) {
+    const list = tail[1];
+    const nextList = existing.test(list) ? list.replace(existing, ext) : list + ext;
+    return xml.slice(0, tail.index) + `<p:extLst>${nextList}</p:extLst>` + tail[2];
+  }
+  return xml.replace(/<\/p:sld>\s*$/, `<p:extLst>${ext}</p:extLst></p:sld>`);
 }
 
 /** A slide's animations, or none when its timing is past reading — the slide still opens. */

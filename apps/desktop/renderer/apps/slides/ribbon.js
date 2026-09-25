@@ -120,6 +120,8 @@ export default function SlidesRibbon({
 
 }) {
   const count = model?.count || 0;
+  /** How many comment threads the deck holds. */
+  const commentCount = (model?.comments || []).length;
   const hasShape = Boolean(selected);
   // Align and Distribute's own toggle — "Align Selected Objects" (the
   // default) or "Align to Slide" — is how the ribbon remembers which one is
@@ -434,7 +436,7 @@ export default function SlidesRibbon({
             <Soon tall icon="play" label="Action" why="Comes with links." />
           </Group>
           <Group label="Comments">
-            <Soon tall icon="reply" label="Comment" why="Slide comments are a comments part the engine does not write yet." />
+            <Button tall icon="reply" label="Comment" title="Comment — a new comment on the selected shape, or on this slide" onClick={() => act('newComment')} />
           </Group>
           <Group label="Text">
             <Button tall icon="textbox" label="Text Box" onClick={() => commands['slide.textbox']?.run?.()} />
@@ -800,11 +802,17 @@ export default function SlidesRibbon({
             <Soon icon="eye" label="Show Changes" why="Change tracking on a deck is not built." />
           </Group>
           <Group label="Comments">
-            <Soon tall icon="reply" label="New Comment" why="Slide comments are a comments part the engine does not write yet." />
-            <Soon icon="close" label="Delete" why="Comes with comments." />
-            <Soon icon="chevronLeft" label="Previous" why="Comes with comments." />
-            <Soon icon="chevronRight" label="Next" why="Comes with comments." />
-            <Soon icon="eye" label="Show Comments" why="Comes with comments." />
+            <Button tall icon="reply" label="New Comment" title="New Comment — on the selected shape, or on this slide; it is signed with your name" onClick={() => act('newComment')} />
+            <Rows>
+              <Button icon="trash" label="Delete" disabled={!commentCount} title={commentCount ? 'Delete — this comment, every comment on this slide, or every one in the presentation' : 'Delete — there are no comments in this presentation'} onClick={(e) => menu.open(e, [
+                { label: 'Delete Comment', icon: 'trash', run: () => act('deleteComment') },
+                { label: 'Delete All Comments on This Slide', icon: 'trash', run: () => act('deleteComments', 'slide') },
+                { label: 'Delete All Comments in This Presentation', icon: 'trash', run: () => act('deleteComments', 'all') },
+              ])} />
+              <Button icon="chevronLeft" label="Previous" disabled={!commentCount} title={commentCount ? 'Previous — the comment before this one, across the slides' : 'Previous — there are no comments in this presentation'} onClick={() => act('commentStep', -1)} />
+              <Button icon="chevronRight" label="Next" disabled={!commentCount} title={commentCount ? 'Next — the comment after this one, across the slides' : 'Next — there are no comments in this presentation'} onClick={() => act('commentStep', 1)} />
+            </Rows>
+            <Button tall icon="eye" label="Show Comments" pressed={view.pane === 'comments'} title="Show Comments — the Comments pane beside the slide" onClick={() => act('pane', 'comments')} />
           </Group>
           <Group label="Notes">
             <Button tall icon="word" label="Speaker Notes" title="Speaker Notes — this slide's, shown in Presenter View" onClick={() => setNotesOpen(true)} />

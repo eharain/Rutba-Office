@@ -1075,6 +1075,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // reading them draws every placeholder of every one, and only a master
       // or theme edit (which moves the stamp) changes them.
       layouts: (session.layoutsAt === deck.designStamp && session.layouts) || ((session.layoutsAt = deck.designStamp), (session.layouts = safely(() => deck.layoutList()) || [])),
+      // Review → every comment thread in the deck, and the name a new one is signed with.
+      comments: safely(() => deck.comments()) || [],
+      me: safeUserName() || 'Rutba Office user',
       // Design → the theme, colours, fonts and effects this deck has now, for the gallery to tick.
       design: safely(() => deck.designInfo(index)) || null,
 
@@ -1532,6 +1535,14 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     setMasterPreserve: (d, a) => d.setMasterPreserve(a.part, Boolean(a.on)),
     insertPlaceholder: (d, a) => d.insertPlaceholder(a.part, a.kind || 'content', a.geometry || null),
     setTextStyle: (d, a) => d.setTextStyle(a.slide, a.shape, a.props || {}),
+    // Review → Comments: a thread on a slide or one of its shapes, by whoever
+    // the window says or else the account at the keyboard (the rule a note's
+    // and a tracked change's author follow); a reply; Resolve; Delete.
+    addComment: (d, a) => d.addComment(a.slide, { text: a.text, author: a.author || safeUserName() || 'Rutba Office user', shape: a.shape ?? null, x: a.x ?? null, y: a.y ?? null }),
+    replyComment: (d, a) => d.replyComment(a.slide, a.id, { text: a.text, author: a.author || safeUserName() || 'Rutba Office user' }),
+    resolveComment: (d, a) => d.resolveComment(a.slide, a.id, a.resolved !== false),
+    removeComment: (d, a) => d.removeComment(a.slide, a.id, { reply: a.reply ?? null }),
+    removeAllComments: (d, a) => d.removeAllComments(a.all ? null : a.slide),
 
   };
 
