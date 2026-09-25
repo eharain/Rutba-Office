@@ -1542,6 +1542,16 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     markIndexEntry: (v, a) => v.markIndexEntry(a),
     insertIndex: (v, a) => v.insertIndex({ columns: a.columns, rightAlign: a.rightAlign, leader: a.leader, runIn: a.runIn, lcid: a.lcid || 1033, pages: a.pages || null }),
     updateIndex: (v, a) => v.updateIndex({ pages: a.pages || null }),
+    // References → Insert Table of Figures and Update Table, from the captions.
+    insertTableOfFigures: (v, a) => v.insertTableOfFigures({ label: a.label || 'Figure', includeLabel: a.includeLabel !== false, pages: a.pages || null, pageNumbers: a.pageNumbers !== false, rightAlign: a.rightAlign !== false, leader: a.leader || 'dot' }),
+    updateTablesOfFigures: (v, a) => v.updateTablesOfFigures({ pages: a.pages || null }),
+    // Insert → Quick Parts → Field: PAGE, NUMPAGES, DATE, TIME, FILENAME,
+    // AUTHOR or TITLE at the caret, its result worked out from what the
+    // window knows (the caret's page, the count, the file's name).
+    insertDocField: (v, a) => v.insertDocField(a),
+    // F9 and printing: tables of figures, the index and the document fields,
+    // from the window's own page layout.
+    refreshReferences: (v, a) => v.refreshReferences(a),
     // Review → Track Changes: the author is whoever the window says, else
     // the account at the keyboard, the same rule a note's author follows.
     toggleTrackChanges: (v, a) => v.setTrackChanges(a.on, a.author || safeUserName() || 'Rutba Office user'),

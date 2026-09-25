@@ -3663,6 +3663,12 @@ export class Document {
   _stripTocBookmarks() {
     const names = new Set();
     for (const m of this.xml.matchAll(/<w:bookmarkStart\b[^>]*\bw:name="(_Toc\d+)"/g)) names.add(m[1]);
+    // A table of figures' own bookmarks are its to rebuild, not this one's.
+    const figures = typeof this._figureTables === 'function' ? this._figureTables() : [];
+    if (figures.length) {
+      const { body } = this._body();
+      for (const t of figures) for (const a of body.slice(t.start, t.end).matchAll(/\bw:anchor="(_Toc\d+)"/g)) names.delete(a[1]);
+    }
     for (const name of names) this.removeBookmark(name);
   }
 
@@ -3790,7 +3796,8 @@ export class Document {
       const nextFld = /<w:fldChar\b/.exec(body.slice(after));
       const window = body.slice(after, nextFld ? after + nextFld.index : after + 300);
       const instr = [...window.matchAll(/<w:instrText\b[^>]*>([\s\S]*?)<\/w:instrText>/g)].map((x) => unesc(x[1])).join('');
-      if (/^\s*TOC\b/i.test(instr)) { startIdx = mm.index; break; }
+      // A TOC built from captions (`\c`/`\a`) is a table of figures, not this.
+      if (/^\s*TOC\b/i.test(instr) && !/\\[ca]\s/.test(instr)) { startIdx = mm.index; break; }
     }
     if (startIdx === -1) return null;
     fldRe.lastIndex = startIdx;

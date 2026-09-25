@@ -15,6 +15,7 @@ import {
   formatCitation, formatBibliographyEntry, describeSource, parseSources, sourcesXml, newGuid, segmentsText,
 } from '@rutba/ooxml/bibliography';
 import { MarkEntryPanel, IndexDialog, INDEX_CSS } from './references-index.js';
+import { FiguresDialog, FieldDialog, FIGURES_CSS } from './references-figures.js';
 
 /** Where the master list lives in the profile: Word's Sources.xml, as the same XML. */
 const MASTER_KEY = 'word.bibliography.master';
@@ -75,7 +76,7 @@ export function CitationsGroup({ refs, menu }) {
  * The References tab's citation verbs and dialogs, for word.js: `info` is
  * the model's references (sources, style, citations), `node` the dialogs.
  */
-export function useReferences({ shell, model, apply, toast, layout = () => null, patchView = null }) {
+export function useReferences({ shell, doc = null, model, apply, toast, layout = () => null, patchView = null }) {
   const info = model?.references || null;
   const [dialog, setDialog] = useState(null);
   const [marking, setMarking] = useState(false);
@@ -167,12 +168,48 @@ export function useReferences({ shell, model, apply, toast, layout = () => null,
       setDialog({ kind: 'index' });
       return;
     }
+    if (name === 'insertFigures') {
+      setDialog({ kind: 'figures' });
+      return;
+    }
+    if (name === 'updateFigures') {
+      if (!info?.figures?.length) return;
+      const next = await apply({ op: 'updateTablesOfFigures', pages: layout()?.pages || null });
+      if (next) toast('Table of figures updated', { tone: 'good' });
+      return;
+    }
+    if (name === 'field') {
+      setDialog({ kind: 'field' });
+      return;
+    }
     if (name === 'updateIndex') {
       if (!info?.index) return;
       const next = await apply({ op: 'updateIndex', pages: layout()?.pages || null });
       if (next) toast('Index updated', { tone: 'good' });
     }
   }, [apply, info, layout, toast]);
+
+  /** What a field is worked out from: the page each paragraph is on, how many, the file's name, now. */
+  const fieldContext = useCallback(() => {
+    const l = layout() || {};
+    const filePath = doc?.path || null;
+    const fileName = doc?.name || (filePath ? filePath.split(/[\\/]/).pop() : null);
+    return { pages: l.pages || null, pageCount: l.count || null, fileName, filePath, now: new Date().toISOString() };
+  }, [layout, doc]);
+
+  /** Before printing: page numbers, dates and file names in the body worked out again. */
+  const beforePrint = useCallback(async () => {
+    if (!info?.docFields) return;
+    await apply({ op: 'refreshReferences', ...fieldContext(), fieldsOnly: true });
+  }, [apply, info, fieldContext]);
+
+  /** Insert → Quick Parts. */
+  const quickParts = useCallback(() => [
+    { label: 'Field…', icon: 'formula', run: () => setDialog({ kind: 'field' }) },
+    { heading: true, label: 'Document Property' },
+    { label: 'Author', run: () => apply({ op: 'insertDocField', name: 'AUTHOR', ...fieldContext() }) },
+    { label: 'Title', run: () => apply({ op: 'insertDocField', name: 'TITLE', ...fieldContext() }) },
+  ], [apply, fieldContext]);
 
   const markEntry = useCallback(async (spec) => {
     const next = await apply({ op: 'markIndexEntry', ...spec });
@@ -242,11 +279,42 @@ export function useReferences({ shell, model, apply, toast, layout = () => null,
       />
     );
   }
+  if (dialog?.kind === 'figures') {
+    const l = layout() || {};
+    const captions = Object.fromEntries(Object.entries(info?.captions || {}).map(([k, list]) => [k, list.map((c) => ({ ...c, page: l.pages ? l.pages[c.block] : null }))]));
+    const labels = ['Figure', 'Table', 'Equation'];
+    const first = labels.find((k) => captions[k]?.length) || 'Figure';
+    node = (
+      <FiguresDialog
+        labels={[first, ...labels.filter((k) => k !== first)]}
+        captions={captions}
+        onClose={close}
+        onOk={async (opts) => {
+          close();
+          await apply({ op: 'insertTableOfFigures', ...opts, pages: layout()?.pages || null });
+        }}
+      />
+    );
+  } else if (dialog?.kind === 'field') {
+    const ctx = fieldContext();
+    const focus = model?.selection?.focus;
+    node = (
+      <FieldDialog
+        context={{ page: ctx.pages && focus ? ctx.pages[focus.block] : 1, pages: ctx.pageCount || 1, now: new Date(), fileName: ctx.fileName, filePath: ctx.filePath, author: info?.properties?.author ?? null, title: info?.properties?.title ?? null }}
+        onClose={close}
+        onOk={async (spec) => {
+          close();
+          const c = fieldContext();
+          await apply({ op: 'insertDocField', ...spec, ...c, page: c.pages && focus ? c.pages[focus.block] ?? null : null });
+        }}
+      />
+    );
+  }
   const panel = marking ? (
     <MarkEntryPanel selected={selected} bookmarks={model?.bookmarks || []} onMark={markEntry} onClose={() => setMarking(false)} />
   ) : null;
 
-  return { info, open, setStyle, citationMenu, bibliographyMenu, act, node: <>{node}{panel}</>, dialog };
+  return { info, open, setStyle, citationMenu, bibliographyMenu, act, quickParts, beforePrint, fieldContext, node: <>{node}{panel}</>, dialog };
 }
 
 /* ── Create Source / Edit Source ─────────────────────────────────────────── */
@@ -660,6 +728,6 @@ export function installReferencesStyles() {
   installed = true;
   const style = document.createElement('style');
   style.id = 'rutba-word-references-css';
-  style.textContent = REFERENCES_CSS + INDEX_CSS;
+  style.textContent = REFERENCES_CSS + INDEX_CSS + FIGURES_CSS;
   document.head.appendChild(style);
 }

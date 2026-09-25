@@ -26,6 +26,7 @@ import {
   citationNumbers, segmentsText, DEFAULT_STYLE, styleById,
 } from './bibliography.js';
 import { indexMethods } from './references-index.js';
+import { figuresMethods } from './references-figures.js';
 
 const CUSTOMXML_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
 const CUSTOMXML_PROPS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
@@ -326,6 +327,12 @@ const methods = {
       sources: bib.sources,
       citations: this.citations().map((c) => ({ tags: c.tags, pages: c.pages, text: c.text })),
       bibliography: this.hasBibliography(),
+      // Captions by label, and the tables of figures built from them —
+      // Insert Table of Figures previews them, Update Table needs one.
+      captions: Object.fromEntries(['Figure', 'Table', 'Equation'].map((l) => [l, this.captionsFor(l).map((c) => ({ text: c.text, bare: c.bare, block: c.block }))])),
+      figures: this._figureTables().map((t) => t.label),
+      docFields: this.hasDocFields(),
+      properties: this.coreProperties(),
       // The index, when there is one: the options Insert Index opens with.
       index: (() => {
         const r = this.indexResult();
@@ -337,7 +344,7 @@ const methods = {
 
 /** Put the References methods on the Document class. */
 export function installReferences(Document) {
-  for (const [name, fn] of Object.entries({ ...methods, ...indexMethods })) {
+  for (const [name, fn] of Object.entries({ ...methods, ...indexMethods, ...figuresMethods })) {
     if (!Object.prototype.hasOwnProperty.call(Document.prototype, name)) Document.prototype[name] = fn;
   }
   // F9 refreshes citations and the bibliography with every other field.

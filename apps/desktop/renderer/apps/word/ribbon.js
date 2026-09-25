@@ -26,6 +26,7 @@ import { EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
 import { MailingsTab } from './mailings.js';
 import { CitationsGroup } from './references.js';
 import { IndexGroup } from './references-index.js';
+import { captionsExtra } from './references-figures.js';
 
 /* ── vocabularies ────────────────────────────────────────────────────────── */
 
@@ -454,7 +455,7 @@ export default function WordRibbon({
               '-',
               { label: 'Draw Text Box', icon: 'shape', run: () => act('drawTextBox') },
             ])} />
-            <Soon icon="file" label="Quick Parts" why="Building blocks need the glossary part, which the engine does not write." />
+            {references ? <Button icon="file" label="Quick Parts" title="Quick Parts — put a field in the text: a page number, the date, the file's name" onClick={(e) => menu.open(e, references.quickParts())} /> : null}
             <Button icon="wand" label="WordArt" title="WordArt — decorative words in a box of their own that floats on the page" onClick={(e) => menu.open(e, WORDART.map(([label, spec]) => ({ label, icon: 'wand', run: () => act('wordArt', spec) })))} />
             <Button icon="textbox" label="Drop Cap" title="Drop Cap — the first letter, framed to stand tall beside the words that follow it" onClick={(e) => menu.open(e, [
               { label: 'None', icon: !format.dropCap ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: null }) },
@@ -692,8 +693,7 @@ export default function WordRibbon({
           {references ? <CitationsGroup refs={references} menu={menu} /> : null}
           <Group label="Captions">
             <Button tall icon="textbox" label="Insert Caption" title="Insert Caption — a label, a running number kept live by Update Fields, and your own words" onClick={() => openDialog('caption')} />
-            <Soon icon="listBullet" label="Table of Figures" why="Comes with captions." />
-            <Button icon="link" label="Cross-reference" title="Cross-reference — a REF field to a bookmark, its words kept live by Update Fields" onClick={() => openDialog('crossReference')} />
+            {references ? captionsExtra(references, <Button icon="link" label="Cross-reference" title="Cross-reference — a REF field to a bookmark, its words kept live by Update Fields" onClick={() => openDialog('crossReference')} />) : <Button icon="link" label="Cross-reference" title="Cross-reference — a REF field to a bookmark, its words kept live by Update Fields" onClick={() => openDialog('crossReference')} />}
           </Group>
           <Group label="Fields">
             <Button tall icon="refresh" label="Update Fields" title="Update Fields (F9) — refresh every cross-reference to its bookmark's current words" onClick={() => commands['field.update']?.run?.()} />

@@ -28,6 +28,7 @@
     "./mailmerge": "./src/mailmerge.js",
     "./bibliography": "./src/bibliography.js",
     "./wordindex": "./src/wordindex.js",
+    "./docfields": "./src/docfields.js",
     "./mailmerge-run": "./src/mailmerge-run.js",
     "./labels": "./src/labels.js",
     "./protection": "./src/protection.js"

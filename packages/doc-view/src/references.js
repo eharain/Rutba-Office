@@ -6,6 +6,7 @@
  */
 import { locate, sliceRuns, coalesce } from './positions.js';
 import { indexViewMethods } from './references-index.js';
+import { figuresViewMethods } from './references-figures.js';
 
 /** The Document behind an OOXML backend, or a sentence when this backend has none. */
 function engineOf(view, what) {
@@ -127,7 +128,7 @@ const methods = {
 
 /** Put the References verbs on DocView, and the references into every frame it renders. */
 export function installReferenceViews(DocView) {
-  for (const [name, fn] of Object.entries({ ...methods, ...indexViewMethods })) {
+  for (const [name, fn] of Object.entries({ ...methods, ...indexViewMethods, ...figuresViewMethods })) {
     if (!Object.prototype.hasOwnProperty.call(DocView.prototype, name)) DocView.prototype[name] = fn;
   }
   const render = DocView.prototype.render;

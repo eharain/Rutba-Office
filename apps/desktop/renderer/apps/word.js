@@ -1782,14 +1782,16 @@ export default function Word({ app, shell, boot }) {
   // Review → Check Accessibility and Spelling (word/review.js).
   const review = useWordReview({ shell, doc, model, apply, toast, pageRef, setPicked, view, patchView, menu });
   // References → Citations & Bibliography (word/references.js).
-  const references = useReferences({ shell, model, apply, toast, layout: blockLayout, patchView });
+  const references = useReferences({ shell, doc, model, apply, toast, layout: blockLayout, patchView });
 
   const commands = useMemo(
     () => ({
       'file.new': { label: 'New', icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'word' }) },
       'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
       'file.save': { label: 'Save', icon: 'save', key: 'Mod+S', global: true, run: () => save(false) },
-      'file.print': { label: 'Print…', icon: 'print', key: 'Mod+P', global: true, run: () => setDialog('print') },
+      // Page numbers, dates and file names in the body are worked out again
+      // first, as Word does before it prints.
+      'file.print': { label: 'Print…', icon: 'print', key: 'Mod+P', global: true, run: async () => { await references.beforePrint(); setDialog('print'); } },
       'file.saveAs': { label: 'Save as…', icon: 'save', key: 'Mod+Shift+S', global: true, run: () => save(true) },
       'file.pdf': { label: 'Export as PDF…', icon: 'pdf', run: () => exportAs('pdf') },
       'edit.undo': { label: 'Undo', icon: 'undo', key: 'Mod+Z', global: true, run: async () => { const n = await shell.doc.undo({ id: doc.id }); setDoc(n); setModel(n.model); } },
@@ -1815,8 +1817,10 @@ export default function Word({ app, shell, boot }) {
           // `opResult` carries back — is not shadowed by the second op's `this`.
           const ops = [{ op: 'updateFields' }];
           if (model?.tableOfContents) ops.push({ op: 'updateTableOfContents' });
-          // The index too, with the pages as this window lays them.
-          if (model?.references?.index) ops.push({ op: 'updateIndex', pages: blockLayout().pages });
+          // The index, tables of figures and fields in the body too, with the
+          // pages as this window lays them.
+          const refs = model?.references;
+          if (refs?.index || refs?.figures?.length || refs?.docFields) ops.push({ op: 'refreshReferences', ...references.fieldContext() });
           const next = await apply(...ops);
           if (!next) return;
           const n = next.opResult ?? 0;

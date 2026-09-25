@@ -2292,7 +2292,13 @@ export class DocView {
     return this._edit('caption', null, () => {
       const { block } = this.focus;
       if (!this.block(block)) throw new Error('no paragraph at index ' + block);
-      this.doc.addCaption({ label, text, at: block });
+      // The caret speaks the edit address space; a caption goes after a body
+      // paragraph, addressed among the top-level ones — the two part once a
+      // table of contents or a table stands above the caret.
+      const engine = this.doc.doc;
+      const start = engine?.editParagraphs?.()[block]?.start;
+      const top = start === undefined ? -1 : engine.paragraphs().findIndex((p) => p.start === start);
+      this.doc.addCaption({ label, text, at: top >= 0 ? top : block });
       this._invalidate();
       this.collapseTo({ block: block + 1, offset: 0 });
       return this;
