@@ -2153,6 +2153,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         shownAgain === 'clicked' && unhidden === true && thumbShown === false,
         `${shownAgain}; hidden ${unhidden}; thumb class ${thumbShown}; strip ${JSON.stringify(stripState)}; outline ${JSON.stringify(outlineState)}`);
 
+      // Saved again, so the deck later blocks open is not left with its
+      // second slide hidden — the file on disk still said so otherwise.
+      await wait(300);
+      await clickRibbon('Save');
+      await until(() => { try { return !Deck.open(fs.readFileSync(files.pptx)).isSlideHidden(1); } catch { return false; } }, 'the deck saved with the slide shown', 8000).catch(() => {});
+
       const complaints = await errorsIn(win);
       check('slides: the hide-slide checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
     } catch (err) {
