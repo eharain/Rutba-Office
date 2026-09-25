@@ -13,7 +13,8 @@
     "./print": "./src/print.js",
     "./build": "./src/build.js",
     "./units": "./src/units.js",
-    "./motion": "./src/motion.js"
+    "./motion": "./src/motion.js",
+    "./timing": "./src/timing.js"
   },
   "dependencies": {
     "@rutba/ooxml": "*",

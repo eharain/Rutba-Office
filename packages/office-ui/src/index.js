@@ -752,9 +752,12 @@ export function Menu({ x, y, items, onClose }) {
       {items.map((item, i) =>
         item === '-' ? (
           <hr key={`sep${i}`} />
+        ) : item.heading ? (
+          // A section's name over its items, the way Office heads Entrance, Emphasis and Exit.
+          <div key={`head${i}`} className="rw-menu-head">{item.label}</div>
         ) : (
           <button
-            key={item.label}
+            key={`${i}:${item.label}`}
             type="button"
             disabled={item.disabled}
             title={item.title}

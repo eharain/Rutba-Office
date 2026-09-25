@@ -134,6 +134,8 @@ const PATHS = {
   trCover: [P('M9 5h12v10H9z'), P('M9 9H3v10h12v-4')],
   trBars: [P('M4 6h16v12H4z'), P('M4 9h10M4 12h14M4 15h7')],
   trShape: [P('M4 6h16v12H4z'), P('M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z')],
+  // the Animation Pane's triggers: a click starts it
+  mouse: [P('M12 3a5 5 0 0 1 5 5v8a5 5 0 0 1-10 0V8a5 5 0 0 1 5-5z'), P('M12 7v3')],
   trDissolve: [P('M4 6h16v12H4z'), P('M8 9h.01M12 11h.01M16 9h.01M9 14h.01M15 14h.01M12 15.5h.01', { strokeWidth: 2.4 })],
 };
 

@@ -17,6 +17,7 @@ import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText, compo
 import { slideXml } from './build.js';
 import { chartPartXml } from '@rutba/ooxml/build';
 import { readTransition, withTransition, transitionBlock, insertTransition, transitionRange } from './motion.js';
+import { readAnimations, addAnimation, setAnimation, removeAnimation, moveAnimation, removeShapeAnimations, pruneAnimations } from './timing.js';
 import { parseChartXml } from '@rutba/drawing';
 
 const A = (n) => `a:${n}`;
@@ -518,6 +519,8 @@ export class Deck {
       hidden: slideHiddenFrom(slideXml),
       // Transitions → the effect this slide comes in with, and how it moves on.
       transition: readTransition(slideXml),
+      // Animations → the main sequence, in the Animation Pane's order.
+      animations: safeAnimations(slideXml),
       theme: { colors: theme.colors, fonts: theme.fonts },
     };
     this._scenes.set(slidePart, { key: cacheKey, scene: result });
@@ -552,6 +555,8 @@ export class Deck {
         hidden: slideHiddenFrom(xml),
         // The strip marks a slide that has a transition, the way PowerPoint's does.
         transition: transitionRange(xml) ? (readTransition(xml)?.type ?? null) : null,
+        // …or animations: the strip's star stands for either, as in PowerPoint.
+        animated: xml.includes('<p:timing') ? safeAnimations(xml).length > 0 : false,
       };
     });
   }
@@ -820,6 +825,8 @@ export class Deck {
     const range = this.#shapeRange(xml, shapeId);
     if (!range) return false;
     this.#writeSlide(part, xml.slice(0, range.start) + xml.slice(range.end));
+    // Its animations go with it, as they do in PowerPoint.
+    this.#pruneTiming(part);
     return true;
   }
 
@@ -1089,6 +1096,8 @@ export class Deck {
       const abs = composeGroupChild(containerPx, local);
       this.setGeometry(slideIndex, id, { x: abs.offX, y: abs.offY, w: abs.extX, h: abs.extY, rot: abs.rot, flipH: abs.flipH, flipV: abs.flipV });
     }
+    // An animation on the group itself has nothing left to animate.
+    this.#pruneTiming(this.slideParts[slideIndex].part);
     return memberIds;
   }
 
@@ -2361,8 +2370,86 @@ export class Deck {
     return changed;
   }
 
+  // ---- animations ---------------------------------------------------------
+
+  #editTiming(index, edit) {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+    const xml = this.pkg.text(entry.part);
+    const out = edit(xml);
+    const next = typeof out === 'string' ? out : out.xml;
+    if (next !== xml) this.#writeSlide(entry.part, next);
+    return out;
+  }
+
+  /** The slide's main sequence, as `readAnimations` gives it. */
+  animations(index) {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+    return readAnimations(this.pkg.text(entry.part));
+  }
+
+  /**
+   * Animations → the gallery (on a shape with none) and Add Animation: an
+   * effect on a shape, at the end of the sequence unless `at` says where.
+   * @returns {number} its index in the sequence
+   */
+  addAnimation(index, shapeId, spec = {}, at = null) {
+    return this.#editTiming(index, (xml) => addAnimation(xml, shapeId, spec, at)).index;
+  }
+
+  /** Effect Options, Start, Duration, Delay, or another effect from the gallery, for the effect at `at`. */
+  setAnimation(index, at, patch = {}) {
+    this.#editTiming(index, (xml) => setAnimation(xml, at, patch));
+    return true;
+  }
+
+  /** The effect at `at` taken out of the sequence. */
+  removeAnimation(index, at) {
+    this.#editTiming(index, (xml) => removeAnimation(xml, at));
+    return true;
+  }
+
+  /**
+   * Move Earlier / Move Later: the effect at `at` one place either way, or
+   * to a position.
+   * @returns {number} where it is now
+   */
+  moveAnimation(index, at, to) {
+    return this.#editTiming(index, (xml) => moveAnimation(xml, at, to)).index;
+  }
+
+  /** Every effect on a shape taken out — the gallery's None. */
+  removeShapeAnimations(index, shapeId) {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+    const xml = this.pkg.text(entry.part);
+    const next = removeShapeAnimations(xml, shapeId);
+    if (next === xml) return false;
+    this.#writeSlide(entry.part, next);
+    return true;
+  }
+
+  /** After a shape goes: the effects that pointed at it go too, as PowerPoint drops them. */
+  #pruneTiming(part) {
+    const xml = this.pkg.text(part);
+    if (!xml.includes('<p:timing')) return;
+    let next = xml;
+    try { next = pruneAnimations(xml); } catch { /* a sequence this cannot rewrite is left alone */ }
+    if (next !== xml) this.#writeSlide(part, next);
+  }
+
   save() {
     return this.pkg.write();
+  }
+}
+
+/** A slide's animations, or none when its timing is past reading — the slide still opens. */
+function safeAnimations(xml) {
+  try {
+    return readAnimations(xml);
+  } catch {
+    return [];
   }
 }
 

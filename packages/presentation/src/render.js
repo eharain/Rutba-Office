@@ -358,7 +358,7 @@ function tableSvg(shape, opts) {
  * @param {{ width?: number, resolveImage?: (shape) => string|null, standalone?: boolean, selection?: string }} [opts]
  */
 export function renderSlide(slide, opts = {}) {
-  const { width: outWidth, resolveImage, standalone = true, simplify = false } = opts;
+  const { width: outWidth, resolveImage, standalone = true, simplify = false, tagShapes = false } = opts;
 
   const W = slide.size?.width || 960;
   const H = slide.size?.height || 540;
@@ -456,7 +456,27 @@ export function renderSlide(slide, opts = {}) {
   const bg = registerFill(slide.background);
   body.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="${fillAttr(bg, '#ffffff')}"/>`);
 
+  // tagShapes: each shape's drawing wrapped in a <g data-shape="id">, with
+  // the groups it sits in (outermost last) in data-groups, so the show can
+  // reveal, hide and move one shape — or a whole group — on its own. Done
+  // after the fact: whatever the loop below pushed for a shape is gathered
+  // into its wrapper when the next shape starts.
+  const parentOf = new Map((slide.shapes || []).map((s) => [String(s.id), s.groupId == null ? null : String(s.groupId)]));
+  let pending = null;
+  const flush = () => {
+    if (!tagShapes || !pending) return;
+    const parts = body.splice(pending.mark);
+    if (parts.length) {
+      const chain = [];
+      for (let g = parentOf.get(pending.id); g != null && chain.length < 16; g = parentOf.get(g)) chain.push(g);
+      body.push(`<g data-shape="${escapeXml(pending.id)}"${chain.length ? ` data-groups="${chain.map(escapeXml).join(' ')}"` : ''}>${parts.join('')}</g>`);
+    }
+    pending = null;
+  };
+
   for (const shape of slide.shapes || []) {
+    flush();
+    pending = { id: String(shape.id), mark: body.length };
     if (shape.hidden) continue;
     // A group is not drawn itself — it is only a handle on its members,
     // which are already in this same list with their own, already-composed
@@ -550,6 +570,7 @@ export function renderSlide(slide, opts = {}) {
     }
   }
 
+  flush();
   const inner = `${defs.length ? `<defs>${defs.join('')}</defs>` : ''}${body.join('')}`;
   if (!standalone) return inner;
   const w = outWidth || W;

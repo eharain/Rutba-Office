@@ -76,6 +76,11 @@ export async function verifyDeckTransitions(h, { file }) {
     const inFile = () => { try { return Deck.open(fs.readFileSync(file)); } catch { return null; } };
 
     await until(() => js(`document.querySelectorAll('.sl-thumb').length >= 2`), 'the slide sorter', 8000);
+    // The show below moves from the first slide to the second, which an
+    // earlier block may have left hidden (Slide Show → Hide Slide): shown
+    // for these checks, and hidden again before the last save.
+    const wasHidden = model(1).slide?.hidden === true;
+    if (wasHidden) await doc.apply({ id: id(), ops: [{ op: 'setSlideHidden', slide: 1, hidden: false }] });
     await selectSlide(1);
     await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Transitions')?.click(), 'tab'`);
     await until(() => js(`document.querySelectorAll('.sl-tr-pick').length >= 10`), 'the transition gallery', 4000).catch(() => {});
@@ -191,11 +196,11 @@ export async function verifyDeckTransitions(h, { file }) {
       `${played.join('; ')}; console ${consoleErrors.join(' | ') || 'clean'}`);
 
     // Clean up: every transition off, saved, the file as it was found.
-    await doc.apply({ id: id(), ops: [{ op: 'setTransition', slide: 0, spec: null }, { op: 'setTransition', slide: 1, spec: null }] });
+    await doc.apply({ id: id(), ops: [{ op: 'setTransition', slide: 0, spec: null }, { op: 'setTransition', slide: 1, spec: null }, ...(wasHidden ? [{ op: 'setSlideHidden', slide: 1, hidden: true }] : [])] });
     await selectSlide(1);
     await selectSlide(0);
     await clickRibbon('Save');
-    const clean = await until(() => { const f = inFile(); return Boolean(f) && f.transition(0) === null && f.transition(1) === null; }, 'the deck without transitions', 8000).catch(() => false);
+    const clean = await until(() => { const f = inFile(); return Boolean(f) && f.transition(0) === null && f.transition(1) === null && f.isSlideHidden(1) === wasHidden; }, 'the deck without transitions', 8000).catch(() => false);
     const noStars = await until(() => js(`document.querySelectorAll('.sl-thumb .sl-thumb-fx').length === 0`), 'the stars to go', 4000).catch(() => false);
     check('slides: the transition checks leave the deck as they found it', clean === true && noStars === true, `file clean ${clean}; stars gone ${noStars}`);
 

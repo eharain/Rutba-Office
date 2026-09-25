@@ -10,8 +10,10 @@
 // namespace in the main process, because two renderers have no way to speak to
 // each other and duplicating the position in both is how they drift apart.
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Button, Icon, Spinner, Empty } from '@rutba/office-ui';
+import { clickCount, applyState } from './animate.js';
+import { Markup, FILL } from './markup.js';
 
 /**
  * The nearest slide from `from` in the direction of `delta` (±1) that is not
@@ -41,10 +43,20 @@ function elapsed(from) {
 export default function Presenter({ shell, docId }) {
   const [model, setModel] = useState(null);
   const [next, setNext] = useState(null);
-  const [state, setState] = useState({ index: 0, running: false, startedAt: null, blank: false });
+  const [state, setState] = useState({ index: 0, step: 0, running: false, startedAt: null, blank: false });
   const [now, setNow] = useState(Date.now());
   const [error, setError] = useState(null);
   const index = state.index || 0;
+  // The slide's clicks: Next plays this slide's next animation before it
+  // leaves the slide, and both pictures show the shapes where the show has them.
+  const clicks = model?.slide?.index === index ? clickCount(model.slide.animations) : 0;
+  const step = Math.min(Math.max(0, Number(state.step) || 0), clicks);
+  const stageRef = useRef(null);
+  const nextRef = useRef(null);
+  useLayoutEffect(() => {
+    if (stageRef.current) applyState(stageRef.current, model?.slide?.animations || [], step, true);
+    if (nextRef.current && step < clicks) applyState(nextRef.current, model?.slide?.animations || [], step + 1, true);
+  }, [model, step, clicks]);
 
   // A clock that ticks. One second is the right resolution for a talk, and a
   // faster one would re-render the notes for no reason.
@@ -85,9 +97,14 @@ export default function Presenter({ shell, docId }) {
 
   const move = useCallback(
     (delta) => {
-      shell.present.set({ index: nextShown(model, index, delta) }).catch(() => {});
+      if (delta > 0 && step < clicks) return shell.present.set({ step: step + 1 }).catch(() => {});
+      if (delta < 0 && step > 0) return shell.present.set({ step: step - 1 }).catch(() => {});
+      const to = nextShown(model, index, delta);
+      if (to === index) return undefined;
+      // Back lands on the slide before as it ends, every animation played.
+      return shell.present.set({ index: to, step: delta > 0 ? 0 : 9999 }).catch(() => {});
     },
-    [shell, model, index]
+    [shell, model, index, step, clicks]
   );
 
   useEffect(() => {
@@ -95,8 +112,8 @@ export default function Presenter({ shell, docId }) {
       if (e.key === 'ArrowRight' || e.key === 'PageDown' || e.key === ' ' || e.key === 'Enter') { e.preventDefault(); move(1); }
       else if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'Backspace') { e.preventDefault(); move(-1); }
       else if (e.key === 'b' || e.key === '.') shell.present.set({ blank: !state.blank }).catch(() => {});
-      else if (e.key === 'Home') shell.present.set({ index: nextShown(model, -1, 1) }).catch(() => {});
-      else if (e.key === 'End') shell.present.set({ index: nextShown(model, model?.count ?? 1, -1) }).catch(() => {});
+      else if (e.key === 'Home') shell.present.set({ index: nextShown(model, -1, 1), step: 0 }).catch(() => {});
+      else if (e.key === 'End') shell.present.set({ index: nextShown(model, model?.count ?? 1, -1), step: 0 }).catch(() => {});
       else if (e.key === 'Escape') shell.present.set({ running: false }).catch(() => {});
     };
     window.addEventListener('keydown', onKey);
@@ -128,10 +145,10 @@ export default function Presenter({ shell, docId }) {
           label={state.running ? 'Pause' : 'Start'}
           onClick={() => shell.present.set({ running: !state.running })}
         />
-        <Button icon="refresh" label="Reset" onClick={() => shell.present.set({ restart: true, running: true })} />
+        <Button icon="refresh" label="Reset" onClick={() => shell.present.set({ restart: true, running: true, step: 0 })} />
         <span className="pv-spacer" />
         <span className="pv-position">
-          Slide {index + 1} of {model.count}
+          Slide {index + 1} of {model.count}{clicks ? ` · click ${step} of ${clicks}` : ''}
         </span>
         <span className="pv-spacer" />
         <Button icon={state.blank ? 'eye' : 'stop'} label={state.blank ? 'Show' : 'Black'} onClick={() => shell.present.set({ blank: !state.blank })} />
@@ -140,17 +157,20 @@ export default function Presenter({ shell, docId }) {
 
       <div className="pv-body">
         <section className="pv-current">
-          <div className="pv-stage" dangerouslySetInnerHTML={{ __html: model.slide?.svg || '' }} />
+          <div className="pv-stage" ref={stageRef}><Markup html={model.slide?.svg} style={FILL} /></div>
           <div className="pv-controls">
-            <Button icon="skipBack" label="Previous" disabled={index === 0} onClick={() => move(-1)} />
-            <Button primary icon="skipForward" label="Next" disabled={index >= model.count - 1} onClick={() => move(1)} />
+            <Button icon="skipBack" label="Previous" disabled={index === 0 && step === 0} onClick={() => move(-1)} />
+            <Button primary icon="skipForward" label="Next" disabled={index >= model.count - 1 && step >= clicks} onClick={() => move(1)} />
           </div>
         </section>
 
         <aside className="pv-side">
           <div className="pv-next">
-            <div className="pv-label">{next ? 'Next' : 'End of the deck'}</div>
-            {next ? <div className="pv-thumb" dangerouslySetInnerHTML={{ __html: next.slide?.svg || '' }} /> : <div className="pv-thumb pv-empty">Nothing after this one</div>}
+            {/* What the next press brings: this slide's next animation while it has one, else the next slide. */}
+            <div className="pv-label">{step < clicks ? `Next: click ${step + 1} of ${clicks}` : next ? 'Next' : 'End of the deck'}</div>
+            {step < clicks ? (
+              <div className="pv-thumb" ref={nextRef}><Markup html={model.slide?.svg} style={FILL} /></div>
+            ) : next ? <div className="pv-thumb"><Markup html={next.slide?.svg} style={FILL} /></div> : <div className="pv-thumb pv-empty">Nothing after this one</div>}
           </div>
 
           <div className="pv-notes">

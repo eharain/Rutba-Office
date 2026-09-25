@@ -930,7 +930,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       slide: current
         ? {
             ...current,
-            svg: renderSlide(current, { width, resolveImage }),
+            // Each shape's drawing wrapped and tagged with its id, so the
+            // show can hide, reveal and move one shape without a redraw.
+            svg: renderSlide(current, { width, resolveImage, tagShapes: true }),
             // This slide's own background, distinct from `background` above
             // (which the scene shows, inherited when the slide states none)
             // — so the ribbon can tick the choice that is actually this slide's.
@@ -1246,6 +1248,14 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // how many other slides changed.
     setTransition: (d, a) => d.setTransition(a.slide, a.spec ?? null),
     applyTransitionToAll: (d, a) => d.applyTransitionToAll(a.slide),
+    // Animations: an effect added to a shape (answering its place in the
+    // sequence), one changed, taken out or moved (answering where it went),
+    // and every effect on a shape taken out — the gallery's None.
+    addAnimation: (d, a) => d.addAnimation(a.slide, a.shape, a.spec || {}, a.at ?? null),
+    setAnimation: (d, a) => d.setAnimation(a.slide, a.index, a.patch || {}),
+    removeAnimation: (d, a) => d.removeAnimation(a.slide, a.index),
+    moveAnimation: (d, a) => d.moveAnimation(a.slide, a.index, a.to),
+    removeShapeAnimations: (d, a) => d.removeShapeAnimations(a.slide, a.shape),
     // Slide Show → Hide Slide: this slide left out of the show.
     setSlideHidden: (d, a) => d.setSlideHidden(a.slide, Boolean(a.hidden)),
     renameShape: (d, a) => d.renameShape(a.slide, a.shape, a.name),

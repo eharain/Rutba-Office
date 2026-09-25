@@ -690,6 +690,7 @@ textarea,
 .rw-menu button svg { width: 15px; height: 15px; opacity: 0.75; }
 .rw-menu .key { margin-left: auto; font-size: 11px; color: var(--ink-3); }
 .rw-menu hr { border: 0; border-top: 1px solid var(--line-soft); margin: 4px 2px; }
+.rw-menu-head { padding: 7px 10px 3px; font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
 
 .rw-toast-host {
   position: fixed;

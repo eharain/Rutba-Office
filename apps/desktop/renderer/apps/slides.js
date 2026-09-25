@@ -16,8 +16,10 @@ import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { SITE } from '@rutba/office-formats/registry';
 import Presenter, { nextShown } from './slides/presenter.js';
 import SlidesRibbon from './slides/ribbon.js';
-import { ShowStage, TransitionPreview } from './slides/show.js';
+import { ShowStage, TransitionPreview, AnimationPreview } from './slides/show.js';
 import { describeTransition } from './slides/motion.js';
+import { clickCount } from './slides/animate.js';
+import { Markup } from './slides/markup.js';
 
 export default function Slides({ app, shell, boot }) {
   // A presenter window is the same app pointed at the same open document,
@@ -55,8 +57,16 @@ export default function Slides({ app, shell, boot }) {
   const [blank, setBlank] = useState(false);
   /** Transitions → Preview (and the preview a gallery pick plays): a fresh key per run, or null. */
   const [preview, setPreview] = useState(null);
-  /** The slide the show has fully on screen — its transition over — which is when After starts counting. */
-  const [shownAt, setShownAt] = useState(null);
+  /** Where the show is on a slide: how many of its clicks have played. */
+  const [showStep, setShowStep] = useState({ index: 0, value: 0 });
+  /** The show at rest — transition over, the group that was playing done — which is when After starts counting. */
+  const [settled, setSettled] = useState(null);
+  /** The show's stage, for finishing whatever moves when a click comes mid-animation. */
+  const showControl = useRef(null);
+  /** The Animations tab's current effect (its index in the slide's list), when one was picked from the pane or a badge. */
+  const [animSel, setAnimSel] = useState(null);
+  /** The Animation Painter, armed with a shape's effects to put on the next shape clicked. */
+  const [animPainter, setAnimPainter] = useState(null);
   // Set when a presenter window is driving, so this one follows rather than leads.
   const [led, setLed] = useState(false);
   /**
@@ -375,6 +385,8 @@ export default function Slides({ app, shell, boot }) {
       setLed(true);
       setBlank(Boolean(s.blank));
       if (typeof s.index === 'number') setIndex(s.index);
+      // The click within the slide travels with it: the presenter's Next plays the next animation here.
+      setShowStep((cur) => ({ index: typeof s.index === 'number' ? s.index : cur.index, value: typeof s.step === 'number' ? s.step : 0 }));
       if (s.running === false) setPresent(false);
       else if (s.running === true) setPresent(true);
     });
@@ -513,7 +525,7 @@ export default function Slides({ app, shell, boot }) {
    */
   const presentWithNotes = useCallback(async () => {
     if (!doc) return;
-    await shell.present.set({ id: doc.id, index, running: true, blank: false });
+    await shell.present.set({ id: doc.id, index, step: 0, running: true, blank: false });
     await shell.win.create({ app: 'slides', query: { presenter: doc.id } });
     setPresent(true);
     shell.win.fullscreen({ on: true });
@@ -571,9 +583,10 @@ export default function Slides({ app, shell, boot }) {
     if (!present) return undefined;
     const onKey = (e) => {
       if (e.key === 'Escape') setPresent(false);
-      // The show steps over a hidden slide rather than landing on it.
-      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') setIndex((i) => nextShown(model, i, 1));
-      if (e.key === 'ArrowLeft' || e.key === 'PageUp') setIndex((i) => nextShown(model, i, -1));
+      // The show steps over a hidden slide rather than landing on it, and
+      // through a slide's animations a click at a time before leaving it.
+      if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown' || e.key === 'Enter') showKeys.current.next();
+      if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'Backspace') showKeys.current.prev();
     };
     window.addEventListener('keydown', onKey);
     if (!reading) shell.win.fullscreen({ on: true });
@@ -586,31 +599,68 @@ export default function Slides({ app, shell, boot }) {
   }, [present, model, shell]);
 
   /**
-   * One step of the show: the next (or previous) shown slide — through the
-   * presenter window's shared position when it leads, so the two windows
-   * never disagree about where the show is.
+   * Where the show is: a slide and how many of its clicks have played —
+   * through the presenter window's shared position when it leads, so the
+   * two windows never disagree about where the show is.
    */
-  const showStep = (delta) => (led ? shell.present.set({ index: nextShown(model, index, delta) }) : setIndex((i) => nextShown(model, i, delta)));
+  const goShow = (i, value) => {
+    if (led) {
+      shell.present.set({ index: i, step: value }).catch(() => {});
+      return;
+    }
+    setShowStep({ index: i, value });
+    setIndex(i);
+  };
+  const clicksHere = () => (model?.slide?.index === index ? clickCount(model.slide.animations) : 0);
+  const stepHere = () => (showStep.index === index ? Math.min(showStep.value, clicksHere()) : 0);
+  /** A click, a space or an arrow: the next animation on this slide, or the next slide. A press while something moves finishes it. */
+  const showNext = () => {
+    if (showControl.current?.finish()) return;
+    if (model?.slide?.index !== index) return;
+    if (stepHere() < clicksHere()) return goShow(index, stepHere() + 1);
+    const next = nextShown(model, index, 1);
+    if (next !== index) goShow(next, 0);
+  };
+  /** Back: one click undone on this slide, or the slide before, shown as it ends. */
+  const showPrev = () => {
+    showControl.current?.finish();
+    if (stepHere() > 0) return goShow(index, stepHere() - 1);
+    const prev = nextShown(model, index, -1);
+    if (prev !== index) goShow(prev, 9999);
+  };
+  const showKeys = useRef({ next: () => {}, prev: () => {} });
+  showKeys.current = { next: showNext, prev: showPrev };
+  // A show starts at the first click of its first slide.
+  useEffect(() => { if (present) setShowStep({ index, value: 0 }); else setSettled(null); }, [present]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Advance Slide → After: once a slide is fully on screen (its transition
-  // over), the show moves on by itself after that many seconds. The
-  // presenter window never runs this clock; the audience window does.
+  // Advance Slide → After: once a slide is fully on screen and fully built
+  // (its transition over, its animations played), the show moves on by
+  // itself after that many seconds. The presenter window never runs this
+  // clock; the audience window does.
   const advanceAfter = model?.slide?.transition?.advanceAfter;
   useEffect(() => {
     if (!present || presenterFor || blank || advanceAfter == null) return undefined;
-    if (shownAt == null || shownAt !== model?.slide?.index) return undefined;
-    const timer = setTimeout(() => showStep(1), Math.max(0, advanceAfter * 1000));
+    if (!settled || settled.index !== model?.slide?.index || settled.step < settled.clicks) return undefined;
+    const timer = setTimeout(() => showKeys.current.next(), Math.max(0, advanceAfter * 1000));
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [present, blank, advanceAfter, shownAt, model?.slide?.index]);
-  useEffect(() => { if (!present) setShownAt(null); }, [present]);
+  }, [present, blank, advanceAfter, settled, model?.slide?.index]);
 
   // A new slide means a new selection: the shape ids belong to the slide.
-  useEffect(() => { setSelected(pendingSelect.current ?? null); pendingSelect.current = null; setPainter(null); setPreview(null); }, [index]);
+  useEffect(() => { setSelected(pendingSelect.current ?? null); pendingSelect.current = null; setPainter(null); setPreview(null); setAnimSel(null); setAnimPainter(null); }, [index]);
 
 
   const slide = model?.slide;
   const selectedShape = selected ? slide?.shapes?.find((s) => s.id === selected) || null : null;
+  // Animations: the slide's sequence, and the effect the Animations tab
+  // acts on — the one picked in the pane (while its shape stays
+  // selected), else the selected shape's first.
+  const animations = slide?.animations || [];
+  const currentAnim = (() => {
+    const picked = animSel != null ? animations[animSel] : null;
+    if (picked && (selected == null || String(picked.shapeId) === String(selected))) return picked;
+    return selected != null ? animations.find((a) => String(a.shapeId) === String(selected)) || null : null;
+  })();
   const scale = view.zoom ?? fit;
   dragRef.current = { scale };
   // What the ribbon shows for the selected shape: its first run's look and
@@ -1006,8 +1056,103 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'preview':
-        setPreview({ kind: arg || 'transition', key: Date.now() });
+        setPreview({ kind: arg || 'transition', key: Date.now(), only: null });
         return;
+      // Animations → the gallery: the selected shape's current effect
+      // becomes this one (or, for a shape with none, gains it); None takes
+      // every effect off the selected shapes. Each selected shape gets the
+      // same, in one apply; the effect made previews itself on the stage.
+      case 'animate':
+      case 'addAnimation': {
+        const ids = selectedIds.length ? selectedIds : selected ? [selected] : [];
+        if (!ids.length) return toast('Click a shape first.', { ms: 3500 });
+        if (arg.effect === 'none') {
+          await apply(...ids.map((id) => ({ op: 'removeShapeAnimations', slide: index, shape: id })));
+          setAnimSel(null);
+          return;
+        }
+        const ops = ids.map((id) => {
+          const own = name === 'animate' ? (String(id) === String(selected) && currentAnim ? currentAnim : animations.find((a) => String(a.shapeId) === String(id))) : null;
+          return own
+            ? { op: 'setAnimation', slide: index, index: own.index, patch: { kind: arg.kind, effect: arg.effect } }
+            : { op: 'addAnimation', slide: index, shape: id, spec: { kind: arg.kind, effect: arg.effect } };
+        });
+        const next = await apply(...ops);
+        if (!next) return;
+        const last = ops[ops.length - 1];
+        const at = last.op === 'addAnimation' ? next.opResult : last.index;
+        if (typeof at === 'number') {
+          setAnimSel(at);
+          setPreview({ kind: 'animation', key: Date.now(), only: at });
+        }
+        return;
+      }
+      // Effect Options, Start, Duration and Delay: the current effect changed.
+      case 'animPatch': {
+        if (!currentAnim) return;
+        await apply({ op: 'setAnimation', slide: index, index: currentAnim.index, patch: arg });
+        if (arg.direction !== undefined) setPreview({ kind: 'animation', key: Date.now(), only: currentAnim.index });
+        return;
+      }
+      // Move Earlier / Move Later, or a row dropped elsewhere in the pane.
+      case 'animMove': {
+        const from = arg?.from ?? currentAnim?.index;
+        if (from == null) return;
+        const next = await apply({ op: 'moveAnimation', slide: index, index: from, to: arg?.to ?? arg });
+        if (typeof next?.opResult === 'number') setAnimSel(next.opResult);
+        return;
+      }
+      case 'animRemove': {
+        const at = arg ?? currentAnim?.index;
+        if (at == null) return;
+        await apply({ op: 'removeAnimation', slide: index, index: at });
+        setAnimSel(null);
+        return;
+      }
+      // A row in the Animation Pane or a number on the stage: that effect, and its shape selected.
+      case 'animSelect': {
+        const e = animations[arg];
+        if (!e) return;
+        setAnimSel(arg);
+        if (e.shapeId != null) setSelected(e.shapeId);
+        return;
+      }
+      // A row's own menu in the Animation Pane: its start, or out.
+      case 'animMenu': {
+        const e = animations[arg.index];
+        if (!e) return;
+        menu.open(arg.ev, [
+          ...[['onClick', 'Start On Click'], ['withPrevious', 'Start With Previous'], ['afterPrevious', 'Start After Previous']].map(([trigger, label]) => ({
+            label,
+            icon: e.trigger === trigger ? 'check' : undefined,
+            run: () => apply({ op: 'setAnimation', slide: index, index: arg.index, patch: { trigger } }),
+          })),
+          '-',
+          { label: 'Remove', icon: 'trash', run: () => act('animRemove', arg.index) },
+        ]);
+        return;
+      }
+      // The Animation Painter: armed with the selected shape's effects, put
+      // on the next shape clicked in place of its own.
+      case 'animPainter': {
+        if (animPainter) { setAnimPainter(null); return; }
+        const own = animations.filter((a) => String(a.shapeId) === String(selected) && a.known);
+        if (!own.length) return toast('That shape has no animation to copy.', { ms: 3500 });
+        setAnimPainter(own.map(({ kind, effect, direction, trigger, duration, delay }) => ({ kind, effect, direction, trigger, duration, delay })));
+        return;
+      }
+      case 'animPaint': {
+        const specs = animPainter;
+        setAnimPainter(null);
+        if (!specs || !arg) return;
+        await apply(
+          { op: 'removeShapeAnimations', slide: index, shape: arg.id },
+          ...specs.map((spec) => ({ op: 'addAnimation', slide: index, shape: arg.id, spec })),
+        );
+        setSelected(arg.id);
+        setAnimSel(null);
+        return;
+      }
       default:
         toast(`${name} is not wired yet.`, { ms: 3000 });
     }
@@ -1043,15 +1188,16 @@ export default function Slides({ app, shell, boot }) {
       <div
         className="sl-present"
         onClick={() => {
-          // Advance Slide → On Mouse Click off: a click does not move this
-          // slide on (the keys still do), as in PowerPoint.
-          if (slide.transition?.advanceOnClick === false) return;
-          showStep(1);
+          // Advance Slide → On Mouse Click off: a click still plays this
+          // slide's animations but does not move the show off it (the keys
+          // still do), as in PowerPoint.
+          if (slide.transition?.advanceOnClick === false && stepHere() >= clicksHere()) return;
+          showNext();
         }}
       >
         <style>{CSS}</style>
         {/* A black screen is a thing speakers ask for by name: attention back on them. It hides the stage rather than dropping it, so coming back does not replay the transition. */}
-        <ShowStage slide={slide} size={model.size} hidden={blank} onShown={setShownAt} />
+        <ShowStage slide={slide} size={model.size} step={showStep} hidden={blank} onSettled={setSettled} control={showControl} />
         <div className="sl-present-bar">
           {index + 1} / {model.count}{led ? ' · driven from the presenter window' : ' · press Esc to leave'}
         </div>
@@ -1087,6 +1233,8 @@ export default function Slides({ app, shell, boot }) {
           format={format}
           canPaste={Boolean(clip)}
           painter={Boolean(painter)}
+          animation={currentAnim}
+          animPainter={Boolean(animPainter)}
           addSlide={addSlide}
           insertPicture={insertPicture}
           presentWithNotes={presentWithNotes}
@@ -1126,11 +1274,11 @@ export default function Slides({ app, shell, boot }) {
                     <span className="sl-thumb-n">
                       {i + 1}
                       {/* PowerPoint's little star under the number: this slide has a transition. */}
-                      {o.transition ? <span className="sl-thumb-fx" data-fx="transition" title={`Transition: ${describeTransition({ type: o.transition })}`}><Icon name="star" size={10} /></span> : null}
+                      {o.transition || o.animated ? <span className="sl-thumb-fx" data-fx={[o.transition ? 'transition' : null, o.animated ? 'animations' : null].filter(Boolean).join(' ')} title={[o.transition ? `Transition: ${describeTransition({ type: o.transition })}` : null, o.animated ? 'Has animations' : null].filter(Boolean).join(' · ')}><Icon name="star" size={10} /></span> : null}
                     </span>
                     <span className="sl-thumb-card" title={`${o.title || `Slide ${i + 1}`}${o.hidden ? ' — hidden' : ''}`}>
                       {o.thumbnail
-                        ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} />
+                        ? <Markup as="span" className="sl-thumb-pic" html={o.thumbnail} />
                         : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
                     </span>
                   </button>
@@ -1163,7 +1311,7 @@ export default function Slides({ app, shell, boot }) {
                 const nudge = { ArrowLeft: { dx: -step }, ArrowRight: { dx: step }, ArrowUp: { dy: -step }, ArrowDown: { dy: step } }[e.key];
                 if (nudge) { e.preventDefault(); act('nudge', nudge); }
                 else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); act('deleteShape'); }
-                else if (e.key === 'Escape') { if (painter) setPainter(null); else setSelected(null); }
+                else if (e.key === 'Escape') { if (painter) setPainter(null); else if (animPainter) setAnimPainter(null); else setSelected(null); }
               }}
             >
               {findOpen ? (
@@ -1194,9 +1342,9 @@ export default function Slides({ app, shell, boot }) {
                     <React.Fragment key={o.part || i}>
                       {sectionHeading(model, o, i, (s) => setSectionRename({ section: s.index, name: s.name }), () => setIndex(i))}
                       <button type="button" className={`sl-sortercard${i === index ? ' active' : ''}${o.hidden ? ' hidden' : ''}`} onClick={() => { setIndex(i); patchView({ mode: 'normal' }); }} title={`${o.title || `Slide ${i + 1}`}${o.hidden ? ' — hidden' : ''}`}>
-                        {o.thumbnail ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} /> : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
+                        {o.thumbnail ? <Markup as="span" className="sl-thumb-pic" html={o.thumbnail} /> : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
                         <span className="sl-sortern">{i + 1}</span>
-                        {o.transition ? <span className="sl-sorterfx" title="This slide has a transition"><Icon name="star" size={11} /></span> : null}
+                        {o.transition || o.animated ? <span className="sl-sorterfx" title={o.transition && o.animated ? 'This slide has a transition and animations' : o.transition ? 'This slide has a transition' : 'This slide has animations'}><Icon name="star" size={11} /></span> : null}
                       </button>
                     </React.Fragment>
                   ))}
@@ -1218,10 +1366,14 @@ export default function Slides({ app, shell, boot }) {
                 <div className="sl-fit" style={{ width: Math.round(model.size.width * (view.zoom ?? fit)), height: Math.round(model.size.height * (view.zoom ?? fit)) }}>
                 {view.ruler ? <><div className="sl-ruler-h" /><div className="sl-ruler-v" /></> : null}
                 <div className="sl-slide" style={{ width: model.size.width, height: model.size.height, transform: `scale(${view.zoom ?? fit})`, transformOrigin: 'top left' }}>
-                  <div className="sl-svg" dangerouslySetInnerHTML={{ __html: slide.svg }} />
+                  <Markup className="sl-svg" html={slide.svg} />
                   {/* Transitions → Preview: the slide before (or black) into this one, over the stage. */}
                   {preview?.kind === 'transition' && slide.transition ? (
                     <TransitionPreview key={preview.key} fromSvg={index > 0 ? model.outline?.[index - 1]?.thumbnail || '' : ''} toSvg={slide.svg} transition={slide.transition} onDone={() => setPreview(null)} />
+                  ) : null}
+                  {/* Animations → Preview: the slide's sequence (or the effect just picked) played over the stage. */}
+                  {preview?.kind === 'animation' && animations.length ? (
+                    <AnimationPreview key={preview.key} slide={slide} size={model.size} only={preview.only} onDone={() => setPreview(null)} />
                   ) : null}
                   {view.gridlines ? <div className="sl-gridlines" /> : null}
                   {view.guides ? <div className="sl-guides" /> : null}
@@ -1249,6 +1401,7 @@ export default function Slides({ app, shell, boot }) {
                         onClick={(e) => {
                           if ((e.ctrlKey || e.metaKey) && linkOf(s)) { shell.shell.openExternal({ url: linkOf(s) }); return; }
                           if (painter) { paintShape(s); return; }
+                          if (animPainter) { act('animPaint', s); return; }
                           if (e.shiftKey || e.ctrlKey || e.metaKey) { toggleSelected(s.id); return; }
                           setSelected(s.id);
                         }}
@@ -1371,6 +1524,40 @@ export default function Slides({ app, shell, boot }) {
                         );
                       })()
                     : null}
+                  {/*
+                    The Animations tab's numbers beside each animated shape,
+                    PowerPoint's own little tags: the click that starts the
+                    effect (0 for one that starts with the slide), stacked
+                    down the shape's left edge when it has several. A click
+                    on one picks that effect.
+                  */}
+                  {tab === 'animations' && animations.length && !preview
+                    ? (() => {
+                        const byShape = new Map();
+                        const size = 17 / scale;
+                        return animations.map((e) => {
+                          const g = slide.shapes.find((s) => String(s.id) === String(e.shapeId))?.geometry;
+                          if (!g) return null;
+                          const k = byShape.get(e.shapeId) || 0;
+                          byShape.set(e.shapeId, k + 1);
+                          return (
+                            <button
+                              key={`anim-${e.index}`}
+                              type="button"
+                              className={`sl-anim-badge sl-an-${e.kind}${currentAnim?.index === e.index ? ' current' : ''}`}
+                              data-anim={e.index}
+                              data-shape={e.shapeId}
+                              style={{ left: g.x - size - 3 / scale, top: g.y + k * (size + 2 / scale), width: size, height: size, fontSize: 10.5 / scale, borderRadius: 3 / scale, borderWidth: 1 / scale }}
+                              title={`${e.group} — ${e.name}${e.kind === 'exit' ? ' (exit)' : e.kind === 'emph' ? ' (emphasis)' : ''}, ${TRIGGER_WORDS[e.trigger] || e.trigger}`}
+                              onMouseDown={(ev) => ev.stopPropagation()}
+                              onClick={(ev) => { ev.stopPropagation(); act('animSelect', e.index); }}
+                            >
+                              {e.group}
+                            </button>
+                          );
+                        });
+                      })()
+                    : null}
                   {editing ? (
                     <textarea
                       className="sl-editor"
@@ -1437,11 +1624,13 @@ export default function Slides({ app, shell, boot }) {
               right
               width={252}
               resizable
-              title={view.pane === 'layers' ? 'Layers' : view.pane === 'designs' ? 'Designs' : 'Format'}
+              title={view.pane === 'layers' ? 'Layers' : view.pane === 'designs' ? 'Designs' : view.pane === 'animations' ? 'Animation Pane' : 'Format'}
               actions={<Button icon="close" title="Close the pane" onClick={() => act('pane', view.pane)} />}
             >
               {view.pane === 'layers' ? (
                 <LayersPane slide={slide} selected={selected} selectedIds={selectedIds} onSelect={setSelected} onToggle={toggleSelected} act={act} />
+              ) : view.pane === 'animations' ? (
+                <AnimationPane slide={slide} current={currentAnim} act={act} playing={preview?.kind === 'animation'} />
               ) : view.pane === 'designs' ? (
                 <DesignsPane layouts={model.layouts} current={slide?.layout || null} size={model.size} act={act} />
               ) : (
@@ -1776,6 +1965,68 @@ function FormatPane({ shape, theme, act }) {
 }
 
 /** The icon a layer row shows for its shape. */
+/** How the pane and the numbers on the stage say each start. */
+const TRIGGER_WORDS = { onClick: 'on click', withPrevious: 'with the previous', afterPrevious: 'after the previous' };
+const KIND_WORDS = { entr: 'Entrance', emph: 'Emphasis', exit: 'Exit', path: 'Motion path', media: 'Media', other: 'Effect' };
+
+/**
+ * Animations → Animation Pane: the slide's sequence as PowerPoint lists it —
+ * each effect numbered by the click that starts it, a mouse for On Click, a
+ * clock for After Previous, a star in the kind's colour, the shape and the
+ * effect. Click a row to pick it; drag it (or use the arrows) to move it;
+ * right-click for its start; the bin takes it out; Play All plays the lot
+ * on the stage.
+ */
+function AnimationPane({ slide, current, act, playing }) {
+  const list = slide?.animations || [];
+  const names = new Map((slide?.shapes || []).map((s) => [String(s.id), s.name || `Shape ${s.id}`]));
+  const [dragFrom, setDragFrom] = React.useState(null);
+  const [over, setOver] = React.useState(null);
+  const at = current?.index ?? -1;
+  return (
+    <div className="sl-animpane">
+      <div className="sl-layers-tools">
+        <Button icon="play" label={playing ? 'Playing…' : 'Play All'} className="sl-animpane-play" disabled={!list.length || playing} title={list.length ? "Play All — the slide's animations, in order, on the stage" :'Play All — this slide has no animations yet'} onClick={() => act('preview', 'animation')} />
+        <Spacer />
+        <Button icon="chevronUp" className="sl-animpane-up" title="Move Earlier" disabled={at <= 0} onClick={() => act('animMove', 'earlier')} />
+        <Button icon="chevronDown" className="sl-animpane-down" title="Move Later" disabled={at < 0 || at >= list.length - 1} onClick={() => act('animMove', 'later')} />
+        <Button icon="trash" className="sl-animpane-remove" title="Remove — take the picked effect out" disabled={at < 0} onClick={() => act('animRemove', at)} />
+      </div>
+      {list.length ? (
+        list.map((e, i) => {
+          const newGroup = i === 0 || e.group !== list[i - 1].group;
+          return (
+            <div
+              key={i}
+              className={`sl-animrow sl-an-${e.kind}${i === at ? ' active' : ''}${over === i && dragFrom != null && dragFrom !== i ? ' drop' : ''}`}
+              data-anim={i}
+              draggable
+              onDragStart={(ev) => { setDragFrom(i); ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', String(i)); }}
+              onDragOver={(ev) => { ev.preventDefault(); setOver(i); }}
+              onDragLeave={() => setOver((o) => (o === i ? null : o))}
+              onDrop={(ev) => { ev.preventDefault(); const from = dragFrom; setDragFrom(null); setOver(null); if (from != null && from !== i) act('animMove', { from, to: i }); }}
+              onDragEnd={() => { setDragFrom(null); setOver(null); }}
+              onClick={() => act('animSelect', i)}
+              onContextMenu={(ev) => { act('animSelect', i); act('animMenu', { ev, index: i }); }}
+              title={`${KIND_WORDS[e.kind] || 'Effect'}: ${e.name}${e.direction ? ` (${e.direction})` : ''} — starts ${TRIGGER_WORDS[e.trigger] || e.trigger}${e.delay ? `, ${e.delay} s later` : ''}; ${e.duration ? `${e.duration} s` : 'at once'}${e.known ? '' : '. Kept as the file has it.'}`}
+            >
+              <span className="sl-animrow-n">{newGroup ? e.group : ''}</span>
+              <span className="sl-animrow-trigger">{e.trigger === 'onClick' ? <Icon name="mouse" size={13} /> : e.trigger === 'afterPrevious' ? <Icon name="clock" size={13} /> : null}</span>
+              <Icon name="star" size={14} className="sl-animrow-star" />
+              <span className="sl-layer-text">
+                <span className="sl-layer-title">{names.get(String(e.shapeId)) || `Shape ${e.shapeId}`}</span>
+                <span className="sl-layer-words">{e.name}{e.kind === 'exit' ? ' (exit)' : ''}{e.duration ? ` · ${e.duration.toFixed(2)} s` : ''}{e.delay ? ` · after ${e.delay.toFixed(2)} s` : ''}</span>
+              </span>
+            </div>
+          );
+        })
+      ) : (
+        <div className="sl-pane-empty">No animations on this slide. Select a shape and pick an effect from the Animations tab.</div>
+      )}
+    </div>
+  );
+}
+
 const LAYER_ICONS = { picture: 'picture', table: 'table', chart: 'chart', connector: 'minus', shape: 'shape', unsupported: 'shape' };
 
 /**
@@ -2073,6 +2324,27 @@ const CSS = `
 .sl-show-stage { position: relative; overflow: hidden; background: #000; isolation: isolate; }
 .sl-show-layer { position: absolute; inset: 0; background: #fff; will-change: transform, opacity, clip-path; }
 .sl-show-layer svg { display: block; width: 100%; height: 100%; }
+/* Animations: a shape turns and grows about its own middle. */
+.sl-show-layer g[data-shape], .sl-preview g[data-shape], .pv-stage g[data-shape], .pv-thumb g[data-shape] { transform-box: fill-box; transform-origin: 50% 50%; }
+/* The numbers beside animated shapes on the stage (Animations tab): PowerPoint's grey tags, the picked one in the accent. */
+.sl-anim-badge { position: absolute; z-index: 7; display: grid; place-items: center; padding: 0; border: 1px solid #8a8f98; background: #f3f4f6; color: #30343b; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; cursor: pointer; box-sizing: border-box; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
+.sl-anim-badge:hover { border-color: var(--accent); color: var(--accent); }
+.sl-anim-badge.current { background: var(--accent); border-color: var(--accent); color: #fff; }
+/* Animations → Animation Pane. */
+.sl-animpane { display: flex; flex-direction: column; }
+.sl-animrow { display: flex; align-items: center; gap: 7px; padding: 6px 10px 6px 6px; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; color: var(--ink); cursor: default; }
+.sl-animrow:hover { background: var(--surface-2); }
+.sl-animrow.active { background: var(--selected); box-shadow: inset 3px 0 0 var(--accent); }
+.sl-animrow.drop { box-shadow: inset 0 2px 0 var(--accent); }
+.sl-animrow-n { width: 16px; flex: none; text-align: right; font-size: 11.5px; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.sl-animrow-trigger { width: 14px; flex: none; display: grid; place-items: center; color: var(--ink-3); }
+.sl-animrow-star { flex: none; }
+/* A star in each kind's own colour, as PowerPoint draws them: green in, gold emphasis, red out. */
+.sl-an-entr .sl-animrow-star, .rw-btn.sl-an-entr svg { color: #2e9a4a; }
+.sl-an-emph .sl-animrow-star, .rw-btn.sl-an-emph svg { color: #c28d00; }
+.sl-an-exit .sl-animrow-star, .rw-btn.sl-an-exit svg { color: #cf4338; }
+.sl-an-path .sl-animrow-star, .sl-an-media .sl-animrow-star, .sl-an-other .sl-animrow-star, .rw-btn.sl-an-none svg { color: var(--ink-3); }
+.sl-animrow-star path, .rw-btn.sl-an-entr svg path, .rw-btn.sl-an-emph svg path, .rw-btn.sl-an-exit svg path { fill: color-mix(in srgb, currentColor 22%, transparent); }
 /* Transitions → Preview, over the editing stage. */
 .sl-preview { position: absolute; inset: 0; z-index: 9; overflow: hidden; background: #000; pointer-events: none; }
 .sl-preview-layer { position: absolute; inset: 0; background: #fff; }
@@ -2089,6 +2361,7 @@ const CSS = `
 .sl-rb-check { display: flex; align-items: center; gap: 6px; }
 .sl-rb-field input[type="checkbox"] { margin: 0; accent-color: var(--accent); }
 .sl-rb-seconds { width: 64px; height: 24px; padding: 0 4px 0 7px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.sl-rb-label { min-width: 54px; }
 .sl-rb-caption { height: 20px; display: flex; align-items: center; padding: 0 4px; font-size: 11px; color: var(--ink-3); }
 .sl-present-bar {
   position: fixed; z-index: 1; bottom: 14px; left: 50%; transform: translateX(-50%);

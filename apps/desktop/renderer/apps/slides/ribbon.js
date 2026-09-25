@@ -5,12 +5,13 @@
 // tab where PowerPoint has Acrobat — with every group PowerPoint has in each.
 // What the engine can do is wired; what it cannot is drawn where PowerPoint
 // draws it, disabled, with a title that says exactly why. Transitions are
-// authored here and played in the show; animations already in a file
-// survive a round trip.
+// authored here and played in the show, and so are animations — the
+// entrance, emphasis and exit effects PowerPoint's gallery offers first.
 
 import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select, Icon } from '@rutba/office-ui';
 import { TRANSITION_GALLERY, TRANSITION_OPTIONS, galleryKeyOf, optionOf, describeTransition } from './motion.js';
+import { ANIMATION_GALLERY, EFFECT_MENU, ANIMATION_OPTIONS } from './animate.js';
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
 const COLOURS = [
@@ -53,8 +54,6 @@ const BACKGROUND_STYLES = [
   ['Dark blue', { colour: '1F3864' }],
 ];
 
-const ANIMATIONS = ['None', 'Appear', 'Fade', 'Fly In', 'Float In', 'Split'];
-
 /** A control that is drawn where PowerPoint draws it, and says why it is not live. */
 const Soon = ({ icon, label, tall, why }) => (
   <Button tall={tall} icon={icon} label={label} disabled title={`${label} — not built yet. ${why}`} />
@@ -70,7 +69,6 @@ const REFLECTION_MENU = [['tight', 'Reflection: tight'], ['half', 'Reflection: h
 const INK = 'Ink is a drawing part (ink ML) the engine does not write, and the stage has no pen surface yet.';
 /** The gallery's small pictures, one per effect. */
 const TRANSITION_ICONS = { none: 'trNone', cut: 'trCut', fade: 'trFade', push: 'trPush', wipe: 'trWipe', split: 'trSplit', pull: 'trUncover', cover: 'trCover', randomBar: 'trBars', shape: 'trShape', dissolve: 'trDissolve' };
-const ANIMATION_WHY = 'Animations are preserved in the file when the deck has them; authoring one (writing p:timing) is not built.';
 
 /**
  * A number of seconds in the ribbon (Duration, After): typed or stepped,
@@ -114,7 +112,7 @@ function SecondsField({ value, onCommit, disabled = false, min = 0, max = 3600, 
 
 export default function SlidesRibbon({
   tab, setTab, model, doc, commands, shell, menu, save, openFile, exportAs,
-  act, view = {}, index = 0, selected = null, selectedIds = [], format = {}, canPaste = false, painter = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
+  act, view = {}, index = 0, selected = null, selectedIds = [], format = {}, canPaste = false, painter = false, animation = null, animPainter = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
 
 }) {
   const count = model?.count || 0;
@@ -141,6 +139,20 @@ export default function SlidesRibbon({
   const transitionKey = transition?.known === false ? null : galleryKeyOf(transition?.type);
   const transitionOptions = TRANSITION_OPTIONS[transitionKey] || null;
   const transitionPlays = Boolean(transition && (transition.known === false || transitionKey !== 'none'));
+  // Animations: the slide's sequence, whether the selected shape has any, and
+  // the current effect's Effect Options (only for one this writes).
+  const animationList = model?.slide?.animations || [];
+  const shapeAnimated = selected != null && animationList.some((a) => String(a.shapeId) === String(selected));
+  const animationOptions = animation?.known ? ANIMATION_OPTIONS[animation.effect] || null : null;
+  /** More Effects and Add Animation: every effect under its heading, each a verb on the selected shape. */
+  const effectMenu = (verb) => EFFECT_MENU.flatMap(([kind, heading, effects]) => [
+    { heading: true, label: heading },
+    ...effects.map(([effect, label]) => ({
+      label,
+      icon: verb === 'animate' && animation?.kind === kind && animation?.effect === effect ? 'check' : 'star',
+      run: () => act(verb, { kind, effect }),
+    })),
+  ]);
 
   return (
     <Ribbon
@@ -533,24 +545,101 @@ export default function SlidesRibbon({
       {tab === 'animations' ? (
         <>
           <Group label="Preview">
-            <Soon tall icon="play" label="Preview" why={ANIMATION_WHY} />
+            <Button
+              tall
+              icon="play"
+              label="Preview"
+              disabled={!animationList.length}
+              title={animationList.length ? `Preview — play this slide's ${animationList.length === 1 ? 'animation' : `${animationList.length} animations`} on the stage` : 'Preview — this slide has no animations yet; select a shape and pick an effect'}
+              onClick={() => act('preview', 'animation')}
+            />
           </Group>
           <Group label="Animation">
-            {ANIMATIONS.map((a) => <Soon key={a} tall icon="star" label={a} why={ANIMATION_WHY} />)}
-            <Soon icon="settings" label="Effect Options" why={ANIMATION_WHY} />
+            <Button
+              tall
+              icon="star"
+              label="None"
+              className="sl-an-pick sl-an-none"
+              data-effect="none"
+              pressed={hasShape && !shapeAnimated}
+              disabled={!hasShape}
+              title={hasShape ? 'None — take every animation off the selected shape' : 'None — select a shape first; its animations come off'}
+              onClick={() => act('animate', { kind: 'entr', effect: 'none' })}
+            />
+            {ANIMATION_GALLERY.map(([effect, label, blurb]) => (
+              <Button
+                key={effect}
+                tall
+                icon="star"
+                label={label}
+                className="sl-an-pick sl-an-entr"
+                data-effect={effect}
+                pressed={animation?.kind === 'entr' && animation?.effect === effect}
+                disabled={!hasShape}
+                title={hasShape ? `${label} — ${blurb}${animation ? '; it replaces the selected effect' : ''}` : `${label} — select a shape first, then pick its entrance`}
+                onClick={() => act('animate', { kind: 'entr', effect })}
+              />
+            ))}
+            <Button
+              tall
+              icon="more"
+              label="More Effects"
+              disabled={!hasShape}
+              title={hasShape ? 'More Effects — every entrance, emphasis and exit effect' : 'More Effects — select a shape first'}
+              onClick={(e) => menu.open(e, effectMenu('animate'))}
+            />
+            <Button
+              tall
+              icon="settings"
+              label="Effect Options"
+              disabled={!animationOptions}
+              title={animationOptions ? `Effect Options — which way the ${animation?.name || 'effect'} goes` : 'Effect Options — pick an effect with a direction first (Fly In, Float In, Split, Wipe, Spin)'}
+              onClick={(e) => menu.open(e, animationOptions.map(([value, label]) => ({ label, icon: animation?.direction === value ? 'check' : undefined, run: () => act('animPatch', { direction: value }) })))}
+            />
           </Group>
           <Group label="Advanced Animation">
-            <Soon tall icon="plus" label="Add Animation" why={ANIMATION_WHY} />
-            <Soon icon="list" label="Animation Pane" why={ANIMATION_WHY} />
-            <Soon icon="play" label="Trigger" why={ANIMATION_WHY} />
-            <Soon icon="wand" label="Animation Painter" why={ANIMATION_WHY} />
+            <Button tall icon="plus" label="Add Animation" disabled={!hasShape} title={hasShape ? 'Add Animation — another effect on the selected shape, after its others' : 'Add Animation — select a shape first'} onClick={(e) => menu.open(e, effectMenu('addAnimation'))} />
+            <Rows>
+              <Button icon="list" label="Animation Pane" pressed={view.pane === 'animations'} title="Animation Pane — the slide's effects in order, to pick, reorder, retime or remove" onClick={() => act('pane', 'animations')} />
+              <Soon icon="play" label="Trigger" why="A trigger — starting an effect on a click on another shape — is an interactive sequence this does not write; one already in the file is kept and plays as the file has it." />
+              <Button
+                icon="wand"
+                label="Animation Painter"
+                pressed={animPainter}
+                disabled={!animPainter && !shapeAnimated}
+                title={animPainter ? 'Animation Painter — armed: click a shape to give it these effects; Esc puts it down' : shapeAnimated ? "Animation Painter — this shape's effects onto the next shape you click" : 'Animation Painter — select an animated shape first'}
+                onClick={() => act('animPainter')}
+              />
+            </Rows>
           </Group>
           <Group label="Timing">
-            <Soon icon="play" label="Start" why={ANIMATION_WHY} />
-            <Soon icon="clock" label="Duration" why={ANIMATION_WHY} />
-            <Soon icon="clock" label="Delay" why={ANIMATION_WHY} />
-            <Soon icon="chevronUp" label="Move Earlier" why={ANIMATION_WHY} />
-            <Soon icon="chevronDown" label="Move Later" why={ANIMATION_WHY} />
+            <Rows>
+              <div className="sl-rb-field" data-tip="Start — when the effect plays: on a click, with the one before it, or after it">
+                <Icon name="play" size={14} />
+                <span className="sl-rb-label">Start:</span>
+                <Select className="rw-select sl-an-start" value={animation?.trigger || 'onClick'} disabled={!animation} style={{ width: 128, height: 24 }} onChange={(e) => act('animPatch', { trigger: e.target.value })}>
+                  <option value="onClick">On Click</option>
+                  <option value="withPrevious">With Previous</option>
+                  <option value="afterPrevious">After Previous</option>
+                </Select>
+              </div>
+              <div className="sl-rb-field" data-tip="Duration — how long the effect takes, in seconds">
+                <Icon name="clock" size={14} />
+                <span className="sl-rb-label">Duration:</span>
+                <SecondsField className="sl-an-duration" value={animation ? animation.duration : null} disabled={!animation || !animation.duration} min={0.01} max={59} onCommit={(v) => act('animPatch', { duration: v })} />
+              </div>
+              <div className="sl-rb-field" data-tip="Delay — how long after its start the effect waits, in seconds">
+                <Icon name="clock" size={14} />
+                <span className="sl-rb-label">Delay:</span>
+                <SecondsField className="sl-an-delay" value={animation ? animation.delay : null} disabled={!animation} min={0} max={3600} onCommit={(v) => act('animPatch', { delay: v })} />
+              </div>
+            </Rows>
+            <Separator />
+            <Rows>
+              <div className="sl-rb-caption">Reorder Animation</div>
+              <Button icon="chevronUp" label="Move Earlier" disabled={!animation || animation.index <= 0} title={animation ? 'Move Earlier — this effect plays before the one above it' : 'Move Earlier — pick an effect first'} onClick={() => act('animMove', 'earlier')} />
+              <Button icon="chevronDown" label="Move Later" disabled={!animation || animation.index >= animationList.length - 1} title={animation ? 'Move Later — this effect plays after the one below it' : 'Move Later — pick an effect first'} onClick={() => act('animMove', 'later')} />
+            </Rows>
           </Group>
         </>
       ) : null}
