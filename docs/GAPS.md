@@ -25,7 +25,7 @@ a suite.
 | **Contacts** | **Built, 2026-09-09** | A book in the profile: list, card, editor, search. `.vcf` and CSV opened, offered and merged by address; vCards exported. Compose completes from the book and then from the people mail has seen; a sender is kept from the reading pane in one click. |
 | **OpenDocument drawings** | **Missing** | An `.ods` written by Excel carries its charts as embedded objects and its shapes as `draw:custom-shape`; neither is read, so the Charts sheet of the showcase workbook opens empty from `.ods` and full from `.xlsx`. Its frozen panes (settings.xml) and hidden columns are not read either. An `.odp` reads only its text frames: the showcase deck's pictures, shapes, table and gradients are all dropped from `.odp` and all present from `.pptx`. Found 2026-09-10 by tools/make-rich-fixtures.ps1. |
 | **Equations** | **Built for documents, 2026-09-25** | Office Math is read, drawn through the browser's own MathML, edited in Word's linear format, written as Word writes it and printed. A deck's equations (`a14:m`) are not read yet, though the same converter could draw them. |
-| **Tracked changes, shown** | **Missing** | `w:ins` text arrives as plain text and `w:del` text is dropped — the accepted view, which is right for reading, but nothing says a change was made or by whom; there is no view of the markup and no accept or reject. Recording them is the older gap below. |
+| **Tracked changes, shown** | **Built for documents, 2026-09-25** | Insertions and deletions are kept with their author and date, shown as All Markup, Simple Markup, No Markup or Original, walked with Previous and Next, and accepted or rejected one at a time or all at once; recording them arrived the same day (below). A deck's and a workbook's tracked changes are not read. |
 | **Page setup as a document property** | **Built for workbooks, 2026-09-09** | Paper, orientation, margins, scaling, gridlines, headings, centring, the print area and the repeated rows are read from and written to the file where Excel keeps them. A document and a deck still choose theirs in the dialog each time. |
 | **Password-protected files** | **Missing** | Refused with a sentence that says so, since 2026-09-10 — the corpus found an encrypted `.docx` opening as an empty page and an encrypted `.pptx` refused as "a document". An encrypted OOXML package (`EncryptedPackage` in a compound file, agile encryption) is neither read nor written. |
 | **A spell-check pass** | **Partly** | Chromium underlines as you type in the places that are contenteditable. There is no pass over a document, no dictionary the person owns, no add-to-dictionary, and nothing at all in the grid or on a slide. |
@@ -151,7 +151,8 @@ it is where the gaps are.
   group and outline, subtotals, advanced filter with a criteria range and
   flash fill, 2026-09-25 — Auto Outline, SUBTOTAL 101–111 and an advanced
   filter copied to another sheet are not.)
-- **Auditing**: evaluate step by step. Error checking and the watch window
+- **Auditing**: Evaluate Formula steps a formula part by part since
+  2026-09-25, into the cells it reads and back. Error checking and the watch window
   both arrived 2026-09-24: Formulas → Error Checking opens a pane listing
   every error cell and circular reference, with Next and Previous to walk
   them; Formulas → Watch Window opens a pane listing cells chosen with Add
@@ -160,13 +161,15 @@ it is where the gaps are.
   open (nothing is written to the file, the same as Excel's own watch
   window). (Trace precedents and dependents draw the dependency graph on
   the grid since 2026-09-21.)
-- **Page-break preview** and a sheet background. (The print settings live
+- A sheet background, and Page Layout view. (Page Break Preview and Split
+  arrived 2026-09-25. The print settings live
   in the file, and since 2026-09-21 the Page Layout tab writes them:
   margins, orientation, paper, print titles, scale to fit and manual page
   breaks — before that its buttons changed a note in the window that
   nothing read.)
 - **Workbook protection** (structure), editable ranges on a protected sheet,
-  custom views, manual calculation.
+  custom views. (Manual calculation arrived 2026-09-25, and threaded
+  comments the same day.)
 - **The formula language**, where it stops: `LAMBDA`. Array constants and
   `LET` came on 2026-09-09; `TEXT()` speaks every format code the grid does
   (the formatter moved in beside the engine), and serial 60 is 29 February
