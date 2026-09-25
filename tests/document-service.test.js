@@ -63,16 +63,23 @@ test('a file that is not the kind this window edits is refused, by name', () => 
   doc.close({ id: unasked.id });
 });
 
-test('a password-protected file is refused as one, whatever its extension', () => {
+test('a password-protected file asks for its password, whatever its extension', () => {
   // An encrypted .docx is a compound file holding the encrypted package —
   // not a 97-2003 document — and it used to open as an empty page, or as
   // "a document, not a presentation" under a .pptx name. The fixture is
-  // the sample site's password-protected document (password 123), kept
-  // small and never decrypted.
+  // the sample site's password-protected document (password 123).
   const encrypted = path.join(FIXTURES, 'encrypted.docx');
-  assert.match(refusal(() => doc.open({ path: encrypted, kind: 'doc' })), /encrypted\.docx is password-protected/);
+  assert.deepEqual(doc.open({ path: encrypted, kind: 'doc' }), { locked: true, name: 'encrypted.docx', wrong: false, path: encrypted });
+  assert.equal(doc.open({ path: encrypted, kind: 'doc', password: '1234' }).wrong, true);
+  const opened = doc.open({ path: encrypted, kind: 'doc', password: '123' });
+  assert.equal(opened.kind, 'doc');
+  assert.equal(opened.encrypted, true);
+  doc.close({ id: opened.id });
+  // Under a .pptx name it still asks, and once open it is what it is: a
+  // document, refused by the Presentation window with the sentence naming Word.
   const asPptx = write('encrypted-named.pptx', fs.readFileSync(encrypted));
-  assert.match(refusal(() => doc.open({ path: asPptx, kind: 'deck' })), /is password-protected/);
+  assert.equal(doc.open({ path: asPptx, kind: 'deck' }).locked, true);
+  assert.match(refusal(() => doc.open({ path: asPptx, kind: 'deck', password: '123' })), /is a document, not a presentation\. Open it in Rutba Word/);
 });
 
 test('the disk failing is a sentence, not an error code', () => {

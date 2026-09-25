@@ -10,6 +10,8 @@
     "./sniff": "./src/sniff.js",
     "./registry": "./src/registry.js",
     "./cfb": "./src/cfb.js",
+    "./cfb-write": "./src/cfb-write.js",
+    "./crypt": "./src/crypt.js",
     "./odf": "./src/odf.js",
     "./odf-write": "./src/odf-write.js",
     "./rtf": "./src/rtf.js",

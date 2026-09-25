@@ -13,6 +13,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
+import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import { SITE } from '@rutba/office-formats/registry';
 import Presenter, { nextShown } from './slides/presenter.js';
 import SlidesRibbon from './slides/ribbon.js';
@@ -36,6 +37,9 @@ export default function Slides({ app, shell, boot }) {
   const [index, setIndex] = useState(0);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(null);
+  // A protected file whose Password dialog was cancelled: its name.
+  const [lockedOut, setLockedOut] = useState(null);
+  const gate = usePasswordGate();
   const [tab, setTab] = useState('home');
   /**
    * View → Slide Master: the master or layout on the stage (its part name),
@@ -274,7 +278,9 @@ export default function Slides({ app, shell, boot }) {
   }, [model?.size?.width, model?.size?.height, busy, present]);
   const menu = useMenu();
   const openFileRef = useRef(null);
-  const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.() });
+  // File → Info: the Protect Presentation card and Encrypt with Password.
+  const protection = useProtection({ app: 'slides', shell, doc, setDoc, toast });
+  const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.(), extra: doc && !presenterFor ? [protection.menuItem] : [] });
 
   const load = useCallback(
     async (next = index) => {
@@ -379,10 +385,12 @@ export default function Slides({ app, shell, boot }) {
       setBusy(true);
       try {
         const recover = new URLSearchParams(location.search).get('recover');
+        // A password-protected file (or the encrypted copy of one) asks
+        // for its password in this window before anything opens.
         const opened = recover
-          ? await shell.doc.recover({ file: recover })
+          ? await openProtected((password) => shell.doc.recover({ file: recover, password }), gate)
           : boot.file
-            ? await shell.doc.open({ path: boot.file, kind: 'deck', width: 1280 })
+            ? await openProtected((password) => shell.doc.open({ path: boot.file, kind: 'deck', width: 1280, password }), gate)
             : await shell.doc.new({ kind: 'slides', template: template && template !== 'blank' ? template : 'deck' });
         if (recover) toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 });
         setDoc(opened);
@@ -402,6 +410,7 @@ export default function Slides({ app, shell, boot }) {
         }
       } catch (err) {
         setError(err.message);
+        if (err.locked) setLockedOut(err.locked);
       } finally {
         setBusy(false);
       }
@@ -1419,7 +1428,7 @@ export default function Slides({ app, shell, boot }) {
   if (error) {
     return (
       <AppFrame app={app} shell={shell} title="Presentation" menu={appMenu}>
-        <Empty icon="slides" title="This file could not be opened">{error}</Empty>
+        <Empty icon={lockedOut ? 'lock' : 'slides'} title={lockedOut ? 'This presentation is password-protected' : 'This file could not be opened'} action={lockedOut ? <LockedAction /> : null}>{error}</Empty>
       </AppFrame>
     );
   }
@@ -2124,6 +2133,9 @@ export default function Slides({ app, shell, boot }) {
           }}
         />
       ) : null}
+
+      {gate.node}
+      {protection.node}
     </AppFrame>
   );
 }

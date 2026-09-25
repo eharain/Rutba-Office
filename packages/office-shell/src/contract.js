@@ -93,7 +93,8 @@ export const METHODS = {
   // about to paint, and nothing else crosses.
   doc: [
     'new',          // ({ kind, template }) -> { id, kind, model, meta }
-    'open',         // ({ path, kind }) -> { id, kind, model, meta }
+    'open',         // ({ path, kind, password }) -> { id, kind, model, meta } | { locked, name, wrong } — a protected file asks for its password
+    'setPassword',  // ({ id, password }) -> meta — File → Info → Encrypt with Password; '' goes back to a plain save
     'close',        // ({ id }) -> void
     'meta',         // ({ id }) -> meta
     'thumbnails',   // ({ id, indexes }) -> { [index]: svg | null } — a deck's slide thumbnails the open model left out
@@ -116,7 +117,7 @@ export const METHODS = {
     'evaluateFormula', // ({ id, row, col, actions }) -> { levels, canEvaluate, canStepIn, canStepOut, done, message } — Evaluate Formula after the presses
     'sessions',     // () -> [{ id, kind, path, dirty }]
     'recoverable',  // () -> [{ file, kind, name, path, at, size }] — what a crash left behind
-    'recover',      // ({ file }) -> { id, kind, model, meta, recoveredFrom }
+    'recover',      // ({ file, password }) -> { id, kind, model, meta, recoveredFrom } | { locked, name, wrong }
     'discardRecovery', // ({ file }) -> { discarded }
     'adopt',        // ({ id }) -> { id, kind, model, meta } — a window takes over a session made for it (a merge's Letters1)
     'mailMerge',    // ({ id, action, ... }) -> Mailings: records, attach, sheets, attachContacts, createList, errors, finish, messages

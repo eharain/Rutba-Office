@@ -22,6 +22,7 @@ import { NavigationPane, installWordStyles } from './word/panes.js';
 import { Ruler, TableGrips, installRulerStyles } from './word/ruler.js';
 import { selectionToSend } from './word/caret.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
+import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement, columnBoxesOf, pageTopOf, pageHeightOf, pageIndexAt } from './word/pages.js';
 
 installWordStyles();
@@ -198,6 +199,9 @@ export default function Word({ app, shell, boot }) {
   const [model, setModel] = useState(null);
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(null);
+  // A protected file whose Password dialog was cancelled: its name.
+  const [lockedOut, setLockedOut] = useState(null);
+  const gate = usePasswordGate();
   const [tab, setTab] = useState('home');
   // One name at a time, the way the spreadsheet does it.
   const [dialog, setDialog] = useState(null);
@@ -265,11 +269,14 @@ export default function Word({ app, shell, boot }) {
   const placedCaret = useRef(null);
   const menu = useMenu();
   const openFileRef = useRef(null);
+  // File → Info: the Protect Document card and Encrypt with Password.
+  const protection = useProtection({ app: 'word', shell, doc, setDoc, toast });
   const appMenu = useAppMenu({
     shell,
     appKey: 'word',
     onNew: () => shell.win.create({ app: 'word' }),
     onOpen: () => openFileRef.current?.(),
+    extra: doc ? [protection.menuItem] : [],
   });
 
   const apply = useCallback(
@@ -324,12 +331,14 @@ export default function Word({ app, shell, boot }) {
         // Finish & Merge → Edit Individual Documents: the merged letters are
         // a session already, made for this window to take over.
         const adopt = new URLSearchParams(location.search).get('session');
+        // A password-protected file (or the encrypted copy of one) asks
+        // for its password in this window before anything opens.
         const opened = adopt
           ? await shell.doc.adopt({ id: adopt })
           : recover
-          ? await shell.doc.recover({ file: recover })
+          ? await openProtected((password) => shell.doc.recover({ file: recover, password }), gate)
           : boot.file
-            ? await shell.doc.open({ path: boot.file, kind: 'doc' })
+            ? await openProtected((password) => shell.doc.open({ path: boot.file, kind: 'doc', password }), gate)
             : await shell.doc.new({ kind: 'word', template: template && template !== 'blank' ? template : 'doc' });
         if (recover) toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 });
         setDoc(opened);
@@ -349,6 +358,7 @@ export default function Word({ app, shell, boot }) {
         }
       } catch (err) {
         setError(err.message);
+        if (err.locked) setLockedOut(err.locked);
       } finally {
         setBusy(false);
       }
@@ -1613,7 +1623,7 @@ export default function Word({ app, shell, boot }) {
   if (error) {
     return (
       <AppFrame app={app} shell={shell} title="Rutba Word" menu={appMenu}>
-        <Empty icon="word" title="This file could not be opened">{error}</Empty>
+        <Empty icon={lockedOut ? 'lock' : 'word'} title={lockedOut ? 'This document is password-protected' : 'This file could not be opened'} action={lockedOut ? <LockedAction /> : null}>{error}</Empty>
       </AppFrame>
     );
   }
@@ -2156,6 +2166,9 @@ export default function Word({ app, shell, boot }) {
       {dialog === 'symbol' ? <SymbolDialog onClose={() => setDialog(null)} onInsert={(c) => apply({ op: 'insertText', text: c })} /> : null}
 
       {dialog === 'properties' ? <PropertiesDialog doc={doc} model={model} onClose={() => setDialog(null)} /> : null}
+
+      {gate.node}
+      {protection.node}
 
       {dialog === 'shortcuts' ? <ShortcutsDialog onClose={() => setDialog(null)} /> : null}
 

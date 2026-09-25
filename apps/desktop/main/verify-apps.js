@@ -36,6 +36,7 @@ import { verifyWordToc } from './verify-word-toc.js';
 import { verifyAccessibility, verifySpelling } from './verify-proofing.js';
 import { verifyWordTextBox } from './verify-word-textbox.js';
 import { verifyWordArrange } from './verify-word-arrange.js';
+import { verifyEncrypted } from './verify-encrypted.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -509,7 +510,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // Ready when the app has drawn what it draws first — or said why it could
     // not. A fixed pause here was 1.3 seconds, which a loaded machine beat:
     // the grid layer was not there when the first press came.
-    const ready = `${READY_IN[app] || '.rw-app'}, .rw-empty`;
+    // A password-protected file draws its Password dialog first.
+    const ready = `${READY_IN[app] || '.rw-app'}, .rw-empty, .rw-dialog[aria-label="Password"]`;
     await until(() => win.webContents.executeJavaScript(`Boolean(document.querySelector(${JSON.stringify(ready)}))`), `the ${app} window to draw`, 12000).catch(() => {});
     await wait(300);
     raise(win);
@@ -3331,6 +3333,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifyWordArrange({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
   };
 
+  /* ── Password-protected files: open, Info → Encrypt, save, reopen ───── */
+  const encryptedFiles = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyEncrypted({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
+  };
+
   /* ── Word: Mailings → mail merge ──────────────────────────────────────── */
   const wordMailMerge = async () => {
     const capture = async (win, name) => {
@@ -4372,7 +4383,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4401,6 +4412,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('toc')) await wordToc();
     if (only.includes('textbox')) await wordTextBox();
     if (only.includes('wordarrange')) await wordArrange();
+    if (only.includes('encrypted')) await encryptedFiles();
     if (only.includes('mailmerge')) await wordMailMerge();
     if (only.includes('labels')) await wordLabels();
     if (only.includes('track')) await wordTrack();
@@ -4560,6 +4572,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordToc();
   await wordTextBox();
   await wordArrange();
+  await encryptedFiles();
   await wordMailMerge();
   await wordLabels();
   await wordTrack();

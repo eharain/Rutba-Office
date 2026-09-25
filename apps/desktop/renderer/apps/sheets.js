@@ -13,6 +13,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
+import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS } from './sheets/ribbon.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
@@ -78,6 +79,9 @@ export default function Sheets({ app, shell, boot }) {
   const [busy, setBusy] = useState(true);
   const [tab, setTab] = useState('home');
   const [error, setError] = useState(null);
+  // A protected file whose Password dialog was cancelled: its name.
+  const [lockedOut, setLockedOut] = useState(null);
+  const gate = usePasswordGate();
   // Which of the ribbon's dialogs is open, by name. One piece of state rather
   // than seven booleans, because only one of them can be open at a time.
   const [dialog, setDialog] = useState(null);
@@ -154,10 +158,27 @@ export default function Sheets({ app, shell, boot }) {
 
   const editorRef = useRef(null);
   const menu = useMenu();
-  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.() });
   const openFileRef = useRef(null);
   /** The ribbon's verbs, for a command defined before them (Ctrl+Alt+M). */
   const actRef = useRef(null);
+  // File → Info: the Protect Workbook card — Encrypt with Password, and the
+  // sheet and structure protection Review already offers, as Excel lists them.
+  const protection = useProtection({
+    app: 'sheets',
+    shell,
+    doc,
+    setDoc,
+    toast,
+    items: [
+      { id: 'sheet', icon: 'table', label: model?.protection?.sheet ? 'Unprotect Current Sheet' : 'Protect Current Sheet', detail: 'Control what types of changes people can make to the current sheet.', run: () => actRef.current?.('protectSheet') },
+      { id: 'structure', icon: 'grid', label: model?.workbookProtection?.structure ? 'Unprotect Workbook Structure' : 'Protect Workbook Structure', detail: 'Prevent unwanted changes to the structure of the workbook, such as adding sheets.', run: () => actRef.current?.('protectWorkbook') },
+    ],
+    notes: [
+      ...(model?.workbookProtection?.structure ? ['The workbook’s structure is locked to prevent unwanted changes, such as moving, deleting or adding sheets.'] : []),
+      ...(model?.protection?.sheet ? [`${model?.activeSheet || 'This sheet'} is protected: locked cells take no edits.`] : []),
+    ],
+  });
+  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.(), extra: doc ? [protection.menuItem] : [] });
 
   const dispatch = useCallback(
     async (...ops) => {
@@ -243,6 +264,7 @@ export default function Sheets({ app, shell, boot }) {
         }
       } catch (err) {
         setError(err.message);
+        if (err.locked) setLockedOut(err.locked);
       } finally {
         setBusy(false);
       }
@@ -256,8 +278,10 @@ export default function Sheets({ app, shell, boot }) {
     const recover = params.get('recover');
     // A recovery copy the launcher offered: opened as the workbook it came
     // from, dirty, because what is on screen is not what is on disk.
-    if (recover) load(() => shell.doc.recover({ file: recover }).then((r) => { toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 }); return r; }));
-    else if (boot.file) load(() => shell.doc.open({ path: boot.file, kind: 'sheet' }));
+    // A password-protected file (or the encrypted copy of one) asks for its
+    // password in this window before anything opens.
+    if (recover) load(() => openProtected((password) => shell.doc.recover({ file: recover, password }), gate).then((r) => { toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 }); return r; }));
+    else if (boot.file) load(() => openProtected((password) => shell.doc.open({ path: boot.file, kind: 'sheet', password }), gate));
     else load(() => shell.doc.new({ kind: 'sheets', template: template && template !== 'blank' ? template : 'sheet' }));
     // A window an earlier build zoomed stays zoomed across restarts — the
     // level is kept per origin — and the grid carries the zoom now, so the
@@ -1769,7 +1793,7 @@ export default function Sheets({ app, shell, boot }) {
   if (error) {
     return (
       <AppFrame app={app} shell={shell} title="Worksheets" menu={appMenu}>
-        <Empty icon="sheets" title="This file could not be opened">
+        <Empty icon={lockedOut ? 'lock' : 'sheets'} title={lockedOut ? 'This workbook is password-protected' : 'This file could not be opened'} action={lockedOut ? <LockedAction /> : null}>
           {error}
         </Empty>
       </AppFrame>
@@ -3023,6 +3047,9 @@ export default function Sheets({ app, shell, boot }) {
       ) : null}
 
       {dialog === 'freeze' ? <FreezeDialog model={model} sel={sel} dispatch={dispatch} onClose={() => setDialog(null)} /> : null}
+
+      {gate.node}
+      {protection.node}
 
       {dialog === 'protectSheet' || dialog === 'protectWorkbook' ? (
         <ProtectDialog

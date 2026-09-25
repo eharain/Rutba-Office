@@ -47,6 +47,7 @@ import { markdownToParagraphs, paragraphsToMarkdown } from './markdown-bridge.js
 import { readMergeSource, writeMergeList } from './mailmerge-source.js';
 import { contactsToSource, findDuplicates, MAIN_DOCUMENT_TYPES } from '@rutba/ooxml/mailmerge';
 import { CompoundFile } from '@rutba/office-formats/cfb';
+import { isEncryptedPackage, decryptPackage, encryptPackage, EncryptedFileError } from '@rutba/office-formats/crypt';
 import { readZip } from '@rutba/ooxml/zip';
 import { createProofing } from './proofing.js';
 
@@ -245,6 +246,25 @@ class Session {
     // A document made rather than opened — a merge's Letters1 — goes by
     // the name it was given until it is saved.
     this.untitled = null;
+    // File → Info → Encrypt with Password: the password this document is
+    // saved with, and the spun hash of it that spares re-spinning 100,000
+    // rounds on every save. Both live here, in this process's memory, for as
+    // long as the document is open — never in a file, a setting or a
+    // recovery index.
+    this.password = null;
+    this.keyCache = null;
+  }
+
+  /** Encrypt with Password set or cleared; '' or null clears it. */
+  setPassword(password) {
+    this.password = password ? String(password) : null;
+    this.keyCache = this.password ? {} : null;
+  }
+
+  /** The bytes Save writes: the package, encrypted when a password is set. */
+  fileBytes() {
+    const plain = Buffer.from(this.engine.save());
+    return this.password ? encryptPackage(plain, this.password, { cache: this.keyCache }) : plain;
   }
 
   get name() {
@@ -262,6 +282,7 @@ class Session {
       source: this.source,
       converted: this.converted,
       readOnly: false,
+      encrypted: Boolean(this.password),
       canUndo: Boolean(this.engine?.canUndo),
       canRedo: Boolean(this.engine?.canRedo),
     };
@@ -360,6 +381,33 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       return `${name} does not contain what a .${ext} file should — it may have been saved by a program that writes the format differently, or renamed. (${raw})`;
     }
     return `${name} could not be read. (${raw})`;
+  }
+
+  /**
+   * A password-protected file opened: its package decrypted, or what the
+   * window has to ask for.
+   *
+   * Answers `{ bytes, password }` once it is open — `password` null for a
+   * file that was never protected — or `{ locked: { name, wrong } }` when
+   * the window must ask for the password (again, when `wrong`). A file that
+   * was changed after it was encrypted, or is protected some way a password
+   * cannot open, is refused here with its sentence.
+   */
+  function unlock(bytes, shownPath, password) {
+    if (!isEncryptedPackage(bytes)) return { bytes, password: null };
+    const name = shownPath ? path.basename(shownPath) : 'This file';
+    if (password == null) return { locked: { name, wrong: false } };
+    try {
+      return { bytes: decryptPackage(bytes, String(password)).bytes, password: String(password) };
+    } catch (err) {
+      if (!(err instanceof EncryptedFileError)) throw err;
+      if (err.code === 'password') return { locked: { name, wrong: true } };
+      if (err.code === 'tampered') {
+        throw new Error(`${name} was not opened: it has been changed since its password was set. The check written inside a protected file no longer matches what is there, so the file is damaged or was altered. Open a copy you trust.`);
+      }
+      if (err.code === 'unsupported') throw new Error(`${name} is protected in a way a password cannot open here: ${err.message}.`);
+      throw new Error(`${name} is password-protected, and it is damaged: ${err.message}.`);
+    }
   }
 
   /**
@@ -467,6 +515,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   }
 
   const PLAIN_TEXT_KINDS = new Set(['txt', 'md', 'markdown', 'csv', 'tsv', 'html', 'htm']);
+  const OOXML_KINDS = new Set(['docx', 'docm', 'dotx', 'xlsx', 'xlsm', 'xltx', 'pptx', 'pptm', 'potx', 'ppsx']);
   const REFUSED_SNIFFS = new Set(['eml', 'msg', 'mbox', 'emlx', 'olm', 'pst', 'ost', 'vcf', 'ics', 'unknown']);
 
   /** Decide the kind, converting the formats we do not write. */
@@ -485,6 +534,16 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     if (kind === 'zip' || detected.container === 'ooxml') {
       try {
         kind = refineOoxml(readZip(Buffer.from(bytes)).entries.map((e) => e.name));
+      } catch {
+        /* keep what sniff said */
+      }
+    } else if (detected.container === 'zip' && OOXML_KINDS.has(kind)) {
+      // A package whose first entry is not [Content_Types].xml — some
+      // writers put it last — is sniffed by its extension alone; its parts
+      // say what it really is (a document decrypted from a .pptx name).
+      try {
+        const refined = refineOoxml(readZip(Buffer.from(bytes)).entries.map((e) => e.name));
+        if (refined !== 'zip' && refined[0] !== kind[0]) kind = refined;
       } catch {
         /* keep what sniff said */
       }
@@ -1666,13 +1725,18 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       return { ...session.meta(), model: modelOf(session) };
     },
 
-    open: ({ path: filePath, kind: expected, width, slide }, win) => {
+    open: ({ path: filePath, kind: expected, width, slide, password = null }, win) => {
       let bytes;
       try {
         bytes = fs.readFileSync(filePath);
       } catch (err) {
         throw new Error(plainFsError(err, filePath) || plainRefusal(err, filePath));
       }
+      // A password-protected file: the window asks for the password and
+      // opens it again with it. No session exists until it has opened.
+      const unlocked = unlock(bytes, filePath, password);
+      if (unlocked.locked) return { locked: true, ...unlocked.locked, path: filePath };
+      bytes = unlocked.bytes;
       let loaded;
       let engine;
       try {
@@ -1722,6 +1786,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // hundred and forty files into a run, the main process stalled for two
       // minutes.
       session.windowId = win?.id ?? null;
+      // Opened with a password, saved with it, until Info clears it.
+      if (unlocked.password) session.setPassword(unlocked.password);
       sessions.set(session.id, session);
       if (loaded.kind === 'doc') reattachMergeSource(session);
 
@@ -1782,7 +1848,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         const started = Date.now();
         try {
           fs.mkdirSync(recoveryDir, { recursive: true });
-          fs.writeFileSync(path.join(recoveryDir, name), Buffer.from(session.engine.save()));
+          // A document with a password is copied encrypted with the same
+          // password, as Save would write it: the copy on disk is never the
+          // document in the clear, and recovering it asks for the password.
+          fs.writeFileSync(path.join(recoveryDir, name), session.fileBytes());
         } catch {
           continue;
         }
@@ -1797,6 +1866,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
           path: session.path,
           at: Date.now(),
           version: session.version,
+          encrypted: Boolean(session.password),
         };
         const at = list.findIndex((e) => e.file === name);
         if (at < 0) list.push(entry);
@@ -1830,7 +1900,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
      * the same path, and dirty, because what is on screen is not what is on
      * disk and the person has to decide which one wins.
      */
-    recover: ({ file }, win) => {
+    recover: ({ file, password = null }, win) => {
       const entry = recovery.index().find((e) => e.file === file);
       if (!entry) throw new Error('That recovered document is no longer there.');
       const full = path.join(recoveryDir, entry.file);
@@ -1840,6 +1910,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       } catch (err) {
         throw new Error(plainFsError(err, entry.name) || `${entry.name} could not be recovered.`);
       }
+      // The copy of a document with a password is encrypted with it.
+      const unlocked = unlock(bytes, entry.name, password);
+      if (unlocked.locked) return { locked: true, ...unlocked.locked, path: entry.path || null };
+      bytes = unlocked.bytes;
       const session = new Session({
         id: nextId(),
         kind: entry.kind,
@@ -1849,6 +1923,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         converted: null,
       });
       session.windowId = win?.id ?? null;
+      if (unlocked.password) session.setPassword(unlocked.password);
       session.dirty = true;
       session.recoveryFile = entry.file;
       session.recoveredAt = 0;
@@ -1903,6 +1978,23 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
 
 
     meta: ({ id }) => get(id).meta(),
+
+    /**
+     * File → Info → Protect → Encrypt with Password: from the next save on,
+     * the file is written encrypted with this password; an empty one goes
+     * back to a plain save. The document is changed by it, as in Office, so
+     * the window's Save has something to write.
+     */
+    setPassword: ({ id, password }) => {
+      const session = get(id);
+      const next = password ? String(password) : null;
+      if (next !== session.password) {
+        session.setPassword(next);
+        session.dirty = true;
+        session.version++;
+      }
+      return session.meta();
+    },
 
     model: ({ id, ...opts }) => modelOf(get(id), opts),
 
@@ -1996,8 +2088,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         return writing(to, () => exportTo(session, to, ext.replace('.', '')));
       }
 
-      const bytes = session.engine.save();
-      writing(to, () => fs.writeFileSync(to, Buffer.from(bytes)));
+      // Encrypted with the document's password when Info set one.
+      const bytes = session.fileBytes();
+      writing(to, () => fs.writeFileSync(to, bytes));
       session.path = to;
       session.dirty = false;
       session.converted = null;
