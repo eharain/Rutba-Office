@@ -223,8 +223,10 @@ document and workbook writers.
   marking a slide `show="0"` so the show steps over it while the strip,
   Slide Sorter and printing still draw it; custom shows and saving as a
   show are still to come.
-- **The show**: recorded narration and timings, transitions and animations
-  as anything but ribbon tabs, export to video.
+- **The show**: transitions and animations are written and played since
+  2026-09-25 (eleven transitions; entrance, emphasis and exit effects with
+  the Animation Pane). Recorded narration and timings, motion paths,
+  triggers, effects by paragraph and export to video are still to come.
 - **Review**: comments on a slide, tracked changes. Find and replace across
   a deck arrived 2026-09-24: Home → Find (Ctrl+F) and Replace (Ctrl+H) open
   a small pane at the stage's own top right, the way Word's find pane does
