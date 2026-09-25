@@ -47,8 +47,10 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   beside it shorter, for as far down as it reaches and into the paragraphs
   after it, and a centred or right-aligned block keeps its side, and since
   the same day a floating text box prints beside the words the same way.
-  A picture behind or in front of the words is drawn in the flow. Align, Group, the selection
-  pane and z-order for a document's drawings are still to come.
+  Since 2026-09-25 Insert → Text Box writes a box of words, and Layout →
+  Arrange puts a drawing behind or in front of the words, on screen and on
+  paper, with z-order, Align, Distribute, Rotate, Flip, Group and a
+  Selection Pane.
 - **Columns and section control.** Columns arrived 2026-09-24: Layout →
   Columns writes `w:cols`, and print and PDF flow the words into them,
   each column filled to the foot of the page before the next starts, its
@@ -148,7 +150,9 @@ it is where the gaps are.
   Sparklines draws a line or a column chart in a cell, written as Excel
   writes them — the x14 sparkline groups in the worksheet's extension
   list — and drawn in the cell layer under the cell's own words. Slicers
-  are still read, not written.
+  and PivotCharts arrived 2026-09-25: Insert → Slicer filters a table or a
+  pivot from a panel of buttons, and Insert → PivotChart draws a chart
+  bound to a pivot. Both are written as Excel writes them.
 - **Data tools**: consolidate and forecast sheets arrived 2026-09-25. (Text to columns,
   remove duplicates and a sort by up to three keys are built, 2026-09-21;
   group and outline, subtotals, advanced filter with a criteria range and
