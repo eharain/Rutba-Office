@@ -16,6 +16,7 @@ import { emuToPx, pxToEmu, ptToSz } from './units.js';
 import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText, composeGroupChild, REFLECTION_PRESETS } from './slide.js';
 import { slideXml } from './build.js';
 import { chartPartXml } from '@rutba/ooxml/build';
+import { readTransition, withTransition, transitionBlock, insertTransition, transitionRange } from './motion.js';
 import { parseChartXml } from '@rutba/drawing';
 
 const A = (n) => `a:${n}`;
@@ -515,6 +516,8 @@ export class Deck {
       shapes: withLinks(withSlideNumber(scene.shapes, index + 1), rel),
       notes,
       hidden: slideHiddenFrom(slideXml),
+      // Transitions → the effect this slide comes in with, and how it moves on.
+      transition: readTransition(slideXml),
       theme: { colors: theme.colors, fonts: theme.fonts },
     };
     this._scenes.set(slidePart, { key: cacheKey, scene: result });
@@ -547,6 +550,8 @@ export class Deck {
         notes: notesPart ? plainTextOf(this.pkg.text(notesPart)) : '',
         section: sectionAt.has(i) ? sectionAt.get(i) : null,
         hidden: slideHiddenFrom(xml),
+        // The strip marks a slide that has a transition, the way PowerPoint's does.
+        transition: transitionRange(xml) ? (readTransition(xml)?.type ?? null) : null,
       };
     });
   }
@@ -2306,6 +2311,54 @@ export class Deck {
     if (next === m[0]) return false;
     this.#writeSlide(entry.part, xml.slice(0, m.index) + next + xml.slice(m.index + m[0].length));
     return true;
+  }
+
+  // ---- transitions --------------------------------------------------------
+
+  /** The slide's transition, as `readTransition` gives it, or null. */
+  transition(index) {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+    return readTransition(this.pkg.text(entry.part));
+  }
+
+  /**
+   * Transitions → Transition to This Slide, Effect Options, Duration and
+   * Advance Slide: `spec` merged over the slide's own transition (see
+   * `withTransition`), or null to take it off.
+   * @returns {boolean} true when the slide's XML changed
+   */
+  setTransition(index, spec) {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+    const xml = this.pkg.text(entry.part);
+    const next = withTransition(xml, spec);
+    if (next === xml) return false;
+    this.#writeSlide(entry.part, next);
+    return true;
+  }
+
+  /**
+   * Transitions → Apply To All: this slide's transition — effect, duration
+   * and advance settings, exactly as written — on every slide; a slide with
+   * none takes every other slide's off.
+   * @returns {number} how many slides changed
+   */
+  applyTransitionToAll(from) {
+    const entry = this.slideParts[from];
+    if (!entry) throw new RangeError(`no slide at index ${from}`);
+    const block = transitionBlock(this.pkg.text(entry.part));
+    let changed = 0;
+    this.slideParts.forEach((s, i) => {
+      if (i === from) return;
+      const xml = this.pkg.text(s.part);
+      const bare = withTransition(xml, null);
+      const next = block ? insertTransition(bare, block) : bare;
+      if (next === xml) return;
+      this.#writeSlide(s.part, next);
+      changed += 1;
+    });
+    return changed;
   }
 
   save() {

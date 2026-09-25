@@ -4,12 +4,13 @@
 // Transitions, Animations, Slide Show, Record, Review, View, Help, and a PDF
 // tab where PowerPoint has Acrobat — with every group PowerPoint has in each.
 // What the engine can do is wired; what it cannot is drawn where PowerPoint
-// draws it, disabled, with a title that says exactly why. Transitions and
-// animations are the honest case: the file's own survive a round trip, and
-// nothing here pretends to author one.
+// draws it, disabled, with a title that says exactly why. Transitions are
+// authored here and played in the show; animations already in a file
+// survive a round trip.
 
 import React from 'react';
-import { Ribbon, Group, Rows, Button, Separator, Select } from '@rutba/office-ui';
+import { Ribbon, Group, Rows, Button, Separator, Select, Icon } from '@rutba/office-ui';
+import { TRANSITION_GALLERY, TRANSITION_OPTIONS, galleryKeyOf, optionOf, describeTransition } from './motion.js';
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
 const COLOURS = [
@@ -29,7 +30,6 @@ const SHAPES = [
   ['hexagon', 'Hexagon'], ['octagon', 'Octagon'], ['star5', 'Star: 5 Points'],
   ['rightArrow', 'Arrow: Right'], ['chevron', 'Chevron'], ['line', 'Line'],
 ];
-const TRANSITIONS = ['None', 'Morph', 'Fade', 'Push', 'Wipe', 'Split', 'Reveal', 'Cut', 'Random Bars', 'Shape', 'Uncover'];
 /** Insert → Table: the sizes PowerPoint's own gallery offers first. */
 const TABLE_SIZES = [
   [2, 2, '2 × 2'], [3, 3, '3 × 3'], [4, 3, '4 × 3'], [5, 4, '5 × 4'],
@@ -68,8 +68,49 @@ const SOFTEDGE_MENU = [[1, 'Soft Edges: 1 pt'], [2.5, 'Soft Edges: 2.5 pt'], [5,
 /** Shape Effects → Reflection: the three gallery presets. */
 const REFLECTION_MENU = [['tight', 'Reflection: tight'], ['half', 'Reflection: half'], ['full', 'Reflection: full'], [null, 'No reflection']];
 const INK = 'Ink is a drawing part (ink ML) the engine does not write, and the stage has no pen surface yet.';
-const TRANSITION_WHY = 'A transition is preserved in the file when the deck has one; authoring one (writing p:transition) is not built.';
+/** The gallery's small pictures, one per effect. */
+const TRANSITION_ICONS = { none: 'trNone', cut: 'trCut', fade: 'trFade', push: 'trPush', wipe: 'trWipe', split: 'trSplit', pull: 'trUncover', cover: 'trCover', randomBar: 'trBars', shape: 'trShape', dissolve: 'trDissolve' };
 const ANIMATION_WHY = 'Animations are preserved in the file when the deck has them; authoring one (writing p:timing) is not built.';
+
+/**
+ * A number of seconds in the ribbon (Duration, After): typed or stepped,
+ * and sent once it settles — on Enter, on leaving the box, or a moment
+ * after the last keystroke — rather than once per keystroke.
+ */
+function SecondsField({ value, onCommit, disabled = false, min = 0, max = 3600, className = '' }) {
+  const shown = (v) => (v == null ? '' : Number(v).toFixed(2));
+  const [text, setText] = React.useState(shown(value));
+  const timer = React.useRef(null);
+  React.useEffect(() => setText(shown(value)), [value]);
+  React.useEffect(() => () => clearTimeout(timer.current), []);
+  const commit = (raw) => {
+    clearTimeout(timer.current);
+    const v = Number(raw);
+    if (raw === '' || !Number.isFinite(v)) return setText(shown(value));
+    const clamped = Math.round(Math.min(max, Math.max(min, v)) * 100) / 100;
+    if (value == null || Math.abs(clamped - value) > 0.0005) onCommit(clamped);
+    else setText(shown(value));
+  };
+  return (
+    <input
+      type="number"
+      step="0.25"
+      min={min}
+      max={max}
+      className={`rw-input sl-rb-seconds ${className}`}
+      value={text}
+      disabled={disabled}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setText(raw);
+        clearTimeout(timer.current);
+        timer.current = setTimeout(() => commit(raw), 700);
+      }}
+      onBlur={(e) => commit(e.target.value)}
+      onKeyDown={(e) => { if (e.key === 'Enter') commit(e.currentTarget.value); }}
+    />
+  );
+}
 
 export default function SlidesRibbon({
   tab, setTab, model, doc, commands, shell, menu, save, openFile, exportAs,
@@ -94,6 +135,12 @@ export default function SlidesRibbon({
   const needShape = hasShape ? undefined : 'Select a text box first — click it once';
   const hasSections = (model?.sections || []).length > 0;
   const inSection = (model?.sections || []).some((s) => s.slides.includes(index));
+  // Transitions: this slide's own, the gallery button it presses (none for
+  // an effect this does not write), and that button's Effect Options.
+  const transition = model?.slide?.transition || null;
+  const transitionKey = transition?.known === false ? null : galleryKeyOf(transition?.type);
+  const transitionOptions = TRANSITION_OPTIONS[transitionKey] || null;
+  const transitionPlays = Boolean(transition && (transition.known === false || transitionKey !== 'none'));
 
   return (
     <Ribbon
@@ -417,17 +464,67 @@ export default function SlidesRibbon({
       {tab === 'transitions' ? (
         <>
           <Group label="Preview">
-            <Soon tall icon="play" label="Preview" why={TRANSITION_WHY} />
+            <Button
+              tall
+              icon="play"
+              label="Preview"
+              disabled={!transitionPlays}
+              title={transitionPlays ? `Preview — play this slide's transition on the stage (${describeTransition(transition)})` : 'Preview — this slide has no transition to play; pick one from the gallery'}
+              onClick={() => act('preview', 'transition')}
+            />
           </Group>
           <Group label="Transition to This Slide">
-            {TRANSITIONS.map((t) => <Soon key={t} tall icon="slides" label={t} why={TRANSITION_WHY} />)}
-            <Soon icon="settings" label="Effect Options" why={TRANSITION_WHY} />
+            {TRANSITION_GALLERY.map(([key, label, blurb]) => (
+              <Button
+                key={key}
+                tall
+                icon={TRANSITION_ICONS[key]}
+                label={label}
+                className="sl-tr-pick"
+                data-transition={key}
+                pressed={transitionKey === key}
+                title={`${label} — ${blurb}`}
+                onClick={() => act('transition', key === 'none' ? { type: 'none' } : { type: key === 'shape' ? 'circle' : key })}
+              />
+            ))}
+            <Button
+              tall
+              icon="settings"
+              label="Effect Options"
+              disabled={!transitionOptions}
+              title={transitionOptions ? `Effect Options — which way the ${TRANSITION_GALLERY.find(([k]) => k === transitionKey)?.[1] || 'transition'} goes` : 'Effect Options — pick a transition with a direction first (Push, Wipe, Split, Cover…)'}
+              onClick={(e) => menu.open(e, transitionOptions.map(([value, label]) => ({
+                label,
+                icon: optionOf(transition) === value ? 'check' : undefined,
+                run: () => act('transition', transitionKey === 'shape' ? { type: value.split(':')[0], direction: value.split(':')[1] ?? null } : { direction: value }),
+              })))}
+            />
           </Group>
           <Group label="Timing">
-            <Soon icon="volume" label="Sound" why={TRANSITION_WHY} />
-            <Soon icon="clock" label="Duration" why={TRANSITION_WHY} />
-            <Soon icon="check" label="Apply To All" why={TRANSITION_WHY} />
-            <Soon icon="chevronRight" label="Advance Slide" why={TRANSITION_WHY} />
+            <Rows>
+              <Soon icon="volume" label="Sound" why="A transition sound is a media part the deck writer does not embed; one already in the file is kept." />
+              <div className="sl-rb-field" data-tip="Duration — how long the transition takes, in seconds">
+                <Icon name="clock" size={15} />
+                <span>Duration</span>
+                <SecondsField className="sl-tr-duration" value={transition && transitionKey !== 'none' ? transition.duration : null} disabled={!transition || transitionKey === 'none'} min={0.01} max={59} onCommit={(v) => act('transition', { duration: v })} />
+              </div>
+              <Button icon="check" label="Apply To All" disabled={count < 2} title={count < 2 ? 'Apply To All — the deck has one slide' : "Apply To All — this slide's transition, timing and advance settings on every slide"} onClick={() => act('transitionAll')} />
+            </Rows>
+            <Separator />
+            <Rows>
+              <div className="sl-rb-caption">Advance Slide</div>
+              <label className="sl-rb-field" data-tip="On Mouse Click — a click moves the show on from this slide">
+                <input type="checkbox" className="sl-tr-onclick" checked={transition ? transition.advanceOnClick !== false : true} onChange={(e) => act('transition', { advanceOnClick: e.target.checked })} />
+                <span>On Mouse Click</span>
+              </label>
+              <div className="sl-rb-field" data-tip="After — the show moves on by itself this many seconds after the slide is shown">
+                <label className="sl-rb-check">
+                  <input type="checkbox" className="sl-tr-after-on" checked={transition?.advanceAfter != null} onChange={(e) => act('transition', { advanceAfter: e.target.checked ? (transition?.advanceAfter ?? 0) : null })} />
+                  <span>After:</span>
+                </label>
+                <SecondsField className="sl-tr-after" value={transition?.advanceAfter ?? 0} min={0} max={3600} onCommit={(v) => act('transition', { advanceAfter: v })} />
+              </div>
+            </Rows>
           </Group>
         </>
       ) : null}

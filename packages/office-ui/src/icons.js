@@ -122,6 +122,19 @@ const PATHS = {
   globe: [P('M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z'), P('M3 12h18'), P('M12 3a14 14 0 0 1 0 18 14 14 0 0 1 0-18z')],
   shield: [P('M12 3 5 6v6c0 4.5 3 7.5 7 9 4-1.5 7-4.5 7-9V6z'), P('m9 12 2 2 4-4')],
   heart: [P('M12 20s-7-4.4-7-9.5A4 4 0 0 1 12 8a4 4 0 0 1 7 2.5C19 15.6 12 20 12 20z')],
+
+  // Presentation: the transition gallery, one small picture of each effect
+  trNone: [P('M4 6h16v12H4z'), P('m6 16 12-8')],
+  trCut: [P('M2.5 7h8v10h-8zM13.5 7h8v10h-8z')],
+  trFade: [P('M4 6h16v12H4z'), P('M9 6v12M13 6v12M17 6v12', { strokeDasharray: '1.2 2.2' })],
+  trPush: [P('M4 11h16v9H4z'), P('M12 3v6'), P('m9 6 3-3 3 3')],
+  trWipe: [P('M4 6h16v12H4z'), P('M13 6v12'), P('M16 6l4 4M16 11l4 4', { strokeWidth: 1.2 })],
+  trSplit: [P('M4 6h16v12H4z'), P('M12 6v12'), P('m9 10-2 2 2 2M15 10l2 2-2 2')],
+  trUncover: [P('M3 9h12v10H3z'), P('M9 9V5h12v10h-6')],
+  trCover: [P('M9 5h12v10H9z'), P('M9 9H3v10h12v-4')],
+  trBars: [P('M4 6h16v12H4z'), P('M4 9h10M4 12h14M4 15h7')],
+  trShape: [P('M4 6h16v12H4z'), P('M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z')],
+  trDissolve: [P('M4 6h16v12H4z'), P('M8 9h.01M12 11h.01M16 9h.01M9 14h.01M15 14h.01M12 15.5h.01', { strokeWidth: 2.4 })],
 };
 
 /**

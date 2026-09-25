@@ -16,6 +16,8 @@ import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { SITE } from '@rutba/office-formats/registry';
 import Presenter, { nextShown } from './slides/presenter.js';
 import SlidesRibbon from './slides/ribbon.js';
+import { ShowStage, TransitionPreview } from './slides/show.js';
+import { describeTransition } from './slides/motion.js';
 
 export default function Slides({ app, shell, boot }) {
   // A presenter window is the same app pointed at the same open document,
@@ -51,6 +53,10 @@ export default function Slides({ app, shell, boot }) {
   /** A shape to select once the slide a match is on has been shown. */
   const pendingSelect = useRef(null);
   const [blank, setBlank] = useState(false);
+  /** Transitions → Preview (and the preview a gallery pick plays): a fresh key per run, or null. */
+  const [preview, setPreview] = useState(null);
+  /** The slide the show has fully on screen — its transition over — which is when After starts counting. */
+  const [shownAt, setShownAt] = useState(null);
   // Set when a presenter window is driving, so this one follows rather than leads.
   const [led, setLed] = useState(false);
   /**
@@ -217,6 +223,9 @@ export default function Slides({ app, shell, boot }) {
     const el = stageRef.current;
     if (!el || !model?.size) return undefined;
     const measure = () => {
+      // A stage taken off the page (the show replaces the editor) measures
+      // nothing: keep the fit it had rather than jump to 100%.
+      if (!el.isConnected || !el.clientWidth) return;
       const w = el.clientWidth - 44;
       const h = el.clientHeight - 44;
       const scale = Math.min(1, w / model.size.width, h / model.size.height);
@@ -226,7 +235,7 @@ export default function Slides({ app, shell, boot }) {
     const ro = new ResizeObserver(measure);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [model?.size?.width, model?.size?.height, busy]);
+  }, [model?.size?.width, model?.size?.height, busy, present]);
   const menu = useMenu();
   const openFileRef = useRef(null);
   const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.() });
@@ -576,8 +585,28 @@ export default function Slides({ app, shell, boot }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [present, model, shell]);
 
+  /**
+   * One step of the show: the next (or previous) shown slide — through the
+   * presenter window's shared position when it leads, so the two windows
+   * never disagree about where the show is.
+   */
+  const showStep = (delta) => (led ? shell.present.set({ index: nextShown(model, index, delta) }) : setIndex((i) => nextShown(model, i, delta)));
+
+  // Advance Slide → After: once a slide is fully on screen (its transition
+  // over), the show moves on by itself after that many seconds. The
+  // presenter window never runs this clock; the audience window does.
+  const advanceAfter = model?.slide?.transition?.advanceAfter;
+  useEffect(() => {
+    if (!present || presenterFor || blank || advanceAfter == null) return undefined;
+    if (shownAt == null || shownAt !== model?.slide?.index) return undefined;
+    const timer = setTimeout(() => showStep(1), Math.max(0, advanceAfter * 1000));
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [present, blank, advanceAfter, shownAt, model?.slide?.index]);
+  useEffect(() => { if (!present) setShownAt(null); }, [present]);
+
   // A new slide means a new selection: the shape ids belong to the slide.
-  useEffect(() => { setSelected(pendingSelect.current ?? null); pendingSelect.current = null; setPainter(null); }, [index]);
+  useEffect(() => { setSelected(pendingSelect.current ?? null); pendingSelect.current = null; setPainter(null); setPreview(null); }, [index]);
 
 
   const slide = model?.slide;
@@ -962,6 +991,23 @@ export default function Slides({ app, shell, boot }) {
         await apply({ op: 'setText', slide: index, shape: selectedShape.id, paragraphs });
         return;
       }
+      // Transitions → the gallery, Effect Options, Duration and Advance
+      // Slide: one op merging what changed over this slide's transition. A
+      // pick from the gallery or its options plays itself on the stage, the
+      // way PowerPoint previews an effect as it is chosen.
+      case 'transition': {
+        const next = await apply({ op: 'setTransition', slide: index, spec: arg });
+        if (next && (arg.type !== undefined || arg.direction !== undefined) && arg.type !== 'none') setPreview({ kind: 'transition', key: Date.now() });
+        return;
+      }
+      case 'transitionAll': {
+        const next = await apply({ op: 'applyTransitionToAll', slide: index });
+        if (next) toast(next.opResult ? `This slide's transition is now on every slide` : 'Every slide already has this transition', { tone: 'good' });
+        return;
+      }
+      case 'preview':
+        setPreview({ kind: arg || 'transition', key: Date.now() });
+        return;
       default:
         toast(`${name} is not wired yet.`, { ms: 3000 });
     }
@@ -996,11 +1042,16 @@ export default function Slides({ app, shell, boot }) {
     return (
       <div
         className="sl-present"
-        onClick={() => (led ? shell.present.set({ index: nextShown(model, index, 1) }) : setIndex((i) => nextShown(model, i, 1)))}
+        onClick={() => {
+          // Advance Slide → On Mouse Click off: a click does not move this
+          // slide on (the keys still do), as in PowerPoint.
+          if (slide.transition?.advanceOnClick === false) return;
+          showStep(1);
+        }}
       >
         <style>{CSS}</style>
-        {/* A black screen is a thing speakers ask for by name: attention back on them. */}
-        {blank ? null : <div className="sl-present-stage" dangerouslySetInnerHTML={{ __html: slide.svg }} />}
+        {/* A black screen is a thing speakers ask for by name: attention back on them. It hides the stage rather than dropping it, so coming back does not replay the transition. */}
+        <ShowStage slide={slide} size={model.size} hidden={blank} onShown={setShownAt} />
         <div className="sl-present-bar">
           {index + 1} / {model.count}{led ? ' · driven from the presenter window' : ' · press Esc to leave'}
         </div>
@@ -1072,7 +1123,11 @@ export default function Slides({ app, shell, boot }) {
                     onClick={() => setIndex(i)}
                     onContextMenu={(e) => menu.open(e, menuItems(commands, ['slide.new', 'slide.delete']))}
                   >
-                    <span className="sl-thumb-n">{i + 1}</span>
+                    <span className="sl-thumb-n">
+                      {i + 1}
+                      {/* PowerPoint's little star under the number: this slide has a transition. */}
+                      {o.transition ? <span className="sl-thumb-fx" data-fx="transition" title={`Transition: ${describeTransition({ type: o.transition })}`}><Icon name="star" size={10} /></span> : null}
+                    </span>
                     <span className="sl-thumb-card" title={`${o.title || `Slide ${i + 1}`}${o.hidden ? ' — hidden' : ''}`}>
                       {o.thumbnail
                         ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} />
@@ -1141,6 +1196,7 @@ export default function Slides({ app, shell, boot }) {
                       <button type="button" className={`sl-sortercard${i === index ? ' active' : ''}${o.hidden ? ' hidden' : ''}`} onClick={() => { setIndex(i); patchView({ mode: 'normal' }); }} title={`${o.title || `Slide ${i + 1}`}${o.hidden ? ' — hidden' : ''}`}>
                         {o.thumbnail ? <span className="sl-thumb-pic" dangerouslySetInnerHTML={{ __html: o.thumbnail }} /> : <span className="sl-thumb-title">{o.title || 'Untitled slide'}</span>}
                         <span className="sl-sortern">{i + 1}</span>
+                        {o.transition ? <span className="sl-sorterfx" title="This slide has a transition"><Icon name="star" size={11} /></span> : null}
                       </button>
                     </React.Fragment>
                   ))}
@@ -1163,6 +1219,10 @@ export default function Slides({ app, shell, boot }) {
                 {view.ruler ? <><div className="sl-ruler-h" /><div className="sl-ruler-v" /></> : null}
                 <div className="sl-slide" style={{ width: model.size.width, height: model.size.height, transform: `scale(${view.zoom ?? fit})`, transformOrigin: 'top left' }}>
                   <div className="sl-svg" dangerouslySetInnerHTML={{ __html: slide.svg }} />
+                  {/* Transitions → Preview: the slide before (or black) into this one, over the stage. */}
+                  {preview?.kind === 'transition' && slide.transition ? (
+                    <TransitionPreview key={preview.key} fromSvg={index > 0 ? model.outline?.[index - 1]?.thumbnail || '' : ''} toSvg={slide.svg} transition={slide.transition} onDone={() => setPreview(null)} />
+                  ) : null}
                   {view.gridlines ? <div className="sl-gridlines" /> : null}
                   {view.guides ? <div className="sl-guides" /> : null}
                   {/*
@@ -2009,10 +2069,29 @@ const CSS = `
 .sl-notespage { border-top: 1px solid var(--line); background: var(--surface); padding: 12px 18px; font: inherit; font-size: 13px; min-height: 160px; resize: none; outline: none; color: var(--ink); }
 
 .sl-present { position: fixed; inset: 0; background: #000; display: grid; place-items: center; z-index: 200; }
-.sl-present-stage { width: min(100vw, 177.78vh); }
-.sl-present-stage svg { display: block; width: 100%; height: auto; }
+/* The show: two layers in one box while a transition plays, one otherwise. */
+.sl-show-stage { position: relative; overflow: hidden; background: #000; isolation: isolate; }
+.sl-show-layer { position: absolute; inset: 0; background: #fff; will-change: transform, opacity, clip-path; }
+.sl-show-layer svg { display: block; width: 100%; height: 100%; }
+/* Transitions → Preview, over the editing stage. */
+.sl-preview { position: absolute; inset: 0; z-index: 9; overflow: hidden; background: #000; pointer-events: none; }
+.sl-preview-layer { position: absolute; inset: 0; background: #fff; }
+.sl-preview-layer:empty { background: #000; }
+.sl-preview-layer svg { display: block; width: 100%; height: 100%; }
+/* The strip's star: this slide has a transition (or animations). */
+.sl-thumb-n { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.sl-thumb-fx { display: grid; place-items: center; color: var(--ink-3); text-decoration: none; }
+.sl-thumb.active .sl-thumb-fx { color: var(--accent); }
+.sl-sorterfx { position: absolute; right: 6px; bottom: 4px; display: grid; place-items: center; color: var(--ink-3); background: rgba(255,255,255,.85); padding: 1px 3px; border-radius: 3px; }
+/* Ribbon fields: Duration, the Advance Slide ticks and After. */
+.sl-rb-field { display: flex; align-items: center; gap: 6px; height: 26px; font-size: 12px; color: var(--ink-2); white-space: nowrap; padding: 0 4px; }
+.sl-rb-field svg { color: var(--ink-2); }
+.sl-rb-check { display: flex; align-items: center; gap: 6px; }
+.sl-rb-field input[type="checkbox"] { margin: 0; accent-color: var(--accent); }
+.sl-rb-seconds { width: 64px; height: 24px; padding: 0 4px 0 7px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.sl-rb-caption { height: 20px; display: flex; align-items: center; padding: 0 4px; font-size: 11px; color: var(--ink-3); }
 .sl-present-bar {
-  position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%);
+  position: fixed; z-index: 1; bottom: 14px; left: 50%; transform: translateX(-50%);
   color: rgba(255,255,255,0.55); font-size: 12px; letter-spacing: 0.02em;
 }
 `;

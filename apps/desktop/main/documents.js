@@ -1241,6 +1241,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // once the group is gone, the way PowerPoint leaves them selected.
     ungroupShape: (d, a) => d.ungroupShape(a.slide, a.shape).join(','),
     setShapeHidden: (d, a) => d.setShapeHidden(a.slide, a.shape, Boolean(a.hidden)),
+    // Transitions: this slide's transition set, changed (only what `spec`
+    // names) or taken off (`spec` null); and Apply To All, which answers
+    // how many other slides changed.
+    setTransition: (d, a) => d.setTransition(a.slide, a.spec ?? null),
+    applyTransitionToAll: (d, a) => d.applyTransitionToAll(a.slide),
     // Slide Show → Hide Slide: this slide left out of the show.
     setSlideHidden: (d, a) => d.setSlideHidden(a.slide, Boolean(a.hidden)),
     renameShape: (d, a) => d.renameShape(a.slide, a.shape, a.name),

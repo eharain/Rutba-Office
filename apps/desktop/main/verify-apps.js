@@ -26,6 +26,7 @@ import { verifyViewer } from './verify-viewer.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
 import { verifyDeckArrange } from './verify-deck-arrange.js';
 import { verifyDeckFx } from './verify-deck-fx.js';
+import { verifyDeckTransitions } from './verify-deck-transitions.js';
 import { verifyWordToc } from './verify-word-toc.js';
 import { verifyOutline } from './verify-outline.js';
 import { verifyDataTools } from './verify-datatools.js';
@@ -4236,7 +4237,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4286,6 +4287,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('datatools')) await sheetDataTools();
     if (only.includes('arrange')) await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('deckfx')) await verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
+    if (only.includes('transitions')) await verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('providers')) await mailProviders();
     if (only.includes('signature')) await mailSignature();
     if (only.includes('sendlater')) await mailSendLater();
@@ -4387,6 +4389,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slideChart();
   await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
   await verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
+  await verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
   await sheetFill();
   await wordPictures();
   await wordLook();
