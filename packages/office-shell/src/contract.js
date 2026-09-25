@@ -155,6 +155,7 @@ export const METHODS = {
     'deleteRule',   // ({ id }) -> { removed }
     'testRules',    // ({ accountId, folder }) -> { matched, of, sample }  changes nothing
     'runRules',     // ({ accountId, folder }) -> { matched, moved, starred, read, deleted }
+    'deliverTest',  // ({ accountId, folder, raw }) -> { added, autoReplied } — a fake message arriving; refused outside a check run
   ],
   calendar: [
     'calendars',      // () -> [{ id, name, colour, visible, count }]

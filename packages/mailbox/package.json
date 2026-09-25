@@ -15,7 +15,8 @@
     "./import": "./src/import.js",
     "./store": "./src/store.js",
     "./props": "./src/props.js",
-    "./signature": "./src/signature.js"
+    "./signature": "./src/signature.js",
+    "./schedule": "./src/schedule.js"
   },
   "dependencies": {
     "@rutba/office-formats": "*",

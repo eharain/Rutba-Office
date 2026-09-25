@@ -29,7 +29,7 @@ import { DefaultsDialog } from '../defaults.js';
 import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags } from './mail/parts.js';
 import Reader from './mail/reader.js';
 import Compose from './mail/compose.js';
-import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog } from './mail/dialogs.js';
+import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog } from './mail/dialogs.js';
 import { RulesDialog } from './mail/rules.js';
 import { withSignature } from '@rutba/mailbox/signature';
 
@@ -503,6 +503,35 @@ export default function Mail({ app, shell }) {
     [shell]
   );
 
+  /** Send now: take it off the schedule and hand it to SMTP immediately. */
+  const sendOutboxNow = useCallback(
+    async (item) => {
+      try {
+        await shell.mail.unsend({ id: item.id });
+        await shell.mail.send({ accountId: item.accountId, draft: item.draft });
+        toast(`Sent to ${item.draft?.to || 'recipient'}`, { tone: 'good' });
+        refreshList();
+      } catch (err) {
+        toast(err.message, { tone: 'bad', ms: 7000 });
+      } finally {
+        setOutbox(await shell.mail.outbox());
+      }
+    },
+    [shell, toast, refreshList]
+  );
+
+  /** Cancel a scheduled send. The words are not thrown away — they go to Drafts. */
+  const cancelOutboxItem = useCallback(
+    async (item) => {
+      await shell.mail.unsend({ id: item.id });
+      await shell.mail.saveDraft({ accountId: item.accountId, draft: item.draft });
+      setOutbox(await shell.mail.outbox());
+      toast('Moved to Drafts', { tone: 'good' });
+      refreshList();
+    },
+    [shell, toast, refreshList]
+  );
+
   /* ── attachments ──────────────────────────────────────────────────────── */
 
   const saveAttachment = useCallback(
@@ -923,6 +952,14 @@ export default function Mail({ app, shell }) {
                 />
                 <Button
                   tall
+                  icon="clock"
+                  label={account?.autoReply?.enabled ? 'Out of office (on)' : 'Out of office'}
+                  pressed={Boolean(account?.autoReply?.enabled)}
+                  disabled={!account}
+                  onClick={() => setDialog({ kind: 'ooo', accountId: account.id })}
+                />
+                <Button
+                  tall
                   icon="trash"
                   label="Remove"
                   disabled={!account}
@@ -1059,6 +1096,22 @@ export default function Mail({ app, shell }) {
         </>
       }
     >
+      {!unified && account?.autoReply?.enabled ? (
+        <div className="ml-ooo-banner">
+          <Icon name="info" size={14} />
+          <span>Automatic replies are on for {account.email}.</span>
+          <button
+            type="button"
+            onClick={async () => {
+              await shell.mail.updateAccount({ id: account.id, patch: { autoReply: { ...account.autoReply, enabled: false } } });
+              loadAccounts();
+            }}
+          >
+            Turn off
+          </button>
+        </div>
+      ) : null}
+
       {!accounts.length ? (
         <Empty icon="mail" title="No mail here yet">
           Add an account to fetch mail, or import what you already have — an Outlook .pst or .ost, an mbox, or a
@@ -1142,9 +1195,28 @@ export default function Mail({ app, shell }) {
                 <List>
                   <Item icon="attach" label="Attachments" current={view === 'files'} onClick={() => setView('files')} />
                   <Item icon="reply" label="People" current={view === 'people'} onClick={() => setView('people')} />
+                  <Item
+                    icon="clock"
+                    label="Outbox"
+                    current={dialog?.kind === 'outbox'}
+                    count={outbox.filter((o) => o.accountId === accountId).length || undefined}
+                    onClick={() => setDialog({ kind: 'outbox' })}
+                    title="Scheduled and waiting to send — sends while Rutba Office is running"
+                  />
                 </List>
               </>
-            ) : null}
+            ) : (
+              <List>
+                <Item
+                  icon="clock"
+                  label="Outbox"
+                  current={dialog?.kind === 'outbox'}
+                  count={outbox.length || undefined}
+                  onClick={() => setDialog({ kind: 'outbox' })}
+                  title="Every account's scheduled and waiting mail"
+                />
+              </List>
+            )}
           </Panel>
 
           {view === 'files' ? (
@@ -1369,33 +1441,56 @@ export default function Mail({ app, shell }) {
       ) : null}
 
       {dialog?.kind === 'outbox' ? (
-        <Dialog title="Waiting to go out" width={520} onClose={() => setDialog(null)} actions={<Button primary label="Close" onClick={() => setDialog(null)} />}>
+        <Dialog title="Outbox" width={620} onClose={() => setDialog(null)} actions={<Button primary label="Close" onClick={() => setDialog(null)} />}>
           {outbox.length ? (
             <div className="ml-found">
-              {outbox.map((item) => (
-                <div key={item.id} className="ml-found-item" style={{ cursor: 'default' }}>
+              {(unified ? outbox : outbox.filter((o) => o.accountId === accountId)).map((item) => (
+                <div key={item.id} className="ml-found-item" style={{ cursor: 'default', alignItems: 'flex-start' }}>
                   <span className="ml-found-logo">
                     <Icon name="clock" size={15} />
                   </span>
                   <span className="grow">
                     <div className="who">{item.draft?.subject || '(no subject)'}</div>
                     <div className="what">
-                      To {item.draft?.to} · {new Date(item.at) > new Date() ? `goes out ${new Date(item.at).toLocaleString()}` : 'going now'}
-                      {item.error ? ` · last error: ${item.error}` : ''}
+                      To {item.draft?.to} · {new Date(item.at) > new Date() ? `sends ${new Date(item.at).toLocaleString()}` : 'sending now'}
+                      {unified ? ` · ${accounts.find((a) => a.id === item.accountId)?.email || item.accountId}` : ''}
+                      {item.error ? ` · last try failed: ${item.error} — trying again` : ''}
+                    </div>
+                    <div className="ml-outbox-actions">
+                      <Button label="Edit" title="Take it back and reopen it in Compose" onClick={() => unsend(item.id)} />
+                      <Button label="Send now" onClick={() => sendOutboxNow(item)} />
+                      <Button label="Cancel" title="Move it to Drafts" onClick={() => cancelOutboxItem(item)} />
                     </div>
                   </span>
-                  <Button label="Take back" onClick={() => unsend(item.id)} />
                 </div>
               ))}
             </div>
           ) : (
             <p style={{ marginTop: 0 }}>Nothing is waiting.</p>
           )}
+          <p className="rw-hint" style={{ marginBottom: 0 }}>
+            A scheduled or held message sends when Rutba Office is running — one that falls due while it is closed
+            goes out the next time it opens. A failed send stays here with the error and keeps retrying.
+          </p>
         </Dialog>
       ) : null}
 
       {dialog?.kind === 'signature' ? (
         <SignatureDialog
+          shell={shell}
+          accounts={accounts}
+          accountId={dialog.accountId}
+          onClose={() => setDialog(null)}
+          onSaved={() => {
+            setDialog(null);
+            loadAccounts();
+          }}
+          toast={toast}
+        />
+      ) : null}
+
+      {dialog?.kind === 'ooo' ? (
+        <OutOfOfficeDialog
           shell={shell}
           accounts={accounts}
           accountId={dialog.accountId}

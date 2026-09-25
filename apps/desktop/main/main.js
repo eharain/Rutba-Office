@@ -89,6 +89,29 @@ createShell({
     // is left in that folder at start-up is what a crash took.
     const doc = createDocumentService({ holdBlob: hold, recoveryDir: path.join(stores.dir, 'recovery') });
 
+    // The address book, with the people mail has seen behind it for Compose
+    // to complete from. Built before the mail service, which needs it too —
+    // an account's "only reply to people in my contacts" option asks it
+    // whether a sender is a card it knows. Its own `people` callback reaches
+    // back into `services.mail` through the closure below, not through this
+    // value, so which one is built first does not matter to it.
+    const contacts = createContactsService({
+      stores,
+      broadcast,
+      people: () => {
+        try {
+          const out = [];
+          for (const account of services?.mail?.accounts?.() || []) {
+            const { rows = [] } = services.mail.people({ accountId: account.id, limit: 300 }) || {};
+            for (const p of rows) out.push({ name: p.name || '', email: p.address });
+          }
+          return out;
+        } catch {
+          return [];
+        }
+      },
+    });
+
     return (services = {
       doc,
       // Paper and PDFs, for every kind of document. It asks the document
@@ -119,26 +142,10 @@ createShell({
         broadcast,
         userData: stores.dir,
         oauth,
+        contacts,
       }),
-      // The address book, with the people mail has seen behind it for
-      // Compose to complete from; and the calendar, which answers an
-      // invitation through a message mail sends.
-      contacts: createContactsService({
-        stores,
-        broadcast,
-        people: () => {
-          try {
-            const out = [];
-            for (const account of services?.mail?.accounts?.() || []) {
-              const { rows = [] } = services.mail.people({ accountId: account.id, limit: 300 }) || {};
-              for (const p of rows) out.push({ name: p.name || '', email: p.address });
-            }
-            return out;
-          } catch {
-            return [];
-          }
-        },
-      }),
+      // The calendar answers an invitation through a message mail sends.
+      contacts,
       calendar: createCalendarService({ stores, broadcast, mail: { accounts: () => services?.mail?.accounts?.() || [] } }),
       // Renaming touches the file system and the document service both,
       // which the shell's own `app` namespace knows about neither — so this

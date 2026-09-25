@@ -485,6 +485,22 @@ select.rw-input { appearance: auto; }
   border: 0; background: none; color: #7fb0ff; font: inherit; font-weight: 600;
   cursor: pointer; padding: 0;
 }
+
+/* the automatic-reply banner and its settings toggle ---------------------- */
+.ml-ooo-banner {
+  display: flex; align-items: center; gap: 10px; padding: 8px 16px;
+  background: var(--accent-soft); color: var(--ink); font-size: 12.5px;
+  border-bottom: 1px solid var(--line);
+}
+.ml-ooo-banner button {
+  border: 0; background: none; color: var(--accent); font: inherit; font-weight: 600;
+  cursor: pointer; padding: 0; margin-left: auto;
+}
+.ml-ooo-toggle { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin: 10px 0; cursor: pointer; }
+.ml-ooo-toggle input { margin: 0; }
+
+/* an Outbox item's own actions -------------------------------------------- */
+.ml-outbox-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 `;
 
 /** Injected once, rather than per render of a large tree. */

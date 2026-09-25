@@ -19,9 +19,15 @@ import { writeMbox } from '@rutba/mailbox/mbox';
 import { insightFor } from './mail-insight.js';
 import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
+import { planAutoReplies, buildReply } from './mail-ooo.js';
 
-// A check run never asks the network where a mail server is.
+// A check run never asks the network where a mail server is, and never opens
+// a real SMTP connection either — see `defaultTransport` below.
 const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE);
+
+// How long a failed send waits before the scheduler tries it again on its own.
+// A person can always press Retry sooner; this is only the automatic pace.
+const RETRY_DELAY_MS = 5 * 60_000;
 
 const SPECIAL = [
   { test: /^inbox$/i, role: 'inbox', icon: 'inbox', order: 0 },
@@ -73,8 +79,61 @@ function classify(name) {
   return { role: 'folder', icon: 'folder', order: 9 };
 }
 
-export function createMailService({ stores, holdBlob, broadcast, userData, oauth = null }) {
+/**
+ * How a message actually leaves. Real life imports `nodemailer` and speaks
+ * SMTP; a check run — and any engine test that builds this service directly
+ * — hands in its own `smtp`, so nothing here ever opens a socket while a
+ * check is deciding whether the Outbox behaves.
+ */
+function defaultTransport() {
+  return {
+    async send({ account, credentials, draft }) {
+      const nodemailer = (await import('nodemailer')).default;
+      const transport = nodemailer.createTransport({
+        host: account.smtp.host,
+        port: account.smtp.port,
+        secure: account.smtp.secure,
+        requireTLS: !account.smtp.secure && account.smtp.starttls !== false,
+        auth: credentials.accessToken
+          ? { type: 'OAuth2', user: account.smtp.user || account.email, accessToken: credentials.accessToken }
+          : { user: account.smtp.user || account.email, pass: credentials.pass },
+      });
+      return transport.sendMail({
+        from: { name: account.name, address: account.email },
+        to: draft.to,
+        cc: draft.cc || undefined,
+        bcc: draft.bcc || undefined,
+        subject: draft.subject || '',
+        text: draft.text || '',
+        html: draft.html || undefined,
+        inReplyTo: draft.inReplyTo ? `<${draft.inReplyTo}>` : undefined,
+        references: draft.references?.length ? draft.references.map((r) => `<${r}>`) : undefined,
+        headers: draft.headers || undefined,
+        attachments: (draft.attachments || []).map((a) => ({ filename: a.filename, path: a.path })),
+      });
+    },
+  };
+}
+
+/** A check run's own transport: nothing leaves the process, and every send succeeds at once. */
+function fakeTransport() {
+  return { async send() { return { messageId: `check-${crypto.randomUUID()}` }; } };
+}
+
+/** Is this address one of the cards in Contacts? Used only for "reply to contacts only". */
+function isKnownContact(contacts, address) {
+  const target = String(address || '').trim().toLowerCase();
+  if (!target || !contacts) return false;
+  try {
+    return (contacts.list({ query: target }) || []).some((c) => (c.emails || []).some((e) => String(e.value || '').trim().toLowerCase() === target));
+  } catch {
+    return false;
+  }
+}
+
+export function createMailService({ stores, holdBlob, broadcast, userData, oauth = null, contacts = null, now = () => Date.now(), smtp = null }) {
   const store = new MailStore(path.join(userData, 'mail'));
+  const transport = smtp || (CHECK_RUN ? fakeTransport() : defaultTransport());
 
   const accounts = () => stores.settings.get('mail.accounts', []);
   const setAccounts = (list) => {
@@ -135,62 +194,127 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
   };
 
   /**
+   * What "new mail arrived" means, whichever door it came through — an IMAP
+   * fetch for a live account, or `deliverTest` standing in for one under a
+   * check. Rules run first, exactly as they always have; automatic replies
+   * run after, over the same arrival, so a rule that moves a message to
+   * another folder does not also silence an out-of-office reply that owes
+   * nobody an explanation about which folder it landed in.
+   */
+  async function runArrivalPipeline(accountId, folder, added) {
+    if (!added) return { filed: null, autoReplied: 0 };
+    const { rows } = store.list(accountId, folder, { limit: added });
+    const freshMessages = rows.map((r) => store.get(accountId, folder, r.id)).filter(Boolean);
+
+    let filed = null;
+    const rules = stores.settings.get('mail.rules', []);
+    if (rules.some((r) => r.enabled !== false)) {
+      const plan = planRules(rows.map((r) => ({ ...r, folder })), rules);
+      if (plan.length) filed = applyPlan(plan, { store, accountId, folderFor });
+    }
+
+    let autoReplied = 0;
+    const account = accounts().find((a) => a.id === accountId);
+    if (account?.autoReply?.enabled) {
+      const settings = account.autoReply;
+      const plan = planAutoReplies(freshMessages, account, now(), {
+        sentTo: settings.sentTo || [],
+        isContact: settings.contactsOnly ? (address) => isKnownContact(contacts, address) : null,
+      });
+      for (const { message } of plan) {
+        try {
+          await service.send({ accountId, draft: buildReply(message, account, settings) });
+          autoReplied++;
+        } catch {
+          /* one address that will not accept the reply should not stop the rest */
+        }
+      }
+      if (plan.length) {
+        const list = accounts();
+        const at = list.findIndex((a) => a.id === accountId);
+        if (at >= 0) {
+          const seen = new Set([...(list[at].autoReply?.sentTo || []), ...plan.map((p) => p.to)]);
+          list[at] = { ...list[at], autoReply: { ...list[at].autoReply, sentTo: [...seen] } };
+          setAccounts(list);
+        }
+      }
+    }
+
+    return { filed, autoReplied };
+  }
+
+  /**
    * Send whatever is due, then sleep until the next one.
    *
    * One timer for the whole queue rather than one per message: a queue read
    * from settings after a restart has no timers at all, and rebuilding N of
    * them would be a way to get N sends out of one message. The queue is the
-   * truth; the timer is only how we wake up.
+   * truth; the timer is only how we wake up — and the truth is read through
+   * `now()`, so a test can move the clock and call this directly instead of
+   * waiting on a real timer.
+   *
+   * A failure never loses the message. It goes back in the Outbox carrying
+   * the error, due again in `RETRY_DELAY_MS`, and stays there — waiting on
+   * either that automatic retry or a person pressing Retry — for as long as
+   * it keeps failing. Nothing here moves it to Drafts on its own; that is a
+   * choice `cancel` (called from the window) makes, never a silent one.
    */
   let outboxTimer = null;
+  // Two callers can ask for a pass at once — `queue()` fires one the moment
+  // a message is added, and a person can press Retry while start-up's own
+  // pass, or another queue(), is still running. A chain rather than a
+  // boolean lock: each call gets a real pass over whatever the queue holds
+  // once its turn comes, never a promise left over from an earlier call,
+  // but never two passes touching the settings key at once either — which
+  // is what let an item be read as gone before the pass that removed it
+  // had actually finished sending it.
+  let outboxChain = Promise.resolve();
   function pumpOutbox() {
+    outboxChain = outboxChain.then(runOutboxPass, runOutboxPass);
+    return outboxChain;
+  }
+
+  async function runOutboxPass() {
     if (outboxTimer) clearTimeout(outboxTimer);
     outboxTimer = null;
 
-    const outbox = stores.settings.get('mail.outbox', []);
-    if (!outbox.length) return;
+    // A loop rather than recursion: each turn re-reads the queue, because a
+    // failure just put something back and a concurrent `queue()` may have
+    // added something new, and neither should be lost waiting for a call
+    // stack that already has an answer for what the queue used to hold.
+    for (;;) {
+      const outbox = stores.settings.get('mail.outbox', []);
+      if (!outbox.length) return;
 
-    const now = Date.now();
-    const due = outbox.filter((o) => new Date(o.at).getTime() <= now);
-    const waiting = outbox.filter((o) => new Date(o.at).getTime() > now);
+      const nowMs = now();
+      const due = outbox.filter((o) => new Date(o.at).getTime() <= nowMs).sort((a, b) => new Date(a.at) - new Date(b.at));
+      const waiting = outbox.filter((o) => new Date(o.at).getTime() > nowMs);
 
-    if (due.length) {
+      if (!due.length) {
+        const soonest = Math.min(...waiting.map((o) => new Date(o.at).getTime()));
+        outboxTimer = setTimeout(() => { pumpOutbox().catch(() => {}); }, Math.min(Math.max(soonest - now(), 500), 60_000));
+        outboxTimer.unref?.();
+        return;
+      }
+
       // Taken off the queue *before* sending, so a crash mid-send cannot send
       // the same message twice on the next start. A failure puts it back.
       stores.settings.set('mail.outbox', waiting);
       for (const item of due) {
-        service
-          .send({ accountId: item.accountId, draft: item.draft })
-          .then(() => broadcast?.('mail:sent', { id: item.id, to: item.draft?.to || '' }))
-          .catch((error) => {
-            const message = String(error?.message || error);
-            const attempts = (item.attempts || 0) + 1;
-            if (attempts < 3) {
-              const held = stores.settings.get('mail.outbox', []);
-              stores.settings.set('mail.outbox', [
-                ...held,
-                { ...item, attempts, error: message, at: new Date(Date.now() + 5 * 60_000).toISOString() },
-              ]);
-              pumpOutbox();
-            } else {
-              // Three failures is not a network blip. Keep the words, put them
-              // back in Drafts, and say so — losing it silently is the one
-              // outcome that is never acceptable.
-              try {
-                service.saveDraft({ accountId: item.accountId, draft: item.draft });
-              } catch {
-                /* the account itself is gone */
-              }
-            }
-            broadcast?.('mail:sendFailed', { id: item.id, message, attempts, gaveUp: attempts >= 3 });
-          });
+        try {
+          await service.send({ accountId: item.accountId, draft: item.draft });
+          broadcast?.('mail:sent', { id: item.id, to: item.draft?.to || '' });
+        } catch (error) {
+          const message = String(error?.message || error);
+          const attempts = (item.attempts || 0) + 1;
+          const held = stores.settings.get('mail.outbox', []);
+          stores.settings.set('mail.outbox', [
+            ...held,
+            { ...item, attempts, error: message, at: new Date(nowMs + RETRY_DELAY_MS).toISOString() },
+          ]);
+          broadcast?.('mail:sendFailed', { id: item.id, message, attempts });
+        }
       }
-    }
-
-    if (waiting.length) {
-      const soonest = Math.min(...waiting.map((o) => new Date(o.at).getTime()));
-      outboxTimer = setTimeout(pumpOutbox, Math.min(Math.max(soonest - Date.now(), 500), 60_000));
-      outboxTimer.unref?.();
     }
   }
 
@@ -438,22 +562,34 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       } finally {
         await client.logout().catch(() => {});
       }
-      // Rules run on arrival, over what has just arrived rather than over the
-      // whole folder — a rule is about the message coming in, and re-running
-      // one across 50,000 old messages every fetch would be a different and
-      // much slower feature.
-      let filed = null;
-      if (added) {
-        const rules = stores.settings.get('mail.rules', []);
-        if (rules.some((r) => r.enabled !== false)) {
-          const { rows } = store.list(accountId, folder || 'Inbox', { limit: added });
-          const plan = planRules(rows.map((r) => ({ ...r, folder: folder || 'Inbox' })), rules);
-          if (plan.length) filed = applyPlan(plan, { store, accountId, folderFor });
-        }
-      }
+      // Rules and automatic replies both run on arrival, over what has just
+      // arrived rather than over the whole folder — re-running either across
+      // 50,000 old messages every fetch would be a different and much slower
+      // feature. See runArrivalPipeline.
+      const { filed, autoReplied } = await runArrivalPipeline(accountId, folder || 'Inbox', added);
 
       if (added) broadcast?.('mail:new', { accountId, folder, count: added, filed });
-      return { added, filed, total: store.counts(accountId, folder || 'Inbox').total };
+      return { added, filed, autoReplied, total: store.counts(accountId, folder || 'Inbox').total };
+    },
+
+    /**
+     * A fake message arriving, so a window check can prove rules and
+     * automatic replies without a network connection to an inbox — the same
+     * way `fakeTransport` proves a send without a network connection to send
+     * it on. Refused outside a check run: this is a seam for the harness,
+     * not a feature for a real mailbox.
+     */
+    deliverTest: ({ accountId, folder = 'Inbox', raw }) => {
+      if (!CHECK_RUN) throw new Error('deliverTest only runs during verification.');
+      find(accountId); // throws its own message if the account is not set up
+      const parsed = parseMessage(raw);
+      parsed.unread = true;
+      const added = store.putMany(accountId, folder, [parsed]);
+      store.upsertFolder(accountId, { path: folder, name: folder, ...classify(folder) });
+      return runArrivalPipeline(accountId, folder, added).then(({ filed, autoReplied }) => {
+        if (added) broadcast?.('mail:new', { accountId, folder, count: added, filed });
+        return { added, autoReplied };
+      });
     },
 
     messages: ({ accountId, folder, offset = 0, limit = 100, query = '', unreadOnly = false }) =>
@@ -682,11 +818,11 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      * restart because it is written to settings rather than held in a timer.
      */
     queue: ({ accountId, draft, at = null, holdSeconds = 0 }) => {
-      const when = at ? new Date(at).toISOString() : new Date(Date.now() + holdSeconds * 1000).toISOString();
-      const item = { id: crypto.randomUUID(), accountId, draft, at: when, queuedAt: new Date().toISOString() };
+      const when = at ? new Date(at).toISOString() : new Date(now() + holdSeconds * 1000).toISOString();
+      const item = { id: crypto.randomUUID(), accountId, draft, at: when, queuedAt: new Date(now()).toISOString() };
       const outbox = stores.settings.get('mail.outbox', []);
       stores.settings.set('mail.outbox', [...outbox, item]);
-      pumpOutbox();
+      pumpOutbox().catch(() => {});
       return item;
     },
 
@@ -701,34 +837,30 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       return item;
     },
 
+    /**
+     * Actually hand a message to the wire — or, in a check run, to
+     * `fakeTransport`, which hands it straight back. Used for an ordinary
+     * compose, for the Outbox scheduler, and for an automatic reply, which is
+     * why `draft` can carry `inReplyTo`/`references`/`headers`: an out-of-office
+     * answer is not a different code path, only a different draft.
+     */
     send: async ({ accountId, draft }) => {
       const account = find(accountId);
-      const nodemailer = (await import('nodemailer')).default;
-      const credentials = await credentialsFor(account);
-      const transport = nodemailer.createTransport({
-        host: account.smtp.host,
-        port: account.smtp.port,
-        secure: account.smtp.secure,
-        // A plain port is upgraded with STARTTLS before anything is sent, or not used.
-        requireTLS: !account.smtp.secure && account.smtp.starttls !== false,
-        auth: credentials.accessToken
-          ? { type: 'OAuth2', user: account.smtp.user || account.email, accessToken: credentials.accessToken }
-          : { user: account.smtp.user || account.email, pass: credentials.pass },
-      });
-      const info = await transport.sendMail({
-        from: { name: account.name, address: account.email },
-        to: draft.to,
-        cc: draft.cc || undefined,
-        bcc: draft.bcc || undefined,
-        subject: draft.subject || '',
-        text: draft.text || '',
-        html: draft.html || undefined,
-        attachments: (draft.attachments || []).map((a) => ({ filename: a.filename, path: a.path })),
-      });
+      // A check run's own fake transport never opens a connection, so it has
+      // no use for a password either — which matters because the fixture it
+      // sends through is a local, imported account (seed-mail's mbox), the
+      // one kind of account that never has one to store.
+      const credentials = CHECK_RUN ? { user: account.imap?.user || account.email } : await credentialsFor(account);
+      const info = await transport.send({ account, credentials, draft });
       // A sent message belongs in Sent whether or not the server puts it there.
+      const extra = [];
+      if (draft.inReplyTo) extra.push(`In-Reply-To: <${draft.inReplyTo}>`);
+      if (draft.references?.length) extra.push(`References: ${draft.references.map((r) => `<${r}>`).join(' ')}`);
+      for (const [k, v] of Object.entries(draft.headers || {})) extra.push(`${k}: ${v}`);
       const stored = parseMessage(
         `From: ${account.email}\r\nTo: ${draft.to}\r\nSubject: ${draft.subject || ''}\r\n` +
-          `Date: ${new Date().toUTCString()}\r\nMessage-ID: <${info.messageId || crypto.randomUUID()}>\r\n\r\n${draft.text || ''}`
+          `Date: ${new Date(now()).toUTCString()}\r\nMessage-ID: <${info.messageId || crypto.randomUUID()}>\r\n` +
+          `${extra.length ? extra.join('\r\n') + '\r\n' : ''}\r\n${draft.text || ''}`
       );
       stored.unread = false;
       store.put(accountId, 'Sent', stored);
@@ -739,7 +871,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     saveDraft: ({ accountId, draft }) => {
       const message = parseMessage(
         `From: ${draft.from || ''}\r\nTo: ${draft.to || ''}\r\nSubject: ${draft.subject || ''}\r\n` +
-          `Date: ${new Date().toUTCString()}\r\nMessage-ID: <draft-${draft.id || crypto.randomUUID()}>\r\n\r\n${draft.text || ''}`
+          `Date: ${new Date(now()).toUTCString()}\r\nMessage-ID: <draft-${draft.id || crypto.randomUUID()}>\r\n\r\n${draft.text || ''}`
       );
       const id = store.put(accountId, 'Drafts', message, { force: true });
       store.upsertFolder(accountId, { path: 'Drafts', name: 'Drafts', role: 'drafts' });
@@ -853,10 +985,18 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     },
 
     search: ({ accountId, query, limit }) => store.search(accountId, query, { limit }),
+
+    /**
+     * Exposed for the caller after moving an injected clock, and for a test
+     * that wants to wait on a tick instead of a real timer. Not part of the
+     * platform contract — nothing outside this file and its tests calls it.
+     */
+    pumpOutbox: () => pumpOutbox(),
   };
 
-  // Anything left over from the last run goes out now.
-  pumpOutbox();
+  // Anything left over from the last run — including one that fell due while
+  // the application was closed — goes out now.
+  pumpOutbox().catch(() => {});
 
   return service;
 }

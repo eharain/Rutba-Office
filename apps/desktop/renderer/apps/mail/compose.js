@@ -16,6 +16,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Dialog, Field, Input, Icon, Select, Separator, formatBytes } from '@rutba/office-ui';
 import { stripTags } from './parts.js';
 import { swapSignature } from '@rutba/mailbox/signature';
+import { scheduleChoices, parseCustomSchedule } from '@rutba/mailbox/schedule';
 
 const exec = (command, value) => {
   try {
@@ -24,27 +25,6 @@ const exec = (command, value) => {
     /* a command this engine does not know; the text is unharmed */
   }
 };
-
-/** Local midnight-relative choices, the way a person thinks about "later". */
-function scheduleChoices() {
-  const now = new Date();
-  const at = (days, hour) => {
-    const d = new Date(now);
-    d.setDate(d.getDate() + days);
-    d.setHours(hour, 0, 0, 0);
-    return d;
-  };
-  const tonight = at(0, 21);
-  const options = [];
-  if (tonight > now) options.push({ label: 'Later today, 9pm', at: tonight });
-  options.push({ label: 'Tomorrow morning, 8am', at: at(1, 8) });
-  options.push({ label: 'Tomorrow afternoon, 1pm', at: at(1, 13) });
-  const monday = new Date(now);
-  monday.setDate(monday.getDate() + ((8 - monday.getDay()) % 7 || 7));
-  monday.setHours(8, 0, 0, 0);
-  options.push({ label: `Monday morning, 8am`, at: monday });
-  return options;
-}
 
 /**
  * An address line that completes as you type: the cards in Contacts first,
@@ -116,6 +96,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
   const [rich, setRich] = useState(draft.rich !== false);
   const [showCc, setShowCc] = useState(Boolean(draft.cc || draft.bcc));
   const [scheduling, setScheduling] = useState(false);
+  const [customAt, setCustomAt] = useState('');
   const account = accounts.find((a) => a.id === accountId);
 
   // Changing the From account swaps its signature in place of the one that
@@ -343,7 +324,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
         {scheduling ? (
           <div className="ml-found">
             {scheduleChoices().map((choice) => (
-              <button key={choice.label} type="button" className="ml-found-item" onClick={() => onSend(collect(), choice.at.toISOString())}>
+              <button key={choice.id} type="button" className="ml-found-item" onClick={() => onSend(collect(), choice.at.toISOString())}>
                 <span className="ml-found-logo">
                   <Icon name="clock" size={15} />
                 </span>
@@ -354,8 +335,31 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
                 <Icon name="chevronRight" size={14} />
               </button>
             ))}
+            <div className="ml-found-item" style={{ cursor: 'default' }}>
+              <span className="ml-found-logo">
+                <Icon name="clock" size={15} />
+              </span>
+              <span className="grow">
+                <div className="who">Pick a date and time</div>
+                <input
+                  type="datetime-local"
+                  className="rw-input ml-schedule-custom"
+                  value={customAt}
+                  onChange={(e) => setCustomAt(e.target.value)}
+                />
+              </span>
+              <Button
+                label="Schedule"
+                disabled={!parseCustomSchedule(customAt)}
+                onClick={() => {
+                  const at = parseCustomSchedule(customAt);
+                  if (at) onSend(collect(), at.toISOString());
+                }}
+              />
+            </div>
             <p className="rw-hint" style={{ margin: 0 }}>
-              A scheduled message waits on this computer, so it goes out when Rutba Office is running.
+              Times are in your computer's own time zone. A scheduled message waits here, so it sends when Rutba
+              Office is running — one that falls due while it is closed goes out the next time it opens.
             </p>
           </div>
         ) : null}

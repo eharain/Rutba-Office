@@ -82,6 +82,136 @@ export function SignatureDialog({ shell, accounts, accountId, onClose, onSaved, 
   );
 }
 
+/* ── out of office ────────────────────────────────────────────────────────── */
+
+/**
+ * An ISO instant as a `<input type="datetime-local">` wants it — local time,
+ * minutes only. Built from the Date object's own local getters rather than
+ * `toISOString()`, which is UTC: on a machine whose zone is not UTC, showing
+ * those digits in a field the browser reads as local time would tell the
+ * account's own start or end time back wrong by the zone's offset.
+ */
+const forDateInput = (iso) => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+};
+/** The other way: the input's local-time string back to an ISO instant, or null when empty. */
+const fromDateInput = (value) => {
+  if (!value) return null;
+  const at = new Date(value);
+  return Number.isNaN(at.getTime()) ? null : at.toISOString();
+};
+
+/**
+ * Automatic replies, per account, the same shape as the Signature dialog:
+ * opened from that account's own settings, not a preference every account
+ * in the mailbox shares. On sends one reply per sender for as long as it
+ * stays on — turning it off and on again is what starts that over, the same
+ * as Outlook's own "once per sender while away".
+ */
+export function OutOfOfficeDialog({ shell, accounts, accountId, onClose, onSaved, toast }) {
+  const [id, setId] = useState(accountId || accounts[0]?.id || '');
+  const account = accounts.find((a) => a.id === id) || null;
+  const blank = { enabled: false, start: '', end: '', subject: '', message: '', contactsOnly: false, sentTo: [] };
+  const [form, setForm] = useState({ ...blank, ...(account?.autoReply || {}) });
+  const [saving, setSaving] = useState(false);
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+
+  useEffect(() => {
+    setForm({ ...blank, ...((accounts.find((a) => a.id === id) || {}).autoReply || {}) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, accounts]);
+
+  const save = useCallback(async () => {
+    if (!id) return;
+    setSaving(true);
+    try {
+      // Turning it on from off starts a fresh "answered" set — the same
+      // sender who already heard from it before is owed a fresh reply now
+      // that it is on again, not silence because a set from last time is
+      // still sitting there.
+      const wasOn = Boolean(account?.autoReply?.enabled);
+      const sentTo = form.enabled && !wasOn ? [] : form.sentTo || [];
+      const patch = { enabled: form.enabled, start: form.start || null, end: form.end || null, subject: form.subject, message: form.message, contactsOnly: form.contactsOnly, sentTo };
+      await shell.mail.updateAccount({ id, patch: { autoReply: patch } });
+      toast(patch.enabled ? 'Automatic replies are on' : 'Automatic replies are off', { tone: 'good' });
+      onSaved();
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    } finally {
+      setSaving(false);
+    }
+  }, [shell, id, form, account, onSaved, toast]);
+
+  return (
+    <Dialog
+      title="Automatic replies"
+      width={520}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label={saving ? 'Saving…' : 'Save'} disabled={saving || !id} onClick={save} />
+        </>
+      }
+    >
+      {accounts.length > 1 ? (
+        <Field label="Account">
+          <select className="rw-input ml-signature-account" value={id} onChange={(e) => setId(e.target.value)}>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.name ? `${a.name} <${a.email}>` : a.email}</option>
+            ))}
+          </select>
+        </Field>
+      ) : null}
+
+      <label className="ml-ooo-toggle ml-ooo-enabled">
+        <input type="checkbox" checked={form.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
+        <span>Send automatic replies</span>
+      </label>
+
+      <div className="ml-servers3" style={{ gridTemplateColumns: '1fr 1fr' }}>
+        <Field label="Start (optional)">
+          <input type="datetime-local" className="rw-input" value={forDateInput(form.start)} onChange={(e) => set({ start: fromDateInput(e.target.value) })} />
+        </Field>
+        <Field label="End (optional)">
+          <input type="datetime-local" className="rw-input" value={forDateInput(form.end)} onChange={(e) => set({ end: fromDateInput(e.target.value) })} />
+        </Field>
+      </div>
+      <p className="rw-hint" style={{ marginTop: -4 }}>
+        Left blank, it starts the moment you save it and runs until you turn it off. Replies go out while Rutba
+        Office is running — one due while it is closed goes out the next time mail is fetched.
+      </p>
+
+      <Field label="Subject" hint="Leave blank for “Automatic reply: ” and the original subject.">
+        <Input value={form.subject} onChange={(e) => set({ subject: e.target.value })} placeholder="Automatic reply: <original subject>" />
+      </Field>
+      <Field label="Message">
+        <textarea
+          className="rw-input ml-compose-body ml-ooo-message"
+          rows={6}
+          value={form.message}
+          onChange={(e) => set({ message: e.target.value })}
+          placeholder="I'm away until … and will answer when I'm back."
+        />
+      </Field>
+
+      <label className="ml-ooo-toggle ml-ooo-contacts">
+        <input type="checkbox" checked={form.contactsOnly} onChange={(e) => set({ contactsOnly: e.target.checked })} />
+        <span>Only reply to people in my contacts</span>
+      </label>
+
+      <p className="rw-hint" style={{ marginBottom: 0 }}>
+        Each sender hears from this once while it stays on — a second message from the same person is not answered
+        again until it is turned off and on. A mailing list, a no-reply address and a message that already says it
+        is automatic are never answered.
+      </p>
+    </Dialog>
+  );
+}
+
 /* ── found on this computer ──────────────────────────────────────────────── */
 
 const SOURCE_ICON = { Outlook: 'mail', Thunderbird: 'globe', 'Apple Mail': 'mail', 'Windows Live Mail': 'mail' };

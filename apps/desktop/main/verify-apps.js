@@ -3964,7 +3964,182 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind: those blocks alone, for working on them.
+  /**
+   * Mail: Send later puts a message in the Outbox instead of the wire, the
+   * Outbox is a folder in the list rather than only a ribbon button, and
+   * from there it can be sent now, taken back into Compose, or cancelled.
+   */
+  const mailSendLater = async () => {
+    let win = null;
+    let accountId = null;
+    const SUBJECT = `Verify Send Later ${Date.now()}`;
+    try {
+      win = await open('mail');
+      const js = (code) => win.webContents.executeJavaScript(code);
+      const setValue = (selector, value) => js(`(() => { const el = document.querySelector(${JSON.stringify(selector)}); if (!el) return false; const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype; const setter = Object.getOwnPropertyDescriptor(proto, 'value').set; setter.call(el, ${JSON.stringify(value)}); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      const setField = (label, value) => js(`(() => {
+        const el = [...document.querySelectorAll('.rw-field')].find((f) => f.querySelector('label')?.textContent.trim() === ${JSON.stringify(label)})?.querySelector('input, textarea');
+        if (!el) return false;
+        const proto = el.tagName === 'TEXTAREA' ? window.HTMLTextAreaElement.prototype : window.HTMLInputElement.prototype;
+        Object.getOwnPropertyDescriptor(proto, 'value').set.call(el, ${JSON.stringify(value)});
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+      })()`);
+
+      await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the seeded account in the sidebar', 8000);
+      accountId = await js(`(async () => (await window.rutbaOffice.mail.accounts())[0]?.id || null)()`);
+
+      await js(`document.querySelector('.ml-compose-cta button')?.click(), 'clicked'`);
+      await until(() => js(`Boolean(document.querySelector('.ml-to-row'))`), 'the composer', 5000);
+      await setField('To', 'later@example.com');
+      await setField('Subject', SUBJECT);
+
+      await js(`document.querySelector('.rw-dialog button[data-tip="Send later"]')?.click(), 'clicked'`);
+      await until(() => js(`Boolean(document.querySelector('.ml-schedule-custom'))`), 'the schedule panel and its custom-time field', 4000);
+
+      // A custom time, not one of the presets — the one nothing else proves.
+      // `datetime-local` reads back as local time (packages/mailbox/src/
+      // schedule.js's own `parseCustomSchedule`), so the value fed to it has
+      // to be built from local getters — `toISOString()` is UTC, and on a
+      // machine whose zone is not UTC that reads as a different moment than
+      // the one this check means, in one direction or the other.
+      const inOneHour = new Date(Date.now() + 3600_000);
+      const pad2 = (n) => String(n).padStart(2, '0');
+      const customAt = `${inOneHour.getFullYear()}-${pad2(inOneHour.getMonth() + 1)}-${pad2(inOneHour.getDate())}T${pad2(inOneHour.getHours())}:${pad2(inOneHour.getMinutes())}`;
+      await setValue('.ml-schedule-custom', customAt);
+      await js(`document.querySelector('.rw-dialog button[data-tip="Schedule"]')?.click(), 'clicked'`);
+      await until(() => js(`!document.querySelector('.ml-to-row')`), 'the composer to close', 5000);
+
+      const queued = await js(`(async () => (await window.rutbaOffice.mail.outbox()).find((o) => o.draft?.subject === ${JSON.stringify(SUBJECT)}) || null)()`);
+      check(
+        'mail: Send later queues the message with the chosen time instead of sending it',
+        Boolean(queued) && new Date(queued.at).getTime() > Date.now(),
+        JSON.stringify(queued)
+      );
+
+      // The Outbox is listed in the folder list, not reached only from the ribbon.
+      await js(`[...document.querySelectorAll('.rw-item')].find((b) => b.querySelector('.label')?.textContent.trim() === 'Outbox')?.click(), 'clicked'`);
+      await until(() => js(`Boolean(document.querySelector('.rw-dialog[aria-label="Outbox"]'))`), 'the Outbox dialog', 5000);
+      const listed = await js(`(() => {
+        const item = [...document.querySelectorAll('.ml-found-item')].find((el) => el.querySelector('.who')?.textContent.trim() === ${JSON.stringify(SUBJECT)});
+        return item ? item.querySelector('.what')?.textContent || '' : null;
+      })()`);
+      check('mail: the scheduled message reads in the Outbox with its send time', typeof listed === 'string' && /sends/.test(listed), JSON.stringify(listed));
+
+      // Send now, through the fake transport every check run sends through.
+      const clicked = await js(`(() => {
+        const item = [...document.querySelectorAll('.ml-found-item')].find((el) => el.querySelector('.who')?.textContent.trim() === ${JSON.stringify(SUBJECT)});
+        const btn = [...(item?.querySelectorAll('.ml-outbox-actions button') || [])].find((b) => b.textContent.trim() === 'Send now');
+        btn?.click();
+        return Boolean(btn);
+      })()`);
+      check('mail: the Outbox offers Send now on the item', clicked === true, String(clicked));
+      await until(
+        () => js(`![...document.querySelectorAll('.ml-found-item')].some((el) => el.querySelector('.who')?.textContent.trim() === ${JSON.stringify(SUBJECT)})`),
+        'the message to leave the Outbox',
+        6000
+      );
+
+      const stillQueued = await js(`(async () => (await window.rutbaOffice.mail.outbox()).some((o) => o.draft?.subject === ${JSON.stringify(SUBJECT)}))()`);
+      const inSent = await js(`(async () => (await window.rutbaOffice.mail.messages({ accountId: ${JSON.stringify(accountId)}, folder: 'Sent', limit: 200 })).rows.some((r) => r.subject === ${JSON.stringify(SUBJECT)}))()`);
+      check('mail: Send now takes it off the Outbox and it lands in Sent', stillQueued === false && inSent === true, JSON.stringify({ stillQueued, inSent }));
+
+      await js(`[...document.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Close')?.click(), 'closed'`);
+
+      const complaints = await errorsIn(win);
+      check('mail: the send-later checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('mail: the send-later check ran', false, err.message);
+    }
+  };
+
+  /**
+   * Mail: automatic replies, on from the account's own settings, answering
+   * a fresh arrival once and staying silent about a second message from the
+   * same sender — the RFC 3834 checks that keep it a good citizen are proved
+   * in tests/mail-ooo.test.js; this proves the account setting, the banner,
+   * and the reply actually going out through the fake transport.
+   */
+  const mailOOO = async () => {
+    let win = null;
+    let accountId = null;
+    const SENDER = `ooo-check-${Date.now()}@example.org`;
+    const raw = (msgId, subject) =>
+      [
+        `From: OOO Check <${SENDER}>`,
+        'To: You <you@example.com>',
+        `Subject: ${subject}`,
+        `Date: ${new Date().toUTCString()}`,
+        `Message-ID: <${msgId}>`,
+        'MIME-Version: 1.0',
+        'Content-Type: text/plain; charset=utf-8',
+        '',
+        'Checking automatic replies.',
+        '',
+      ].join('\r\n');
+    try {
+      win = await open('mail');
+      const js = (code) => win.webContents.executeJavaScript(code);
+      await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the seeded account in the sidebar', 8000);
+      accountId = await js(`(async () => (await window.rutbaOffice.mail.accounts())[0]?.id || null)()`);
+
+      await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Folder')?.click(), 'tab'`);
+      await until(() => js(`Boolean([...document.querySelectorAll('button')].find((b) => /Out of office/.test(b.textContent) && !b.disabled))`), "the account's Out of office button", 5000);
+      await js(`[...document.querySelectorAll('button')].find((b) => /Out of office/.test(b.textContent) && !b.disabled)?.click(), 'clicked'`);
+      await until(() => js(`Boolean(document.querySelector('.rw-dialog[aria-label="Automatic replies"]'))`), 'the Automatic replies dialog', 5000);
+
+      const scope = `document.querySelector('.rw-dialog[aria-label="Automatic replies"]')`;
+      await js(`${scope}.querySelector('.ml-ooo-enabled input')?.click(), 'on'`);
+      await js(`(() => { const el = ${scope}.querySelector('.ml-ooo-message'); const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set; setter.call(el, 'Away until further notice.'); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
+      await js(`[...${scope}.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Save')?.click(), 'saved'`);
+      await until(() => js(`!document.querySelector('.rw-dialog[aria-label="Automatic replies"]')`), 'the dialog to close', 5000);
+
+      // On for this account is a banner in the window, not a setting nobody can see.
+      await until(() => js(`Boolean(document.querySelector('.ml-ooo-banner'))`), 'the automatic-replies banner', 5000);
+      const banner = await js(`document.querySelector('.ml-ooo-banner')?.textContent || ''`);
+      check('mail: turning automatic replies on shows a banner naming the account', /Automatic replies are on/.test(banner), banner);
+
+      // A message arrives through the fake inbound path — deliverTest refuses
+      // outside a check run, the same way the fake SMTP transport does.
+      await js(`(async () => window.rutbaOffice.mail.deliverTest({ accountId: ${JSON.stringify(accountId)}, folder: 'Inbox', raw: ${JSON.stringify(raw('ooo-check-1@example.org', 'First message'))} }))()`);
+
+      const readSentToSender = () =>
+        js(`(async () => (await window.rutbaOffice.mail.messages({ accountId: ${JSON.stringify(accountId)}, folder: 'Sent', limit: 300 })).rows.filter((r) => (r.to || []).some((t) => t.address === ${JSON.stringify(SENDER)})))()`);
+
+      await until(async () => (await readSentToSender()).length === 1, 'exactly one automatic reply', 6000);
+      const rows = await readSentToSender();
+      const full = await js(`window.rutbaOffice.mail.message({ accountId: ${JSON.stringify(accountId)}, folder: 'Sent', id: ${JSON.stringify(rows[0].id)} })`);
+      const auto = (full.headers || []).find((h) => h.key === 'auto-submitted');
+      check(
+        'mail: the reply carries Auto-Submitted, In-Reply-To and a subject naming the original',
+        auto?.value === 'auto-replied' && full.inReplyTo === 'ooo-check-1@example.org' && full.subject === 'Automatic reply: First message',
+        JSON.stringify({ auto, inReplyTo: full.inReplyTo, subject: full.subject })
+      );
+
+      // A second message from the same sender: no second reply.
+      await js(`(async () => window.rutbaOffice.mail.deliverTest({ accountId: ${JSON.stringify(accountId)}, folder: 'Inbox', raw: ${JSON.stringify(raw('ooo-check-2@example.org', 'Second message'))} }))()`);
+      await wait(500);
+      const afterSecond = await readSentToSender();
+      check('mail: a second message from the same sender gets no second reply', afterSecond.length === 1, String(afterSecond.length));
+
+      await js(`document.querySelector('.ml-ooo-banner button')?.click(), 'off'`);
+      await until(() => js(`!document.querySelector('.ml-ooo-banner')`), 'the banner to go once it is turned off', 5000);
+
+      const complaints = await errorsIn(win);
+      check('mail: the automatic-reply checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+    } catch (err) {
+      check('mail: the automatic-reply check ran', false, err.message);
+    } finally {
+      // The account is a fixture every other mail check shares.
+      if (win && accountId) {
+        await win.webContents
+          .executeJavaScript(`window.rutbaOffice.mail.updateAccount({ id: ${JSON.stringify(accountId)}, patch: { autoReply: { enabled: false } } })`)
+          .catch(() => {});
+      }
+    }
+  };
+
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4009,6 +4184,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('links')) await sheetLinks();
     if (only.includes('providers')) await mailProviders();
     if (only.includes('signature')) await mailSignature();
+    if (only.includes('sendlater')) await mailSendLater();
+    if (only.includes('ooo')) await mailOOO();
     return done();
   }
 
@@ -5737,6 +5914,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   }
   await mailProviders();
   await mailSignature();
+  await mailSendLater();
+  await mailOOO();
 
   /* ── OpenDocument goes out as OpenDocument ───────────────────────────── */
   try {
