@@ -64,7 +64,9 @@ test('a field paragraph is not mistaken for a reviewed one', () => {
   pkg.write_('word/document.xml', pkg.text('word/document.xml').replace(
     '<w:p><w:r><w:t xml:space="preserve">placeholder</w:t></w:r></w:p>',
     '<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r>' +
-    '<w:r><w:instrText xml:space="preserve"> PAGE </w:instrText></w:r>' +
+    // A SEQ, not a PAGE: a PAGE field in the body is a run of its own now
+    // (runs.js REFERENCE_KINDS) and no longer holds the paragraph.
+    '<w:r><w:instrText xml:space="preserve"> SEQ Figure </w:instrText></w:r>' +
     '<w:r><w:fldChar w:fldCharType="end"/></w:r>' +
     '<w:r><w:t xml:space="preserve">1</w:t></w:r></w:p>',
   ));

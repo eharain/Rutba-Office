@@ -997,6 +997,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // Contents only make sense once one exists, and neither ribbon button
       // has a block of its own to watch change.
       tableOfContents: frame.tableOfContents,
+      // References: the sources, the citation style, the citations and
+      // whether a bibliography is in — Manage Sources and Style change no block.
+      references: frame.references,
       // Review → Track Changes: recording on or off — a document setting no
       // block carries, so a press of the ribbon button needs this to show.
       trackRevisions: frame.trackRevisions,
@@ -1522,6 +1525,14 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     insertTableOfContents: (v, a) => v.insertTableOfContents({ levels: a.levels, pages: a.pages }),
     updateTableOfContents: (v, a) => v.updateTableOfContents({ pages: a.pages }),
     removeTableOfContents: (v) => v.removeTableOfContents(),
+    // References → Citations & Bibliography: a citation at the caret, the
+    // document's list of sources as Manage Sources leaves it, the style, the
+    // bibliography's building block, and Update Citations and Bibliography.
+    insertCitation: (v, a) => v.insertCitation({ tags: a.tags, pages: a.pages || '', lcid: a.lcid || 1033 }),
+    setSources: (v, a) => v.setSources({ sources: a.sources || [] }),
+    setBibliographyStyle: (v, a) => v.setBibliographyStyle(a.style),
+    insertBibliography: (v, a) => v.insertBibliography({ heading: a.heading === undefined ? 'Bibliography' : a.heading }),
+    updateCitations: (v) => v.updateCitations(),
     // Review → Track Changes: the author is whoever the window says, else
     // the account at the keyboard, the same rule a note's author follows.
     toggleTrackChanges: (v, a) => v.setTrackChanges(a.on, a.author || safeUserName() || 'Rutba Office user'),

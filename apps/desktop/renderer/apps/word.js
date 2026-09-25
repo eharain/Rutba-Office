@@ -47,9 +47,11 @@ import { hyphenPoints, breakableWord, hyphenationRules } from '@rutba/doc-view/h
 
 /** The page's geometry before a section is known — A4-ish, Word's default margins. */
 const GEOM_DEFAULT = geomOf(null);
+import { useReferences, installReferencesStyles } from './word/references.js';
 
 installMailingsStyles();
 installEnvelopeStyles();
+installReferencesStyles();
 
 /**
  * Character offset of a DOM position within its block element.
@@ -1665,6 +1667,8 @@ export default function Word({ app, shell, boot }) {
   const mailings = useMailings({ shell, doc, model, apply, toast, extra: envelopes.extra });
   // Review → Check Accessibility and Spelling (word/review.js).
   const review = useWordReview({ shell, doc, model, apply, toast, pageRef, setPicked, view, patchView, menu });
+  // References → Citations & Bibliography (word/references.js).
+  const references = useReferences({ shell, model, apply, toast });
 
   const commands = useMemo(
     () => ({
@@ -1748,6 +1752,7 @@ export default function Word({ app, shell, boot }) {
           drawing={selectedDrawing}
           mailings={mailings}
           review={review}
+          references={references}
         />
       }
       status={
@@ -2293,6 +2298,7 @@ export default function Word({ app, shell, boot }) {
       {mailings.node}
       {envelopes.node}
       {review.dialogs}
+      {references.node}
 
       {dialog === 'tracked' ? (
         <TrackedDialog
@@ -2718,7 +2724,9 @@ function paragraphCss(block, styles) {
     // A first-line indent pushes the first line in; a hanging one pulls it out
     // and the rest of the paragraph in by the same amount, the way a list does.
     textIndent: firstLine ? Math.round(firstLine) : hanging ? -Math.round(hanging) : undefined,
-    paddingLeft: hanging ? Math.round(hanging) : undefined,
+    // A paragraph that gives its own left indent already stands its later
+    // lines there (a bibliography's half-inch hang): only the first comes out.
+    paddingLeft: hanging && !(block.indentPx != null && !block.numbering) ? Math.round(hanging) : undefined,
     // An exact line (pixels) beats a multiplier; the paragraph's own beats the
     // style's. Word's "single" for a Latin face is about 1.2 of the size.
     lineHeight: block.lineHeightPx ? `${Math.round(block.lineHeightPx)}px`

@@ -29,6 +29,7 @@ import {
   runsText, locate, clampPosition, comparePositions, orderedRange,
   sliceRuns, removeRange, trackedRemoveRange, coalesce, samePosition,
 } from './positions.js';
+import { installReferenceViews } from './references.js';
 
 /**
  * One indent step, in twips (1/20 point) — half an inch, what Tab-to-indent and
@@ -3059,5 +3060,8 @@ export class DocView {
 
   modifiedParts() { return this.doc.modifiedParts?.() ?? []; }
 }
+
+// References: citations, the bibliography (references.js).
+installReferenceViews(DocView);
 
 export { runsText, locate, comparePositions, orderedRange, sliceRuns, removeRange, coalesce };

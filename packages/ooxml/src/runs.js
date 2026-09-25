@@ -341,10 +341,16 @@ export function topComplexFields(xml) {
  * read their XML from.
  */
 export function foldMergeFields(xml) {
-  const source = String(xml);
-  const fields = topComplexFields(source).filter((f) => MERGE_KINDS.has(readInstr(f.instr).kind));
-  if (!fields.length) return { xml: source, complex: [] };
-  const complex = [];
+  // A citation first: Word wraps its CITATION field in a run-level content
+  // control, and the control is folded with it, whole — see `foldCitations`.
+  const cited = foldCitations(String(xml));
+  const source = cited.xml;
+  const fields = topComplexFields(source).filter((f) => {
+    const kind = readInstr(f.instr).kind;
+    return MERGE_KINDS.has(kind) || REFERENCE_KINDS.has(kind);
+  });
+  if (!fields.length) return { xml: source, complex: cited.complex };
+  const complex = cited.complex;
   let out = '';
   let at = 0;
   for (const f of fields) {
@@ -360,6 +366,73 @@ export function foldMergeFields(xml) {
   }
   out += source.slice(at);
   return { xml: out, complex };
+}
+
+/**
+ * The complex fields References and Insert → Field write, which a paragraph
+ * holds as one run apiece — written back byte for byte, or with only the
+ * result changed (`withFieldResult`) — so that marking an index entry,
+ * citing a source or putting a page number in the body never locks the
+ * paragraph it sits in, as a caption's SEQ still does.
+ */
+export const REFERENCE_KINDS = new Set(['citation', 'xe', 'page', 'numpages', 'date', 'time', 'filename', 'author', 'title']);
+
+/** A run-level content control round a citation, as Word writes one (`w:sdtPr` holds `w:citation`). */
+const CITATION_SDT_RE = /<w:sdt\b[^>]*>(?:(?!<w:sdt\b)[\s\S])*?<w:citation\s*\/>(?:(?!<w:sdt\b)[\s\S])*?<\/w:sdt>/g;
+
+/**
+ * Each citation's content control, with the CITATION field inside it, as
+ * one `<w:fldSimple>`-shaped run the rest of this module reads like any
+ * field: `complex` holds the control's own XML so it is written back
+ * exactly (see `renderRuns`). A control whose field is not complete is
+ * left as it was, and keeps its paragraph structural.
+ */
+function foldCitations(xml) {
+  const complex = [];
+  if (!xml.includes('<w:citation')) return { xml, complex };
+  const out = xml.replace(CITATION_SDT_RE, (whole) => {
+    const content = /<w:sdtContent\b[^>]*>([\s\S]*)<\/w:sdtContent>/.exec(whole);
+    if (!content) return whole;
+    const field = topComplexFields(content[1])[0];
+    if (!field || !/^\s*CITATION\b/i.test(field.instr)) return whole;
+    const result = content[1].slice(field.resultStart, field.resultEnd);
+    const first = /<w:r(?:\s[^>]*)?>([\s\S]*?)<\/w:r>/.exec(result);
+    const rPrMatch = first ? RPR_RE.exec(first[1]) : null;
+    const text = textOf(result);
+    complex.push({ xml: whole, text, rPr: rPrMatch ? rPrMatch[0] : null });
+    return '<w:fldSimple w:instr="' + esc(field.instr) + '" w:rutbaComplex="' + (complex.length - 1) + '">' +
+      renderRun(rPrMatch ? rPrMatch[0] : null, text) + '</w:fldSimple>';
+  });
+  return { xml: out, complex };
+}
+
+/**
+ * A field's XML — a complex field, or a citation's control round one — with
+ * its result replaced by `text` in `rPr`, everything else as it was. A field
+ * with no `separate` gains one.
+ */
+export function withFieldResult(xml, text, rPr = null) {
+  const source = String(xml);
+  const inner = /<w:sdtContent\b[^>]*>/.exec(source);
+  const base = inner ? inner.index + inner[0].length : 0;
+  const scope = inner ? source.slice(base, source.lastIndexOf('</w:sdtContent>')) : source;
+  const field = topComplexFields(scope)[0];
+  if (!field) return source;
+  const run = text ? renderRun(rPr || null, text) : '';
+  const hasSep = /<w:fldChar\b[^>]*\bw:fldCharType="separate"/.test(scope.slice(field.start, field.end));
+  const lead = hasSep ? '' : '<w:r><w:fldChar w:fldCharType="separate"/></w:r>';
+  return source.slice(0, base + field.resultStart) + lead + run + source.slice(base + field.resultEnd);
+}
+
+/**
+ * Does `tag` fold away from a paragraph — is every one of them part of a
+ * field the model owns as a run? (`w:fldChar`: every complex field is a
+ * merge or reference field; `w:sdt`: every content control is a citation's.)
+ */
+export function foldsToRuns(xml, tag) {
+  const folded = foldMergeFields(xml).xml;
+  if (new RegExp('<' + tag + '\\b').test(folded)) return false;
+  return !/<w:hyperlink\b(?:(?!<\/w:hyperlink>)[\s\S])*?w:rutbaComplex=/.test(folded);
 }
 
 /**
@@ -593,6 +666,9 @@ export function renderRuns(runs) {
     // when nothing about it changed, and afresh from its instruction when
     // its words or its formatting did (or when it was just inserted).
     if (r.field && r.complexXml !== undefined && r.text === r.fieldCached && (r.rPr ?? null) === (r.fieldRPr ?? null)) out.push(r.complexXml);
+    // A reference field (a citation, an index entry, a page number…) keeps
+    // its own shape — a citation its content control — with a new result.
+    else if (r.field && r.complexXml !== undefined && REFERENCE_KINDS.has(r.field.kind)) out.push(withFieldResult(r.complexXml, r.text, r.rPr));
     else if (r.field && (r.complexXml !== undefined || MERGE_KINDS.has(r.field.kind))) out.push(complexFieldXml(r.field.instr, r.text, r.rPr || ''));
     else if (r.field) out.push('<w:fldSimple w:instr="' + esc(r.field.instr) + '">' + renderRun(r.rPr, r.text) + '</w:fldSimple>');
     else if (r.del) out.push(renderTrackWrap('del', r.del, '<w:r>' + (r.rPr || '') + '<w:delText xml:space="preserve">' + esc(r.del.text ?? '') + '</w:delText></w:r>'));

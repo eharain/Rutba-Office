@@ -24,6 +24,7 @@ import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select, Input } from '@rutba/office-ui';
 import { EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
 import { MailingsTab } from './mailings.js';
+import { CitationsGroup } from './references.js';
 
 /* ── vocabularies ────────────────────────────────────────────────────────── */
 
@@ -105,7 +106,7 @@ const Soon = ({ icon, label, tall, why }) => (
 );
 
 export default function WordRibbon({
-  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null,
+  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null,
 }) {
   const format = model?.format || {};
   const styles = Array.isArray(model?.styles) ? model.styles : [];
@@ -687,12 +688,7 @@ export default function WordRibbon({
             <Button icon="chevronDown" label="Next Footnote" title="Go to the next footnote reference" onClick={() => act('nextNote', 1)} />
             <Button icon="eye" label="Show Notes" title="Scroll to the footnotes under the body" onClick={() => act('showNotes')} />
           </Group>
-          <Group label="Citations & Bibliography">
-            <Soon tall icon="reply" label="Insert Citation" why="Citations need the bibliography part, not written yet." />
-            <Soon icon="list" label="Manage Sources" why="Comes with citations." />
-            <Soon icon="listNumber" label="Style" why="Comes with citations." />
-            <Soon icon="listBullet" label="Bibliography" why="Comes with citations." />
-          </Group>
+          {references ? <CitationsGroup refs={references} menu={menu} /> : null}
           <Group label="Captions">
             <Button tall icon="textbox" label="Insert Caption" title="Insert Caption — a label, a running number kept live by Update Fields, and your own words" onClick={() => openDialog('caption')} />
             <Soon icon="listBullet" label="Table of Figures" why="Comes with captions." />

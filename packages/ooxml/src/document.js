@@ -71,8 +71,9 @@ export {
   textOf, parseRuns, hasToggle, withToggle, renderRuns, renderRun, firstRunProps, RPR_RE,
 } from './runs.js';
 import {
-  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults, mergeFieldsOnly,
+  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults, mergeFieldsOnly, foldsToRuns,
 } from './runs.js';
+import { installReferences } from './references.js';
 
 /**
  * Paper sizes Windows numbers as envelopes (DMPAPER_ENV_*): No. 9–14, DL,
@@ -3956,7 +3957,9 @@ export class Document {
       // When every complex field in the paragraph is a whole merge field at
       // its top level, each is one run the rebuild writes back verbatim
       // (runs.js `foldMergeFields`), so the paragraph is not locked.
-      .filter((tag) => tag !== 'w:fldChar' || !mergeFieldsOnly(p.xml));
+      .filter((tag) => tag !== 'w:fldChar' || !mergeFieldsOnly(p.xml))
+      // A citation's content control is a field the model owns as a run too.
+      .filter((tag) => tag !== 'w:sdt' || !foldsToRuns(p.xml, 'w:sdt'));
     // A paragraph INSIDE a body-level content control carries no sdt tag of
     // its own; it is read-only for the same reason one that does is.
     if (p.inSdt && !structural.includes('w:sdt')) structural.push('w:sdt');
@@ -5081,5 +5084,8 @@ export class Document {
     return this.pkg.modifiedParts();
   }
 }
+
+// References: citations and a bibliography (references.js).
+installReferences(Document);
 
 export { WORD_NS };
