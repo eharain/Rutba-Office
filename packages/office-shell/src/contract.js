@@ -116,6 +116,8 @@ export const METHODS = {
     'recoverable',  // () -> [{ file, kind, name, path, at, size }] — what a crash left behind
     'recover',      // ({ file }) -> { id, kind, model, meta, recoveredFrom }
     'discardRecovery', // ({ file }) -> { discarded }
+    'adopt',        // ({ id }) -> { id, kind, model, meta } — a window takes over a session made for it (a merge's Letters1)
+    'mailMerge',    // ({ id, action, ... }) -> Mailings: records, attach, sheets, attachContacts, createList, errors, finish, messages
   ],
   mail: [
     'accounts',     // () -> [account]

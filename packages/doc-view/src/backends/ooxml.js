@@ -11,6 +11,7 @@
 import { Document, withToggle, hasToggle, esc, unesc, STANDARD_PARAGRAPH_STYLES } from '@rutba/ooxml';
 import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene } from '@rutba/drawing';
 import { ommlToMathml, ommlToLinear, ommlInfo, asciiLinear } from '@rutba/ooxml/math';
+import { mergeToDocument, mergeMessages } from '@rutba/ooxml/mailmerge-run';
 import { DocView } from '../view.js';
 
 export class OoxmlBackend {
@@ -301,6 +302,16 @@ export class OoxmlBackend {
   updateTableOfContents(spec) { return this.doc.updateTableOfContents(spec); }
   /** References → Remove Table of Contents. */
   removeTableOfContents() { return this.doc.removeTableOfContents(); }
+  /** Mailings: the merge settings.xml keeps, read and written as Word keeps them. */
+  mailMerge() { return this.doc.mailMerge(); }
+  setMailMerge(spec) { this.doc.setMailMerge(spec); return this; }
+  /** Finish & Merge: a merged document, or a message per record. */
+  mergeToDocument(source, order, opts) { return mergeToDocument(this.doc, source, order, opts); }
+  mergeMessages(source, order, opts) { return mergeMessages(this.doc, source, order, opts); }
+  /** Sections, in order — see `Document#sections`. */
+  sections() { return this.doc.sections(); }
+  /** How many sections, cheaply: one per `w:sectPr`. */
+  sectionCount() { return Math.max(1, (this.doc.xml.match(/<w:sectPr\b/g) || []).length); }
   /** The table of contents read back — entries, bookmarks, cached pages. */
   tableOfContents() { return this.doc.tableOfContents(); }
   hasTableOfContents() { return this.doc.hasTableOfContents(); }

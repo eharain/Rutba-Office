@@ -43,6 +43,8 @@ import { writeOdt, writeOds, writeOdp } from '@rutba/office-formats/odf-write';
 import { readRtf, writeRtf } from '@rutba/office-formats/rtf';
 import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, writePlain, decodeText } from '@rutba/office-formats/text';
 import { markdownToParagraphs, paragraphsToMarkdown } from './markdown-bridge.js';
+import { readMergeSource, writeMergeList } from './mailmerge-source.js';
+import { contactsToSource, findDuplicates, MAIN_DOCUMENT_TYPES } from '@rutba/ooxml/mailmerge';
 import { CompoundFile } from '@rutba/office-formats/cfb';
 import { readZip } from '@rutba/ooxml/zip';
 
@@ -238,10 +240,13 @@ class Session {
     this.dirty = false;
     this.version = 0;
     this.opened = Date.now();
+    // A document made rather than opened — a merge's Letters1 — goes by
+    // the name it was given until it is saved.
+    this.untitled = null;
   }
 
   get name() {
-    return this.path ? path.basename(this.path) : this.kind === 'sheet' ? 'Book1.xlsx' : this.kind === 'deck' ? 'Presentation1.pptx' : 'Document1.docx';
+    return this.path ? path.basename(this.path) : this.untitled ? this.untitled : this.kind === 'sheet' ? 'Book1.xlsx' : this.kind === 'deck' ? 'Presentation1.pptx' : 'Document1.docx';
   }
 
   meta() {
@@ -757,6 +762,82 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     }
   };
 
+  /**
+   * A mail merge document opened again: its list read back from where the
+   * file says it is, as Word reattaches one. A list that has gone is not an
+   * error — the document opens, and the window says where it looked.
+   */
+  function reattachMergeSource(session) {
+    const view = session.engine;
+    const saved = view?.merge?.saved;
+    if (!saved?.path) return;
+    try {
+      if (!fs.existsSync(saved.path)) return;
+      view.attachMergeSource(readMergeSource(saved.path, { sheet: saved.sheet }), { restore: true });
+    } catch {
+      // Unreadable now: the summary's `pending` names the file for the window.
+    }
+  }
+
+  /** How many merged documents of each kind this run has made: Letters1, Letters2… */
+  const mergedCount = new Map();
+  const MERGED_NAMES = { formLetters: 'Letters', email: 'Letters', envelopes: 'Envelopes', mailingLabels: 'Labels', catalog: 'Directory' };
+
+  function mailMergeAction(session, action, a) {
+    if (session.kind !== 'doc') throw new Error('Mail merge is a Word document\'s.');
+    const view = session.engine;
+    const changed = () => { session.dirty = true; session.version++; };
+    switch (action) {
+      case 'records': {
+        const m = view.merge;
+        const s = m.source;
+        if (!s) return null;
+        return { kind: s.kind, name: s.name, path: s.path ?? null, sheet: s.sheet ?? null, fields: s.fields, records: s.records, excluded: m.excluded, sort: m.sort, duplicates: findDuplicates(s) };
+      }
+      case 'sheets': {
+        const src = readMergeSource(a.path);
+        return { sheets: src.sheets || null, sheet: src.sheet || null, fields: src.fields, count: src.records.length };
+      }
+      case 'attach': {
+        view.attachMergeSource(readMergeSource(a.path, { sheet: a.sheet || null }));
+        changed();
+        return view.mergeSummary();
+      }
+      case 'attachContacts': {
+        view.attachMergeSource(contactsToSource(a.contacts || []), { restore: Boolean(a.restore) });
+        if (!a.restore) changed();
+        return view.mergeSummary();
+      }
+      case 'createList': {
+        if (!a.path) throw new Error('A new list needs a name to be saved under.');
+        writing(a.path, () => writeMergeList(a.path, a.fields || [], a.rows || []));
+        view.attachMergeSource(readMergeSource(a.path));
+        changed();
+        return view.mergeSummary();
+      }
+      case 'errors':
+        return view.mergeErrors();
+      case 'finish': {
+        const merged = view.mergeToDocument({ range: a.range ?? 'all' });
+        const type = view.merge.type || 'formLetters';
+        const base = MERGED_NAMES[type] || 'Letters';
+        const n = (mergedCount.get(base) || 0) + 1;
+        mergedCount.set(base, n);
+        const made = new Session({ id: nextId(), kind: 'doc', filePath: null, engine: openDocx(Buffer.from(merged.bytes)), source: 'merge' });
+        made.untitled = `${base}${n}`;
+        // Unsaved work from the start: closing it asks, as Word's Letters1 does.
+        made.dirty = true;
+        made.windowId = null;
+        sessions.set(made.id, made);
+        return { id: made.id, name: made.name, copies: merged.copies, records: merged.records, type, typeLabel: (MAIN_DOCUMENT_TYPES.find((t) => t.id === type) || {}).label || 'Letters' };
+      }
+      case 'messages':
+        return view.mergeMessages({ range: a.range ?? 'all', toField: a.toField, subject: a.subject, format: a.format || 'html' });
+      default:
+        throw new Error(`mail merge has no action "${action}"`);
+    }
+  }
+
   function docModel(session) {
     const view = session.engine;
     // The editor never reads pages; paginating on every keystroke is what made
@@ -838,6 +919,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // Review → Track Changes: recording on or off — a document setting no
       // block carries, so a press of the ribbon button needs this to show.
       trackRevisions: frame.trackRevisions,
+      // Mailings: the merge's kind, list and preview — Start Mail Merge,
+      // Select Recipients and the record box change no block at all.
+      mailMerge: frame.mailMerge,
+      sectionCount: frame.sectionCount,
       canUndo: view.canUndo,
       canRedo: view.canRedo,
     };
@@ -1232,6 +1317,22 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // engine has been able to write one since bands existed.
     setBand: (v, a) => v.setBand(a.band, a.lines ?? [a.text ?? '']),
     setWatermark: (v, a) => v.setWatermark(a.text ?? null, { colour: a.colour ?? 'silver', rotation: a.rotation ?? 315 }),
+    // Mailings. Start Mail Merge names the kind of main document (null is
+    // Normal Word Document); the recipient list itself arrives through
+    // `mailMerge` below, which reads files; these change what the window shows.
+    startMailMerge: (v, a) => v.startMailMerge(a.type ?? null),
+    setMergeRecipients: (v, a) => v.setMergeRecipients({ excluded: a.excluded, sort: a.sort }),
+    setMergeMapping: (v, a) => v.setMergeMapping(a.overrides || {}),
+    setMergeEmail: (v, a) => v.setMergeEmail({ toField: a.toField, subject: a.subject }),
+    mergePreview: (v, a) => v.setMergePreview({ on: a.on, record: a.record }),
+    // Find Recipient: the record's number in the list, or 0 — as `opResult`.
+    findRecipient: (v, a) => v.findMergeRecipient(a.text, { field: a.field || null }),
+    insertMergeField: (v, a) => v.insertMergeField(a.name),
+    insertAddressBlock: (v, a) => v.insertAddressBlock(a.spec || {}),
+    insertGreetingLine: (v, a) => v.insertGreetingLine(a.spec || {}),
+    insertMergeRule: (v, a) => v.insertMergeRule(a.kind, a.spec || {}),
+    // Nothing changes: the window asks for the merge it holds to be sent again.
+    mergeRefresh: () => true,
   };
 
   const DECK_OPS = {
@@ -1371,7 +1472,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 
@@ -1444,6 +1545,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // minutes.
       session.windowId = win?.id ?? null;
       sessions.set(session.id, session);
+      if (loaded.kind === 'doc') reattachMergeSource(session);
 
       // `slide` matters for a deck: opening a presentation at slide 4 should
       // answer with slide 4, not with slide 1 and a second round trip.
@@ -1575,6 +1677,31 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       sessions.set(session.id, session);
       return { ...session.meta(), recoveredFrom: entry.at, model: modelOf(session) };
     },
+
+    /**
+     * A window takes over a session a merge made for it — Finish & Merge →
+     * Edit Individual Documents opens the merged letters in a window of
+     * their own, unsaved, the way Word opens Letters1.
+     */
+    adopt: ({ id }, win) => {
+      const session = get(id);
+      session.windowId = win?.id ?? session.windowId ?? null;
+      return { ...session.meta(), model: modelOf(session) };
+    },
+
+    /**
+     * Mailings, the parts that read or write files or make documents:
+     *   records        — the list Edit Recipient List shows
+     *   attach         — Use an Existing List: `path`, and `sheet` for a workbook
+     *   sheets         — a workbook's sheets, for the Select Table step
+     *   attachContacts — Choose from Contacts: the cards the window read
+     *   createList     — Type a New List: `fields` and `rows`, saved to `path`
+     *   errors         — Check for Errors: merge fields the list has no column for
+     *   finish         — a merged document as a session of its own: `range`
+     *   messages       — a message per record: `range`, `toField`, `subject`, `format`
+     * After one that changes the merge, the window asks for `mergeRefresh`.
+     */
+    mailMerge: ({ id, action, ...a }) => mailMergeAction(get(id), action, a),
 
     /** Throw a recovered copy away: the person has decided they do not want it. */
     discardRecovery: ({ file }) => {

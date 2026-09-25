@@ -7,6 +7,7 @@
  */
 import { esc, attrs } from './package.js';
 import { unesc } from './workbook.js';
+import { MERGE_KINDS, readInstr, complexFieldXml } from './mailmerge.js';
 
 /**
  * Text of a run/paragraph fragment, honouring w:tab and w:br like Word does.
@@ -243,7 +244,128 @@ function flatDelRuns(fragment, out, delMeta) {
 function parseFieldInstr(instr) {
   const words = String(instr).trim().split(/\s+/);
   const kind = (words[0] || '').toLowerCase();
+  // A MERGEFIELD names its column — quoted when the name has a space in it,
+  // which is why its second word is read the way a field code quotes it.
+  if (kind === 'mergefield') return { kind, name: readInstr(instr).name };
   return { kind, name: (kind === 'ref' || kind === 'seq') ? (words[1] ?? null) : null };
+}
+
+/**
+ * Every run in a fragment that carries a field character or a piece of an
+ * instruction, in document order: `begin`, `separate`, `end`, or `instr`
+ * with its words — where each run starts and ends in the fragment, so a
+ * whole field can be cut out by the runs it spans.
+ */
+function fieldTokens(xml) {
+  const tokens = [];
+  const re = /<w:r(?:\s[^>]*)?>([\s\S]*?)<\/w:r>/g;
+  const bits = /<w:fldChar\b[^>]*\bw:fldCharType="(begin|separate|end)"[^>]*>|<w:instrText\b[^>]*>([\s\S]*?)<\/w:instrText>/g;
+  let m;
+  while ((m = re.exec(xml))) {
+    if (!/<w:(?:fldChar|instrText)\b/.test(m[1])) continue;
+    const start = m.index;
+    const end = m.index + m[0].length;
+    bits.lastIndex = 0;
+    let b;
+    while ((b = bits.exec(m[1]))) {
+      if (b[1]) tokens.push({ type: b[1], start, end });
+      else tokens.push({ type: 'instr', text: unesc(b[2] ?? ''), start, end });
+    }
+  }
+  return tokens;
+}
+
+/**
+ * The complete complex fields at the TOP of a fragment, nesting honoured —
+ * `{ IF { MERGEFIELD City } = "London" … }` is one field whose instruction
+ * carries the nested one in braces, not two fields cut at the inner `end`.
+ * Each is `{ start, end, instr, resultStart, resultEnd }`: its span in the
+ * fragment, begin run to end run; its instruction; and where its cached
+ * result lies (empty when it has no `separate`). A field left open (a
+ * table of contents begins in one paragraph and ends in another) stops the
+ * scan: nothing after its `begin` is at the top.
+ */
+export function topComplexFields(xml) {
+  const tokens = fieldTokens(String(xml));
+  const out = [];
+  let i = 0;
+  const parse = () => {
+    const f = { begin: tokens[i], parts: [], sep: null, end: null };
+    i += 1;
+    while (i < tokens.length) {
+      const t = tokens[i];
+      if (t.type === 'begin') {
+        const child = parse();
+        if (!child) return null;
+        if (!f.sep) f.parts.push(child);
+        continue;
+      }
+      i += 1;
+      if (t.type === 'instr') { if (!f.sep) f.parts.push(t.text); continue; }
+      if (t.type === 'separate') { if (!f.sep) f.sep = t; continue; }
+      if (t.type === 'end') { f.end = t; return f; }
+    }
+    return null;
+  };
+  const instrOf = (f) => f.parts.map((p) => (typeof p === 'string' ? p : '{' + instrOf(p) + '}')).join('');
+  while (i < tokens.length) {
+    if (tokens[i].type !== 'begin') { i += 1; continue; }
+    const f = parse();
+    if (!f) break;
+    out.push({
+      start: f.begin.start,
+      end: f.end.end,
+      instr: instrOf(f),
+      resultStart: f.sep ? f.sep.end : f.end.start,
+      resultEnd: f.end.start,
+    });
+  }
+  return out;
+}
+
+/**
+ * Mail merge fields folded to the one-run field shape a REF has, BEFORE the
+ * general fold below sees the paragraph: a MERGEFIELD, an ADDRESSBLOCK, an
+ * IF with a MERGEFIELD inside it — each becomes one run carrying `field`,
+ * and the field's own XML rides along (`complexXml`) so that a paragraph
+ * rebuilt around it writes the field back exactly as it was read. Nesting
+ * is honoured here, which the general fold (built for a SEQ's flat shape)
+ * does not attempt. Answers the folded XML and the side table the runs
+ * read their XML from.
+ */
+export function foldMergeFields(xml) {
+  const source = String(xml);
+  const fields = topComplexFields(source).filter((f) => MERGE_KINDS.has(readInstr(f.instr).kind));
+  if (!fields.length) return { xml: source, complex: [] };
+  const complex = [];
+  let out = '';
+  let at = 0;
+  for (const f of fields) {
+    out += source.slice(at, f.start);
+    const result = source.slice(f.resultStart, f.resultEnd);
+    const first = /<w:r(?:\s[^>]*)?>([\s\S]*?)<\/w:r>/.exec(result);
+    const rPrMatch = first ? RPR_RE.exec(first[1]) : null;
+    const text = textOf(result);
+    complex.push({ xml: source.slice(f.start, f.end), text, rPr: rPrMatch ? rPrMatch[0] : null });
+    out += '<w:fldSimple w:instr="' + esc(f.instr) + '" w:rutbaComplex="' + (complex.length - 1) + '">' +
+      renderRun(rPrMatch ? rPrMatch[0] : null, text) + '</w:fldSimple>';
+    at = f.end;
+  }
+  out += source.slice(at);
+  return { xml: out, complex };
+}
+
+/**
+ * Can a paragraph holding complex fields still be edited? Only when every
+ * one of them is a complete mail merge field at the top of the paragraph,
+ * outside any hyperlink — the only complex fields a rebuild writes back
+ * whole. Anything else (a table of contents, a caption's SEQ, a field that
+ * spans paragraphs) keeps the paragraph structural, as before.
+ */
+export function mergeFieldsOnly(xml) {
+  const folded = foldMergeFields(xml).xml;
+  if (/<w:fldChar\b/.test(folded)) return false;
+  return !/<w:hyperlink\b(?:(?!<\/w:hyperlink>)[\s\S])*?w:rutbaComplex=/.test(folded);
 }
 
 /**
@@ -330,23 +452,42 @@ export function mapComplexFieldResults(xml, mapper) {
  * run inside (an empty result) still becomes a run, with no text, so an
  * empty REF is not silently dropped from the paragraph.
  */
-function fieldRunFromFldSimple(attrsText, inner) {
+function fieldRunFromFldSimple(attrsText, inner, complex = []) {
   const instrMatch = /\bw:instr="([^"]*)"/.exec(attrsText);
   const instr = instrMatch ? unesc(instrMatch[1]) : '';
   const runMatch = /<w:r\b(?![a-zA-Z])[^>]*>([\s\S]*?)<\/w:r>/.exec(inner);
   const inside = runMatch ? runFromInner(runMatch[1]) : null;
-  return {
+  const run = {
     rPr: inside?.rPr ?? null,
     text: inside?.text ?? '',
+    // The result's own look — a bold «LastName» is drawn bold.
+    ...(inside?.bold ? { bold: true } : {}),
+    ...(inside?.italic ? { italic: true } : {}),
+    ...(inside?.underline ? { underline: true } : {}),
+    ...(inside?.strike ? { strike: true } : {}),
     field: { instr, ...parseFieldInstr(instr) },
   };
+  // A mail merge field read from its complex form: the XML it was read
+  // from, and what it said then, so an unchanged field is written back as
+  // exactly that — see `foldMergeFields` and `renderRuns`.
+  const k = /\bw:rutbaComplex="(\d+)"/.exec(attrsText);
+  const was = k ? complex[Number(k[1])] : null;
+  if (was) {
+    run.complexXml = was.xml;
+    run.fieldCached = run.text;
+    run.fieldRPr = run.rPr;
+  }
+  return run;
 }
 
 export function parseRuns(paragraphXml) {
-  // A complex field is folded to a `<w:fldSimple>`-shaped span BEFORE
-  // anything else here reads the paragraph, so a SEQ caption's number is
-  // one run carrying `field`, same as a REF's — see `foldComplexFields`.
-  const xml = foldComplexFields(String(paragraphXml));
+  // Mail merge fields first, nesting and all (see `foldMergeFields`); then
+  // any other complex field is folded to a `<w:fldSimple>`-shaped span
+  // BEFORE anything else here reads the paragraph, so a SEQ caption's number
+  // is one run carrying `field`, same as a REF's — see `foldComplexFields`.
+  const merged = foldMergeFields(String(paragraphXml));
+  const complex = merged.complex;
+  const xml = foldComplexFields(merged.xml);
   const runs = [];
 
   // A `<w:hyperlink>` is a GROUP of runs wearing a target: its runs are as
@@ -373,7 +514,7 @@ export function parseRuns(paragraphXml) {
     flatRuns(xml.slice(cursor, m.index), runs);
     if (m[0].startsWith('<m:')) runs.push(mathRun(m[0]));
     else if (m[1] !== undefined) flatRuns(m[2], runs, m[1]);
-    else if (m[3] !== undefined) runs.push(fieldRunFromFldSimple(m[3], m[4]));
+    else if (m[3] !== undefined) runs.push(fieldRunFromFldSimple(m[3], m[4], complex));
     else if (m[5] !== undefined) flatInsRuns(m[6], runs, parseTrackAttrs(m[5]));
     else flatDelRuns(m[8], runs, parseTrackAttrs(m[7]));
     cursor = m.index + m[0].length;
@@ -441,7 +582,12 @@ export function renderRuns(runs) {
     // A field run wraps its rendered run in the `<w:fldSimple>` its `field`
     // remembers — the cached result Word shows until Update Fields is next
     // pressed, right where parseRuns found it among the paragraph's runs.
-    if (r.field) out.push('<w:fldSimple w:instr="' + esc(r.field.instr) + '">' + renderRun(r.rPr, r.text) + '</w:fldSimple>');
+    // A mail merge field is Word's complex field: written back byte for byte
+    // when nothing about it changed, and afresh from its instruction when
+    // its words or its formatting did (or when it was just inserted).
+    if (r.field && r.complexXml !== undefined && r.text === r.fieldCached && (r.rPr ?? null) === (r.fieldRPr ?? null)) out.push(r.complexXml);
+    else if (r.field && (r.complexXml !== undefined || MERGE_KINDS.has(r.field.kind))) out.push(complexFieldXml(r.field.instr, r.text, r.rPr || ''));
+    else if (r.field) out.push('<w:fldSimple w:instr="' + esc(r.field.instr) + '">' + renderRun(r.rPr, r.text) + '</w:fldSimple>');
     else if (r.del) out.push(renderTrackWrap('del', r.del, '<w:r>' + (r.rPr || '') + '<w:delText xml:space="preserve">' + esc(r.del.text ?? '') + '</w:delText></w:r>'));
     else if (r.ins) out.push(renderTrackWrap('ins', r.ins, renderRun(r.rPr, r.text, r)));
     else out.push(renderRun(r.rPr, r.text, r));

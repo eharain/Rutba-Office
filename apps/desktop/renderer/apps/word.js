@@ -33,6 +33,10 @@ import {
 } from './word/dialogs.js';
 import { lineBoxes, rectOf } from './word/pages.js';
 import { MathRun, mathHostOf, EQUATION_CSS, EquationDialog, clipOf, CLIP_TYPE } from './word/equations.js';
+import { useMailings, installMailingsStyles } from './word/mailings.js';
+import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
+
+installMailingsStyles();
 
 /**
  * Character offset of a DOM position within its block element.
@@ -241,6 +245,9 @@ export default function Word({ app, shell, boot }) {
   const pictureDrag = useRef(false);
   const pageRef = useRef(null);
   const pendingCaret = useRef(null);
+  // Mailings → Preview Results is on: the page is a record's words.
+  const previewRef = useRef(false);
+  previewRef.current = Boolean(model?.mailMerge?.preview);
   // The caret as this editor last left it: sent with an edit whose answer is
   // not painted yet, and placed from the engine's answer. A keystroke that
   // finds the caret exactly there does not resend it — see word/caret.js.
@@ -304,7 +311,12 @@ export default function Word({ app, shell, boot }) {
         // A recovery copy the launcher offered: opened as the document it
         // came from, dirty, because what is on screen is not what is on disk.
         const recover = new URLSearchParams(location.search).get('recover');
-        const opened = recover
+        // Finish & Merge → Edit Individual Documents: the merged letters are
+        // a session already, made for this window to take over.
+        const adopt = new URLSearchParams(location.search).get('session');
+        const opened = adopt
+          ? await shell.doc.adopt({ id: adopt })
+          : recover
           ? await shell.doc.recover({ file: recover })
           : boot.file
             ? await shell.doc.open({ path: boot.file, kind: 'doc' })
@@ -452,6 +464,10 @@ export default function Word({ app, shell, boot }) {
    */
   const syncSelection = useCallback(() => {
     setPicked(null);
+    // While a record is previewed the words on the page are the record's,
+    // not the file's, and a caret measured in them would land in the wrong
+    // place: the engine keeps the caret it had.
+    if (previewRef.current) return;
     const pos = currentPosition();
     if (!pos?.focus) return;
     const ops = [{ op: 'setSelection', anchor: pos.anchor || pos.focus, focus: pos.focus }];
@@ -480,6 +496,10 @@ export default function Word({ app, shell, boot }) {
     (e) => {
       // Nothing the browser does to the DOM is kept; the engine decides.
       e.preventDefault();
+      if (previewRef.current) {
+        toast('Preview Results is on — these are a recipient\'s words. Turn it off to edit the letter.', { ms: 4500 });
+        return;
+      }
       const pos = currentPosition();
       const ops = [];
       const selection = selectionToSend(pos, { sent: sentCaret.current, placed: placedCaret.current });
@@ -539,7 +559,7 @@ export default function Word({ app, shell, boot }) {
         apply(...ops);
       }
     },
-    [apply, currentPosition]
+    [apply, currentPosition, toast]
   );
 
   /**
@@ -1078,6 +1098,9 @@ export default function Word({ app, shell, boot }) {
   );
   actRef.current = act;
 
+  // Mailings: the merge's verbs and dialogs (word/mailings.js).
+  const mailings = useMailings({ shell, doc, model, apply, toast });
+
   const commands = useMemo(
     () => ({
       'file.new': { label: 'New', icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'word' }) },
@@ -1157,6 +1180,7 @@ export default function Word({ app, shell, boot }) {
           act={act}
           view={view}
           picked={picked}
+          mailings={mailings}
         />
       }
       status={
@@ -1168,6 +1192,9 @@ export default function Word({ app, shell, boot }) {
             <span className="wd-columns-chip">
               <Chip title="One flow on screen for a native caret; the print and PDF layout actually splits it into columns">{`${columnBoxes.length} columns — laid as one on screen, flowed into columns in print`}</Chip>
             </span>
+          ) : null}
+          {model?.mailMerge?.type ? (
+            <Chip title="Mailings — the kind of mail merge document and its recipients">{mergeChip(model.mailMerge)}</Chip>
           ) : null}
           <Chip>{model?.wordCount ?? 0} words</Chip>
           <Chip>{model?.characterCount ?? 0} characters</Chip>
@@ -1203,7 +1230,7 @@ export default function Word({ app, shell, boot }) {
               />
             ) : null}
             <div
-              className={`wd-page${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}`}
+              className={`wd-page${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}${mailings.highlight ? ' wd-mm-hl' : ''}${model.mailMerge?.preview ? ' wd-mm-preview' : ''}`}
               ref={pageRef}
               contentEditable
               suppressContentEditableWarning
@@ -1599,6 +1626,8 @@ export default function Word({ app, shell, boot }) {
 
       {dialog === 'shortcuts' ? <ShortcutsDialog onClose={() => setDialog(null)} /> : null}
 
+      {mailings.node}
+
       {dialog === 'tracked' ? (
         <TrackedDialog
           blocks={model?.blocks || []}
@@ -1626,6 +1655,14 @@ export default function Word({ app, shell, boot }) {
  * into rows and cells, keeping each cell paragraph as its own editable
  * [data-block] so the caret, selection and typing keep working inside it.
  */
+/** The status bar's word on the mail merge: its kind and its recipients. */
+function mergeChip(mm) {
+  const kind = { formLetters: 'Letters', email: 'E-mail messages', envelopes: 'Envelopes', mailingLabels: 'Labels', catalog: 'Directory' }[mm.type] || 'Mail merge';
+  if (!mm.source) return `${kind} — no recipients yet`;
+  const who = `${mm.included} of ${mm.source.count} recipient${mm.source.count === 1 ? '' : 's'}`;
+  return mm.preview ? `${kind} — record ${mm.record} of ${mm.included}` : `${kind} — ${who}`;
+}
+
 /** No pages laid yet: one sheet, nothing split. */
 const NO_PAGES = { splits: {}, tableSplits: {}, notes: {}, count: 1, at: 1 };
 
@@ -2076,7 +2113,8 @@ function RunSpan({ run, markupMode = 'simple', at = null }) {
       // `data-name` are what the page's Ctrl+click handler reads to follow a
       // REF to its bookmark (`gotoBookmark`), without the engine's frame
       // having to carry anything more than the run already does.
-      className={[run.field ? 'wd-field' : null, run.link ? 'wd-link' : null, run.ins ? 'wd-ins' : null].filter(Boolean).join(' ') || undefined}
+      className={[run.field ? 'wd-field' : null, run.field && MERGE_KINDS.has(run.field.kind) ? 'wd-mergefield' : null, run.link ? 'wd-link' : null, run.ins ? 'wd-ins' : null].filter(Boolean).join(' ') || undefined}
+      data-kind={run.field && MERGE_KINDS.has(run.field.kind) ? run.field.kind : undefined}
       data-instr={run.field ? run.field.instr : undefined}
       data-name={run.field?.kind === 'ref' ? run.field.name : undefined}
       data-link={run.link || undefined}
@@ -2559,6 +2597,10 @@ const CSS = `
 /* A field — a REF, a PAGE, anything cached by <w:fldSimple> — shaded grey the
    way Word shades every field, so its words read as computed rather than typed. */
 .wd-field { background: rgba(0, 0, 0, 0.08); border-radius: 2px; }
+/* A merge field reads as plain words, «chevrons» and all, the way Word draws
+   one — until Mailings → Highlight Merge Fields shades every one grey. */
+.wd-field.wd-mergefield { background: transparent; }
+.wd-page.wd-mm-hl .wd-field.wd-mergefield { background: #d9d9d9; }
 .wd-notes .wd-note { cursor: text; }
 .wd-notemark::after { margin-right: 3px; }
 .wd-notes { margin-top: 28px; padding-top: 6px; border-top: 1px solid #333; width: 33%; min-width: 220px; font-size: 0.85em; user-select: none; }

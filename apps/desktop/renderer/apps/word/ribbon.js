@@ -23,6 +23,7 @@
 import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select, Input } from '@rutba/office-ui';
 import { EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
+import { MailingsTab } from './mailings.js';
 
 /* ── vocabularies ────────────────────────────────────────────────────────── */
 
@@ -78,7 +79,7 @@ const Soon = ({ icon, label, tall, why }) => (
 );
 
 export default function WordRibbon({
-  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null,
+  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null,
 }) {
   const format = model?.format || {};
   const styles = Array.isArray(model?.styles) ? model.styles : [];
@@ -535,30 +536,17 @@ export default function WordRibbon({
       ) : null}
 
       {/* ── Mailings ─────────────────────────────────────────────────────── */}
-      {tab === 'mailings' ? (
-        <>
-          <Group label="Create">
-            <Soon tall icon="mail" label="Envelopes" why="Envelope printing is a page-setup preset plus a label layout; not built yet." />
-            <Soon tall icon="grid" label="Labels" why="Label sheets are a table layout to a stock size; not built yet." />
-          </Group>
-          <Group label="Start Mail Merge">
-            <Soon tall icon="mail" label="Start Mail Merge" why="Mail merge is on the list: a data source, merge fields, and a run through the Mail app. None of it is built yet." />
-            <Soon tall icon="reply" label="Select Recipients" why="Comes with mail merge." />
-            <Soon tall icon="list" label="Edit Recipient List" why="Comes with mail merge." />
-          </Group>
-          <Group label="Write & Insert Fields">
-            <Soon tall icon="wand" label="Highlight Merge Fields" why="Comes with mail merge." />
-            <Soon tall icon="textbox" label="Address Block" why="Comes with mail merge." />
-            <Soon tall icon="textbox" label="Greeting Line" why="Comes with mail merge." />
-            <Soon tall icon="plus" label="Insert Merge Field" why="Comes with mail merge." />
-          </Group>
-          <Group label="Preview Results">
-            <Soon tall icon="eye" label="Preview Results" why="Comes with mail merge." />
-          </Group>
-          <Group label="Finish">
-            <Soon tall icon="send" label="Finish & Merge" why="Comes with mail merge." />
-          </Group>
-        </>
+      {tab === 'mailings' && mailings ? (
+        <MailingsTab
+          mm={mailings}
+          menu={menu}
+          create={
+            <>
+              <Soon tall icon="mail" label="Envelopes" why="An envelope's page with the addresses where they print comes next." />
+              <Soon tall icon="grid" label="Labels" why="A sheet of address labels to a stock size comes next." />
+            </>
+          }
+        />
       ) : null}
 
       {/* ── Review ───────────────────────────────────────────────────────── */}

@@ -55,8 +55,66 @@ export {
   textOf, parseRuns, hasToggle, withToggle, renderRuns, renderRun, firstRunProps, RPR_RE,
 } from './runs.js';
 import {
-  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults,
+  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults, mergeFieldsOnly,
 } from './runs.js';
+
+/**
+ * Paper sizes Windows numbers as envelopes (DMPAPER_ENV_*): No. 9–14, DL,
+ * C3–C6, C65, B4–B6, Italy, Monarch, 6¾. Word writes the number as
+ * `w:pgSz w:code` on the section an envelope is added as.
+ */
+const ENVELOPE_PAPER = new Set([19, 20, 21, 22, 23, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38]);
+const isEnvelopeSection = (sectPrXml) => {
+  const code = /<w:pgSz\b[^>]*\bw:code="(\d+)"/.exec(String(sectPrXml || ''));
+  return code ? ENVELOPE_PAPER.has(Number(code[1])) : false;
+};
+
+/**
+ * The section whose page the editor draws and Layout sets up: the first one,
+ * as it always was — unless that is an envelope Mailings → Envelopes added
+ * at the front of a letter, in which case the letter's own, after it.
+ * Answers a regex match (`index`, `[0]`) — only the opening tag with
+ * `openOnly` — or null.
+ */
+function mainSectPr(body, { openOnly = false } = {}) {
+  let first = null;
+  let main = null;
+  for (const m of String(body).matchAll(/<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/g)) {
+    if (!first) first = m;
+    if (!isEnvelopeSection(m[0])) { main = m; break; }
+  }
+  const hit = main || first;
+  if (!hit || !openOnly) return hit;
+  const open = /^<w:sectPr\b[^>]*?\/?>/.exec(hit[0]);
+  return Object.assign([open[0]], { index: hit.index });
+}
+
+/**
+ * A mail merge source's path from the `file:///…` target Word writes —
+ * `file:///C:\Users\…\list.csv` on Windows, `file:///home/…` elsewhere.
+ */
+function sourcePathOf(target) {
+  let s = String(target);
+  try { s = decodeURI(s); } catch { /* a stray % — keep the text as it is */ }
+  s = s.replace(/^file:\/*/i, '');
+  if (!/^[A-Za-z]:[\\/]/.test(s) && !s.startsWith('\\\\')) s = '/' + s;
+  return s;
+}
+
+/** One section's page: its size, orientation and margins, from its `w:sectPr`. */
+function pageOf(sectPrXml) {
+  const s = parseSection(sectPrXml || '');
+  return { widthPx: s.widthPx, heightPx: s.heightPx, orientation: s.orientation, margins: s.margins };
+}
+
+/** A paragraph's own `w:sectPr` — the end of a section — and the break it asks for, or null. */
+function paragraphSectionBreak(pPrXml) {
+  if (!pPrXml || !pPrXml.includes('<w:sectPr')) return null;
+  const sect = /<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(pPrXml);
+  if (!sect) return null;
+  const type = /<w:type\b[^>]*\bw:val="([^"]*)"/.exec(sect[0]);
+  return { type: type ? type[1] : 'nextPage', sectPr: sect[0] };
+}
 
 /**
  * An explicit page break. `w:pageBreakBefore` is a paragraph property; a
@@ -780,7 +838,56 @@ export class Document {
   }
 
   /** Page size and margins from `w:sectPr`, in CSS pixels — and the page colour. */
-  section() { return { ...parseSection(this._body().body), background: this.pageColour() }; }
+  section() {
+    const { body } = this._body();
+    // The first section, exactly as it always read — unless an envelope was
+    // added in front of the letter (see `mainSectPr`): then the letter's.
+    const main = mainSectPr(body);
+    const first = /<w:sectPr\b/.exec(body);
+    if (!main || !first || main.index === first.index) return { ...parseSection(body), background: this.pageColour() };
+    return { ...parseSection(main[0]), evenAndOdd: /<w:evenAndOddHeaders\b[^>]*\/?>/.test(body), background: this.pageColour() };
+  }
+
+  /**
+   * Every section, in order: where it ends (the edit-space index of its last
+   * paragraph — the one carrying its `w:sectPr` — or null for the last
+   * section, which the body's own `w:sectPr` closes), the break that starts
+   * the one after it, and its page. A merged letter has one per record; a
+   * letter with an envelope added has the envelope's first.
+   */
+  sections() {
+    const out = [];
+    for (const p of this.editParagraphs()) {
+      if (p.container !== null) continue;
+      const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/.exec(p.xml);
+      const brk = paragraphSectionBreak(pPr ? pPr[0] : null);
+      if (brk) out.push({ endsAt: p.index, type: brk.type, ...pageOf(brk.sectPr) });
+    }
+    // The last section is closed by the body's own `w:sectPr`, last in it.
+    const { body } = this._body();
+    const all = [...body.matchAll(/<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/g)];
+    out.push({ endsAt: null, type: null, ...pageOf(all.length ? all[all.length - 1][0] : '') });
+    return out;
+  }
+
+  /**
+   * Start offsets (in the body) of the paragraphs that open a new page
+   * because the paragraph before them ends a section — Word's Next Page,
+   * Odd Page and Even Page breaks; a Continuous one starts no page.
+   */
+  _sectionStarts() {
+    if (this._sectionStartsFor === this.xml) return this._sectionStartsSet;
+    const set = new Set();
+    const list = this.editParagraphs().filter((p) => p.container === null);
+    for (let i = 0; i + 1 < list.length; i++) {
+      const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/.exec(list[i].xml);
+      const brk = paragraphSectionBreak(pPr ? pPr[0] : null);
+      if (brk && brk.type !== 'continuous') set.add(list[i + 1].start);
+    }
+    this._sectionStartsFor = this.xml;
+    this._sectionStartsSet = set;
+    return set;
+  }
 
   /** The page colour, `<w:background w:color="RRGGBB"/>` before the body, as '#RRGGBB' or null. */
   pageColour() {
@@ -834,6 +941,144 @@ export class Document {
       this.pkg.addRelationshipTo(this.mainPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings', 'settings.xml');
     }
     return this;
+  }
+
+  /**
+   * Mailings: the mail merge this document is the main document of, read
+   * from `w:mailMerge` in settings.xml — the kind of document it is
+   * (`formLetters`, `email`, `envelopes`, `mailingLabels`, `catalog`), the
+   * data source it is attached to and how Word reaches it, the record last
+   * previewed. Null for an ordinary document.
+   *
+   * `path` is the source file, from the `mailMergeSource` relationship
+   * Word writes (`file:///C:\…\list.csv`), else from the query or the
+   * connection string; `sheet` is the worksheet an Excel source names in
+   * its query (`SELECT * FROM \`Sheet1$\``).
+   */
+  mailMerge() {
+    const part = 'word/settings.xml';
+    if (!this.pkg.has(part)) return null;
+    const m = /<w:mailMerge\b[^>]*>([\s\S]*?)<\/w:mailMerge>/.exec(this.pkg.text(part));
+    if (!m) return null;
+    const inner = m[1];
+    const val = (name) => {
+      const r = new RegExp('<w:' + name + '\\b[^>]*\\bw:val="([^"]*)"').exec(inner);
+      return r ? unesc(r[1]) : null;
+    };
+    const rid = /<w:dataSource\b[^>]*\br:id="([^"]+)"/.exec(inner);
+    const rel = rid ? this.pkg.rels(part).find((r) => r.Id === rid[1]) : null;
+    const query = val('query');
+    const connect = val('connectString');
+    const fromTarget = rel?.Target ? sourcePathOf(unesc(rel.Target)) : null;
+    const fromQuery = query ? (/\bFROM\s+(?!`)(.+?)\s*$/i.exec(query)?.[1] ?? null) : null;
+    const fromConnect = connect ? (/Data Source=([^;]+)/i.exec(connect)?.[1] ?? null) : null;
+    const sheet = query ? (/`([^`]+?)\$?`/.exec(query)?.[1] ?? null) : null;
+    return {
+      type: val('mainDocumentType') || 'formLetters',
+      dataType: val('dataType'),
+      connectString: connect,
+      query,
+      path: fromTarget || fromConnect || fromQuery || null,
+      sheet: sheet && !/^Rutba Contacts$/i.test(sheet) ? sheet : null,
+      contacts: Boolean(query && /`Rutba Contacts`/i.test(query)),
+      destination: val('destination'),
+      addressField: val('addressFieldName'),
+      subject: val('mailSubject'),
+      viewMergedData: /<w:viewMergedData\b(?![^>]*w:val="(?:0|false)")/.test(inner),
+      activeRecord: Number(val('activeRecord')) || null,
+    };
+  }
+
+  /**
+   * Write `w:mailMerge` as Word writes it — or, with null (Start Mail Merge
+   * → Normal Word Document), take it away with its data source link.
+   *
+   * `spec`: `{ type, source: { kind: 'csv'|'tsv'|'xlsx'|'contacts', path,
+   * sheet }, destination, addressField, subject, viewMergedData,
+   * activeRecord }`. A text file is `textFile` queried by its path; a
+   * workbook is reached the way Word reaches one, through the ACE OLE DB
+   * provider, with the sheet in the query; the address book has no file,
+   * and is named in the query for this suite to find again. The source file
+   * is also a `mailMergeSource` relationship from settings.xml, external,
+   * which is what Word follows to reattach the list when the letter opens.
+   * Only the `w:mailMerge` element and that one relationship are touched:
+   * every other setting rides through as it was.
+   */
+  setMailMerge(spec) {
+    const part = 'word/settings.xml';
+    const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/mailMergeSource';
+    const R_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+    if (!this.pkg.has(part)) {
+      if (!spec) return this;
+      this.pkg.addPart(part, Buffer.from('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings xmlns:w="' + WORD_NS + '" xmlns:r="' + R_NS + '"></w:settings>', 'utf8'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml');
+      this.pkg.addRelationshipTo(this.mainPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings', 'settings.xml');
+    }
+    let settings = this.pkg.text(part);
+    // The old element and its source link go first, whatever replaces them.
+    const old = /<w:mailMerge\b[^>]*>[\s\S]*?<\/w:mailMerge>|<w:mailMerge\b[^>]*\/>/.exec(settings);
+    if (old) {
+      const rid = /<w:dataSource\b[^>]*\br:id="([^"]+)"/.exec(old[0]);
+      settings = settings.slice(0, old.index) + settings.slice(old.index + old[0].length);
+      if (rid) this._removeRel(part, rid[1]);
+    }
+    if (spec) {
+      const v = (name, value) => (value == null || value === '' ? '' : '<w:' + name + ' w:val="' + esc(String(value)) + '"/>');
+      const src = spec.source || null;
+      let dataType = '';
+      let connect = '';
+      let query = '';
+      let dataSource = '';
+      if (src?.kind === 'contacts') {
+        dataType = 'native';
+        query = 'SELECT * FROM `Rutba Contacts` ';
+      } else if (src?.path) {
+        const winPath = String(src.path);
+        if (src.kind === 'xlsx') {
+          dataType = 'native';
+          connect = 'Provider=Microsoft.ACE.OLEDB.12.0;User ID=Admin;Data Source=' + winPath + ';Mode=Read;Extended Properties="HDR=YES;IMEX=1;";';
+          query = 'SELECT * FROM `' + (src.sheet || 'Sheet1') + '$` ';
+        } else {
+          dataType = 'textFile';
+          query = 'SELECT * FROM ' + winPath;
+        }
+        const target = 'file:///' + winPath.replace(/^\/+/, '');
+        const rId = this.pkg.addRelationshipTo(part, REL, target, { external: true });
+        dataSource = '<w:dataSource r:id="' + rId + '"/>';
+      }
+      const element = '<w:mailMerge>' +
+        v('mainDocumentType', spec.type || 'formLetters') +
+        (src ? '<w:linkToQuery/>' : '') +
+        v('dataType', dataType) +
+        (src ? '<w:connectString w:val="' + esc(connect) + '"/>' : '') +
+        v('query', query) +
+        dataSource +
+        v('destination', spec.destination) +
+        v('addressFieldName', spec.addressField) +
+        v('mailSubject', spec.subject) +
+        (spec.viewMergedData ? '<w:viewMergedData/>' : '') +
+        v('activeRecord', spec.activeRecord) +
+        '</w:mailMerge>';
+      // Where the schema puts it: after the document-wide switches Word
+      // writes first, before revision tracking and the default tab stop.
+      const later = /<w:(?:revisionView|trackRevisions|doNotTrackMoves|doNotTrackFormatting|documentProtection|autoFormatOverride|styleLockTheme|styleLockQFSet|defaultTabStop|autoHyphenation|consecutiveHyphenLimit|hyphenationZone|doNotHyphenateCaps|showEnvelope|summaryLength|clickAndTypeStyle|defaultTableStyle|evenAndOddHeaders|bookFoldRevPrinting|bookFoldPrinting|bookFoldPrintingSheets|drawingGrid\w*|displayHorizontalDrawingGridEvery|displayVerticalDrawingGridEvery|doNotUseMarginsForDrawingGridOrigin|doNotShadeFormData|noPunctuationKerning|characterSpacingControl|printTwoOnOne|strictFirstAndLastChars|noLineBreaksAfter|noLineBreaksBefore|savePreviewPicture|doNotValidateAgainstSchema|saveInvalidXml|ignoreMixedContent|alwaysShowPlaceholderText|doNotDemarcateInvalidXml|saveXmlDataOnly|useXSLTWhenSaving|saveThroughXslt|showXMLTags|alwaysMergeEmptyNamespace|updateFields|hdrShapeDefaults|footnotePr|endnotePr|compat|docVars|rsids|mathPr|attachedSchema|themeFontLang|clrSchemeMapping|doNotIncludeSubdocsInStats|doNotAutoCompressPictures|forceUpgrade|captions|readModeInkLockDown|smartTagType|schemaLibrary|shapeDefaults|doNotEmbedSmartTags|decimalSymbol|listSeparator)\b|<w1[45]:|<\/w:settings>/.exec(settings);
+      settings = settings.slice(0, later.index) + element + settings.slice(later.index);
+      // The r: prefix must be in scope for the data source reference.
+      if (dataSource && !/<w:settings\b[^>]*\bxmlns:r=/.test(settings)) {
+        settings = settings.replace(/<w:settings\b/, '<w:settings xmlns:r="' + R_NS + '"');
+      }
+    }
+    this.pkg.write_(part, settings);
+    this.dirty = true;
+    return this;
+  }
+
+  /** Take one relationship off a part's .rels, by its id. */
+  _removeRel(fromPart, id) {
+    const relsPath = OoxmlPackage.relsPathFor(fromPart);
+    if (!this.pkg.has(relsPath)) return;
+    const xml = this.pkg.text(relsPath);
+    const next = xml.replace(new RegExp('<Relationship\\b[^>]*\\bId="' + id + '"[^>]*/>'), '');
+    if (next !== xml) this.pkg.write_(relsPath, next);
   }
 
   /** A fresh `w:id` for the next `w:ins`/`w:del` — one past the highest either kind already carries. */
@@ -1257,7 +1502,7 @@ export class Document {
    */
   setPageBorders(borders) {
     const { prefix, body, suffix } = this._body();
-    const at = /<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(body);
+    const at = mainSectPr(body);
     if (!at) throw new Error('this document has no section properties to border');
     let sectPr = at[0];
     if (/^<w:sectPr\b[^>]*\/>$/.test(sectPr)) sectPr = sectPr.replace(/\/>$/, '>') + '</w:sectPr>';
@@ -1298,7 +1543,7 @@ export class Document {
    */
   setLineNumbers(spec) {
     const { prefix, body, suffix } = this._body();
-    const at = /<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(body);
+    const at = mainSectPr(body);
     if (!at) throw new Error('this document has no section properties to number');
     let sectPr = at[0];
     if (/^<w:sectPr\b[^>]*\/>$/.test(sectPr)) sectPr = sectPr.replace(/\/>$/, '>') + '</w:sectPr>';
@@ -1344,7 +1589,7 @@ export class Document {
     };
 
     const { prefix, body, suffix } = this._body();
-    const at = /<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(body);
+    const at = mainSectPr(body);
     if (!at) throw new Error('this document has no section properties to set up');
     let sectPr = at[0];
     if (/^<w:sectPr\b[^>]*\/>$/.test(sectPr)) {
@@ -1371,7 +1616,7 @@ export class Document {
     if (orientation !== undefined || size !== undefined) {
       // Current dimensions, normalised to portrait, so size and orientation
       // compose in either order and idempotently.
-      const current = parseSection(body);
+      const current = parseSection(at[0]);
       const currentTwips = [Math.round(current.widthPx * 15), Math.round(current.heightPx * 15)];
       const portrait = size !== undefined
         ? (PAPER[size] ?? (() => { throw new Error('unknown paper size: ' + size); })())
@@ -2060,7 +2305,7 @@ export class Document {
     const ref = '<w:' + which + 'Reference w:type="default" r:id="' + rId + '"'
       + ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>';
     const { prefix, body: docBody, suffix } = this._body();
-    const at = /<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>/.exec(docBody);
+    const at = mainSectPr(docBody, { openOnly: true });
     if (!at) throw new Error('this document has no section properties to hang a ' + which + ' on');
     if (at[0].endsWith('/>')) {
       const expanded = at[0].replace(/\/>$/, '>') + ref + '</w:sectPr>';
@@ -2441,7 +2686,7 @@ export class Document {
    */
   _tocTabPositionTwips() {
     const { body } = this._body();
-    const sectPr = /<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(body);
+    const sectPr = mainSectPr(body);
     const sz = sectPr ? /<w:pgSz\b([^>]*)\/>/.exec(sectPr[0]) : null;
     const mar = sectPr ? /<w:pgMar\b([^>]*)\/>/.exec(sectPr[0]) : null;
     const szAttrs = sz ? attrs(sz[1]) : {};
@@ -2899,7 +3144,13 @@ export class Document {
     // longer has to wait for it to be resolved first. Its tracked state is
     // still summarised below for the margin and the Reviewing Pane.
     const structural = ['w:fldChar', 'w:commentRangeStart', 'w:sdt', 'w:txbxContent']
-      .filter((tag) => new RegExp('<' + tag + '\\b').test(p.xml));
+      .filter((tag) => new RegExp('<' + tag + '\\b').test(p.xml))
+      // Mail merge fields are complex fields too, and a letter is made of
+      // them — "Dear «FirstName»," must stay a line a person can type in.
+      // When every complex field in the paragraph is a whole merge field at
+      // its top level, each is one run the rebuild writes back verbatim
+      // (runs.js `foldMergeFields`), so the paragraph is not locked.
+      .filter((tag) => tag !== 'w:fldChar' || !mergeFieldsOnly(p.xml));
     // A paragraph INSIDE a body-level content control carries no sdt tag of
     // its own; it is read-only for the same reason one that does is.
     if (p.inSdt && !structural.includes('w:sdt')) structural.push('w:sdt');
@@ -2929,7 +3180,10 @@ export class Document {
       style: style ? style[1] : null,
       // An explicit page break is the author's instruction, not a suggestion —
       // the paginator must not decide it knows better.
-      pageBreakBefore: PAGE_BREAK_BEFORE.test(pPr ? pPr[0] : '') || EXPLICIT_BREAK.test(p.xml),
+      // A section break before it — Next Page, Odd or Even — is one too: a
+      // merged letter's records each start a page that way.
+      pageBreakBefore: PAGE_BREAK_BEFORE.test(pPr ? pPr[0] : '') || EXPLICIT_BREAK.test(p.xml) || (p.container == null && this._sectionStarts().has(p.start)),
+      ...(p.container == null && paragraphSectionBreak(pPr ? pPr[0] : null) ? { sectionBreak: paragraphSectionBreak(pPr[0]).type } : {}),
       keepNext: KEEP_NEXT.test(pPr ? pPr[0] : ''),
       keepLines: KEEP_LINES.test(pPr ? pPr[0] : ''),
       // A drop cap rides the same way — a paragraph property the paginator
@@ -3076,6 +3330,10 @@ export class Document {
       // character of the text, written back verbatim by renderRuns) — kept
       // here as well, it would be written twice.
       if (childTag === 'm:oMath' || childTag === 'm:oMathPara') return;
+      // A mail merge field's runs — begin, instruction, separate, end — are a
+      // field the model owns as one run and writes back whole (runs.js
+      // `foldMergeFields`); kept here too, each field would be written twice.
+      if (/<w:(?:fldChar|instrText)\b/.test(chunk)) return;
       // The rule is about CONTENT, not tag names: a chunk carrying `<w:t>`
       // anywhere is text the model owns — parseRuns read it and the rebuild
       // rewrites it — so keeping the chunk whole would DOUBLE the text (a
@@ -3337,7 +3595,7 @@ export class Document {
   /** The width text can occupy, in twips — page size minus margins. */
   _contentWidthTwips() {
     const { body } = this._body();
-    const sectPr = firstElement(body, 'w:sectPr');
+    const sectPr = mainSectPr(body)?.[0] ?? null;
     const sz = sectPr ? attrs(firstElement(sectPr, 'w:pgSz') ?? '') : {};
     const mar = sectPr ? attrs(firstElement(sectPr, 'w:pgMar') ?? '') : {};
     const width = Number(sz['w:w']) || 11906;

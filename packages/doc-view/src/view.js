@@ -21,6 +21,10 @@ import { measureText, lineHeight as lineHeightOf } from '@rutba/drawing';
 import { computeListLabels } from './lists.js';
 import { bandForPage, resolveFields } from './bands.js';
 import {
+  MERGE_KINDS, readInstr, evaluateField, matchFields, mergeOrder, placeholderFor, mergeFieldInstr,
+  addressBlockInstr, greetingLineInstr, ifInstr, conditionInstr, findDuplicates, rangeOf as rangeOfOrder,
+} from '@rutba/ooxml/mailmerge';
+import {
   runsText, locate, clampPosition, comparePositions, orderedRange,
   sliceRuns, removeRange, trackedRemoveRange, coalesce, samePosition,
 } from './positions.js';
@@ -2170,6 +2174,322 @@ export class DocView {
   }
   get supportsContentControls() { return supportsContentControls(this.doc); }
 
+  // ---- mailings: mail merge ----------------------------------------------
+  //
+  // A mail merge is a main document — this one — a recipient list, and the
+  // fields that say where each recipient's words go. The document's kind
+  // and the list's whereabouts are in the file (settings.xml `w:mailMerge`,
+  // as Word keeps them); the list itself, which records are ticked, the
+  // order it is sorted in and the record being previewed live here, on the
+  // view, for as long as the document is open — the rules each field
+  // follows are `@rutba/ooxml/mailmerge`'s.
+
+  /** The merge in hand: `{ type, source, excluded, sort, overrides, preview, record }`. */
+  get merge() {
+    if (!this._merge) {
+      const saved = typeof this.doc.mailMerge === 'function' ? this.doc.mailMerge() : null;
+      this._merge = {
+        type: saved?.type ?? null,
+        saved,
+        source: null,
+        excluded: [],
+        sort: null,
+        overrides: {},
+        preview: false,
+        record: saved?.activeRecord || 1,
+        email: { toField: saved?.addressField ?? null, subject: saved?.subject ?? '', sent: Boolean(saved?.addressField) },
+      };
+    }
+    return this._merge;
+  }
+
+  /** The records a merge walks, as indices into the source, in merge order. */
+  mergeOrder() {
+    const m = this.merge;
+    return m.source ? mergeOrder(m.source, { excluded: m.excluded, sort: m.sort }) : [];
+  }
+
+  /** Match Fields: which column stands for each address field. */
+  mergeMapping() {
+    const m = this.merge;
+    return m.source ? matchFields(m.source.fields, m.overrides) : {};
+  }
+
+  /** What the ribbon, the dialogs and the status bar need to know, and nothing as big as the list itself. */
+  mergeSummary() {
+    const m = this.merge;
+    const s = m.source;
+    const order = this.mergeOrder();
+    return {
+      type: m.type,
+      source: s ? { kind: s.kind, name: s.name, path: s.path ?? null, sheet: s.sheet ?? null, sheets: s.sheets ?? null, fields: s.fields, count: s.records.length } : null,
+      // A saved source the window has not reattached yet (the file moved, or
+      // the address book is still to be read) — so the window can say so.
+      pending: !s && m.saved?.path ? { path: m.saved.path, sheet: m.saved.sheet } : !s && m.saved?.contacts ? { contacts: true } : null,
+      included: order.length,
+      excluded: m.excluded.length,
+      sort: m.sort,
+      record: Math.max(1, Math.min(order.length || 1, m.record || 1)),
+      preview: Boolean(m.preview && s),
+      mapping: this.mergeMapping(),
+      overrides: m.overrides,
+      email: m.email,
+      duplicates: s ? findDuplicates(s).length : 0,
+    };
+  }
+
+  /** Write the merge's settings into the file, the way Word keeps them. */
+  _writeMerge() {
+    if (typeof this.doc.setMailMerge !== 'function') return;
+    const m = this.merge;
+    if (!m.type) { this.doc.setMailMerge(null); return; }
+    const src = m.source || (m.saved?.path ? { kind: /\.xlsx?$/i.test(m.saved.path) ? 'xlsx' : 'csv', path: m.saved.path, sheet: m.saved.sheet } : m.saved?.contacts ? { kind: 'contacts' } : null);
+    this.doc.setMailMerge({
+      type: m.type,
+      source: src && (src.path || src.kind === 'contacts') ? { kind: src.kind, path: src.path ?? null, sheet: src.sheet ?? null } : null,
+      destination: m.type === 'email' ? 'email' : null,
+      // Kept once a merge has been sent as e-mail, whatever the document's
+      // kind — Word keeps the To column and the subject line the same way.
+      addressField: m.type === 'email' || m.email.sent ? m.email.toField : null,
+      subject: m.type === 'email' || m.email.sent ? m.email.subject : null,
+      viewMergedData: Boolean(m.preview && m.source),
+      activeRecord: m.source ? this.mergeSummary().record : null,
+    });
+    this.touched = true;
+  }
+
+  /**
+   * Start Mail Merge: what kind of main document this is — 'formLetters',
+   * 'email', 'envelopes', 'mailingLabels', 'catalog' — or null, Normal Word
+   * Document, which takes the merge off the file and the list with it.
+   */
+  startMailMerge(type) {
+    const m = this.merge;
+    if (!type) {
+      Object.assign(m, { type: null, source: null, saved: null, excluded: [], sort: null, preview: false, record: 1 });
+    } else m.type = type;
+    this._writeMerge();
+    this._invalidate();
+    return this;
+  }
+
+  /**
+   * Select Recipients: the list the merge reads — `{ kind: 'csv' | 'tsv' |
+   * 'xlsx' | 'contacts', name, path, sheet, sheets, fields, records }`.
+   * A document not yet started as a merge becomes a letter, as Word's own
+   * Select Recipients makes it.
+   */
+  attachMergeSource(source, { restore = false } = {}) {
+    if (!source || !Array.isArray(source.fields) || !Array.isArray(source.records)) throw new Error('a recipient list needs fields and records');
+    const m = this.merge;
+    if (restore) {
+      // A merge document opened again: the list read back from where the
+      // file says, the record and the preview as the file left them, and
+      // nothing written — reopening is not an edit.
+      m.source = source;
+      m.record = Math.max(1, Math.min(source.records.length || 1, m.saved?.activeRecord || 1));
+      m.preview = Boolean(m.saved?.viewMergedData);
+      if (!m.type) m.type = m.saved?.type || 'formLetters';
+      if (!m.email.toField) m.email.toField = source.fields.find((f) => /e-?mail/i.test(f)) || null;
+      this._invalidate();
+      this.touched = false;
+      return this;
+    }
+    m.source = source;
+    m.excluded = [];
+    m.sort = null;
+    m.record = 1;
+    if (!m.type) m.type = 'formLetters';
+    if (!m.email.toField) m.email.toField = source.fields.find((f) => /e-?mail/i.test(f)) || null;
+    this._writeMerge();
+    this._invalidate();
+    return this;
+  }
+
+  /** Edit Recipient List: which records are left out, and the column the list is sorted on. */
+  setMergeRecipients({ excluded, sort } = {}) {
+    const m = this.merge;
+    if (!m.source) throw new Error('select recipients first');
+    if (excluded !== undefined) m.excluded = [...new Set((excluded || []).map(Number).filter((i) => i >= 0 && i < m.source.records.length))];
+    if (sort !== undefined) m.sort = sort && sort.field ? { field: sort.field, descending: Boolean(sort.descending) } : null;
+    m.record = Math.max(1, Math.min(this.mergeOrder().length || 1, m.record));
+    this._writeMerge();
+    this._invalidate();
+    return this;
+  }
+
+  /** Match Fields: `{ _FIRST0_: 'Forename', … }` — a column, or '' for "(not matched)". */
+  setMergeMapping(overrides = {}) {
+    this.merge.overrides = { ...overrides };
+    this._invalidate();
+    return this;
+  }
+
+  /** The To column and the Subject line an e-mail merge sends with — kept in the file, as Word keeps them. */
+  setMergeEmail({ toField, subject } = {}) {
+    const m = this.merge;
+    if (toField !== undefined) m.email.toField = toField || null;
+    if (subject !== undefined) m.email.subject = String(subject ?? '');
+    m.email.sent = true;
+    this._writeMerge();
+    return this;
+  }
+
+  /**
+   * Preview Results: on or off, and the record shown (1-based in merge
+   * order — the number in the ribbon's record box). While it is on the page
+   * shows each field's value for that record in place of «its name».
+   */
+  setMergePreview({ on, record } = {}) {
+    const m = this.merge;
+    if (on !== undefined) m.preview = Boolean(on) && Boolean(m.source);
+    if (record !== undefined) m.record = Math.max(1, Math.min(this.mergeOrder().length || 1, Math.round(Number(record) || 1)));
+    this._writeMerge();
+    this._invalidate();
+    return this;
+  }
+
+  /**
+   * Find Recipient: the next record in merge order, after the one shown and
+   * round to the start, holding `text` in `field` (or in any field). Shows
+   * it and answers its number, or 0 when no record has it.
+   */
+  findMergeRecipient(text, { field = null } = {}) {
+    const m = this.merge;
+    const order = this.mergeOrder();
+    const want = String(text || '').trim().toLowerCase();
+    if (!m.source || !want || !order.length) return 0;
+    const col = field ? m.source.fields.indexOf(field) : -1;
+    for (let k = 1; k <= order.length; k++) {
+      const at = ((m.record - 1 + k) % order.length);
+      const rec = m.source.records[order[at]];
+      const cells = col >= 0 ? [rec[col]] : rec;
+      if (cells.some((v) => String(v ?? '').toLowerCase().includes(want))) {
+        this.setMergePreview({ on: true, record: at + 1 });
+        return at + 1;
+      }
+    }
+    return 0;
+  }
+
+  /**
+   * Check for Errors: the MERGEFIELDs that name a column the list does not
+   * have — Word's own complaint, "Invalid Merge Field" — each once.
+   */
+  mergeErrors() {
+    const s = this.merge.source;
+    if (!s) return [];
+    const want = (n) => String(n || '').trim().toLowerCase().replace(/[\s_]+/g, ' ');
+    const have = new Set(s.fields.map(want));
+    const bad = new Set();
+    for (const b of this.blocks) {
+      for (const r of b.runs) {
+        if (r.field?.kind === 'mergefield' && !have.has(want(r.field.name))) bad.add(r.field.name);
+      }
+    }
+    return [...bad];
+  }
+
+  /** A merge field at the caret — one run, the caret's formatting, a selection replaced as typing would. */
+  _insertMergeRun(instr, label) {
+    return this._edit(label, null, () => {
+      if (!this.collapsed) this.deleteSelection();
+      const { block, offset } = this.focus;
+      const b = this._editable(block);
+      const { runIndex } = locate(b.runs, offset, 'left');
+      const here = b.runs[runIndex];
+      const rPr = here && !here.field && !here.noteRef && !here.noteMark && !here.math && !here.del ? here.rPr : null;
+      const { kind, name } = readInstr(instr);
+      const m = this.merge;
+      const order = this.mergeOrder();
+      const ctx = m.source && order.length ? { source: m.source, record: m.source.records[order[Math.min(order.length, m.record) - 1]], mapping: this.mergeMapping() } : null;
+      const text = placeholderFor(instr, ctx);
+      const run = { rPr, text, field: { instr, kind, name } };
+      const next = [...sliceRuns(b.runs, 0, offset), run, ...sliceRuns(b.runs, offset, Infinity)];
+      this.doc.setParagraphRuns(block, coalesce(next));
+      this._invalidate();
+      this.pendingFormat = null;
+      this.collapseTo({ block, offset: offset + text.length });
+      return this;
+    });
+  }
+
+  /** Insert Merge Field: «Column», Word's `MERGEFIELD Column \* MERGEFORMAT`. */
+  insertMergeField(name) {
+    if (!name) throw new Error('which field?');
+    return this._insertMergeRun(mergeFieldInstr(name), 'merge field');
+  }
+
+  /** Address Block: an ADDRESSBLOCK field with the dialog's choices as its switches. */
+  insertAddressBlock(opts = {}) {
+    return this._insertMergeRun(addressBlockInstr(opts), 'address block');
+  }
+
+  /** Greeting Line: a GREETINGLINE field — salutation, name format, punctuation, and the fallback. */
+  insertGreetingLine(opts = {}) {
+    return this._insertMergeRun(greetingLineInstr(opts), 'greeting line');
+  }
+
+  /**
+   * Rules: 'if' (If…Then…Else), 'next' (Next Record), 'nextif', 'skipif'
+   * (Skip Record If), 'mergerec' (Merge Record #), 'mergeseq' (Merge
+   * Sequence #). The comparisons take `{ field, comparison, value }`, an IF
+   * `then` and `otherwise` as well.
+   */
+  insertMergeRule(kind, opts = {}) {
+    const instr = kind === 'if' ? ifInstr(opts)
+      : kind === 'nextif' || kind === 'skipif' ? conditionInstr(kind, opts)
+      : kind === 'next' ? ' NEXT '
+      : kind === 'mergerec' ? ' MERGEREC '
+      : kind === 'mergeseq' ? ' MERGESEQ '
+      : null;
+    if (!instr) throw new Error('no rule called ' + kind);
+    return this._insertMergeRun(instr, 'rule');
+  }
+
+  /**
+   * Each merge field's value for the record in preview, by run — walked in
+   * document order because a «Next Record» moves every field after it on to
+   * the next record, which is how a sheet of labels previews twenty-one.
+   */
+  _previewValues() {
+    const m = this.merge;
+    if (!m.preview || !m.source) return null;
+    const order = this.mergeOrder();
+    if (!order.length) return null;
+    const mapping = this.mergeMapping();
+    let pointer = Math.max(0, Math.min(order.length, m.record) - 1);
+    const out = new Map();
+    for (const b of this.blocks) {
+      for (const r of b.runs) {
+        if (!r.field || !MERGE_KINDS.has(r.field.kind)) continue;
+        const index = pointer < order.length ? order[pointer] : null;
+        const record = index === null ? null : m.source.records[index];
+        const got = record ? evaluateField(r.field.instr, { source: m.source, record, recordNumber: index + 1, sequence: Math.min(order.length, m.record), mapping }) : { text: '' };
+        if (got.next || (!record && r.field.kind === 'next')) pointer += 1;
+        out.set(r, got.text);
+      }
+    }
+    return out;
+  }
+
+  /** Finish & Merge → Edit Individual Documents (and Print Documents): the merged document's bytes. */
+  mergeToDocument({ range = 'all' } = {}) {
+    const m = this.merge;
+    if (!m.source) throw new Error('Select recipients first — Mailings → Select Recipients.');
+    const order = rangeOfOrder(this.mergeOrder(), range, m.record);
+    if (!order.length) throw new Error('No recipients are ticked in the list.');
+    return this.doc.mergeToDocument(m.source, order, { type: m.type || 'formLetters', mapping: this.mergeMapping() });
+  }
+
+  /** Finish & Merge → Send E-mail Messages: a message per record. */
+  mergeMessages({ range = 'all', toField, subject, format = 'html' } = {}) {
+    const m = this.merge;
+    if (!m.source) throw new Error('Select recipients first — Mailings → Select Recipients.');
+    const order = rangeOfOrder(this.mergeOrder(), range, m.record);
+    return this.doc.mergeMessages(m.source, order, { toField: toField ?? m.email.toField, subject: subject ?? m.email.subject, format, mapping: this.mergeMapping() });
+  }
+
   // ---- rendering ---------------------------------------------------------
 
   /**
@@ -2189,6 +2509,11 @@ export class DocView {
     // A field's own code and kind — REF Summary, PAGE, DATE — so the page can
     // shade it and Ctrl+click can follow a REF to its bookmark.
     if (r.field) out.field = r.field;
+    // Preview Results: the record's value where the field's «name» was.
+    if (r.field && this._mergeValues?.has(r)) {
+      out.text = this._mergeValues.get(r);
+      out.merged = true;
+    }
     // An equation: the MathML the page draws, the linear form the editor
     // opens with, and the OMML itself — what a copy within the suite
     // carries, so a paste puts back the same equation, not its picture.
@@ -2319,6 +2644,9 @@ export class DocView {
     // the notes next: the blocks read the numbers off the references.
     this._loadDefinitions();
     const notes = this._notes();
+    // Preview Results reads every merge field's value first, in document
+    // order — a «Next Record» moves the fields after it to the next record.
+    this._mergeValues = this._previewValues();
     return {
       ...notes,
       blocks: contextualSpacing(this.blocks, this._docStyles, this.blocks.map((b) => {
@@ -2364,8 +2692,12 @@ export class DocView {
         ...(b.gridPx ? { gridPx: b.gridPx, tableWidth: b.tableWidth ?? null } : {}),
         ...(b.cellSpan ? { cellSpan: b.cellSpan } : {}),
         ...(b.rowHeightPx ? { rowHeightPx: b.rowHeightPx, rowRule: b.rowRule ?? null } : {}),
-        text: b.text,
-        runs: b.runs.map((r) => this._renderRun(r, { toc: /^TOC\d/i.test(b.style || '') })),
+        ...(() => {
+          const runs = b.runs.map((r) => this._renderRun(r, { toc: /^TOC\d/i.test(b.style || '') }));
+          // A previewed paragraph's words are the record's, so its text is too.
+          const previewed = this._mergeValues && b.runs.some((r) => this._mergeValues.has(r));
+          return { text: previewed ? runs.map((r) => r.text).join('') : b.text, runs };
+        })(),
         ...(b.tracked ? { tracked: b.tracked } : {}),
         // Every paragraph's pictures — and its charts and shapes, which ride
         // the same pipeline as SVG — paint from here. This used to be cell
@@ -2419,6 +2751,12 @@ export class DocView {
       // window — its entries live inside an opaque content control, out of
       // `fields`' reach.
       tableOfContents: typeof this.doc.tableOfContents === 'function' ? this.doc.tableOfContents() : null,
+      // Mailings: the merge in hand — its kind, the list's name and fields,
+      // how many are ticked, the record in preview. The records themselves
+      // are asked for when Edit Recipient List opens, not sent every frame.
+      mailMerge: this.mergeSummary(),
+      // How many sections — a merged letter has one per record.
+      sectionCount: typeof this.doc.sectionCount === 'function' ? this.doc.sectionCount() : 1,
       // Review → Track Changes: is this document recording, right now — read
       // from the file's own setting so a reopened file with it already on
       // shows the ribbon pressed without the window having to ask first.

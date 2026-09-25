@@ -23,7 +23,9 @@
     "./build": "./src/build.js",
     "./zip": "./src/zip.js",
     "./math": "./src/math.js",
-    "./math-linear": "./src/math-linear.js"
+    "./math-linear": "./src/math-linear.js",
+    "./mailmerge": "./src/mailmerge.js",
+    "./mailmerge-run": "./src/mailmerge-run.js"
   },
   "dependencies": {
     "@rutba/formula": "*"
