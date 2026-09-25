@@ -2056,18 +2056,52 @@ export class Workbook {
    * be exactly the kind of violation the Office gate exists to catch.
    */
   setFullCalcOnLoad() {
-    let xml = this.pkg.text(this.mainPart);
+    const xml = this.pkg.text(this.mainPart);
     if (/fullCalcOnLoad="1"/.test(xml)) return this;
-    if (/<calcPr\b/.test(xml)) {
-      xml = xml.replace(/<calcPr\b([^>]*?)\/>/, (_, a) =>
-        '<calcPr' + a.replace(/\s*fullCalcOnLoad="[^"]*"/, '') + ' fullCalcOnLoad="1"/>');
-    } else if (/<pivotCaches\b/.test(xml)) {
-      xml = xml.replace(/<pivotCaches\b/, '<calcPr calcId="191029" fullCalcOnLoad="1"/><pivotCaches');
+    return this._setCalcPr({ fullCalcOnLoad: '1' });
+  }
+
+  /**
+   * `<calcPr>` with some attributes set (a value) or taken off (null), the
+   * element made where the schema puts it — after the defined names, before
+   * `oleSize`, the custom views, the pivot caches and `extLst` — when the
+   * workbook has none.
+   */
+  _setCalcPr(changes) {
+    let xml = this.pkg.text(this.mainPart);
+    const found = /<calcPr\b([^>]*?)(\/>|>)/.exec(xml);
+    let attrsText = found ? found[1] : ' calcId="191029"';
+    for (const [name, value] of Object.entries(changes)) {
+      attrsText = attrsText.replace(new RegExp('\\s*\\b' + name + '="[^"]*"'), '');
+      if (value !== null && value !== undefined) attrsText += ' ' + name + '="' + esc(String(value)) + '"';
+    }
+    if (found) {
+      xml = xml.slice(0, found.index) + '<calcPr' + attrsText + found[2] + xml.slice(found.index + found[0].length);
     } else {
-      xml = xml.replace('</workbook>', '<calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>');
+      const next = /<(oleSize|customWorkbookViews|pivotCaches|smartTagPr|smartTagTypes|webPublishing|fileRecoveryPr|webPublishObjects|extLst)\b|<\/workbook>/.exec(xml);
+      const at = next ? next.index : xml.length;
+      xml = xml.slice(0, at) + '<calcPr' + attrsText + '/>' + xml.slice(at);
     }
     this.pkg.write_(this.mainPart, xml);
     return this;
+  }
+
+  /**
+   * Formulas → Calculation Options, as the workbook keeps it: `calcMode` on
+   * `<calcPr>` — 'manual', 'autoNoTable' (automatic except for data tables)
+   * or, when the attribute is absent, automatic.
+   */
+  calcMode() {
+    const m = /<calcPr\b([^>]*?)\/?>/.exec(this.pkg.text(this.mainPart));
+    const mode = m ? /\bcalcMode="([^"]*)"/.exec(m[1])?.[1] : null;
+    return mode === 'manual' || mode === 'autoNoTable' ? mode : 'auto';
+  }
+
+  /** Set the calculation mode; automatic takes the attribute away, as Excel does. */
+  setCalcMode(mode) {
+    if (!['auto', 'autoNoTable', 'manual'].includes(mode)) throw new Error('calculation is auto, autoNoTable or manual, not ' + mode);
+    if (mode === this.calcMode()) return this;
+    return this._setCalcPr({ calcMode: mode === 'auto' ? null : mode });
   }
 
   /** Remove a defined name. An emptied <definedNames> block goes with it. */

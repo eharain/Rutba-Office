@@ -645,6 +645,7 @@ const SHEET_SHORTCUTS = [
   ['Escape', 'Cancel the edit'], ['Delete', 'Clear the selection'], ['Shift+Arrows', 'Extend the selection'],
   ['Ctrl+Arrows', 'Jump to the edge of the data'], ['Ctrl+A', 'Select all'], ['Ctrl+D / Ctrl+R', 'Fill down / right'],
   ['Ctrl+F / Ctrl+H', 'Find / Replace'], ['Ctrl+G', 'Go To'], ['Ctrl+`', 'Show formulas'],
+  ['F9', 'Calculate Now — every sheet'], ['Shift+F9', 'Calculate Sheet — this sheet'],
 ];
 
 export function SheetShortcutsDialog({ onClose }) {
@@ -988,6 +989,87 @@ export function AdvancedFilterDialog({ list, onClose, onApply }) {
           <Input className="sh-adv-to" value={copyTo} disabled={action !== 'copy'} onChange={(e) => setCopyTo(e.target.value)} onKeyDown={enter} placeholder="I1" />
         </Field>
         <label style={CHECK_ROW}><input type="checkbox" className="sh-adv-unique" checked={unique} onChange={(e) => setUnique(e.target.checked)} /> Unique records only</label>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Formulas → Evaluate Formula, Excel's dialog: the cell's reference beside
+ * its formula, the part the next Evaluate works out underlined and the
+ * last result in italics; Step In opens the underlined cell's own formula
+ * in a box below, Step Out puts its value back. The engine replays the
+ * presses from the start each time (`load(actions)`), so the dialog keeps
+ * only the list of them.
+ */
+export function EvaluateDialog({ load, initial, onClose }) {
+  const [actions, setActions] = useState([]);
+  const [state, setState] = useState(initial);
+  const [busy, setBusy] = useState(false);
+  const press = async (action) => {
+    if (busy) return;
+    const next = action === 'restart' ? [] : [...actions, action];
+    setBusy(true);
+    try {
+      const got = await load(next);
+      if (got) { setActions(next); setState(got); }
+    } finally {
+      setBusy(false);
+    }
+  };
+  const levels = state?.levels || [];
+  const formulaText = (level) => {
+    // The = sits between the columns, as Excel draws it, not in the box.
+    const lead = String(level.text || '').startsWith('=') ? 1 : 0;
+    const t = String(level.text || '').slice(lead);
+    const shift = (span) => (span ? [span[0] - lead, span[1] - lead] : null);
+    const u = shift(level.underline);
+    const r = shift(level.recent);
+    // A stretch of the text with the most recent result in italics — the
+    // result is often inside the part underlined next (SUM({5;3}) after
+    // the range was read), so the underline wraps it rather than cutting it.
+    const withRecent = (from, to) => {
+      if (!r || r[1] <= from || r[0] >= to) return t.slice(from, to);
+      const a = Math.max(from, r[0]);
+      const b = Math.min(to, r[1]);
+      return [t.slice(from, a), <em key="r" className="sh-eval-recent">{t.slice(a, b)}</em>, t.slice(b, to)];
+    };
+    if (!u) return withRecent(0, t.length);
+    return [
+      <React.Fragment key="a">{withRecent(0, u[0])}</React.Fragment>,
+      <u key="u" className="sh-eval-next">{withRecent(u[0], u[1])}</u>,
+      <React.Fragment key="b">{withRecent(u[1], t.length)}</React.Fragment>,
+    ];
+  };
+  return (
+    <Dialog
+      title="Evaluate Formula"
+      width={620}
+      onClose={onClose}
+      actions={
+        <>
+          {state?.done
+            ? <Button primary label="Restart" className="sh-eval-restart" disabled={busy} onClick={() => press('restart')} />
+            : <Button primary label="Evaluate" className="sh-eval-evaluate" disabled={busy || !state?.canEvaluate} onClick={() => press('evaluate')} />}
+          <Button label="Step In" className="sh-eval-in" disabled={busy || !state?.canStepIn} onClick={() => press('stepIn')} />
+          <Button label="Step Out" className="sh-eval-out" disabled={busy || !state?.canStepOut} onClick={() => press('stepOut')} />
+          <Button label="Close" onClick={onClose} />
+        </>
+      }
+    >
+      <div className="sh-eval">
+        <div className="sh-eval-head">
+          <span>Reference</span>
+          <span>Evaluation</span>
+        </div>
+        {levels.map((level, i) => (
+          <div key={i} className={`sh-eval-level${i === levels.length - 1 ? ' current' : ''}`} data-level={i}>
+            <span className="sh-eval-ref">{level.ref}</span>
+            <span className="sh-eval-eq">=</span>
+            <div className="sh-eval-text" data-text={level.text}>{formulaText(level)}</div>
+          </div>
+        ))}
+        <p className="sh-eval-message">{state?.message}</p>
       </div>
     </Dialog>
   );

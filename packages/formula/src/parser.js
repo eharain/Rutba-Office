@@ -72,7 +72,25 @@ export function tokenize(input) {
     throw ERR.VALUE('unterminated "[" in a table reference');
   };
 
+  // Where each token sits in `src` — [pos, end) — for the stepping
+  // evaluator, which shows a formula with the part it evaluates next
+  // underlined. A token pushed during one pass of the loop below spans from
+  // where that pass began to where it left `i`; the two that need a tighter
+  // span (a function's name and its bracket, a name followed by spaces) set
+  // their own.
+  let stamped = 0;
+  let passStart = 0;
+  const stamp = () => {
+    for (let k = stamped; k < tokens.length; k++) {
+      if (tokens[k].pos === undefined) tokens[k].pos = passStart;
+      if (tokens[k].end === undefined) tokens[k].end = i;
+    }
+    stamped = tokens.length;
+    passStart = i;
+  };
+
   while (i < src.length) {
+    stamp();
     const ch = src[i];
 
     if (/\s/.test(ch)) { i += 1; continue; }
@@ -144,6 +162,7 @@ export function tokenize(input) {
       const m = NAME_RE.exec(slice);
       let name = m[0];
       let j = i + name.length;
+      let nameEnd = j;
       // A name butted straight against `[` is a table reference: Table1[Qty].
       if (src[j] === '[') {
         const { inner, end } = scanBrackets(j);
@@ -157,9 +176,9 @@ export function tokenize(input) {
         // (and a worksheet-only one with `_xlws.`) so an old Excel shows a
         // #NAME? rather than a wrong number. The prefix is the file's, not
         // the function's: CEILING.MATH is CEILING.MATH.
-        tokens.push({ type: T.FUNC, value: name.toUpperCase().replace(/^_XL(FN|WS|PM|LM|ETN|DLM|OP)\./, '') });
+        tokens.push({ type: T.FUNC, value: name.toUpperCase().replace(/^_XL(FN|WS|PM|LM|ETN|DLM|OP)\./, ''), pos: i, end: nameEnd });
 
-        tokens.push({ type: T.LPAREN });
+        tokens.push({ type: T.LPAREN, pos: j, end: j + 1 });
         i = j + 1;
         continue;
       }
@@ -169,11 +188,12 @@ export function tokenize(input) {
         if (after) {
           name = name + '!' + after[0];
           j = j + 1 + after[0].length;
+          nameEnd = j;
         }
       }
       const upper = name.toUpperCase();
-      if (upper === 'TRUE' || upper === 'FALSE') tokens.push({ type: T.BOOL, value: upper === 'TRUE' });
-      else tokens.push({ type: T.NAME, value: name });
+      if (upper === 'TRUE' || upper === 'FALSE') tokens.push({ type: T.BOOL, value: upper === 'TRUE', pos: i, end: nameEnd });
+      else tokens.push({ type: T.NAME, value: name, pos: i, end: nameEnd });
       i = j;
       continue;
     }
@@ -202,6 +222,7 @@ export function tokenize(input) {
 
     throw ERR.VALUE('unexpected character "' + ch + '" at position ' + i);
   }
+  stamp();
   return tokens;
 }
 
@@ -338,9 +359,22 @@ function parseStructSpec(inner) {
 
 const COMPARISON = ['=', '<>', '<', '>', '<=', '>='];
 
-export function parse(input) {
+/**
+ * Parse formula text into an AST.
+ *
+ * With `{ spans: true }` every node also carries `span: [start, end)` — where
+ * it sits in the formula with its leading `=` taken off — and a bracketed one
+ * `outer`, the same with its brackets. Only the stepping evaluator asks for
+ * them; every other caller gets exactly the nodes it always had.
+ */
+export function parse(input, { spans = false } = {}) {
   const tokens = tokenize(input);
   let pos = 0;
+  const ext = (node) => node.outer ?? node.span;
+  const mark = spans
+    ? (node, start, end) => { node.span = [start, end]; return node; }
+    : (node) => node;
+  const joined = (node, a, b) => (spans ? mark(node, ext(a)[0], ext(b)[1]) : node);
 
   const peek = () => tokens[pos];
   const next = () => tokens[pos++];
@@ -354,7 +388,8 @@ export function parse(input) {
     let left = parseConcat();
     while (peek() && peek().type === T.OP && COMPARISON.includes(peek().value)) {
       const op = next().value;
-      left = { type: 'binary', op, left, right: parseConcat() };
+      const right = parseConcat();
+      left = joined({ type: 'binary', op, left, right }, left, right);
     }
     return left;
   }
@@ -362,7 +397,8 @@ export function parse(input) {
     let left = parseAdditive();
     while (at(T.OP, '&')) {
       next();
-      left = { type: 'binary', op: '&', left, right: parseAdditive() };
+      const right = parseAdditive();
+      left = joined({ type: 'binary', op: '&', left, right }, left, right);
     }
     return left;
   }
@@ -370,7 +406,8 @@ export function parse(input) {
     let left = parseMultiplicative();
     while (peek() && peek().type === T.OP && !peek().unary && (peek().value === '+' || peek().value === '-')) {
       const op = next().value;
-      left = { type: 'binary', op, left, right: parseMultiplicative() };
+      const right = parseMultiplicative();
+      left = joined({ type: 'binary', op, left, right }, left, right);
     }
     return left;
   }
@@ -378,15 +415,18 @@ export function parse(input) {
     let left = parseUnary();
     while (peek() && peek().type === T.OP && (peek().value === '*' || peek().value === '/')) {
       const op = next().value;
-      left = { type: 'binary', op, left, right: parseUnary() };
+      const right = parseUnary();
+      left = joined({ type: 'binary', op, left, right }, left, right);
     }
     return left;
   }
   function parseUnary() {
     if (peek() && peek().type === T.OP && peek().unary) {
-      const op = next().value;
+      const opTok = next();
       // `^` binds tighter than unary minus: -2^2 === -4
-      return { type: 'unary', op, operand: parseUnary() };
+      const operand = parseUnary();
+      const node = { type: 'unary', op: opTok.value, operand };
+      return spans ? mark(node, opTok.pos, ext(operand)[1]) : node;
     }
     return parsePower();
   }
@@ -395,15 +435,17 @@ export function parse(input) {
     if (at(T.OP, '^')) {
       next();
       // right-associative, and its right side may itself be unary: 2^-1
-      return { type: 'binary', op: '^', left: base, right: parseUnary() };
+      const right = parseUnary();
+      return joined({ type: 'binary', op: '^', left: base, right }, base, right);
     }
     return base;
   }
   function parsePostfix() {
     let node = parsePrimary();
     while (at(T.PERCENT)) {
-      next();
-      node = { type: 'unary', op: '%', operand: node };
+      const pct = next();
+      const wrapped = { type: 'unary', op: '%', operand: node };
+      node = spans ? mark(wrapped, ext(node)[0], pct.end) : wrapped;
     }
     return node;
   }
@@ -412,15 +454,18 @@ export function parse(input) {
     const t = peek();
     if (!t) throw ERR.VALUE('formula ended unexpectedly');
 
-    if (t.type === T.NUMBER) { next(); return { type: 'literal', value: t.value }; }
-    if (t.type === T.STRING) { next(); return { type: 'literal', value: t.value }; }
-    if (t.type === T.BOOL) { next(); return { type: 'literal', value: t.value }; }
-    if (t.type === T.ERROR) { next(); return { type: 'errorLiteral', value: t.value }; }
+    if (t.type === T.NUMBER) { next(); return mark({ type: 'literal', value: t.value }, t.pos, t.end); }
+    if (t.type === T.STRING) { next(); return mark({ type: 'literal', value: t.value }, t.pos, t.end); }
+    if (t.type === T.BOOL) { next(); return mark({ type: 'literal', value: t.value }, t.pos, t.end); }
+    if (t.type === T.ERROR) { next(); return mark({ type: 'errorLiteral', value: t.value }, t.pos, t.end); }
 
     if (t.type === T.LPAREN) {
       next();
       const inner = parseComparison();
-      expect(T.RPAREN);
+      const close = expect(T.RPAREN);
+      // The brackets belong to the text round the node, not to the node:
+      // `outer` is how far a parent reaches to take them in.
+      if (spans) inner.outer = [t.pos, close.end];
       return inner;
     }
 
@@ -432,28 +477,28 @@ export function parse(input) {
         args.push(parseComparison());
         while (at(T.COMMA)) { next(); args.push(parseComparison()); }
       }
-      expect(T.RPAREN);
-      return { type: 'call', name, args };
+      const close = expect(T.RPAREN);
+      return mark({ type: 'call', name, args }, t.pos, close.end);
     }
 
     if (t.type === T.REF) {
       const first = next();
       const startNode = parseReference(first.text);
       // A spill reference stands alone — it IS a range, so it heads no other.
-      if (first.spill) return { ...startNode, type: 'spillref' };
+      if (first.spill) return mark({ ...startNode, type: 'spillref' }, first.pos, first.end);
       if (at(T.COLON) && startNode.type === 'cell') {
         next();
         const endTok = expect(T.REF);
         const endNode = parseReference(endTok.text);
         if (endNode.type !== 'cell') throw ERR.REF('bad range end "' + endTok.text + '"');
-        return {
+        return mark({
           type: 'range',
           sheet: startNode.sheet ?? endNode.sheet,
           start: startNode,
           end: endNode,
-        };
+        }, first.pos, endTok.end);
       }
-      return startNode;
+      return mark(startNode, first.pos, first.end);
     }
 
     // An array constant. Excel writes rows with `;` and columns with `,`, and
@@ -471,15 +516,15 @@ export function parse(input) {
           break;
         }
       }
-      expect(T.RBRACE);
-      return { type: 'array', rows };
+      const close = expect(T.RBRACE);
+      return mark({ type: 'array', rows }, t.pos, close.end);
     }
 
-    if (t.type === T.NAME) { next(); return { type: 'name', name: t.value }; }
+    if (t.type === T.NAME) { next(); return mark({ type: 'name', name: t.value }, t.pos, t.end); }
 
     if (t.type === T.STRUCT) {
       next();
-      return { type: 'structref', table: t.table, ...parseStructSpec(t.inner) };
+      return mark({ type: 'structref', table: t.table, ...parseStructSpec(t.inner) }, t.pos, t.end);
     }
 
     throw ERR.VALUE('unexpected ' + (t.value ?? t.type));

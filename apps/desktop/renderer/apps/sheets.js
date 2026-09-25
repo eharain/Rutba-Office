@@ -18,7 +18,7 @@ import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import {
   GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
-  OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog,
+  OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -103,6 +103,8 @@ export default function Sheets({ app, shell, boot }) {
   const [outlineAsk, setOutlineAsk] = useState(null);
   /** The list the Subtotal and Advanced Filter dialogs act on: its range and its columns by header. */
   const [listInfo, setListInfo] = useState(null);
+  /** Formulas → Evaluate Formula: the cell it opened on and the dialog's first state. */
+  const [evaluating, setEvaluating] = useState(null);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -520,6 +522,13 @@ export default function Sheets({ app, shell, boot }) {
       if (e.key === 'F2') {
         e.preventDefault();
         await dispatch({ op: 'beginEdit' });
+        return;
+      }
+      // Excel's own: F9 calculates every sheet, Shift+F9 this one,
+      // Ctrl+Alt+F9 every formula whatever changed.
+      if (e.key === 'F9') {
+        e.preventDefault();
+        await act('calculate', e.shiftKey ? 'sheet' : e.ctrlKey && e.altKey ? 'full' : 'workbook');
         return;
       }
       // Excel's own: Ctrl+D/R fill, Ctrl+G go to, Ctrl+` show formulas.
@@ -1308,10 +1317,32 @@ export default function Sheets({ app, shell, boot }) {
         setTimeout(() => editorRef.current?.focus(), 0);
         return;
       }
-      case 'recalculate':
-        await dispatch({ op: 'select', row: at.row, col: at.col });
-        toast('Recalculated.', { tone: 'good', ms: 2000 });
+      // Calculate Now (F9), Calculate Sheet (Shift+F9) and a full pass.
+      case 'calculate': {
+        const scope = arg || 'workbook';
+        const next = await dispatch({ op: 'calculate', scope });
+        if (!next) return;
+        const n = Number(next.opResult) || 0;
+        toast(`${scope === 'sheet' ? 'Calculated this sheet' : 'Calculated'}: ${n} formula${n === 1 ? '' : 's'} worked out`, { tone: 'good', ms: 2400 });
         return;
+      }
+      // Formulas → Calculation Options: written to the workbook.
+      case 'calcMode': {
+        await dispatch({ op: 'setCalcMode', mode: arg });
+        toast({ auto: 'Calculation: automatic', autoNoTable: 'Calculation: automatic except for data tables', manual: 'Calculation: manual — F9 calculates' }[arg] || 'Calculation set', { tone: 'good', ms: 2600 });
+        return;
+      }
+      // Formulas → Evaluate Formula: the active cell's formula, a part at a time.
+      case 'evaluateFormula': {
+        const cell = { row: at.row, col: at.col };
+        try {
+          const first = await shell.doc.evaluateFormula({ id: doc.id, ...cell, actions: [] });
+          setEvaluating({ ...cell, first });
+        } catch (err) {
+          toast(String(err?.message || err), { tone: 'warn', ms: 4500 });
+        }
+        return;
+      }
       case 'refreshAll':
         await dispatch({ op: 'select', row: at.row, col: at.col });
         try { await shell.doc.apply({ id: doc.id, ops: [{ op: 'refreshPivot' }] }).then((next) => { setDoc(next); setModel(next.model); }); } catch { /* no pivot to refresh */ }
@@ -1624,6 +1655,11 @@ export default function Sheets({ app, shell, boot }) {
           <Chip>{sel?.ref || ''}</Chip>
           {model?.link ? <Chip title="Ctrl+click the cell to open it">{model.link.href || model.link.location}</Chip> : null}
           {model?.notes ? <Chip title="Rest the pointer on a marked cell to read its note">{model.notes} {model.notes === 1 ? 'note' : 'notes'}</Chip> : null}
+          {model?.calc?.pending ? (
+            // Excel's word for formulas that have not caught up with an edit
+            // in manual mode; pressing it is Calculate Now.
+            <button type="button" className="sh-calc-pending" data-tip="Calculate — formulas are waiting for Calculate Now (F9)" onClick={() => act('calculate', 'workbook')}>Calculate</button>
+          ) : null}
           <ZoomSlider value={view.zoom ?? 1} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', 1)} />
         </>
       }
@@ -2084,6 +2120,14 @@ export default function Sheets({ app, shell, boot }) {
         />
       ) : null}
 
+      {evaluating && doc ? (
+        <EvaluateDialog
+          initial={evaluating.first}
+          load={(actions) => shell.doc.evaluateFormula({ id: doc.id, row: evaluating.row, col: evaluating.col, actions }).catch((err) => { toast(String(err?.message || err), { tone: 'warn' }); return null; })}
+          onClose={() => setEvaluating(null)}
+        />
+      ) : null}
+
       {dialog === 'freeze' ? <FreezeDialog model={model} sel={sel} dispatch={dispatch} onClose={() => setDialog(null)} /> : null}
     </AppFrame>
   );
@@ -2387,6 +2431,28 @@ const CSS = `
 }
 .sh-tab:hover { background: var(--hover); }
 .sh-tab.active { background: var(--surface); color: var(--accent); font-weight: 600; box-shadow: var(--shadow-1); }
+/* The status bar's "Calculate": formulas waiting in manual mode; a press calculates. */
+.sh-calc-pending {
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--surface); color: var(--accent);
+  font: inherit; font-size: 11.5px; font-weight: 600; padding: 1px 10px; border-radius: 999px; cursor: pointer;
+}
+.sh-calc-pending:hover { background: var(--selected); }
+/* Formulas → Evaluate Formula: reference beside evaluation, a box per level. */
+.sh-eval { display: flex; flex-direction: column; gap: 6px; }
+.sh-eval-head, .sh-eval-level { display: grid; grid-template-columns: 150px 14px 1fr; gap: 8px; align-items: start; }
+.sh-eval-head { font-size: 11.5px; font-weight: 600; color: var(--ink-3); }
+.sh-eval-head span:last-child { grid-column: 3; }
+.sh-eval-ref { font-size: 12px; font-variant-numeric: tabular-nums; padding-top: 7px; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-eval-eq { padding-top: 6px; color: var(--ink-3); text-align: center; }
+.sh-eval-text {
+  font-family: var(--mono); font-size: 12.5px; line-height: 1.55; min-height: 56px; max-height: 150px; overflow: auto;
+  padding: 6px 9px; border: 1px solid var(--line-soft); border-radius: var(--r-2); background: var(--surface-2);
+  white-space: pre-wrap; word-break: break-all; color: var(--ink-2);
+}
+.sh-eval-level.current .sh-eval-text { background: var(--surface); border-color: var(--line); color: var(--ink); }
+.sh-eval-next { text-decoration: underline; text-decoration-thickness: 1.5px; text-underline-offset: 3px; text-decoration-color: var(--accent); background: var(--selected); border-radius: 2px; }
+.sh-eval-recent { font-style: italic; color: var(--accent); }
+.sh-eval-message { margin: 6px 0 0; font-size: 12px; color: var(--ink-3); }
 /* The + at the end of the tabs: a new sheet, as every spreadsheet has it. */
 .sh-tab-add { min-width: 28px; font-weight: 600; color: var(--ink-2); }
 `;

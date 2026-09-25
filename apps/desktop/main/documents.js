@@ -1087,6 +1087,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     watchOpen: (v, a) => { v.watchOpen = a.on === undefined ? !v.watchOpen : Boolean(a.on); return true; },
     watchAdd: (v, a) => { v.watches = addWatches(v.watches || [], a.refs || []); return true; },
     watchRemove: (v, a) => { v.watches = removeWatch(v.watches || [], a.ref); return true; },
+    // Formulas → Calculation: the workbook's mode (auto, autoNoTable, manual),
+    // and Calculate Now / Calculate Sheet — the count worked out rides back.
+    setCalcMode: (v, a) => { v.setCalcMode(a.mode); },
+    calculate: (v, a) => v.calculate({ scope: a.scope || 'workbook' }),
     setHyperlink: (v, a) => v.setHyperlink(a),
     removeHyperlink: (v, a) => v.removeHyperlink(a),
     // A note signed by whoever the window says, else by the account at the keyboard.
@@ -1342,7 +1346,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 
@@ -1670,6 +1674,16 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
      */
 
     /** The page setup this file carries, which is where a print dialog starts. */
+    /**
+     * Formulas → Evaluate Formula: the state of the dialog after a list of
+     * presses on the active cell's formula, replayed from the start.
+     */
+    evaluateFormula: ({ id, row, col, actions }) => {
+      const session = get(id);
+      if (session.kind !== 'sheet') return null;
+      return session.engine.evaluateFormula({ row: Number(row) || 0, col: Number(col) || 0, actions: Array.isArray(actions) ? actions : [] });
+    },
+
     /** Formulas → Trace: the cells a formula reads, or the formulas that read a cell. */
     trace: ({ id, kind, row, col }) => {
       const session = get(id);

@@ -111,6 +111,7 @@ export const METHODS = {
     'shapeClip',    // ({ id, slide, shape }) -> { xml, tag, rels } — a slide's shape as something to paste
     'deckFind',     // ({ id, query, options }) -> [hit] — every occurrence across a deck, for the find pane
     'trace',        // ({ id, kind, row, col }) -> { kind, at, arrows, elsewhere } — a cell's precedents or dependents
+    'evaluateFormula', // ({ id, row, col, actions }) -> { levels, canEvaluate, canStepIn, canStepOut, done, message } — Evaluate Formula after the presses
     'sessions',     // () -> [{ id, kind, path, dirty }]
     'recoverable',  // () -> [{ file, kind, name, path, at, size }] — what a crash left behind
     'recover',      // ({ file }) -> { id, kind, model, meta, recoveredFrom }

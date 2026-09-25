@@ -13,6 +13,7 @@
  *   functions.js  the function library
  *   evaluator.js  AST + resolver -> value
  *   engine.js     sheet model, dependency graph, ordered recalculation
+ *   evaluate-steps.js  Evaluate Formula: a formula worked out a part at a time
  */
 export {
   FormulaError, ERR, ERROR_TYPES, isError, isBlank, firstError,
@@ -29,3 +30,4 @@ export { FUNCTIONS, FUNCTION_NAMES, isVolatile } from './functions.js';
 export { FUNCTION_CATALOG, CATEGORIES, catalogByCategory } from './catalog.js';
 export { evaluate, calculate } from './evaluator.js';
 export { Spreadsheet, prettyKey } from './engine.js';
+export { FormulaStepper, FormulaEvaluation, evaluationText, referenceText } from './evaluate-steps.js';

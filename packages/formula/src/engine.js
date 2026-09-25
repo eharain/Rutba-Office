@@ -66,7 +66,21 @@ export class Spreadsheet {
      */
     this.revision = 0;
     this._boundsCache = new Map();
+
+    /**
+     * Manual calculation, Excel's Calculation Options → Manual. An edit then
+     * calculates only a formula typed into the cell being edited; everything
+     * that depends on an edit waits in `pending` until a forced pass —
+     * Calculate Now or Calculate Sheet — which is what the status bar's
+     * "Calculate" says.
+     */
+    this.manual = false;
+    /** Cell keys whose dependents have not been calculated since they changed. */
+    this.pending = new Set();
   }
+
+  /** Whether something waits for Calculate Now (only ever in manual mode). */
+  get calculationPending() { return this.pending.size > 0; }
 
   /** Something changed the extent of the grid; the cached bounds are stale. */
   _touch() {
@@ -419,7 +433,15 @@ export class Spreadsheet {
    *
    * @returns {{calculated: number, cycles: string[]}}
    */
-  recalculate({ all = false, _depth = 0 } = {}) {
+  recalculate({ all = false, _depth = 0, force = false, sheet = null } = {}) {
+    // Manual calculation: the edit's own formula cells are worked out — a
+    // formula typed in shows its answer, as Excel's does — and everything
+    // the edit reaches waits for a forced pass.
+    if (this.manual && !force) return this._deferred();
+    if (this.pending.size) {
+      for (const k of this.pending) this.dirty.add(k);
+      this.pending.clear();
+    }
     const formulas = this._formulaCells();
     const byKey = new Map(formulas.map((c) => [key(c.sheet, c.row, c.col), c]));
 
@@ -481,6 +503,17 @@ export class Spreadsheet {
       }
     }
 
+    // Calculate Sheet (Shift+F9): only this sheet's formulas are worked out;
+    // the rest the edits reached stay waiting for the next pass.
+    if (sheet !== null) {
+      const prefix = sheet + '!';
+      for (const k of [...scope]) {
+        if (k.startsWith(prefix)) continue;
+        scope.delete(k);
+        this.pending.add(k);
+      }
+    }
+
     // In-degree within the scope: a dependency outside it already holds its
     // final value, so it imposes no ordering on this pass.
     const pending = new Map();
@@ -536,13 +569,38 @@ export class Spreadsheet {
     // a pathological pair of interfering spills from ping-ponging forever.
     if (spillTouched.size && _depth < 4) {
       for (const gk of spillTouched) this.dirty.add(gk);
-      const again = this.recalculate({ _depth: _depth + 1 });
+      const again = this.recalculate({ _depth: _depth + 1, force: true, sheet });
       return {
         calculated: order.length + again.calculated,
         cycles: [...cycles.map(prettyKey), ...again.cycles],
       };
     }
     return { calculated: order.length, cycles: cycles.map(prettyKey) };
+  }
+
+  /**
+   * The manual-mode pass: each changed cell that holds a formula is worked
+   * out on its own (a new formula shows its answer), and every change waits
+   * in `pending` for the forced pass that brings its dependents up to date.
+   */
+  _deferred() {
+    const resolver = this.resolver();
+    const spillTouched = new Set();
+    let calculated = 0;
+    for (const k of this.dirty) {
+      const bang = k.lastIndexOf('!');
+      const [row, col] = k.slice(bang + 1).split(':').map(Number);
+      const cell = this.sheets.get(k.slice(0, bang))?.get(k);
+      if (cell?.ast) {
+        const raw = evaluate(cell.ast, resolver, { sheet: cell.sheet, row, col, spill: true });
+        this._settle(cell, k, raw, spillTouched);
+        calculated += 1;
+      }
+      this.pending.add(k);
+    }
+    for (const g of spillTouched) this.pending.add(g);
+    this.dirty.clear();
+    return { calculated, cycles: [], deferred: this.pending.size };
   }
 
   /** The anchor whose spill (live or blocked) covers a cell key, or null. */

@@ -495,12 +495,17 @@ export default function SheetsRibbon({
             <Button icon="close" label="Remove Arrows" title="Remove Arrows — take the tracing arrows off the grid" onClick={() => act('removeArrows')} />
             <Button icon="formula" label="Show Formulas" pressed={Boolean(view.formulas)} title="Show every formula instead of its result (Ctrl+`)" onClick={() => act('toggleFormulas')} />
             <Button icon="check" label="Error Checking" pressed={Boolean(model?.errors)} title="Error Checking — every cell whose value is an error, or part of a circular reference" onClick={() => act('errorCheck')} />
-            <Soon icon="eye" label="Evaluate Formula" why="Step evaluation needs the engine to expose each step; on the list." />
+            <Button icon="eye" label="Evaluate Formula" title="Evaluate Formula — the active cell's formula worked out a part at a time, with Step In to the cells it reads" onClick={() => act('evaluateFormula')} />
             <Button icon="eye" label="Watch Window" pressed={Boolean(model?.watches)} title="Watch Window — a list of chosen cells whose value stays visible wherever you scroll" onClick={() => act('watchOpen')} />
           </Group>
           <Group label="Calculation">
-            <Button tall icon="refresh" label="Calculate Now" title="The engine recalculates on every edit; this forces a full pass" onClick={() => act('recalculate')} />
-            <Soon icon="settings" label="Calculation Options" why="Manual calculation is a workbook setting the engine does not honour yet — it always calculates." />
+            <Button tall icon="settings" label="Calculation Options" title={`Calculation Options — now ${{ auto: 'automatic', autoNoTable: 'automatic except for data tables', manual: 'manual' }[model?.calc?.mode || 'auto']}`} onClick={(e) => menu.open(e, [
+              ['auto', 'Automatic'], ['autoNoTable', 'Automatic except for data tables'], ['manual', 'Manual'],
+            ].map(([mode, label]) => ({ label, icon: (model?.calc?.mode || 'auto') === mode ? 'check' : undefined, run: () => act('calcMode', mode) })))} />
+            <Rows>
+              <Button icon="refresh" label="Calculate Now" title="Calculate Now — every formula an edit has reached, on every sheet (F9)" onClick={() => act('calculate', 'workbook')} />
+              <Button icon="refresh" label="Calculate Sheet" title="Calculate Sheet — this sheet's formulas only (Shift+F9)" onClick={() => act('calculate', 'sheet')} />
+            </Rows>
           </Group>
         </>
       ) : null}

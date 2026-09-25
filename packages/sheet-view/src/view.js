@@ -25,7 +25,7 @@ import {
   createPivot, planPivot,
 } from '@rutba/ooxml/pivot';
 import {
-  isError, shiftFormula, calculate, parse, compareValues, serialToDate, dateToSerial,
+  isError, shiftFormula, calculate, parse, compareValues, serialToDate, dateToSerial, FormulaEvaluation,
 } from '@rutba/formula';
 import { formatValue, BUILTIN_FORMATS, isDateFormat } from './numfmt.js';
 import { applyFormat, formatOf, ensureDxf } from './styles-write.js';
@@ -108,6 +108,10 @@ export class SheetView {
     const { sheet } = toSpreadsheet(this.workbook, { now });
     this.calc = sheet;
     this.calc.recalculate();
+    // Formulas → Calculation Options, as the file says: a workbook saved in
+    // manual mode opens in manual mode. It is calculated once on opening
+    // all the same — the engine holds no values until it has.
+    this.calc.manual = this.workbook.calcMode() === 'manual';
 
     this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
     /** @type {Map<string, SheetGeometry>} */
@@ -442,6 +446,8 @@ export class SheetView {
       }
       if (namesTouched) {
         this._syncNames();
+        // workbook.xml also carries the calculation mode an undo may put back.
+        this.calc.manual = this.workbook.calcMode() === 'manual';
         this.calc.recalculate();
       }
     }
@@ -1114,6 +1120,8 @@ export class SheetView {
       formulaBar: this.editing ? this.editing.draft : this.editValue(active.row, active.col),
       editing: this.editing ? { ...this.editing } : null,
       status: this.statusLine(),
+      // Formulas → Calculation Options, and whether the status bar says "Calculate".
+      calc: this.calcState(),
     };
   }
 
@@ -1613,6 +1621,7 @@ export class SheetView {
     const { sheet } = toSpreadsheet(this.workbook, { now: this._now });
     this.calc = sheet;
     this.calc.recalculate();
+    this.calc.manual = this.workbook.calcMode() === 'manual';
     this._pivots = null;
     for (const { name, part } of this.workbook.sheets()) {
       const xml = this.workbook.snapshotParts([part])[part];
@@ -2539,13 +2548,13 @@ export class SheetView {
 
     const miss = (x) => {
       this.calc.setCell(sheet, byRow, byCol, x);
-      this.calc.recalculate();
+      this.calc.recalculate({ force: true });
       const v = this.calc.getValue(sheet, setRow, setCol);
       return typeof v === 'number' ? v - goal : NaN;
     };
     const restore = () => {
       this.calc.setCell(sheet, byRow, byCol, byInput ?? '');
-      this.calc.recalculate();
+      this.calc.recalculate({ force: true });
     };
 
     const tolerance = 1e-7 * Math.max(1, Math.abs(goal));
@@ -2667,7 +2676,7 @@ export class SheetView {
     const restore = () => {
       if (rowCell) this.calc.setCell(sheet, rowCell.row, rowCell.col, rowCell.original ?? '');
       if (colCell) this.calc.setCell(sheet, colCell.row, colCell.col, colCell.original ?? '');
-      this.calc.recalculate();
+      this.calc.recalculate({ force: true });
     };
 
     const writes = [];
@@ -2677,7 +2686,7 @@ export class SheetView {
           setInput(colCell, down.value);
           for (const across of acrossValues) {
             setInput(rowCell, across.value);
-            this.calc.recalculate();
+            this.calc.recalculate({ force: true });
             writes.push({
               row: down.row,
               col: across.col,
@@ -2688,7 +2697,7 @@ export class SheetView {
       } else if (colCell) {
         for (const down of downValues) {
           setInput(colCell, down.value);
-          this.calc.recalculate();
+          this.calc.recalculate({ force: true });
           for (const f of formulaCells) {
             writes.push({ row: down.row, col: f.col, value: this.calc.getValue(sheet, f.row, f.col) });
           }
@@ -2696,7 +2705,7 @@ export class SheetView {
       } else {
         for (const across of acrossValues) {
           setInput(rowCell, across.value);
-          this.calc.recalculate();
+          this.calc.recalculate({ force: true });
           for (const f of formulaCells) {
             writes.push({ row: f.row, col: across.col, value: this.calc.getValue(sheet, f.row, f.col) });
           }
@@ -3922,6 +3931,72 @@ export class SheetView {
     return this;
   }
 
+  // ---- calculation ----------------------------------------------------------
+
+  /** Formulas → Calculation Options: 'auto', 'autoNoTable' or 'manual', as the workbook keeps it. */
+  calcMode() {
+    return this.workbook.calcMode();
+  }
+
+  /**
+   * Set the calculation mode, written to `workbook.xml` where Excel keeps
+   * it. Going back to automatic calculates everything that was waiting, as
+   * Excel does the moment the option is chosen. One undo step.
+   *
+   * "Automatic except for data tables" calculates exactly as automatic here:
+   * a data table this editor makes holds its answers as values, so there is
+   * nothing of one for a recalculation to redo.
+   */
+  setCalcMode(mode) {
+    if (!['auto', 'autoNoTable', 'manual'].includes(mode)) throw new Error('calculation is auto, autoNoTable or manual');
+    if (mode === this.calcMode()) return this;
+    this._edit('calculation options', null, [], () => {
+      this.workbook.setCalcMode(mode);
+      this.calc.manual = mode === 'manual';
+      if (!this.calc.manual) this.calc.recalculate({ force: true });
+      this._structuralDirty = true;
+    }, { parts: [this.workbook.mainPart] });
+    return this;
+  }
+
+  /**
+   * Calculate Now (F9) — every formula an edit has reached, on every sheet —
+   * or, with `sheet`, Calculate Sheet (Shift+F9), this sheet's alone.
+   * `full` works out every formula whatever changed (Ctrl+Alt+F9). Returns
+   * how many formulas were worked out.
+   */
+  calculate({ scope = 'workbook' } = {}) {
+    const result = this.calc.recalculate({
+      force: true,
+      all: scope === 'full',
+      sheet: scope === 'sheet' ? this.activeSheet : null,
+    });
+    return result.calculated;
+  }
+
+  /** What the status bar says about calculation: the mode, and whether "Calculate" shows. */
+  calcState() {
+    return { mode: this.calcMode(), pending: this.calc.calculationPending };
+  }
+
+  /**
+   * Formulas → Evaluate Formula: the active cell's formula (or `row`/`col`'s)
+   * after a list of presses — 'evaluate', 'stepIn', 'stepOut', 'restart' —
+   * replayed from the start, so the window keeps only the presses.
+   */
+  evaluateFormula({ row = this.selection.active.row, col = this.selection.active.col, actions = [] } = {}) {
+    const resolver = this.calc.resolver();
+    const getFormula = (sheet, r, c) => {
+      const input = this.calc.getInput(sheet, r, c);
+      return typeof input === 'string' && input.startsWith('=') ? input : null;
+    };
+    const at = { sheet: this.activeSheet, row, col };
+    if (!getFormula(at.sheet, row, col)) {
+      throw new Error('Select a cell with a formula in it, then Evaluate Formula steps through it.');
+    }
+    return FormulaEvaluation.replay(resolver, at, actions, { getFormula }).state();
+  }
+
   // ---- frozen panes -------------------------------------------------------
 
   /** The frozen pane on the active sheet, always a {rows, cols} pair. */
@@ -4489,7 +4564,11 @@ export class SheetView {
     }, { styles: true });
   }
 
-  save() {
+  save({ recalc = true } = {}) {
+    // Excel recalculates a workbook in manual mode before saving it, so the
+    // file never keeps an answer the sheet had not caught up with.
+    // A draft kept for recovery (serialize) leaves the waiting alone.
+    if (recalc && this.calc.calculationPending) this.calc.recalculate({ force: true });
     for (const key of this.dirtyCells) {
       const [sheetName, cellRef] = key.split('!');
       const input = this.calc.getInput(sheetName, ...parseRefPair(cellRef));
@@ -4557,7 +4636,7 @@ export class SheetView {
     const dirty = [...this.dirtyCells];
     const styled = [...this.styledCells];
     const structural = this._structuralDirty;
-    const out = this.save();
+    const out = this.save({ recalc: false });
     for (const key of dirty) this.dirtyCells.add(key);
     for (const key of styled) this.styledCells.add(key);
     this._structuralDirty = structural;
