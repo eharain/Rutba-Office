@@ -30,7 +30,7 @@ const commentAuthor = () => safeUserName() || 'Rutba Office user';
 
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parseRef } from '@rutba/ooxml/workbook';
-import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES } from '@rutba/presentation';
+import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES, THEMES as DECK_THEMES, PALETTES as DECK_PALETTES, FONT_PAIRS as DECK_FONT_PAIRS, EFFECT_PRESETS as DECK_EFFECTS } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';
 import { linearToOmml } from '@rutba/ooxml/math-linear';
 import { probeImage } from '@rutba/imaging/probe';
@@ -1012,7 +1012,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     const thumbs = session.thumbs || (session.thumbs = new Map());
     const thumbnailOf = (o, compute = true) => {
       try {
-        const key = deck.pkg?.text ? deck.pkg.text(o.part) : String(o.index);
+        // The design stamp too: a new theme or a master edit redraws every slide on it.
+        const key = `${deck.designStamp ?? 0}:${deck.pkg?.text ? deck.pkg.text(o.part) : String(o.index)}`;
         const hit = thumbs.get(o.part);
         if (hit && hit.key === key) return hit.svg;
         if (!compute) return null;
@@ -1039,16 +1040,19 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       outline: deck.outline().map((o) => ({ ...o, thumbnail: thumbnailOf(o, Math.abs(o.index - index) <= 2) })),
       // The deck's sections, for the headings in the strip and the sorter; none for most decks.
       sections: safely(() => deck.sections()) || [],
-      // The deck's layouts, for the Designs pane. Read once: nothing edits
-      // a layout, and reading them draws every placeholder of every one.
-      layouts: (session.layouts ||= safely(() => deck.layoutList()) || []),
+      // The deck's layouts, for the Designs pane. Read once per design:
+      // reading them draws every placeholder of every one, and only a master
+      // or theme edit (which moves the stamp) changes them.
+      layouts: (session.layoutsAt === deck.designStamp && session.layouts) || ((session.layoutsAt = deck.designStamp), (session.layouts = safely(() => deck.layoutList()) || [])),
+      // Design → the theme, colours, fonts and effects this deck has now, for the gallery to tick.
+      design: safely(() => deck.designInfo(index)) || null,
 
       slide: current
         ? {
             ...current,
             // Each shape's drawing wrapped and tagged with its id, so the
             // show can hide, reveal and move one shape without a redraw.
-            svg: renderSlide(current, { width, resolveImage, tagShapes: true }),
+            svg: renderSlide(current, { width, resolveImage, tagShapes: true, idPrefix: 'st_' }),
             // This slide's own background, distinct from `background` above
             // (which the scene shows, inherited when the slide states none)
             // — so the ribbon can tick the choice that is actually this slide's.
@@ -1068,6 +1072,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
               effects: s.effects ?? null,
               geometry: s.geometry,
               placeholder: s.placeholder,
+              // What a run that states nothing is drawn with — the master's,
+              // the layout's and the shape's own styles — so the ribbon shows
+              // a title's real size rather than the ribbon's own default.
+              textDefaults: s.textStyle?.[0] ? { size: s.textStyle[0].size ?? null, font: s.textStyle[0].font ?? null, color: s.textStyle[0].color ?? null, bold: s.textStyle[0].bold ?? null, italic: s.textStyle[0].italic ?? null, align: s.textStyle[0].align ?? null } : null,
               text: (s.text || s.inheritedText)
                 ? { paragraphs: (s.text || s.inheritedText).paragraphs.map((p) => ({ ...p, plain: p.runs.map((r) => r.text).join('') })), anchor: (s.text || s.inheritedText).anchor || 'top', vert: (s.text || s.inheritedText).vert || 'horz', columns: (s.text || s.inheritedText).columns || 1 }
                 : null,
@@ -1472,6 +1480,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     addChart: (d, a) => d.addChart(a.slide, a),
     // The chart data dialog's Apply: the part rewritten from new values; the frame is untouched.
     setChartData: (d, a) => d.setChartData(a.slide, a.shape, a),
+    // Design → Themes, Variants, Colours, Fonts and Effects: the theme part
+    // every master points at, rewritten; no slide is touched.
+    applyTheme: (d, a) => d.applyTheme(a.theme, { variant: Number(a.variant) || 0 }),
+    applyVariant: (d, a) => d.applyVariant(Number(a.variant) || 0, a.slide ?? 0),
+    setThemeColors: (d, a) => d.setThemeColors(a.palette ?? a.colors, a.name ?? null),
+    setThemeFonts: (d, a) => d.setThemeFonts(a.pair ?? { major: a.major, minor: a.minor }, a.name ?? null),
+    setThemeEffects: (d, a) => d.setThemeEffects(a.effects),
 
   };
 
@@ -1769,12 +1784,20 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // along, so a caller after a specific number or string gets it and
       // everything else stays silent rather than failing the whole call.
       let opResult;
-      for (const op of ops || []) {
-        const fn = table[op.op];
-        if (!fn) throw new Error(`${session.kind} documents have no operation "${op.op}"`);
-        const result = fn(session.engine, op);
-        if (['number', 'string', 'boolean'].includes(typeof result)) opResult = result;
-        if (!CLEAN_OPS.has(op.op)) touched = true;
+      // A deck keeps its own undo: the package as it stood before this
+      // call, kept once the call has changed something — one step per
+      // apply, however many ops it carried.
+      const snap = session.kind === 'deck' && typeof session.engine.snapshot === 'function' && (ops || []).some((op) => !CLEAN_OPS.has(op.op)) ? session.engine.snapshot() : null;
+      try {
+        for (const op of ops || []) {
+          const fn = table[op.op];
+          if (!fn) throw new Error(`${session.kind} documents have no operation "${op.op}"`);
+          const result = fn(session.engine, op);
+          if (['number', 'string', 'boolean'].includes(typeof result)) opResult = result;
+          if (!CLEAN_OPS.has(op.op)) touched = true;
+        }
+      } finally {
+        if (snap && touched) session.engine.pushUndo(snap);
       }
       if (touched) {
         session.dirty = true;
@@ -1980,6 +2003,36 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       const pkg = OoxmlPackage.read(Buffer.from(session.engine.serialize ? session.engine.serialize() : session.engine.save()));
       if (!pkg.has(ref)) return null;
       return holdBlob(pkg.read(ref), 'application/octet-stream', path.basename(ref));
+    },
+
+    /**
+     * Design → the gallery for one of Themes, Variants, Colours, Fonts or
+     * Effects: what each choice is called and, for themes and variants, the
+     * current slide drawn under it by the deck's own renderer, so the
+     * gallery shows this deck and not a stock picture.
+     */
+    deckDesign: ({ id, slide = 0, kind = 'themes', width = 176 }) => {
+      const session = get(id);
+      if (session.kind !== 'deck') return null;
+      const deck = session.engine;
+      const index = Math.max(0, Math.min(Number(slide) || 0, deck.slideCount - 1));
+      const info = safely(() => deck.designInfo(index)) || {};
+      const { resolveImage } = deckThumbnailer(session);
+      const draw = (spec) => safely(() => renderThumbnail(deck.previewSlide(index, spec), width, { resolveImage })) || null;
+      const same = (a, b) => a && b && Object.keys(a).every((k) => String(a[k]).replace('#', '').toUpperCase() === String(b[k] || '').replace('#', '').toUpperCase());
+      let items = [];
+      if (kind === 'themes') {
+        items = DECK_THEMES.map((t) => ({ id: t.id, name: t.name, fonts: t.fonts, colors: t.palette, dark: Boolean(t.dark), current: info.builtIn === t.id, svg: deck.slideCount ? draw({ theme: t.id }) : null }));
+      } else if (kind === 'variants') {
+        items = (safely(() => deck.variants(index)) || []).map((v, i) => ({ id: i, name: v.name, colors: v.colors, dark: v.dark, current: info.variant === i, svg: deck.slideCount ? draw({ variant: i }) : null }));
+      } else if (kind === 'colours') {
+        items = DECK_PALETTES.map((p) => ({ id: p.id, name: p.name, colors: p.colors, current: same(p.colors, info.colors) }));
+      } else if (kind === 'fonts') {
+        items = DECK_FONT_PAIRS.map((p) => ({ id: p.id, name: p.name, major: p.major, minor: p.minor, current: p.major === info.fonts?.major && p.minor === info.fonts?.minor }));
+      } else if (kind === 'effects') {
+        items = DECK_EFFECTS.map((p) => ({ id: p.id, name: p.name, description: p.description, current: info.effects === p.id, svg: safely(() => renderThumbnail(deck.effectsSample(p.id, index), 150)) || null }));
+      }
+      return { info, items };
     },
 
     // The thumbnails an open model left out, drawn on request and cached

@@ -13,7 +13,8 @@
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parse, kids, first, all, escapeXml } from '@rutba/office-formats/xml';
 import { emuToPx, pxToEmu, ptToSz } from './units.js';
-import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText, composeGroupChild, REFLECTION_PRESETS } from './slide.js';
+import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText, composeGroupChild, REFLECTION_PRESETS, readLevels, mergeLevels, readFill } from './slide.js';
+import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS, COLOUR_SLOTS, themePartXml, clrSchemeXml, fontSchemeXml, fmtSchemeXml, masterBackgroundXml, clrMapAttrs, variantsOf, themeById } from './themes.js';
 import { slideXml } from './build.js';
 import { chartPartXml } from '@rutba/ooxml/build';
 import { readTransition, withTransition, transitionBlock, insertTransition, transitionRange } from './motion.js';
@@ -115,9 +116,20 @@ class Theme {
     this.colors = {};
     this.fonts = { major: 'Calibri Light', minor: 'Calibri' };
     this.clrMap = clrMap || {};
+    /** The names the gallery ticks by: the theme's, its colours', its fonts' and its effects'. */
+    this.name = null;
+    this.colorName = null;
+    this.fontName = null;
+    this.effectName = null;
+    /** The format scheme's four lists, as nodes a style reference picks from by index. */
+    this.fmt = { fills: [], lines: [], effects: [], bgFills: [] };
+    /** Set on a copy by `withPh`: what `phClr` means while a format-scheme entry is read. */
+    this.ph = null;
     if (!xml) return;
     const root = parse(xml);
+    this.name = first(root, A('theme'))?.attrs.name ?? null;
     const scheme = first(root, A('clrScheme'));
+    this.colorName = scheme?.attrs.name ?? null;
     for (const node of kids(scheme || { children: [] })) {
       const name = node.name.replace(/^a:/, '');
       const child = kids(node)[0];
@@ -130,10 +142,46 @@ class Theme {
     const minor = first(first(fontScheme || { children: [] }, A('minorFont')) || { children: [] }, A('latin'));
     if (major?.attrs.typeface) this.fonts.major = major.attrs.typeface;
     if (minor?.attrs.typeface) this.fonts.minor = minor.attrs.typeface;
+    this.fontName = fontScheme?.attrs.name ?? null;
+    const fmt = first(root, A('fmtScheme'));
+    if (fmt) {
+      this.effectName = fmt.attrs.name ?? null;
+      this.fmt = {
+        fills: kids(first(fmt, A('fillStyleLst')) || { children: [] }),
+        lines: kids(first(fmt, A('lnStyleLst')) || { children: [] }),
+        effects: kids(first(fmt, A('effectStyleLst')) || { children: [] }),
+        bgFills: kids(first(fmt, A('bgFillStyleLst')) || { children: [] }),
+      };
+    }
+  }
+
+  /** This theme reading `phClr` as the given colour — how a style reference colours the entry it picks. */
+  withPh(hex) {
+    const t = Object.create(this);
+    t.ph = hex;
+    return t;
+  }
+
+  /** A fill style by a `fillRef`/`bgRef` index: 1–999 the shape fills, 1001– the backgrounds. */
+  fillStyle(idx) {
+    const i = Number(idx) || 0;
+    if (i >= 1001) return this.fmt.bgFills[i - 1001] || null;
+    return i >= 1 ? this.fmt.fills[i - 1] || null : null;
+  }
+
+  lineStyle(idx) {
+    const i = Number(idx) || 0;
+    return i >= 1 ? this.fmt.lines[i - 1] || null : null;
+  }
+
+  effectStyle(idx) {
+    const i = Number(idx) || 0;
+    return i >= 1 ? this.fmt.effects[i - 1] || null : null;
   }
 
   /** `schemeClr val="tx1"` → the theme colour, through the master's map. */
   color(name) {
+    if (name === 'phClr') return this.ph || null;
     const mapped = this.clrMap[name] || name;
     return (
       this.colors[mapped] ||
@@ -144,8 +192,8 @@ class Theme {
   }
 
   font(typeface) {
-    if (typeface === '+mj-lt') return this.fonts.major;
-    if (typeface === '+mn-lt') return this.fonts.minor;
+    if (/^\+mj-/.test(typeface)) return this.fonts.major;
+    if (/^\+mn-/.test(typeface)) return this.fonts.minor;
     return typeface;
   }
 }
@@ -157,7 +205,101 @@ export class Deck {
     /** Parsed slides by part, keyed on their XML — see `slide()`. */
     this._scenes = new Map();
     this.dirty = false;
+    /**
+     * Bumped whenever a master, a layout or a theme changes: every slide
+     * draws from them, so a scene or a thumbnail kept against a slide's own
+     * XML alone would go on showing the old design.
+     */
+    this.designStamp = 0;
+    /** Undo and redo: whole-package snapshots, cheap because a part's bytes are replaced, never mutated. */
+    this._undo = [];
+    this._redo = [];
     this.#load();
+  }
+
+  // ---- undo ----------------------------------------------------------------
+  //
+  // A snapshot is each entry's own bytes and flags as they stand. Every edit
+  // replaces a part's buffer rather than writing into it, so holding the old
+  // buffer is holding the old part — a snapshot of a fifteen-megabyte deck
+  // is a list of references, not fifteen megabytes.
+
+  /** The package as it stands, to hand back to `pushUndo` once an edit has gone through. */
+  snapshot() {
+    return {
+      entries: this.pkg.entries.map((e) => ({ e, raw: e._raw, modified: e.modified, size: e.uncompressedSize, crc: e.crc })),
+      dirty: this.dirty,
+    };
+  }
+
+  /** One undo step: the state before an edit. A new edit forgets what was undone. */
+  pushUndo(snap) {
+    if (!snap) return;
+    this._undo.push(snap);
+    if (this._undo.length > 100) this._undo.shift();
+    this._redo = [];
+  }
+
+  get canUndo() {
+    return this._undo.length > 0;
+  }
+
+  get canRedo() {
+    return this._redo.length > 0;
+  }
+
+  undo() {
+    const snap = this._undo.pop();
+    if (!snap) return false;
+    this._redo.push(this.snapshot());
+    this.#restore(snap);
+    return true;
+  }
+
+  redo() {
+    const snap = this._redo.pop();
+    if (!snap) return false;
+    this._undo.push(this.snapshot());
+    this.#restore(snap);
+    return true;
+  }
+
+  #restore(snap) {
+    this.pkg.entries = snap.entries.map(({ e }) => e);
+    for (const { e, raw, modified, size, crc } of snap.entries) {
+      e._raw = raw;
+      e.modified = modified;
+      e.uncompressedSize = size;
+      e.crc = crc;
+    }
+    this.pkg.byName = new Map(this.pkg.entries.map((e) => [e.name, e]));
+    this.pkg._contentTypes = null;
+    this.dirty = true;
+    this._scenes.clear();
+    this.#load();
+    this.designStamp++;
+  }
+
+  /** A slide index to its part; a master's or a layout's part name to itself, so Slide Master view edits them with the same verbs. */
+  #partOf(target) {
+    if (typeof target === 'string') {
+      return /^ppt\/(slideMasters\/slideMaster|slideLayouts\/slideLayout)\d+\.xml$/.test(target) && this.pkg.has(target) ? target : null;
+    }
+    return this.slideParts[target]?.part || null;
+  }
+
+  /** Whether a part is a master's or a layout's — an edit to one restyles every slide on it. */
+  static isDesignPart(part) {
+    return /^ppt\/(slideMasters|slideLayouts|theme)\//.test(String(part || ''));
+  }
+
+  /** Every cache that read a master, a layout or a theme, dropped. */
+  #designChanged() {
+    this.designStamp++;
+    this.themes.clear();
+    this.layouts.clear();
+    this._scenes.clear();
+    this.dirty = true;
   }
 
   static open(bytes) {
@@ -399,6 +541,11 @@ export class Deck {
     return null;
   }
 
+  #themePartOf(masterPart) {
+    for (const r of this.#relMap(masterPart).values()) if (r.type === REL.theme) return r.resolved;
+    return null;
+  }
+
   #themeFor(masterPart) {
     if (!masterPart) return new Theme(null, {});
     if (this.themes.has(masterPart)) return this.themes.get(masterPart);
@@ -417,11 +564,73 @@ export class Deck {
     return theme;
   }
 
+  /**
+   * A master's text styles — title, body and other — and the presentation's
+   * default text style, as nine levels each: the bottom of the cascade a
+   * run without a size, colour or face falls through to.
+   */
+  #textStyles(masterPart, theme, cache = this.layouts) {
+    const key = `styles:${masterPart}`;
+    if (cache.has(key)) return cache.get(key);
+    const out = { title: null, body: null, other: null, default: null };
+    if (masterPart && this.pkg.has(masterPart)) {
+      const tx = first(parse(this.pkg.text(masterPart)), P('txStyles'));
+      if (tx) {
+        out.title = readLevels(first(tx, P('titleStyle')), theme);
+        out.body = readLevels(first(tx, P('bodyStyle')), theme);
+        out.other = readLevels(first(tx, P('otherStyle')), theme);
+      }
+    }
+    const def = first(parse(this.pkg.text('ppt/presentation.xml')), P('defaultTextStyle'));
+    if (def) out.default = readLevels(def, theme);
+    cache.set(key, out);
+    return out;
+  }
+
+  /**
+   * One shape's text style, level by level, lowest layer first: the theme's
+   * own text colour and face, the master's title, body or other style (the
+   * presentation's default for a shape that fills no placeholder), the
+   * master's placeholder's list style, the layout's, a shape style's font
+   * reference, and the shape's own list style. What a run states for itself
+   * is laid over this when it is drawn, never baked into it — so a new
+   * theme or a master edit reaches every run that did not choose otherwise.
+   */
+  #cascade(shape, hits, styles, theme) {
+    const ph = shape.placeholder;
+    const t = ph?.type;
+    const kind = !ph ? 'default' : t === 'title' || t === 'ctrTitle' ? 'title' : ['body', 'subTitle', 'obj'].includes(t) ? 'body' : 'other';
+    const face = kind === 'title' ? theme.fonts.major : theme.fonts.minor;
+    const themeBase = Array.from({ length: 9 }, () => ({ color: theme.color('tx1') || undefined, font: face, linkColor: theme.color('hlink') || undefined }));
+    const base = kind === 'default' ? mergeLevels(styles.other, styles.default) : styles[kind];
+    const fontRef = shape.styleText ? Array.from({ length: 9 }, () => shape.styleText) : null;
+    const above = mergeLevels(hits.master?.text?.levels, hits.layout?.text?.levels, fontRef, shape.text?.levels);
+    const merged = mergeLevels(themeBase, base, above);
+    // A subtitle or a centred title keeps the body style's size and colour
+    // but not its bullets and hanging indents, unless a layer of its own
+    // asks for them — every title-slide layout PowerPoint ships says so, and
+    // a deck whose layout forgot should not grow a bullet on its subtitle.
+    // The footer band — date, footer, number — is small unless a placeholder
+    // of its own says otherwise; a master without one should not hand it
+    // the other style's eighteen points.
+    if (t === 'dt' || t === 'ftr' || t === 'sldNum') {
+      merged.forEach((lv, i) => { if (above[i].size === undefined) delete lv.size; });
+    }
+    if (t === 'subTitle' || t === 'ctrTitle') {
+      merged.forEach((lv, i) => {
+        if (above[i].bullet === undefined) delete lv.bullet;
+        if (above[i].indent === undefined) delete lv.indent;
+        if (above[i].hanging === undefined) delete lv.hanging;
+      });
+    }
+    return merged;
+  }
+
   /** Placeholder shapes of a layout or master, indexed for inheritance. */
-  #placeholders(partName, theme) {
+  #placeholders(partName, theme, cache = this.layouts) {
     if (!partName || !this.pkg.has(partName)) return new Map();
     const key = `${partName}`;
-    if (this.layouts.has(key)) return this.layouts.get(key);
+    if (cache.has(key)) return cache.get(key);
     const scene = readSlideScene(this.pkg.text(partName), { theme });
     const map = new Map();
     for (const s of scene.shapes) {
@@ -431,7 +640,7 @@ export class Deck {
       if (type) map.set(`type:${type}`, s);
     }
     map.set('#background', scene.background);
-    this.layouts.set(key, map);
+    cache.set(key, map);
     return map;
   }
 
@@ -440,22 +649,51 @@ export class Deck {
    * text style, and picture sources as part names the caller can read.
    */
   slide(index) {
+    if (typeof index === 'string') return this.partScene(index);
     const entry = this.slideParts[index];
     if (!entry) throw new RangeError(`no slide at index ${index}`);
     const slidePart = entry.part;
+    // Parsed once per VERSION of the slide's XML (and its notes', and the
+    // design it draws from): the outline, the thumbnails and the model all
+    // ask for every slide, and a fifteen-megabyte deck of nineteen slides
+    // parsed nineteen slides three times per keystroke. The key is the XML
+    // itself, so a stale entry is not expressible; an edit writes new XML
+    // and misses, and a master or theme edit moves the design stamp.
+    const slideXml = this.pkg.text(slidePart);
+    const rels = this.#relMap(slidePart);
+    const notesPart = [...rels.values()].find((r) => r.type === REL.notes && this.pkg.has(r.resolved))?.resolved || null;
+    const notesXml = notesPart ? this.pkg.text(notesPart) : '';
+    const cacheKey = index + ':' + this.designStamp + ':' + slideXml.length + ':' + notesXml.length + ':' + slideXml + notesXml;
+    const cached = this._scenes.get(slidePart);
+    if (cached && cached.key === cacheKey) return cached.scene;
+    const result = this.#scene(index);
+    this._scenes.set(slidePart, { key: cacheKey, scene: result });
+    return result;
+  }
+
+  /**
+   * A slide's scene, built. `design` is for a preview — Design → Themes
+   * drawing this slide as it would look under another theme — and carries
+   * the theme to read it with, the master background to show and whether
+   * the layout's own background goes (a new theme takes it away); a
+   * preview reads the master and layout afresh rather than from the caches
+   * the real design fills.
+   */
+  #scene(index, design = null) {
+    const entry = this.slideParts[index];
+    const slidePart = entry.part;
     const layoutPart = this.#layoutFor(slidePart);
     const masterPart = layoutPart ? this.#masterFor(layoutPart) : null;
-    const theme = this.#themeFor(masterPart);
-    const layoutPh = this.#placeholders(layoutPart, theme);
-    const masterPh = this.#placeholders(masterPart, theme);
+    const theme = design?.theme || this.#themeFor(masterPart);
+    const cache = design ? new Map() : this.layouts;
+    const layoutPh = this.#placeholders(layoutPart, theme, cache);
+    const masterPh = this.#placeholders(masterPart, theme, cache);
+    const styles = this.#textStyles(masterPart, theme, cache);
     const rels = this.#relMap(slidePart);
 
-    // Inheritance is a fall-through, not a lookup. A layout can name a
-    // placeholder and still say nothing about where it goes, leaving the
-    // position to the master — so each property is taken from the first
-    // ancestor that actually states it, rather than from the first ancestor
-    // that mentions the placeholder at all.
-    const inherit = (ph) => {
+    // The layout's and the master's placeholder a slide's placeholder
+    // matches, each looked up by index first and then by type.
+    const keysOf = (ph) => {
       const keys = [];
       if (ph.idx != null) keys.push(`idx:${ph.idx}`);
       if (ph.type) keys.push(`type:${ph.type}`);
@@ -463,7 +701,22 @@ export class Deck {
       if (ph.type === 'body') keys.push('type:subTitle', 'type:ctrTitle', 'type:title');
       if (ph.type === 'ctrTitle' || ph.type === 'subTitle') keys.push('type:title', 'type:body');
       if (ph.type === 'title') keys.push('type:ctrTitle');
+      return keys;
+    };
+    const hitsFor = (ph) => {
+      if (!ph) return { layout: null, master: null };
+      const keys = keysOf(ph);
+      const find = (source) => { for (const k of keys) { const hit = source.get(k); if (hit) return hit; } return null; };
+      return { layout: find(layoutPh), master: find(masterPh) };
+    };
 
+    // Inheritance is a fall-through, not a lookup. A layout can name a
+    // placeholder and still say nothing about where it goes, leaving the
+    // position to the master — so each property is taken from the first
+    // ancestor that actually states it, rather than from the first ancestor
+    // that mentions the placeholder at all.
+    const inherit = (ph) => {
+      const keys = keysOf(ph);
       const out = { geometry: null, fill: null, line: null, text: null };
       for (const source of [layoutPh, masterPh]) {
         for (const k of keys) {
@@ -473,6 +726,7 @@ export class Deck {
           out.fill = out.fill || hit.fill;
           out.line = out.line || hit.line;
           out.text = out.text || hit.text;
+          if (!out.anchor && hit.text?.anchorStated) out.anchor = hit.text.anchor;
         }
       }
       return out.geometry || out.fill || out.line || out.text ? out : null;
@@ -484,30 +738,27 @@ export class Deck {
       return { part: r.resolved, external: r.mode === 'External', target: r.target };
     };
 
-    // Parsed once per VERSION of the slide's XML (and its notes'): the
-    // outline, the thumbnails and the model all ask for every slide, and a
-    // fifteen-megabyte deck of nineteen slides parsed nineteen slides three
-    // times per keystroke. The key is the XML itself, so a stale entry is
-    // not expressible; an edit writes new XML and misses.
     const slideXml = this.pkg.text(slidePart);
     const notesPart = [...rels.values()].find((r) => r.type === REL.notes && this.pkg.has(r.resolved))?.resolved || null;
     const notesXml = notesPart ? this.pkg.text(notesPart) : '';
-    const cacheKey = index + ':' + slideXml.length + ':' + notesXml.length + ':' + slideXml + notesXml;
-    const cached = this._scenes.get(slidePart);
-    if (cached && cached.key === cacheKey) return cached.scene;
 
     // `readPart` lets a chart frame read its chart part; only a slide gets
     // it, since a layout or master never carries a chart of its own.
     const readPart = (part) => (part && this.pkg.has(part) ? this.pkg.text(part) : null);
     const scene = readSlideScene(slideXml, { theme, inherit, rel, readPart });
     if (!scene.background) {
-      scene.background = layoutPh.get('#background') || masterPh.get('#background') || null;
+      const layoutBg = design?.dropLayoutBackground ? null : layoutPh.get('#background');
+      const masterBg = design && 'masterBackground' in design ? design.masterBackground : masterPh.get('#background');
+      scene.background = layoutBg || masterBg || null;
+    }
+    for (const s of scene.shapes) {
+      if (s.text || s.inheritedText) s.textStyle = this.#cascade(s, hitsFor(s.placeholder), styles, theme);
     }
 
     let notes = '';
     if (notesPart) notes = sceneText(readSlideScene(notesXml, { theme }));
 
-    const result = {
+    return {
       index,
       part: slidePart,
       layout: layoutPart,
@@ -521,10 +772,8 @@ export class Deck {
       transition: readTransition(slideXml),
       // Animations → the main sequence, in the Animation Pane's order.
       animations: safeAnimations(slideXml),
-      theme: { colors: theme.colors, fonts: theme.fonts },
+      theme: { colors: theme.colors, fonts: theme.fonts, name: theme.name, clrMap: theme.clrMap },
     };
-    this._scenes.set(slidePart, { key: cacheKey, scene: result });
-    return result;
   }
 
   /**
@@ -619,11 +868,13 @@ export class Deck {
   #writeSlide(part, xml) {
     this.pkg.write_(part, Buffer.from(xml, 'utf8'));
     this.dirty = true;
+    // A master or a layout is under every slide on it.
+    if (Deck.isDesignPart(part)) this.#designChanged();
   }
 
   /** Replace a shape's text with paragraphs of runs. */
   setText(slideIndex, shapeId, paragraphs) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const range = this.#shapeRange(xml, shapeId);
@@ -655,7 +906,7 @@ export class Deck {
    * (including 0 or false) is written, which is how one is taken off.
    */
   setGeometry(slideIndex, shapeId, { x, y, w, h, rot, flipH, flipV }) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const range = this.#shapeRange(xml, shapeId);
@@ -704,7 +955,7 @@ export class Deck {
    * that slide at the same parts.
    */
   shapeClip(slideIndex, shapeId) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const range = this.#shapeRange(xml, shapeId);
@@ -728,7 +979,7 @@ export class Deck {
    * @returns {number} the new shape's id
    */
   pasteShape(slideIndex, clip, geometry = null) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     if (!clip || !clip.xml) throw new Error('nothing to paste');
     let xml = this.pkg.text(part);
@@ -771,7 +1022,7 @@ export class Deck {
    * @returns {number} how many placeholders were reset
    */
   resetSlide(slideIndex) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     let count = 0;
@@ -792,7 +1043,7 @@ export class Deck {
    * them. null, 'horz' and one column take the attribute off.
    */
   setBodyProps(slideIndex, shapeId, { anchor, vert, columns } = {}) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const range = this.#shapeRange(xml, shapeId);
@@ -819,7 +1070,7 @@ export class Deck {
 
   /** Remove a shape from a slide. */
   removeShape(slideIndex, shapeId) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const range = this.#shapeRange(xml, shapeId);
@@ -991,7 +1242,7 @@ export class Deck {
    * @returns {number} the new group's id
    */
   groupShapes(slideIndex, ids) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const wanted = [...new Set((ids || []).map(String))];
     if (wanted.length < 2) throw new Error('grouping needs two or more shapes');
@@ -1047,7 +1298,7 @@ export class Deck {
    * @returns {Array<number|string>} the members' own ids, now top-level
    */
   ungroupShape(slideIndex, groupId) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const range = this.#shapeRange(xml, groupId);
@@ -1107,7 +1358,7 @@ export class Deck {
    * IS the layering: the shape's XML moves among its siblings, nothing else.
    */
   reorderShape(slideIndex, shapeId, to) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const shapes = topLevelShapes(xml);
@@ -1164,7 +1415,7 @@ export class Deck {
    * is `{ radius }`, points; `reflection` is `'tight' | 'half' | 'full'`.
    */
   setShapeStyle(slideIndex, shapeId, { fill = null, line = null, effects = null } = {}) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     // The picture is embedded first, when there is one: its own write (a
     // media part and a relationship) touches the slide's rels, not its
@@ -1262,7 +1513,7 @@ export class Deck {
 
   /** Rewrite the opening tag of a shape's own p:cNvPr. */
   #editShapeProps(slideIndex, shapeId, edit) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const re = new RegExp(`<p:cNvPr\\b[^>]*\\bid="${String(shapeId).replace(/[^\w-]/g, '')}"[^>]*>`);
@@ -1276,7 +1527,7 @@ export class Deck {
 
   /** The layout part a slide uses. */
   layoutOf(slideIndex) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     return part ? this.#layoutFor(part) : null;
   }
 
@@ -1314,7 +1565,7 @@ export class Deck {
    * of their own — which is what PowerPoint's Layout gallery does.
    */
   applyLayout(slideIndex, layoutPart) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     if (!/^ppt\/slideLayouts\/slideLayout\d+\.xml$/.test(layoutPart) || !this.pkg.has(layoutPart)) throw new Error(`no layout ${layoutPart} in this deck`);
     const relsPath = part.replace(/([^/]+)$/, '_rels/$1.rels');
@@ -1330,6 +1581,268 @@ export class Deck {
     return true;
   }
 
+  // ---- design: themes, variants, colours, fonts, effects -------------------
+  //
+  // Design → Themes and its neighbours rewrite the theme part every master
+  // points at — its colour scheme, its font scheme, its format scheme, or
+  // all three — and, for a whole theme, the master's background and colour
+  // map. No slide is touched: whatever a slide states for itself it keeps,
+  // and everything it inherits changes with the design.
+
+  /** The deck's masters, in the presentation's own order. */
+  masterParts() {
+    const pres = this.pkg.text('ppt/presentation.xml');
+    const listed = [...pres.matchAll(/<p:sldMasterId\b[^>]*\br:id="([^"]+)"/g)]
+      .map((m) => this.rels.get(m[1])?.resolved)
+      .filter((p) => p && this.pkg.has(p));
+    if (listed.length) return listed;
+    return (this.pkg.partNames() || []).filter((p) => /^ppt\/slideMasters\/slideMaster\d+\.xml$/.test(p));
+  }
+
+  /** The master a slide (by index), a layout or a master (by part) draws from. */
+  masterOf(target = 0) {
+    const part = this.#partOf(target);
+    if (!part) return this.masterParts()[0] || null;
+    if (/slideMasters\//.test(part)) return part;
+    if (/slideLayouts\//.test(part)) return this.#masterFor(part);
+    const layout = this.#layoutFor(part);
+    return layout ? this.#masterFor(layout) : this.masterParts()[0] || null;
+  }
+
+  /**
+   * What the Design tab shows as current: the theme's name and which
+   * built-in theme it is (by name), its colours (the twelve slots, as hex),
+   * the colour scheme's name, the fonts and their scheme's name, the format
+   * scheme's name, and whether the master maps its backgrounds dark.
+   */
+  designInfo(target = 0) {
+    const master = this.masterOf(target);
+    const theme = this.#themeFor(master);
+    const colors = {};
+    for (const k of COLOUR_SLOTS) colors[k] = String(theme.colors[k] || '').replace('#', '').toUpperCase() || null;
+    const builtIn = THEMES.find((t) => t.name === theme.name) || null;
+    const dark = theme.clrMap?.bg1 === 'dk1';
+    const variants = this.variants(target);
+    const variant = variants.findIndex((v) => v.dark === dark && COLOUR_SLOTS.every((k) => String(v.colors[k]).toUpperCase() === colors[k]));
+    return {
+      master,
+      themePart: master ? this.#themePartOf(master) : null,
+      name: theme.name,
+      builtIn: builtIn?.id || null,
+      colors,
+      colorName: theme.colorName,
+      fonts: { ...theme.fonts },
+      fontName: theme.fontName,
+      effectName: theme.effectName,
+      effects: EFFECT_PRESETS.find((p) => p.name === theme.effectName)?.id || null,
+      dark,
+      variant,
+    };
+  }
+
+  /**
+   * Design → Variants: four colourings of the current theme. A built-in
+   * theme's are its own; a theme from elsewhere gets four drawn from the
+   * colours it has now.
+   */
+  variants(target = 0) {
+    const master = this.masterOf(target);
+    const theme = this.#themeFor(master);
+    const builtIn = THEMES.find((t) => t.name === theme.name);
+    if (builtIn) return variantsOf(builtIn.palette, Boolean(builtIn.dark));
+    const colors = {};
+    for (const k of COLOUR_SLOTS) colors[k] = String(theme.colors[k] || '#000000').replace('#', '').toUpperCase();
+    return variantsOf(colors, theme.clrMap?.bg1 === 'dk1');
+  }
+
+  /** Each distinct theme part the deck's masters use, rewritten by `edit`; answers whether anything changed. */
+  #rewriteThemes(edit) {
+    const done = new Set();
+    let changed = false;
+    for (const master of this.masterParts()) {
+      const part = this.#themePartOf(master);
+      if (!part || done.has(part) || !this.pkg.has(part)) continue;
+      done.add(part);
+      const xml = this.pkg.text(part);
+      const next = edit(xml, part, master);
+      if (next != null && next !== xml) {
+        this.pkg.write_(part, Buffer.from(next, 'utf8'));
+        changed = true;
+      }
+    }
+    if (changed) this.#designChanged();
+    return changed;
+  }
+
+  /** One element of a theme's `themeElements` replaced (or put in its place when the part lacks it). */
+  static #withThemeElement(xml, tag, element) {
+    const re = new RegExp('<a:' + tag + '\\b[^>]*?(?:/>|>[\\s\\S]*?</a:' + tag + '>)');
+    if (re.test(xml)) return xml.replace(re, () => element);
+    const order = ['clrScheme', 'fontScheme', 'fmtScheme'];
+    const after = order.slice(0, order.indexOf(tag)).reverse().map((t) => new RegExp('</a:' + t + '>')).find((r) => r.test(xml));
+    if (after) return xml.replace(after, (m) => m + element);
+    return xml.replace(/<a:themeElements>/, (m) => m + element);
+  }
+
+  /** A master's colour map written light or dark, and its background, in place. */
+  #styleMaster(master, { dark, background = null } = {}) {
+    let xml = this.pkg.text(master);
+    if (dark != null) {
+      const map = `<p:clrMap ${clrMapAttrs(dark)}/>`;
+      xml = /<p:clrMap\b[^>]*\/>/.test(xml) ? xml.replace(/<p:clrMap\b[^>]*\/>/, map) : xml.replace(/<\/p:cSld>/, (m) => m + map);
+    }
+    if (background) {
+      if (/<p:bg>[\s\S]*?<\/p:bg>/.test(xml)) xml = xml.replace(/<p:bg>[\s\S]*?<\/p:bg>/, () => background);
+      else xml = xml.replace(/<p:cSld\b[^>]*>/, (m) => m + background);
+    }
+    this.pkg.write_(master, Buffer.from(xml, 'utf8'));
+  }
+
+  /** The layouts a master lists. */
+  layoutsOf(master) {
+    return [...this.#relMap(master).values()].filter((r) => r.type === REL.layout && this.pkg.has(r.resolved)).map((r) => r.resolved);
+  }
+
+  /**
+   * Design → Themes: one of the suite's themes, in one of its variants,
+   * over the whole deck — its colours, fonts and effects as a new theme
+   * part, the master's background treatment and colour map, and the
+   * layouts' own backgrounds taken away so the new one shows through, as
+   * PowerPoint's own swap of layouts does. Slides keep what they state.
+   */
+  applyTheme(id, { variant = 0 } = {}) {
+    const t = themeById(id);
+    if (!t) throw new Error(`no theme "${id}"`);
+    const v = variantsOf(t.palette, Boolean(t.dark))[variant] || variantsOf(t.palette, Boolean(t.dark))[0];
+    const xml = themePartXml({ name: t.name, colors: v.colors, colorName: variant ? `${t.name} ${v.name}` : t.name, fonts: t.fonts, fontName: t.name, effects: t.effects });
+    const masters = this.masterParts();
+    const written = new Set();
+    for (const master of masters) {
+      const part = this.#themePartOf(master);
+      if (part && !written.has(part) && this.pkg.has(part)) {
+        this.pkg.write_(part, Buffer.from(xml, 'utf8'));
+        written.add(part);
+      }
+      this.#styleMaster(master, { dark: v.dark, background: masterBackgroundXml(t.background) });
+      for (const layout of this.layoutsOf(master)) {
+        const lx = this.pkg.text(layout);
+        const nx = lx.replace(/<p:bg>[\s\S]*?<\/p:bg>/, '');
+        if (nx !== lx) this.pkg.write_(layout, Buffer.from(nx, 'utf8'));
+      }
+    }
+    this.#designChanged();
+    return true;
+  }
+
+  /** Design → Variants: the current theme in another of its four colourings. */
+  applyVariant(index, target = 0) {
+    const v = this.variants(target)[index];
+    if (!v) throw new RangeError(`no variant ${index}`);
+    const name = this.#themeFor(this.masterOf(target)).name || 'Custom';
+    this.#rewriteThemes((xml) => Deck.#withThemeElement(xml, 'clrScheme', clrSchemeXml(index ? `${name} ${v.name}` : name, v.colors)));
+    for (const master of this.masterParts()) this.#styleMaster(master, { dark: v.dark });
+    this.#designChanged();
+    return true;
+  }
+
+  /** Design → Colours: a palette over the deck — a built-in one by id, or the twelve slots of Customise Colours with a name. */
+  setThemeColors(spec, name = null) {
+    const builtIn = typeof spec === 'string' ? PALETTES.find((p) => p.id === spec) : null;
+    if (typeof spec === 'string' && !builtIn) throw new Error(`no palette "${spec}"`);
+    const colors = builtIn ? builtIn.colors : spec;
+    for (const k of COLOUR_SLOTS) {
+      if (!/^#?[0-9a-f]{6}$/i.test(String(colors?.[k] || ''))) throw new Error(`${k} needs a colour like 1F6FB2`);
+    }
+    const label = String(name || builtIn?.name || 'Custom').trim() || 'Custom';
+    return this.#rewriteThemes((xml) => Deck.#withThemeElement(xml, 'clrScheme', clrSchemeXml(label, colors)));
+  }
+
+  /** Design → Fonts: a heading and a body face — a built-in pair by id, or Customise Fonts' two with a name. */
+  setThemeFonts(spec, name = null) {
+    const pair = typeof spec === 'string' ? FONT_PAIRS.find((p) => p.id === spec) : null;
+    if (typeof spec === 'string' && !pair) throw new Error(`no font pair "${spec}"`);
+    const major = String(pair ? pair.major : spec?.major || '').trim();
+    const minor = String(pair ? pair.minor : spec?.minor || '').trim();
+    if (!major || !minor) throw new Error('a heading font and a body font are both needed');
+    const label = String(name || pair?.name || 'Custom').trim() || 'Custom';
+    return this.#rewriteThemes((xml) => Deck.#withThemeElement(xml, 'fontScheme', fontSchemeXml(label, { major, minor })));
+  }
+
+  /** Design → Effects: one of the format schemes. */
+  setThemeEffects(id) {
+    if (!EFFECT_PRESETS.some((p) => p.id === id)) throw new Error(`no effects "${id}"`);
+    return this.#rewriteThemes((xml) => Deck.#withThemeElement(xml, 'fmtScheme', fmtSchemeXml(id)));
+  }
+
+  /**
+   * A slide as it would look under another design, without writing a
+   * byte: `{ theme, variant }` a built-in theme, `{ variant }` one of
+   * this theme's variants, `{ colors }` a palette id or twelve slots,
+   * `{ fonts }` a pair id or { major, minor }, `{ effects }` a format
+   * scheme. The gallery's live thumbnails are these, drawn by the same
+   * renderer as the slide itself.
+   */
+  previewSlide(index, spec = {}) {
+    if (!this.slideParts[index]) throw new RangeError(`no slide at index ${index}`);
+    const master = this.masterOf(index);
+    const themePart = master ? this.#themePartOf(master) : null;
+    let xml = themePart && this.pkg.has(themePart) ? this.pkg.text(themePart) : themePartXml({ name: 'Rutba', colors: THEMES[0].palette, fonts: THEMES[0].fonts });
+    const current = this.#themeFor(master);
+    let clrMap = { ...(current.clrMap || {}) };
+    const design = {};
+    const mapOf = (dark) => Object.fromEntries([...clrMapAttrs(dark).matchAll(/(\w+)="(\w+)"/g)].map((m) => [m[1], m[2]]));
+    if (spec.theme) {
+      const t = themeById(spec.theme);
+      if (!t) throw new Error(`no theme "${spec.theme}"`);
+      const v = variantsOf(t.palette, Boolean(t.dark))[spec.variant || 0];
+      xml = themePartXml({ name: t.name, colors: v.colors, fonts: t.fonts, effects: t.effects });
+      clrMap = mapOf(v.dark);
+      design.dropLayoutBackground = true;
+      design.masterBackgroundXml = masterBackgroundXml(t.background);
+    } else if (spec.variant != null) {
+      const v = this.variants(index)[spec.variant];
+      if (!v) throw new RangeError(`no variant ${spec.variant}`);
+      xml = Deck.#withThemeElement(xml, 'clrScheme', clrSchemeXml('Preview', v.colors));
+      clrMap = mapOf(v.dark);
+    } else if (spec.colors) {
+      const colors = typeof spec.colors === 'string' ? PALETTES.find((p) => p.id === spec.colors)?.colors : spec.colors;
+      if (!colors) throw new Error(`no palette "${spec.colors}"`);
+      xml = Deck.#withThemeElement(xml, 'clrScheme', clrSchemeXml('Preview', colors));
+    } else if (spec.fonts) {
+      const pair = typeof spec.fonts === 'string' ? FONT_PAIRS.find((p) => p.id === spec.fonts) : spec.fonts;
+      if (!pair) throw new Error(`no font pair "${spec.fonts}"`);
+      xml = Deck.#withThemeElement(xml, 'fontScheme', fontSchemeXml('Preview', pair));
+    } else if (spec.effects) {
+      xml = Deck.#withThemeElement(xml, 'fmtScheme', fmtSchemeXml(spec.effects));
+    }
+    const theme = new Theme(xml, clrMap);
+    design.theme = theme;
+    if (design.masterBackgroundXml) {
+      const holder = `<p:sldMaster xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld>${design.masterBackgroundXml}<p:spTree/></p:cSld></p:sldMaster>`;
+      design.masterBackground = readSlideScene(holder, { theme }).background;
+    }
+    return this.#scene(index, design);
+  }
+
+  /**
+   * Design → Effects' own little picture of a format scheme: three shapes
+   * in the first three accents, subtle, moderate and intense, drawn the way
+   * a shape that takes its look from the theme is — the same trio
+   * PowerPoint's gallery shows.
+   */
+  effectsSample(id, target = 0) {
+    const master = this.masterOf(target);
+    const themePart = master ? this.#themePartOf(master) : null;
+    const base = themePart && this.pkg.has(themePart) ? this.pkg.text(themePart) : themePartXml({ name: 'Rutba', colors: THEMES[0].palette, fonts: THEMES[0].fonts });
+    const theme = new Theme(Deck.#withThemeElement(base, 'fmtScheme', fmtSchemeXml(id)), { ...(this.#themeFor(master).clrMap || {}) });
+    const shape = (n, x, y) => `<p:sp><p:nvSpPr><p:cNvPr id="${n + 1}" name="s${n}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr><p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="1600000" cy="1000000"/></a:xfrm><a:prstGeom prst="roundRect"><a:avLst/></a:prstGeom></p:spPr>` +
+      `<p:style><a:lnRef idx="${n}"><a:schemeClr val="accent${n}"><a:shade val="50000"/></a:schemeClr></a:lnRef><a:fillRef idx="${n}"><a:schemeClr val="accent${n}"/></a:fillRef><a:effectRef idx="${n}"><a:schemeClr val="accent${n}"/></a:effectRef><a:fontRef idx="minor"><a:schemeClr val="lt1"/></a:fontRef></p:style></p:sp>`;
+    const xml = `<p:sld xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main"><p:cSld><p:spTree>${shape(1, 250000, 300000)}${shape(2, 2150000, 800000)}${shape(3, 4050000, 1300000)}</p:spTree></p:cSld></p:sld>`;
+    const scene = readSlideScene(xml, { theme });
+    // On white, whatever the deck's own background: an outline or a shadow is judged against paper.
+    return { size: { width: 6000000 / 9525, height: 2700000 / 9525 }, background: { type: 'solid', color: '#ffffff' }, shapes: scene.shapes };
+  }
+
   /** Append a text box, which is how the editor adds new content. */
   /**
    * The footer band — Insert → Header & Footer: the footer's words, the
@@ -1342,7 +1855,7 @@ export class Deck {
    * or false. Anything left undefined is left alone.
    */
   setFooter(slideIndex, { footer, slideNumber, date } = {}) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     let xml = this.pkg.text(part);
     const layoutPart = this.#layoutFor(part);
@@ -1429,7 +1942,7 @@ export class Deck {
    * @returns {boolean} true when the slide's own background changed
    */
   setBackground(slideIndex, spec) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const openCSld = /<p:cSld\b[^>]*>/.exec(xml);
@@ -1454,7 +1967,7 @@ export class Deck {
    * when the slide states none of its own.
    */
   background(slideIndex) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     return readOwnBackground(this.pkg.text(part));
   }
@@ -1492,7 +2005,7 @@ export class Deck {
    * as an undone edit leaves it). Returns the relationship id, or null.
    */
   setLink(slideIndex, shapeId, url) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const shape = this.slide(slideIndex).shapes.find((s) => String(s.id) === String(shapeId));
     if (!shape) throw new Error(`shape ${shapeId} not found`);
@@ -1675,7 +2188,7 @@ export class Deck {
   }
 
   addTextBox(slideIndex, { x, y, w, h, paragraphs, name = 'TextBox' }) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const id = nextShapeId(xml);
@@ -1729,7 +2242,7 @@ export class Deck {
   }
 
   addPicture(slideIndex, { data, contentType, name = 'Picture', x = 0, y = 0, w, h }) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     if (!(w > 0) || !(h > 0)) throw new Error('a picture needs a positive width and height');
     const { rId, media } = this.#embedImage(part, { data, contentType });
@@ -1778,7 +2291,7 @@ export class Deck {
     line = { color: { scheme: 'accent1', lumMod: 50 }, width: 1 },
     text = null, name = null,
   } = {}) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     if (!(w > 0) || !(h >= 0)) throw new Error('a shape needs a positive width and a height');
     if (!/^[A-Za-z][A-Za-z0-9]*$/.test(String(preset))) throw new Error(`not a preset geometry: ${preset}`);
@@ -1825,7 +2338,7 @@ export class Deck {
    * @returns {number} the frame's id
    */
   addTable(slideIndex, { rows = 3, cols = 3, x, y, w, h, cells = null } = {}) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const r = Math.max(1, Math.round(rows));
     const c = Math.max(1, Math.round(cols));
@@ -1875,7 +2388,7 @@ export class Deck {
    * @returns {number} the frame's id
    */
   addChart(slideIndex, { type = 'column', title = null, categories = [], series = [], x, y, w, h } = {}) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     if (!CHART_KINDS.includes(type)) throw new Error(`unknown chart type: ${type}`);
     if (!series.length) throw new Error('a chart needs at least one series');
@@ -1919,7 +2432,7 @@ export class Deck {
 
   /** The chart part a chart frame's `c:chart r:id` resolves to. */
   #chartPartFor(slideIndex, shapeId) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const range = this.#shapeRange(xml, shapeId);
@@ -1973,7 +2486,7 @@ export class Deck {
 
   /** The range of a table's `a:tbl` within its graphic frame, on the slide's own XML. */
   #tableRange(slideIndex, shapeId) {
-    const part = this.slideParts[slideIndex]?.part;
+    const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const range = this.#shapeRange(xml, shapeId);

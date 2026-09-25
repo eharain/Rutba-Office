@@ -12,6 +12,7 @@ import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select, Icon } from '@rutba/office-ui';
 import { TRANSITION_GALLERY, TRANSITION_OPTIONS, galleryKeyOf, optionOf, describeTransition } from './motion.js';
 import { ANIMATION_GALLERY, EFFECT_MENU, ANIMATION_OPTIONS } from './animate.js';
+import { RibbonStrip } from './design.js';
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
 const COLOURS = [
@@ -113,6 +114,7 @@ function SecondsField({ value, onCommit, disabled = false, min = 0, max = 3600, 
 export default function SlidesRibbon({
   tab, setTab, model, doc, commands, shell, menu, save, openFile, exportAs,
   act, view = {}, index = 0, selected = null, selectedIds = [], format = {}, canPaste = false, painter = false, animation = null, animPainter = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
+  designStrip = null,
 
 }) {
   const count = model?.count || 0;
@@ -228,7 +230,7 @@ export default function SlidesRibbon({
             <Rows>
               <>
                 <Select value={format.font || ''} onChange={(e) => fmt({ font: e.target.value })} style={{ width: 118 }} title={needShape || 'Font'} disabled={!hasShape}>
-                  <option value="">{format.font || 'Theme font'}</option>
+                  <option value="">{format.font || (format.themeFont ? `${format.themeFont} (theme)` : 'Theme font')}</option>
                   {['Calibri', 'Calibri Light', 'Arial', 'Segoe UI', 'Georgia', 'Times New Roman', 'Verdana', 'Consolas'].filter((f) => f !== format.font).map((f) => <option key={f} value={f}>{f}</option>)}
                 </Select>
                 <Select value={String(size)} onChange={(e) => fmt({ size: Number(e.target.value) })} style={{ width: 58 }} title={needShape || 'Font size'} disabled={!hasShape}>
@@ -430,13 +432,31 @@ export default function SlidesRibbon({
       {tab === 'design' ? (
         <>
           <Group label="Themes">
-            <Soon tall icon="wand" label="Themes" why="A theme is the theme part; the engine reads the deck's own and does not yet swap it for another." />
+            <RibbonStrip
+              kind="themes"
+              items={designStrip?.themes}
+              count={4}
+              label="Drawing this slide…"
+              onPick={(it) => act('applyTheme', it)}
+              onMore={(e) => { const r = e.currentTarget.closest('.sl-rs').getBoundingClientRect(); act('designGallery', { kind: 'themes', anchor: { left: r.left, bottom: r.bottom + 4 } }); }}
+            />
+          </Group>
+          <Group label="Variants">
+            <RibbonStrip
+              kind="variants"
+              items={designStrip?.variants}
+              count={4}
+              label="Drawing this slide…"
+              onPick={(it) => act('applyVariant', it.id)}
+              onMore={(e) => { const r = e.currentTarget.closest('.sl-rs').getBoundingClientRect(); act('designGallery', { kind: 'variants', anchor: { left: r.left, bottom: r.bottom + 4 } }); }}
+            />
+            <Rows>
+              <Button icon="contrast" label="Colours" title="Colours — the theme's twelve colours: a palette, or your own" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); act('designGallery', { kind: 'colours', anchor: { left: r.left, bottom: r.bottom + 4 } }); }} />
+              <Button icon="textbox" label="Fonts" title="Fonts — the theme's heading and body faces: a pair, or your own" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); act('designGallery', { kind: 'fonts', anchor: { left: r.left, bottom: r.bottom + 4 } }); }} />
+              <Button icon="wand" label="Effects" title="Effects — how theme-styled shapes are filled, outlined and lifted" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); act('designGallery', { kind: 'effects', anchor: { left: r.left, bottom: r.bottom + 4 } }); }} />
+            </Rows>
           </Group>
           <Group label="Customise">
-            <Soon tall icon="wand" label="Variants" why="Comes with themes." />
-            <Soon icon="contrast" label="Colours" why="Comes with themes." />
-            <Soon icon="textbox" label="Fonts" why="Comes with themes." />
-            <Soon icon="wand" label="Effects" why="Comes with themes." />
             <Button
               tall
               icon="picture"

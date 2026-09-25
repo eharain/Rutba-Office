@@ -29,7 +29,7 @@ function fillAttr(fill, fallback = 'none') {
 
 function gradientDef(fill, id) {
   const stops = (fill.stops || [])
-    .map((s) => `<stop offset="${Math.round(s.offset * 100)}%" stop-color="${s.color}"${s.alpha < 1 ? ` stop-opacity="${s.alpha}"` : ''}/>`)
+    .map((s) => `<stop offset="${Math.round(s.offset * 10000) / 100}%" stop-color="${s.color}"${s.alpha < 1 ? ` stop-opacity="${s.alpha}"` : ''}/>`)
     .join('');
   const angle = ((fill.angle || 0) * Math.PI) / 180;
   const x2 = (Math.cos(angle) * 0.5 + 0.5).toFixed(4);
@@ -125,6 +125,24 @@ const CAPS_ONLY_FONTS = new Set(['bebas neue', 'bebas', 'bebas kai', 'bebas neue
 /** What stands in for a condensed display face the machine does not have. */
 const CONDENSED_FALLBACK = "'Bahnschrift SemiCondensed', 'Arial Narrow', Impact";
 
+/** Faces with serifs: a machine without one falls back to another serif, not to the sans default. */
+const SERIF_FACES = /georgia|times|palatino|cambria|constantia|garamond|book antiqua|baskerville|bodoni|didot|century schoolbook|rockwell|serif$/i;
+/** The family list for a named face: the face, then others of its kind, then the suite's default. */
+function fontStack(font) {
+  const name = escapeXml(font);
+  if (/^(segoe ui|system-ui)$/i.test(font)) return DEFAULT_FONT;
+  if (CAPS_ONLY_FONTS.has(String(font).toLowerCase())) return `${name}, ${CONDENSED_FALLBACK}, ${DEFAULT_FONT}`;
+  if (SERIF_FACES.test(font)) return `${name}, Georgia, 'Times New Roman', 'Liberation Serif', 'DejaVu Serif', serif`;
+  return `${name}, ${DEFAULT_FONT}`;
+}
+
+/** Only the keys whose value is not undefined — so a run's own `bold: undefined` never hides the style's. */
+function definedOnly(o) {
+  const out = {};
+  for (const [k, v] of Object.entries(o || {})) if (v !== undefined && v !== null) out[k] = v;
+  return out;
+}
+
 /** Letter spacing in the file's hundredths of a point, as the pixels SVG wants. */
 const spacingPx = (segment, scale) => (segment.spacing ? segment.spacing * (96 / 72) * scale : 0);
 
@@ -140,7 +158,7 @@ function defaultSizeFor(placeholder) {
 }
 
 /** Lay a text body out into positioned lines. Shared by SVG and the editor. */
-export function layoutText(body, box, { scale = 1, baseSize = 18 } = {}) {
+export function layoutText(body, box, { scale = 1, baseSize = 18, levels = null } = {}) {
   if (!body || !box) return { lines: [], height: 0 };
   const insets = body.insets || { l: 7.2, t: 3.6, r: 7.2, b: 3.6 };
   const width = Math.max(8, box.w - insets.l - insets.r);
@@ -149,26 +167,49 @@ export function layoutText(body, box, { scale = 1, baseSize = 18 } = {}) {
 
   for (const p of body.paragraphs || []) {
     const level = p.level || 0;
-    const indent = (p.indent ?? level * 24) * scale;
+    // The level's inherited style — the master's text styles, the layout's
+    // and the shape's list styles — under whatever the paragraph and its
+    // runs state for themselves.
+    const lv = levels?.[Math.min(8, level)] || {};
+    const marL = p.indent ?? lv.indent;
+    const hanging = p.hanging ?? lv.hanging;
+    const indent = (marL ?? level * 24) * scale;
+    const runLook = definedOnly({ size: lv.size, bold: lv.bold, italic: lv.italic, underline: lv.underline, color: lv.color, font: lv.font, caps: lv.caps, spacing: lv.spacing, colorAlpha: lv.colorAlpha });
+    // A link without a colour of its own is drawn in the theme's hyperlink
+    // colour, not the text colour the style would otherwise give it.
+    const linkLook = { ...runLook, color: lv.linkColor || undefined };
+    const ownRuns = lv && Object.keys(runLook).length ? p.runs.map((r) => (r.break ? r : { ...definedOnly(r.link ? linkLook : runLook), ...definedOnly(r) })) : p.runs;
     // A run that states no size inherits it — from the shape, then from the
     // placeholder it fills. A title that falls back to body size is the single
     // most obvious way a rendered deck looks wrong.
-    const stated = p.runs.find((r) => r.size)?.size;
+    const stated = ownRuns.find((r) => r.size)?.size || p.endProps?.size || lv.size;
     const size = (stated || Math.max(9, baseSize - level * 2)) * scale;
-    const lh = p.lineHeightPt ? p.lineHeightPt * scale : lineHeight(size) * (p.lineHeight || 1);
-    if (p.spaceBefore) y += p.spaceBefore * scale;
+    const lineHeightPt = p.lineHeightPt ?? lv.lineHeightPt;
+    const lh = lineHeightPt ? lineHeightPt * scale : lineHeight(size) * (p.lineHeight ?? lv.lineHeight ?? 1);
+    const spaceBefore = p.spaceBefore ?? lv.spaceBefore;
+    const spaceAfter = p.spaceAfter ?? lv.spaceAfter;
+    if (spaceBefore) y += spaceBefore * scale;
 
+    const bulletSpec = p.bullet || lv.bullet || null;
     const bullet =
-      p.bullet && p.bullet.type !== 'none'
-        ? p.bullet.type === 'number'
-          ? `${(p.bullet.start || 1) + (lines.filter((l) => l.numbered && l.level === level).length)}.`
-          : p.bullet.char || BULLET_CHARS[Math.min(level, BULLET_CHARS.length - 1)]
+      bulletSpec && bulletSpec.type !== 'none'
+        ? bulletSpec.type === 'number'
+          ? `${(bulletSpec.start || 1) + (lines.filter((l) => l.numbered && l.level === level).length)}.`
+          : bulletSpec.char || BULLET_CHARS[Math.min(level, BULLET_CHARS.length - 1)]
         : null;
+    // A hanging indent puts the bullet at the margin plus the (negative)
+    // indent and every line of the words at the margin, as PowerPoint sets
+    // a list; a bullet that would hang off the box's left edge, or a
+    // paragraph with no hanging indent, keeps the bullet at the margin and
+    // the words a bullet's width in.
+    const hangs = bullet && hanging != null && hanging < 0 && indent + hanging * scale >= 0 && -hanging * scale >= size * 0.6;
+    const bulletX = bullet ? (hangs ? indent + hanging * scale : indent) : null;
+    const textX = bullet ? (hangs ? indent : indent + size * 0.9) : indent;
 
     // A face that has no lowercase — Bebas Neue is the one on every second
     // deck — shows its text in capitals on a machine that has it, and in the
     // fallback's lowercase on one that does not. The capitals are the design.
-    const runs = p.runs.map((r) => (r.text && CAPS_ONLY_FONTS.has(String(r.font || '').toLowerCase()) ? { ...r, text: r.text.toUpperCase() } : r));
+    const runs = ownRuns.map((r) => (r.text && CAPS_ONLY_FONTS.has(String(r.font || '').toLowerCase()) ? { ...r, text: r.text.toUpperCase() } : r));
     const text = runs.map((r) => r.text).join('');
     if (!text.trim()) {
       y += lh;
@@ -178,7 +219,7 @@ export function layoutText(body, box, { scale = 1, baseSize = 18 } = {}) {
 
     // Wrapping is done on the paragraph's plain text, then runs are mapped back
     // onto the wrapped lines so formatting survives the break.
-    const avail = width - indent - (bullet ? size * 0.9 : 0);
+    const avail = width - (bullet ? textX : indent);
     const wrapped = wrapText(text, Math.max(20, avail), { size });
     let consumed = 0;
     wrapped.forEach((lineText, li) => {
@@ -211,18 +252,19 @@ export function layoutText(body, box, { scale = 1, baseSize = 18 } = {}) {
       consumed = end;
       lines.push({
         y: y + size,
-        x: indent + (bullet && li === 0 ? size * 0.9 : 0),
+        x: hangs ? textX : indent + (bullet && li === 0 ? size * 0.9 : 0),
+        bulletX: li === 0 ? bulletX : null,
         size,
-        align: p.align || 'left',
+        align: p.align || lv.align || 'left',
         level,
         bullet: li === 0 ? bullet : null,
-        bulletColor: p.bullet?.color,
+        bulletColor: bulletSpec?.color,
         numbered: p.bullet?.type === 'number',
         segments: segments.length ? segments : [{ text: lineText }],
       });
       y += lh;
     });
-    if (p.spaceAfter) y += p.spaceAfter * scale;
+    if (spaceAfter) y += spaceAfter * scale;
   }
   return { lines, height: y, insets };
 }
@@ -294,8 +336,9 @@ function drawLines(body, box, opts, lines, height, insets) {
       runX += w;
     }
     if (line.bullet) {
+      const bx = line.bulletX != null && line.align !== 'center' && line.align !== 'right' ? originX + line.bulletX : x - line.size * 0.9;
       out.push(
-        `<text x="${(x - line.size * 0.9).toFixed(2)}" y="${y.toFixed(2)}" font-size="${line.size.toFixed(2)}" ` +
+        `<text x="${bx.toFixed(2)}" y="${y.toFixed(2)}" font-size="${line.size.toFixed(2)}" ` +
         `fill="${line.bulletColor || line.segments[0]?.color || '#333'}" font-family="${DEFAULT_FONT}">${escapeXml(line.bullet)}</text>`
       );
     }
@@ -309,10 +352,8 @@ function drawLines(body, box, opts, lines, height, insets) {
         if (s.color) attrs.push(`fill="${s.color}"`);
         else if (s.link) attrs.push('fill="#0563C1"');
         if (s.size && s.size !== line.size) attrs.push(`font-size="${(s.size * (opts?.scale || 1)).toFixed(2)}"`);
-        if (s.font) {
-          const condensed = CAPS_ONLY_FONTS.has(String(s.font).toLowerCase()) ? `${CONDENSED_FALLBACK}, ` : '';
-          attrs.push(`font-family="${escapeXml(s.font)}, ${condensed}${DEFAULT_FONT}"`);
-        }
+        if (s.font) attrs.push(`font-family="${fontStack(s.font)}"`);
+        if (s.colorAlpha != null && s.colorAlpha < 1) attrs.push(`fill-opacity="${s.colorAlpha}"`);
         if (s.spacing) attrs.push(`letter-spacing="${spacingPx(s, opts?.scale || 1).toFixed(2)}"`);
         return `<tspan ${attrs.join(' ')}>${escapeXml(s.text)}</tspan>`;
 
@@ -358,7 +399,11 @@ function tableSvg(shape, opts) {
  * @param {{ width?: number, resolveImage?: (shape) => string|null, standalone?: boolean, selection?: string }} [opts]
  */
 export function renderSlide(slide, opts = {}) {
-  const { width: outWidth, resolveImage, standalone = true, simplify = false, tagShapes = false } = opts;
+  const { width: outWidth, resolveImage, standalone = true, simplify = false, tagShapes = false, idPrefix = '' } = opts;
+  // Ids for gradients, patterns and filters: prefixed when several drawings
+  // share one page (a strip of thumbnails beside the stage, a printed deck),
+  // since url(#g1) finds the first g1 in the document, not this drawing's.
+  const ID = String(idPrefix || '').replace(/[^A-Za-z0-9_-]/g, '');
 
   const W = slide.size?.width || 960;
   const H = slide.size?.height || 540;
@@ -379,7 +424,7 @@ export function renderSlide(slide, opts = {}) {
     if (!effects) return '';
     const { glow, shadow: sh, softEdge } = effects;
     if (!glow && !sh && !softEdge) return '';
-    const id = `fx${++effectSeq}`;
+    const id = `${ID}fx${++effectSeq}`;
     const parts = [];
     let top = 'SourceGraphic';
     if (softEdge) {
@@ -427,7 +472,7 @@ export function renderSlide(slide, opts = {}) {
     const kind = shape.effects?.reflection;
     if (!kind || !refId) return '';
     const fadeAt = { tight: 55, half: 45, full: 90 }[kind] ?? 45;
-    const gradId = `reflGrad${++reflSeq}`;
+    const gradId = `${ID}reflGrad${++reflSeq}`;
     const maskId = `${gradId}m`;
     defs.push(`<linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.55"/><stop offset="${fadeAt}%" stop-color="#fff" stop-opacity="0"/></linearGradient>`);
     defs.push(`<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${(g.x - g.w).toFixed(2)}" y="${g.y.toFixed(2)}" width="${(g.w * 3).toFixed(2)}" height="${g.h.toFixed(2)}"><rect x="${(g.x - g.w).toFixed(2)}" y="${g.y.toFixed(2)}" width="${(g.w * 3).toFixed(2)}" height="${g.h.toFixed(2)}" fill="url(#${gradId})"/></mask>`);
@@ -436,10 +481,10 @@ export function renderSlide(slide, opts = {}) {
   };
   const registerFill = (fill, href) => {
     if (fill?.type === 'gradient') {
-      fill._id = `g${++gradSeq}`;
+      fill._id = `${ID}g${++gradSeq}`;
       defs.push(gradientDef(fill, fill._id));
     } else if (fill?.type === 'picture' && href) {
-      fill._id = `pic${++picSeq}`;
+      fill._id = `${ID}pic${++picSeq}`;
       if (fill.tile) {
         // The picture's own pixel size is not decoded here, so the tile is
         // an approximate, fixed size rather than the picture's true one.
@@ -556,13 +601,13 @@ export function renderSlide(slide, opts = {}) {
     const opacity = fill?.alpha != null && fill.alpha < 1 ? ` fill-opacity="${fill.alpha}"` : '';
     const text = shape.text && shape.text.paragraphs?.length ? shape.text : null;
     const shapeMarkup = `${geom} fill="${fillValue}"${opacity}${strokeBits}${registerEffects(shape.effects)}${transform}/>`;
-    const textMarkup = text ? `<g${textTransform}>${textSvg(text, g, { scale: 1, baseSize: defaultSizeFor(shape.placeholder) })}</g>` : '';
+    const textMarkup = text ? `<g${textTransform}>${textSvg(text, g, { scale: 1, baseSize: defaultSizeFor(shape.placeholder), levels: shape.textStyle || null })}</g>` : '';
 
     // A reflection is a mirrored copy of the shape and its words, drawn from
     // a `<use>` on a group that wraps both — which is only worth the extra
     // wrapper element when there is one to draw.
     if (shape.effects?.reflection) {
-      const wrapId = `shpref${++shapeSeq}`;
+      const wrapId = `${ID}shpref${++shapeSeq}`;
       body.push(`<g id="${wrapId}">${shapeMarkup}${textMarkup}</g>`);
       body.push(reflectionSvg(shape, g, wrapId));
     } else {
@@ -582,7 +627,8 @@ export function renderSlide(slide, opts = {}) {
 }
 
 /** A thumbnail: the same drawing, smaller, with a border the sorter can show. */
+let thumbSeq = 0;
 export function renderThumbnail(slide, width = 240, opts = {}) {
-  return renderSlide(slide, { simplify: true, ...opts, width });
+  return renderSlide(slide, { simplify: true, idPrefix: `t${(++thumbSeq).toString(36)}_`, ...opts, width });
 }
 

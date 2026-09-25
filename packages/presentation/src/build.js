@@ -64,7 +64,7 @@ function themeXml(name = 'Rutba') {
 function textStyleLevels(sizes, color = 'tx1') {
   return sizes
     .map((sz, i) =>
-      `<a:lvl${i + 1}pPr marL="${i * 342900}" indent="-342900" algn="l"><a:buChar char="•"/>` +
+      `<a:lvl${i + 1}pPr marL="${(i + 1) * 342900}" indent="-342900" algn="l"><a:buChar char="•"/>` +
       `<a:defRPr sz="${sz}"><a:solidFill><a:schemeClr val="${color}"/></a:solidFill>` +
       `<a:latin typeface="+mn-lt"/></a:defRPr></a:lvl${i + 1}pPr>`
     )

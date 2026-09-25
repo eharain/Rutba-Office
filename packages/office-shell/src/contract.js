@@ -110,6 +110,7 @@ export const METHODS = {
     'pageSetup',    // ({ id, sheet }) -> the page setup the workbook carries
     'shapeClip',    // ({ id, slide, shape }) -> { xml, tag, rels } — a slide's shape as something to paste
     'deckFind',     // ({ id, query, options }) -> [hit] — every occurrence across a deck, for the find pane
+    'deckDesign',   // ({ id, slide, kind }) -> { info, items } — Design's gallery: themes, variants, colours, fonts or effects, with live previews
     'trace',        // ({ id, kind, row, col }) -> { kind, at, arrows, elsewhere } — a cell's precedents or dependents
     'evaluateFormula', // ({ id, row, col, actions }) -> { levels, canEvaluate, canStepIn, canStepOut, done, message } — Evaluate Formula after the presses
     'sessions',     // () -> [{ id, kind, path, dirty }]

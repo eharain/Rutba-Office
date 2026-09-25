@@ -128,7 +128,7 @@ export function deckPrintHtml(deck, options = {}) {
 
   const drawn = (index, widthMm) => {
     try {
-      return renderSlide(deck.slide(index), { width: Math.round(widthMm * PX_PER_MM), resolveImage, standalone: true });
+      return renderSlide(deck.slide(index), { width: Math.round(widthMm * PX_PER_MM), resolveImage, standalone: true, idPrefix: `p${index}_` });
     } catch {
       return `<div class="broken">Slide ${index + 1} could not be drawn.</div>`;
     }

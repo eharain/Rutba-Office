@@ -20,6 +20,7 @@ import { ShowStage, TransitionPreview, AnimationPreview } from './slides/show.js
 import { describeTransition } from './slides/motion.js';
 import { clickCount } from './slides/animate.js';
 import { Markup } from './slides/markup.js';
+import { DesignGallery, CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 
 export default function Slides({ app, shell, boot }) {
   // A presenter window is the same app pointed at the same open document,
@@ -96,6 +97,13 @@ export default function Slides({ app, shell, boot }) {
   // dragged to, so the whole selection moves together as one gesture.
   const [groupDrag, setGroupDrag] = useState(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  /** Design → a gallery open under its button: { kind, anchor }, or null. */
+  const [designOpen, setDesignOpen] = useState(null);
+  /** Design → Colours → Customise Colours, and Fonts → Customise Fonts: open with the design as it stands. */
+  const [customColours, setCustomColours] = useState(null);
+  const [customFonts, setCustomFonts] = useState(null);
+  /** The Design tab's own strips: a few themes and the four variants, drawn on this slide. */
+  const [designStrip, setDesignStrip] = useState(null);
   const [printing, setPrinting] = useState(false);
   // Reading View: the show in this window, without going full screen.
   const [reading, setReading] = useState(false);
@@ -378,6 +386,25 @@ export default function Slides({ app, shell, boot }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, doc]);
 
+  // The Design tab's strips: this slide drawn in a few themes and in the
+  // four variants — fetched while the tab is up, again after each change.
+  useEffect(() => {
+    if (tab !== 'design' || !doc?.id || !model?.count) return undefined;
+    let alive = true;
+    const timer = setTimeout(async () => {
+      try {
+        const [themes, variants] = await Promise.all([
+          shell.doc.deckDesign({ id: doc.id, slide: index, kind: 'themes', width: 80 }),
+          shell.doc.deckDesign({ id: doc.id, slide: index, kind: 'variants', width: 80 }),
+        ]);
+        if (alive) setDesignStrip({ themes: themes?.items || [], variants: variants?.items || [] });
+      } catch {
+        /* the strip stays as it was */
+      }
+    }, 120);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [tab, doc?.id, doc?.version, index, model?.count, shell]);
+
   // When a presenter window is driving, this one follows: the position lives
   // in the main process precisely so the two cannot disagree about it.
   useEffect(() => {
@@ -559,6 +586,8 @@ export default function Slides({ app, shell, boot }) {
       'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
       'file.save': { label: 'Save', icon: 'save', key: 'Mod+S', run: () => save(false) },
       'file.print': { label: 'Print…', icon: 'print', key: 'Mod+P', global: true, run: () => setPrinting(true) },
+      'edit.undo': { label: 'Undo', icon: 'undo', key: 'Mod+Z', run: () => actRef.current?.('undo') },
+      'edit.redo': { label: 'Redo', icon: 'redo', key: 'Mod+Y', run: () => actRef.current?.('redo') },
       'edit.find': { label: 'Find…', icon: 'find', key: 'Mod+F', global: true, run: () => setFindOpen('find') },
       'edit.replace': { label: 'Replace…', icon: 'find', key: 'Mod+H', global: true, run: () => setFindOpen('replace') },
       'insert.link': { label: 'Link…', icon: 'link', key: 'Mod+K', run: () => act('link') },
@@ -669,7 +698,7 @@ export default function Slides({ app, shell, boot }) {
     const p = selectedShape?.text?.paragraphs?.[0];
     const r = p?.runs?.[0] || {};
     return {
-      bold: Boolean(r.bold), italic: Boolean(r.italic), underline: Boolean(r.underline), size: r.size || 18, color: r.color || null, font: r.font || '', align: p?.align || 'left',
+      bold: Boolean(r.bold), italic: Boolean(r.italic), underline: Boolean(r.underline), size: r.size || selectedShape?.textDefaults?.size || 18, color: r.color || null, font: r.font || '', themeFont: selectedShape?.textDefaults?.font || null, align: p?.align || selectedShape?.textDefaults?.align || 'left',
       strike: Boolean(r.strike), spacing: r.spacing || 0, highlight: r.highlight || null,
       // The box's own: where the words sit, which way they run, how many columns.
       anchor: selectedShape?.text?.anchor || 'top', vert: selectedShape?.text?.vert || 'horz', columns: selectedShape?.text?.columns || 1,
@@ -844,6 +873,47 @@ export default function Slides({ app, shell, boot }) {
       case 'background':
         await apply({ op: 'setBackground', slide: index, spec: arg.spec ?? null, all: Boolean(arg.all) });
         return;
+      // Design → Themes, Variants, Colours, Fonts, Effects: a gallery under
+      // its button, and a pick from it — one op on the deck, one undo step.
+      case 'designGallery': setDesignOpen(arg); return;
+      case 'applyTheme': {
+        setDesignOpen(null);
+        const next = await apply({ op: 'applyTheme', theme: arg.id ?? arg, variant: arg.variant ?? 0 });
+        if (next) toast(`${arg.name || 'Theme'} applied to every slide`, { ms: 2200 });
+        return;
+      }
+      case 'applyVariant':
+        setDesignOpen(null);
+        await apply({ op: 'applyVariant', variant: arg, slide: index });
+        return;
+      case 'themeColors':
+        setDesignOpen(null);
+        await apply({ op: 'setThemeColors', palette: arg });
+        return;
+      case 'themeFonts':
+        setDesignOpen(null);
+        await apply({ op: 'setThemeFonts', pair: arg });
+        return;
+      case 'themeEffects':
+        setDesignOpen(null);
+        await apply({ op: 'setThemeEffects', effects: arg });
+        return;
+      case 'customColours': setDesignOpen(null); setCustomColours(arg || model?.design || {}); return;
+      case 'customFonts': setDesignOpen(null); setCustomFonts(arg || model?.design || {}); return;
+      case 'undo': {
+        if (!doc?.canUndo) return;
+        const n = await shell.doc.undo({ id: doc.id, slide: index, width: 1280 });
+        setDoc(n);
+        setModel(n.model);
+        return;
+      }
+      case 'redo': {
+        if (!doc?.canRedo) return;
+        const n = await shell.doc.redo({ id: doc.id, slide: index, width: 1280 });
+        setDoc(n);
+        setModel(n.model);
+        return;
+      }
       case 'newSlideFrom': {
         // A slide after this one on the chosen layout, with the words a new
         // slide of that kind starts with.
@@ -1241,6 +1311,7 @@ export default function Slides({ app, shell, boot }) {
 
           setPresent={setPresent}
           setNotesOpen={setNotesOpen}
+          designStrip={designStrip}
         />
       }
       status={
@@ -1259,7 +1330,7 @@ export default function Slides({ app, shell, boot }) {
         </div>
       ) : (
         <>
-          <style>{CSS}</style>
+          <style>{CSS + DESIGN_CSS}</style>
           <Panel width={196} resizable title="Slides">
             <div className="sl-sorter">
               {(model.outline || []).map((o, i) => (
@@ -1643,6 +1714,48 @@ export default function Slides({ app, shell, boot }) {
       )}
 
       {shortcutsOpen ? <SlidesShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
+
+      {designOpen && doc ? (
+        <DesignGallery
+          key={designOpen.kind}
+          kind={designOpen.kind}
+          anchor={designOpen.anchor}
+          shell={shell}
+          docId={doc.id}
+          slide={index}
+          onClose={() => setDesignOpen(null)}
+          onPick={(it) => {
+            if (designOpen.kind === 'themes') act('applyTheme', it);
+            else if (designOpen.kind === 'variants') act('applyVariant', it.id);
+            else if (designOpen.kind === 'colours') act('themeColors', it.id);
+            else if (designOpen.kind === 'fonts') act('themeFonts', it.id);
+            else if (designOpen.kind === 'effects') act('themeEffects', it.id);
+          }}
+          onCustomise={(info) => act(designOpen.kind === 'colours' ? 'customColours' : 'customFonts', info)}
+        />
+      ) : null}
+
+      {customColours ? (
+        <CustomColoursDialog
+          info={customColours}
+          onClose={() => setCustomColours(null)}
+          onSave={async (colors, name) => {
+            const next = await apply({ op: 'setThemeColors', colors, name });
+            if (next) { setCustomColours(null); toast(`Theme colours "${name}" saved in this deck`, { tone: 'good' }); }
+          }}
+        />
+      ) : null}
+
+      {customFonts ? (
+        <CustomFontsDialog
+          info={customFonts}
+          onClose={() => setCustomFonts(null)}
+          onSave={async (fonts, name) => {
+            const next = await apply({ op: 'setThemeFonts', major: fonts.major, minor: fonts.minor, name });
+            if (next) { setCustomFonts(null); toast(`Theme fonts "${name}" saved in this deck`, { tone: 'good' }); }
+          }}
+        />
+      ) : null}
 
       {printing && doc ? (
         <PrintDialog

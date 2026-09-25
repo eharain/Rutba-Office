@@ -177,6 +177,55 @@ function readLine(spPr, theme) {
   };
 }
 
+/** A bare node holding one child, so a format-scheme entry reads the way an spPr does. */
+const holder = (node) => ({ name: '#holder', attrs: {}, children: node ? [node] : [] });
+
+/** The theme resolving `phClr` — a format-scheme entry's placeholder colour — to the reference's own. */
+function withPlaceholderColour(theme, hex) {
+  if (!theme || !hex) return theme;
+  if (typeof theme.withPh === 'function') return theme.withPh(hex);
+  const t = Object.create(theme);
+  t.color = (name) => (name === 'phClr' ? hex : theme.color(name));
+  return t;
+}
+
+/** `a:fillRef` → the theme's fill at that index (1–3 the fill styles, 1001– the backgrounds), or its colour when the theme has no list. */
+function styleFill(fillRef, theme) {
+  const idx = Number(fillRef.attrs.idx || 0);
+  if (!idx) return { type: 'none' };
+  const c = colorChildOf(fillRef, theme);
+  const node = theme?.fillStyle?.(idx) || null;
+  if (node) {
+    const f = readFill(holder(node), withPlaceholderColour(theme, c?.hex || null));
+    if (f) return f;
+  }
+  return c ? { type: 'solid', color: c.hex, alpha: c.alpha } : null;
+}
+
+/** `a:lnRef` → the theme's line at that index: its width, in the reference's colour. */
+function styleLine(lnRef, theme) {
+  const idx = Number(lnRef.attrs.idx || 0);
+  if (!idx) return { type: 'none' };
+  const c = colorChildOf(lnRef, theme);
+  const node = theme?.lineStyle?.(idx) || null;
+  if (node) {
+    const l = readLine(holder(node), withPlaceholderColour(theme, c?.hex || null));
+    if (l) return l.color || l.type === 'none' ? l : { ...l, color: c?.hex || null };
+  }
+  return c ? { width: 1, color: c.hex, alpha: c.alpha } : null;
+}
+
+/** `a:effectRef` → the theme's effect at that index (a shadow, a glow…), or none. */
+function styleEffects(effectRef, theme) {
+  const idx = Number(effectRef.attrs.idx || 0);
+  if (!idx) return null;
+  const node = theme?.effectStyle?.(idx) || null;
+  if (!node) return null;
+  const c = colorChildOf(effectRef, theme);
+  const fx = readEffects(node, withPlaceholderColour(theme, c?.hex || null));
+  return fx && (fx.shadow || fx.glow || fx.softEdge || fx.reflection) ? fx : null;
+}
+
 /** Run properties → the shape the renderer wants. */
 function readRunProps(rPr, theme) {
   if (!rPr) return {};
@@ -238,10 +287,54 @@ function readParagraphProps(pPr, theme) {
   return out;
 }
 
+/**
+ * A list style — `<a:lstStyle>` on a text body, or a master's
+ * `<p:titleStyle>`/`<p:bodyStyle>`/`<p:otherStyle>`, or the presentation's
+ * `<p:defaultTextStyle>` — as nine levels of paragraph and run defaults:
+ * alignment, indents and bullet from `a:lvlNpPr`, size, weight, colour and
+ * face from its `a:defRPr`. `a:defPPr` fills every level. Only what the
+ * style states is set, so styles merge by laying one over another.
+ */
+function readLevels(node, theme) {
+  const out = Array.from({ length: 9 }, () => ({}));
+  if (!node) return out;
+  const one = (pPr) => {
+    if (!pPr) return {};
+    const { level: _level, ...para } = readParagraphProps(pPr, theme);
+    const run = readRunProps(kids(pPr, A('defRPr'))[0], theme);
+    const { link: _link, ...runProps } = run;
+    return { ...para, ...runProps };
+  };
+  const every = one(kids(node, A('defPPr'))[0]);
+  for (let i = 0; i < 9; i++) {
+    const own = one(kids(node, A(`lvl${i + 1}pPr`))[0]);
+    out[i] = mergeDefined(mergeDefined({}, every), own);
+  }
+  return out;
+}
+
+/** `into` with every key of `from` whose value is not undefined laid over it. */
+function mergeDefined(into, from) {
+  if (!from) return into;
+  for (const [k, v] of Object.entries(from)) if (v !== undefined) into[k] = v;
+  return into;
+}
+
+/** Nine levels each laid over the last list's, lowest first. */
+function mergeLevels(...lists) {
+  const out = Array.from({ length: 9 }, () => ({}));
+  for (const list of lists) {
+    if (!list) continue;
+    for (let i = 0; i < 9; i++) mergeDefined(out[i], list[i]);
+  }
+  return out;
+}
+
 /** `<p:txBody>` → paragraphs of runs. */
 function readTextBody(txBody, theme) {
   if (!txBody) return null;
   const bodyPr = kids(txBody, A('bodyPr'))[0];
+  const lstStyle = kids(txBody, A('lstStyle'))[0];
   const paragraphs = [];
   for (const p of kids(txBody, A('p'))) {
     const pPr = kids(p, A('pPr'))[0];
@@ -265,7 +358,12 @@ function readTextBody(txBody, theme) {
   const anchorMap = { t: 'top', ctr: 'middle', b: 'bottom' };
   return {
     paragraphs,
+    // The body's own list style, when it states one — the lowest-but-one
+    // layer of what a run without a size, colour or face falls back to.
+    levels: lstStyle && kids(lstStyle).length ? readLevels(lstStyle, theme) : null,
     anchor: anchorMap[bodyPr?.attrs.anchor] || 'top',
+    // Whether the body says where its words sit, or leaves it to the placeholder it fills.
+    anchorStated: Boolean(bodyPr?.attrs.anchor),
     // Which way the words run and how many columns they fill: PowerPoint's
     // vert (horz, vert = down, vert270 = up, eaVert = stacked) and numCol.
     vert: bodyPr?.attrs.vert || 'horz',
@@ -414,8 +512,8 @@ export function readSlideScene(xml, ctx = {}) {
     if (bgPr) return readFill(bgPr, ctx.theme);
     const ref = first(bg, P('bgRef'));
     if (ref) {
-      const c = colorChildOf(ref, ctx.theme);
-      return c ? { type: 'solid', color: c.hex, alpha: c.alpha } : null;
+      const f = styleFill(ref, ctx.theme);
+      return f?.type === 'none' ? null : f;
     }
     return null;
   })();
@@ -518,16 +616,26 @@ function readShape(sp, ctx, container, groupId) {
   // same way a `<p:pic>`'s is — the renderer draws it the same way too.
   if (fill?.type === 'picture' && fill.embed && ctx.rel) fill = { ...fill, source: ctx.rel(fill.embed) };
 
-  // A style reference gives the shape its theme fill and line when spPr is bare.
-  if (!fill && style) {
-    const fillRef = kids(style, A('fillRef'))[0];
-    const c = fillRef ? colorChildOf(fillRef, ctx.theme) : null;
-    if (c) fill = { type: 'solid', color: c.hex, alpha: c.alpha };
-  }
-  if (!line && style) {
-    const lnRef = kids(style, A('lnRef'))[0];
-    const c = lnRef ? colorChildOf(lnRef, ctx.theme) : null;
-    if (c) line = { width: 1, color: c.hex, alpha: c.alpha };
+  // A style reference gives the shape its theme fill, line and effect when
+  // spPr states none: the index picks one of the theme's format scheme
+  // entries (Design → Effects), drawn in the reference's own colour. Index
+  // 0 is "none", as in PowerPoint.
+  let effects = readEffects(spPr, ctx.theme);
+  let styleText = null;
+  if (style) {
+    const ref = (name) => kids(style, A(name))[0] || null;
+    const fillRef = ref('fillRef');
+    const lnRef = ref('lnRef');
+    const effectRef = ref('effectRef');
+    const fontRef = ref('fontRef');
+    if (!fill && fillRef) fill = styleFill(fillRef, ctx.theme);
+    if (!line && lnRef) line = styleLine(lnRef, ctx.theme);
+    if (!effects && effectRef) effects = styleEffects(effectRef, ctx.theme);
+    if (fontRef) {
+      const c = colorChildOf(fontRef, ctx.theme);
+      const face = fontRef.attrs.idx === 'major' ? '+mj-lt' : fontRef.attrs.idx === 'minor' ? '+mn-lt' : null;
+      styleText = { ...(c ? { color: c.hex } : {}), ...(face && ctx.theme?.font ? { font: ctx.theme.font(face) } : {}) };
+    }
   }
 
   // Placeholders inherit everything they did not state.
@@ -536,6 +644,7 @@ function readShape(sp, ctx, container, groupId) {
     if (!geometry) geometry = inherited.geometry || null;
     if (!fill) fill = inherited.fill || null;
     if (!line) line = inherited.line || null;
+    if (text && !text.anchorStated && inherited.anchor) text.anchor = inherited.anchor;
   }
 
   return {
@@ -546,7 +655,8 @@ function readShape(sp, ctx, container, groupId) {
     geometry,
     fill,
     line,
-    effects: readEffects(spPr, ctx.theme),
+    effects,
+    styleText,
     preset: first(spPr, A('prstGeom'))?.attrs.prst || (kids(spPr || { children: [] }, A('custGeom'))[0] ? 'custom' : 'rect'),
     adjustments: readAdjustments(spPr),
     // A custom geometry's outline, as SVG path data in the path's own units
@@ -668,4 +778,4 @@ export function sceneText(scene) {
   return out.join('\n');
 }
 
-export { readXfrm, readFill, readLine, readTextBody, placeholderOf, composeGroupChild };
+export { readXfrm, readFill, readLine, readTextBody, placeholderOf, composeGroupChild, readLevels, mergeLevels, mergeDefined };
