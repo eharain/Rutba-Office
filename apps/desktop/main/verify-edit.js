@@ -54,6 +54,9 @@ async function typeChar(wc, ch) {
   await wait(70);
 }
 
+/** until(), but for a check: false when it never happens, so the check says what it holds. */
+const settle = (condition, what, timeout = 8000) => until(condition, what, timeout).catch(() => false);
+
 export async function verifyEditing({ windows, doc }) {
   const results = [];
   const opened = [];
@@ -79,7 +82,26 @@ export async function verifyEditing({ windows, doc }) {
   /* ── Word ───────────────────────────────────────────────────────────── */
 
   const word = await openWindow('word');
+  const blockText = (i) => doc.model({ id: sessionFor('doc')?.id })?.blocks?.[i]?.runs?.map((r) => r.text).join('') ?? '';
+  // On a loaded machine the page re-renders a paragraph after an edit a
+  // beat later than a fixed pause allows, and a key sent before focus and
+  // caret are back goes nowhere: every check after it then failed together.
+  // Each key goes to a focused page with the caret where the check means it.
+  const caretAtEnd = () => word.webContents.executeJavaScript(`(() => {
+    const page = document.querySelector('.wd-page');
+    const block = page && page.querySelector('[data-block="0"]');
+    if (!block) return false;
+    page.focus();
+    const range = document.createRange();
+    range.selectNodeContents(block);
+    range.collapse(false);
+    const sel = getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    return document.activeElement === page;
+  })()`);
   try {
+    await settle(() => word.webContents.executeJavaScript(`Boolean(document.querySelector('.wd-page [data-block="0"]'))`), 'the page to draw', 12000);
     // Put the caret in the first paragraph the way a click would.
     await word.webContents.executeJavaScript(`(() => {
       const page = document.querySelector('.wd-page');
@@ -99,7 +121,8 @@ export async function verifyEditing({ windows, doc }) {
     // insertText goes through Chromium's editing pipeline and fires a real
     // `beforeinput` with inputType 'insertText' — exactly what a keyboard does.
     word.webContents.insertText('Hello');
-    await wait(450);
+    await settle(() => blockText(0).startsWith('Hello'), 'the typed words in the engine');
+    await wait(150);
 
     let session = sessionFor('doc');
     let model = session && doc.model({ id: session.id });
@@ -108,8 +131,11 @@ export async function verifyEditing({ windows, doc }) {
 
     // Backspace never arrives through React's polyfill: keypress does not fire
     // for it. This is the half of the defect a text-only check would miss.
+    word.webContents.focus();
+    await caretAtEnd();
+    await wait(120);
     await press(word.webContents, 'Backspace');
-    await wait(300);
+    await settle(() => blockText(0) === 'Hell', 'the backspace in the engine');
     session = sessionFor('doc');
     model = session && doc.model({ id: session.id });
     const afterDelete = model?.blocks?.[0]?.runs?.map((r) => r.text).join('') ?? '';
@@ -126,8 +152,10 @@ export async function verifyEditing({ windows, doc }) {
       return 'listening';
     })()`);
 
+    await caretAtEnd();
+    await wait(120);
     await press(word.webContents, 'Return', { char: true });
-    await wait(320);
+    await settle(() => (doc.model({ id: sessionFor('doc').id })?.blocks?.length ?? 0) > blocksBefore, 'the paragraph split in the engine');
     const seen = await word.webContents.executeJavaScript('window.__seen || []');
     if (!seen.length) console.log('       (no beforeinput arrived for Return)');
     else console.log(`       (beforeinput saw: ${seen.join(', ')})`);
@@ -137,9 +165,11 @@ export async function verifyEditing({ windows, doc }) {
     check('word: Enter splits the paragraph', blocksAfter === blocksBefore + 1, `${blocksBefore} → ${blocksAfter} blocks`);
 
     // And the window shows it, which is the other half of the loop.
-    const shown = await word.webContents.executeJavaScript(
+    const shownNow = () => word.webContents.executeJavaScript(
       `document.querySelector('.wd-page [data-block="0"]')?.textContent ?? ''`
     );
+    await settle(() => shownNow().then((t) => t.trim() === 'Hell'), 'the page to show the engine');
+    const shown = await shownNow();
     check('word: the page shows what the engine holds', shown.trim() === 'Hell', `page shows ${JSON.stringify(shown.trim())}`);
 
     // Bold. The ribbon says "bold" and the engine says "b"; when nothing
@@ -155,7 +185,7 @@ export async function verifyEditing({ windows, doc }) {
       document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
       return 'selected';
     })()`);
-    await wait(280);
+    await settle(() => doc.model({ id: sessionFor('doc').id })?.selection?.collapsed === false, 'the range in the engine');
 
     // The engine must have the *range*, not a caret; a collapsed selection here
     // means the sync lost it, and bold would silently apply to nothing.
@@ -167,7 +197,7 @@ export async function verifyEditing({ windows, doc }) {
     );
 
     await press(word.webContents, 'b', { modifiers: ['control'] });
-    await wait(380);
+    await settle(() => (doc.model({ id: sessionFor('doc').id })?.blocks?.[0]?.runs ?? []).some((r) => r.bold), 'bold in the engine');
 
     session = sessionFor('doc');
     model = session && doc.model({ id: session.id });
@@ -201,10 +231,11 @@ export async function verifyEditing({ windows, doc }) {
       return 'ok';
     })()`);
     await wait(250);
+    const blocksNow = doc.model({ id: sessionFor('doc').id })?.blocks?.length ?? 0;
     await press(word.webContents, 'Return', { char: true });
-    await wait(300);
+    await settle(() => (doc.model({ id: sessionFor('doc').id })?.blocks?.length ?? 0) > blocksNow, 'the second paragraph in the engine');
     word.webContents.insertText('World');
-    await wait(400);
+    await settle(() => blockText(1).includes('World'), 'the words of the second paragraph in the engine');
     const two = doc.model({ id: sessionFor('doc').id });
     const twoBlocks = two?.blocks?.length ?? 0;
     const selectedPast = await word.webContents.executeJavaScript(`(() => {
@@ -226,14 +257,14 @@ export async function verifyEditing({ windows, doc }) {
       page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
       return sel.focusNode === parent ? 'on the page' : 'in ' + (sel.focusNode.nodeName || '?');
     })()`);
-    await wait(300);
+    await settle(() => { const r = doc.model({ id: sessionFor('doc').id })?.selection; return r && !r.collapsed && r.to?.block >= 1; }, 'the range past the paragraph in the engine');
     const ranged = doc.model({ id: sessionFor('doc').id })?.selection;
     check('word: a selection that ends on the page itself reaches the engine as a range',
       twoBlocks >= 2 && ranged && !ranged.collapsed && ranged.from?.block === 0 && ranged.from?.offset === 2 && ranged.to?.block >= 1,
       `${twoBlocks} paragraphs; selection end ${selectedPast}; engine has ${JSON.stringify(ranged)}`);
 
     await press(word.webContents, 'Delete');
-    await wait(400);
+    await settle(() => (doc.model({ id: sessionFor('doc').id })?.blocks?.length ?? 0) === 1, 'the delete in the engine');
     const afterRange = doc.model({ id: sessionFor('doc').id });
     const left = afterRange?.blocks?.map((b) => b.runs?.map((r) => r.text).join('') ?? '') ?? [];
     check('word: Delete over that selection takes the selected words and the paragraph mark between them',
@@ -254,9 +285,9 @@ export async function verifyEditing({ windows, doc }) {
       page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
       return 'selected';
     })()`);
-    await wait(300);
+    await settle(() => doc.model({ id: sessionFor('doc').id })?.selection?.collapsed === false, 'the range to paste over in the engine');
     word.webContents.paste();
-    await wait(500);
+    await settle(() => blockText(0) === 'Pasted', 'the paste in the engine');
     const pasted = doc.model({ id: sessionFor('doc').id })?.blocks?.map((b) => b.runs?.map((r) => r.text).join('') ?? '') ?? [];
     check('word: a paste over a selection replaces the selected words', pasted.length === 1 && pasted[0] === 'Pasted', `paragraphs now ${JSON.stringify(pasted)}`);
   } catch (err) {
