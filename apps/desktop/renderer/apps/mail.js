@@ -136,13 +136,17 @@ export default function Mail({ app, shell }) {
       .folders({ accountId })
       .then((f) => {
         setFolders(f);
-        // The inbox first; an imported archive has none, and its own folder
-        // comes before Sent or Drafts — once a message had been sent from it,
-        // the window opened on an empty Sent instead of the mail.
+        // The inbox first. An imported archive has none: then the ordinary
+        // folder holding the most mail, which is the archive itself — not
+        // Sent (once a message had been sent from it, the window opened on an
+        // empty Sent) and not a folder a rule has only just made.
+        const busiest = f
+          .filter((x) => x.role === 'folder')
+          .reduce((best, x) => ((x.total ?? 0) > (best?.total ?? -1) ? x : best), null);
         setFolder((current) =>
           f.some((x) => x.path === current)
             ? current
-            : f.find((x) => x.role === 'inbox')?.path || f.find((x) => x.role === 'folder')?.path || f[0]?.path || null
+            : f.find((x) => x.role === 'inbox')?.path || busiest?.path || f[0]?.path || null
         );
       })
       .catch(() => setFolders([]));
