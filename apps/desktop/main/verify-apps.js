@@ -26,6 +26,8 @@ import { verifyViewer } from './verify-viewer.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
 import { verifyDeckArrange } from './verify-deck-arrange.js';
 import { verifyDeckFx } from './verify-deck-fx.js';
+import { verifyWordToc } from './verify-word-toc.js';
+import { verifyWordTrack } from './verify-word-track.js';
 import { SheetView } from '@rutba/sheet-view';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -316,6 +318,34 @@ function makeFixtures(dir) {
     fs.writeFileSync(at('ruler.docx'), view.save());
   }
 
+  // A short report with three headings across two pages — References →
+  // Table of Contents lists them, each with a page number the window reads
+  // off the screen. "Method" is pushed onto a second page by the body text
+  // under "Background", so the check has two different page numbers to see.
+  {
+    const view = openDocx(buildDocx({ styles: true, paragraphs: [
+      { text: 'Annual Report', style: 'Title' },
+      { text: 'Introduction', style: 'Heading1' },
+      { text: lorem.repeat(2) },
+      { text: 'Background', style: 'Heading2' },
+      { text: lorem.repeat(22) },
+      { text: 'Method', style: 'Heading1' },
+      { text: lorem.repeat(2) },
+    ] }));
+    fs.writeFileSync(at('toc.docx'), view.save());
+  }
+
+  // Three plain paragraphs — Review → Track Changes records an edit here,
+  // recording off at the start so the check turns it on itself.
+  {
+    const view = openDocx(buildDocx({ styles: true, paragraphs: [
+      { text: 'First paragraph text' },
+      { text: 'Second paragraph text' },
+      { text: 'Third paragraph text' },
+    ] }));
+    fs.writeFileSync(at('track.docx'), view.save());
+  }
+
   // A file of accounts, the loose way other clients write one.
   fs.writeFileSync(at('accounts.json'), JSON.stringify([
     { email: 'one@checks.example', password: 'not-a-real-password', host: 'mail.checks.example', port: 993, smtpPort: 587, smtpSecure: false, label: 'one' },
@@ -331,6 +361,8 @@ function makeFixtures(dir) {
     ruler: at('ruler.docx'),
     fit: at('fit.docx'),
     cards: at('cards.docx'),
+    toc: at('toc.docx'),
+    track: at('track.docx'),
     xlsx: at('sales.xlsx'),
     notes: at('notes.xlsx'),
     pptx: at('deck.pptx'),
@@ -3220,6 +3252,24 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifySheetLinks({ open, check, until, wait, press, errorsIn, capture }, { file: files.notes });
   };
 
+  /* ── Word: table of contents — a real field, not text ────────────────── */
+  const wordToc = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyWordToc({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { file: files.toc });
+  };
+
+  /* ── Word: track changes — recording, not just reading ───────────────── */
+  const wordTrack = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyWordTrack({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { file: files.track });
+  };
+
   /* ── The launcher's recent list ──────────────────────────────────────── */
   //
   // Thirty recent files in a window of ordinary height: the list scrolls
@@ -4141,7 +4191,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4167,6 +4217,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('bookmarks')) await wordBookmarks();
     if (only.includes('xref')) await wordCrossRef();
     if (only.includes('captions')) await wordCaptions();
+    if (only.includes('toc')) await wordToc();
+    if (only.includes('track')) await wordTrack();
     if (only.includes('effects')) await wordEffects();
     if (only.includes('ruler')) await wordRuler();
     if (only.includes('columns')) await wordColumns();
@@ -4294,6 +4346,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordBookmarks();
   await wordCrossRef();
   await wordCaptions();
+  await wordToc();
+  await wordTrack();
   await wordEffects();
   await wordPictureFits();
   await wordCards();

@@ -607,7 +607,7 @@ export function TrackedDialog({ blocks, onClose, onGoto }) {
             <button key={b.index} type="button" className="ml-found-item" style={{ border: 0, borderBottom: '1px solid var(--line-soft)', borderRadius: 0 }} onClick={() => onGoto(b.index)}>
               <span className="ml-found-logo"><Icon name="eye" size={14} /></span>
               <span className="grow">
-                <div className="who">{typeof b.tracked === 'object' ? (b.tracked.author || 'Someone') : 'Changed'}{typeof b.tracked === 'object' && b.tracked.date ? ` · ${formatWhen(b.tracked.date)}` : ''}</div>
+                <div className="who">{typeof b.tracked === 'object' ? ((b.tracked.authors || []).join(', ') || 'Someone') : 'Changed'}</div>
                 <div className="what">{(b.text || (b.runs || []).map((r) => r.text).join('')).slice(0, 120) || '(empty paragraph)'}</div>
               </span>
             </button>
@@ -616,7 +616,7 @@ export function TrackedDialog({ blocks, onClose, onGoto }) {
       ) : (
         <Empty icon="eye" title="No tracked changes">This document has none recorded.</Empty>
       )}
-      <p className="rw-hint">Shown as the file records them. Recording new ones, and accepting or rejecting, is not built yet.</p>
+      <p className="rw-hint">Click a row to go to it. Accept and Reject are on the Review tab.</p>
     </Dialog>
   );
 }

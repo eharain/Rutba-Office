@@ -822,6 +822,47 @@ export class Document {
     return this;
   }
 
+  /** A fresh `w:id` for the next `w:ins`/`w:del` — one past the highest either kind already carries. */
+  nextTrackChangeId() {
+    let maxId = -1;
+    for (const m of this.xml.matchAll(/<w:(?:ins|del)\b[^>]*\bw:id="(\d+)"/g)) maxId = Math.max(maxId, Number(m[1]));
+    return maxId + 1;
+  }
+
+  /** Review → Track Changes: is this document recording, right now — `<w:trackRevisions/>` in settings.xml. */
+  trackRevisions() {
+    const part = 'word/settings.xml';
+    if (!this.pkg.has(part)) return false;
+    return /<w:trackRevisions\b/.test(this.pkg.text(part));
+  }
+
+  /**
+   * Turn recording on or off. Same append-or-create shape as `setPageColour`'s
+   * `w:displayBackgroundShape`: an existing settings part is only ever added
+   * to or trimmed, never rewritten whole, so a template's other settings
+   * (compatibility flags, the default tab stop) ride through untouched.
+   */
+  setTrackRevisions(on) {
+    const part = 'word/settings.xml';
+    if (!this.pkg.has(part)) {
+      if (!on) return this;
+      this.pkg.addPart(part, Buffer.from('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:trackRevisions/></w:settings>', 'utf8'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml');
+      this.pkg.addRelationshipTo(this.mainPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings', 'settings.xml');
+      this.dirty = true;
+      return this;
+    }
+    const settings = this.pkg.text(part);
+    const has = /<w:trackRevisions\b[^>]*\/>/.test(settings);
+    if (on && !has) {
+      this.pkg.write_(part, settings.replace(/(<w:settings\b[^>]*>)/, '$1<w:trackRevisions/>'));
+      this.dirty = true;
+    } else if (!on && has) {
+      this.pkg.write_(part, settings.replace(/<w:trackRevisions\b[^>]*\/>/, ''));
+      this.dirty = true;
+    }
+    return this;
+  }
+
   /**
    * Pictures embedded in one paragraph, as data URIs — with, for a picture
    * in a `wp:anchor`, where it floats and how the text treats it (see
@@ -2148,7 +2189,17 @@ export class Document {
       throw new Error('a bookmark name is letters, digits and underscores, starting with a letter, up to 40 characters');
     }
     this.removeBookmark(name);
+    return this._mintBookmark(name, from, to);
+  }
 
+  /**
+   * The unchecked core of `addBookmark` — no name validation, no replace of
+   * an existing one of the same name. Split out for `_Toc` bookmarks (a
+   * table of contents entry's anchor on its heading): Word's own name rule
+   * above refuses a leading underscore, the very thing that keeps a hidden
+   * bookmark out of `bookmarks()` and the Bookmark dialog's list.
+   */
+  _mintBookmark(name, from, to = from) {
     let maxId = -1;
     for (const m of this.xml.matchAll(/<w:bookmarkStart\b[^>]*\bw:id="(\d+)"/g)) {
       maxId = Math.max(maxId, Number(m[1]));
@@ -2256,6 +2307,12 @@ export class Document {
       if (touched) this.setParagraphRuns(p.index, next);
     }
     changed += this._renumberSeqFields();
+    // A table of contents is a field too — F9 rebuilds its entries from the
+    // current headings and bookmarks exactly as References → Update Table
+    // does, keeping whatever page numbers it last cached (see
+    // `updateTableOfContents`). Not counted into `changed`: it is a
+    // structural rebuild, not a word-for-word refresh the REF/SEQ count means.
+    if (this.hasTableOfContents()) this.updateTableOfContents();
     if (changed) this.dirty = true;
     return changed;
   }
@@ -2335,6 +2392,368 @@ export class Document {
     this._spliceBody(p.end, p.end, xml);
     this._renumberSeqFields();
     return this;
+  }
+
+  // ---- table of contents ---------------------------------------------------
+
+  /**
+   * The "TOC1".."TOCn" styles, written once — Word's own defaults on a
+   * document that never had a table of contents: no indent for level 1,
+   * 220 twips more per level after it, a little space after each entry so
+   * they do not run together. Same append-never-rewrite rule as
+   * `_ensureCaptionStyle`: an existing catalogue is a template author's own.
+   */
+  _ensureTocStyles(levels = 3) {
+    this.ensureParagraphStyles();
+    const part = 'word/styles.xml';
+    let xml = this.pkg.text(part);
+    let changed = false;
+    for (let level = 1; level <= levels; level++) {
+      const id = 'TOC' + level;
+      if (new RegExp('<w:style\\b[^>]*\\bw:styleId="' + id + '"').test(xml)) continue;
+      const indent = (level - 1) * 220;
+      const style = '<w:style w:type="paragraph" w:styleId="' + id + '"><w:name w:val="toc ' + level + '"/><w:basedOn w:val="Normal"/>'
+        + '<w:pPr>' + (indent ? '<w:ind w:left="' + indent + '"/>' : '') + '<w:spacing w:after="100"/></w:pPr></w:style>';
+      xml = xml.replace('</w:styles>', style + '</w:styles>');
+      changed = true;
+    }
+    if (changed) this.pkg.write_(part, xml);
+  }
+
+  /**
+   * The print area's width, in twips, from the section's own page size and
+   * margins — where Word right-aligns a TOC entry's page number, dot-leader
+   * tab and all, regardless of the entry's own indent.
+   */
+  _tocTabPositionTwips() {
+    const { body } = this._body();
+    const sectPr = /<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/.exec(body);
+    const sz = sectPr ? /<w:pgSz\b([^>]*)\/>/.exec(sectPr[0]) : null;
+    const mar = sectPr ? /<w:pgMar\b([^>]*)\/>/.exec(sectPr[0]) : null;
+    const szAttrs = sz ? attrs(sz[1]) : {};
+    const marAttrs = mar ? attrs(mar[1]) : {};
+    const width = Number(szAttrs['w:w']) || 11906;
+    const left = Number(marAttrs['w:left']) || 1440;
+    const right = Number(marAttrs['w:right']) || 1440;
+    return Math.max(720, width - left - right);
+  }
+
+  /**
+   * Every heading a table of contents can list, in document order: a
+   * top-level paragraph styled Heading1..Heading<levels> with words in it.
+   * A heading inside the TOC's own `w:sdt` never reaches this — `paragraphs()`
+   * treats a body-level content control as opaque, which is exactly why
+   * rebuilding a table of contents never lists its own old entries.
+   */
+  _headingsForToc(levels) {
+    const out = [];
+    for (const entry of this.paragraphs()) {
+      const m = /^Heading([1-9])$/.exec(this.paragraph(entry.index).style || '');
+      if (!m) continue;
+      const level = Number(m[1]);
+      if (level > levels) continue;
+      const text = entry.text.trim();
+      if (!text) continue;
+      out.push({ index: entry.index, level, text });
+    }
+    return out;
+  }
+
+  /** Every `_Toc<digits>` bookmark in the body, gone — see `_buildToc`. */
+  _stripTocBookmarks() {
+    const names = new Set();
+    for (const m of this.xml.matchAll(/<w:bookmarkStart\b[^>]*\bw:name="(_Toc\d+)"/g)) names.add(m[1]);
+    for (const name of names) this.removeBookmark(name);
+  }
+
+  /**
+   * One TOC entry's content: the heading's own words, a right tab, and a
+   * PAGEREF field for its page — all inside a hyperlink to the heading's
+   * `_Toc` bookmark, exactly the shape Word writes (Ctrl+click in the
+   * window follows `w:anchor` straight to `gotoBookmark`). `page` undefined
+   * or null leaves the field's cached result blank rather than lying with a
+   * stale number — correct once Update Table supplies one.
+   */
+  _tocEntryXml({ text, bookmarkName, page }) {
+    const pageText = page === undefined || page === null || page === '' ? '' : String(page);
+    const pageField =
+      '<w:r><w:fldChar w:fldCharType="begin"/></w:r>' +
+      '<w:r><w:instrText xml:space="preserve"> PAGEREF ' + bookmarkName + ' \\h </w:instrText></w:r>' +
+      '<w:r><w:fldChar w:fldCharType="separate"/></w:r>' +
+      renderRun(null, pageText) +
+      '<w:r><w:fldChar w:fldCharType="end"/></w:r>';
+    return '<w:hyperlink w:anchor="' + esc(bookmarkName) + '" w:history="1">' +
+      renderRun(null, text) +
+      '<w:r><w:tab/></w:r>' +
+      pageField +
+      '</w:hyperlink>';
+  }
+
+  /**
+   * The whole field, begin to end, wrapped the way Word 365 writes a table
+   * of contents building block: `w:sdt`/`w:docPartObj`/`w:docPartGallery`
+   * "Table of Contents" round a run of TOC1..TOCn paragraphs. A document
+   * with no headings gets the one line Word itself shows, "No table of
+   * contents entries found.", inside the field so Update Table still finds
+   * it.
+   *
+   * Word puts the outer `TOC` field's begin/separate in the FIRST entry
+   * paragraph, ahead of its hyperlink, and the end in the LAST, after —
+   * this engine cannot follow it there. Its complex-field reader
+   * (`foldComplexFields`, shared with SEQ and REF) matches one begin to the
+   * NEAREST end within a paragraph; with the outer begin sharing a
+   * paragraph with an entry's own complete PAGEREF field, the nearest end
+   * is the PAGEREF's, not the TOC field's own — the match pairs wrong and
+   * swallows the entry's hyperlink whole. Giving the begin/separate and the
+   * end a bare paragraph of their own, front and back, keeps every
+   * paragraph's own field self-contained: still one field, still found and
+   * refreshed as one (`_tocSpan`/`updateTableOfContents` read the whole
+   * `w:sdt` span, not paragraph by paragraph), just one paragraph wider at
+   * each end than Word's own.
+   */
+  _tocFieldXml(headings, levels, pages) {
+    const tabTwips = this._tocTabPositionTwips();
+    const instr = ' TOC \\o "1-' + levels + '" \\h \\z \\u ';
+    const pPrFor = (level) =>
+      '<w:pPr><w:pStyle w:val="TOC' + level + '"/>' +
+      '<w:tabs><w:tab w:val="right" w:leader="dot" w:pos="' + tabTwips + '"/></w:tabs>' +
+      '<w:rPr><w:noProof/></w:rPr></w:pPr>';
+    // The instruction is written raw, not through `esc`: it is a literal this
+    // method fully controls (digits, spaces, backslashes and quotes only,
+    // never `&`/`<`/`>`), and Word itself writes a field's `"1-3"` unescaped —
+    // `w:instrText` is text content, not an attribute value, so quoting it is
+    // unnecessary. `_tocSpan`/`tableOfContents` read the level back the same
+    // literal way.
+    const fieldBegin =
+      '<w:r><w:fldChar w:fldCharType="begin"/></w:r>' +
+      '<w:r><w:instrText xml:space="preserve">' + instr + '</w:instrText></w:r>' +
+      '<w:r><w:fldChar w:fldCharType="separate"/></w:r>';
+    const fieldEnd = '<w:r><w:fldChar w:fldCharType="end"/></w:r>';
+
+    let content;
+    if (!headings.length) {
+      content = '<w:p>' + pPrFor(1) + fieldBegin + renderRun(null, 'No table of contents entries found.') + fieldEnd + '</w:p>';
+    } else {
+      const beginPara = '<w:p>' + pPrFor(headings[0].level) + fieldBegin + '</w:p>';
+      const endPara = '<w:p>' + pPrFor(headings[headings.length - 1].level) + fieldEnd + '</w:p>';
+      const entries = headings.map((h, i) => {
+        const entry = this._tocEntryXml({ text: h.text, bookmarkName: h.bookmark, page: pages ? pages[i] : undefined });
+        return '<w:p>' + pPrFor(h.level) + entry + '</w:p>';
+      }).join('');
+      content = beginPara + entries + endPara;
+    }
+    return '<w:sdt><w:sdtPr><w:docPartObj><w:docPartGallery w:val="Table of Contents"/><w:docPartUnique/></w:docPartObj></w:sdtPr>' +
+      '<w:sdtContent>' + content + '</w:sdtContent></w:sdt>';
+  }
+
+  /**
+   * Current headings, freshly bookmarked, as the field's XML — the one place
+   * insert and update both build from, so the two can never draw the entries
+   * differently. Every existing `_Toc` bookmark is stripped and every current
+   * heading remarked in document order: simpler and no less correct than
+   * matching old bookmarks to headings that may have moved, been renamed or
+   * gone, and it is what makes "update after adding/removing/renaming
+   * headings" trustworthy.
+   */
+  _buildToc(levels, pages) {
+    const headings = this._headingsForToc(levels);
+    this._stripTocBookmarks();
+    let nextId = 100000001;
+    const withBookmarks = headings.map((h) => {
+      const name = '_Toc' + String(nextId++);
+      this._mintBookmark(name, h.index, h.index);
+      return { ...h, bookmark: name };
+    });
+    return { xml: this._tocFieldXml(withBookmarks, levels, pages), count: headings.length };
+  }
+
+  /**
+   * Where an existing table of contents sits in the body, start to end —
+   * the `w:sdt` building block this engine writes, or (a file from an older
+   * Word, or one built by hand without the content control) a bare `TOC`
+   * complex field found by a balanced scan of `w:fldChar`s, since a PAGEREF
+   * field nested in every entry means the first `fldChar` "end" met is an
+   * entry's own, not the table's. Null when there is none.
+   */
+  _tocSpan() {
+    const { body } = this._body();
+    const sdtRe = /<w:sdt\b[^>]*>(?:(?!<w:sdt\b)[\s\S])*?<w:docPartGallery\b[^>]*\bw:val="Table of Contents"[\s\S]*?<\/w:sdt>/;
+    const m = sdtRe.exec(body);
+    if (m) return { start: m.index, end: m.index + m[0].length };
+
+    const fldRe = /<w:fldChar\b[^>]*\bw:fldCharType="(begin|end)"[^>]*\/>/g;
+    let mm;
+    let startIdx = -1;
+    while ((mm = fldRe.exec(body))) {
+      if (mm[1] !== 'begin') continue;
+      const after = mm.index + mm[0].length;
+      const nextFld = /<w:fldChar\b/.exec(body.slice(after));
+      const window = body.slice(after, nextFld ? after + nextFld.index : after + 300);
+      const instr = [...window.matchAll(/<w:instrText\b[^>]*>([\s\S]*?)<\/w:instrText>/g)].map((x) => unesc(x[1])).join('');
+      if (/^\s*TOC\b/i.test(instr)) { startIdx = mm.index; break; }
+    }
+    if (startIdx === -1) return null;
+    fldRe.lastIndex = startIdx;
+    let depth = 0;
+    let endIdx = -1;
+    while ((mm = fldRe.exec(body))) {
+      if (mm[1] === 'begin') depth += 1;
+      else {
+        depth -= 1;
+        if (depth === 0) { endIdx = mm.index + mm[0].length; break; }
+      }
+    }
+    if (endIdx === -1) return null;
+    const paraStart = body.lastIndexOf('<w:p', startIdx);
+    const paraEndClose = body.indexOf('</w:p>', endIdx);
+    return {
+      start: paraStart === -1 ? startIdx : paraStart,
+      end: paraEndClose === -1 ? endIdx : paraEndClose + '</w:p>'.length,
+    };
+  }
+
+  /** Every PAGEREF's cached result, in the field's own order — what a plain Update Table (no fresh page map) keeps rather than blanks. */
+  _tocCachedPages(spanXml) {
+    const out = [];
+    for (const m of spanXml.matchAll(/PAGEREF\s+_Toc\d+[^<]*<\/w:instrText>[\s\S]*?<w:fldChar\b[^>]*"separate"[^>]*\/>[\s\S]*?<w:t\b[^>]*>([\s\S]*?)<\/w:t>/g)) {
+      out.push(unesc(m[1]) || undefined);
+    }
+    return out;
+  }
+
+  /** True when the body carries a table of contents field — for the ribbon's Update Table / Remove Table of Contents buttons. */
+  hasTableOfContents() { return this._tocSpan() !== null; }
+
+  /**
+   * The table of contents read back — every entry's words, its bookmark and
+   * its cached page — for the window and the tests, since the entries live
+   * inside an opaque `w:sdt` that `fields()` never reaches.
+   */
+  tableOfContents() {
+    const span = this._tocSpan();
+    if (!span) return null;
+    const { body } = this._body();
+    const xml = body.slice(span.start, span.end);
+    const oLevel = /\\o\s+"1-(\d)"/.exec(xml);
+    const entries = [];
+    for (const m of xml.matchAll(/<w:hyperlink\b[^>]*\bw:anchor="([^"]+)"[^>]*>([\s\S]*?)<\/w:hyperlink>/g)) {
+      const inner = m[2];
+      const tabIdx = inner.indexOf('<w:tab/>');
+      const text = textOf(tabIdx === -1 ? inner : inner.slice(0, tabIdx));
+      const pageMatch = /<w:fldChar\b[^>]*"separate"[^>]*\/>[\s\S]*?<w:t\b[^>]*>([\s\S]*?)<\/w:t>/.exec(inner);
+      entries.push({ anchor: unesc(m[1]), text, page: pageMatch ? (unesc(pageMatch[1]) || null) : null });
+    }
+    return { levels: oLevel ? Number(oLevel[1]) : 3, entries };
+  }
+
+  /**
+   * Insert → Table of Contents, at paragraph `at`: a field, not text — see
+   * `_tocFieldXml`. `pages`, aligned with the headings this finds (document
+   * order), is the on-screen page of each; omitted, every entry's page is
+   * blank until Update Table supplies one.
+   */
+  insertTableOfContents({ at, levels = 3, pages } = {}) {
+    const p = this.paragraph(at);
+    if (!p) throw new Error('no paragraph at index ' + at);
+    this._ensureTocStyles(levels);
+    const { xml } = this._buildToc(levels, pages);
+    this._spliceBody(p.end, p.end, xml);
+    this.dirty = true;
+    return this;
+  }
+
+  /**
+   * References → Update Table (and F9, alongside REF/SEQ — see
+   * `refreshRefFields`): the entries rebuilt from the CURRENT headings and
+   * their current bookmarks, keeping the field where it was. `pages` fresh
+   * from the caller's on-screen pagination wins; without one, each entry
+   * keeps the page number it last cached, sliced or padded to the new count
+   * — plain F9 must not blank out numbers nobody asked it to forget.
+   */
+  updateTableOfContents({ pages } = {}) {
+    const span = this._tocSpan();
+    if (!span) throw new Error('this document has no table of contents to update');
+    const { body } = this._body();
+    const existing = body.slice(span.start, span.end);
+    const oLevel = /\\o\s+"1-(\d)"/.exec(existing);
+    const levels = oLevel ? Number(oLevel[1]) : 3;
+    const effectivePages = pages || this._tocCachedPages(existing);
+    this._ensureTocStyles(levels);
+    const { xml } = this._buildToc(levels, effectivePages);
+    this._spliceBody(span.start, span.end, xml);
+    this.dirty = true;
+    return this;
+  }
+
+  /** References → Remove Table of Contents. True when one was there. */
+  removeTableOfContents() {
+    const span = this._tocSpan();
+    if (!span) return false;
+    this._spliceBody(span.start, span.end, '');
+    this.dirty = true;
+    return true;
+  }
+
+  // ---- tracked changes -------------------------------------------------------
+
+  /**
+   * Accept every tracked change in one paragraph — `editParagraphs()`
+   * order, a table cell's own paragraphs addressed exactly as the editor
+   * addresses them, not `paragraphs()`'s top-level-only space. An insertion
+   * loses its `w:ins` wrapper, keeping the words; a deletion and its
+   * `w:delText` are gone outright. True when the paragraph carried a
+   * change; false leaves it untouched rather than rewriting for nothing.
+   *
+   * Regex, not `setEditParagraphRuns`: an accept or reject is a pure
+   * strip-the-wrapper edit that never needs the run model at all, and
+   * staying off it means this works whether or not a paragraph carrying
+   * `w:ins`/`w:del` is one this engine will rebuild from runs (see
+   * `_decorate`) — the two are free to evolve apart.
+   */
+  acceptParagraphChanges(index) {
+    const p = this.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    if (!/<w:(?:ins|del)\b/.test(p.xml)) return false;
+    const next = p.xml
+      .replace(/<w:ins\b[^>]*>([\s\S]*?)<\/w:ins>/g, '$1')
+      .replace(/<w:del\b[^>]*>[\s\S]*?<\/w:del>/g, '');
+    this._spliceBody(p.start, p.end, next);
+    this.dirty = true;
+    return true;
+  }
+
+  /**
+   * Reject every tracked change in one paragraph: an insertion and its
+   * words are gone outright; a deletion's `w:del` wrapper comes off and its
+   * `w:delText` runs become ordinary `w:t` again — the paragraph as it read
+   * before either change.
+   */
+  rejectParagraphChanges(index) {
+    const p = this.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    if (!/<w:(?:ins|del)\b/.test(p.xml)) return false;
+    const next = p.xml
+      .replace(/<w:ins\b[^>]*>[\s\S]*?<\/w:ins>/g, '')
+      .replace(/<w:del\b[^>]*>([\s\S]*?)<\/w:del>/g, (whole, inner) => inner
+        .replace(/<w:delText\b([^>]*)\/>/g, '<w:t$1/>')
+        .replace(/<w:delText\b([^>]*)>/g, '<w:t$1>')
+        .replace(/<\/w:delText>/g, '</w:t>'));
+    this._spliceBody(p.start, p.end, next);
+    this.dirty = true;
+    return true;
+  }
+
+  /** Review → Accept All / Reject All. True when anything in the body changed. */
+  acceptAllChanges() {
+    let changed = false;
+    for (let i = 0; i < this.editParagraphCount(); i++) if (this.acceptParagraphChanges(i)) changed = true;
+    return changed;
+  }
+
+  rejectAllChanges() {
+    let changed = false;
+    for (let i = 0; i < this.editParagraphCount(); i++) if (this.rejectParagraphChanges(i)) changed = true;
+    return changed;
   }
 
   // ---- writing -------------------------------------------------------------
@@ -2445,11 +2864,6 @@ export class Document {
   editParagraphCount() { return this.editParagraphs().length; }
 
   _decorate(p) {
-    // w:ins and w:del joined the list 2026-08-27: a rebuild reassembles text
-    // runs and cannot re-attribute them, so a paragraph mid-review is
-    // read-only here until its changes are accepted or rejected in Word —
-    // and its tracked state is SHOWN (see `tracked` below) rather than
-    // silently flattened, which is what editing used to do.
     // w:txbxContent is on the list because a rebuild reassembles the runs
     // and would drop the box the paragraph anchors, words and all.
     // A note reference is NOT on the list: it is a run of its own with one
@@ -2463,8 +2877,15 @@ export class Document {
     // COMPLEX field (`w:fldChar` begin/separate/end, `w:instrText`) is not
     // this lucky: its result is split across several runs with no single one
     // to own the wrapper, so it stays structural.
-    const structural = ['w:fldChar', 'w:commentRangeStart', 'w:sdt', 'w:ins', 'w:del', 'w:txbxContent']
-      .filter((tag) => new RegExp('<' + tag + '\\b').test(p.xml)); // \b: w:ins is a prefix of w:instrText
+    // w:ins and w:del left the list the day recording tracked changes was
+    // built: parseRuns/renderRuns now carry an insertion or a deletion as a
+    // run of their own (runs.js's `flatInsRuns`/`flatDelRuns`, the ins/del
+    // counterpart of a hyperlink's group wrapper), so a paragraph mid-review
+    // rebuilds like any other — typing beside somebody's tracked change no
+    // longer has to wait for it to be resolved first. Its tracked state is
+    // still summarised below for the margin and the Reviewing Pane.
+    const structural = ['w:fldChar', 'w:commentRangeStart', 'w:sdt', 'w:txbxContent']
+      .filter((tag) => new RegExp('<' + tag + '\\b').test(p.xml));
     // A paragraph INSIDE a body-level content control carries no sdt tag of
     // its own; it is read-only for the same reason one that does is.
     if (p.inSdt && !structural.includes('w:sdt')) structural.push('w:sdt');

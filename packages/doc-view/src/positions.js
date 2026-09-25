@@ -100,6 +100,47 @@ export function removeRange(runs, from, to) {
 }
 
 /**
+ * `removeRange`'s tracked-changes counterpart — Review → Track Changes on,
+ * typing or Backspace/Delete over `[from, to)`. Not recording: identical to
+ * `removeRange`, the words are gone. Recording: the removed words become a
+ * `del` run in place (zero characters wide — see `flatDelRuns` — so the
+ * caret's offsets never count them) rather than vanishing, UNLESS they are
+ * still a pending insertion by the very same author, in which case Word
+ * simply un-inserts them rather than marking a deletion of a deletion.
+ *
+ * A note/endnote reference, its mark, or a field is never tracked — deleting
+ * one takes it outright, recording or not, a stated simplification.
+ */
+export function trackedRemoveRange(runs, from, to, recording, meta) {
+  if (!recording) return removeRange(runs, from, to);
+  const out = [];
+  let seen = 0;
+  for (const run of runs) {
+    const start = seen;
+    const end = seen + run.text.length;
+    seen = end;
+    if (run.del) { out.push(run); continue; } // already deleted text is inert
+    if (end <= from || start >= to) { out.push(run); continue; }
+    if (run.noteRef || run.noteMark || run.field) {
+      if (!(from <= start && to >= end)) out.push(run); // partially covered: leave it whole
+      continue; // fully covered: removed outright, same as untracked
+    }
+    const overlapStart = Math.max(0, from - start);
+    const overlapEnd = Math.min(run.text.length, to - start);
+    const before = run.text.slice(0, overlapStart);
+    const overlap = run.text.slice(overlapStart, overlapEnd);
+    const after = run.text.slice(overlapEnd);
+    if (before) out.push({ ...run, text: before });
+    if (overlap) {
+      const ownPending = run.ins && run.ins.author === meta.author;
+      if (!ownPending) out.push({ rPr: run.rPr, text: '', del: { ...meta, text: overlap } });
+    }
+    if (after) out.push({ ...run, text: after });
+  }
+  return out;
+}
+
+/**
  * Merge adjacent runs that carry identical properties.
  *
  * Without this, every keystroke fragments a paragraph a little further — type
@@ -110,7 +151,9 @@ export function removeRange(runs, from, to) {
 export function coalesce(runs) {
   const out = [];
   for (const run of runs) {
-    if (run.text === '') continue;
+    // A deletion carries no text of its own — see `flatDelRuns` — so the
+    // empty-text rule that drops a spent run must not drop this one too.
+    if (run.text === '' && !run.del) continue;
     const last = out[out.length - 1];
     // A link is part of a run's identity: merging a linked run into a plain
     // neighbour would stretch or swallow the link. A note reference is a run
@@ -118,8 +161,20 @@ export function coalesce(runs) {
     // and a field run the same again: its text is a cached RESULT, not words
     // to fold into whatever sits beside it.
     const marker = Boolean(run.noteRef || run.noteMark || run.field || last?.noteRef || last?.noteMark || last?.field);
-    if (last && !marker && last.rPr === run.rPr && (last.link ?? null) === (run.link ?? null)) last.text += run.text;
-    else out.push({ ...run });
+    // Two runs of the SAME pending insertion or deletion merge into one, the
+    // way ordinary typing already coalesces into one run — Word does not
+    // write a fresh `w:ins` per keystroke either. A tracked run never merges
+    // into a plain or differently-tracked neighbour: that would stretch
+    // somebody else's change, or blur where one insertion ends and the
+    // words around it (never touched) begin.
+    const sameTracking =
+      (!run.ins && !run.del && !last?.ins && !last?.del) ||
+      (run.ins && last?.ins && run.ins.id === last.ins.id && run.ins.author === last.ins.author) ||
+      (run.del && last?.del && run.del.id === last.del.id && run.del.author === last.del.author);
+    if (last && !marker && sameTracking && last.rPr === run.rPr && (last.link ?? null) === (run.link ?? null)) {
+      last.text += run.text;
+      if (run.del) last.del = { ...last.del, text: (last.del.text || '') + (run.del.text || '') };
+    } else out.push({ ...run });
   }
   return out;
 }

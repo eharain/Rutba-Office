@@ -21,7 +21,7 @@ import { computeListLabels } from './lists.js';
 import { bandForPage, resolveFields } from './bands.js';
 import {
   runsText, locate, clampPosition, comparePositions, orderedRange,
-  sliceRuns, removeRange, coalesce, samePosition,
+  sliceRuns, removeRange, trackedRemoveRange, coalesce, samePosition,
 } from './positions.js';
 
 /**
@@ -361,6 +361,48 @@ export class DocView {
   // ---- editing -----------------------------------------------------------
 
   /**
+   * Review → Track Changes: is this document recording right now? Read
+   * straight from the file's own setting (`Document#trackRevisions`) rather
+   * than cached, so a file opened with it already on — or another window's
+   * edit landing between two of this one's — is never stale.
+   */
+  get recording() {
+    return typeof this.doc.trackRevisions === 'function' && this.doc.trackRevisions();
+  }
+
+  /**
+   * Turn recording on or off. Not an undoable edit — Word's own toggle is a
+   * document SETTING, not a content change, so Ctrl+Z must not touch it —
+   * but it does dirty the document, since `<w:trackRevisions/>` is written
+   * to settings.xml on save. `author` sticks for every change this window
+   * records until it is given a different one.
+   */
+  setTrackChanges(on, author) {
+    if (typeof this.doc.setTrackRevisions !== 'function') {
+      throw new Error('this document backend does not support tracked changes');
+    }
+    this.doc.setTrackRevisions(Boolean(on));
+    if (author) this._trackAuthor = author;
+    this.touched = true;
+    this._invalidate();
+    return this;
+  }
+
+  /**
+   * The `ins`/`del` tag for the NEXT run recording writes: reused, id and
+   * all, when `existing` is already a pending change by the same author —
+   * so typing in the middle of your own still-open insertion extends the
+   * one `w:ins`, the way Word's own does, rather than opening a fresh one
+   * every keystroke. A different author, or nothing pending there, mints a
+   * new id off the document's own counter.
+   */
+  _trackMeta(existing) {
+    const author = this._trackAuthor || 'Rutba Office user';
+    if (existing && existing.author === author) return existing;
+    return { id: String(this.doc.nextTrackChangeId()), author, date: new Date().toISOString() };
+  }
+
+  /**
    * Insert text at the caret, replacing any selection.
    *
    * The inserted text inherits the formatting of the run to the LEFT of the
@@ -382,6 +424,8 @@ export class DocView {
     const { runIndex, runOffset } = locate(runs, offset, 'left');
     const target = runs[runIndex];
 
+    const recording = this.recording;
+
     // A note reference is a run of its own and takes no words: typing beside
     // it goes into a new run wearing the formatting of the text next to it,
     // never into the reference — whose rebuild writes an element, not text.
@@ -390,7 +434,8 @@ export class DocView {
       let rPr = neighbour && !neighbour.noteRef && !neighbour.noteMark ? neighbour.rPr : null;
       if (this.pendingFormat) rPr = this._applyPending(rPr);
       const at = runOffset === 0 ? runIndex : runIndex + 1;
-      const next = [...runs.slice(0, at), { rPr, text }, ...runs.slice(at)];
+      const newRun = recording ? { rPr, text, ins: this._trackMeta(null) } : { rPr, text };
+      const next = [...runs.slice(0, at), newRun, ...runs.slice(at)];
       this.doc.setParagraphRuns(block, coalesce(next));
       this._invalidate();
       this.pendingFormat = null;
@@ -411,7 +456,8 @@ export class DocView {
       let rPr = neighbour && !neighbour.field && !neighbour.noteRef && !neighbour.noteMark ? neighbour.rPr : null;
       if (this.pendingFormat) rPr = this._applyPending(rPr);
       const at = before ? runIndex : runIndex + 1;
-      const next = [...runs.slice(0, at), { rPr, text }, ...runs.slice(at)];
+      const newRun = recording ? { rPr, text, ins: this._trackMeta(null) } : { rPr, text };
+      const next = [...runs.slice(0, at), newRun, ...runs.slice(at)];
       this.doc.setParagraphRuns(block, coalesce(next));
       this._invalidate();
       this.pendingFormat = null;
@@ -423,7 +469,21 @@ export class DocView {
     if (this.pendingFormat) rPr = this._applyPending(rPr);
 
     let next;
-    if (rPr === target.rPr) {
+    if (recording) {
+      // Always split three ways while recording, even where the plain path
+      // would just splice into the run in place: the new words need a
+      // boundary of their own to carry `ins` on, and `coalesce` (below)
+      // folds them straight back into whichever neighbour shares it — the
+      // run we typed inside of, when it is already OUR pending insertion.
+      const ins = this._trackMeta(target.ins && target.rPr === rPr ? target.ins : null);
+      next = [
+        ...runs.slice(0, runIndex),
+        { ...target, text: target.text.slice(0, runOffset) },
+        { rPr, text, ins },
+        { ...target, text: target.text.slice(runOffset) },
+        ...runs.slice(runIndex + 1),
+      ];
+    } else if (rPr === target.rPr) {
       next = runs.map((r, i) => (i === runIndex
         ? { ...r, text: r.text.slice(0, runOffset) + text + r.text.slice(runOffset) }
         : r));
@@ -456,20 +516,28 @@ export class DocView {
     this._sameContainer(from, to);
     for (let i = from.block; i <= to.block; i++) this._editable(i);
 
+    const recording = this.recording;
+    // One id for the whole delete, however many runs (or paragraphs) it
+    // crosses — Word does not mint a fresh one per run either.
+    const meta = recording ? this._trackMeta(null) : null;
+
     if (from.block === to.block) {
       const b = this.block(from.block);
-      this.doc.setParagraphRuns(from.block, coalesce(removeRange(b.runs, from.offset, to.offset)));
+      this.doc.setParagraphRuns(from.block, coalesce(trackedRemoveRange(b.runs, from.offset, to.offset, recording, meta)));
       this._invalidate();
       this.collapseTo(from);
       return this;
     }
 
-    // Keep the head of the first paragraph and the tail of the last, drop what
-    // is between, then merge the two survivors into one.
+    // Keep the head of the first paragraph and the tail of the last, mark
+    // (or drop) what is between, then merge the two survivors into one. The
+    // paragraph mark itself is not tracked — joining two paragraphs across a
+    // tracked delete happens for real, a stated simplification (see the
+    // module doc on paragraph marks).
     const first = this.block(from.block);
     const last = this.block(to.block);
-    const head = sliceRuns(first.runs, 0, from.offset);
-    const tail = sliceRuns(last.runs, to.offset, Infinity);
+    const head = trackedRemoveRange(first.runs, from.offset, first.text.length, recording, meta);
+    const tail = trackedRemoveRange(last.runs, 0, to.offset, recording, meta);
 
     this.doc.setParagraphRuns(from.block, coalesce([...head, ...tail]));
     this._invalidate();
@@ -1876,6 +1944,86 @@ export class DocView {
   }
 
   /**
+   * References → Table of Contents, at the caret's paragraph: a real field
+   * (see `Document#insertTableOfContents`), not the plain text this ribbon
+   * button used to write. `pages`, when the caller has it, is the on-screen
+   * page (1-based) of each heading this finds, in document order — pages.js
+   * knows which sheet a block landed on; without it every entry's page is
+   * blank until Update Table supplies one.
+   */
+  insertTableOfContents({ levels = 3, pages } = {}) {
+    if (typeof this.doc.insertTableOfContents !== 'function') {
+      throw new Error('this document backend does not support a table of contents');
+    }
+    return this._edit('table of contents', null, () => {
+      const { block } = this.focus;
+      if (!this.block(block)) throw new Error('no paragraph at index ' + block);
+      this.doc.insertTableOfContents({ at: block, levels, pages });
+      this._invalidate();
+      return this;
+    });
+  }
+
+  /**
+   * References → Update Table: the entries rebuilt from the current
+   * headings and their pages, the field kept where it was. Also what F9
+   * does to a table of contents alongside REF/SEQ — see `refreshRefFields`.
+   */
+  updateTableOfContents({ pages } = {}) {
+    if (typeof this.doc.updateTableOfContents !== 'function') {
+      throw new Error('this document backend does not support a table of contents');
+    }
+    return this._edit('update table of contents', null, () => {
+      this.doc.updateTableOfContents({ pages });
+      this._invalidate();
+      return this;
+    });
+  }
+
+  /**
+   * Review → Accept: this change (the paragraph the caret sits in), or
+   * `{ all: true }` for every change in the document. An insertion keeps
+   * its words, unwrapped; a deletion's words are finally gone.
+   */
+  acceptChanges({ all = false } = {}) {
+    if (typeof this.doc.acceptParagraphChanges !== 'function') {
+      throw new Error('this document backend does not support tracked changes');
+    }
+    return this._edit('accept changes', null, () => {
+      const changed = all ? this.doc.acceptAllChanges() : this.doc.acceptParagraphChanges(this.focus.block);
+      this._invalidate();
+      return changed;
+    });
+  }
+
+  /**
+   * Review → Reject: the reverse — an insertion's words are gone; a
+   * deletion's words come back.
+   */
+  rejectChanges({ all = false } = {}) {
+    if (typeof this.doc.rejectParagraphChanges !== 'function') {
+      throw new Error('this document backend does not support tracked changes');
+    }
+    return this._edit('reject changes', null, () => {
+      const changed = all ? this.doc.rejectAllChanges() : this.doc.rejectParagraphChanges(this.focus.block);
+      this._invalidate();
+      return changed;
+    });
+  }
+
+  /** References → Remove Table of Contents. True when one was there. */
+  removeTableOfContents() {
+    if (typeof this.doc.removeTableOfContents !== 'function') {
+      throw new Error('this document backend does not support a table of contents');
+    }
+    return this._edit('remove table of contents', null, () => {
+      const removed = this.doc.removeTableOfContents();
+      this._invalidate();
+      return removed;
+    });
+  }
+
+  /**
    * Fill a content control — the business-data binding path, allowed inside
    * structure. Optional in the port: an email body has no named anchors.
    */
@@ -1915,6 +2063,11 @@ export class DocView {
     // A field's own code and kind — REF Summary, PAGE, DATE — so the page can
     // shade it and Ctrl+click can follow a REF to its bookmark.
     if (r.field) out.field = r.field;
+    // A tracked change — who, when, and (a deletion only) the words it took.
+    // The painter reads these for the underline/strike-through and the
+    // change bar; Accept/Reject and the Reviewing Pane read them too.
+    if (r.ins) out.ins = r.ins;
+    if (r.del) out.del = r.del;
     // The run's CHARACTER style — Hyperlink, FootnoteReference, Strong —
     // fills in what the run does not set itself. Word paints a hyperlink
     // blue and underlined only because its style says so; a TOC entry that
@@ -2128,6 +2281,15 @@ export class DocView {
       // from this before OK is even pressed, counting the SEQ fields this
       // label already has.
       fields: typeof this.doc.fields === 'function' ? this.doc.fields() : [],
+      // The table of contents, read back for the ribbon (Update Table and
+      // Remove Table of Contents only make sense once one exists) and the
+      // window — its entries live inside an opaque content control, out of
+      // `fields`' reach.
+      tableOfContents: typeof this.doc.tableOfContents === 'function' ? this.doc.tableOfContents() : null,
+      // Review → Track Changes: is this document recording, right now — read
+      // from the file's own setting so a reopened file with it already on
+      // shows the ribbon pressed without the window having to ask first.
+      trackRevisions: typeof this.doc.trackRevisions === 'function' ? this.doc.trackRevisions() : false,
       // Every list label by block index — how a TABLE CELL's list items get
       // their bullets and numbers, since cells have no fragments to carry
       // one. Computed on the same counters pagination used, so the body and

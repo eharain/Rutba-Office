@@ -1,12 +1,17 @@
 /**
- * Tracked changes — visible, and finally safe.
+ * Tracked changes — visible, and finally safe to sit beside.
  *
- * The bug this closes had teeth: a `w:ins` wrapper's runs are modelled text,
- * and the kept-fragments rule preserved the wrapper WHOLE — so one keystroke
- * in a reviewed paragraph doubled the inserted words. Reviewed paragraphs
- * are structural now (a rebuild cannot re-attribute a change; resolving
- * belongs to Word), the kept rule is about content rather than tag names,
- * and the review is SHOWN: who, how much, and what a deletion removed.
+ * The bug this once closed had teeth: a `w:ins` wrapper's runs are modelled
+ * text, and the kept-fragments rule preserved the wrapper WHOLE — so one
+ * keystroke in a reviewed paragraph doubled the inserted words. Reviewed
+ * paragraphs were made structural to stop that. Recording tracked changes
+ * (see word-track.test.js) needed them editable again — typing beside a
+ * change, your own pending one or somebody else's still open, is ordinary
+ * work, not something a review should block — so `parseRuns`/`renderRuns`
+ * now carry `w:ins`/`w:del` as a run property of their own (the same idea
+ * as a hyperlink's group wrapper), and a rebuild puts the wrapper back
+ * correctly instead of never touching the paragraph at all. The review is
+ * still SHOWN: who, how much, and what a deletion removed.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -27,15 +32,20 @@ function reviewed() {
   return openDocx(pkg.write());
 }
 
-test('a reviewed paragraph reads whole, refuses edits, and says why', () => {
+test('a reviewed paragraph reads whole, stays editable, and a keystroke inside the insertion does not double it', () => {
   const view = reviewed();
   const b = view.block(0);
   assert.equal(b.text, 'Agreed strongly by all', 'insertions read, deletions hide — the AFTER text');
-  assert.equal(b.structural, true, 'read-only until the review resolves in Word');
-  assert.ok(b.structuralTags.includes('w:ins'));
-  view.collapseTo({ block: 0, offset: 3 });
-  assert.throws(() => view.insertText('x'), /w:ins/,
-    'the refusal names the reason — one keystroke here used to DOUBLE the inserted words');
+  assert.equal(b.structural, false, 'typing beside a tracked change is ordinary editing now');
+  assert.ok(!b.structuralTags.includes('w:ins'));
+
+  // The caret lands INSIDE "strongly" — the w:ins run itself — exactly the
+  // spot the old bug doubled: rebuilding used to keep the whole wrapper
+  // (its ORIGINAL words) beside the newly spliced run.
+  view.collapseTo({ block: 0, offset: 10 });
+  view.insertText('X');
+  assert.equal(view.block(0).text, 'Agreed strXongly by all');
+  assert.equal((view.block(0).text.match(/strongly/g) ?? []).length, 0, 'nothing doubled — the run was spliced, not duplicated');
 });
 
 test('the frame summarises the review for the margin', () => {

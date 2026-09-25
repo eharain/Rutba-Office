@@ -5,7 +5,7 @@
  * files importing each other. Nothing here knows about paragraphs, tables or
  * packages: it is the lowest layer of the WordprocessingML reader.
  */
-import { esc } from './package.js';
+import { esc, attrs } from './package.js';
 import { unesc } from './workbook.js';
 
 /**
@@ -152,6 +152,63 @@ function flatRuns(fragment, out, link = null) {
 }
 
 /**
+ * `w:ins`/`w:del`'s own attributes, read once for every run the wrapper
+ * carries: who made the change and when, and the element's `w:id` (Word's
+ * own small per-change counter, not to be confused with a bookmark's).
+ */
+function parseTrackAttrs(attrsText) {
+  const a = attrs(attrsText);
+  return { id: a['w:id'] ?? '0', author: a['w:author'] ? unesc(a['w:author']) : '', date: a['w:date'] ?? null };
+}
+
+/**
+ * Text of a run's content read as a DELETION would write it: `<w:delText>`
+ * in place of `<w:t>`, everything else (a tab, a break) the same as `textOf`.
+ * Word writes a deleted run's words to `<w:delText>` rather than `<w:t>` —
+ * the one difference between a surviving run and a struck-through one.
+ */
+function textOfDel(xmlFragment) {
+  let out = '';
+  const re = /<w:delText\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:delText>)|<w:tab\s*\/>|<w:(?:br|cr)\b[^>]*\/>/g;
+  for (const m of String(xmlFragment).matchAll(re)) {
+    const tag = m[0];
+    if (tag.startsWith('<w:tab')) out += '\t';
+    else if (tag.startsWith('<w:delText')) out += unesc(m[1] ?? '');
+    else out += '\n';
+  }
+  return out;
+}
+
+/**
+ * Every run inside a `w:ins`, tagged with the insertion it belongs to — an
+ * ordinary run in every other respect, since inserted words are already
+ * part of the document's current text (Word counts them, the caret walks
+ * through them) and only need marking for the display and for Accept/Reject.
+ */
+function flatInsRuns(fragment, out, insMeta) {
+  const before = out.length;
+  flatRuns(fragment, out);
+  for (let i = before; i < out.length; i++) out[i] = { ...out[i], ins: insMeta };
+}
+
+/**
+ * Every run inside a `w:del`, read from its `w:delText`. Unlike an insertion,
+ * a deletion is NOT part of the document's current text or its caret's
+ * address space — `text` here is always empty, the way `textOf` (which never
+ * matches `<w:delText>`) already leaves it out of a paragraph's own `text`.
+ * The struck-through words a reviewing pane or All Markup needs to SHOW ride
+ * on `del.text` instead, a side channel the offset math never counts.
+ */
+function flatDelRuns(fragment, out, delMeta) {
+  for (const m of String(fragment).matchAll(/<w:r\b(?![a-zA-Z])[^>]*>([\s\S]*?)<\/w:r>/g)) {
+    const inner = m[1];
+    if (!/<w:delText\b|<w:tab\s*\/>|<w:(?:br|cr)\b/.test(inner)) continue;
+    const rPrMatch = RPR_RE.exec(inner);
+    out.push({ rPr: rPrMatch ? rPrMatch[0] : null, text: '', del: { ...delMeta, text: textOfDel(inner) } });
+  }
+}
+
+/**
  * A field's instruction, split the way Word's own fields are: the first
  * word says what kind of field it is; a REF's second word is the bookmark
  * it names, a SEQ's the sequence (label) it counts — `Figure`, `Table`,
@@ -277,13 +334,20 @@ export function parseRuns(paragraphXml) {
   // level (an sdt's body, a smart tag) contributes its text runs flat, exactly
   // as this function always has; nesting inside those is display-only because
   // paragraphs carrying them are structural and never rebuilt.
-  const re = /<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>|<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>/g;
+  // `w:ins`/`w:del` are read at this same top level, one more group wrapper
+  // beside hyperlink and fldSimple — not inside either of those (a tracked
+  // change inside a hyperlink or a field is rare enough, and costly enough
+  // to get wrong, that it is left to ride through as plain text there, the
+  // same stance already taken on nesting hyperlink inside fldSimple or back).
+  const re = /<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>|<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>|<w:ins\b([^>]*)>([\s\S]*?)<\/w:ins>|<w:del\b([^>]*)>([\s\S]*?)<\/w:del>/g;
   let cursor = 0;
   let m;
   while ((m = re.exec(xml))) {
     flatRuns(xml.slice(cursor, m.index), runs);
     if (m[1] !== undefined) flatRuns(m[2], runs, m[1]);
-    else runs.push(fieldRunFromFldSimple(m[3], m[4]));
+    else if (m[3] !== undefined) runs.push(fieldRunFromFldSimple(m[3], m[4]));
+    else if (m[5] !== undefined) flatInsRuns(m[6], runs, parseTrackAttrs(m[5]));
+    else flatDelRuns(m[8], runs, parseTrackAttrs(m[7]));
     cursor = m.index + m[0].length;
   }
   flatRuns(xml.slice(cursor), runs);
@@ -316,16 +380,28 @@ export function withToggle(rPr, tag, on) {
   return rPr.replace(/^(<w:rPr\b[^>]*>)/, '$1' + element);
 }
 
+/** `<w:ins>`/`<w:del>` wrapping some inner XML, with an id, an author and a date its own attributes. */
+function renderTrackWrap(tag, meta, inner) {
+  const id = meta?.id ?? '0';
+  const author = ' w:author="' + esc(String(meta?.author ?? '')) + '"';
+  const date = meta?.date ? ' w:date="' + esc(String(meta.date)) + '"' : '';
+  return '<w:' + tag + ' w:id="' + esc(String(id)) + '"' + author + date + '>' + inner + '</w:' + tag + '>';
+}
+
 /**
  * Render a list of runs back to XML, dropping any that ended up empty.
  * Consecutive runs sharing a `link` come back wrapped in one `<w:hyperlink>`
  * carrying exactly the attributes the parse captured — which is what lets a
- * keystroke inside a link leave the link standing.
+ * keystroke inside a link leave the link standing. An `ins`/`del` run wraps
+ * in `<w:ins>`/`<w:del>` the same way — see `renderTrackWrap`.
  */
 export function renderRuns(runs) {
   const out = [];
   let openLink = null;
-  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark || run.field)) {
+  // A deletion carries no text of its own (see `flatDelRuns`) — `del.text`
+  // is what must survive to `<w:delText>`, so it alone earns an empty run a
+  // place in the file.
+  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark || run.field || run.del)) {
     const link = r.link ?? null;
     if (link !== openLink) {
       if (openLink !== null) out.push('</w:hyperlink>');
@@ -336,6 +412,8 @@ export function renderRuns(runs) {
     // remembers — the cached result Word shows until Update Fields is next
     // pressed, right where parseRuns found it among the paragraph's runs.
     if (r.field) out.push('<w:fldSimple w:instr="' + esc(r.field.instr) + '">' + renderRun(r.rPr, r.text) + '</w:fldSimple>');
+    else if (r.del) out.push(renderTrackWrap('del', r.del, '<w:r>' + (r.rPr || '') + '<w:delText xml:space="preserve">' + esc(r.del.text ?? '') + '</w:delText></w:r>'));
+    else if (r.ins) out.push(renderTrackWrap('ins', r.ins, renderRun(r.rPr, r.text, r)));
     else out.push(renderRun(r.rPr, r.text, r));
   }
   if (openLink !== null) out.push('</w:hyperlink>');

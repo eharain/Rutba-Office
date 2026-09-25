@@ -778,6 +778,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       // Fields, the same reason: the Caption dialog's "Figure 3" preview
       // reads this rather than waiting for a block to change.
       fields: frame.fields,
+      // The table of contents, read back: Update Table and Remove Table of
+      // Contents only make sense once one exists, and neither ribbon button
+      // has a block of its own to watch change.
+      tableOfContents: frame.tableOfContents,
+      // Review → Track Changes: recording on or off — a document setting no
+      // block carries, so a press of the ribbon button needs this to show.
+      trackRevisions: frame.trackRevisions,
       canUndo: view.canUndo,
       canRedo: view.canRedo,
     };
@@ -1093,6 +1100,17 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     // `opResult` (see `apply`, below) so the ribbon can toast how many.
     insertCrossReference: (v, a) => v.insertCrossReference(a.name),
     updateFields: (v) => v.updateFields(),
+    // References → Table of Contents: a real field built from the current
+    // headings, not text. `pages`, when the window has them from its own
+    // on-screen pagination, is a page number per heading in document order.
+    insertTableOfContents: (v, a) => v.insertTableOfContents({ levels: a.levels, pages: a.pages }),
+    updateTableOfContents: (v, a) => v.updateTableOfContents({ pages: a.pages }),
+    removeTableOfContents: (v) => v.removeTableOfContents(),
+    // Review → Track Changes: the author is whoever the window says, else
+    // the account at the keyboard, the same rule a note's author follows.
+    toggleTrackChanges: (v, a) => v.setTrackChanges(a.on, a.author || safeUserName() || 'Rutba Office user'),
+    acceptChanges: (v, a) => v.acceptChanges({ all: a.all }),
+    rejectChanges: (v, a) => v.rejectChanges({ all: a.all }),
     // Insert → Captions → Insert Caption: a label, a live SEQ number and the
     // caller's own words, as a new paragraph after the caret's.
     insertCaption: (v, a) => v.insertCaption({ label: a.label, text: a.text ?? '' }),

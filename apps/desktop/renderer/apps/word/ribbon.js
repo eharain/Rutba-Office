@@ -57,6 +57,8 @@ const PAGE_BORDERS = [
 /** Watermark: Word's own stock words, then a custom one. */
 const WATERMARKS = ['DRAFT', 'CONFIDENTIAL', 'SAMPLE', 'DO NOT COPY', 'URGENT'];
 const PAGE_SIZES = [['A4', 'A4 — 21 × 29.7 cm'], ['Letter', 'Letter — 8.5 × 11 in'], ['Legal', 'Legal — 8.5 × 14 in']];
+/** Review → Display for Review: the button's own label per mode. */
+const MARKUP_LABELS = { all: 'All Markup', simple: 'Simple Markup', final: 'No Markup', original: 'Original' };
 const MARGINS = [['normal', 'Normal — 2.54 cm all round'], ['narrow', 'Narrow — 1.27 cm all round'], ['wide', 'Wide — 5.08 cm at the sides']];
 const SHAPES = [
   ['rect', 'Rectangle'], ['roundRect', 'Rounded rectangle'], ['ellipse', 'Oval'], ['triangle', 'Triangle'], ['diamond', 'Diamond'],
@@ -81,6 +83,11 @@ export default function WordRibbon({
   const styles = Array.isArray(model?.styles) ? model.styles : [];
   const section = model?.section || null;
   const comments = model?.comments || [];
+  // Review → Accept/Reject/Previous/Next read the caret's own paragraph and
+  // whether anything in the document is tracked at all.
+  const atBlock = model?.selection?.focus?.block ?? 0;
+  const trackedHere = Boolean(model?.blocks?.[atBlock]?.tracked);
+  const anyTracked = Boolean(model?.blocks?.some((b) => b.tracked));
   const landscape = section?.orientation === 'landscape';
   // Layout → Columns: the section's own `columns` (count 1 with no
   // `w:cols` at all), and Word's five presets in its own vocabulary — the
@@ -477,7 +484,7 @@ export default function WordRibbon({
       {tab === 'references' ? (
         <>
           <Group label="Table of Contents">
-            <Button tall icon="listBullet" label="Table of Contents" title="Built from the headings in this document, as text you can edit" onClick={() => act('tableOfContents')} />
+            <Button tall icon="listBullet" label="Table of Contents" title="Table of Contents — a live field built from the headings, with page numbers" onClick={() => act('tableOfContents')} />
             <Button icon="plus" label="Add Text" title="Make this paragraph a heading, so it appears in the table of contents" onClick={(e) =>
               menu.open(e, [
                 { label: 'Do not show in table of contents', run: () => para({ styleId: null }) },
@@ -486,7 +493,8 @@ export default function WordRibbon({
                 { label: 'Level 3 (Heading 3)', run: () => para({ styleId: 'Heading3' }) },
               ])
             } />
-            <Soon icon="refresh" label="Update Table" why="A live TOC is a field; the one inserted here is text. Insert it again to refresh." />
+            <Button icon="refresh" label="Update Table" disabled={!model?.tableOfContents} title="Update Table — rebuild the entries from the current headings and pages" onClick={() => act('updateTableOfContents')} />
+            <Button icon="close" label="Remove Table of Contents" disabled={!model?.tableOfContents} title="Remove Table of Contents" onClick={() => act('removeTableOfContents')} />
           </Group>
           <Group label="Footnotes">
             <Button tall icon="file" label="Insert Footnote" title="A raised number at the caret, and its words under the body" onClick={() => act('insertNote', 'footnote')} />
@@ -572,12 +580,26 @@ export default function WordRibbon({
             <Button icon="listBullet" label={comments.length ? `Show (${comments.length})` : 'Show Comments'} disabled={!comments.length} onClick={() => openDialog('comments')} />
           </Group>
           <Group label="Tracking">
-            <Soon tall icon="eye" label="Track Changes" why="Tracked changes are read and shown; recording them (w:ins / w:del on every edit) is not built yet." />
+            <Button tall icon="eye" label="Track Changes" pressed={Boolean(model?.trackRevisions)} title="Track Changes — record every insertion and deletion as w:ins / w:del while you edit" onClick={() => act('toggleTrackChanges')} />
+            <Button icon="eye" label={MARKUP_LABELS[view.markupMode] || 'Simple Markup'} title="Display for Review — how tracked changes are shown" onClick={(e) => menu.open(e, [
+              { label: 'All Markup', run: () => act('markupMode', 'all') },
+              { label: 'Simple Markup', run: () => act('markupMode', 'simple') },
+              { label: 'No Markup', run: () => act('markupMode', 'final') },
+              { label: 'Original', run: () => act('markupMode', 'original') },
+            ])} />
             <Button icon="list" label="Reviewing Pane" title="Every tracked change in this document" disabled={!model?.blocks?.some((b) => b.tracked)} onClick={() => openDialog('tracked')} />
           </Group>
           <Group label="Changes">
-            <Soon tall icon="check" label="Accept" why="Comes with recording tracked changes." />
-            <Soon tall icon="close" label="Reject" why="Comes with recording tracked changes." />
+            <Button tall icon="check" label="Accept" disabled={!trackedHere} title="Accept — keep this change" onClick={(e) => menu.open(e, [
+              { label: 'Accept This Change', run: () => act('acceptChanges') },
+              { label: 'Accept All Changes', run: () => act('acceptChanges', 'all') },
+            ])} />
+            <Button tall icon="close" label="Reject" disabled={!trackedHere} title="Reject — undo this change" onClick={(e) => menu.open(e, [
+              { label: 'Reject This Change', run: () => act('rejectChanges') },
+              { label: 'Reject All Changes', run: () => act('rejectChanges', 'all') },
+            ])} />
+            <Button icon="chevronUp" label="Previous" disabled={!anyTracked} title="Previous tracked change" onClick={() => act('nextChange', -1)} />
+            <Button icon="chevronDown" label="Next" disabled={!anyTracked} title="Next tracked change" onClick={() => act('nextChange', 1)} />
           </Group>
           <Group label="Compare">
             <Soon tall icon="copy" label="Compare" why="Comparing two documents is a diff over blocks; on the list." />

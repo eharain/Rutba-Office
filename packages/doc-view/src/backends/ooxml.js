@@ -283,6 +283,23 @@ export class OoxmlBackend {
   refreshRefFields() { return this.doc.refreshRefFields(); }
   /** Insert → Captions → Insert Caption: a labelled, numbered paragraph. */
   addCaption(spec) { return this.doc.addCaption(spec); }
+  /** References → Table of Contents: a real field built from the headings. */
+  insertTableOfContents(spec) { return this.doc.insertTableOfContents(spec); }
+  /** References → Update Table: the entries rebuilt, the field kept. */
+  updateTableOfContents(spec) { return this.doc.updateTableOfContents(spec); }
+  /** References → Remove Table of Contents. */
+  removeTableOfContents() { return this.doc.removeTableOfContents(); }
+  /** The table of contents read back — entries, bookmarks, cached pages. */
+  tableOfContents() { return this.doc.tableOfContents(); }
+  hasTableOfContents() { return this.doc.hasTableOfContents(); }
+  /** Review → Track Changes: recording on or off, `<w:trackRevisions/>` in settings.xml. */
+  trackRevisions() { return this.doc.trackRevisions(); }
+  setTrackRevisions(on) { return this.doc.setTrackRevisions(on); }
+  nextTrackChangeId() { return this.doc.nextTrackChangeId(); }
+  acceptParagraphChanges(index) { return this.doc.acceptParagraphChanges(index); }
+  rejectParagraphChanges(index) { return this.doc.rejectParagraphChanges(index); }
+  acceptAllChanges() { return this.doc.acceptAllChanges(); }
+  rejectAllChanges() { return this.doc.rejectAllChanges(); }
   /** The default bands as an editing panel sees them, and their edit path. */
   bandInfo() { return this.doc.bandInfo(); }
   registerBandUndo(which) { this.doc.registerBandUndo(which); return this; }

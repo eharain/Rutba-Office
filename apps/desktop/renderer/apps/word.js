@@ -14,7 +14,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, useToast, useMenu, useCommands, menuItems, formatWhen } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { SITE } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
@@ -207,6 +207,12 @@ export default function Word({ app, shell, boot }) {
    */
   const [view, setView] = useState({
     mode: 'print', marks: false, ruler: true, navigation: false, focus: false, spell: true, reading: false, painting: null, zoom: 1,
+    // How tracked changes are shown — a VIEW preference, never saved in the
+    // file (only whether recording is ON is, in settings.xml). Word's own
+    // default for a document that already carries changes is Simple Markup:
+    // final text, with a change bar in the margin, not every insertion and
+    // deletion inline.
+    markupMode: 'simple',
   });
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
   const actRef = useRef(null);
@@ -755,6 +761,21 @@ export default function Word({ app, shell, boot }) {
   }, [apply]);
 
   /**
+   * The on-screen page (1-based) of each heading, in the order given — what
+   * `insertTableOfContents`/`updateTableOfContents` send as `pages`, since
+   * the engine cannot paginate the screen itself (see `pages.js`). A heading
+   * not currently drawn (view mode without pages, or the block not yet
+   * painted) gets `undefined`, which the engine reads as "leave it blank".
+   */
+  const headingPages = useCallback(
+    (headings) => headings.map((h) => {
+      const el = pageRef.current?.querySelector(`[data-block="${h.index}"]`);
+      return el ? pageOfElement(el, geo) + 1 : undefined;
+    }),
+    [geo]
+  );
+
+  /**
    * The ribbon's verbs that are not one engine operation.
    *
    * A view mode, a pane, reading aloud, the format painter, a change of case,
@@ -894,19 +915,24 @@ export default function Word({ app, shell, boot }) {
           await apply({ op: 'insertPageBreak' }, { op: 'insertPageBreak' });
           return;
         case 'tableOfContents': {
-          const headings = blocks
-            .map((b) => ({ level: Number((/^Heading(\d)$/.exec(b.style || '') || [])[1] || 0), text: b.text || (b.runs || []).map((r) => r.text).join('') }))
-            .filter((h) => h.level >= 1 && h.level <= 3 && h.text.trim());
+          const headings = blocks.filter((b) => /^Heading[1-3]$/.test(b.style || '') && (b.text || '').trim());
           if (!headings.length) return toast('No headings yet. Use Heading 1, 2 and 3 on the paragraphs you want listed.', { ms: 6000 });
-          const ops = [{ op: 'insertText', text: 'Contents' }, { op: 'setParagraphFormat', delta: { styleId: 'Heading1' } }, { op: 'splitParagraph' }];
-          for (const h of headings) {
-            ops.push({ op: 'setParagraphFormat', delta: { styleId: null } });
-            ops.push({ op: 'insertText', text: h.text });
-            if (h.level > 1) ops.push({ op: 'setParagraphFormat', delta: { indentDelta: h.level - 1 } });
-            ops.push({ op: 'splitParagraph' });
-          }
-          await apply(...ops);
-          toast(`Contents listed ${headings.length} heading${headings.length === 1 ? '' : 's'}. Insert it again after the headings change.`, { ms: 6000 });
+          const pages = headingPages(headings);
+          await apply({ op: 'insertTableOfContents', pages });
+          toast(`Table of contents inserted — ${headings.length} heading${headings.length === 1 ? '' : 's'}. Update Table after the headings change.`, { ms: 6000 });
+          return;
+        }
+        case 'updateTableOfContents': {
+          if (!model?.tableOfContents) return toast('No table of contents in this document yet.', { ms: 4000 });
+          const headings = blocks.filter((b) => /^Heading[1-3]$/.test(b.style || '') && (b.text || '').trim());
+          const pages = headingPages(headings);
+          await apply({ op: 'updateTableOfContents', pages });
+          toast('Table of contents updated.', { ms: 4000 });
+          return;
+        }
+        case 'removeTableOfContents': {
+          if (!model?.tableOfContents) return;
+          await apply({ op: 'removeTableOfContents' });
           return;
         }
         case 'insertNote':
@@ -944,11 +970,34 @@ export default function Word({ app, shell, boot }) {
           pageRef.current?.querySelector(`[data-block="${arg}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
           return;
         }
+        case 'toggleTrackChanges': {
+          const next = await apply({ op: 'toggleTrackChanges', on: !model?.trackRevisions });
+          if (next && !model?.trackRevisions) toast('Track Changes is on — typing and deleting are recorded.', { ms: 5000 });
+          return;
+        }
+        case 'markupMode':
+          // A view preference only — never saved in the file (see view.js).
+          patchView({ markupMode: arg });
+          return;
+        case 'acceptChanges':
+          await apply({ op: 'acceptChanges', all: arg === 'all' });
+          return;
+        case 'rejectChanges':
+          await apply({ op: 'rejectChanges', all: arg === 'all' });
+          return;
+        case 'nextChange': {
+          const list = blocks.filter((b) => b.tracked).map((b) => b.index);
+          if (!list.length) return toast('No tracked changes in this document.', { ms: 4000 });
+          const next = arg > 0 ? list.find((n) => n > at) ?? list[0] : [...list].reverse().find((n) => n < at) ?? list[list.length - 1];
+          await apply({ op: 'setSelection', anchor: { block: next, offset: 0 }, focus: { block: next, offset: 0 } });
+          pageRef.current?.querySelector(`[data-block="${next}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          return;
+        }
         default:
           return;
       }
     },
-    [model, view, apply, shell, toast, doc, patchView, picked]
+    [model, view, apply, shell, toast, doc, patchView, picked, headingPages]
   );
   actRef.current = act;
 
@@ -976,7 +1025,12 @@ export default function Word({ app, shell, boot }) {
       'field.update': {
         label: 'Update Fields', icon: 'refresh', key: 'F9', global: true,
         run: async () => {
-          const next = await apply({ op: 'updateFields' });
+          // A table of contents is a field too (see `Document#refreshRefFields`);
+          // updateFields runs first so its numeric count — the only thing
+          // `opResult` carries back — is not shadowed by the second op's `this`.
+          const ops = [{ op: 'updateFields' }];
+          if (model?.tableOfContents) ops.push({ op: 'updateTableOfContents' });
+          const next = await apply(...ops);
           if (!next) return;
           const n = next.opResult ?? 0;
           toast(`${n} field${n === 1 ? '' : 's'} updated`, { tone: 'good' });
@@ -984,7 +1038,7 @@ export default function Word({ app, shell, boot }) {
       },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc, apply, save, openFile, exportAs, shell, toast]
+    [doc, apply, save, openFile, exportAs, shell, toast, model]
   );
 
   useCommands(commands, [doc, model]);
@@ -1084,6 +1138,13 @@ export default function Word({ app, shell, boot }) {
                 const field = e.target.closest?.('.wd-field');
                 if (field && (e.ctrlKey || e.metaKey) && field.dataset.name) {
                   apply({ op: 'gotoBookmark', name: field.dataset.name });
+                  return;
+                }
+                // Ctrl+click a table of contents entry the same way — its
+                // hyperlink points at the heading's own `_Toc` bookmark.
+                const link = e.target.closest?.('.wd-link');
+                if (link && (e.ctrlKey || e.metaKey) && link.dataset.link?.startsWith('#')) {
+                  apply({ op: 'gotoBookmark', name: link.dataset.link.slice(1) });
                   return;
                 }
                 syncSelection();
@@ -1190,7 +1251,7 @@ export default function Word({ app, shell, boot }) {
                 item.table ? (
                   <TableGroup key={`t${item.table.id}`} table={item.table} labels={model.listLabels} styles={model.resolvedStyles} tsplit={pages.tableSplits[item.table.id] || null} />
                 ) : (
-                  <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} split={pages.splits[item.index] || null} pickedImage={picked?.block === item.index ? picked.image : null} inner={inner} />
+                  <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} split={pages.splits[item.index] || null} pickedImage={picked?.block === item.index ? picked.image : null} inner={inner} markupMode={view.markupMode || 'simple'} />
                 )
               )}
               {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{`Laying out… ${Math.round((mounted / flowItems.length) * 100)}%`}</div> : null}
@@ -1804,8 +1865,17 @@ function effectsStyle(run) {
   };
 }
 
-/** One run of text: its direct formatting, its link, its tabs. */
-function RunSpan({ run }) {
+/** Author name -> a stable colour off a small palette, the way Word colours a reviewer. */
+const TRACK_COLOURS = ['#C00000', '#2B5FD9', '#0F9D58', '#7B5CD6', '#E08B2B', '#0D8F6F', '#C0399F'];
+function authorColour(author) {
+  const s = String(author || '');
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return TRACK_COLOURS[h % TRACK_COLOURS.length];
+}
+
+/** One run of text: its direct formatting, its link, its tabs, and — Review → Track Changes — an insertion or a deletion. */
+function RunSpan({ run, markupMode = 'simple' }) {
   // A footnote/endnote reference, or the mark at the head of the note: the
   // number is drawn by CSS from `data-n`, so the span holds no text and the
   // engine's caret offsets stay exactly right.
@@ -1820,6 +1890,32 @@ function RunSpan({ run }) {
       </span>
     );
   }
+  // A deletion carries no words in the editable text at all (see
+  // `flatDelRuns`/`trackedRemoveRange`) — `del.text` is a side channel for
+  // display only, so this island is marked uneditable and never lengthens
+  // what the engine's own offsets count. Shown in All Markup and Original;
+  // Simple Markup and No Markup are the document AS IF it were accepted,
+  // where a deletion is already gone.
+  if (run.del) {
+    if (markupMode !== 'all' && markupMode !== 'original') return null;
+    const colour = authorColour(run.del.author);
+    return (
+      <span
+        className="wd-del"
+        contentEditable={false}
+        suppressContentEditableWarning
+        title={`Deleted by ${run.del.author || 'Someone'}${run.del.date ? ' · ' + formatWhen(run.del.date) : ''}`}
+        style={{ color: colour, textDecoration: markupMode === 'all' ? 'line-through' : undefined, opacity: markupMode === 'original' ? 1 : undefined }}
+      >
+        {withTabs(run.del.text)}
+      </span>
+    );
+  }
+  // An insertion is real, live text — it is already part of the document,
+  // so it keeps its place in the caret's own offsets. All Markup underlines
+  // it in the author's colour; Original hides it (visually only: it stays
+  // in the DOM, at zero width, so the offsets it belongs to still resolve).
+  const insHidden = run.ins && markupMode === 'original';
   return (
     <span
       // A field's shading rides the same span as its formatting — Word
@@ -1827,14 +1923,21 @@ function RunSpan({ run }) {
       // `data-name` are what the page's Ctrl+click handler reads to follow a
       // REF to its bookmark (`gotoBookmark`), without the engine's frame
       // having to carry anything more than the run already does.
-      className={run.field ? 'wd-field' : undefined}
+      className={[run.field ? 'wd-field' : null, run.link ? 'wd-link' : null, run.ins ? 'wd-ins' : null].filter(Boolean).join(' ') || undefined}
       data-instr={run.field ? run.field.instr : undefined}
       data-name={run.field?.kind === 'ref' ? run.field.name : undefined}
-      title={run.field ? (run.field.kind === 'ref' ? `REF ${run.field.name} — Ctrl+click to go to the bookmark` : run.field.instr.trim()) : undefined}
+      data-link={run.link || undefined}
+      title={run.field
+        ? (run.field.kind === 'ref' ? `REF ${run.field.name} — Ctrl+click to go to the bookmark` : run.field.instr.trim())
+        : run.ins ? `Inserted by ${run.ins.author || 'Someone'}${run.ins.date ? ' · ' + formatWhen(run.ins.date) : ''}`
+        : (run.link ? `Ctrl+click to go there` : undefined)}
       style={{
         fontWeight: run.bold ? 700 : undefined,
         fontStyle: run.italic ? 'italic' : undefined,
-        textDecoration: [run.underline ? 'underline' : '', run.strike ? 'line-through' : ''].filter(Boolean).join(' ') || undefined,
+        textDecoration: [
+          run.underline || (run.ins && markupMode === 'all') ? 'underline' : '',
+          run.strike ? 'line-through' : '',
+        ].filter(Boolean).join(' ') || undefined,
         // The engine reports `fontColour` as bare hex, the way the file
         // stores it; the size is in points, the way Word means it. The
         // painter used to read `colour` and paint the size in pixels, so
@@ -1842,7 +1945,7 @@ function RunSpan({ run }) {
         // A hyperlink is blue and underlined because its Hyperlink character
         // style says so — the engine folds that style into the run — and a
         // link without the style (a TOC entry) is as plain as Word draws it.
-        color: run.fontColour ? `#${run.fontColour}` : undefined,
+        color: run.ins && markupMode === 'all' ? authorColour(run.ins.author) : run.fontColour ? `#${run.fontColour}` : undefined,
         backgroundColor: run.highlight ? HIGHLIGHT_CSS[run.highlight] || run.highlight : undefined,
         fontFamily: run.fontName || undefined,
         fontSize: run.fontSize ? `${run.fontSize}pt` : undefined,
@@ -1850,6 +1953,7 @@ function RunSpan({ run }) {
         ...(run.vertAlign === 'superscript' ? { verticalAlign: 'super', fontSize: '0.65em' } : run.vertAlign === 'subscript' ? { verticalAlign: 'sub', fontSize: '0.65em' } : {}),
         textTransform: run.caps ? 'uppercase' : undefined,
         fontVariant: run.smallCaps ? 'small-caps' : undefined,
+        ...(insHidden ? { display: 'inline-block', width: 0, overflow: 'hidden' } : {}),
         ...effectsStyle(run),
       }}
     >
@@ -1945,13 +2049,13 @@ function PageNotes({ notes, at, page, top, height, styles, onEdit }) {
  * Memoised, and the split array keeps its identity while it is unchanged,
  * so a keystroke re-renders the one paragraph it touched.
  */
-const Block = React.memo(function Block({ block, labels, styles, split, pickedImage = null, inner = null }) {
-  if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last pickedImage={pickedImage} inner={inner} />;
+const Block = React.memo(function Block({ block, labels, styles, split, pickedImage = null, inner = null, markupMode = 'simple' }) {
+  if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last pickedImage={pickedImage} inner={inner} markupMode={markupMode} />;
   const bounds = [0, ...split, Infinity];
   return (
     <>
       {bounds.slice(0, -1).map((from, j) => (
-        <Part key={j} block={block} labels={labels} styles={styles} from={from} to={bounds[j + 1]} first={j === 0} last={j === bounds.length - 2} pickedImage={pickedImage} inner={inner} />
+        <Part key={j} block={block} labels={labels} styles={styles} from={from} to={bounds[j + 1]} first={j === 0} last={j === bounds.length - 2} pickedImage={pickedImage} inner={inner} markupMode={markupMode} />
       ))}
     </>
   );
@@ -2086,7 +2190,7 @@ function PictureHandles({ page, picked, model, pages, onResize, onDrag }) {
 /** The paragraphs a paginator keeps with what follows, by convention as much as by w:keepNext. */
 const KEEP_WITH_NEXT = /^(Heading[1-6]|Title|Subtitle)$/;
 
-function Part({ block, labels, styles, from, to, first, last, pickedImage = null, inner = null }) {
+function Part({ block, labels, styles, from, to, first, last, pickedImage = null, inner = null, markupMode = 'simple' }) {
   const ref = React.useRef(null);
   const whole = first && last;
   const pick = (e, i) => {
@@ -2156,7 +2260,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
   return (
     <p
       ref={ref}
-      className={`wd-block${block.dropCap ? ' wd-dropcap' : ''}${block.dropCap?.kind === 'margin' ? ' wd-dropcap-margin' : ''}`}
+      className={`wd-block${block.dropCap ? ' wd-dropcap' : ''}${block.dropCap?.kind === 'margin' ? ' wd-dropcap-margin' : ''}${block.tracked && markupMode !== 'final' && markupMode !== 'original' ? ' wd-changebar' : ''}`}
       data-block={block.index}
       data-style={block.style || 'Normal'}
       data-from={from > 0 ? from : undefined}
@@ -2178,7 +2282,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
         the caret — unless pictures under the words give it both: a line
         break there put an empty line above every inserted picture.
       */}
-      {runs.length ? runs.map((run, i) => <RunSpan key={i} run={run} />) : drawsUnder ? null : <br />}
+      {runs.length ? runs.map((run, i) => <RunSpan key={i} run={run} markupMode={markupMode} />) : drawsUnder ? null : <br />}
       {/*
         Pictures, charts and shapes sit under the paragraph's text as blocks —
         the engine's own honest simplification of float layout. Not editable:
@@ -2230,6 +2334,14 @@ const CSS = `
 }
 /* In print layout the flow is transparent and the sheets are drawn behind it, one per page. */
 .wd-page.paged { background: transparent; box-shadow: none; }
+/* Review → Track Changes: a paragraph carrying a change wears a bar in the
+   margin, All Markup and Simple Markup alike — Word's own change bar, one
+   per PARAGRAPH here rather than per line (a stated simplification). */
+/* Word draws a change bar out in the left margin, clear of the words. */
+.wd-block.wd-changebar { position: relative; }
+.wd-block.wd-changebar::before { content: ""; position: absolute; left: -14px; top: 0; bottom: 0; width: 2px; background: #2b5fd9; pointer-events: none; }
+:root[data-theme='dark'] .wd-block.wd-changebar::before { background: #6f9bff; }
+.wd-del { cursor: default; }
 .wd-sheet {
   position: absolute; left: 0; right: 0; z-index: 0; background: #fff; border-radius: 2px; pointer-events: none;
   box-shadow: 0 0 0 1px rgba(15, 20, 30, 0.05), 0 2px 6px rgba(15, 20, 30, 0.07), 0 14px 36px rgba(15, 20, 30, 0.1);
