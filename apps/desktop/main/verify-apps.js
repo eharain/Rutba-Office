@@ -34,6 +34,7 @@ import { verifyDeckComments } from './verify-deck-comments.js';
 import { verifyDeckMath } from './verify-deck-math.js';
 import { verifyWordToc } from './verify-word-toc.js';
 import { verifyWordCitations } from './verify-word-citations.js';
+import { verifyWordIndex } from './verify-word-index.js';
 import { verifyAccessibility, verifySpelling } from './verify-proofing.js';
 import { verifyWordTextBox } from './verify-word-textbox.js';
 import { verifyWordArrange } from './verify-word-arrange.js';
@@ -3355,6 +3356,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifyWordHyphenation({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
   };
 
+  // A capture for the blocks that live in modules of their own.
+  const shotTo = async (win, name) => {
+    if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+    fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+  };
+
   /* ── Word: References → Citations & Bibliography ───────────────────── */
   const wordCitations = async () => {
     const capture = async (win, name) => {
@@ -4423,7 +4430,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4456,6 +4463,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('hyphen')) await wordHyphenation();
     if (only.includes('citations')) await wordCitations();
     if (only.includes('restrict')) await wordRestrict();
+    if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
     if (only.includes('labels')) await wordLabels();
     if (only.includes('track')) await wordTrack();
@@ -4620,6 +4628,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordHyphenation();
   await wordCitations();
   await wordRestrict();
+  await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
   await wordMailMerge();
   await wordLabels();
   await wordTrack();

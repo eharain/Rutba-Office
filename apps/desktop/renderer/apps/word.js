@@ -1185,6 +1185,25 @@ export default function Word({ app, shell, boot }) {
    * not currently drawn (view mode without pages, or the block not yet
    * painted) gets `undefined`, which the engine reads as "leave it blank".
    */
+  /**
+   * The page (1-based) every paragraph was laid on — a paragraph split over
+   * two pages counts as its first — and how many pages there are: what an
+   * index, a table of figures and a PAGE field take their numbers from. Null
+   * pages in a view without pages.
+   */
+  const blockLayout = useCallback(() => {
+    const page = pageRef.current;
+    if (!page || !paged || !geo) return { pages: null, count: null };
+    const map = {};
+    for (const el of page.querySelectorAll('[data-block]')) {
+      const i = Number(el.dataset.block);
+      if (!Number.isFinite(i)) continue;
+      const at = pageOfElement(el, geo) + 1;
+      if (!(i in map) || at < map[i]) map[i] = at;
+    }
+    return { pages: map, count: pagesRef.current?.count || null };
+  }, [geo, paged]);
+
   const headingPages = useCallback(
     (headings) => headings.map((h) => {
       const el = pageRef.current?.querySelector(`[data-block="${h.index}"]`);
@@ -1763,7 +1782,7 @@ export default function Word({ app, shell, boot }) {
   // Review → Check Accessibility and Spelling (word/review.js).
   const review = useWordReview({ shell, doc, model, apply, toast, pageRef, setPicked, view, patchView, menu });
   // References → Citations & Bibliography (word/references.js).
-  const references = useReferences({ shell, model, apply, toast });
+  const references = useReferences({ shell, model, apply, toast, layout: blockLayout, patchView });
 
   const commands = useMemo(
     () => ({
@@ -1786,6 +1805,8 @@ export default function Word({ app, shell, boot }) {
       // References → Update Fields, or F9: every REF's words refreshed from
       // its bookmark. The count comes back as `opResult` (documents.js's
       // `apply`), which is the only way this toast can say how many.
+      // References → Mark Entry, Word's own shortcut.
+      'references.markEntry': { label: 'Mark Entry', icon: 'flag', key: 'Alt+Shift+X', global: true, run: () => references.act('markEntry') },
       'field.update': {
         label: 'Update Fields', icon: 'refresh', key: 'F9', global: true,
         run: async () => {
@@ -1794,6 +1815,8 @@ export default function Word({ app, shell, boot }) {
           // `opResult` carries back — is not shadowed by the second op's `this`.
           const ops = [{ op: 'updateFields' }];
           if (model?.tableOfContents) ops.push({ op: 'updateTableOfContents' });
+          // The index too, with the pages as this window lays them.
+          if (model?.references?.index) ops.push({ op: 'updateIndex', pages: blockLayout().pages });
           const next = await apply(...ops);
           if (!next) return;
           const n = next.opResult ?? 0;
@@ -2847,7 +2870,7 @@ function paragraphCss(block, styles) {
     textIndent: firstLine ? Math.round(firstLine) : hanging ? -Math.round(hanging) : undefined,
     // A paragraph that gives its own left indent already stands its later
     // lines there (a bibliography's half-inch hang): only the first comes out.
-    paddingLeft: hanging && !(block.indentPx != null && !block.numbering) ? Math.round(hanging) : undefined,
+    paddingLeft: hanging && !((block.indentPx != null || named?.indentPx) && !block.numbering) ? Math.round(hanging) : undefined,
     // An exact line (pixels) beats a multiplier; the paragraph's own beats the
     // style's. Word's "single" for a Latin face is about 1.2 of the size.
     lineHeight: block.lineHeightPx ? `${Math.round(block.lineHeightPx)}px`
@@ -2969,9 +2992,10 @@ function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
       // `data-name` are what the page's Ctrl+click handler reads to follow a
       // REF to its bookmark (`gotoBookmark`), without the engine's frame
       // having to carry anything more than the run already does.
-      className={[run.field ? 'wd-field' : null, run.field && MERGE_KINDS.has(run.field.kind) ? 'wd-mergefield' : null, run.link ? 'wd-link' : null, run.ins ? 'wd-ins' : null].filter(Boolean).join(' ') || undefined}
+      className={[run.field ? 'wd-field' : null, run.field?.kind === 'xe' ? 'wd-xe' : null, run.field && MERGE_KINDS.has(run.field.kind) ? 'wd-mergefield' : null, run.link ? 'wd-link' : null, run.ins ? 'wd-ins' : null].filter(Boolean).join(' ') || undefined}
       data-kind={run.field && MERGE_KINDS.has(run.field.kind) ? run.field.kind : undefined}
       data-instr={run.field ? run.field.instr : undefined}
+      data-xe={run.field?.kind === 'xe' ? '{ ' + run.field.instr.trim() + ' }' : undefined}
       data-name={run.field?.kind === 'ref' ? run.field.name : undefined}
       data-link={run.link || undefined}
       title={run.field

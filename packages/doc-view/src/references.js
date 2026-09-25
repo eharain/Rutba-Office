@@ -5,6 +5,7 @@
  * engine's half is `@rutba/ooxml`'s references.js.
  */
 import { locate, sliceRuns, coalesce } from './positions.js';
+import { indexViewMethods } from './references-index.js';
 
 /** The Document behind an OOXML backend, or a sentence when this backend has none. */
 function engineOf(view, what) {
@@ -126,7 +127,7 @@ const methods = {
 
 /** Put the References verbs on DocView, and the references into every frame it renders. */
 export function installReferenceViews(DocView) {
-  for (const [name, fn] of Object.entries(methods)) {
+  for (const [name, fn] of Object.entries({ ...methods, ...indexViewMethods })) {
     if (!Object.prototype.hasOwnProperty.call(DocView.prototype, name)) DocView.prototype[name] = fn;
   }
   const render = DocView.prototype.render;

@@ -16,12 +16,16 @@
  * Cited. Update Citations and Bibliography rewrites each citation's result
  * and the bibliography's entries from the sources as they now stand.
  */
-import { esc } from './package.js';
+
+
+/** Text content escaped: a field code keeps its quotes as Word writes them. */
+const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 import { textOf, renderRun, topComplexFields } from './runs.js';
 import {
   parseSources, sourcesXml, formatCitation, formatBibliography, parseCitationInstr, citationInstr,
   citationNumbers, segmentsText, DEFAULT_STYLE, styleById,
 } from './bibliography.js';
+import { indexMethods } from './references-index.js';
 
 const CUSTOMXML_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
 const CUSTOMXML_PROPS_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXmlProps';
@@ -322,13 +326,18 @@ const methods = {
       sources: bib.sources,
       citations: this.citations().map((c) => ({ tags: c.tags, pages: c.pages, text: c.text })),
       bibliography: this.hasBibliography(),
+      // The index, when there is one: the options Insert Index opens with.
+      index: (() => {
+        const r = this.indexResult();
+        return r ? { columns: r.columns, rightAlign: r.rightAlign, runIn: r.runIn, leader: r.leader } : null;
+      })(),
     };
   },
 };
 
 /** Put the References methods on the Document class. */
 export function installReferences(Document) {
-  for (const [name, fn] of Object.entries(methods)) {
+  for (const [name, fn] of Object.entries({ ...methods, ...indexMethods })) {
     if (!Object.prototype.hasOwnProperty.call(Document.prototype, name)) Document.prototype[name] = fn;
   }
   // F9 refreshes citations and the bibliography with every other field.

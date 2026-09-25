@@ -27,6 +27,7 @@
     "./math-linear": "./src/math-linear.js",
     "./mailmerge": "./src/mailmerge.js",
     "./bibliography": "./src/bibliography.js",
+    "./wordindex": "./src/wordindex.js",
     "./mailmerge-run": "./src/mailmerge-run.js",
     "./labels": "./src/labels.js",
     "./protection": "./src/protection.js"

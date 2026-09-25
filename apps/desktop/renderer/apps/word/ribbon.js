@@ -25,6 +25,7 @@ import { Ribbon, Group, Rows, Button, Separator, Select, Input } from '@rutba/of
 import { EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
 import { MailingsTab } from './mailings.js';
 import { CitationsGroup } from './references.js';
+import { IndexGroup } from './references-index.js';
 
 /* ── vocabularies ────────────────────────────────────────────────────────── */
 
@@ -697,10 +698,7 @@ export default function WordRibbon({
           <Group label="Fields">
             <Button tall icon="refresh" label="Update Fields" title="Update Fields (F9) — refresh every cross-reference to its bookmark's current words" onClick={() => commands['field.update']?.run?.()} />
           </Group>
-          <Group label="Index">
-            <Soon tall icon="flag" label="Mark Entry" why="Index entries are XE fields, not written yet." />
-            <Soon icon="listBullet" label="Insert Index" why="Comes with index entries." />
-          </Group>
+          {references ? <IndexGroup act={references.act} hasIndex={Boolean(references.info?.index)} /> : null}
           <Group label="Table of Authorities">
             <Soon tall icon="flag" label="Mark Citation" why="TA fields, not written yet." />
             <Soon icon="listBullet" label="Insert Table of Authorities" why="Comes with citations." />

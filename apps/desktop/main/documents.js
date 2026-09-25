@@ -1536,6 +1536,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     setBibliographyStyle: (v, a) => v.setBibliographyStyle(a.style),
     insertBibliography: (v, a) => v.insertBibliography({ heading: a.heading === undefined ? 'Bibliography' : a.heading }),
     updateCitations: (v) => v.updateCitations(),
+    // References → Index: an XE field after the selected words (or one in
+    // every paragraph, Mark All), and the INDEX field built from them with
+    // the pages the window laid each paragraph on.
+    markIndexEntry: (v, a) => v.markIndexEntry(a),
+    insertIndex: (v, a) => v.insertIndex({ columns: a.columns, rightAlign: a.rightAlign, leader: a.leader, runIn: a.runIn, lcid: a.lcid || 1033, pages: a.pages || null }),
+    updateIndex: (v, a) => v.updateIndex({ pages: a.pages || null }),
     // Review → Track Changes: the author is whoever the window says, else
     // the account at the keyboard, the same rule a note's author follows.
     toggleTrackChanges: (v, a) => v.setTrackChanges(a.on, a.author || safeUserName() || 'Rutba Office user'),

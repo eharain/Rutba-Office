@@ -86,6 +86,9 @@ export function sliceRuns(runs, from, to) {
     const start = seen;
     const end = seen + run.text.length;
     seen = end;
+    // A field with no words of its own — an index entry — is kept by where
+    // it stands: in [from, to), so each slice of a paragraph holds it once.
+    if (run.field && start === end) { if (start >= from && start < to) out.push({ ...run }); continue; }
     if (end <= from || start >= to) continue;
     if (run.field && !(from <= start && to >= end)) continue;
     const text = run.text.slice(Math.max(0, from - start), Math.min(run.text.length, to - start));
@@ -96,7 +99,11 @@ export function sliceRuns(runs, from, to) {
 
 /** Everything outside [from, to), as one run list. */
 export function removeRange(runs, from, to) {
-  return [...sliceRuns(runs, 0, from), ...sliceRuns(runs, to, Infinity)];
+  // A wordless field right at the start of the range stays: deleting the
+  // words after an index entry does not take the entry with them.
+  let seen = 0;
+  const atStart = runs.filter((r) => { const at = seen; seen += r.text.length; return r.field && r.text === '' && at === from; });
+  return [...sliceRuns(runs, 0, from), ...(from < to ? atStart : []), ...sliceRuns(runs, to, Infinity)];
 }
 
 /**
@@ -153,7 +160,7 @@ export function coalesce(runs) {
   for (const run of runs) {
     // A deletion carries no text of its own — see `flatDelRuns` — so the
     // empty-text rule that drops a spent run must not drop this one too.
-    if (run.text === '' && !run.del) continue;
+    if (run.text === '' && !run.del && !run.field) continue;
     const last = out[out.length - 1];
     // A link is part of a run's identity: merging a linked run into a plain
     // neighbour would stretch or swallow the link. A note reference is a run

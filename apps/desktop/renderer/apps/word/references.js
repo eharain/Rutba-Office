@@ -14,6 +14,7 @@ import {
   BIBLIOGRAPHY_STYLES, SOURCE_TYPES, PERSON_ROLES, fieldLabel, styleById, makeTag, parseNames, namesText,
   formatCitation, formatBibliographyEntry, describeSource, parseSources, sourcesXml, newGuid, segmentsText,
 } from '@rutba/ooxml/bibliography';
+import { MarkEntryPanel, IndexDialog, INDEX_CSS } from './references-index.js';
 
 /** Where the master list lives in the profile: Word's Sources.xml, as the same XML. */
 const MASTER_KEY = 'word.bibliography.master';
@@ -74,9 +75,10 @@ export function CitationsGroup({ refs, menu }) {
  * The References tab's citation verbs and dialogs, for word.js: `info` is
  * the model's references (sources, style, citations), `node` the dialogs.
  */
-export function useReferences({ shell, model, apply, toast }) {
+export function useReferences({ shell, model, apply, toast, layout = () => null, patchView = null }) {
   const info = model?.references || null;
   const [dialog, setDialog] = useState(null);
+  const [marking, setMarking] = useState(false);
   const [master, setMaster] = useState([]);
 
   // The master list, read from the profile when a dialog needs it.
@@ -145,6 +147,40 @@ export function useReferences({ shell, model, apply, toast }) {
 
   const saveDocSources = useCallback((sources) => apply({ op: 'setSources', sources }), [apply]);
 
+  // The words selected, when they lie in one paragraph — Mark Entry's main entry.
+  const sel = model?.selection;
+  const selected = (() => {
+    const a = sel?.anchor;
+    const f = sel?.focus;
+    if (!a || !f || a.block !== f.block || a.offset === f.offset) return '';
+    const text = model?.blocks?.[a.block]?.text || '';
+    return text.slice(Math.min(a.offset, f.offset), Math.max(a.offset, f.offset)).replace(/[\t\n]+/g, ' ').trim();
+  })();
+
+  /** The References verbs that open something or need the page layout: Mark Entry, Insert Index, Update Index. */
+  const act = useCallback(async (name) => {
+    if (name === 'markEntry') {
+      setMarking(true);
+      return;
+    }
+    if (name === 'insertIndex') {
+      setDialog({ kind: 'index' });
+      return;
+    }
+    if (name === 'updateIndex') {
+      if (!info?.index) return;
+      const next = await apply({ op: 'updateIndex', pages: layout()?.pages || null });
+      if (next) toast('Index updated', { tone: 'good' });
+    }
+  }, [apply, info, layout, toast]);
+
+  const markEntry = useCallback(async (spec) => {
+    const next = await apply({ op: 'markIndexEntry', ...spec });
+    // Word shows the hidden XE field it just wrote: ¶ goes on.
+    if (next && patchView) patchView({ marks: true });
+    return next?.opResult ?? (next ? 1 : 0);
+  }, [apply, patchView]);
+
   let node = null;
   if (dialog?.kind === 'manage') {
     node = (
@@ -194,9 +230,23 @@ export function useReferences({ shell, model, apply, toast }) {
         }}
       />
     );
+  } else if (dialog?.kind === 'index') {
+    node = (
+      <IndexDialog
+        current={info?.index || null}
+        onClose={close}
+        onOk={async (opts) => {
+          close();
+          await apply({ op: 'insertIndex', ...opts, lcid: lcid(), pages: layout()?.pages || null });
+        }}
+      />
+    );
   }
+  const panel = marking ? (
+    <MarkEntryPanel selected={selected} bookmarks={model?.bookmarks || []} onMark={markEntry} onClose={() => setMarking(false)} />
+  ) : null;
 
-  return { info, open, setStyle, citationMenu, bibliographyMenu, node, dialog };
+  return { info, open, setStyle, citationMenu, bibliographyMenu, act, node: <>{node}{panel}</>, dialog };
 }
 
 /* ── Create Source / Edit Source ─────────────────────────────────────────── */
@@ -610,6 +660,6 @@ export function installReferencesStyles() {
   installed = true;
   const style = document.createElement('style');
   style.id = 'rutba-word-references-css';
-  style.textContent = REFERENCES_CSS;
+  style.textContent = REFERENCES_CSS + INDEX_CSS;
   document.head.appendChild(style);
 }
