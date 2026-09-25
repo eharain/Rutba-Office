@@ -236,7 +236,14 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
   stops being half an application;
 - **local search across archives** is there, but there is no index, so a
   large mailbox searches by walking;
-- **out-of-office and send-later** are not built.
+- ~~**out-of-office and send-later**~~ — both built 2026-09-25: Send later
+  holds a message in an Outbox on this computer until its time and sends it
+  while the suite runs (at start-up if it fell due while closed), a failed
+  send staying there with its error; automatic replies are per account,
+  follow RFC 3834's skips and answer each sender once while on. Both go out
+  only while Rutba Office is running — holding them on the server (Gmail's
+  vacation responder, Microsoft 365's automatic replies) needs a sign-in
+  permission the suite does not ask for yet.
 - ~~adding an account asked for the servers and guessed them from the domain~~ — built 2026-09-09: an address and a password; the server is found from the provider table, MX, SRV, autoconfig, Microsoft autodiscover and a knock on the conventional names, with Advanced always a click away.
 - ~~signatures~~ — built 2026-09-24: plain text, per account, edited from that account's own settings; a new message carries it after the "-- " line, a reply or forward puts it above the quote, and switching the From account swaps the block for the one it replaces, but only while it is still exactly what was inserted.
 
