@@ -6389,7 +6389,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await press(win.webContents, 'Return');
       await until(async () => (await cellText('B9')) === 'hello', 'the formula bar entry to land', 4000).catch(() => {});
       await press(win.webContents, 'Down');
-      await wait(150);
+      // The active cell is drawn a frame after the key; on a busy run 150 ms
+      // read it before it was there.
+      await until(async () => (await active()) === 'B11', 'the active cell to move down', 3000).catch(() => {});
       check(
         'real input: Enter in the formula bar commits and hands the keys back to the grid',
         (await cellText('B9')) === 'hello' && (await active()) === 'B11',

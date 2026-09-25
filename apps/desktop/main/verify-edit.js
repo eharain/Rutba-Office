@@ -32,6 +32,21 @@ async function until(condition, what, timeout = 6000) {
 }
 
 /**
+ * Chromium hands a key event only to a focused view, and on a busy machine
+ * the page can lose it between two keys; every key after that is dropped
+ * without a word. Each key gives the page its focus back first — inside its
+ * own window only: taking the desktop's focus from whoever is at the machine
+ * is something a check never does.
+ */
+function focusFor(wc) {
+  try {
+    wc.focus();
+  } catch {
+    // A window on its way out.
+  }
+}
+
+/**
  * Press a key the way a keyboard does.
  *
  * Keys that produce a character need a "char" event between the down and the
@@ -40,6 +55,7 @@ async function until(condition, what, timeout = 6000) {
  * costs an hour to rediscover.
  */
 async function press(wc, keyCode, { modifiers = [], char = false } = {}) {
+  focusFor(wc);
   wc.sendInputEvent({ type: 'keyDown', keyCode, modifiers });
   if (char) wc.sendInputEvent({ type: 'char', keyCode, modifiers });
   wc.sendInputEvent({ type: 'keyUp', keyCode, modifiers });
@@ -48,6 +64,7 @@ async function press(wc, keyCode, { modifiers = [], char = false } = {}) {
 
 /** Type a printable character, which is a keyDown, a char, and a keyUp. */
 async function typeChar(wc, ch) {
+  focusFor(wc);
   wc.sendInputEvent({ type: 'keyDown', keyCode: ch });
   wc.sendInputEvent({ type: 'char', keyCode: ch });
   wc.sendInputEvent({ type: 'keyUp', keyCode: ch });
