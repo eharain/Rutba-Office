@@ -40,13 +40,27 @@ test('a row is parsed once per version of its XML, and an edit refreshes it', ()
 });
 
 test('a wide sheet loads in linear time, not quadratic', () => {
-  // 400 columns by 60 rows, every cell present: 24,000 cells. Quadratic
-  // parsing made this take seconds; it should be well under one.
-  const rows = Array.from({ length: 60 }, (_, r) => Array.from({ length: 400 }, (_, c) => (c % 7 === 0 ? r * 400 + c : `t${c}`)));
-  const wb = Workbook.open(buildXlsx({ sheets: [{ name: 'Wide', rows }] }));
-  const started = Date.now();
-  const count = [...wb.cells('Wide')].length;
-  const ms = Date.now() - started;
-  assert.equal(count, 24000);
-  assert.ok(ms < 1500, `24,000 cells walked in ${ms} ms`);
+  // 60 rows of every cell present, 200 columns wide and then 400. Linear
+  // walking takes about twice as long for twice the width; quadratic
+  // parsing, which once made the wide one take seconds, takes four times.
+  // Timed side by side in the same run, so a machine busy with other work
+  // slows both alike — a fixed limit in milliseconds failed on one.
+  const walk = (cols) => {
+    const rows = Array.from({ length: 60 }, (_, r) => Array.from({ length: cols }, (_, c) => (c % 7 === 0 ? r * cols + c : `t${c}`)));
+    const wb = Workbook.open(buildXlsx({ sheets: [{ name: 'Wide', rows }] }));
+    let best = Infinity;
+    let count = 0;
+    for (let i = 0; i < 3; i++) {
+      const fresh = i === 0 ? wb : Workbook.open(buildXlsx({ sheets: [{ name: 'Wide', rows }] }));
+      const started = process.hrtime.bigint();
+      count = [...fresh.cells('Wide')].length;
+      best = Math.min(best, Number(process.hrtime.bigint() - started) / 1e6);
+    }
+    return { count, ms: best };
+  };
+  const narrow = walk(200);
+  const wide = walk(400);
+  assert.equal(narrow.count, 12000);
+  assert.equal(wide.count, 24000);
+  assert.ok(wide.ms < narrow.ms * 3 + 40, `24,000 cells walked in ${wide.ms.toFixed(0)} ms against ${narrow.ms.toFixed(0)} ms for 12,000`);
 });
