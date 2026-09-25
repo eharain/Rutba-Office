@@ -6014,7 +6014,13 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // The seeded account's folder is named after the archive it came from,
       // not "Inbox" — asking the account rather than assuming is also what
       // the window does.
-      const inbox = (await mail('folders', { accountId: account }))[0]?.path;
+      // Its first folder is no longer that one once a check has sent mail
+      // from the account (a Sent folder sorts ahead of it): the inbox, else
+      // the ordinary folder holding the most mail — the window's own rule.
+      const folderList = await mail('folders', { accountId: account });
+      const inbox = (folderList.find((x) => x.role === 'inbox')
+        || folderList.filter((x) => x.role === 'folder').sort((x, y) => (y.total ?? 0) - (x.total ?? 0))[0]
+        || folderList[0])?.path;
 
       const rule = {
         name: 'Newsletters',
