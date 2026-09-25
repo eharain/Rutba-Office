@@ -69,7 +69,7 @@ function colorChildOf(node, theme) {
   return null;
 }
 
-/** Solid, gradient (first stop wins), picture or none. */
+/** Solid, gradient (every stop, and the angle), picture (its relationship id and whether it tiles) or none. */
 function readFill(spPr, theme) {
   if (!spPr) return null;
   if (kids(spPr, A('noFill'))[0]) return { type: 'none' };
@@ -92,7 +92,7 @@ function readFill(spPr, theme) {
   const blip = kids(spPr, A('blipFill'))[0];
   if (blip) {
     const b = first(blip, A('blip'));
-    return { type: 'picture', embed: b?.attrs['r:embed'] || null };
+    return { type: 'picture', embed: b?.attrs['r:embed'] || null, tile: Boolean(kids(blip, A('tile'))[0]) };
   }
   const pattern = kids(spPr, A('pattFill'))[0];
   if (pattern) {
@@ -103,25 +103,63 @@ function readFill(spPr, theme) {
 }
 
 /**
- * Effects on a shape — the outer shadow, in pixels and degrees (DrawingML's
- * dir runs clockwise from the right). null when the shape states none; an
- * empty effect list, which turns a style's shadow off, is { shadow: null }.
+ * PowerPoint's three reflection gallery presets, by name — "tight",
+ * "half" and "full" — as their own `<a:reflection>` attributes (EMU-ish
+ * 60,000ths and thousandths, the way DrawingML already has blur, alpha and
+ * angle elsewhere). Shared with `deck.js`, which writes the very same
+ * numbers `reflectionKindOf` reads back, so the two can never drift apart.
+ */
+export const REFLECTION_PRESETS = {
+  tight: { blurRad: 6350, stA: 50000, stPos: 0, endA: 300, endPos: 35000, dist: 0 },
+  half: { blurRad: 6350, stA: 50000, stPos: 0, endA: 300, endPos: 55000, dist: 12700 },
+  full: { blurRad: 6350, stA: 55000, stPos: 0, endA: 0, endPos: 90000, dist: 0 },
+};
+
+/** Which preset a `<a:reflection>` most resembles, by its own endPos and dist — the pane's own state, not a file another program might have hand-built. */
+function reflectionKindOf(endPos, dist) {
+  let best = 'half';
+  let bestDiff = Infinity;
+  for (const [kind, p] of Object.entries(REFLECTION_PRESETS)) {
+    const diff = Math.abs(p.endPos - endPos) + Math.abs(p.dist - dist);
+    if (diff < bestDiff) { bestDiff = diff; best = kind; }
+  }
+  return best;
+}
+
+/**
+ * Effects on a shape: the outer shadow (in pixels and degrees — DrawingML's
+ * dir runs clockwise from the right), a glow, soft edges and a reflection.
+ * null when the shape states none of them; an empty effect list, which
+ * turns a style's shadow off too, is `{ shadow: null }` — the one falsy
+ * value every reader of this already checks for, so a new effect being
+ * absent needs no `?? null` at every call site that only cares about the
+ * shadow.
  */
 function readEffects(spPr, theme) {
   const lst = spPr && kids(spPr, A('effectLst'))[0];
   if (!lst) return null;
+  const out = { shadow: null };
   const sh = kids(lst, A('outerShdw'))[0];
-  if (!sh) return { shadow: null };
-  const c = colorChildOf(sh, theme);
-  return {
-    shadow: {
+  if (sh) {
+    const c = colorChildOf(sh, theme);
+    out.shadow = {
       blurPx: (Number(sh.attrs.blurRad || 0) / 12700) * (96 / 72),
       distPx: (Number(sh.attrs.dist || 0) / 12700) * (96 / 72),
       dir: Number(sh.attrs.dir || 0) / 60000,
       color: c?.hex || '#000000',
       alpha: c?.alpha ?? 1,
-    },
-  };
+    };
+  }
+  const glow = kids(lst, A('glow'))[0];
+  if (glow) {
+    const c = colorChildOf(glow, theme);
+    out.glow = { radiusPt: (Number(glow.attrs.rad || 0) / 12700), color: c?.hex || '#000000', alpha: c?.alpha ?? 1 };
+  }
+  const softEdge = kids(lst, A('softEdge'))[0];
+  if (softEdge) out.softEdge = { radiusPt: Number(softEdge.attrs.rad || 0) / 12700 };
+  const reflection = kids(lst, A('reflection'))[0];
+  if (reflection) out.reflection = reflectionKindOf(Number(reflection.attrs.endPos || 0), Number(reflection.attrs.dist || 0));
+  return out;
 }
 
 function readLine(spPr, theme) {
@@ -252,9 +290,70 @@ function placeholderOf(sp) {
 }
 
 function nameOf(sp) {
-  const nv = kids(sp, P('nvSpPr'))[0] || kids(sp, P('nvPicPr'))[0] || kids(sp, P('nvGraphicFramePr'))[0] || kids(sp, P('nvCxnSpPr'))[0];
+  const nv = kids(sp, P('nvSpPr'))[0] || kids(sp, P('nvPicPr'))[0] || kids(sp, P('nvGraphicFramePr'))[0] || kids(sp, P('nvCxnSpPr'))[0] || kids(sp, P('nvGrpSpPr'))[0];
   const cNv = nv && (kids(nv, P('cNvPr'))[0] || null);
   return { id: cNv?.attrs.id || null, name: cNv?.attrs.name || '', hidden: cNv?.attrs.hidden === '1' };
+}
+
+/**
+ * A group's placement composed with one child's own local transform.
+ *
+ * `container` is the group's own box — `offX/offY/extX/extY` where it sits,
+ * `chOffX/chOffY/chExtX/chExtY` the child coordinate window that box stands
+ * for, `rot`/`flipH`/`flipV` the group's own — already resolved into
+ * whatever outer frame `container` itself is expressed in (absolute slide
+ * units for a top-level group, or another group's own frame for a nested
+ * one: the same shape this function returns, so nesting composes by calling
+ * it again with the result). `local` is the child's own off/ext/rot/flip
+ * exactly as its own xfrm states them, in the group's child space.
+ *
+ * DrawingML's own order: map through chOff/chExt onto the group's box
+ * (translate and scale — a resize after grouping is exactly a stretch of
+ * this), then the group's own flip (mirrored about its centre, which also
+ * flips the sense of any rotation under it), then the group's own rotation
+ * (about the same centre). Units are whatever `container`'s are — pixels or
+ * EMU both work, since every term is a ratio or a sum of like units.
+ */
+function composeGroupChild(container, local) {
+  const sx = container.chExtX ? container.extX / container.chExtX : 1;
+  const sy = container.chExtY ? container.extY / container.chExtY : 1;
+  let x = container.offX + (local.offX - container.chOffX) * sx;
+  let y = container.offY + (local.offY - container.chOffY) * sy;
+  let w = local.extX * sx;
+  let h = local.extY * sy;
+  let rot = local.rot || 0;
+  let flipH = Boolean(local.flipH);
+  let flipV = Boolean(local.flipV);
+
+  const cx = container.offX + container.extX / 2;
+  const cy = container.offY + container.extY / 2;
+
+  if (container.flipH) { x = 2 * cx - x - w; flipH = !flipH; rot = -rot; }
+  if (container.flipV) { y = 2 * cy - y - h; flipV = !flipV; rot = -rot; }
+  if (container.rot) {
+    const bx = x + w / 2;
+    const by = y + h / 2;
+    const rad = (container.rot * Math.PI) / 180;
+    const dx = bx - cx;
+    const dy = by - cy;
+    const nbx = cx + dx * Math.cos(rad) - dy * Math.sin(rad);
+    const nby = cy + dx * Math.sin(rad) + dy * Math.cos(rad);
+    x = nbx - w / 2;
+    y = nby - h / 2;
+    rot += container.rot;
+  }
+  rot = ((rot % 360) + 360) % 360;
+  return { offX: x, offY: y, extX: w, extY: h, rot, flipH, flipV };
+}
+
+/** The identity container: no group wraps the node, so composing against it changes nothing. */
+const IDENTITY_CONTAINER = { offX: 0, offY: 0, extX: 1, extY: 1, chOffX: 0, chOffY: 0, chExtX: 1, chExtY: 1, rot: 0, flipH: false, flipV: false };
+
+/** A local box (px, deg) composed against a container, or null if there is no local box to place. */
+function placeInContainer(container, local) {
+  if (!local) return null;
+  const abs = composeGroupChild(container, { offX: local.x, offY: local.y, extX: local.w, extY: local.h, rot: local.rot, flipH: local.flipH, flipV: local.flipV });
+  return { x: abs.offX, y: abs.offY, w: abs.extX, h: abs.extY, rot: abs.rot, flipH: abs.flipH, flipV: abs.flipV };
 }
 
 /**
@@ -321,23 +420,27 @@ export function readSlideScene(xml, ctx = {}) {
     return null;
   })();
 
-  const walkTree = (tree, offset = { x: 0, y: 0 }) => {
+  const walkTree = (tree, container = IDENTITY_CONTAINER, groupId = null) => {
     for (const node of kids(tree)) {
-      if (node.name === P('sp')) shapes.push(readShape(node, ctx, offset));
-      else if (node.name === P('pic')) shapes.push(readPicture(node, ctx, offset));
+      if (node.name === P('sp')) shapes.push(readShape(node, ctx, container, groupId));
+      else if (node.name === P('pic')) shapes.push(readPicture(node, ctx, container, groupId));
       else if (node.name === P('graphicFrame')) {
-        const spPr = kids(node, P('xfrm'))[0];
-        const geom = spPr
+        const xfrm = kids(node, P('xfrm'))[0];
+        const local = xfrm
           ? {
-              x: emuToPx(kids(spPr, A('off'))[0]?.attrs.x) + offset.x,
-              y: emuToPx(kids(spPr, A('off'))[0]?.attrs.y) + offset.y,
-              w: emuToPx(kids(spPr, A('ext'))[0]?.attrs.cx),
-              h: emuToPx(kids(spPr, A('ext'))[0]?.attrs.cy),
+              x: emuToPx(kids(xfrm, A('off'))[0]?.attrs.x),
+              y: emuToPx(kids(xfrm, A('off'))[0]?.attrs.y),
+              w: emuToPx(kids(xfrm, A('ext'))[0]?.attrs.cx),
+              h: emuToPx(kids(xfrm, A('ext'))[0]?.attrs.cy),
+              rot: rotToDeg(xfrm.attrs.rot),
+              flipH: false,
+              flipV: false,
             }
           : null;
+        const geom = placeInContainer(container, local);
         const table = readTable(node, ctx.theme, geom);
         const meta = nameOf(node);
-        if (table) shapes.push({ kind: 'table', ...meta, geometry: geom, table });
+        if (table) shapes.push({ kind: 'table', ...meta, groupId, geometry: geom, table });
         else {
           // A chart. The frame names its part through a relationship, and
           // the part is read the way a worksheet's is, into the spec
@@ -352,8 +455,8 @@ export function readSlideScene(xml, ctx = {}) {
           const spec = xml
             ? parseChartXml(xml, { width: Math.max(160, Math.round(geom?.w || 480)), height: Math.max(120, Math.round(geom?.h || 300)) })
             : null;
-          if (spec) shapes.push({ kind: 'chart', ...meta, geometry: geom, spec, part: r.part });
-          else shapes.push({ kind: 'unsupported', ...meta, geometry: geom, what: chartNode ? 'chart' : 'graphic' });
+          if (spec) shapes.push({ kind: 'chart', ...meta, groupId, geometry: geom, spec, part: r.part });
+          else shapes.push({ kind: 'unsupported', ...meta, groupId, geometry: geom, what: chartNode ? 'chart' : 'graphic' });
         }
       } else if (node.name === P('cxnSp')) {
         const spPr = kids(node, P('spPr'))[0];
@@ -361,23 +464,38 @@ export function readSlideScene(xml, ctx = {}) {
         shapes.push({
           kind: 'connector',
           ...meta,
-          geometry: withOffset(readXfrm(spPr), offset),
+          groupId,
+          geometry: placeInContainer(container, readXfrm(spPr)),
           line: readLine(spPr, ctx.theme),
           preset: first(spPr, A('prstGeom'))?.attrs.prst || 'line',
         });
       } else if (node.name === P('grpSp')) {
-        // A group has its own coordinate space; children are placed inside the
-        // group's child extent and scaled onto its extent. The common case is a
-        // 1:1 mapping, which is what this handles.
+        // A group has its own coordinate space: its children's own off/ext
+        // sit inside its chOff/chExt window, mapped onto the group's own
+        // off/ext (a scale, whenever a resize has made ext and chExt
+        // differ), then carried through the group's own flip and rotation —
+        // the same composition a nested group's own box goes through before
+        // its children do. The group itself becomes one entry in the scene,
+        // so the stage can select, drag and delete it as a whole; each
+        // member keeps its absolute, already-composed geometry so drawing
+        // and hit-testing need nothing more, and carries `groupId` so the
+        // window knows which group it belongs to.
         const grpSpPr = kids(node, P('grpSpPr'))[0];
         const xfrm = kids(grpSpPr || { children: [] }, A('xfrm'))[0];
-        const off = xfrm && kids(xfrm, A('off'))[0];
+        const localBox = readXfrm(grpSpPr) || { x: 0, y: 0, w: 0, h: 0, rot: 0, flipH: false, flipV: false };
+        const own = placeInContainer(container, localBox) || { x: 0, y: 0, w: 0, h: 0, rot: 0, flipH: false, flipV: false };
+        const meta = nameOf(node);
+        shapes.push({ kind: 'group', ...meta, groupId, geometry: own });
         const chOff = xfrm && kids(xfrm, A('chOff'))[0];
-        const next = {
-          x: offset.x + emuToPx(off?.attrs.x) - emuToPx(chOff?.attrs.x),
-          y: offset.y + emuToPx(off?.attrs.y) - emuToPx(chOff?.attrs.y),
+        const chExt = xfrm && kids(xfrm, A('chExt'))[0];
+        const nextContainer = {
+          offX: own.x, offY: own.y, extX: own.w, extY: own.h,
+          chOffX: emuToPx(chOff?.attrs.x), chOffY: emuToPx(chOff?.attrs.y),
+          chExtX: chExt ? emuToPx(chExt.attrs.cx) : own.w || 1,
+          chExtY: chExt ? emuToPx(chExt.attrs.cy) : own.h || 1,
+          rot: own.rot, flipH: own.flipH, flipV: own.flipV,
         };
-        walkTree(node, next);
+        walkTree(node, nextContainer, meta.id);
       }
     }
   };
@@ -386,21 +504,19 @@ export function readSlideScene(xml, ctx = {}) {
   return { background: bgFill, shapes: shapes.filter(Boolean) };
 }
 
-function withOffset(geom, offset) {
-  if (!geom) return null;
-  if (!offset || (!offset.x && !offset.y)) return geom;
-  return { ...geom, x: geom.x + offset.x, y: geom.y + offset.y };
-}
-
-function readShape(sp, ctx, offset) {
+function readShape(sp, ctx, container, groupId) {
   const spPr = kids(sp, P('spPr'))[0];
   const style = kids(sp, P('style'))[0];
   const ph = placeholderOf(sp);
   const meta = nameOf(sp);
-  let geometry = withOffset(readXfrm(spPr), offset);
+  let geometry = placeInContainer(container, readXfrm(spPr));
   let fill = readFill(spPr, ctx.theme);
   let line = readLine(spPr, ctx.theme);
   const text = readTextBody(kids(sp, P('txBody'))[0], ctx.theme);
+
+  // A picture fill's source, resolved through the slide's relationships the
+  // same way a `<p:pic>`'s is — the renderer draws it the same way too.
+  if (fill?.type === 'picture' && fill.embed && ctx.rel) fill = { ...fill, source: ctx.rel(fill.embed) };
 
   // A style reference gives the shape its theme fill and line when spPr is bare.
   if (!fill && style) {
@@ -425,6 +541,7 @@ function readShape(sp, ctx, offset) {
   return {
     kind: 'shape',
     ...meta,
+    groupId,
     placeholder: ph,
     geometry,
     fill,
@@ -503,7 +620,7 @@ function readAdjustments(spPr) {
   return out;
 }
 
-function readPicture(pic, ctx, offset) {
+function readPicture(pic, ctx, container, groupId) {
   const spPr = kids(pic, P('spPr'))[0];
   const blipFill = kids(pic, P('blipFill'))[0];
   const blip = blipFill && first(blipFill, A('blip'));
@@ -513,8 +630,9 @@ function readPicture(pic, ctx, offset) {
   return {
     kind: 'picture',
     ...meta,
+    groupId,
     placeholder: placeholderOf(pic),
-    geometry: withOffset(readXfrm(spPr), offset),
+    geometry: placeInContainer(container, readXfrm(spPr)),
     line: readLine(spPr, ctx.theme),
     embed,
     source: embed && ctx.rel ? ctx.rel(embed) : null,
@@ -550,4 +668,4 @@ export function sceneText(scene) {
   return out.join('\n');
 }
 
-export { readXfrm, readFill, readLine, readTextBody, placeholderOf };
+export { readXfrm, readFill, readLine, readTextBody, placeholderOf, composeGroupChild };

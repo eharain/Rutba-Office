@@ -13,7 +13,7 @@
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parse, kids, first, all, escapeXml } from '@rutba/office-formats/xml';
 import { emuToPx, pxToEmu, ptToSz } from './units.js';
-import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText } from './slide.js';
+import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText, composeGroupChild, REFLECTION_PRESETS } from './slide.js';
 import { slideXml } from './build.js';
 import { chartPartXml } from '@rutba/ooxml/build';
 import { parseChartXml } from '@rutba/drawing';
@@ -69,10 +69,20 @@ function resolveTarget(fromPart, target) {
  * and its id. Bottom first: the tree draws in order, so the last child is on
  * top. A group counts as one child; the shapes inside it are its own affair.
  */
-function topLevelShapes(xml) {
-  const start = xml.indexOf('<p:spTree');
-  const end = xml.lastIndexOf('</p:spTree>');
-  if (start < 0 || end < 0) return [];
+function topLevelShapes(xml, bounds = null) {
+  // The whole slide's own top level, unless the caller names a narrower
+  // range — a group's own children, one level deep, are found the same way
+  // between the end of its `grpSpPr` and its own closing tag, since a group
+  // has no `<p:spTree>` of its own to anchor the default range.
+  let start;
+  let end;
+  if (bounds) {
+    ({ start, end } = bounds);
+  } else {
+    start = xml.indexOf('<p:spTree');
+    end = xml.lastIndexOf('</p:spTree>');
+    if (start < 0 || end < 0) return [];
+  }
   const re = /<(\/?)p:(sp|pic|graphicFrame|cxnSp|grpSp)\b[^>]*?(\/?)>/g;
   re.lastIndex = start;
   const out = [];
@@ -557,8 +567,13 @@ export class Deck {
     const marker = new RegExp(`<p:cNvPr[^>]*\\bid="${shapeId}"`);
     const at = xml.search(marker);
     if (at < 0) return null;
-    // Walk back to the opening tag of the containing shape.
-    const openers = ['<p:sp>', '<p:pic>', '<p:graphicFrame>', '<p:cxnSp>'];
+    // Walk back to the opening tag of the containing shape. `<p:grpSp>` is
+    // here too: a group's own `<p:cNvPr>` sits in its `nvGrpSpPr`, first
+    // among its children, so this finds the group's own opening tag rather
+    // than diving into whichever member happens to match some other search
+    // — which is exactly what lets setGeometry, removeShape, shapeClip and
+    // pasteShape treat a whole group as one shape, the way PowerPoint does.
+    const openers = ['<p:sp>', '<p:pic>', '<p:graphicFrame>', '<p:cxnSp>', '<p:grpSp>'];
     let start = -1;
     let tag = null;
     for (const o of openers) {
@@ -570,7 +585,23 @@ export class Deck {
     }
     if (start < 0) return null;
     const closeTag = tag.replace('<', '</');
-    const end = xml.indexOf(closeTag, at);
+    let end;
+    if (tag === '<p:grpSp>') {
+      // A group can hold another group; the first `</p:grpSp>` after `at`
+      // may belong to a nested one, not to this one, so the close is found
+      // by counting depth rather than by the first match.
+      const pairRe = /<p:grpSp>|<\/p:grpSp>/g;
+      pairRe.lastIndex = start;
+      let depth = 0;
+      let m;
+      end = -1;
+      while ((m = pairRe.exec(xml))) {
+        if (m[0] === '<p:grpSp>') depth += 1;
+        else if (--depth === 0) { end = m.index; break; }
+      }
+    } else {
+      end = xml.indexOf(closeTag, at);
+    }
     if (end < 0) return null;
     return { start, end: end + closeTag.length, tag };
   }
@@ -603,8 +634,17 @@ export class Deck {
     return true;
   }
 
-  /** Move or resize a shape. Values are pixels; EMU conversion happens here. */
-  setGeometry(slideIndex, shapeId, { x, y, w, h, rot }) {
+  /**
+   * Move or resize a shape (or a group, whose own `<p:grpSpPr><a:xfrm>` this
+   * finds exactly as it finds a plain shape's `<p:spPr><a:xfrm>` — writing
+   * only its own off/ext, never its chOff/chExt, which is exactly how a
+   * group resize is meant to scale its members). Values are pixels; EMU
+   * conversion happens here. `rot`, `flipH` and `flipV` are each left alone
+   * when not given at all — undefined, not falsy — so a plain move never
+   * disturbs a rotation or a flip the shape already had; a given value
+   * (including 0 or false) is written, which is how one is taken off.
+   */
+  setGeometry(slideIndex, shapeId, { x, y, w, h, rot, flipH, flipV }) {
     const part = this.slideParts[slideIndex]?.part;
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
@@ -618,25 +658,30 @@ export class Deck {
 
     const offXml = `<a:off x="${pxToEmu(x)}" y="${pxToEmu(y)}"/>`;
     const extXml = `<a:ext cx="${Math.max(1, pxToEmu(w))}" cy="${Math.max(1, pxToEmu(h))}"/>`;
+    const touchesTransform = rot !== undefined || flipH !== undefined || flipV !== undefined;
 
     if (hasXfrm) {
       shapeXml = offRe.test(shapeXml) ? shapeXml.replace(offRe, offXml) : shapeXml.replace(/<a:xfrm\b[^>]*>/, (m) => m + offXml);
       shapeXml = extRe.test(shapeXml) ? shapeXml.replace(extRe, extXml) : shapeXml.replace(offXml, offXml + extXml);
-      if (rot != null) {
+      if (touchesTransform) {
         shapeXml = shapeXml.replace(/<a:xfrm\b([^>]*)>/, (m, attrs) => {
-          const cleaned = attrs.replace(/\s*rot="[^"]*"/, '');
-          return `<a:xfrm${cleaned}${rot ? ` rot="${Math.round(rot * 60000)}"` : ''}>`;
+          let next = attrs;
+          if (rot !== undefined) { next = next.replace(/\s*rot="[^"]*"/, ''); if (rot) next += ` rot="${Math.round(rot * 60000)}"`; }
+          if (flipH !== undefined) { next = next.replace(/\s*flipH="[^"]*"/, ''); if (flipH) next += ' flipH="1"'; }
+          if (flipV !== undefined) { next = next.replace(/\s*flipV="[^"]*"/, ''); if (flipV) next += ' flipV="1"'; }
+          return `<a:xfrm${next}>`;
         });
       }
     } else {
       // The shape inherited its geometry; state it explicitly now that the user
       // has moved it, inserting the xfrm as the first child of spPr.
       const rotAttr = rot ? ` rot="${Math.round(rot * 60000)}"` : '';
+      const flipAttr = `${flipH ? ' flipH="1"' : ''}${flipV ? ' flipV="1"' : ''}`;
       shapeXml = shapeXml.replace(
         /<p:spPr\s*\/>|<p:spPr\b[^>]*>/,
         (m) => (m.endsWith('/>')
-          ? `<p:spPr><a:xfrm${rotAttr}>${offXml}${extXml}</a:xfrm></p:spPr>`
-          : `${m}<a:xfrm${rotAttr}>${offXml}${extXml}</a:xfrm>`)
+          ? `<p:spPr><a:xfrm${rotAttr}${flipAttr}>${offXml}${extXml}</a:xfrm></p:spPr>`
+          : `${m}<a:xfrm${rotAttr}${flipAttr}>${offXml}${extXml}</a:xfrm>`)
       );
     }
     this.#writeSlide(part, xml.slice(0, range.start) + shapeXml + xml.slice(range.end));
@@ -773,6 +818,275 @@ export class Deck {
     return true;
   }
 
+  /** A named top-level shape's (or group's) current box, off the scene — the same absolute, rotation-aware geometry the stage draws. */
+  #boxOf(scene, id) {
+    const s = scene.shapes.find((x) => String(x.id) === String(id));
+    if (!s?.geometry) throw new Error(`shape ${id} not found, or has no geometry`);
+    if (s.groupId != null) throw new Error(`shape ${id} is inside a group — align, distribute, rotate or flip the group itself, or ungroup it first`);
+    return s;
+  }
+
+  /**
+   * Home → Arrange → Align: the given edge of every named shape (or group)
+   * lined up. One shape aligns to the slide, since PowerPoint has nothing
+   * else to line it up against; several align to their own combined bounds
+   * by default — "Align Selected Objects" — or to the slide when `to` is
+   * `'slide'` — "Align to Slide", each shape moving to that same edge of
+   * the whole page. A rotated shape aligns by its visual (rotated) bounds,
+   * the way it looks on the stage, not by its unrotated box.
+   * @param {number} slideIndex
+   * @param {Array<number|string>} ids
+   * @param {'left'|'center'|'right'|'top'|'middle'|'bottom'} edge
+   * @param {{ to?: 'slide'|'selection' }} [opts]
+   * @returns {boolean} true when a shape moved
+   */
+  alignShapes(slideIndex, ids, edge, { to } = {}) {
+    if (!ids || !ids.length) throw new Error('align needs at least one shape');
+    const scene = this.slide(slideIndex);
+    const items = ids.map((id) => this.#boxOf(scene, id));
+    const boxes = items.map((s) => shapeAabb(s.geometry));
+    // One shape has nothing else to align to but the slide — PowerPoint
+    // offers no other choice for it either — so a single shape always goes
+    // to the slide, whatever the ribbon's Align to Slide/Selected Objects
+    // toggle happens to be set to; the toggle only means something once
+    // there are two or more.
+    const mode = items.length > 1 ? (to || 'selection') : 'slide';
+    const ref = mode === 'slide' ? { x: 0, y: 0, w: this.size.width, h: this.size.height } : unionBox(boxes);
+    let changed = false;
+    items.forEach((s, i) => {
+      const box = boxes[i];
+      let nx = box.x;
+      let ny = box.y;
+      if (edge === 'left') nx = ref.x;
+      else if (edge === 'center') nx = ref.x + ref.w / 2 - box.w / 2;
+      else if (edge === 'right') nx = ref.x + ref.w - box.w;
+      else if (edge === 'top') ny = ref.y;
+      else if (edge === 'middle') ny = ref.y + ref.h / 2 - box.h / 2;
+      else if (edge === 'bottom') ny = ref.y + ref.h - box.h;
+      else throw new Error(`unknown edge: ${edge}`);
+      const dx = nx - box.x;
+      const dy = ny - box.y;
+      if (Math.abs(dx) < 0.01 && Math.abs(dy) < 0.01) return;
+      const g = s.geometry;
+      this.setGeometry(slideIndex, s.id, { x: g.x + dx, y: g.y + dy, w: g.w, h: g.h });
+      changed = true;
+    });
+    return changed;
+  }
+
+  /**
+   * Home → Arrange → Distribute Horizontally/Vertically: three or more
+   * shapes spaced with equal gaps between them, along the axis given —
+   * between the outermost two shapes' own edges by default ("Align
+   * Selected Objects"), or across the whole slide when `to` is `'slide'`
+   * ("Align to Slide"), the same toggle `alignShapes` reads.
+   * @param {number} slideIndex
+   * @param {Array<number|string>} ids
+   * @param {'horizontal'|'vertical'} axis
+   * @param {{ to?: 'slide'|'selection' }} [opts]
+   * @returns {boolean} true when a shape moved
+   */
+  distributeShapes(slideIndex, ids, axis, { to } = {}) {
+    if (!ids || ids.length < 3) throw new Error('distribute needs three or more shapes');
+    const scene = this.slide(slideIndex);
+    const items = ids.map((id) => {
+      const s = this.#boxOf(scene, id);
+      return { id: s.id, g: s.geometry, box: shapeAabb(s.geometry) };
+    });
+    const horizontal = axis === 'horizontal';
+    const key = horizontal ? 'x' : 'y';
+    const size = horizontal ? 'w' : 'h';
+    const sorted = [...items].sort((a, b) => a.box[key] - b.box[key]);
+    const mode = to || 'selection';
+    const start = mode === 'slide' ? 0 : sorted[0].box[key];
+    const end = mode === 'slide'
+      ? (horizontal ? this.size.width : this.size.height)
+      : sorted[sorted.length - 1].box[key] + sorted[sorted.length - 1].box[size];
+    const totalSize = sorted.reduce((n, it) => n + it.box[size], 0);
+    const gap = (end - start - totalSize) / (sorted.length - 1);
+    let cursor = start;
+    let changed = false;
+    for (const it of sorted) {
+      const delta = cursor - it.box[key];
+      if (Math.abs(delta) > 0.01) {
+        this.setGeometry(slideIndex, it.id, {
+          x: it.g.x + (horizontal ? delta : 0),
+          y: it.g.y + (horizontal ? 0 : delta),
+          w: it.g.w,
+          h: it.g.h,
+        });
+        changed = true;
+      }
+      cursor += it.box[size] + gap;
+    }
+    return changed;
+  }
+
+  /**
+   * Home → Arrange → Rotate: each named shape turned by `deltaDeg` about
+   * its own centre — Right 90°/Left 90° from the ribbon, or Alt+Left/
+   * Alt+Right's 15° step. Several shapes each turn about their own centre,
+   * not the selection's, exactly as PowerPoint's own does for shapes that
+   * are not grouped.
+   * @returns {boolean} true when a shape rotated
+   */
+  rotateShapes(slideIndex, ids, deltaDeg) {
+    if (!ids || !ids.length) throw new Error('rotate needs at least one shape');
+    const scene = this.slide(slideIndex);
+    let changed = false;
+    for (const id of ids) {
+      const s = this.#boxOf(scene, id);
+      const g = s.geometry;
+      const rot = (((g.rot || 0) + deltaDeg) % 360 + 360) % 360;
+      this.setGeometry(slideIndex, id, { x: g.x, y: g.y, w: g.w, h: g.h, rot });
+      changed = true;
+    }
+    return changed;
+  }
+
+  /**
+   * Home → Arrange → Flip Horizontal/Flip Vertical: each named shape
+   * mirrored about its own centre. Rotation is left exactly as it was —
+   * writing `flipH`/`flipV` on `a:xfrm` beside whatever `rot` is already
+   * there, never touching it.
+   * @param {'horizontal'|'vertical'} axis
+   * @returns {boolean} true when a shape flipped
+   */
+  flipShapes(slideIndex, ids, axis) {
+    if (!ids || !ids.length) throw new Error('flip needs at least one shape');
+    const scene = this.slide(slideIndex);
+    let changed = false;
+    for (const id of ids) {
+      const s = this.#boxOf(scene, id);
+      const g = s.geometry;
+      const flip = axis === 'horizontal' ? { flipH: !g.flipH } : { flipV: !g.flipV };
+      this.setGeometry(slideIndex, id, { x: g.x, y: g.y, w: g.w, h: g.h, ...flip });
+      changed = true;
+    }
+    return changed;
+  }
+
+  /**
+   * Home → Arrange → Group: the named top-level shapes (or groups) gathered
+   * into one `p:grpSp`, in their current drawing order, at the position the
+   * topmost of them held — the way PowerPoint's own Group does. The child
+   * coordinate window (`chOff`/`chExt`) is set equal to the new group's own
+   * bounding box, so grouping never moves or resizes a member by itself;
+   * only a later resize of the group (`setGeometry` on its own id) scales
+   * them, because `chOff`/`chExt` stay while `off`/`ext` change.
+   * @param {number} slideIndex
+   * @param {Array<number|string>} ids
+   * @returns {number} the new group's id
+   */
+  groupShapes(slideIndex, ids) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const wanted = [...new Set((ids || []).map(String))];
+    if (wanted.length < 2) throw new Error('grouping needs two or more shapes');
+    const scene = this.slide(slideIndex);
+    const boxes = wanted.map((id) => shapeAabb(this.#boxOf(scene, id).geometry));
+    const bbox = unionBox(boxes);
+
+    const xml = this.pkg.text(part);
+    const entries = topLevelShapes(xml);
+    const memberSet = new Set(wanted);
+    const members = entries.filter((e) => memberSet.has(String(e.id)));
+    if (members.length !== wanted.length) throw new Error('one or more shapes were not found at the top level of this slide');
+
+    const groupId = nextShapeId(xml);
+    const offX = pxToEmu(bbox.x);
+    const offY = pxToEmu(bbox.y);
+    const extCx = Math.max(1, pxToEmu(bbox.w));
+    const extCy = Math.max(1, pxToEmu(bbox.h));
+    const grpXml =
+      `<p:grpSp><p:nvGrpSpPr><p:cNvPr id="${groupId}" name="Group ${groupId}"/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr>` +
+      `<p:grpSpPr><a:xfrm><a:off x="${offX}" y="${offY}"/><a:ext cx="${extCx}" cy="${extCy}"/>` +
+      `<a:chOff x="${offX}" y="${offY}"/><a:chExt cx="${extCx}" cy="${extCy}"/></a:xfrm></p:grpSpPr>` +
+      members.map((m) => xml.slice(m.start, m.end)).join('') +
+      `</p:grpSp>`;
+
+    // Members keep their relative order (the group draws them exactly as
+    // they drew before), and the group itself takes the topmost one's spot
+    // — the last member in document order, since the spTree draws bottom
+    // first. Everything else stays exactly where it was.
+    const head = xml.slice(0, entries[0].start);
+    const tail = xml.slice(entries[entries.length - 1].end);
+    const topmost = members[members.length - 1];
+    let body = '';
+    for (const e of entries) {
+      if (memberSet.has(String(e.id))) {
+        if (e === topmost) body += grpXml;
+        continue;
+      }
+      body += xml.slice(e.start, e.end);
+    }
+    this.#writeSlide(part, head + body + tail);
+    return groupId;
+  }
+
+  /**
+   * Home → Arrange → Ungroup: a group's members put back on the slide at
+   * their true coordinates, mapped out of the group's child coordinate
+   * space through its own off/ext/chOff/chExt/rot/flip — the inverse of
+   * what reading a group through the scene already does, so a group that
+   * was moved, resized, rotated or flipped before being ungrouped leaves
+   * its members exactly where they visibly were, not where they were drawn
+   * before the group was touched.
+   * @returns {Array<number|string>} the members' own ids, now top-level
+   */
+  ungroupShape(slideIndex, groupId) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, groupId);
+    if (!range) throw new Error(`shape ${groupId} not found`);
+    if (range.tag !== '<p:grpSp>') throw new Error(`shape ${groupId} is not a group`);
+    const grpXml = xml.slice(range.start, range.end);
+
+    const grpSpPr = /<p:grpSpPr\b[^>]*>[\s\S]*?<\/p:grpSpPr>|<p:grpSpPr\b[^>]*\/>/.exec(grpXml)?.[0] || '';
+    const gxfrm = /<a:xfrm\b[^>]*>[\s\S]*?<\/a:xfrm>|<a:xfrm\b[^>]*\/>/.exec(grpSpPr)?.[0] || '';
+    const num = (scope, name) => Number(new RegExp(`\\b${name}="(-?\\d+)"`).exec(scope || '')?.[1] || 0);
+    const offXml = /<a:off\b[^>]*\/>/.exec(gxfrm)?.[0];
+    const extXml = /<a:ext\b[^>]*\/>/.exec(gxfrm)?.[0];
+    const chOffXml = /<a:chOff\b[^>]*\/>/.exec(gxfrm)?.[0];
+    const chExtXml = /<a:chExt\b[^>]*\/>/.exec(gxfrm)?.[0];
+    const containerPx = {
+      offX: emuToPx(num(offXml, 'x')), offY: emuToPx(num(offXml, 'y')),
+      extX: emuToPx(num(extXml, 'cx')) || 1, extY: emuToPx(num(extXml, 'cy')) || 1,
+      chOffX: emuToPx(num(chOffXml, 'x')), chOffY: emuToPx(num(chOffXml, 'y')),
+      chExtX: chExtXml ? emuToPx(num(chExtXml, 'cx')) : emuToPx(num(extXml, 'cx')) || 1,
+      chExtY: chExtXml ? emuToPx(num(chExtXml, 'cy')) : emuToPx(num(extXml, 'cy')) || 1,
+      rot: Number(/\brot="(-?\d+)"/.exec(gxfrm)?.[1] || 0) / 60000,
+      flipH: /\bflipH="1"/.test(gxfrm),
+      flipV: /\bflipV="1"/.test(gxfrm),
+    };
+
+    const grpSpPrM = /<p:grpSpPr\b[^>]*\/>|<p:grpSpPr\b[^>]*>[\s\S]*?<\/p:grpSpPr>/.exec(grpXml);
+    const childStart = grpSpPrM ? grpSpPrM.index + grpSpPrM[0].length : 0;
+    const childEnd = grpXml.lastIndexOf('</p:grpSp>');
+    const children = topLevelShapes(grpXml, { start: childStart, end: childEnd });
+    if (!children.length) throw new Error('this group has no members');
+    const memberXml = children.map((c) => xml.slice(range.start + c.start, range.start + c.end)).join('');
+    const head = xml.slice(0, range.start);
+    const tail = xml.slice(range.end);
+    this.#writeSlide(part, head + memberXml + tail);
+
+    // Newly top-level, the members still carry their group-relative box;
+    // the scene now reads it straight (nothing wraps them any more), which
+    // is exactly the `local` box composeGroupChild needs to place absolutely.
+    const memberIds = children.map((c) => c.id);
+    const scene = this.slide(slideIndex);
+    for (const id of memberIds) {
+      const s = scene.shapes.find((x) => String(x.id) === String(id));
+      if (!s?.geometry) continue;
+      const g = s.geometry;
+      const local = { offX: g.x, offY: g.y, extX: g.w, extY: g.h, rot: g.rot || 0, flipH: Boolean(g.flipH), flipV: Boolean(g.flipV) };
+      const abs = composeGroupChild(containerPx, local);
+      this.setGeometry(slideIndex, id, { x: abs.offX, y: abs.offY, w: abs.extX, h: abs.extY, rot: abs.rot, flipH: abs.flipH, flipV: abs.flipV });
+    }
+    return memberIds;
+  }
+
   /**
    * Move a shape in the drawing order — bring forward, send backward, to the
    * front, to the back. The spTree draws its children in order, so the order
@@ -801,21 +1115,61 @@ export class Deck {
   }
 
   /**
-   * A shape's fill and outline — the Format pane. `fill` is 'none', a
-   * colour ('#RRGGBB' or { scheme, lumMod }) or null to leave it as it is;
-   * `line` is 'none', { color, width (points), dash } or null. Written into
-   * the shape's own spPr, where it beats the style reference the shape may
-   * carry, in the order the schema wants: geometry, fill, line. A picture
-   * takes an outline as a frame; a table or chart frame has no spPr and
-   * says so.
+   * A shape's fill, outline and effects — the Format pane. Written into the
+   * shape's own spPr, where it beats the style reference the shape may
+   * carry, in the order the schema wants: geometry, fill, line, effects. A
+   * picture takes an outline as a frame; a table or chart frame has no
+   * spPr, and a group has none of its own to speak of, so both say so.
+   *
+   * `fill` — null leaves it; `'none'` (or `{ type: 'none' }`) clears it;
+   * `{ gradient: { stops?, preset?, color?, angle? } }` writes a linear
+   * gradient — `stops` is `{ pos: 0–1, ...colour }[]`, `colour` anything
+   * below reads; without `stops`, `preset` ('light', the default, or
+   * 'dark') builds one from `color`, PowerPoint's own gallery swatches;
+   * `{ picture: { data, contentType, name?, tile? } }` embeds a picture and
+   * fills the shape with it, clipped to its outline, the bytes normalised
+   * the way `documents.js` already normalises an inserted picture's; a
+   * picture fill with no `data` (just `{ picture: { tile } }`) keeps the
+   * blip the shape already had and only changes stretch/tile — the Format
+   * pane's own Tile toggle, which does not want to hold a picture's bytes
+   * just to flip a switch;
+   * anything else is a solid colour — a hex string, or `{ scheme } | { color }`
+   * with an optional `lumMod`/`lumOff`/`alpha` (0–1, transparency).
+   *
+   * `line` — null leaves it; `'none'` clears it; `{ color, width (points),
+   * dash }` sets it, `color` the same colour shape `fill` reads.
+   *
+   * `effects` — null leaves the whole list; `'none'` clears it; otherwise
+   * `{ shadow?, glow?, softEdge?, reflection? }` is the *complete* list from
+   * here on — a key left out is a key turned off, since the whole
+   * `a:effectLst` is rebuilt each time in the order the schema wants (glow,
+   * the shadow, the reflection, the soft edge) rather than merged with
+   * whatever was already there. `shadow` is `{ dist, dir, blur, color,
+   * alpha }` in points, degrees and 0–1; `glow` is `{ radius, color, alpha }`,
+   * radius in points (5/8/11/18 pt is PowerPoint's own gallery); `softEdge`
+   * is `{ radius }`, points; `reflection` is `'tight' | 'half' | 'full'`.
    */
   setShapeStyle(slideIndex, shapeId, { fill = null, line = null, effects = null } = {}) {
     const part = this.slideParts[slideIndex]?.part;
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
-    const xml = this.pkg.text(part);
+    // The picture is embedded first, when there is one: its own write (a
+    // media part and a relationship) touches the slide's rels, not its
+    // XML, so it is safe to do before the XML below is even read. A
+    // picture fill that replaces an earlier one leaves the earlier media
+    // part and relationship in the package, unreferenced, the way an
+    // undone edit leaves one — not deleted, just no longer pointed at.
+    const pictureRel = fill?.picture?.data ? this.#embedImage(part, fill.picture) : null;
+    let xml = this.pkg.text(part);
+    if (pictureRel) {
+      const head = xml.slice(0, Math.max(0, xml.indexOf('<p:cSld')));
+      if (!/xmlns:r=/.test(head)) {
+        xml = xml.replace(/<p:sld\b/, '<p:sld xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"');
+      }
+    }
     const range = this.#shapeRange(xml, shapeId);
     if (!range) throw new Error(`shape ${shapeId} not found`);
     if (range.tag === '<p:graphicFrame>') throw new Error('A table or chart frame has no fill or outline of its own.');
+    if (range.tag === '<p:grpSp>') throw new Error('A group has no fill or outline of its own — format a shape inside it.');
     let shapeXml = xml.slice(range.start, range.end);
     const spPrRe = /<p:spPr\b[^>]*\/>|<p:spPr\b[^>]*>[\s\S]*?<\/p:spPr>/;
     const m = spPrRe.exec(shapeXml);
@@ -827,19 +1181,40 @@ export class Deck {
     const lnRe = /<a:ln\b[^>]*\/>|<a:ln\b[^>]*>[\s\S]*?<\/a:ln>/;
     const hadLine = lnRe.exec(inner)?.[0] ?? '';
     inner = inner.replace(lnRe, '');
-    // The effects after both: `effects` is 'none' (an empty list, which turns a
-    // style's shadow off too), { shadow: { dist, dir, blur, color, alpha } }
-    // in points, degrees and a 0–1 alpha, or null to leave them as they are.
+    // The effects after both. Order in the schema: blur?, fillOverlay?,
+    // glow?, innerShdw?, outerShdw?, prstShdw?, reflection?, softEdge? — of
+    // which this writes glow, the shadow, the reflection and the soft edge.
     const effectRe = /<a:effectLst\b[^>]*\/>|<a:effectLst\b[^>]*>[\s\S]*?<\/a:effectLst>/;
     const hadEffects = effectRe.exec(inner)?.[0] ?? '';
     inner = inner.replace(effectRe, '');
-    const shadowXml = (sh) => `<a:effectLst><a:outerShdw blurRad="${Math.round((sh.blur ?? 4) * 12700)}" dist="${Math.round((sh.dist ?? 3) * 12700)}" dir="${Math.round((sh.dir ?? 45) * 60000)}" algn="ctr" rotWithShape="0">`
-      + `<a:srgbClr val="${String(sh.color || '#000000').replace('#', '').toUpperCase()}"><a:alpha val="${Math.round(Math.min(1, Math.max(0, sh.alpha ?? 0.4)) * 100000)}"/></a:srgbClr></a:outerShdw></a:effectLst>`;
-    const effectXml = effects === null ? hadEffects : effects === 'none' || !effects.shadow ? '<a:effectLst/>' : shadowXml(effects.shadow);
+    const effectXml = (() => {
+      if (effects === null) return hadEffects;
+      if (effects === 'none') return '<a:effectLst/>';
+      const kids = [];
+      if (effects.glow) kids.push(glowXml(effects.glow));
+      if (effects.shadow) kids.push(outerShadowXml(effects.shadow));
+      if (effects.reflection) kids.push(reflectionXml(effects.reflection));
+      if (effects.softEdge) kids.push(softEdgeXml(effects.softEdge));
+      return kids.length ? `<a:effectLst>${kids.join('')}</a:effectLst>` : '<a:effectLst/>';
+    })();
     const fillRe = /<a:(noFill|solidFill|gradFill|blipFill|pattFill|grpFill)\b[^>]*\/>|<a:(noFill|solidFill|gradFill|blipFill|pattFill|grpFill)\b[^>]*>[\s\S]*?<\/a:\2>/;
     const hadFill = fillRe.exec(inner)?.[0] ?? '';
     inner = inner.replace(fillRe, '');
-    const fillXml = fill === null ? hadFill : fill === 'none' || fill?.type === 'none' ? '<a:noFill/>' : `<a:solidFill>${colourXml(fill)}</a:solidFill>`;
+    // A picture fill with no fresh bytes (`fill.picture` names no `data`)
+    // keeps the blip it already had — the Format pane's own Tile toggle
+    // does exactly this, changing only stretch/tile without asking the
+    // window to hold onto the picture's bytes after they are embedded.
+    const pictureRId = pictureRel?.rId ?? (fill?.picture ? /<a:blip\b[^>]*\br:embed="([^"]+)"/.exec(hadFill)?.[1] : null);
+    if (fill?.picture && !pictureRId) throw new Error('this shape has no picture fill to change — give it one with `data`');
+    const fillXml = fill === null
+      ? hadFill
+      : fill === 'none' || fill?.type === 'none'
+        ? '<a:noFill/>'
+        : fill.gradient
+          ? gradientFillXml(fill.gradient)
+          : fill.picture
+            ? `<a:blipFill><a:blip r:embed="${pictureRId}"/>${fill.picture.tile ? '<a:tile/>' : '<a:stretch><a:fillRect/></a:stretch>'}</a:blipFill>`
+            : `<a:solidFill>${colourXml(fill)}</a:solidFill>`;
     const lineXml = line === null
       ? hadLine
       : line === 'none' || line?.type === 'none'
@@ -1317,16 +1692,18 @@ export class Deck {
    * @param {{ data: Buffer|Uint8Array|string, contentType: string, name?: string, x?: number, y?: number, w: number, h: number }} spec
    * @returns {{ id: number, part: string }} the shape id and the media part
    */
-  addPicture(slideIndex, { data, contentType, name = 'Picture', x = 0, y = 0, w, h }) {
-    const part = this.slideParts[slideIndex]?.part;
-    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+  /**
+   * A picture's bytes as a media part plus a relationship from a slide to
+   * it — numbered across every extension, as PowerPoint numbers them — the
+   * one write `addPicture` and a picture fill (`setShapeStyle`) both need.
+   * Bytes come in as a `Buffer`, a `Uint8Array` or base64 text, the way
+   * they reach `documents.js` from the window's own file dialog.
+   */
+  #embedImage(part, { data, contentType }) {
     const ext = IMAGE_EXTENSIONS[String(contentType || '').toLowerCase()];
     if (!ext) throw new Error(`unsupported picture type: ${contentType} (png, jpeg, gif or bmp)`);
     const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data), 'base64');
     if (!bytes.length) throw new Error('the picture has no bytes');
-    if (!(w > 0) || !(h > 0)) throw new Error('a picture needs a positive width and height');
-
-    // Numbered across every extension, as PowerPoint numbers them.
     const names = this.pkg.partNames() || [];
     let n = 1;
     while (names.some((p) => p.startsWith(`ppt/media/image${n}.`))) n += 1;
@@ -1334,6 +1711,14 @@ export class Deck {
     this.pkg.ensureDefault(ext, ext === 'jpeg' ? 'image/jpeg' : contentType);
     this.pkg.addPart(media, bytes);
     const rId = this.pkg.addRelationshipTo(part, REL.image, `../media/image${n}.${ext}`);
+    return { rId, media };
+  }
+
+  addPicture(slideIndex, { data, contentType, name = 'Picture', x = 0, y = 0, w, h }) {
+    const part = this.slideParts[slideIndex]?.part;
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (!(w > 0) || !(h > 0)) throw new Error('a picture needs a positive width and height');
+    const { rId, media } = this.#embedImage(part, { data, contentType });
 
     let xml = this.pkg.text(part);
     // A slide that has never had a relationship may not declare the prefix.
@@ -2005,13 +2390,84 @@ const PRESET_NAMES = {
   rightArrow: 'Arrow: Right', chevron: 'Chevron', line: 'Straight Connector',
 };
 
-/** A colour as DrawingML writes it: a hex string, or a scheme colour with an optional luminance modifier and offset. */
+/**
+ * A colour as DrawingML writes it: a hex string, or a spec — `{ scheme }` or
+ * `{ color }` (a hex string of its own, for a spec that carries transforms a
+ * bare string could not) — with an optional luminance modifier, offset and
+ * alpha (0–1; only written under 1, since a colour with no transparency of
+ * its own writes none). The transforms are legal on a scheme colour or a
+ * literal one alike, which is exactly how PowerPoint writes a gradient
+ * stop's "80% transparent, half as light" without naming a whole new colour.
+ */
 function colourXml(c) {
   if (typeof c === 'string') return `<a:srgbClr val="${escapeXml(c.replace('#', '').toUpperCase())}"/>`;
   const mods = [];
   if (c.lumMod != null) mods.push(`<a:lumMod val="${Math.round(c.lumMod * 1000)}"/>`);
   if (c.lumOff != null) mods.push(`<a:lumOff val="${Math.round(c.lumOff * 1000)}"/>`);
-  return mods.length ? `<a:schemeClr val="${escapeXml(c.scheme)}">${mods.join('')}</a:schemeClr>` : `<a:schemeClr val="${escapeXml(c.scheme)}"/>`;
+  if (c.alpha != null && c.alpha < 1) mods.push(`<a:alpha val="${Math.round(Math.max(0, Math.min(1, c.alpha)) * 100000)}"/>`);
+  if (c.scheme) return mods.length ? `<a:schemeClr val="${escapeXml(c.scheme)}">${mods.join('')}</a:schemeClr>` : `<a:schemeClr val="${escapeXml(c.scheme)}"/>`;
+  const hex = escapeXml(String(c.color ?? c.hex ?? '#000000').replace('#', '').toUpperCase());
+  return mods.length ? `<a:srgbClr val="${hex}">${mods.join('')}</a:srgbClr>` : `<a:srgbClr val="${hex}"/>`;
+}
+
+/**
+ * A two-stop gradient in one colour's own family — PowerPoint's "Light
+ * Variation" and "Dark Variation" swatches in the gradient gallery: the
+ * chosen colour at full strength fading to a paler (light) or a deeper
+ * (dark) shade of itself, so recolouring the shape later is one colour
+ * change, not a pair of unrelated ones.
+ */
+function gradientPresetStops(preset, colour) {
+  const spec = typeof colour === 'string' ? { color: colour } : { ...colour };
+  const at = (mods) => ({ ...spec, ...mods });
+  if (preset === 'dark') return [{ pos: 0, ...at({ lumMod: 100 }) }, { pos: 1, ...at({ lumMod: 50 }) }];
+  return [{ pos: 0, ...at({ lumMod: 100 }) }, { pos: 1, ...at({ lumMod: 20, lumOff: 80 }) }];
+}
+
+/**
+ * `fill.gradient` written as `<a:gradFill>`: `stops` (two or three,
+ * `{ pos: 0–1, ...colour }`, `colour` anything `colourXml` reads) if given,
+ * else one of the light/dark presets in `color`; `angle` in degrees, 90
+ * (top to bottom) unless stated — PowerPoint's own default for a fill
+ * applied from the gallery.
+ */
+function gradientFillXml(g) {
+  const stops = g.stops && g.stops.length ? g.stops : gradientPresetStops(g.preset === 'dark' ? 'dark' : 'light', g.color ?? { scheme: 'accent1' });
+  const gsLst = stops.map((s) => `<a:gs pos="${Math.round(Math.max(0, Math.min(1, s.pos)) * 100000)}">${colourXml(s)}</a:gs>`).join('');
+  const angle = g.angle != null ? g.angle : 90;
+  return `<a:gradFill rotWithShape="1"><a:gsLst>${gsLst}</a:gsLst><a:lin ang="${Math.round(((angle % 360) + 360) % 360 * 60000)}" scaled="1"/></a:gradFill>`;
+}
+
+/** An outer shadow's own element — points and degrees in, DrawingML's EMU and 60,000ths out. */
+function outerShadowXml(sh) {
+  return `<a:outerShdw blurRad="${Math.round((sh.blur ?? 4) * 12700)}" dist="${Math.round((sh.dist ?? 3) * 12700)}" dir="${Math.round((sh.dir ?? 45) * 60000)}" algn="ctr" rotWithShape="0">`
+    + `${colourXml({ color: sh.color || '#000000', alpha: sh.alpha ?? 0.4 })}</a:outerShdw>`;
+}
+
+/** Shape Effects → Glow: a radius in points (5/8/11/18 pt is PowerPoint's own gallery) and a colour, which usually carries its own transparency. */
+function glowXml(g) {
+  const base = typeof g.color === 'string' ? { color: g.color } : g.color || { scheme: 'accent1' };
+  const spec = { ...base, alpha: g.alpha ?? base.alpha ?? 0.6 };
+  return `<a:glow rad="${Math.round((g.radius ?? 8) * 12700)}">${colourXml(spec)}</a:glow>`;
+}
+
+/** Shape Effects → Soft Edges: a radius in points, the blurred band's own width. */
+function softEdgeXml(s) {
+  return `<a:softEdge rad="${Math.round((s.radius ?? 2.5) * 12700)}"/>`;
+}
+
+/**
+ * Shape Effects → Reflection: PowerPoint's three gallery presets by name —
+ * "tight" (touching, fading fast), "half" (a gap, fading by the middle) and
+ * "full" (touching, fading only at the very end) — each a mirrored, faded
+ * copy read straight off the shape itself, the way DrawingML always draws a
+ * reflection rather than storing a second picture of one. The numbers
+ * themselves live in `slide.js`'s `REFLECTION_PRESETS`, so what this writes
+ * is exactly what `reflectionKindOf` reads back.
+ */
+function reflectionXml(kind) {
+  const p = REFLECTION_PRESETS[kind] || REFLECTION_PRESETS.half;
+  return `<a:reflection blurRad="${p.blurRad}" stA="${p.stA}" stPos="${p.stPos}" endA="${p.endA}" endPos="${p.endPos}" dist="${p.dist}" dir="5400000" sy="-100000" algn="bl" rotWithShape="0"/>`;
 }
 
 /** A background colour spec — a hex string, `{ colour }` or `{ scheme, lumMod?, lumOff? }` — through `colourXml`. */
@@ -2120,6 +2576,43 @@ function withSlideNumber(shapes, number) {
       },
     };
   });
+}
+
+/**
+ * A shape's own axis-aligned footprint on the slide — its unrotated box when
+ * it has no rotation, otherwise the box that exactly contains it turned by
+ * `rot` about its own centre. This is the box Align and Distribute work
+ * from, since PowerPoint lines shapes up by how they look, not by the
+ * unrotated numbers underneath a turned one.
+ */
+function shapeAabb(g) {
+  if (!g.rot) return { x: g.x, y: g.y, w: g.w, h: g.h };
+  const cx = g.x + g.w / 2;
+  const cy = g.y + g.h / 2;
+  const rad = (g.rot * Math.PI) / 180;
+  const cos = Math.cos(rad);
+  const sin = Math.sin(rad);
+  const corners = [
+    [g.x, g.y], [g.x + g.w, g.y], [g.x, g.y + g.h], [g.x + g.w, g.y + g.h],
+  ].map(([px, py]) => {
+    const dx = px - cx;
+    const dy = py - cy;
+    return [cx + dx * cos - dy * sin, cy + dx * sin + dy * cos];
+  });
+  const xs = corners.map((c) => c[0]);
+  const ys = corners.map((c) => c[1]);
+  const x = Math.min(...xs);
+  const y = Math.min(...ys);
+  return { x, y, w: Math.max(...xs) - x, h: Math.max(...ys) - y };
+}
+
+/** The smallest box that holds every one of a list of boxes. */
+function unionBox(boxes) {
+  const x = Math.min(...boxes.map((b) => b.x));
+  const y = Math.min(...boxes.map((b) => b.y));
+  const r = Math.max(...boxes.map((b) => b.x + b.w));
+  const b = Math.max(...boxes.map((b) => b.y + b.h));
+  return { x, y, w: r - x, h: b - y };
 }
 
 function nextShapeId(xml) {

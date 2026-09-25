@@ -24,6 +24,8 @@ import { gradientPng, joinPictureParagraphs } from './sample-picture.js';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { verifyViewer } from './verify-viewer.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
+import { verifyDeckArrange } from './verify-deck-arrange.js';
+import { verifyDeckFx } from './verify-deck-fx.js';
 import { SheetView } from '@rutba/sheet-view';
 
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -4139,7 +4141,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4182,6 +4184,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('viewer')) await viewer();
     if (only.includes('slideshow')) await slideshow();
     if (only.includes('links')) await sheetLinks();
+    if (only.includes('arrange')) await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
+    if (only.includes('deckfx')) await verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('providers')) await mailProviders();
     if (only.includes('signature')) await mailSignature();
     if (only.includes('sendlater')) await mailSendLater();
@@ -4281,6 +4285,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await slideBackground();
   await slideTable();
   await slideChart();
+  await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
+  await verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
   await sheetFill();
   await wordPictures();
   await wordLook();

@@ -61,17 +61,30 @@ const Soon = ({ icon, label, tall, why }) => (
 );
 /** Shape Effects: the shadows PowerPoint offers first, and none. */
 const SHADOW_MENU = [['br', 'Shadow: bottom right'], ['b', 'Shadow: below'], ['r', 'Shadow: right'], ['tl', 'Shadow: top left'], ['c', 'Shadow: all round'], ['none', 'No shadow']];
+/** Shape Effects → Glow: PowerPoint's own gallery radii. */
+const GLOW_MENU = [[5, 'Glow: 5 pt'], [8, 'Glow: 8 pt'], [11, 'Glow: 11 pt'], [18, 'Glow: 18 pt'], [null, 'No glow']];
+/** Shape Effects → Soft Edges. */
+const SOFTEDGE_MENU = [[1, 'Soft Edges: 1 pt'], [2.5, 'Soft Edges: 2.5 pt'], [5, 'Soft Edges: 5 pt'], [10, 'Soft Edges: 10 pt'], [null, 'No soft edges']];
+/** Shape Effects → Reflection: the three gallery presets. */
+const REFLECTION_MENU = [['tight', 'Reflection: tight'], ['half', 'Reflection: half'], ['full', 'Reflection: full'], [null, 'No reflection']];
 const INK = 'Ink is a drawing part (ink ML) the engine does not write, and the stage has no pen surface yet.';
 const TRANSITION_WHY = 'A transition is preserved in the file when the deck has one; authoring one (writing p:transition) is not built.';
 const ANIMATION_WHY = 'Animations are preserved in the file when the deck has them; authoring one (writing p:timing) is not built.';
 
 export default function SlidesRibbon({
   tab, setTab, model, doc, commands, shell, menu, save, openFile, exportAs,
-  act, view = {}, index = 0, selected = null, format = {}, canPaste = false, painter = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
+  act, view = {}, index = 0, selected = null, selectedIds = [], format = {}, canPaste = false, painter = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
 
 }) {
   const count = model?.count || 0;
   const hasShape = Boolean(selected);
+  // Align and Distribute's own toggle — "Align Selected Objects" (the
+  // default) or "Align to Slide" — is how the ribbon remembers which one is
+  // ticked; it is a preference about the next press, not part of the file.
+  const [alignTo, setAlignTo] = React.useState('selection');
+  const selectedShapeObj = (model?.slide?.shapes || []).find((s) => s.id === selected) || null;
+  const isGroup = selectedShapeObj?.kind === 'group';
+  const multiCount = selectedIds.length;
   const size = Number(format.size || 18);
   const nearer = (dir) => {
     const bigger = SIZES.filter((s) => (dir > 0 ? s > size : s < size));
@@ -212,6 +225,26 @@ export default function SlidesRibbon({
               { label: 'Send backward', run: () => act('order', 'backward') },
               { label: 'Send to back', icon: 'chevronDown', run: () => act('order', 'back') },
               '-',
+              { label: 'Group', icon: 'grid', disabled: multiCount < 2, title: multiCount < 2 ? 'Select two or more shapes to group' : undefined, run: () => act('group') },
+              { label: 'Ungroup', icon: 'grid', disabled: !isGroup, title: !isGroup ? 'Select a group to ungroup' : undefined, run: () => act('ungroup') },
+              '-',
+              { label: 'Align Left', run: () => act('align', { edge: 'left', to: alignTo }) },
+              { label: 'Align Center', run: () => act('align', { edge: 'center', to: alignTo }) },
+              { label: 'Align Right', run: () => act('align', { edge: 'right', to: alignTo }) },
+              { label: 'Align Top', run: () => act('align', { edge: 'top', to: alignTo }) },
+              { label: 'Align Middle', run: () => act('align', { edge: 'middle', to: alignTo }) },
+              { label: 'Align Bottom', run: () => act('align', { edge: 'bottom', to: alignTo }) },
+              { label: 'Distribute Horizontally', disabled: multiCount < 3, title: multiCount < 3 ? 'Select three or more shapes to distribute' : undefined, run: () => act('distribute', { axis: 'horizontal', to: alignTo }) },
+              { label: 'Distribute Vertically', disabled: multiCount < 3, title: multiCount < 3 ? 'Select three or more shapes to distribute' : undefined, run: () => act('distribute', { axis: 'vertical', to: alignTo }) },
+              '-',
+              { label: 'Align to Slide', icon: alignTo === 'slide' ? 'check' : undefined, run: () => setAlignTo('slide') },
+              { label: 'Align Selected Objects', icon: alignTo === 'selection' ? 'check' : undefined, run: () => setAlignTo('selection') },
+              '-',
+              { label: 'Rotate Right 90°', run: () => act('rotateBy', 90) },
+              { label: 'Rotate Left 90°', run: () => act('rotateBy', -90) },
+              { label: 'Flip Vertical', run: () => act('flipShape', 'vertical') },
+              { label: 'Flip Horizontal', run: () => act('flipShape', 'horizontal') },
+              '-',
               { label: 'Selection pane (layers)', icon: 'list', run: () => act('pane', 'layers') },
               '-',
               { label: 'Delete shape', icon: 'trash', run: () => act('deleteShape') },
@@ -219,11 +252,19 @@ export default function SlidesRibbon({
               { label: 'Move down (nudge)', run: () => act('nudge', { dy: 8 }) },
               { label: 'Move left (nudge)', run: () => act('nudge', { dx: -8 }) },
               { label: 'Move right (nudge)', run: () => act('nudge', { dx: 8 }) },
-            ])} disabled={!hasShape} title={needShape || 'Arrange the selected shape'} />
+            ])} disabled={!hasShape} title={needShape || 'Arrange the selected shape(s)'} />
             <Button tall icon="wand" label="Quick Styles" disabled={!hasShape} title={needShape || 'The theme\'s own looks: filled in an accent, outlined in the same'} onClick={(e) => menu.open(e, [1, 2, 3, 4, 5, 6].map((n) => ({ label: `Accent ${n}`, icon: 'shape', run: () => act('quickStyle', n) })))} />
             <Button icon="wand" label="Shape Fill" disabled={!hasShape} title={needShape || 'The fill of the selected shape, in the Format pane'} onClick={() => act('formatPane')} />
             <Button icon="shape" label="Shape Outline" disabled={!hasShape} title={needShape || 'The outline of the selected shape, in the Format pane'} onClick={() => act('formatPane')} />
-            <Button icon="wand" label="Shape Effects" disabled={!hasShape} title={needShape || 'Shape Effects — a shadow under the selected shape'} onClick={(e) => menu.open(e, SHADOW_MENU.map(([key, label]) => ({ label, icon: key === 'none' ? 'close' : undefined, run: () => act('shapeShadow', key) })))} />
+            <Button icon="wand" label="Shape Effects" disabled={!hasShape} title={needShape || 'Shape Effects — a shadow, a glow, soft edges or a reflection on the selected shape'} onClick={(e) => menu.open(e, [
+              ...SHADOW_MENU.map(([key, label]) => ({ label, icon: key === 'none' ? 'close' : undefined, run: () => act('shapeShadow', key) })),
+              '-',
+              ...GLOW_MENU.map(([pt, label]) => ({ label, icon: pt === null ? 'close' : undefined, run: () => act('shapeEffects', { glow: pt === null ? null : { radius: pt, color: selectedShapeObj?.effects?.glow?.color } }) })),
+              '-',
+              ...SOFTEDGE_MENU.map(([pt, label]) => ({ label, icon: pt === null ? 'close' : undefined, run: () => act('shapeEffects', { softEdge: pt === null ? null : { radius: pt } }) })),
+              '-',
+              ...REFLECTION_MENU.map(([key, label]) => ({ label, icon: key === null ? 'close' : undefined, run: () => act('shapeEffects', { reflection: key }) })),
+            ])} />
           </Group>
           <Group label="Editing">
             <Button tall icon="find" label="Find" title="Find — words on every slide, walked one hit at a time (Ctrl+F)" onClick={() => act('find')} />

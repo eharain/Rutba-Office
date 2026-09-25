@@ -60,13 +60,25 @@ export default function Slides({ app, shell, boot }) {
    */
   const [view, setView] = useState({ mode: 'normal', ruler: false, gridlines: false, guides: false, notes: true, zoom: null, tone: 'colour', pane: null });
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
-  // The selected shape — one click selects, a double-click edits its words —
-  // is what the Font and Paragraph groups act on.
-  const [selected, setSelected] = useState(null);
-  // A drag in progress on the stage: the shape, whether it is moved or
-  // resized (and by which handle), and the box it has been dragged to, in
-  // slide units. The engine is told once, on release.
+  // The selection — Shift+click or Ctrl+click adds or removes a shape, a
+  // click on empty stage clears it. `selectedIds[0]` is the primary — the
+  // one the Font and Paragraph groups act on, and what a plain click always
+  // replaces the whole selection with — so every existing read of a single
+  // "selected" shape keeps working unchanged for a single selection.
+  const [selectedIds, setSelectedIds] = useState([]);
+  const selected = selectedIds[0] ?? null;
+  const setSelected = useCallback((id) => setSelectedIds(id == null ? [] : [id]), []);
+  const toggleSelected = useCallback(
+    (id) => setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])),
+    []
+  );
+  // A drag in progress on the stage: the shape, whether it is moved,
+  // resized (and by which handle) or rotated, and the box it has been
+  // dragged to, in slide units. The engine is told once, on release.
   const [drag, setDrag] = useState(null);
+  // A multi-shape drag: every selected shape's id and the box it has been
+  // dragged to, so the whole selection moves together as one gesture.
+  const [groupDrag, setGroupDrag] = useState(null);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [printing, setPrinting] = useState(false);
   // Reading View: the show in this window, without going full screen.
@@ -109,6 +121,94 @@ export default function Slides({ app, shell, boot }) {
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
   };
+
+  /**
+   * A press on a shape that is one of several selected moves the whole
+   * selection together; pressing one that is not (or when only one thing is
+   * selected) falls back to the single-shape drag above, which is also what
+   * selects it. Released, one `setGeometry` per shape goes in a single
+   * `apply` call, so the redraw and the undo step are one.
+   */
+  const startGroupDrag = (e, shape) => {
+    if (e.button !== 0 || !shape.geometry) return;
+    const ids = selectedIds.includes(shape.id) && selectedIds.length > 1 ? selectedIds : null;
+    if (!ids) {
+      startDrag(e, shape, 'move');
+      return;
+    }
+    e.preventDefault();
+    e.stopPropagation();
+    const g0s = new Map(ids.map((id) => [id, slide?.shapes?.find((s) => s.id === id)?.geometry]).filter(([, g]) => g).map(([id, g]) => [id, { ...g }]));
+    const s = dragRef.current?.scale ?? 1;
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    let moved = false;
+    let boxes = g0s;
+    const move = (ev) => {
+      const dx = (ev.clientX - x0) / s;
+      const dy = (ev.clientY - y0) / s;
+      if (!moved && Math.abs(ev.clientX - x0) < 2 && Math.abs(ev.clientY - y0) < 2) return;
+      moved = true;
+      const next = new Map();
+      for (const [id, g0] of g0s) next.set(id, { ...g0, x: g0.x + dx, y: g0.y + dy });
+      boxes = next;
+      setGroupDrag({ ids, boxes: next });
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      setGroupDrag(null);
+      if (moved) actRef.current?.('groupDragEnd', { boxes });
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  /**
+   * The rotation handle above the selection: drag turns the shape about its
+   * own centre, Shift snaps to 15° — the same step Alt+Left/Alt+Right nudge
+   * by by from the keyboard. The handle itself orbits the shape as it turns
+   * (see its own position below), so its on-screen position at the moment
+   * of the press already stands for the shape's current angle; only the
+   * *change* in the mouse's angle around the shape's true centre is added
+   * to it, which is why the small mismatch between the pointer and the
+   * handle's exact pixel does not throw the result off.
+   */
+  const startRotate = (e, shape) => {
+    if (e.button !== 0 || !shape.geometry) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const g = shape.geometry;
+    const scale = dragRef.current?.scale ?? 1;
+    const offSlidePx = ROTATE_HANDLE_GAP + g.h / 2;
+    const handleRect = e.currentTarget.getBoundingClientRect();
+    const handleX = (handleRect.left + handleRect.right) / 2;
+    const handleY = (handleRect.top + handleRect.bottom) / 2;
+    const rad0 = ((g.rot || 0) * Math.PI) / 180;
+    // The handle's own formula, inverted, recovers the shape's true centre
+    // in screen pixels whatever the shape's current rotation already is.
+    const cxScreen = handleX - offSlidePx * scale * Math.sin(rad0);
+    const cyScreen = handleY + offSlidePx * scale * Math.cos(rad0);
+    const startAngle = Math.atan2(e.clientY - cyScreen, e.clientX - cxScreen);
+    const rot0 = g.rot || 0;
+    let rot = rot0;
+    const move = (ev) => {
+      const angle = Math.atan2(ev.clientY - cyScreen, ev.clientX - cxScreen);
+      let deg = rot0 + ((angle - startAngle) * 180) / Math.PI;
+      if (ev.shiftKey) deg = Math.round(deg / 15) * 15;
+      rot = ((deg % 360) + 360) % 360;
+      setDrag({ id: shape.id, kind: 'rotate', g: { ...g, rot } });
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      setDrag(null);
+      actRef.current?.('rotateEnd', { id: shape.id, rot });
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
   // The slide is drawn at its own size and scaled to fit the stage, the way
   // PowerPoint's "Fit to Window" does — a 1280-px slide in a 1000-px stage
   // used to run off the right edge, logo and all. Re-measured on resize.
@@ -526,6 +626,58 @@ export default function Slides({ app, shell, boot }) {
         // The box the pointer left the shape at.
         await apply({ op: 'setGeometry', slide: index, shape: arg.id, x: Math.round(arg.g.x), y: Math.round(arg.g.y), w: Math.round(arg.g.w), h: Math.round(arg.g.h) });
         return;
+      case 'groupDragEnd': {
+        // The whole selection, dragged together: one setGeometry per shape,
+        // all in the same apply — one redraw, one undo step.
+        const ops = [...arg.boxes.entries()].map(([id, g]) => ({ op: 'setGeometry', slide: index, shape: id, x: Math.round(g.x), y: Math.round(g.y), w: Math.round(g.w), h: Math.round(g.h) }));
+        if (ops.length) await apply(...ops);
+        return;
+      }
+      case 'rotateEnd':
+        await apply({ op: 'rotateShapes', slide: index, ids: [arg.id], delta: arg.rot - (slide?.shapes?.find((s) => s.id === arg.id)?.geometry?.rot || 0) });
+        return;
+      // Home → Arrange → Align/Distribute/Rotate/Flip/Group/Ungroup — every
+      // one an op on the whole selection (a group counts as one shape).
+      case 'align': {
+        const ids = selectedIds.length ? selectedIds : (selectedShape ? [selectedShape.id] : []);
+        if (!ids.length) return toast('Select a shape first.', { ms: 3000 });
+        await apply({ op: 'alignShapes', slide: index, ids, edge: arg.edge, to: arg.to });
+        return;
+      }
+      case 'distribute': {
+        if (selectedIds.length < 3) return toast('Select three or more shapes first.', { ms: 3000 });
+        await apply({ op: 'distributeShapes', slide: index, ids: selectedIds, axis: arg.axis, to: arg.to });
+        return;
+      }
+      case 'rotateBy': {
+        const ids = selectedIds.length ? selectedIds : (selectedShape ? [selectedShape.id] : []);
+        if (!ids.length) return;
+        await apply({ op: 'rotateShapes', slide: index, ids, delta: arg });
+        return;
+      }
+      case 'flipShape': {
+        const ids = selectedIds.length ? selectedIds : (selectedShape ? [selectedShape.id] : []);
+        if (!ids.length) return;
+        await apply({ op: 'flipShapes', slide: index, ids, axis: arg });
+        return;
+      }
+      case 'group': {
+        if (selectedIds.length < 2) return toast('Select two or more shapes to group.', { ms: 3000 });
+        const next = await apply({ op: 'groupShapes', slide: index, ids: selectedIds });
+        // Shape ids are strings on the scene; `groupShapes` hands back the
+        // number it minted the id from, so the newly-drawn group's own
+        // (string) id is looked up rather than trusted to match `===`.
+        const gid = next?.model?.slide?.shapes?.find((s) => String(s.id) === String(next?.opResult))?.id;
+        if (gid != null) setSelected(gid);
+        return;
+      }
+      case 'ungroup': {
+        if (!selectedShape || selectedShape.kind !== 'group') return toast('Select a group to ungroup.', { ms: 3000 });
+        const next = await apply({ op: 'ungroupShape', slide: index, shape: selectedShape.id });
+        const members = typeof next?.opResult === 'string' ? next.opResult.split(',').filter(Boolean) : [];
+        if (members.length) setSelectedIds(members);
+        return;
+      }
       case 'shapeFill':
         if (!selectedShape) return;
         await apply({ op: 'setShapeStyle', slide: index, shape: selectedShape.id, fill: arg });
@@ -541,10 +693,42 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'shapeShadow': {
+        // Merged with whatever effects the shape already has — a shadow
+        // preset turns the shadow on or off without disturbing a glow, a
+        // reflection or soft edges the shape also carries, the same way
+        // 'shapeEffects' (below) merges the others in. The shape's current
+        // effects come back from the scene in its own read units, so they
+        // go through effectsToWriteSpec first — merging them in as read
+        // silently drops whatever setShapeStyle's writer names differently.
+        if (!selectedShape || !(arg in SHADOW_PRESETS)) return;
+        const effects = { ...effectsToWriteSpec(selectedShape.effects), shadow: SHADOW_PRESETS[arg] };
+        await apply({ op: 'setShapeStyle', slide: index, shape: selectedShape.id, effects });
+        return;
+      }
+      // Shape Effects → Glow / Soft Edges / Reflection: `arg` names the one
+      // key to change (`{ glow: {...} | null }`, and so on); everything
+      // else the shape's effects already carry rides along unchanged, via
+      // effectsToWriteSpec — see its own comment.
+      case 'shapeEffects': {
         if (!selectedShape) return;
-        const preset = SHADOW_PRESETS[arg];
-        if (preset === undefined) return;
-        await apply({ op: 'setShapeStyle', slide: index, shape: selectedShape.id, effects: preset });
+        const effects = { ...effectsToWriteSpec(selectedShape.effects), ...arg };
+        await apply({ op: 'setShapeStyle', slide: index, shape: selectedShape.id, effects });
+        return;
+      }
+      // The Format pane's Picture fill: a picture from this device, the
+      // same dialog Insert → Pictures uses, filling the selected shape and
+      // clipped to its outline.
+      case 'pickPictureFill': {
+        if (!selectedShape) return;
+        const [file] = await shell.dialog.open({
+          title: 'Choose a picture',
+          filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp'] }],
+        });
+        if (!file) return;
+        const { bytes, stat } = await shell.fs.read({ path: file });
+        const ext = String(stat?.ext || file.split('.').pop()).replace('.', '').toLowerCase();
+        const contentType = { png: 'image/png', gif: 'image/gif', bmp: 'image/bmp' }[ext] || 'image/jpeg';
+        await apply({ op: 'setShapeStyle', slide: index, shape: selectedShape.id, fill: { picture: { data: bytes, contentType, name: stat?.name || file.split(/[\/]/).pop() } } });
         return;
       }
       case 'quickStyle':
@@ -721,15 +905,19 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'deleteShape':
-        if (!selectedShape) return;
-
-        await apply({ op: 'removeShape', slide: index, shape: selectedShape.id });
+        if (!selectedIds.length) return;
+        // Every selected shape (a group among them counts as one), in one
+        // apply, so the deletion is a single undo step.
+        await apply(...selectedIds.map((id) => ({ op: 'removeShape', slide: index, shape: id })));
         setSelected(null);
         return;
       case 'nudge': {
-        if (!selectedShape?.geometry) return;
-        const g = selectedShape.geometry;
-        await apply({ op: 'setGeometry', slide: index, shape: selectedShape.id, x: g.x + (arg.dx || 0), y: g.y + (arg.dy || 0), w: g.w, h: g.h });
+        const ids = selectedIds.length ? selectedIds : (selectedShape ? [selectedShape.id] : []);
+        const ops = ids
+          .map((id) => slide?.shapes?.find((s) => s.id === id))
+          .filter((s) => s?.geometry)
+          .map((s) => ({ op: 'setGeometry', slide: index, shape: s.id, x: s.geometry.x + (arg.dx || 0), y: s.geometry.y + (arg.dy || 0), w: s.geometry.w, h: s.geometry.h }));
+        if (ops.length) await apply(...ops);
         return;
       }
       case 'format': {
@@ -844,6 +1032,7 @@ export default function Slides({ app, shell, boot }) {
           view={view}
           index={index}
           selected={selected}
+          selectedIds={selectedIds}
           format={format}
           canPaste={Boolean(clip)}
           painter={Boolean(painter)}
@@ -909,6 +1098,12 @@ export default function Slides({ app, shell, boot }) {
                 if (editing || !selectedShape) return;
                 if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'c') { e.preventDefault(); act('copyShape'); return; }
                 if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'x') { e.preventDefault(); act('cutShape'); return; }
+                // Alt+Left/Alt+Right: PowerPoint's own keyboard rotate, 15° a press.
+                if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+                  e.preventDefault();
+                  act('rotateBy', e.key === 'ArrowLeft' ? -15 : 15);
+                  return;
+                }
                 const step = e.shiftKey ? 10 : 1;
                 const nudge = { ArrowLeft: { dx: -step }, ArrowRight: { dx: step }, ArrowUp: { dy: -step }, ArrowDown: { dy: step } }[e.key];
                 if (nudge) { e.preventDefault(); act('nudge', nudge); }
@@ -971,38 +1166,51 @@ export default function Slides({ app, shell, boot }) {
                   {view.gridlines ? <div className="sl-gridlines" /> : null}
                   {view.guides ? <div className="sl-guides" /> : null}
                   {/*
-                    Every shape gets a hit area over the drawing, so a click lands
-                    on the shape: click selects, drag moves, a double-click on
-                    words edits them. The selected one wears eight handles.
+                    Every top-level shape gets a hit area over the drawing —
+                    a shape inside a group does not get one of its own, so a
+                    click anywhere on a group's members selects the group,
+                    the way PowerPoint's own does. Click selects (Shift or
+                    Ctrl adds or removes one from the selection), drag moves
+                    (the whole selection together, when the one pressed is
+                    already part of it), a double-click on words edits them.
+                    A single selection wears eight handles and a rotation
+                    handle; several share one dashed frame.
                   */}
-                  {slide.shapes.filter((s) => s.geometry && !s.hidden).map((s) => {
-                    const g = drag?.id === s.id ? drag.g : s.geometry;
+                  {slide.shapes.filter((s) => s.geometry && !s.hidden && s.groupId == null).map((s) => {
+                    const g = drag?.id === s.id ? drag.g : groupDrag?.boxes?.get(s.id) ?? s.geometry;
                     return (
                       <button
                         key={s.id}
                         type="button"
-                        className={`sl-hit${selected === s.id ? ' selected' : ''}${drag?.id === s.id ? ' dragging' : ''}${findHit === s.id ? ' find-current' : ''}`}
+                        className={`sl-hit${selectedIds.includes(s.id) ? ' selected' : ''}${selected === s.id ? ' primary' : ''}${drag?.id === s.id || groupDrag?.ids?.includes(s.id) ? ' dragging' : ''}${findHit === s.id ? ' find-current' : ''}`}
                         data-shape={s.id}
                         style={{ left: g.x, top: g.y, width: g.w, height: g.h }}
-                        onMouseDown={(e) => startDrag(e, s, 'move')}
+                        onMouseDown={(e) => { if (e.shiftKey || e.ctrlKey || e.metaKey) return; startGroupDrag(e, s); }}
                         onClick={(e) => {
                           if ((e.ctrlKey || e.metaKey) && linkOf(s)) { shell.shell.openExternal({ url: linkOf(s) }); return; }
-                          if (painter) paintShape(s);
+                          if (painter) { paintShape(s); return; }
+                          if (e.shiftKey || e.ctrlKey || e.metaKey) { toggleSelected(s.id); return; }
                           setSelected(s.id);
                         }}
                         onDoubleClick={() => {
                           if (s.kind === 'chart') { setSelected(s.id); setChartDataOpen(s.id); return; }
                           if (s.text) setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') });
                         }}
-                        onContextMenu={(e) => menu.open(e, [
-                          ...(s.text ? [{ label: 'Edit text', icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) }] : []),
-                          ...(s.kind === 'chart' ? [{ label: 'Edit Data…', icon: 'table', run: () => { setSelected(s.id); setChartDataOpen(s.id); } }] : []),
-                          { label: 'Format shape…', icon: 'wand', run: () => { setSelected(s.id); act('formatPane'); } },
-                          { label: 'Bring to front', icon: 'chevronUp', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'front' }); } },
-                          { label: 'Send to back', icon: 'chevronDown', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'back' }); } },
-                          '-',
-                          { label: 'Delete shape', icon: 'trash', run: () => apply({ op: 'removeShape', slide: index, shape: s.id }) },
-                        ])}
+                        onContextMenu={(e) => {
+                          if (!selectedIds.includes(s.id)) setSelected(s.id);
+                          menu.open(e, [
+                            ...(s.text ? [{ label: 'Edit text', icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) }] : []),
+                            ...(s.kind === 'chart' ? [{ label: 'Edit Data…', icon: 'table', run: () => { setSelected(s.id); setChartDataOpen(s.id); } }] : []),
+                            { label: 'Format shape…', icon: 'wand', run: () => { setSelected(s.id); act('formatPane'); } },
+                            { label: 'Bring to front', icon: 'chevronUp', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'front' }); } },
+                            { label: 'Send to back', icon: 'chevronDown', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'back' }); } },
+                            '-',
+                            { label: 'Group', icon: 'grid', disabled: selectedIds.length < 2, run: () => act('group') },
+                            { label: 'Ungroup', icon: 'grid', disabled: s.kind !== 'group', run: () => act('ungroup') },
+                            '-',
+                            { label: 'Delete shape', icon: 'trash', run: () => act('deleteShape') },
+                          ]);
+                        }}
                         title={(s.text ? `${s.name || 'Shape'} — drag to move, double-click to edit` : `${s.name || s.kind} — drag to move`) + (linkOf(s) ? ` — Ctrl+click to follow ${linkOf(s)}` : '')}
                       />
                     );
@@ -1043,7 +1251,21 @@ export default function Slides({ app, shell, boot }) {
                       />
                     )))
                   )}
-                  {selectedShape?.geometry && !selectedShape.hidden && !editing
+                  {/* Several selected: one dashed frame around all of them, no resize handles of its own. */}
+                  {selectedIds.length > 1
+                    ? (() => {
+                        const boxes = selectedIds
+                          .map((id) => (drag?.id === id ? drag.g : groupDrag?.boxes?.get(id)) ?? slide.shapes.find((s) => s.id === id)?.geometry)
+                          .filter(Boolean);
+                        if (!boxes.length) return null;
+                        const x = Math.min(...boxes.map((b) => b.x));
+                        const y = Math.min(...boxes.map((b) => b.y));
+                        const r = Math.max(...boxes.map((b) => b.x + b.w));
+                        const b2 = Math.max(...boxes.map((b) => b.y + b.h));
+                        return <div className="sl-selection-frame" style={{ left: x, top: y, width: r - x, height: b2 - y, borderWidth: 1.5 / scale }} />;
+                      })()
+                    : null}
+                  {selectedIds.length === 1 && selectedShape?.geometry && !selectedShape.hidden && !editing
                     ? HANDLES.map(([name, fx, fy, cursor]) => {
                         const g = drag?.id === selectedShape.id ? drag.g : selectedShape.geometry;
                         const size = 9 / scale;
@@ -1057,6 +1279,37 @@ export default function Slides({ app, shell, boot }) {
                           />
                         );
                       })
+                    : null}
+                  {/* The rotation handle: floats above the selection, orbiting with it as it turns. */}
+                  {selectedIds.length === 1 && selectedShape?.geometry && !selectedShape.hidden && !editing
+                    ? (() => {
+                        const g = drag?.id === selectedShape.id ? drag.g : selectedShape.geometry;
+                        const cx = g.x + g.w / 2;
+                        const cy = g.y + g.h / 2;
+                        const rad = ((g.rot || 0) * Math.PI) / 180;
+                        const gap = ROTATE_HANDLE_GAP + g.h / 2;
+                        // The stem runs from the top edge to the handle, turning with the
+                        // shape; drawn from the centre it cut through the shape itself.
+                        const ex = cx + (g.h / 2) * Math.sin(rad);
+                        const ey = cy - (g.h / 2) * Math.cos(rad);
+                        const hx = cx + gap * Math.sin(rad);
+                        const hy = cy - gap * Math.cos(rad);
+                        const size = 10 / scale;
+                        return (
+                          <React.Fragment>
+                            <div
+                              className="sl-rotate-line"
+                              style={{ left: ex, top: ey, width: ROTATE_HANDLE_GAP, height: 1.5 / scale, transformOrigin: '0 50%', transform: `rotate(${(g.rot || 0) - 90}deg)` }}
+                            />
+                            <div
+                              className="sl-rotate-handle"
+                              style={{ left: hx - size / 2, top: hy - size / 2, width: size, height: size }}
+                              title="Drag to rotate the shape — hold Shift to snap to 15°"
+                              onMouseDown={(e) => startRotate(e, selectedShape)}
+                            />
+                          </React.Fragment>
+                        );
+                      })()
                     : null}
                   {editing ? (
                     <textarea
@@ -1128,7 +1381,7 @@ export default function Slides({ app, shell, boot }) {
               actions={<Button icon="close" title="Close the pane" onClick={() => act('pane', view.pane)} />}
             >
               {view.pane === 'layers' ? (
-                <LayersPane slide={slide} selected={selected} onSelect={setSelected} act={act} />
+                <LayersPane slide={slide} selected={selected} selectedIds={selectedIds} onSelect={setSelected} onToggle={toggleSelected} act={act} />
               ) : view.pane === 'designs' ? (
                 <DesignsPane layouts={model.layouts} current={slide?.layout || null} size={model.size} act={act} />
               ) : (
@@ -1226,6 +1479,9 @@ export default function Slides({ app, shell, boot }) {
   );
 }
 
+/** How far above the shape's top edge the rotation handle floats, in slide pixels. */
+const ROTATE_HANDLE_GAP = 26;
+
 /** The eight handles: where each sits on the box, and the cursor it shows. */
 const HANDLES = [
   ['nw', 0, 0, 'nwse-resize'], ['n', 0.5, 0, 'ns-resize'], ['ne', 1, 0, 'nesw-resize'],
@@ -1264,16 +1520,47 @@ const LINE_DASHES = [['solid', 'Solid'], ['sysDash', 'Round dot'], ['dash', 'Das
  * or no outline. Each press is one engine operation on the shape's own
  * properties, which the file keeps.
  */
-/** Shape Effects: PowerPoint's offset shadows, in points and degrees, and none. */
+/** Shape Effects: PowerPoint's offset shadows, in points and degrees, and none — each the `shadow` key alone, merged in beside whatever other effects the shape already has. */
 const SHADOW_PRESETS = {
-  none: 'none',
-  br: { shadow: { dist: 3, dir: 45, blur: 4, color: '#000000', alpha: 0.4 } },
-  b: { shadow: { dist: 3, dir: 90, blur: 4, color: '#000000', alpha: 0.4 } },
-  r: { shadow: { dist: 3, dir: 0, blur: 4, color: '#000000', alpha: 0.4 } },
-  tl: { shadow: { dist: 3, dir: 225, blur: 4, color: '#000000', alpha: 0.4 } },
-  c: { shadow: { dist: 0, dir: 0, blur: 6, color: '#000000', alpha: 0.45 } },
+  none: null,
+  br: { dist: 3, dir: 45, blur: 4, color: '#000000', alpha: 0.4 },
+  b: { dist: 3, dir: 90, blur: 4, color: '#000000', alpha: 0.4 },
+  r: { dist: 3, dir: 0, blur: 4, color: '#000000', alpha: 0.4 },
+  tl: { dist: 3, dir: 225, blur: 4, color: '#000000', alpha: 0.4 },
+  c: { dist: 0, dir: 0, blur: 6, color: '#000000', alpha: 0.45 },
 };
+/** Shape Effects → Glow: PowerPoint's own gallery radii, in points. */
+const GLOW_SIZES = [5, 8, 11, 18];
+/** Shape Effects → Reflection: the three gallery presets, by name. */
+const REFLECTION_LABELS = [['tight', 'Tight Reflection'], ['half', 'Half Reflection'], ['full', 'Full Reflection'], [null, 'No Reflection']];
 const SHADOW_LABELS = [['none', 'None'], ['br', 'Bottom right'], ['b', 'Below'], ['r', 'Right'], ['tl', 'Top left'], ['c', 'All round']];
+/**
+ * The scene reads a shape's effects back in its own units — a shadow's
+ * distance and blur in pixels, a glow's and a soft edge's radius in points
+ * but named `radiusPt` — while `setShapeStyle` always writes them in
+ * points, under the plain names (`dist`, `blur`, `radius`) the Format pane
+ * and Shape Effects menu use for a *new* value. Merging a shape's existing
+ * effects into one more change (`shapeEffects`/`shapeShadow`, below) has to
+ * go through here first, or a preserved effect quietly loses whatever the
+ * two sides name differently — which is exactly how asking for a glow kept
+ * a soft edge the shape already had, in name only: written back with no
+ * radius the writer recognised, so it silently fell to the writer's own
+ * default instead of the value on screen.
+ */
+const PX_PER_PT = 96 / 72;
+function effectsToWriteSpec(effects) {
+  if (!effects) return {};
+  const sh = effects.shadow;
+  const glow = effects.glow;
+  const softEdge = effects.softEdge;
+  return {
+    shadow: sh ? { dist: sh.distPx / PX_PER_PT, dir: sh.dir, blur: sh.blurPx / PX_PER_PT, color: sh.color, alpha: sh.alpha } : null,
+    glow: glow ? { radius: glow.radiusPt, color: glow.color, alpha: glow.alpha } : undefined,
+    softEdge: softEdge ? { radius: softEdge.radiusPt } : undefined,
+    reflection: effects.reflection || undefined,
+  };
+}
+
 /** Which preset a shape's shadow is, for the pane to mark. */
 function shadowKeyOf(effects) {
   const sh = effects?.shadow;
@@ -1286,6 +1573,7 @@ function shadowKeyOf(effects) {
 function FormatPane({ shape, theme, act }) {
   if (!shape) return <div className="sl-pane-empty">Click a shape on the slide to format it.</div>;
   if (shape.kind === 'table' || shape.kind === 'chart' || shape.kind === 'unsupported') return <div className="sl-pane-empty">A table or chart frame has no fill or outline of its own.</div>;
+  if (shape.kind === 'group') return <div className="sl-pane-empty">A group has no fill or outline of its own — format a shape inside it.</div>;
   const colours = theme?.colors || {};
   const fill = shape.fill?.type === 'solid' ? shape.fill.color : shape.fill?.type === 'none' ? 'none' : null;
   const line = shape.line && shape.line.type !== 'none' ? shape.line : null;
@@ -1304,16 +1592,67 @@ function FormatPane({ shape, theme, act }) {
       </div>
     </>
   );
+  // The fill's own kind — what the segmented control shows current, and
+  // which of the four sub-panels below it draws.
+  const fillType = shape.fill?.type === 'gradient' ? 'gradient' : shape.fill?.type === 'picture' ? 'picture' : shape.fill?.type === 'none' ? 'none' : 'solid';
+  const transparency = shape.fill?.type === 'solid' ? Math.round((1 - (shape.fill.alpha ?? 1)) * 100) : 0;
+  const angle = shape.fill?.type === 'gradient' ? Math.round(shape.fill.angle ?? 90) : 90;
+  const glow = shape.effects?.glow || null;
+  const softEdge = shape.effects?.softEdge || null;
+  const reflection = shape.effects?.reflection || null;
+
   return (
     <div className="sl-format">
       <div className="sl-format-head">{shape.name || shape.kind}</div>
       <section className="sl-format-fill">
         <h4>Fill</h4>
-        {swatches((hex) => act('shapeFill', hex), fill)}
-        <div className="sl-format-row">
-          <button type="button" className={`sl-chip${fill === 'none' ? ' current' : ''}`} onClick={() => act('shapeFill', 'none')}>No fill</button>
-          <input type="color" className="sl-colour" title="Any colour" value={fill && fill !== 'none' ? fill : '#4472c4'} onChange={(e) => act('shapeFill', e.target.value)} />
+        <div className="sl-format-row sl-format-kinds">
+          {[['none', 'No fill'], ['solid', 'Solid'], ['gradient', 'Gradient'], ['picture', 'Picture']].map(([key, label]) => (
+            <button
+              key={key}
+              type="button"
+              className={`sl-chip${fillType === key ? ' current' : ''}`}
+              onClick={() => {
+                if (key === 'none') act('shapeFill', 'none');
+                else if (key === 'solid') act('shapeFill', { color: fill && fill !== 'none' ? fill : (colours.accent1 || '#4472C4'), alpha: 1 });
+                else if (key === 'gradient') act('shapeFill', { gradient: { preset: 'light', color: { scheme: 'accent1' } } });
+                else act('pickPictureFill');
+              }}
+            >
+              {label}
+            </button>
+          ))}
         </div>
+        {fillType === 'solid' ? (
+          <>
+            {swatches((hex) => act('shapeFill', { color: hex, alpha: shape.fill?.alpha ?? 1 }), fill)}
+            <div className="sl-format-row">
+              <input type="color" className="sl-colour" title="Any colour" value={fill && fill !== 'none' ? fill : '#4472c4'} onChange={(e) => act('shapeFill', { color: e.target.value, alpha: shape.fill?.alpha ?? 1 })} />
+              <label className="sl-format-slider">
+                Transparency {transparency}%
+                <input type="range" min="0" max="100" value={transparency} onChange={(e) => act('shapeFill', { color: fill && fill !== 'none' ? fill : '#4472c4', alpha: 1 - Number(e.target.value) / 100 })} />
+              </label>
+            </div>
+          </>
+        ) : null}
+        {fillType === 'gradient' ? (
+          <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
+            <button type="button" className="sl-chip" onClick={() => act('shapeFill', { gradient: { preset: 'light', color: { scheme: 'accent1' }, angle } })}>Light Variation</button>
+            <button type="button" className="sl-chip" onClick={() => act('shapeFill', { gradient: { preset: 'dark', color: { scheme: 'accent1' }, angle } })}>Dark Variation</button>
+            <label className="sl-format-slider">
+              Angle {angle}°
+              <input type="range" min="0" max="360" value={angle} onChange={(e) => act('shapeFill', { gradient: { stops: shape.fill?.stops?.map((s) => ({ pos: s.offset, color: s.color, alpha: s.alpha })), angle: Number(e.target.value) } })} />
+            </label>
+          </div>
+        ) : null}
+        {fillType === 'picture' && shape.fill?.embed ? (
+          <div className="sl-format-row">
+            <Button icon="picture" label="Choose picture…" onClick={() => act('pickPictureFill')} />
+            <label className="sl-format-check">
+              <input type="checkbox" checked={Boolean(shape.fill.tile)} onChange={(e) => act('shapeFill', { picture: { tile: e.target.checked } })} /> Tile
+            </label>
+          </div>
+        ) : null}
       </section>
       <section className="sl-format-line">
         <h4>Outline</h4>
@@ -1345,6 +1684,33 @@ function FormatPane({ shape, theme, act }) {
           ))}
         </div>
       </section>
+      <section className="sl-format-glow">
+        <h4>Glow</h4>
+        <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
+          <button type="button" className={`sl-chip${!glow ? ' current' : ''}`} onClick={() => act('shapeEffects', { glow: null })}>No glow</button>
+          {GLOW_SIZES.map((pt) => (
+            <button key={pt} type="button" className={`sl-chip${glow && Math.round(glow.radiusPt) === pt ? ' current' : ''}`} onClick={() => act('shapeEffects', { glow: { radius: pt, color: glow?.color || colours.accent1 || '#4472C4', alpha: glow?.alpha ?? 0.6 } })}>{pt} pt</button>
+          ))}
+          <input type="color" className="sl-colour" title="Glow colour" value={glow?.color || colours.accent1 || '#4472c4'} onChange={(e) => act('shapeEffects', { glow: { radius: glow?.radiusPt || 8, color: e.target.value, alpha: glow?.alpha ?? 0.6 } })} />
+        </div>
+      </section>
+      <section className="sl-format-softedge">
+        <h4>Soft Edges</h4>
+        <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
+          <button type="button" className={`sl-chip${!softEdge ? ' current' : ''}`} onClick={() => act('shapeEffects', { softEdge: null })}>None</button>
+          {[1, 2.5, 5, 10].map((pt) => (
+            <button key={pt} type="button" className={`sl-chip${softEdge && Math.round(softEdge.radiusPt * 2) === Math.round(pt * 2) ? ' current' : ''}`} onClick={() => act('shapeEffects', { softEdge: { radius: pt } })}>{pt} pt</button>
+          ))}
+        </div>
+      </section>
+      <section className="sl-format-reflection">
+        <h4>Reflection</h4>
+        <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
+          {REFLECTION_LABELS.map(([key, label]) => (
+            <button key={label} type="button" className={`sl-chip${reflection === key ? ' current' : ''}`} onClick={() => act('shapeEffects', { reflection: key })}>{label}</button>
+          ))}
+        </div>
+      </section>
     </div>
   );
 }
@@ -1354,16 +1720,70 @@ const LAYER_ICONS = { picture: 'picture', table: 'table', chart: 'chart', connec
 
 /**
  * The slide's shapes as layers, top-most first — PowerPoint's selection pane
- * with the parts people use: a click selects the shape on the stage, the eye
- * hides it (it stays in the file, undrawn), the arrows change the drawing
- * order, a double-click renames it.
+ * with the parts people use: a click selects the shape on the stage (Shift
+ * or Ctrl adds or removes one), the eye hides it (it stays in the file,
+ * undrawn), the arrows change the drawing order, a double-click renames it.
+ * A group is one row, its own members listed indented directly under it —
+ * the order the arrows change is the top level's, a group counting as one
+ * shape there exactly as it does on the stage.
  */
-function LayersPane({ slide, selected, onSelect, act }) {
+function LayersPane({ slide, selected, selectedIds = [], onSelect, onToggle, act }) {
   const [renaming, setRenaming] = React.useState(null);
-  const shapes = slide?.shapes || [];
-  const rows = [...shapes].reverse();
-  const pos = selected != null ? shapes.findIndex((s) => s.id === selected) : -1;
-  const n = shapes.length;
+  const all = slide?.shapes || [];
+  const topLevel = all.filter((s) => s.groupId == null);
+  const rows = [...topLevel].reverse();
+  const childrenOf = (id) => [...all.filter((s) => s.groupId === id)].reverse();
+  const pos = selected != null ? topLevel.findIndex((s) => s.id === selected) : -1;
+  const n = topLevel.length;
+  const selectedShape = selected != null ? all.find((s) => s.id === selected) : null;
+
+  const row = (s, indent) => (
+    <div
+      key={s.id}
+      className={`sl-layer${selectedIds.includes(s.id) ? ' active' : ''}${s.hidden ? ' off' : ''}`}
+      data-shape={s.id}
+      style={indent ? { paddingLeft: 14 + indent * 16 } : undefined}
+      onClick={(e) => ((e.shiftKey || e.ctrlKey || e.metaKey) && s.groupId == null ? onToggle(s.id) : onSelect(s.id))}
+      onDoubleClick={() => setRenaming({ id: s.id, name: s.name || '' })}
+      title="Click to select (Shift/Ctrl adds or removes one); double-click to rename"
+    >
+      <button
+        type="button"
+        className="sl-eye"
+        title={s.hidden ? 'Show this shape' : 'Hide this shape'}
+        onClick={(e) => {
+          e.stopPropagation();
+          act('hideShape', { id: s.id, hidden: !s.hidden });
+        }}
+      >
+        <Icon name="eye" size={14} />
+      </button>
+      <Icon name={s.kind === 'group' ? 'grid' : s.text ? 'textbox' : LAYER_ICONS[s.kind] || 'shape'} size={14} />
+      {renaming?.id === s.id ? (
+        <input
+          autoFocus
+          className="rw-input sl-layer-name"
+          value={renaming.name}
+          onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              act('renameShape', { id: s.id, name: renaming.name });
+              setRenaming(null);
+            }
+            if (e.key === 'Escape') setRenaming(null);
+          }}
+          onBlur={() => setRenaming(null)}
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <span className="sl-layer-text">
+          <span className="sl-layer-title">{s.name || `${s.kind} ${s.id}`}</span>
+          {s.text?.paragraphs?.length ? <span className="sl-layer-words">{s.text.paragraphs.map((p) => p.plain).join(' ').slice(0, 70)}</span> : null}
+        </span>
+      )}
+    </div>
+  );
+
   return (
     <div className="sl-layers">
       <div className="sl-layers-tools">
@@ -1372,53 +1792,17 @@ function LayersPane({ slide, selected, onSelect, act }) {
         <Button label="Front" title="Bring to front" disabled={pos < 0 || pos >= n - 1} onClick={() => act('order', 'front')} />
         <Button label="Back" title="Send to back" disabled={pos <= 0} onClick={() => act('order', 'back')} />
         <Spacer />
-        <Button icon="trash" title="Delete the selected shape" disabled={pos < 0} onClick={() => act('deleteShape')} />
+        <Button icon="grid" title={selectedIds.length < 2 ? 'Select two or more shapes to group' : 'Group'} disabled={selectedIds.length < 2} onClick={() => act('group')} />
+        <Button icon="grid" title={selectedShape?.kind !== 'group' ? 'Select a group to ungroup' : 'Ungroup'} disabled={selectedShape?.kind !== 'group'} onClick={() => act('ungroup')} />
+        <Spacer />
+        <Button icon="trash" title="Delete the selected shape(s)" disabled={!selectedIds.length} onClick={() => act('deleteShape')} />
       </div>
       {rows.length ? (
         rows.map((s) => (
-          <div
-            key={s.id}
-            className={`sl-layer${selected === s.id ? ' active' : ''}${s.hidden ? ' off' : ''}`}
-            data-shape={s.id}
-            onClick={() => onSelect(s.id)}
-            onDoubleClick={() => setRenaming({ id: s.id, name: s.name || '' })}
-            title="Click to select; double-click to rename"
-          >
-            <button
-              type="button"
-              className="sl-eye"
-              title={s.hidden ? 'Show this shape' : 'Hide this shape'}
-              onClick={(e) => {
-                e.stopPropagation();
-                act('hideShape', { id: s.id, hidden: !s.hidden });
-              }}
-            >
-              <Icon name="eye" size={14} />
-            </button>
-            <Icon name={s.text ? 'textbox' : LAYER_ICONS[s.kind] || 'shape'} size={14} />
-            {renaming?.id === s.id ? (
-              <input
-                autoFocus
-                className="rw-input sl-layer-name"
-                value={renaming.name}
-                onChange={(e) => setRenaming({ ...renaming, name: e.target.value })}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
-                    act('renameShape', { id: s.id, name: renaming.name });
-                    setRenaming(null);
-                  }
-                  if (e.key === 'Escape') setRenaming(null);
-                }}
-                onBlur={() => setRenaming(null)}
-                onClick={(e) => e.stopPropagation()}
-              />
-            ) : (
-              <span className="sl-layer-text">
-                <span className="sl-layer-title">{s.name || `${s.kind} ${s.id}`}</span>
-                {s.text?.paragraphs?.length ? <span className="sl-layer-words">{s.text.paragraphs.map((p) => p.plain).join(' ').slice(0, 70)}</span> : null}
-              </span>
-            )}
-          </div>
+          <React.Fragment key={s.id}>
+            {row(s, 0)}
+            {s.kind === 'group' ? childrenOf(s.id).map((c) => row(c, 1)) : null}
+          </React.Fragment>
         ))
       ) : (
         <div className="sl-pane-empty">Nothing on this slide yet.</div>
@@ -1484,8 +1868,12 @@ const CSS = `
 .sl-format-row { display: flex; gap: 8px; align-items: center; margin-top: 6px; font-size: 12px; }
 .sl-format-row label { display: flex; flex-direction: column; gap: 3px; flex: 1; font-size: 11.5px; color: var(--ink-2); }
 .sl-format-row select.rw-input { height: 26px; font-size: 12px; }
-.sl-chip { border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: var(--ink-2); }
+.sl-format-kinds { flex-wrap: wrap; gap: 6px; }
+.sl-chip { white-space: nowrap; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 10px; font-size: 11.5px; color: var(--ink-2); }
 .sl-chip:hover, .sl-chip.current { color: var(--accent); border-color: var(--accent); }
+.sl-format-slider { min-width: 120px; }
+.sl-format-slider input[type="range"] { width: 100%; }
+.sl-format-check { flex-direction: row !important; align-items: center; gap: 5px !important; }
 .sl-colour { width: 30px; height: 24px; padding: 0 2px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); }
 .sl-pane-empty { padding: 14px; color: var(--ink-3); font-size: 12.5px; }
 .sl-layers { display: flex; flex-direction: column; }
@@ -1583,6 +1971,20 @@ const CSS = `
 }
 
 .sl-hit.selected { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+/* The primary of a multi-selection — the one Font/Paragraph act on — wears
+   a solid ring; the rest of the selection wears the ordinary dashed one. */
+.sl-hit.selected.primary { box-shadow: 0 0 0 2px var(--accent); }
+/* Several selected: one dashed frame around the whole selection, under the
+   individual outlines and never itself a drag or resize target. */
+.sl-selection-frame { position: absolute; z-index: 3; pointer-events: none; border: 1.5px dashed var(--accent); box-sizing: border-box; }
+/* The rotation handle: a small circle above the selection, joined to it by
+   a thin line that orbits with the shape as it turns. */
+.sl-rotate-line { position: absolute; z-index: 5; background: var(--accent); pointer-events: none; }
+.sl-rotate-handle {
+  position: absolute; z-index: 6; background: #fff; border: 1.5px solid var(--accent); border-radius: 50%;
+  box-sizing: border-box; cursor: grab;
+}
+.sl-rotate-handle:active { cursor: grabbing; }
 /* View → Show: rulers beside the slide, gridlines and guides over it. */
 .sl-ruler-h { position: absolute; left: 0; right: 0; top: -14px; height: 12px; background: repeating-linear-gradient(to right, var(--ink-3) 0 1px, transparent 1px 48px); opacity: .5; }
 .sl-ruler-v { position: absolute; top: 0; bottom: 0; left: -14px; width: 12px; background: repeating-linear-gradient(to bottom, var(--ink-3) 0 1px, transparent 1px 48px); opacity: .5; }

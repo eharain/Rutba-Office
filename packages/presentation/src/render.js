@@ -23,7 +23,7 @@ function fillAttr(fill, fallback = 'none') {
   if (fill.type === 'none') return 'none';
   if (fill.type === 'solid') return fill.color;
   if (fill.type === 'gradient') return `url(#${fill._id})`;
-  if (fill.type === 'picture') return fallback;
+  if (fill.type === 'picture') return fill._id ? `url(#${fill._id})` : fallback;
   return fallback;
 }
 
@@ -366,24 +366,88 @@ export function renderSlide(slide, opts = {}) {
 
   const defs = [];
   let gradSeq = 0;
-  let shadowSeq = 0;
-  // An outer shadow is an SVG drop shadow: the offset from the direction
-  // (clockwise from the right, as DrawingML has it) and the blur's radius.
-  const registerShadow = (effects) => {
-    const sh = effects?.shadow;
-    if (!sh) return '';
-    const id = `sh${++shadowSeq}`;
-    const rad = ((sh.dir || 0) * Math.PI) / 180;
-    const dx = (sh.distPx || 0) * Math.cos(rad);
-    const dy = (sh.distPx || 0) * Math.sin(rad);
-    const std = Math.max(0, (sh.blurPx || 0) / 2);
-    defs.push(`<filter id="${id}" x="-30%" y="-30%" width="160%" height="160%"><feDropShadow dx="${dx.toFixed(2)}" dy="${dy.toFixed(2)}" stdDeviation="${std.toFixed(2)}" flood-color="${sh.color || '#000000'}" flood-opacity="${(sh.alpha ?? 1).toFixed(2)}"/></filter>`);
+  let picSeq = 0;
+  let effectSeq = 0;
+  let reflSeq = 0;
+  let shapeSeq = 0;
+  // The shadow, the glow and the soft edge are one SVG filter — a shape can
+  // carry all three at once, and an element takes only one `filter`. Order
+  // inside it is layering, not the schema's: the glow sits furthest back,
+  // the shadow in front of that, and the (softened, if asked) shape itself
+  // on top — which is how PowerPoint draws the combination too.
+  const registerEffects = (effects) => {
+    if (!effects) return '';
+    const { glow, shadow: sh, softEdge } = effects;
+    if (!glow && !sh && !softEdge) return '';
+    const id = `fx${++effectSeq}`;
+    const parts = [];
+    let top = 'SourceGraphic';
+    if (softEdge) {
+      // A Gaussian blur of a flat fill only visibly softens where it meets
+      // transparency — its edge — which is exactly what soft edges are.
+      parts.push(`<feGaussianBlur in="SourceGraphic" stdDeviation="${((softEdge.radiusPt ?? 2.5) * (96 / 72)).toFixed(2)}" result="softSrc"/>`);
+      top = 'softSrc';
+    }
+    const layers = [];
+    if (glow) {
+      const std = Math.max(0, ((glow.radiusPt ?? 8) * (96 / 72)) / 2);
+      parts.push(
+        `<feGaussianBlur in="SourceAlpha" stdDeviation="${std.toFixed(2)}" result="glowBlur"/>` +
+        `<feFlood flood-color="${glow.color || '#5B9BD5'}" flood-opacity="${(glow.alpha ?? 0.6).toFixed(2)}" result="glowFlood"/>` +
+        `<feComposite in="glowFlood" in2="glowBlur" operator="in" result="glowShape"/>`
+      );
+      layers.push('glowShape');
+    }
+    if (sh) {
+      const rad = ((sh.dir || 0) * Math.PI) / 180;
+      const dx = (sh.distPx || 0) * Math.cos(rad);
+      const dy = (sh.distPx || 0) * Math.sin(rad);
+      const std = Math.max(0, (sh.blurPx || 0) / 2);
+      parts.push(
+        `<feOffset in="SourceAlpha" dx="${dx.toFixed(2)}" dy="${dy.toFixed(2)}" result="shOff"/>` +
+        `<feGaussianBlur in="shOff" stdDeviation="${std.toFixed(2)}" result="shBlur"/>` +
+        `<feFlood flood-color="${sh.color || '#000000'}" flood-opacity="${(sh.alpha ?? 1).toFixed(2)}" result="shFlood"/>` +
+        `<feComposite in="shFlood" in2="shBlur" operator="in" result="shShape"/>`
+      );
+      layers.push('shShape');
+    }
+    layers.push(top);
+    parts.push(`<feMerge>${layers.map((l) => `<feMergeNode in="${l}"/>`).join('')}</feMerge>`);
+    defs.push(`<filter id="${id}" x="-60%" y="-60%" width="220%" height="220%">${parts.join('')}</filter>`);
     return ` filter="url(#${id})"`;
   };
-  const registerFill = (fill) => {
+  /**
+   * Shape Effects → Reflection: a faded, mirrored copy of the shape's own
+   * drawing (its outline, its fill, its words — everything the `<use>`
+   * re-renders), flipped about its own bottom edge and masked with a
+   * gradient that fades out sooner for "tight", later for "full" — the
+   * same three gallery names `deck.js` writes.
+   */
+  const reflectionSvg = (shape, g, refId) => {
+    const kind = shape.effects?.reflection;
+    if (!kind || !refId) return '';
+    const fadeAt = { tight: 55, half: 45, full: 90 }[kind] ?? 45;
+    const gradId = `reflGrad${++reflSeq}`;
+    const maskId = `${gradId}m`;
+    defs.push(`<linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#fff" stop-opacity="0.55"/><stop offset="${fadeAt}%" stop-color="#fff" stop-opacity="0"/></linearGradient>`);
+    defs.push(`<mask id="${maskId}" maskUnits="userSpaceOnUse" x="${(g.x - g.w).toFixed(2)}" y="${g.y.toFixed(2)}" width="${(g.w * 3).toFixed(2)}" height="${g.h.toFixed(2)}"><rect x="${(g.x - g.w).toFixed(2)}" y="${g.y.toFixed(2)}" width="${(g.w * 3).toFixed(2)}" height="${g.h.toFixed(2)}" fill="url(#${gradId})"/></mask>`);
+    const bottom = g.y + g.h;
+    return `<use href="#${refId}" transform="translate(0 ${(2 * bottom).toFixed(2)}) scale(1 -1)" mask="url(#${maskId})"/>`;
+  };
+  const registerFill = (fill, href) => {
     if (fill?.type === 'gradient') {
       fill._id = `g${++gradSeq}`;
       defs.push(gradientDef(fill, fill._id));
+    } else if (fill?.type === 'picture' && href) {
+      fill._id = `pic${++picSeq}`;
+      if (fill.tile) {
+        // The picture's own pixel size is not decoded here, so the tile is
+        // an approximate, fixed size rather than the picture's true one.
+        const tile = 96;
+        defs.push(`<pattern id="${fill._id}" patternUnits="userSpaceOnUse" width="${tile}" height="${tile}"><image href="${href}" x="0" y="0" width="${tile}" height="${tile}" preserveAspectRatio="xMidYMid slice"/></pattern>`);
+      } else {
+        defs.push(`<pattern id="${fill._id}" patternUnits="objectBoundingBox" patternContentUnits="objectBoundingBox" width="1" height="1"><image href="${href}" x="0" y="0" width="1" height="1" preserveAspectRatio="none"/></pattern>`);
+      }
     }
     return fill;
   };
@@ -394,9 +458,26 @@ export function renderSlide(slide, opts = {}) {
 
   for (const shape of slide.shapes || []) {
     if (shape.hidden) continue;
+    // A group is not drawn itself — it is only a handle on its members,
+    // which are already in this same list with their own, already-composed
+    // geometry (see slide.js's `composeGroupChild`). Drawing it too would
+    // paint an extra, invisible rectangle for nothing.
+    if (shape.kind === 'group') continue;
     const g = shape.geometry;
     if (!g) continue;
-    const transform = g.rot ? ` transform="rotate(${g.rot.toFixed(2)} ${(g.x + g.w / 2).toFixed(2)} ${(g.y + g.h / 2).toFixed(2)})"` : '';
+    // PowerPoint flips the geometry, not the words in it: a flipped shape's
+    // outline and fill mirror, but its text is set the way it reads,
+    // rotated the same as an unflipped shape's would be. So the shape gets
+    // the full transform (flip, then rotation, both about its own centre)
+    // and its text gets only the rotation part of the same transform.
+    const cx = g.x + g.w / 2;
+    const cy = g.y + g.h / 2;
+    const rotatePart = g.rot ? `rotate(${g.rot.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)}) ` : '';
+    const flipPart = g.flipH || g.flipV
+      ? `translate(${cx.toFixed(2)} ${cy.toFixed(2)}) scale(${g.flipH ? -1 : 1} ${g.flipV ? -1 : 1}) translate(${(-cx).toFixed(2)} ${(-cy).toFixed(2)})`
+      : '';
+    const transform = rotatePart || flipPart ? ` transform="${rotatePart}${flipPart}"` : '';
+    const textTransform = g.rot ? ` transform="rotate(${g.rot.toFixed(2)} ${cx.toFixed(2)} ${cy.toFixed(2)})"` : '';
 
     if (shape.kind === 'picture') {
       const href = resolveImage ? resolveImage(shape) : null;
@@ -443,7 +524,7 @@ export function renderSlide(slide, opts = {}) {
       continue;
     }
 
-    const fill = registerFill(shape.fill);
+    const fill = registerFill(shape.fill, shape.fill?.type === 'picture' && resolveImage ? resolveImage(shape) : null);
     const line = shape.line;
     const geom = shapePath(shape.preset, g, shape.path || null, { simplify });
     if (!geom) continue;
@@ -453,10 +534,20 @@ export function renderSlide(slide, opts = {}) {
       : '';
     const fillValue = fillAttr(fill, shape.kind === 'connector' ? 'none' : 'none');
     const opacity = fill?.alpha != null && fill.alpha < 1 ? ` fill-opacity="${fill.alpha}"` : '';
-    body.push(`${geom} fill="${fillValue}"${opacity}${strokeBits}${registerShadow(shape.effects)}${transform}/>`);
-
     const text = shape.text && shape.text.paragraphs?.length ? shape.text : null;
-    if (text) body.push(`<g${transform}>${textSvg(text, g, { scale: 1, baseSize: defaultSizeFor(shape.placeholder) })}</g>`);
+    const shapeMarkup = `${geom} fill="${fillValue}"${opacity}${strokeBits}${registerEffects(shape.effects)}${transform}/>`;
+    const textMarkup = text ? `<g${textTransform}>${textSvg(text, g, { scale: 1, baseSize: defaultSizeFor(shape.placeholder) })}</g>` : '';
+
+    // A reflection is a mirrored copy of the shape and its words, drawn from
+    // a `<use>` on a group that wraps both — which is only worth the extra
+    // wrapper element when there is one to draw.
+    if (shape.effects?.reflection) {
+      const wrapId = `shpref${++shapeSeq}`;
+      body.push(`<g id="${wrapId}">${shapeMarkup}${textMarkup}</g>`);
+      body.push(reflectionSvg(shape, g, wrapId));
+    } else {
+      body.push(shapeMarkup + textMarkup);
+    }
   }
 
   const inner = `${defs.length ? `<defs>${defs.join('')}</defs>` : ''}${body.join('')}`;

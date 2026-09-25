@@ -820,15 +820,19 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     const deck = session.engine;
     const blobs = session.blobs || (session.blobs = new Map());
 
+    // A picture's own source, or — for a shape filled *with* a picture
+    // rather than drawn *as* one — its fill's, so the same resolver draws
+    // both a `<p:pic>` and a rectangle with a picture fill.
     const resolveImage = (shape) => {
-      if (!shape.source?.part) return null;
-      const known = blobs.get(shape.source.part);
+      const source = shape.source?.part ? shape.source : shape.fill?.type === 'picture' ? shape.fill.source : null;
+      if (!source?.part) return null;
+      const known = blobs.get(source.part);
       if (known) return known;
-      const bytes = deck.media(shape.source.part);
+      const bytes = deck.media(source.part);
       if (!bytes) return null;
-      const type = shape.source.part.endsWith('.png') ? 'image/png' : shape.source.part.endsWith('.gif') ? 'image/gif' : shape.source.part.endsWith('.bmp') ? 'image/bmp' : 'image/jpeg';
-      const url = holdBlob(bytes, type, path.basename(shape.source.part)).url;
-      blobs.set(shape.source.part, url);
+      const type = source.part.endsWith('.png') ? 'image/png' : source.part.endsWith('.gif') ? 'image/gif' : source.part.endsWith('.bmp') ? 'image/bmp' : 'image/jpeg';
+      const url = holdBlob(bytes, type, path.basename(source.part)).url;
+      blobs.set(source.part, url);
       return url;
     };
     // Thumbnails, cached per slide against the slide part's own XML: a deck
@@ -881,6 +885,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
               kind: s.kind,
               name: s.name,
               hidden: Boolean(s.hidden),
+              // Which group (by id) this shape is a direct member of, or
+              // null for one that sits straight on the slide — a group
+              // itself is top-level too, so it also carries null unless it
+              // is nested in another group.
+              groupId: s.groupId ?? null,
               fill: s.fill ?? null,
               line: s.line ?? null,
               effects: s.effects ?? null,
@@ -1119,6 +1128,20 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     addShape: (d, a) => d.addShape(a.slide, a),
     // The Layers pane's verbs: the drawing order, a shape hidden or shown, a name.
     reorderShape: (d, a) => d.reorderShape(a.slide, a.shape, a.to),
+    // Home → Arrange: align/distribute the selected shapes, rotate or flip
+    // them, and Group/Ungroup. `ids` names top-level shapes (a group counts
+    // as one); align and distribute default to the selection's own bounds
+    // for two or more shapes, and to the slide for one — `to: 'slide'`
+    // forces every shape to the slide's own edges instead.
+    alignShapes: (d, a) => d.alignShapes(a.slide, a.ids, a.edge, { to: a.to }),
+    distributeShapes: (d, a) => d.distributeShapes(a.slide, a.ids, a.axis, { to: a.to }),
+    rotateShapes: (d, a) => d.rotateShapes(a.slide, a.ids, a.delta),
+    flipShapes: (d, a) => d.flipShapes(a.slide, a.ids, a.axis),
+    groupShapes: (d, a) => d.groupShapes(a.slide, a.ids),
+    // The members' own ids, comma-joined: only a primitive rides back as
+    // `opResult` (see `apply`, below), and the ribbon selects them all again
+    // once the group is gone, the way PowerPoint leaves them selected.
+    ungroupShape: (d, a) => d.ungroupShape(a.slide, a.shape).join(','),
     setShapeHidden: (d, a) => d.setShapeHidden(a.slide, a.shape, Boolean(a.hidden)),
     // Slide Show → Hide Slide: this slide left out of the show.
     setSlideHidden: (d, a) => d.setSlideHidden(a.slide, Boolean(a.hidden)),

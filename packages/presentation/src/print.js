@@ -73,7 +73,7 @@ const esc = (s) =>
 function imageResolver(deck) {
   const cache = new Map();
   return (shape) => {
-    const part = shape.source?.part;
+    const part = shape.source?.part || (shape.fill?.type === 'picture' ? shape.fill.source?.part : null);
     if (!part) return null;
     if (cache.has(part)) return cache.get(part);
     let url = null;

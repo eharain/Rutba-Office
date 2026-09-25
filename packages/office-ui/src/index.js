@@ -757,6 +757,7 @@ export function Menu({ x, y, items, onClose }) {
             key={item.label}
             type="button"
             disabled={item.disabled}
+            title={item.title}
             onClick={() => {
               item.run?.();
               onClose?.();
