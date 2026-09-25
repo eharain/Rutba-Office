@@ -33,6 +33,7 @@
 import { compareValues, isError } from '@rutba/formula';
 import { OoxmlPackage } from './package.js';
 import { parseRef, makeRef } from './workbook.js';
+import { chartPartXml } from './build.js';
 
 const attrsOf = (tag) => {
   const out = {};
@@ -83,6 +84,19 @@ const SUBTOTALS = new Set([
   'sum', 'count', 'countNums', 'average', 'max', 'min', 'product',
   'stdDev', 'stdDevp', 'var', 'varp',
 ]);
+
+/** A cache field's `<sharedItems>` children, as values: text, numbers, flags, blanks. */
+function readSharedItems(body) {
+  const out = [];
+  for (const m of String(body).matchAll(/<(s|n|b|e|m|d)\b([^>]*?)(?:\/>|>[\s\S]*?<\/\1>)/g)) {
+    const a = attrsOf(m[2]);
+    if (m[1] === 'm') out.push('');
+    else if (m[1] === 'n') out.push(Number(a.v));
+    else if (m[1] === 'b') out.push(a.v === '1' || a.v === 'true');
+    else out.push(unesc(a.v ?? ''));
+  }
+  return out;
+}
 
 /**
  * Every pivot table in a workbook, with its cache and its layout, read from
@@ -143,6 +157,7 @@ function readPivotPart(wb, sheetName, tablePart) {
     colFields: [],
     pageFields: [],
     dataFields: [],
+    hidden: new Map(),
     unsupported: null,
   };
 
@@ -178,9 +193,17 @@ function readPivotPart(wb, sheetName, tablePart) {
     for (const m of fieldsBlock[1].matchAll(/<cacheField\b([^>]*?)(?:\/>|>([\s\S]*?)<\/cacheField>)/g)) {
       const a = attrsOf(m[1]);
       const body = m[2] ?? '';
-      pivot.cacheFields.push({ name: unesc(a.name ?? ''), grouped: /<fieldGroup\b/.test(body) });
+      // The field's shared items, when the cache keeps them: the values an
+      // `<item x="n"/>` in the table definition — and a slicer's `<i x>` —
+      // index. Null when the cache writes the field's values literally.
+      const shared = /<sharedItems\b[^>]*?(?:\/>|>([\s\S]*?)<\/sharedItems>)/.exec(body);
+      const items = shared && shared[1] !== undefined ? readSharedItems(shared[1]) : null;
+      pivot.cacheFields.push({ name: unesc(a.name ?? ''), grouped: /<fieldGroup\b/.test(body), items });
     }
   }
+  const x14 = /<x14:pivotCacheDefinition\b([^>]*?)\/?>/.exec(cacheXml);
+  pivot.cacheId = Number(head.cacheId ?? 0) || null;
+  pivot.slicerCacheId = x14 && attrsOf(x14[1]).pivotCacheId ? Number(attrsOf(x14[1]).pivotCacheId) : null;
   if (pivot.cacheFields.some((f) => f.grouped)) {
     pivot.unsupported = 'one of its fields is grouped (dates into months, or numbers into bands)';
     return pivot;
@@ -198,6 +221,18 @@ function readPivotPart(wb, sheetName, tablePart) {
     pivot.unsupported = 'it has a calculated field';
     return pivot;
   }
+  // Items hidden in a field — a filter on its row or column labels, or a
+  // slicer's choice — by their index into the field's shared items.
+  pivot.hidden = new Map();
+  pivotFields.forEach((f, fld) => {
+    const set = new Set();
+    for (const m of f.body.matchAll(/<item\b([^>]*?)\/?>/g)) {
+      const a = attrsOf(m[1]);
+      if (a.t !== undefined || a.x === undefined) continue;
+      if (a.h === '1' || a.h === 'true') set.add(Number(a.x));
+    }
+    if (set.size) pivot.hidden.set(fld, set);
+  });
 
   const indices = (block, tag) => {
     const b = new RegExp('<' + block + '\\b[^>]*>([\\s\\S]*?)</' + block + '>').exec(xml);
@@ -350,6 +385,14 @@ export function computePivot(pivot, readCell) {
     const chosen = seen[pf.item];
     if (chosen === undefined) continue;
     visible = visible.filter((line) => keyOf([line[pf.fld]]) === keyOf([chosen]));
+  }
+  // Hidden items — a label filter, or a slicer's choice — leave the grid and
+  // its totals, as Excel's own do.
+  for (const [fld, set] of pivot.hidden ?? new Map()) {
+    const items = pivot.cacheFields[fld]?.items;
+    if (!items || !set.size) continue;
+    const out = new Set([...set].map((x) => items[x]).filter((v) => v !== undefined).map((v) => keyOf([v])));
+    visible = visible.filter((line) => !out.has(keyOf([line[fld] ?? ''])));
   }
 
   const tupleOf = (line, fields) => fields.map((f) => line[f] ?? '');
@@ -509,10 +552,35 @@ export function computePivot(pivot, readCell) {
   }
   const width = rowHeaderCols + allCols.length;
 
+  // What a PivotChart plots: each row label a category, each column of values
+  // (not the grand totals) a series — in absolute sheet coordinates, so the
+  // chart's references point at the cells the pivot has just written.
+  const top = pivot.location.top;
+  const left = pivot.location.left;
+  const numberOr = (v) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+  const chart = {
+    catLeft: left,
+    catRight: left + rowHeaderCols - 1,
+    firstRow: top + bodyTop,
+    lastRow: top + bodyTop + rowKeys.length - 1,
+    categories: rowKeys.map((rk) => (rk.length ? rk.map((v) => (v === '' || v === null || v === undefined ? '(blank)' : String(v))).join(' — ') : 'Total')),
+    series: leaves.map((leaf, j) => {
+      const label = dataFieldLabel(pivot, leaf.df);
+      const colText = leaf.colKey.map((v) => (v === '' || v === null || v === undefined ? '(blank)' : String(v))).join(' — ');
+      return {
+        col: left + rowHeaderCols + j,
+        nameRow: top + bodyTop - 1,
+        name: colText ? (multiData ? colText + ' — ' + label : colText) : label,
+        values: rowKeys.map((rk) => numberOr(valueAt(rk, leaf.colKey, leaf.df))),
+      };
+    }),
+  };
+
   return {
     cells,
     height,
     width,
+    chart,
     // The three offsets the stored `location` carries, as THIS layout put
     // them — so a caller updating the definition states what it actually
     // wrote rather than preserving numbers that no longer describe the grid.
@@ -559,6 +627,285 @@ export function updatePivotLocation(wb, pivot, area, { headerRows, dataRow, data
     }
   }
   return wb;
+}
+
+// ---- item filters: what a slicer on a pivot writes -------------------------
+
+/** One value's identity as a pivot groups it: text case-blind, blanks one item. */
+export const pivotKey = (v) => keyOf([v === null || v === undefined ? '' : v]);
+
+/** A value as a slicer button or a filter list shows it. */
+export function itemLabel(v) {
+  if (v === '' || v === null || v === undefined) return '(blank)';
+  if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+  return String(v);
+}
+
+/**
+ * The distinct values of one of the pivot's source columns, in source order —
+ * the order a cache numbers a field's items in — read LIVE.
+ */
+export function sourceValues(pivot, readCell, fld) {
+  const src = pivot.source;
+  const seen = new Map();
+  for (let r = src.top + 1; r <= src.bottom; r++) {
+    let empty = true;
+    for (let c = src.left; c <= src.right && empty; c++) {
+      const v = readCell(src.sheet, r, c);
+      if (!(v === '' || v === null || v === undefined)) empty = false;
+    }
+    if (empty) continue;
+    const v = readCell(src.sheet, r, src.left + fld);
+    const value = v === null || v === undefined ? '' : v;
+    const k = keyOf([value]);
+    if (!seen.has(k)) seen.set(k, value);
+  }
+  return [...seen.values()];
+}
+
+/** The type flags a `<sharedItems>` carries for a list of values, checked by Excel on open. */
+function sharedFlags(values) {
+  const blank = values.some((v) => v === '' || v === null || v === undefined);
+  const real = values.filter((v) => !(v === '' || v === null || v === undefined));
+  const nums = real.filter((v) => typeof v === 'number');
+  const text = real.length - nums.length;
+  let a = '';
+  const range = nums.length
+    ? (nums.every(Number.isInteger) ? ' containsInteger="1"' : '') + ' minValue="' + Math.min(...nums) + '" maxValue="' + Math.max(...nums) + '"'
+    : '';
+  if (nums.length && !text) {
+    a = (blank ? ' containsString="0" containsBlank="1"' : ' containsSemiMixedTypes="0" containsString="0"') + ' containsNumber="1"' + range;
+  } else if (nums.length) {
+    a = (blank ? ' containsBlank="1"' : '') + ' containsMixedTypes="1" containsNumber="1"' + range;
+  } else if (blank) {
+    a = ' containsBlank="1"';
+  }
+  return a;
+}
+
+/** `<sharedItems>` for a list of values, flags and items. */
+function sharedItemsXml(values) {
+  return '<sharedItems' + sharedFlags(values) + ' count="' + values.length + '">' + values.map(itemXml).join('') + '</sharedItems>';
+}
+
+/** One record child (`<n v="3"/>`, `<s v="North"/>`, `<m/>`…) as the value it holds. */
+function recordValue(tag, attrsText) {
+  const a = attrsOf(attrsText);
+  if (tag === 'm') return '';
+  if (tag === 'n') return Number(a.v);
+  if (tag === 'b') return a.v === '1' || a.v === 'true';
+  return unesc(a.v ?? '');
+}
+
+/** The `i`th `<cacheField>` of a cache definition, located. */
+function cacheFieldAt(cacheXml, fld) {
+  const re = /<cacheField\b[^>]*?(?:\/>|>[\s\S]*?<\/cacheField>)/g;
+  let m;
+  let i = 0;
+  while ((m = re.exec(cacheXml))) {
+    if (i === fld) return { start: m.index, end: m.index + m[0].length, xml: m[0] };
+    i += 1;
+  }
+  return null;
+}
+
+/** The `i`th `<pivotField>` of a table definition, located. */
+function pivotFieldAt(xml, fld) {
+  const block = /<pivotFields\b[^>]*>/.exec(xml);
+  if (!block) return null;
+  const re = /<pivotField\b[^>]*?(?:\/>|>[\s\S]*?<\/pivotField>)/g;
+  re.lastIndex = block.index;
+  let m;
+  let i = 0;
+  while ((m = re.exec(xml))) {
+    if (i === fld) return { start: m.index, end: m.index + m[0].length, xml: m[0] };
+    i += 1;
+  }
+  return null;
+}
+
+/**
+ * Make sure the cache keeps shared items for a field, holding every value the
+ * source has now — the list a hidden item and a slicer's `<i x>` index. A
+ * field kept as literal values is turned into shared items and its records
+ * into indices; a field that has them gains any value added since, at the
+ * end, so no index already written moves. Returns the item list.
+ */
+export function ensureSharedItems(wb, pivot, fld, live) {
+  let cacheXml = wb.pkg.text(pivot.cachePart);
+  const field = cacheFieldAt(cacheXml, fld);
+  if (!field) throw new Error('the pivot cache has no field ' + fld);
+  const had = pivot.cacheFields[fld]?.items;
+  const items = had ? [...had] : [];
+  const indexOf = (v) => {
+    const k = keyOf([v === null || v === undefined ? '' : v]);
+    return items.findIndex((x) => keyOf([x]) === k);
+  };
+  let converted = false;
+  if (!had) {
+    // The records carry this field's values literally: read them in order,
+    // number them, and write each record's cell back as an index.
+    const recRel = wb.pkg.rels(pivot.cachePart).find((r) => String(r.Type).endsWith('/pivotCacheRecords'));
+    const recPart = recRel ? OoxmlPackage.resolveTarget(pivot.cachePart, recRel.Target) : null;
+    if (recPart && wb.pkg.has(recPart)) {
+      const recXml = wb.pkg.text(recPart);
+      const next = recXml.replace(/<r>([\s\S]*?)<\/r>/g, (whole, inner) => {
+        let i = 0;
+        const out = inner.replace(/<(x|n|s|b|e|m|d)\b([^>]*?)(?:\/>|>[\s\S]*?<\/\1>)/g, (child, tag, attrsText) => {
+          const at = i;
+          i += 1;
+          if (at !== fld || tag === 'x') return child;
+          const v = recordValue(tag, attrsText);
+          let n = indexOf(v);
+          if (n < 0) { items.push(v); n = items.length - 1; }
+          return '<x v="' + n + '"/>';
+        });
+        return '<r>' + out + '</r>';
+      });
+      if (next !== recXml) wb.pkg.write_(recPart, next);
+    }
+    converted = true;
+  }
+  const before = items.length;
+  for (const v of live) if (indexOf(v) < 0) items.push(v === null || v === undefined ? '' : v);
+  if (converted || items.length !== before) {
+    cacheXml = wb.pkg.text(pivot.cachePart);
+    const at = cacheFieldAt(cacheXml, fld);
+    const shared = sharedItemsXml(items);
+    let fieldXml = at.xml;
+    if (/<sharedItems\b[^>]*?(?:\/>|>[\s\S]*?<\/sharedItems>)/.test(fieldXml)) {
+      fieldXml = fieldXml.replace(/<sharedItems\b[^>]*?(?:\/>|>[\s\S]*?<\/sharedItems>)/, () => shared);
+    } else if (/\/>$/.test(fieldXml)) {
+      fieldXml = fieldXml.replace(/\s*\/>$/, '>' + shared + '</cacheField>');
+    } else {
+      fieldXml = fieldXml.replace(/^(<cacheField\b[^>]*>)/, (m) => m + shared);
+    }
+    wb.pkg.write_(pivot.cachePart, cacheXml.slice(0, at.start) + fieldXml + cacheXml.slice(at.end));
+    if (pivot.cacheFields[fld]) pivot.cacheFields[fld].items = items;
+  }
+  return items;
+}
+
+/**
+ * Show only some of a field's items in a pivot — the rest hidden, `h="1"` on
+ * the field's items, the way a slicer or a label filter leaves them. `selected`
+ * lists the values to keep (compared as the pivot compares them); null shows
+ * every item. The field need not be on an axis: a slicer filters a pivot by a
+ * field it does not show, and Excel writes that the same way.
+ */
+export function setPivotItemsShown(wb, pivot, fld, selected, readCell) {
+  const live = sourceValues(pivot, readCell, fld);
+  const items = ensureSharedItems(wb, pivot, fld, live);
+  const keep = selected === null || selected === undefined ? null : new Set(selected.map((v) => keyOf([v === null || v === undefined ? '' : v])));
+  if (keep && !keep.size) throw new Error('a filter must leave at least one item showing');
+  const hiddenOf = (x) => Boolean(keep) && !keep.has(keyOf([items[x]]));
+
+  const xml = wb.pkg.text(pivot.part);
+  const at = pivotFieldAt(xml, fld);
+  if (!at) throw new Error('the pivot table has no field ' + fld);
+  const head = /^<pivotField\b[^>]*?(?=\/?>)/.exec(at.xml)[0];
+  const itemsBlock = /<items\b[^>]*>([\s\S]*?)<\/items>/.exec(at.xml);
+  const listed = [];
+  const totals = [];
+  if (itemsBlock) {
+    for (const m of itemsBlock[1].matchAll(/<item\b([^>]*?)\/?>/g)) {
+      const a = attrsOf(m[1]);
+      if (a.t !== undefined || a.x === undefined) totals.push(m[0]);
+      else listed.push({ x: Number(a.x), attrs: m[1] });
+    }
+  }
+  const onAxis = /\baxis="/.test(head);
+  if (!itemsBlock && onAxis) totals.push('<item t="default"/>');
+  const seen = new Set(listed.map((l) => l.x));
+  for (let x = 0; x < items.length; x++) if (!seen.has(x)) listed.push({ x, attrs: ' x="' + x + '"' });
+  const itemXmls = listed.map((l) => {
+    const rest = l.attrs.replace(/\s+h="[^"]*"/, '').replace(/\s*\/$/, '');
+    return '<item' + rest + (hiddenOf(l.x) ? ' h="1"' : '') + '/>';
+  }).concat(totals);
+  const body = at.xml.replace(/^<pivotField\b[^>]*?\/?>/, '').replace(/<\/pivotField>$/, '').replace(/<items\b[^>]*>[\s\S]*?<\/items>/, '');
+  const next = head + '><items count="' + itemXmls.length + '">' + itemXmls.join('') + '</items>' + body + '</pivotField>';
+  wb.pkg.write_(pivot.part, xml.slice(0, at.start) + next + xml.slice(at.end));
+
+  pivot.hidden = pivot.hidden ?? new Map();
+  const hiddenSet = new Set();
+  for (let x = 0; x < items.length; x++) if (hiddenOf(x)) hiddenSet.add(x);
+  if (hiddenSet.size) pivot.hidden.set(fld, hiddenSet);
+  else pivot.hidden.delete(fld);
+  return { items, hidden: hiddenSet };
+}
+
+// ---- PivotCharts -------------------------------------------------------------
+
+/** The chart kinds a PivotChart can be — every kind but scatter, as in Excel. */
+export const PIVOT_CHART_KINDS = ['column', 'bar', 'line', 'area', 'pie', 'doughnut'];
+
+const quoteSheet = (s) => (/^[A-Za-z_][A-Za-z0-9_.]*$/.test(s) ? s : "'" + String(s).replace(/'/g, "''") + "'");
+
+/**
+ * The name a chart's `c:pivotSource` gives its pivot: `[Book.xlsx]Sheet!Name`
+ * as Excel writes it. The file name is what Excel wrote when it made the
+ * chart; it matches the pivot by sheet and name, whatever the file is called.
+ */
+export function pivotSourceName(fileName, pivot) {
+  return '[' + String(fileName || 'Book1.xlsx').replace(/[[\]]/g, '') + ']' + quoteSheet(pivot.sheet) + '!' + pivot.name;
+}
+
+/** `[Book.xlsx]'Sales 2026'!PivotTable1` -> { sheet, name }, or null. */
+export function parsePivotSource(text) {
+  const t = unesc(String(text ?? '')).replace(/^\[[^\]]*\]/, '');
+  const bang = t.lastIndexOf('!');
+  if (bang < 0) return null;
+  return { sheet: t.slice(0, bang).replace(/^'|'$/g, '').replace(/''/g, "'"), name: t.slice(bang + 1) };
+}
+
+/**
+ * A PivotChart's part, as Excel writes one: `c:pivotSource` naming the pivot
+ * and `c:pivotFmts` beside the plot, and ordinary series whose references
+ * point into the pivot's rectangle with caches holding its current values —
+ * so Excel re-plots it from the pivot, and every other reader, this one
+ * included, draws the numbers it was given.
+ */
+export function pivotChartXml({ sourceName, kind = 'column', title = '', sheet, chart }) {
+  const q = quoteSheet(sheet);
+  const cell = (row, col) => {
+    const m = /^([A-Z]+)(\d+)$/.exec(makeRef(row, col));
+    return '$' + m[1] + '$' + m[2];
+  };
+  const range = (r1, c1, r2, c2) => q + '!' + cell(r1, c1) + (r1 === r2 && c1 === c2 ? '' : ':' + cell(r2, c2));
+  const rows = chart.lastRow >= chart.firstRow;
+  const xml = chartPartXml({
+    kind: PIVOT_CHART_KINDS.includes(kind) ? kind : 'column',
+    title: String(title ?? '').trim() || undefined,
+    categories: {
+      ref: rows ? range(chart.firstRow, chart.catLeft, chart.lastRow, chart.catRight) : null,
+      values: chart.categories,
+    },
+    series: chart.series.map((s) => ({
+      name: s.name,
+      nameRef: range(s.nameRow, s.col, s.nameRow, s.col),
+      ref: rows ? range(chart.firstRow, s.col, chart.lastRow, s.col) : null,
+      values: s.values,
+    })),
+  });
+  return xml
+    .replace('<c:chart>', '<c:pivotSource><c:name>' + esc(sourceName) + '</c:name><c:fmtId val="0"/></c:pivotSource><c:chart>')
+    .replace('<c:plotArea>', '<c:pivotFmts><c:pivotFmt><c:idx val="0"/></c:pivotFmt></c:pivotFmts><c:plotArea>')
+    .replace('<c:plotVisOnly val="1"/>', (m) => (chart.series.length > 1 || kind === 'pie' || kind === 'doughnut' ? '<c:legend><c:legendPos val="r"/><c:overlay val="0"/></c:legend>' : '') + m);
+}
+
+/** What a chart part says about its pivot: the source's name, its kind and its title. */
+export function readPivotChart(chartXml) {
+  const src = /<c:pivotSource>\s*<c:name>([\s\S]*?)<\/c:name>/.exec(String(chartXml ?? ''));
+  if (!src) return null;
+  const kind = /<c:barChart>[\s\S]*?<c:barDir val="bar"/.test(chartXml) ? 'bar'
+    : /<c:barChart\b|<c:bar3DChart\b/.test(chartXml) ? 'column'
+      : /<c:lineChart\b|<c:line3DChart\b/.test(chartXml) ? 'line'
+        : /<c:areaChart\b|<c:area3DChart\b/.test(chartXml) ? 'area'
+          : /<c:doughnutChart\b/.test(chartXml) ? 'doughnut'
+            : /<c:pieChart\b|<c:pie3DChart\b/.test(chartXml) ? 'pie' : 'column';
+  const t = /<c:title>([\s\S]*?)<\/c:title>/.exec(chartXml);
+  const title = t ? [...t[1].matchAll(/<a:t>([\s\S]*?)<\/a:t>/g)].map((m) => unesc(m[1])).join('') : '';
+  return { source: unesc(src[1]), ...parsePivotSource(src[1]), kind, title };
 }
 
 // ---- creation --------------------------------------------------------------
@@ -711,8 +1058,8 @@ export function createPivot(wb, spec, plan = planPivot(wb, spec)) {
   const cacheFieldsXml = headers.map((h, f) => {
     const items = shared[f];
     const body = items
-      ? '<sharedItems count="' + items.length + '">' + items.map(itemXml).join('') + '</sharedItems>'
-      : '<sharedItems containsSemiMixedTypes="0" containsString="0" containsNumber="1"/>';
+      ? sharedItemsXml(items)
+      : '<sharedItems' + sharedFlags(rows.map((line) => line[f])) + '/>';
     return '<cacheField name="' + esc(h) + '" numFmtId="0">' + body + '</cacheField>';
   }).join('');
   wb.pkg.addPart(cachePart,
@@ -804,7 +1151,9 @@ export function createPivot(wb, spec, plan = planPivot(wb, spec)) {
   if (/<pivotCaches>/.test(nextWbXml)) {
     nextWbXml = nextWbXml.replace('</pivotCaches>', cacheEntry + '</pivotCaches>');
   } else {
-    nextWbXml = nextWbXml.replace(/<\/workbook>\s*$/, '<pivotCaches>' + cacheEntry + '</pivotCaches></workbook>');
+    // Before the extension list when there is one: extLst is always last.
+    const tail = /<(smartTagPr|smartTagTypes|webPublishing|fileRecoveryPr|webPublishObjects|extLst)\b|<\/workbook>/.exec(nextWbXml);
+    nextWbXml = nextWbXml.slice(0, tail.index) + '<pivotCaches>' + cacheEntry + '</pivotCaches>' + nextWbXml.slice(tail.index);
   }
   // A workbook built without one has no r: namespace declared, and an
   // undeclared prefix is a corrupt package rather than a cosmetic problem.

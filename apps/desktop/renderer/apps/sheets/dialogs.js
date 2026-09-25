@@ -777,64 +777,94 @@ export function SizeDialog({ kind, current, onClose, onApply }) {
   );
 }
 
-export function PivotDialog({ onClose, onCreate, selection, sheets }) {
-  const [source, setSource] = useState(selection || '');
-  const [rows, setRows] = useState('');
-  const [cols, setCols] = useState('');
-  const [values, setValues] = useState('');
-  const [fn, setFn] = useState('SUM');
+/** PivotChart's kinds: every chart but scatter, as Excel offers them. */
+const PIVOT_CHARTS = [['column', 'Column'], ['bar', 'Bar'], ['line', 'Line'], ['area', 'Area'], ['pie', 'Pie'], ['doughnut', 'Doughnut']];
 
+/**
+ * Insert → PivotTable, and Insert → PivotChart on data (PivotChart &
+ * PivotTable): the source — the list round the cursor to start with — and
+ * which of its columns go down the rows, across the columns and into the
+ * values, summarised how; for a chart, its kind as well.
+ */
+export function PivotDialog({ onClose, onCreate, list = null, sheet = '', chart = false }) {
+  const columns = (list?.columns || []).map((c) => c.name);
+  const quoted = /^[A-Za-z_][A-Za-z0-9_.]*$/.test(sheet) ? sheet : `'${String(sheet).replace(/'/g, "''")}'`;
+  const [source, setSource] = useState(list?.ref ? `${quoted}!${list.ref}` : '');
+  const firstText = columns[0] || '';
+  const lastNumber = columns[columns.length - 1] || '';
+  const [rows, setRows] = useState(firstText);
+  const [cols, setCols] = useState('');
+  const [values, setValues] = useState(columns.length > 1 ? lastNumber : '');
+  const [fn, setFn] = useState('SUM');
+  const [kind, setKind] = useState('column');
+  const pick = (value, set, label, cls) => (
+    <Field label={label}>
+      <Select className={`rw-select ${cls}`} value={value} onChange={(e) => set(e.target.value)}>
+        <option value="">(none)</option>
+        {columns.map((c) => <option key={c} value={c}>{c}</option>)}
+      </Select>
+    </Field>
+  );
+  const ok = Boolean(source.trim() && values && (!rows || rows !== cols));
   return (
     <Dialog
-      title="Pivot table"
-      width={540}
+      title={chart ? 'PivotChart & PivotTable' : 'PivotTable'}
+      width={chart ? 560 : 500}
       onClose={onClose}
       actions={
         <>
           <Button label="Cancel" onClick={onClose} />
           <Button
             primary
-            label="Create"
-            disabled={!source || !values}
-            onClick={() =>
-              onCreate({
-                source,
-                rowFields: rows.split(',').map((s) => s.trim()).filter(Boolean),
-                colFields: cols.split(',').map((s) => s.trim()).filter(Boolean),
-                dataFields: values.split(',').map((s) => ({ name: s.trim(), fn })).filter((d) => d.name),
-              })
-            }
+            label="OK"
+            className="sh-pivot-ok"
+            disabled={!ok}
+            onClick={() => onCreate({
+              source: source.trim(),
+              rowFields: rows ? [rows] : [],
+              colFields: cols ? [cols] : [],
+              dataFields: [{ name: values, fn }],
+              ...(chart ? { chart: { kind } } : {}),
+            })}
           />
         </>
       }
     >
-      <p style={{ marginTop: 0, fontSize: 12.5 }}>
-        Field names are the column headings of the source range.
-      </p>
       <div className="ml-form">
-        <Field label="Source range">
-          <Input value={source} onChange={(e) => setSource(e.target.value)} placeholder="Sheet1!$A$1:$E$500" autoFocus />
+        <Field label="Table or range" hint="The data with its headings in the first row — the list round the cell to start with.">
+          <Input className="rw-input sh-pivot-source" value={source} onChange={(e) => setSource(e.target.value)} placeholder="Sheet1!A1:E500" autoFocus />
         </Field>
         <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <Field label="Rows">
-            <Input value={rows} onChange={(e) => setRows(e.target.value)} placeholder="Region" />
-          </Field>
-          <Field label="Columns">
-            <Input value={cols} onChange={(e) => setCols(e.target.value)} placeholder="Quarter" />
-          </Field>
+          {pick(rows, setRows, 'Rows', 'sh-pivot-rows')}
+          {pick(cols, setCols, 'Columns', 'sh-pivot-cols')}
         </div>
-        <div className="ml-servers" style={{ gridTemplateColumns: '1fr 140px' }}>
-          <Field label="Values">
-            <Input value={values} onChange={(e) => setValues(e.target.value)} placeholder="Revenue" />
-          </Field>
+        <div className="ml-servers" style={{ gridTemplateColumns: '1fr 150px' }}>
+          {pick(values, setValues, 'Values', 'sh-pivot-values')}
           <Field label="Summarise by">
-            <Select value={fn} onChange={(e) => setFn(e.target.value)}>
-              {['SUM', 'COUNT', 'AVERAGE', 'MAX', 'MIN'].map((f) => (
-                <option key={f} value={f}>{f}</option>
+            <Select className="rw-select sh-pivot-fn" value={fn} onChange={(e) => setFn(e.target.value)}>
+              {[['SUM', 'Sum'], ['COUNT', 'Count'], ['AVERAGE', 'Average'], ['MAX', 'Max'], ['MIN', 'Min']].map(([f, label]) => (
+                <option key={f} value={f}>{label}</option>
               ))}
             </Select>
           </Field>
         </div>
+        {chart ? (
+          <Field label="Chart">
+            <div className="sh-pivot-kinds">
+              {PIVOT_CHARTS.map(([k, label]) => (
+                <button key={k} type="button" className={`sh-pivot-kind${kind === k ? ' on' : ''}`} data-kind={k} onClick={() => setKind(k)}>
+                  <Icon name="chart" size={16} />
+                  <span>{label}</span>
+                </button>
+              ))}
+            </div>
+          </Field>
+        ) : null}
+        <p className="rw-hint" style={{ margin: 0 }}>
+          {chart
+            ? 'The pivot table goes under the data and its chart beside it; the chart follows the pivot when it is refreshed or filtered.'
+            : 'The pivot table goes under the data. Data → Refresh All recalculates it from the source.'}
+        </p>
       </div>
     </Dialog>
   );

@@ -1340,8 +1340,25 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     findNext: (v, a) => v.findNext(a.text),
     replaceNext: (v, a) => v.replaceNext(a.find, a.replace),
     replaceAll: (v, a) => v.replaceAll(a.find, a.replace),
-    pivot: (v, a) => v.createPivot(a),
-    refreshPivot: (v, a) => v.refreshPivot(a.name),
+    // Insert → PivotTable, and PivotChart & PivotTable on data (a `chart`
+    // kind); the new pivot's name rides back.
+    pivot: (v, a) => v.createPivot({
+      name: a.name, source: a.source, target: a.target, rowFields: a.rowFields || [], colFields: a.colFields || [],
+      dataFields: a.dataFields || [], chart: a.chart || null, fileName: a.fileName || null,
+    }).name,
+    refreshPivot: (v, a) => { v.refreshPivot(a.name); },
+    // Insert → PivotChart with the cursor in a pivot.
+    insertPivotChart: (v, a) => { v.insertPivotChart({ kind: a.kind || 'column', title: a.title || '', fileName: a.fileName || null }); },
+    // Insert → Slicer: what the cursor is in and its fields (for the
+    // dialog, as text), the panels made, a panel's buttons pressed or its
+    // filter cleared, its caption and columns.
+    slicerSources: (v) => JSON.stringify(v.slicerSources()),
+    insertSlicers: (v, a) => v.insertSlicers({ fields: Array.isArray(a.fields) ? a.fields : [] }).length,
+    slicerSelect: (v, a) => { v.setSlicerSelection({ name: a.name, values: Array.isArray(a.values) ? a.values : null }); },
+    slicerProps: (v, a) => { v.setSlicerProps({ name: a.name, caption: a.caption, columns: a.columns }); },
+    // A drawing moved or resized by hand, and drawings deleted.
+    drawingBox: (v, a) => { v.setDrawingBox({ id: a.id, x: a.x, y: a.y, width: a.width, height: a.height }); },
+    deleteDrawings: (v, a) => v.deleteDrawings({ ids: Array.isArray(a.ids) ? a.ids : [] }),
   };
 
   /** What the ribbon calls a format, and what the document engine calls it. */
@@ -1633,7 +1650,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

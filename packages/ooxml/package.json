@@ -20,6 +20,7 @@
     "./capabilities": "./src/capabilities.js",
     "./recalc": "./src/recalc.js",
     "./pivot": "./src/pivot.js",
+    "./slicers": "./src/slicers.js",
     "./build": "./src/build.js",
     "./zip": "./src/zip.js",
     "./math": "./src/math.js",

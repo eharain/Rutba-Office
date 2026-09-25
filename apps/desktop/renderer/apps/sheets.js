@@ -22,6 +22,7 @@ import {
   OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog,
   ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog, ConsolidateDialog, ForecastDialog,
 } from './sheets/dialogs.js';
+import { SlicerPanel, InsertSlicersDialog, ObjectHandles, followPointer, OBJECTS_CSS } from './sheets/objects.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
 } from './sheets/dialogs.js';
@@ -135,6 +136,18 @@ export default function Sheets({ app, shell, boot }) {
   const [backdrop, setBackdrop] = useState(null);
   /** Data → Consolidate and Forecast Sheet: what each dialog opens on. */
   const [analysis, setAnalysis] = useState(null);
+  /**
+   * The drawings picked on the sheet — a slicer, a chart, a picture, a
+   * shape — by their frame ids, and one being dragged or resized: its box
+   * as the pointer has it, drawn until the button comes up.
+   */
+  const [picked, setPicked] = useState([]);
+  const [live, setLive] = useState(null);
+  /** Each slicer's Multi-Select, as Excel keeps it: per panel, for the session. */
+  const [slicerMulti, setSlicerMulti] = useState({});
+  /** Insert → PivotTable / PivotChart and Insert → Slicer: what the dialog opens on. */
+  const [pivotAsk, setPivotAsk] = useState(null);
+  const [slicerAsk, setSlicerAsk] = useState(null);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -592,6 +605,21 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
 
+      // A picked drawing takes Delete and Escape before the cells do.
+      if (picked.length) {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          e.preventDefault();
+          const ids = picked;
+          setPicked([]);
+          await dispatch({ op: 'deleteDrawings', ids });
+          return;
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          setPicked([]);
+          return;
+        }
+      }
       // Excel's own: Shift+Alt+Right groups, Shift+Alt+Left ungroups.
       if (e.altKey && e.shiftKey && !e.ctrlKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
         e.preventDefault();
@@ -666,7 +694,7 @@ export default function Sheets({ app, shell, boot }) {
         await dispatch({ op: 'beginEdit', replace: true, initial: e.key });
       }
     },
-    [model, editing, dispatch]
+    [model, editing, dispatch, picked]
   );
 
   /**
@@ -904,6 +932,70 @@ export default function Sheets({ app, shell, boot }) {
     const col = (model?.columns || []).find((c) => x >= c.x && x < c.x + c.width);
     const row = (model?.rows || []).find((r) => y >= r.y && y < r.y + r.height);
     return col && row ? { row: row.index, col: col.index } : null;
+  };
+
+  /**
+   * What floats over the cells: charts, pictures and shapes as the engine
+   * drew them, slicers as panels of buttons, and the handles of whatever is
+   * picked. A drag moves or resizes the picked drawing on screen and tells
+   * the engine once, when the button comes up.
+   */
+  const drawingsNode = () => {
+    const z = view.zoom || 1;
+    const boxFor = (d) => (live?.id === d.id ? live.box : { x: d.x, y: d.y, width: d.width, height: d.height });
+    const drag = (e, d, mode, handle = null) => followPointer(e, {
+      box: boxFor(d), mode, handle, zoom: z,
+      onMove: (box) => setLive({ id: d.id, box }),
+      onDone: (box) => {
+        if (!box) { setLive(null); return; }
+        Promise.resolve(dispatch({ op: 'drawingBox', id: d.id, ...box })).finally(() => setLive(null));
+      },
+    });
+    const pick = (d) => {
+      setPicked([d.id]);
+      shRef.current?.focus({ preventScroll: true });
+    };
+    const shown = (model.drawings || []).filter((d) => !d.hidden);
+    const one = picked.length === 1 ? shown.find((d) => d.id === picked[0]) : null;
+    return (
+      <>
+        {shown.map((d) => {
+          const box = boxFor(d);
+          if (d.kind === 'slicer') {
+            const name = d.slicer?.name || d.name;
+            return (
+              <SlicerPanel
+                key={d.id}
+                d={d}
+                box={box}
+                picked={picked.includes(d.id)}
+                multi={Boolean(slicerMulti[name])}
+                onPick={() => pick(d)}
+                onStartMove={(e) => drag(e, d, 'move')}
+                onToggleMulti={() => setSlicerMulti((m) => ({ ...m, [name]: !m[name] }))}
+                onChoose={(values) => dispatch({ op: 'slicerSelect', name, values })}
+                onClear={() => dispatch({ op: 'slicerSelect', name, values: null })}
+              />
+            );
+          }
+          return (
+            <div
+              key={d.id}
+              className={`sh-drawing${d.svg ? '' : ' unsupported'}`}
+              data-id={d.id}
+              data-kind={d.kind}
+              onContextMenu={(e) => menu.open(e, [{ label: 'Edit Alt Text…', icon: 'textbox', run: () => review.openAltText({ sheet: model.activeSheet, anchor: Number(String(d.id).replace('drawing-', '')) || 0 }) }])}
+              style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
+              title={d.unsupported ? `${d.name || d.kind}: ${d.unsupported}` : d.pivot ? `${d.name || 'PivotChart'} — a PivotChart of ${d.pivot}` : d.name || undefined}
+              {...(d.svg ? { dangerouslySetInnerHTML: { __html: d.svg } } : {})}
+            >
+              {d.svg ? null : <span>{d.name || d.kind}</span>}
+            </div>
+          );
+        })}
+        {one ? <ObjectHandles box={boxFor(one)} onHandle={(e, handle) => drag(e, one, 'resize', handle)} /> : null}
+      </>
+    );
   };
 
   /** The tracing arrows, drawn over the cells: a dot at the source, a head at the target, a box round a range. */
@@ -2062,6 +2154,32 @@ export default function Sheets({ app, shell, boot }) {
       }
       // Format as Table: over the selection, or the block of data round the cell.
       case 'table': await dispatch({ op: 'formatAsTable', style: arg?.style, stripes: arg?.stripes !== false }); return;
+      // Insert → PivotTable, and PivotChart: on a pivot a chart of it (its
+      // kind from the menu), on data PivotChart & PivotTable — a dialog that
+      // opens on the list round the cursor.
+      case 'pivotTable':
+      case 'pivotChart': {
+        if (name === 'pivotChart' && arg?.kind) {
+          await dispatch({ op: 'insertPivotChart', kind: arg.kind, fileName: doc?.name });
+          return;
+        }
+        const next = await dispatch({ op: 'listFields' });
+        let info = null;
+        try { info = next?.opResult ? JSON.parse(next.opResult) : null; } catch { info = null; }
+        setPivotAsk({ list: info && info.bottom > info.top ? info : null, chart: name === 'pivotChart' });
+        return;
+      }
+      case 'slicer': {
+        const next = await dispatch({ op: 'slicerSources' });
+        let src = null;
+        try { src = next?.opResult ? JSON.parse(next.opResult) : null; } catch { src = null; }
+        if (!src?.kind) {
+          toast(src?.reason || 'Put the cursor in a table or a pivot table — a slicer filters one of them.', { tone: 'warn', ms: 5000 });
+          return;
+        }
+        setSlicerAsk(src);
+        return;
+      }
       case 'picture': await insertPicture(); return;
       // Page Layout → Print Area: the page setup is rebuilt from what it is
       // given, so the file's own setup is read first and sent back with the
@@ -2375,7 +2493,7 @@ export default function Sheets({ app, shell, boot }) {
         </div>
       ) : (
         <div className={`sh${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
-          <style>{CSS}</style>
+          <style>{CSS + OBJECTS_CSS}</style>
 
           <div className="sh-formula" hidden={view.formulaBar === false}>
             <div className="sh-namebox">{sel?.ref}</div>
@@ -2478,6 +2596,7 @@ export default function Sheets({ app, shell, boot }) {
               <div
                 className="sh-cells"
                 data-arrows={arrows.length}
+                onMouseDownCapture={(e) => { if (picked.length && !e.target.closest('.sh-drawing, .sh-obj-handle')) setPicked([]); }}
                 style={backdrop && model.viewMode !== 'pageLayout' ? { backgroundImage: `url("${backdrop.url}")`, backgroundRepeat: 'repeat', backgroundPosition: '0 0' } : undefined}
                 data-background={backdrop && model.viewMode !== 'pageLayout' ? backdrop.part : undefined}
                 onMouseDown={(e) => {
@@ -2565,18 +2684,7 @@ export default function Sheets({ app, shell, boot }) {
                   built; the window never painted them, so a diagram drawn in
                   Excel opened as an empty grid with its captions.
                 */}
-                {(model.drawings || []).map((d) => (
-                  <div
-                    key={d.id}
-                    className={`sh-drawing${d.svg ? '' : ' unsupported'}`}
-                    style={{ left: d.x, top: d.y, width: d.width, height: d.height }}
-                    title={d.unsupported ? `${d.name || d.kind}: ${d.unsupported}` : d.name || undefined}
-                    onContextMenu={(e) => menu.open(e, [{ label: 'Edit Alt Text…', icon: 'textbox', run: () => review.openAltText({ sheet: model.activeSheet, anchor: Number(String(d.id).replace('drawing-', '')) || 0 }) }])}
-                    {...(d.svg ? { dangerouslySetInnerHTML: { __html: d.svg } } : {})}
-                  >
-                    {d.svg ? null : <span>{d.name || d.kind}</span>}
-                  </div>
-                ))}
+                {drawingsNode()}
 
                 {editing && pane(editing) === 'main' ? editorNode() : null}
                 {commentCard()}
@@ -2879,14 +2987,29 @@ export default function Sheets({ app, shell, boot }) {
         />
       ) : null}
 
-      {dialog === 'pivot' ? (
+      {pivotAsk ? (
         <PivotDialog
-          selection={sel?.ref}
-          sheets={model?.sheets || []}
-          onClose={() => setDialog(null)}
+          list={pivotAsk.list}
+          sheet={model?.sheet || ''}
+          chart={pivotAsk.chart}
+          onClose={() => setPivotAsk(null)}
           onCreate={async (spec) => {
-            await dispatch({ op: 'pivot', ...spec });
-            setDialog(null);
+            const next = await dispatch({ op: 'pivot', ...spec, fileName: doc?.name });
+            if (next) {
+              setPivotAsk(null);
+              toast(spec.chart ? 'PivotChart and PivotTable made — the chart follows the pivot' : 'PivotTable made under the data', { tone: 'good', ms: 3000 });
+            }
+          }}
+        />
+      ) : null}
+
+      {slicerAsk ? (
+        <InsertSlicersDialog
+          source={slicerAsk}
+          onClose={() => setSlicerAsk(null)}
+          onInsert={async (fields) => {
+            const next = await dispatch({ op: 'insertSlicers', fields });
+            if (next) setSlicerAsk(null);
           }}
         />
       ) : null}

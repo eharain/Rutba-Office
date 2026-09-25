@@ -206,6 +206,9 @@ export function parseDrawingAnchors(drawingXml) {
     return null;
   };
   const kindOf = (xml) => {
+    // A slicer's graphic frame sits inside mc:AlternateContent with a plain
+    // rectangle as the fallback: the frame, not the rectangle, is what it is.
+    if (/drawing\/2010\/slicer/.test(xml) && /<([\w]+:)?slicer\b/.test(xml)) return 'slicer';
     if (firstElement(xml, 'graphicFrame')) return 'chart';
     if (firstElement(xml, 'pic')) return 'image';
     if (firstElement(xml, 'sp')) return 'shape';
@@ -239,9 +242,12 @@ export function parseDrawingAnchors(drawingXml) {
       from = { col: 0, colOffsetEmu: Number(at.x ?? 0), row: 0, rowOffsetEmu: Number(at.y ?? 0) };
     }
 
+    const kind = kindOf(anchor);
     out.push({
-      kind: kindOf(anchor),
-      relationshipId: relId(anchor),
+      kind,
+      relationshipId: kind === 'slicer' ? null : relId(anchor),
+      // A slicer panel is found by its name in the sheet's slicers part.
+      ...(kind === 'slicer' ? { slicerName: unesc(attrs((/<([\w]+:)?slicer\b([^>]*?)\/?>/.exec(anchor) ?? [])[2] ?? '').name ?? '') } : {}),
       from,
       to,
       widthPx: extent?.cx ? emuToPx(extent.cx) : null,
@@ -250,7 +256,25 @@ export function parseDrawingAnchors(drawingXml) {
       xml: anchor,
       name: (() => {
         const pr = firstElement(anchor, 'cNvPr');
-        return pr ? attrs(pr).name ?? null : null;
+        return pr ? (attrs(pr.slice(0, pr.indexOf('>') + 1)).name !== undefined ? unesc(attrs(pr.slice(0, pr.indexOf('>') + 1)).name) : null) : null;
+      })(),
+      // The drawing's own id (cNvPr id), which stays put when the order
+      // changes, and whether the Selection Pane has hidden it.
+      nvId: (() => {
+        const pr = firstElement(anchor, 'cNvPr');
+        return pr ? Number(attrs(pr.slice(0, pr.indexOf('>') + 1)).id) || 0 : 0;
+      })(),
+      hidden: (() => {
+        const pr = firstElement(anchor, 'cNvPr');
+        return pr ? /^(1|true)$/.test(attrs(pr.slice(0, pr.indexOf('>') + 1)).hidden ?? '') : false;
+      })(),
+      editAs: attrs(/^<[^>]*>/.exec(anchor)[0]).editAs ?? null,
+      // The size the drawing states for itself (its first non-empty xfrm),
+      // which a "don't size with cells" anchor keeps.
+      xfrmPx: (() => {
+        const m = /<a:xfrm\b[^>]*>[\s\S]*?<a:ext\b([^>]*)\/>/.exec(anchor);
+        const a = m ? attrs(m[1]) : null;
+        return a && Number(a.cx) > 0 && Number(a.cy) > 0 ? { width: Math.round(emuToPx(Number(a.cx))), height: Math.round(emuToPx(Number(a.cy))) } : null;
       })(),
     });
   }

@@ -44,6 +44,7 @@ import { verifyComments } from './verify-comments.js';
 import { verifyViews } from './verify-views.js';
 import { verifyProtect } from './verify-protect.js';
 import { verifyLayoutViews } from './verify-layoutviews.js';
+import { verifySlicers } from './verify-slicers.js';
 import { verifyAnalysis } from './verify-analysis.js';
 import { verifyDataTools } from './verify-datatools.js';
 import { verifyWordEquations, makeEquationFixture } from './verify-word-equations.js';
@@ -3402,6 +3403,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifyLayoutViews({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
   };
 
+  /* ── Worksheets: PivotChart, Slicers ───────────────────────────────── */
+  const sheetSlicers = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifySlicers({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
+  };
+
   /* ── Worksheets: Consolidate, Forecast Sheet ───────────────────────── */
   const sheetAnalysis = async () => {
     const capture = async (win, name) => {
@@ -4362,7 +4372,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4420,6 +4430,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('protect')) await sheetProtect();
     if (only.includes('layoutviews')) await sheetLayoutViews();
     if (only.includes('analysis')) await sheetAnalysis();
+    if (only.includes('slicers')) await sheetSlicers();
     if (only.includes('arrange')) await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('deckfx')) await verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('transitions')) await verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
@@ -4578,6 +4589,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await sheetProtect();
   await sheetLayoutViews();
   await sheetAnalysis();
+  await sheetSlicers();
   await polish();
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */

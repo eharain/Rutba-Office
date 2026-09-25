@@ -50,6 +50,29 @@ const BORDERS = [
 ];
 
 /** What the engine can draw, by the names it draws them under. */
+/** A PivotChart can be any of these; never a scatter, as in Excel. */
+const PIVOT_CHARTS = [
+  ['column', 'Column'], ['bar', 'Bar'], ['line', 'Line'], ['area', 'Area'], ['pie', 'Pie'], ['doughnut', 'Doughnut'],
+];
+
+/** The pivot the active cell is in, from the frame's list of pivots. */
+function pivotAround(model, sel) {
+  const at = sel?.active;
+  if (!at || !model?.pivots) return null;
+  const cell = (t) => {
+    const m = /^([A-Z]+)(\d+)$/.exec(t || '');
+    if (!m) return null;
+    let col = 0;
+    for (const ch of m[1]) col = col * 26 + (ch.charCodeAt(0) - 64);
+    return { row: Number(m[2]) - 1, col: col - 1 };
+  };
+  return model.pivots.find((p) => {
+    if (p.sheet !== model.sheet || !p.ref) return false;
+    const [a, b] = p.ref.split(':').map(cell);
+    return a && b && at.row >= a.row && at.row <= b.row && at.col >= a.col && at.col <= b.col;
+  }) || null;
+}
+
 const CHARTS = [
   ['column', 'Column'], ['bar', 'Bar'], ['line', 'Line'], ['area', 'Area'], ['pie', 'Pie'], ['doughnut', 'Doughnut'],
 ];
@@ -155,6 +178,7 @@ export default function SheetsRibbon({
   tab, setTab, model, dispatch, commands, shell, menu, save, openFile, exportAs, doc, sel, openDialog, act, view = {}, review = null,
 }) {
   const format = model?.format || {};
+  const inPivot = pivotAround(model, sel);
   const frozen = model?.frozen || { rows: 0, cols: 0 };
   const isFrozen = frozen.rows > 0 || frozen.cols > 0;
   const protectedSheet = Boolean(model?.protection?.sheet);
@@ -347,7 +371,7 @@ export default function SheetsRibbon({
       {tab === 'insert' ? (
         <>
           <Group label="Tables">
-            <Button tall icon="table" label="PivotTable" onClick={() => openDialog('pivot')} />
+            <Button tall icon="table" label="PivotTable" title="PivotTable — summarise the list round the cell: rows, columns and values" onClick={() => act('pivotTable')} />
             <Button tall icon="table" label="Table" title="Table — the selection or the block of data round the cell, with a header row, banded rows and filters" onClick={tableMenu} />
           </Group>
           <Group label="Illustrations">
@@ -363,7 +387,10 @@ export default function SheetsRibbon({
             <Button icon="chart" label="Scatter" title="Scatter — X and Y values from the data around the selection: markers only, or joined by straight or smooth lines" onClick={(e) => menu.open(e, [
               ['markers', 'Scatter'], ['lines', 'Scatter with Straight Lines and Markers'], ['smooth', 'Scatter with Smooth Lines and Markers'],
             ].map(([scatterStyle, label]) => ({ label, icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: 'scatter', scatterStyle }) })))} />
-            <Soon icon="chart" label="PivotChart" why="Comes with a pivot table that can be charted." />
+            <Button icon="chart" label="PivotChart" title={inPivot ? `PivotChart — a chart of ${inPivot.name}, following it when it is refreshed or filtered` : 'PivotChart — PivotChart & PivotTable from the list round the cell'}
+              onClick={(e) => (inPivot
+                ? menu.open(e, PIVOT_CHARTS.map(([kind, label]) => ({ label: `${label} PivotChart`, icon: 'chart', run: () => act('pivotChart', { kind }) })))
+                : act('pivotChart'))} />
           </Group>
           <Group label="Sparklines">
             <Button tall icon="chart" label="Line" title="Line sparkline — a small line, in the cell after the selection, from the numbers in it" onClick={() => openDialog('sparklineLine')} />
@@ -371,7 +398,7 @@ export default function SheetsRibbon({
           </Group>
           <Group label="Filters">
             <Button tall icon="filter" label="Filter" pressed={model?.filtered} onClick={() => dispatch({ op: 'autoFilter' })} />
-            <Soon icon="filter" label="Slicer" why="A slicer is a separate part tied to a table or pivot; not written yet." />
+            <Button icon="filter" label="Slicer" title="Slicer — buttons that filter the table or pivot table the cell is in, one panel per field" onClick={() => act('slicer')} />
           </Group>
           <Group label="Links">
             <Button tall icon="link" label="Link" title="A link on this cell: an address, or a place in the workbook (Ctrl+K)" onClick={() => act('link')} />

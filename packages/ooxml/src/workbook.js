@@ -3327,7 +3327,9 @@ export class Workbook {
       const loaded = this._loaded.get(name);
       // A loaded part may hold un-flushed edits, so ask IT rather than the
       // package — otherwise the snapshot is of a state already superseded.
-      out[name] = loaded ? loaded.render() : this.pkg.text(name);
+      // A part that does not exist is recorded as absent (null): putting
+      // the snapshot back takes away one an edit made in the meantime.
+      out[name] = loaded ? loaded.render() : this.pkg.has(name) ? this.pkg.text(name) : null;
     }
     return out;
   }
@@ -3341,7 +3343,11 @@ export class Workbook {
    */
   restoreParts(parts) {
     for (const [name, xml] of Object.entries(parts ?? {})) {
-      this.pkg.write_(name, xml);
+      // A part the edit took away (a slicer's, when it was deleted) comes
+      // back; its content type rides in the snapshot of [Content_Types].xml.
+      if (xml === null || xml === undefined) { if (this.pkg.has(name)) this.pkg.removePart(name); }
+      else if (this.pkg.has(name)) this.pkg.write_(name, xml);
+      else this.pkg.addPart(name, xml);
       this._loaded.delete(name);
     }
     this._sheets = null;

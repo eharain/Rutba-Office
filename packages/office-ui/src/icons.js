@@ -61,6 +61,9 @@ const PATHS = {
   formula: [P('M6 20c2 0 2.5-1 3-4l2-8c.5-3 1-4 3-4'), P('M6 8h9')],
   sum: [P('M17 5H7l6 7-6 7h10')],
   filter: [P('M4 5h16l-6 7v6l-4 2v-8z')],
+  // A slicer's Clear Filter (the funnel crossed) and Multi-Select (ticked lines).
+  filterClear: [P('M3 5h13l-5 6v5l-3 2v-7z'), P('m15.5 14.5 5 5M20.5 14.5l-5 5')],
+  multiSelect: [P('M10 6h10M10 12h10M10 18h10'), P('m3.5 6 1.5 1.5L7.5 5M3.5 12l1.5 1.5 2.5-2.5M3.5 18l1.5 1.5 2.5-2.5')],
   sort: [P('M7 5v14M4 16l3 3 3-3'), P('M17 19V5M14 8l3-3 3 3')],
   chart: [P('M4 20V9M10 20V4M16 20v-7M22 20H2')],
   freeze: [P('M4 5h16v14H4z'), P('M4 10h16M9 5v14', { strokeDasharray: '3 2' })],

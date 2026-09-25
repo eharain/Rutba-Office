@@ -22,8 +22,13 @@ import { toSpreadsheet, writeCachedValue, parseDefinedNameRange } from '@rutba/o
 import {
 
   readPivots, computePivot, updatePivotLocation, dataFieldLabel, areaRef,
-  createPivot, planPivot,
+  createPivot, planPivot, parseArea as parsePivotArea,
+  pivotChartXml, readPivotChart, pivotSourceName, PIVOT_CHART_KINDS,
+  sourceValues, ensureSharedItems, setPivotItemsShown, itemLabel, pivotKey,
 } from '@rutba/ooxml/pivot';
+import {
+  readSlicers, addSlicer, removeSlicer, slicerAnchorXml, writeSlicerCacheItems, setSlicerProps as writeSlicerProps,
+} from '@rutba/ooxml/slicers';
 import {
   isError, shiftFormula, calculate, parse, compareValues, serialToDate, dateToSerial, FormulaEvaluation,
 } from '@rutba/formula';
@@ -237,6 +242,9 @@ export class SheetView {
     styles = false, parts = null, structural = false, tracksNewParts = false, sheetGate = true,
   } = {}) {
     const outermost = this._editDepth === 0;
+    // What is read once per state of the workbook (the slicers' panels) is
+    // read again after any edit.
+    if (outermost) this._editStamp = (this._editStamp ?? 0) + 1;
     // THE protection gate. One gate, here, because every cell-changing
     // gesture already hands `_edit` the cells it will touch — that list is
     // the undo footprint, and the same list is exactly what protection needs
@@ -320,6 +328,7 @@ export class SheetView {
       return fn();
     } finally {
       this._editDepth -= 1;
+      if (outermost) this._editStamp += 1;
       if (partsBefore) {
         const entry = this.history.past.at(-1);
         const added = {};
@@ -345,6 +354,7 @@ export class SheetView {
   _step(direction) {
     const previous = this.history[direction === 'undo' ? 'past' : 'future'].at(-1);
     if (!previous) return false;
+    this._editStamp = (this._editStamp ?? 0) + 1;
 
     // Capture the CURRENT values of exactly the cells the step will overwrite,
     // so the opposite direction can put them back.
@@ -477,6 +487,7 @@ export class SheetView {
         this.calc.manual = this.workbook.calcMode() === 'manual';
         this.calc.recalculate();
       }
+      this._afterPartsRestored(Object.keys(entry.state.parts));
     }
     if (entry.state.structuralDirty !== undefined) this._structuralDirty = entry.state.structuralDirty;
     this.dirtyCells = new Set(entry.state.dirty);
@@ -485,6 +496,24 @@ export class SheetView {
     this.editing = null;
     this.ensureVisible();
     return true;
+  }
+
+  /**
+   * What is derived from parts other than a sheet's, read again once an undo
+   * or redo has put those parts back: a chart, a slicer or a drawing redraws
+   * every sheet's drawings; the theme or the style table re-reads the styles.
+   */
+  _afterPartsRestored(names) {
+    if (names.some((n) => /^xl\/(theme|styles)/.test(n))) {
+      this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
+      for (const { name, part } of this.workbook.sheets()) {
+        this.conditionals.set(name, readConditionalFormatting(this.workbook.snapshotParts([part])[part], this.styles.theme));
+      }
+    }
+    if (names.some((n) => /^xl\/(charts|drawings|slicers|slicerCaches|pivotTables|pivotCache|theme)\//.test(n) || n === this.workbook.mainPart)) {
+      for (const { name, part } of this.workbook.sheets()) this.drawings.set(name, this._readDrawings(part));
+      this._pivots = null;
+    }
   }
 
   static open(buf, opts) { return new SheetView(buf, opts); }
@@ -554,7 +583,43 @@ export class SheetView {
     } catch {
       return [];
     }
-    return found.map((d, i) => ({ ...d, id: 'drawing-' + i }));
+    // Each drawing is known by its own id where that is unique on the sheet,
+    // so a selection survives Bring Forward; by its place otherwise.
+    const count = new Map();
+    for (const d of found) count.set(d.nvId, (count.get(d.nvId) ?? 0) + 1);
+    return found.map((d, i) => ({
+      ...d,
+      index: i,
+      id: d.nvId && count.get(d.nvId) === 1 ? 'd' + d.nvId : 'drawing-' + i,
+      // A PivotChart names the pivot it is drawn from.
+      pivot: d.kind === 'chart' && d.part && this.pkg.has(d.part) ? (readPivotChart(this.pkg.text(d.part))?.name ?? null) : null,
+    }));
+  }
+
+  /**
+   * Where a drawing sits on the sheet, in pixels: its top-left from the
+   * anchor's `from` marker, its size from the `to` marker (a two-cell
+   * anchor resizes with its cells) or its own extent.
+   */
+  _drawingBox(d, geo = this.geo) {
+    const x = d.from ? geo.colOffset(d.from.col) + Math.round((d.from.colOffsetEmu ?? 0) / 9525) : 0;
+    const y = d.from ? geo.rowOffset(d.from.row) + Math.round((d.from.rowOffsetEmu ?? 0) / 9525) : 0;
+    // "Move but don't size with cells" (a slicer's way): its own extent
+    // holds while rows under it are hidden by a filter.
+    if ((d.editAs === 'oneCell' || d.editAs === 'absolute') && d.xfrmPx) {
+      return { x, y, width: d.xfrmPx.width, height: d.xfrmPx.height };
+    }
+    // A chart smaller than a postcard is a chart nobody can read, so it
+    // gets a floor; a shape is whatever size its author drew — a connector
+    // one pixel wide and a column tall was being widened to eighty.
+    const floor = d.kind === 'chart' ? { w: 80, h: 60 } : { w: 1, h: 1 };
+    const width = d.to
+      ? Math.max(floor.w, geo.colOffset(d.to.col) + Math.round((d.to.colOffsetEmu ?? 0) / 9525) - x)
+      : Math.round(d.widthPx ?? 320);
+    const height = d.to
+      ? Math.max(floor.h, geo.rowOffset(d.to.row) + Math.round((d.to.rowOffsetEmu ?? 0) / 9525) - y)
+      : Math.round(d.heightPx ?? 240);
+    return { x, y, width, height };
   }
 
   /**
@@ -1223,21 +1288,7 @@ export class SheetView {
     const visibleBottom = this.scrollY + this.viewportHeight;
 
     const drawings = (this.drawings.get(this.activeSheet) ?? []).map((d) => {
-      const x = d.from ? geo.colOffset(d.from.col) + Math.round((d.from.colOffsetEmu ?? 0) / 9525) : 0;
-      const y = d.from ? geo.rowOffset(d.from.row) + Math.round((d.from.rowOffsetEmu ?? 0) / 9525) : 0;
-      // A two-cell anchor resizes with its cells, so its size comes from the
-      // grid, not from a stored extent. A chart smaller than a postcard is a
-      // chart nobody can read, so it gets a floor; a shape is whatever size
-      // its author drew — a connector one pixel wide and a column tall was
-      // being widened to eighty and drawn as a diagonal.
-      const floor = d.kind === 'chart' ? { w: 80, h: 60 } : { w: 1, h: 1 };
-      const width = d.to
-        ? Math.max(floor.w, geo.colOffset(d.to.col) + Math.round((d.to.colOffsetEmu ?? 0) / 9525) - x)
-        : Math.round(d.widthPx ?? 320);
-      const height = d.to
-        ? Math.max(floor.h, geo.rowOffset(d.to.row) + Math.round((d.to.rowOffsetEmu ?? 0) / 9525) - y)
-        : Math.round(d.heightPx ?? 240);
-
+      const { x, y, width, height } = this._drawingBox(d);
 
       if (x > visibleRight || y > visibleBottom || x + width < visibleLeft || y + height < visibleTop) {
         return null;
@@ -1245,9 +1296,14 @@ export class SheetView {
 
       let svg = null;
       let unsupported = null;
+      let slicer = null;
       const box = { x: 0, y: 0, width, height };
       try {
-        if (d.spec) {
+        if (d.kind === 'slicer') {
+          // A slicer is a panel of buttons the window draws itself, from
+          // the state its table or pivot is in now.
+          slicer = this.slicerState(d.slicerName) ?? { name: d.slicerName, caption: d.slicerName, items: [], broken: 'its slicer part is missing' };
+        } else if (d.spec) {
           svg = renderSvg(buildChart({ ...d.spec, width, height, mode: this.mode }));
         } else if (d.descriptor?.kind === 'shape') {
           svg = renderSvg(scene({
@@ -1271,7 +1327,12 @@ export class SheetView {
       } catch (e) {
         unsupported = e.message;
       }
-      return { id: d.id, kind: d.kind, name: d.name, x, y, width, height, svg, unsupported, anchor: d.from ? { row: d.from.row, col: d.from.col } : null };
+      return {
+        id: d.id, kind: d.kind, name: d.name, x, y, width, height, svg, unsupported,
+        anchor: d.from ? { row: d.from.row, col: d.from.col } : null,
+        index: d.index, hidden: Boolean(d.hidden), pivot: d.pivot ?? null,
+        ...(slicer ? { slicer } : {}),
+      };
     }).filter(Boolean);
 
     const active = this.selection.active;
@@ -1931,6 +1992,9 @@ export class SheetView {
       this.validations.set(name, readDataValidations(xml));
       this.conditionals.set(name, readConditionalFormatting(xml, this.styles.theme));
       this.comments.set(name, this._readComments(part));
+      // Charts drawn from a pivot, slicers and anything else a structural
+      // step put back are read again with the rest.
+      this.drawings.set(name, this._readDrawings(part));
     }
     return this;
   }
@@ -4089,19 +4153,39 @@ export class SheetView {
    * way Insert > PivotTable behaves — a person who selected one cell in a
    * data block means the block.
    */
-  createPivot({ name, source, target, rowFields = [], colFields = [], dataFields = [] }) {
-    const area = source
-      ? { ...source, sheet: source.sheet ?? this.activeSheet }
+  createPivot({ name, source, target, rowFields = [], colFields = [], dataFields = [], chart = null, fileName = null }) {
+    // The dialog says the source as text — `Sheet1!$A$1:$E$40`, or `A1:E40`
+    // on this sheet — and the values as `{ name, fn }`; the engine's own
+    // callers pass the area and `{ field, subtotal }`. Both are understood.
+    const parsed = typeof source === 'string' ? parsePivotArea(source.trim(), this.activeSheet) : source;
+    if (typeof source === 'string' && source.trim() && !parsed) throw new Error('"' + source + '" is not a range — write it like Sheet1!A1:E40');
+    const area = parsed
+      ? { ...parsed, sheet: parsed.sheet ?? this.activeSheet }
       : {
         ...this._currentRegion(this.selection.active.row, this.selection.active.col),
         sheet: this.activeSheet,
       };
+    const FNS = { SUM: 'sum', COUNT: 'count', AVERAGE: 'average', MAX: 'max', MIN: 'min', PRODUCT: 'product' };
+    const values = dataFields.map((d) => (d.field !== undefined
+      ? d
+      : { field: d.name, subtotal: FNS[String(d.fn ?? 'SUM').toUpperCase()] ?? String(d.fn ?? 'sum') }));
+    // A pivot nobody named is PivotTable1, 2… as Excel names them; one named
+    // empty on purpose is still refused.
+    if (name === undefined || name === null) {
+      const taken = new Set(this.pivots().map((p) => p.name.toLowerCase()));
+      let n = 1;
+      while (taken.has('pivottable' + n)) n += 1;
+      name = 'PivotTable' + n;
+    }
     const where = target ?? {
-      sheet: this.activeSheet,
-      row: area.bottom + 2,
-      col: area.left,
+      sheet: this.activeSheet === area.sheet ? area.sheet : this.activeSheet,
+      row: this.activeSheet === area.sheet ? area.bottom + 2 : this.selection.active.row,
+      col: this.activeSheet === area.sheet ? area.left : this.selection.active.col,
     };
     if (!this.sheetNames().includes(where.sheet)) throw new Error('no sheet "' + where.sheet + '"');
+    if (chart && !PIVOT_CHART_KINDS.includes(chart.kind ?? 'column')) {
+      throw new Error('"' + chart.kind + '" is not a PivotChart kind — ' + PIVOT_CHART_KINDS.join(', '));
+    }
 
     const parts = [...new Set([
       '[Content_Types].xml',
@@ -4110,6 +4194,7 @@ export class SheetView {
       this.workbook.partNameFor(area.sheet),
       OoxmlPackage.relsPathFor(this.workbook.mainPart),
       OoxmlPackage.relsPathFor(this.workbook.partNameFor(where.sheet)),
+      ...(chart ? this._drawingPartsOf(where.sheet) : []),
     ].filter((p) => this.pkg.has(p)))];
 
     const readCell = (sheet, row, col) => this.calc.getValue(sheet, row, col);
@@ -4117,7 +4202,7 @@ export class SheetView {
     // follows: a rejected gesture must leave no undo step behind. Planning
     // is where every refusal lives, and it touches nothing.
     const plan = planPivot(this.workbook, {
-      name, source: area, target: where, rowFields, colFields, dataFields, readCell,
+      name, source: area, target: where, rowFields, colFields, dataFields: values, readCell,
     });
 
     let shape = null;
@@ -4125,10 +4210,10 @@ export class SheetView {
     // parts and writes cells on a sheet that may not be the active one, and
     // structural undo restores the parts and rebuilds everything derived
     // from them — which is precisely "put the file back as it was".
-    this._edit('create pivot', null, [], () => {
+    this._edit(chart ? 'create PivotChart' : 'create pivot', null, [], () => {
       this._flushPendingEdits();
       const created = createPivot(this.workbook, {
-        name, source: area, target: where, rowFields, colFields, dataFields, readCell,
+        name, source: area, target: where, rowFields, colFields, dataFields: values, readCell,
       }, plan);
       const grid = computePivot(created, readCell);
       for (const c of grid.cells) {
@@ -4139,11 +4224,20 @@ export class SheetView {
         dataRow: grid.firstDataRow,
         dataCol: grid.firstDataCol,
       });
+      // Columns too narrow for the labels are widened, as Excel's pivot
+      // widens its own ("Grand Total" is not cut to "Grand Tota").
+      const geo = this.geometry.get(where.sheet);
+      for (let c = grid.area.left; c <= grid.area.right; c++) {
+        const longest = Math.max(0, ...grid.cells.filter((x) => x.col === c).map((x) => String(x.value ?? '').length));
+        const need = longest * 7 + 14;
+        if (geo && need > geo.colWidth(c)) this.workbook.setColWidthChars(where.sheet, c, pixelsToCharWidth(Math.min(need, 320)));
+      }
+      if (chart) this._addPivotChart(created, grid, { ...chart, fileName });
       this.dirtyCells.clear();
       this.styledCells.clear();
       this._structuralDirty = true;
       this._rebuildDerivedState();
-      shape = { rows: grid.height, cols: grid.width, ref: areaRef(grid.area), sheet: where.sheet };
+      shape = { name, rows: grid.height, cols: grid.width, ref: areaRef(grid.area), sheet: where.sheet };
       return this;
     }, { parts, structural: true, tracksNewParts: true });
     return shape;
@@ -4157,8 +4251,11 @@ export class SheetView {
    * there looking authoritative. One undo step covers the whole rectangle,
    * cells the pivot no longer covers are cleared, and the stored location
    * follows when the shape changes — which is what Excel's own refresh does.
+   * Every PivotChart drawn from the pivot follows it in the same step.
+   * With no name, every pivot on this sheet is refreshed (Refresh All).
    */
   refreshPivot(name) {
+    if (name === undefined || name === null || name === '') return this.refreshAllPivots();
     const pivot = this.pivots().find((p) => p.name === String(name ?? '').trim());
     if (!pivot) throw new Error('no pivot table "' + String(name ?? '').trim() + '"');
     if (pivot.unsupported) {
@@ -4181,10 +4278,12 @@ export class SheetView {
       for (let c = grid.area.left; c <= grid.area.right; c++) mark(r, c);
     }
 
+    const charts = this._pivotChartParts(pivot);
     const parts = [...new Set([
       this.workbook.partNameFor(this.activeSheet),
       pivot.part,
       ...(pivot.cachePart ? [pivot.cachePart] : []),
+      ...charts,
     ])];
 
     this._edit('refresh ' + pivot.name, null, [...touched.values()], () => {
@@ -4198,6 +4297,7 @@ export class SheetView {
         dataRow: grid.firstDataRow,
         dataCol: grid.firstDataCol,
       });
+      this._updatePivotCharts(pivot, grid);
       this._pivots = null;
       this._structuralDirty = true;
       return this;
@@ -4205,6 +4305,507 @@ export class SheetView {
     return { rows: grid.height, cols: grid.width };
   }
 
+  /** Data → Refresh All: every pivot on this sheet that can be recomputed, and its charts. */
+  refreshAllPivots() {
+    const names = this.pivots().filter((p) => p.sheet === this.activeSheet && !p.unsupported).map((p) => p.name);
+    for (const n of names) this.refreshPivot(n);
+    return { refreshed: names.length };
+  }
+
+  /** The pivot whose rectangle holds a cell, or null. */
+  pivotAt(row, col, sheet = this.activeSheet) {
+    return this.pivots().find((p) => p.sheet === sheet && !p.unsupported
+      && row >= p.location.top && row <= p.location.bottom && col >= p.location.left && col <= p.location.right) ?? null;
+  }
+
+  // ---- PivotCharts ----------------------------------------------------------
+
+  /** The sheet's drawing part and its rels, where they exist: what a drawing edit snapshots. */
+  _drawingPartsOf(sheet) {
+    const sheetPartName = this.workbook.partNameFor(sheet);
+    const out = [sheetPartName, '[Content_Types].xml', OoxmlPackage.relsPathFor(sheetPartName)];
+    const rel = this.pkg.rels(sheetPartName).find((r) => String(r.Type).endsWith('/drawing'));
+    if (rel) {
+      const part = OoxmlPackage.resolveTarget(sheetPartName, rel.Target);
+      out.push(part, OoxmlPackage.relsPathFor(part));
+    }
+    return out.filter((p) => this.pkg.has(p));
+  }
+
+  /** Every chart part drawn from a pivot (by its `c:pivotSource`), with the sheets that show them. */
+  _pivotChartParts(pivot) {
+    const out = [];
+    for (const name of this.pkg.partNames()) {
+      if (!/^xl\/charts\/chart\d+\.xml$/.test(name)) continue;
+      const info = readPivotChart(this.pkg.text(name));
+      if (info && info.name === pivot.name && info.sheet === pivot.sheet) out.push(name);
+    }
+    return out;
+  }
+
+  /** A chart bound to a pivot, written into the pivot's sheet beside it. */
+  _addPivotChart(pivot, grid, { kind = 'column', title = '', fileName = null } = {}) {
+    const sheet = pivot.sheet;
+    const drawingPart = this.workbook.ensureSheetDrawing(sheet);
+    const n = this.pkg.nextPartNumber('xl/charts/', 'chart');
+    const chartPart = 'xl/charts/chart' + n + '.xml';
+    this.pkg.addPart(chartPart, pivotChartXml({
+      sourceName: pivotSourceName(fileName || this.fileName, pivot),
+      kind, title, sheet, chart: grid.chart,
+    }), 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml');
+    const relId = this.pkg.addRelationshipTo(drawingPart,
+      'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart',
+      '../charts/chart' + n + '.xml');
+    const area = grid.area;
+    let chartId = 0;
+    this.workbook.appendDrawingAnchor(drawingPart, (id) => {
+      chartId = id;
+      return drawingAnchorXml({
+        kind: 'chart', id, name: 'Chart ' + id,
+        from: { row: area.top, col: area.right + 2 },
+        to: { row: area.top + 15, col: area.right + 9 },
+      }, () => relId);
+    });
+    this.drawings.set(sheet, this._readDrawings(this.workbook.partNameFor(sheet)));
+    return { chartPart, id: chartId };
+  }
+
+  /** Every chart drawn from this pivot rewritten from its grid: the same kind and title, today's figures. */
+  _updatePivotCharts(pivot, grid) {
+    let changed = false;
+    for (const part of this._pivotChartParts(pivot)) {
+      const info = readPivotChart(this.pkg.text(part));
+      this.pkg.write_(part, pivotChartXml({
+        sourceName: info.source, kind: info.kind, title: info.title, sheet: pivot.sheet, chart: grid.chart,
+      }));
+      changed = true;
+    }
+    if (changed) for (const { name, part } of this.workbook.sheets()) this.drawings.set(name, this._readDrawings(part));
+    return changed;
+  }
+
+  /**
+   * Insert → PivotChart on a pivot: a chart bound to the pivot the cursor is
+   * in, drawn from its current values beside it. (On data, the window asks
+   * for a pivot first — `createPivot` with a `chart` makes both.)
+   */
+  insertPivotChart({ kind = 'column', title = '', fileName = null } = {}) {
+    if (!PIVOT_CHART_KINDS.includes(kind)) throw new Error('"' + kind + '" is not a PivotChart kind — ' + PIVOT_CHART_KINDS.join(', '));
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before inserting objects.');
+    const active = this.selection.active;
+    const pivot = this.pivotAt(active.row, active.col);
+    if (!pivot) throw new Error('Put the cursor in a pivot table first — or make one with Insert → PivotChart on the data.');
+    const grid = computePivot(pivot, (sheet, row, col) => this.calc.getValue(sheet, row, col));
+    const { parts } = this._drawingEditParts();
+    let made = null;
+    this._edit('insert PivotChart', null, [], () => {
+      made = this._addPivotChart(pivot, grid, { kind, title, fileName });
+      this._structuralDirty = true;
+    }, { parts, tracksNewParts: true });
+    return made;
+  }
+
+  // ---- slicers --------------------------------------------------------------
+
+  /** The workbook's slicers, read once per edit. */
+  _slicerDefs() {
+    if (!this._slicerCache || this._slicerCache.stamp !== this._editStamp) {
+      let list = [];
+      try { list = readSlicers(this.workbook); } catch { list = []; }
+      this._slicerCache = { stamp: this._editStamp, list, states: new Map() };
+    }
+    return this._slicerCache.list;
+  }
+
+  /** The table whose rectangle holds a cell on this sheet, with its column ids. */
+  _tableAt(row, col) {
+    for (const t of this.workbook.tables()) {
+      if (t.sheet !== this.activeSheet) continue;
+      const box = this._tableByName(t.name);
+      if (row >= box.top && row <= box.bottom && col >= box.left && col <= box.right) return box;
+    }
+    return null;
+  }
+
+  /** A table's column ids in order (`tableColumn id`), which is what a slicer cache names. */
+  _tableColumnIds(tablePart) {
+    return [...this.pkg.text(tablePart).matchAll(/<tableColumn\b([^>]*?)\/?>/g)]
+      .map((m) => Number(/\bid="(\d+)"/.exec(m[1])?.[1] ?? 0));
+  }
+
+  /**
+   * What Insert → Slicer offers at the cursor: the table or pivot it is in
+   * and the fields a slicer can be made for, those that already have one
+   * marked — or the reason there is nothing.
+   */
+  slicerSources() {
+    const { row, col } = this.selection.active;
+    const pivot = this.pivotAt(row, col);
+    const defs = this._slicerDefs();
+    if (pivot) {
+      const has = new Set(defs.filter((s) => s.cache?.kind === 'pivot' && s.cache.pivots.some((p) => p.name === pivot.name)).map((s) => s.cache.sourceName));
+      return { kind: 'pivot', name: pivot.name, fields: pivot.cacheFields.map((f) => ({ name: f.name, has: has.has(f.name) })) };
+    }
+    const table = this._tableAt(row, col);
+    if (table) {
+      const ids = this._tableColumnIds(table.part);
+      const has = new Set(defs.filter((s) => s.cache?.kind === 'table' && s.cache.table.id === table.id).map((s) => s.cache.table.column));
+      return { kind: 'table', name: table.name, fields: table.columns.map((c, i) => ({ name: c, has: has.has(ids[i]) })) };
+    }
+    return { kind: null, name: null, fields: [], reason: 'Put the cursor in a table or a pivot table — a slicer filters one of them.' };
+  }
+
+  /**
+   * Insert → Slicer: one panel per field, each a button per item, cascaded
+   * beside the table or pivot as Excel places them. One undo step for all.
+   */
+  insertSlicers({ fields = [] } = {}) {
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before inserting objects.');
+    const src = this.slicerSources();
+    if (!src.kind) throw new Error(src.reason);
+    const wanted = [...new Set(fields.map(String))].filter((f) => src.fields.some((x) => x.name.toLowerCase() === f.toLowerCase()));
+    if (!wanted.length) throw new Error('Tick at least one field to make a slicer for.');
+    const { row, col } = this.selection.active;
+    const pivot = src.kind === 'pivot' ? this.pivotAt(row, col) : null;
+    const table = src.kind === 'table' ? this._tableAt(row, col) : null;
+    const box = pivot ? pivot.location : table;
+    const sheet = this.activeSheet;
+    const geo = this.geo;
+    const extra = pivot ? [pivot.part, pivot.cachePart, this._recordsPartOf(pivot)] : [];
+    const parts = [...new Set([
+      ...this._drawingPartsOf(sheet), this.workbook.mainPart, OoxmlPackage.relsPathFor(this.workbook.mainPart),
+      ...extra,
+    ].filter((p) => p && this.pkg.has(p)))];
+    const made = [];
+    this._edit('insert slicer', null, [], () => {
+      const drawingPart = this.workbook.ensureSheetDrawing(sheet);
+      const startY = geo.rowOffset(box.top);
+      // Beside the table or pivot, and clear of what is drawn there already
+      // (a PivotChart sits where a slicer would otherwise go).
+      let startX = geo.colOffset(box.right + 2);
+      const band = { top: startY, bottom: startY + 252 };
+      for (const d of this.drawings.get(sheet) ?? []) {
+        const b = this._drawingBox(d, geo);
+        if (b.y < band.bottom && b.y + b.height > band.top && b.x + b.width > startX - 8) startX = Math.max(startX, b.x + b.width + 16);
+      }
+      wanted.forEach((field, i) => {
+        const def = { sheet, kind: src.kind, field: src.fields.find((x) => x.name.toLowerCase() === field.toLowerCase()).name };
+        if (pivot) {
+          const fld = pivot.cacheFields.findIndex((f) => f.name === def.field);
+          const readCell = (s, r, c) => this.calc.getValue(s, r, c);
+          const live = sourceValues(pivot, readCell, fld);
+          const items = ensureSharedItems(this.workbook, pivot, fld, live);
+          const hidden = pivot.hidden.get(fld) ?? new Set();
+          def.pivot = pivot;
+          def.pivotTabId = this.workbook.sheetIdOf(pivot.sheet);
+          def.items = items.map((v, x) => ({ x, selected: !hidden.has(x), noData: !live.some((l) => pivotKey(l) === pivotKey(v)) }));
+        } else {
+          const idx = table.columns.findIndex((c) => c === def.field);
+          def.table = { id: table.id, column: this._tableColumnIds(table.part)[idx] || idx + 1 };
+        }
+        const added = addSlicer(this.workbook, def);
+        // Excel's panel, 1.92 by 2.64 inches; the next one beside it rather
+        // than stacked over it, so every caption shows.
+        const x = startX + i * (184 + 12);
+        const y = startY;
+        const w = 184;
+        const h = 252;
+        const from = this._markerAt(x, y);
+        const to = this._markerAt(x + w, y + h);
+        this.workbook.appendDrawingAnchor(drawingPart, (id) => slicerAnchorXml({
+          id, name: added.name, kind: src.kind, from, to,
+          offset: { x: Math.round(x * 9525), y: Math.round(y * 9525) }, size: { cx: w * 9525, cy: h * 9525 },
+        }));
+        made.push(added.name);
+      });
+      this.drawings.set(sheet, this._readDrawings(this.workbook.partNameFor(sheet)));
+      this._pivots = null;
+      this._structuralDirty = true;
+    }, { parts, tracksNewParts: true });
+    return made;
+  }
+
+  /** The records part behind a pivot's cache, where there is one. */
+  _recordsPartOf(pivot) {
+    if (!pivot?.cachePart) return null;
+    const rel = this.pkg.rels(pivot.cachePart).find((r) => String(r.Type).endsWith('/pivotCacheRecords'));
+    return rel ? OoxmlPackage.resolveTarget(pivot.cachePart, rel.Target) : null;
+  }
+
+  /** A pixel point on the sheet as an anchor marker: the cell it is in, and how far in. */
+  _markerAt(x, y) {
+    const geo = this.geo;
+    const col = Math.max(0, geo.colAt(Math.max(0, x)));
+    const row = Math.max(0, geo.rowAt(Math.max(0, y)));
+    return {
+      col, colOff: Math.max(0, Math.round((x - geo.colOffset(col)) * 9525)),
+      row, rowOff: Math.max(0, Math.round((y - geo.rowOffset(row)) * 9525)),
+    };
+  }
+
+  /**
+   * A slicer as its panel shows it: the caption, a button per item — selected
+   * or not, with data under the other filters or not — whether it filters
+   * anything, and what it slices.
+   */
+  slicerState(name) {
+    this._slicerDefs();
+    const memo = this._slicerCache.states;
+    if (memo.has(name)) return memo.get(name);
+    const def = this._slicerDefs().find((s) => s.sheet === this.activeSheet && s.name === name);
+    let out;
+    try {
+      out = def ? this._computeSlicer(def) : null;
+    } catch (e) {
+      out = { name, caption: def?.caption ?? name, items: [], broken: e.message };
+    }
+    memo.set(name, out);
+    return out;
+  }
+
+  _computeSlicer(def) {
+    const base = { name: def.name, caption: def.caption, columns: def.columns, rowHeightPx: Math.max(18, Math.round(def.rowHeight / 9525)), showCaption: def.showCaption };
+    const cache = def.cache;
+    if (!cache) return { ...base, items: [], broken: 'its slicer cache is missing' };
+    const order = (a, b) => (a.hasData === b.hasData ? 0 : a.hasData ? -1 : 1);
+    if (cache.kind === 'table') {
+      const t = this.workbook.tables().find((x) => x.id === cache.table.id);
+      if (!t) return { ...base, items: [], broken: 'its table is gone' };
+      const box = this._tableByName(t.name);
+      const ids = this._tableColumnIds(t.part);
+      const idx = Math.max(0, ids.indexOf(cache.table.column));
+      const filters = this.workbook.tableFilters(t.part);
+      const chosen = filters.get(idx);
+      const top = box.top + box.headerRowCount;
+      const bottom = box.bottom - box.totalsRowCount;
+      const all = new Map();
+      const live = new Set();
+      for (let r = top; r <= bottom; r++) {
+        const text = this.displayValue(r, box.left + idx).text;
+        const label = text === '' ? '(blank)' : text;
+        if (!all.has(label)) all.set(label, this.calc.getValue(t.sheet, r, box.left + idx));
+        let passes = true;
+        for (const [cid, vals] of filters) {
+          if (cid === idx || !vals || !vals.length) continue;
+          if (!vals.includes(this.displayValue(r, box.left + cid).text)) { passes = false; break; }
+        }
+        if (passes) live.add(label);
+      }
+      const items = [...all.entries()]
+        .sort((a, b) => (a[0] === '(blank)') - (b[0] === '(blank)') || slicerCompare(a[1], b[1]) || a[0].localeCompare(b[0]))
+        .map(([label]) => ({ label, selected: !chosen || !chosen.length ? true : chosen.includes(label === '(blank)' ? '' : label), hasData: live.has(label) }));
+      items.sort(order);
+      return { ...base, kind: 'table', source: t.name, field: t.columns[idx], items, filtered: Boolean(chosen && chosen.length) };
+    }
+    const pivotName = cache.pivots[0]?.name;
+    const pivotSheet = this.workbook.sheetWithId(cache.pivots[0]?.tabId);
+    const pivot = this.pivots().find((p) => p.name === pivotName && (!pivotSheet || p.sheet === pivotSheet));
+    if (!pivot || pivot.unsupported) return { ...base, items: [], broken: pivot ? pivot.unsupported : 'its pivot table is gone' };
+    const fld = pivot.cacheFields.findIndex((f) => f.name === cache.sourceName);
+    if (fld < 0) return { ...base, items: [], broken: 'its field is gone from the pivot' };
+    const readCell = (s, r, c) => this.calc.getValue(s, r, c);
+    const liveValues = sourceValues(pivot, readCell, fld);
+    const hiddenX = pivot.hidden.get(fld) ?? new Set();
+    const cacheItems = pivot.cacheFields[fld].items ?? [];
+    const hiddenKeys = new Set([...hiddenX].map((x) => pivotKey(cacheItems[x])));
+    // With data: the values rows still show once every OTHER field's hidden items are out.
+    const src = pivot.source;
+    const others = [...pivot.hidden.entries()].filter(([f]) => f !== fld)
+      .map(([f, set]) => [f, new Set([...set].map((x) => pivotKey(pivot.cacheFields[f]?.items?.[x])))]);
+    const withData = new Set();
+    for (let r = src.top + 1; r <= src.bottom; r++) {
+      let ok = true;
+      for (const [f, keys] of others) {
+        if (keys.has(pivotKey(readCell(src.sheet, r, src.left + f) ?? ''))) { ok = false; break; }
+      }
+      if (ok) withData.add(pivotKey(readCell(src.sheet, r, src.left + fld) ?? ''));
+    }
+    const items = [...liveValues]
+      .sort((a, b) => ((a === '') - (b === '')) || slicerCompare(a, b))
+      .map((v) => ({ label: itemLabel(v), selected: !hiddenKeys.has(pivotKey(v)), hasData: withData.has(pivotKey(v)) }));
+    items.sort(order);
+    return { ...base, kind: 'pivot', source: pivot.name, field: cache.sourceName, items, filtered: items.some((i) => !i.selected) };
+  }
+
+  /**
+   * Click a slicer's buttons: the items to show, by their labels — or null
+   * (Clear Filter) for every one. A table's autoFilter takes the choice and
+   * the rows it leaves out hide; a pivot hides the items in its field, its
+   * slicer cache keeps the states, and it is refreshed with its charts.
+   */
+  setSlicerSelection({ name, values = null }) {
+    const def = this._slicerDefs().find((s) => s.sheet === this.activeSheet && s.name === name);
+    if (!def) throw new Error('no slicer "' + name + '" on this sheet');
+    const state = this.slicerState(name);
+    if (state.broken) throw new Error('This slicer cannot filter: ' + state.broken + '.');
+    const labels = values === null || values === undefined ? null : [...new Set(values.map(String))];
+    if (labels && !labels.length) throw new Error('A slicer keeps at least one item selected — Clear Filter shows them all.');
+    const everything = !labels || state.items.every((i) => labels.includes(i.label));
+    if (state.kind === 'table') {
+      const t = this.workbook.tables().find((x) => x.id === def.cache.table.id);
+      return this.applyFilter(t.name, state.field, everything ? null : labels.map((l) => (l === '(blank)' ? '' : l)));
+    }
+    const pivot = this.pivots().find((p) => p.name === state.source);
+    const fld = pivot.cacheFields.findIndex((f) => f.name === state.field);
+    const readCell = (s, r, c) => this.calc.getValue(s, r, c);
+    const liveValues = sourceValues(pivot, readCell, fld);
+    const keep = everything ? null : liveValues.filter((v) => labels.includes(itemLabel(v)));
+    // Every slicer cache on this field of this pivot keeps the same states.
+    const caches = [...new Set(this._slicerDefs()
+      .filter((s) => s.cache?.kind === 'pivot' && s.cache.sourceName === state.field && s.cache.pivots.some((p) => p.name === pivot.name))
+      .map((s) => s.cache.part))];
+    const parts = [...new Set([
+      this.workbook.partNameFor(pivot.sheet), pivot.part, pivot.cachePart, this._recordsPartOf(pivot),
+      ...caches, ...this._pivotChartParts(pivot).flatMap((p) => [p]),
+
+    ].filter((p) => p && this.pkg.has(p)))];
+    this._edit('slicer ' + name, null, [], () => {
+      this._flushPendingEdits();
+      const { items, hidden } = setPivotItemsShown(this.workbook, pivot, fld, keep, readCell);
+      const liveKeys = new Set(liveValues.map(pivotKey));
+      for (const part of caches) {
+        writeSlicerCacheItems(this.workbook, part, items.map((v, x) => ({ x, selected: !hidden.has(x), noData: !liveKeys.has(pivotKey(v)) })));
+      }
+      this._writePivotGrid(pivot);
+      this.dirtyCells.clear();
+      this.styledCells.clear();
+      this._structuralDirty = true;
+      this._rebuildDerivedState();
+    }, { parts, structural: true });
+    return this;
+  }
+
+  /** A pivot's rectangle rewritten from its definition, in the parts (a structural edit's way), and its charts. */
+  _writePivotGrid(pivot) {
+    const readCell = (s, r, c) => this.calc.getValue(s, r, c);
+    const grid = computePivot(pivot, readCell);
+    const old = pivot.location;
+    const wanted = new Map(grid.cells.map((c) => [c.row + ':' + c.col, c.value]));
+    const clear = (r, c) => { if (!wanted.has(r + ':' + c)) this.workbook.setCell(pivot.sheet, ref(r, c), null); };
+    for (let r = old.top; r <= old.bottom; r++) for (let c = old.left; c <= old.right; c++) clear(r, c);
+    for (const c of grid.cells) this.workbook.setCell(pivot.sheet, ref(c.row, c.col), c.value === '' ? null : c.value);
+    updatePivotLocation(this.workbook, pivot, grid.area, {
+      headerRows: grid.firstHeaderRow, dataRow: grid.firstDataRow, dataCol: grid.firstDataCol,
+    });
+    this._updatePivotCharts(pivot, grid);
+    this._pivots = null;
+    return grid;
+  }
+
+  /** Slicer → Caption and Columns, from the slicer's own menu. */
+  setSlicerProps({ name, caption, columns }) {
+    const def = this._slicerDefs().find((s) => s.sheet === this.activeSheet && s.name === name);
+    if (!def) throw new Error('no slicer "' + name + '" on this sheet');
+    const cols = columns === undefined ? undefined : Math.max(1, Math.min(20, Math.round(Number(columns) || 1)));
+    this._edit('slicer settings', null, [], () => {
+      writeSlicerProps(this.workbook, this.activeSheet, name, { caption: caption === undefined ? undefined : String(caption), columns: cols });
+      this._structuralDirty = true;
+    }, { parts: [def.part] });
+    return this;
+  }
+
+  // ---- drawings: move, resize, delete -----------------------------------------
+
+  /** The active sheet's drawing part, or null. */
+  _drawingPart(sheet = this.activeSheet) {
+    const sheetPart = this.workbook.partNameFor(sheet);
+    const rel = this.pkg.rels(sheetPart).find((r) => String(r.Type).endsWith('/drawing'));
+    if (!rel) return null;
+    const part = OoxmlPackage.resolveTarget(sheetPart, rel.Target);
+    return this.pkg.has(part) ? part : null;
+  }
+
+  /** A drawing of the active sheet by its frame id, with its place in the part. */
+  _drawingById(id) {
+    const list = this.drawings.get(this.activeSheet) ?? [];
+    const d = list.find((x) => x.id === String(id));
+    if (!d) throw new Error('no drawing "' + id + '" on this sheet');
+    return d;
+  }
+
+  /** Rewrite drawing anchors of the active sheet in one undo step: `edit(spans, xml)` returns the new part. */
+  _editAnchors(label, edit, { extraParts = [] } = {}) {
+    const part = this._drawingPart();
+    if (!part) throw new Error('this sheet has no drawings');
+    const { sheetPartName, parts } = this._drawingEditParts();
+    let result = null;
+    this._edit(label, null, [], () => {
+      const xml = this.pkg.text(part);
+      const spans = anchorSpans(xml);
+      const out = edit(spans, xml);
+      result = out.result ?? null;
+      if (out.xml !== xml) this.pkg.write_(part, out.xml);
+      this.drawings.set(this.activeSheet, this._readDrawings(sheetPartName));
+      this._structuralDirty = true;
+    }, { parts: [...new Set([...parts, ...extraParts.filter((p) => this.pkg.has(p))])], tracksNewParts: true });
+    return result;
+  }
+
+  /**
+   * A drawing moved or resized by hand: its box in sheet pixels. The anchor
+   * follows the cells — a two-cell anchor's `from` and `to` markers, a
+   * one-cell anchor's `from` and extent — and the shape's own `a:xfrm`
+   * (where it states one) agrees, so Excel puts it back exactly here.
+   */
+  setDrawingBox({ id, x, y, width, height }) {
+    const d = this._drawingById(id);
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before moving objects.');
+    const box = {
+      x: Math.max(0, Math.round(Number(x) || 0)),
+      y: Math.max(0, Math.round(Number(y) || 0)),
+      width: Math.max(8, Math.round(Number(width) || 8)),
+      height: Math.max(8, Math.round(Number(height) || 8)),
+    };
+    return this._editAnchors('move ' + (d.name || d.kind), (spans, xml) => {
+      const span = spans[d.index];
+      const next = anchorWithBox(span.xml, box, (px, py) => this._markerAt(px, py));
+      return { xml: xml.slice(0, span.start) + next + xml.slice(span.end), result: box };
+    });
+  }
+
+  /**
+   * Delete drawings — the Delete key on a selected picture, shape, chart or
+   * slicer. A slicer takes its `<slicer>`, and its cache when nothing else
+   * uses it; a chart its part; the relationships they leave unused go too.
+   */
+  deleteDrawings({ ids = [] } = {}) {
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before deleting objects.');
+    const list = (this.drawings.get(this.activeSheet) ?? []).filter((d) => ids.map(String).includes(d.id));
+    if (!list.length) return 0;
+    const drawingPart = this._drawingPart();
+    const slicers = list.filter((d) => d.kind === 'slicer');
+    const extra = [this.workbook.mainPart, OoxmlPackage.relsPathFor(this.workbook.mainPart), OoxmlPackage.relsPathFor(drawingPart)];
+    for (const s of slicers) {
+      const def = this._slicerDefs().find((x) => x.sheet === this.activeSheet && x.name === s.slicerName);
+      if (def) extra.push(def.part, ...(def.cache ? [def.cache.part] : []));
+    }
+    return this._editAnchors('delete ' + (list.length === 1 ? (list[0].name || list[0].kind) : list.length + ' objects'), (spans, xml) => {
+      const gone = new Set(list.map((d) => d.index));
+      let out = '';
+      let at = 0;
+      spans.forEach((s, i) => {
+        out += xml.slice(at, s.start);
+        if (!gone.has(i)) out += s.xml;
+        at = s.end;
+      });
+      out += xml.slice(at);
+      // Relationships no anchor names any more — a chart's, a picture's.
+      const relsPath = OoxmlPackage.relsPathFor(drawingPart);
+      if (this.pkg.has(relsPath)) {
+        let rels = this.pkg.text(relsPath);
+        for (const r of this.pkg.rels(drawingPart)) {
+          if (new RegExp('"' + r.Id + '"').test(out)) continue;
+          if (!/\/(chart|image)$/.test(String(r.Type))) continue;
+          rels = rels.replace(new RegExp('<Relationship\\b[^>]*Id="' + r.Id + '"[^>]*/>'), '');
+        }
+        this.pkg.write_(relsPath, rels);
+      }
+      for (const s of slicers) {
+        try { removeSlicer(this.workbook, this.activeSheet, s.slicerName); } catch { /* a slicer part already gone */ }
+      }
+      return { xml: out, result: list.length };
+    }, { extraParts: extra });
+  }
   // ---- sheet protection ---------------------------------------------------
 
   /** The active sheet's protection, digested for the frame and the gate. */
@@ -6153,6 +6754,58 @@ export function coerceInput(text) {
   }
   if (/^(TRUE|FALSE)$/i.test(trimmed)) return trimmed.toUpperCase() === 'TRUE';
   return s;
+}
+
+/**
+ * The anchors of a drawing part in document order — which is drawing order —
+ * each with where it starts and ends, so one can be rewritten in place.
+ */
+export function anchorSpans(xml) {
+  const out = [];
+  const re = /<([\w]+:)?(twoCellAnchor|oneCellAnchor|absoluteAnchor)\b[^>]*>[\s\S]*?<\/([\w]+:)?\2>/g;
+  let m;
+  while ((m = re.exec(xml))) out.push({ start: m.index, end: m.index + m[0].length, xml: m[0], type: m[2], prefix: m[1] ?? '' });
+  return out;
+}
+
+/**
+ * One anchor put at a new box (sheet pixels): its markers — `from` and `to`
+ * for a two-cell anchor, `from` and its extent for a one-cell one, position
+ * and extent for an absolute one — and the first `a:xfrm` inside, which a
+ * shape, a picture or a group states and Excel checks against the anchor.
+ */
+export function anchorWithBox(anchorXml, box, markerAt) {
+  const p = /^<([\w]+:)?/.exec(anchorXml)?.[1] ?? '';
+  const emu = (px) => Math.round(px * 9525);
+  const marker = (tag, m) => '<' + p + tag + '><' + p + 'col>' + m.col + '</' + p + 'col><' + p + 'colOff>' + m.colOff + '</' + p + 'colOff>'
+    + '<' + p + 'row>' + m.row + '</' + p + 'row><' + p + 'rowOff>' + m.rowOff + '</' + p + 'rowOff></' + p + tag + '>';
+  const esc = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const el = (tag) => new RegExp('<' + esc(p + tag) + '>[\\s\\S]*?</' + esc(p + tag) + '>');
+  let out = anchorXml;
+  const from = markerAt(box.x, box.y);
+  const to = markerAt(box.x + box.width, box.y + box.height);
+  if (el('from').test(out)) out = out.replace(el('from'), () => marker('from', from));
+  if (el('to').test(out)) out = out.replace(el('to'), () => marker('to', to));
+  // The anchor's own extent and position (a one-cell or absolute anchor): the
+  // direct children, not the `a:ext` inside a shape's xfrm.
+  out = out.replace(new RegExp('(</' + esc(p + 'from') + '>|^<' + esc(p) + 'absoluteAnchor\\b[^>]*>)(\\s*<' + esc(p) + 'pos\\b[^>]*/>)?(\\s*<' + esc(p) + 'ext\\b[^>]*/>)?'), (whole, head, pos, ext) => head
+    + (pos ? '<' + p + 'pos x="' + emu(box.x) + '" y="' + emu(box.y) + '"/>' : '')
+    + (ext ? '<' + p + 'ext cx="' + emu(box.width) + '" cy="' + emu(box.height) + '"/>' : ''));
+  // The first xfrm inside states the same box.
+  out = out.replace(/(<a:xfrm\b[^>]*>\s*)<a:off\b[^>]*\/>(\s*)<a:ext\b[^>]*\/>/, (whole, head, gap) => {
+    if (/<a:off x="0" y="0"\/>\s*<a:ext cx="0" cy="0"\/>/.test(whole)) return whole; // a chart frame's placeholder
+    return head + '<a:off x="' + emu(box.x) + '" y="' + emu(box.y) + '"/>' + gap + '<a:ext cx="' + emu(box.width) + '" cy="' + emu(box.height) + '"/>';
+  });
+  return out;
+}
+
+/** Items in a slicer's order: numbers by size, then words as a person sorts them. */
+function slicerCompare(a, b) {
+  const na = typeof a === 'number';
+  const nb = typeof b === 'number';
+  if (na && nb) return a - b;
+  if (na !== nb) return na ? -1 : 1;
+  return String(a ?? '').localeCompare(String(b ?? ''), undefined, { numeric: true, sensitivity: 'base' });
 }
 
 export { OoxmlPackage };
