@@ -1222,6 +1222,25 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // The list round the cell and its columns, for the Subtotal and Advanced
     // Filter dialogs — as text, since only a primitive rides back.
     listFields: (v) => JSON.stringify(v.listFields()),
+    // Data → Consolidate and Data → Forecast Sheet; what each dialog opens
+    // on, and what each made, ride back as text.
+    consolidateInfo: (v) => JSON.stringify(v.consolidateInfo()),
+    consolidate: (v, a) => JSON.stringify(v.consolidate({
+      fn: a.fn || 'sum', refs: Array.isArray(a.refs) ? a.refs : [], topRow: Boolean(a.topRow), leftCol: Boolean(a.leftCol), links: Boolean(a.links),
+    })),
+    forecastInfo: (v) => JSON.stringify(v.forecastInfo()),
+    forecastPreview: (v, a) => JSON.stringify(v.forecastPreview({
+      timeline: a.timeline, values: a.values, end: a.end, kind: a.kind === 'column' ? 'column' : 'line',
+      confidence: a.confidence === null ? null : Number(a.confidence ?? 0.95),
+      seasonality: a.seasonality === 'auto' || a.seasonality === undefined ? 'auto' : Number(a.seasonality),
+      completion: a.completion === 0 ? 0 : 1, aggregation: Number(a.aggregation || 1),
+    }, { width: Number(a.width) || 580, height: Number(a.height) || 250 })),
+    forecastSheet: (v, a) => JSON.stringify(v.forecastSheet({
+      timeline: a.timeline, values: a.values, end: a.end, kind: a.kind === 'column' ? 'column' : 'line',
+      confidence: a.confidence === null ? null : Number(a.confidence ?? 0.95),
+      seasonality: a.seasonality === 'auto' || a.seasonality === undefined ? 'auto' : Number(a.seasonality),
+      completion: a.completion === 0 ? 0 : 1, aggregation: Number(a.aggregation || 1),
+    })),
     freeze: (v, a) => v.freezePanes(a.rows ?? 0, a.cols ?? 0),
     // View → Normal / Page Break Preview, and Split: kept in the sheet's
     // view the way Excel keeps them. The top and left panes of a split
@@ -1599,7 +1618,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

@@ -222,6 +222,9 @@ export function chartPartXml(chart) {
       + '</c:ser>'
     : '<c:ser>'
       + '<c:idx val="' + i + '"/><c:order val="' + i + '"/>' + tx(s, i)
+      + (s.line ? '<c:spPr><a:ln w="' + Math.round(s.line.width ?? 28575) + '" cap="rnd"><a:solidFill><a:srgbClr val="' + esc(s.line.colour) + '"/></a:solidFill>'
+        + (s.line.dash ? '<a:prstDash val="' + esc(s.line.dash) + '"/>' : '') + '<a:round/></a:ln></c:spPr>' : '')
+      + (s.marker === false ? '<c:marker><c:symbol val="none"/></c:marker>' : '')
       + (chart.categories ? '<c:cat>' + strRef(chart.categories.ref, chart.categories.values) + '</c:cat>' : '')
       + '<c:val>' + numRef(s.ref, s.values ?? []) + '</c:val>'
       + '</c:ser>')).join('');

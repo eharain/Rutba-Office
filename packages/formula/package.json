@@ -16,6 +16,7 @@
     "./functions": "./src/functions.js",
     "./parser": "./src/parser.js",
     "./catalog": "./src/catalog.js",
-    "./numfmt": "./src/numfmt.js"
+    "./numfmt": "./src/numfmt.js",
+    "./forecast": "./src/forecast.js"
   }
 }

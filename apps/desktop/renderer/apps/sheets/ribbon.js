@@ -542,14 +542,14 @@ export default function SheetsRibbon({
             <Button icon="wand" label="Flash Fill" title="Flash Fill — fill the column from an example or two typed in it (Ctrl+E)" onClick={() => act('flashFill')} />
             <Button icon="minus" label="Remove Duplicates" title="Remove Duplicates — rows that repeat an earlier one in the selection, or the block round the cell, go" onClick={() => act('removeDuplicates')} />
             <Button icon="check" label="Data Validation" onClick={() => openDialog('validation')} />
-            <Soon icon="sum" label="Consolidate" why="Consolidating ranges across sheets is not built." />
+            <Button icon="sum" label="Consolidate" title="Consolidate — ranges on this sheet or others summed (or averaged, counted…) at the active cell, by position or by their labels" onClick={() => act('consolidateDialog')} />
           </Group>
           <Group label="Forecast">
             <Button tall icon="wand" label="What-If Analysis" onClick={(e) => menu.open(e, [
               { label: 'Goal Seek…', run: () => openDialog('goalSeek') },
               { label: 'Data Table…', run: () => openDialog('dataTable') },
             ])} />
-            <Soon tall icon="chart" label="Forecast Sheet" why="Forecasting (FORECAST.ETS) is not built." />
+            <Button tall icon="chart" label="Forecast Sheet" title="Forecast Sheet — a new sheet carrying a timeline's values forward, with FORECAST.ETS, confidence bounds and a chart" onClick={() => act('forecastDialog')} />
           </Group>
           <Group label="Outline">
             <Button tall icon="plus" label="Group" title="Group — the selected rows or columns one outline level deeper (Shift+Alt+Right)" onClick={() => act('group')} />

@@ -380,7 +380,7 @@ export function listFields(view) {
  * The flush, the transform and the rebuild of a structural edit, as one
  * undo step. The rows move, so every sheet part and the names travel.
  */
-function structuralEdit(view, label, fn) {
+export function structuralEdit(view, label, fn) {
   const parts = [...new Set([...view.workbook.sheets().map((s) => s.part), view.workbook.mainPart])];
   return view._edit(label, null, [], () => {
     view._flushPendingEdits();

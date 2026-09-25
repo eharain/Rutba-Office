@@ -19,7 +19,7 @@ import { SymbolDialog } from './word/dialogs.js';
 import {
   GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
   OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog,
-  ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog,
+  ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog, ConsolidateDialog, ForecastDialog,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -132,6 +132,8 @@ export default function Sheets({ app, shell, boot }) {
   const rangeLockRef = useRef(null);
   /** Page Layout → Background: the picture's part and the address its bytes are drawn from. */
   const [backdrop, setBackdrop] = useState(null);
+  /** Data → Consolidate and Forecast Sheet: what each dialog opens on. */
+  const [analysis, setAnalysis] = useState(null);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -2161,6 +2163,24 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'editRanges': setDialog('editRanges'); return;
+      // Data → Consolidate: the dialog opens on the sheet's last consolidation and the selection.
+      case 'consolidateDialog': {
+        const next = await dispatch({ op: 'consolidateInfo' });
+        if (!next) return;
+        setAnalysis(JSON.parse(next.opResult || 'null'));
+        setDialog('consolidate');
+        return;
+      }
+      // Data → Forecast Sheet: the dialog opens on the timeline and values round the cell.
+      case 'forecastDialog': {
+        const next = await dispatch({ op: 'forecastInfo' });
+        if (!next) return;
+        const info = JSON.parse(next.opResult || 'null');
+        if (!info) { toast('Select a timeline and its values — dates in one column, numbers in the next — or put the cursor in them.', { ms: 5000 }); return; }
+        setAnalysis(info);
+        setDialog('forecast');
+        return;
+      }
       // The tabs' Hide, Unhide and Move: refused, in Excel's words, while the structure is locked.
       case 'hideSheet':
         await dispatch({ op: 'hideSheet', name: arg });
@@ -2914,6 +2934,42 @@ export default function Sheets({ app, shell, boot }) {
         />
       ) : null}
 
+      {dialog === 'consolidate' ? (
+        <ConsolidateDialog
+          info={analysis}
+          onClose={() => setDialog(null)}
+          onApply={async (spec) => {
+            const said = await tryOps({ op: 'consolidate', ...spec });
+            if (said) return said;
+            setDialog(null);
+            toast(spec.links ? 'Consolidated with links to the source data — the outline\'s 2 opens the detail' : 'Consolidated', { tone: 'good' });
+            return null;
+          }}
+        />
+      ) : null}
+
+      {dialog === 'forecast' && doc ? (
+        <ForecastDialog
+          info={analysis}
+          preview={async (spec) => {
+            try {
+              const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'forecastPreview', ...spec, width: 580, height: 250 }] });
+              return JSON.parse(next.opResult || 'null');
+            } catch (err) {
+              return { svg: '', error: String(err?.message || err) };
+            }
+          }}
+          onClose={() => setDialog(null)}
+          onCreate={async (spec) => {
+            const said = await tryOps({ op: 'forecastSheet', ...spec });
+            if (said) return said;
+            setDialog(null);
+            toast('Forecast sheet made — the table and its chart, in front of the data', { tone: 'good', ms: 4000 });
+            return null;
+          }}
+        />
+      ) : null}
+
       {dialog === 'customViews' ? (
         <CustomViewsDialog
           views={model?.customViews || []}
@@ -3419,5 +3475,24 @@ const CSS = `
 .sh-ranges-buttons .rw-btn { justify-content: center; min-height: 28px; }
 .sh-ranges-buttons .rw-btn:not(.primary) { border: 1px solid var(--line); background: var(--surface); }
 .sh-ranges-buttons .rw-btn:not(.primary):hover:not(:disabled) { background: var(--hover); }
+.sh-ranges-row.one { grid-template-columns: 1fr; }
+.sh-cons-add { border: 1px solid var(--line); background: var(--surface); min-width: 64px; justify-content: center; }
+.sh-cons-options { display: flex; justify-content: space-between; align-items: flex-end; gap: 12px; }
+.sh-cons-options > div { display: flex; flex-direction: column; gap: 6px; }
+.sh-cons-head { font-size: 11.5px; font-weight: 600; color: var(--ink-3); margin-top: 2px; }
+/* Data → Forecast Sheet: the chart kinds, the preview, the options in two columns. */
+.sh-fc { display: flex; flex-direction: column; gap: 10px; }
+.sh-fc-kinds { display: flex; gap: 6px; }
+.sh-fc-kind { width: 40px; height: 30px; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); color: var(--ink-2); cursor: pointer; }
+.sh-fc-kind svg { fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.sh-fc-kind.on { border-color: var(--accent); background: var(--selected); color: var(--accent); }
+.sh-fc-preview { height: 250px; border: 1px solid var(--line-soft); border-radius: var(--r-2); background: var(--surface); display: grid; place-items: center; overflow: hidden; }
+.sh-fc-preview > div, .sh-fc-preview svg { width: 100%; height: 100%; display: block; }
+.sh-fc-preview p { margin: 0; padding: 0 24px; font-size: 12.5px; color: var(--ink-3); text-align: center; }
+.sh-fc-row { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.sh-fc-row .rw-field { flex: 0 0 200px; }
+.sh-fc-toggle { border: 0; background: transparent; color: var(--accent); font: inherit; font-size: 12.5px; cursor: pointer; padding: 4px 2px; }
+.sh-fc-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
+.sh-fc-col { display: flex; flex-direction: column; gap: 8px; }
 .sh-ranges-locked { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
 `;

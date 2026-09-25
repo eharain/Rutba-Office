@@ -45,6 +45,8 @@ import {
 import { advancedFilter, clearAdvancedFilter, filterNames } from './advanced-filter.js';
 import { paginate, planBands, pageSetup, readPageSetup, parseArea, PAPER, PX_PER_MM } from './print.js';
 import { inferProgram, runProgram } from './flash-fill.js';
+import { consolidate as consolidateRanges, lastConsolidation, consolidateRefText } from './consolidate.js';
+import { createForecastSheet, forecastDefaults, forecastPreview } from './forecast-sheet.js';
 import {
   readSheetDrawings, buildChart, buildShape, buildPicture, renderSvg, scene,
   SUPPORTED_GEOMETRY,
@@ -395,7 +397,9 @@ export class SheetView {
     // deliberately declares no type of its own rather than guessing one.
     if (entry.state.addedParts) {
       for (const [name, text] of Object.entries(entry.state.addedParts)) {
-        if (direction === 'undo') this.pkg.removePart(name);
+        // A part the edit made and a later read parsed (a new sheet drawn)
+        // goes from the parsed set too, or the next save writes it back.
+        if (direction === 'undo') { this.pkg.removePart(name); this.workbook._loaded.delete(name); }
         else if (!this.pkg.has(name)) this.pkg.addPart(name, text);
       }
       this._pivots = null;
@@ -4245,6 +4249,44 @@ export class SheetView {
       this._structuralDirty = true;
     }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
     return this;
+  }
+
+  // ---- Data → Consolidate, Data → Forecast Sheet --------------------------------
+
+  /**
+   * Data → Consolidate at the active cell (see consolidate.js): `fn`, the
+   * references, labels in the top row and left column, links to the source.
+   */
+  consolidate(spec = {}) {
+    return consolidateRanges(this, spec);
+  }
+
+  /**
+   * What the Consolidate dialog opens on: the sheet's last consolidation, as
+   * Excel remembers it, and the selection as a reference to add.
+   */
+  consolidateInfo() {
+    const r = this.selection.range;
+    return {
+      last: lastConsolidation(this),
+      selection: consolidateRefText({ sheet: this.activeSheet, ...r }),
+    };
+  }
+
+  /** What the Forecast Sheet dialog opens on (see forecast-sheet.js). */
+  forecastInfo() {
+    return forecastDefaults(this);
+  }
+
+  /** The Forecast Sheet dialog's preview: the chart as the sheet will draw it, or why not. */
+  forecastPreview(spec = {}, size = {}) {
+    return forecastPreview(this, spec, size);
+  }
+
+  /** Data → Forecast Sheet: a new sheet with the forecast's table and chart. */
+  forecastSheet(spec = {}) {
+    this._structureGate();
+    return createForecastSheet(this, spec);
   }
 
   // ---- workbook protection ---------------------------------------------------

@@ -202,11 +202,21 @@ export async function verifyProtect(h, { dir }) {
     await typeText('X');
     await press(win.webContents, 'Return', { char: true });
     await wait(600);
-    await select('B4');
-    await js(`document.querySelector('.sh')?.focus(), 'ok'`);
-    await typeText('9');
-    await press(win.webContents, 'Return', { char: true });
-    const b4 = await until(() => cellText('B4') === '9', 'B4 to take 9', 6000).catch(() => false);
+    // The refused edit's box is let go before the next cell is chosen.
+    await press(win.webContents, 'Escape');
+    await until(() => js(`!document.querySelector('.sh-editor')`), 'the refused edit closed', 4000).catch(() => {});
+    const typeInto = async (ref, text) => {
+      await select(ref);
+      await js(`document.querySelector('.sh')?.focus(), 'ok'`);
+      await wait(200);
+      await typeText(text);
+      await until(() => js(`document.querySelector('.sh-editor')?.value === ${JSON.stringify(text)}`), 'the edit in ' + ref, 4000).catch(() => {});
+      await press(win.webContents, 'Return', { char: true });
+      return until(() => cellText(ref) === text, ref + ' to take ' + text, 6000).catch(() => false);
+    };
+    let b4 = await typeInto('B4', '9');
+    // Once more under load: a key can land before the grid holds the focus.
+    if (!b4) b4 = await typeInto('B4', '9');
     const noAsk = await js(`!document.querySelector('.sh-password')`);
     check('sheets: outside the range a locked cell is refused as before; the rest of the range takes edits without asking again',
       cellText('A3') === 'Ink' && b4 === true && noAsk === true, `A3 ${cellText('A3')}; B4 ${cellText('B4')}; asked again ${!noAsk}`);

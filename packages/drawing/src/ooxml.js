@@ -121,6 +121,9 @@ export function parseChartXml(chartXml, { mode = 'light', width = 480, height = 
       name: name ?? 'Series ' + (series.length + 1),
       values: nums.map((v) => (v === undefined || v === null || v === '' ? null : Number(v))),
     };
+    // A line series with its marker switched off (symbol "none").
+    const marker = firstElement(ser, 'marker');
+    if (type === 'line' && marker && /<([\w]+:)?symbol\s+val="none"/.test(marker)) entry.markers = false;
     // A scatter series plots against its own X values. Text X values (a
     // strRef) are not numbers, and Excel then plots the points 1, 2, 3…
     // across, which is what no `x` means to the drawing.

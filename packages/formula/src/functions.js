@@ -24,6 +24,35 @@ import {
 } from './values.js';
 import { indexToCol } from './parser.js';
 import { formatValue } from './numfmt.js';
+import {
+  etsQuestion, forecastAt, confidenceAt, prepareSeries, seasonFor, linearForecast, ForecastError,
+} from './forecast.js';
+
+/**
+ * A forecasting function's body, with errors in its arguments passed on and
+ * its own refusals (a timeline without a steady step, a date before the end
+ * of it) answered as the Excel error each is.
+ */
+const forecastFn = (body) => (...args) => {
+  const e = firstError(args);
+  if (e) return e;
+  try {
+    return body(...args);
+  } catch (err) {
+    if (err instanceof ForecastError) return new FormulaError(err.type, err.message);
+    throw err;
+  }
+};
+
+/** An optional number argument: its default when left out or blank. */
+const optionalNumber = (v, fallback) => {
+  if (v === undefined) return fallback;
+  const one = Array.isArray(v) ? v.flat(Infinity)[0] : v;
+  if (isBlank(one)) return fallback;
+  const n = toNumber(one);
+  if (isError(n)) throw new ForecastError('#VALUE!', 'an argument is not a number');
+  return n;
+};
 
 /** Flatten range results into a list of scalars. */
 const flatten = (args) => args.flat(Infinity);
@@ -664,6 +693,43 @@ export const FUNCTIONS = {
     return best === null ? ERR.NA('no value repeats') : best;
   }),
   'MODE.SNGL': def((...args) => FUNCTIONS.MODE.fn(...args)),
+  // ---- forecasting (see forecast.js for the method) -----------------------
+  'FORECAST.LINEAR': def(forecastFn((x, ys, xs) => {
+    const at = toNumber(Array.isArray(x) ? x.flat(Infinity)[0] : x);
+    if (isError(at)) return at;
+    return linearForecast(at, vec(ys), vec(xs));
+  })),
+  FORECAST: def((...args) => FUNCTIONS['FORECAST.LINEAR'].fn(...args)),
+  'FORECAST.ETS': def(forecastFn((target, values, timeline, seasonality, completion, aggregation) => {
+    const q = etsQuestion({
+      target: toNumber(Array.isArray(target) ? target.flat(Infinity)[0] : target),
+      values: vec(values),
+      timeline: vec(timeline),
+      seasonality: optionalNumber(seasonality, 1),
+      completion: optionalNumber(completion, 1),
+      aggregation: optionalNumber(aggregation, 1),
+    });
+    return forecastAt(q.fit, q.h);
+  })),
+  'FORECAST.ETS.CONFINT': def(forecastFn((target, values, timeline, confidence, seasonality, completion, aggregation) => {
+    const level = optionalNumber(confidence, 0.95);
+    if (!(level > 0 && level < 1)) return ERR.NUM('the confidence level is between 0 and 1');
+    const q = etsQuestion({
+      target: toNumber(Array.isArray(target) ? target.flat(Infinity)[0] : target),
+      values: vec(values),
+      timeline: vec(timeline),
+      seasonality: optionalNumber(seasonality, 1),
+      completion: optionalNumber(completion, 1),
+      aggregation: optionalNumber(aggregation, 1),
+    });
+    return confidenceAt(q.fit, q.h, level);
+  })),
+  'FORECAST.ETS.SEASONALITY': def(forecastFn((values, timeline, completion, aggregation) => {
+    const series = prepareSeries(vec(values), vec(timeline), {
+      completion: optionalNumber(completion, 1), aggregation: optionalNumber(aggregation, 1),
+    });
+    return seasonFor(series.ys, 1);
+  })),
   'STDEV.S': def((...args) => {
     const v = variance(args, { population: false });
     return isError(v) ? v : Math.sqrt(v);

@@ -1362,3 +1362,205 @@ export function CustomViewsDialog({ views = [], onClose, onShow, onAdd, onDelete
     </Dialog>
   );
 }
+
+/* ── Data → Consolidate ──────────────────────────────────────────────────── */
+
+export const CONSOLIDATE_FNS = [
+  ['sum', 'Sum'], ['count', 'Count'], ['average', 'Average'], ['max', 'Max'], ['min', 'Min'], ['product', 'Product'],
+  ['countNumbers', 'Count Numbers'], ['stdDev', 'StdDev'], ['stdDevp', 'StdDevp'], ['var', 'Var'], ['varp', 'Varp'],
+];
+
+/**
+ * Excel's Consolidate dialog: the function, a reference typed (or the
+ * selection, offered as the dialog opens) and added to All references,
+ * Delete, labels in the top row and the left column, links to the source
+ * data. It opens on the sheet's last consolidation, as Excel's does.
+ */
+export function ConsolidateDialog({ info, onClose, onApply }) {
+  const last = info?.last || null;
+  const [fn, setFn] = useState(last?.fn || 'sum');
+  const [refs, setRefs] = useState(last?.refs || []);
+  const [typed, setTyped] = useState(info?.selection || '');
+  const [picked, setPicked] = useState(null);
+  const [top, setTop] = useState(Boolean(last?.topRow));
+  const [left, setLeft] = useState(Boolean(last?.leftCol));
+  const [links, setLinks] = useState(Boolean(last?.links));
+  const [error, setError] = useState('');
+  const add = () => {
+    const t = typed.trim();
+    if (!t) return;
+    if (!/^(?:'[^']+'|[^'!]+)?!?\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?$/.test(t)) { setError(`"${t}" is not a reference, such as Sheet1!$A$1:$C$5.`); return; }
+    setError('');
+    if (!refs.some((r) => r.toLowerCase() === t.toLowerCase())) setRefs((list) => [...list, t]);
+    setPicked(t);
+  };
+  const apply = async () => {
+    const said = await onApply({ fn, refs, topRow: top, leftCol: left, links });
+    if (said) setError(said);
+  };
+  return (
+    <Dialog
+      title="Consolidate"
+      width={500}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Close" onClick={onClose} />
+          <Button primary label="OK" className="sh-cons-ok" disabled={!refs.length} onClick={apply} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="Function">
+          <Select className="sh-cons-fn" value={fn} onChange={(e) => setFn(e.target.value)} style={{ width: '100%' }}>
+            {CONSOLIDATE_FNS.map(([k, name]) => <option key={k} value={k}>{name}</option>)}
+          </Select>
+        </Field>
+        <Field label="Reference" hint="A range on this sheet or another, such as East!$A$1:$C$10 — Add puts it in the list.">
+          <div style={{ display: 'flex', gap: 6 }}>
+            <Input className="sh-cons-ref" value={typed} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} style={{ flex: 1 }} autoFocus />
+            <Button label="Add" className="sh-cons-add" onClick={add} />
+          </div>
+        </Field>
+        <Field label="All references">
+          <div className="sh-ranges-body">
+            <div className="sh-ranges-list sh-cons-list" role="listbox" style={{ minHeight: 96, maxHeight: 150 }}>
+              {refs.length ? refs.map((r) => (
+                <button key={r} type="button" role="option" aria-selected={r === picked} className={`sh-ranges-row one${r === picked ? ' on' : ''}`} data-ref={r} onClick={() => { setPicked(r); setTyped(r); }}>
+                  <span className="t">{r}</span>
+                </button>
+              )) : <div className="sh-ranges-empty">No references yet.</div>}
+            </div>
+            <div className="sh-ranges-buttons">
+              <Button label="Delete" className="sh-cons-delete" disabled={!picked} title="Delete — the picked reference" onClick={() => { setRefs((list) => list.filter((r) => r !== picked)); setPicked(null); }} />
+            </div>
+          </div>
+        </Field>
+        <div className="sh-cons-options">
+          <div>
+            <div className="sh-cons-head">Use labels in</div>
+            <label style={CHECK_ROW}><input type="checkbox" className="sh-cons-top" checked={top} onChange={(e) => setTop(e.target.checked)} /> Top row</label>
+            <label style={CHECK_ROW}><input type="checkbox" className="sh-cons-left" checked={left} onChange={(e) => setLeft(e.target.checked)} /> Left column</label>
+          </div>
+          <label style={CHECK_ROW}><input type="checkbox" className="sh-cons-links" checked={links} onChange={(e) => setLinks(e.target.checked)} /> Create links to source data</label>
+        </div>
+        {error ? <p className="sh-protect-warn">{error}</p> : null}
+      </div>
+    </Dialog>
+  );
+}
+
+/* ── Data → Forecast Sheet ───────────────────────────────────────────────── */
+
+const FORECAST_AGGREGATES = [[1, 'Average'], [2, 'Count'], [3, 'CountA'], [4, 'Max'], [5, 'Median'], [6, 'Min'], [7, 'Sum']];
+
+/** A date serial as the yyyy-mm-dd a date field takes, and back. */
+const serialToIso = (s) => new Date(Math.round((s - 25569) * 86400000)).toISOString().slice(0, 10);
+const isoToSerial = (iso) => Date.parse(iso + 'T00:00:00Z') / 86400000 + 25569;
+
+/**
+ * Excel's Create Forecast Worksheet dialog: a preview of the forecast drawn
+ * as it will be, Line or Column, Forecast End, and the Options — the
+ * confidence interval, seasonality detected or set, the timeline and values
+ * ranges, how missing points are filled and duplicates aggregated.
+ */
+export function ForecastDialog({ info, preview, onClose, onCreate }) {
+  const [kind, setKind] = useState('line');
+  const [end, setEnd] = useState(info?.end ?? '');
+  const [confOn, setConfOn] = useState(true);
+  const [conf, setConf] = useState('95');
+  const [autoSeason, setAutoSeason] = useState(true);
+  const [season, setSeason] = useState('12');
+  const [timeline, setTimeline] = useState(info?.timeline || '');
+  const [values, setValues] = useState(info?.values || '');
+  const [completion, setCompletion] = useState(1);
+  const [aggregation, setAggregation] = useState(1);
+  const [options, setOptions] = useState(true);
+  const [shown, setShown] = useState({ svg: '', error: '' });
+  const [error, setError] = useState('');
+  const spec = () => ({
+    timeline: timeline.trim(), values: values.trim(), end: Number(end), kind,
+    confidence: confOn ? Number(conf) / 100 : null,
+    seasonality: autoSeason ? 'auto' : Number(season), completion, aggregation,
+  });
+  useEffect(() => {
+    let live = true;
+    const t = setTimeout(async () => {
+      const got = await preview(spec());
+      if (live) setShown(got || { svg: '', error: '' });
+    }, 160);
+    return () => { live = false; clearTimeout(t); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [kind, end, confOn, conf, autoSeason, season, timeline, values, completion, aggregation]);
+  const create = async () => {
+    const said = await onCreate(spec());
+    if (said) setError(said);
+  };
+  return (
+    <Dialog
+      title="Create Forecast Worksheet"
+      width={620}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="Create" className="sh-fc-create" onClick={create} />
+        </>
+      }
+    >
+      <div className="sh-fc">
+        <div className="sh-fc-kinds">
+          <button type="button" className={`sh-fc-kind${kind === 'line' ? ' on' : ''}`} data-kind="line" data-tip="Line chart" onClick={() => setKind('line')}>
+            <svg width="22" height="16" viewBox="0 0 22 16"><path d="M1 13 L6 8 L10 10 L15 4 L21 6" /></svg>
+          </button>
+          <button type="button" className={`sh-fc-kind${kind === 'column' ? ' on' : ''}`} data-kind="column" data-tip="Column chart" onClick={() => setKind('column')}>
+            <svg width="22" height="16" viewBox="0 0 22 16"><path d="M3 15V8M8 15V4M13 15V9M18 15V2" /></svg>
+          </button>
+        </div>
+        <div className="sh-fc-preview" data-ready={shown.svg ? '1' : '0'}>
+          {shown.svg ? <div dangerouslySetInnerHTML={{ __html: shown.svg }} /> : <p>{shown.error || 'Working out the forecast…'}</p>}
+        </div>
+        <div className="sh-fc-row">
+          <Field label="Forecast End">
+            {info?.isDate
+              ? <Input type="date" className="sh-fc-end" value={end ? serialToIso(Number(end)) : ''} onChange={(e) => setEnd(e.target.value ? isoToSerial(e.target.value) : '')} />
+              : <Input className="sh-fc-end" value={String(end)} onChange={(e) => setEnd(e.target.value)} />}
+          </Field>
+          <button type="button" className={`sh-fc-toggle${options ? ' open' : ''}`} onClick={() => setOptions((o) => !o)}>{options ? 'Options ▴' : 'Options ▾'}</button>
+        </div>
+        {options ? (
+          <div className="sh-fc-options">
+            <div className="sh-fc-col">
+              <label style={CHECK_ROW}>
+                <input type="checkbox" className="sh-fc-conf-on" checked={confOn} onChange={(e) => setConfOn(e.target.checked)} /> Confidence Interval
+                <Input className="sh-fc-conf" value={conf} disabled={!confOn} onChange={(e) => setConf(e.target.value)} style={{ width: 54, marginLeft: 6 }} />%
+              </label>
+              <div className="sh-cons-head">Seasonality</div>
+              <label style={CHECK_ROW}><input type="radio" name="sh-fc-season" className="sh-fc-auto" checked={autoSeason} onChange={() => setAutoSeason(true)} /> Detect Automatically</label>
+              <label style={CHECK_ROW}>
+                <input type="radio" name="sh-fc-season" className="sh-fc-manual" checked={!autoSeason} onChange={() => setAutoSeason(false)} /> Set Manually
+                <Input className="sh-fc-season" value={season} disabled={autoSeason} onChange={(e) => setSeason(e.target.value)} style={{ width: 54, marginLeft: 6 }} />
+              </label>
+            </div>
+            <div className="sh-fc-col">
+              <Field label="Timeline Range"><Input className="sh-fc-timeline" value={timeline} onChange={(e) => setTimeline(e.target.value)} /></Field>
+              <Field label="Values Range"><Input className="sh-fc-values" value={values} onChange={(e) => setValues(e.target.value)} /></Field>
+              <Field label="Fill Missing Points Using">
+                <Select className="sh-fc-fill" value={String(completion)} onChange={(e) => setCompletion(Number(e.target.value))} style={{ width: '100%' }}>
+                  <option value="1">Interpolation</option>
+                  <option value="0">Zeros</option>
+                </Select>
+              </Field>
+              <Field label="Aggregate Duplicates Using">
+                <Select className="sh-fc-agg" value={String(aggregation)} onChange={(e) => setAggregation(Number(e.target.value))} style={{ width: '100%' }}>
+                  {FORECAST_AGGREGATES.map(([k, name]) => <option key={k} value={String(k)}>{name}</option>)}
+                </Select>
+              </Field>
+            </div>
+          </div>
+        ) : null}
+        {error ? <p className="sh-protect-warn">{error}</p> : null}
+      </div>
+    </Dialog>
+  );
+}

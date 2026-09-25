@@ -77,6 +77,8 @@ export function normaliseSpec(spec) {
     id: s.id ?? s.name ?? 'series-' + i,
     // A scatter series' own X values; without them its points go 1, 2, 3….
     ...(Array.isArray(s.x) ? { x: s.x.map(num) } : {}),
+    // A series whose file says "no marker" is drawn as a line alone.
+    ...(s.markers === false ? { markers: false } : {}),
   }));
   if (!series.length) throw new Error('a chart needs at least one series');
 
@@ -122,16 +124,31 @@ export function labelPolicy(seriesCount, mode) {
   };
 }
 
+/**
+ * The series a forecast's confidence band is made of — the lower and upper
+ * bounds, by the names Excel's Forecast Sheet gives them, and the forecast
+ * whose colour they wear — or null.
+ */
+function confidenceBand(series) {
+  const find = (re) => series.findIndex((s) => re.test(String(s.name)));
+  const lower = find(/^Lower Confidence Bound/i);
+  const upper = find(/^Upper Confidence Bound/i);
+  if (lower < 0 || upper < 0) return null;
+  const forecast = find(/^Forecast\b/i);
+  return { lower, upper, forecast: forecast >= 0 ? forecast : Math.max(0, Math.min(lower, upper) - 1) };
+}
+
 function buildLegend(spec, t, policy, plotWidth, originX, y) {
   if (!policy.legend) return { node: null, height: 0 };
   const size = t.font.legend;
   const swatch = 9;
   const gap = 6;
   const itemGap = 16;
+  const band = spec.type === 'line' ? confidenceBand(spec.series) : null;
 
   const items = spec.series.map((s, i) => ({
     name: s.name,
-    colour: seriesColour(i, spec.mode),
+    colour: band && (i === band.lower || i === band.upper) ? seriesColour(band.forecast, spec.mode) : seriesColour(i, spec.mode),
     width: swatch + gap + measureText(s.name, { size }) + itemGap,
   }));
 
@@ -178,13 +195,25 @@ function cartesianFrame({ spec, t, plot, scale, categoryPositions, horizontal })
         size, fill: t.ink.muted, anchor: 'end', baseline: 'middle' }));
   }
 
-  // Category labels, truncated rather than overlapped.
-  const budget = horizontal
+  // Category labels, truncated rather than overlapped — and along the foot,
+  // when even a short label would not fit its band, every nth one whole, as
+  // Excel skips labels on a long date axis rather than cutting them all.
+  let budget = horizontal
     ? plot.height / Math.max(1, spec.categories.length) - 2
     : plot.width / Math.max(1, spec.categories.length) - 4;
+  let every = 1;
+  if (!horizontal && spec.categories.length > 1) {
+    const widest = widestText(spec.categories, { size });
+    if (widest > budget) {
+      const band = plot.width / spec.categories.length;
+      every = Math.max(1, Math.ceil((widest + 10) / band));
+      budget = band * every - 6;
+    }
+  }
   spec.categories.forEach((label, i) => {
     const pos = categoryPositions[i];
     if (pos === undefined) return;
+    if (every > 1 && i % every !== 0) return;
     children.push(horizontal
       ? text({ x: plot.x - 8, y: pos, value: truncateText(label, plot.x - 12, { size }),
         size, fill: t.ink.muted, anchor: 'end', baseline: 'middle' })
@@ -324,8 +353,30 @@ export function buildChart(rawSpec) {
       void running;
     });
   } else if (spec.type === 'line' || spec.type === 'area') {
+    // A forecast's confidence bounds — Excel's Forecast Sheet names them
+    // "Lower Confidence Bound…" and "Upper Confidence Bound…" — are one band:
+    // shaded between them in the forecast's colour, each edge a hairline.
+    const band = spec.type === 'line' ? confidenceBand(spec.series) : null;
+    const colourOf = (si) => (band && (si === band.lower || si === band.upper) ? seriesColour(band.forecast, spec.mode) : seriesColour(si, spec.mode));
+    if (band) {
+      const lo = spec.series[band.lower].values;
+      const hi = spec.series[band.upper].values;
+      const top = [];
+      const bottom = [];
+      lo.forEach((v, ci) => {
+        const w = hi[ci];
+        if (v === null || w === null || !Number.isFinite(v) || !Number.isFinite(w)) return;
+        top.push([bandCentre(ci), valueAt(w)]);
+        bottom.push([bandCentre(ci), valueAt(v)]);
+      });
+      if (top.length > 1) {
+        marks.push(polygon({ points: [...top, ...bottom.reverse()], fill: seriesColour(band.forecast, spec.mode), opacity: 0.13, class: 'band' }));
+      }
+    }
+    const ends = [];
     spec.series.forEach((s, si) => {
-      const colour = seriesColour(si, spec.mode);
+      const colour = colourOf(si);
+      const edge = band && (si === band.lower || si === band.upper);
       const points = [];
       s.values.forEach((value, ci) => {
         if (value === null || !Number.isFinite(value)) return;
@@ -340,24 +391,38 @@ export function buildChart(rawSpec) {
         }));
       }
       marks.push(polyline({
-        points, stroke: colour, strokeWidth: t.marks.lineWidth,
+        points, stroke: colour, strokeWidth: edge ? 1 : t.marks.lineWidth,
         fill: 'none', linecap: 'round', linejoin: 'round',
+        ...(edge ? { opacity: 0.7 } : {}),
       }));
-      for (const [px, py] of points) {
-        // A surface ring keeps overlapping markers legible where lines cross.
-        marks.push(ellipse({
-          cx: px, cy: py, rx: t.marks.markerSize / 2, ry: t.marks.markerSize / 2,
-          fill: colour, stroke: t.ink.surface, strokeWidth: 2,
-        }));
+      // Markers where the points are few enough to tell apart, and the file
+      // has not switched them off.
+      if (s.markers !== false && !edge && points.length <= 40) {
+        for (const [px, py] of points) {
+          // A surface ring keeps overlapping markers legible where lines cross.
+          marks.push(ellipse({
+            cx: px, cy: py, rx: t.marks.markerSize / 2, ry: t.marks.markerSize / 2,
+            fill: colour, stroke: t.ink.surface, strokeWidth: 2,
+          }));
+        }
       }
-      if (policy.directLabels) {
-        const [lx, ly] = points[points.length - 1];
-        labels.push(text({
-          x: lx + 8, y: ly, value: s.name, size: labelSize,
-          fill: t.ink.secondary, baseline: 'middle',
-        }));
-      }
+      // A forecast with its band is read from the legend; labels at the lines' ends would sit on the band.
+      if (policy.directLabels && !band) ends.push({ name: s.name, at: points[points.length - 1] });
     });
+    // Direct labels at the lines' ends, never on top of each other: one too
+    // close to a label already placed is left to the legend.
+    const placed = [];
+    for (const end of ends.sort((a, b) => a.at[1] - b.at[1])) {
+      const [lx, ly] = end.at;
+      if (placed.some((y) => Math.abs(y - ly) < labelSize + 2)) continue;
+      // A label that would run off the chart is left to the legend.
+      if (lx + 8 + measureText(end.name, { size: labelSize }) > spec.width && policy.legend) continue;
+      placed.push(ly);
+      labels.push(text({
+        x: lx + 8, y: ly, value: end.name, size: labelSize,
+        fill: t.ink.secondary, baseline: 'middle',
+      }));
+    }
   } else if (spec.type === 'scatter') {
     spec.series.forEach((s, si) => {
       const colour = seriesColour(si, spec.mode);
@@ -375,7 +440,7 @@ export function buildChart(rawSpec) {
   children.push(group(marks, { class: 'marks' }));
   if (labels.length) children.push(group(labels, { class: 'labels' }));
 
-  const legend = buildLegend(spec, t, policy, plot.width, plot.x, spec.height - 6);
+  const legend = buildLegend(spec, t, policy, plot.width, plot.x, spec.height - 6 - Math.max(0, legendProbe.height - (t.font.legend + 8)));
   if (legend.node) children.push(legend.node);
 
   return scene({
@@ -472,7 +537,7 @@ function buildScatter(spec, t, policy) {
   });
   children.push(group(marks, { class: 'marks' }));
 
-  const legend = buildLegend(spec, t, policy, plot.width, plot.x, spec.height - 6);
+  const legend = buildLegend(spec, t, policy, plot.width, plot.x, spec.height - 6 - Math.max(0, legendProbe.height - (t.font.legend + 8)));
   if (legend.node) children.push(legend.node);
   return scene({
     width: spec.width, height: spec.height, mode: spec.mode,
