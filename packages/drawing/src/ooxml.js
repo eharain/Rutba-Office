@@ -209,6 +209,8 @@ export function parseDrawingAnchors(drawingXml) {
     // A slicer's graphic frame sits inside mc:AlternateContent with a plain
     // rectangle as the fallback: the frame, not the rectangle, is what it is.
     if (/drawing\/2010\/slicer/.test(xml) && /<([\w]+:)?slicer\b/.test(xml)) return 'slicer';
+    // A group: its own grpSp, whatever its members are.
+    if (anchorBody(xml)?.name === 'grpSp') return 'group';
     if (firstElement(xml, 'graphicFrame')) return 'chart';
     if (firstElement(xml, 'pic')) return 'image';
     if (firstElement(xml, 'sp')) return 'shape';
@@ -375,6 +377,11 @@ export function parsePictureXml(picXml, { resolveRelationship, readPartBinary } 
   return {
     kind: 'picture',
     name: nvPr ? (attrs(nvPr).name ?? null) : null,
+    // A picture turns and flips about its centre, as its xfrm says.
+    ...(() => {
+      const x = xfrmOf(picXml);
+      return x ? { rotation: x.rot, flipH: x.flipH, flipV: x.flipV } : {};
+    })(),
     relationshipId: relId,
     part: partName,
     href,
@@ -411,6 +418,18 @@ export function readSheetDrawings({
     if (anchor.kind === 'shape') {
       return { ...anchor, spec: null, descriptor: parseShapeXml(anchor.xml) };
     }
+    if (anchor.kind === 'group') {
+      const body = anchorBody(anchor.xml);
+      const own = xfrmOf(/<([\w]+:)?grpSpPr\b[\s\S]*?<\/([\w]+:)?grpSpPr>/.exec(body.xml)?.[0] ?? '') ?? {};
+      return {
+        ...anchor,
+        spec: null,
+        descriptor: {
+          kind: 'group', rotation: own.rot || 0, flipH: Boolean(own.flipH), flipV: Boolean(own.flipV),
+          children: readGroup(body.xml, { resolveRelationship, readPart, readPartBinary, mode }),
+        },
+      };
+    }
     if (anchor.kind === 'image') {
       return {
         ...anchor,
@@ -420,6 +439,102 @@ export function readSheetDrawings({
     }
     return { ...anchor, spec: null, descriptor: null };
   });
+}
+
+
+/**
+ * The top-level elements of a fragment, by a depth count of its tags — what
+ * a regex cannot do once groups nest. Each: its local name, where it starts
+ * and ends, and its XML.
+ */
+export function childElements(xml) {
+  const out = [];
+  const re = /<(\/?)([\w]+:)?([\w]+)\b[^>]*?(\/?)>/g;
+  let depth = 0;
+  let open = null;
+  let m;
+  while ((m = re.exec(xml))) {
+    if (m[0].startsWith('<?') || m[0].startsWith('<!')) continue;
+    const closing = m[1] === '/';
+    const selfClosing = m[4] === '/';
+    if (closing) {
+      depth -= 1;
+      if (depth === 0 && open) {
+        out.push({ name: open.name, start: open.start, end: m.index + m[0].length, xml: xml.slice(open.start, m.index + m[0].length) });
+        open = null;
+      }
+    } else if (selfClosing) {
+      if (depth === 0) out.push({ name: m[3], start: m.index, end: m.index + m[0].length, xml: m[0] });
+    } else {
+      if (depth === 0) open = { name: m[3], start: m.index };
+      depth += 1;
+    }
+  }
+  return out;
+}
+
+/** An element's own box, from its xfrm (`a:xfrm` or `xdr:xfrm`): EMU offset, extent, turn and flips. */
+export function xfrmOf(elementXml) {
+  const m = /<([\w]+:)?xfrm\b([^>]*)>([\s\S]*?)<\/([\w]+:)?xfrm>/.exec(elementXml);
+  if (!m) return null;
+  const a = attrs(m[2]);
+  const off = attrs((/<([\w]+:)?off\b([^>]*?)\/>/.exec(m[3]) ?? [])[2] ?? '');
+  const ext = attrs((/<([\w]+:)?ext\b([^>]*?)\/>/.exec(m[3]) ?? [])[2] ?? '');
+  const chOff = /<([\w]+:)?chOff\b([^>]*?)\/>/.exec(m[3]);
+  const chExt = /<([\w]+:)?chExt\b([^>]*?)\/>/.exec(m[3]);
+  return {
+    x: Number(off.x) || 0, y: Number(off.y) || 0, cx: Number(ext.cx) || 0, cy: Number(ext.cy) || 0,
+    rot: a.rot ? Number(a.rot) / 60000 : 0, flipH: a.flipH === '1', flipV: a.flipV === '1',
+    ...(chOff ? { chX: Number(attrs(chOff[2]).x) || 0, chY: Number(attrs(chOff[2]).y) || 0 } : {}),
+    ...(chExt ? { chCx: Number(attrs(chExt[2]).cx) || 0, chCy: Number(attrs(chExt[2]).cy) || 0 } : {}),
+  };
+}
+
+/** The drawing element an anchor holds (sp, pic, grpSp, graphicFrame, cxnSp), without its markers. */
+export function anchorBody(anchorXml) {
+  const inner = anchorXml.replace(/^<[^>]*>/, '').replace(/<\/[^>]*>$/, '');
+  return childElements(inner).find((e) => /^(sp|pic|grpSp|graphicFrame|cxnSp|AlternateContent)$/.test(e.name)) ?? null;
+}
+
+/**
+ * A group's members, each as the reader would read it on its own, with its
+ * box inside the group as fractions of the group's child space — so the
+ * caller lays them out in whatever pixels the group's anchor gives it.
+ * Groups inside groups are flattened into the same space.
+ */
+export function readGroup(grpXml, { resolveRelationship, readPart, readPartBinary, mode = 'light' } = {}) {
+  const own = xfrmOf(/<([\w]+:)?grpSpPr\b[\s\S]*?<\/([\w]+:)?grpSpPr>/.exec(grpXml)?.[0] ?? '') ?? { x: 0, y: 0, cx: 1, cy: 1 };
+  const space = { x: own.chX ?? own.x, y: own.chY ?? own.y, cx: own.chCx || own.cx || 1, cy: own.chCy || own.cy || 1 };
+  const inner = grpXml.replace(/^<[^>]*>/, '').replace(/<\/[^>]*>$/, '');
+  const out = [];
+  for (const el of childElements(inner)) {
+    if (!/^(sp|pic|grpSp|graphicFrame|cxnSp)$/.test(el.name)) continue;
+    const box = xfrmOf(el.name === 'grpSp' ? (/<([\w]+:)?grpSpPr\b[\s\S]*?<\/([\w]+:)?grpSpPr>/.exec(el.xml)?.[0] ?? '') : el.xml);
+    if (!box) continue;
+    const frac = {
+      x: (box.x - space.x) / space.cx, y: (box.y - space.y) / space.cy,
+      w: box.cx / space.cx, h: box.cy / space.cy,
+    };
+    if (el.name === 'grpSp') {
+      for (const c of readGroup(el.xml, { resolveRelationship, readPart, readPartBinary, mode })) {
+        out.push({ ...c, frac: { x: frac.x + c.frac.x * frac.w, y: frac.y + c.frac.y * frac.h, w: c.frac.w * frac.w, h: c.frac.h * frac.h } });
+      }
+      continue;
+    }
+    const name = attrs((/<([\w]+:)?cNvPr\b([^>]*?)\/?>/.exec(el.xml) ?? [])[2] ?? '').name ?? null;
+    if (el.name === 'sp' || el.name === 'cxnSp') {
+      out.push({ kind: 'shape', name, frac, descriptor: parseShapeXml(el.xml) });
+    } else if (el.name === 'pic') {
+      out.push({ kind: 'image', name, frac, descriptor: { ...parsePictureXml(el.xml, { resolveRelationship, readPartBinary }), rotation: box.rot, flipH: box.flipH, flipV: box.flipV } });
+    } else {
+      const chart = firstElement(el.xml, 'chart');
+      const relId = chart ? (attrs(chart)['r:id'] ?? null) : null;
+      const part = relId && resolveRelationship ? resolveRelationship(relId) : null;
+      const xml = part && readPart ? readPart(part) : null;
+      out.push({ kind: 'chart', name, frac, part, spec: xml ? parseChartXml(xml, { mode }) : null });
+    }
+  }
+  return out;
 }
 
 export { local, attrs as parseAttributes };

@@ -1418,6 +1418,19 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // A drawing moved or resized by hand, and drawings deleted.
     drawingBox: (v, a) => { v.setDrawingBox({ id: a.id, x: a.x, y: a.y, width: a.width, height: a.height }); },
     deleteDrawings: (v, a) => v.deleteDrawings({ ids: Array.isArray(a.ids) ? a.ids : [] }),
+    // Page Layout → Arrange: order, align and distribute, rotate and flip,
+    // group and ungroup; the Selection Pane's show, hide and rename; several
+    // picked drawings moved together.
+    drawingBoxes: (v, a) => v.setDrawingBoxes({ boxes: Array.isArray(a.boxes) ? a.boxes : [] }),
+    reorderDrawings: (v, a) => { v.reorderDrawings({ ids: a.ids || [], to: a.to }); },
+    alignDrawings: (v, a) => { v.alignDrawings({ ids: a.ids || [], edge: a.edge }); },
+    distributeDrawings: (v, a) => { v.distributeDrawings({ ids: a.ids || [], axis: a.axis }); },
+    rotateDrawings: (v, a) => { v.rotateDrawings({ ids: a.ids || [], by: Number(a.by) || 0, to: a.to ?? null, flip: a.flip ?? null }); },
+    groupDrawings: (v, a) => v.groupDrawings({ ids: a.ids || [] }),
+    ungroupDrawings: (v, a) => v.ungroupDrawings({ ids: a.ids || [] }),
+    drawingHidden: (v, a) => { v.setDrawingHidden({ id: a.id, hidden: a.hidden !== false }); },
+    allDrawingsHidden: (v, a) => { v.setAllDrawingsHidden({ hidden: Boolean(a.hidden) }); },
+    renameDrawing: (v, a) => { v.renameDrawing({ id: a.id, name: a.name }); },
   };
 
   /** What the ribbon calls a format, and what the document engine calls it. */

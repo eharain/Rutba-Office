@@ -23,5 +23,5 @@ export {
   DEFAULT_COL_WIDTH_CHARS, DEFAULT_ROW_HEIGHT_POINTS, MAX_ROWS, MAX_COLS,
 } from './geometry.js';
 export { Selection, colName, ref } from './selection.js';
-export { SheetView, coerceInput } from './view.js';
+export { SheetView, coerceInput, anchorSpans, anchorWithBox } from './view.js';
 export { addWatches, removeWatch, resolveWatches } from './watch.js';

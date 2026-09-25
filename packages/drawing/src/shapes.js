@@ -215,6 +215,18 @@ export function buildShape(descriptor, box, { mode = 'light' } = {}) {
     });
   }
 
+  // A flipped shape is its outline mirrored about its centre — an arrow
+  // flipped across points the other way — while its words still read.
+  // (A line's flips already say which corners it joins.)
+  if ((descriptor.flipH || descriptor.flipV) && !LINE_GEOMETRY.test(geometry)) {
+    const cx = x + width / 2;
+    const cy = y + height / 2;
+    const outline = children.splice(0, 1);
+    children.unshift(group(outline, {
+      class: 'flip',
+      transform: `translate(${r2(cx)} ${r2(cy)}) scale(${descriptor.flipH ? -1 : 1} ${descriptor.flipV ? -1 : 1}) translate(${r2(-cx)} ${r2(-cy)})`,
+    }));
+  }
   // A rotated shape turns about its own centre — a brace laid on its side
   // under a box is a vertical brace with rot="5400000".
   const rotation = Number(descriptor.rotation) || 0;
@@ -241,10 +253,15 @@ function roundedRectPath(x, y, w, h, r) {
 export function buildPicture(descriptor, box) {
   const { x = 0, y = 0, width = 100, height = 60 } = box ?? {};
   if (!descriptor?.href) return group([], { class: 'picture' });
+  const cx = x + width / 2;
+  const cy = y + height / 2;
+  const turns = [];
+  if (descriptor.rotation) turns.push(`rotate(${Math.round(descriptor.rotation * 100) / 100} ${cx} ${cy})`);
+  if (descriptor.flipH || descriptor.flipV) turns.push(`translate(${cx} ${cy}) scale(${descriptor.flipH ? -1 : 1} ${descriptor.flipV ? -1 : 1}) translate(${-cx} ${-cy})`);
   return group([{
     type: 'image', x, y, width, height, href: descriptor.href,
     opacity: descriptor.opacity,
-  }], { class: 'picture' });
+  }], { class: 'picture', ...(turns.length ? { transform: turns.join(' ') } : {}) });
 }
 
 /** Common image types, so a media part can become a data: URI. */

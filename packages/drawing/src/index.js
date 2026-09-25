@@ -39,6 +39,7 @@ export {
 } from './chart.js';
 export {
   parseChartXml, parseDrawingAnchors, parseShapeXml, parsePictureXml, readSheetDrawings,
+  childElements, xfrmOf, anchorBody, readGroup,
 } from './ooxml.js';
 export {
   buildShape, buildPicture, resolveColour, toDataUri,

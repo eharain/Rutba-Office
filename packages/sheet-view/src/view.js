@@ -54,7 +54,7 @@ import { consolidate as consolidateRanges, lastConsolidation, consolidateRefText
 import { createForecastSheet, forecastDefaults, forecastPreview } from './forecast-sheet.js';
 import {
   readSheetDrawings, buildChart, buildShape, buildPicture, renderSvg, scene,
-  SUPPORTED_GEOMETRY,
+  SUPPORTED_GEOMETRY, childElements, xfrmOf, anchorBody,
 } from '@rutba/drawing';
 import { drawingAnchorXml, chartPartXml } from '@rutba/ooxml/build';
 import { newGuid } from '@rutba/ooxml/workbook';
@@ -1297,6 +1297,7 @@ export class SheetView {
       let svg = null;
       let unsupported = null;
       let slicer = null;
+      let members = null;
       const box = { x: 0, y: 0, width, height };
       try {
         if (d.kind === 'slicer') {
@@ -1317,6 +1318,21 @@ export class SheetView {
             title: d.name ?? 'Picture',
             children: [buildPicture(d.descriptor, box)],
           }));
+        } else if (d.descriptor?.kind === 'group') {
+          // A group's members, each laid out in the group's box by its place
+          // in the group's own space, and drawn as it would be on its own.
+          members = d.descriptor.children.map((c, i) => {
+            const b = {
+              x: Math.round(c.frac.x * width), y: Math.round(c.frac.y * height),
+              width: Math.max(1, Math.round(c.frac.w * width)), height: Math.max(1, Math.round(c.frac.h * height)),
+            };
+            const own = { x: 0, y: 0, width: b.width, height: b.height };
+            let child = null;
+            if (c.kind === 'chart' && c.spec) child = renderSvg(buildChart({ ...c.spec, width: b.width, height: b.height, mode: this.mode }));
+            else if (c.kind === 'shape' && c.descriptor) child = renderSvg(scene({ width: b.width, height: b.height, mode: this.mode, background: 'none', title: c.name ?? 'Shape', children: [buildShape(c.descriptor, own, { mode: this.mode })] }));
+            else if (c.kind === 'image' && c.descriptor?.href) child = renderSvg(scene({ width: b.width, height: b.height, mode: this.mode, background: 'none', title: c.name ?? 'Picture', children: [buildPicture(c.descriptor, own)] }));
+            return { key: i, ...b, svg: child, kind: c.kind };
+          });
         } else {
           unsupported = d.kind === 'chart'
             ? 'this chart could not be read'
@@ -1331,13 +1347,22 @@ export class SheetView {
         id: d.id, kind: d.kind, name: d.name, x, y, width, height, svg, unsupported,
         anchor: d.from ? { row: d.from.row, col: d.from.col } : null,
         index: d.index, hidden: Boolean(d.hidden), pivot: d.pivot ?? null,
+        // The turn and flips of what turns (a shape and a picture draw theirs
+        // in their own SVG; a group's the window applies to the whole).
+        rot: d.descriptor?.rotation ?? 0, flipH: Boolean(d.descriptor?.flipH), flipV: Boolean(d.descriptor?.flipV),
         ...(slicer ? { slicer } : {}),
+        ...(members ? { members } : {}),
       };
     }).filter(Boolean);
 
     const active = this.selection.active;
     return {
       drawings,
+      // Every drawing on the sheet, seen or not, in drawing order — what the
+      // Selection Pane lists (front first, as Excel's does).
+      objects: (this.drawings.get(this.activeSheet) ?? []).map((d) => ({
+        id: d.id, kind: d.kind, name: d.kind === 'slicer' ? d.slicerName : d.name, hidden: Boolean(d.hidden), index: d.index,
+      })),
       // What the toolbar needs: whether the buttons are live and what they say.
       history: this.history.describe(),
       // What the toolbar needs to LOOK like: which toggles the selection reads as
@@ -4806,6 +4831,243 @@ export class SheetView {
       return { xml: out, result: list.length };
     }, { extraParts: extra });
   }
+  // ---- Arrange: order, align, rotate, group, the Selection Pane ---------------
+
+  /** Drawings of the active sheet by frame id, in drawing order, refusing ids that are not there. */
+  _drawingsById(ids) {
+    const want = [...new Set((ids ?? []).map(String))];
+    const list = (this.drawings.get(this.activeSheet) ?? []).filter((d) => want.includes(d.id));
+    if (!list.length) throw new Error('Select a picture, shape, chart or slicer first.');
+    return list.sort((a, b) => a.index - b.index);
+  }
+
+  /**
+   * Page Layout → Bring Forward / Send Backward / to Front / to Back: the
+   * drawing part draws its anchors in order, so the order IS the layering.
+   * Several picked move together, keeping their own order among themselves.
+   */
+  reorderDrawings({ ids, to = 'forward' }) {
+    const picked = this._drawingsById(ids);
+    if (!['forward', 'backward', 'front', 'back'].includes(to)) throw new Error('"' + to + '" is not a way to reorder');
+    return this._editAnchors(to === 'front' ? 'bring to front' : to === 'back' ? 'send to back' : to === 'forward' ? 'bring forward' : 'send backward', (spans, xml) => {
+      const order = spans.map((s, i) => i);
+      const mine = new Set(picked.map((d) => d.index));
+      let next;
+      if (to === 'front') next = [...order.filter((i) => !mine.has(i)), ...order.filter((i) => mine.has(i))];
+      else if (to === 'back') next = [...order.filter((i) => mine.has(i)), ...order.filter((i) => !mine.has(i))];
+      else {
+        next = [...order];
+        const step = to === 'forward' ? 1 : -1;
+        const seq = to === 'forward' ? [...next].reverse() : [...next];
+        for (const i of seq) {
+          if (!mine.has(i)) continue;
+          const at = next.indexOf(i);
+          const j = at + step;
+          if (j < 0 || j >= next.length || mine.has(next[j])) continue;
+          [next[at], next[j]] = [next[j], next[at]];
+        }
+      }
+      if (next.every((v, k) => v === k)) return { xml, result: false };
+      const head = xml.slice(0, spans[0].start);
+      const tail = xml.slice(spans[spans.length - 1].end);
+      // Whatever sat between anchors (nothing, as a rule) stays with the head.
+      return { xml: head + next.map((i) => spans[i].xml).join('') + tail, result: true };
+    });
+  }
+
+  /** Several drawings at new boxes, one undo step: a move of several picked at once. */
+  setDrawingBoxes({ boxes = [] } = {}) {
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before moving objects.');
+    const list = boxes.map((b) => ({ d: this._drawingById(b.id), box: {
+      x: Math.max(0, Math.round(Number(b.x) || 0)), y: Math.max(0, Math.round(Number(b.y) || 0)),
+      width: Math.max(8, Math.round(Number(b.width) || 8)), height: Math.max(8, Math.round(Number(b.height) || 8)),
+    } }));
+    if (!list.length) return 0;
+    return this._editAnchors(list.length === 1 ? 'move ' + (list[0].d.name || list[0].d.kind) : 'move ' + list.length + ' objects', (spans, xml) => {
+      const byIndex = new Map(list.map((l) => [l.d.index, l.box]));
+      return { xml: rebuild(spans, xml, (s, i) => (byIndex.has(i) ? anchorWithBox(s.xml, byIndex.get(i), (px, py) => this._markerAt(px, py)) : s.xml)), result: list.length };
+    });
+  }
+
+  /**
+   * Page Layout → Align: the picked drawings lined up on the left, centre,
+   * right, top, middle or bottom of their combined bounds; Distribute puts
+   * equal gaps between three or more.
+   */
+  alignDrawings({ ids, edge }) {
+    const picked = this._drawingsById(ids);
+    if (picked.length < 2) throw new Error('Select two or more objects to align.');
+    const boxes = picked.map((d) => ({ d, b: this._drawingBox(d) }));
+    const left = Math.min(...boxes.map(({ b }) => b.x));
+    const top = Math.min(...boxes.map(({ b }) => b.y));
+    const right = Math.max(...boxes.map(({ b }) => b.x + b.width));
+    const bottom = Math.max(...boxes.map(({ b }) => b.y + b.height));
+    const out = boxes.map(({ d, b }) => {
+      const n = { id: d.id, ...b };
+      if (edge === 'left') n.x = left;
+      else if (edge === 'center') n.x = Math.round((left + right) / 2 - b.width / 2);
+      else if (edge === 'right') n.x = right - b.width;
+      else if (edge === 'top') n.y = top;
+      else if (edge === 'middle') n.y = Math.round((top + bottom) / 2 - b.height / 2);
+      else if (edge === 'bottom') n.y = bottom - b.height;
+      else throw new Error('"' + edge + '" is not an edge to align to');
+      return n;
+    });
+    return this.setDrawingBoxes({ boxes: out });
+  }
+
+  distributeDrawings({ ids, axis = 'horizontal' }) {
+    const picked = this._drawingsById(ids);
+    if (picked.length < 3) throw new Error('Select three or more objects to distribute.');
+    const h = axis === 'horizontal';
+    const items = picked.map((d) => ({ d, b: this._drawingBox(d) })).sort((a, b) => (h ? a.b.x - b.b.x : a.b.y - b.b.y));
+    const start = h ? items[0].b.x : items[0].b.y;
+    const last = items[items.length - 1].b;
+    const end = h ? last.x + last.width : last.y + last.height;
+    const total = items.reduce((n, { b }) => n + (h ? b.width : b.height), 0);
+    const gap = (end - start - total) / (items.length - 1);
+    let at = start;
+    const out = items.map(({ d, b }) => {
+      const n = { id: d.id, ...b, ...(h ? { x: Math.round(at) } : { y: Math.round(at) }) };
+      at += (h ? b.width : b.height) + gap;
+      return n;
+    });
+    return this.setDrawingBoxes({ boxes: out });
+  }
+
+  /**
+   * Page Layout → Rotate: Right 90°, Left 90°, Flip Vertical, Flip
+   * Horizontal — or a turn to an angle (the rotation handle). Written on the
+   * drawing's `a:xfrm` (`rot`, `flipH`, `flipV`) as Excel writes them; a
+   * chart or a slicer does not turn, in Excel or here.
+   */
+  rotateDrawings({ ids, by = 0, to = null, flip = null }) {
+    const picked = this._drawingsById(ids).filter((d) => ['shape', 'image', 'group'].includes(d.kind));
+    if (!picked.length) throw new Error('Charts and slicers do not turn — select a picture, a shape or a group.');
+    const label = flip ? 'flip ' + flip : to !== null ? 'rotate' : by > 0 ? 'rotate right' : 'rotate left';
+    return this._editAnchors(label, (spans, xml) => {
+      const mine = new Map(picked.map((d) => [d.index, d]));
+      return {
+        xml: rebuild(spans, xml, (s, i) => {
+          if (!mine.has(i)) return s.xml;
+          const box = this._drawingBox(mine.get(i));
+          return withTransform(s.xml, box, (t) => {
+            if (flip === 'horizontal') t.flipH = !t.flipH;
+            else if (flip === 'vertical') t.flipV = !t.flipV;
+            else t.rot = ((((to !== null ? Number(to) : t.rot + Number(by)) % 360) + 360) % 360);
+            return t;
+          });
+        }),
+        result: picked.length,
+      };
+    });
+  }
+
+  /**
+   * Page Layout → Group: the picked drawings gathered into one `xdr:grpSp`
+   * in one anchor over their combined bounds, each keeping its place (its
+   * xfrm in the group's space, which is the sheet's EMU), at the topmost
+   * member's place in the drawing order. A slicer is not grouped.
+   */
+  groupDrawings({ ids }) {
+    const picked = this._drawingsById(ids);
+    if (picked.length < 2) throw new Error('Select two or more objects to group.');
+    if (picked.some((d) => d.kind === 'slicer')) throw new Error('A slicer is not grouped with other objects here — take it out of the selection.');
+    const boxes = picked.map((d) => this._drawingBox(d));
+    const union = {
+      x: Math.min(...boxes.map((b) => b.x)), y: Math.min(...boxes.map((b) => b.y)),
+      right: Math.max(...boxes.map((b) => b.x + b.width)), bottom: Math.max(...boxes.map((b) => b.y + b.height)),
+    };
+    const box = { x: union.x, y: union.y, width: union.right - union.x, height: union.bottom - union.y };
+    let groupId = null;
+    this._editAnchors('group', (spans, xml) => {
+      const ids2 = [...xml.matchAll(/<([\w]+:)?cNvPr\b[^>]*\bid="(\d+)"/g)].map((m) => Number(m[2]));
+      groupId = (ids2.length ? Math.max(...ids2) : 1) + 1;
+      const p = spans[0].prefix;
+      const emu = (v) => Math.round(v * 9525);
+      const members = picked.map((d, k) => {
+        const body = anchorBody(spans[d.index].xml);
+        return withTransform(body.xml, boxes[k], (t) => t, { absolute: true });
+      }).join('');
+      const off = '<a:off x="' + emu(box.x) + '" y="' + emu(box.y) + '"/><a:ext cx="' + emu(box.width) + '" cy="' + emu(box.height) + '"/>';
+      const grp = '<' + p + 'grpSp><' + p + 'nvGrpSpPr><' + p + 'cNvPr id="' + groupId + '" name="Group ' + groupId + '"/><' + p + 'cNvGrpSpPr/></' + p + 'nvGrpSpPr>'
+        + '<' + p + 'grpSpPr><a:xfrm>' + off + off.replace('<a:off', '<a:chOff').replace('<a:ext', '<a:chExt') + '</a:xfrm></' + p + 'grpSpPr>'
+        + members + '</' + p + 'grpSp>';
+      const from = this._markerAt(box.x, box.y);
+      const to = this._markerAt(box.x + box.width, box.y + box.height);
+      const marker = (tag, m) => '<' + p + tag + '><' + p + 'col>' + m.col + '</' + p + 'col><' + p + 'colOff>' + m.colOff + '</' + p + 'colOff><' + p + 'row>' + m.row + '</' + p + 'row><' + p + 'rowOff>' + m.rowOff + '</' + p + 'rowOff></' + p + tag + '>';
+      const anchor = '<' + p + 'twoCellAnchor>' + marker('from', from) + marker('to', to) + grp + '<' + p + 'clientData/></' + p + 'twoCellAnchor>';
+      const mine = new Set(picked.map((d) => d.index));
+      const topmost = picked[picked.length - 1].index;
+      return { xml: rebuild(spans, xml, (s, i) => (i === topmost ? anchor : mine.has(i) ? '' : s.xml)), result: groupId };
+    });
+    return 'd' + groupId;
+  }
+
+  /** Page Layout → Ungroup: a group's members back on the sheet, each in its own anchor, where they were drawn. */
+  ungroupDrawings({ ids }) {
+    const groups = this._drawingsById(ids).filter((d) => d.kind === 'group');
+    if (!groups.length) throw new Error('Select a group to ungroup.');
+    return this._editAnchors('ungroup', (spans, xml) => {
+      const byIndex = new Map(groups.map((g) => [g.index, g]));
+      return {
+        xml: rebuild(spans, xml, (s, i) => {
+          if (!byIndex.has(i)) return s.xml;
+          const gbox = this._drawingBox(byIndex.get(i));
+          const body = anchorBody(s.xml);
+          const own = xfrmOf(/<([\w]+:)?grpSpPr\b[\s\S]*?<\/([\w]+:)?grpSpPr>/.exec(body.xml)?.[0] ?? '') ?? { x: 0, y: 0, cx: 1, cy: 1 };
+          const space = { x: own.chX ?? own.x, y: own.chY ?? own.y, cx: own.chCx || own.cx || 1, cy: own.chCy || own.cy || 1 };
+          const inner = body.xml.replace(/^<[^>]*>/, '').replace(/<\/[^>]*>$/, '');
+          const p = s.prefix;
+          const marker = (tag, m) => '<' + p + tag + '><' + p + 'col>' + m.col + '</' + p + 'col><' + p + 'colOff>' + m.colOff + '</' + p + 'colOff><' + p + 'row>' + m.row + '</' + p + 'row><' + p + 'rowOff>' + m.rowOff + '</' + p + 'rowOff></' + p + tag + '>';
+          return childElements(inner).filter((el) => /^(sp|pic|grpSp|graphicFrame|cxnSp)$/.test(el.name)).map((el) => {
+            const b = xfrmOf(el.name === 'grpSp' ? (/<([\w]+:)?grpSpPr\b[\s\S]*?<\/([\w]+:)?grpSpPr>/.exec(el.xml)?.[0] ?? '') : el.xml) ?? { x: space.x, y: space.y, cx: space.cx, cy: space.cy };
+            const px = {
+              x: Math.round(gbox.x + ((b.x - space.x) / space.cx) * gbox.width),
+              y: Math.round(gbox.y + ((b.y - space.y) / space.cy) * gbox.height),
+              width: Math.max(1, Math.round((b.cx / space.cx) * gbox.width)),
+              height: Math.max(1, Math.round((b.cy / space.cy) * gbox.height)),
+            };
+            const placed = withTransform(el.xml, px, (t) => t, { absolute: true });
+            return '<' + p + 'twoCellAnchor>' + marker('from', this._markerAt(px.x, px.y)) + marker('to', this._markerAt(px.x + px.width, px.y + px.height))
+              + placed + '<' + p + 'clientData/></' + p + 'twoCellAnchor>';
+          }).join('');
+        }),
+        result: groups.length,
+      };
+    });
+  }
+
+  /** The Selection Pane's eye: a drawing hidden (cNvPr hidden="1") or shown. */
+  setDrawingHidden({ id, hidden = true }) {
+    const d = this._drawingById(id);
+    return this._editAnchors((hidden ? 'hide ' : 'show ') + (d.name || d.kind), (spans, xml) => ({
+      xml: rebuild(spans, xml, (s, i) => (i === d.index ? withNvAttr(s.xml, 'hidden', hidden ? '1' : null) : s.xml)),
+      result: true,
+    }));
+  }
+
+  /** The Selection Pane's Show All / Hide All. */
+  setAllDrawingsHidden({ hidden = false }) {
+    if (!(this.drawings.get(this.activeSheet) ?? []).length) return false;
+    return this._editAnchors(hidden ? 'hide all' : 'show all', (spans, xml) => ({
+      xml: rebuild(spans, xml, (s) => withNvAttr(s.xml, 'hidden', hidden ? '1' : null)),
+      result: true,
+    }));
+  }
+
+  /** The Selection Pane's rename: the drawing's cNvPr name (a slicer keeps its own name, which its part knows it by). */
+  renameDrawing({ id, name }) {
+    const d = this._drawingById(id);
+    const text = String(name ?? '').trim();
+    if (!text) throw new Error('A name cannot be empty.');
+    if (d.kind === 'slicer') return this.setSlicerProps({ name: d.slicerName, caption: text });
+    return this._editAnchors('rename', (spans, xml) => ({
+      xml: rebuild(spans, xml, (s, i) => (i === d.index ? withNvAttr(s.xml, 'name', text) : s.xml)),
+      result: true,
+    }));
+  }
+
   // ---- sheet protection ---------------------------------------------------
 
   /** The active sheet's protection, digested for the frame and the gate. */
@@ -6797,6 +7059,70 @@ export function anchorWithBox(anchorXml, box, markerAt) {
     return head + '<a:off x="' + emu(box.x) + '" y="' + emu(box.y) + '"/>' + gap + '<a:ext cx="' + emu(box.width) + '" cy="' + emu(box.height) + '"/>';
   });
   return out;
+}
+
+/** A drawing part with each anchor replaced by what `fn(span, i)` makes of it — what lies between them kept. */
+function rebuild(spans, xml, fn) {
+  let out = '';
+  let at = 0;
+  spans.forEach((s, i) => {
+    out += xml.slice(at, s.start) + fn(s, i);
+    at = s.end;
+  });
+  return out + xml.slice(at);
+}
+
+/** One attribute of an anchor's (first) cNvPr set, or taken off with null. */
+function withNvAttr(anchorXml, name, value) {
+  return anchorXml.replace(/<([\w]+:)?cNvPr\b([^>]*?)(\/?)>/, (tag, p, attrsText, close) => {
+    let a = attrsText.replace(new RegExp('\\s+' + name + '="[^"]*"'), '');
+    if (value !== null && value !== undefined) a += ' ' + name + '="' + escapeXml(String(value)) + '"';
+    return '<' + (p ?? '') + 'cNvPr' + a + close + '>';
+  });
+}
+
+/**
+ * A drawing's own transform rewritten — its `a:xfrm` in `spPr` (a shape, a
+ * picture), in `grpSpPr` (a group), or a graphic frame's own `xdr:xfrm`:
+ * `mutate({ rot, flipH, flipV })` says the turn and the flips; the offset
+ * and extent are kept, or written from `box` (sheet pixels) where the
+ * drawing states none or `absolute` asks for them (a member put into or
+ * out of a group). A group keeps its child space.
+ */
+function withTransform(xml, box, mutate, { absolute = false } = {}) {
+  const emu = (v) => Math.round(v * 9525);
+  const candidates = [
+    /<([\w]+:)?(spPr|grpSpPr)\b[^>]*?\/>/.exec(xml),
+    /<([\w]+:)?(spPr|grpSpPr)\b[^>]*>[\s\S]*?<\/([\w]+:)?(spPr|grpSpPr)>/.exec(xml),
+    /<([\w]+:)?graphicFrame\b/.test(xml) ? /<([\w]+:)?xfrm\b[^>]*>[\s\S]*?<\/([\w]+:)?xfrm>/.exec(xml) : null,
+  ].filter(Boolean).sort((a, b) => a.index - b.index);
+  const block = candidates[0];
+  if (!block) return xml;
+  const frameXfrm = /xfrm\b/.test(block[0].slice(0, 12)) && !/spPr/.test(block[0].slice(0, 16));
+  const current = /<a:xfrm\b([^>]*?)(?:\/>|>([\s\S]*?)<\/a:xfrm>)/.exec(block[0]);
+  const src = frameXfrm ? /<([\w]+:)?xfrm\b([^>]*)>([\s\S]*?)<\/([\w]+:)?xfrm>/.exec(block[0]) : null;
+  const attrText = frameXfrm ? src[2] : current ? current[1] : '';
+  const body = frameXfrm ? src[3] : current ? (current[2] ?? '') : '';
+  const attr = (n) => new RegExp('\\b' + n + '="([^"]*)"').exec(attrText)?.[1];
+  const t = mutate({ rot: attr('rot') ? Number(attr('rot')) / 60000 : 0, flipH: attr('flipH') === '1', flipV: attr('flipV') === '1' });
+  const off = /<a:off\b[^>]*\/>/.exec(body)?.[0];
+  const ext = /<a:ext\b[^>]*\/>/.exec(body)?.[0];
+  const ch = (body.match(/<a:ch(Off|Ext)\b[^>]*\/>/g) ?? []).join('');
+  const offXml = !absolute && off ? off : '<a:off x="' + emu(box.x) + '" y="' + emu(box.y) + '"/>';
+  const extXml = !absolute && ext && !/cx="0" cy="0"/.test(ext) ? ext : '<a:ext cx="' + emu(box.width) + '" cy="' + emu(box.height) + '"/>';
+  const rot = Math.round((Number(t.rot) || 0) * 60000);
+  const head = (rot ? ' rot="' + rot + '"' : '') + (t.flipH ? ' flipH="1"' : '') + (t.flipV ? ' flipV="1"' : '');
+  if (frameXfrm) {
+    const p = src[1] ?? '';
+    const next = '<' + p + 'xfrm' + head + '>' + offXml + extXml + '</' + p + 'xfrm>';
+    return xml.slice(0, block.index) + next + xml.slice(block.index + block[0].length);
+  }
+  const xfrm = '<a:xfrm' + head + '>' + offXml + extXml + ch + '</a:xfrm>';
+  let nextBlock;
+  if (current) nextBlock = block[0].replace(current[0], xfrm);
+  else if (/\/>$/.test(block[0])) nextBlock = block[0].replace(/\s*\/>$/, '>' + xfrm + '</' + (block[1] ?? '') + block[2] + '>');
+  else nextBlock = block[0].replace(/^<[^>]*>/, (m) => m + xfrm);
+  return xml.slice(0, block.index) + nextBlock + xml.slice(block.index + block[0].length);
 }
 
 /** Items in a slicer's order: numbers by size, then words as a person sorts them. */

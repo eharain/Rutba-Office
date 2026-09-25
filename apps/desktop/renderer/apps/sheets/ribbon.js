@@ -175,8 +175,13 @@ const Soon = ({ icon, label, tall, why }) => (
 );
 
 export default function SheetsRibbon({
-  tab, setTab, model, dispatch, commands, shell, menu, save, openFile, exportAs, doc, sel, openDialog, act, view = {}, review = null,
+  tab, setTab, model, dispatch, commands, shell, menu, save, openFile, exportAs, doc, sel, openDialog, act, view = {}, review = null, arrange = { picked: [], pane: false },
 }) {
+  // Page Layout → Arrange acts on the drawings picked on the sheet.
+  const nPicked = arrange.picked.length;
+  const need = nPicked ? null : 'select a picture, shape, chart or slicer first';
+  const turnable = arrange.picked.some((o) => ['shape', 'image', 'group'].includes(o.kind));
+  const groupPicked = arrange.picked.some((o) => o.kind === 'group');
   const format = model?.format || {};
   const inPivot = pivotAround(model, sel);
   const frozen = model?.frozen || { rows: 0, cols: 0 };
@@ -492,12 +497,31 @@ export default function SheetsRibbon({
             <Button icon="list" label="Headings" pressed={view.headings !== false} title="Show the row and column headings" onClick={() => act('toggleHeadings')} />
           </Group>
           <Group label="Arrange">
-            <Soon icon="chevronUp" label="Bring Forward" why="Shape ordering is a drawing-part edit not written yet." />
-            <Soon icon="chevronDown" label="Send Backward" why="Comes with ordering." />
-            <Soon icon="list" label="Selection Pane" why="Comes with ordering." />
-            <Soon icon="alignLeft" label="Align" why="Comes with ordering." />
-            <Soon icon="shape" label="Group" why="Comes with ordering." />
-            <Soon icon="rotate" label="Rotate" why="Comes with ordering." />
+            <Button icon="chevronUp" label="Bring Forward" disabled={!nPicked} title={`Bring Forward — ${need || 'the picked object one step, or all the way, to the front'}`} onClick={(e) => menu.open(e, [
+              { label: 'Bring Forward', icon: 'chevronUp', run: () => act('arrange', { op: 'order', to: 'forward' }) },
+              { label: 'Bring to Front', run: () => act('arrange', { op: 'order', to: 'front' }) },
+            ])} />
+            <Button icon="chevronDown" label="Send Backward" disabled={!nPicked} title={`Send Backward — ${need || 'the picked object one step, or all the way, to the back'}`} onClick={(e) => menu.open(e, [
+              { label: 'Send Backward', icon: 'chevronDown', run: () => act('arrange', { op: 'order', to: 'backward' }) },
+              { label: 'Send to Back', run: () => act('arrange', { op: 'order', to: 'back' }) },
+            ])} />
+            <Button icon="list" label="Selection Pane" pressed={arrange.pane} title="Selection Pane — every picture, shape, chart and slicer on the sheet, to pick, hide, show and rename" onClick={() => act('arrange', { op: 'pane' })} />
+            <Button icon="alignLeft" label="Align" disabled={nPicked < 2} title={`Align — ${nPicked < 2 ? 'select two or more objects first (Ctrl+click adds one)' : 'line the picked objects up, or space them evenly'}`} onClick={(e) => menu.open(e, [
+              ...[['Align Left', 'left'], ['Align Center', 'center'], ['Align Right', 'right'], ['Align Top', 'top'], ['Align Middle', 'middle'], ['Align Bottom', 'bottom']]
+                .map(([label, edge]) => ({ label, run: () => act('arrange', { op: 'align', edge }) })),
+              { label: 'Distribute Horizontally', disabled: nPicked < 3, title: nPicked < 3 ? 'Select three or more objects to distribute' : undefined, run: () => act('arrange', { op: 'distribute', axis: 'horizontal' }) },
+              { label: 'Distribute Vertically', disabled: nPicked < 3, title: nPicked < 3 ? 'Select three or more objects to distribute' : undefined, run: () => act('arrange', { op: 'distribute', axis: 'vertical' }) },
+            ])} />
+            <Button icon="grid" label="Group" disabled={!nPicked} title={`Group — ${need || 'gather the picked objects into one, or take a group apart'}`} onClick={(e) => menu.open(e, [
+              { label: 'Group', icon: 'grid', disabled: nPicked < 2, title: nPicked < 2 ? 'Select two or more objects to group' : undefined, run: () => act('arrange', { op: 'group' }) },
+              { label: 'Ungroup', disabled: !groupPicked, title: !groupPicked ? 'Select a group to ungroup' : undefined, run: () => act('arrange', { op: 'ungroup' }) },
+            ])} />
+            <Button icon="rotate" label="Rotate" disabled={!turnable} title={`Rotate — ${nPicked ? (turnable ? 'turn or flip the picked shapes and pictures' : 'charts and slicers do not turn') : need}`} onClick={(e) => menu.open(e, [
+              { label: 'Rotate Right 90°', icon: 'rotate', run: () => act('arrange', { op: 'rotate', by: 90 }) },
+              { label: 'Rotate Left 90°', run: () => act('arrange', { op: 'rotate', by: -90 }) },
+              { label: 'Flip Vertical', icon: 'flip', run: () => act('arrange', { op: 'rotate', flip: 'vertical' }) },
+              { label: 'Flip Horizontal', run: () => act('arrange', { op: 'rotate', flip: 'horizontal' }) },
+            ])} />
           </Group>
         </>
       ) : null}

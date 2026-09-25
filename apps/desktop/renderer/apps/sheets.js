@@ -23,7 +23,7 @@ import {
   OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog,
   ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog, ConsolidateDialog, ForecastDialog,
 } from './sheets/dialogs.js';
-import { SlicerPanel, InsertSlicersDialog, ObjectHandles, followPointer, OBJECTS_CSS } from './sheets/objects.js';
+import { SlicerPanel, InsertSlicersDialog, ObjectHandles, RotateHandle, SelectionPane, angleAt, followPointer, OBJECTS_CSS } from './sheets/objects.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
 } from './sheets/dialogs.js';
@@ -152,6 +152,8 @@ export default function Sheets({ app, shell, boot }) {
   /** Insert → PivotTable / PivotChart and Insert → Slicer: what the dialog opens on. */
   const [pivotAsk, setPivotAsk] = useState(null);
   const [slicerAsk, setSlicerAsk] = useState(null);
+  /** Page Layout → Selection Pane, open or not. */
+  const [selPane, setSelPane] = useState(false);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -643,6 +645,15 @@ export default function Sheets({ app, shell, boot }) {
           setPicked([]);
           return;
         }
+        const nudge = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
+        if (nudge && !e.altKey) {
+          e.preventDefault();
+          const step = e.ctrlKey || e.metaKey ? 10 : 1;
+          const boxes = (model.drawings || []).filter((d) => picked.includes(d.id))
+            .map((d) => ({ id: d.id, x: Math.max(0, d.x + nudge[0] * step), y: Math.max(0, d.y + nudge[1] * step), width: d.width, height: d.height }));
+          if (boxes.length) await dispatch({ op: 'drawingBoxes', boxes });
+          return;
+        }
       }
       // Excel's own: Shift+Alt+Right groups, Shift+Alt+Left ungroups.
       if (e.altKey && e.shiftKey && !e.ctrlKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
@@ -966,21 +977,76 @@ export default function Sheets({ app, shell, boot }) {
    */
   const drawingsNode = () => {
     const z = view.zoom || 1;
-    const boxFor = (d) => (live?.id === d.id ? live.box : { x: d.x, y: d.y, width: d.width, height: d.height });
-    const drag = (e, d, mode, handle = null) => followPointer(e, {
-      box: boxFor(d), mode, handle, zoom: z,
-      onMove: (box) => setLive({ id: d.id, box }),
-      onDone: (box) => {
-        if (!box) { setLive(null); return; }
-        Promise.resolve(dispatch({ op: 'drawingBox', id: d.id, ...box })).finally(() => setLive(null));
-      },
-    });
-    const pick = (d) => {
-      setPicked([d.id]);
-      shRef.current?.focus({ preventScroll: true });
-    };
+    // A drag's boxes, by id, as the pointer has them; a turn as it goes.
+    const boxFor = (d) => live?.boxes?.[d.id] || { x: d.x, y: d.y, width: d.width, height: d.height };
     const shown = (model.drawings || []).filter((d) => !d.hidden);
-    const one = picked.length === 1 ? shown.find((d) => d.id === picked[0]) : null;
+    const pickedShown = shown.filter((d) => picked.includes(d.id));
+    const finish = (op) => Promise.resolve(dispatch(op)).finally(() => setLive(null));
+    // Resize one, from a handle.
+    const resize = (e, d, handle) => followPointer(e, {
+      box: boxFor(d), mode: 'resize', handle, zoom: z,
+      onMove: (box) => setLive({ boxes: { [d.id]: box } }),
+      onDone: (box) => (box ? finish({ op: 'drawingBox', id: d.id, ...box }) : setLive(null)),
+    });
+    // Move every picked drawing by the same step, as one undo step.
+    const move = (e, lead, group, { pickAlone = false } = {}) => {
+      const start = boxFor(lead);
+      followPointer(e, {
+        box: start, mode: 'move', zoom: z,
+        onMove: (box) => {
+          const dx = box.x - start.x;
+          const dy = box.y - start.y;
+          setLive({ boxes: Object.fromEntries(group.map((g) => [g.id, { x: Math.max(0, g.x + dx), y: Math.max(0, g.y + dy), width: g.width, height: g.height }])) });
+        },
+        onDone: (box) => {
+          // A click, not a drag, on one of several picked picks it alone.
+          if (!box) { setLive(null); if (pickAlone) setPicked([lead.id]); return; }
+          const dx = box.x - start.x;
+          const dy = box.y - start.y;
+          finish(group.length === 1
+            ? { op: 'drawingBox', id: group[0].id, x: Math.max(0, group[0].x + dx), y: Math.max(0, group[0].y + dy), width: group[0].width, height: group[0].height }
+            : { op: 'drawingBoxes', boxes: group.map((g) => ({ id: g.id, x: Math.max(0, g.x + dx), y: Math.max(0, g.y + dy), width: g.width, height: g.height })) });
+        },
+      });
+    };
+    // Turn one about its centre, from the rotation handle.
+    const turn = (e, d) => {
+      const el = e.currentTarget.closest('.sh-cells') || e.currentTarget.parentElement;
+      const rect = el.getBoundingClientRect();
+      const b = boxFor(d);
+      const cx = rect.left + (b.x + b.width / 2) * z;
+      const cy = rect.top + (b.y + b.height / 2) * z;
+      let last = null;
+      const onMove = (ev) => {
+        last = angleAt(cx, cy, ev.clientX, ev.clientY, ev.shiftKey);
+        setLive({ turn: { id: d.id, deg: last } });
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove, true);
+        window.removeEventListener('mouseup', onUp, true);
+        if (last === null) { setLive(null); return; }
+        finish({ op: 'rotateDrawings', ids: [d.id], to: last });
+      };
+      window.addEventListener('mousemove', onMove, true);
+      window.addEventListener('mouseup', onUp, true);
+    };
+    // A press picks (Ctrl or Shift adds or takes away) and starts a move.
+    const press = (e, d) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      shRef.current?.focus({ preventScroll: true });
+      const adding = e.ctrlKey || e.metaKey || e.shiftKey;
+      let next;
+      if (adding) next = picked.includes(d.id) ? picked.filter((id) => id !== d.id) : [...picked, d.id];
+      else next = picked.includes(d.id) ? picked : [d.id];
+      setPicked(next);
+      if (!next.includes(d.id)) return;
+      const group = shown.filter((x) => next.includes(x.id)).map((x) => ({ id: x.id, ...boxFor(x) }));
+      move(e, d, group, { pickAlone: !adding && next.length > 1 });
+    };
+    const one = pickedShown.length === 1 ? pickedShown[0] : null;
+    const turnOf = (d) => (live?.turn?.id === d.id ? live.turn.deg : d.rot || 0);
     return (
       <>
         {shown.map((d) => {
@@ -994,30 +1060,60 @@ export default function Sheets({ app, shell, boot }) {
                 box={box}
                 picked={picked.includes(d.id)}
                 multi={Boolean(slicerMulti[name])}
-                onPick={() => pick(d)}
-                onStartMove={(e) => drag(e, d, 'move')}
+                onPick={(e) => {
+                  shRef.current?.focus({ preventScroll: true });
+                  setPicked((p) => ((e?.ctrlKey || e?.shiftKey) ? (p.includes(d.id) ? p : [...p, d.id]) : [d.id]));
+                }}
+                onStartMove={(e) => move(e, d, [{ id: d.id, ...box }])}
                 onToggleMulti={() => setSlicerMulti((m) => ({ ...m, [name]: !m[name] }))}
                 onChoose={(values) => dispatch({ op: 'slicerSelect', name, values })}
                 onClear={() => dispatch({ op: 'slicerSelect', name, values: null })}
               />
             );
           }
+          // A shape or a picture draws its own turn; a group is turned whole,
+          // and so is anything while its rotation handle is being dragged.
+          const dragging = live?.turn?.id === d.id;
+          const extra = dragging && d.kind !== 'group' ? turnOf(d) - (d.rot || 0) : 0;
+          const transform = [
+            d.kind === 'group' && (turnOf(d) || 0) ? `rotate(${turnOf(d)}deg)` : '',
+            extra ? `rotate(${extra}deg)` : '',
+            d.kind === 'group' && (d.flipH || d.flipV) ? `scale(${d.flipH ? -1 : 1}, ${d.flipV ? -1 : 1})` : '',
+          ].filter(Boolean).join(' ');
           return (
             <div
               key={d.id}
-              className={`sh-drawing${d.svg ? '' : ' unsupported'}`}
+              className={`sh-drawing${d.svg || d.members ? '' : ' unsupported'}${picked.includes(d.id) ? ' picked' : ''}`}
               data-id={d.id}
               data-kind={d.kind}
               onContextMenu={(e) => menu.open(e, [{ label: 'Edit Alt Text…', icon: 'textbox', run: () => review.openAltText({ sheet: model.activeSheet, anchor: Number(String(d.id).replace('drawing-', '')) || 0 }) }])}
-              style={{ left: box.x, top: box.y, width: box.width, height: box.height }}
+              data-name={d.name || ''}
+              style={{ left: box.x, top: box.y, width: box.width, height: box.height, ...(transform ? { transform } : {}) }}
               title={d.unsupported ? `${d.name || d.kind}: ${d.unsupported}` : d.pivot ? `${d.name || 'PivotChart'} — a PivotChart of ${d.pivot}` : d.name || undefined}
+              onMouseDown={(e) => press(e, d)}
               {...(d.svg ? { dangerouslySetInnerHTML: { __html: d.svg } } : {})}
             >
-              {d.svg ? null : <span>{d.name || d.kind}</span>}
+              {d.svg ? null : d.members ? d.members.map((m) => (
+                <div key={m.key} className="sh-member" style={{ left: m.x * (box.width / d.width), top: m.y * (box.height / d.height), width: m.width * (box.width / d.width), height: m.height * (box.height / d.height) }} dangerouslySetInnerHTML={{ __html: m.svg || '' }} />
+              )) : <span>{d.name || d.kind}</span>}
             </div>
           );
         })}
-        {one ? <ObjectHandles box={boxFor(one)} onHandle={(e, handle) => drag(e, one, 'resize', handle)} /> : null}
+        {pickedShown.length > 1 ? pickedShown.map((d) => {
+          const b = boxFor(d);
+          return <div key={`ring-${d.id}`} className="sh-obj-ring several" style={{ left: b.x, top: b.y, width: b.width, height: b.height }} />;
+        }) : null}
+        {one ? (() => {
+          // The ring and handles turn with the drawing, as Excel's do.
+          const b = boxFor(one);
+          const deg = turnOf(one);
+          return (
+            <div className="sh-obj-turn" style={deg ? { position: 'absolute', left: 0, top: 0, width: 0, height: 0, transformOrigin: `${b.x + b.width / 2}px ${b.y + b.height / 2}px`, transform: `rotate(${deg}deg)` } : { position: 'absolute', left: 0, top: 0, width: 0, height: 0 }}>
+              <ObjectHandles box={b} onHandle={(e, handle) => resize(e, one, handle)} />
+              {['shape', 'image', 'group'].includes(one.kind) ? <RotateHandle box={b} onStart={(e) => turn(e, one)} /> : null}
+            </div>
+          );
+        })() : null}
       </>
     );
   };
@@ -2193,6 +2289,25 @@ export default function Sheets({ app, shell, boot }) {
         setPivotAsk({ list: info && info.bottom > info.top ? info : null, chart: name === 'pivotChart' });
         return;
       }
+      case 'arrange': {
+        const ids = picked.filter((id) => (model?.drawings || []).some((d) => d.id === id) || (model?.objects || []).some((o) => o.id === id));
+        if (arg?.op === 'pane') { setSelPane((v) => !v); return; }
+        if (!ids.length) { toast('Select a picture, shape, chart or slicer first — click it on the sheet, or in the Selection Pane.', { tone: 'warn', ms: 4000 }); return; }
+        if (arg.op === 'group') {
+          const next = await dispatch({ op: 'groupDrawings', ids });
+          if (next?.opResult) setPicked([next.opResult]);
+          return;
+        }
+        if (arg.op === 'ungroup') { const next = await dispatch({ op: 'ungroupDrawings', ids }); if (next) setPicked([]); return; }
+        const ops = {
+          order: { op: 'reorderDrawings', ids, to: arg.to },
+          align: { op: 'alignDrawings', ids, edge: arg.edge },
+          distribute: { op: 'distributeDrawings', ids, axis: arg.axis },
+          rotate: { op: 'rotateDrawings', ids, by: arg.by || 0, flip: arg.flip || null },
+        };
+        await dispatch(ops[arg.op]);
+        return;
+      }
       case 'slicer': {
         const next = await dispatch({ op: 'slicerSources' });
         let src = null;
@@ -2458,6 +2573,7 @@ export default function Sheets({ app, shell, boot }) {
         <SheetsRibbon
           tab={tab}
           setTab={setTab}
+          arrange={{ picked: (model?.objects || []).filter((o) => picked.includes(o.id)), pane: selPane }}
           model={model}
           doc={doc}
           dispatch={dispatch}
@@ -2620,7 +2736,7 @@ export default function Sheets({ app, shell, boot }) {
               <div
                 className="sh-cells"
                 data-arrows={arrows.length}
-                onMouseDownCapture={(e) => { if (picked.length && !e.target.closest('.sh-drawing, .sh-obj-handle')) setPicked([]); }}
+                onMouseDownCapture={(e) => { if (picked.length && !e.target.closest('.sh-drawing, .sh-obj-handle, .sh-obj-rotate')) setPicked([]); }}
                 style={backdrop && model.viewMode !== 'pageLayout' ? { backgroundImage: `url("${backdrop.url}")`, backgroundRepeat: 'repeat', backgroundPosition: '0 0' } : undefined}
                 data-background={backdrop && model.viewMode !== 'pageLayout' ? backdrop.part : undefined}
                 onMouseDown={(e) => {
@@ -2723,6 +2839,18 @@ export default function Sheets({ app, shell, boot }) {
             <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title="Close the pane" onClick={review.close} />}>
               {review.paneNode}
             </Panel>
+          ) : null}
+          {selPane ? (
+            <SelectionPane
+              objects={model.objects || []}
+              picked={picked}
+              onPick={(id, add) => { setPicked((p) => (add ? (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]) : [id])); shRef.current?.focus({ preventScroll: true }); }}
+              onHidden={(id, hidden) => dispatch({ op: 'drawingHidden', id, hidden })}
+              onRename={(id, name) => dispatch({ op: 'renameDrawing', id, name })}
+              onAll={(hidden) => dispatch({ op: 'allDrawingsHidden', hidden })}
+              onOrder={(to) => picked.length && dispatch({ op: 'reorderDrawings', ids: picked, to })}
+              onClose={() => setSelPane(false)}
+            />
           ) : null}
           </div>
 

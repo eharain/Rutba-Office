@@ -198,9 +198,141 @@ export function InsertSlicersDialog({ source, onClose, onInsert }) {
   );
 }
 
+
+/** The turn a pointer makes about a centre, in whole degrees clockwise from twelve o'clock; Shift snaps to 15°. */
+export function angleAt(cx, cy, x, y, snap = false) {
+  const deg = (Math.atan2(x - cx, cy - y) * 180) / Math.PI;
+  const a = ((Math.round(deg) % 360) + 360) % 360;
+  return snap ? (Math.round(a / 15) * 15) % 360 : a;
+}
+
+/** The small circle above a picked drawing that turns it, joined to it by a stem. */
+export function RotateHandle({ box, onStart }) {
+  const cx = box.x + box.width / 2;
+  return (
+    <>
+      <div className="sh-obj-stem" style={{ left: cx - 0.75, top: box.y - 22, height: 22 }} />
+      <div
+        className="sh-obj-rotate"
+        style={{ left: cx - 6, top: box.y - 30 }}
+        data-tip="Rotate — drag to turn; hold Shift for steps of 15°"
+        onMouseDown={(e) => { if (e.button === 0) { e.preventDefault(); e.stopPropagation(); onStart(e); } }}
+      />
+    </>
+  );
+}
+
+const KIND_ICON = { chart: 'chart', image: 'picture', shape: 'shape', group: 'grid', slicer: 'filter' };
+const KIND_WORD = { chart: 'Chart', image: 'Picture', shape: 'Shape', group: 'Group', slicer: 'Slicer' };
+
+/**
+ * Page Layout → Selection Pane: every drawing on the sheet, the front one
+ * first as Excel lists them — click to pick (Ctrl+click adds), the eye to
+ * hide or show, a double-click to rename; Show All, Hide All, and the order
+ * changed with the arrows.
+ */
+export function SelectionPane({ objects = [], picked = [], onPick, onHidden, onRename, onAll, onOrder, onClose }) {
+  const [renaming, setRenaming] = useState(null);
+  const list = [...objects].sort((a, b) => b.index - a.index);
+  const one = picked.length === 1;
+  return (
+    <div className="sh-selpane">
+      <div className="sh-selpane-head">
+        <strong>Selection</strong>
+        <span className="grow" />
+        <Button icon="close" title="Close — hides the Selection Pane" onClick={onClose} />
+      </div>
+      <div className="sh-selpane-tools">
+        <button type="button" className="sh-selpane-all" onClick={() => onAll(false)} disabled={!objects.length}>Show All</button>
+        <button type="button" className="sh-selpane-all" onClick={() => onAll(true)} disabled={!objects.length}>Hide All</button>
+        <span className="grow" />
+        <button type="button" className="sh-selpane-order" data-tip="Bring Forward — the picked object one step to the front" disabled={!picked.length} onClick={() => onOrder('forward')}><Icon name="chevronUp" size={14} /></button>
+        <button type="button" className="sh-selpane-order" data-tip="Send Backward — the picked object one step to the back" disabled={!picked.length} onClick={() => onOrder('backward')}><Icon name="chevronDown" size={14} /></button>
+      </div>
+      <div className="sh-selpane-list">
+        {list.length ? list.map((o) => (
+          <div
+            key={o.id}
+            className={`sh-selpane-row${picked.includes(o.id) ? ' on' : ''}${o.hidden ? ' hidden' : ''}`}
+            data-id={o.id}
+            data-name={o.name || ''}
+            onMouseDown={(e) => { if (e.button === 0 && renaming !== o.id) onPick(o.id, e.ctrlKey || e.metaKey || e.shiftKey); }}
+            onDoubleClick={() => setRenaming(o.id)}
+          >
+            <Icon name={KIND_ICON[o.kind] || 'shape'} size={14} />
+            {renaming === o.id ? (
+              <input
+                className="rw-input sh-selpane-name"
+                defaultValue={o.name || ''}
+                autoFocus
+                onFocus={(e) => e.target.select()}
+                onMouseDown={(e) => e.stopPropagation()}
+                onKeyDown={(e) => {
+                  e.stopPropagation();
+                  if (e.key === 'Enter') { const v = e.currentTarget.value.trim(); setRenaming(null); if (v && v !== o.name) onRename(o.id, v); }
+                  if (e.key === 'Escape') setRenaming(null);
+                }}
+                onBlur={(e) => { const v = e.currentTarget.value.trim(); setRenaming(null); if (v && v !== o.name) onRename(o.id, v); }}
+              />
+            ) : (
+              <span className="sh-selpane-label" data-tip={`${o.name || KIND_WORD[o.kind]} — double-click to rename`}>{o.name || KIND_WORD[o.kind] || o.kind}</span>
+            )}
+            <button
+              type="button"
+              className={`sh-selpane-eye${o.hidden ? ' off' : ''}`}
+              data-tip={o.hidden ? 'Show — draw it on the sheet again' : 'Hide — keep it in the file, off the sheet'}
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onHidden(o.id, !o.hidden); }}
+            >
+              <Icon name="eye" size={14} />
+            </button>
+          </div>
+        )) : <div className="sh-selpane-empty">No pictures, shapes, charts or slicers on this sheet.</div>}
+      </div>
+      <div className="sh-selpane-foot">{one ? 'Drag on the sheet to move; the handles resize and turn.' : picked.length ? `${picked.length} picked — Align and Group act on all of them.` : 'Ctrl+click picks several.'}</div>
+    </div>
+  );
+}
+
 export const OBJECTS_CSS = `
 /* A picked drawing: a ring and Excel's eight handles. */
 .sh-obj-ring { position: absolute; z-index: 6; pointer-events: none; border: 1.5px solid var(--accent); box-sizing: border-box; border-radius: 1px; }
+.sh-obj-ring.several { border-style: dashed; }
+.sh-obj-stem { position: absolute; z-index: 6; width: 1.5px; background: var(--accent); pointer-events: none; }
+.sh-obj-rotate { position: absolute; z-index: 7; width: 12px; height: 12px; border-radius: 50%; background: #fff; border: 1.5px solid var(--accent); box-sizing: border-box; cursor: grab; box-shadow: 0 1px 2px rgba(15,20,30,.18); }
+.sh-obj-rotate:active { cursor: grabbing; }
+.sh-drawing:not(.sh-slicer) { cursor: move; }
+.sh-member { position: absolute; }
+.sh-member > svg { display: block; overflow: visible; }
+
+/* Page Layout → Selection Pane: a pane at the right, over the grid, as the Comments pane is. */
+.sh-selpane {
+  position: absolute; top: 10px; right: 10px; bottom: 10px; width: 280px; z-index: 15;
+  display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 20%, transparent); overflow: hidden;
+}
+.sh-selpane-head { display: flex; align-items: center; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; }
+.sh-selpane-head .grow, .sh-selpane-tools .grow { flex: 1; }
+.sh-selpane-tools { display: flex; align-items: center; gap: 4px; padding: 7px 10px; border-bottom: 1px solid var(--line-soft); }
+.sh-selpane-all { border: 1px solid var(--line-soft); background: var(--surface); color: var(--ink-2); font: inherit; font-size: 11.5px; padding: 3px 10px; border-radius: 999px; cursor: pointer; }
+.sh-selpane-all:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.sh-selpane-order { width: 26px; height: 24px; display: grid; place-items: center; border: 1px solid var(--line-soft); background: var(--surface); color: var(--ink-2); border-radius: 6px; cursor: pointer; padding: 0; }
+.sh-selpane-order:hover:not(:disabled) { background: var(--hover); color: var(--ink); }
+.sh-selpane-all:disabled, .sh-selpane-order:disabled { opacity: .45; cursor: default; }
+.sh-selpane-list { flex: 1; overflow: auto; padding: 4px; }
+.sh-selpane-row { display: flex; align-items: center; gap: 8px; padding: 5px 6px 5px 9px; border-radius: 6px; font-size: 12.5px; color: var(--ink); cursor: default; user-select: none; }
+.sh-selpane-row:hover { background: var(--hover); }
+.sh-selpane-row.on { background: var(--selected); color: var(--accent); font-weight: 600; }
+.sh-selpane-row.hidden .sh-selpane-label { color: var(--ink-3); font-style: italic; }
+.sh-selpane-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sh-selpane-name { flex: 1; min-width: 0; height: 24px; font-size: 12.5px; }
+.sh-selpane-eye { width: 26px; height: 24px; display: grid; place-items: center; border: 0; background: transparent; color: var(--ink-2); border-radius: 6px; cursor: pointer; padding: 0; }
+.sh-selpane-eye:hover { background: var(--hover); color: var(--ink); }
+.sh-selpane-eye.off { color: var(--ink-3); opacity: .5; }
+.sh-selpane-eye.off::after { content: ''; position: absolute; width: 16px; height: 1.5px; background: currentColor; transform: rotate(-40deg); }
+.sh-selpane-eye { position: relative; }
+.sh-selpane-empty { padding: 16px 10px; font-size: 12px; color: var(--ink-3); }
+.sh-selpane-foot { padding: 7px 10px; border-top: 1px solid var(--line-soft); font-size: 11.5px; color: var(--ink-3); }
 .sh-obj-handle { position: absolute; z-index: 7; width: 9px; height: 9px; background: #fff; border: 1.5px solid var(--accent); border-radius: 50%; box-sizing: border-box; box-shadow: 0 1px 2px rgba(15,20,30,.18); }
 
 /* Slicers: a card with a caption, two tools and a grid of buttons. */
