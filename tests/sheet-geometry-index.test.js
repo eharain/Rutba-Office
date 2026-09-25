@@ -31,7 +31,11 @@ test('a height on every row costs one binary search per offset, and the offsets 
   const started = performance.now();
   for (let r = 0; r < 20000; r++) geo.rowOffset(r * 3);
   const ms = performance.now() - started;
-  assert.ok(ms < 200, `twenty thousand offsets took ${ms.toFixed(0)} ms`);
+  // A walk over twenty thousand heights for each of twenty thousand offsets
+  // is four hundred million steps: seconds. The index takes a few
+  // milliseconds; 600 leaves room for a machine busy with other work, which
+  // failed the 200 this once was.
+  assert.ok(ms < 600, `twenty thousand offsets took ${ms.toFixed(0)} ms`);
   assert.equal(geo.rowAt(walked[10000] + 5), 10000, 'rowAt reads through the same index');
 });
 
