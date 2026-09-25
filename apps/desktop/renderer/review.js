@@ -51,6 +51,16 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
     }
   }, [shell, toast]);
 
+  // A document opened: have its dictionary read in the background, a moment
+  // after the window has drawn, so a right-click on a misspelt word is
+  // answered at once. Nothing is shown if it cannot be.
+  const docId = doc?.id;
+  useEffect(() => {
+    if (!docId) return undefined;
+    const t = setTimeout(() => { Promise.resolve(shell.doc?.proof?.({ id: docId, action: 'spellWarm' })).catch(() => {}); }, 1500);
+    return () => clearTimeout(t);
+  }, [shell, docId]);
+
   /* ── accessibility ───────────────────────────────────────────────── */
 
   useEffect(() => {

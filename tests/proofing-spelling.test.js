@@ -194,6 +194,9 @@ test('the document service: a pass from the caret finds the planted word, Change
   const proofing = createProofing({ stores, worker: false, locale: () => 'en-GB' });
   const docs = createDocumentService({ holdBlob: () => ({ url: 'blob:x' }), proofing });
   const { id } = docs.new({ kind: 'doc' });
+  // A window that opens warms its dictionary without waiting on it.
+  const warm = await docs.proof({ id, action: 'spellWarm' });
+  assert.equal(warm.lang, 'en-GB', 'the warm-up answers at once with the language it reads');
   docs.apply({ id, ops: [{ op: 'selectAll' }, { op: 'insertText', text: 'Our Zorblat plan will recieve support.' }, { op: 'setSelection', anchor: { block: 0, offset: 0 } }] });
   const start = await docs.proof({ id, action: 'spellStart' });
   assert.equal(start.lang, 'en-GB');

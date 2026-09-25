@@ -193,6 +193,15 @@ export function createProofing({ stores = null, locale = systemLocale, worker = 
         return step;
       }
 
+      case 'spellWarm': {
+        // A window has opened: read its language's dictionary now, on the
+        // dictionary's own threads, so the first right-click or F7 does not
+        // wait the second or more it takes to build one. Not awaited.
+        const { lang } = languageOf(session);
+        host.load(lang).catch(() => {});
+        return { lang };
+      }
+
       case 'spellSuggest': {
         const { lang } = languageOf(session);
         const word = String(a.word || '').trim();
