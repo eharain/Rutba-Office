@@ -57,8 +57,8 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   own floats and footnotes at its foot and a separator drawn down the gap
   when asked for. On screen the editable flow is laid at the first
   column's width in print layout, as Word's own draft view does, and at
-  the browser's own columns in draft layout. Line numbers, hyphenation
-  and page borders are the same story still. (Pages themselves arrived on
+  the browser's own columns in draft layout. Hyphenation arrived 2026-09-25 (Layout → Hyphenation, with the suite's own
+  English hyphenator); line numbers and page borders are the same story still. (Pages themselves arrived on
   screen on 2026-09-10: the flow is laid onto sheets by measuring the
   drawn page, paragraphs split at
   a line and tables at a row, and a manual page break heads a fresh page.
@@ -86,8 +86,9 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   contents arrived 2026-09-25 as the field Word writes — a TOC field in its
   building block, entries linked to `_Toc` bookmarks with PAGEREF page
   numbers from the window's own page layout — and Update Table rebuilds
-  it. An index, a table of authorities, citations and a bibliography,
-  `PAGE` outside the header — none are written yet.
+  it. Citations and a bibliography arrived 2026-09-25 in APA, MLA, Chicago,
+  Harvard and IEEE, written as Word writes them. An index, a table of
+  authorities, and `PAGE` outside the header are not written yet.
 - ~~**Mail merge**, envelopes and labels~~ — built 2026-09-25: sources
   from a workbook, a .csv, Contacts or a typed list; Word's merge fields,
   Address Block, Greeting Line and rules; preview; a merge to a new
@@ -99,7 +100,8 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   `w:ins`/`w:del` with author and date, four markup views, Accept and Reject
   one or all, Previous and Next. Not recorded yet: a paragraph split or
   joined, a paste, find and replace, a sort, and formatting changes
-  (`w:rPrChange`). Document comparison and Restrict Editing sit behind it.
+  (`w:rPrChange`). Restrict Editing arrived 2026-09-25 and is enforced in the window; document
+  comparison is still to come.
 - **Text effects and equations.** Outline, shadow and glow arrived
   2026-09-24 from Home → Text Effects, drawn on the page and, outline and
   shadow, in print; a glow is not printed. Drop caps arrived the same day:
