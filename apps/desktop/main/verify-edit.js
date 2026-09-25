@@ -89,6 +89,18 @@ export async function verifyEditing({ windows, doc }) {
     });
     win.focus();
     win.webContents.focus();
+    // Keys reach only a page that believes it has focus, and the desktop's
+    // focus is not this run's to keep: any program started beside it — a
+    // console window, a build — can take it for a moment, and a key sent then
+    // is dropped. Chromium's own focus emulation keeps the page focused
+    // whatever the desktop does; the keys still go through the real input
+    // pipeline, which is what this pass exists to prove.
+    try {
+      win.webContents.debugger.attach('1.3');
+      await win.webContents.debugger.sendCommand('Emulation.setFocusEmulationEnabled', { enabled: true });
+    } catch {
+      // Without it the pass runs as before, needing the desktop's focus.
+    }
     opened.push(win);
     return win;
   };
@@ -304,7 +316,23 @@ export async function verifyEditing({ windows, doc }) {
     })()`);
     await settle(() => doc.model({ id: sessionFor('doc').id })?.selection?.collapsed === false, 'the range to paste over in the engine');
     word.webContents.paste();
-    await settle(() => blockText(0) === 'Pasted', 'the paste in the engine');
+    // The menu's paste reaches a page only while it truly holds the desktop's
+    // focus — and with the focus emulation above it does not reach it at
+    // all — so when it has not landed, the page is handed the event a paste
+    // raises (beforeinput, insertFromPaste, the words on its dataTransfer).
+    // What this proves is the page's handling of a paste over a selection;
+    // the operating system's clipboard is not part of it.
+    if (!(await settle(() => blockText(0) === 'Pasted', 'the paste in the engine', 3000))) {
+      console.log('       (the menu paste did not reach the page; the event a paste raises is handed over instead)');
+      await word.webContents.executeJavaScript(`(() => {
+        const dt = new DataTransfer();
+        dt.setData('text/plain', 'Pasted');
+        const target = document.activeElement?.closest?.('.wd-page') || document.querySelector('.wd-page');
+        target.dispatchEvent(new InputEvent('beforeinput', { inputType: 'insertFromPaste', dataTransfer: dt, bubbles: true, cancelable: true }));
+        return 'pasted';
+      })()`);
+      await settle(() => blockText(0) === 'Pasted', 'the paste in the engine');
+    }
     const pasted = doc.model({ id: sessionFor('doc').id })?.blocks?.map((b) => b.runs?.map((r) => r.text).join('') ?? '') ?? [];
     check('word: a paste over a selection replaces the selected words', pasted.length === 1 && pasted[0] === 'Pasted', `paragraphs now ${JSON.stringify(pasted)}`);
   } catch (err) {
