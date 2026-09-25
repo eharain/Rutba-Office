@@ -30,9 +30,9 @@ installRulerStyles();
 import {
   LinkDialog, TableDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
   DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog, WatermarkDialog,
-  BookmarkDialog, CrossReferenceDialog, CaptionDialog,
+  BookmarkDialog, CrossReferenceDialog, CaptionDialog, HyphenationDialog, ManualHyphenationDialog,
 } from './word/dialogs.js';
-import { lineBoxes, rectOf } from './word/pages.js';
+import { lineBoxes, rectOf, zoomOf } from './word/pages.js';
 import { MathRun, mathHostOf, EQUATION_CSS, EquationDialog, clipOf, CLIP_TYPE } from './word/equations.js';
 import { useMailings, installMailingsStyles } from './word/mailings.js';
 import { useEnvelopesLabels, installEnvelopeStyles } from './word/envelopes.js';
@@ -42,6 +42,8 @@ import {
   drawingLayer, geomOf, spacerStyles, blockCss, turnCss, TextBox, GroupBox, DrawingLayer, DrawingFrame, SelectionPane,
   measureAnchors, textBoxPresets, DRAWING_CSS,
 } from './word/drawings.js';
+
+import { hyphenPoints, breakableWord, hyphenationRules } from '@rutba/doc-view/hyphenate';
 
 /** The page's geometry before a section is known — A4-ish, Word's default margins. */
 const GEOM_DEFAULT = geomOf(null);
@@ -70,16 +72,30 @@ function offsetIn(blockEl, node, offset) {
   return Number.isFinite(length) ? Math.min(at, length) : at;
 }
 
+/**
+ * The soft hyphens automatic hyphenation draws between a word's letters are
+ * the page's, not the document's: they sit in `.wd-shy` spans, and every
+ * count of characters here passes over them.
+ */
+const SHY_FILTER = { acceptNode: (n) => (n.parentElement?.classList.contains('wd-shy') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) };
+const textLength = (node) => {
+  if (!node) return 0;
+  if (node.nodeType === Node.TEXT_NODE) return node.parentElement?.classList.contains('wd-shy') ? 0 : node.nodeValue.length;
+  if (node.classList?.contains('wd-shy')) return 0;
+  const shy = node.querySelectorAll ? node.querySelectorAll('.wd-shy').length : 0;
+  return (node.textContent?.length ?? 0) - shy;
+};
+
 function offsetWithin(blockEl, node, offset) {
 
   // An element position: count the text in the children before it.
   if (node.nodeType !== Node.TEXT_NODE) {
     const children = [...node.childNodes].slice(0, offset);
-    return children.reduce((n, child) => n + (child.textContent?.length ?? 0), 0);
+    return children.reduce((n, child) => n + textLength(child), 0);
   }
 
   let total = 0;
-  const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
+  const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT, SHY_FILTER);
   let current = walker.nextNode();
   while (current) {
     if (current === node) return total + offset;
@@ -93,7 +109,7 @@ function offsetWithin(blockEl, node, offset) {
 /** The DOM position for a character offset inside a block. */
 function pointIn(blockEl, offset) {
   if (!blockEl) return null;
-  const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT);
+  const walker = document.createTreeWalker(blockEl, NodeFilter.SHOW_TEXT, SHY_FILTER);
   let seen = 0;
   let node = walker.nextNode();
   while (node) {
@@ -873,6 +889,9 @@ export default function Word({ app, shell, boot }) {
   // page (word/drawings.js); the paragraphs that anchor one are measured
   // after every layout pass, since a pass moves them from sheet to sheet.
   const geom = useMemo(() => geomOf(section, columnBoxes), [section, columnBoxes]);
+  // Layout → Hyphenation → Automatic: the rules every paragraph not left whole breaks its words by.
+  const hyphKey = JSON.stringify(model?.hyphenation || null);
+  const hyph = useMemo(() => (model?.hyphenation?.auto ? hyphenationRules(model.hyphenation) : null), [hyphKey]);
   const [anchors, setAnchors] = useState({});
   const anchorsKey = useRef('');
   useLayoutEffect(() => {
@@ -917,8 +936,8 @@ export default function Word({ app, shell, boot }) {
   }, [model?.blocks]);
   const kidsOf = useCallback((box) => (box?.blocks ? kidsCache.current.get(box.blocks.join(',')) || null : null), [boxKids]);
   const renderBlock = useCallback(
-    (b) => <Block key={b.index} block={b} labels={model?.listLabels} styles={model?.resolvedStyles} markupMode={view.markupMode || 'simple'} />,
-    [model?.listLabels, model?.resolvedStyles, view.markupMode]
+    (b) => <Block key={b.index} block={b} labels={model?.listLabels} styles={model?.resolvedStyles} markupMode={view.markupMode || 'simple'} hyph={b.noHyphens ? null : hyph} />,
+    [model?.listLabels, model?.resolvedStyles, view.markupMode, hyph]
   );
   const renderLite = useCallback((paragraphs) => <LiteParagraphs paragraphs={paragraphs} styles={model?.resolvedStyles} />, [model?.resolvedStyles]);
 
@@ -1016,6 +1035,65 @@ export default function Word({ app, shell, boot }) {
     }
     apply({ op: 'updateDrawings', changes: [change] });
   }, [model, paragraphTop, offsetsFor, apply]);
+
+  // Layout → Hyphenation → Manual: the words that begin a line while the
+  // line before them ends further from the margin than the zone — the ones
+  // a hyphen would pull back — each with the places it may break and the
+  // last of them that fits the room.
+  const [manual, setManual] = useState(null);
+  const hyphenCandidates = useCallback(() => {
+    const page = pageRef.current;
+    if (!page || !model) return [];
+    const z = zoomOf(page) || 1;
+    const zonePx = (model.hyphenation?.zoneTwips ?? 360) / 15;
+    const out = [];
+    for (const el of page.querySelectorAll(':scope > .wd-block[data-block]')) {
+      const block = Number(el.dataset.block);
+      const b = model.blocks[block];
+      if (!b || b.structural || b.noHyphens) continue;
+      const cs = getComputedStyle(el);
+      const right = el.getBoundingClientRect().right - parseFloat(cs.paddingRight || '0');
+      let lineTop = null;
+      let lineRight = null;
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.parentElement?.closest('.wd-shy, .wd-marker, .wd-textbox, .wd-float-spacer') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT) });
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        for (const m of node.nodeValue.matchAll(/[^\s\u00AD]+/g)) {
+          const r = document.createRange();
+          r.setStart(node, m.index);
+          r.setEnd(node, m.index + m[0].length);
+          const box = r.getBoundingClientRect();
+          if (!box.width) continue;
+          if (lineTop !== null && box.top > lineTop + 2) {
+            // A new line: its first word, and the room left on the line above.
+            const room = (right - lineRight) / z;
+            const letters = /^([^A-Za-z]*)([A-Za-z]{6,})/.exec(m[0]);
+            const prev = node.nodeValue[m.index - 1];
+            if (letters && room > zonePx && prev !== '\u00AD') {
+              const points = hyphenPoints(letters[2]).map((p) => p + letters[1].length);
+              if (points.length) {
+                const fits = points.filter((p) => {
+                  const q = document.createRange();
+                  q.setStart(node, m.index);
+                  q.setEnd(node, m.index + p);
+                  return q.getBoundingClientRect().width / z + 6 <= room;
+                });
+                if (fits.length) out.push({ key: `${block}:${offsetIn(el, node, m.index)}`, block, offset: offsetIn(el, node, m.index), word: m[0], points, proposed: fits[fits.length - 1] });
+              }
+            }
+          }
+          if (lineTop === null || box.top > lineTop + 2) lineTop = box.top;
+          lineRight = box.right;
+        }
+      }
+    }
+    return out;
+  }, [model]);
+  // Each answer changes the page: the next word is found again, after the last one asked about.
+  useEffect(() => {
+    if (!manual || manual.candidate !== null) return;
+    const next = hyphenCandidates().find((c) => (c.block > manual.after.block || (c.block === manual.after.block && c.offset > manual.after.offset)) && !manual.declined.includes(c.key));
+    setManual((m) => (m ? { ...m, candidate: next || false } : m));
+  }, [manual, hyphenCandidates]);
 
   // Insert → Text Box → Draw Text Box: the next drag on the page is the box.
   const [drawBox, setDrawBox] = useState(null);
@@ -1193,6 +1271,19 @@ export default function Word({ app, shell, boot }) {
           if (!spec) return;
           const next = await apply({ op: 'insertTextBox', spec });
           if (next?.opResult != null) setPicked(null);
+          return;
+        }
+        case 'hyphenation': {
+          // Layout → Hyphenation: None, Automatic, Manual, Hyphenation
+          // Options, and this paragraph left whole.
+          if (arg === 'none' || arg === 'auto') { await apply({ op: 'setHyphenation', spec: { auto: arg === 'auto' } }); return; }
+          if (arg === 'options') { setDialog('hyphenation'); return; }
+          if (arg === 'paragraph') { await apply({ op: 'setParagraphFormat', delta: { noHyphens: !model?.format?.noHyphens } }); return; }
+          if (arg === 'manual') {
+            setDialog(null);
+            setManual({ after: { block: -1, offset: -1 }, declined: [], candidate: null });
+            return;
+          }
           return;
         }
         case 'wordArt': {
@@ -1921,6 +2012,7 @@ export default function Word({ app, shell, boot }) {
                     pickedImage={picked?.block === item.index && !picked?.ids?.length ? picked.image : null} inner={inner} markupMode={view.markupMode || 'simple'} place={placeOf(item, paged ? geo : null, pages.frames)}
                     g={geom} anchorAt={anchors[item.index] || null} kids={boxKids.get(item.index) || null} renderBlock={boxKids.has(item.index) ? renderBlock : null}
                     pickedIds={picked?.ids?.length && holdsAny(item, picked.ids) ? picked.ids : null}
+                    hyph={item.noHyphens ? null : hyph}
                   />
                 )
               )}
@@ -2020,6 +2112,32 @@ export default function Word({ app, shell, boot }) {
           kind="doc"
           onClose={() => setDialog(null)}
           onSaveAs={(options) => exportAs('pdf', options)}
+        />
+      ) : null}
+
+      {dialog === 'hyphenation' ? (
+        <HyphenationDialog
+          current={model?.hyphenation}
+          onClose={() => setDialog(null)}
+          onManual={() => act('hyphenation', 'manual')}
+          onApply={async (spec) => {
+            await apply({ op: 'setHyphenation', spec });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {manual ? (
+        <ManualHyphenationDialog
+          candidate={manual.candidate || null}
+          onClose={() => setManual(null)}
+          onNo={() => setManual((m) => ({ ...m, after: { block: m.candidate.block, offset: m.candidate.offset }, declined: [...m.declined, m.candidate.key], candidate: null }))}
+          onYes={async (p) => {
+            const c = manual.candidate;
+            const at = { block: c.block, offset: c.offset + p };
+            await apply({ op: 'setSelection', anchor: at, focus: at }, { op: 'insertText', text: '\u00AD' });
+            setManual((m) => (m ? { ...m, after: { block: c.block, offset: c.offset + 1 }, candidate: null } : m));
+          }}
         />
       ) : null}
 
@@ -2643,7 +2761,36 @@ function authorColour(author) {
 }
 
 /** One run of text: its direct formatting, its link, its tabs, and — Review → Track Changes — an insertion or a deletion. */
-function RunSpan({ run, markupMode = 'simple', at = null }) {
+/**
+ * A run's words with the places they may break — Layout → Hyphenation →
+ * Automatic — as soft hyphens of the page's own (`.wd-shy`, never typed into,
+ * never counted as the document's characters). The printout breaks at the
+ * same places: both ask `@rutba/doc-view/hyphenate`.
+ */
+function withBreaks(text, hyph) {
+  if (!hyph || !text) return withTabs(text);
+  const out = [];
+  let last = 0;
+  let k = 0;
+  const keep = (value) => {
+    if (!value) return;
+    const t = withTabs(value);
+    out.push(Array.isArray(t) ? <React.Fragment key={`p${k++}`}>{t}</React.Fragment> : t);
+  };
+  for (const m of text.matchAll(/[A-Za-z]{6,}/g)) {
+    if (!breakableWord(m[0], hyph)) continue;
+    for (const p of hyphenPoints(m[0])) {
+      keep(text.slice(last, m.index + p));
+      out.push(<span key={`h${k++}`} className="wd-shy" contentEditable={false}>{'\u00AD'}</span>);
+      last = m.index + p;
+    }
+  }
+  if (!out.length) return withTabs(text);
+  keep(text.slice(last));
+  return out;
+}
+
+function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
   // An equation: its one character in a host the MathML is drawn behind.
   if (run.math) return <MathRun run={run} at={at} />;
   // A footnote/endnote reference, or the mark at the head of the note: the
@@ -2728,7 +2875,7 @@ function RunSpan({ run, markupMode = 'simple', at = null }) {
         ...effectsStyle(run),
       }}
     >
-      {withTabs(run.text)}
+      {withBreaks(run.text, hyph)}
     </span>
   );
 }
@@ -2808,8 +2955,8 @@ function PageNotes({ notes, at, page, top, height, styles, onEdit }) {
  * Memoised, and the split array keeps its identity while it is unchanged,
  * so a keystroke re-renders the one paragraph it touched.
  */
-const Block = React.memo(function Block({ block, labels, styles, split, pickedImage = null, inner = null, markupMode = 'simple', place = null, g = null, anchorAt = null, kids = null, renderBlock = null, pickedIds = null }) {
-  const extra = { g, anchorAt, kids, renderBlock, pickedIds };
+const Block = React.memo(function Block({ block, labels, styles, split, pickedImage = null, inner = null, markupMode = 'simple', place = null, g = null, anchorAt = null, kids = null, renderBlock = null, pickedIds = null, hyph = null }) {
+  const extra = { g, anchorAt, kids, renderBlock, pickedIds, hyph };
   if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last pickedImage={pickedImage} inner={inner} markupMode={markupMode} place={place} {...extra} />;
   const bounds = [0, ...split, Infinity];
   return (
@@ -2849,7 +2996,7 @@ function imageStyle(image, inner = null, inline = false) {
 /** The paragraphs a paginator keeps with what follows, by convention as much as by w:keepNext. */
 const KEEP_WITH_NEXT = /^(Heading[1-6]|Title|Subtitle)$/;
 
-function Part({ block, labels, styles, from, to, first, last, pickedImage = null, inner = null, markupMode = 'simple', place = null, g = null, anchorAt = null, kids = null, renderBlock = null, pickedIds = null }) {
+function Part({ block, labels, styles, from, to, first, last, pickedImage = null, inner = null, markupMode = 'simple', place = null, g = null, anchorAt = null, kids = null, renderBlock = null, pickedIds = null, hyph = null }) {
   const ref = React.useRef(null);
   const whole = first && last;
   const geom = g || GEOM_DEFAULT;
@@ -3009,7 +3156,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
         return runs.map((run, i) => {
           const here = at;
           at += (run.text ?? '').length;
-          return <RunSpan key={i} run={run} markupMode={markupMode} at={here} />;
+          return <RunSpan key={i} run={run} markupMode={markupMode} at={here} hyph={hyph} />;
         });
       })() : drawsUnder ? null : <br />}
       {/*

@@ -23,9 +23,12 @@ import { MERGE_KINDS, readInstr, complexFieldXml } from './mailmerge.js';
  */
 export function textOf(xmlFragment) {
   let out = '';
-  const re = /<m:oMathPara\b[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:t\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:t>)|<w:tab\s*\/>|<w:(?:br|cr)\b[^>]*\/>|<w:(?:footnote|endnote)Reference\b[^>]*\/>/g;
+  const re = /<m:oMathPara\b[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:t\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:t>)|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:(?:br|cr)\b[^>]*\/>|<w:(?:footnote|endnote)Reference\b[^>]*\/>/g;
   for (const m of String(xmlFragment).matchAll(re)) {
     const tag = m[0];
+    // An optional hyphen (Layout → Hyphenation → Manual, or Ctrl+-) is one
+    // character of the words, U+00AD: invisible until a line breaks there.
+    if (tag.startsWith('<w:softHyphen')) { out += SOFT_HYPHEN; continue; }
     // An equation is ONE character of the paragraph, as a note reference
     // is: its words are the equation's, not the paragraph's, and the caret
     // steps over the whole of it — see `MATH_MARK`.
@@ -51,6 +54,9 @@ export function textOf(xmlFragment) {
  * reference element back from the run that carries it.
  */
 export const NOTE_MARK = '￼';
+
+/** An optional hyphen: `<w:softHyphen/>` in the file, U+00AD in the text. */
+export const SOFT_HYPHEN = '\u00AD';
 
 /**
  * An equation — `m:oMathPara` (display) or `m:oMath` (inline) among the
@@ -80,9 +86,10 @@ function renderRun(rPrXml, text, run = null) {
   // literal tab inside <w:t> is something Word tolerates, not something it
   // writes. xml:space="preserve" or Word eats leading and trailing spaces.
   // The reference character never reaches the file either.
-  const body = String(text).replace(/￼/g, '').split(/([\t\n])/).map((piece) => {
+  const body = String(text).replace(/￼/g, '').split(/([\t\n\u00AD])/).map((piece) => {
     if (piece === '\t') return '<w:tab/>';
     if (piece === '\n') return '<w:br/>';
+    if (piece === SOFT_HYPHEN) return '<w:softHyphen/>';
     return piece ? '<w:t xml:space="preserve">' + esc(piece) + '</w:t>' : '';
   }).join('');
   return '<w:r>' + props + body + '</w:r>';
@@ -124,7 +131,7 @@ function runFromInner(inner, link = null) {
   // between a label and its value as a run of its own, and dropping it ran
   // every form line's label into its value and left `text` and `runs`
   // disagreeing about where the caret was.
-  if (!/<w:t\b|<w:tab\s*\/>|<w:(?:br|cr)\b/.test(inner)) {
+  if (!/<w:t\b|<w:tab\s*\/>|<w:softHyphen\s*\/>|<w:(?:br|cr)\b/.test(inner)) {
     const ref = /<w:(footnote|endnote)Reference\b[^>]*\bw:id="([^"]+)"/.exec(inner);
     const mark = /<w:(footnote|endnote)Ref\b/.exec(inner);
     if (!ref && !mark) return null;

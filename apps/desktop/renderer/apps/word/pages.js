@@ -241,7 +241,7 @@ function textNodesOf(el) {
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, {
     acceptNode(n) {
       for (let p = n.parentElement; p && p !== el; p = p.parentElement) {
-        if (p.classList.contains('wd-marker') || p.classList.contains('wd-textbox')) return NodeFilter.FILTER_REJECT;
+        if (p.classList.contains('wd-marker') || p.classList.contains('wd-textbox') || p.classList.contains('wd-shy')) return NodeFilter.FILTER_REJECT;
       }
       return NodeFilter.FILTER_ACCEPT;
     },

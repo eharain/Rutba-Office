@@ -19,6 +19,7 @@ import { History } from '@rutba/editing';
 import { paginate } from './paginate.js';
 import { measureText, lineHeight as lineHeightOf } from '@rutba/drawing';
 import { computeListLabels } from './lists.js';
+import { hyphenationRules } from './hyphenate.js';
 import { bandForPage, resolveFields } from './bands.js';
 import {
   MERGE_KINDS, readInstr, evaluateField, matchFields, mergeOrder, placeholderFor, mergeFieldInstr,
@@ -243,6 +244,7 @@ export class DocView {
       flow: this.flow, blocks: this.blocks, section, sections,
       cache: this._lineCache, styles: this._docStyles, listLabels,
       notes: this._notes(), watermark: bands.watermark ?? null,
+      hyphenation: hyphenationRules(this.hyphenation()),
       math: (run, sizePx) => this.mathPrint(run, sizePx),
     });
     if (!laid) return (this._pages = null);
@@ -942,7 +944,7 @@ export class DocView {
     const hasStyle = ('styleId' in delta);
     const hasList = ('list' in delta);
     const hasSpacing = ('lineSpacing' in delta) || ('spaceBefore' in delta) || ('spaceAfter' in delta);
-    const hasLook = ('shading' in delta) || ('borders' in delta);
+    const hasLook = ('shading' in delta) || ('borders' in delta) || ('noHyphens' in delta);
     if ((hasAlignOrIndent || hasStyle || hasSpacing || hasLook) && typeof this.doc.setParagraphProp !== 'function') {
       throw new Error('this document backend does not support paragraph formatting');
     }
@@ -1015,6 +1017,8 @@ export class DocView {
       }
       // A colour behind the paragraph and lines round it, as Word keeps them.
       if ('shading' in delta) this.doc.setParagraphProp(i, 'shading', delta.shading ?? null);
+      // Layout → Hyphenation → this paragraph left whole: w:suppressAutoHyphens.
+      if ('noHyphens' in delta) this.doc.setParagraphProp(i, 'suppressAutoHyphens', Boolean(delta.noHyphens));
       if ('borders' in delta) this.doc.setParagraphProp(i, 'borders', delta.borders ?? null);
     }
     // A list toggle can add a definition to numbering.xml, and applying a
@@ -1105,6 +1109,7 @@ export class DocView {
         // the BODY straight after setting one, so the ribbon checks the
         // pair's spec there too rather than only on the letter's paragraph.
         base.dropCap = pp.dropCap ?? (block > 0 ? this.doc.getParagraphProps(block - 1)?.dropCap ?? null : null);
+        base.noHyphens = Boolean(pp.suppressAutoHyphens);
       }
     }
     if (this.pendingFormat) {
@@ -1462,6 +1467,27 @@ export class DocView {
       this._invalidate();
       const last = Math.max(0, this.blocks.length - 1);
       this.collapseTo({ block: Math.min(block, last), offset: 0 });
+      return this;
+    });
+  }
+
+  /* ── hyphenation ───────────────────────────────────────────────────────── */
+
+  /** Layout → Hyphenation: the document's settings, or null for a backend without them. */
+  hyphenation() { return typeof this.doc.hyphenation === 'function' ? this.doc.hyphenation() : null; }
+
+  /**
+   * None, Automatic, and the Hyphenation Options — `{ auto, zoneTwips, limit,
+   * caps }`, each only if given. One undo step; the pages are laid again,
+   * since every line may break differently.
+   */
+  setHyphenation(spec = {}) {
+    if (typeof this.doc.setHyphenation !== 'function') throw new Error('this document backend does not hyphenate');
+    if (typeof this.doc.prepareHyphenation === 'function') this.doc.prepareHyphenation();
+    return this._edit('hyphenation', null, () => {
+      this.doc.setHyphenation(spec);
+      this._lineCache = new Map();
+      this._invalidate();
       return this;
     });
   }
@@ -2888,6 +2914,7 @@ export class DocView {
         ...(b.keepNext ? { keepNext: true } : {}),
         ...(b.keepLines ? { keepLines: true } : {}),
         ...(b.dropCap ? { dropCap: b.dropCap } : {}),
+        ...(b.noHyphens ? { noHyphens: true } : {}),
         ...(b.inSdt ? { inSdt: true } : {}),
         // Text boxes anchored here, their paragraphs shaped like blocks so the
         // painter draws them with the same code — read-only, no index.
@@ -3001,6 +3028,8 @@ export class DocView {
         return labels.size ? Object.fromEntries(labels) : null;
       })(),
       canEdit: this.canEdit,
+      // Layout → Hyphenation: whether words are broken at line ends, and how.
+      hyphenation: this.hyphenation(),
       // Every drawing on the page, for the Selection Pane and Arrange.
       drawings: this.drawings(),
       // What the toolbar needs: whether the buttons are live and what they say.

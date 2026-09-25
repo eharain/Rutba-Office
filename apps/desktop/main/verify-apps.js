@@ -37,6 +37,7 @@ import { verifyAccessibility, verifySpelling } from './verify-proofing.js';
 import { verifyWordTextBox } from './verify-word-textbox.js';
 import { verifyWordArrange } from './verify-word-arrange.js';
 import { verifyEncrypted } from './verify-encrypted.js';
+import { verifyWordHyphenation } from './verify-word-hyphen.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -3343,6 +3344,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifyEncrypted({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
   };
 
+  /* ── Word: Layout → Hyphenation ──────────────────────────────────────── */
+  const wordHyphenation = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyWordHyphenation({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
+  };
+
   /* ── Word: Mailings → mail merge ──────────────────────────────────────── */
   const wordMailMerge = async () => {
     const capture = async (win, name) => {
@@ -4393,7 +4403,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4423,6 +4433,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('textbox')) await wordTextBox();
     if (only.includes('wordarrange')) await wordArrange();
     if (only.includes('encrypted')) await encryptedFiles();
+    if (only.includes('hyphen')) await wordHyphenation();
     if (only.includes('mailmerge')) await wordMailMerge();
     if (only.includes('labels')) await wordLabels();
     if (only.includes('track')) await wordTrack();
@@ -4584,6 +4595,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordTextBox();
   await wordArrange();
   await encryptedFiles();
+  await wordHyphenation();
   await wordMailMerge();
   await wordLabels();
   await wordTrack();

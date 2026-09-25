@@ -665,3 +665,101 @@ export function WordCountDialog({ blocks, onClose }) {
     </Dialog>
   );
 }
+
+/* ── Layout → Hyphenation ────────────────────────────────────────────────── */
+
+const CM = 96 / 2.54;
+
+/**
+ * Hyphenation Options, as Word lays the dialog out: hyphenate automatically,
+ * hyphenate words in capitals, the hyphenation zone, and a limit on the
+ * lines in a row that may end in a hyphen. The zone is shown in centimetres
+ * and written in twips.
+ */
+export function HyphenationDialog({ current, onClose, onApply, onManual }) {
+  const [auto, setAuto] = useState(Boolean(current?.auto));
+  const [caps, setCaps] = useState(current?.caps !== false);
+  const [zone, setZone] = useState(String(Math.round(((current?.zoneTwips ?? 360) / 15 / CM) * 100) / 100));
+  const [limit, setLimit] = useState(current?.limit ? String(current.limit) : '');
+  const zoneCm = Number(zone);
+  const ok = zoneCm >= 0 && zoneCm <= 20 && (limit === '' || (Number(limit) >= 0 && Number.isInteger(Number(limit))));
+  const apply = () => onApply({ auto, caps, zoneTwips: Math.round(zoneCm * CM * 15), limit: limit === '' ? 0 : Number(limit) });
+  return (
+    <Dialog
+      title="Hyphenation"
+      width={420}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Manual…" className="wd-hyph-manual" onClick={onManual} />
+          <span style={{ flex: 1 }} />
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="OK" className="wd-hyph-ok" disabled={!ok} onClick={apply} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <label className="about-auto">
+          <input type="checkbox" className="wd-hyph-auto" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
+          <span>Automatically hyphenate document</span>
+        </label>
+        <label className="about-auto">
+          <input type="checkbox" className="wd-hyph-caps" checked={caps} onChange={(e) => setCaps(e.target.checked)} />
+          <span>Hyphenate words in CAPS</span>
+        </label>
+        <Field label="Hyphenation zone (cm)" hint="A word is broken only where the line would otherwise end further than this from the right margin.">
+          <Input type="number" min="0" max="20" step="0.05" className="wd-hyph-zone" value={zone} onChange={(e) => setZone(e.target.value)} style={{ width: 96 }} />
+        </Field>
+        <Field label="Limit consecutive hyphens to" hint="How many lines in a row may end in a hyphen — empty for no limit.">
+          <Input type="number" min="0" max="99" className="wd-hyph-limit" placeholder="No limit" value={limit} onChange={(e) => setLimit(e.target.value)} style={{ width: 96 }} />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Manual Hyphenation: the words that could fill the line before them, one
+ * at a time — "Hyphenate at:", the word with every place it may break, the
+ * proposed one marked and any other a click away. Yes puts an optional
+ * hyphen there, No leaves the word whole, Cancel stops.
+ */
+export function ManualHyphenationDialog({ candidate, onYes, onNo, onClose }) {
+  const [at, setAt] = useState(null);
+  const points = candidate?.points || [];
+  const chosen = at ?? candidate?.proposed ?? points[points.length - 1] ?? null;
+  React.useEffect(() => { setAt(null); }, [candidate?.key]);
+  return (
+    <Dialog
+      title="Manual Hyphenation: English"
+      width={440}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button label="No" className="wd-hyph-no" disabled={!candidate} onClick={onNo} />
+          <Button primary label="Yes" className="wd-hyph-yes" disabled={!candidate || chosen == null} onClick={() => onYes(chosen)} />
+        </>
+      }
+    >
+      {candidate ? (
+        <div className="ml-form">
+          <Field label="Hyphenate at" hint="Click another place to break the word there instead.">
+            <div className="wd-hyph-word" data-word={candidate.word}>
+              {[...candidate.word].map((ch, i) => (
+                <React.Fragment key={i}>
+                  {i > 0 && points.includes(i) ? (
+                    <button type="button" className={`wd-hyph-point${chosen === i ? ' on' : ''}`} data-point={i} title={`Break after "${candidate.word.slice(0, i)}"`} onClick={() => setAt(i)}>-</button>
+                  ) : null}
+                  <span>{ch}</span>
+                </React.Fragment>
+              ))}
+            </div>
+          </Field>
+        </div>
+      ) : (
+        <p className="wd-hyph-done">No more words to hyphenate.</p>
+      )}
+    </Dialog>
+  );
+}

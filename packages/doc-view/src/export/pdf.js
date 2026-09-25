@@ -30,6 +30,7 @@ import { PdfDocument, decodePng, isPng } from '@rutba/pdf';
 import { layoutParagraph, paginate, rowHeight } from '../paginate.js';
 import { computeListLabels } from '../lists.js';
 import { bandForPage, resolveFields } from '../bands.js';
+import { hyphenationRules } from '../hyphenate.js';
 import { lineHeight as lineHeightOf } from '@rutba/drawing';
 
 /** CSS pixels (96dpi, the paginator's unit) to points (72dpi, the page's). */
@@ -242,9 +243,17 @@ function drawParagraphLines(page, doc, { lines, fragment, runs, xPx, yPx, widthP
   lines.forEach((line, i) => {
     const top = yPx + i * lineHeightPx;
     const baseline = (top + lineHeightPx * BASELINE) * PT;
-    const segments = line.text === ''
+    // An optional hyphen is drawn only where the line breaks at it — as the
+    // hyphen the paginator says the line ends in — and nowhere else.
+    const segments = (line.text === ''
       ? []
-      : (runs && runs.length ? sliceRunSegments(runs, line.start, line.end) : [{ text: line.text }]);
+      : (runs && runs.length ? sliceRunSegments(runs, line.start, line.end) : [{ text: line.text }]))
+      .map((seg) => (seg.text && seg.text.includes('­') ? { ...seg, text: seg.text.split('­').join('') } : seg))
+      .filter((seg) => seg.math || seg.text !== '');
+    if (line.hyphen && segments.length && !segments[segments.length - 1].math) {
+      const last = segments[segments.length - 1];
+      segments[segments.length - 1] = { ...last, text: last.text + '-' };
+    }
     if (!segments.length) return;
     const lineWidth = widthOfSegments(doc, segments, fragment);
     // A line beside a floating picture is narrower than its column, and one
@@ -766,7 +775,8 @@ export function renderPdf(view, { title = '', author = '', created = null, secti
   if (!pages) {
     sheet = section || DEFAULT_SECTION;
     const styles = typeof view.doc.paragraphStyles === 'function' ? view.doc.paragraphStyles() : null;
-    pages = paginate({ flow: view.flow, blocks: view.blocks, section: sheet, styles, listLabels, math });
+    const hyphenation = typeof view.hyphenation === 'function' ? hyphenationRules(view.hyphenation()) : null;
+    pages = paginate({ flow: view.flow, blocks: view.blocks, section: sheet, styles, listLabels, math, hyphenation });
     const bands = typeof view.doc.headerFooters === 'function' ? view.doc.headerFooters() : { headers: {}, footers: {} };
     for (const page of pages.pages) {
       const header = bandForPage(bands.headers || {}, page.number, {});

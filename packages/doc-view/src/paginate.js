@@ -30,6 +30,7 @@
  */
 import { measureText, wrapText, wrapFirstLine, lineHeight } from '@rutba/drawing';
 import { floatPlace, sideOf, layerOf } from './floats.js';
+import { hyphenPoints, breakableWord } from './hyphenate.js';
 
 /** Points to CSS pixels, at 96dpi. Word's sizes are in half-points. */
 export const ptToPx = (pt) => (Number(pt) || 0) * 96 / 72;
@@ -109,7 +110,7 @@ const LINE_CACHE_LIMIT = 4000;
  * more than wrapping it.
  */
 
-export function layoutParagraph(block, width, { style = null, cache = null, styles = null, extraIndentPx = 0 } = {}) {
+export function layoutParagraph(block, width, { style = null, cache = null, styles = null, extraIndentPx = 0, hyphenation = null } = {}) {
   // Resolve the style FIRST, then key the cache on the measurable inputs — the
   // resolved size and the usable column — rather than on the style's name: two
   // documents can give the same name different looks.
@@ -119,8 +120,12 @@ export function layoutParagraph(block, width, { style = null, cache = null, styl
   // is an indent the page never shows. Part of the cache key by construction:
   // the key hashes the usable width, and the indent narrows it.
   const indent = (s.indent ?? 0) + (block.indentPx ?? 0) + extraIndentPx;
+  // Hyphenation breaks lines too: the paragraph's own words may be broken
+  // (automatic, and the paragraph not left whole) or carry optional hyphens.
+  const hy = hyphenation?.auto && !block.noHyphens ? hyphenation : null;
+  const hyKey = hy ? 'h' + Math.round(hy.zonePx) + ':' + hy.limit + ':' + (hy.caps ? 1 : 0) : block.text.includes(SHY) ? 's' : '';
   const key = cache && block.text.length > 40
-    ? s.sizePx + ':' + s.weight + ':' + Math.round(width - indent) + '\u0000' + block.text
+    ? s.sizePx + ':' + s.weight + ':' + Math.round(width - indent) + hyKey + '\u0000' + block.text
     : null;
   if (key) {
     const hit = cache.get(key);
@@ -128,7 +133,7 @@ export function layoutParagraph(block, width, { style = null, cache = null, styl
     // evicted below are the ones nobody has touched.
     if (hit) { cache.delete(key); cache.set(key, hit); return withDirectLineHeight(hit, block); }
   }
-  const result = layoutParagraphUncached(block, width, s, indent);
+  const result = hyKey ? layoutHyphenated(block, width, s, indent, hy) : layoutParagraphUncached(block, width, s, indent);
   if (key) {
     cache.set(key, result);
     if (cache.size > LINE_CACHE_LIMIT) cache.delete(cache.keys().next().value);
@@ -150,6 +155,75 @@ function withDirectLineHeight(result, block) {
     ? Math.max(4, direct.lineExactPx)
     : result.lineHeightPx * direct.lineFactor;
   return { ...result, lineHeightPx };
+}
+
+const SHY = '\u00AD';
+
+/**
+ * A paragraph whose words may break at a line's end: at an optional hyphen
+ * the author put in (always), and — hyphenation on and the paragraph not
+ * left whole — wherever the hyphenator says a word may break, the part
+ * before the break ending its line with a hyphen. Word's two rules are kept:
+ * a word is only broken when the line would otherwise end further from the
+ * margin than the hyphenation zone, and no more lines in a row end in a
+ * hyphen than the limit allows. A line that ends mid-word says so
+ * (`hyphen: true`), and the writer draws the hyphen.
+ */
+function layoutHyphenated(block, width, s, indent, hy) {
+  const usable = Math.max(24, (width - indent) * WRAP_SAFETY);
+  const text = block.text ?? '';
+  const opts = { size: s.sizePx, weight: s.weight };
+  const measure = (value) => measureText(value.split(SHY).join(''), opts);
+  const lines = [];
+  let base = 0;
+  let run = 0; // lines in a row ending in a hyphen
+  for (const piece of text.split('\n')) {
+    const words = [...piece.matchAll(/(?:[^\s]|\t)+/g)].map((m) => ({ at: m.index, end: m.index + m[0].length }));
+    if (!words.length) { lines.push({ text: '', start: base, end: base, width: 0 }); base += piece.length + 1; continue; }
+    let start = null; // where the line being filled starts
+    let end = null;
+    const push = (to, hyphen) => {
+      const value = piece.slice(start, to);
+      lines.push({ text: value, start: base + start, end: base + to, width: measure(value) + (hyphen ? measure('-') : 0), ...(hyphen ? { hyphen: true } : {}) });
+      run = hyphen ? run + 1 : 0;
+    };
+    for (let i = 0; i < words.length; i++) {
+      let from = words[i].at;
+      const to = words[i].end;
+      for (;;) {
+        if (start === null) { start = from; end = to; break; }
+        if (measure(piece.slice(start, to)) <= usable) { end = to; break; }
+        // It does not fit: break the word here if it may be broken.
+        const word = piece.slice(from, to);
+        const room = usable - measure(piece.slice(start, end));
+        const points = [];
+        for (let k = word.indexOf(SHY); k >= 0; k = word.indexOf(SHY, k + 1)) points.push(k + 1);
+        const letters = /^([^A-Za-z]*)([A-Za-z]+)/.exec(word);
+        if (hy && letters && !word.includes(SHY) && room > hy.zonePx && (!hy.limit || run < hy.limit) && breakableWord(letters[2], hy)) {
+          for (const p of hyphenPoints(letters[2])) points.push(letters[1].length + p);
+        }
+        points.sort((a, b) => b - a);
+        const at = points.find((p) => measure(piece.slice(start, from + p)) + measure('-') <= usable && p < word.length);
+        if (at !== undefined) {
+          push(from + at, true);
+          start = from + at;
+          end = to;
+          // The rest of the word goes on; if it is still too long it breaks again.
+          if (measure(piece.slice(start, to)) <= usable) break;
+          from = start;
+          continue;
+        }
+        push(end, false);
+        start = from;
+        end = to;
+        break;
+      }
+    }
+    if (start !== null) push(piece.length, false);
+    base += piece.length + 1;
+  }
+  if (lines.length) lines[lines.length - 1].end = text.length;
+  return { lines, style: s, indentPx: indent, lineHeightPx: lineHeight(s.sizePx) };
 }
 
 function layoutParagraphUncached(block, width, s, indent) {
@@ -381,7 +455,7 @@ const TABLE_SPACE_AFTER = 12;
  * @param {number}   [input.maxPages] a runaway guard; a measurement bug must not
  *   produce a million empty sheets and take the browser with it
  */
-export function paginate({ flow, blocks, section: mainSection, sections = null, maxPages = 500, cache = null, styles = null, listLabels = null, notes = null, watermark = null, math = null }) {
+export function paginate({ flow, blocks, section: mainSection, sections = null, maxPages = 500, cache = null, styles = null, listLabels = null, notes = null, watermark = null, math = null, hyphenation = null }) {
   // No page geometry means no pages — an email body is a continuous flow, and
   // saying so is better than inventing A4 for it.
   if (!mainSection) return null;
@@ -816,7 +890,7 @@ export function paginate({ flow, blocks, section: mainSection, sections = null, 
       const around = current.floats.some((f) => f.bottomPx > used + spaceBefore);
       const laid = around
         ? layoutAround(block, used + spaceBefore, { extraIndentPx })
-        : layoutParagraph(block, width, { cache, styles, extraIndentPx });
+        : layoutParagraph(block, width, { cache, styles, extraIndentPx, hyphenation });
       const { lines, indentPx, lineHeightPx } = laid;
       style = laid.style;
       let cursor = 0;

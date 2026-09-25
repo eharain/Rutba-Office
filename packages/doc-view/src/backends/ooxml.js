@@ -43,6 +43,11 @@ export class OoxmlBackend {
   removeImage(index, image) { this.doc.removeImage(index, image); return this; }
   setImageLayout(index, image, spec) { this.doc.setImageLayout(index, image, spec); return this; }
   setImageSize(index, image, spec) { this.doc.setImageSize(index, image, spec); return this; }
+  /** Layout → Hyphenation: the document's settings — see document.js. */
+  hyphenation() { return this.doc.hyphenation(); }
+  /** Before a settings edit: its undo is to put settings.xml back too. */
+  prepareHyphenation() { this.doc.willEditPart('word/settings.xml'); return this; }
+  setHyphenation(spec) { this.doc.setHyphenation(spec); return this; }
   /** Floating drawings: text boxes, Arrange, groups — see document.js. */
   drawings() { return this.doc.drawings(); }
   insertTextBox(index, spec) { return this.doc.insertTextBox(index, spec); }
@@ -631,9 +636,10 @@ function readParagraphProps(pPr) {
     align: null, indentTwips: null, style: null,
     lineSpacing: null, spaceBeforePts: null, spaceAfterPts: null,
     firstLineTwips: null, hangingTwips: null, rightTwips: null, tabs: null,
-    dropCap: null,
+    dropCap: null, suppressAutoHyphens: false,
   };
   if (!pPr) return out;
+  out.suppressAutoHyphens = /<w:suppressAutoHyphens\b(?![^>]*w:val="(?:0|false)")/.test(pPr);
   const framePr = /<w:framePr\b([^>]*)\/?>/.exec(pPr);
   if (framePr) {
     const kind = /\bw:dropCap="([^"]*)"/.exec(framePr[1])?.[1];
@@ -905,6 +911,15 @@ function withSpacing(pPr, changes) {
  * paragraph that never asked for a break should not carry the vocabulary of
  * one.
  */
+/** `<w:suppressAutoHyphens/>` on or off: the paragraph Word's automatic hyphenation leaves alone. */
+function withSuppressAutoHyphens(pPr, on) {
+  const { open, inner, close } = splitPPr(pPr);
+  const existing = pPrChildren(inner).find((c) => c.tag === 'suppressAutoHyphens');
+  const without = existing ? inner.slice(0, existing.start) + inner.slice(existing.end) : inner;
+  if (!on) return joinPPr(open, without, close);
+  return joinPPr(open, insertOrdered(without, 'suppressAutoHyphens', '<w:suppressAutoHyphens/>'), close);
+}
+
 function withPageBreakBefore(pPr, on) {
   const { open, inner, close } = splitPPr(pPr);
   const existing = pPrChildren(inner).find((c) => c.tag === 'pageBreakBefore');
@@ -998,6 +1013,9 @@ function withParagraphProp(pPr, prop, value) {
   }
   if (prop === 'pageBreakBefore') {
     return withPageBreakBefore(pPr, Boolean(value));
+  }
+  if (prop === 'suppressAutoHyphens') {
+    return withSuppressAutoHyphens(pPr, Boolean(value));
   }
   if (prop === 'dropCap') {
     return withFramePr(pPr, value ? { kind: value.kind, lines: value.lines } : null);

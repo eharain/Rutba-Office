@@ -121,6 +121,19 @@ const CSS = `
 .wd.mode-outline .wd-block[data-style="Heading2"] { margin-left: 24px; }
 .wd.mode-outline .wd-block[data-style="Heading3"] { margin-left: 48px; }
 .wd.focus .wd-scroll { background: #2b2d31; }
+
+/* Layout → Hyphenation → Manual: the word, its break points a click each. */
+.wd-hyph-word {
+  display: flex; align-items: baseline; flex-wrap: wrap; font-size: 20px; letter-spacing: .01em; color: var(--ink);
+  padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--r-1); background: var(--surface); min-height: 44px; box-sizing: border-box;
+}
+.wd-hyph-point {
+  border: 0; background: none; color: var(--ink-3); font: inherit; font-size: 18px; padding: 0 2px; margin: 0 1px;
+  cursor: pointer; border-radius: 3px; line-height: 1.2;
+}
+.wd-hyph-point:hover { background: var(--hover); color: var(--ink); }
+.wd-hyph-point.on { background: var(--accent); color: #fff; }
+.wd-hyph-done { padding: 10px 2px; color: var(--ink-2); font-size: 13px; }
 `;
 
 let installed = false;

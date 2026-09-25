@@ -1345,6 +1345,89 @@ export class Document {
     return this;
   }
 
+
+  /**
+   * Layout → Hyphenation, as the document's settings hold it: automatic or
+   * not (`w:autoHyphenation`), the hyphenation zone in twips
+   * (`w:hyphenationZone`, Word's 0.25" when it names none), how many lines
+   * in a row may end in a hyphen (`w:consecutiveHyphenLimit`, 0 for no
+   * limit), and whether words in capitals may be broken
+   * (`w:doNotHyphenateCaps` says they may not).
+   */
+  hyphenation() {
+    const part = 'word/settings.xml';
+    const xml = this.pkg.has(part) ? this.pkg.text(part) : '';
+    const on = (name) => {
+      const m = new RegExp('<w:' + name + '\\b([^>]*)\\/?>').exec(xml);
+      return m ? !/\bw:val="(?:0|false|off)"/.test(m[1]) : false;
+    };
+    const num = (name) => {
+      const m = new RegExp('<w:' + name + '\\b[^>]*\\bw:val="(\\d+)"').exec(xml);
+      return m ? Number(m[1]) : null;
+    };
+    return {
+      auto: on('autoHyphenation'),
+      zoneTwips: num('hyphenationZone') ?? 360,
+      limit: num('consecutiveHyphenLimit') ?? 0,
+      caps: !on('doNotHyphenateCaps'),
+    };
+  }
+
+  /** Name a side part an edit is about to change, so the edit's undo puts it back. */
+  willEditPart(name) {
+    this._undoParts.add(name);
+    return this;
+  }
+
+  /**
+   * Write the hyphenation settings — each only if given — into settings.xml
+   * where the schema puts them: after the default tab stop, before the
+   * envelope and the settings that follow. A value at Word's default is
+   * written as Word writes it: not at all (no zone of 360, no limit of 0).
+   */
+  setHyphenation({ auto, zoneTwips, limit, caps } = {}) {
+    const part = 'word/settings.xml';
+    const current = this.hyphenation();
+    const next = {
+      auto: auto === undefined ? current.auto : Boolean(auto),
+      zoneTwips: zoneTwips === undefined ? current.zoneTwips : Math.max(0, Math.round(Number(zoneTwips) || 0)),
+      limit: limit === undefined ? current.limit : Math.max(0, Math.round(Number(limit) || 0)),
+      caps: caps === undefined ? current.caps : Boolean(caps),
+    };
+    const elements = [
+      next.auto ? '<w:autoHyphenation/>' : '',
+      next.limit ? '<w:consecutiveHyphenLimit w:val="' + next.limit + '"/>' : '',
+      next.zoneTwips !== 360 ? '<w:hyphenationZone w:val="' + next.zoneTwips + '"/>' : '',
+      next.caps ? '' : '<w:doNotHyphenateCaps/>',
+    ].join('');
+    if (!this.pkg.has(part)) {
+      if (!elements) return this;
+      this.pkg.addPart(part, Buffer.from('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings xmlns:w="' + WORD_NS + '">' + elements + '</w:settings>', 'utf8'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml');
+      this.pkg.addRelationshipTo(this.mainPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings', 'settings.xml');
+      this.dirty = true;
+      return this;
+    }
+    let xml = this.pkg.text(part).replace(/<w:(?:autoHyphenation|consecutiveHyphenLimit|hyphenationZone|doNotHyphenateCaps)\b[^>]*\/>/g, '');
+    // Where the four go: after the last setting the schema puts before them,
+    // else before the first it puts after them, else at the end.
+    const BEFORE = ['defaultTabStop', 'autoFormatOverride', 'styleLockQFSet', 'styleLockTheme', 'documentProtection', 'doNotTrackFormatting', 'doNotTrackMoves', 'trackRevisions', 'revisionView', 'mailMerge', 'documentType', 'stylePaneSortMethod', 'stylePaneFormatFilter', 'linkStyles', 'attachedTemplate', 'formsDesign', 'proofState', 'activeWritingStyle', 'hideGrammaticalErrors', 'hideSpellingErrors', 'gutterAtTop', 'bordersDoNotSurroundFooter', 'bordersDoNotSurroundHeader', 'alignBordersAndEdges', 'mirrorMargins', 'saveFormsData', 'saveSubsetFonts', 'embedSystemFonts', 'embedTrueTypeFonts', 'printFormsData', 'printFractionalCharacterWidth', 'printPostScriptOverText', 'displayBackgroundShape', 'doNotDisplayPageBoundaries', 'removeDateAndTime', 'removePersonalInformation', 'zoom', 'view', 'writeProtection'];
+    let at = -1;
+    for (const name of BEFORE) {
+      const re = new RegExp('<w:' + name + '\\b[^>]*\\/>|<w:' + name + '\\b[^>]*>[\\s\\S]*?<\\/w:' + name + '>', 'g');
+      let m;
+      let end = -1;
+      while ((m = re.exec(xml))) end = m.index + m[0].length;
+      if (end >= 0) { at = end; break; }
+    }
+    if (at < 0) {
+      const after = /<w:(?:showEnvelope|summaryLength|clickAndTypeStyle|defaultTableStyle|evenAndOddHeaders|bookFold|drawingGrid|displayHorizontalDrawingGridEvery|displayVerticalDrawingGridEvery|doNotUseMarginsForDrawingGridOrigin|doNotShadeFormData|noPunctuationKerning|characterSpacingControl|printTwoOnOne|strictFirstAndLastChars|noLineBreaks|savePreviewPicture|doNotValidateAgainstSchema|saveInvalidXml|ignoreMixedContent|alwaysShowPlaceholderText|doNotDemarcateInvalidXml|saveXmlDataOnly|useXSLTWhenSaving|saveThroughXslt|showXMLTags|alwaysMergeEmptyNamespace|updateFields|hdrShapeDefaults|footnotePr|endnotePr|compat|docVars|rsids|m:mathPr|attachedSchema|themeFontLang|clrSchemeMapping|doNotIncludeSubdocsInStats|doNotAutoCompressPictures|forceUpgrade|captions|readModeInkLockDown|smartTagType|sl:schemaLibrary|shapeDefaults|doNotEmbedSmartTags|decimalSymbol|listSeparator)\b/.exec(xml);
+      at = after ? after.index : xml.lastIndexOf('</w:settings>');
+    }
+    xml = xml.slice(0, at) + elements + xml.slice(at);
+    this.pkg.write_(part, xml);
+    this.dirty = true;
+    return this;
+  }
   /**
    * Pictures embedded in one paragraph, as data URIs — with, for a picture
    * in a `wp:anchor`, where it floats and how the text treats it (see
@@ -3917,6 +4000,8 @@ export class Document {
       // and the painter both read straight off the block, not something
       // they have to ask the format layer for.
       dropCap: readDropCap(pPr ? pPr[0] : ''),
+      // Layout → Hyphenation leaves this paragraph whole.
+      ...(/<w:suppressAutoHyphens\b(?![^>]*w:val="(?:0|false)")/.test(pPr ? pPr[0] : '') ? { noHyphens: true } : {}),
       // A frame placed on the page: drawn there, out of the flow.
       ...(p.container == null && readFrame(pPr ? pPr[0] : '') ? { frame: readFrame(pPr[0]) } : {}),
       // Direct paragraph spacing, if the paragraph sets any — the paginator
@@ -4107,7 +4192,7 @@ export class Document {
       // what a rewrite cannot express is lifted out. A chunk with no text —
       // a break run, a hyperlink wrapping only an image, a proofErr marker —
       // survives verbatim.
-      if (/<w:t\b/.test(chunk)) {
+      if (/<w:t\b|<w:softHyphen\s*\/>/.test(chunk)) {
         for (const sub of chunk.matchAll(/<w:(drawing|object|pict)\b[^>]*(?:\/>|>[\s\S]*?<\/w:\1>)/g)) {
           kept.push('<w:r>' + sub[0] + '</w:r>');
         }

@@ -581,7 +581,14 @@ export default function WordRibbon({
               { label: 'Restart each page', run: () => dispatch({ op: 'setLineNumbers', spec: { countBy: 1, restart: 'newPage' } }) },
               { label: 'Every fifth line', run: () => dispatch({ op: 'setLineNumbers', spec: { countBy: 5, restart: 'continuous' } }) },
             ])} />
-            <Soon icon="minus" label="Hyphenation" why="Hyphenation is a layout setting the paginator does not honour yet." />
+            <Button icon="minus" label="Hyphenation" title={`Hyphenation — words broken at the ends of lines: now ${model?.hyphenation?.auto ? 'automatic' : 'none'}`} onClick={(e) => menu.open(e, [
+              { label: 'None', icon: !model?.hyphenation?.auto ? 'check' : undefined, run: () => act('hyphenation', 'none') },
+              { label: 'Automatic', icon: model?.hyphenation?.auto ? 'check' : undefined, run: () => act('hyphenation', 'auto') },
+              { label: 'Manual', run: () => act('hyphenation', 'manual') },
+              '-',
+              { label: 'Hyphenation Options…', run: () => act('hyphenation', 'options') },
+              { label: "Don't hyphenate this paragraph", icon: format.noHyphens ? 'check' : undefined, run: () => act('hyphenation', 'paragraph') },
+            ])} />
           </Group>
           <Group label="Paragraph">
             <div className="wd-fields">

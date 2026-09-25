@@ -1003,6 +1003,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // Every drawing on the page: the Selection Pane lists them, and an
       // Arrange command (an order, a rename, the eye) may change no block.
       drawings: frame.drawings,
+      // Layout → Hyphenation: a setting of the document, which no block carries.
+      hyphenation: frame.hyphenation,
       // Mailings: the merge's kind, list and preview — Start Mail Merge,
       // Select Recipients and the record box change no block at all.
       mailMerge: frame.mailMerge,
@@ -1476,6 +1478,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     groupDrawings: (v, a) => { v.groupDrawings(a.ids || [], { rects: a.rects || [], place: a.place || null }); return v.lastDrawing; },
     ungroupDrawing: (v, a) => v.ungroupDrawing(a.id, { place: a.place || null }),
     removeDrawing: (v, a) => v.removeDrawing(a.ids ?? a.id),
+    // Layout → Hyphenation: None, Automatic and the Hyphenation Options.
+    setHyphenation: (v, a) => v.setHyphenation(a.spec || {}),
     insertPageBreak: (v) => v.insertPageBreak(),
     // Insert → Drop Cap: the ribbon's spec, or null to take one off.
     setDropCap: (v, a) => v.setDropCap(a.spec ?? null),
