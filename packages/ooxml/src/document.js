@@ -24,6 +24,7 @@
  * text in a file it otherwise leaves alone. See FORMAT-FIDELITY.md.
  */
 import { OoxmlPackage, attrs, esc } from './package.js';
+import { wordProtectionAttrs, wordHasPassword, checkWordPassword } from './protection.js';
 import { unesc } from './workbook.js';
 // The creator's chart-part writer, reused by insert-chart: the editor still
 // cannot create a PACKAGE, but a chart part is a part like numbering.xml.
@@ -1429,6 +1430,143 @@ export class Document {
     this.dirty = true;
     return this;
   }
+
+  /* ── Review → Restrict Editing ───────────────────────────────────────── */
+
+  /**
+   * `<w:documentProtection>` in settings.xml, read: what kind of editing it
+   * allows (`readOnly`, `comments`, `trackedChanges`, `forms`, or `none`),
+   * whether it is enforced, whether formatting is limited to styles, and
+   * whether a password takes it off. Null when the file has none.
+   */
+  documentProtection() {
+    const part = 'word/settings.xml';
+    if (!this.pkg.has(part)) return null;
+    const m = /<w:documentProtection\b([^>]*?)\/?>/.exec(this.pkg.text(part));
+    if (!m) return null;
+    const a = {};
+    for (const [, k, v] of m[1].matchAll(/(?:w:)?(\w+)="([^"]*)"/g)) a[k] = v;
+    const on = (v) => v === '1' || v === 'true' || v === 'on';
+    return { edit: a.edit || 'none', enforced: on(a.enforcement), formatting: on(a.formatting), hasPassword: wordHasPassword(a), attrs: a };
+  }
+
+  /**
+   * Write `<w:documentProtection>`, or take it out (`null`). Word's own
+   * shape: `w:edit`, `w:formatting="1"` when formatting is limited,
+   * `w:enforcement`, and — for a password — Word's SHA-512 hash, salt and
+   * spin count. Stop Protection writes it back unenforced with no password,
+   * which is what Word leaves, so the pane remembers the settings. The
+   * element goes where the schema puts it, after the tracked-changes
+   * settings and before the default tab stop and the rest.
+   */
+  setDocumentProtection(spec) {
+    const part = 'word/settings.xml';
+    if (!this.pkg.has(part)) {
+      if (!spec) return this;
+      this.pkg.addPart(part, Buffer.from('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings xmlns:w="' + WORD_NS + '"></w:settings>', 'utf8'), 'application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml');
+      this.pkg.addRelationshipTo(this.mainPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/settings', 'settings.xml');
+    }
+    let settings = this.pkg.text(part).replace(/<w:documentProtection\b[^>]*?(?:\/>|>[\s\S]*?<\/w:documentProtection>)/, '');
+    if (spec) {
+      const a = { 'w:edit': spec.edit || 'readOnly' };
+      if (spec.formatting) a['w:formatting'] = '1';
+      a['w:enforcement'] = spec.enforced ? '1' : '0';
+      if (spec.enforced && spec.password) Object.assign(a, wordProtectionAttrs(spec.password));
+      const element = '<w:documentProtection' + Object.entries(a).map(([k, v]) => ` ${k}="${esc(String(v))}"`).join('') + '/>';
+      const later = /<w:(?:autoFormatOverride|styleLockTheme|styleLockQFSet|defaultTabStop|autoHyphenation|consecutiveHyphenLimit|hyphenationZone|doNotHyphenateCaps|showEnvelope|summaryLength|clickAndTypeStyle|defaultTableStyle|evenAndOddHeaders|bookFoldRevPrinting|bookFoldPrinting|bookFoldPrintingSheets|drawingGrid\w*|displayHorizontalDrawingGridEvery|displayVerticalDrawingGridEvery|doNotUseMarginsForDrawingGridOrigin|doNotShadeFormData|noPunctuationKerning|characterSpacingControl|printTwoOnOne|strictFirstAndLastChars|noLineBreaksAfter|noLineBreaksBefore|savePreviewPicture|doNotValidateAgainstSchema|saveInvalidXml|ignoreMixedContent|alwaysShowPlaceholderText|doNotDemarcateInvalidXml|saveXmlDataOnly|useXSLTWhenSaving|saveThroughXslt|showXMLTags|alwaysMergeEmptyNamespace|updateFields|hdrShapeDefaults|footnotePr|endnotePr|compat|docVars|rsids|mathPr|attachedSchema|themeFontLang|clrSchemeMapping|doNotIncludeSubdocsInStats|doNotAutoCompressPictures|forceUpgrade|captions|readModeInkLockDown|smartTagType|schemaLibrary|shapeDefaults|doNotEmbedSmartTags|decimalSymbol|listSeparator)\b|<w1[45]:|<\/w:settings>/.exec(settings);
+      settings = later ? settings.slice(0, later.index) + element + settings.slice(later.index) : settings;
+    }
+    this.pkg.write_(part, settings);
+    this.dirty = true;
+    return this;
+  }
+
+  /**
+   * Does `password` take the protection off? True when it has none.
+   */
+  checkProtectionPassword(password) {
+    const p = this.documentProtection();
+    return !p || checkWordPassword(password, p.attrs);
+  }
+
+  /**
+   * The parts of the document anyone may edit while it is protected: each
+   * `w:permStart`/`w:permEnd` pair, as the EDIT-space paragraphs (see
+   * `editParagraphs`) it touches, `from`..`to`. `group` is the editor group
+   * (`everyone`), `user` a named editor; Word's Exceptions list. A region
+   * that starts or ends partway into a paragraph counts the whole paragraph.
+   */
+  permissions() {
+    const { body } = this._body();
+    const paras = this.editParagraphs();
+    const startAt = (offset) => {
+      const i = paras.findIndex((p) => p.end > offset);
+      return i < 0 ? paras.length - 1 : i;
+    };
+    const endAt = (offset) => {
+      let at = -1;
+      for (let i = 0; i < paras.length && paras[i].start < offset; i++) at = i;
+      return at;
+    };
+    const starts = new Map();
+    for (const m of body.matchAll(/<w:permStart\b([^>]*?)\/?>/g)) {
+      const a = attrs(m[1]);
+      starts.set(a['w:id'], { id: a['w:id'], group: a['w:edGrp'] || null, user: a['w:ed'] || null, offset: m.index });
+    }
+    const out = [];
+    for (const m of body.matchAll(/<w:permEnd\b([^>]*?)\/?>/g)) {
+      const id = attrs(m[1])['w:id'];
+      const s = starts.get(id);
+      if (!s) continue;
+      const from = startAt(s.offset);
+      const to = endAt(m.index + m[0].length);
+      if (to >= from) out.push({ id: s.id, group: s.group, user: s.user, from, to });
+    }
+    return out;
+  }
+
+  /**
+   * Mark paragraphs `from`..`to` (EDIT-space) as a region `group` may edit
+   * while the document is protected: `w:permStart` after the first one's
+   * properties, `w:permEnd` at the last one's end. Word's Exceptions →
+   * Everyone. Answers the new id.
+   */
+  addPermission(from, to = from, { group = 'everyone' } = {}) {
+    let maxId = 0;
+    for (const m of this.xml.matchAll(/<w:perm(?:Start|End)\b[^>]*\bw:id="(\d+)"/g)) maxId = Math.max(maxId, Number(m[1]));
+    const id = maxId + 1;
+    const openUp = (p) => (/^<w:p\b[^>]*\/>$/.test(p.xml) ? p.open + '</w:p>' : p.xml);
+    const last = this.editParagraph(Math.max(from, to));
+    const first = this.editParagraph(Math.min(from, to));
+    if (!first || !last) throw new Error('no paragraph there');
+    const lastXml = openUp(last);
+    this._spliceBody(last.start, last.end, lastXml.slice(0, lastXml.length - '</w:p>'.length) + '<w:permEnd w:id="' + id + '"/></w:p>');
+    const head = this.editParagraph(Math.min(from, to));
+    const headXml = openUp(head);
+    const headLen = head.open.length + (head.pPr ? head.pPr.length : 0);
+    this._spliceBody(head.start, head.end, headXml.slice(0, headLen) + '<w:permStart w:id="' + id + '" w:edGrp="' + esc(group) + '"/>' + headXml.slice(headLen));
+    this.dirty = true;
+    return id;
+  }
+
+  /**
+   * Take out every region that touches paragraphs `from`..`to` (all of
+   * them with no range): unticking Everyone for the selection. Answers
+   * how many went.
+   */
+  removePermissions(from = null, to = from) {
+    const lo = from == null ? -Infinity : Math.min(from, to);
+    const hi = from == null ? Infinity : Math.max(from, to);
+    const gone = this.permissions().filter((r) => r.to >= lo && r.from <= hi).map((r) => r.id);
+    if (!gone.length) return 0;
+    const ids = new Set(gone);
+    const { prefix, body, suffix } = this._body();
+    const next = body.replace(/<w:perm(?:Start|End)\b([^>]*?)\/>/g, (whole, a) => (ids.has(attrs(a)['w:id']) ? '' : whole));
+    this.xml = prefix + next + suffix;
+    this.dirty = true;
+    return gone.length;
+  }
+
   /**
    * Pictures embedded in one paragraph, as data URIs — with, for a picture
    * in a `wp:anchor`, where it floats and how the text treats it (see
@@ -4175,6 +4313,10 @@ export class Document {
       // at the paragraph's own start rather than wherever it happened to
       // sit — see that method.
       if (childTag === 'w:bookmarkStart') return;
+      // So is the start of a region anyone may edit under Restrict Editing:
+      // pinned at the paragraph's start, it keeps the paragraph's first words
+      // inside the region however the paragraph is rebuilt.
+      if (childTag === 'w:permStart') return;
       // An equation is a run the model OWNS since equations were read (a
       // character of the text, written back verbatim by renderRuns) — kept
       // here as well, it would be written twice.
@@ -4250,7 +4392,7 @@ export class Document {
     while ((m = re.exec(inner))) {
       if (m[1]) {
         if (m[2] === '/') {
-          if (depth === 0 && m[1] === 'w:bookmarkStart') kept.push(m[0]);
+          if (depth === 0 && (m[1] === 'w:bookmarkStart' || m[1] === 'w:permStart')) kept.push(m[0]);
         } else {
           depth += 1;
         }
@@ -4281,8 +4423,12 @@ export class Document {
     // the FIRST half: a split is Enter at the caret, and neither the image
     // nor the bookmark the paragraph carried follows the caret onto the new
     // line.
-    const first = p.open + (p.pPr ?? '') + this._leadFragments(p) + renderRuns(before) + this._keptFragments(p) + '</w:p>';
-    const second = p.open + (p.pPr ?? '') + renderRuns(after) + '</w:p>';
+    // Except the end of an editable region: Enter inside the region's last
+    // paragraph makes a new last paragraph, which is still inside, as in Word.
+    const kept = this._keptFragments(p);
+    const ends = kept.match(/<w:permEnd\b[^>]*\/>/g) || [];
+    const first = p.open + (p.pPr ?? '') + this._leadFragments(p) + renderRuns(before) + kept.replace(/<w:permEnd\b[^>]*\/>/g, '') + '</w:p>';
+    const second = p.open + (p.pPr ?? '') + renderRuns(after) + ends.join('') + '</w:p>';
     this._spliceBody(p.start, p.end, first + second);
   }
 

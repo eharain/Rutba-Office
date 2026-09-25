@@ -339,6 +339,13 @@ export class OoxmlBackend {
   /** Review → Track Changes: recording on or off, `<w:trackRevisions/>` in settings.xml. */
   trackRevisions() { return this.doc.trackRevisions(); }
   setTrackRevisions(on) { return this.doc.setTrackRevisions(on); }
+  /** Review → Restrict Editing: w:documentProtection and the regions anyone may edit. */
+  documentProtection() { return this.doc.documentProtection(); }
+  setDocumentProtection(spec) { return this.doc.setDocumentProtection(spec); }
+  checkProtectionPassword(password) { return this.doc.checkProtectionPassword(password); }
+  permissions() { return this.doc.permissions(); }
+  addPermission(from, to, spec) { return this.doc.addPermission(from, to, spec); }
+  removePermissions(from, to) { return this.doc.removePermissions(from, to); }
   nextTrackChangeId() { return this.doc.nextTrackChangeId(); }
   acceptParagraphChanges(index) { return this.doc.acceptParagraphChanges(index); }
   rejectParagraphChanges(index) { return this.doc.rejectParagraphChanges(index); }

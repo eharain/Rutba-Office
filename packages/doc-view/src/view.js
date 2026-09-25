@@ -435,7 +435,88 @@ export class DocView {
    * edit landing between two of this one's — is never stale.
    */
   get recording() {
+    if (this.protection()?.lockedTracking) return true;
     return typeof this.doc.trackRevisions === 'function' && this.doc.trackRevisions();
+  }
+
+  /**
+   * Review → Restrict Editing, as the file keeps it: the kind of editing
+   * allowed (`readOnly`, `comments`, `trackedChanges`, `forms`), whether it
+   * is enforced, whether formatting is limited to styles, whether a password
+   * takes it off, and the regions Everyone may edit (block ranges). Null for
+   * a document with neither protection nor regions.
+   */
+  protection() {
+    const p = typeof this.doc.documentProtection === 'function' ? this.doc.documentProtection() : null;
+    const regions = (typeof this.doc.permissions === 'function' ? this.doc.permissions() : [])
+      .filter((r) => String(r.group || '').toLowerCase() === 'everyone')
+      .map(({ id, from, to }) => ({ id, from, to }));
+    if (!p && !regions.length) return null;
+    const edit = p?.edit || 'none';
+    // Formatting limited to styles with no editing restriction is protection too.
+    const enforced = Boolean(p?.enforced) && (edit !== 'none' || Boolean(p?.formatting));
+    return {
+      edit,
+      enforced,
+      formatting: Boolean(p?.formatting),
+      hasPassword: Boolean(p?.hasPassword),
+      regions,
+      // Tracked changes, enforced: recording is on and cannot be turned off.
+      lockedTracking: enforced && edit === 'trackedChanges',
+    };
+  }
+
+  /** May block `i` be edited as the protection stands? */
+  canEditBlock(i) {
+    const p = this.protection();
+    if (!p?.enforced || p.edit === 'trackedChanges' || p.edit === 'none') return true;
+    if (p.edit === 'forms') return false;
+    return p.regions.some((r) => i >= r.from && i <= r.to);
+  }
+
+  /**
+   * Start Enforcing Protection, or write the settings unenforced (the pane's
+   * choices before enforcement, and what Stop Protection leaves). A setting
+   * of the document, like Track Changes — not an undoable edit. Protecting
+   * for tracked changes turns recording on, as Word does.
+   */
+  setProtection({ edit = 'readOnly', formatting = false, enforced = true, password = null } = {}) {
+    if (typeof this.doc.setDocumentProtection !== 'function') throw new Error('this document backend does not support Restrict Editing');
+    this.doc.setDocumentProtection({ edit, formatting: Boolean(formatting), enforced: Boolean(enforced), password: password || null });
+    if (enforced && edit === 'trackedChanges' && typeof this.doc.setTrackRevisions === 'function') this.doc.setTrackRevisions(true);
+    this.touched = true;
+    this._invalidate();
+    return this;
+  }
+
+  /**
+   * Stop Protection: refused, protection kept, unless the password (when
+   * there is one) is right. The settings stay, unenforced, as Word leaves them.
+   */
+  stopProtection(password = '') {
+    const p = this.protection();
+    if (!p?.enforced) return this;
+    if (p.hasPassword && !this.doc.checkProtectionPassword(password)) {
+      throw new Error('That password is not right, so the protection stays on.');
+    }
+    return this.setProtection({ edit: p.edit, formatting: p.formatting, enforced: false });
+  }
+
+  /**
+   * Exceptions → Everyone for the selected paragraphs: `on` marks them as a
+   * region anyone may edit under protection, off takes every region that
+   * touches them away. Undoable, like any change to the body.
+   */
+  setPermission(on) {
+    if (typeof this.doc.addPermission !== 'function') throw new Error('this document backend does not support Restrict Editing');
+    if (this.protection()?.enforced) throw new Error('Exceptions are set before protection is enforced — Stop Protection first.');
+    const { from, to } = this.selection;
+    return this._edit('permission', null, () => {
+      this.doc.removePermissions(from.block, to.block);
+      if (on) this.doc.addPermission(from.block, to.block, { group: 'everyone' });
+      this._invalidate();
+      return this;
+    });
   }
 
   /**
@@ -448,6 +529,9 @@ export class DocView {
   setTrackChanges(on, author) {
     if (typeof this.doc.setTrackRevisions !== 'function') {
       throw new Error('this document backend does not support tracked changes');
+    }
+    if (!on && this.protection()?.lockedTracking) {
+      throw new Error('Track Changes stays on: the document is protected for tracked changes. Stop Protection first.');
     }
     this.doc.setTrackRevisions(Boolean(on));
     if (author) this._trackAuthor = author;
@@ -3018,7 +3102,10 @@ export class DocView {
       // Review → Track Changes: is this document recording, right now — read
       // from the file's own setting so a reopened file with it already on
       // shows the ribbon pressed without the window having to ask first.
-      trackRevisions: typeof this.doc.trackRevisions === 'function' ? this.doc.trackRevisions() : false,
+      trackRevisions: this.recording,
+      // Review → Restrict Editing: the protection and the regions Everyone
+      // may edit, so the page can highlight them and refuse the rest.
+      protection: this.protection(),
       // Every list label by block index — how a TABLE CELL's list items get
       // their bullets and numbers, since cells have no fragments to carry
       // one. Computed on the same counters pagination used, so the body and

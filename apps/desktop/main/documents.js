@@ -1008,6 +1008,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       drawings: frame.drawings,
       // Layout → Hyphenation: a setting of the document, which no block carries.
       hyphenation: frame.hyphenation,
+      // Review → Restrict Editing: a setting and marks no block's words
+      // show, and the page highlights and refuses by them.
+      protection: frame.protection,
       // Mailings: the merge's kind, list and preview — Start Mail Merge,
       // Select Recipients and the record box change no block at all.
       mailMerge: frame.mailMerge,
@@ -1536,6 +1539,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // Review → Track Changes: the author is whoever the window says, else
     // the account at the keyboard, the same rule a note's author follows.
     toggleTrackChanges: (v, a) => v.setTrackChanges(a.on, a.author || safeUserName() || 'Rutba Office user'),
+    // Review → Restrict Editing: Start Enforcing Protection (and the
+    // settings written unenforced), Stop Protection with its password, and
+    // Exceptions → Everyone on the selected paragraphs.
+    setProtection: (v, a) => v.setProtection({ edit: a.edit || 'readOnly', formatting: Boolean(a.formatting), enforced: a.enforced !== false, password: a.password || null }),
+    stopProtection: (v, a) => v.stopProtection(a.password ?? ''),
+    setPermission: (v, a) => v.setPermission(a.on !== false),
     acceptChanges: (v, a) => v.acceptChanges({ all: a.all }),
     rejectChanges: (v, a) => v.rejectChanges({ all: a.all }),
     // Insert → Captions → Insert Caption: a label, a live SEQ number and the
@@ -1729,6 +1738,60 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     };
   }
 
+
+  /* ── Restrict Editing, enforced ────────────────────────────────────────
+   *
+   * A document protected by Review → Restrict Editing refuses here what the
+   * protection refuses, whichever way the operation came — a keystroke, a
+   * paste, a ribbon button — with Word's own sentence. The window refuses
+   * the obvious ones first so a person is not left typing into nothing;
+   * this is the rule itself.
+   */
+  const PROTECTION_OPS = new Set(['setProtection', 'stopProtection', 'setPermission']);
+  /** Operations that change the words at the selection. */
+  const TEXT_OPS = new Set(['insertText', 'deleteBackward', 'deleteForward', 'deleteSelection', 'splitParagraph', 'pasteText', 'pasteRuns', 'tabCell', 'insertEquation', 'replaceEquation', 'insertImage', 'removeImage', 'setImageLayout', 'setImageSize', 'insertPageBreak', 'insertMergeField', 'insertNote', 'setNoteText', 'insertTable', 'insertChart', 'insertShape', 'insertCaption', 'insertCrossReference', 'tableOp', 'setTableColumnWidths', 'setTableRowHeight']);
+  /** Operations that format the selection directly. */
+  const FORMAT_OPS = new Set(['toggleFormat', 'setRunFormat', 'clearFormat', 'setParagraphFormat', 'setLink', 'setDropCap']);
+
+  function guardProtection(view, op) {
+    if (CLEAN_OPS.has(op.op) || PROTECTION_OPS.has(op.op) || typeof view.protection !== 'function') return;
+    const p = view.protection();
+    if (!p?.enforced) return;
+    const { from, to } = view.selection;
+    const region = p.regions.find((r) => from.block >= r.from && to.block <= r.to);
+    // Backspace at a region's very start, or Delete at its very end, would
+    // join a locked paragraph to it: outside the region, so refused.
+    const collapsed = from.block === to.block && from.offset === to.offset;
+    const edgeOut =
+      region && collapsed &&
+      ((op.op === 'deleteBackward' && from.block === region.from && from.offset === 0) ||
+        (op.op === 'deleteForward' && to.block === region.to && to.offset >= (view.block?.(to.block)?.text?.length ?? Infinity)));
+    const inRegion = Boolean(region) && !edgeOut;
+    const editsText = TEXT_OPS.has(op.op);
+    const formats = FORMAT_OPS.has(op.op);
+    // Formatting limited to styles: a style may be applied, nothing direct.
+    const styleOnly = op.op === 'setParagraphFormat' && Object.keys(op.delta || {}).every((k) => k === 'style');
+    if (p.formatting && formats && !styleOnly) {
+      throw new Error('This document is protected: formatting is limited to styles.');
+    }
+    switch (p.edit) {
+      case 'none':
+        return;
+      case 'trackedChanges':
+        if (op.op === 'toggleTrackChanges' && !op.on) throw new Error('Track Changes stays on: the document is protected for tracked changes.');
+        if (op.op === 'acceptChanges' || op.op === 'rejectChanges') throw new Error('Changes cannot be accepted or rejected while the document is protected for tracked changes.');
+        return;
+      case 'comments':
+        if (op.op === 'addComment') return;
+        if (inRegion && (editsText || formats)) return;
+        throw new Error('This document is protected: only comments can be added here.');
+      case 'forms':
+        throw new Error('This document is protected for filling in forms: only its form fields can be changed.');
+      default:
+        if (inRegion && (editsText || formats || op.op === 'addComment')) return;
+        throw new Error('This modification is not allowed because the selection is locked.');
+    }
+  }
 
   const OPS = { sheet: { ...SHEET_OPS, ...proof.ops.sheet }, doc: { ...DOC_OPS, ...proof.ops.doc }, deck: { ...DECK_OPS, ...proof.ops.deck } };
 
@@ -2048,6 +2111,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         for (const op of ops || []) {
           const fn = table[op.op];
           if (!fn) throw new Error(`${session.kind} documents have no operation "${op.op}"`);
+          if (session.kind === 'doc') guardProtection(session.engine, op);
           const result = fn(session.engine, op);
           if (['number', 'string', 'boolean'].includes(typeof result)) opResult = result;
           if (!CLEAN_OPS.has(op.op)) touched = true;

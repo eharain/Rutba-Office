@@ -23,6 +23,7 @@ import { Ruler, TableGrips, installRulerStyles } from './word/ruler.js';
 import { selectionToSend } from './word/caret.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
+import { RestrictPane, StartEnforcingDialog, UnprotectDialog, RESTRICT_CSS, refusalSentence } from './word/restrict.js';
 import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement, columnBoxesOf, pageTopOf, pageHeightOf, pageIndexAt } from './word/pages.js';
 
 installWordStyles();
@@ -264,6 +265,10 @@ export default function Word({ app, shell, boot }) {
     // final text, with a change bar in the margin, not every insertion and
     // deletion inline.
     markupMode: 'simple',
+    // Review → Restrict Editing: the pane, and whether the regions this
+    // person may edit are highlighted (Word's default: they are).
+    restrict: false,
+    restrictHighlight: true,
   });
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
   const actRef = useRef(null);
@@ -288,7 +293,21 @@ export default function Word({ app, shell, boot }) {
   const menu = useMenu();
   const openFileRef = useRef(null);
   // File → Info: the Protect Document card and Encrypt with Password.
-  const protection = useProtection({ app: 'word', shell, doc, setDoc, toast });
+  const protection = useProtection({
+    app: 'word',
+    shell,
+    doc,
+    setDoc,
+    toast,
+    items: [{ id: 'restrict', icon: 'shield', label: 'Restrict Editing', detail: 'Control what types of changes others can make to this document.', run: () => actRef.current?.('restrictPane', true) }],
+    notes: model?.protection?.enforced ? ['Only certain kinds of changes can be made to this document — Review → Restrict Editing.'] : [],
+  });
+  // Review → Restrict Editing's two dialogs: the settings waiting on Start
+  // Enforcing Protection, and the password Stop Protection asks for.
+  const [enforcing, setEnforcing] = useState(null);
+  const [unprotecting, setUnprotecting] = useState(null);
+  const protectionRef = useRef(null);
+  protectionRef.current = model?.protection || null;
   const appMenu = useAppMenu({
     shell,
     appKey: 'word',
@@ -361,6 +380,9 @@ export default function Word({ app, shell, boot }) {
         if (recover) toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 });
         setDoc(opened);
         setModel(opened.model);
+        // A document Word protected opens with the Restrict Editing pane,
+        // saying what may be done and where.
+        if (opened.model?.protection?.enforced) patchView({ restrict: true });
         if (opened.path) shell.app.addRecent({ path: opened.path, app: 'word' }).catch(() => {});
         // What saving will actually do, which is not one answer: a .md
         // opened here saves as .md, and an .rtf cannot be saved at all
@@ -539,6 +561,18 @@ export default function Word({ app, shell, boot }) {
         return;
       }
       const pos = currentPosition();
+      // Restrict Editing, enforced: nothing typed outside a region this
+      // person may edit (the service refuses it too; this spares the trip).
+      const guard = protectionRef.current;
+      if (guard?.enforced && guard.edit !== 'trackedChanges' && guard.edit !== 'none' && pos?.focus) {
+        const a = (pos.anchor || pos.focus).block;
+        const b = pos.focus.block;
+        const inside = guard.edit !== 'forms' && guard.regions.some((r) => Math.min(a, b) >= r.from && Math.max(a, b) <= r.to);
+        if (!inside) {
+          toast(refusalSentence(guard), { ms: 4500 });
+          return;
+        }
+      }
       const ops = [];
       const selection = selectionToSend(pos, { sent: sentCaret.current, placed: placedCaret.current });
       if (selection) ops.push(selection);
@@ -1624,7 +1658,26 @@ export default function Word({ app, shell, boot }) {
           pageRef.current?.querySelector(`[data-block="${arg}"]`)?.scrollIntoView({ block: 'start', behavior: 'smooth' });
           return;
         }
+        case 'restrictPane':
+          patchView((v) => ({ restrict: arg ?? !v.restrict }));
+          return;
+        case 'nextRegion': {
+          // Find Next Region I Can Edit: the region after the caret, or
+          // the first, selected whole as Word selects it.
+          const regions = [...(model?.protection?.regions || [])].sort((x, y) => x.from - y.from);
+          if (!regions.length) return;
+          const r = regions.find((x) => x.from > at) || regions[0];
+          const end = blocks[r.to];
+          const length = (end?.text ?? (end?.runs || []).map((run) => run.text).join('')).length;
+          await apply({ op: 'setSelection', anchor: { block: r.from, offset: 0 }, focus: { block: r.to, offset: length } });
+          pageRef.current?.querySelector(`[data-block="${r.from}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          return;
+        }
         case 'toggleTrackChanges': {
+          if (model?.protection?.lockedTracking) {
+            toast('Track Changes stays on while the document is protected for tracked changes. Stop Protection first.', { ms: 4500 });
+            return;
+          }
           const next = await apply({ op: 'toggleTrackChanges', on: !model?.trackRevisions });
           if (next && !model?.trackRevisions) toast('Track Changes is on — typing and deleting are recorded.', { ms: 5000 });
           return;
@@ -1659,6 +1712,48 @@ export default function Word({ app, shell, boot }) {
   useEffect(() => {
     if ((tab === 'shapeFormat' || tab === 'pictureFormat') && !selectedDrawing && !picked?.ids?.length) setTab('home');
   }, [tab, selectedDrawing, picked]);
+
+  /** Stop Protection: the whole model back, or the dialog told the password was wrong. */
+  const stopProtection = useCallback(
+    async (password) => {
+      if (!doc) return;
+      try {
+        const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'stopProtection', password }], delta: false });
+        setDoc(next);
+        if (next.model) setModel(next.model);
+        setUnprotecting(null);
+        toast('Protection is off.', { tone: 'good' });
+      } catch (err) {
+        const said = String(err?.message || err);
+        if (/password is not right/i.test(said)) setUnprotecting({ error: 'That password is not right, so the protection stays on.' });
+        else toast(said, { tone: 'bad' });
+      }
+    },
+    [doc, shell, toast]
+  );
+
+  // Restrict Editing's regions on the page: a yellow wash and brackets on
+  // the paragraphs Everyone may edit, as Word marks them. Classes set after
+  // each render, since a region changes no paragraph's own drawing.
+  const permMarked = useRef(false);
+  useLayoutEffect(() => {
+    const page = pageRef.current;
+    if (!page) return;
+    const p = model?.protection;
+    const regions = p?.regions || [];
+    page.classList.toggle('wd-locked', Boolean(p?.enforced && p.edit !== 'trackedChanges' && p.edit !== 'none'));
+    if (!regions.length && !permMarked.current) return;
+    const show = regions.length > 0 && view.restrictHighlight !== false;
+    page.classList.toggle('wd-perm-show', show);
+    for (const el of page.querySelectorAll('.wd-block[data-block]')) {
+      const i = Number(el.dataset.block);
+      const r = regions.find((x) => i >= x.from && i <= x.to);
+      el.classList.toggle('wd-perm', Boolean(r));
+      el.classList.toggle('wd-perm-first', Boolean(r) && i === r.from && el.dataset.part !== '1');
+      el.classList.toggle('wd-perm-last', Boolean(r) && i === r.to && (el.dataset.part === undefined || el.dataset.part === '1'));
+    }
+    permMarked.current = regions.length > 0;
+  });
 
   // Mailings: envelopes and labels (word/envelopes.js), and the merge's
   // verbs and dialogs (word/mailings.js), which the first join.
@@ -1781,8 +1876,9 @@ export default function Word({ app, shell, boot }) {
           <Spinner style={{ width: 22, height: 22 }} />
         </div>
       ) : (
-        <div className={`wd mode-${view.mode || 'print'}${view.focus ? ' focus' : ''}`}>
+        <div className={`wd mode-${view.mode || 'print'}${view.focus ? ' focus' : ''}${view.navigation || view.restrict ? ' wd-side' : ''}`}>
           <style>{CSS}</style>
+          <style>{RESTRICT_CSS}</style>
           <style>{EQUATION_CSS}</style>
           <style>{DRAWING_CSS}</style>
           {view.navigation ? (
@@ -2067,6 +2163,19 @@ export default function Word({ app, shell, boot }) {
               onClose={() => act('selectionPane')}
             />
           ) : null}
+          {view.restrict ? (
+            <RestrictPane
+              protection={model.protection}
+              selection={{ from: Math.min(model.selection?.anchor?.block ?? 0, model.selection?.focus?.block ?? 0), to: Math.max(model.selection?.anchor?.block ?? 0, model.selection?.focus?.block ?? 0) }}
+              highlight={view.restrictHighlight !== false}
+              onHighlight={(on) => patchView({ restrictHighlight: on })}
+              onPermission={(on) => apply({ op: 'setPermission', on })}
+              onStart={(spec) => setEnforcing(spec)}
+              onStop={() => (model.protection?.hasPassword ? setUnprotecting({ error: '' }) : stopProtection(''))}
+              onFindNext={() => act('nextRegion')}
+              onClose={() => patchView({ restrict: false })}
+            />
+          ) : null}
           {menu.node}
           {find ? (
             <FindPanel
@@ -2292,6 +2401,18 @@ export default function Word({ app, shell, boot }) {
 
       {gate.node}
       {protection.node}
+      {enforcing ? (
+        <StartEnforcingDialog
+          onClose={() => setEnforcing(null)}
+          onStart={async (password) => {
+            const spec = enforcing;
+            setEnforcing(null);
+            const next = await apply({ op: 'setProtection', edit: spec.edit, formatting: spec.formatting, password: password || null });
+            if (next) toast(password ? 'Protection is on. The password takes it off.' : 'Protection is on.', { tone: 'good' });
+          }}
+        />
+      ) : null}
+      {unprotecting ? <UnprotectDialog error={unprotecting.error} onClose={() => setUnprotecting(null)} onSubmit={(password) => stopProtection(password)} /> : null}
 
       {dialog === 'shortcuts' ? <ShortcutsDialog onClose={() => setDialog(null)} /> : null}
 

@@ -740,7 +740,7 @@ export default function WordRibbon({
             <Button icon="listBullet" label={comments.length ? `Show (${comments.length})` : 'Show Comments'} disabled={!comments.length} onClick={() => openDialog('comments')} />
           </Group>
           <Group label="Tracking">
-            <Button tall icon="eye" label="Track Changes" pressed={Boolean(model?.trackRevisions)} title="Track Changes — record every insertion and deletion as w:ins / w:del while you edit" onClick={() => act('toggleTrackChanges')} />
+            <Button tall icon="eye" label="Track Changes" pressed={Boolean(model?.trackRevisions)} disabled={Boolean(model?.protection?.lockedTracking)} title={model?.protection?.lockedTracking ? 'Track Changes — locked on: the document is protected for tracked changes' : 'Track Changes — record every insertion and deletion as w:ins / w:del while you edit'} onClick={() => act('toggleTrackChanges')} />
             <Button icon="eye" label={MARKUP_LABELS[view.markupMode] || 'Simple Markup'} title="Display for Review — how tracked changes are shown" onClick={(e) => menu.open(e, [
               { label: 'All Markup', run: () => act('markupMode', 'all') },
               { label: 'Simple Markup', run: () => act('markupMode', 'simple') },
@@ -750,11 +750,11 @@ export default function WordRibbon({
             <Button icon="list" label="Reviewing Pane" title="Every tracked change in this document" disabled={!model?.blocks?.some((b) => b.tracked)} onClick={() => openDialog('tracked')} />
           </Group>
           <Group label="Changes">
-            <Button tall icon="check" label="Accept" disabled={!trackedHere} title="Accept — keep this change" onClick={(e) => menu.open(e, [
+            <Button tall icon="check" label="Accept" disabled={!trackedHere || Boolean(model?.protection?.lockedTracking)} title="Accept — keep this change" onClick={(e) => menu.open(e, [
               { label: 'Accept This Change', run: () => act('acceptChanges') },
               { label: 'Accept All Changes', run: () => act('acceptChanges', 'all') },
             ])} />
-            <Button tall icon="close" label="Reject" disabled={!trackedHere} title="Reject — undo this change" onClick={(e) => menu.open(e, [
+            <Button tall icon="close" label="Reject" disabled={!trackedHere || Boolean(model?.protection?.lockedTracking)} title="Reject — undo this change" onClick={(e) => menu.open(e, [
               { label: 'Reject This Change', run: () => act('rejectChanges') },
               { label: 'Reject All Changes', run: () => act('rejectChanges', 'all') },
             ])} />
@@ -765,7 +765,7 @@ export default function WordRibbon({
             <Soon tall icon="copy" label="Compare" why="Comparing two documents is a diff over blocks; on the list." />
           </Group>
           <Group label="Protect">
-            <Soon tall icon="lock" label="Restrict Editing" why="Document protection is w:documentProtection; not written yet." />
+            <Button tall icon="lock" label="Restrict Editing" pressed={Boolean(view.restrict)} title={model?.protection?.enforced ? 'Restrict Editing — the document is protected; the pane says what you may do and stops protection' : 'Restrict Editing — limit formatting and editing, with exceptions, and enforce it with an optional password'} onClick={() => act('restrictPane')} />
           </Group>
         </>
       ) : null}
