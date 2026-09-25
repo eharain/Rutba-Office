@@ -129,19 +129,36 @@ test('a frame of a 60,000-row sheet in Page Layout stays quick, at the top and d
   view.setViewMode('pageLayout');
   view.render();
   const L = view._pageLayout();
+  const frameAt = (v, layout, row) => {
+    v.scrollTo(0, layout.mapY(row) - 100);
+    const t0 = process.hrtime.bigint();
+    const f = v.render();
+    return { ms: Number(process.hrtime.bigint() - t0) / 1e6, f };
+  };
+  const median = (list) => {
+    const s = [...list].sort((x, y) => x - y);
+    return (s[(s.length - 1) >> 1] + s[s.length >> 1]) / 2;
+  };
   const times = [];
   for (const row of [0, 20000, 45000, 59990, 300]) {
-    view.scrollTo(0, L.mapY(row) - 100);
-    const t0 = process.hrtime.bigint();
-    const f = view.render();
-    times.push(Number(process.hrtime.bigint() - t0) / 1e6);
+    const { ms, f } = frameAt(view, L, row);
+    times.push(ms);
     assert.ok(f.cells.some((c) => c.row === row), `row ${row} is in the frame`);
   }
-  // The median, not the slowest: a frame that walked the whole sheet would make
-  // every one slow, while a single pause for garbage collection on a busy
-  // machine (430 ms once, beside frames of 100) is not the view's doing.
-  const later = times.slice(1).sort((x, y) => x - y);
-  const median = (later[(later.length - 1) >> 1] + later[later.length >> 1]) / 2;
-  assert.ok(median < 150, `frames ${times.map((t) => t.toFixed(1)).join(', ')} ms`);
+  // A frame here is 30-120 ms on a quiet machine, and the old fixed limit of
+  // 150 ms failed on a busy one with frames that were fine. So the big
+  // sheet is judged against the same view of a sheet a hundred times
+  // smaller, framed in the same run under the same load, with a floor of
+  // 400 ms. A frame that walked all 60,000 rows costs seconds, and fails
+  // either way.
+  const small = new SheetView(buildXlsx({ sheets: [{ name: 'Small', rows: rows.slice(0, 600) }] }), { viewportWidth: 1400, viewportHeight: 800 });
+  small.setViewMode('pageLayout');
+  small.render();
+  const SL = small._pageLayout();
+  const base = [];
+  for (const row of [0, 200, 450, 590, 300]) base.push(frameAt(small, SL, row).ms);
+  const big = median(times.slice(1));
+  const smallMedian = median(base.slice(1));
+  assert.ok(big < Math.max(400, smallMedian * 12), `frames ${times.map((t) => t.toFixed(1)).join(', ')} ms against ${base.map((t) => t.toFixed(1)).join(', ')} ms for a 600-row sheet`);
   assert.ok(view.render().pageLayout.count > 1000);
 });
