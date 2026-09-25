@@ -29,6 +29,7 @@ import { verifyDeckFx } from './verify-deck-fx.js';
 import { verifyDeckTransitions } from './verify-deck-transitions.js';
 import { verifyDeckAnimations } from './verify-deck-animations.js';
 import { verifyDeckThemes } from './verify-deck-themes.js';
+import { verifyDeckMaster } from './verify-deck-master.js';
 import { verifyWordToc } from './verify-word-toc.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
@@ -4308,7 +4309,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4366,6 +4367,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('transitions')) await verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('animations')) await verifyDeckAnimations({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('themes')) await verifyDeckThemes({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) });
+    if (only.includes('master')) await verifyDeckMaster({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) });
     if (only.includes('providers')) await mailProviders();
     if (only.includes('signature')) await mailSignature();
     if (only.includes('sendlater')) await mailSendLater();
@@ -4470,6 +4472,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
   await verifyDeckAnimations({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
   await verifyDeckThemes({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) });
+  await verifyDeckMaster({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) });
   await sheetFill();
   await wordPictures();
   await wordLook();

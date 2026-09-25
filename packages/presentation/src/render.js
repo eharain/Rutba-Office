@@ -399,7 +399,7 @@ function tableSvg(shape, opts) {
  * @param {{ width?: number, resolveImage?: (shape) => string|null, standalone?: boolean, selection?: string }} [opts]
  */
 export function renderSlide(slide, opts = {}) {
-  const { width: outWidth, resolveImage, standalone = true, simplify = false, tagShapes = false, idPrefix = '' } = opts;
+  const { width: outWidth, resolveImage, standalone = true, simplify = false, tagShapes = false, idPrefix = '', placeholderFrames = false } = opts;
   // Ids for gradients, patterns and filters: prefixed when several drawings
   // share one page (a strip of thumbnails beside the stage, a printed deck),
   // since url(#g1) finds the first g1 in the document, not this drawing's.
@@ -519,9 +519,11 @@ export function renderSlide(slide, opts = {}) {
     pending = null;
   };
 
-  for (const shape of slide.shapes || []) {
+  // The master's and the layout's own shapes first, under the slide's —
+  // never tagged: the show animates the slide's shapes, not the design's.
+  for (const shape of [...(slide.underlay || []), ...(slide.shapes || [])]) {
     flush();
-    pending = { id: String(shape.id), mark: body.length };
+    pending = shape.underlay ? null : { id: String(shape.id), mark: body.length };
     if (shape.hidden) continue;
     // A group is not drawn itself — it is only a handle on its members,
     // which are already in this same list with their own, already-composed
@@ -612,6 +614,10 @@ export function renderSlide(slide, opts = {}) {
       body.push(reflectionSvg(shape, g, wrapId));
     } else {
       body.push(shapeMarkup + textMarkup);
+    }
+    // Slide Master view: each placeholder's box, dashed, the way PowerPoint marks them.
+    if (placeholderFrames && shape.placeholder) {
+      body.push(`<rect x="${g.x.toFixed(2)}" y="${g.y.toFixed(2)}" width="${g.w.toFixed(2)}" height="${g.h.toFixed(2)}" fill="none" stroke="#8a94a6" stroke-width="1.2" stroke-dasharray="6 4"${transform}/>`);
     }
   }
 

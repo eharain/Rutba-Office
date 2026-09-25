@@ -34,6 +34,16 @@ export default function Slides({ app, shell, boot }) {
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState(null);
   const [tab, setTab] = useState('home');
+  /**
+   * View → Slide Master: the master or layout on the stage (its part name),
+   * or null in the ordinary views. Every edit made while it is set goes to
+   * that part instead of a slide, and every slide on it follows.
+   */
+  const [masterPart, setMasterPart] = useState(null);
+  const masterRef = useRef(null);
+  masterRef.current = masterPart;
+  /** Slide Master → Rename: the part and the name it has now. */
+  const [partRename, setPartRename] = useState(null);
   const [editing, setEditing] = useState(null);
   /** The shape clipboard: one shape, copied in this window, pasted on any slide of it. */
   const [clip, setClip] = useState(null);
@@ -261,10 +271,10 @@ export default function Slides({ app, shell, boot }) {
   const load = useCallback(
     async (next = index) => {
       if (!doc) return;
-      const m = await shell.doc.model({ id: doc.id, slide: next, width: 1280 });
+      const m = await shell.doc.model({ id: doc.id, slide: next, width: 1280, master: masterRef.current });
       setModel(m);
     },
-    [doc, index, shell]
+    [doc, index, shell, masterPart]
   );
 
   // The thumbnails the model left out arrive after the first paint, a few at
@@ -310,7 +320,18 @@ export default function Slides({ app, shell, boot }) {
     async (...ops) => {
       if (!doc) return;
       try {
-        const next = await shell.doc.apply({ id: doc.id, ops, slide: index, width: 1280 });
+        // Slide Master view: an edit meant for "this slide" goes to the
+        // master or layout on the stage; what only a slide can take is refused.
+        const target = masterRef.current;
+        if (target) {
+          const refused = ops.find((op) => MASTER_REFUSED.has(op.op));
+          if (refused) {
+            toast('That works on slides — Close Master View first.', { ms: 3200 });
+            return null;
+          }
+          ops = ops.map((op) => (typeof op.slide === 'number' ? { ...op, slide: target } : op));
+        }
+        const next = await shell.doc.apply({ id: doc.id, ops, slide: index, width: 1280, master: target });
         setDoc(next);
         setModel(next.model);
         // Returned, not swallowed: adding a slide needs to know which one it
@@ -384,7 +405,7 @@ export default function Slides({ app, shell, boot }) {
   useEffect(() => {
     load(index);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [index, doc]);
+  }, [index, doc, masterPart]);
 
   // The Design tab's strips: this slide drawn in a few themes and in the
   // four variants — fetched while the tab is up, again after each change.
@@ -676,7 +697,7 @@ export default function Slides({ app, shell, boot }) {
   }, [present, blank, advanceAfter, settled, model?.slide?.index]);
 
   // A new slide means a new selection: the shape ids belong to the slide.
-  useEffect(() => { setSelected(pendingSelect.current ?? null); pendingSelect.current = null; setPainter(null); setPreview(null); setAnimSel(null); setAnimPainter(null); }, [index]);
+  useEffect(() => { setSelected(pendingSelect.current ?? null); pendingSelect.current = null; setPainter(null); setPreview(null); setAnimSel(null); setAnimPainter(null); }, [index, masterPart]);
 
 
   const slide = model?.slide;
@@ -900,16 +921,68 @@ export default function Slides({ app, shell, boot }) {
         return;
       case 'customColours': setDesignOpen(null); setCustomColours(arg || model?.design || {}); return;
       case 'customFonts': setDesignOpen(null); setCustomFonts(arg || model?.design || {}); return;
+      // View → Slide Master, and the Slide Master tab's verbs.
+      case 'masterView': {
+        const layout = model?.slide?.layout || null;
+        setSelected(null);
+        setEditing(null);
+        setMasterPart(layout || model?.slide?.master || 'ppt/slideMasters/slideMaster1.xml');
+        setTab('master');
+        return;
+      }
+      case 'closeMaster':
+        setMasterPart(null);
+        setSelected(null);
+        setEditing(null);
+        setTab('home');
+        return;
+      case 'masterSelect': setMasterPart(arg); return;
+      case 'insertLayout': {
+        const master = model?.masterView?.items?.find((it) => it.part === masterPart)?.master || model?.slide?.master || null;
+        const next = await apply({ op: 'insertLayout', master, name: 'Custom Layout' });
+        if (next && typeof next.opResult === 'string') setMasterPart(next.opResult);
+        return;
+      }
+      case 'renameLayout': {
+        const item = model?.masterView?.items?.find((it) => it.part === masterPart);
+        if (item) setPartRename({ part: item.part, name: item.name, kind: item.kind });
+        return;
+      }
+      case 'deleteLayout': {
+        const item = model?.masterView?.items?.find((it) => it.part === masterPart);
+        if (!item || item.kind !== 'layout') return;
+        const next = await apply({ op: 'removeLayout', part: item.part });
+        if (next) { setMasterPart(item.master); toast(`Layout "${item.name}" deleted`, { ms: 2200 }); }
+        return;
+      }
+      case 'masterPlaceholders':
+        await apply({ op: 'setMasterPlaceholders', part: masterPart, ...arg });
+        return;
+      case 'hideBackgroundGraphics':
+        await apply({ op: 'setHideBackgroundGraphics', part: masterPart, hide: Boolean(arg) });
+        return;
+      case 'preserve': {
+        const item = model?.masterView?.items?.find((it) => it.part === masterPart);
+        const master = item?.kind === 'master' ? item.part : item?.master;
+        const on = !model?.masterView?.items?.find((it) => it.part === master)?.preserve;
+        if (master) await apply({ op: 'setMasterPreserve', part: master, on });
+        return;
+      }
+      case 'insertPlaceholder': {
+        const next = await apply({ op: 'insertPlaceholder', part: masterPart, kind: arg });
+        if (next?.opResult != null) setSelected(String(next.opResult));
+        return;
+      }
       case 'undo': {
         if (!doc?.canUndo) return;
-        const n = await shell.doc.undo({ id: doc.id, slide: index, width: 1280 });
+        const n = await shell.doc.undo({ id: doc.id, slide: index, width: 1280, master: masterPart });
         setDoc(n);
         setModel(n.model);
         return;
       }
       case 'redo': {
         if (!doc?.canRedo) return;
-        const n = await shell.doc.redo({ id: doc.id, slide: index, width: 1280 });
+        const n = await shell.doc.redo({ id: doc.id, slide: index, width: 1280, master: masterPart });
         setDoc(n);
         setModel(n.model);
         return;
@@ -1071,6 +1144,25 @@ export default function Slides({ app, shell, boot }) {
       }
       case 'format': {
         if (!selectedShape?.text) return toast('Click a text box first.', { ms: 3500 });
+        // Slide Master view: a placeholder's look is a text style — the
+        // master's title or body style, or the placeholder's own list style —
+        // which every slide on it inherits; its prompt words are not touched.
+        if (masterPart && selectedShape.placeholder) {
+          const d = selectedShape.textDefaults || {};
+          const props = {};
+          if ('size' in arg && arg.size != null) props.size = arg.size;
+          if ('color' in arg && arg.color) props.color = arg.color;
+          if ('font' in arg) props.font = arg.font || null;
+          if ('align' in arg && arg.align) props.align = arg.align;
+          if ('bold' in arg) props.bold = arg.bold === 'toggle' ? !d.bold : Boolean(arg.bold);
+          if ('italic' in arg) props.italic = arg.italic === 'toggle' ? !d.italic : Boolean(arg.italic);
+          if ('underline' in arg) props.underline = arg.underline === 'toggle' ? !d.underline : Boolean(arg.underline);
+          if (Object.keys(props).length) {
+            await apply({ op: 'setTextStyle', slide: index, shape: selectedShape.id, props });
+            return;
+          }
+          return toast('In Slide Master view the font, size, colour, weight and alignment of a placeholder are its text style; the rest belongs to a slide.', { ms: 4200 });
+        }
         // Change case rewrites the letters, as PowerPoint's does: sentence
         // case from the paragraph's first run, the rest per run.
         const recase = (s, mode, first) => mode === 'upper' ? s.toUpperCase()
@@ -1312,13 +1404,18 @@ export default function Slides({ app, shell, boot }) {
           setPresent={setPresent}
           setNotesOpen={setNotesOpen}
           designStrip={designStrip}
+          masterView={model?.masterView || null}
+          masterPart={masterPart}
         />
       }
       status={
         <>
           <span>{doc?.path || 'Not saved yet'}</span>
           <Spacer />
-          <Chip>Slide {index + 1} of {model?.count ?? 0}</Chip>
+          {model?.masterView ? (() => {
+            const item = model.masterView.items.find((it) => it.part === masterPart);
+            return <Chip>{item?.kind === 'layout' ? `${item.name} layout: used by ${item.used === 1 ? '1 slide' : `${item.used} slides`}` : `${item?.name || 'Slide Master'}: used by every layout`}</Chip>;
+          })() : <Chip>Slide {index + 1} of {model?.count ?? 0}</Chip>}
           {slide?.shapes ? <Chip>{slide.shapes.length} shapes</Chip> : null}
           <ZoomSlider value={view.zoom ?? fit} min={0.25} max={3} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', null)} resetLabel="Fit to window" />
         </>
@@ -1331,7 +1428,33 @@ export default function Slides({ app, shell, boot }) {
       ) : (
         <>
           <style>{CSS + DESIGN_CSS}</style>
-          <Panel width={196} resizable title="Slides">
+          <Panel width={196} resizable title={model.masterView ? 'Slide Master' : 'Slides'}>
+            {model.masterView ? (
+              <div className="sl-sorter sl-masterstrip">
+                {model.masterView.items.map((it) => (
+                  <button
+                    key={it.part}
+                    type="button"
+                    className={`sl-thumb sl-mthumb sl-mthumb-${it.kind}${it.part === masterPart ? ' active' : ''}`}
+                    data-part={it.part}
+                    onClick={() => act('masterSelect', it.part)}
+                    onContextMenu={(e) => {
+                      act('masterSelect', it.part);
+                      menu.open(e, [
+                        { label: 'Insert Layout', icon: 'plus', run: () => act('insertLayout') },
+                        { label: 'Rename…', icon: 'textbox', run: () => setPartRename({ part: it.part, name: it.name, kind: it.kind }) },
+                        ...(it.kind === 'layout' ? [{ label: it.used ? `Delete (used by ${it.used === 1 ? '1 slide' : `${it.used} slides`})` : 'Delete Layout', icon: 'trash', disabled: it.used > 0, run: () => act('deleteLayout') }] : []),
+                      ]);
+                    }}
+                  >
+                    <span className="sl-thumb-card" data-tip={it.kind === 'master' ? `${it.name} — every layout below takes its look from here` : `${it.name} Layout: used by ${it.used === 1 ? '1 slide' : `${it.used} slides`}`}>
+                      {it.thumbnail ? <Markup as="span" className="sl-thumb-pic" html={it.thumbnail} /> : <span className="sl-thumb-title">{it.name}</span>}
+                    </span>
+                    <span className="sl-mthumb-name">{it.name}{it.kind === 'layout' && it.used ? <span className="sl-mthumb-used">{it.used}</span> : null}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
             <div className="sl-sorter">
               {(model.outline || []).map((o, i) => (
                 <React.Fragment key={o.part || i}>
@@ -1357,6 +1480,7 @@ export default function Slides({ app, shell, boot }) {
               ))}
               {emptySectionHeadings(model, (s) => setSectionRename({ section: s.index, name: s.name }))}
             </div>
+            )}
           </Panel>
 
           <Content>
@@ -1407,7 +1531,7 @@ export default function Slides({ app, shell, boot }) {
                   }}
                 />
               ) : null}
-              {slide && view.mode === 'sorter' ? (
+              {slide && !masterPart && view.mode === 'sorter' ? (
                 <div className="sl-sortergrid">
                   {(model.outline || []).map((o, i) => (
                     <React.Fragment key={o.part || i}>
@@ -1421,7 +1545,7 @@ export default function Slides({ app, shell, boot }) {
                   ))}
                   {emptySectionHeadings(model, (s) => setSectionRename({ section: s.index, name: s.name }))}
                 </div>
-              ) : slide && view.mode === 'outline' ? (
+              ) : slide && !masterPart && view.mode === 'outline' ? (
                 <div className="sl-outline">
                   {(model.outline || []).map((o, i) => (
                     <button key={o.part || i} type="button" className={`sl-outlineitem${i === index ? ' active' : ''}`} onClick={() => setIndex(i)}>
@@ -1679,7 +1803,7 @@ export default function Slides({ app, shell, boot }) {
                 <Empty icon="slides" title="This presentation has no slides" />
               )}
             </div>
-            {slide && view.mode === 'notes' ? (
+            {slide && !masterPart && view.mode === 'notes' ? (
               <textarea
                 key={`notes-${index}`}
                 className="sl-notespage"
@@ -1714,6 +1838,18 @@ export default function Slides({ app, shell, boot }) {
       )}
 
       {shortcutsOpen ? <SlidesShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
+
+      {partRename ? (
+        <PartNameDialog
+          name={partRename.name}
+          kind={partRename.kind}
+          onClose={() => setPartRename(null)}
+          onApply={async (name) => {
+            const next = await apply({ op: 'renamePart', part: partRename.part, name });
+            if (next) setPartRename(null);
+          }}
+        />
+      ) : null}
 
       {designOpen && doc ? (
         <DesignGallery
@@ -2327,6 +2463,16 @@ const CSS = `
 .sl-design-new:hover { color: var(--accent); border-color: var(--accent); }
 
 .sl-sorter { display: flex; flex-direction: column; gap: 6px; padding: 8px; }
+/* Slide Master view's strip: the master, then its layouts indented under it, smaller, joined by a rule. */
+.sl-masterstrip { gap: 8px; }
+.sl-mthumb { flex-direction: column; gap: 3px; position: relative; }
+.sl-mthumb .sl-thumb-card { flex: none; width: 100%; }
+.sl-thumb.sl-mthumb-layout { padding-left: 22px; }
+.sl-mthumb-layout::before { content: ''; position: absolute; left: 9px; top: -8px; bottom: 50%; width: 9px; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); border-bottom-left-radius: 4px; }
+.sl-mthumb-name { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-2); padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sl-mthumb-master .sl-mthumb-name { font-weight: 600; color: var(--ink); }
+.sl-mthumb.active .sl-mthumb-name { color: var(--accent); }
+.sl-mthumb-used { flex: none; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--line-soft); color: var(--ink-3); font-size: 10px; display: inline-grid; place-items: center; }
 /* A section's heading, above its first slide, as PowerPoint draws one: the name and how many slides. */
 .sl-section { display: flex; align-items: baseline; gap: 6px; min-width: 0; padding: 6px 2px 0 20px; border: 0; background: transparent; text-align: left; cursor: pointer; }
 .sl-sortergrid .sl-section { grid-column: 1 / -1; padding-left: 2px; }
@@ -2565,6 +2711,32 @@ function emptySectionHeadings(model, onRename) {
 }
 
 /** Home → Section → Rename: the section's name, as PowerPoint asks for it. */
+/** Slide Master → Rename: a layout's or the master's name. */
+function PartNameDialog({ name: current, kind, onClose, onApply }) {
+  const [name, setName] = useState(current || '');
+  const label = kind === 'master' ? 'Rename master' : 'Rename layout';
+  return (
+    <Dialog
+      title={label}
+      width={380}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="Rename" className="sl-partname-ok" disabled={!name.trim()} onClick={() => onApply(name.trim())} />
+        </>
+      }
+    >
+      <Field label={kind === 'master' ? 'Master name' : 'Layout name'}>
+        <input className="rw-input sl-partname" autoFocus value={name} onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && name.trim()) onApply(name.trim()); }} />
+      </Field>
+    </Dialog>
+  );
+}
+
+/** What only a slide can take: refused while Slide Master view is on the stage. */
+const MASTER_REFUSED = new Set(['insertSlide', 'duplicateSlide', 'removeSlide', 'moveSlide', 'setNotes', 'setTransition', 'applyTransitionToAll', 'addAnimation', 'setAnimation', 'removeAnimation', 'moveAnimation', 'removeShapeAnimations', 'setSlideHidden', 'addSection', 'renameSection', 'removeSection', 'removeAllSections', 'applyLayout', 'resetSlide', 'setFooter', 'replaceText', 'replaceHit', 'replaceAllHits', 'addTable', 'addChart', 'setChartData', 'setTableCell', 'insertTableRow', 'removeTableRow', 'insertTableColumn', 'removeTableColumn']);
+
 function SectionNameDialog({ name: current, onClose, onApply }) {
   const [name, setName] = useState(current || '');
   return (

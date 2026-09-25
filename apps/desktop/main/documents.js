@@ -1027,13 +1027,44 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     return { resolveImage, thumbnailOf };
   }
 
-  function deckModel(session, { slide = 0, width = 960 } = {}) {
+  /**
+   * Slide Master view's strip: each master, then its layouts, each drawn
+   * with its prompts and placeholder frames — kept against the design
+   * stamp, since only a master, a layout or a theme edit changes them.
+   */
+  function masterViewOf(session, current) {
+    const deck = session.engine;
+    const { resolveImage } = deckThumbnailer(session);
+    const cache = session.masterThumbs || (session.masterThumbs = new Map());
+    const thumb = (part) => {
+      const key = `${deck.designStamp}:${part}`;
+      const hit = cache.get(part);
+      if (hit && hit.key === key) return hit.svg;
+      const svg = safely(() => renderThumbnail(deck.partScene(part), 220, { resolveImage, placeholderFrames: true })) || null;
+      cache.set(part, { key, svg });
+      return svg;
+    };
+    const items = [];
+    for (const m of safely(() => deck.masterList()) || []) {
+      items.push({ part: m.part, kind: 'master', name: m.name, preserve: m.preserve, hasTitle: m.hasTitle, hasFooters: m.hasFooters, thumbnail: thumb(m.part) });
+      for (const l of m.layouts) items.push({ ...l, kind: 'layout', master: m.part, thumbnail: thumb(l.part) });
+    }
+    return { current, items };
+  }
+
+  function deckModel(session, { slide = 0, width = 960, master = null } = {}) {
     const deck = session.engine;
     const count = deck.slideCount;
     const index = Math.max(0, Math.min(slide, Math.max(0, count - 1)));
-    const current = count ? deck.slide(index) : null;
+    // Slide Master view: the master or layout being edited stands where the
+    // slide would, so the stage, its handles and the Format pane work on it
+    // exactly as they do on a slide.
+    const masterPart = master && typeof master === 'string' && Deck.isDesignPart(master) && safely(() => deck.partScene(master)) ? master : null;
+    const current = masterPart ? deck.partScene(masterPart) : count ? deck.slide(index) : null;
     const { resolveImage, thumbnailOf } = deckThumbnailer(session);
     return {
+      // Slide Master view's strip and which part is on the stage, or null in the other views.
+      masterView: masterPart ? masterViewOf(session, masterPart) : null,
       count,
       index,
       size: deck.size,
@@ -1052,11 +1083,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
             ...current,
             // Each shape's drawing wrapped and tagged with its id, so the
             // show can hide, reveal and move one shape without a redraw.
-            svg: renderSlide(current, { width, resolveImage, tagShapes: true, idPrefix: 'st_' }),
+            svg: renderSlide(current, { width, resolveImage, tagShapes: true, idPrefix: 'st_', placeholderFrames: Boolean(masterPart) }),
             // This slide's own background, distinct from `background` above
             // (which the scene shows, inherited when the slide states none)
             // — so the ribbon can tick the choice that is actually this slide's.
-            ownBackground: safely(() => deck.background(index)) ?? null,
+            ownBackground: safely(() => deck.background(masterPart || index)) ?? null,
             shapes: current.shapes.map((s) => ({
               id: s.id,
               kind: s.kind,
@@ -1072,6 +1103,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
               effects: s.effects ?? null,
               geometry: s.geometry,
               placeholder: s.placeholder,
+              // Slide Master view: the words shown are the placeholder's prompt, not its own.
+              prompt: Boolean(s.prompt),
               // What a run that states nothing is drawn with — the master's,
               // the layout's and the shape's own styles — so the ribbon shows
               // a title's real size rather than the ribbon's own default.
@@ -1487,6 +1520,18 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     setThemeColors: (d, a) => d.setThemeColors(a.palette ?? a.colors, a.name ?? null),
     setThemeFonts: (d, a) => d.setThemeFonts(a.pair ?? { major: a.major, minor: a.minor }, a.name ?? null),
     setThemeEffects: (d, a) => d.setThemeEffects(a.effects),
+    // Slide Master view: layouts added, renamed and deleted; the title and
+    // footers a layout (or the master) offers; background graphics hidden;
+    // Preserve; a placeholder inserted; and the text styles a master's
+    // title and body placeholders give every slide.
+    insertLayout: (d, a) => d.insertLayout(a.master || null, { name: a.name || 'Custom Layout' }),
+    renamePart: (d, a) => d.renamePart(a.part, a.name),
+    removeLayout: (d, a) => d.removeLayout(a.part),
+    setMasterPlaceholders: (d, a) => d.setMasterPlaceholders(a.part, { title: a.title, footers: a.footers }),
+    setHideBackgroundGraphics: (d, a) => d.setHideBackgroundGraphics(a.part ?? a.slide, Boolean(a.hide)),
+    setMasterPreserve: (d, a) => d.setMasterPreserve(a.part, Boolean(a.on)),
+    insertPlaceholder: (d, a) => d.insertPlaceholder(a.part, a.kind || 'content', a.geometry || null),
+    setTextStyle: (d, a) => d.setTextStyle(a.slide, a.shape, a.props || {}),
 
   };
 
@@ -1770,7 +1815,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
 
     model: ({ id, ...opts }) => modelOf(get(id), opts),
 
-    apply: ({ id, ops, width, slide, delta = true }) => {
+    apply: ({ id, ops, width, slide, master = null, delta = true }) => {
       const session = get(id);
       const table = OPS[session.kind];
       // A selection move on a sheet that scrolls nothing is answered with
@@ -1818,7 +1863,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // A document answers with the difference; the other kinds are already
       // small — a sheet sends only the viewport, a deck one slide.
       if (session.kind === 'doc' && delta) return { ...session.meta(), ...docDelta(session), opResult };
-      return { ...session.meta(), model: modelOf(session, { width, slide }), opResult };
+      return { ...session.meta(), model: modelOf(session, { width, slide, master }), opResult };
     },
 
     viewport: ({ id, width, height, x, y }) => {
@@ -1831,18 +1876,20 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       return sheetModel(session);
     },
 
-    undo: ({ id, width, slide }) => {
+    undo: ({ id, width, slide, master }) => {
       const session = get(id);
       session.engine.undo?.();
       session.version++;
-      return { ...session.meta(), model: modelOf(session, { width, slide }) };
+      if (session.engine.dirty) session.dirty = true;
+      return { ...session.meta(), model: modelOf(session, { width, slide, master }) };
     },
 
-    redo: ({ id, width, slide }) => {
+    redo: ({ id, width, slide, master }) => {
       const session = get(id);
       session.engine.redo?.();
       session.version++;
-      return { ...session.meta(), model: modelOf(session, { width, slide }) };
+      if (session.engine.dirty) session.dirty = true;
+      return { ...session.meta(), model: modelOf(session, { width, slide, master }) };
     },
 
     save: ({ id, path: target }) => {

@@ -73,7 +73,7 @@ function textStyleLevels(sizes, color = 'tx1') {
 
 function masterXml() {
   const ph = (type, idx, x, y, cx, cy, anchor, sz, bold) =>
-    `<p:sp><p:nvSpPr><p:cNvPr id="${idx + 1}" name="${type} Placeholder ${idx + 1}"/>` +
+    `<p:sp><p:nvSpPr><p:cNvPr id="${idx + 2}" name="${type} Placeholder ${idx + 1}"/>` +
     `<p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="${type}"${idx ? ` idx="${idx}"` : ''}/></p:nvPr></p:nvSpPr>` +
     `<p:spPr><a:xfrm><a:off x="${x}" y="${y}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>` +
     `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>` +

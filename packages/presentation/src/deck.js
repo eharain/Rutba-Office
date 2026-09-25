@@ -693,16 +693,7 @@ export class Deck {
 
     // The layout's and the master's placeholder a slide's placeholder
     // matches, each looked up by index first and then by type.
-    const keysOf = (ph) => {
-      const keys = [];
-      if (ph.idx != null) keys.push(`idx:${ph.idx}`);
-      if (ph.type) keys.push(`type:${ph.type}`);
-      // A slide's "body" placeholder can match a layout's "subTitle" or "ctrTitle".
-      if (ph.type === 'body') keys.push('type:subTitle', 'type:ctrTitle', 'type:title');
-      if (ph.type === 'ctrTitle' || ph.type === 'subTitle') keys.push('type:title', 'type:body');
-      if (ph.type === 'title') keys.push('type:ctrTitle');
-      return keys;
-    };
+    const keysOf = placeholderKeys;
     const hitsFor = (ph) => {
       if (!ph) return { layout: null, master: null };
       const keys = keysOf(ph);
@@ -754,6 +745,9 @@ export class Deck {
     for (const s of scene.shapes) {
       if (s.text || s.inheritedText) s.textStyle = this.#cascade(s, hitsFor(s.placeholder), styles, theme);
     }
+    // What the master and the layout draw under every slide on them — a
+    // band, a logo, a line — unless the slide hides background graphics.
+    const underlay = /<p:sld\b[^>]*\bshowMasterSp="0"/.test(slideXml) ? [] : this.#underlay(layoutPart, masterPart, theme, styles, cache, index + 1);
 
     let notes = '';
     if (notesPart) notes = sceneText(readSlideScene(notesXml, { theme }));
@@ -766,6 +760,7 @@ export class Deck {
       size: this.size,
       background: scene.background,
       shapes: withLinks(withSlideNumber(scene.shapes, index + 1), rel),
+      underlay,
       notes,
       hidden: slideHiddenFrom(slideXml),
       // Transitions → the effect this slide comes in with, and how it moves on.
@@ -774,6 +769,114 @@ export class Deck {
       animations: safeAnimations(slideXml),
       theme: { colors: theme.colors, fonts: theme.fonts, name: theme.name, clrMap: theme.clrMap },
     };
+  }
+
+  /**
+   * The shapes a layout and its master draw that are not placeholders, in
+   * drawing order — the master's first (unless the layout hides them with
+   * `showMasterSp="0"`), then the layout's own — each resolved against its
+   * own part's relationships, so a logo on the master is found.
+   */
+  #underlay(layoutPart, masterPart, theme, styles, cache = this.layouts, slideNumber = null) {
+    const key = `underlay:${layoutPart}:${masterPart}`;
+    let list = cache.get(key);
+    if (!list) {
+      list = [];
+      const layoutXml = layoutPart && this.pkg.has(layoutPart) ? this.pkg.text(layoutPart) : '';
+      const hideMaster = /<p:sldLayout\b[^>]*\bshowMasterSp="0"/.test(layoutXml);
+      const parts = [hideMaster ? null : masterPart, layoutPart].filter((p) => p && this.pkg.has(p));
+      for (const part of parts) {
+        for (const s of this.#ownShapes(part, theme, styles)) list.push(s);
+      }
+      cache.set(key, list);
+    }
+    return slideNumber == null ? list : withSlideNumber(list, slideNumber);
+  }
+
+  /** A master's or a layout's shapes that are not placeholders, read with the part's own relationships. */
+  #ownShapes(part, theme, styles) {
+    const rels = this.#relMap(part);
+    const rel = (id) => {
+      const r = rels.get(id);
+      return r ? { part: r.resolved, external: r.mode === 'External', target: r.target } : null;
+    };
+    const scene = readSlideScene(this.pkg.text(part), { theme, rel });
+    const placed = new Set(scene.shapes.filter((s) => s.placeholder).map((s) => String(s.id)));
+    const out = [];
+    for (const s of scene.shapes) {
+      if (s.placeholder || (s.groupId != null && placed.has(String(s.groupId)))) continue;
+      if (s.text) s.textStyle = this.#cascade(s, { layout: null, master: null }, styles, theme);
+      out.push({ ...s, underlay: true, from: part });
+    }
+    return out;
+  }
+
+  /**
+   * A master's or a layout's own drawing — what Slide Master view shows and
+   * edits: its shapes, its placeholders styled by the cascade (a layout's
+   * from the master's), a prompt in each placeholder that holds no words of
+   * its own ("Click to edit Master title style", the five levels of the
+   * body), its background or the master's, and, under a layout, the
+   * master's own shapes. Scene-shaped, so the stage draws it as a slide.
+   */
+  partScene(part, { prompts = true } = {}) {
+    if (!this.#partOf(part) || typeof part !== 'string') throw new RangeError(`no master or layout ${part}`);
+    const isLayout = /slideLayouts\//.test(part);
+    const masterPart = isLayout ? this.#masterFor(part) : part;
+    const key = `part:${part}:${this.designStamp}:${prompts}`;
+    const hit = this._scenes.get(key);
+    if (hit) return hit;
+    const theme = this.#themeFor(masterPart);
+    const masterPh = isLayout ? this.#placeholders(masterPart, theme) : new Map();
+    const styles = this.#textStyles(masterPart, theme);
+    const rels = this.#relMap(part);
+    const rel = (id) => {
+      const r = rels.get(id);
+      return r ? { part: r.resolved, external: r.mode === 'External', target: r.target } : null;
+    };
+    const xml = this.pkg.text(part);
+    const find = (ph) => { for (const k of placeholderKeys(ph)) { const h = masterPh.get(k); if (h) return h; } return null; };
+    const inherit = isLayout
+      ? (ph) => {
+          const h = find(ph);
+          return h ? { geometry: h.geometry, fill: h.fill, line: h.line, text: h.text, anchor: h.text?.anchorStated ? h.text.anchor : null } : null;
+        }
+      : null;
+    const scene = readSlideScene(xml, { theme, inherit, rel });
+    const shapes = scene.shapes.map((s) => {
+      const out = { ...s };
+      const master = isLayout && s.placeholder ? find(s.placeholder) : null;
+      if (s.text || s.inheritedText || s.placeholder) out.textStyle = this.#cascade(s, { layout: null, master }, styles, theme);
+      if (prompts && s.placeholder && !hasWords(s.text)) {
+        out.text = promptBody(s.placeholder.type, isLayout, s.text || s.inheritedText);
+        out.prompt = true;
+      }
+      return out;
+    });
+    const background = scene.background || (isLayout ? masterPh.get('#background') || null : null);
+    const hidesMaster = isLayout && /<p:sldLayout\b[^>]*\bshowMasterSp="0"/.test(xml);
+    const underlay = isLayout && !hidesMaster ? this.#ownShapes(masterPart, theme, styles) : [];
+    const name = unescapeXml(/<p:cSld\b[^>]*\bname="([^"]*)"/.exec(xml)?.[1] || (isLayout ? 'Layout' : 'Slide Master'));
+    const result = {
+      index: -1,
+      kind: isLayout ? 'layout' : 'master',
+      name,
+      part,
+      layout: isLayout ? part : null,
+      master: masterPart,
+      size: this.size,
+      background,
+      shapes,
+      underlay,
+      hidesBackgroundGraphics: hidesMaster,
+      notes: '',
+      hidden: false,
+      transition: null,
+      animations: [],
+      theme: { colors: theme.colors, fonts: theme.fonts, name: theme.name, clrMap: theme.clrMap },
+    };
+    this._scenes.set(key, result);
+    return result;
   }
 
   /**
@@ -823,8 +926,13 @@ export class Deck {
   // PowerPoint never renumbers on open.
 
   #shapeRange(xml, shapeId) {
-    const marker = new RegExp(`<p:cNvPr[^>]*\\bid="${shapeId}"`);
-    const at = xml.search(marker);
+    const marker = new RegExp(`<p:cNvPr[^>]*\\bid="${shapeId}"`, 'g');
+    // The shape tree's own `<p:cNvPr>` comes before any shape, and a master
+    // written by an older build of this suite gave its title the same id —
+    // so the first match that follows a shape's opening tag is the shape.
+    const firstShape = Math.min(...['<p:sp>', '<p:pic>', '<p:graphicFrame>', '<p:cxnSp>', '<p:grpSp>'].map((o) => { const i = xml.indexOf(o); return i < 0 ? Infinity : i; }));
+    let at = -1;
+    for (const m of xml.matchAll(marker)) if (m.index > firstShape) { at = m.index; break; }
     if (at < 0) return null;
     // Walk back to the opening tag of the containing shape. `<p:grpSp>` is
     // here too: a group's own `<p:cNvPr>` sits in its `nvGrpSpPr`, first
@@ -1578,6 +1686,274 @@ export class Deck {
     // was; the scene it holds was built on the old layout.
     this._scenes.delete(part);
     this.dirty = true;
+    return true;
+  }
+
+  // ---- Slide Master view -----------------------------------------------------
+  //
+  // A master and its layouts are parts like a slide, and the same verbs edit
+  // them (every verb takes a master's or a layout's part name where it takes
+  // a slide index). What only a master has — its layouts, the text styles
+  // its title and body placeholders hand every slide, the placeholders a
+  // layout offers — is here.
+
+  /** How many slides sit on a layout. */
+  layoutUsage(layoutPart) {
+    return this.slideParts.filter((s) => this.#layoutFor(s.part) === layoutPart).length;
+  }
+
+  /** The deck's masters, each with its name and its layouts in its own order — the Slide Master view's strip. */
+  masterList() {
+    return this.masterParts().map((master) => {
+      const xml = this.pkg.text(master);
+      const rels = this.#relMap(master);
+      const layouts = [...xml.matchAll(/<p:sldLayoutId\b[^>]*\br:id="([^"]+)"/g)]
+        .map((m) => rels.get(m[1])?.resolved)
+        .filter((p) => p && this.pkg.has(p))
+        .map((part) => {
+          const lx = this.pkg.text(part);
+          return {
+            part,
+            name: unescapeXml(/<p:cSld\b[^>]*\bname="([^"]*)"/.exec(lx)?.[1] || 'Layout'),
+            type: /<p:sldLayout\b[^>]*\btype="([^"]*)"/.exec(lx)?.[1] || null,
+            used: this.layoutUsage(part),
+            hidesBackgroundGraphics: /<p:sldLayout\b[^>]*\bshowMasterSp="0"/.test(lx),
+            hasTitle: /<p:ph\b[^>]*\btype="(title|ctrTitle)"/.test(lx),
+            hasFooters: /<p:ph\b[^>]*\btype="(dt|ftr|sldNum)"/.test(lx),
+          };
+        });
+      return {
+        part: master,
+        name: unescapeXml(/<p:cSld\b[^>]*\bname="([^"]*)"/.exec(xml)?.[1] || `${this.#themeFor(master).name || 'Office'} Slide Master`),
+        preserve: /<p:sldMaster\b[^>]*\bpreserve="1"/.test(xml),
+        hasTitle: /<p:ph\b[^>]*\btype="title"/.test(xml),
+        hasFooters: /<p:ph\b[^>]*\btype="(dt|ftr|sldNum)"/.test(xml),
+        layouts,
+      };
+    });
+  }
+
+  /** Rename a master or a layout — the name PowerPoint shows in the gallery. */
+  renamePart(part, name) {
+    const p = this.#partOf(part);
+    if (!p || typeof part !== 'string') throw new RangeError(`no master or layout ${part}`);
+    const clean = String(name ?? '').trim();
+    if (!clean) throw new Error('a layout needs a name');
+    const xml = this.pkg.text(p);
+    const next = /<p:cSld\b[^>]*\bname="[^"]*"/.test(xml)
+      ? xml.replace(/(<p:cSld\b[^>]*\bname=")[^"]*"/, (m, a) => `${a}${escapeXml(clean)}"`)
+      : xml.replace(/<p:cSld\b/, `<p:cSld name="${escapeXml(clean)}"`);
+    if (next === xml) return false;
+    this.#writeSlide(p, next);
+    return true;
+  }
+
+  /** Slide Master → Preserve: a master PowerPoint keeps even when no slide uses it. */
+  setMasterPreserve(master, on) {
+    if (!/slideMasters\//.test(String(master)) || !this.pkg.has(master)) throw new RangeError(`no master ${master}`);
+    const xml = this.pkg.text(master);
+    const bare = xml.replace(/(<p:sldMaster\b[^>]*?)\s+preserve="[^"]*"/, '$1');
+    const next = on ? bare.replace(/<p:sldMaster\b/, '<p:sldMaster preserve="1"') : bare;
+    if (next === xml) return false;
+    this.#writeSlide(master, next);
+    return true;
+  }
+
+  /** Background → Hide Background Graphics: a layout (or a slide) drawn without its master's shapes. */
+  setHideBackgroundGraphics(target, hide) {
+    const part = this.#partOf(target);
+    if (!part || /slideMasters\//.test(part)) throw new RangeError('background graphics are hidden on a layout or a slide');
+    const tag = /slideLayouts\//.test(part) ? 'p:sldLayout' : 'p:sld';
+    const xml = this.pkg.text(part);
+    const open = new RegExp(`<${tag}\\b[^>]*>`).exec(xml);
+    if (!open) return false;
+    const bare = open[0].replace(/\s+showMasterSp="[^"]*"/, '');
+    const nextOpen = hide ? bare.replace(new RegExp(`^<${tag}`), `<${tag} showMasterSp="0"`) : bare;
+    if (nextOpen === open[0]) return false;
+    this.#writeSlide(part, xml.slice(0, open.index) + nextOpen + xml.slice(open.index + open[0].length));
+    if (tag === 'p:sld') this._scenes.delete(part);
+    return true;
+  }
+
+  /**
+   * Slide Master → Insert Layout: a new layout at the end of a master's
+   * list, PowerPoint's own "Custom Layout" — a title and the footers, each
+   * taking its place and look from the master.
+   * @returns {string} the new layout's part
+   */
+  insertLayout(master = null, { name = 'Custom Layout' } = {}) {
+    const m = master || this.masterParts()[0];
+    if (!m || !this.pkg.has(m)) throw new RangeError('no master to add a layout to');
+    const n = this.pkg.nextPartNumber('ppt/slideLayouts/', 'slideLayout');
+    const part = `ppt/slideLayouts/slideLayout${n}.xml`;
+    const masterXml = this.pkg.text(m);
+    const ph = (id, type, label, idx = null) =>
+      `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${label} ${id - 1}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="${type}"${type === 'title' ? '' : ' sz="quarter"'}${idx != null ? ` idx="${idx}"` : ''}/></p:nvPr></p:nvSpPr><p:spPr/>` +
+      `<p:txBody><a:bodyPr/><a:lstStyle/><a:p>${type === 'title' ? '<a:r><a:rPr lang="en-US"/><a:t>Click to edit Master title style</a:t></a:r>' : ''}<a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp>`;
+    const shapes = [ph(2, 'title', 'Title')];
+    let id = 3;
+    for (const [type, label, idx] of [['dt', 'Date Placeholder', 10], ['ftr', 'Footer Placeholder', 11], ['sldNum', 'Slide Number Placeholder', 12]]) {
+      if (new RegExp(`<p:ph\\b[^>]*\\btype="${type}"`).test(masterXml)) shapes.push(ph(id++, type, label, idx));
+    }
+    const xml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<p:sldLayout xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:p="http://schemas.openxmlformats.org/presentationml/2006/main" preserve="1" userDrawn="1">` +
+      `<p:cSld name="${escapeXml(name)}"><p:spTree><p:nvGrpSpPr><p:cNvPr id="1" name=""/><p:cNvGrpSpPr/><p:nvPr/></p:nvGrpSpPr><p:grpSpPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="0" cy="0"/><a:chOff x="0" y="0"/><a:chExt cx="0" cy="0"/></a:xfrm></p:grpSpPr>` +
+      shapes.join('') + `</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:sldLayout>`;
+    this.pkg.addPart(part, Buffer.from(xml, 'utf8'), CT.layout);
+    // Its own relationships part, typed by the package's rels default as PowerPoint writes it.
+    this.pkg.addPart(`ppt/slideLayouts/_rels/slideLayout${n}.xml.rels`, Buffer.from(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${REL.master}" Target="../slideMasters/${m.split('/').pop()}"/></Relationships>`, 'utf8'));
+    const rId = this.pkg.addRelationshipTo(m, REL.layout, `../slideLayouts/slideLayout${n}.xml`);
+    // Layout ids share one number space with the masters' — above 2^31, unique across the deck.
+    const pres = this.pkg.text('ppt/presentation.xml');
+    const ids = [...pres.matchAll(/<p:sldMasterId\b[^>]*\bid="(\d+)"/g)].map((x) => Number(x[1]));
+    for (const mp of this.masterParts()) for (const x of this.pkg.text(mp).matchAll(/<p:sldLayoutId\b[^>]*\bid="(\d+)"/g)) ids.push(Number(x[1]));
+    const next = Math.max(2147483648, ...ids) + 1;
+    const entry = `<p:sldLayoutId id="${next}" r:id="${rId}"/>`;
+    const mx = this.pkg.text(m);
+    const withEntry = /<\/p:sldLayoutIdLst>/.test(mx)
+      ? mx.replace('</p:sldLayoutIdLst>', `${entry}</p:sldLayoutIdLst>`)
+      : mx.replace(/(<p:clrMap\b[^>]*\/>)/, `$1<p:sldLayoutIdLst>${entry}</p:sldLayoutIdLst>`);
+    this.#writeSlide(m, withEntry);
+    return part;
+  }
+
+  /** Slide Master → Delete: a layout no slide uses, taken out of its master's list and the package. */
+  removeLayout(part) {
+    if (!/slideLayouts\//.test(String(part)) || !this.pkg.has(part)) throw new RangeError(`no layout ${part}`);
+    const used = this.layoutUsage(part);
+    if (used) throw new Error(`${used === 1 ? 'A slide uses' : `${used} slides use`} this layout; put ${used === 1 ? 'it' : 'them'} on another layout first.`);
+    const master = this.#masterFor(part);
+    if (master) {
+      const rel = [...this.#relMap(master).values()].find((r) => r.type === REL.layout && r.resolved === part);
+      if (rel) {
+        const mx = this.pkg.text(master).replace(new RegExp(`<p:sldLayoutId\\b[^>]*\\br:id="${rel.id}"[^>]*/>`), '');
+        this.pkg.write_(master, Buffer.from(mx, 'utf8'));
+        const relsPath = master.replace(/([^/]+)$/, '_rels/$1.rels');
+        const rx = this.pkg.text(relsPath).replace(new RegExp(`<Relationship\\b[^>]*\\bId="${rel.id}"[^>]*/>`), '');
+        this.pkg.write_(relsPath, Buffer.from(rx, 'utf8'));
+      }
+    }
+    this.pkg.removePart(part);
+    this.#designChanged();
+    return true;
+  }
+
+  /**
+   * Slide Master → Title and Footers: a layout (or the master) with its
+   * title placeholder, or without; with the date, footer and number
+   * placeholders, or without. An added placeholder states no geometry of
+   * its own, so it takes the master's place and look; on the master itself
+   * it goes where PowerPoint's own masters put it.
+   */
+  setMasterPlaceholders(target, { title, footers } = {}) {
+    const part = this.#partOf(target);
+    if (!part || typeof target !== 'string') throw new RangeError(`no master or layout ${target}`);
+    const isMaster = /slideMasters\//.test(part);
+    let xml = this.pkg.text(part);
+    const blocks = (re) => {
+      const out = [];
+      const sp = /<p:sp>[\s\S]*?<\/p:sp>/g;
+      let m;
+      while ((m = sp.exec(xml))) if (re.test(m[0])) out.push({ start: m.index, end: m.index + m[0].length });
+      return out;
+    };
+    const drop = (re) => { for (const b of blocks(re).reverse()) xml = xml.slice(0, b.start) + xml.slice(b.end); };
+    const { cx, cy } = this.size;
+    const box = (x, y, w, h) => `<p:spPr><a:xfrm><a:off x="${Math.round(cx * x)}" y="${Math.round(cy * y)}"/><a:ext cx="${Math.round(cx * w)}" cy="${Math.round(cy * h)}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr>`;
+    const add = (type, label, idx, geometry, words = '', algn = null) => {
+      const id = nextShapeId(xml);
+      const sp = `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${label} ${id - 1}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph type="${type}"${type === 'title' ? '' : ' sz="quarter"'}${idx != null ? ` idx="${idx}"` : ''}/></p:nvPr></p:nvSpPr>` +
+        `${isMaster || !masterPlaces(type) ? geometry : '<p:spPr/>'}<p:txBody><a:bodyPr/><a:lstStyle/><a:p>${algn ? `<a:pPr algn="${algn}"/>` : ''}${words ? `<a:r><a:rPr lang="en-US"/><a:t>${words}</a:t></a:r>` : ''}<a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp>`;
+      const at = type === 'title' ? xml.indexOf('</p:grpSpPr>') + '</p:grpSpPr>'.length : xml.lastIndexOf('</p:spTree>');
+      xml = xml.slice(0, at) + sp + xml.slice(at);
+    };
+    // A layout's new placeholder takes its place from the master's of that
+    // kind; where the master has none, it is placed where PowerPoint's own
+    // masters put it, so it is not a box with nowhere to be.
+    const masterXml = isMaster ? '' : this.pkg.text(this.#masterFor(part) || part);
+    const masterPlaces = (type) => new RegExp(`<p:ph\\b[^>]*\\btype="${type}"`).test(masterXml) && /<a:off\b/.test(masterXml);
+    const hasTitle = () => /<p:ph\b[^>]*\btype="(title|ctrTitle)"/.test(xml);
+    if (title === false) drop(/<p:ph\b[^>]*\btype="(title|ctrTitle)"/);
+    if (title === true && !hasTitle()) add('title', 'Title', null, box(0.0688, 0.0533, 0.8625, 0.1933), 'Click to edit Master title style');
+    if (footers === false) drop(/<p:ph\b[^>]*\btype="(dt|ftr|sldNum)"/);
+    if (footers === true) {
+      const band = [['dt', 'Date Placeholder', 10, box(0.0688, 0.9267, 0.225, 0.0533), 'l'], ['ftr', 'Footer Placeholder', 11, box(0.3313, 0.9267, 0.3375, 0.0533), 'ctr'], ['sldNum', 'Slide Number Placeholder', 12, box(0.7063, 0.9267, 0.225, 0.0533), 'r']];
+      for (const [type, label, idx, geometry, algn] of band) {
+        if (!new RegExp(`<p:ph\\b[^>]*\\btype="${type}"`).test(xml)) add(type, label, idx, geometry, '', isMaster || !masterPlaces(type) ? algn : null);
+      }
+    }
+    if (xml === this.pkg.text(part)) return false;
+    this.#writeSlide(part, xml);
+    return true;
+  }
+
+  /**
+   * Slide Master → Insert Placeholder: a content, text or picture
+   * placeholder on a layout, in the middle of it, numbered past the
+   * layout's own. Slides on the layout offer it to be filled.
+   * @returns {number} the new shape's id
+   */
+  insertPlaceholder(layout, kind = 'content', geometry = null) {
+    if (!/slideLayouts\//.test(String(layout)) || !this.pkg.has(layout)) throw new RangeError('placeholders are inserted on a layout');
+    let xml = this.pkg.text(layout);
+    const used = [...xml.matchAll(/<p:ph\b[^>]*\bidx="(\d+)"/g)].map((m) => Number(m[1]));
+    const idx = Math.max(12, ...used) + 1;
+    const id = nextShapeId(xml);
+    const g = geometry || { x: this.size.width * 0.2, y: this.size.height * 0.3, w: this.size.width * 0.6, h: this.size.height * 0.45 };
+    const type = kind === 'picture' ? ' type="pic"' : kind === 'text' ? ' type="body"' : '';
+    const label = kind === 'picture' ? 'Picture Placeholder' : kind === 'text' ? 'Text Placeholder' : 'Content Placeholder';
+    const words = kind === 'picture' ? '' : '<a:r><a:rPr lang="en-US"/><a:t>Click to edit Master text styles</a:t></a:r>';
+    const sp = `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${label} ${id - 1}"/><p:cNvSpPr><a:spLocks noGrp="1"/></p:cNvSpPr><p:nvPr><p:ph${type} sz="quarter" idx="${idx}"/></p:nvPr></p:nvSpPr>` +
+      `<p:spPr><a:xfrm><a:off x="${pxToEmu(g.x)}" y="${pxToEmu(g.y)}"/><a:ext cx="${pxToEmu(g.w)}" cy="${pxToEmu(g.h)}"/></a:xfrm></p:spPr>` +
+      `<p:txBody><a:bodyPr/><a:lstStyle/><a:p><a:pPr lvl="0"/>${words}<a:endParaRPr lang="en-US"/></a:p></p:txBody></p:sp>`;
+    const at = xml.lastIndexOf('</p:spTree>');
+    xml = xml.slice(0, at) + sp + xml.slice(at);
+    this.#writeSlide(layout, xml);
+    return id;
+  }
+
+  /**
+   * Formatting a placeholder in Slide Master view: on the master, a title
+   * or body placeholder's look is the master's title or body text style —
+   * what every slide's title and body inherit — and any other placeholder's
+   * (and every layout placeholder's) is its own list style. `props` is any
+   * of size (the first level's, the others keeping their proportion), bold,
+   * italic, underline, color ('RRGGBB' or '#RRGGBB'), font and align.
+   */
+  setTextStyle(target, shapeId, props = {}) {
+    const part = this.#partOf(target);
+    if (!part || typeof target !== 'string') throw new RangeError(`no master or layout ${target}`);
+    let xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found`);
+    const shapeXml = xml.slice(range.start, range.end);
+    const type = /<p:ph\b([^>]*)\/?>/.exec(shapeXml) ? (/\btype="([^"]+)"/.exec(/<p:ph\b([^>]*)\/?>/.exec(shapeXml)[1])?.[1] || 'body') : null;
+    const isMaster = /slideMasters\//.test(part);
+    const kind = type === 'title' || type === 'ctrTitle' ? 'title' : type === 'body' || type === 'obj' || type === 'subTitle' ? 'body' : 'other';
+    const levels = kind === 'body' ? 5 : 1;
+    if (isMaster && type && kind !== 'other') {
+      const tag = kind === 'title' ? 'p:titleStyle' : 'p:bodyStyle';
+      const re = new RegExp(`<${tag}>[\\s\\S]*?</${tag}>|<${tag}/>`);
+      const style = re.exec(xml);
+      const edited = editListStyle(style ? style[0].replace(`<${tag}/>`, `<${tag}></${tag}>`) : `<${tag}></${tag}>`, tag, props, levels);
+      if (style) xml = xml.slice(0, style.index) + edited + xml.slice(style.index + style[0].length);
+      else if (/<p:txStyles>/.test(xml)) xml = xml.replace('<p:txStyles>', `<p:txStyles>${edited}`);
+      else xml = xml.replace(/<\/p:sldMaster>\s*$/, `<p:txStyles>${edited}</p:txStyles></p:sldMaster>`);
+    } else {
+      const lst = /<a:lstStyle>[\s\S]*?<\/a:lstStyle>|<a:lstStyle\/>/.exec(shapeXml);
+      let nextShape;
+      if (lst) {
+        const edited = editListStyle(lst[0] === '<a:lstStyle/>' ? '<a:lstStyle></a:lstStyle>' : lst[0], 'a:lstStyle', props, levels);
+        nextShape = shapeXml.slice(0, lst.index) + edited + shapeXml.slice(lst.index + lst[0].length);
+      } else if (/<a:bodyPr\b[^>]*\/>|<a:bodyPr\b[^>]*>[\s\S]*?<\/a:bodyPr>/.test(shapeXml)) {
+        const edited = editListStyle('<a:lstStyle></a:lstStyle>', 'a:lstStyle', props, levels);
+        nextShape = shapeXml.replace(/<a:bodyPr\b[^>]*\/>|<a:bodyPr\b[^>]*>[\s\S]*?<\/a:bodyPr>/, (m) => m + edited);
+      } else {
+        throw new Error('this shape holds no words to style');
+      }
+      xml = xml.slice(0, range.start) + nextShape + xml.slice(range.end);
+    }
+    if (xml === this.pkg.text(part)) return false;
+    this.#writeSlide(part, xml);
     return true;
   }
 
@@ -2955,6 +3331,154 @@ export class Deck {
   save() {
     return this.pkg.write();
   }
+}
+
+/**
+ * The keys a placeholder is looked up by on its layout and master: its
+ * index first, then its type, then the types PowerPoint lets stand in for
+ * it — a slide's body can fill a layout's subtitle, a centred title a title.
+ */
+function placeholderKeys(ph) {
+  const keys = [];
+  if (ph.idx != null) keys.push(`idx:${ph.idx}`);
+  if (ph.type) keys.push(`type:${ph.type}`);
+  // A slide's "body" placeholder can match a layout's "subTitle" or "ctrTitle".
+  if (ph.type === 'body') keys.push('type:subTitle', 'type:ctrTitle', 'type:title');
+  if (ph.type === 'ctrTitle' || ph.type === 'subTitle') keys.push('type:title', 'type:body');
+  if (ph.type === 'title') keys.push('type:ctrTitle');
+  return keys;
+}
+
+/** Whether a text body holds any words. */
+function hasWords(body) {
+  return Boolean(body?.paragraphs?.some((p) => (p.runs || []).some((r) => r.text && r.text.trim())));
+}
+
+/** The words Slide Master view shows in a placeholder that holds none, PowerPoint's own. */
+const PROMPTS = {
+  title: 'Click to edit Master title style',
+  ctrTitle: 'Click to edit Master title style',
+  subTitle: 'Click to edit Master subtitle style',
+  dt: 'Date',
+  ftr: 'Footer',
+  sldNum: '‹#›',
+  pic: 'Picture',
+  chart: 'Chart',
+  tbl: 'Table',
+  media: 'Media',
+};
+const BODY_PROMPTS = ['Click to edit Master text styles', 'Second level', 'Third level', 'Fourth level', 'Fifth level'];
+
+/** A placeholder's prompt as a text body, keeping the body's own anchor, insets and list style. */
+function promptBody(type, isLayout, body) {
+  const base = body ? { ...body } : { anchor: 'top', vert: 'horz', columns: 1, wrap: true, autofit: false, insets: { l: 7.2, t: 3.6, r: 7.2, b: 3.6 }, levels: null };
+  const words = PROMPTS[type];
+  const align = body?.paragraphs?.[0]?.align;
+  const paragraphs = words
+    ? [{ ...(align ? { align } : {}), runs: [{ text: words }] }]
+    : BODY_PROMPTS.map((text, level) => ({ ...(level ? { level } : {}), runs: [{ text }] }));
+  return { ...base, paragraphs };
+}
+
+/** An element's top-level children, each as its own XML string. */
+function topElements(inner) {
+  const out = [];
+  const re = /<(\/?)([A-Za-z0-9_:]+)\b[^>]*?(\/?)>/g;
+  let depth = 0;
+  let start = -1;
+  let m;
+  while ((m = re.exec(inner))) {
+    if (m[1]) {
+      depth -= 1;
+      if (depth === 0 && start >= 0) { out.push(inner.slice(start, m.index + m[0].length)); start = -1; }
+    } else if (m[3]) {
+      if (depth === 0) out.push(m[0]);
+    } else {
+      if (depth === 0) start = m.index;
+      depth += 1;
+    }
+  }
+  return out;
+}
+
+/** Where a run property's children go, in the schema's order (CT_TextCharacterProperties). */
+const RPR_ORDER = ['a:ln', 'a:noFill', 'a:solidFill', 'a:gradFill', 'a:blipFill', 'a:pattFill', 'a:grpFill', 'a:effectLst', 'a:effectDag', 'a:highlight', 'a:uLnTx', 'a:uLn', 'a:uFillTx', 'a:uFill', 'a:latin', 'a:ea', 'a:cs', 'a:sym', 'a:hlinkClick', 'a:hlinkMouseOver', 'a:rtl', 'a:extLst'];
+/** A list level's children, in the schema's order (CT_TextParagraphProperties). */
+const PPR_ORDER = ['a:lnSpc', 'a:spcBef', 'a:spcAft', 'a:buClrTx', 'a:buClr', 'a:buSzTx', 'a:buSzPct', 'a:buSzPts', 'a:buFontTx', 'a:buFont', 'a:buNone', 'a:buAutoNum', 'a:buChar', 'a:buBlip', 'a:tabLst', 'a:defRPr', 'a:extLst'];
+const nameOfEl = (el) => /^<([A-Za-z0-9_:]+)/.exec(el)?.[1] || '';
+const sortBy = (order, els) => [...els].sort((a, b) => order.indexOf(nameOfEl(a)) - order.indexOf(nameOfEl(b)));
+
+/**
+ * A list style (`a:lstStyle`, `p:titleStyle`, `p:bodyStyle`) with the
+ * given look laid on its levels — the first `levels` of them, created
+ * where missing — each level's `a:defRPr` and alignment rewritten, every
+ * other thing it says kept, children in the schema's order.
+ */
+function editListStyle(xml, tag, props, levels) {
+  const open = new RegExp(`^<${tag}\\b[^>]*>`).exec(xml)[0];
+  const inner = xml.slice(open.length, xml.length - `</${tag}>`.length);
+  const els = topElements(inner);
+  const byLevel = new Map();
+  for (const el of els) {
+    const m = /^<a:lvl(\d)pPr\b/.exec(el);
+    if (m) byLevel.set(Number(m[1]), el);
+  }
+  const firstSize = (() => {
+    const l1 = byLevel.get(1);
+    const sz = l1 && /<a:defRPr\b[^>]*\bsz="(\d+)"/.exec(l1)?.[1];
+    return sz ? Number(sz) : null;
+  })();
+  const ratio = props.size != null && firstSize ? (Number(props.size) * 100) / firstSize : null;
+  const colour = props.color ? String(props.color).replace('#', '').toUpperCase() : null;
+  const setAttr = (openTag, name, value) => {
+    const bare = openTag.replace(new RegExp(`\\s+${name}="[^"]*"`), '');
+    return value == null ? bare : bare.replace(/^(<[A-Za-z0-9_:]+)/, `$1 ${name}="${value}"`);
+  };
+  const editLevel = (n, el) => {
+    let lvl = el || `<a:lvl${n}pPr></a:lvl${n}pPr>`;
+    if (/^<a:lvl\dpPr\b[^>]*\/>$/.test(lvl)) lvl = lvl.replace(/\/>$/, `></a:lvl${n}pPr>`);
+    const lvlOpen = /^<a:lvl\dpPr\b[^>]*>/.exec(lvl)[0];
+    let head = lvlOpen;
+    if (props.align) head = setAttr(head, 'algn', { left: 'l', center: 'ctr', right: 'r', justify: 'just' }[props.align] || 'l');
+    const kidsOf = topElements(lvl.slice(lvlOpen.length, lvl.length - `</a:lvl${n}pPr>`.length));
+    let def = kidsOf.find((k) => nameOfEl(k) === 'a:defRPr') || '<a:defRPr/>';
+    const rest = kidsOf.filter((k) => nameOfEl(k) !== 'a:defRPr');
+    let defOpen = /^<a:defRPr\b[^>]*?\/?>/.exec(def)[0];
+    const defKids = defOpen.endsWith('/>') ? [] : topElements(def.slice(defOpen.length, def.length - '</a:defRPr>'.length));
+    defOpen = defOpen.replace(/\/>$/, '>');
+    if (props.size != null) {
+      const own = Number(/\bsz="(\d+)"/.exec(defOpen)?.[1] || 0);
+      const sz = n === 1 || !own || !ratio ? (n === 1 ? Math.round(Number(props.size) * 100) : null) : Math.round(own * ratio);
+      if (sz) defOpen = setAttr(defOpen, 'sz', sz);
+    }
+    for (const [key, attr, on] of [['bold', 'b', '1'], ['italic', 'i', '1'], ['underline', 'u', 'sng']]) {
+      if (props[key] === undefined) continue;
+      defOpen = setAttr(defOpen, attr, props[key] ? on : attr === 'u' ? 'none' : '0');
+    }
+    let children = defKids;
+    if (colour) children = [...children.filter((k) => !/^<a:(noFill|solidFill|gradFill|blipFill|pattFill|grpFill)\b/.test(k)), `<a:solidFill><a:srgbClr val="${colour}"/></a:solidFill>`];
+    if (props.font !== undefined) {
+      children = children.filter((k) => nameOfEl(k) !== 'a:latin');
+      if (props.font) children.push(`<a:latin typeface="${escapeXml(props.font)}"/>`);
+    }
+    children = sortBy(RPR_ORDER, children);
+    def = children.length ? `${defOpen}${children.join('')}</a:defRPr>` : defOpen.replace(/>$/, '/>');
+    return `${head}${sortBy(PPR_ORDER, [...rest, def]).join('')}</a:lvl${n}pPr>`;
+  };
+  const kept = [];
+  const done = new Set();
+  for (const el of els) {
+    const m = /^<a:lvl(\d)pPr\b/.exec(el);
+    if (!m) { kept.push(el); continue; }
+    const n = Number(m[1]);
+    kept.push(n <= levels || byLevel.has(n) ? editLevel(n, el) : el);
+    done.add(n);
+  }
+  for (let n = 1; n <= levels; n++) if (!done.has(n)) kept.push(editLevel(n, null));
+  // defPPr first, then the levels in order, then extLst.
+  const rank = (el) => (nameOfEl(el) === 'a:defPPr' ? 0 : nameOfEl(el) === 'a:extLst' ? 99 : Number(/^<a:lvl(\d)pPr/.exec(el)?.[1] || 50));
+  kept.sort((a, b) => rank(a) - rank(b));
+  return `${open}${kept.join('')}</${tag}>`;
 }
 
 /** A slide's animations, or none when its timing is past reading — the slide still opens. */

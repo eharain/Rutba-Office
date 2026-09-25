@@ -115,6 +115,8 @@ export default function SlidesRibbon({
   tab, setTab, model, doc, commands, shell, menu, save, openFile, exportAs,
   act, view = {}, index = 0, selected = null, selectedIds = [], format = {}, canPaste = false, painter = false, animation = null, animPainter = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
   designStrip = null,
+  masterView = null,
+  masterPart = null,
 
 }) {
   const count = model?.count || 0;
@@ -156,9 +158,27 @@ export default function SlidesRibbon({
     })),
   ]);
 
+  // Slide Master view: the part on the stage, the master it belongs to.
+  const masterItem = masterView?.items?.find((it) => it.part === masterPart) || null;
+  const masterOfItem = masterItem ? masterView.items.find((it) => it.part === (masterItem.kind === 'master' ? masterItem.part : masterItem.master)) : null;
+  const isLayout = masterItem?.kind === 'layout';
+  /** Design → Background Styles, and the Slide Master tab's own: the gallery, Reset, and (on slides) Apply to all. */
+  const backgroundMenu = (e) => {
+    const own = model?.slide?.ownBackground ?? null;
+    const same = (spec) => JSON.stringify(spec ?? null) === JSON.stringify(own);
+    menu.open(e, [
+      ...BACKGROUND_STYLES.map((row) => (row === '-' ? '-' : { label: row[0], icon: same(row[1]) ? 'check' : undefined, run: () => act('background', { spec: row[1] }) })),
+      '-',
+      { label: masterView ? (isLayout ? "Reset to the master's" : 'Reset to the theme\'s') : "Reset to the layout's", icon: same(null) ? 'check' : undefined, run: () => act('background', { spec: null }) },
+      ...(masterView ? [] : ['-', { label: 'Apply to all slides', run: () => act('background', { spec: own, all: true }) }]),
+    ]);
+  };
+  const galleryAt = (kind) => (e) => { const r = e.currentTarget.getBoundingClientRect(); act('designGallery', { kind, anchor: { left: r.left, bottom: r.bottom + 4 } }); };
+
   return (
     <Ribbon
       tabs={[
+        ...(masterView ? [{ id: 'master', label: 'Slide Master' }] : []),
         { id: 'home', label: 'Home' },
         { id: 'insert', label: 'Insert' },
         { id: 'draw', label: 'Draw' },
@@ -341,6 +361,45 @@ export default function SlidesRibbon({
       ) : null}
 
       {/* ── Insert ───────────────────────────────────────────────────────── */}
+      {/* ── Slide Master (only while the master and its layouts are on the stage) ── */}
+      {tab === 'master' && masterView ? (
+        <>
+          <Group label="Edit Master">
+            <Soon tall icon="slides" label="Insert Slide Master" why="A second master in one deck is not built; this master, its layouts and its theme are all edited here." />
+            <Button tall icon="plus" label="Insert Layout" title="Insert Layout — a new layout on this master, with a title and the footers" onClick={() => act('insertLayout')} />
+            <Rows>
+              <Button icon="trash" label="Delete" disabled={!isLayout || masterItem?.used > 0} title={!isLayout ? 'Delete — pick a layout; the master stays' : masterItem?.used ? `Delete — ${masterItem.used === 1 ? 'a slide uses' : `${masterItem.used} slides use`} this layout; put ${masterItem.used === 1 ? 'it' : 'them'} on another first` : 'Delete — this layout, which no slide uses'} onClick={() => act('deleteLayout')} />
+              <Button icon="textbox" label="Rename" title={`Rename — this ${isLayout ? 'layout' : 'master'}'s name`} onClick={() => act('renameLayout')} />
+              <Button icon="lock" label="Preserve" pressed={Boolean(masterOfItem?.preserve)} title="Preserve — keep this master in the file even when no slide uses it" onClick={() => act('preserve')} />
+            </Rows>
+          </Group>
+          <Group label="Master Layout">
+            <Button tall icon="grid" label="Insert Placeholder" disabled={!isLayout} title={isLayout ? 'Insert Placeholder — a content, text or picture placeholder on this layout' : 'Insert Placeholder — pick a layout; the master holds the placeholders every layout draws from'} onClick={(e) => menu.open(e, [['content', 'Content'], ['text', 'Text'], ['picture', 'Picture']].map(([kind, label]) => ({ label, icon: kind === 'picture' ? 'picture' : 'textbox', run: () => act('insertPlaceholder', kind) })))} />
+            <Rows>
+              <label className="sl-rb-field sl-rb-check" data-tip="Title — this layout's title placeholder, or none"><input type="checkbox" className="sl-master-title" checked={Boolean(masterItem?.hasTitle)} onChange={(e) => act('masterPlaceholders', { title: e.target.checked })} /> Title</label>
+              <label className="sl-rb-field sl-rb-check" data-tip="Footers — the date, footer and slide number placeholders, or none"><input type="checkbox" className="sl-master-footers" checked={Boolean(masterItem?.hasFooters)} onChange={(e) => act('masterPlaceholders', { footers: e.target.checked })} /> Footers</label>
+            </Rows>
+          </Group>
+          <Group label="Edit Theme">
+            <Button tall icon="wand" label="Themes" title="Themes — every theme, drawn on the first slide" onClick={galleryAt('themes')} />
+            <Rows>
+              <Button icon="contrast" label="Colours" title="Colours — the theme's twelve colours" onClick={galleryAt('colours')} />
+              <Button icon="textbox" label="Fonts" title="Fonts — the theme's heading and body faces" onClick={galleryAt('fonts')} />
+              <Button icon="wand" label="Effects" title="Effects — the theme's format scheme" onClick={galleryAt('effects')} />
+            </Rows>
+          </Group>
+          <Group label="Background">
+            <Button tall icon="picture" label="Background Styles" title={`Background Styles — ${isLayout ? 'this layout' : 'the master'}'s background`} onClick={backgroundMenu} />
+            <Rows>
+              <label className="sl-rb-field sl-rb-check" data-tip={isLayout ? "Hide Background Graphics — this layout without the master's own shapes" : 'Hide Background Graphics — pick a layout; the master always draws its own'}><input type="checkbox" className="sl-master-hidebg" disabled={!isLayout} checked={Boolean(masterItem?.hidesBackgroundGraphics)} onChange={(e) => act('hideBackgroundGraphics', e.target.checked)} /> Hide Background Graphics</label>
+            </Rows>
+          </Group>
+          <Group label="Close">
+            <Button tall icon="close" label="Close Master View" title="Close Master View — back to the slides" onClick={() => act('closeMaster')} />
+          </Group>
+        </>
+      ) : null}
+
       {tab === 'insert' ? (
         <>
           <Group label="Slides">
@@ -462,17 +521,7 @@ export default function SlidesRibbon({
               icon="picture"
               label="Background Styles"
               title="Background Styles — a solid or gradient background for this slide, or every slide"
-              onClick={(e) => {
-                const own = model?.slide?.ownBackground ?? null;
-                const same = (spec) => JSON.stringify(spec ?? null) === JSON.stringify(own);
-                menu.open(e, [
-                  ...BACKGROUND_STYLES.map((row) => (row === '-' ? '-' : { label: row[0], icon: same(row[1]) ? 'check' : undefined, run: () => act('background', { spec: row[1] }) })),
-                  '-',
-                  { label: "Reset to the layout's", icon: same(null) ? 'check' : undefined, run: () => act('background', { spec: null }) },
-                  '-',
-                  { label: 'Apply to all slides', run: () => act('background', { spec: own, all: true }) },
-                ]);
-              }}
+              onClick={backgroundMenu}
             />
           </Group>
           <Group label="Slides">
@@ -777,9 +826,9 @@ export default function SlidesRibbon({
             <Button tall icon="play" label="Reading View" title="The show in this window, not full screen" onClick={() => act('present', 'reading')} />
           </Group>
           <Group label="Master Views">
-            <Soon tall icon="slides" label="Slide Master" why="Master editing rewrites layouts every slide inherits from; the engine reads masters and does not yet write one." />
-            <Soon tall icon="file" label="Handout Master" why="Comes with master editing." />
-            <Soon tall icon="word" label="Notes Master" why="Comes with master editing." />
+            <Button tall icon="slides" label="Slide Master" pressed={Boolean(masterView)} title="Slide Master — edit the master and its layouts; every slide on them follows" onClick={() => act(masterView ? 'closeMaster' : 'masterView')} />
+            <Soon tall icon="file" label="Handout Master" why="Printed handouts are laid out by the Print dialog's own pages-per-sheet; a handout master part is kept in the file but not drawn or edited." />
+            <Soon tall icon="word" label="Notes Master" why="The notes page is drawn from the slide and its notes; a notes master part is kept in the file but not drawn or edited." />
           </Group>
           <Group label="Show">
             <Button icon="minus" label="Ruler" pressed={Boolean(view.ruler)} onClick={() => act('toggle', 'ruler')} />
