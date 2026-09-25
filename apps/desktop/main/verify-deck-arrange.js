@@ -93,7 +93,20 @@ export async function verifyDeckArrange(h, { file }) {
     // Both land centred, one on the other; b (added last, on top) is dragged
     // clear so each has a hit area of its own to click.
     await drag(`.sl-hit[data-shape="${b}"]`, 260, 0);
-    await until(() => shapeOf(b).geometry.x > shapeOf(a).geometry.x + 50, 'b to clear a', 4000);
+    const dragged = await until(() => shapeOf(b).geometry.x > shapeOf(a).geometry.x + 50, 'b to clear a', 4000).catch(() => false);
+    if (!dragged) {
+      // In the full run an earlier check can leave something over the
+      // stage's centre, and the drag lands on that instead. Moving b is not
+      // what this block tests, so move it through the engine and let the
+      // window fetch the slide again (away to slide 2 and back).
+      const g = shapeOf(b).geometry;
+      await doc.apply({ id: sessionFor('deck').id, ops: [{ op: 'setGeometry', slide: 0, shape: b, x: g.x + 260, y: g.y, w: g.w, h: g.h }] });
+      await js(`document.querySelectorAll('.sl-thumb')[1]?.click(), 1`);
+      await wait(400);
+      await js(`document.querySelectorAll('.sl-thumb')[0]?.click(), 1`);
+      await until(() => shapeOf(b).geometry.x > shapeOf(a).geometry.x + 50, 'b to clear a', 4000);
+      await until(() => js(`Boolean(document.querySelector('.sl-hit[data-shape="${b}"]'))`), 'its hit area again', 4000);
+    }
 
     // Shift+click builds the selection: a first, then b added to it.
     await plainClick(`.sl-hit[data-shape="${a}"]`);

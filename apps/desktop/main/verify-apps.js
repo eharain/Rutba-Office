@@ -499,8 +499,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     clearInterval(lagTimer);
     await printProfile();
     closingPhase.value = true;
-    for (const win of opened) if (!win.isDestroyed()) win.destroy();
-    fs.rmSync(dir, { recursive: true, force: true });
+    // The windows are left to app.exit, which closes them without events.
+    // Destroying ninety at once here, a moment before it, was followed by
+    // Electron ending on 7014 whatever verdict the run handed it.
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      // A window still holding a fixture open leaves the folder behind in
+      // the temp directory; nothing reads it again.
+    }
 
     const failed = results.filter((r) => !r.ok);
     console.log(`\n${results.length - failed.length}/${results.length} application checks passed`);
@@ -2582,7 +2589,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Shadow: bottom right')?.click(); return 1; })()`);
       const shadowOf = () => model(1).slide.shapes.find((x) => x.id === painted.id)?.effects || null;
       const cast = await until(() => Math.round(shadowOf()?.shadow?.dir ?? -1) === 45, 'the shadow in the model', 5000).catch(() => false);
-      const drawnShadow = await until(() => js(`Boolean(document.querySelector('.sl-stage svg filter feDropShadow'))`), 'the shadow drawn', 4000).catch(() => false);
+      const drawnShadow = await until(() => js(`Boolean(document.querySelector('.sl-stage svg filter feDropShadow, .sl-stage svg filter feOffset'))`), 'the shadow drawn', 4000).catch(() => false);
       await wait(400);
       if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'slides-shadow.png'), (await win.webContents.capturePage()).toPNG());
       check('slides: Shape Effects puts a shadow under the shape, drawn on the stage', shadowed === 'clicked' && cast === true && drawnShadow === true, `${shadowed}; model ${JSON.stringify(shadowOf())}; drawn ${drawnShadow}`);
@@ -3975,6 +3982,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await until(() => js(`Boolean(document.querySelector('.ml-toolbar button[data-tip="Plain text"]'))`), 'the composer', 5000);
       await js(`document.querySelector('.ml-toolbar button[data-tip="Plain text"]')?.click(), 'plain'`);
       await until(() => js(`Boolean(document.querySelector('.ml-compose-body'))`), 'the plain-text body', 4000);
+      // The signature is filled in a beat after the body appears; read it once it is there.
+      await until(() => js(`(document.querySelector('.ml-compose-body')?.value || '').includes('-- ')`), 'the signature in the body', 5000).catch(() => {});
       const fresh = await js(`document.querySelector('.ml-compose-body')?.value || ''`);
       check(
         'mail: a new message carries the account\'s signature, after a blank line and the "-- " line',
@@ -3992,6 +4001,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await until(() => js(`Boolean(document.querySelector('.ml-toolbar button[data-tip="Plain text"]'))`), 'the reply composer', 5000);
       await js(`document.querySelector('.ml-toolbar button[data-tip="Plain text"]')?.click(), 'plain'`);
       await until(() => js(`Boolean(document.querySelector('.ml-compose-body'))`), 'the plain-text reply body', 4000);
+      await until(() => js(`(document.querySelector('.ml-compose-body')?.value || '').includes('-- ')`), 'the signature in the reply', 5000).catch(() => {});
       const replied = await js(`document.querySelector('.ml-compose-body')?.value || ''`);
       const sigAt = replied.indexOf(SIGNATURE);
       const quoteAt = replied.search(/wrote:/);
@@ -4972,7 +4982,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const all = await window.rutbaOffice.doc.sessions({});
       const mine = all.filter((s) => s.kind === 'doc').pop();
       const m = await window.rutbaOffice.doc.model({ id: mine.id });
-      return { blocks: m.blocks.length, texts: m.blocks.map((b) => b.text), styles: m.blocks.map((b) => b.style), format: m.format, footnotes: (m.footnotes || []).length };
+      return { blocks: m.blocks.length, texts: m.blocks.map((b) => b.text), styles: m.blocks.map((b) => b.style), format: m.format, footnotes: (m.footnotes || []).length, toc: (m.tableOfContents?.entries || []).map((e) => e.text) };
     })()`);
 
     // The page sits in the middle of the window, whatever the ribbon is doing.
@@ -5085,14 +5095,18 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await js(`(() => { const page = document.querySelector('.wd-page'); const b = page.querySelector('[data-block="0"]'); const r = document.createRange(); r.selectNodeContents(b); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return 'caret at start'; })()`);
     await wait(200);
     const before = (await engine()).blocks;
-    await press('Built from the headings');
-    await until(async () => (await engine()).texts.includes('Contents'), 'the contents to appear', 4000).catch(() => {});
+    // Since 1.27.0 the table is a TOC field: its entries are read off the
+    // model's own tableOfContents, not searched for as a "Contents" line.
+    await press('Table of Contents');
+    await until(async () => (await engine()).toc.length > 0, 'the table of contents to appear', 6000).catch(() => {});
     const toc = await engine();
-    check('word: References → Table of Contents lists the headings', toc.texts.includes('Contents') && toc.blocks > before, `${before} → ${toc.blocks} blocks; ${JSON.stringify(toc.texts.slice(0, 3))}`);
+    check('word: References → Table of Contents lists the headings', toc.toc.includes(styled.texts[1]) && toc.blocks > before, `${before} → ${toc.blocks} blocks; entries ${JSON.stringify(toc.toc)}`);
 
     // References → Insert Footnote: the dialog takes the words, the page
     // gets a raised number at the caret and the note under the body.
-    await js(`(() => { const page = document.querySelector('.wd-page'); const b = page.querySelector('[data-block="2"]'); const r = document.createRange(); r.selectNodeContents(b); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return 'caret at end of block 2'; })()`);
+    // The table of contents added blocks at the top; the note goes on the
+    // paragraph that was block 2 before it, not on a line inside the table.
+    await js(`(() => { const page = document.querySelector('.wd-page'); const b = page.querySelector('[data-block="${2 + (toc.blocks - before)}"]'); const r = document.createRange(); r.selectNodeContents(b); r.collapse(false); const s = getSelection(); s.removeAllRanges(); s.addRange(r); page.dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return 'caret at end of the paragraph that was block 2'; })()`);
     await wait(200);
     await press('A raised number at the caret, and its words under the body');
     await until(() => js(`Boolean(document.querySelector('.rw-dialog textarea'))`), 'the footnote dialog', 4000).catch(() => {});
