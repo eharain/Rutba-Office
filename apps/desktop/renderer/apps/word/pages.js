@@ -230,6 +230,10 @@ function charTop(nodes, o) {
     if (o < t.start) hi = mid - 1;
     else if (o >= t.end) lo = mid + 1;
     else {
+      // An equation's one character is not drawn — its MathML is, in the
+      // host's shadow — so the equation's top is its host's.
+      const host = t.node.parentElement?.closest?.('.wd-math');
+      if (host) return rectOf(host).top;
       const r = document.createRange();
       r.setStart(t.node, o - t.start);
       r.setEnd(t.node, o - t.start + 1);

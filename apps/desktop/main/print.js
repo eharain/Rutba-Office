@@ -39,6 +39,15 @@ const cleanup = (dir) => {
 
 export function createPrintService({ docs }) {
   let electron = null;
+  // A document's equations are measured by Chromium before its pages are
+  // laid out; a failure there prints the linear form rather than nothing.
+  const prepareMath = async (id) => {
+    try {
+      if (typeof docs.prepareMath === 'function') await docs.prepareMath({ id });
+    } catch {
+      /* the print path falls back to the linear form */
+    }
+  };
   const load = async () => (electron ||= await import('electron'));
 
   /**
@@ -98,8 +107,15 @@ export function createPrintService({ docs }) {
   }
 
   return {
-    /** Pages, scale and paper — what a print dialog says before it prints. */
-    summary: ({ id, options }) => docs.printSummary({ id, options }),
+    /**
+     * Pages, scale and paper — what a print dialog says before it prints.
+     * Equations are laid out for paper first (documents.js prepareMath):
+     * their sizes decide where the pages fall.
+     */
+    summary: async ({ id, options }) => {
+      await prepareMath(id);
+      return docs.printSummary({ id, options });
+    },
 
     /** The printers this machine can reach, the default one first. */
     printers: async (_payload, win) => {
@@ -118,6 +134,7 @@ export function createPrintService({ docs }) {
      * from the CSS the layout wrote rather than from a guess.
      */
     pdf: async ({ id, path: target, options = {} }) => {
+      await prepareMath(id);
       const source = docs.printSource({ id, options });
       if (source.pdf) {
         fs.writeFileSync(target, Buffer.from(source.pdf));
@@ -143,6 +160,7 @@ export function createPrintService({ docs }) {
      * the paper, the copies and the range are the person's to choose.
      */
     document: async ({ id, options = {}, printer = null, copies = 1, silent = false }) => {
+      await prepareMath(id);
       const source = docs.printSource({ id, options });
       return withJob(
         source,

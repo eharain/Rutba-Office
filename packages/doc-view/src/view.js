@@ -17,6 +17,7 @@
 import { assertBackend, supportsContentControls } from './backend.js';
 import { History } from '@rutba/editing';
 import { paginate } from './paginate.js';
+import { measureText, lineHeight as lineHeightOf } from '@rutba/drawing';
 import { computeListLabels } from './lists.js';
 import { bandForPage, resolveFields } from './bands.js';
 import {
@@ -236,6 +237,7 @@ export class DocView {
       flow: this.flow, blocks: this.blocks, section,
       cache: this._lineCache, styles: this._docStyles, listLabels,
       notes: this._notes(), watermark: bands.watermark ?? null,
+      math: (run, sizePx) => this.mathPrint(run, sizePx),
     });
     if (!laid) return (this._pages = null);
 
@@ -250,6 +252,40 @@ export class DocView {
       page.footer = footer ? resolveFields(footer.paragraphs, { page: page.number, of: laid.count }) : null;
     }
     return (this._pages = laid);
+  }
+
+  /**
+   * Equations as the print path lays them out, measured by something that
+   * can lay MathML out — the desktop's own Chromium, which draws each one
+   * once and hands back its size in ems and its picture. Keyed by the
+   * equation's XML. Setting them lays the pages out again.
+   *
+   * @param {Map<string, {widthEm:number, heightEm:number, baselineEm:number, raster?:object}>|null} measures
+   */
+  setMathMeasures(measures) {
+    this.mathMeasures = measures || null;
+    this._pages = null;
+    return this;
+  }
+
+  /**
+   * One equation run's box on paper at a font size, in px: measured when the
+   * desktop measured it, else the linear form set as a line of text — the
+   * honest fallback where no MathML layout is to hand (Node, a test).
+   */
+  mathPrint(run, sizePx) {
+    const shown = typeof this.doc.mathView === 'function' ? this.doc.mathView(run.math) : null;
+    const jc = shown?.jc || null;
+    const m = this.mathMeasures?.get(run.math?.xml);
+    if (m) {
+      return {
+        widthPx: m.widthEm * sizePx, heightPx: m.heightEm * sizePx, baselinePx: m.baselineEm * sizePx,
+        jc, raster: m.raster || null, text: null,
+      };
+    }
+    const text = shown?.ascii ?? '';
+    const heightPx = lineHeightOf(sizePx);
+    return { widthPx: measureText(text, { size: sizePx }), heightPx, baselinePx: heightPx * 0.76, jc, raster: null, text };
   }
 
   block(index) { return this.blocks[index] ?? null; }
@@ -429,9 +465,11 @@ export class DocView {
     // A note reference is a run of its own and takes no words: typing beside
     // it goes into a new run wearing the formatting of the text next to it,
     // never into the reference — whose rebuild writes an element, not text.
-    if (target.noteRef || target.noteMark) {
+    // An equation is the same: one character, its own element, no words of
+    // the paragraph's inside it.
+    if (target.noteRef || target.noteMark || target.math) {
       const neighbour = runOffset === 0 ? runs[runIndex - 1] : runs[runIndex + 1];
-      let rPr = neighbour && !neighbour.noteRef && !neighbour.noteMark ? neighbour.rPr : null;
+      let rPr = neighbour && !neighbour.noteRef && !neighbour.noteMark && !neighbour.math ? neighbour.rPr : null;
       if (this.pendingFormat) rPr = this._applyPending(rPr);
       const at = runOffset === 0 ? runIndex : runIndex + 1;
       const newRun = recording ? { rPr, text, ins: this._trackMeta(null) } : { rPr, text };
@@ -453,7 +491,7 @@ export class DocView {
       const runStart = offset - runOffset;
       const insertAt = before ? runStart : runStart + target.text.length;
       const neighbour = before ? runs[runIndex - 1] : runs[runIndex + 1];
-      let rPr = neighbour && !neighbour.field && !neighbour.noteRef && !neighbour.noteMark ? neighbour.rPr : null;
+      let rPr = neighbour && !neighbour.field && !neighbour.noteRef && !neighbour.noteMark && !neighbour.math ? neighbour.rPr : null;
       if (this.pendingFormat) rPr = this._applyPending(rPr);
       const at = before ? runIndex : runIndex + 1;
       const newRun = recording ? { rPr, text, ins: this._trackMeta(null) } : { rPr, text };
@@ -2063,6 +2101,13 @@ export class DocView {
     // A field's own code and kind — REF Summary, PAGE, DATE — so the page can
     // shade it and Ctrl+click can follow a REF to its bookmark.
     if (r.field) out.field = r.field;
+    // An equation: the MathML the page draws, the linear form the editor
+    // opens with, and the OMML itself — what a copy within the suite
+    // carries, so a paste puts back the same equation, not its picture.
+    if (r.math) {
+      const shown = typeof this.doc.mathView === 'function' ? this.doc.mathView(r.math) : null;
+      out.math = { display: Boolean(r.math.display), xml: r.math.xml, ...(shown || {}) };
+    }
     // A tracked change — who, when, and (a deletion only) the words it took.
     // The painter reads these for the underline/strike-through and the
     // change bar; Accept/Reject and the Reviewing Pane read them too.

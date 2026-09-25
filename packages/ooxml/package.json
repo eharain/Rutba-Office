@@ -21,7 +21,8 @@
     "./recalc": "./src/recalc.js",
     "./pivot": "./src/pivot.js",
     "./build": "./src/build.js",
-    "./zip": "./src/zip.js"
+    "./zip": "./src/zip.js",
+    "./math": "./src/math.js"
   },
   "dependencies": {
     "@rutba/formula": "*"

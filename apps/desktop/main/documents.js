@@ -259,10 +259,48 @@ class Session {
 /** The extension a recovery copy is written with, per kind. */
 const RECOVERY_EXT = { doc: '.docx', sheet: '.xlsx', deck: '.pptx' };
 
-export function createDocumentService({ holdBlob, recoveryDir = null }) {
+export function createDocumentService({ holdBlob, recoveryDir = null, measureMath = null }) {
   /** @type {Map<string, Session>} */
   const sessions = new Map();
   const nextId = () => `d${++seq}`;
+
+  /**
+   * Equations measured and pictured for paper (see main/math-raster.js), by
+   * their XML, across every open document — the same equation is laid out
+   * once. Bounded: each holds a picture.
+   */
+  const mathMeasures = new Map();
+
+  /**
+   * Before a document is printed, every equation in it the print path has
+   * not measured yet is laid out by Chromium — the MathML the page draws —
+   * and the view is handed the sizes and pictures. Without a measurer (a
+   * test, the service outside Electron) the print path sets the linear form
+   * instead. Answers how many were measured afresh.
+   */
+  async function prepareMath(session) {
+    if (!measureMath || session.kind !== 'doc' || typeof session.engine.setMathMeasures !== 'function') return 0;
+    const view = session.engine;
+    const want = new Map();
+    const inDoc = new Set();
+    for (const b of view.blocks) {
+      for (const r of b.runs || []) {
+        if (!r.math) continue;
+        inDoc.add(r.math.xml);
+        if (mathMeasures.has(r.math.xml) || want.has(r.math.xml)) continue;
+        const shown = typeof view.doc.mathView === 'function' ? view.doc.mathView(r.math) : null;
+        if (shown?.mathml) want.set(r.math.xml, { key: r.math.xml, mathml: shown.mathml, display: Boolean(r.math.display) });
+      }
+    }
+    if (!inDoc.size) return 0;
+    if (want.size) {
+      const got = await measureMath([...want.values()]);
+      for (const [key, value] of got) mathMeasures.set(key, value);
+      while (mathMeasures.size > 300) mathMeasures.delete(mathMeasures.keys().next().value);
+    }
+    view.setMathMeasures(new Map([...inDoc].filter((k) => mathMeasures.has(k)).map((k) => [k, mathMeasures.get(k)])));
+    return want.size;
+  }
 
   const get = (id) => {
     const s = sessions.get(id);
@@ -1627,6 +1665,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     },
 
     /** How many pages, at what scale, before anything is drawn. */
+    /**
+     * Lay the document's equations out for paper before it is printed or
+     * written as a PDF — the print service calls this first. Answers how
+     * many equations were measured afresh.
+     */
+    prepareMath: ({ id }) => prepareMath(get(id)),
+
     printSummary: ({ id, options = {} }) => {
       const session = get(id);
       if (session.kind === 'sheet') return { kind: 'sheet', name: session.name, ...sheetPrintSummary(session.engine, options) };

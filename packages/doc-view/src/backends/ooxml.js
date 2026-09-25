@@ -10,6 +10,7 @@
  */
 import { Document, withToggle, hasToggle, esc, unesc, STANDARD_PARAGRAPH_STYLES } from '@rutba/ooxml';
 import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene } from '@rutba/drawing';
+import { ommlToMathml, ommlToLinear, ommlInfo, asciiLinear } from '@rutba/ooxml/math';
 import { DocView } from '../view.js';
 
 export class OoxmlBackend {
@@ -98,6 +99,15 @@ export class OoxmlBackend {
 
   /** Read family/size/colour back off an rPr — the toolbar's caret state. */
   readRunProps(rPr) { return readRunProps(rPr, typeof this.doc.themeFonts === 'function' ? this.doc.themeFonts() : null); }
+
+  /**
+   * An equation run as a painter wants it: MathML for the page, the linear
+   * form for the editor and a plain printout, and the display equation's
+   * justification. Read once per distinct equation — every frame renders
+   * every block, and an equation's XML does not change under a keystroke
+   * beside it.
+   */
+  mathView(math) { return mathViewOf(math); }
 
   /**
    * Read a paragraph's alignment, left indentation and named style — the
@@ -1027,6 +1037,32 @@ function withDrawingsPainted(p) {
   const painted = p.drawings.map(drawingToImage).filter(Boolean);
   if (!painted.length) return p;
   return { ...p, images: [...(p.images ?? []), ...painted] };
+}
+
+/**
+ * An equation's readings, by its XML: MathML to draw, the linear form to
+ * edit and to print plainly, and a display equation's justification. A
+ * bounded cache — a long session sees many versions of an equation it is
+ * editing, and none of the old ones is wanted again.
+ */
+const MATH_VIEWS = new Map();
+function mathViewOf(math) {
+  if (!math?.xml) return null;
+  const hit = MATH_VIEWS.get(math.xml);
+  if (hit) return hit;
+  const info = ommlInfo(math.xml);
+  const view = {
+    display: Boolean(math.display),
+    jc: info.jc,
+    mathml: ommlToMathml(math.xml),
+    linear: ommlToLinear(math.xml),
+  };
+  // What a printout with no MathML layout to hand draws instead: the linear
+  // form, spelt in characters a base-14 PDF font has.
+  view.ascii = asciiLinear(view.linear);
+  MATH_VIEWS.set(math.xml, view);
+  if (MATH_VIEWS.size > 400) MATH_VIEWS.delete(MATH_VIEWS.keys().next().value);
+  return view;
 }
 
 /** Open a .docx for editing. The Workspace entry point. */

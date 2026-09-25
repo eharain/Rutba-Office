@@ -54,6 +54,40 @@ export const DEFAULT_SECTION = Object.freeze({
   titlePage: false, evenAndOdd: false,
 });
 
+/**
+ * The frame's equation measurer while a frame is being written — the view's
+ * `mathPrint`: a box per equation run at a size, with the picture of the
+ * MathML Chromium drew when the desktop measured it. Module state for the
+ * length of one synchronous `renderFramePdf`, rather than a parameter
+ * threaded through every paragraph helper that might meet an equation.
+ */
+let MATH = null;
+
+/**
+ * One equation on the page, its top-left at (x, top) in points. The desktop's
+ * own picture of the MathML when there is one — Chromium laid it out, and
+ * the PDF shows exactly what the screen does — else the linear form as a line
+ * of text: a printout from somewhere with no MathML layout (a test, a
+ * command-line export) still says what the equation is.
+ */
+function drawMath(page, doc, box, x, top, fragment) {
+  const w = box.widthPx * PT;
+  const h = box.heightPx * PT;
+  if (box.raster) {
+    const refs = doc._mathRefs || (doc._mathRefs = new Map());
+    let ref = refs.get(box.raster);
+    if (!ref) {
+      ref = doc.addImage({ width: box.raster.width, height: box.raster.height, colorSpace: 'DeviceRGB', data: box.raster.data });
+      refs.set(box.raster, ref);
+    }
+    page.image(ref, x, top, w, h);
+    return w;
+  }
+  const s = styleOfRun({}, fragment || {});
+  page.text(box.text || '', x, top + box.baselinePx * PT, { font: 'Helvetica-Oblique', size: s.size, colour: s.colour });
+  return w;
+}
+
 const CELL_PADDING = 8;
 const IMAGE_GAP = 8;
 const TABLE_SPACE_AFTER = 12;
@@ -109,6 +143,7 @@ function sliceRunSegments(runs, from, to) {
 function widthOfSegments(doc, segments, fragment) {
   let total = 0;
   for (const seg of segments) {
+    if (seg.math && MATH) { total += MATH(seg, fragment.sizePx || BAND_SIZE_PX).widthPx * PT; continue; }
     const s = styleOfRun(seg, fragment);
     total += doc.widthOf(seg.text, { font: s.font, size: s.size });
   }
@@ -122,6 +157,12 @@ function widthOfSegments(doc, segments, fragment) {
 function drawSegments(page, doc, segments, x, baseline, fragment, { extraPerSpace = 0 } = {}) {
   let cursor = x;
   for (const seg of segments) {
+    // An inline equation stands on the line's baseline, as wide as it drew.
+    if (seg.math && MATH) {
+      const box = MATH(seg, fragment.sizePx || BAND_SIZE_PX);
+      cursor += drawMath(page, doc, box, cursor, baseline - box.baselinePx * PT, fragment);
+      continue;
+    }
     const s = styleOfRun(seg, fragment);
     // Word by word when justified, so the spaces can grow; whole when not.
     const parts = extraPerSpace > 0 ? seg.text.split(/( )/).filter((p) => p !== '') : [seg.text];
@@ -345,7 +386,18 @@ function drawTable(page, doc, table, rows, { xPx, yPx, widthPx, labelOf, depth =
  *
  * @returns {{ buffer: Buffer, pages: number }}
  */
-export function renderFramePdf(frame, { title = '', author = '', created = null } = {}) {
+export function renderFramePdf(frame, options = {}) {
+  // `frame.math` measures (and pictures) the equations — see `MATH`.
+  const was = MATH;
+  MATH = typeof frame?.math === 'function' ? frame.math : null;
+  try {
+    return drawFrame(frame, options);
+  } finally {
+    MATH = was;
+  }
+}
+
+function drawFrame(frame, { title = '', author = '', created = null } = {}) {
   if (!frame || !frame.pages || !frame.pages.pages) throw new Error('renderFramePdf needs a paginated frame (frame.pages)');
   const section = frame.section || DEFAULT_SECTION;
   const m = section.margins;
@@ -462,6 +514,17 @@ export function renderFramePdf(frame, { title = '', author = '', created = null 
         // advances nothing, like a floating picture.
         const bx = fr.side === 'right' ? fxPx + Math.max(0, fwidthPx - fr.widthPx) : fxPx;
         drawTextBox(page, doc, { ...fr, hAlign: null }, { xPx: bx, yPx: m.top + fr.topPx, widthPx: fr.widthPx });
+        continue;
+      }
+      if (fr.kind === 'equation') {
+        // A display equation on a line of its own, placed as the file
+        // justifies it — centred unless it says left or right.
+        y += fr.spaceBefore || 0;
+        const box = fr.box;
+        const room = fwidthPx - (fr.indent || 0);
+        const dx = fr.align === 'left' ? 0 : fr.align === 'right' ? room - box.widthPx : (room - box.widthPx) / 2;
+        drawMath(page, doc, box, (fxPx + (fr.indent || 0) + Math.max(0, dx)) * PT, (y + fr.gapPx) * PT, fr);
+        y += box.heightPx + 2 * fr.gapPx + (fr.spaceAfter || 0);
         continue;
       }
       if (fr.kind === 'note') {
@@ -607,12 +670,14 @@ function drawWatermark(page, doc, watermark, section) {
 export function renderPdf(view, { title = '', author = '', created = null, section = null } = {}) {
   const numbering = typeof view.doc.numberingDefs === 'function' ? view.doc.numberingDefs() : null;
   const listLabels = computeListLabels(view.flow, view.blocks, numbering);
+  // Equations measured (and pictured) by the view — see DocView#mathPrint.
+  const math = typeof view.mathPrint === 'function' ? (run, sizePx) => view.mathPrint(run, sizePx) : null;
   let pages = view.section ? view.pages : null;
   let sheet = view.section || null;
   if (!pages) {
     sheet = section || DEFAULT_SECTION;
     const styles = typeof view.doc.paragraphStyles === 'function' ? view.doc.paragraphStyles() : null;
-    pages = paginate({ flow: view.flow, blocks: view.blocks, section: sheet, styles, listLabels });
+    pages = paginate({ flow: view.flow, blocks: view.blocks, section: sheet, styles, listLabels, math });
     const bands = typeof view.doc.headerFooters === 'function' ? view.doc.headerFooters() : { headers: {}, footers: {} };
     for (const page of pages.pages) {
       const header = bandForPage(bands.headers || {}, page.number, {});
@@ -621,5 +686,5 @@ export function renderPdf(view, { title = '', author = '', created = null, secti
       page.footer = footer ? resolveFields(footer.paragraphs, { page: page.number, of: pages.count }) : null;
     }
   }
-  return renderFramePdf({ blocks: view.blocks, section: sheet, pages, listLabels }, { title, author, created });
+  return renderFramePdf({ blocks: view.blocks, section: sheet, pages, listLabels, math }, { title, author, created });
 }

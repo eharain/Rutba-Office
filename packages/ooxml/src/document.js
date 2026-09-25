@@ -3029,8 +3029,9 @@ export class Document {
    *   - a drawing/object/pict nested INSIDE a text run is lifted into its own
    *     run — the text half is being rewritten, the picture half must not go
    *     with it;
-   *   - any other top-level child (`m:oMath`, a proofErr range) rides along
-   *     verbatim. Structural paragraphs never reach a rebuild, so bookmarks
+   *   - any other top-level child (a proofErr range) rides along verbatim —
+   *     an equation no longer does: it is a run of the model's own, written
+   *     in place. Structural paragraphs never reach a rebuild, so bookmarks
    *     and field codes are not this method's problem.
    *
    * Kept fragments are appended AFTER the text runs. For an inline image that
@@ -3057,6 +3058,10 @@ export class Document {
       // at the paragraph's own start rather than wherever it happened to
       // sit — see that method.
       if (childTag === 'w:bookmarkStart') return;
+      // An equation is a run the model OWNS since equations were read (a
+      // character of the text, written back verbatim by renderRuns) — kept
+      // here as well, it would be written twice.
+      if (childTag === 'm:oMath' || childTag === 'm:oMathPara') return;
       // The rule is about CONTENT, not tag names: a chunk carrying `<w:t>`
       // anywhere is text the model owns — parseRuns read it and the rebuild
       // rewrites it — so keeping the chunk whole would DOUBLE the text (a

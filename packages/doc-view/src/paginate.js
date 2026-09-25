@@ -178,6 +178,44 @@ function layoutParagraphUncached(block, width, s, indent) {
   return { lines, style: s, indentPx: indent, lineHeightPx: lineHeight(s.sizePx) };
 }
 
+/**
+ * Greedy word wrap where some characters are OBJECTS — an inline equation —
+ * with a width of their own, keyed by the character's offset in the block.
+ * Breaks on spaces as `wrapText` does; `base` is where `value` starts in the
+ * block, and the lines come back in block offsets.
+ */
+export function wrapWithObjects(value, base, width, opts, objects) {
+  const text = String(value ?? '');
+  if (text === '') return [{ text: '', start: base, end: base, width: 0 }];
+  const words = [...text.matchAll(/(?:[^\s]|\t)+/g)].map((m) => ({ at: m.index, word: m[0] }));
+  const widthOf = (w, at) => {
+    let total = 0;
+    for (let j = 0; j < w.length; j++) {
+      const box = objects.get(base + at + j);
+      total += box ? box.widthPx : measureText(w[j], opts);
+    }
+    return total;
+  };
+  const space = measureText(' ', opts);
+  const lines = [];
+  let from = null;
+  let to = 0;
+  let used = 0;
+  for (const { at, word } of words) {
+    const w = widthOf(word, at);
+    if (from !== null && used + space + w > width) {
+      lines.push({ text: text.slice(from, to), start: base + from, end: base + to, width: used });
+      from = null;
+    }
+    if (from === null) { from = at; used = w; } else used += space + w;
+    to = at + word.length;
+  }
+  if (from !== null) lines.push({ text: text.slice(from, to), start: base + from, end: base + to, width: used });
+  if (!lines.length) lines.push({ text: '', start: base, end: base, width: 0 });
+  lines[lines.length - 1].end = base + text.length;
+  return lines;
+}
+
 /** How tall a table row is: its tallest cell, wrapped to the column width. */
 function rowHeight(row, table, width, cache) {
   const columns = table.columns.length
@@ -240,7 +278,7 @@ const TABLE_SPACE_AFTER = 12;
  * @param {number}   [input.maxPages] a runaway guard; a measurement bug must not
  *   produce a million empty sheets and take the browser with it
  */
-export function paginate({ flow, blocks, section, maxPages = 500, cache = null, styles = null, listLabels = null, notes = null, watermark = null }) {
+export function paginate({ flow, blocks, section, maxPages = 500, cache = null, styles = null, listLabels = null, notes = null, watermark = null, math = null }) {
   // No page geometry means no pages — an email body is a continuous flow, and
   // saying so is better than inventing A4 for it.
   if (!section) return null;
@@ -375,6 +413,97 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     } while (rest.length);
     if (lines.length) lines[lines.length - 1].end = text.length;
     return { lines, style: s, indentPx: indent, lineHeightPx };
+  };
+
+  /**
+   * A paragraph that holds an equation. A DISPLAY equation (m:oMathPara)
+   * stands on a line of its own, centred unless the file says otherwise, as
+   * tall as it draws: it is placed as an `equation` fragment, whole — half
+   * a fraction is not a smaller fraction — and the words before and after
+   * it are laid out as lines of their own. An INLINE equation is a word as
+   * wide as it draws, and the lines of its piece are as tall as the tallest
+   * equation in them needs (one height for the piece: the fragment carries
+   * one line height, the honest simplification). Sizes come from `math`,
+   * which answers the MathML's own measured box when the desktop measured
+   * it, and the linear form's line otherwise.
+   */
+  const layEquations = (block, { spaceBefore: before, spaceAfter: after, extraIndentPx = 0, listing = null }) => {
+    const s = styleOf(block.style, styles);
+    const indent = (s.indent ?? 0) + (block.indentPx ?? 0) + extraIndentPx;
+    const opts = { size: s.sizePx, weight: s.weight };
+    const baseLine = withDirectLineHeight({ lineHeightPx: lineHeight(s.sizePx) }, block).lineHeightPx;
+    const text = block.text ?? '';
+    const runs = block.runs || [];
+    const align = block.align ?? s.align ?? null;
+
+    // The pieces: words between the display equations, and the equations.
+    const pieces = [];
+    const inline = new Map();
+    let at = 0;
+    let textFrom = 0;
+    for (const r of runs) {
+      const len = (r.text ?? '').length;
+      if (r.math?.display) {
+        if (at > textFrom) pieces.push({ kind: 'text', from: textFrom, to: at });
+        pieces.push({ kind: 'eq', run: r, at });
+        textFrom = at + len;
+      } else if (r.math) inline.set(at, math(r, s.sizePx));
+      at += len;
+    }
+    if (textFrom < text.length || !pieces.length) pieces.push({ kind: 'text', from: textFrom, to: text.length });
+    // Words that are only white space between two display equations are
+    // not a line of their own, as Word does not draw one.
+    const shown = pieces.filter((p) => p.kind === 'eq' || pieces.length === 1 || text.slice(p.from, p.to).trim() !== '');
+
+    let firstPlaced = true;
+    shown.forEach((piece, k) => {
+      const lastPiece = k === shown.length - 1;
+      const sb = firstPlaced ? before : 0;
+      const sa = lastPiece ? after : 0;
+      if (piece.kind === 'eq') {
+        const box = math(piece.run, s.sizePx);
+        const gapPx = Math.round(s.sizePx * 0.3);
+        const tall = box.heightPx + 2 * gapPx;
+        if (sb + tall > remaining() && current.fragments.length) newColumn();
+        const jc = box.jc === 'left' || box.jc === 'right' ? box.jc : 'center';
+        place({
+          kind: 'equation', paragraphIndex: block.index, start: piece.at, end: piece.at + 1,
+          math: piece.run.math, box, gapPx, align: jc, indent, sizePx: s.sizePx, colour: s.colour ?? null,
+          spaceBefore: current.fragments.length ? sb : 0, spaceAfter: sa,
+        }, (current.fragments.length ? sb : 0) + tall + sa);
+        firstPlaced = false;
+        return;
+      }
+      const lines = wrapWithObjects(text.slice(piece.from, piece.to), piece.from, Math.max(24, (width - indent) * WRAP_SAFETY), opts, inline);
+      let lineHeightPx = baseLine;
+      for (const [offset, box] of inline) {
+        if (offset >= piece.from && offset < piece.to) lineHeightPx = Math.max(lineHeightPx, box.heightPx + Math.round(s.sizePx * 0.3));
+      }
+      let cursor = 0;
+      let spaceHere = sb;
+      while (cursor < lines.length) {
+        let fits = Math.floor((remaining() - spaceHere) / lineHeightPx);
+        if (fits < 1) {
+          if (current.fragments.length === 0) fits = 1;
+          else { newColumn(); spaceHere = 0; continue; }
+        }
+        const slice = lines.slice(cursor, cursor + fits);
+        const complete = cursor + fits >= lines.length;
+        place({
+          kind: 'paragraph', paragraphIndex: block.index, style: block.style ?? null,
+          structural: Boolean(block.structural), structuralTags: block.structuralTags ?? [],
+          lines: slice, start: slice[0].start, end: slice[slice.length - 1].end,
+          first: firstPlaced && cursor === 0, last: complete && lastPiece,
+          spaceBefore: spaceHere, spaceAfter: complete ? sa : 0,
+          lineHeightPx, sizePx: s.sizePx, weight: s.weight ?? 'normal', italic: Boolean(s.italic), colour: s.colour ?? null,
+          align, listLabel: firstPlaced && cursor === 0 && listing ? listing.label : null, indent,
+        }, spaceHere + slice.length * lineHeightPx + (complete ? sa : 0));
+        cursor += fits;
+        spaceHere = 0;
+        if (!complete) newColumn();
+      }
+      firstPlaced = false;
+    });
   };
 
   /**
@@ -523,86 +652,97 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
       }
     }
 
-    const around = current.floats.some((f) => f.bottomPx > used + spaceBefore);
-    const { lines, style, indentPx, lineHeightPx } = around
-      ? layoutAround(block, used + spaceBefore, { extraIndentPx })
-      : layoutParagraph(block, width, { cache, styles, extraIndentPx });
-    let cursor = 0;
+    // A paragraph holding an equation is laid out by a path of its own —
+    // `layEquations` below: a display equation is a block of its own
+    // height, an inline one a word as wide and as tall as it draws — and
+    // then its pictures follow it as any paragraph's do.
+    const mathy = typeof math === 'function' && (block.runs || []).some((r) => r.math);
+    let style = styleOf(block.style, styles);
+    if (mathy) layEquations(block, { spaceBefore, spaceAfter, extraIndentPx, listing });
+    else {
+      const around = current.floats.some((f) => f.bottomPx > used + spaceBefore);
+      const laid = around
+        ? layoutAround(block, used + spaceBefore, { extraIndentPx })
+        : layoutParagraph(block, width, { cache, styles, extraIndentPx });
+      const { lines, indentPx, lineHeightPx } = laid;
+      style = laid.style;
+      let cursor = 0;
 
-    // The footnotes this paragraph references go at the foot of the page its
-    // first line lands on — Word's rule — so their room is reserved before
-    // the line is placed, and a paragraph whose notes will not fit beside it
-    // starts on the next page, notes and all.
-    const pageNotes = (block.runs || [])
-      .filter((r) => r.noteRef?.kind === 'footnote' && noteById.has(r.noteRef.id))
-      .map((r) => layNote(noteById.get(r.noteRef.id)));
-    if (pageNotes.length) {
-      const cost = pageNotes.reduce((s, n) => s + n.heightPx, 0) + (current.notes.length ? 0 : NOTE_RULE_PX);
-      if (remaining() - spaceBefore - cost < lineHeightPx && current.fragments.length) { newColumn(); spaceBefore = 0; }
-      current.notesHeightPx += pageNotes.reduce((s, n) => s + n.heightPx, 0) + (current.notes.length ? 0 : NOTE_RULE_PX);
-      current.notes.push(...pageNotes);
-    }
-
-    while (cursor < lines.length) {
-      // Only the LINES have to fit. The space after a paragraph is empty room
-      // below its last line, and at a page break there is nothing below it to
-      // push — Word suppresses it there for the same reason. Reserving for it
-      // would break a page early and leave a visible gap; charging for it
-      // without reserving would run every page over by one margin. The shell
-      // drops the trailing margin on each page to match.
-      let fits = Math.floor((remaining() - spaceBefore) / lineHeightPx);
-
-      if (fits < 1) {
-        // Nothing fits. Start a page — unless we are already on an empty one, in
-        // which case a single line is taller than the page and forcing another
-        // break would loop for ever.
-        if (current.fragments.length === 0) fits = 1;
-        else { newColumn(); spaceBefore = 0; continue; }
+      // The footnotes this paragraph references go at the foot of the page its
+      // first line lands on — Word's rule — so their room is reserved before
+      // the line is placed, and a paragraph whose notes will not fit beside it
+      // starts on the next page, notes and all.
+      const pageNotes = (block.runs || [])
+        .filter((r) => r.noteRef?.kind === 'footnote' && noteById.has(r.noteRef.id))
+        .map((r) => layNote(noteById.get(r.noteRef.id)));
+      if (pageNotes.length) {
+        const cost = pageNotes.reduce((s, n) => s + n.heightPx, 0) + (current.notes.length ? 0 : NOTE_RULE_PX);
+        if (remaining() - spaceBefore - cost < lineHeightPx && current.fragments.length) { newColumn(); spaceBefore = 0; }
+        current.notesHeightPx += pageNotes.reduce((s, n) => s + n.heightPx, 0) + (current.notes.length ? 0 : NOTE_RULE_PX);
+        current.notes.push(...pageNotes);
       }
 
-      // Widow and orphan control, the cheap version: never leave one line of a
-      // paragraph alone on a page. One stranded line reads as a mistake, and
-      // moving it costs nothing but a little whitespace.
-      const left = lines.length - cursor;
-      if (fits < left && left - fits === 1 && fits > 1) fits -= 1;
-      if (fits === 1 && left > 2 && current.fragments.length) { newColumn(); spaceBefore = 0; continue; }
+      while (cursor < lines.length) {
+        // Only the LINES have to fit. The space after a paragraph is empty room
+        // below its last line, and at a page break there is nothing below it to
+        // push — Word suppresses it there for the same reason. Reserving for it
+        // would break a page early and leave a visible gap; charging for it
+        // without reserving would run every page over by one margin. The shell
+        // drops the trailing margin on each page to match.
+        let fits = Math.floor((remaining() - spaceBefore) / lineHeightPx);
 
-      const slice = lines.slice(cursor, cursor + fits);
-      const complete = cursor + fits >= lines.length;
-      place({
-        kind: 'paragraph',
-        paragraphIndex: block.index,
-        style: block.style ?? null,
-        structural: Boolean(block.structural),
-        structuralTags: block.structuralTags ?? [],
-        lines: slice,
-        start: slice[0].start,
-        end: slice[slice.length - 1].end,
-        first: cursor === 0,
-        last: complete,
-        spaceBefore,
-        // What the shell must draw BELOW the fragment — zero mid-paragraph
-        // and, matching the cost charged, the full gap on the last slice.
-        spaceAfter: complete ? spaceAfter : 0,
-        lineHeightPx,
-        sizePx: style.sizePx,
-        // The look the style resolved to — the shell draws these rather than
-        // consulting a stylesheet, so measurement and paint cannot drift.
-        weight: style.weight ?? 'normal',
-        italic: Boolean(style.italic),
-        colour: style.colour ?? null,
-        // The paragraph's own alignment beats the style's, as everywhere else.
-        align: block.align ?? style.align ?? null,
-        // The label only appears on the FIRST fragment; a continuation on the
-        // next sheet is mid-item, and "3." repeated there would read as item 3
-        // appearing twice.
-        listLabel: cursor === 0 && listing ? listing.label : null,
-        indent: indentPx ?? 0,
-      }, spaceBefore + slice.length * lineHeightPx + (complete ? spaceAfter : 0));
+        if (fits < 1) {
+          // Nothing fits. Start a page — unless we are already on an empty one, in
+          // which case a single line is taller than the page and forcing another
+          // break would loop for ever.
+          if (current.fragments.length === 0) fits = 1;
+          else { newColumn(); spaceBefore = 0; continue; }
+        }
 
-      cursor += fits;
-      spaceBefore = 0;
-      if (!complete) newColumn();
+        // Widow and orphan control, the cheap version: never leave one line of a
+        // paragraph alone on a page. One stranded line reads as a mistake, and
+        // moving it costs nothing but a little whitespace.
+        const left = lines.length - cursor;
+        if (fits < left && left - fits === 1 && fits > 1) fits -= 1;
+        if (fits === 1 && left > 2 && current.fragments.length) { newColumn(); spaceBefore = 0; continue; }
+
+        const slice = lines.slice(cursor, cursor + fits);
+        const complete = cursor + fits >= lines.length;
+        place({
+          kind: 'paragraph',
+          paragraphIndex: block.index,
+          style: block.style ?? null,
+          structural: Boolean(block.structural),
+          structuralTags: block.structuralTags ?? [],
+          lines: slice,
+          start: slice[0].start,
+          end: slice[slice.length - 1].end,
+          first: cursor === 0,
+          last: complete,
+          spaceBefore,
+          // What the shell must draw BELOW the fragment — zero mid-paragraph
+          // and, matching the cost charged, the full gap on the last slice.
+          spaceAfter: complete ? spaceAfter : 0,
+          lineHeightPx,
+          sizePx: style.sizePx,
+          // The look the style resolved to — the shell draws these rather than
+          // consulting a stylesheet, so measurement and paint cannot drift.
+          weight: style.weight ?? 'normal',
+          italic: Boolean(style.italic),
+          colour: style.colour ?? null,
+          // The paragraph's own alignment beats the style's, as everywhere else.
+          align: block.align ?? style.align ?? null,
+          // The label only appears on the FIRST fragment; a continuation on the
+          // next sheet is mid-item, and "3." repeated there would read as item 3
+          // appearing twice.
+          listLabel: cursor === 0 && listing ? listing.label : null,
+          indent: indentPx ?? 0,
+        }, spaceBefore + slice.length * lineHeightPx + (complete ? spaceAfter : 0));
+
+        cursor += fits;
+        spaceBefore = 0;
+        if (!complete) newColumn();
+      }
     }
 
     // Every other picture renders as a block under the paragraph's text: an

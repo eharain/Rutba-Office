@@ -29,6 +29,7 @@ import { verifyDeckFx } from './verify-deck-fx.js';
 import { verifyWordToc } from './verify-word-toc.js';
 import { verifyOutline } from './verify-outline.js';
 import { verifyDataTools } from './verify-datatools.js';
+import { verifyWordEquations, makeEquationFixture } from './verify-word-equations.js';
 import { verifyWordTrack } from './verify-word-track.js';
 import { SheetView } from '@rutba/sheet-view';
 
@@ -348,6 +349,10 @@ function makeFixtures(dir) {
     fs.writeFileSync(at('track.docx'), view.save());
   }
 
+  // Equations as Word writes them — the quadratic formula, πr² among the
+  // words, a sum, a function and a matrix — for the equations block.
+  makeEquationFixture(at('equations.docx'));
+
   // A file of accounts, the loose way other clients write one.
   fs.writeFileSync(at('accounts.json'), JSON.stringify([
     { email: 'one@checks.example', password: 'not-a-real-password', host: 'mail.checks.example', port: 993, smtpPort: 587, smtpSecure: false, label: 'one' },
@@ -365,6 +370,7 @@ function makeFixtures(dir) {
     cards: at('cards.docx'),
     toc: at('toc.docx'),
     track: at('track.docx'),
+    equations: at('equations.docx'),
     xlsx: at('sales.xlsx'),
     notes: at('notes.xlsx'),
     pptx: at('deck.pptx'),
@@ -3289,6 +3295,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   };
 
   /* ── Word: track changes — recording, not just reading ───────────────── */
+  /* ── Word: equations — Office Math read, drawn and edited ────────────── */
+  const wordEquations = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyWordEquations({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { file: files.equations });
+  };
+
   const wordTrack = async () => {
     const capture = async (win, name) => {
       if (!process.env.RUTBA_VERIFY_CAPTURE) return;
@@ -4221,7 +4236,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4249,6 +4264,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('captions')) await wordCaptions();
     if (only.includes('toc')) await wordToc();
     if (only.includes('track')) await wordTrack();
+    if (only.includes('equations')) await wordEquations();
     if (only.includes('effects')) await wordEffects();
     if (only.includes('ruler')) await wordRuler();
     if (only.includes('columns')) await wordColumns();
@@ -4380,6 +4396,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordCaptions();
   await wordToc();
   await wordTrack();
+  await wordEquations();
   await wordEffects();
   await wordPictureFits();
   await wordCards();

@@ -108,7 +108,7 @@ export function removeRange(runs, from, to) {
  * still a pending insertion by the very same author, in which case Word
  * simply un-inserts them rather than marking a deletion of a deletion.
  *
- * A note/endnote reference, its mark, or a field is never tracked — deleting
+ * A note/endnote reference, its mark, a field or an equation is never tracked — deleting
  * one takes it outright, recording or not, a stated simplification.
  */
 export function trackedRemoveRange(runs, from, to, recording, meta) {
@@ -121,7 +121,7 @@ export function trackedRemoveRange(runs, from, to, recording, meta) {
     seen = end;
     if (run.del) { out.push(run); continue; } // already deleted text is inert
     if (end <= from || start >= to) { out.push(run); continue; }
-    if (run.noteRef || run.noteMark || run.field) {
+    if (run.noteRef || run.noteMark || run.field || run.math) {
       if (!(from <= start && to >= end)) out.push(run); // partially covered: leave it whole
       continue; // fully covered: removed outright, same as untracked
     }
@@ -160,7 +160,7 @@ export function coalesce(runs) {
     // of its own for the same reason — its one character IS the reference —
     // and a field run the same again: its text is a cached RESULT, not words
     // to fold into whatever sits beside it.
-    const marker = Boolean(run.noteRef || run.noteMark || run.field || last?.noteRef || last?.noteMark || last?.field);
+    const marker = Boolean(run.noteRef || run.noteMark || run.field || run.math || last?.noteRef || last?.noteMark || last?.field || last?.math);
     // Two runs of the SAME pending insertion or deletion merge into one, the
     // way ordinary typing already coalesces into one run — Word does not
     // write a fresh `w:ins` per keystroke either. A tracked run never merges

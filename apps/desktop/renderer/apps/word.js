@@ -32,6 +32,7 @@ import {
   BookmarkDialog, CrossReferenceDialog, CaptionDialog,
 } from './word/dialogs.js';
 import { lineBoxes, rectOf } from './word/pages.js';
+import { MathRun, mathHostOf, EQUATION_CSS } from './word/equations.js';
 
 /**
  * Character offset of a DOM position within its block element.
@@ -82,7 +83,18 @@ function pointIn(blockEl, offset) {
   let node = walker.nextNode();
   while (node) {
     const len = node.nodeValue.length;
-    if (seen + len >= offset) return { node, offset: Math.max(0, Math.min(len, offset - seen)) };
+    if (seen + len >= offset) {
+      const at = Math.max(0, Math.min(len, offset - seen));
+      // An equation's one character is not drawn (its MathML is, in the
+      // host's shadow), so the caret goes beside the host instead: before it
+      // at its start, after it at its end.
+      const host = mathHostOf(node);
+      if (host && host.parentNode) {
+        const index = [...host.parentNode.childNodes].indexOf(host);
+        return { node: host.parentNode, offset: index + (at > 0 ? 1 : 0) };
+      }
+      return { node, offset: at };
+    }
     seen += len;
     node = walker.nextNode();
   }
@@ -568,6 +580,23 @@ export default function Word({ app, shell, boot }) {
     placeSelection(pageRef.current, target.anchor, target.focus);
     placedCaret.current = target;
     pendingCaret.current = null;
+  }, [model]);
+
+  // An equation drawn in a shadow root takes no part in the browser's own
+  // selection highlight, so one inside the engine's selection is marked by
+  // hand — the blue Word puts over a selected equation.
+  useLayoutEffect(() => {
+    const page = pageRef.current;
+    if (!page) return;
+    const s = model?.selection;
+    const before = (a, b) => a.block < b.block || (a.block === b.block && a.offset <= b.offset);
+    for (const host of page.querySelectorAll('.wd-math')) {
+      const block = Number(host.closest('[data-block]')?.dataset.block);
+      const at = Number(host.dataset.at);
+      const on = Boolean(s && !s.collapsed && Number.isFinite(block) && Number.isFinite(at)
+        && before(s.from, { block, offset: at }) && before({ block, offset: at + 1 }, s.to));
+      host.classList.toggle('sel', on);
+    }
   }, [model]);
 
   /* ── commands ────────────────────────────────────────────────────────── */
@@ -1106,6 +1135,7 @@ export default function Word({ app, shell, boot }) {
       ) : (
         <div className={`wd mode-${view.mode || 'print'}${view.focus ? ' focus' : ''}`}>
           <style>{CSS}</style>
+          <style>{EQUATION_CSS}</style>
           {view.navigation ? (
             <NavigationPane blocks={model.blocks} at={model.selection?.focus?.block ?? -1} onGo={(i) => act('goto', i)} onClose={() => act('toggleNavigation')} />
           ) : null}
@@ -1130,9 +1160,31 @@ export default function Word({ app, shell, boot }) {
               contentEditable
               suppressContentEditableWarning
               spellCheck={view.spell !== false}
+              onMouseDown={(e) => {
+                // A press on an equation selects it whole — the one character
+                // it is — so Delete, Backspace, typing and copy all act on
+                // the equation, and a second press opens it in the editor.
+                const host = e.button === 0 ? e.target.closest?.('.wd-math') : null;
+                if (!host) return;
+                const blockEl = host.closest('[data-block]');
+                const at = Number(host.dataset.at);
+                if (!blockEl || !Number.isFinite(at)) return;
+                e.preventDefault();
+                const block = Number(blockEl.dataset.block);
+                pageRef.current?.focus({ preventScroll: true });
+                const range = document.createRange();
+                range.setStartBefore(host);
+                range.setEndAfter(host);
+                const sel = window.getSelection();
+                sel.removeAllRanges();
+                sel.addRange(range);
+                apply({ op: 'setSelection', anchor: { block, offset: at }, focus: { block, offset: at + 1 } });
+                if (e.detail >= 2) act('editEquation', { block, at });
+              }}
               onMouseUp={(e) => {
-                // A press on a picture or its handles is a pick, not a caret move.
-                if (pictureDrag.current || e.target.closest?.('.wd-handles, .wd-image')) return;
+                // A press on a picture or its handles is a pick, not a caret move;
+                // one on an equation selected it already.
+                if (pictureDrag.current || e.target.closest?.('.wd-handles, .wd-image, .wd-math')) return;
                 // Ctrl+click (Cmd+click on a Mac) a REF field to go to the
                 // bookmark it names — Word's own way into a cross-reference.
                 const field = e.target.closest?.('.wd-field');
@@ -1875,7 +1927,9 @@ function authorColour(author) {
 }
 
 /** One run of text: its direct formatting, its link, its tabs, and — Review → Track Changes — an insertion or a deletion. */
-function RunSpan({ run, markupMode = 'simple' }) {
+function RunSpan({ run, markupMode = 'simple', at = null }) {
+  // An equation: its one character in a host the MathML is drawn behind.
+  if (run.math) return <MathRun run={run} at={at} />;
   // A footnote/endnote reference, or the mark at the head of the note: the
   // number is drawn by CSS from `data-n`, so the span holds no text and the
   // engine's caret offsets stay exactly right.
@@ -2282,7 +2336,16 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
         the caret — unless pictures under the words give it both: a line
         break there put an empty line above every inserted picture.
       */}
-      {runs.length ? runs.map((run, i) => <RunSpan key={i} run={run} markupMode={markupMode} />) : drawsUnder ? null : <br />}
+      {runs.length ? (() => {
+        // Each run's offset in the block rides an equation's host, so a click
+        // on it and the selection's highlight know which character it is.
+        let at = whole ? 0 : from;
+        return runs.map((run, i) => {
+          const here = at;
+          at += (run.text ?? '').length;
+          return <RunSpan key={i} run={run} markupMode={markupMode} at={here} />;
+        });
+      })() : drawsUnder ? null : <br />}
       {/*
         Pictures, charts and shapes sit under the paragraph's text as blocks —
         the engine's own honest simplification of float layout. Not editable:

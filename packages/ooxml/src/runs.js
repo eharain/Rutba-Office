@@ -22,10 +22,14 @@ import { unesc } from './workbook.js';
  */
 export function textOf(xmlFragment) {
   let out = '';
-  const re = /<w:t\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:t>)|<w:tab\s*\/>|<w:(?:br|cr)\b[^>]*\/>|<w:(?:footnote|endnote)Reference\b[^>]*\/>/g;
+  const re = /<m:oMathPara\b[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:t\b[^>]*?(?:\/>|>([\s\S]*?)<\/w:t>)|<w:tab\s*\/>|<w:(?:br|cr)\b[^>]*\/>|<w:(?:footnote|endnote)Reference\b[^>]*\/>/g;
   for (const m of String(xmlFragment).matchAll(re)) {
     const tag = m[0];
-    if (tag.startsWith('<w:tab')) out += '\t';
+    // An equation is ONE character of the paragraph, as a note reference
+    // is: its words are the equation's, not the paragraph's, and the caret
+    // steps over the whole of it — see `MATH_MARK`.
+    if (tag.startsWith('<m:oMath')) out += MATH_MARK;
+    else if (tag.startsWith('<w:tab')) out += '\t';
     else if (tag.startsWith('<w:t')) out += unesc(m[1] ?? '');
     // A reference is told apart by its OWN tag, not by whether the words it
     // sits beside happen to contain "Reference" — a run reading "See the
@@ -47,6 +51,21 @@ export function textOf(xmlFragment) {
  */
 export const NOTE_MARK = '￼';
 
+/**
+ * An equation — `m:oMathPara` (display) or `m:oMath` (inline) among the
+ * runs — is one character of the text too, the same U+FFFC: a run of its
+ * own carrying `math: { xml, display }`, the XML exactly as it was read, so
+ * a rebuilt paragraph writes the equation back byte for byte.
+ */
+export const MATH_MARK = NOTE_MARK;
+
+/** An equation element as a run. */
+const mathRun = (xml, link = null) => ({
+  rPr: null, text: MATH_MARK, bold: false, italic: false, underline: false, strike: false,
+  math: { xml, display: xml.startsWith('<m:oMathPara') },
+  ...(link !== null ? { link } : {}),
+});
+
 /** Render a run that carries the given properties verbatim. */
 function renderRun(rPrXml, text, run = null) {
   const props = rPrXml ? rPrXml : '';
@@ -54,6 +73,8 @@ function renderRun(rPrXml, text, run = null) {
   // what the run carries, never from its text.
   if (run?.noteRef) return '<w:r>' + props + '<w:' + run.noteRef.kind + 'Reference w:id="' + esc(String(run.noteRef.id)) + '"/></w:r>';
   if (run?.noteMark) return '<w:r>' + props + '<w:' + run.noteMark + 'Ref/></w:r>';
+  // An equation is not a `w:r` at all: its own element, verbatim.
+  if (run?.math) return run.math.xml;
   // A tab and a line break are elements in the file, not characters: a
   // literal tab inside <w:t> is something Word tolerates, not something it
   // writes. xml:space="preserve" or Word eats leading and trailing spaces.
@@ -145,7 +166,10 @@ function sizeOf(rPr) {
 
 /** Every text run in a fragment, flat — the pre-hyperlink behaviour. */
 function flatRuns(fragment, out, link = null) {
-  for (const m of String(fragment).matchAll(/<w:r\b(?![a-zA-Z])[^>]*>([\s\S]*?)<\/w:r>/g)) {
+  const re = /<m:oMathPara\b[^>]*>[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:r\b(?![a-zA-Z])[^>]*>([\s\S]*?)<\/w:r>/g;
+  for (const m of String(fragment).matchAll(re)) {
+    // An equation among the runs (inside a hyperlink, say) keeps its place.
+    if (m[0].startsWith('<m:')) { out.push(mathRun(m[0], link)); continue; }
     const run = runFromInner(m[1], link);
     if (run) out.push(run);
   }
@@ -339,12 +363,16 @@ export function parseRuns(paragraphXml) {
   // change inside a hyperlink or a field is rare enough, and costly enough
   // to get wrong, that it is left to ride through as plain text there, the
   // same stance already taken on nesting hyperlink inside fldSimple or back).
-  const re = /<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>|<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>|<w:ins\b([^>]*)>([\s\S]*?)<\/w:ins>|<w:del\b([^>]*)>([\s\S]*?)<\/w:del>/g;
+  // An equation is matched at this level too, whole, so a `w:ins` INSIDE
+  // one (a tracked edit to an equation) is never taken for a paragraph-level
+  // insertion that would cut the equation in two.
+  const re = /<m:oMathPara\b[^>]*>[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>|<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>|<w:ins\b([^>]*)>([\s\S]*?)<\/w:ins>|<w:del\b([^>]*)>([\s\S]*?)<\/w:del>/g;
   let cursor = 0;
   let m;
   while ((m = re.exec(xml))) {
     flatRuns(xml.slice(cursor, m.index), runs);
-    if (m[1] !== undefined) flatRuns(m[2], runs, m[1]);
+    if (m[0].startsWith('<m:')) runs.push(mathRun(m[0]));
+    else if (m[1] !== undefined) flatRuns(m[2], runs, m[1]);
     else if (m[3] !== undefined) runs.push(fieldRunFromFldSimple(m[3], m[4]));
     else if (m[5] !== undefined) flatInsRuns(m[6], runs, parseTrackAttrs(m[5]));
     else flatDelRuns(m[8], runs, parseTrackAttrs(m[7]));
@@ -401,7 +429,7 @@ export function renderRuns(runs) {
   // A deletion carries no text of its own (see `flatDelRuns`) — `del.text`
   // is what must survive to `<w:delText>`, so it alone earns an empty run a
   // place in the file.
-  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark || run.field || run.del)) {
+  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark || run.field || run.del || run.math)) {
     const link = r.link ?? null;
     if (link !== openLink) {
       if (openLink !== null) out.push('</w:hyperlink>');
