@@ -1855,6 +1855,94 @@ export class DocView {
     });
   }
 
+  /**
+   * Insert → Equation: an equation at the caret, replacing any selection —
+   * `xml` is the OMML (`m:oMathPara` for a display equation, a bare
+   * `m:oMath` for one in the words). One character of the paragraph, like a
+   * note reference; the caret lands after it. While Track Changes records,
+   * it goes in as an insertion like any typed word.
+   */
+  insertEquation({ xml }) {
+    if (typeof this.doc.ensureMathNamespace !== 'function') throw new Error('this document backend does not support equations');
+    if (!/^<m:oMath(Para)?\b/.test(String(xml || ''))) throw new Error('an equation is an m:oMath or m:oMathPara element');
+    return this._edit('equation', null, () => {
+      if (!this.collapsed) this.deleteSelection();
+      const { block, offset } = this.focus;
+      const b = this._editable(block);
+      this.doc.ensureMathNamespace();
+      const run = this._mathRun(xml);
+      const next = [...sliceRuns(b.runs, 0, offset), run, ...sliceRuns(b.runs, offset, Infinity)];
+      this.doc.setParagraphRuns(block, coalesce(next));
+      this._invalidate();
+      this.pendingFormat = null;
+      this.collapseTo({ block, offset: offset + 1 });
+      return this;
+    });
+  }
+
+  /**
+   * The equation at `block`/`offset` replaced by another — what OK in the
+   * equation editor does to one opened for editing. The new one is left
+   * selected, as Word leaves an equation it has just built.
+   */
+  replaceEquation({ block, offset, xml }) {
+    if (!/^<m:oMath(Para)?\b/.test(String(xml || ''))) throw new Error('an equation is an m:oMath or m:oMathPara element');
+    return this._edit('equation', null, () => {
+      const b = this._editable(block);
+      let at = 0;
+      const index = b.runs.findIndex((r) => {
+        const hit = at === offset && Boolean(r.math);
+        at += r.text.length;
+        return hit;
+      });
+      if (index < 0) throw new Error('there is no equation there to change');
+      const runs = b.runs.map((r, i) => (i === index ? { ...r, math: { xml, display: xml.startsWith('<m:oMathPara') } } : r));
+      this.doc.setParagraphRuns(block, runs);
+      this._invalidate();
+      this.setSelection({ block, offset }, { block, offset: offset + 1 });
+      return this;
+    });
+  }
+
+  _mathRun(xml) {
+    const run = {
+      rPr: null, text: '￼', bold: false, italic: false, underline: false, strike: false,
+      math: { xml, display: xml.startsWith('<m:oMathPara') },
+    };
+    return this.recording ? { ...run, ins: this._trackMeta(null) } : run;
+  }
+
+  /**
+   * A paste from within the suite that carries equations: `lines`, each a
+   * list of pieces — `{ text }` or `{ math: { xml } }` — one paragraph per
+   * line, as `pasteText` splits on newlines. The equations come back as the
+   * equations they were, not as their pictures or their linear form. One
+   * undo, however much it held.
+   */
+  pasteRuns(lines) {
+    const list = Array.isArray(lines) ? lines : [];
+    return this._edit('paste', null, () => {
+      if (!this.collapsed) this.deleteSelection();
+      list.forEach((pieces, i) => {
+        if (i > 0) this.splitParagraph();
+        for (const piece of pieces || []) {
+          if (piece?.math?.xml && /^<m:oMath(Para)?\b/.test(piece.math.xml) && typeof this.doc.ensureMathNamespace === 'function') {
+            const { block, offset } = this.focus;
+            const b = this._editable(block);
+            this.doc.ensureMathNamespace();
+            const next = [...sliceRuns(b.runs, 0, offset), this._mathRun(piece.math.xml), ...sliceRuns(b.runs, offset, Infinity)];
+            this.doc.setParagraphRuns(block, coalesce(next));
+            this._invalidate();
+            this.collapseTo({ block, offset: offset + 1 });
+          } else if (piece?.text) {
+            this.insertText(String(piece.text).replace(/￼/g, ''));
+          }
+        }
+      });
+      return this;
+    });
+  }
+
   /** Replace a note's words — the number and the reference stay where they are. */
   setNoteText(kind, id, text) {
     if (typeof this.doc.setNoteText !== 'function') throw new Error('this document backend does not support footnotes');

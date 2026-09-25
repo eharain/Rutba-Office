@@ -22,6 +22,7 @@
 
 import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select, Input } from '@rutba/office-ui';
+import { EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
 
 /* ── vocabularies ────────────────────────────────────────────────────────── */
 
@@ -331,7 +332,13 @@ export default function WordRibbon({
             <Soon icon="file" label="Object" why="Embedded objects (OLE) need an embeddings part the engine does not write." />
           </Group>
           <Group label="Symbols">
-            <Soon tall icon="formula" label="Equation" why="Equations are OMML, which the engine reads past but does not write." />
+            <Button tall icon="formula" label="Equation" title="Equation — type one in Word's linear format, or build it from structures and symbols (Alt+=)" onClick={() => act('equation')} />
+            <Button
+              icon="chevronDown"
+              label="Built-in"
+              title="Built-in equations — the quadratic formula, the area of a circle, the binomial theorem and more, put in at the caret"
+              onClick={(e) => menu.open(e, EQUATION_GALLERY.map((g) => ({ label: g.name, icon: 'formula', run: () => act('equation', { linear: g.linear }) })))}
+            />
             <Button tall icon="star" label="Symbol" onClick={() => openDialog('symbol')} />
           </Group>
         </>

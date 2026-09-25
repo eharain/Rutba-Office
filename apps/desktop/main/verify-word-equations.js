@@ -5,10 +5,15 @@
 // page's MathML: a real fraction bar, a radical, stacked limits, italic
 // variables, upright function names. The caret steps over an equation as
 // one character, a click selects it, Backspace takes it and Undo puts it
-// back. Run alone with RUTBA_VERIFY_ONLY=equations.
+// back. Then Insert → Built-in → Quadratic Formula puts one in, a
+// double-click opens it in the editor, an edit there updates it, Alt+=
+// opens a new one, and Save writes the OMML; printed, every equation is
+// Chromium's own picture of its MathML. Run alone with
+// RUTBA_VERIFY_ONLY=equations.
 import fs from 'node:fs';
 import { buildDocx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
+import { linearToOmml } from '@rutba/ooxml/math-linear';
 
 const M_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
 const RPR = '<w:rPr><w:rFonts w:ascii="Cambria Math" w:hAnsi="Cambria Math"/></w:rPr>';
@@ -194,8 +199,147 @@ export async function verifyWordEquations(h, { file }) {
     const back = await until(async () => model().blocks[3].runs.some((x) => x.math?.xml === quadratic) && (await js(`Boolean(document.querySelector('.wd-page [data-block="3"] .wd-math')?.shadowRoot?.querySelector('mfrac'))`)), 'the equation back', 5000).catch(() => false);
     check('word: Undo puts the equation back, the same OMML, drawn again', back === true);
 
+    /* ── Item B: inserting and editing ─────────────────────────────────── */
+
+    const clickRibbon = (tip) => js(`(() => {
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(tip)}) && !n.disabled);
+      if (!b) return 'no button ' + ${JSON.stringify(tip)};
+      b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      b.click();
+      return 'clicked';
+    })()`);
+    const clickTab = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const setEditor = (value) => js(`(() => {
+      const el = document.querySelector('.wd-eq-input');
+      if (!el) return false;
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(el, ${JSON.stringify(value)});
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()`);
+    const QUAD = 'x=(-b±√(b^2-4ac))/2a';
+    const QUAD_EDITED = 'x=(-b±√(b^2-4ac))/2 a';
+
+    // A fresh empty paragraph after "The end." — Enter at its end — and
+    // Insert → Built-in → Quadratic Formula: a display equation, drawn.
+    const endRect = await js(`(() => { const r = document.querySelector('.wd-page [data-block="8"]').getBoundingClientRect(); return { x: Math.round(r.right - 6), y: Math.round(r.top + r.height / 2) }; })()`);
+    win.webContents.sendInputEvent({ type: 'mouseDown', x: endRect.x, y: endRect.y, button: 'left', clickCount: 1 });
+    win.webContents.sendInputEvent({ type: 'mouseUp', x: endRect.x, y: endRect.y, button: 'left', clickCount: 1 });
+    await until(() => model().selection?.focus?.block === 8, 'the caret at the end', 5000).catch(() => false);
+    await press(win.webContents, 'End');
+    await wait(150);
+    // Enter types a paragraph break through its character, as a key does.
+    await press(win.webContents, 'Return', { char: true });
+    await until(() => model().blocks.length === 10 && model().selection?.focus?.block === 9, 'a new paragraph', 5000).catch(() => false);
+    await clickTab('Insert');
+    await wait(250);
+    const built = await clickRibbon('Built-in equations');
+    await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Quadratic Formula'))`), 'the gallery menu', 4000).catch(() => false);
+    await js(`(() => { [...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === 'Quadratic Formula')?.click(); return 1; })()`);
+    const galleried = await until(async () => {
+      const run = model().blocks[9]?.runs?.find((x) => x.math);
+      return run?.math?.linear === QUAD && run.math.display === true
+        && (await js(`Boolean(document.querySelector('.wd-page [data-block="9"] .wd-math')?.shadowRoot?.querySelector('math[display="block"] mfrac msqrt'))`));
+    }, 'the quadratic formula from the gallery, drawn', 6000).catch(() => false);
+    check(
+      'word: Insert → Built-in → Quadratic Formula puts Word\'s quadratic formula on the empty line as a display equation, drawn with its fraction and radical',
+      built === 'clicked' && galleried === true,
+      `${built}; ${model().blocks.length} blocks, caret ${JSON.stringify(model().selection?.focus)}; ${JSON.stringify(model().blocks[9]?.runs?.map((x) => x.math?.linear ?? x.text))}`
+    );
+
+    // Double-click it: the editor opens on its linear form.
+    const qRect = await js(`(() => { const r = document.querySelector('.wd-page [data-block="9"] .wd-math').shadowRoot.querySelector('math').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+    win.webContents.sendInputEvent({ type: 'mouseDown', x: qRect.x, y: qRect.y, button: 'left', clickCount: 1 });
+    win.webContents.sendInputEvent({ type: 'mouseUp', x: qRect.x, y: qRect.y, button: 'left', clickCount: 1 });
+    win.webContents.sendInputEvent({ type: 'mouseDown', x: qRect.x, y: qRect.y, button: 'left', clickCount: 2 });
+    win.webContents.sendInputEvent({ type: 'mouseUp', x: qRect.x, y: qRect.y, button: 'left', clickCount: 2 });
+    const reopened = await until(async () => (await js(`document.querySelector('.wd-eq-input')?.value || null`)) === QUAD, 'the editor on the equation', 6000).catch(() => false);
+    check('word: a double-click on an equation opens the editor with its linear form, as Word\'s own editor shows it', reopened === true, String(await js(`document.querySelector('.wd-eq-input')?.value ?? 'no editor'`)));
+
+    // 2a → 2 a: a space ends an operand, so the denominator is 2 and a
+    // follows the fraction. The preview follows the typing.
+    await setEditor(QUAD_EDITED);
+    const previewed = await until(() => js(`(() => { const f = document.querySelector('.wd-eq-built mfrac'); return Boolean(f) && f.children[1]?.textContent === '2'; })()`), 'the preview of the edit', 5000).catch(() => false);
+    await js(`document.querySelector('.wd-eq-struct[data-struct="Fraction"]')?.click(), 1`);
+    await wait(300);
+    win.webContents.invalidate();
+    await wait(700);
+    await capture(win, 'word-equation-editor.png');
+    await js(`document.querySelector('.wd-eq-struct[data-struct="Fraction"]')?.click(), 1`);
+    await js(`document.querySelector('.wd-eq-ok')?.click(), 1`);
+    const updated = await until(async () => model().blocks[9]?.runs?.find((x) => x.math)?.math?.linear === QUAD_EDITED
+      && (await js(`(() => { const f = document.querySelector('.wd-page [data-block="9"] .wd-math')?.shadowRoot?.querySelector('mfrac'); return Boolean(f) && f.children[1]?.textContent === '2' && !document.querySelector('.wd-eq-input'); })()`)), 'the equation updated on the page', 6000).catch(() => false);
+    check(
+      'word: the editor\'s live preview follows the typing, and Update replaces the equation — its denominator now 2, drawn on the page',
+      previewed === true && updated === true,
+      JSON.stringify(model().blocks[9]?.runs?.find((x) => x.math)?.math?.linear)
+    );
+
+    win.webContents.invalidate();
+    await wait(700);
+    await capture(win, 'word-equations-inserted.png');
+    // The Symbols group sits at the Insert tab's far end: scrolled into view for a look.
+    if (process.env.RUTBA_VERIFY_CAPTURE) {
+      await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Equation')); let el = b?.parentElement; while (el && el.scrollWidth <= el.clientWidth + 1) el = el.parentElement; if (el) el.scrollLeft = el.scrollWidth; return 1; })()`);
+      win.webContents.invalidate();
+      await wait(700);
+      await capture(win, 'word-equations-ribbon.png');
+    }
+
+    // Alt+= opens a new editor; a sum typed in it previews with its limits
+    // stacked; Cancel leaves the document as it was.
+    await js(`document.querySelector('.wd-page')?.focus(), 'focused'`);
+    const blocksBefore = model().blocks.length;
+    await press(win.webContents, '=', { modifiers: ['alt'] });
+    const altOpen = await until(() => js(`Boolean(document.querySelector('.wd-eq-input'))`), 'Alt+= to open the editor', 5000).catch(() => false);
+    await setEditor('\\sum_(i=1)^n i');
+    const sumPreview = await until(() => js(`Boolean(document.querySelector('.wd-eq-built munderover'))`), 'the sum previewed', 5000).catch(() => false);
+    await setEditor('(a+b');
+    const told = await until(() => js(`(document.querySelector('.wd-eq-error')?.textContent || '').includes('not closed') && document.querySelector('.wd-eq-ok')?.disabled === true`), 'the mistake reported', 5000).catch(() => false);
+    await js(`[...document.querySelectorAll('.rw-dialog .rw-btn')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 1`);
+    await until(() => js(`!document.querySelector('.wd-eq-input')`), 'the editor closed', 4000).catch(() => false);
+    check(
+      'word: Alt+= opens the equation editor, \\sum_(i=1)^n i previews as a sum with stacked limits, an unclosed bracket is reported (Insert disabled), and Cancel changes nothing',
+      altOpen === true && sumPreview === true && told === true && model().blocks.length === blocksBefore,
+      `${altOpen} ${sumPreview} ${told}`
+    );
+
+    // The edited equation selected with a click, taken with Backspace,
+    // brought back with Ctrl+Z.
+    const q2 = await js(`(() => { const r = document.querySelector('.wd-page [data-block="9"] .wd-math').shadowRoot.querySelector('math').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
+    win.webContents.sendInputEvent({ type: 'mouseDown', x: q2.x, y: q2.y, button: 'left', clickCount: 1 });
+    win.webContents.sendInputEvent({ type: 'mouseUp', x: q2.x, y: q2.y, button: 'left', clickCount: 1 });
+    await until(() => model().selection?.from?.block === 9 && model().selection.to.offset === 1, 'the new equation selected', 5000).catch(() => false);
+    await press(win.webContents, 'Backspace');
+    const removed2 = await until(() => model().blocks[9]?.text === '', 'the new equation removed', 5000).catch(() => false);
+    await js(`document.querySelector('.wd-page')?.focus(), 'focused'`);
+    await press(win.webContents, 'z', { modifiers: ['control'] });
+    const restored2 = await until(async () => model().blocks[9]?.runs?.find((x) => x.math)?.math?.linear === QUAD_EDITED
+      && (await js(`Boolean(document.querySelector('.wd-page [data-block="9"] .wd-math')?.shadowRoot?.querySelector('mfrac'))`)), 'the equation back', 5000).catch(() => false);
+    check('word: the inserted equation goes with Backspace and comes back with Ctrl+Z', removed2 === true && restored2 === true);
+
+    // Save: the file holds the OMML Word writes for what was typed.
+    await wait(300);
+    await clickTab('Home');
+    await clickRibbon('Save');
+    const inFile = () => {
+      try {
+        const x = OoxmlPackage.read(fs.readFileSync(file)).text('word/document.xml');
+        return x;
+      } catch {
+        return '';
+      }
+    };
+    const expected = linearToOmml(QUAD_EDITED, { display: true }).xml;
+    const saved = await until(() => inFile().includes(expected), 'the equation in the saved file', 8000).catch(() => false);
+    const xml = inFile();
+    check(
+      'word: Save writes the equation into document.xml as Word writes OMML — m:oMathPara, Cambria Math runs, the fraction and radical — beside the original equations untouched',
+      saved === true && xml.includes(FIXTURE_EQUATIONS.Q) && xml.includes(FIXTURE_EQUATIONS.S) && /<w:document xmlns:m=/.test(xml),
+      `${xml.length} characters; the new one ${xml.includes(expected) ? 'found' : 'missing'}`
+    );
+
     // Paper: the PDF writer places Chromium's own picture of each equation
-    // (four pictures), not the linear-form fallback.
+    // (five pictures, the new one too), not the linear-form fallback.
     const pdfPath = file.replace(/\.docx$/, '.pdf');
     try { fs.rmSync(pdfPath, { force: true }); } catch { /* none yet */ }
     await js(`window.rutbaOffice.print.pdf({ id: ${JSON.stringify(session.id)}, path: ${JSON.stringify(pdfPath)}, options: {} }).then(() => 'written', (e) => 'failed ' + e.message)`);
@@ -203,8 +347,8 @@ export async function verifyWordEquations(h, { file }) {
     const pdf = fs.existsSync(pdfPath) ? fs.readFileSync(pdfPath).toString('latin1') : '';
     const pictures = (pdf.match(/\/Subtype \/Image/g) || []).length;
     check(
-      'word: printing to PDF draws each equation from the MathML Chromium laid out — four pictures, no linear-form stand-in',
-      pictures === 4 && !pdf.includes('sqrt'),
+      'word: printing to PDF draws each equation from the MathML Chromium laid out — five pictures, no linear-form stand-in',
+      pictures === 5 && !pdf.includes('sqrt'),
       `${pictures} pictures, ${pdf.length} bytes`
     );
     if (process.env.RUTBA_VERIFY_CAPTURE && pdf) fs.copyFileSync(pdfPath, `${process.env.RUTBA_VERIFY_CAPTURE}/word-equations.pdf`);

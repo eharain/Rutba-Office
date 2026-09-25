@@ -32,7 +32,7 @@ import {
   BookmarkDialog, CrossReferenceDialog, CaptionDialog,
 } from './word/dialogs.js';
 import { lineBoxes, rectOf } from './word/pages.js';
-import { MathRun, mathHostOf, EQUATION_CSS } from './word/equations.js';
+import { MathRun, mathHostOf, EQUATION_CSS, EquationDialog, clipOf, CLIP_TYPE } from './word/equations.js';
 
 /**
  * Character offset of a DOM position within its block element.
@@ -187,6 +187,9 @@ export default function Word({ app, shell, boot }) {
   const [tab, setTab] = useState('home');
   // One name at a time, the way the spreadsheet does it.
   const [dialog, setDialog] = useState(null);
+  // The equation editor: null, or what it opened on — a new equation, or
+  // one being edited at `block`/`offset`.
+  const [equation, setEquation] = useState(null);
   // How much of the flow is mounted. A specification of three thousand
   // paragraphs and two thousand table cells reached the engine in half a
   // second and then took six more to mount, all before the first paint.
@@ -599,6 +602,27 @@ export default function Word({ app, shell, boot }) {
     }
   }, [model]);
 
+  /**
+   * Copy (or cut) a selection that holds an equation: plain text for other
+   * programs, with each equation in its linear form, and the equations
+   * themselves on a clipboard type of the suite's own for a paste here. A
+   * selection with no equation is left to the browser.
+   */
+  const copyEquations = (e, cut) => {
+    const pos = currentPosition();
+    if (!pos?.focus || !model?.blocks) return;
+    const a = pos.anchor || pos.focus;
+    const b = pos.focus;
+    const [from, to] = a.block < b.block || (a.block === b.block && a.offset <= b.offset) ? [a, b] : [b, a];
+    if (from.block === to.block && from.offset === to.offset) return;
+    const clip = clipOf(model.blocks, from, to);
+    if (!clip.hasMath) return;
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', clip.text);
+    e.clipboardData.setData(CLIP_TYPE, JSON.stringify({ lines: clip.lines }));
+    if (cut) apply({ op: 'setSelection', anchor: from, focus: to }, { op: 'deleteSelection' });
+  };
+
   /* ── commands ────────────────────────────────────────────────────────── */
 
   const format = model?.format || {};
@@ -964,6 +988,30 @@ export default function Word({ app, shell, boot }) {
           await apply({ op: 'removeTableOfContents' });
           return;
         }
+        case 'equation': {
+          // Insert → Equation. A paragraph with nothing in it takes a display
+          // equation, on a line of its own; one with words takes it inline,
+          // in the words — Word's own rule. A pick from the built-in gallery
+          // goes straight in; otherwise the editor opens.
+          const here = blocks[sel?.focus?.block ?? 0];
+          const display = !here || (here.text || '').replace(/\s/g, '') === '';
+          if (arg?.linear) {
+            await apply({ op: 'insertEquation', linear: arg.linear, display });
+            return;
+          }
+          setEquation({ initial: '', display, editing: false });
+          return;
+        }
+        case 'editEquation': {
+          // An equation opened again — a double-click, or Enter on a selected
+          // one: the editor holds its linear form, and OK replaces it.
+          const b = blocks[arg?.block];
+          let o = 0;
+          const run = (b?.runs || []).find((r) => { const hit = o === arg.at && r.math; o += (r.text || '').length; return hit; });
+          if (!run) return;
+          setEquation({ initial: run.math.linear || '', display: Boolean(run.math.display), editing: true, block: arg.block, offset: arg.at });
+          return;
+        }
         case 'insertNote':
           setNoteDialog({ kind: arg === 'endnote' ? 'endnote' : 'footnote' });
           return;
@@ -1215,6 +1263,39 @@ export default function Word({ app, shell, boot }) {
                 // engine is told where it landed — after the browser has moved
                 // it, which is why this waits a tick.
                 if (/^(Arrow|Home|End|Page)/.test(e.key)) setTimeout(syncSelection, 0);
+                // Alt+= — Word's own shortcut for a new equation.
+                if (e.altKey && !e.ctrlKey && (e.key === '=' || e.code === 'Equal')) {
+                  e.preventDefault();
+                  act('equation');
+                  return;
+                }
+                // Enter on a selected equation opens it, as Word does.
+                const s = model?.selection;
+                if (e.key === 'Enter' && s && !s.collapsed && s.from.block === s.to.block && s.to.offset - s.from.offset === 1) {
+                  let o = 0;
+                  const hit = (model.blocks[s.from.block]?.runs || []).some((r) => { const at = o; o += (r.text || '').length; return at === s.from.offset && r.math; });
+                  if (hit) {
+                    e.preventDefault();
+                    act('editEquation', { block: s.from.block, at: s.from.offset });
+                  }
+                }
+              }}
+              onCopy={(e) => copyEquations(e, false)}
+              onCut={(e) => copyEquations(e, true)}
+              onPaste={(e) => {
+                // A copy made in the suite that held equations: they come back
+                // as themselves, not as their linear form.
+                const data = e.clipboardData?.getData(CLIP_TYPE);
+                if (!data) return;
+                let lines = null;
+                try { lines = JSON.parse(data).lines; } catch { lines = null; }
+                if (!Array.isArray(lines)) return;
+                e.preventDefault();
+                const pos = currentPosition();
+                const ops = [];
+                if (pos?.focus) ops.push({ op: 'setSelection', anchor: pos.anchor || pos.focus, focus: pos.focus });
+                ops.push({ op: 'pasteRuns', lines });
+                apply(...ops);
               }}
               onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.undo', 'edit.redo', '-', 'format.bold', 'format.italic', 'format.underline', '-', 'edit.find']))}
               style={{
@@ -1490,6 +1571,24 @@ export default function Word({ app, shell, boot }) {
           onInsert={async (text) => {
             await apply({ op: 'insertText', text });
             setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {equation ? (
+        <EquationDialog
+          initial={equation.initial}
+          display={equation.display}
+          editing={equation.editing}
+          onClose={() => { setEquation(null); requestAnimationFrame(() => pageRef.current?.focus({ preventScroll: true })); }}
+          onInsert={async (linear, display) => {
+            const target = equation;
+            setEquation(null);
+            const done = target.editing
+              ? await apply({ op: 'replaceEquation', block: target.block, offset: target.offset, linear, display })
+              : await apply({ op: 'insertEquation', linear, display });
+            requestAnimationFrame(() => pageRef.current?.focus({ preventScroll: true }));
+            if (done) toast(target.editing ? 'Equation updated' : 'Equation inserted', { tone: 'good' });
           }}
         />
       ) : null}

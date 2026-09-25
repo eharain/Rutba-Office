@@ -410,7 +410,14 @@ function seqLinear(node) {
   }
   if (!parts.length) return lin('');
   if (parts.length === 1) return parts[0];
-  return lin(parts.map((p) => p.s).join(''));
+  // A space where a structure's last operand would otherwise run into the
+  // next letters: `x^k a^(n-k)`, not `x^ka^(n-k)`.
+  let s = parts[0].s;
+  for (let i = 1; i < parts.length; i++) {
+    if (!parts[i - 1].run && /[\p{L}\p{N}]$/u.test(parts[i - 1].s) && /^[\p{L}\p{N}]/u.test(parts[i].s)) s += ' ';
+    s += parts[i].s;
+  }
+  return lin(s);
 }
 const partLinear = (node) => (node ? seqLinear(node) : lin(''));
 
@@ -420,7 +427,7 @@ function elementToLinear(el) {
     case 'm:r': {
       const text = textUnder(el);
       if (flag(kid(el, 'm:rPr'), 'm:nor')) return lin('"' + text + '"', true);
-      return lin(text);
+      return { ...lin(text), run: true };
     }
     case 'm:oMath': case 'm:e': case 'm:num': case 'm:den': case 'm:sub': case 'm:sup': case 'm:deg': case 'm:lim': case 'm:fName':
     case 'w:ins': case 'w:smartTag': case 'w:customXml': case 'w:hyperlink':
@@ -428,7 +435,8 @@ function elementToLinear(el) {
     case 'm:f': {
       const type = prop(pr, 'm:type') || 'bar';
       const op = type === 'noBar' ? '¦' : type === 'lin' ? '⊘' : type === 'skw' ? '∕' : '/';
-      return lin(wrap(partLinear(kid(el, 'm:num'))) + op + wrap(partLinear(kid(el, 'm:den'))), true);
+      // Not an atom: `(a/b)^2` needs its brackets back.
+      return lin(wrap(partLinear(kid(el, 'm:num'))) + op + wrap(partLinear(kid(el, 'm:den'))), false);
     }
     case 'm:rad': {
       const e = partLinear(kid(el, 'm:e'));
@@ -462,8 +470,11 @@ function elementToLinear(el) {
       // A function Word knows by name reads back without the invisible
       // function-application mark; any other name keeps it, so it parses
       // back as the function it was.
-      const known = FUNCTION_NAMES.has(name.s);
-      return lin(name.s + (known ? (/^[(\[{|]/.test(e.s) ? '' : ' ') : '\u2061') + e.s);
+      const known = FUNCTION_NAMES.has(/^\p{L}+/u.exec(name.s)?.[0] ?? '');
+      // An argument of more than one operand is grouped invisibly, \u3016\u2026\u3017, as
+      // Word writes `sin\u2061\u3016n\u03c0x/L\u3017`.
+      const arg = e.atom ? e.s : '\u3016' + e.s + '\u3017';
+      return lin(name.s + (known ? (/^[(\[{|\u3016]/.test(arg) ? '' : ' ') : '\u2061') + arg);
     }
     case 'm:acc': return lin(wrap(partLinear(kid(el, 'm:e'))) + (prop(pr, 'm:chr') || '\u0302'), true);
     case 'm:bar': return lin(((prop(pr, 'm:pos') || 'bot') === 'top' ? '¯' : '▁') + wrap(partLinear(kid(el, 'm:e'))), true);

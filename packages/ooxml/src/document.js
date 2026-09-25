@@ -794,6 +794,20 @@ export class Document {
    * child, and `<w:displayBackgroundShape/>` in the settings so Word shows
    * it (without that, Word keeps the colour and draws a white page).
    */
+  /**
+   * Declare Office Math's namespace on `<w:document>`, as Word does on every
+   * document, before an equation is written into one that lacks it — an
+   * `m:` element with no `xmlns:m` in scope is a file Word refuses.
+   */
+  ensureMathNamespace() {
+    const open = /<w:document\b[^>]*>/.exec(this.xml);
+    if (!open || /\bxmlns:m=/.test(open[0])) return false;
+    const tag = open[0].replace(/^<w:document\b/, '<w:document xmlns:m="http://schemas.openxmlformats.org/officeDocument/2006/math"');
+    this.xml = this.xml.slice(0, open.index) + tag + this.xml.slice(open.index + open[0].length);
+    this.dirty = true;
+    return true;
+  }
+
   setPageColour(colour) {
     const open = /<w:document\b[^>]*>/.exec(this.xml);
     if (!open) throw new Error('document has no <w:document>');

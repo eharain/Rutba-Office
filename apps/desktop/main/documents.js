@@ -28,7 +28,9 @@ function safeUserName() {
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parseRef } from '@rutba/ooxml/workbook';
 import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES } from '@rutba/presentation';
-import { renderPdf } from '@rutba/doc-view/export/pdf';import { probeImage } from '@rutba/imaging/probe';
+import { renderPdf } from '@rutba/doc-view/export/pdf';
+import { linearToOmml } from '@rutba/ooxml/math-linear';
+import { probeImage } from '@rutba/imaging/probe';
 import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
 import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
 
@@ -258,6 +260,14 @@ class Session {
 
 /** The extension a recovery copy is written with, per kind. */
 const RECOVERY_EXT = { doc: '.docx', sheet: '.xlsx', deck: '.pptx' };
+
+/** An equation op's OMML: given outright, or built from the linear form. */
+function equationXml({ xml = null, linear = null, display = true } = {}) {
+  if (xml) return xml;
+  const built = linearToOmml(linear ?? '', { display: display !== false });
+  if (!built.ok) throw new Error(`That equation cannot be built: ${built.error}.`);
+  return built.xml;
+}
 
 export function createDocumentService({ holdBlob, recoveryDir = null, measureMath = null }) {
   /** @type {Map<string, Session>} */
@@ -1141,6 +1151,14 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     insertShape: (v, a) => v.insertShape(a),
     replaceAll: (v, a) => v.replaceAll(a.find, a.replace, { matchCase: a.matchCase }),
     pasteText: (v, a) => v.pasteText(a.text),
+    // Insert → Equation: the editor sends the linear form (or, from the
+    // gallery and a paste, the OMML itself); it is built up here into the
+    // OMML Word writes. A mistake in the linear form is a sentence, not a
+    // crash — the editor shows it before OK is pressed.
+    insertEquation: (v, a) => v.insertEquation({ xml: equationXml(a) }),
+    replaceEquation: (v, a) => v.replaceEquation({ block: a.block, offset: a.offset, xml: equationXml(a) }),
+    // A paste from within the suite that carries equations, as themselves.
+    pasteRuns: (v, a) => v.pasteRuns(a.lines),
     setPageSetup: (v, a) => v.setPageSetup(a.spec),
     // Design → Page Colour: a colour behind every page, kept as Word keeps it.
     setPageColour: (v, a) => v.setPageColour(a.colour ?? null),

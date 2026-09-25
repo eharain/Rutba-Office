@@ -428,8 +428,10 @@ export function renderRuns(runs) {
   let openLink = null;
   // A deletion carries no text of its own (see `flatDelRuns`) — `del.text`
   // is what must survive to `<w:delText>`, so it alone earns an empty run a
-  // place in the file.
-  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark || run.field || run.del || run.math)) {
+  // place in the file. An equation is kept by its one character like any
+  // text: a split at its edge leaves an empty copy on the far side, which
+  // must not write the equation a second time.
+  for (const r of runs.filter((run) => run.text !== '' || run.noteRef || run.noteMark || run.field || run.del)) {
     const link = r.link ?? null;
     if (link !== openLink) {
       if (openLink !== null) out.push('</w:hyperlink>');

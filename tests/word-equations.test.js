@@ -157,6 +157,18 @@ test('the caret steps over an equation as one character; typing beside it never 
   assert.ok(runs.find((r) => r.math).math.xml === inline(mr('x')), 'the equation untouched');
 });
 
+test('Enter just after an equation, or just before it, splits the paragraph without writing the equation twice', () => {
+  const view = docWith([{ text: '@Q@' }, { text: 'a @A@ b' }], { Q: QUADRATIC, A: inline(mr('x')) });
+  view.collapseTo({ block: 0, offset: 1 });
+  view.splitParagraph();
+  view.collapseTo({ block: 2, offset: 2 });
+  view.splitParagraph();
+  const xml = documentXml(view.save());
+  assert.equal(xml.split('<m:oMathPara>').length - 1, 1, 'one display equation');
+  assert.equal(xml.split('<m:oMath>').length - 1, 2, 'and one inline one, besides');
+  assert.deepEqual(view.blocks.map((b) => b.text), [MARK, '', 'a ', `${MARK} b`]);
+});
+
 test('Backspace after an equation removes it whole, and Undo puts back the same XML', () => {
   const bytes = withEquations(buildDocx({ styles: true, paragraphs: [{ text: 'Before' }, { text: '@Q@' }, { text: 'x @A@ y' }] }), { Q: QUADRATIC, A: inline(mr('a')) });
   const view = openDocx(bytes);

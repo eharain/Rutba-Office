@@ -22,7 +22,8 @@
     "./pivot": "./src/pivot.js",
     "./build": "./src/build.js",
     "./zip": "./src/zip.js",
-    "./math": "./src/math.js"
+    "./math": "./src/math.js",
+    "./math-linear": "./src/math-linear.js"
   },
   "dependencies": {
     "@rutba/formula": "*"
