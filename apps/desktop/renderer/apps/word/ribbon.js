@@ -73,13 +73,39 @@ const CASES = [['sentence', 'Sentence case.'], ['lower', 'lowercase'], ['upper',
 /** The "A" button's glow colours — Word's own accent palette, 4pt radius. */
 const GLOWS = [['FFC000', 'gold'], ['4472C4', 'blue'], ['70AD47', 'green'], ['FF0000', 'red']];
 
+/** Shape Fill and Shape Outline: Word's standard colours, in the suite's own names. */
+const SHAPE_COLOURS = [
+  ['FFFFFF', 'White'], ['000000', 'Black'], ['E7E6E6', 'Light grey'], ['767171', 'Grey'], ['1F3864', 'Dark blue'],
+  ['2B5FD9', 'Blue'], ['DEEBF7', 'Light blue'], ['0D8F6F', 'Teal'], ['0F9D58', 'Green'], ['E2EFDA', 'Light green'],
+  ['E0A800', 'Gold'], ['FFF2CC', 'Light yellow'], ['E08B2B', 'Orange'], ['C00000', 'Dark red'], ['7B5CD6', 'Purple'],
+];
+/** Shape Outline → Weight, in Word's points and the pixels the engine writes. */
+const WEIGHTS = [['½ pt', 0.67], ['1 pt', 1.33], ['1½ pt', 2], ['2¼ pt', 3], ['3 pt', 4], ['6 pt', 8]];
+/** A text box's Margins, Word's four: its insets in px, left/top/right/bottom. */
+const BOX_MARGINS = [
+  ['None', { l: 0, t: 0, r: 0, b: 0 }],
+  ['Narrow', { l: 4.8, t: 4.8, r: 4.8, b: 4.8 }],
+  ['Normal', { l: 9.6, t: 4.8, r: 9.6, b: 4.8 }],
+  ['Wide', { l: 14.4, t: 14.4, r: 14.4, b: 14.4 }],
+];
+/** Insert → WordArt: four styles of our own, made of the text effects the engine writes. */
+const WORDART = [
+  ['Fill: blue, shadow', { colour: '2B5FD9', effects: { shadow: true } }],
+  ['Outline: blue', { colour: '2B5FD9', effects: { outline: true } }],
+  ['Fill: gold, glow', { colour: 'C98A00', effects: { glow: { colour: 'FFC000', radiusPt: 4 } } }],
+  ['Fill: black, shadow', { colour: '262626', effects: { shadow: true } }],
+];
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+/** 1 cm in CSS px, for the Size boxes. */
+const CM = 96 / 2.54;
+
 /** A control that is drawn where Word draws it, and says why it is not live. */
 const Soon = ({ icon, label, tall, why }) => (
   <Button tall={tall} icon={icon} label={label} disabled title={`${label} — not built yet. ${why}`} />
 );
 
 export default function WordRibbon({
-  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null,
+  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null,
 }) {
   const format = model?.format || {};
   const styles = Array.isArray(model?.styles) ? model.styles : [];
@@ -113,6 +139,102 @@ export default function WordRibbon({
     return name === 'left' ? columns.widths[0] < columns.widths[1] : name === 'right' && columns.widths[0] > columns.widths[1];
   };
 
+  // Drawings: what is selected, and what Arrange may do with it.
+  const pickedIds = picked?.ids || [];
+  const drawings = model?.drawings || [];
+  const hasDrawing = Boolean(drawing) || pickedIds.length > 0 || picked?.image != null;
+  const floatingSel = drawings.filter((d) => (pickedIds.length ? pickedIds.includes(d.id) : drawing?.id === d.id) && d.anchored);
+  const needDrawing = 'Click a picture, a shape or a text box first';
+  const [alignTo, setAlignTo] = React.useState(null);
+  const alignMode = alignTo || (floatingSel.length > 1 ? 'selected' : 'margin');
+  const isGroup = drawing?.kind === 'group';
+  const formatTab = drawing ? (drawing.kind === 'picture' ? 'pictureFormat' : 'shapeFormat') : pickedIds.length ? (drawings.find((d) => d.id === pickedIds[0])?.kind === 'picture' ? 'pictureFormat' : 'shapeFormat') : null;
+  const look = drawing?.look || {};
+  const shapeLike = drawing && (drawing.kind === 'textbox' || drawing.kind === 'shape');
+  const sizeBox = (label, key) => {
+    const px = key === 'w' ? (look.widthPx ?? drawing?.widthPx) : (look.heightPx ?? drawing?.heightPx);
+    const cm = px ? Math.round((px / CM) * 100) / 100 : '';
+    return (
+      <div className="wd-fields">
+        <label>{label}</label>
+        <Input
+          key={`${drawing?.id}:${key}:${cm}`}
+          type="number" min="0.1" step="0.1" defaultValue={cm} disabled={!drawing}
+          title={`${label} (cm)`}
+          style={{ width: 64 }}
+          onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+          onBlur={(e) => {
+            const v = Number(e.target.value);
+            if (!(v > 0) || Math.abs(v - cm) < 0.005) return;
+            act('drawingSize', key === 'w' ? { widthPx: Math.round(v * CM) } : { heightPx: Math.round(v * CM) });
+          }}
+        />
+        <span className="wd-field-value" style={{ minWidth: 0 }}>cm</span>
+      </div>
+    );
+  };
+  const arrange = (
+    <Group label="Arrange">
+      <Button tall icon="grid" label="Position" disabled={!hasDrawing} title={hasDrawing ? 'Position — where the drawing sits, with the words round it' : needDrawing} onClick={(e) => menu.open(e, [
+        { label: 'Left, words round it', icon: 'alignLeft', run: () => act('position', 'left') },
+        { label: 'Centre, words above and below', icon: 'alignCenter', run: () => act('position', 'center') },
+        { label: 'Right, words round it', icon: 'alignRight', run: () => act('position', 'right') },
+        { heading: true, label: 'With text wrapping' },
+        ...['top', 'middle', 'bottom'].flatMap((v) => ['left', 'center', 'right'].map((h) => ({ label: `${cap(v)} ${h === 'center' ? 'Centre' : cap(h)}`, run: () => act('position', `${v}-${h}`) }))),
+      ])} />
+      <Button tall icon="picture" label="Wrap Text" disabled={!hasDrawing} title={hasDrawing ? 'Wrap Text — how the words treat the drawing' : needDrawing} onClick={(e) => menu.open(e, [
+        { label: 'In line with text', icon: drawing && !drawing.anchored ? 'check' : undefined, run: () => act('wrap', 'inline') },
+        { label: 'Square', icon: drawing?.anchored && drawing.wrap === 'square' ? 'check' : undefined, run: () => act('wrap', 'square') },
+        { label: 'Tight', icon: drawing?.anchored && drawing.wrap === 'tight' ? 'check' : undefined, run: () => act('wrap', 'tight') },
+        { label: 'Through', icon: drawing?.anchored && drawing.wrap === 'through' ? 'check' : undefined, run: () => act('wrap', 'through') },
+        { label: 'Top and bottom', icon: drawing?.anchored && drawing.wrap === 'topAndBottom' ? 'check' : undefined, run: () => act('wrap', 'topAndBottom') },
+        '-',
+        { label: 'Behind text', icon: drawing?.anchored && drawing.wrap === 'none' && drawing.behind ? 'check' : undefined, run: () => act('wrap', 'behind') },
+        { label: 'In front of text', icon: drawing?.anchored && drawing.wrap === 'none' && !drawing.behind ? 'check' : undefined, run: () => act('wrap', 'front') },
+      ])} />
+      <Button tall icon="chevronUp" label="Bring Forward" disabled={!floatingSel.length} title={floatingSel.length ? 'Bring Forward — one place nearer the front; also Bring to Front and Bring in Front of Text' : 'Bring Forward — select a floating drawing first'} onClick={(e) => menu.open(e, [
+        { label: 'Bring Forward', icon: 'chevronUp', run: () => act('order', 'forward') },
+        { label: 'Bring to Front', run: () => act('order', 'front') },
+        { label: 'Bring in Front of Text', run: () => act('order', 'inFront') },
+      ])} />
+      <Button tall icon="chevronDown" label="Send Backward" disabled={!floatingSel.length} title={floatingSel.length ? 'Send Backward — one place further back; also Send to Back and Send Behind Text' : 'Send Backward — select a floating drawing first'} onClick={(e) => menu.open(e, [
+        { label: 'Send Backward', icon: 'chevronDown', run: () => act('order', 'backward') },
+        { label: 'Send to Back', run: () => act('order', 'back') },
+        { label: 'Send Behind Text', run: () => act('order', 'behind') },
+      ])} />
+      <Rows>
+        <Button icon="list" label="Selection Pane" pressed={Boolean(view.selectionPane)} title="Selection Pane — every drawing listed: select, hide, rename, reorder" onClick={() => act('selectionPane')} />
+        <>
+          <Button icon="alignLeft" label="Align" disabled={!floatingSel.length} title={floatingSel.length ? `Align — to the ${alignMode === 'selected' ? 'selected drawings' : alignMode}` : 'Align — select a floating drawing first'} onClick={(e) => menu.open(e, [
+            { label: 'Align Left', icon: 'alignLeft', run: () => act('align', { edge: 'left', to: alignMode }) },
+            { label: 'Align Centre', icon: 'alignCenter', run: () => act('align', { edge: 'center', to: alignMode }) },
+            { label: 'Align Right', icon: 'alignRight', run: () => act('align', { edge: 'right', to: alignMode }) },
+            { label: 'Align Top', run: () => act('align', { edge: 'top', to: alignMode }) },
+            { label: 'Align Middle', run: () => act('align', { edge: 'middle', to: alignMode }) },
+            { label: 'Align Bottom', run: () => act('align', { edge: 'bottom', to: alignMode }) },
+            '-',
+            { label: 'Distribute Horizontally', disabled: floatingSel.length < 3, title: floatingSel.length < 3 ? 'Select three or more drawings to distribute' : undefined, run: () => act('distribute', { axis: 'horizontal' }) },
+            { label: 'Distribute Vertically', disabled: floatingSel.length < 3, title: floatingSel.length < 3 ? 'Select three or more drawings to distribute' : undefined, run: () => act('distribute', { axis: 'vertical' }) },
+            '-',
+            { label: 'Align to Page', icon: alignMode === 'page' ? 'check' : undefined, run: () => setAlignTo('page') },
+            { label: 'Align to Margin', icon: alignMode === 'margin' ? 'check' : undefined, run: () => setAlignTo('margin') },
+            { label: 'Align Selected Objects', icon: alignMode === 'selected' ? 'check' : undefined, disabled: floatingSel.length < 2, run: () => setAlignTo('selected') },
+          ])} />
+          <Button icon="grid" label="Group" disabled={floatingSel.length < 2 && !isGroup} title={floatingSel.length >= 2 ? 'Group — the selected drawings as one' : isGroup ? 'Group — ungroup this group' : 'Group — select two or more floating drawings (Shift+click adds one)'} onClick={(e) => menu.open(e, [
+            { label: 'Group', icon: 'grid', disabled: floatingSel.length < 2, run: () => act('group') },
+            { label: 'Ungroup', disabled: !isGroup, run: () => act('ungroup') },
+          ])} />
+        </>
+        <Button icon="rotate" label="Rotate" disabled={!hasDrawing} title={hasDrawing ? 'Rotate — turn or flip the drawing' : needDrawing} onClick={(e) => menu.open(e, [
+          { label: 'Rotate Right 90°', icon: 'rotate', run: () => act('rotate', 90) },
+          { label: 'Rotate Left 90°', run: () => act('rotate', -90) },
+          { label: 'Flip Vertical', icon: 'flip', run: () => act('rotate', 'flipV') },
+          { label: 'Flip Horizontal', run: () => act('rotate', 'flipH') },
+        ])} />
+      </Rows>
+    </Group>
+  );
+
   const run = (delta) => dispatch({ op: 'setRunFormat', delta });
   const para = (delta) => dispatch({ op: 'setParagraphFormat', delta });
   const toggleList = (kind) => para({ list: format.listType === kind ? null : kind });
@@ -139,6 +261,9 @@ export default function WordRibbon({
         { id: 'view', label: 'View' },
         { id: 'help', label: 'Help' },
         { id: 'pdf', label: 'PDF' },
+        // The contextual tab, as Word's: there while a drawing is selected.
+        ...(formatTab === 'shapeFormat' ? [{ id: 'shapeFormat', label: 'Shape Format' }] : []),
+        ...(formatTab === 'pictureFormat' ? [{ id: 'pictureFormat', label: 'Picture Format' }] : []),
       ]}
       active={tab}
       onTab={setTab}
@@ -319,9 +444,16 @@ export default function WordRibbon({
             <Button tall icon="file" label="Page Number" onClick={() => openDialog('pageNumber')} />
           </Group>
           <Group label="Text">
-            <Soon tall icon="textbox" label="Text Box" why="A text box is a floating shape with text; the engine draws shapes but does not lay out text in them yet." />
+            <Button tall icon="textbox" label="Text Box" title="Text Box — a box of words that floats on the page, the text wrapping round it" onClick={(e) => menu.open(e, [
+              { heading: true, label: 'Built-in' },
+              { label: 'Simple Text Box', icon: 'textbox', run: () => act('textBox', 'simple') },
+              { label: 'Sidebar', icon: 'textbox', run: () => act('textBox', 'sidebar') },
+              { label: 'Pull Quote', icon: 'textbox', run: () => act('textBox', 'quote') },
+              '-',
+              { label: 'Draw Text Box', icon: 'shape', run: () => act('drawTextBox') },
+            ])} />
             <Soon icon="file" label="Quick Parts" why="Building blocks need the glossary part, which the engine does not write." />
-            <Soon icon="wand" label="WordArt" why="WordArt is DrawingML text the engine does not write." />
+            <Button icon="wand" label="WordArt" title="WordArt — decorative words in a box of their own that floats on the page" onClick={(e) => menu.open(e, WORDART.map(([label, spec]) => ({ label, icon: 'wand', run: () => act('wordArt', spec) })))} />
             <Button icon="textbox" label="Drop Cap" title="Drop Cap — the first letter, framed to stand tall beside the words that follow it" onClick={(e) => menu.open(e, [
               { label: 'None', icon: !format.dropCap ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: null }) },
               { label: 'Dropped', icon: format.dropCap?.kind === 'drop' && format.dropCap?.lines === 3 ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: { kind: 'drop', lines: 3 } }) },
@@ -464,26 +596,64 @@ export default function WordRibbon({
               <Input type="number" min="0" max="200" value={format.spaceAfter ?? 0} title="After (pt)" onChange={(e) => para({ spaceAfter: Number(e.target.value) })} style={{ width: 56 }} />
             </div>
           </Group>
-          <Group label="Arrange">
-            <Button tall icon="grid" label="Position" disabled={!picked} title={picked ? 'Where the picture sits, with the words round it' : 'Click a picture first'} onClick={(e) => menu.open(e, [
-              { label: 'Left, words round it', icon: 'alignLeft', run: () => act('position', 'left') },
-              { label: 'Centre, words above and below', icon: 'alignCenter', run: () => act('position', 'center') },
-              { label: 'Right, words round it', icon: 'alignRight', run: () => act('position', 'right') },
-            ])} />
-            <Button tall icon="picture" label="Wrap Text" disabled={!picked} title={picked ? 'How the words treat the picture' : 'Click a picture first'} onClick={(e) => menu.open(e, [
-              { label: 'In line with text', run: () => act('wrap', 'inline') },
-              { label: 'Square', run: () => act('wrap', 'square') },
-              { label: 'Top and bottom', run: () => act('wrap', 'topAndBottom') },
+          {arrange}
+        </>
+      ) : null}
+
+      {/* ── Shape Format (contextual) ─────────────────────────────────────── */}
+      {tab === 'shapeFormat' ? (
+        <>
+          <Group label="Insert Shapes">
+            <Button tall icon="textbox" label="Draw Text Box" pressed={Boolean(view.drawBox)} title="Draw Text Box — drag on the page to draw one" onClick={() => act('drawTextBox')} />
+          </Group>
+          <Group label="Shape Styles">
+            <Button tall icon="wand" label="Shape Fill" disabled={!shapeLike} title={shapeLike ? `Shape Fill — now ${look.fill || 'no fill'}` : 'Shape Fill — select a text box or a shape first'} onClick={(e) => menu.open(e, [
+              { label: 'No Fill', icon: 'close', run: () => act('boxFormat', { fill: null }) },
               '-',
-              { label: 'Behind text', run: () => act('wrap', 'behind') },
-              { label: 'In front of text', run: () => act('wrap', 'front') },
+              ...SHAPE_COLOURS.map(([hex, label]) => ({ label, icon: look.fill && look.fill.replace('#', '').toUpperCase() === hex ? 'check' : undefined, run: () => act('boxFormat', { fill: hex }) })),
             ])} />
-            <Soon tall icon="chevronUp" label="Bring Forward" why="Z-order needs floating layout." />
-            <Soon tall icon="chevronDown" label="Send Backward" why="Z-order needs floating layout." />
-            <Soon icon="list" label="Selection Pane" why="Comes with floating layout." />
-            <Soon icon="alignLeft" label="Align" why="Comes with floating layout." />
-            <Soon icon="grid" label="Group" why="Comes with floating layout." />
-            <Soon icon="rotate" label="Rotate" why="Comes with floating layout." />
+            <Button tall icon="shape" label="Shape Outline" disabled={!shapeLike} title={shapeLike ? `Shape Outline — now ${look.line || 'no outline'}` : 'Shape Outline — select a text box or a shape first'} onClick={(e) => menu.open(e, [
+              { label: 'No Outline', icon: 'close', run: () => act('boxFormat', { line: null }) },
+              '-',
+              ...SHAPE_COLOURS.map(([hex, label]) => ({ label, icon: look.line && look.line.replace('#', '').toUpperCase() === hex ? 'check' : undefined, run: () => act('boxFormat', { line: { colour: hex, widthPx: look.lineWidthPx || 1 } }) })),
+              { heading: true, label: 'Weight' },
+              ...WEIGHTS.map(([label, px]) => ({ label, icon: look.line && Math.abs((look.lineWidthPx || 1) - px) < 0.2 ? 'check' : undefined, run: () => act('boxFormat', { line: { colour: (look.line || '#000000').replace('#', ''), widthPx: px } }) })),
+            ])} />
+          </Group>
+          <Group label="Text">
+            <Button tall icon="rotate" label="Text Direction" disabled={drawing?.kind !== 'textbox'} title="Text Direction — across, or turned to read down or up" onClick={(e) => menu.open(e, [
+              { label: 'Horizontal', icon: (look.vert || 'horz') === 'horz' ? 'check' : undefined, run: () => act('boxFormat', { vert: 'horz' }) },
+              { label: 'Rotate all text 90°', icon: look.vert === 'vert' ? 'check' : undefined, run: () => act('boxFormat', { vert: 'vert' }) },
+              { label: 'Rotate all text 270°', icon: look.vert === 'vert270' ? 'check' : undefined, run: () => act('boxFormat', { vert: 'vert270' }) },
+            ])} />
+            <Button tall icon="alignCenter" label="Align Text" disabled={drawing?.kind !== 'textbox'} title="Align Text — the words at the top, middle or bottom of the box" onClick={(e) => menu.open(e, [
+              { label: 'Top', icon: (look.vAnchor || 'top') === 'top' ? 'check' : undefined, run: () => act('boxFormat', { vAnchor: 'top' }) },
+              { label: 'Middle', icon: look.vAnchor === 'middle' ? 'check' : undefined, run: () => act('boxFormat', { vAnchor: 'middle' }) },
+              { label: 'Bottom', icon: look.vAnchor === 'bottom' ? 'check' : undefined, run: () => act('boxFormat', { vAnchor: 'bottom' }) },
+            ])} />
+            <Button tall icon="crop" label="Margins" disabled={drawing?.kind !== 'textbox'} title="Margins — the room between the box's edge and its words" onClick={(e) => menu.open(e, BOX_MARGINS.map(([label, insets]) => ({
+              label, icon: look.insets && ['l', 't', 'r', 'b'].every((k) => Math.abs((look.insets[k] || 0) - insets[k]) < 0.6) ? 'check' : undefined, run: () => act('boxFormat', { insets }),
+            })))} />
+          </Group>
+          {arrange}
+          <Group label="Size">
+            <Rows>
+              {sizeBox('Height', 'h')}
+              {sizeBox('Width', 'w')}
+            </Rows>
+          </Group>
+        </>
+      ) : null}
+
+      {/* ── Picture Format (contextual) ───────────────────────────────────── */}
+      {tab === 'pictureFormat' ? (
+        <>
+          {arrange}
+          <Group label="Size">
+            <Rows>
+              {sizeBox('Height', 'h')}
+              {sizeBox('Width', 'w')}
+            </Rows>
           </Group>
         </>
       ) : null}

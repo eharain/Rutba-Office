@@ -361,7 +361,20 @@ export class DocView {
   }
 
   selectAll() {
-    const last = this.blocks.length - 1;
+    // The body, as Word's Ctrl+A: the text boxes' words are a story of
+    // their own, listed after it.
+    // In a box, Ctrl+A takes that box's words.
+    const home = this.blocks[this.focus.block];
+    if (home?.box) {
+      const key = home.container;
+      let first = this.focus.block;
+      while (first > 0 && this.blocks[first - 1]?.container === key) first -= 1;
+      let end = this.focus.block;
+      while (end < this.blocks.length - 1 && this.blocks[end + 1]?.container === key) end += 1;
+      return this.setSelection({ block: first, offset: 0 }, { block: end, offset: this.blocks[end].text.length });
+    }
+    let last = this.blocks.length - 1;
+    while (last > 0 && this.blocks[last]?.box) last -= 1;
     return this.setSelection({ block: 0, offset: 0 }, { block: last, offset: this.blocks[last].text.length });
   }
 
@@ -1449,6 +1462,112 @@ export class DocView {
       this._invalidate();
       const last = Math.max(0, this.blocks.length - 1);
       this.collapseTo({ block: Math.min(block, last), offset: 0 });
+      return this;
+    });
+  }
+
+  /* ── floating drawings ─────────────────────────────────────────────────── */
+
+  _drawingsBackend(what) {
+    if (typeof this.doc.drawings !== 'function') throw new Error('this document backend does not support ' + what);
+  }
+
+  /** Every drawing on the page — what the Selection Pane lists. */
+  drawings() { return typeof this.doc.drawings === 'function' ? this.doc.drawings() : []; }
+
+  /**
+   * Insert → Text Box: a floating text box anchored in the caret's
+   * paragraph (a caret in a box anchors to that box's paragraph), with its
+   * words selected so typing replaces them, as Word selects a built-in box's
+   * placeholder. One undo step. Answers the new box's id.
+   */
+  insertTextBox(spec = {}) {
+    this._drawingsBackend('text boxes');
+    return this._edit('insert text box', null, () => {
+      const here = this.block(this.focus.block);
+      const anchor = here?.box ? here.box.anchor : this.focus.block;
+      const block = Number.isFinite(spec.block) ? spec.block : anchor;
+      const id = this.doc.insertTextBox(block, spec);
+      this._invalidate();
+      const blocks = this.doc.textBoxBlocks(id);
+      if (blocks.length) {
+        const last = blocks[blocks.length - 1];
+        const len = this.blocks[last]?.text.length ?? 0;
+        this.setSelection({ block: blocks[0], offset: 0 }, spec.select === false ? { block: blocks[0], offset: 0 } : { block: last, offset: len });
+      }
+      this.lastDrawing = id;
+      return this;
+    });
+  }
+
+  /**
+   * Change drawings the way Arrange and Shape Format do — `changes` is one
+   * `{ id, ...patch }` or a list of them (see Document#updateDrawing), with
+   * `block` in a patch moving that drawing's anchor to another paragraph.
+   * One undo step for the lot: Align on five pictures is one press.
+   */
+  updateDrawings(changes) {
+    this._drawingsBackend('floating drawings');
+    const list = Array.isArray(changes) ? changes : [changes];
+    return this._edit('arrange', null, () => {
+      for (const { id, block, ...patch } of list) {
+        if (Number.isFinite(block)) this.doc.moveDrawing(id, block);
+        if (Object.keys(patch).length) this.doc.updateDrawing(id, patch);
+      }
+      this._invalidate();
+      this.anchor = clampPosition(this.blocks, this.anchor);
+      this.focus = clampPosition(this.blocks, this.focus);
+      return this;
+    });
+  }
+
+  /** Bring Forward, Send Backward, Bring to Front, Send to Back. */
+  orderDrawings(ids, how) {
+    this._drawingsBackend('the order of drawings');
+    return this._edit('arrange', null, () => {
+      this.doc.orderDrawings(ids, how);
+      this._invalidate();
+      return this;
+    });
+  }
+
+  /** Group — see Document#groupDrawings. Answers the group's id. */
+  groupDrawings(ids, opts = {}) {
+    this._drawingsBackend('groups');
+    return this._edit('group', null, () => {
+      const id = this.doc.groupDrawings(ids, opts);
+      this._invalidate();
+      this.anchor = clampPosition(this.blocks, this.anchor);
+      this.focus = clampPosition(this.blocks, this.focus);
+      this.lastDrawing = id;
+      return this;
+    });
+  }
+
+  /** Ungroup — see Document#ungroupDrawing. */
+  ungroupDrawing(id, opts = {}) {
+    this._drawingsBackend('groups');
+    return this._edit('ungroup', null, () => {
+      this.doc.ungroupDrawing(id, opts);
+      this._invalidate();
+      this.anchor = clampPosition(this.blocks, this.anchor);
+      this.focus = clampPosition(this.blocks, this.focus);
+      return this;
+    });
+  }
+
+  /** A drawing out of the document — Delete on a selected one. */
+  removeDrawing(ids) {
+    this._drawingsBackend('floating drawings');
+    const list = Array.isArray(ids) ? ids : [ids];
+    return this._edit('delete drawing', null, () => {
+      for (const id of list) this.doc.removeDrawing(id);
+      this._invalidate();
+      // A caret that was in a removed box's words goes back to the body.
+      const here = this.blocks[this.focus.block];
+      const fallback = this.blocks.findIndex((b) => b.box);
+      const pos = clampPosition(this.blocks, here ? this.focus : { block: fallback > 0 ? fallback - 1 : 0, offset: 0 });
+      this.collapseTo(pos);
       return this;
     });
   }
@@ -2772,9 +2891,21 @@ export class DocView {
         ...(b.inSdt ? { inSdt: true } : {}),
         // Text boxes anchored here, their paragraphs shaped like blocks so the
         // painter draws them with the same code — read-only, no index.
+        // A box the edit space lists names its paragraphs' indices instead:
+        // they are blocks of their own, drawn in the box and typed in there.
         ...(b.textBoxes ? {
-          textBoxes: b.textBoxes.map((box) => ({ ...box, paragraphs: box.paragraphs.map((p) => this._liteBlock(p)) })),
+          textBoxes: b.textBoxes.map((box) => (box.blocks ? { ...box, paragraphs: undefined } : { ...box, paragraphs: box.paragraphs.map((p) => this._liteBlock(p)) })),
         } : {}),
+        // Groups: their members placed in the group's box, a text box's
+        // words shaped like blocks, or named by index when they are blocks.
+        ...(b.groups ? {
+          groups: b.groups.map((g) => ({
+            ...g,
+            members: g.members.map((m) => (m.kind === 'textbox' ? (m.blocks ? { ...m, paragraphs: undefined } : { ...m, paragraphs: (m.paragraphs || []).map((p) => this._liteBlock(p)) }) : m)),
+          })),
+        } : {}),
+        // A paragraph of a text box: its box and the paragraph anchoring it.
+        ...(b.box ? { box: b.box } : {}),
         // The cell this block lives in, or null for prose — what lets the
         // shell tell a caret at a cell boundary why Tab and Backspace behave.
         container: b.container ?? null,
@@ -2870,6 +3001,8 @@ export class DocView {
         return labels.size ? Object.fromEntries(labels) : null;
       })(),
       canEdit: this.canEdit,
+      // Every drawing on the page, for the Selection Pane and Arrange.
+      drawings: this.drawings(),
       // What the toolbar needs: whether the buttons are live and what they say.
       history: this.history.describe(),
       dirty: this.isDirty,

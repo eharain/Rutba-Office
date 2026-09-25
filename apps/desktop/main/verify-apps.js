@@ -34,6 +34,8 @@ import { verifyDeckComments } from './verify-deck-comments.js';
 import { verifyDeckMath } from './verify-deck-math.js';
 import { verifyWordToc } from './verify-word-toc.js';
 import { verifyAccessibility, verifySpelling } from './verify-proofing.js';
+import { verifyWordTextBox } from './verify-word-textbox.js';
+import { verifyWordArrange } from './verify-word-arrange.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -2749,7 +2751,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   /* ── Rutba Word: picture handles ──────────────────────────────────────── */
   //
-  // Click a picture and it wears four corner handles; drag one and the
+  // Click a picture and it wears Word's eight handles; drag a corner and the
   // picture grows, keeping its proportions, and the engine writes the size.
   const wordPictures = async () => {
     if (!files.float) return check('word: the picture-handles fixture exists', false, 'no icon to make it from');
@@ -2760,8 +2762,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const image = () => doc.model({ id: sessionFor('doc').id }).blocks[1].images[0];
       await until(() => js(`Boolean(document.querySelector('.wd-image'))`), 'the picture', 8000);
       await js(`(() => { document.querySelector('.wd-image').click(); return 1; })()`);
-      const handles = await until(() => js(`document.querySelectorAll('.wd-handle').length === 4`), 'the four handles', 4000).catch(() => false);
-      check('word: clicking a picture shows four corner handles', handles === true, `${await js(`document.querySelectorAll('.wd-handle').length`)} handle(s)`);
+      const handles = await until(() => js(`document.querySelectorAll('.wd-handle').length === 8`), 'the eight handles', 4000).catch(() => false);
+      check('word: clicking a picture shows Word\'s eight handles, four corners and four sides', handles === true, `${await js(`document.querySelectorAll('.wd-handle').length`)} handle(s)`);
       const w0 = image().widthPx;
       const at = await js(`(() => { const r = document.querySelector('.wd-handle[data-handle="se"]').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) }; })()`);
       wc.sendInputEvent({ type: 'mouseMove', x: at.x, y: at.y });
@@ -2775,7 +2777,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       const grew = await until(() => Math.abs(image().widthPx - (w0 + 40)) <= 2, 'the picture to grow', 5000).catch(() => false);
       const img = image();
       const drawn = await js(`Math.round(document.querySelector('.wd-image').getBoundingClientRect().width)`);
-      const kept = await until(() => js(`document.querySelectorAll('.wd-handle').length === 4 && document.querySelector('.wd-image.picked') !== null`), 'the pick to survive the drag', 3000).catch(() => false);
+      const kept = await until(() => js(`document.querySelectorAll('.wd-handle').length === 8 && document.querySelector('.wd-image.picked') !== null`), 'the pick to survive the drag', 3000).catch(() => false);
       check('word: dragging a corner handle resizes the picture, keeping its proportions', grew === true && Math.abs(img.heightPx - img.widthPx) <= 2 && Math.abs(drawn - img.widthPx) <= 2 && kept === true, `${w0} → ${img.widthPx}×${img.heightPx} px; drawn ${drawn} px wide; still picked: ${kept}`);
       if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-handles.png'), (await win.webContents.capturePage()).toPNG());
       await press(wc, 's', { modifiers: ['control'] });
@@ -3308,6 +3310,24 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
     };
     await verifyWordToc({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { file: files.toc });
+  };
+
+  /* ── Word: Insert → Text Box ──────────────────────────────────────────── */
+  const wordTextBox = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyWordTextBox({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
+  };
+
+  /* ── Word: Layout → Arrange on a document's drawings ──────────────────── */
+  const wordArrange = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyWordArrange({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
   };
 
   /* ── Word: Mailings → mail merge ──────────────────────────────────────── */
@@ -4342,7 +4362,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4369,6 +4389,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('xref')) await wordCrossRef();
     if (only.includes('captions')) await wordCaptions();
     if (only.includes('toc')) await wordToc();
+    if (only.includes('textbox')) await wordTextBox();
+    if (only.includes('wordarrange')) await wordArrange();
     if (only.includes('mailmerge')) await wordMailMerge();
     if (only.includes('labels')) await wordLabels();
     if (only.includes('track')) await wordTrack();
@@ -4525,6 +4547,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordCrossRef();
   await wordCaptions();
   await wordToc();
+  await wordTextBox();
+  await wordArrange();
   await wordMailMerge();
   await wordLabels();
   await wordTrack();

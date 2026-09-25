@@ -18,6 +18,7 @@
     "./backends/ooxml": "./src/backends/ooxml.js",
     "./backends/html": "./src/backends/html.js",
     "./paginate": "./src/paginate.js",
+    "./floats": "./src/floats.js",
     "./bands": "./src/bands.js",
     "./lists": "./src/lists.js",
     "./export/pdf": "./src/export/pdf.js"

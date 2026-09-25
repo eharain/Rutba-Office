@@ -29,6 +29,7 @@
  * map a click back.
  */
 import { measureText, wrapText, wrapFirstLine, lineHeight } from '@rutba/drawing';
+import { floatPlace, sideOf, layerOf } from './floats.js';
 
 /** Points to CSS pixels, at 96dpi. Word's sizes are in half-points. */
 export const ptToPx = (pt) => (Number(pt) || 0) * 96 / 72;
@@ -300,6 +301,73 @@ function floatBox(img, width) {
   const scale = Math.min(1, Math.min(width, FLOAT_MAX_PX) / Math.max(1, img.widthPx || 1));
   return { widthPx: (img.widthPx || 0) * scale, heightPx: (img.heightPx || 0) * scale };
 }
+
+/**
+ * A paragraph's floating drawings, each with the layer it lives in (see
+ * floats.js `layerOf`), its drawn size and the fragment that paints it:
+ * pictures, text boxes (their words laid out by `lay` at the box's inside
+ * width) and groups (their members placed in the group's box). A drawing in
+ * the line, wrapped top and bottom, centred, or hidden in the Selection Pane
+ * is not here — the flow draws the first ones and nobody draws the last.
+ */
+function drawingsOf(block, width, height, lay) {
+  const out = [];
+  const layerFor = (d) => {
+    const layer = layerOf(d);
+    if (layer === 'beside' && d.hAlign === 'center') return 'block';
+    return layer;
+  };
+  const turn = (d) => ({ ...(d.rot ? { rot: d.rot } : {}), ...(d.flipH ? { flipH: true } : {}), ...(d.flipV ? { flipV: true } : {}) });
+  for (const img of block.images ?? []) {
+    if (!img.href || !img.anchored || img.hidden) continue;
+    const layer = layerFor(img);
+    if (layer !== 'beside' && layer !== 'behind' && layer !== 'front') continue;
+    const box = floatBox(img, width);
+    out.push({
+      kind: 'picture', layer, source: img, widthPx: box.widthPx, heightPx: box.heightPx, dist: img.dist || {},
+      fragment: { kind: layer === 'beside' ? 'float' : 'overlay', ...(layer === 'beside' ? {} : { layer }), widthPx: box.widthPx, heightPx: box.heightPx, image: { ...img, ...box }, ...turn(img) },
+    });
+  }
+  for (const box of block.textBoxes ?? []) {
+    if (!box.anchored || box.hidden) continue;
+    let layer = layerFor(box);
+    const widthPx = Math.max(40, Math.min(layer === 'beside' ? width : Math.max(width, box.widthPx || width), box.widthPx || width));
+    // A box that would leave the lines no room is drawn under the words instead.
+    if (layer === 'beside' && widthPx > width - 80) layer = 'block';
+    if (layer !== 'beside' && layer !== 'behind' && layer !== 'front') continue;
+    const ins = box.insets || { l: BOX_PAD_PX, t: BOX_PAD_PX, r: BOX_PAD_PX, b: BOX_PAD_PX };
+    const paragraphs = (box.paragraphs || []).map((p) => lay(p, Math.max(8, widthPx - ins.l - ins.r)));
+    const heightPx = Math.min(height, Math.max(box.heightPx || 0, heightOfLaid(paragraphs) + ins.t + ins.b));
+    out.push({
+      kind: 'textbox', layer, source: box, widthPx, heightPx, dist: box.dist || {},
+      fragment: {
+        kind: layer === 'beside' ? 'floatbox' : 'overlaybox', ...(layer === 'beside' ? {} : { layer }),
+        widthPx, heightPx, fill: box.fill || null, line: box.line || null, lineWidthPx: box.lineWidthPx ?? null,
+        insets: ins, vAnchor: box.vAnchor || 'top', paragraphs, ...turn(box),
+      },
+    });
+  }
+  for (const g of block.groups ?? []) {
+    if (g.hidden) continue;
+    const layer = g.anchored ? layerFor(g) : 'block';
+    const scale = Math.min(1, width / Math.max(1, g.widthPx || 1), height / Math.max(1, g.heightPx || 1));
+    const widthPx = (g.widthPx || 0) * scale;
+    const heightPx = (g.heightPx || 0) * scale;
+    const members = (g.members || []).map((m) => {
+      const placed = { ...m, xPx: m.xPx * scale, yPx: m.yPx * scale, widthPx: m.widthPx * scale, heightPx: m.heightPx * scale };
+      if (m.kind !== 'textbox') return placed;
+      const ins = m.insets || { l: BOX_PAD_PX, t: BOX_PAD_PX, r: BOX_PAD_PX, b: BOX_PAD_PX };
+      return { ...placed, insets: ins, paragraphs: (m.paragraphs || []).map((p) => lay(p, Math.max(8, placed.widthPx - ins.l - ins.r))) };
+    });
+    out.push({
+      kind: 'group', layer, source: g, widthPx, heightPx, dist: g.dist || {},
+      fragment: { kind: layer === 'beside' ? 'floatgroup' : layer === 'block' ? 'group' : 'overlaygroup', ...(layer === 'behind' || layer === 'front' ? { layer } : {}), widthPx, heightPx, members, ...turn(g) },
+    });
+  }
+  return out;
+}
+
+const heightOfLaid = (laidParagraphs) => laidParagraphs.reduce((s, p) => s + p.spaceBefore + p.lines.length * p.lineHeightPx + p.spaceAfter, 0);
 /** A table needs its bottom rule; a paragraph does not. */
 const TABLE_SPACE_AFTER = 12;
 
@@ -423,11 +491,15 @@ export function paginate({ flow, blocks, section: mainSection, sections = null, 
   };
 
   const remaining = () => height - used - current.notesHeightPx;
+  const placedAt = new WeakMap();
   const place = (fragment, cost) => {
     // The column a fragment landed in rides with it only in a multi-column
     // section — a one-column fragment must stay exactly the shape it always
     // was, for the byte-identical guarantee above.
-    current.fragments.push(columnBoxes ? { ...fragment, column: colIdx } : fragment);
+    const placed = columnBoxes ? { ...fragment, column: colIdx } : fragment;
+    current.fragments.push(placed);
+    // Where it landed, for a drawing laid over its paragraph afterwards.
+    placedAt.set(placed, { page: current, y: used, column: colIdx });
     used += cost;
   };
 
@@ -698,46 +770,37 @@ export function paginate({ flow, blocks, section: mainSection, sections = null, 
       continue;
     }
 
-    // A picture anchored to this paragraph that floats at the left or the
-    // right stands beside the words, as it does on screen: it is placed at
-    // the paragraph's top on the side it asks for, and the lines beside it
-    // — this paragraph's and the next ones', for as far down as it reaches
-    // — are laid out shorter. It goes whole onto the next page rather than
-    // being cut, and its paragraph goes with it.
-    const beside = (block.images ?? []).filter((img) => img.href && floatsBeside(img));
+    // A drawing anchored to this paragraph that floats beside the words —
+    // a picture, a text box, a group, wrapped square, tight or through —
+    // stands where its anchor puts it (see floats.js, the screen's rule
+    // too): across by its alignment or offset, down from the paragraph's
+    // top (or the page's), and the lines beside it — this paragraph's and
+    // the next ones', for as far down as it reaches — are laid out shorter
+    // on its side. It goes whole onto the next page rather than being cut,
+    // and its paragraph goes with it. One behind or in front of the words
+    // takes no room at all: it is laid on the page after the paragraph's
+    // first line has found its place (below).
+    const geom = {
+      marginLeftPx: section.margins.left, marginRightPx: section.margins.right,
+      marginTopPx: section.margins.top, marginBottomPx: section.margins.bottom,
+      contentWidthPx: section.contentWidthPx, pageWidthPx: section.widthPx, pageHeightPx: section.heightPx,
+      columnWidthPx: width,
+    };
+    const floating = drawingsOf(block, width, height, layShown);
+    const beside = floating.filter((f) => f.layer === 'beside');
+    const boxesBeside = beside.filter((f) => f.kind === 'textbox').map((f) => f.source);
+    const overlays = floating.filter((f) => f.layer === 'behind' || f.layer === 'front');
     if (beside.length) {
-      const tallest = beside.reduce((h, img) => Math.max(h, floatBox(img, width).heightPx + (img.dist?.t || 0) + (img.dist?.b ?? FLOAT_GAP_PX)), 0);
-      if (tallest + spaceBefore > remaining() && current.fragments.length) { newColumn(); spaceBefore = 0; }
-      for (const img of beside) {
-        const box = floatBox(img, width);
-        const side = img.hAlign === 'right' || img.hAlign === 'outside' ? 'right' : 'left';
-        const topPx = used + spaceBefore + (img.dist?.t || 0);
-        const gap = side === 'left' ? (img.dist?.r ?? FLOAT_GAP_PX * 2) : (img.dist?.l ?? FLOAT_GAP_PX * 2);
-        current.floats.push({ side, topPx, bottomPx: topPx + box.heightPx + (img.dist?.b ?? FLOAT_GAP_PX), insetPx: box.widthPx + gap });
-        place({ kind: 'float', paragraphIndex: block.index, side, topPx, widthPx: box.widthPx, heightPx: box.heightPx, image: { ...img, ...box } }, 0);
-      }
-    }
-
-    // A text box anchored to this paragraph that floats at the left or the
-    // right — a pull quote, a sidebar — stands beside the words the same
-    // way. Its size is the file's or its words', whichever is more; a box
-    // that would leave the lines no room is drawn under the words instead.
-    const boxesBeside = (block.textBoxes ?? []).filter((box) => floatsBeside(box) && Math.max(40, Math.min(width, box.widthPx || width)) <= width - 80);
-    if (boxesBeside.length) {
-      const laidBoxes = boxesBeside.map((box) => {
-        const widthPx = Math.max(40, Math.min(width, box.widthPx || width));
-        const paragraphs = (box.paragraphs || []).map((p) => layShown(p, widthPx - 2 * BOX_PAD_PX));
-        const heightPx = Math.min(height, Math.max(box.heightPx || 0, heightOf(paragraphs) + 2 * BOX_PAD_PX));
-        return { box, widthPx, heightPx, paragraphs };
-      });
-      const tallest = laidBoxes.reduce((h, b) => Math.max(h, b.heightPx + (b.box.dist?.t || 0) + (b.box.dist?.b ?? FLOAT_GAP_PX)), 0);
-      if (tallest + spaceBefore > remaining() && current.fragments.length) { newColumn(); spaceBefore = 0; }
-      for (const { box, widthPx, heightPx, paragraphs } of laidBoxes) {
-        const side = box.hAlign === 'right' || box.hAlign === 'outside' ? 'right' : 'left';
-        const topPx = used + spaceBefore + (box.dist?.t || 0);
-        const gap = side === 'left' ? (box.dist?.r ?? FLOAT_GAP_PX * 2) : (box.dist?.l ?? FLOAT_GAP_PX * 2);
-        current.floats.push({ side, topPx, bottomPx: topPx + heightPx + (box.dist?.b ?? FLOAT_GAP_PX), insetPx: widthPx + gap });
-        place({ kind: 'floatbox', paragraphIndex: block.index, side, topPx, widthPx, heightPx, fill: box.fill || null, line: box.line || null, paragraphs }, 0);
+      const placed = beside.map((f) => ({ f, p: floatPlace({ ...f.source, widthPx: f.widthPx, heightPx: f.heightPx }, geom) }));
+      const reach = placed.reduce((h, { f, p }) => Math.max(h, (p.yFrom === 'paragraph' ? Math.max(0, p.y) : 0) + f.heightPx + (f.dist.t || 0) + (f.dist.b ?? FLOAT_GAP_PX)), 0);
+      if (reach + spaceBefore > remaining() && current.fragments.length) { newColumn(); spaceBefore = 0; }
+      for (const { f, p } of placed) {
+        const side = sideOf(p.x, f.widthPx, width);
+        const topPx = (p.yFrom === 'page' ? p.y - section.margins.top : used + spaceBefore + Math.max(0, p.y)) + (f.dist.t || 0);
+        const gap = side === 'left' ? (f.dist.r ?? FLOAT_GAP_PX * 2) : (f.dist.l ?? FLOAT_GAP_PX * 2);
+        const insetPx = side === 'left' ? Math.max(0, p.x + f.widthPx + gap) : Math.max(0, width - p.x + gap);
+        current.floats.push({ side, topPx, bottomPx: topPx + f.heightPx + (f.dist.b ?? FLOAT_GAP_PX), insetPx });
+        place({ ...f.fragment, paragraphIndex: block.index, side, xPx: p.x, topPx }, 0);
       }
     }
 
@@ -745,6 +808,7 @@ export function paginate({ flow, blocks, section: mainSection, sections = null, 
     // `layEquations` below: a display equation is a block of its own
     // height, an inline one a word as wide and as tall as it draws — and
     // then its pictures follow it as any paragraph's do.
+    const startPageIndex = pages.length - 1;
     const mathy = typeof math === 'function' && (block.runs || []).some((r) => r.math);
     let style = styleOf(block.style, styles);
     if (mathy) layEquations(block, { spaceBefore, spaceAfter, extraIndentPx, listing });
@@ -834,14 +898,31 @@ export function paginate({ flow, blocks, section: mainSection, sections = null, 
       }
     }
 
+    // A drawing behind the words or in front of them takes no room: it is
+    // laid on the page where its paragraph's first line landed, at its
+    // anchor's place, and the writer draws the ones behind before the words
+    // and the ones in front after them.
+    if (overlays.length) {
+      let first = null;
+      for (let k = Math.max(0, startPageIndex); k < pages.length && !first; k++) {
+        first = pages[k].fragments.find((fr) => fr.paragraphIndex === block.index && (fr.kind === 'paragraph' || fr.kind === 'equation')) || null;
+      }
+      const at = (first && placedAt.get(first)) || { page: current, y: used, column: colIdx };
+      const top = at.y + (first?.spaceBefore || 0);
+      for (const f of overlays) {
+        const p = floatPlace({ ...f.source, widthPx: f.widthPx, heightPx: f.heightPx }, geom);
+        const topPx = p.yFrom === 'page' ? p.y - section.margins.top : top + p.y;
+        const fragment = { ...f.fragment, paragraphIndex: block.index, xPx: p.x, topPx };
+        at.page.fragments.push(columnBoxes ? { ...fragment, column: at.column } : fragment);
+      }
+    }
+
     // Every other picture renders as a block under the paragraph's text: an
-    // inline one, one wrapped top-and-bottom, one behind or in front of the
-    // words (drawn in the flow rather than over it — the honest
-    // simplification). Placed as a fragment of its own so a caret never
-    // lands in one, and pushed whole onto the next sheet rather than sliced:
-    // half a logo is not a smaller logo. A centred or right-aligned one
-    // keeps its side.
-    const images = (block.images ?? []).filter((img) => img.href && !floatsBeside(img));
+    // inline one, one wrapped top-and-bottom, a centred one. Placed as a
+    // fragment of its own so a caret never lands in one, and pushed whole
+    // onto the next sheet rather than sliced: half a logo is not a smaller
+    // logo. A right-aligned or offset one keeps its place across.
+    const images = (block.images ?? []).filter((img) => img.href && !img.hidden && !floating.some((f) => f.source === img));
     if (images.length) {
       const drawn = images.map((img) => {
         // To the page's width, and to its height: a picture taller than
@@ -849,7 +930,9 @@ export function paginate({ flow, blocks, section: mainSection, sections = null, 
         // screen does the same, and a sheet cannot hold more.
         const scale = Math.min(1, width / Math.max(1, img.widthPx), (height - IMAGE_GAP) / Math.max(1, img.heightPx));
         const hAlign = img.anchored && img.hAlign === 'center' ? 'center' : img.anchored && (img.hAlign === 'right' || img.hAlign === 'outside') ? 'right' : 'left';
-        return { ...img, widthPx: img.widthPx * scale, heightPx: img.heightPx * scale, hAlign };
+        // Offset rather than aligned: it keeps its place across the column.
+        const xPx = img.anchored && !img.hAlign ? Math.max(0, Math.min(width - img.widthPx * scale, floatPlace({ ...img, widthPx: img.widthPx * scale, heightPx: img.heightPx * scale }, geom).x)) : null;
+        return { ...img, widthPx: img.widthPx * scale, heightPx: img.heightPx * scale, hAlign, ...(xPx != null ? { xPx } : {}) };
       });
       // A paragraph of only pictures lays them in rows, as many to a row as
       // fit the column — as Word draws inline pictures and the screen does:
@@ -898,15 +981,27 @@ export function paginate({ flow, blocks, section: mainSection, sections = null, 
     // tall as the file says or as its words need, whichever is more, and is
     // pushed whole onto the next sheet rather than cut.
     for (const box of block.textBoxes || []) {
-      if (boxesBeside.includes(box)) continue;
+      if (box.hidden || floating.some((f) => f.source === box && f.layer !== 'block')) continue;
       const boxWidth = Math.max(40, Math.min(width, box.widthPx || width));
-      const paragraphs = (box.paragraphs || []).map((p) => layShown(p, boxWidth - 2 * BOX_PAD_PX));
-      const heightPx = Math.min(height, Math.max(box.heightPx || 0, heightOf(paragraphs) + 2 * BOX_PAD_PX));
+      const ins = box.insets || { l: BOX_PAD_PX, t: BOX_PAD_PX, r: BOX_PAD_PX, b: BOX_PAD_PX };
+      const paragraphs = (box.paragraphs || []).map((p) => layShown(p, Math.max(8, boxWidth - ins.l - ins.r)));
+      const heightPx = Math.min(height, Math.max(box.heightPx || 0, heightOf(paragraphs) + ins.t + ins.b));
       if (heightPx > remaining() && current.fragments.length) newColumn();
       place({
         kind: 'textbox', paragraphIndex: block.index, widthPx: boxWidth, heightPx,
         fill: box.fill || null, line: box.line || null, hAlign: box.hAlign || null, paragraphs,
+        ...(box.insets ? { insets: ins, vAnchor: box.vAnchor || 'top', lineWidthPx: box.lineWidthPx ?? null } : {}),
+        ...(box.anchored && !box.hAlign ? { xPx: Math.max(0, Math.min(width - boxWidth, floatPlace({ ...box, widthPx: boxWidth, heightPx }, geom).x)) } : {}),
       }, heightPx + IMAGE_GAP);
+    }
+
+    // A group wrapped top and bottom, centred or in the line stands in the
+    // flow like a picture, its members drawn in its box.
+    for (const f of floating) {
+      if (f.kind !== 'group' || f.layer !== 'block') continue;
+      if (f.heightPx > remaining() && current.fragments.length) newColumn();
+      const p = floatPlace({ ...f.source, widthPx: f.widthPx, heightPx: f.heightPx }, geom);
+      place({ ...f.fragment, paragraphIndex: block.index, xPx: Math.max(0, Math.min(width - f.widthPx, f.source.hAlign === 'center' ? (width - f.widthPx) / 2 : p.x)) }, f.heightPx + IMAGE_GAP);
     }
   }
 

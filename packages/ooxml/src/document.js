@@ -32,6 +32,21 @@ import { parseTable, parseSection, childElements, firstElement, headBefore } fro
 import { readHeadersAndFooters } from './headers.js';
 import { ENVELOPE_SIZES, ENVELOPE_STYLES_XML, envelopeXml, envelopeDocumentXml, labelSheetXml, labelParagraph, nextRecordParagraph, labelProduct, NEXT_FIELD_RUNS } from './labels.js';
 import { readParagraphStyles, readCharacterStyles, readNumberingDefs, readThemeFonts, readThemeColours, STANDARD_STYLES_XML } from './docstyles.js';
+import {
+  findDrawings, readDrawing, readBodyPr, readShapeLook, DRAWING_NS, Z_BASE, Z_STEP, textBoxRun, fallbackFor,
+  withAnchorAttrs, withDocPr, withPosition, withWrap, withExtent, withTransform, withShapeFill, withShapeLine, withBodyPr,
+  toAnchor, toInline, memberXml, groupMembers, groupGraphic, memberToDrawing, anchorXml, EMU_PER_PX,
+} from './drawings.js';
+
+/** What the Arrange commands need of a drawing, off its XML: its id, what it is, its z-order and its turn. */
+function arrangeOf(drawingXml) {
+  const d = readDrawing(drawingXml);
+  return {
+    id: d.id, kind: d.kind, relativeHeight: d.relativeHeight,
+    ...(d.rot ? { rot: d.rot } : {}), ...(d.flipH ? { flipH: true } : {}), ...(d.flipV ? { flipV: true } : {}),
+    ...(d.hidden ? { hidden: true } : {}),
+  };
+}
 
 /**
  * Media bytes -> data URI. Deliberately duplicated from `@rutba/drawing` rather
@@ -662,10 +677,26 @@ export class Document {
     // them), so they must not be listed here either.
     let sdtTableDepth = 0;
     // A text box's paragraphs belong to the paragraph that anchors the box —
-    // `_paragraphTextBoxes` reads them from there. Listing them here made a
-    // cover page's text box lines into body paragraphs and LOST the paragraph
-    // that carried the box.
+    // `_paragraphTextBoxes` reads them from there. Listing them IN THE FLOW
+    // made a cover page's text box lines into body paragraphs and LOST the
+    // paragraph that carried the box.
+    //
+    // They are listed now, but as a story of their own, the way Word keeps a
+    // text box's words: after every body paragraph, each carrying the
+    // container `x<offset of its w:txbxContent>`, so a caret can live in a box
+    // and type there while the body's indices — and every adjacency the
+    // editor's guards rely on — are exactly what they were. Only a box whose
+    // anchor is a plain body paragraph (not a cell's, not a content
+    // control's) and whose content is paragraphs alone is listed; any other
+    // box stays opaque and is drawn from its anchor, read-only, as before.
+    // A box's VML twin in `mc:Fallback` is never listed: it repeats the words.
     let boxDepth = 0;
+    const fallbacks = [...body.matchAll(/<mc:Fallback\b[\s\S]*?<\/mc:Fallback>/g)].map((f) => [f.index, f.index + f[0].length]);
+    const inFallback = (at) => fallbacks.some(([a, b]) => at >= a && at < b);
+    let openBox = null; // the addressable box being read: { content, pStart }
+    const pendingBoxes = []; // its paragraphs, waiting for the anchor to close
+    const boxParas = []; // every box's paragraphs, listed after the body
+    const boxIndex = new Map(); // txbxContent offset -> its paragraphs
     let pStart = -1;
     let key = null; // the container key for the innermost open cell, or null
 
@@ -700,8 +731,20 @@ export class Document {
       if (m[1] || m[3]) { // open/self-close or close of tbl|tr|tc|sdt|txbxContent
         const name = m[1] ?? m[3];
         if (name === 'txbxContent') {
-          if (m[1] && m[2] !== '/') boxDepth += 1;
-          else if (m[3]) boxDepth = Math.max(0, boxDepth - 1);
+          if (m[1] && m[2] !== '/') {
+            if (boxDepth === 0 && !openBox && pStart >= 0 && stack.length === 0 && sdtDepth === 0 && !inFallback(m.index)) {
+              const close = body.indexOf('</w:txbxContent>', m.index);
+              const inner = close >= 0 ? body.slice(m.index + tag.length, close) : '';
+              if (close >= 0 && !/<w:(?:tbl|sdt|txbxContent)\b/.test(inner)) {
+                openBox = { content: m.index, pStart: -1, paras: [] };
+                continue;
+              }
+            }
+            boxDepth += 1;
+          } else if (m[3]) {
+            if (openBox && boxDepth === 0) { pendingBoxes.push(openBox); openBox = null; continue; }
+            boxDepth = Math.max(0, boxDepth - 1);
+          }
           continue;
         }
         if (boxDepth > 0) continue;
@@ -748,6 +791,17 @@ export class Document {
 
       // a <w:p …> or </w:p>
       if (boxDepth > 0) continue;
+      if (openBox) {
+        if (/^<w:p\b/.test(tag)) {
+          if (tag.endsWith('/>')) openBox.paras.push({ xml: tag, start: m.index, end: m.index + tag.length, text: '' });
+          else openBox.pStart = m.index;
+        } else if (tag === '</w:p>' && openBox.pStart >= 0) {
+          const xml = body.slice(openBox.pStart, m.index + tag.length);
+          openBox.paras.push({ xml, start: openBox.pStart, end: m.index + tag.length, text: textOf(xml) });
+          openBox.pStart = -1;
+        }
+        continue;
+      }
       // A BODY-LEVEL content control's paragraphs are listed, read-only: a
       // cover page, a table of contents, a bound field are all sdt, and a
       // page that skipped them opened a fifteen-page tender on its second
@@ -768,13 +822,28 @@ export class Document {
       }
       if (tag === '</w:p>' && pStart >= 0) {
         const xml = body.slice(pStart, m.index + tag.length);
-        out.push({ index: out.length, xml, start: pStart, end: m.index + tag.length, text: textOf(xml), container: key, ...tableMeta(), ...(hiddenCell ? { hiddenCell } : {}), ...(inSdt ? { inSdt } : {}) });
+        const own = xml.includes('<w:txbxContent') ? stripTextBoxes(xml) : xml;
+        out.push({ index: out.length, xml, start: pStart, end: m.index + tag.length, text: textOf(own), container: key, ...tableMeta(), ...(hiddenCell ? { hiddenCell } : {}), ...(inSdt ? { inSdt } : {}) });
+        for (const b of pendingBoxes) boxParas.push({ ...b, anchor: out.length - 1 });
+        pendingBoxes.length = 0;
         pStart = -1;
       }
     }
 
+    // The text boxes' story, after the body: each box's paragraphs in order,
+    // each knowing its box (the offset of its content) and its anchor.
+    for (const b of boxParas) {
+      const indices = [];
+      for (const p of b.paras) {
+        indices.push(out.length);
+        out.push({ index: out.length, ...p, container: 'x' + b.content, box: { content: b.content, anchor: b.anchor } });
+      }
+      boxIndex.set(b.content, indices);
+    }
+
     this._editParagraphsFor = this.xml;
     this._editParagraphs = out;
+    this._boxIndex = boxIndex;
     return out;
   }
 
@@ -1302,6 +1371,8 @@ export class Document {
       // which `_paragraphRichDrawings` owns. Reporting it here as an image
       // with a null href made every consumer carry a ghost to filter out.
       if (!blip) continue;
+      // A group's pictures are the group's — `_paragraphGroups` draws them.
+      if (/<a:graphicData\b[^>]*wordprocessingGroup/.test(inner)) continue;
       const relId = attrs(blip[1])['r:embed'] ?? attrs(blip[1]).embed ?? null;
       const namePr = /<wp:docPr\b([^>]*)\/?>/.exec(inner);
       const target = relId ? rels.get(relId) : null;
@@ -1315,6 +1386,7 @@ export class Document {
         heightPx: ext.cy ? Number(ext.cy) / 9525 : 96,
         href: bytes ? toDataUri(bytes, part) : null,
         ...anchorLayout(inner),
+        ...arrangeOf(m[0]),
       });
     }
     return out;
@@ -1839,6 +1911,8 @@ export class Document {
     for (const m of String(paragraphXml).matchAll(/<w:drawing\b[^>]*>([\s\S]*?)<\/w:drawing>/g)) {
       const inner = m[1];
       if (/<a:blip\b/.test(inner)) continue; // a picture — _paragraphImages has it
+      if (/<a:graphicData\b[^>]*wordprocessingGroup/.test(inner)) continue; // a group — _paragraphGroups
+      const place = { ...anchorLayout(inner), ...arrangeOf(m[0]) };
       const extent = /<wp:extent\b([^>]*)\/>/.exec(inner);
       const ext = extent ? attrs(extent[1]) : {};
       const widthPx = ext.cx ? Math.round(Number(ext.cx) / 9525) : null;
@@ -1851,36 +1925,54 @@ export class Document {
         const target = rels.get(chartRef[1]);
         const part = target ? OoxmlPackage.resolveTarget(this.mainPart, target) : null;
         if (part && this.pkg.has(part)) {
-          out.push({ kind: 'chart', name, widthPx, heightPx, chartXml: this.pkg.text(part) });
+          out.push({ ...place, kind: 'chart', name, widthPx, heightPx, chartXml: this.pkg.text(part) });
         }
         continue;
       }
       const wsp = /<wps:wsp\b[\s\S]*?<\/wps:wsp>/.exec(inner);
       // A shape with a text box is a TEXT box — `_paragraphTextBoxes` draws
       // it with its words; painting the frame here too would double it.
-      if (wsp && !/<wps:txbx\b/.test(wsp[0])) out.push({ kind: 'shape', name, widthPx, heightPx, shapeXml: wsp[0] });
+      if (wsp && !/<wps:txbx\b/.test(wsp[0])) out.push({ ...place, kind: 'shape', name, widthPx, heightPx, shapeXml: wsp[0] });
     }
     return out;
   }
 
   /**
    * The text boxes anchored in a paragraph: each one's frame — size, fill,
-   * outline, horizontal alignment — and its paragraphs, decorated like the
-   * body's (style, alignment, indents, shading, runs, pictures) but not
-   * addressable: a caret has no business in a box the engine cannot rebuild.
+   * outline, position, wrap, its insets and where its words sit — and its
+   * paragraphs, decorated like the body's (style, alignment, indents,
+   * shading, runs, pictures).
+   *
+   * A box the edit space lists (see `editParagraphs`) names its paragraphs'
+   * indices in `blocks`: the page draws those, and the caret types in them.
+   * `paragraphs` is still read for everyone who draws without an address —
+   * the printout, a box the edit space leaves opaque.
    *
    * Only the `mc:Choice` of an AlternateContent is read; the VML fallback
    * repeats the same words for older Words and would show them twice.
+   * `base` is the paragraph's offset in the body, which is how a box is
+   * matched to its paragraphs in the edit space.
    */
-  _paragraphTextBoxes(paragraphXml) {
-    if (!paragraphXml.includes('<w:txbxContent')) return [];
-    const xml = String(paragraphXml).replace(/<mc:Fallback>[\s\S]*?<\/mc:Fallback>/g, '');
+  _paragraphTextBoxes(paragraphXml, base = null) {
+    const xml = String(paragraphXml);
+    if (!xml.includes('<w:txbxContent')) return [];
     const colours = this.themeColours();
+    const fallbacks = [...xml.matchAll(/<mc:Fallback\b[\s\S]*?<\/mc:Fallback>/g)].map((f) => [f.index, f.index + f[0].length]);
+    const inFallback = (at) => fallbacks.some(([a, b]) => at >= a && at < b);
+    const units = findDrawings(xml).map((d) => ({ start: d.start, xml: d.xml, drawing: true }));
+    for (const m of xml.matchAll(/<w:pict\b[^>]*>[\s\S]*?<\/w:pict>/g)) {
+      if (!inFallback(m.index) && m[0].includes('<w:txbxContent')) units.push({ start: m.index, xml: m[0], drawing: false });
+    }
+    units.sort((a, b) => a.start - b.start);
     const out = [];
-    for (const m of xml.matchAll(/<w:drawing\b[^>]*>([\s\S]*?)<\/w:drawing>|<w:pict\b[^>]*>([\s\S]*?)<\/w:pict>/g)) {
-      const inner = m[1] ?? m[2] ?? '';
-      const content = /<w:txbxContent\b[^>]*>([\s\S]*?)<\/w:txbxContent>/.exec(inner);
-      if (!content) continue;
+    for (const unit of units) {
+      const inner = unit.xml;
+      const open = /<w:txbxContent\b[^>]*>/.exec(inner);
+      if (!open) continue;
+      const d = unit.drawing ? readDrawing(inner) : null;
+      if (d && d.kind === 'group') continue; // `_paragraphGroups` draws a group's boxes
+      const close = inner.indexOf('</w:txbxContent>', open.index);
+      const content = inner.slice(open.index + open[0].length, close < 0 ? inner.length : close);
       const extent = /<wp:extent\b([^>]*)\/>/.exec(inner);
       const ext = extent ? attrs(extent[1]) : {};
       let widthPx = ext.cx ? Math.round(Number(ext.cx) / 9525) : null;
@@ -1888,7 +1980,7 @@ export class Document {
       if (widthPx === null) {
         // VML: <v:shape style="width:451.3pt;height:38.4pt">
         const style = /<v:(?:shape|rect)\b[^>]*\bstyle="([^"]*)"/.exec(inner);
-        const dim = (name) => { const d = new RegExp('(?:^|;)\\s*' + name + ':\\s*([\\d.]+)(pt|px|in|cm)?').exec(style?.[1] ?? ''); return d ? Math.round(Number(d[1]) * ({ pt: 96 / 72, px: 1, in: 96, cm: 96 / 2.54 })[d[2] || 'pt']) : null; };
+        const dim = (name) => { const dm = new RegExp('(?:^|;)\\s*' + name + ':\\s*([\\d.]+)(pt|px|in|cm)?').exec(style?.[1] ?? ''); return dm ? Math.round(Number(dm[1]) * ({ pt: 96 / 72, px: 1, in: 96, cm: 96 / 2.54 })[dm[2] || 'pt']) : null; };
         widthPx = dim('width');
         heightPx = dim('height');
       }
@@ -1899,15 +1991,25 @@ export class Document {
       const line = /<a:ln\b[^>]*>([\s\S]*?)<\/a:ln>/.exec(spPr);
       const fill = colourOf(spPr.replace(/<a:ln\b[^>]*>[\s\S]*?<\/a:ln>/, ''), colours);
       const vmlFill = /<v:(?:shape|rect)\b[^>]*\bfillcolor="([^"]*)"/.exec(inner);
-      const paragraphs = this._liteParagraphs(content[1]);
+      const paragraphs = this._liteParagraphs(content);
+      const body = /<wps:bodyPr\b/.test(inner) ? readBodyPr(inner) : null;
+      const look = readShapeLook(inner);
+      const at = base != null ? base + unit.start + open.index : null;
+      const blocks = at != null ? this._boxIndex?.get(at) ?? null : null;
       out.push({
+        ...(d ? { id: d.id, relativeHeight: d.relativeHeight, rot: d.rot, flipH: d.flipH, flipV: d.flipV, hidden: d.hidden } : {}),
+        kind: 'textbox',
         name: namePr ? (attrs(namePr[1])['name'] ?? null) : null,
         widthPx, heightPx, hAlign,
         anchored: layout.anchored, wrap: layout.wrap ?? null, wrapSide: layout.wrapSide ?? null,
         dist: layout.dist ?? null, behind: Boolean(layout.behind),
-        vRel: layout.vRel ?? null, vOffsetPx: layout.vOffsetPx ?? null, hRel: layout.hRel ?? null, hOffsetPx: layout.hOffsetPx ?? null,
+        vRel: layout.vRel ?? null, vOffsetPx: layout.vOffsetPx ?? null, vAlign: layout.vAlign ?? null,
+        hRel: layout.hRel ?? null, hOffsetPx: layout.hOffsetPx ?? null,
         fill: fill ?? (vmlFill ? vmlFill[1] : null),
         line: line ? colourOf(line[1], colours) : null,
+        ...(line ? { lineWidthPx: Math.round((look.lineWidthPx ?? 1) * 100) / 100 } : {}),
+        ...(body ? { insets: body.insets, vAnchor: body.anchor, vert: body.vert, autoFit: body.autoFit } : {}),
+        ...(blocks && blocks.length ? { blocks } : {}),
         paragraphs,
       });
     }
@@ -2135,10 +2237,473 @@ export class Document {
   /** The next free `wp:docPr` id — Word wants them unique within the document. */
   _nextDrawingId() {
     let max = 0;
-    for (const m of this.xml.matchAll(/<wp:docPr\b[^>]*\bid="(\d+)"/g)) {
+    for (const m of this.xml.matchAll(/<(?:wp:docPr|wps:cNvPr|pic:cNvPr|wpg:cNvPr)\b[^>]*\bid="(\d+)"/g)) {
       max = Math.max(max, Number(m[1]));
     }
     return max + 1;
+  }
+
+  /* ── floating drawings: text boxes, Arrange, groups ─────────────────────── */
+
+  /**
+   * Declare on `<w:document>` the namespaces a floating drawing writes —
+   * markup compatibility, the drawing canvases, DrawingML, VML — each only
+   * if it is missing, the way Word declares all of them on every document.
+   */
+  ensureDrawingNamespaces() {
+    const open = /<w:document\b[^>]*>/.exec(this.xml);
+    if (!open) return false;
+    let tag = open[0];
+    for (const [prefix, uri] of Object.entries(DRAWING_NS)) {
+      if (!new RegExp('\\sxmlns:' + prefix + '=').test(tag)) tag = tag.replace(/^<w:document\b/, '<w:document xmlns:' + prefix + '="' + uri + '"');
+    }
+    if (tag === open[0]) return false;
+    this.xml = this.xml.slice(0, open.index) + tag + this.xml.slice(open.index + open[0].length);
+    this.dirty = true;
+    return true;
+  }
+
+  /**
+   * Every drawing on the page, in document order — what the Selection Pane
+   * lists and the Arrange commands act on: its id and name, what it is, the
+   * paragraph that holds it, whether it floats and how, its place in the
+   * z-order, its size and its turn, and a text box's first words.
+   */
+  drawings() {
+    const { body } = this._body();
+    if (!body.includes('<w:drawing')) return [];
+    const paras = this.editParagraphs().filter((p) => !p.box);
+    const out = [];
+    let k = 0;
+    for (const d of findDrawings(body)) {
+      while (k < paras.length && paras[k].end <= d.start) k += 1;
+      // The innermost paragraph holding it: body paragraphs and cell
+      // paragraphs are listed in document order and never overlap.
+      let block = -1;
+      for (let i = k; i < paras.length && paras[i].start <= d.start; i++) {
+        if (d.end <= paras[i].end) { block = paras[i].index; break; }
+      }
+      const info = readDrawing(d.xml);
+      const layout = anchorLayout(d.xml);
+      const words = info.kind === 'textbox' ? textOf((/<w:txbxContent\b[^>]*>([\s\S]*?)<\/w:txbxContent>/.exec(d.xml) || [])[1] || '') : null;
+      out.push({
+        ...info, ...layout, block,
+        ...(info.kind === 'group' ? { members: groupMembers(d.xml).members.map((m) => ({ id: m.id, name: m.name, kind: m.kind })) } : {}),
+        ...(words != null ? { text: words.slice(0, 120) } : {}),
+      });
+    }
+    return out;
+  }
+
+  /** One drawing's span in the body, by its id — or a sentence saying there is none. */
+  _drawingById(id) {
+    const { body } = this._body();
+    const hit = findDrawings(body).find((d) => d.id === Number(id));
+    if (!hit) throw new Error('there is no drawing ' + id + ' in this document');
+    return hit;
+  }
+
+  /** The highest place in the z-order a drawing holds now. */
+  _topZ() {
+    let top = Z_BASE;
+    for (const m of this.xml.matchAll(/<wp:anchor\b[^>]*\brelativeHeight="(\d+)"/g)) top = Math.max(top, Number(m[1]));
+    return top;
+  }
+
+  /**
+   * Rewrite one drawing through `fn(xml, info)`; a text box's VML twin is
+   * written again from what the box has become.
+   */
+  _rewriteDrawing(id, fn) {
+    const d = this._drawingById(id);
+    const next = fn(d.xml, readDrawing(d.xml));
+    if (next === d.xml) return this;
+    const { prefix, body, suffix } = this._body();
+    let out = body.slice(0, d.start) + next + body.slice(d.end);
+    if (d.alternate) {
+      const unitEnd = d.unitEnd + (next.length - d.xml.length);
+      const unit = out.slice(d.unitStart, unitEnd);
+      const fb = /<mc:Fallback\b[^>]*>[\s\S]*<\/mc:Fallback>/.exec(unit);
+      if (fb && fb[0].includes('<w:txbxContent') && /<wps:txbx\b/.test(next)) {
+        let twin = null;
+        try { twin = fallbackFor(next, this.themeColours()); } catch { twin = null; }
+        if (twin) out = out.slice(0, d.unitStart) + unit.slice(0, fb.index) + '<mc:Fallback>' + twin + '</mc:Fallback>' + unit.slice(fb.index + fb[0].length) + out.slice(unitEnd);
+      }
+    }
+    this.xml = prefix + out + suffix;
+    this.dirty = true;
+    return this;
+  }
+
+  /**
+   * Change one drawing the way Word's Arrange and Format commands do, each
+   * only if it is given:
+   *   wrap        'inline' | 'square' | 'tight' | 'through' | 'topAndBottom' |
+   *               'behind' | 'front' — In Line with Text through In Front of Text
+   *   side        which side the words take: bothSides, left, right, largest
+   *   h, v        { rel, align } or { rel, offsetPx } — Position and Align
+   *   widthPx, heightPx   the size
+   *   relativeHeight      a place in the z-order
+   *   rot, flipH, flipV   Rotate
+   *   name, hidden        the Selection Pane's name and eye
+   *   fill, line          a shape's fill ('#RRGGBB' or null) and outline
+   *                       ({ colour, widthPx } or null)
+   *   insets, vAnchor, vert, autoFit   a text box's margins, vertical
+   *                       alignment, text direction and "resize to fit text"
+   */
+  updateDrawing(id, patch = {}) {
+    return this._rewriteDrawing(id, (xml, info) => {
+      let out = xml;
+      if (patch.wrap !== undefined) {
+        if (patch.wrap === 'inline') {
+          if (info.anchored) out = toInline(out);
+        } else {
+          const behind = patch.wrap === 'behind';
+          const wrap = patch.wrap === 'behind' || patch.wrap === 'front' ? 'none' : patch.wrap;
+          if (!['square', 'tight', 'through', 'topAndBottom', 'none'].includes(wrap)) throw new Error('unknown wrap: ' + patch.wrap);
+          const side = patch.side || (/<wp:wrap(?:Square|Tight|Through)\b[^>]*\bwrapText="([^"]*)"/.exec(out)?.[1]) || 'bothSides';
+          if (!info.anchored) {
+            out = toAnchor(out, {
+              wrap, side, behind, relativeHeight: this._topZ() + Z_STEP,
+              h: patch.h || { rel: 'column', offsetPx: 0 }, v: patch.v || { rel: 'paragraph', offsetPx: 0 },
+            });
+          } else {
+            out = withWrap(out, wrap, side);
+            out = withAnchorAttrs(out, { behindDoc: behind ? '1' : '0' });
+          }
+        }
+      }
+      const anchored = /<wp:anchor\b/.test(out);
+      if (anchored && patch.h) out = withPosition(out, 'H', patch.h);
+      if (anchored && patch.v) out = withPosition(out, 'V', patch.v);
+      if (anchored && patch.relativeHeight != null) out = withAnchorAttrs(out, { relativeHeight: String(Math.max(0, Math.round(patch.relativeHeight))) });
+      if (patch.widthPx != null || patch.heightPx != null) {
+        const w = patch.widthPx ?? info.widthPx ?? 96;
+        const h = patch.heightPx ?? info.heightPx ?? 96;
+        if (!(w > 0) || !(h > 0)) throw new Error('a drawing needs a positive width and height');
+        out = withExtent(out, w, h);
+      }
+      if (patch.rot !== undefined || patch.flipH !== undefined || patch.flipV !== undefined) {
+        out = withTransform(out, { rot: patch.rot, flipH: patch.flipH, flipV: patch.flipV });
+      }
+      if (patch.name !== undefined || patch.hidden !== undefined) out = withDocPr(out, { name: patch.name, hidden: patch.hidden });
+      if (patch.fill !== undefined) out = withShapeFill(out, patch.fill == null ? null : patch.fill);
+      if (patch.line !== undefined) out = withShapeLine(out, patch.line == null ? { none: true } : patch.line);
+      if (patch.insets !== undefined || patch.vAnchor !== undefined || patch.vert !== undefined || patch.autoFit !== undefined) {
+        out = withBodyPr(out, { insets: patch.insets, anchor: patch.vAnchor, vert: patch.vert, autoFit: patch.autoFit });
+      }
+      return out;
+    });
+  }
+
+  /**
+   * Bring Forward, Send Backward, Bring to Front, Send to Back — the
+   * floating drawings' order, which Word keeps in each anchor's
+   * `relativeHeight`: the chosen ones move, the others keep their order,
+   * and only the drawings whose place changed are rewritten.
+   */
+  orderDrawings(ids, how) {
+    const chosen = new Set((Array.isArray(ids) ? ids : [ids]).map(Number));
+    const floating = this.drawings().filter((d) => d.anchored);
+    if (!floating.some((d) => chosen.has(d.id))) throw new Error('Bring Forward and Send Backward move floating drawings — choose a wrap other than In Line with Text first.');
+    const order = floating
+      .map((d, i) => ({ id: d.id, z: d.relativeHeight ?? Z_BASE, i }))
+      .sort((a, b) => a.z - b.z || a.i - b.i);
+    const list = order.map((d) => d.id);
+    let next;
+    if (how === 'front') next = [...list.filter((id) => !chosen.has(id)), ...list.filter((id) => chosen.has(id))];
+    else if (how === 'back') next = [...list.filter((id) => chosen.has(id)), ...list.filter((id) => !chosen.has(id))];
+    else if (how === 'forward' || how === 'backward') {
+      next = list.slice();
+      const up = how === 'forward';
+      const idx = next.map((id, i) => (chosen.has(id) ? i : -1)).filter((i) => i >= 0);
+      for (const i of up ? idx.reverse() : idx) {
+        let j = i;
+        // Past the next one that is not chosen, as Word steps one place.
+        const k = up ? j + 1 : j - 1;
+        if (k < 0 || k >= next.length || chosen.has(next[k])) continue;
+        [next[j], next[k]] = [next[k], next[j]];
+        j = k;
+      }
+    } else throw new Error('unknown order: ' + how);
+    // Heights as Word spaces them, rewritten only where they changed.
+    const current = new Map(order.map((d) => [d.id, d.z]));
+    next.forEach((id, i) => {
+      const z = Z_BASE + (i + 1) * Z_STEP;
+      if (current.get(id) !== z) this.updateDrawing(id, { relativeHeight: z });
+    });
+    return this;
+  }
+
+  /**
+   * A drawing's run moved to another paragraph — its anchor, which Word
+   * moves with a floating drawing dragged down the page. The drawing lands
+   * at the paragraph's start; a run that held nothing else goes with it.
+   */
+  moveDrawing(id, toIndex) {
+    const d = this._drawingById(id);
+    const target = this.editParagraph(toIndex);
+    if (!target) throw new Error('no paragraph at index ' + toIndex);
+    if (target.box) throw new Error('a drawing cannot be anchored inside a text box');
+    if (target.start <= d.start && d.end <= target.end) return this;
+    const { prefix, body, suffix } = this._body();
+    const unit = body.slice(d.unitStart, d.unitEnd);
+    const run = d.runStart >= 0 ? body.slice(d.runStart, d.runEnd) : null;
+    const rest = run ? run.slice(0, d.unitStart - d.runStart) + run.slice(d.unitEnd - d.runStart) : '';
+    const bare = !run || /^<w:r\b[^>]*>\s*(?:<w:rPr\b[^>]*\/>|<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>)?\s*<\/w:r>$/.test(rest);
+    const [cutFrom, cutTo] = run && bare ? [d.runStart, d.runEnd] : [d.unitStart, d.unitEnd];
+    const moved = '<w:r>' + unit + '</w:r>';
+    const openTag = /<w:p\b[^>]*?>/.exec(target.xml)[0];
+    const pPr = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>)?/.exec(target.xml);
+    let at = target.start + (pPr ? pPr[0].length : openTag.length);
+    let out;
+    if (target.xml.endsWith('/>') && /^<w:p\b[^>]*\/>$/.test(target.xml)) {
+      // An empty paragraph written short: open it to take the run.
+      const opened = target.xml.replace(/\/>$/, '>') + moved + '</w:p>';
+      out = cutFrom < target.start
+        ? body.slice(0, cutFrom) + body.slice(cutTo, target.start) + opened + body.slice(target.end)
+        : body.slice(0, target.start) + opened + body.slice(target.end, cutFrom) + body.slice(cutTo);
+    } else if (at <= cutFrom) {
+      out = body.slice(0, at) + moved + body.slice(at, cutFrom) + body.slice(cutTo);
+    } else {
+      out = body.slice(0, cutFrom) + body.slice(cutTo, at) + moved + body.slice(at);
+    }
+    this.xml = prefix + out + suffix;
+    this.dirty = true;
+    return this;
+  }
+
+  /** A drawing taken out of the document — its run, when the run held nothing else. The paragraph stays. */
+  removeDrawing(id) {
+    const d = this._drawingById(id);
+    const { prefix, body, suffix } = this._body();
+    const run = d.runStart >= 0 ? body.slice(d.runStart, d.runEnd) : null;
+    const rest = run ? run.slice(0, d.unitStart - d.runStart) + run.slice(d.unitEnd - d.runStart) : '';
+    const bare = !run || /^<w:r\b[^>]*>\s*(?:<w:rPr\b[^>]*\/>|<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>)?\s*<\/w:r>$/.test(rest);
+    const [from, to] = run && bare ? [d.runStart, d.runEnd] : [d.unitStart, d.unitEnd];
+    this.xml = prefix + body.slice(0, from) + body.slice(to) + suffix;
+    this.dirty = true;
+    return this;
+  }
+
+  /**
+   * Insert → Text Box: a floating text box, written as Word 2010 and later
+   * write one (see drawings.js `textBoxRun`), anchored at the start of
+   * paragraph `index`. `paragraphs` are its words: `{ text, bold, italic,
+   * sizePt, colour, align, font }` each. Answers the new box's id.
+   */
+  insertTextBox(index, spec = {}) {
+    const p = this.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    if (p.box) throw new Error('a text box cannot go inside another text box');
+    if (p.container) throw new Error('A text box goes beside the words, not in a table cell — move the caret out of the table first.');
+    if (p.structural) throw new Error('A text box cannot be anchored in this paragraph — it is part of a field or a content control.');
+    this.ensureDrawingNamespaces();
+    const id = this._nextDrawingId();
+    const words = (spec.paragraphs && spec.paragraphs.length ? spec.paragraphs : [{ text: '' }]).map((w) => {
+      const rPr = [
+        w.font ? '<w:rFonts w:ascii="' + esc(w.font) + '" w:hAnsi="' + esc(w.font) + '"/>' : '',
+        w.bold ? '<w:b/>' : '', w.italic ? '<w:i/>' : '',
+        w.colour ? '<w:color w:val="' + String(w.colour).replace('#', '').toUpperCase() + '"/>' : '',
+        w.sizePt ? '<w:sz w:val="' + Math.round(w.sizePt * 2) + '"/><w:szCs w:val="' + Math.round(w.sizePt * 2) + '"/>' : '',
+      ].join('');
+      const pPr = [
+        w.style ? '<w:pStyle w:val="' + esc(w.style) + '"/>' : '',
+        '<w:spacing w:after="' + (w.afterTwips ?? 0) + '" w:line="' + (w.lineTwips ?? 240) + '" w:lineRule="auto"/>',
+        w.align ? '<w:jc w:val="' + (w.align === 'justify' ? 'both' : w.align) + '"/>' : '',
+      ].join('');
+      const run = w.text ? '<w:r>' + (rPr ? '<w:rPr>' + rPr + '</w:rPr>' : '') + '<w:t xml:space="preserve">' + esc(w.text) + '</w:t></w:r>' : '';
+      return '<w:p><w:pPr>' + pPr + (rPr ? '<w:rPr>' + rPr + '</w:rPr>' : '') + '</w:pPr>' + run + '</w:p>';
+    }).join('');
+    const run = textBoxRun({
+      id,
+      name: spec.name || 'Text Box ' + id,
+      widthPx: spec.widthPx ?? 240, heightPx: spec.heightPx ?? 96,
+      h: spec.h || { rel: 'column', offsetPx: 0 }, v: spec.v || { rel: 'paragraph', offsetPx: 0 },
+      wrap: spec.wrap || 'square', behind: Boolean(spec.behind),
+      relativeHeight: this._topZ() + Z_STEP,
+      fill: spec.fill === undefined ? 'FFFFFF' : spec.fill == null ? null : String(spec.fill).replace('#', ''),
+      line: spec.line === undefined ? '000000' : spec.line == null ? null : String(spec.line).replace('#', ''),
+      lineWidthPx: spec.lineWidthPx ?? 1,
+      insets: spec.insets || { l: 9.6, t: 4.8, r: 9.6, b: 4.8 },
+      anchor: spec.vAnchor || 'top', vert: spec.vert || 'horz', autoFit: Boolean(spec.autoFit),
+      paragraphs: words,
+    });
+    const fresh = this.editParagraph(index);
+    const openTag = /<w:p\b[^>]*?>/.exec(fresh.xml)[0];
+    if (/^<w:p\b[^>]*\/>$/.test(fresh.xml)) {
+      this._spliceBody(fresh.start, fresh.end, fresh.xml.replace(/\/>$/, '>') + run + '</w:p>');
+    } else {
+      const lead = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>)?/.exec(fresh.xml);
+      const at = fresh.start + (lead ? lead[0].length : openTag.length);
+      this._spliceBody(at, at, run);
+    }
+    return id;
+  }
+
+  /** The edit-space paragraphs of a text box, by the box's id — where the caret goes in it. */
+  textBoxBlocks(id) {
+    const d = this._drawingById(id);
+    return this.editParagraphs().filter((p) => p.box && p.box.content > d.start && p.box.content < d.end).map((p) => p.index);
+  }
+
+  /**
+   * Group: the floating drawings named, gathered into one `wpg:wgp` group
+   * the way Word writes it, anchored in the paragraph of the first. `rects`
+   * says where each one stands on the page, in px (`{ id, x, y, w, h }`), the
+   * group's own box is theirs together, and `place` is where that box stands
+   * from the anchor — `{ h: { rel, offsetPx }, v: { rel, offsetPx } }` — which
+   * only the page can know, since the paragraphs' places are its layout.
+   */
+  groupDrawings(ids, { rects = [], place = null } = {}) {
+    const list = (ids || []).map(Number);
+    if (list.length < 2) throw new Error('Select two or more drawings to group them.');
+    const all = this.drawings();
+    const chosen = list.map((id) => all.find((d) => d.id === id));
+    if (chosen.some((d) => !d)) throw new Error('one of those drawings is not in this document');
+    if (chosen.some((d) => !d.anchored)) throw new Error('A drawing in line with the text cannot be grouped — give each one a wrap first (Layout → Wrap Text).');
+    if (chosen.some((d) => d.kind === 'chart' || d.kind === 'canvas' || d.kind === 'other')) throw new Error('Only pictures, shapes, text boxes and groups can be grouped.');
+    const byId = new Map(rects.map((r) => [Number(r.id), r]));
+    const boxes = chosen.map((d) => byId.get(d.id) || { x: d.hOffsetPx || 0, y: d.vOffsetPx || 0, w: d.widthPx || 96, h: d.heightPx || 96 });
+    const x0 = Math.min(...boxes.map((b) => b.x));
+    const y0 = Math.min(...boxes.map((b) => b.y));
+    const x1 = Math.max(...boxes.map((b) => b.x + b.w));
+    const y1 = Math.max(...boxes.map((b) => b.y + b.h));
+    const cx = Math.max(1, Math.round((x1 - x0) * EMU_PER_PX));
+    const cy = Math.max(1, Math.round((y1 - y0) * EMU_PER_PX));
+    const { body } = this._body();
+    const spans = findDrawings(body);
+    // Members in their order on the page, the lowest first: in a group the
+    // later member is drawn over the earlier, as a higher relativeHeight was.
+    const stacked = chosen.map((d, i) => ({ d, b: boxes[i] })).sort((p, q) => (p.d.relativeHeight ?? 0) - (q.d.relativeHeight ?? 0));
+    const members = stacked.map(({ d, b }) => {
+      const span = spans.find((s) => s.id === d.id);
+      return memberXml(span.xml, { x: (b.x - x0) * EMU_PER_PX, y: (b.y - y0) * EMU_PER_PX, cx: b.w * EMU_PER_PX, cy: b.h * EMU_PER_PX });
+    });
+    const first = chosen[0];
+    const id = this._nextDrawingId();
+    const wrap = first.behind ? 'none' : first.wrap || 'square';
+    const graphic = groupGraphic(members, { cx, cy });
+    const drawing = anchorXml({
+      open: '<w:drawing>',
+      extent: '<wp:extent cx="' + cx + '" cy="' + cy + '"/>',
+      effectExtent: '<wp:effectExtent l="0" t="0" r="0" b="0"/>',
+      docPr: '<wp:docPr id="' + id + '" name="Group ' + id + '"/>',
+      frame: '<wp:cNvGraphicFramePr/>',
+      graphic,
+    }, {
+      wrap, side: first.wrapSide || 'bothSides', behind: first.behind,
+      relativeHeight: Math.max(...chosen.map((d) => d.relativeHeight || Z_BASE)),
+      h: place?.h || { rel: first.hRel || 'column', offsetPx: x0 },
+      v: place?.v || { rel: first.vRel || 'paragraph', offsetPx: y0 },
+    });
+    this.ensureDrawingNamespaces();
+    // Take the members out, last first so the earlier offsets hold, then
+    // put the group where the first one was.
+    const anchorBlock = first.block;
+    for (const d of [...chosen].sort((a, b) => spans.find((s) => s.id === b.id).start - spans.find((s) => s.id === a.id).start)) this.removeDrawing(d.id);
+    const target = this.editParagraph(anchorBlock);
+    const lead = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>)?/.exec(target.xml);
+    const run = '<w:r>' + drawing + '</w:r>';
+    if (/^<w:p\b[^>]*\/>$/.test(target.xml)) this._spliceBody(target.start, target.end, target.xml.replace(/\/>$/, '>') + run + '</w:p>');
+    else this._spliceBody(target.start + lead[0].length, target.start + lead[0].length, run);
+    return id;
+  }
+
+  /**
+   * Ungroup: each member of a group a floating drawing of its own again,
+   * where it stood in the group, anchored where the group was. `place` is
+   * where the group's box stands from its anchor, in px — the page's to say
+   * when the group is aligned rather than offset.
+   */
+  ungroupDrawing(id, { place = null } = {}) {
+    const d = this._drawingById(id);
+    const info = readDrawing(d.xml);
+    if (info.kind !== 'group') throw new Error('That drawing is not a group.');
+    const layout = anchorLayout(d.xml);
+    const g = groupMembers(d.xml);
+    const sx = (g.ext.cx || 1) / (g.chExt.cx || 1);
+    const sy = (g.ext.cy || 1) / (g.chExt.cy || 1);
+    const h0 = place?.h ?? { rel: layout.hRel || 'column', offsetPx: layout.hOffsetPx || 0 };
+    const v0 = place?.v ?? { rel: layout.vRel || 'paragraph', offsetPx: layout.vOffsetPx || 0 };
+    const taken = new Set([...this.xml.matchAll(/<wp:docPr\b[^>]*\bid="(\d+)"/g)].map((m) => Number(m[1])));
+    let fresh = this._nextDrawingId();
+    const runs = g.members.map((m, i) => {
+      let mid = m.id;
+      if (mid == null || taken.has(mid)) mid = fresh++;
+      taken.add(mid);
+      const widthPx = (m.cx * sx) / EMU_PER_PX;
+      const heightPx = (m.cy * sy) / EMU_PER_PX;
+      const xPx = ((m.x - g.chOff.x) * sx) / EMU_PER_PX;
+      const yPx = ((m.y - g.chOff.y) * sy) / EMU_PER_PX;
+      const drawing = memberToDrawing(m, {
+        id: mid, widthPx, heightPx,
+        h: { rel: h0.rel, offsetPx: (h0.offsetPx || 0) + xPx },
+        v: { rel: v0.rel, offsetPx: (v0.offsetPx || 0) + yPx },
+        wrap: layout.wrap || 'square', side: layout.wrapSide || 'bothSides', behind: layout.behind,
+        relativeHeight: (info.relativeHeight || Z_BASE) + i,
+      });
+      return '<w:r>' + drawing + '</w:r>';
+    }).join('');
+    const { prefix, body, suffix } = this._body();
+    const run = d.runStart >= 0 ? body.slice(d.runStart, d.runEnd) : null;
+    const rest = run ? run.slice(0, d.unitStart - d.runStart) + run.slice(d.unitEnd - d.runStart) : '';
+    const bare = !run || /^<w:r\b[^>]*>\s*(?:<w:rPr\b[^>]*\/>|<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>)?\s*<\/w:r>$/.test(rest);
+    const [from, to] = run && bare ? [d.runStart, d.runEnd] : [d.unitStart, d.unitEnd];
+    // Runs where the group's run was — or, when the group shared its run, after it.
+    const insert = run && bare ? runs : '</w:r>' + runs + '<w:r>';
+    this.xml = prefix + body.slice(0, from) + insert + body.slice(to) + suffix;
+    this.dirty = true;
+    return g.members.length;
+  }
+
+  /**
+   * A group's members, to draw: each one's box inside the group (px, in the
+   * group's own drawn size), what it is, and what it shows — a picture's
+   * bytes, a shape's XML, a text box's look and paragraphs (and, when the
+   * edit space lists them, their indices).
+   */
+  _paragraphGroups(paragraphXml, base = null) {
+    const out = [];
+    const rels = new Map(this.pkg.rels(this.mainPart).map((r) => [r.Id, r.Target]));
+    const colours = this.themeColours();
+    for (const d of findDrawings(String(paragraphXml))) {
+      const info = readDrawing(d.xml);
+      if (info.kind !== 'group') continue;
+      const g = groupMembers(d.xml);
+      const W = info.widthPx || 1;
+      const H = info.heightPx || 1;
+      const sx = W / Math.max(1, g.chExt.cx);
+      const sy = H / Math.max(1, g.chExt.cy);
+      const members = g.members.map((m) => {
+        const box = { xPx: (m.x - g.chOff.x) * sx, yPx: (m.y - g.chOff.y) * sy, widthPx: m.cx * sx, heightPx: m.cy * sy, rot: m.rot, flipH: m.flipH, flipV: m.flipV };
+        if (m.kind === 'picture') {
+          const relId = /<a:blip\b[^>]*\br:embed="([^"]*)"/.exec(m.xml)?.[1];
+          const target = relId ? rels.get(relId) : null;
+          const part = target ? OoxmlPackage.resolveTarget(this.mainPart, target) : null;
+          const bytes = part && this.pkg.has(part) ? this.pkg.read(part) : null;
+          return { ...box, kind: 'picture', id: m.id, name: m.name, href: bytes ? toDataUri(bytes, part) : null };
+        }
+        if (m.kind === 'textbox') {
+          const open = /<w:txbxContent\b[^>]*>/.exec(m.xml);
+          const content = open ? m.xml.slice(open.index + open[0].length, m.xml.indexOf('</w:txbxContent>', open.index)) : '';
+          const at = base != null && open ? base + d.start + d.xml.indexOf(m.xml) + open.index : null;
+          const blocks = at != null ? this._boxIndex?.get(at) ?? null : null;
+          const spPr = /<wps:spPr\b[^>]*>([\s\S]*?)<\/wps:spPr>/.exec(m.xml)?.[1] ?? '';
+          const line = /<a:ln\b[^>]*>([\s\S]*?)<\/a:ln>/.exec(spPr);
+          const bodyPr = readBodyPr(m.xml);
+          return {
+            ...box, kind: 'textbox', id: m.id, name: m.name,
+            fill: colourOf(spPr.replace(/<a:ln\b[^>]*>[\s\S]*?<\/a:ln>/, ''), colours), line: line ? colourOf(line[1], colours) : null,
+            insets: bodyPr.insets, vAnchor: bodyPr.anchor, vert: bodyPr.vert,
+            paragraphs: this._liteParagraphs(content), ...(blocks && blocks.length ? { blocks } : {}),
+          };
+        }
+        return { ...box, kind: m.kind, id: m.id, name: m.name, shapeXml: m.kind === 'shape' ? m.xml : null };
+      });
+      out.push({ ...anchorLayout(d.xml), ...arrangeOf(d.xml), kind: 'group', name: info.name, widthPx: W, heightPx: H, members });
+    }
+    return out;
   }
 
   /**
@@ -3277,8 +3842,11 @@ export class Document {
   editParagraphCount() { return this.editParagraphs().length; }
 
   _decorate(p) {
-    // w:txbxContent is on the list because a rebuild reassembles the runs
-    // and would drop the box the paragraph anchors, words and all.
+    // w:txbxContent left the list the day a text box became editable: a
+    // rebuild keeps the run that holds a box whole (`_keptFragments`), so
+    // the paragraph that anchors one is typed in like any other. What the
+    // tests below look for is the paragraph's OWN XML — a field in a box's
+    // words is the box's, not the anchor's.
     // A note reference is NOT on the list: it is a run of its own with one
     // character of text, and the rebuild writes the element back from it.
     // w:bookmarkStart left the list 2026-09-24: the rebuilders now carry a
@@ -3297,8 +3865,9 @@ export class Document {
     // rebuilds like any other — typing beside somebody's tracked change no
     // longer has to wait for it to be resolved first. Its tracked state is
     // still summarised below for the margin and the Reviewing Pane.
-    const structural = ['w:fldChar', 'w:commentRangeStart', 'w:sdt', 'w:txbxContent']
-      .filter((tag) => new RegExp('<' + tag + '\\b').test(p.xml))
+    const ownXml = p.xml.includes('<w:txbxContent') ? stripTextBoxes(p.xml) : p.xml;
+    const structural = ['w:fldChar', 'w:commentRangeStart', 'w:sdt']
+      .filter((tag) => new RegExp('<' + tag + '\\b').test(ownXml))
       // Mail merge fields are complex fields too, and a letter is made of
       // them — "Dear «FirstName»," must stay a line a person can type in.
       // When every complex field in the paragraph is a whole merge field at
@@ -3310,9 +3879,11 @@ export class Document {
     if (p.inSdt && !structural.includes('w:sdt')) structural.push('w:sdt');
     // The paragraph's OWN words: a text box's are the box's (`textBoxes`
     // below), not the anchor's — counted once, drawn once.
-    const own = p.xml.includes('<w:txbxContent') ? stripTextBoxes(p.xml) : p.xml;
-    const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(p.xml);
-    const style = /<w:pStyle\b[^>]*w:val="([^"]*)"/.exec(p.xml);
+    // Its properties are its own too: an anchor with no `w:pPr` must not
+    // take the first one inside its box for its own.
+    const own = ownXml;
+    const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(own);
+    const style = /<w:pStyle\b[^>]*w:val="([^"]*)"/.exec(pPr ? pPr[0] : '');
     // `open` is normalised to a real opening tag: a self-closing `<w:p/>` (an
     // empty cell, a blank line) must not be used as a prefix and then closed
     // AGAIN by the rebuilders — `<w:p/>…</w:p>` is how typing into a fresh
@@ -3382,15 +3953,22 @@ export class Document {
       // This layer is format-only; turning a chart part into something
       // paintable is the doc-view backend's job, with @rutba/drawing.
       ...((() => {
-        const drawings = this._paragraphRichDrawings(p.xml);
+        const drawings = this._paragraphRichDrawings(own);
         return drawings.length ? { drawings } : {};
       })()),
       // Text boxes anchored in this paragraph, their paragraphs read the way
       // the body's are — a cover page is nothing but these.
       ...((() => {
-        const textBoxes = this._paragraphTextBoxes(p.xml);
+        const textBoxes = this._paragraphTextBoxes(p.xml, p.start);
         return textBoxes.length ? { textBoxes } : {};
       })()),
+      // Groups anchored here: each one's members, placed in its box.
+      ...((() => {
+        const groups = p.xml.includes('wordprocessingGroup') ? this._paragraphGroups(p.xml, p.start) : [];
+        return groups.length ? { groups } : {};
+      })()),
+      // A paragraph in a text box knows its box and the paragraph anchoring it.
+      ...(p.box ? { box: p.box } : {}),
       ...(p.inSdt ? { inSdt: true } : {}),
       runs: parseRuns(own),
       structural: structural.length > 0,
@@ -3427,8 +4005,33 @@ export class Document {
 
   _spliceBody(start, end, replacement) {
     const { prefix, body, suffix } = this._body();
-    this.xml = prefix + body.slice(0, start) + replacement + body.slice(end) + suffix;
+    const next = body.slice(0, start) + replacement + body.slice(end);
+    this.xml = prefix + this._syncTextBoxFallback(next, start) + suffix;
     this.dirty = true;
+  }
+
+  /**
+   * An edit inside a text box's words, in the DrawingML Word 2010 reads,
+   * leaves the VML twin an older Word reads showing the old words; the twin
+   * is written again from the box whenever that happens, so the two agree.
+   * An edit anywhere else costs one backwards search.
+   */
+  _syncTextBoxFallback(body, at) {
+    const open = body.lastIndexOf('<w:txbxContent', at);
+    if (open < 0 || body.lastIndexOf('</w:txbxContent>', at) > open) return body;
+    const ac = body.lastIndexOf('<mc:AlternateContent', open);
+    if (ac < 0 || body.lastIndexOf('</mc:AlternateContent>', open) > ac) return body;
+    const acEnd = body.indexOf('</mc:AlternateContent>', open);
+    if (acEnd < 0) return body;
+    const unit = body.slice(ac, acEnd);
+    if (unit.indexOf('<mc:AlternateContent', 1) >= 0) return body; // a box holding another: left alone
+    const choice = /<mc:Choice\b[^>]*>([\s\S]*?)<\/mc:Choice>/.exec(unit);
+    const fb = /<mc:Fallback\b[^>]*>[\s\S]*<\/mc:Fallback>/.exec(unit);
+    if (!choice || !fb || fb.index < choice.index || !fb[0].includes('<w:txbxContent')) return body;
+    if (ac + choice.index + choice[0].length < open) return body; // the edit was in the twin itself
+    let twin;
+    try { twin = fallbackFor(choice[1], this.themeColours()); } catch { return body; }
+    return body.slice(0, ac) + unit.slice(0, fb.index) + '<mc:Fallback>' + twin + '</mc:Fallback>' + unit.slice(fb.index + fb[0].length) + body.slice(acEnd);
   }
 
   _assertEditable(p, what) {
@@ -3491,6 +4094,10 @@ export class Document {
       // A mail merge field's runs — begin, instruction, separate, end — are a
       // field the model owns as one run and writes back whole (runs.js
       // `foldMergeFields`); kept here too, each field would be written twice.
+      // A run holding a text box — its `<w:t>`s are the BOX's words, not the
+      // paragraph's (parseRuns reads the paragraph with them stripped) — is
+      // kept whole: the drawing, its VML twin and the box's paragraphs.
+      if (/<w:txbxContent\b/.test(chunk)) { kept.push(chunk); return; }
       if (/<w:(?:fldChar|instrText)\b/.test(chunk)) return;
       // The rule is about CONTENT, not tag names: a chunk carrying `<w:t>`
       // anywhere is text the model owns — parseRuns read it and the rebuild

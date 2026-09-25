@@ -37,6 +37,13 @@ import { useMailings, installMailingsStyles } from './word/mailings.js';
 import { useEnvelopesLabels, installEnvelopeStyles } from './word/envelopes.js';
 import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
 import { useWordReview } from './word/review.js';
+import {
+  drawingLayer, geomOf, spacerStyles, blockCss, turnCss, TextBox, GroupBox, DrawingLayer, DrawingFrame, SelectionPane,
+  measureAnchors, textBoxPresets, DRAWING_CSS,
+} from './word/drawings.js';
+
+/** The page's geometry before a section is known — A4-ish, Word's default margins. */
+const GEOM_DEFAULT = geomOf(null);
 
 installMailingsStyles();
 installEnvelopeStyles();
@@ -587,7 +594,17 @@ export default function Word({ app, shell, boot }) {
   useEffect(() => {
     const el = pageRef.current;
     if (!el) return undefined;
-    const pick = (e) => setPicked(e.detail);
+    const pick = (e) => {
+      const d = e.detail || {};
+      const id = d.id ?? null;
+      setPicked((was) => {
+        if (d.add && was?.ids?.length && id != null) {
+          const ids = was.ids.includes(id) ? was.ids.filter((x) => x !== id) : [...was.ids, id];
+          return ids.length ? { ...was, ids } : null;
+        }
+        return { block: d.block ?? null, image: d.image ?? null, id, kind: d.kind || 'picture', ids: id != null ? [id] : [] };
+      });
+    };
     el.addEventListener('wd-pick', pick);
     return () => el.removeEventListener('wd-pick', pick);
   }, [busy, model === null]);
@@ -840,6 +857,203 @@ export default function Word({ app, shell, boot }) {
     apply({ op: 'setTableRowHeight', table: Number(id.slice(1)), row, twips: Math.round(heightPx * 15) });
   }, [apply]);
 
+  /* ── drawings: text boxes, floating pictures, shapes and groups ─────────── */
+  //
+  // Where each floating drawing stands is worked out from its anchor and the
+  // page (word/drawings.js); the paragraphs that anchor one are measured
+  // after every layout pass, since a pass moves them from sheet to sheet.
+  const geom = useMemo(() => geomOf(section, columnBoxes), [section, columnBoxes]);
+  const [anchors, setAnchors] = useState({});
+  const anchorsKey = useRef('');
+  useLayoutEffect(() => {
+    const next = measureAnchors(pageRef.current, model?.blocks, geo, paged, geom);
+    const key = JSON.stringify(next);
+    if (key === anchorsKey.current) return;
+    anchorsKey.current = key;
+    setAnchors((was) => {
+      const out = {};
+      for (const [k, v] of Object.entries(next)) out[k] = was[k] && JSON.stringify(was[k]) === JSON.stringify(v) ? was[k] : v;
+      return out;
+    });
+  }, [model, mounted, paged, geo, pages, geom]);
+
+  // A text box's words are blocks of the edit space; each anchor is handed
+  // its boxes' blocks, the same arrays while they are unchanged so a
+  // keystroke elsewhere does not draw the anchor again.
+  const kidsCache = useRef(new Map());
+  const boxKids = useMemo(() => {
+    const out = new Map();
+    const cache = kidsCache.current;
+    const next = new Map();
+    const blocks = model?.blocks || [];
+    for (const b of blocks) {
+      const boxes = [...(b.textBoxes || []), ...(b.groups || []).flatMap((grp) => grp.members || [])].filter((x) => x.blocks);
+      if (!boxes.length) continue;
+      const kids = {};
+      for (const box of boxes) {
+        const key = box.blocks.join(',');
+        const list = box.blocks.map((i) => blocks[i]).filter(Boolean);
+        const prev = cache.get(key);
+        kids[key] = prev && prev.length === list.length && prev.every((x, i) => x === list[i]) ? prev : list;
+        next.set(key, kids[key]);
+      }
+      const prevObj = cache.get(`@${b.index}`);
+      const same = prevObj && Object.keys(prevObj).length === Object.keys(kids).length && Object.entries(kids).every(([k, v]) => prevObj[k] === v);
+      next.set(`@${b.index}`, same ? prevObj : kids);
+      out.set(b.index, same ? prevObj : kids);
+    }
+    kidsCache.current = next;
+    return out;
+  }, [model?.blocks]);
+  const kidsOf = useCallback((box) => (box?.blocks ? kidsCache.current.get(box.blocks.join(',')) || null : null), [boxKids]);
+  const renderBlock = useCallback(
+    (b) => <Block key={b.index} block={b} labels={model?.listLabels} styles={model?.resolvedStyles} markupMode={view.markupMode || 'simple'} />,
+    [model?.listLabels, model?.resolvedStyles, view.markupMode]
+  );
+  const renderLite = useCallback((paragraphs) => <LiteParagraphs paragraphs={paragraphs} styles={model?.resolvedStyles} />, [model?.resolvedStyles]);
+
+  // The text box the caret is typing in: it wears a dashed frame and handles.
+  const editingBox = useMemo(() => {
+    const f = model?.selection?.focus;
+    const b = f ? model.blocks?.[f.block] : null;
+    if (!b?.box) return null;
+    const anchor = model.blocks[b.box.anchor];
+    return (anchor?.textBoxes || []).find((t) => t.blocks?.includes(b.index))?.id ?? null;
+  }, [model]);
+
+  // The one drawing the Shape Format tab and the size boxes speak about: the
+  // one selected, or the box being typed in — with its look from its block.
+  const selectedDrawing = useMemo(() => {
+    const ids = picked?.ids || [];
+    const id = ids.length === 1 ? ids[0] : ids.length ? null : editingBox;
+    if (id == null) return null;
+    const d = (model?.drawings || []).find((x) => x.id === id);
+    if (!d) return null;
+    const b = model.blocks?.[d.block];
+    const look = [...(b?.textBoxes || []), ...(b?.images || []), ...(b?.groups || [])].find((x) => x.id === id) || null;
+    return { ...d, look, editing: id === editingBox && !ids.length };
+  }, [picked, editingBox, model]);
+
+  /** A drawing's unturned box on the page (page px), measured from what is drawn. */
+  const drawnBox = useCallback((id) => {
+    const page = pageRef.current;
+    const el = page?.querySelector(`.wd-drawing[data-drawing="${id}"]`);
+    if (!page || !el) return null;
+    const p = rectOf(page);
+    const r = rectOf(el);
+    const w = el.offsetWidth || r.width;
+    const h = el.offsetHeight || r.height;
+    return { left: r.left - p.left + r.width / 2 - w / 2, top: r.top - p.top + r.height / 2 - h / 2, width: w, height: h };
+  }, []);
+
+  /** The top of a body paragraph's first part, on the page. */
+  const paragraphTop = useCallback((index) => {
+    const page = pageRef.current;
+    const el = page?.querySelector(`:scope > .wd-block[data-block="${index}"]:not([data-part="1"])`);
+    return page && el ? rectOf(el).top - rectOf(page).top : null;
+  }, []);
+
+  /**
+   * The paragraph a drawing at `top` belongs to — the last body paragraph
+   * starting at or above it, as Word moves a dragged drawing's anchor —
+   * and that paragraph's top.
+   */
+  const paragraphAt = useCallback((top) => {
+    const page = pageRef.current;
+    if (!page) return null;
+    const pageTop = rectOf(page).top;
+    let hit = null;
+    for (const el of page.querySelectorAll(':scope > .wd-block[data-block]')) {
+      if (el.dataset.part === '1' || el.classList.contains('wd-frame')) continue;
+      const t = rectOf(el).top - pageTop;
+      if (!hit || t <= top + 1) hit = { block: Number(el.dataset.block), top: t };
+      if (t > top + 1) break;
+    }
+    return hit;
+  }, []);
+
+  /**
+   * Where a drawing whose box stands at `box` (page px) is, in its anchor's
+   * terms: across from the column, down from the paragraph `at` — less the
+   * room a drawing beside the words keeps above itself, which the page adds.
+   */
+  const offsetsFor = useCallback((d, box, at) => {
+    const beside = drawingLayer(d) === 'beside';
+    return {
+      h: { rel: 'column', offsetPx: Math.round(box.left - geom.marginLeftPx) },
+      v: { rel: 'paragraph', offsetPx: Math.round(box.top - at.top - (beside ? d.dist?.t || 0 : 0)) },
+    };
+  }, [geom]);
+
+  /** A floating drawing dragged to a new place: its anchor follows it to the paragraph it now stands by. */
+  const moveDrawing = useCallback((id, box) => {
+    const d = (model?.drawings || []).find((x) => x.id === id);
+    const at = paragraphAt(box.top);
+    if (!d || !at) return;
+    const change = { id, ...offsetsFor(d, box, at) };
+    if (at.block !== d.block) change.block = at.block;
+    apply({ op: 'updateDrawings', changes: [change] });
+  }, [model, paragraphAt, offsetsFor, apply]);
+
+  /** A drawing sized by a handle; one taken by its left or top edge moves too. */
+  const resizeDrawing = useCallback((id, box, { moved }) => {
+    const d = (model?.drawings || []).find((x) => x.id === id);
+    if (!d) return;
+    const change = { id, widthPx: box.width, heightPx: box.height };
+    if (moved && d.anchored) {
+      const top = paragraphTop(d.block);
+      if (top != null) Object.assign(change, offsetsFor(d, box, { top }));
+    }
+    apply({ op: 'updateDrawings', changes: [change] });
+  }, [model, paragraphTop, offsetsFor, apply]);
+
+  // Insert → Text Box → Draw Text Box: the next drag on the page is the box.
+  const [drawBox, setDrawBox] = useState(null);
+  useEffect(() => {
+    const page = pageRef.current;
+    if (!page || !view.drawBox) return undefined;
+    const down = (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      // The page's own mouseup must not read this drag as a caret move.
+      pictureDrag.current = true;
+      const p = rectOf(page);
+      const z = view.zoom ?? 1;
+      const x0 = e.clientX / z - p.left;
+      const y0 = e.clientY / z - p.top;
+      let box = { left: x0, top: y0, width: 0, height: 0 };
+      setDrawBox(box);
+      const move = (ev) => {
+        const x = ev.clientX / z - p.left;
+        const y = ev.clientY / z - p.top;
+        box = { left: Math.min(x, x0), top: Math.min(y, y0), width: Math.abs(x - x0), height: Math.abs(y - y0) };
+        setDrawBox(box);
+      };
+      const up = () => {
+        window.removeEventListener('mousemove', move, true);
+        window.removeEventListener('mouseup', up, true);
+        setDrawBox(null);
+        patchView({ drawBox: false });
+        setTimeout(() => { pictureDrag.current = false; }, 0);
+        // A click with no drag draws Word's own default, an inch and a bit each way.
+        if (box.width < 8 || box.height < 8) box = { left: x0, top: y0, width: 192, height: 96 };
+        const at = paragraphAt(box.top);
+        if (!at) return;
+        apply({ op: 'insertTextBox', spec: {
+          block: at.block, name: undefined, widthPx: Math.round(box.width), heightPx: Math.round(box.height),
+          h: { rel: 'column', offsetPx: Math.round(box.left - geom.marginLeftPx) },
+          v: { rel: 'paragraph', offsetPx: Math.round(box.top - at.top) },
+          paragraphs: [{ text: '' }], select: false,
+        } });
+      };
+      window.addEventListener('mousemove', move, true);
+      window.addEventListener('mouseup', up, true);
+    };
+    page.addEventListener('mousedown', down, true);
+    return () => page.removeEventListener('mousedown', down, true);
+  }, [view.drawBox, view.zoom, geom, paragraphAt, apply, patchView]);
+
   /**
    * The on-screen page (1-based) of each heading, in the order given — what
    * `insertTableOfContents`/`updateTableOfContents` send as `pages`, since
@@ -962,21 +1176,254 @@ export default function Word({ app, shell, boot }) {
           await apply({ op: 'deleteSelection' }, { op: 'insertText', text: cased }, { op: 'setSelection', anchor: from, focus: { block: from.block, offset: from.offset + cased.length } });
           return;
         }
-        case 'wrap': {
-          // How the text treats the picked picture: Word's Wrap Text menu.
-          if (!picked) return toast('Click a picture first, then choose how the text wraps round it.', { ms: 4500 });
-          const img = blocks[picked.block]?.images?.[picked.image];
-          await apply({ op: 'setImageLayout', block: picked.block, image: picked.image, wrap: arg, hAlign: img?.hAlign || 'left' });
+        /* ── drawings: Insert → Text Box, Arrange, Shape Format ─────────── */
+        case 'textBox': {
+          // A built-in box, its words selected so typing replaces them.
+          const spec = textBoxPresets(geom)[arg];
+          if (!spec) return;
+          const next = await apply({ op: 'insertTextBox', spec });
+          if (next?.opResult != null) setPicked(null);
           return;
         }
+        case 'wordArt': {
+          // WordArt: big words of their own in a box with no fill and no
+          // line, centred over the column, their effects the ones Home → Text
+          // Effects writes — so they can be changed the same way after.
+          const spec = {
+            name: 'WordArt', widthPx: Math.round(Math.min(geom.columnWidthPx, 460)), heightPx: 76, autoFit: true,
+            fill: null, line: null, wrap: 'topAndBottom', h: { rel: 'margin', align: 'center' }, v: { rel: 'paragraph', offsetPx: 0 },
+            insets: { l: 4.8, t: 2.4, r: 4.8, b: 2.4 },
+            paragraphs: [{ text: 'Your words here', bold: true, sizePt: 36, colour: arg?.colour || '2B5FD9', align: 'center' }],
+          };
+          await apply({ op: 'insertTextBox', spec }, { op: 'setRunFormat', delta: arg?.effects || {} });
+          return;
+        }
+        case 'drawTextBox':
+          setPicked(null);
+          patchView({ drawBox: !view.drawBox });
+          if (!view.drawBox) toast('Drag on the page to draw the text box.', { ms: 3500 });
+          return;
+        case 'wrap':
         case 'position': {
-          // Where the picked picture sits: at the left or right with the words
-          // round it, or centred with the words above and below.
-          if (!picked) return toast('Click a picture first, then choose where it sits.', { ms: 4500 });
-          const img = blocks[picked.block]?.images?.[picked.image];
-          const floating = img?.anchored && img.wrap !== 'none' ? img.wrap : null;
-          const wrap = arg === 'center' ? 'topAndBottom' : floating && floating !== 'topAndBottom' ? floating : 'square';
-          await apply({ op: 'setImageLayout', block: picked.block, image: picked.image, wrap, hAlign: arg });
+          // Wrap Text and Position, for any drawing: pictures, shapes, text
+          // boxes, groups. A drawing leaving the line keeps its place on the
+          // page, as Word keeps it.
+          const ids = picked?.ids?.length ? picked.ids : editingBox != null ? [editingBox] : [];
+          if (!ids.length) {
+            if (picked?.image != null) {
+              const img = blocks[picked.block]?.images?.[picked.image];
+              if (name === 'wrap') await apply({ op: 'setImageLayout', block: picked.block, image: picked.image, wrap: arg, hAlign: img?.hAlign || 'left' });
+              else await apply({ op: 'setImageLayout', block: picked.block, image: picked.image, wrap: arg === 'center' ? 'topAndBottom' : 'square', hAlign: arg });
+              return;
+            }
+            return toast(`Click a picture, a shape or a text box first, then choose ${name === 'wrap' ? 'how the text wraps round it' : 'where it sits'}.`, { ms: 4500 });
+          }
+          const changes = ids.map((id) => {
+            const d = (model?.drawings || []).find((x) => x.id === id);
+            if (!d) return null;
+            if (name === 'wrap') {
+              const change = { id, wrap: arg };
+              if (!d.anchored && arg !== 'inline') {
+                const box = drawnBox(id);
+                const top = paragraphTop(d.block);
+                if (box && top != null) Object.assign(change, offsetsFor({ ...d, anchored: true, wrap: arg === 'behind' || arg === 'front' ? 'none' : arg, behind: arg === 'behind' }, box, { top }));
+              }
+              return change;
+            }
+            // Position: Left, Centre and Right — or one of the nine places on
+            // the page Word's gallery offers — with the words round it.
+            const [v, h] = String(arg).includes('-') ? String(arg).split('-') : [null, arg];
+            const floating = d.anchored && d.wrap !== 'none' ? d.wrap : null;
+            const wrap = !v && h === 'center' ? 'topAndBottom' : floating && floating !== 'topAndBottom' ? floating : 'square';
+            const change = { id, wrap, h: { rel: 'margin', align: h } };
+            if (v) {
+              change.v = { rel: 'margin', align: v === 'middle' ? 'center' : v };
+              // Placed on the page, it is anchored to the page's first paragraph, where a float can reach.
+              const page = paragraphTop(d.block);
+              if (page != null && geo) {
+                const k = pageIndexAt(geo, page + 1);
+                const first = paragraphAt(pageTopOf(geo, k) + 1);
+                if (first && first.block !== d.block) change.block = first.block;
+              }
+            }
+            return change;
+          }).filter(Boolean);
+          if (changes.length) await apply({ op: 'updateDrawings', changes });
+          return;
+        }
+        case 'order': {
+          // Bring Forward, Bring to Front, Send Backward, Send to Back — and
+          // In Front of Text / Behind Text, which are wraps.
+          const ids = picked?.ids?.length ? picked.ids : editingBox != null ? [editingBox] : [];
+          if (!ids.length) return toast('Select a drawing first — click it, or pick it in the Selection Pane.', { ms: 4000 });
+          if (arg === 'inFront' || arg === 'behind') {
+            await apply({ op: 'updateDrawings', changes: ids.map((id) => ({ id, wrap: arg === 'behind' ? 'behind' : 'front' })) });
+            return;
+          }
+          if (!(model?.drawings || []).some((d) => ids.includes(d.id) && d.anchored)) return toast('A drawing in line with the text has no order — choose a wrap for it first (Wrap Text).', { ms: 5000 });
+          await apply({ op: 'orderDrawings', ids, how: arg });
+          return;
+        }
+        case 'align':
+        case 'distribute': {
+          // Align to the margin or the page, or the selected drawings to one
+          // another; Distribute spaces three or more evenly.
+          const ids = (picked?.ids || []).filter((id) => (model?.drawings || []).some((d) => d.id === id && d.anchored));
+          if (!ids.length) return toast('Select one or more floating drawings first (Shift+click adds one).', { ms: 4500 });
+          const to = arg?.to || (ids.length > 1 ? 'selected' : 'margin');
+          const edge = arg?.edge;
+          const ds = ids.map((id) => ({ d: model.drawings.find((x) => x.id === id), box: drawnBox(id) })).filter((x) => x.d && x.box);
+          if (to !== 'selected' && name === 'align') {
+            const horizontal = ['left', 'center', 'right'].includes(edge);
+            const changes = ds.map(({ d }) => {
+              const change = { id: d.id };
+              if (horizontal) change.h = { rel: to, align: edge };
+              else {
+                change.v = { rel: to, align: edge === 'middle' ? 'center' : edge };
+                const top = paragraphTop(d.block);
+                if (top != null && geo) {
+                  const first = paragraphAt(pageTopOf(geo, pageIndexAt(geo, top + 1)) + 1);
+                  if (first && first.block !== d.block) change.block = first.block;
+                }
+              }
+              return change;
+            });
+            await apply({ op: 'updateDrawings', changes });
+            return;
+          }
+          if (ds.length < (name === 'distribute' ? 3 : 2)) return toast(name === 'distribute' ? 'Select three or more drawings to distribute.' : 'Select two or more drawings to align to one another.', { ms: 4500 });
+          const L = Math.min(...ds.map((x) => x.box.left));
+          const R = Math.max(...ds.map((x) => x.box.left + x.box.width));
+          const T = Math.min(...ds.map((x) => x.box.top));
+          const B = Math.max(...ds.map((x) => x.box.top + x.box.height));
+          const target = new Map(ds.map((x) => [x.d.id, { ...x.box }]));
+          if (name === 'align') {
+            for (const { d, box } of ds) {
+              const t = target.get(d.id);
+              if (edge === 'left') t.left = L;
+              else if (edge === 'right') t.left = R - box.width;
+              else if (edge === 'center') t.left = (L + R) / 2 - box.width / 2;
+              else if (edge === 'top') t.top = T;
+              else if (edge === 'bottom') t.top = B - box.height;
+              else if (edge === 'middle') t.top = (T + B) / 2 - box.height / 2;
+            }
+          } else {
+            const across = arg?.axis !== 'vertical';
+            const sorted = [...ds].sort((a, b) => (across ? a.box.left - b.box.left : a.box.top - b.box.top));
+            const total = sorted.reduce((s, x) => s + (across ? x.box.width : x.box.height), 0);
+            const gap = ((across ? R - L : B - T) - total) / (sorted.length - 1);
+            let at = across ? L : T;
+            for (const x of sorted) {
+              const t = target.get(x.d.id);
+              if (across) { t.left = at; at += x.box.width + gap; } else { t.top = at; at += x.box.height + gap; }
+            }
+          }
+          const changes = ds.map(({ d }) => {
+            const top = paragraphTop(d.block);
+            return top == null ? null : { id: d.id, ...offsetsFor(d, target.get(d.id), { top }) };
+          }).filter(Boolean);
+          await apply({ op: 'updateDrawings', changes });
+          return;
+        }
+        case 'nudge': {
+          const ds = (model?.drawings || []).filter((x) => picked?.ids?.includes(x.id) && x.anchored);
+          const changes = ds.map((d) => {
+            const box = drawnBox(d.id);
+            const top = paragraphTop(d.block);
+            return box && top != null ? { id: d.id, ...offsetsFor(d, { ...box, left: box.left + arg.dx, top: box.top + arg.dy }, { top }) } : null;
+          }).filter(Boolean);
+          if (changes.length) await apply({ op: 'updateDrawings', changes });
+          return;
+        }
+        case 'rotate': {
+          // Rotate Right 90°, Rotate Left 90°, Flip Vertical, Flip Horizontal.
+          const ids = picked?.ids?.length ? picked.ids : editingBox != null ? [editingBox] : [];
+          if (!ids.length) return toast('Select a drawing to turn first.', { ms: 4000 });
+          const changes = ids.map((id) => {
+            const d = (model?.drawings || []).find((x) => x.id === id);
+            if (!d) return null;
+            if (arg === 'flipH') return { id, flipH: !d.flipH };
+            if (arg === 'flipV') return { id, flipV: !d.flipV };
+            return { id, rot: (((d.rot || 0) + Number(arg || 90)) % 360 + 360) % 360 };
+          }).filter(Boolean);
+          await apply({ op: 'updateDrawings', changes });
+          return;
+        }
+        case 'group': {
+          const ids = picked?.ids || [];
+          if (ids.length < 2) return toast('Select two or more floating drawings to group — Shift+click adds one.', { ms: 4500 });
+          const ds = ids.map((id) => (model?.drawings || []).find((x) => x.id === id)).filter(Boolean);
+          if (ds.some((d) => !d.anchored)) return toast('A drawing in line with the text cannot be grouped — give each one a wrap first (Wrap Text).', { ms: 5000 });
+          const rects = ids.map((id) => { const b = drawnBox(id); return b ? { id, x: b.left, y: b.top, w: b.width, h: b.height } : null; }).filter(Boolean);
+          if (rects.length < ids.length) return;
+          const first = [...ds].sort((a, b) => a.block - b.block)[0];
+          const top = paragraphTop(first.block);
+          const L = Math.min(...rects.map((r) => r.x));
+          const T = Math.min(...rects.map((r) => r.y));
+          const place = top == null ? null : offsetsFor(first, { left: L, top: T }, { top });
+          const next = await apply({ op: 'groupDrawings', ids: [first.id, ...ids.filter((x) => x !== first.id)], rects, place });
+          if (next?.opResult != null) setPicked({ block: first.block, image: null, id: next.opResult, kind: 'group', ids: [next.opResult] });
+          return;
+        }
+        case 'ungroup': {
+          const id = picked?.ids?.length === 1 ? picked.ids[0] : null;
+          const d = (model?.drawings || []).find((x) => x.id === id);
+          if (!d || d.kind !== 'group') return toast('Select a group to ungroup.', { ms: 4000 });
+          const box = drawnBox(id);
+          const top = paragraphTop(d.block);
+          const place = box && top != null ? offsetsFor(d, box, { top }) : null;
+          await apply({ op: 'ungroupDrawing', id, place });
+          setPicked(null);
+          return;
+        }
+        case 'selectionPane':
+          patchView((v) => ({ selectionPane: !v.selectionPane }));
+          return;
+        case 'pickDrawing': {
+          // From the Selection Pane: select it (or add it) and bring it into view.
+          const d = (model?.drawings || []).find((x) => x.id === arg.id);
+          if (!d) return;
+          const image = (blocks[d.block]?.images || []).findIndex((img) => img.id === d.id);
+          setPicked((was) => {
+            if (arg.add && was?.ids?.length) {
+              const ids = was.ids.includes(d.id) ? was.ids.filter((x) => x !== d.id) : [...was.ids, d.id];
+              return ids.length ? { ...was, ids } : null;
+            }
+            return { block: d.block, image: image >= 0 ? image : null, id: d.id, kind: d.kind, ids: [d.id] };
+          });
+          pageRef.current?.querySelector(`.wd-drawing[data-drawing="${d.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          return;
+        }
+        case 'hideDrawing':
+          await apply({ op: 'updateDrawings', changes: [{ id: arg.id, hidden: arg.hidden }] });
+          return;
+        case 'renameDrawing':
+          if (String(arg.name || '').trim()) await apply({ op: 'updateDrawings', changes: [{ id: arg.id, name: String(arg.name).trim() }] });
+          return;
+        case 'showAllDrawings': {
+          const changes = (model?.drawings || []).filter((d) => Boolean(d.hidden) === Boolean(arg)).map((d) => ({ id: d.id, hidden: !arg }));
+          if (changes.length) await apply({ op: 'updateDrawings', changes });
+          return;
+        }
+        case 'boxFormat': {
+          // Shape Format: fill, outline, text direction, margins, alignment.
+          const ids = picked?.ids?.length ? picked.ids : editingBox != null ? [editingBox] : [];
+          const shapes = ids.filter((id) => ['textbox', 'shape'].includes((model?.drawings || []).find((x) => x.id === id)?.kind));
+          if (!shapes.length) return toast('Select a text box or a shape first.', { ms: 4000 });
+          await apply({ op: 'updateDrawings', changes: shapes.map((id) => ({ id, ...arg })) });
+          return;
+        }
+        case 'drawingSize': {
+          // The Size boxes: a picture keeps its proportions, as Word's "Lock aspect ratio" does.
+          const d = selectedDrawing;
+          if (!d) return;
+          const w = d.look?.widthPx ?? d.widthPx;
+          const h = d.look?.heightPx ?? d.heightPx;
+          const keep = d.kind === 'picture' || d.kind === 'group';
+          const change = { id: d.id };
+          if (arg.widthPx) { change.widthPx = arg.widthPx; change.heightPx = keep ? Math.round((arg.widthPx * h) / Math.max(1, w)) : h; }
+          if (arg.heightPx) { change.heightPx = arg.heightPx; change.widthPx = keep ? Math.round((arg.heightPx * w) / Math.max(1, h)) : w; }
+          await apply({ op: 'updateDrawings', changes: [change] });
           return;
         }
         case 'coverPage':
@@ -1101,9 +1548,14 @@ export default function Word({ app, shell, boot }) {
           return;
       }
     },
-    [model, view, apply, shell, toast, doc, patchView, picked, headingPages]
+    [model, view, apply, shell, toast, doc, patchView, picked, headingPages, geom, geo, editingBox, selectedDrawing, drawnBox, paragraphTop, paragraphAt, offsetsFor]
   );
   actRef.current = act;
+
+  // A contextual tab goes when what it formats is no longer selected.
+  useEffect(() => {
+    if ((tab === 'shapeFormat' || tab === 'pictureFormat') && !selectedDrawing && !picked?.ids?.length) setTab('home');
+  }, [tab, selectedDrawing, picked]);
 
   // Mailings: envelopes and labels (word/envelopes.js), and the merge's
   // verbs and dialogs (word/mailings.js), which the first join.
@@ -1192,6 +1644,7 @@ export default function Word({ app, shell, boot }) {
           act={act}
           view={view}
           picked={picked}
+          drawing={selectedDrawing}
           mailings={mailings}
           review={review}
         />
@@ -1225,6 +1678,7 @@ export default function Word({ app, shell, boot }) {
         <div className={`wd mode-${view.mode || 'print'}${view.focus ? ' focus' : ''}`}>
           <style>{CSS}</style>
           <style>{EQUATION_CSS}</style>
+          <style>{DRAWING_CSS}</style>
           {view.navigation ? (
             <NavigationPane blocks={model.blocks} at={model.selection?.focus?.block ?? -1} onGo={(i) => act('goto', i)} onClose={() => act('toggleNavigation')} />
           ) : null}
@@ -1244,7 +1698,7 @@ export default function Word({ app, shell, boot }) {
               />
             ) : null}
             <div
-              className={`wd-page${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}${mailings.highlight ? ' wd-mm-hl' : ''}${model.mailMerge?.preview ? ' wd-mm-preview' : ''}`}
+              className={`wd-page${view.drawBox ? ' drawing-box' : ''}${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}${mailings.highlight ? ' wd-mm-hl' : ''}${model.mailMerge?.preview ? ' wd-mm-preview' : ''}`}
               ref={pageRef}
               contentEditable
               suppressContentEditableWarning
@@ -1273,7 +1727,8 @@ export default function Word({ app, shell, boot }) {
               onMouseUp={(e) => {
                 // A press on a picture or its handles is a pick, not a caret move;
                 // one on an equation selected it already.
-                if (pictureDrag.current || e.target.closest?.('.wd-handles, .wd-image, .wd-math')) return;
+                if (pictureDrag.current || e.target.closest?.('.wd-handles, .wd-frames, .wd-image, .wd-math')) return;
+                if (e.target.closest?.('.wd-drawing') && !e.target.closest?.('.wd-block')) return;
                 // Ctrl+click (Cmd+click on a Mac) a REF field to go to the
                 // bookmark it names — Word's own way into a cross-reference.
                 const field = e.target.closest?.('.wd-field');
@@ -1297,8 +1752,30 @@ export default function Word({ app, shell, boot }) {
                   e.preventDefault();
                   const target = picked;
                   setPicked(null);
-                  apply({ op: 'removeImage', block: target.block, image: target.image });
+                  const d = (model?.drawings || []).find((x) => x.id === target.ids?.[0]);
+                  // A picture in the line goes with its paragraph when that held
+                  // nothing else; anything floating goes on its own.
+                  if (target.image != null && (!d || !d.anchored) && target.ids?.length <= 1) apply({ op: 'removeImage', block: target.block, image: target.image });
+                  else if (target.ids?.length) apply({ op: 'removeDrawing', ids: target.ids });
                   return;
+                }
+                if (e.key === 'Escape' && (picked || view.drawBox)) {
+                  setPicked(null);
+                  if (view.drawBox) patchView({ drawBox: false });
+                  return;
+                }
+                // The arrow keys nudge a selected floating drawing, as in Word:
+                // a little way, or a pixel with Ctrl.
+                if (/^Arrow/.test(e.key) && picked?.ids?.length && !editingBox) {
+                  const ds = (model?.drawings || []).filter((x) => picked.ids.includes(x.id) && x.anchored);
+                  if (ds.length) {
+                    e.preventDefault();
+                    const step = e.ctrlKey ? 1 : 8;
+                    const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+                    const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+                    act('nudge', { dx, dy });
+                    return;
+                  }
                 }
                 // Arrow keys and Home/End move the caret without an edit, so the
                 // engine is told where it landed — after the browser has moved
@@ -1423,16 +1900,41 @@ export default function Word({ app, shell, boot }) {
                     </React.Fragment>
                   ))
                 : null}
+              {/* Drawings behind the words: over the sheets, under every paragraph. */}
+              <DrawingLayer layer="behind" blocks={model.blocks} g={geom} anchors={anchors} geo={paged ? geo : null} pickedIds={picked?.ids} kidsOf={kidsOf} renderBlock={renderBlock} renderLite={renderLite} />
               {flowItems.slice(0, mounted).map((item) =>
                 item.table ? (
                   <TableGroup key={`t${item.table.id}`} table={item.table} labels={model.listLabels} styles={model.resolvedStyles} tsplit={pages.tableSplits[item.table.id] || null} />
                 ) : (
-                  <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} split={item.frame ? null : pages.splits[item.index] || null} pickedImage={picked?.block === item.index ? picked.image : null} inner={inner} markupMode={view.markupMode || 'simple'} place={placeOf(item, paged ? geo : null, pages.frames)} />
+                  <Block
+                    key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} split={item.frame ? null : pages.splits[item.index] || null}
+                    pickedImage={picked?.block === item.index && !picked?.ids?.length ? picked.image : null} inner={inner} markupMode={view.markupMode || 'simple'} place={placeOf(item, paged ? geo : null, pages.frames)}
+                    g={geom} anchorAt={anchors[item.index] || null} kids={boxKids.get(item.index) || null} renderBlock={boxKids.has(item.index) ? renderBlock : null}
+                    pickedIds={picked?.ids?.length && holdsAny(item, picked.ids) ? picked.ids : null}
+                  />
                 )
               )}
+              {/* Drawings beside the words, over their room in their paragraphs. */}
+              <DrawingLayer layer="beside" blocks={model.blocks} g={geom} anchors={anchors} geo={paged ? geo : null} pickedIds={picked?.ids} kidsOf={kidsOf} renderBlock={renderBlock} renderLite={renderLite} />
+              {/* Drawings in front of the words: over every paragraph. */}
+              <DrawingLayer layer="front" blocks={model.blocks} g={geom} anchors={anchors} geo={paged ? geo : null} pickedIds={picked?.ids} kidsOf={kidsOf} renderBlock={renderBlock} renderLite={renderLite} />
+              {drawBox ? <div className="wd-drawbox" style={{ left: drawBox.left, top: drawBox.top, width: drawBox.width, height: drawBox.height }} /> : null}
               {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{`Laying out… ${Math.round((mounted / flowItems.length) * 100)}%`}</div> : null}
 
-              {picked ? <PictureHandles page={pageRef} picked={picked} model={model} pages={pages} onDrag={(on) => { pictureDrag.current = on; }} onResize={(size) => apply({ op: 'setImageSize', block: picked.block, image: picked.image, ...size })} /> : null}
+              {picked?.ids?.length || editingBox != null ? (
+                <DrawingFrame
+                  page={pageRef}
+                  ids={picked?.ids || []}
+                  editingId={picked?.ids?.length ? null : editingBox}
+                  drawings={model.drawings || []}
+                  deps={[model, pages, anchors]}
+                  zoom={view.zoom ?? 1}
+                  onDrag={(on) => { pictureDrag.current = on; }}
+                  onMove={moveDrawing}
+                  onResize={resizeDrawing}
+                  onRotate={(id, deg) => apply({ op: 'updateDrawings', changes: [{ id, rot: deg }] })}
+                />
+              ) : null}
               {tableAt ? <TableGrips page={pageRef} zoom={view.zoom ?? 1} model={model} pages={pages} tableId={tableAt.id} gridPx={tableAt.gridPx} onColumn={resizeColumn} onRow={resizeRow} onDrag={(on) => { pictureDrag.current = on; }} /> : null}
               {/*
                 In print layout the footnotes are drawn on their pages (above);
@@ -1447,6 +1949,16 @@ export default function Word({ app, shell, boot }) {
             <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title="Close the pane" onClick={review.close} />}>
               {review.paneNode}
             </Panel>
+          ) : null}
+          {view.selectionPane ? (
+            <SelectionPane
+              drawings={model.drawings || []}
+              picked={picked?.ids || []}
+              onPick={(id) => act('pickDrawing', { id })}
+              onToggle={(id) => act('pickDrawing', { id, add: true })}
+              act={act}
+              onClose={() => act('selectionPane')}
+            />
           ) : null}
           {menu.node}
           {find ? (
@@ -1689,6 +2201,9 @@ function mergeChip(mm) {
 /** No pages laid yet: one sheet, nothing split. */
 const NO_PAGES = { splits: {}, tableSplits: {}, notes: {}, frames: {}, count: 1, at: 1 };
 
+/** Does this paragraph anchor any of these drawings? */
+const holdsAny = (b, ids) => [...(b.images || []), ...(b.textBoxes || []), ...(b.groups || [])].some((d) => d.id != null && ids.includes(d.id));
+
 /**
  * Where a block goes when the flow does not put it: a paragraph in a frame
  * placed on the page (an envelope's delivery address) at the frame's own
@@ -1719,6 +2234,8 @@ function groupTables(blocks) {
     current = null;
   };
   for (const block of blocks) {
+    // A text box's paragraphs are drawn in their box, not in the flow.
+    if (block.box) continue;
     const at = /^(t\d+):r(\d+):c(\d+)$/.exec(String(block.container || ''));
     if (!at) {
       flush();
@@ -2204,34 +2721,22 @@ function RunSpan({ run, markupMode = 'simple', at = null }) {
 }
 
 /**
- * A text box anchored in a paragraph — a cover page's title block, a pull
- * quote, a sidebar. Drawn in flow under its paragraph at the size the file
- * gives it, filled and outlined as the shape says, its paragraphs painted
- * exactly like the body's. Not editable: the engine cannot rebuild a box, so
- * the caret is kept out of it rather than allowed to make edits that vanish.
+ * A text box's words when the edit space does not list them — a box in a
+ * table cell, one holding a table — painted exactly like the body's, read
+ * only: the engine cannot rebuild such a box, so the caret is kept out.
  */
-function TextBox({ box, styles }) {
+function LiteParagraphs({ paragraphs, styles }) {
   const ref = React.useRef(null);
   React.useLayoutEffect(() => {
     if (!ref.current) return;
-    for (const p of ref.current.querySelectorAll('.wd-box-p')) {
+    for (const p of ref.current.parentElement?.querySelectorAll('.wd-box-p') || []) {
       if (p.querySelector('.wd-tab')) scheduleTabs(p, p._tabs || null);
     }
   });
-  const beside = floatsBeside(box);
-  const d = box.dist || {};
-  const style = {
-    width: box.widthPx ? Math.min(box.widthPx, 720) : undefined,
-    minHeight: box.heightPx ? Math.min(box.heightPx, 900) : undefined,
-    backgroundColor: box.fill || undefined,
-    border: box.line ? `1px solid ${box.line}` : undefined,
-    ...(beside
-      ? { float: floatSide(box), margin: `${Math.round(d.t || 0)}px ${floatSide(box) === 'left' ? Math.round(d.r || 12) : 0}px ${Math.round(d.b || 6)}px ${floatSide(box) === 'right' ? Math.round(d.l || 12) : 0}px` }
-      : { margin: box.hAlign === 'center' ? '6px auto' : box.hAlign === 'right' ? '6px 0 6px auto' : '6px 0' }),
-  };
   return (
-    <div ref={ref} className={`wd-textbox${beside ? ' wd-float' : ''}`} contentEditable={false} style={style} title={box.name || undefined}>
-      {box.paragraphs.map((p, i) => (
+    <>
+      <span ref={ref} hidden />
+      {(paragraphs || []).map((p, i) => (
         <p key={i} className="wd-box-p" style={paragraphCss(p, styles)} ref={(el) => { if (el) el._tabs = tabStops(p, styles); }}>
           {(p.runs || []).length ? p.runs.map((run, j) => <RunSpan key={j} run={run} />) : <br />}
           {(p.images || []).map((image, j) => (
@@ -2239,7 +2744,7 @@ function TextBox({ box, styles }) {
           ))}
         </p>
       ))}
-    </div>
+    </>
   );
 }
 
@@ -2290,13 +2795,14 @@ function PageNotes({ notes, at, page, top, height, styles, onEdit }) {
  * Memoised, and the split array keeps its identity while it is unchanged,
  * so a keystroke re-renders the one paragraph it touched.
  */
-const Block = React.memo(function Block({ block, labels, styles, split, pickedImage = null, inner = null, markupMode = 'simple', place = null }) {
-  if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last pickedImage={pickedImage} inner={inner} markupMode={markupMode} place={place} />;
+const Block = React.memo(function Block({ block, labels, styles, split, pickedImage = null, inner = null, markupMode = 'simple', place = null, g = null, anchorAt = null, kids = null, renderBlock = null, pickedIds = null }) {
+  const extra = { g, anchorAt, kids, renderBlock, pickedIds };
+  if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last pickedImage={pickedImage} inner={inner} markupMode={markupMode} place={place} {...extra} />;
   const bounds = [0, ...split, Infinity];
   return (
     <>
       {bounds.slice(0, -1).map((from, j) => (
-        <Part key={j} block={block} labels={labels} styles={styles} from={from} to={bounds[j + 1]} first={j === 0} last={j === bounds.length - 2} pickedImage={pickedImage} inner={inner} markupMode={markupMode} />
+        <Part key={j} block={block} labels={labels} styles={styles} from={from} to={bounds[j + 1]} first={j === 0} last={j === bounds.length - 2} pickedImage={pickedImage} inner={inner} markupMode={markupMode} {...extra} />
       ))}
     </>
   );
@@ -2304,153 +2810,105 @@ const Block = React.memo(function Block({ block, labels, styles, split, pickedIm
 
 /**
  * Does the drawing float beside the words — square, tight or through wrap,
- * at the left or the right? Then it goes into the paragraph before the words,
- * as a CSS float, and the lines run round it. Everything else — inline,
- * top-and-bottom, centred, behind, in front — is drawn after the words.
+ * not centred? Then it goes into the paragraph before the words, as a CSS
+ * float at its place, and the lines run round it (word/drawings.js). One in
+ * the line, top and bottom, or centred is drawn after the words; one behind
+ * or in front of them is laid on the page, not here.
  */
-function floatsBeside(d) {
-  if (!d?.anchored) return false;
-  if (!['square', 'tight', 'through'].includes(d.wrap)) return false;
-  return d.hAlign !== 'center';
-}
-
-const floatSide = (d) => (d.hAlign === 'right' || d.hAlign === 'outside' ? 'right' : 'left');
+const floatsBeside = (d) => drawingLayer(d) === 'beside';
 
 /**
- * A picture's box from what the file says about it. The width is capped at
- * the column; a floating picture keeps the distances the file gives it from
- * the words, with Word's own quarter-inch-ish defaults where it gives none.
+ * A picture's box from what the file says about it, for one in the line or
+ * under the words. The width is capped at the column; a picture taller than
+ * the page's inside is drawn to fit it, its proportions kept — a sheet
+ * cannot hold more, and a picture that ran over the edge was drawn across
+ * two sheets (owner, 2026-09-20).
  */
 function imageStyle(image, inner = null, inline = false) {
   let width = image.widthPx ? Math.min(image.widthPx, 640) : undefined;
-  // A picture taller than the page's inside is drawn to fit it, its
-  // proportions kept: a sheet cannot hold more, and a picture that ran
-  // over the edge was drawn across two sheets (owner, 2026-09-20).
   if (width && inner && image.heightPx && image.widthPx) {
     const height = image.heightPx * (width / image.widthPx);
     if (height > inner) width = Math.max(16, Math.floor(width * (inner / height)));
   }
-  const base = { width, height: 'auto', maxWidth: '100%' };
-  const d = image.dist || {};
-  // An inline picture in a paragraph with no words sits in the line as Word
-  // draws it — several to a line while they fit, a scanner's four cards two
-  // to a line — and the paragraph's alignment places them. Under words it
-  // is a block beneath them (the engine keeps pictures apart from the runs).
-  if (!image.anchored) return inline ? { ...base, display: 'inline-block', verticalAlign: 'baseline', margin: '6px 0' } : { ...base, display: 'block', margin: '6px 0' };
-  const side = image.hAlign === 'center' ? 'center' : floatSide(image);
-  if (floatsBeside(image)) {
-    return {
-      ...base,
-      float: side,
-      margin: `${Math.round(d.t || 0)}px ${side === 'left' ? Math.round(d.r || 12) : 0}px ${Math.round(d.b || 6)}px ${side === 'right' ? Math.round(d.l || 12) : 0}px`,
-    };
-  }
-  if (image.wrap === 'topAndBottom' || image.wrap === 'square' || image.wrap === 'tight' || image.wrap === 'through') {
-    return { ...base, display: 'block', margin: side === 'center' ? '6px auto' : side === 'right' ? '6px 0 6px auto' : '6px auto 6px 0' };
-  }
-  // No wrap: behind the words or in front of them, at the paragraph's edge.
-  return {
-    ...base,
-    position: 'absolute',
-    top: 0,
-    ...(side === 'center' ? { left: '50%', transform: 'translateX(-50%)' } : { [side]: 0 }),
-    zIndex: image.behind ? -1 : 2,
-    pointerEvents: 'auto',
-  };
-}
-
-/**
- * Four corner handles over the picked picture. Drag one and the picture
- * follows, keeping its proportions, the page re-wrapping round it as it
- * goes; on release the engine is told the size. The handles are measured
- * from the picture's box after every layout, so they stay on it when the
- * pages move.
- */
-function PictureHandles({ page, picked, model, pages, onResize, onDrag }) {
-  const [box, setBox] = React.useState(null);
-  const find = () => {
-    const part = page.current && partFor(page.current, picked.block, 0);
-    return part ? part.querySelectorAll('.wd-image')[picked.image] || null : null;
-  };
-  const measure = React.useCallback(() => {
-    const img = find();
-    if (!img || !page.current) return setBox(null);
-    // In the page's own pixels, whatever the zoom: the handles live inside the page.
-    const r = rectOf(img);
-    const p = rectOf(page.current);
-    setBox({ left: r.left - p.left, top: r.top - p.top, width: r.width, height: r.height });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [picked, page]);
-  React.useLayoutEffect(() => {
-    measure();
-  }, [measure, model, pages]);
-  React.useEffect(() => {
-    const el = page.current;
-    if (!el || typeof ResizeObserver === 'undefined') return undefined;
-    const ro = new ResizeObserver(() => measure());
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [measure, page]);
-  if (!box) return null;
-  const start = (e, handle) => {
-    if (e.button !== 0) return;
-    e.preventDefault();
-    e.stopPropagation();
-    const img = find();
-    if (!img) return;
-    const x0 = e.clientX;
-    const w0 = box.width;
-    const ratio = box.height / Math.max(1, box.width);
-    let width = w0;
-    onDrag?.(true);
-    const move = (ev) => {
-      const dx = (ev.clientX - x0) * (handle.includes('w') ? -1 : 1);
-      width = Math.max(16, Math.round(w0 + dx));
-      img.style.width = `${width}px`;
-      measure();
-    };
-    const up = () => {
-      window.removeEventListener('mousemove', move);
-      window.removeEventListener('mouseup', up);
-      // After the page's own mouseup has seen the flag.
-      setTimeout(() => onDrag?.(false), 0);
-      if (width !== Math.round(w0)) onResize({ widthPx: width, heightPx: Math.round(width * ratio) });
-    };
-    window.addEventListener('mousemove', move);
-    window.addEventListener('mouseup', up);
-  };
-  return (
-    <div className="wd-handles" contentEditable={false} aria-hidden="true" style={{ left: box.left, top: box.top, width: box.width, height: box.height }}>
-      {[['nw', 0, 0], ['ne', 1, 0], ['sw', 0, 1], ['se', 1, 1]].map(([name, fx, fy]) => (
-        <div key={name} className="wd-handle" data-handle={name} style={{ left: `calc(${fx * 100}% - 5px)`, top: `calc(${fy * 100}% - 5px)`, cursor: fx === fy ? 'nwse-resize' : 'nesw-resize' }} onMouseDown={(e) => start(e, name)} />
-      ))}
-    </div>
-  );
+  return { width, height: 'auto', maxWidth: '100%', ...(inline ? { display: 'inline-block', verticalAlign: 'baseline', margin: '6px 0' } : { display: 'block', margin: '6px 0' }) };
 }
 
 /** The paragraphs a paginator keeps with what follows, by convention as much as by w:keepNext. */
 const KEEP_WITH_NEXT = /^(Heading[1-6]|Title|Subtitle)$/;
 
-function Part({ block, labels, styles, from, to, first, last, pickedImage = null, inner = null, markupMode = 'simple', place = null }) {
+function Part({ block, labels, styles, from, to, first, last, pickedImage = null, inner = null, markupMode = 'simple', place = null, g = null, anchorAt = null, kids = null, renderBlock = null, pickedIds = null }) {
   const ref = React.useRef(null);
   const whole = first && last;
-  const pick = (e, i) => {
+  const geom = g || GEOM_DEFAULT;
+  const pick = (e, i, image) => {
     e.stopPropagation();
-    e.currentTarget.dispatchEvent(new CustomEvent('wd-pick', { bubbles: true, detail: { block: block.index, image: i } }));
+    e.currentTarget.dispatchEvent(new CustomEvent('wd-pick', { bubbles: true, detail: { block: block.index, image: i, id: image?.id ?? null, kind: image?.kind || 'picture', add: Boolean(e.shiftKey || e.ctrlKey || e.metaKey) } }));
   };
-  const picture = (image, i) => (
-    <img
-      key={i}
-      className={`wd-image${floatsBeside(image) ? ' wd-float' : ''}${image.anchored && image.wrap === 'none' ? (image.behind ? ' behind' : ' front') : ''}${pickedImage === i ? ' picked' : ''}`}
-      contentEditable={false}
-      data-image={i}
-      src={image.href}
-      alt={image.name || ''}
-      draggable={false}
-      onClick={(e) => pick(e, i)}
-      style={imageStyle(image, inner, inlineRow)}
+  const isPicked = (d, i) => (d?.id != null && pickedIds?.includes(d.id)) || (pickedImage === i && pickedImage != null);
+  // A drawing beside the words keeps its room here — an empty float the
+  // lines run round — and is itself laid on the page over it (DrawingLayer).
+  const spacers = () => {
+    const beside = [
+      // A picture: at most the column (and 640 px), as the printout draws it.
+      ...(block.images || []).filter((d) => drawingLayer(d) === 'beside').map((d) => {
+        const scale = Math.min(1, Math.min(geom.columnWidthPx, 640) / Math.max(1, d.widthPx || 1));
+        return { ...d, widthPx: (d.widthPx || 0) * scale, heightPx: (d.heightPx || 0) * scale };
+      }),
+      ...(block.textBoxes || []).filter((d) => drawingLayer(d) === 'beside'),
+      ...(block.groups || []).filter((d) => drawingLayer(d) === 'beside'),
+    ];
+    return spacerStyles(beside, geom, anchorAt).map((s) => (
+      <span key={`room-${s.side}`} className="wd-float wd-float-spacer" contentEditable={false} data-for={s.ids.join(',')} aria-hidden="true" style={s.style} />
+    ));
+  };
+  const picture = (image, i) => {
+    const layer = drawingLayer(image);
+    if (layer === 'beside') return null;
+    const style = layer === 'block'
+        ? { ...imageStyle(image, inner, false), ...blockCss(image, geom), transform: turnCss(image) }
+        : { ...imageStyle(image, inner, inlineRow), transform: turnCss(image) };
+    return (
+      <img
+        key={i}
+        className={`wd-image wd-drawing${isPicked(image, i) ? ' picked' : ''}`}
+        contentEditable={false}
+        data-image={i}
+        data-drawing={image.id ?? undefined}
+        data-kind={image.kind || 'picture'}
+        src={image.href}
+        alt={image.name || ''}
+        draggable={false}
+        onClick={(e) => pick(e, i, image)}
+        style={style}
+      />
+    );
+  };
+  const kidsOf = (box) => (box?.blocks && kids ? kids[box.blocks.join(',')] || null : null);
+  const renderLite = (paragraphs) => <LiteParagraphs paragraphs={paragraphs} styles={styles} />;
+  const textBox = (box, i, layer) => (layer === 'beside' ? null : (
+    <TextBox
+      key={`b${i}`}
+      box={box}
+      block={block.index}
+      kids={kidsOf(box)}
+      renderBlock={renderBlock}
+      renderLite={renderLite}
+      picked={isPicked(box, -1)}
+      style={layer === 'block' ? { ...blockCss(box, geom), maxWidth: '100%' } : { margin: '6px 0' }}
     />
-  );
+  ));
+  const groupBox = (grp, i, layer) => (layer === 'beside' ? null : (
+    <GroupBox
+      key={`g${i}`}
+      group={grp}
+      block={block.index}
+      kidsOf={kidsOf}
+      renderBlock={renderBlock}
+      renderLite={renderLite}
+      picked={isPicked(grp, -1)}
+      style={layer === 'block' ? blockCss(grp, geom) : { margin: '6px 0' }}
+    />
+  ));
   const runs = whole ? block.runs || [] : sliceRuns(block.runs, from, to);
   const hasTabs = runs.some((r) => r.text && r.text.includes('\t'));
   React.useLayoutEffect(() => {
@@ -2500,9 +2958,13 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
   const images = block.images || [];
   const inlineRow = length === 0;
   const tail = length + images.length;
-  const under = images.map((image, i) => !floatsBeside(image) && from <= length + i && length + i < to);
+  const layers = images.map((image) => drawingLayer(image));
+  const under = images.map((image, i) => (layers[i] === 'inline' || layers[i] === 'block') && from <= length + i && length + i < to);
   const boxesHere = from <= tail && tail < to;
-  const drawsUnder = under.some(Boolean) || (boxesHere && (block.textBoxes || []).some((box) => !floatsBeside(box)));
+  const boxLayers = (block.textBoxes || []).map((box) => drawingLayer(box));
+  const groupLayers = (block.groups || []).map((grp) => drawingLayer(grp));
+  const flowing = (l) => l === 'block' || l === 'inline';
+  const drawsUnder = under.some(Boolean) || (boxesHere && (boxLayers.some(flowing) || groupLayers.some(flowing)));
   return (
     <p
       ref={ref}
@@ -2510,8 +2972,8 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
       data-block={block.index}
       data-style={block.style || 'Normal'}
       data-from={from > 0 ? from : undefined}
-      data-length={images.length || block.textBoxes?.length ? length : undefined}
-      data-tail={images.length || block.textBoxes?.length ? tail : undefined}
+      data-length={images.length || block.textBoxes?.length || block.groups?.length ? length : undefined}
+      data-tail={images.length || block.textBoxes?.length || block.groups?.length ? tail : undefined}
       data-part={whole ? undefined : first ? 0 : 1}
       data-break={first && block.pageBreakBefore ? '1' : undefined}
       data-keep={block.keepNext || KEEP_WITH_NEXT.test(block.style || '') ? '1' : undefined}
@@ -2519,8 +2981,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
       style={partStyle}
     >
       {/* Floats first, so the lines that follow run round them. */}
-      {first ? (block.images || []).map((image, i) => (floatsBeside(image) ? picture(image, i) : null)) : null}
-      {first ? (block.textBoxes || []).map((box, i) => (floatsBeside(box) ? <TextBox key={`f${i}`} box={box} styles={styles} /> : null)) : null}
+      {first ? spacers() : null}
       {first && label ? <span className="wd-marker" contentEditable={false} style={markerHang ? { display: 'inline-block', minWidth: markerHang, whiteSpace: 'nowrap', textIndent: 0, marginRight: 0 } : undefined}>{label}</span> : null}
 
       {/*
@@ -2539,14 +3000,15 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
         });
       })() : drawsUnder ? null : <br />}
       {/*
-        Pictures, charts and shapes sit under the paragraph's text as blocks —
-        the engine's own honest simplification of float layout. Not editable:
-        the caret has no business inside a picture, and letting the browser
-        put it there is how an image gets deleted by a stray Backspace. Each
-        goes in the part whose range holds it.
+        Pictures, charts and shapes in the line or under the words sit under
+        the paragraph's text as blocks. Not editable: the caret has no
+        business inside a picture, and letting the browser put it there is
+        how an image gets deleted by a stray Backspace. Each goes in the part
+        whose range holds it.
       */}
       {images.map((image, i) => (under[i] ? picture(image, i) : null))}
-      {boxesHere ? (block.textBoxes || []).map((box, i) => (floatsBeside(box) ? null : <TextBox key={i} box={box} styles={styles} />)) : null}
+      {boxesHere ? (block.textBoxes || []).map((box, i) => (flowing(boxLayers[i]) ? textBox(box, i, boxLayers[i]) : null)) : null}
+      {boxesHere ? (block.groups || []).map((grp, i) => (flowing(groupLayers[i]) ? groupBox(grp, i, groupLayers[i]) : null)) : null}
     </p>
   );
 }
@@ -2575,7 +3037,9 @@ function FindPanel({ state, onChange, onClose, onReplaceAll }) {
 }
 
 const CSS = `
-.wd { flex: 1; display: flex; flex-direction: column; min-height: 0; position: relative; }
+/* A row: the Navigation Pane at the left of the page, the Selection Pane at
+   its right. The page's own column is .wd-scroll's, below. */
+.wd { flex: 1; display: flex; flex-direction: row; min-height: 0; position: relative; }
 /* A column, so the ruler sits above the page and the page is as tall as its
    content: as a row's flex item the page was stretched to the viewport's
    height — a fixed height — and a long document ran out of the bottom of it. */

@@ -43,6 +43,16 @@ export class OoxmlBackend {
   removeImage(index, image) { this.doc.removeImage(index, image); return this; }
   setImageLayout(index, image, spec) { this.doc.setImageLayout(index, image, spec); return this; }
   setImageSize(index, image, spec) { this.doc.setImageSize(index, image, spec); return this; }
+  /** Floating drawings: text boxes, Arrange, groups — see document.js. */
+  drawings() { return this.doc.drawings(); }
+  insertTextBox(index, spec) { return this.doc.insertTextBox(index, spec); }
+  textBoxBlocks(id) { return this.doc.textBoxBlocks(id); }
+  updateDrawing(id, patch) { this.doc.updateDrawing(id, patch); return this; }
+  orderDrawings(ids, how) { this.doc.orderDrawings(ids, how); return this; }
+  moveDrawing(id, toIndex) { this.doc.moveDrawing(id, toIndex); return this; }
+  removeDrawing(id) { this.doc.removeDrawing(id); return this; }
+  groupDrawings(ids, opts) { return this.doc.groupDrawings(ids, opts); }
+  ungroupDrawing(id, opts) { return this.doc.ungroupDrawing(id, opts); }
   /** A chart after a table, its data literal in the part; a preset shape. */
   insertChartAfterTable(tableStart, spec) { this.doc.insertChartAfterTable(tableStart, spec); return this; }
   insertShapeParagraph(index, spec) { this.doc.insertShapeParagraph(index, spec); return this; }
@@ -1025,7 +1035,20 @@ function withParagraphProp(pPr, prop, value) {
 // new node type. A drawing we cannot interpret paints nothing and survives
 // the round trip untouched, exactly as before.
 
+/** Where a chart or a shape floats and its place in the order — carried onto the image it is painted as. */
+function placeOf(d) {
+  const keys = ['id', 'kind', 'anchored', 'wrap', 'wrapSide', 'hAlign', 'hOffsetPx', 'hRel', 'vAlign', 'vOffsetPx', 'vRel', 'dist', 'behind', 'relativeHeight', 'rot', 'flipH', 'flipV', 'hidden'];
+  const out = {};
+  for (const k of keys) if (d[k] !== undefined) out[k] = d[k];
+  return out;
+}
+
 function drawingToImage(d) {
+  const image = drawingToImagePainted(d);
+  return image ? { ...placeOf(d), ...image } : null;
+}
+
+function drawingToImagePainted(d) {
   try {
     if (d.kind === 'chart') {
       const width = d.widthPx || 480;
@@ -1052,6 +1075,18 @@ function drawingToImage(d) {
 }
 
 function withDrawingsPainted(p) {
+  if (p?.groups?.length) {
+    // A group's shapes are painted the same way, each at its own size.
+    p = {
+      ...p,
+      groups: p.groups.map((g) => ({
+        ...g,
+        members: g.members.map((m) => (m.kind === 'shape' && m.shapeXml
+          ? { ...m, href: drawingToImagePainted({ kind: 'shape', widthPx: Math.max(1, Math.round(m.widthPx)), heightPx: Math.max(1, Math.round(m.heightPx)), shapeXml: m.shapeXml })?.href ?? null, shapeXml: undefined }
+          : m)),
+      })),
+    };
+  }
   if (!p?.drawings?.length) return p;
   const painted = p.drawings.map(drawingToImage).filter(Boolean);
   if (!painted.length) return p;

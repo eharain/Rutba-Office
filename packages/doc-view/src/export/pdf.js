@@ -474,9 +474,20 @@ function drawFrame(frame, { title = '', author = '', created = null } = {}) {
       }
     }
 
+    // Drawings behind the words first, so the words print over them.
+    const overlay = (layer) => {
+      for (const fr of sheet.fragments) {
+        if (fr.layer !== layer) continue;
+        const col = columns ? (fr.column ?? 0) : 0;
+        drawDrawing(page, doc, fr, (columns ? xPx + columns[col].xPx : xPx) + (fr.xPx || 0), m.top + (fr.topPx || 0));
+      }
+    };
+    overlay('behind');
+
     let y = m.top;
     let yCol = 0; // the column `y` is currently counting down — reset the moment a fragment names a different one
     for (const fr of sheet.fragments) {
+      if (fr.layer) continue; // behind or in front of the words: drawn round this loop
       const col = columns ? (fr.column ?? 0) : 0;
       if (columns && col !== yCol) { y = m.top; yCol = col; }
       const fxPx = columns ? xPx + columns[col].xPx : xPx;
@@ -499,7 +510,7 @@ function drawFrame(frame, { title = '', author = '', created = null } = {}) {
           at += row.count;
           const rowWidth = imgs.reduce((s, img) => s + img.widthPx, 0);
           const side = imgs.length === 1 && imgs[0].anchored ? imgs[0].hAlign : fr.align === 'center' || fr.align === 'right' ? fr.align : 'left';
-          let x = fxPx + Math.max(0, side === 'center' ? (fwidthPx - rowWidth) / 2 : side === 'right' ? fwidthPx - rowWidth : 0);
+          let x = imgs.length === 1 && imgs[0].xPx != null ? fxPx + imgs[0].xPx : fxPx + Math.max(0, side === 'center' ? (fwidthPx - rowWidth) / 2 : side === 'right' ? fwidthPx - rowWidth : 0);
           for (const img of imgs) {
             drawImage(page, doc, img, x, y + Math.max(0, row.heightPx - img.heightPx));
             x += img.widthPx;
@@ -522,8 +533,8 @@ function drawFrame(frame, { title = '', author = '', created = null } = {}) {
         // Beside the words, at the side it asked for, where the paginator
         // put it — the lines round it were laid out shorter to leave the
         // room. It advances nothing: the words carry on beside it.
-        const dx = fr.side === 'right' ? fwidthPx - fr.widthPx : 0;
-        drawImage(page, doc, fr.image, fxPx + Math.max(0, dx), m.top + fr.topPx);
+        const dx = fr.xPx ?? Math.max(0, fr.side === 'right' ? fwidthPx - fr.widthPx : 0);
+        drawDrawing(page, doc, fr, fxPx + dx, m.top + fr.topPx);
         continue;
       }
       if (fr.kind === 'dropcap') {
@@ -539,7 +550,8 @@ function drawFrame(frame, { title = '', author = '', created = null } = {}) {
         continue;
       }
       if (fr.kind === 'textbox') {
-        drawTextBox(page, doc, fr, { xPx: fxPx, yPx: y, widthPx: fwidthPx });
+        if (fr.xPx != null) drawTextBox(page, doc, { ...fr, hAlign: null }, { xPx: fxPx + fr.xPx, yPx: y, widthPx: fr.widthPx });
+        else drawTextBox(page, doc, fr, { xPx: fxPx, yPx: y, widthPx: fwidthPx });
         y += fr.heightPx + IMAGE_GAP;
         continue;
       }
@@ -547,8 +559,18 @@ function drawFrame(frame, { title = '', author = '', created = null } = {}) {
         // A text box beside the words, at the side it asked for, where the
         // paginator put it; the lines round it were laid out shorter. It
         // advances nothing, like a floating picture.
-        const bx = fr.side === 'right' ? fxPx + Math.max(0, fwidthPx - fr.widthPx) : fxPx;
-        drawTextBox(page, doc, { ...fr, hAlign: null }, { xPx: bx, yPx: m.top + fr.topPx, widthPx: fr.widthPx });
+        const bx = fr.xPx != null ? fxPx + fr.xPx : fr.side === 'right' ? fxPx + Math.max(0, fwidthPx - fr.widthPx) : fxPx;
+        drawDrawing(page, doc, fr, bx, m.top + fr.topPx);
+        continue;
+      }
+      if (fr.kind === 'floatgroup') {
+        drawDrawing(page, doc, fr, fxPx + (fr.xPx || 0), m.top + fr.topPx);
+        continue;
+      }
+      if (fr.kind === 'group') {
+        // A group in the flow: its box on the page, its members in it.
+        drawDrawing(page, doc, fr, fxPx + (fr.xPx || 0), y);
+        y += fr.heightPx + IMAGE_GAP;
         continue;
       }
       if (fr.kind === 'equation') {
@@ -605,6 +627,9 @@ function drawFrame(frame, { title = '', author = '', created = null } = {}) {
       });
       y += fr.spaceAfter || 0;
     }
+
+    // Drawings in front of the words last, over everything else.
+    overlay('front');
 
     // The page's footnotes, at its foot: a short rule, then each note with
     // its number in the gutter — in the room the paginator kept for them.
@@ -669,15 +694,44 @@ function drawTextBox(page, doc, fr, { xPx, yPx, widthPx }) {
   const bx = fr.hAlign === 'center' ? xPx + (widthPx - fr.widthPx) / 2 : fr.hAlign === 'right' ? xPx + widthPx - fr.widthPx : xPx;
   const fill = fr.fill && /^#[0-9a-fA-F]{6}$/.test(fr.fill) ? fr.fill : null;
   const stroke = fr.line && /^#[0-9a-fA-F]{6}$/.test(fr.line) ? fr.line : null;
-  if (fill || stroke) page.rect(bx * PT, yPx * PT, fr.widthPx * PT, fr.heightPx * PT, { fill, stroke, width: 0.6 });
-  let y = yPx + BOX_PAD_PX;
+  if (fill || stroke) page.rect(bx * PT, yPx * PT, fr.widthPx * PT, fr.heightPx * PT, { fill, stroke, width: fr.lineWidthPx ? Math.max(0.25, fr.lineWidthPx * PT) : 0.6 });
+  // The box's own margins, and where its words sit in it, up and down.
+  const ins = fr.insets || { l: BOX_PAD_PX, t: BOX_PAD_PX, r: BOX_PAD_PX, b: BOX_PAD_PX };
+  const words = (fr.paragraphs || []).reduce((s, p) => s + (p.spaceBefore || 0) + (p.lines || []).length * (p.lineHeightPx || 0) + (p.spaceAfter || 0), 0);
+  let y = yPx + ins.t;
+  if (fr.vAnchor === 'middle') y = yPx + Math.max(ins.t, (fr.heightPx - words) / 2);
+  else if (fr.vAnchor === 'bottom') y = yPx + Math.max(ins.t, fr.heightPx - ins.b - words);
   for (const p of fr.paragraphs || []) {
     y += p.spaceBefore || 0;
     y += drawParagraphLines(page, doc, {
-      lines: p.lines, fragment: p, runs: p.runs, xPx: bx + BOX_PAD_PX + (p.indent || 0), yPx: y, widthPx: fr.widthPx - 2 * BOX_PAD_PX - (p.indent || 0),
+      lines: p.lines, fragment: p, runs: p.runs, xPx: bx + ins.l + (p.indent || 0), yPx: y, widthPx: fr.widthPx - ins.l - ins.r - (p.indent || 0),
     });
     y += p.spaceAfter || 0;
   }
+}
+
+/**
+ * A floating drawing at its place: a picture, a text box or a group, turned
+ * about its middle and mirrored as its transform says. A text box's words
+ * turn with it; they are not mirrored, as Word never mirrors them.
+ */
+function drawDrawing(page, doc, fr, xPx, yPx) {
+  const box = !fr.image && !fr.members;
+  const turned = Boolean(fr.rot || (!box && (fr.flipH || fr.flipV)));
+  if (turned) page.turn((xPx + fr.widthPx / 2) * PT, (yPx + fr.heightPx / 2) * PT, fr.rot || 0, { flipH: !box && fr.flipH, flipV: !box && fr.flipV });
+  if (fr.image) drawImage(page, doc, { ...fr.image, widthPx: fr.widthPx, heightPx: fr.heightPx }, xPx, yPx);
+  else if (fr.members) {
+    for (const m of fr.members) {
+      const mx = xPx + m.xPx;
+      const my = yPx + m.yPx;
+      const mt = Boolean(m.rot || m.flipH || m.flipV) && m.kind !== 'textbox';
+      if (mt) page.turn((mx + m.widthPx / 2) * PT, (my + m.heightPx / 2) * PT, m.rot || 0, { flipH: m.flipH, flipV: m.flipV });
+      if (m.kind === 'textbox') drawTextBox(page, doc, { ...m, hAlign: null }, { xPx: mx, yPx: my, widthPx: m.widthPx });
+      else if (m.href) drawImage(page, doc, { href: m.href, name: m.name, widthPx: m.widthPx, heightPx: m.heightPx }, mx, my);
+      if (mt) page.restore();
+    }
+  } else drawTextBox(page, doc, { ...fr, hAlign: null }, { xPx, yPx, widthPx: fr.widthPx });
+  if (turned) page.restore();
 }
 
 /** The watermark: big, grey, rising across the middle of the page. */

@@ -154,6 +154,32 @@ class Page {
     ].join('\n'));
   }
 
+  /**
+   * Turn (and mirror) what is drawn next about a centre given from the
+   * page's TOP-left, like everything else here — `deg` clockwise, as a
+   * drawing's rotation is — until `restore()`. The graphics state is saved,
+   * so nothing drawn after the restore is turned.
+   */
+  turn(cx, cy, deg = 0, { flipH = false, flipV = false } = {}) {
+    const phi = (-(Number(deg) || 0) * Math.PI) / 180;
+    const sx = flipH ? -1 : 1;
+    const sy = flipV ? -1 : 1;
+    const X = cx;
+    const Y = this.height - cy;
+    const a = Math.cos(phi) * sx;
+    const b = Math.sin(phi) * sx;
+    const c = -Math.sin(phi) * sy;
+    const d = Math.cos(phi) * sy;
+    const e = X - (a * X + c * Y);
+    const f = Y - (b * X + d * Y);
+    this.ops.push(['q', `${num(a)} ${num(b)} ${num(c)} ${num(d)} ${num(e)} ${num(f)} cm`].join('\n'));
+  }
+
+  /** The end of a `turn`. */
+  restore() {
+    this.ops.push('Q');
+  }
+
   /** A rectangle given its TOP-left corner, like everything else here. */
   rect(x, y, w, h, { fill = null, stroke = null, width = 0.5, late = false } = {}) {
     if (!fill && !stroke) return;
