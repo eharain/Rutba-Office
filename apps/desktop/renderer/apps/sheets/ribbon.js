@@ -523,12 +523,12 @@ export default function SheetsRibbon({
             <Button tall icon="sort" label="Z → A" title="Sort the selection descending by its first column" onClick={() => commands['sheet.sortDesc'].run()} />
             <Button tall icon="sort" label="Sort" title="Sort by up to three columns, each A to Z or Z to A" onClick={() => act('sortDialog')} />
             <Button tall icon="filter" label="Filter" pressed={model?.filtered} onClick={() => dispatch({ op: 'autoFilter' })} />
-            <Soon icon="close" label="Clear" why="Comes with the filter dialog." />
-            <Soon icon="filter" label="Advanced" why="Criteria ranges are not built." />
+            <Button icon="close" label="Clear" title="Clear — show every row an advanced filter hid" onClick={() => act('clearFilter')} />
+            <Button icon="filter" label="Advanced" title="Advanced — filter the list by a criteria range, in place or copied to another place" onClick={() => act('advancedDialog')} />
           </Group>
           <Group label="Data Tools">
             <Button tall icon="table" label="Text to Columns" title="Text to Columns — split the selected column's cells on a delimiter into the cells to the right" onClick={(e) => menu.open(e, [['Comma', 'comma'], ['Tab', 'tab'], ['Semicolon', 'semicolon'], ['Space', 'space']].map(([label, delimiter]) => ({ label, run: () => act('textToColumns', delimiter) })))} />
-            <Soon icon="wand" label="Flash Fill" why="Pattern completion is not built." />
+            <Button icon="wand" label="Flash Fill" title="Flash Fill — fill the column from an example or two typed in it (Ctrl+E)" onClick={() => act('flashFill')} />
             <Button icon="minus" label="Remove Duplicates" title="Remove Duplicates — rows that repeat an earlier one in the selection, or the block round the cell, go" onClick={() => act('removeDuplicates')} />
             <Button icon="check" label="Data Validation" onClick={() => openDialog('validation')} />
             <Soon icon="sum" label="Consolidate" why="Consolidating ranges across sheets is not built." />

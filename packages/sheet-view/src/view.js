@@ -42,6 +42,8 @@ import {
   group as outlineGroup, ungroup as outlineUngroup, toggleGroup, showLevel, detail as outlineDetail,
   clearOutline, outlineFrame, selectionAxis, subtotal, removeSubtotals, listFields,
 } from './outline.js';
+import { advancedFilter, clearAdvancedFilter, filterNames } from './advanced-filter.js';
+import { inferProgram, runProgram } from './flash-fill.js';
 import {
   readSheetDrawings, buildChart, buildShape, buildPicture, renderSvg, scene,
   SUPPORTED_GEOMETRY,
@@ -2002,7 +2004,68 @@ export class SheetView {
   removeSubtotals() { return removeSubtotals(this); }
 
   /** The list round the cell and its columns by header — what the Subtotal and Advanced Filter dialogs offer. */
-  listFields() { return listFields(this); }
+  listFields() { return { ...listFields(this), filter: filterNames(this) }; }
+
+  /** Data → Advanced (see advanced-filter.js). */
+  advancedFilter(spec) { return advancedFilter(this, spec); }
+
+  /** Data → Clear: the rows an advanced filter hid, shown again. */
+  clearAdvancedFilter() { return clearAdvancedFilter(this); }
+
+  /**
+   * Data → Flash Fill (Ctrl+E): the active cell's column filled from the
+   * examples typed in it, by the transformation that makes every one of
+   * them out of the block's other columns (see flash-fill.js). Nothing is
+   * filled when no transformation makes them all. One undo step.
+   *
+   * @returns {{ filled: number, examples: number }}
+   */
+  flashFill() {
+    const sheet = this.activeSheet;
+    const { row, col } = this.selection.active;
+    const region = this._currentRegion(row, col);
+    const sourceCols = [];
+    for (let c = region.left; c <= region.right; c++) if (c !== col) sourceCols.push(c);
+    if (!sourceCols.length) throw new Error('Flash Fill works beside a block of data — type an example in the column next to it');
+    const sourcesOf = (r) => sourceCols.map((c) => {
+      const text = String(this.displayValue(r, c).text ?? '');
+      if (text === '') return null;
+      const v = this.calc.getValue(sheet, r, c);
+      return { text, serial: typeof v === 'number' && isDateFormat(this.formatFor(r, c)) ? v : undefined };
+    });
+    const typed = (r) => {
+      const input = String(this.calc.getInput(sheet, r, col) ?? '');
+      return input !== '' && !input.startsWith('=');
+    };
+    const examples = [];
+    const targets = [];
+    for (let r = region.top; r <= region.bottom; r++) {
+      if (typed(r)) examples.push(r);
+      else if (String(this.calc.getInput(sheet, r, col) ?? '') === '' && sourcesOf(r).some(Boolean)) targets.push(r);
+    }
+    if (!examples.length) throw new Error('Type an example of what you want in this column first, then Flash Fill');
+    if (!targets.length) throw new Error('Every row of the column is already filled');
+    const infer = (rows) => inferProgram(rows.map((r) => ({ sources: sourcesOf(r), output: String(this.displayValue(r, col).text ?? '') })));
+    // The column's heading reads as an example it is not: without it, then.
+    let program = infer(examples);
+    let used = examples.length;
+    if (!program && examples[0] === region.top && examples.length > 1) {
+      program = infer(examples.slice(1));
+      used -= 1;
+    }
+    if (!program) throw new Error('Flash Fill found no pattern that makes every example — type another example and try again');
+    const results = [];
+    for (const r of targets) {
+      const value = runProgram(program, sourcesOf(r));
+      if (value) results.push({ row: r, value });
+    }
+    if (!results.length) throw new Error('Flash Fill found the pattern but no other row has the parts it needs');
+    this._edit('flash fill', null, results.map(({ row: r }) => ({ row: r, col })), () => {
+      for (const { row: r, value } of results) this._setCell(r, col, value);
+      return this;
+    });
+    return { filled: results.length, examples: used };
+  }
 
   /** The style index a label wears bold, made from the one it wears now. */
   _boldIndex(base) {

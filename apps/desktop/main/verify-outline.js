@@ -189,6 +189,9 @@ export async function verifyOutline(h, { dir }) {
     const offered = await js(`[...document.querySelectorAll('.sh-sub-by option')].map((o) => o.textContent).join(',') + ' | ' + document.querySelector('.sh-sub-fn')?.value`);
     await js(`(() => { document.querySelector('.sh-sub-col-2').click(); return 1; })()`);
     await until(() => js(`Boolean(document.querySelector('.sh-sub-col-2')?.checked)`), 'Units ticked', 3000).catch(() => {});
+    win.webContents.invalidate();
+    await wait(500);
+    await capture(win, 'sheets-subtotal-dialog.png');
     await js(`(() => { document.querySelector('.sh-sub-ok').click(); return 1; })()`);
     const cellText = (ref) => `(document.querySelector('.sh-cell[data-ref="${ref}"]')?.textContent || '')`;
     const totalled = await until(() => js(`${cellText('A11')} === 'Grand Total' && ${cellText('D11')} === '1370'`), 'the Grand Total', 8000).catch(() => false);

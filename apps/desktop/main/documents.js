@@ -1001,6 +1001,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
       groupBy: a.groupBy, fn: a.fn, columns: a.columns || [], replace: a.replace !== false, pageBreaks: Boolean(a.pageBreaks), summaryBelow: a.summaryBelow !== false,
     }).groups,
     removeSubtotals: (v) => v.removeSubtotals().removed,
+    // Data → Advanced, and Clear; Data → Flash Fill (Ctrl+E). The count of
+    // rows that passed, or of cells filled, rides back for the toast.
+    advancedFilter: (v, a) => v.advancedFilter({
+      list: a.list, criteria: a.criteria, action: a.action === 'copy' ? 'copy' : 'filter', copyTo: a.copyTo ?? null, unique: Boolean(a.unique),
+    }).matched,
+    clearAdvancedFilter: (v) => v.clearAdvancedFilter().shown,
+    flashFill: (v) => v.flashFill().filled,
     // The list round the cell and its columns, for the Subtotal and Advanced
     // Filter dialogs — as text, since only a primitive rides back.
     listFields: (v) => JSON.stringify(v.listFields()),

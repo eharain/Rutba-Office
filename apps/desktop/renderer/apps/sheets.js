@@ -18,7 +18,7 @@ import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import {
   GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
-  OutlineAxisDialog, SubtotalDialog,
+  OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -528,6 +528,7 @@ export default function Sheets({ app, shell, boot }) {
         if (key === 'd' || key === 'r') { e.preventDefault(); await act('fill', key === 'd' ? 'down' : 'right'); return; }
         if (key === 'g') { e.preventDefault(); setDialog('goto'); return; }
         if (key === 'a') { e.preventDefault(); await dispatch({ op: 'selectAll' }); return; }
+        if (key === 'e') { e.preventDefault(); await act('flashFill'); return; }
         if (key === '`') { e.preventDefault(); await act('toggleFormulas'); return; }
       }
       if (e.key === 'Delete' || e.key === 'Backspace') {
@@ -1353,6 +1354,33 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'clearOutline': await dispatch({ op: 'clearOutline' }); return;
+      // Data → Flash Fill (Ctrl+E), Advanced and Clear: what the engine says
+      // when it will not is a note, not an alarm — a toast that says why.
+      case 'flashFill':
+      case 'clearFilter':
+      case 'advancedFilter': {
+        const op = name === 'flashFill' ? { op: 'flashFill' } : name === 'clearFilter' ? { op: 'clearAdvancedFilter' } : { op: 'advancedFilter', ...arg };
+        try {
+          const next = await shell.doc.apply({ id: doc.id, ops: [op] });
+          setDoc(next);
+          setModel(next.model);
+          const n = Number(next.opResult) || 0;
+          if (name === 'flashFill') toast(`Flash Fill filled ${n} cell${n === 1 ? '' : 's'}`, { tone: 'good' });
+          else if (name === 'clearFilter') toast(`${n} row${n === 1 ? '' : 's'} shown again`, { tone: 'good' });
+          else toast(arg.action === 'copy' ? `${n} row${n === 1 ? '' : 's'} copied to ${arg.copyTo}` : `${n} row${n === 1 ? '' : 's'} of the list pass the criteria`, { tone: 'good' });
+        } catch (err) {
+          toast(String(err?.message || err), { tone: 'warn', ms: 5500 });
+        }
+        return;
+      }
+      case 'advancedDialog': {
+        const next = await dispatch({ op: 'listFields' });
+        let info = null;
+        try { info = next?.opResult ? JSON.parse(next.opResult) : null; } catch { info = null; }
+        setListInfo(info || { ref: '', columns: [], filter: {} });
+        setDialog('advanced');
+        return;
+      }
       case 'showDetail': await dispatch({ op: 'showDetail' }); return;
       case 'hideDetail': await dispatch({ op: 'hideDetail' }); return;
       case 'subtotalDialog': {
@@ -1920,6 +1948,13 @@ export default function Sheets({ app, shell, boot }) {
             const next = await dispatch({ op: 'removeSubtotals' });
             if (next) toast('Subtotals and their outline removed', { tone: 'good' });
           }}
+        />
+      ) : null}
+      {dialog === 'advanced' && listInfo ? (
+        <AdvancedFilterDialog
+          list={listInfo}
+          onClose={() => setDialog(null)}
+          onApply={async (spec) => { setDialog(null); await act('advancedFilter', spec); }}
         />
       ) : null}
       {dialog === 'headerFooter' ? (

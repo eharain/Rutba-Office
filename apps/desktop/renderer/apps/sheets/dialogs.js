@@ -941,3 +941,54 @@ export function SubtotalDialog({ list, onClose, onApply, onRemoveAll }) {
     </Dialog>
   );
 }
+
+/* ── Data → Advanced ─────────────────────────────────────────────────────── */
+
+/**
+ * Advanced Filter, as Excel's dialog asks it: filter the list where it is
+ * or copy the rows that pass to another place; the list, the criteria
+ * range and the destination as references; unique records only. The
+ * ranges an earlier run used are offered again, as Excel offers them.
+ */
+export function AdvancedFilterDialog({ list, onClose, onApply }) {
+  const kept = list.filter || {};
+  const [action, setAction] = useState(kept.extract ? 'copy' : 'filter');
+  const [range, setRange] = useState(kept.list || list.ref || '');
+  const [criteria, setCriteria] = useState(kept.criteria || '');
+  const [copyTo, setCopyTo] = useState(kept.extract || '');
+  const [unique, setUnique] = useState(false);
+  const refOk = (t) => /^\s*(?:'[^']+'!|[A-Za-z0-9_.]+!)?\$?[A-Za-z]{1,3}\$?\d+(?::\$?[A-Za-z]{1,3}\$?\d+)?\s*$/.test(t);
+  const ok = refOk(range) && refOk(criteria) && (action === 'filter' || refOk(copyTo));
+  const apply = () => ok && onApply({ list: range.trim(), criteria: criteria.trim(), action, copyTo: action === 'copy' ? copyTo.trim() : null, unique });
+  const enter = (e) => { if (e.key === 'Enter') apply(); };
+  return (
+    <Dialog
+      title="Advanced Filter"
+      width={420}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="OK" className="sh-adv-ok" disabled={!ok} onClick={apply} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={CHECK_ROW}><input type="radio" name="sh-adv-action" className="sh-adv-inplace" checked={action === 'filter'} onChange={() => setAction('filter')} /> Filter the list, in place</label>
+          <label style={CHECK_ROW}><input type="radio" name="sh-adv-action" className="sh-adv-copy" checked={action === 'copy'} onChange={() => setAction('copy')} /> Copy to another location</label>
+        </div>
+        <Field label="List range">
+          <Input className="sh-adv-list" value={range} onChange={(e) => setRange(e.target.value)} onKeyDown={enter} placeholder="A1:D20" />
+        </Field>
+        <Field label="Criteria range" hint="Headings from the list over rows of conditions: a row's conditions all hold, any one row is enough. East, >250, <>West, =B*.">
+          <Input className="sh-adv-criteria" value={criteria} onChange={(e) => setCriteria(e.target.value)} onKeyDown={enter} placeholder="F1:G3" autoFocus />
+        </Field>
+        <Field label="Copy to">
+          <Input className="sh-adv-to" value={copyTo} disabled={action !== 'copy'} onChange={(e) => setCopyTo(e.target.value)} onKeyDown={enter} placeholder="I1" />
+        </Field>
+        <label style={CHECK_ROW}><input type="checkbox" className="sh-adv-unique" checked={unique} onChange={(e) => setUnique(e.target.checked)} /> Unique records only</label>
+      </div>
+    </Dialog>
+  );
+}

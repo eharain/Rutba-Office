@@ -17,6 +17,8 @@
     "./print": "./src/print.js",
     "./geometry": "./src/geometry.js",
     "./selection": "./src/selection.js",
+    "./flash-fill": "./src/flash-fill.js",
+    "./advanced-filter": "./src/advanced-filter.js",
     "./styles-write": "./src/styles-write.js"
   },
   "dependencies": {
