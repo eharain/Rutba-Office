@@ -264,8 +264,13 @@ createShell({
     // anyone let it, having printed the reason and then waited forever.
     const finish = async (run) => {
       const { app: electronApp } = await import('electron');
+      // The code a run ends with is its verdict; say what was handed over and
+      // what the process ended on, so an exit code the run never chose shows.
+      process.once('exit', (code) => console.log(`     [exit] the process ended with ${code}`));
       try {
-        return electronApp.exit((await run()) ? 0 : 1);
+        const code = (await run()) ? 0 : 1;
+        console.log(`     [exit] the run hands app.exit ${code}`);
+        return electronApp.exit(code);
       } catch (err) {
         console.error(`the check run stopped: ${err?.stack || err?.message || err}`);
         return electronApp.exit(1);

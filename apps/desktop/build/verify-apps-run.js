@@ -21,7 +21,8 @@ const child = spawn(electron, [app, `--user-data-dir=${profile}`], {
   env: { ...process.env, RUTBA_OFFICE_VERIFY_APPS: '1', RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY ?? 'offscreen', RUTBA_SMOKE_SEED: '1' },
 });
 
-child.on('exit', (code) => {
+child.on('exit', (code, signal) => {
+  if (code !== 0) console.log(`     [exit] Electron ended with code ${code}${signal ? `, signal ${signal}` : ''}`);
   fs.rmSync(profile, { recursive: true, force: true });
   process.exit(code ?? 1);
 });
