@@ -31,6 +31,7 @@ import { verifyDeckAnimations } from './verify-deck-animations.js';
 import { verifyWordToc } from './verify-word-toc.js';
 import { verifyOutline } from './verify-outline.js';
 import { verifyEvaluate } from './verify-evaluate.js';
+import { verifyComments } from './verify-comments.js';
 import { verifyDataTools } from './verify-datatools.js';
 import { verifyWordEquations, makeEquationFixture } from './verify-word-equations.js';
 import { verifyWordTrack } from './verify-word-track.js';
@@ -3303,6 +3304,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifyEvaluate({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
   };
 
+  /* ── Worksheets: Review → threaded comments ───────────────────────────── */
+  const sheetComments = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyComments({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
+  };
+
   /* ── Worksheets: Advanced filter, Clear, Flash Fill ──────────────────── */
   const sheetDataTools = async () => {
     const capture = async (win, name) => {
@@ -4254,7 +4264,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4303,6 +4313,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('outline')) await sheetOutline();
     if (only.includes('datatools')) await sheetDataTools();
     if (only.includes('evaluate')) await sheetEvaluate();
+    if (only.includes('comments')) await sheetComments();
     if (only.includes('arrange')) await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('deckfx')) await verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('transitions')) await verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
@@ -4440,6 +4451,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await sheetOutline();
   await sheetDataTools();
   await sheetEvaluate();
+  await sheetComments();
   await polish();
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */

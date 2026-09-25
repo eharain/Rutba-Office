@@ -374,6 +374,7 @@ export default function SheetsRibbon({
             <Button tall icon="link" label="Link" title="A link on this cell: an address, or a place in the workbook (Ctrl+K)" onClick={() => act('link')} />
           </Group>
           <Group label="Comments">
+            <Button tall icon="reply" label="Comment" title="Comment — a conversation on this cell: replies, resolve, reopen (Ctrl+Alt+M)" onClick={() => act('newComment')} />
             <Button tall icon="reply" label="Note" title="A note on this cell, shown when the pointer rests on it (Shift+F2)" onClick={() => act('note')} />
             <Button icon="close" label="Delete" title="Take the note off this cell" onClick={() => act('removeNote')} />
           </Group>
@@ -580,11 +581,13 @@ export default function SheetsRibbon({
             <Soon tall icon="globe" label="Translate" why="Translation is an online service this suite does not call." />
           </Group>
           <Group label="Comments">
-            <Soon tall icon="reply" label="New Comment" why="Cell comments are a comments part plus VML the engine does not write yet." />
-            <Soon icon="close" label="Delete" why="Comes with comments." />
-            <Soon icon="chevronLeft" label="Previous" why="Comes with comments." />
-            <Soon icon="chevronRight" label="Next" why="Comes with comments." />
-            <Soon icon="eye" label="Show Comments" why="Comes with comments." />
+            <Button tall icon="reply" label="New Comment" title={model?.thread ? 'New Comment — a reply at the end of this cell’s thread (Ctrl+Alt+M)' : 'New Comment — a conversation on this cell: replies, resolve, reopen (Ctrl+Alt+M)'} onClick={() => act('newComment')} />
+            <Rows>
+              <Button icon="close" label="Delete" title={model?.thread ? 'Delete — the comment thread on this cell, replies and all' : 'Delete — this cell has no comment thread to delete'} disabled={!model?.thread} onClick={() => act('deleteThread')} />
+              <Button icon="chevronLeft" label="Previous" title="Previous — the comment before this cell, across the sheets" onClick={() => act('stepComment', 'prev')} />
+              <Button icon="chevronRight" label="Next" title="Next — the comment after this cell, across the sheets" onClick={() => act('stepComment', 'next')} />
+            </Rows>
+            <Button tall icon="eye" label="Show Comments" pressed={Boolean(model?.comments)} title="Show Comments — every comment thread in the workbook in a pane, open or resolved" onClick={() => act('commentsOpen')} />
           </Group>
           <Group label="Protect">
             <Button tall icon="lock" label={protectedSheet ? 'Unprotect Sheet' : 'Protect Sheet'} pressed={protectedSheet} onClick={() => dispatch({ op: protectedSheet ? 'unprotect' : 'protect' })} />

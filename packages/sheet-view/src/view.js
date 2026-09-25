@@ -554,8 +554,9 @@ export class SheetView {
       const authorId = Number((/\bauthorId="(\d+)"/.exec(m[1]) ?? [])[1] ?? -1);
       const text = [...m[2].matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)].map((t) => unescXml(t[1])).join('');
       // A threaded comment's shadow author is a GUID marker, not a name.
-      const author = authors[authorId] && !authors[authorId].startsWith('tc=') ? authors[authorId] : null;
-      out.set(refMatch[1], { author, text });
+      const shadow = Boolean(authors[authorId] && authors[authorId].startsWith('tc='));
+      const author = authors[authorId] && !shadow ? authors[authorId] : null;
+      out.set(refMatch[1], shadow ? { author, text, shadow } : { author, text });
     }
     return out;
   }
@@ -585,11 +586,145 @@ export class SheetView {
     const rel = this.pkg.rels(sheetPartName).find((r) => String(r.Type).endsWith('/comments'));
     const partName = rel ? OoxmlPackage.resolveTarget(sheetPartName, rel.Target) : null;
     const xml = partName && this.pkg.has(partName) ? this.pkg.text(partName) : '';
+    const threads = this._threads(sheetName);
     const cached = this.notes.get(sheetName);
-    if (cached && cached.xml === xml) return cached.map;
+    if (cached && cached.xml === xml && cached.threads === threads) return cached.map;
     const map = this._readComments(sheetPartName);
-    this.notes.set(sheetName, { xml, map });
+    // A threaded comment's classic shadow is not a note: the thread itself
+    // is drawn. A shadow whose thread has gone (a tool that dropped the
+    // threaded part) is all there is, and shows as the note it reads as.
+    for (const [at, note] of map) if (note.shadow && threads.has(at)) map.delete(at);
+    this.notes.set(sheetName, { xml, map, threads });
     return map;
+  }
+
+  /**
+   * Review → comments: the threads of a sheet by cell, read again whenever
+   * its threaded-comments part or the person list changes — a comment put
+   * on, an undo — the way the notes follow their part.
+   */
+  _threads(sheetName = this.activeSheet) {
+    const sheetPartName = this.workbook.partNameFor(sheetName);
+    const rel = this.pkg.rels(sheetPartName).find((r) => String(r.Type).endsWith('/threadedComment'));
+    const partName = rel ? OoxmlPackage.resolveTarget(sheetPartName, rel.Target) : null;
+    const xml = partName && this.pkg.has(partName) ? this.pkg.text(partName) : '';
+    const personsPart = this.workbook._personsPart();
+    const people = personsPart ? this.pkg.text(personsPart) : '';
+    if (!this._threadCache) this._threadCache = new Map();
+    const cached = this._threadCache.get(sheetName);
+    if (cached && cached.xml === xml && cached.people === people) return cached.map;
+    const map = new Map(xml ? this.workbook.threads(sheetName).map((t) => [t.ref, t]) : []);
+    this._threadCache.set(sheetName, { xml, people, map });
+    return map;
+  }
+
+  /** The parts a comment lives in, for the undo record — a note's, the thread's, and the people's. */
+  _threadParts() {
+    const parts = [...this._noteParts(), '[Content_Types].xml', this.workbook.mainPart];
+    const sheetPartName = this.workbook.partNameFor(this.activeSheet);
+    for (const rel of this.pkg.rels(sheetPartName)) {
+      if (!String(rel.Type).endsWith('/threadedComment')) continue;
+      const name = OoxmlPackage.resolveTarget(sheetPartName, rel.Target);
+      if (this.pkg.has(name)) parts.push(name);
+    }
+    const mainRels = OoxmlPackage.relsPathFor(this.workbook.mainPart);
+    if (this.pkg.has(mainRels)) parts.push(mainRels);
+    const persons = this.workbook._personsPart();
+    if (persons) parts.push(persons);
+    return [...new Set(parts)];
+  }
+
+  /**
+   * Review → New Comment: a comment on a cell — a new thread, or a reply
+   * when the cell already has one — signed by `author`, dated now. Written
+   * as Excel writes one: the threaded part, the person, and the classic
+   * shadow with its box. One undo step. Returns the comment's id.
+   */
+  addComment({ row = this.selection.active.row, col = this.selection.active.col, text = '', author = '', date = new Date() } = {}) {
+    const at = ref(row, col);
+    // Refused before the history hears of it, so a refusal leaves no undo step.
+    if (!String(text ?? '').trim()) throw new Error('a comment needs some words');
+    if (this._notes().has(at)) throw new Error('This cell has a note. Delete the note, or edit it, before starting a comment here.');
+    let id = null;
+    this._edit('comment', null, [], () => {
+      id = this.workbook.addThreadedComment(this.activeSheet, at, { author, text, date });
+      this._structuralDirty = true;
+    }, { parts: this._threadParts(), tracksNewParts: true });
+    return id;
+  }
+
+  /** A comment's words changed. One undo step. */
+  editComment({ id, text }) {
+    this._edit('edit comment', null, [], () => {
+      this.workbook.editThreadedComment(this.activeSheet, id, text);
+      this._structuralDirty = true;
+    }, { parts: this._threadParts() });
+    return this;
+  }
+
+  /** A reply taken out, or — the first comment — its thread. One undo step. */
+  deleteComment({ id }) {
+    let gone = false;
+    this._edit('delete comment', null, [], () => {
+      gone = this.workbook.deleteThreadedComment(this.activeSheet, id);
+      this._structuralDirty = true;
+    }, { parts: this._threadParts() });
+    return gone;
+  }
+
+  /** Review → Delete: the whole thread on a cell. */
+  deleteThread({ row = this.selection.active.row, col = this.selection.active.col } = {}) {
+    const thread = this._threads().get(ref(row, col));
+    if (!thread) throw new Error('There is no comment on ' + ref(row, col) + ' to delete.');
+    return this.deleteComment({ id: thread.id });
+  }
+
+  /** Resolve a cell's thread, or reopen it. One undo step. */
+  resolveComment({ row = this.selection.active.row, col = this.selection.active.col, done = true } = {}) {
+    this._edit(done ? 'resolve thread' : 'reopen thread', null, [], () => {
+      this.workbook.setThreadDone(this.activeSheet, ref(row, col), done);
+      this._structuralDirty = true;
+    }, { parts: this._threadParts() });
+    return this;
+  }
+
+  /**
+   * Every thread in the workbook, sheet by sheet in tab order and cell by
+   * cell down each sheet — the Comments pane's list, and the order Previous
+   * and Next walk.
+   */
+  allThreads() {
+    const out = [];
+    for (const sheet of this.sheetNames()) {
+      const list = [...this._threads(sheet).values()].map((t) => {
+        const [r, c] = parseRefPair(t.ref);
+        return { ...t, sheet, row: r, col: c };
+      });
+      list.sort((a, b) => a.row - b.row || a.col - b.col);
+      out.push(...list);
+    }
+    return out;
+  }
+
+  /**
+   * Review → Previous / Next: the thread before or after the active cell,
+   * across the sheets and round again, selected. Returns its ref, or null
+   * when the workbook has none.
+   */
+  stepComment(direction = 'next') {
+    const all = this.allThreads();
+    if (!all.length) return null;
+    const sheets = this.sheetNames();
+    const here = { s: sheets.indexOf(this.activeSheet), row: this.selection.active.row, col: this.selection.active.col };
+    const key = (t) => [sheets.indexOf(t.sheet), t.row, t.col];
+    const cmp = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];
+    const at = [here.s, here.row, here.col];
+    const pick = direction === 'prev'
+      ? [...all].reverse().find((t) => cmp(key(t), at) < 0) ?? all[all.length - 1]
+      : all.find((t) => cmp(key(t), at) > 0) ?? all[0];
+    if (pick.sheet !== this.activeSheet) this.selectSheet(pick.sheet);
+    this.select(pick.row, pick.col);
+    return pick.ref;
   }
 
   /** The parts a note lives in, for the undo record: the sheet, its rels, the comments part and the VML box. */
@@ -609,6 +744,9 @@ export class SheetView {
   /** A note on a cell — the words and who wrote them — as Excel keeps one. One undo step. */
   setNote({ row, col, author = '', text = '' }) {
     const at = ref(row, col);
+    // A cell holds a note or a comment thread, never both — Excel's rule,
+    // and the thread's classic shadow is the note this would overwrite.
+    if (this._threads().has(at)) throw new Error('This cell has a comment. Reply to it, or delete it, before adding a note.');
     return this._edit('note', null, [], () => {
       this.workbook.setComment(this.activeSheet, at, { author, text });
       return this;
@@ -846,6 +984,7 @@ export class SheetView {
     const sheetTables = this.sheetTables();
     const links = this._links();
     const notes = this._notes();
+    const threads = this._threads();
     // A sparkline cell is normally blank, and a blank cell that draws
     // nothing else is otherwise left out of the frame entirely — so its ref
     // is read once here, the way a note's or a link's is, to keep it in.
@@ -900,10 +1039,11 @@ export class SheetView {
         }
         const note = notes.get(ref(row, col)) ?? null;
         const link = links.get(ref(row, col)) ?? null;
+        const thread = threads.get(ref(row, col)) ?? null;
         // A styled but empty cell still has to be drawn: a shaded header with no
         // text in it is a real thing, and skipping it leaves a hole in the band.
         const decorated = Boolean(style && (style.fill || style.border)) || Boolean(cf?.bar)
-          || Boolean(cf?.icon) || Boolean(note) || Boolean(link) || sparklineCells.has(ref(row, col));
+          || Boolean(cf?.icon) || Boolean(note) || Boolean(link) || Boolean(thread) || sparklineCells.has(ref(row, col));
         if (display.text === '' && !decorated && !merge && !this.selection.contains(row, col)) continue;
 
         const spanW = merge
@@ -941,6 +1081,15 @@ export class SheetView {
           note,
           // The cell's hyperlink, for the underline, the tip and the follow.
           link,
+          // The cell's comment thread, for Excel's purple corner and its tip:
+          // who started it, its first words, how many replies, whether resolved.
+          thread: thread ? {
+            id: thread.id,
+            done: thread.done,
+            replies: thread.comments.length - 1,
+            author: thread.comments[0]?.author ?? '',
+            text: thread.comments[0]?.text ?? '',
+          } : null,
           merged: merge ? { ref: merge.ref, rows: merge.bottom - merge.top + 1, cols: merge.right - merge.left + 1 } : null,
           isError: isError(this.calc.getValue(this.activeSheet, row, col)),
           // A number never spills into its neighbours (Excel shows #### instead);
@@ -1050,6 +1199,12 @@ export class SheetView {
       notes: notes.size,
       // The active cell's note, for the status bar and the Note dialog.
       note: notes.get(ref(active.row, active.col)) ?? null,
+      // Review → comments: how many threads this sheet has, the active
+      // cell's whole thread for its card, and — while the Comments pane is
+      // open — every thread in the workbook for the list.
+      threads: threads.size,
+      thread: threads.get(ref(active.row, active.col)) ?? null,
+      comments: this.commentsOpen ? this.allThreads() : null,
       // The defined names, for the Name Manager and the name box's jump list.
       names: this.names(),
       // The tables (ListObjects) on this sheet, for styling and the filter
@@ -1175,6 +1330,11 @@ export class SheetView {
       validation: this._validationFields(active),
       formulaBar: this.editing ? this.editing.draft : this.editValue(active.row, active.col),
       status: this.statusLine(),
+      // What belongs to the active cell rides with it: its link, its note,
+      // its comment thread (the card a comment opens follows the cell).
+      link: this._links().get(ref(active.row, active.col)) ?? null,
+      note: this._notes().get(ref(active.row, active.col)) ?? null,
+      thread: this._threads().get(ref(active.row, active.col)) ?? null,
       total: this._stickyTotal(geo, {
         maxRow: Math.max(this.bounds.maxRow, this.selection.range.bottom, vp.lastRow),
         maxCol: Math.max(this.bounds.maxCol, this.selection.range.right, vp.lastCol),

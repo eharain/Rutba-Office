@@ -58,6 +58,11 @@ function withSelection(model, patch) {
 
 /** What the tip layer says over a cell: its note, or where its link goes. */
 const tipFor = (cell) => {
+  if (cell.thread) {
+    const t = cell.thread;
+    const more = t.replies ? ` (${t.replies} ${t.replies === 1 ? 'reply' : 'replies'})` : '';
+    return `${t.author ? t.author + ': ' : ''}${t.text}${more}${t.done ? ' — resolved' : ''} — click the corner to open the thread`;
+  }
   if (cell.note) return `${cell.note.author ? cell.note.author + ': ' : ''}${cell.note.text}`;
   if (cell.link) return `${cell.link.tooltip ? cell.link.tooltip + ' — ' : ''}${cell.link.href || cell.link.location} (Ctrl+click to open)`;
   return undefined;
@@ -103,6 +108,13 @@ export default function Sheets({ app, shell, boot }) {
   const [outlineAsk, setOutlineAsk] = useState(null);
   /** The list the Subtotal and Advanced Filter dialogs act on: its range and its columns by header. */
   const [listInfo, setListInfo] = useState(null);
+  /**
+   * Review → comments: the card open on a cell — its thread, a reply box,
+   * or the box a new thread starts in — and which comment is being edited.
+   */
+  const [card, setCard] = useState(null);
+  /** The Comments pane's filter: every thread, the open ones, or the resolved. */
+  const [commentFilter, setCommentFilter] = useState('all');
   /** Formulas → Evaluate Formula: the cell it opened on and the dialog's first state. */
   const [evaluating, setEvaluating] = useState(null);
   const gridRef = useRef(null);
@@ -113,6 +125,8 @@ export default function Sheets({ app, shell, boot }) {
   const menu = useMenu();
   const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.() });
   const openFileRef = useRef(null);
+  /** The ribbon's verbs, for a command defined before them (Ctrl+Alt+M). */
+  const actRef = useRef(null);
 
   const dispatch = useCallback(
     async (...ops) => {
@@ -353,6 +367,7 @@ export default function Sheets({ app, shell, boot }) {
       'edit.clear': { label: 'Clear', icon: 'close', key: 'Delete', run: () => dispatch({ op: 'clear' }) },
       'insert.link': { label: 'Link…', icon: 'link', key: 'Mod+K', run: () => setDialog('link') },
       'insert.note': { label: 'Note…', icon: 'reply', key: 'Shift+F2', run: () => setDialog('note') },
+      'insert.comment': { label: 'New comment', icon: 'reply', key: 'Mod+Alt+M', run: () => actRef.current?.('newComment') },
       'sheet.autoSum': { label: 'AutoSum', icon: 'sum', run: () => dispatch({ op: 'autoSum', fn: 'SUM' }) },
       'sheet.merge': { label: 'Merge cells', icon: 'table', run: () => dispatch({ op: 'merge' }) },
       'sheet.insertRow': { label: 'Insert row', icon: 'plus', run: () => dispatch({ op: 'insertRows', at: model?.selection.top ?? 0, count: 1 }) },
@@ -892,7 +907,7 @@ export default function Sheets({ app, shell, boot }) {
     return (
       <div
         key={cell.ref}
-        className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}`}
+        className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}${cell.thread ? (cell.thread.done ? ' threaded resolved' : ' threaded') : ''}`}
         data-ref={cell.ref}
         style={dy ? { ...spillStyle(cell), top: cell.y - dy } : spillStyle(cell)}
         onMouseDown={(e) => {
@@ -905,10 +920,20 @@ export default function Sheets({ app, shell, boot }) {
           ? menuItems(commands, ['edit.copy', 'edit.clear', '-']).concat([
             { label: 'Remove sparkline', icon: 'close', run: () => dispatch({ op: 'removeSparklines', at: cell.ref }) },
           ])
-          : menuItems(commands, ['edit.copy', 'edit.clear', '-', 'insert.link', 'insert.note', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
+          : menuItems(commands, ['edit.copy', 'edit.clear', '-', 'insert.link', 'insert.comment', 'insert.note', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
         data-tip={tipFor(cell)}
       >
         {spark ? sparkSvg(spark, cell.width, cell.height) : null}
+        {cell.thread ? (
+          <span
+            className="sh-thread-mark"
+            onMouseDown={(e) => {
+              // The corner opens the thread, as Excel's does; the cell is selected first.
+              e.stopPropagation();
+              dispatch({ op: 'select', row: cell.row, col: cell.col }).then(() => setCard({ row: cell.row, col: cell.col, mode: 'thread' }));
+            }}
+          />
+        ) : null}
         {cell.rotation
           ? <span className="sh-rot" style={rotationStyle(cell.rotation)}>{view.formulas && cell.formula ? cell.formula : cell.text}</span>
           : (view.formulas && cell.formula ? cell.formula : cell.text)}
@@ -1174,6 +1199,168 @@ export default function Sheets({ app, shell, boot }) {
     );
   };
 
+  /**
+   * Review → comments: the card beside a cell — Excel 365's — with each
+   * comment of the thread (who, when, what), a reply box, Resolve and
+   * Reopen, and each comment's own Edit and Delete. A new thread starts in
+   * an empty card. Keys typed in it stay in it: the grid never sees them.
+   */
+  const commentCard = () => {
+    if (!card || !model) return null;
+    const active = sel?.active;
+    // The card belongs to its cell; moving away closes it (Excel's way).
+    if (!active || active.row !== card.row || active.col !== card.col) return null;
+    const thread = model.thread;
+    const mode = card.mode === 'thread' && !thread ? null : card.mode;
+    if (!mode) return null;
+    const box = boxOf({ top: card.row, left: card.col, bottom: card.row, right: card.col });
+    if (!box) return null;
+    const me = model.commentAuthor || 'You';
+    const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
+    const hue = (name) => [...String(name || '')].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 17);
+    const avatar = (name) => <span className="sh-avatar" style={{ background: `hsl(${hue(name)} 42% 42%)` }}>{initials(name)}</span>;
+    const when = (d) => {
+      if (!d) return '';
+      const t = new Date(/Z$|[+-]\d\d:?\d\d$/.test(d) ? d : d + 'Z');
+      return Number.isNaN(t.getTime()) ? '' : t.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+    };
+    const post = (text) => act('postComment', { row: card.row, col: card.col, text });
+    const composer = (placeholder, label) => (
+      <form
+        className="sh-card-compose"
+        onSubmit={(e) => {
+          e.preventDefault();
+          const form = e.currentTarget;
+          const text = form.elements.words.value.trim();
+          // Posted, the box empties for the next reply.
+          if (text) { post(text); form.reset(); }
+        }}
+      >
+        {mode === 'new' ? <div className="sh-card-new-who">{avatar(me)}<span>{me}</span></div> : null}
+        <textarea
+          name="words"
+          className="sh-card-input"
+          placeholder={placeholder}
+          autoFocus={mode !== 'thread'}
+          rows={mode === 'new' ? 3 : 2}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.currentTarget.form.requestSubmit(); }
+          }}
+        />
+        <div className="sh-card-actions">
+          {mode !== 'thread' ? <Button label="Cancel" onClick={() => setCard(thread ? { ...card, mode: 'thread' } : null)} /> : null}
+          <Button primary label={label} className="sh-card-post" type="submit" onClick={(e) => { e.preventDefault(); e.currentTarget.closest('form').requestSubmit(); }} />
+        </div>
+      </form>
+    );
+    return (
+      <div
+        className="sh-card"
+        data-ref={refText(card.row, card.col)}
+        style={{ left: box.right + 10, top: box.y - 4 }}
+        onKeyDown={(e) => {
+          e.stopPropagation();
+          if (e.key === 'Escape') { e.preventDefault(); setCard(null); shRef.current?.focus(); }
+        }}
+      >
+        {thread?.done ? (
+          <div className="sh-card-resolved">
+            <Icon name="check" size={13} />
+            <span className="grow">Resolved</span>
+            <Button label="Reopen" className="sh-card-reopen" onClick={() => act('resolveComment', { row: card.row, col: card.col, done: false })} />
+          </div>
+        ) : null}
+        {thread ? (
+          <div className="sh-card-list">
+            {thread.comments.map((c, i) => (
+              <div key={c.id} className="sh-comment" data-id={c.id}>
+                <div className="sh-comment-head">
+                  {avatar(c.author)}
+                  <div className="sh-comment-who">
+                    <div className="sh-comment-name">{c.author || 'Someone'}</div>
+                    <div className="sh-comment-when">{when(c.date)}</div>
+                  </div>
+                  <div className="sh-comment-tools">
+                    {i === 0 && !thread.done ? (
+                      <Button icon="check" className="sh-card-resolve" title="Resolve thread — mark the conversation done; Reopen brings it back" onClick={() => act('resolveComment', { row: card.row, col: card.col, done: true })} />
+                    ) : null}
+                    <Button icon="more" className="sh-comment-more" title="More — edit or delete" onClick={(e) => menu.open(e, [
+                      { label: 'Edit comment', icon: 'textbox', run: () => setCard({ ...card, mode: 'thread', editing: c.id }) },
+                      i === 0
+                        ? { label: 'Delete thread', icon: 'trash', run: () => act('deleteComment', { id: c.id, top: true }) }
+                        : { label: 'Delete comment', icon: 'trash', run: () => act('deleteComment', { id: c.id }) },
+                    ])} />
+                  </div>
+                </div>
+                {card.editing === c.id ? (
+                  <form
+                    className="sh-card-compose"
+                    style={{ padding: '8px 0 0 34px' }}
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const text = e.currentTarget.elements.words.value.trim();
+                      if (text) act('editComment', { id: c.id, text });
+                    }}
+                  >
+                    <textarea name="words" className="sh-comment-edit" defaultValue={c.text} autoFocus rows={3} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.currentTarget.form.requestSubmit(); } }} />
+                    <div className="sh-card-actions">
+                      <Button label="Cancel" onClick={() => setCard({ ...card, editing: null })} />
+                      <Button primary label="Save" className="sh-comment-save" onClick={(e) => { e.preventDefault(); e.currentTarget.closest('form').requestSubmit(); }} />
+                    </div>
+                  </form>
+                ) : (
+                  <div className="sh-comment-text">{c.text}</div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {thread?.done ? null : mode === 'new' ? composer('Start a conversation', 'Post') : composer('Reply…', 'Reply')}
+      </div>
+    );
+  };
+
+  /**
+   * Review → Show Comments: every thread in the workbook, sheet by sheet,
+   * the open or the resolved alone at a press. A thread pressed is gone to
+   * and its card opened.
+   */
+  const commentsPane = () => {
+    const all = model?.comments;
+    if (!Array.isArray(all)) return null;
+    const list = all.filter((t) => (commentFilter === 'open' ? !t.done : commentFilter === 'resolved' ? t.done : true));
+    const open = all.filter((t) => !t.done).length;
+    return (
+      <div className="sh-comments">
+        <div className="sh-comments-head">
+          <strong>Comments</strong>
+          <Spacer />
+          <Button icon="plus" label="New" title="New — a comment on the active cell" onClick={() => act('newComment')} />
+          <Button icon="close" title="Close — hides the Comments pane" onClick={() => act('commentsOpen', false)} />
+        </div>
+        <div className="sh-comments-filter">
+          {[['all', `All ${all.length}`], ['open', `Open ${open}`], ['resolved', `Resolved ${all.length - open}`]].map(([key, label]) => (
+            <button key={key} type="button" className={commentFilter === key ? 'on' : ''} data-filter={key} onClick={() => setCommentFilter(key)}>{label}</button>
+          ))}
+        </div>
+        <div className="sh-comments-list">
+          {list.length ? list.map((t) => {
+            const here = t.sheet === model.activeSheet && sel?.active?.row === t.row && sel?.active?.col === t.col;
+            const first = t.comments[0] || {};
+            const replies = t.comments.length - 1;
+            return (
+              <div key={t.sheet + '!' + t.ref} className={`sh-comments-item${here ? ' here' : ''}${t.done ? ' resolved' : ''}`} data-ref={t.ref} data-sheet={t.sheet} onClick={() => act('gotoThread', t)}>
+                <div className="where"><span className="ref">{t.ref}</span><span>{t.sheet}</span>{t.done ? <span className="done">Resolved</span> : null}</div>
+                <div className="first"><b>{first.author || 'Someone'}</b><span>{first.text}</span></div>
+                {replies ? <div className="more">{replies} {replies === 1 ? 'reply' : 'replies'}</div> : null}
+              </div>
+            );
+          }) : <div className="sh-comments-empty">{all.length ? 'No comments in this view.' : 'No comments yet. New Comment starts one on the active cell.'}</div>}
+        </div>
+      </div>
+    );
+  };
+
   if (error) {
     return (
       <AppFrame app={app} shell={shell} title="Worksheets" menu={appMenu}>
@@ -1427,6 +1614,59 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'removeNote': await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); return;
+      // Review → New Comment: the card on the active cell, its box ready —
+      // a reply at the end of the thread when the cell has one already.
+      case 'newComment': {
+        if (model?.note) { toast('This cell has a note. Delete it, or edit it, to comment here instead.', { tone: 'warn', ms: 4500 }); return; }
+        setCard({ row: at.row, col: at.col, mode: model?.thread ? 'reply' : 'new' });
+        return;
+      }
+      case 'postComment': {
+        const next = await dispatch({ op: 'addComment', row: arg.row, col: arg.col, text: arg.text });
+        if (next) setCard({ row: arg.row, col: arg.col, mode: 'thread' });
+        return;
+      }
+      case 'editComment': {
+        const next = await dispatch({ op: 'editComment', id: arg.id, text: arg.text });
+        if (next) setCard((c) => (c ? { ...c, editing: null } : c));
+        return;
+      }
+      case 'deleteComment': {
+        await dispatch({ op: 'deleteComment', id: arg.id });
+        if (arg.top) setCard(null);
+        return;
+      }
+      case 'deleteThread': {
+        if (!model?.thread) { toast('There is no comment on this cell to delete.', { ms: 3000 }); return; }
+        await dispatch({ op: 'deleteThread', row: at.row, col: at.col });
+        setCard(null);
+        return;
+      }
+      case 'resolveComment': {
+        await dispatch({ op: 'resolveComment', row: arg.row, col: arg.col, done: arg.done });
+        return;
+      }
+      // Previous and Next select the thread before or after the cell and open it.
+      case 'stepComment': {
+        const next = await dispatch({ op: 'stepComment', direction: arg });
+        if (!next) return;
+        if (!next.opResult) { toast('This workbook has no comments.', { ms: 3000 }); return; }
+        const a = next.model?.selection?.active;
+        if (a) setCard({ row: a.row, col: a.col, mode: 'thread' });
+        return;
+      }
+      case 'commentsOpen':
+        await dispatch({ op: 'commentsOpen', on: arg });
+        return;
+      case 'gotoThread': {
+        const t = arg;
+        const ops = [];
+        if (t.sheet && t.sheet !== model?.activeSheet) ops.push({ op: 'sheet', name: t.sheet });
+        ops.push({ op: 'select', row: t.row, col: t.col });
+        const next = await dispatch(...ops);
+        if (next) setCard({ row: t.row, col: t.col, mode: 'thread' });
+        return;
+      }
       // Format as Table: over the selection, or the block of data round the cell.
       case 'table': await dispatch({ op: 'formatAsTable', style: arg?.style, stripes: arg?.stripes !== false }); return;
       case 'picture': await insertPicture(); return;
@@ -1613,6 +1853,8 @@ export default function Sheets({ app, shell, boot }) {
     }
   };
 
+  actRef.current = act;
+
   return (
     <AppFrame
       app={app}
@@ -1655,6 +1897,7 @@ export default function Sheets({ app, shell, boot }) {
           <Chip>{sel?.ref || ''}</Chip>
           {model?.link ? <Chip title="Ctrl+click the cell to open it">{model.link.href || model.link.location}</Chip> : null}
           {model?.notes ? <Chip title="Rest the pointer on a marked cell to read its note">{model.notes} {model.notes === 1 ? 'note' : 'notes'}</Chip> : null}
+          {model?.threads ? <Chip title="Review → Show Comments lists them">{model.threads} {model.threads === 1 ? 'comment' : 'comments'}</Chip> : null}
           {model?.calc?.pending ? (
             // Excel's word for formulas that have not caught up with an edit
             // in manual mode; pressing it is Calculate Now.
@@ -1766,12 +2009,12 @@ export default function Sheets({ app, shell, boot }) {
                 onMouseDown={(e) => {
                   // A press on a drawn cell is handled by the cell. Anywhere else
                   // is empty grid, and empty grid is still grid.
-                  if (e.button !== 0 || e.target.closest('.sh-cell, .sh-editor, .sh-drawing')) return;
+                  if (e.button !== 0 || e.target.closest('.sh-cell, .sh-editor, .sh-drawing, .sh-card')) return;
                   const at = cellAt(e);
                   if (at) dispatch({ op: 'select', row: at.row, col: at.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
                 }}
                 onDoubleClick={(e) => {
-                  if (e.target.closest('.sh-cell, .sh-editor, .sh-drawing')) return;
+                  if (e.target.closest('.sh-cell, .sh-editor, .sh-drawing, .sh-card')) return;
                   const at = cellAt(e);
                   if (at) dispatch({ op: 'select', row: at.row, col: at.col }, { op: 'beginEdit' });
                 }}
@@ -1841,11 +2084,13 @@ export default function Sheets({ app, shell, boot }) {
                 ))}
 
                 {editing && pane(editing) === 'main' ? editorNode() : null}
+                {commentCard()}
               </div>
             </div>
           </div>
           {errorsPane()}
           {watchPane()}
+          {commentsPane()}
           </div>
 
           <div className="sh-tabs">
@@ -2402,6 +2647,61 @@ const CSS = `
 .sh-cell.link { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); cursor: pointer; }
 /* A note: Excel's red corner, and the note itself on hover through the tip layer. */
 .sh-cell.noted::after { content: ''; position: absolute; top: 0; right: 0; border: 4px solid transparent; border-top-color: #d0362f; border-right-color: #d0362f; }
+/* A comment thread: Excel's purple corner — grey once the thread is resolved —
+   and the corner itself is what a click opens the thread from. */
+.sh-cell.threaded::before { content: ''; position: absolute; top: 0; right: 0; border: 5px solid transparent; border-top-color: #7a3db8; border-right-color: #7a3db8; pointer-events: none; }
+.sh-cell.threaded.resolved::before { border-top-color: #9a93a5; border-right-color: #9a93a5; }
+.sh-thread-mark { position: absolute; top: 0; right: 0; width: 12px; height: 12px; cursor: pointer; z-index: 1; }
+/* The comment card: beside its cell, over the grid, scrolling with it. */
+.sh-card {
+  position: absolute; z-index: 9; width: 300px; box-sizing: border-box; cursor: default;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-3, 8px);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--ink) 22%, transparent); font-size: 12.5px; color: var(--ink);
+  white-space: normal;
+}
+.sh-card::before { content: ''; position: absolute; left: -6px; top: 12px; width: 10px; height: 10px; background: var(--surface); border-left: 1px solid var(--line); border-bottom: 1px solid var(--line); transform: rotate(45deg); }
+.sh-card-resolved { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-bottom: 1px solid var(--line-soft); background: var(--surface-2); color: var(--ink-2); font-weight: 600; font-size: 11.5px; border-radius: var(--r-3, 8px) var(--r-3, 8px) 0 0; }
+.sh-card-resolved .grow { flex: 1; }
+.sh-card-list { max-height: 320px; overflow: auto; }
+.sh-comment { padding: 10px 12px 8px; border-bottom: 1px solid var(--line-soft); position: relative; }
+.sh-comment-head { display: flex; align-items: center; gap: 8px; }
+.sh-avatar { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 10.5px; font-weight: 700; flex: none; letter-spacing: 0.02em; }
+.sh-comment-who { flex: 1; min-width: 0; line-height: 1.25; }
+.sh-comment-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-comment-when { font-size: 11px; color: var(--ink-3); }
+.sh-comment-text { margin: 6px 0 0 34px; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
+.sh-comment-tools { display: flex; gap: 2px; }
+.sh-comment-tools .rw-btn { min-width: 24px; height: 24px; padding: 0 4px; }
+.sh-card-compose { padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 8px; }
+.sh-card-compose textarea, .sh-comment textarea {
+  font: inherit; font-size: 12.5px; width: 100%; box-sizing: border-box; resize: vertical; min-height: 56px;
+  border: 1px solid var(--line); border-radius: var(--r-2); padding: 6px 8px; background: var(--surface); color: var(--ink); outline: none;
+}
+.sh-card-compose textarea:focus, .sh-comment textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+.sh-card-actions { display: flex; justify-content: flex-end; gap: 6px; }
+.sh-card-new-who { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+/* Review → Show Comments: every thread in the workbook, beside the grid. */
+.sh-comments {
+  position: absolute; top: 10px; right: 10px; bottom: 10px; width: 330px; z-index: 15;
+  display: flex; flex-direction: column; background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r-2); box-shadow: 0 8px 24px color-mix(in srgb, var(--ink) 20%, transparent); overflow: hidden;
+}
+.sh-comments-head { display: flex; align-items: center; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); font-size: 12.5px; }
+.sh-comments-filter { display: flex; gap: 4px; padding: 8px 10px; border-bottom: 1px solid var(--line-soft); }
+.sh-comments-filter button { border: 1px solid var(--line-soft); background: var(--surface); color: var(--ink-2); font: inherit; font-size: 11.5px; padding: 3px 10px; border-radius: 999px; cursor: pointer; }
+.sh-comments-filter button.on { background: var(--selected); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, var(--line)); font-weight: 600; }
+.sh-comments-list { overflow: auto; flex: 1; }
+.sh-comments-item { padding: 9px 12px; border-bottom: 1px solid var(--line-soft); cursor: pointer; }
+.sh-comments-item:hover, .sh-comments-item.here { background: var(--selected); }
+.sh-comments-item .where { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-3); margin-bottom: 3px; }
+.sh-comments-item .where .ref { font-weight: 700; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+.sh-comments-item .where .done { margin-left: auto; color: var(--ink-3); font-weight: 600; }
+.sh-comments-item .first { display: flex; gap: 6px; align-items: baseline; }
+.sh-comments-item .first b { flex: none; }
+.sh-comments-item .first span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
+.sh-comments-item .more { font-size: 11px; color: var(--accent); margin-top: 2px; }
+.sh-comments-item.resolved .first span, .sh-comments-item.resolved .first b { color: var(--ink-3); }
+.sh-comments-empty { padding: 18px 12px; color: var(--ink-3); font-size: 12px; text-align: center; }
 /* A sparkline: drawn under the cell's own text, which is normally empty. */
 .sh-spark { position: absolute; left: 0; top: 0; pointer-events: none; }
 .sh-drawing { position: absolute; overflow: visible; z-index: 2; }

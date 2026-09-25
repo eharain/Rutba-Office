@@ -25,6 +25,9 @@ function safeUserName() {
   }
 }
 
+/** Who a comment is signed by: the account at the keyboard, as a tracked change is. */
+const commentAuthor = () => safeUserName() || 'Rutba Office user';
+
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parseRef } from '@rutba/ooxml/workbook';
 import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES } from '@rutba/presentation';
@@ -734,6 +737,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // values already resolved — the grid draws them straight, no lookup
       // of its own into the groups.
       sparklines: sheetSparklines(view, frame),
+      // Who a new comment is signed by, for the card's reply box.
+      commentAuthor: commentAuthor(),
     };
   }
 
@@ -1096,6 +1101,19 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // A note signed by whoever the window says, else by the account at the keyboard.
     setNote: (v, a) => v.setNote({ ...a, author: a.author || safeUserName() }),
     removeNote: (v, a) => v.removeNote(a),
+    // Review → comments: a thread, a reply, an edit, a deletion, resolve
+    // and reopen — signed the way a note and a tracked change are, by the
+    // account at the keyboard unless the window says otherwise. The new
+    // comment's id rides back.
+    addComment: (v, a) => v.addComment({ row: a.row, col: a.col, text: a.text, author: a.author || commentAuthor() }),
+    editComment: (v, a) => { v.editComment({ id: a.id, text: a.text }); },
+    deleteComment: (v, a) => v.deleteComment({ id: a.id }),
+    deleteThread: (v, a) => v.deleteThread({ row: a.row, col: a.col }),
+    resolveComment: (v, a) => { v.resolveComment({ row: a.row, col: a.col, done: a.done !== false }); },
+    // Show Comments opens the pane the way Error Checking does; Previous and
+    // Next select the thread before or after the active cell.
+    commentsOpen: (v, a) => { v.commentsOpen = a.on === undefined ? !v.commentsOpen : Boolean(a.on); return true; },
+    stepComment: (v, a) => v.stepComment(a.direction === 'prev' ? 'prev' : 'next'),
     // `addSparklines` returns the view itself (so it chains like the rest of
     // the engine's authoring calls); that is not an `opResult` a session
     // wants to cross the IPC wire, so it is dropped here rather than handed
@@ -1346,7 +1364,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

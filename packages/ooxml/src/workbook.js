@@ -127,6 +127,108 @@ export function withAttr(attrsText, name, value) {
   return re.test(attrsText) ? attrsText.replace(re, pair) : attrsText + pair;
 }
 
+/* ── threaded comments ───────────────────────────────────────────────────── */
+
+/**
+ * Excel 365's comments — a conversation on a cell, with replies and a
+ * resolved flag — live in `xl/threadedComments/threadedCommentN.xml` beside
+ * the sheet, their authors in `xl/persons/person.xml` beside the workbook.
+ * Each thread also keeps a shadow in the classic comments part (authored
+ * `tc={id}`), with a VML box, which is what an Excel without threaded
+ * comments shows.
+ */
+const REL_THREADED = 'http://schemas.microsoft.com/office/2017/10/relationships/threadedComment';
+const CT_THREADED = 'application/vnd.ms-excel.threadedcomments+xml';
+const REL_PERSON = 'http://schemas.microsoft.com/office/2017/10/relationships/person';
+const CT_PERSON = 'application/vnd.ms-excel.person+xml';
+const XMLNS_TC = 'http://schemas.microsoft.com/office/spreadsheetml/2018/threadedcomments';
+
+/** A GUID in braces, as Excel names threaded comments and people. */
+export function newGuid() {
+  const uuid = globalThis.crypto?.randomUUID
+    ? globalThis.crypto.randomUUID()
+    : 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = Math.floor(Math.random() * 16);
+      return (c === 'x' ? r : (r % 4) + 8).toString(16);
+    });
+  return '{' + uuid.toUpperCase() + '}';
+}
+
+/** Excel's `dT`: UTC to the hundredth of a second, with no zone letter. */
+export function threadDate(date = new Date()) {
+  const d = date instanceof Date ? date : new Date(date);
+  return d.toISOString().replace(/(\.\d\d)\dZ$/, '$1');
+}
+
+/**
+ * The comments in a threaded-comments part, in the part's order:
+ * `[{ id, ref, date, personId, parentId, done, text, extra }]` — `extra`
+ * keeps what this editor does not model (mentions) for writing back.
+ */
+export function parseThreadedComments(xml) {
+  const out = [];
+  for (const m of String(xml || '').matchAll(/<threadedComment\b([^>]*?)(?:\/>|>([\s\S]*?)<\/threadedComment>)/g)) {
+    const a = attrs(m[1]);
+    const inner = m[2] ?? '';
+    const text = /<text>([\s\S]*?)<\/text>/.exec(inner);
+    out.push({
+      id: a.id ?? '',
+      ref: a.ref ?? '',
+      date: a.dT ?? null,
+      personId: a.personId ?? null,
+      parentId: a.parentId ?? null,
+      done: a.done === '1' || a.done === 'true',
+      text: text ? unesc(text[1]) : '',
+      extra: inner.replace(/<text>[\s\S]*?<\/text>|<text\/>/, ''),
+    });
+  }
+  return out;
+}
+
+export function threadedCommentsXml(list) {
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<ThreadedComments xmlns="' + XMLNS_TC + '" xmlns:x="' + XMLNS_MAIN + '">'
+    + list.map((c) => '<threadedComment ref="' + esc(c.ref) + '"'
+      + (c.date ? ' dT="' + esc(c.date) + '"' : '')
+      + (c.personId ? ' personId="' + esc(c.personId) + '"' : '')
+      + ' id="' + esc(c.id) + '"'
+      + (c.parentId ? ' parentId="' + esc(c.parentId) + '"' : '')
+      + (!c.parentId && c.done ? ' done="1"' : '')
+      + '><text>' + esc(c.text ?? '') + '</text>' + (c.extra || '') + '</threadedComment>').join('')
+    + '</ThreadedComments>';
+}
+
+/** The people who wrote threaded comments: `[{ id, displayName, userId, providerId }]`. */
+export function parsePersons(xml) {
+  return [...String(xml || '').matchAll(/<person\b([^>]*?)\/?>/g)].map((m) => {
+    const a = attrs(m[1]);
+    return { id: a.id ?? '', displayName: unesc(a.displayName ?? ''), userId: a.userId ? unesc(a.userId) : null, providerId: a.providerId ?? 'None' };
+  });
+}
+
+function personsXml(list) {
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
+    + '<personList xmlns="' + XMLNS_TC + '" xmlns:x="' + XMLNS_MAIN + '">'
+    + list.map((p) => '<person displayName="' + esc(p.displayName) + '" id="' + esc(p.id) + '"'
+      + (p.userId ? ' userId="' + esc(p.userId) + '"' : '') + ' providerId="' + esc(p.providerId || 'None') + '"/>').join('')
+    + '</personList>';
+}
+
+/**
+ * What an Excel without threaded comments shows for a thread: the classic
+ * note's words, the conversation laid out as Excel lays out its own.
+ */
+export function threadShadowText(thread) {
+  const lines = ['[Threaded comment]', '',
+    'This cell has a threaded comment. A version of Excel that reads threaded comments shows it as a conversation; a change made to this copy of it will not reach the conversation.',
+    ''];
+  thread.comments.forEach((c, i) => {
+    lines.push(i === 0 ? 'Comment:' : 'Reply:');
+    lines.push('    ' + String(c.text ?? '').replace(/\n/g, '\n    '));
+  });
+  return lines.join('\n');
+}
+
 export function parseRef(ref) {
   const m = /^([A-Za-z]+)(\d+)$/.exec(String(ref).trim());
   if (!m) throw new Error('bad cell reference: ' + ref);
@@ -2383,6 +2485,163 @@ export class Workbook {
     const vml = this._sheetRelTarget(sheetName, '/vmlDrawing');
     if (vml) this.pkg.write_(vml.name, withoutNoteBox(this.pkg.text(vml.name), parseRef(ref)));
     return true;
+  }
+
+  /* ── threaded comments ─────────────────────────────────────────────────── */
+
+  /** The workbook's person list part, when it has one. */
+  _personsPart() {
+    const rel = this.pkg.rels(this.mainPart).find((r) => r.Type === REL_PERSON);
+    if (!rel) return null;
+    const name = OoxmlPackage.resolveTarget(this.mainPart, rel.Target);
+    return this.pkg.has(name) ? name : null;
+  }
+
+  /** The people threaded comments name as authors. */
+  persons() {
+    const part = this._personsPart();
+    return part ? parsePersons(this.pkg.text(part)) : [];
+  }
+
+  /**
+   * The person a comment is signed by, added to the list (made where the
+   * workbook has none) the first time they write. Matched by name.
+   */
+  _ensurePerson(displayName) {
+    const name = String(displayName || '').trim() || 'Author';
+    let part = this._personsPart();
+    const list = part ? parsePersons(this.pkg.text(part)) : [];
+    const known = list.find((p) => p.displayName === name);
+    if (known) return known.id;
+    const person = { id: newGuid(), displayName: name, userId: name, providerId: 'None' };
+    list.push(person);
+    if (part) {
+      this.pkg.write_(part, personsXml(list));
+    } else {
+      part = 'xl/persons/person.xml';
+      this.pkg.addPart(part, personsXml(list), CT_PERSON);
+      this.pkg.addRelationshipTo(this.mainPart, REL_PERSON, 'persons/person.xml');
+    }
+    return person.id;
+  }
+
+  /** The threaded-comments part of a sheet, made (and related) when `create` asks. */
+  _threadPart(sheetName, create = false) {
+    const found = this._sheetRelTarget(sheetName, '/threadedComment');
+    if (found || !create) return found?.name ?? null;
+    const n = this.pkg.nextPartNumber('xl/threadedComments/', 'threadedComment');
+    const name = 'xl/threadedComments/threadedComment' + n + '.xml';
+    this.pkg.addPart(name, threadedCommentsXml([]), CT_THREADED);
+    this.pkg.addRelationshipTo(this.partNameFor(sheetName), REL_THREADED, '../threadedComments/threadedComment' + n + '.xml');
+    return name;
+  }
+
+  _threadList(sheetName) {
+    const part = this._threadPart(sheetName);
+    return part ? parseThreadedComments(this.pkg.text(part)) : [];
+  }
+
+  /**
+   * A sheet's threads, in the order the part keeps them: `[{ ref, id, done,
+   * comments: [{ id, author, personId, date, text }] }]`, the first comment
+   * the one that started it and the rest its replies.
+   */
+  threads(sheetName) {
+    const list = this._threadList(sheetName);
+    if (!list.length) return [];
+    const people = new Map(this.persons().map((p) => [p.id, p.displayName]));
+    const byId = new Map();
+    const threads = [];
+    for (const c of list) {
+      const comment = { id: c.id, author: people.get(c.personId) ?? '', personId: c.personId, date: c.date, text: c.text };
+      if (!c.parentId) {
+        const thread = { ref: c.ref, id: c.id, done: c.done, comments: [comment] };
+        byId.set(c.id, thread);
+        threads.push(thread);
+      } else {
+        byId.get(c.parentId)?.comments.push(comment);
+      }
+    }
+    return threads;
+  }
+
+  /** The thread on a cell, or null. */
+  threadAt(sheetName, ref) {
+    return this.threads(sheetName).find((t) => t.ref === ref) ?? null;
+  }
+
+  /**
+   * Write a sheet's comment list back, and bring the classic shadow of each
+   * cell named in `refs` in line with its thread — written while it has
+   * one, taken off once it has none.
+   */
+  _writeThreads(sheetName, list, refs) {
+    const part = this._threadPart(sheetName, true);
+    this.pkg.write_(part, threadedCommentsXml(list));
+    for (const ref of refs) {
+      const thread = this.threadAt(sheetName, ref);
+      if (thread) this.setComment(sheetName, ref, { author: 'tc=' + thread.id, text: threadShadowText(thread) });
+      else this.removeComment(sheetName, ref);
+    }
+  }
+
+  /**
+   * A comment on a cell: the start of a thread, or — when the cell has one
+   * — a reply at its end. A cell with a note is refused, as Excel keeps a
+   * cell to one or the other. Returns the new comment's id.
+   */
+  addThreadedComment(sheetName, ref, { author = '', text = '', date = new Date() } = {}) {
+    const words = String(text ?? '').trim();
+    if (!words) throw new Error('a comment needs some words');
+    const note = this.comments(sheetName).find((c) => c.ref === ref && !String(c.author).startsWith('tc='));
+    if (note) throw new Error('This cell has a note. Delete the note, or edit it, before starting a comment here.');
+    const list = this._threadList(sheetName);
+    const top = list.find((c) => c.ref === ref && !c.parentId);
+    const comment = {
+      id: newGuid(), ref, date: threadDate(date), personId: this._ensurePerson(author),
+      parentId: top ? top.id : null, done: false, text: words, extra: '',
+    };
+    // A reply goes after its thread's last comment, where Excel puts it.
+    let at = list.length;
+    if (top) {
+      at = list.indexOf(top) + 1;
+      while (at < list.length && list[at].parentId === top.id) at += 1;
+    }
+    list.splice(at, 0, comment);
+    this._writeThreads(sheetName, list, [ref]);
+    return comment.id;
+  }
+
+  /** A comment's words changed. */
+  editThreadedComment(sheetName, id, text) {
+    const words = String(text ?? '').trim();
+    if (!words) throw new Error('a comment needs some words');
+    const list = this._threadList(sheetName);
+    const c = list.find((x) => x.id === id);
+    if (!c) throw new Error('no such comment');
+    c.text = words;
+    this._writeThreads(sheetName, list, [c.ref]);
+    return this;
+  }
+
+  /** A reply taken out, or — the thread's first comment — the whole thread. */
+  deleteThreadedComment(sheetName, id) {
+    const list = this._threadList(sheetName);
+    const c = list.find((x) => x.id === id);
+    if (!c) return false;
+    const kept = c.parentId ? list.filter((x) => x.id !== id) : list.filter((x) => x.id !== id && x.parentId !== id);
+    this._writeThreads(sheetName, kept, [c.ref]);
+    return true;
+  }
+
+  /** Resolve a cell's thread (done) or reopen it. */
+  setThreadDone(sheetName, ref, done) {
+    const list = this._threadList(sheetName);
+    const top = list.find((c) => c.ref === ref && !c.parentId);
+    if (!top) throw new Error('no comment on ' + ref);
+    top.done = Boolean(done);
+    this._writeThreads(sheetName, list, [ref]);
+    return this;
   }
 
   setColWidthChars(sheetName, colIndex, widthChars) {
