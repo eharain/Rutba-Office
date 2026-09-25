@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { app as electron } from 'electron';
+import { app as electron, BrowserWindow } from 'electron';
 import { createShell, holdBlob, broadcast } from '@rutba/office-shell/electron/main';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { fileAssociations, APPS } from '@rutba/office-formats/registry';
@@ -85,11 +85,11 @@ createShell({
     // for an account that was added by signing in rather than by typing a
     // password.
     const oauth = createOAuthService({ stores, broadcast });
+    // Equations printed as Chromium lays their MathML out — see math-raster.js.
+    const math = createMathMeasurer();
     // Unsaved work is written to a copy in the profile every half minute,
     // and the copy is deleted the moment the document is saved or closed. What
     // is left in that folder at start-up is what a crash took.
-    // Equations printed as Chromium lays their MathML out — see math-raster.js.
-    const math = createMathMeasurer();
     const doc = createDocumentService({ holdBlob: hold, recoveryDir: path.join(stores.dir, 'recovery'), measureMath: (list) => math.measure(list) });
 
     // The address book, with the people mail has seen behind it for Compose
