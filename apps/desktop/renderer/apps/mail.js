@@ -136,8 +136,13 @@ export default function Mail({ app, shell }) {
       .folders({ accountId })
       .then((f) => {
         setFolders(f);
+        // The inbox first; an imported archive has none, and its own folder
+        // comes before Sent or Drafts — once a message had been sent from it,
+        // the window opened on an empty Sent instead of the mail.
         setFolder((current) =>
-          f.some((x) => x.path === current) ? current : f.find((x) => x.role === 'inbox')?.path || f[0]?.path || null
+          f.some((x) => x.path === current)
+            ? current
+            : f.find((x) => x.role === 'inbox')?.path || f.find((x) => x.role === 'folder')?.path || f[0]?.path || null
         );
       })
       .catch(() => setFolders([]));
