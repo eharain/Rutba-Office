@@ -1234,8 +1234,20 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // Excel keeps it in the sheet and in two defined names, and so does this,
     // so the person who opens the file next gets the setup it was made with.
     setPageSetup: (v, a) => writePageSetup(v, a.sheet || v.activeSheet, a.setup || {}),
-    protect: (v) => v.protect(),
-    unprotect: (v) => v.unprotect(),
+    // Review → Protect Sheet / Protect Workbook, each with an optional
+    // password hashed as Excel hashes one; Allow Edit Ranges, and a range's
+    // password typed once (Unlock Range), which changes nothing in the file.
+    protect: (v, a) => { v.protect({ password: a.password || '' }); },
+    unprotect: (v, a) => { v.unprotect({ password: a.password || '' }); },
+    protectWorkbook: (v, a) => { v.protectWorkbook({ password: a.password || '' }); },
+    unprotectWorkbook: (v, a) => { v.unprotectWorkbook({ password: a.password || '' }); },
+    setEditRange: (v, a) => { v.setEditRange({ was: a.was ?? null, title: a.title, ref: a.ref, password: a.password ?? null }); },
+    deleteEditRange: (v, a) => { v.deleteEditRange(a.title); },
+    unlockRange: (v, a) => { v.unlockRange(a.title, a.password || ''); },
+    // The tabs' Hide, Unhide and Move, refused while the workbook is locked.
+    hideSheet: (v, a) => { v.hideSheet(a.name); },
+    unhideSheet: (v, a) => { v.unhideSheet(a.name); },
+    moveSheet: (v, a) => { v.moveSheet(a.name, a.to); },
     conditional: (v, a) => v.addConditionalRule(a.spec || {}),
     clearConditional: (v, a) => v.clearConditionalRules({ all: Boolean(a.all) }),
     validation: (v, a) => v.addValidationRule(a.spec || {}),
@@ -1577,7 +1589,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

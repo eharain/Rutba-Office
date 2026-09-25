@@ -19,6 +19,7 @@ import { SymbolDialog } from './word/dialogs.js';
 import {
   GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
   OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog,
+  ProtectDialog, PasswordDialog, EditRangesDialog,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -121,6 +122,14 @@ export default function Sheets({ app, shell, boot }) {
   const [splitDrag, setSplitDrag] = useState(null);
   /** Formulas → Evaluate Formula: the cell it opened on and the dialog's first state. */
   const [evaluating, setEvaluating] = useState(null);
+  /**
+   * Review → Protect: a password being asked for — to unprotect the sheet
+   * or the workbook, or to unlock an edit range before typing into it —
+   * with the ops to send again once it is right, and the last refusal.
+   */
+  const [passwordAsk, setPasswordAsk] = useState(null);
+  /** An edit refused because its cell is in a password range: the window asks for the password (set below). */
+  const rangeLockRef = useRef(null);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -142,6 +151,13 @@ export default function Sheets({ app, shell, boot }) {
         else setModel(next.model);
         return next;
       } catch (err) {
+        // A cell in an edit range with a password: Excel's Unlock Range
+        // asks for it, then the edit goes ahead — not a refusal to read.
+        const range = /^The range "(.+)" is protected by a password/.exec(err.message || '');
+        if (range && rangeLockRef.current) {
+          rangeLockRef.current(range[1], ops);
+          return null;
+        }
         toast(err.message, { tone: 'bad' });
         return null;
       }
@@ -481,6 +497,18 @@ export default function Sheets({ app, shell, boot }) {
     draftRef.current = typeof value === 'function' ? value(draftRef.current) : value;
     setDraft(draftRef.current);
   }, []);
+
+  rangeLockRef.current = (title, ops) => {
+    startingRef.current = false;
+    putDraft(null);
+    setPasswordAsk({
+      kind: 'range',
+      title: 'Unlock Range',
+      range: title,
+      message: `The cell you are trying to change is in the range "${title}", which is protected by a password. Enter the password to change this cell:`,
+      retry: ops.filter((o) => o.op !== 'updateDraft' && o.op !== 'commitEdit'),
+    });
+  };
 
   const commitDraft = useCallback(
     (move = 'down') => {
@@ -1539,6 +1567,23 @@ export default function Sheets({ app, shell, boot }) {
    * zoom, windows, the freeze shortcuts, the Fill and function helpers.
    * Named so a check can press the button and read what changed.
    */
+  /**
+   * Ops whose refusal a dialog shows in place — a wrong password, a range
+   * that will not do — rather than as a toast: the sentence, or null.
+   */
+  const tryOps = async (...ops) => {
+    if (!doc) return 'No workbook';
+    try {
+      const next = await shell.doc.apply({ id: doc.id, ops });
+      setDoc(next);
+      if (next.patch) setModel((m) => (m ? withSelection(m, next.patch) : m));
+      else setModel(next.model);
+      return null;
+    } catch (err) {
+      return String(err?.message || err);
+    }
+  };
+
   const act = async (name, arg, opts = {}) => {
     const at = sel?.active || { row: 0, col: 0 };
     const range = sel?.range || { top: at.row, left: at.col, bottom: at.row, right: at.col };
@@ -1941,6 +1986,44 @@ export default function Sheets({ app, shell, boot }) {
         }
         return;
       }
+      // Review → Protect Sheet / Unprotect Sheet: a dialog to protect (the
+      // password optional), the password asked for to unprotect when there is one.
+      case 'protectSheet': {
+        if (model?.protection?.sheet) {
+          if (model.protection.hasPassword) {
+            setPasswordAsk({ kind: 'sheet', title: 'Unprotect Sheet', message: 'This sheet is protected with a password. Type it to take the protection off.' });
+            return;
+          }
+          if (await dispatch({ op: 'unprotect' })) toast('Sheet unprotected', { tone: 'good' });
+          return;
+        }
+        setDialog('protectSheet');
+        return;
+      }
+      // Review → Protect Workbook: the structure locked, or unlocked again.
+      case 'protectWorkbook': {
+        if (model?.workbookProtection?.structure) {
+          if (model.workbookProtection.hasPassword) {
+            setPasswordAsk({ kind: 'workbook', title: 'Unprotect Workbook', message: 'The workbook’s structure is protected with a password. Type it to take the protection off.' });
+            return;
+          }
+          if (await dispatch({ op: 'unprotectWorkbook' })) toast('Workbook unprotected — sheets can be added, moved and renamed again', { tone: 'good' });
+          return;
+        }
+        setDialog('protectWorkbook');
+        return;
+      }
+      case 'editRanges': setDialog('editRanges'); return;
+      // The tabs' Hide, Unhide and Move: refused, in Excel's words, while the structure is locked.
+      case 'hideSheet':
+        await dispatch({ op: 'hideSheet', name: arg });
+        return;
+      case 'unhideSheet':
+        await dispatch({ op: 'unhideSheet', name: arg });
+        return;
+      case 'moveSheet':
+        await dispatch({ op: 'moveSheet', name: arg.name, to: arg.to });
+        return;
       case 'printArea': {
         const current = await shell.doc.pageSetup({ id: doc.id });
         if (arg === 'clear') {
@@ -2325,23 +2408,46 @@ export default function Sheets({ app, shell, boot }) {
           {commentsPane()}
           </div>
 
-          <div className="sh-tabs">
-            {(model.sheets || []).map((name) => (
-              <button
-                key={name}
-                type="button"
-                className={`sh-tab${name === model.activeSheet ? ' active' : ''}`}
-                onClick={() => dispatch({ op: 'sheet', name })}
-                onContextMenu={(e) => menu.open(e, [
-                  { label: 'Rename sheet…', icon: 'textbox', run: () => { setSheetTarget(name); setDialog('renameSheet'); } },
-                  { label: 'Delete sheet…', icon: 'trash', run: () => { setSheetTarget(name); setDialog('deleteSheet'); } },
-                  { label: 'New sheet', icon: 'plus', run: () => act('addSheet') },
-                ])}
-              >
-                {name}
-              </button>
-            ))}
-            <button type="button" className="sh-tab sh-tab-add" title="New sheet — at the end of the tabs" onClick={() => act('addSheet')}>+</button>
+          <div className={`sh-tabs${model.workbookProtection?.structure ? ' locked' : ''}`}>
+            {(() => {
+              // Hidden sheets have no tab; the menu's Unhide lists them. While
+              // the workbook's structure is protected, everything that would
+              // change the tabs is greyed, as Excel greys it.
+              const hidden = new Set(model.hiddenSheets || []);
+              const shown = (model.sheets || []).filter((n) => !hidden.has(n));
+              const locked = Boolean(model.workbookProtection?.structure);
+              const why = locked ? 'The workbook is protected — Review → Unprotect Workbook to change its sheets' : undefined;
+              return shown.map((name) => {
+                const at = (model.sheets || []).indexOf(name);
+                const left = shown[shown.indexOf(name) - 1];
+                const right = shown[shown.indexOf(name) + 1];
+                return (
+                  <button
+                    key={name}
+                    type="button"
+                    className={`sh-tab${name === model.activeSheet ? ' active' : ''}`}
+                    onClick={() => dispatch({ op: 'sheet', name })}
+                    onContextMenu={(e) => menu.open(e, [
+                      { label: 'Insert sheet', icon: 'plus', disabled: locked, title: why, run: () => act('addSheet') },
+                      { label: 'Delete sheet…', icon: 'trash', disabled: locked || shown.length <= 1, title: why, run: () => { setSheetTarget(name); setDialog('deleteSheet'); } },
+                      { label: 'Rename sheet…', icon: 'textbox', disabled: locked, title: why, run: () => { setSheetTarget(name); setDialog('renameSheet'); } },
+                      { label: 'Move left', icon: 'chevronLeft', disabled: locked || !left, title: why, run: () => act('moveSheet', { name, to: (model.sheets || []).indexOf(left) }) },
+                      { label: 'Move right', icon: 'chevronRight', disabled: locked || !right, title: why, run: () => act('moveSheet', { name, to: (model.sheets || []).indexOf(right) }) },
+                      '-',
+                      { label: 'Hide', icon: 'eye', disabled: locked || shown.length <= 1, title: why || (shown.length <= 1 ? 'A workbook must contain at least one visible worksheet' : undefined), run: () => act('hideSheet', name) },
+                      ...(hidden.size
+                        ? [...hidden].map((h) => ({ label: `Unhide "${h}"`, icon: 'eye', disabled: locked, title: why, run: () => act('unhideSheet', h) }))
+                        : [{ label: 'Unhide…', icon: 'eye', disabled: true, title: 'No sheet is hidden' }]),
+                    ])}
+                    data-index={at}
+                  >
+                    {name}
+                  </button>
+                );
+              });
+            })()}
+            <button type="button" className="sh-tab sh-tab-add" disabled={Boolean(model.workbookProtection?.structure)} data-tip={model.workbookProtection?.structure ? 'New sheet — the workbook is protected; Review → Unprotect Workbook first' : 'New sheet — at the end of the tabs'} onClick={() => act('addSheet')}>+</button>
+            {model.workbookProtection?.structure ? <span className="sh-tabs-lock" data-tip="The workbook's structure is protected — Review → Unprotect Workbook"><Icon name="lock" size={12} /></span> : null}
           </div>
           {menu.node}
         </div>
@@ -2606,6 +2712,66 @@ export default function Sheets({ app, shell, boot }) {
       ) : null}
 
       {dialog === 'freeze' ? <FreezeDialog model={model} sel={sel} dispatch={dispatch} onClose={() => setDialog(null)} /> : null}
+
+      {dialog === 'protectSheet' || dialog === 'protectWorkbook' ? (
+        <ProtectDialog
+          kind={dialog === 'protectWorkbook' ? 'workbook' : 'sheet'}
+          onClose={() => setDialog(null)}
+          onProtect={async ({ password }) => {
+            const which = dialog;
+            setDialog(null);
+            const next = await dispatch({ op: which === 'protectWorkbook' ? 'protectWorkbook' : 'protect', password });
+            if (next) {
+              toast(which === 'protectWorkbook'
+                ? `Workbook structure protected${password ? ' with a password' : ''} — no sheet can be added, deleted, renamed, moved or hidden`
+                : `Sheet protected${password ? ' with a password' : ''}`, { tone: 'good', ms: 4000 });
+            }
+          }}
+        />
+      ) : null}
+
+      {passwordAsk ? (
+        <PasswordDialog
+          key={passwordAsk.kind + (passwordAsk.range || '')}
+          title={passwordAsk.title}
+          message={passwordAsk.message}
+          error={passwordAsk.error}
+          onClose={() => { setPasswordAsk(null); shRef.current?.focus(); }}
+          onSubmit={async (password) => {
+            const ask = passwordAsk;
+            const op = ask.kind === 'sheet' ? { op: 'unprotect', password }
+              : ask.kind === 'workbook' ? { op: 'unprotectWorkbook', password }
+              : { op: 'unlockRange', title: ask.range, password };
+            const said = await tryOps(op);
+            if (said) { setPasswordAsk({ ...ask, error: said }); return; }
+            setPasswordAsk(null);
+            shRef.current?.focus();
+            if (ask.kind === 'range') {
+              toast(`Range "${ask.range}" unlocked until the workbook is closed`, { tone: 'good', ms: 3200 });
+              // The edit that was refused goes ahead: the key typed, or F2.
+              if (ask.retry?.length) {
+                const first = ask.retry.find((o) => o.op === 'beginEdit')?.initial;
+                if (first) { startingRef.current = true; putDraft(first); }
+                await dispatch(...ask.retry);
+              }
+            } else {
+              toast(ask.kind === 'sheet' ? 'Sheet unprotected' : 'Workbook unprotected — sheets can be added, moved and renamed again', { tone: 'good' });
+            }
+          }}
+        />
+      ) : null}
+
+      {dialog === 'editRanges' ? (
+        <EditRangesDialog
+          ranges={model?.editRanges || []}
+          sheetProtected={Boolean(model?.protection?.sheet)}
+          selection={sel?.ref || ''}
+          onClose={() => setDialog(null)}
+          onSave={(spec) => tryOps({ op: 'setEditRange', ...spec })}
+          onDelete={(title) => tryOps({ op: 'deleteEditRange', title })}
+          onProtectSheet={() => setDialog('protectSheet')}
+        />
+      ) : null}
     </AppFrame>
   );
 }
@@ -3025,4 +3191,25 @@ const CSS = `
 .sh-eval-message { margin: 6px 0 0; font-size: 12px; color: var(--ink-3); }
 /* The + at the end of the tabs: a new sheet, as every spreadsheet has it. */
 .sh-tab-add { min-width: 28px; font-weight: 600; color: var(--ink-2); }
+.sh-tab-add:disabled { color: var(--ink-4, #b0b4bc); cursor: default; background: transparent; }
+/* Review → Protect Workbook on: a padlock at the end of the tabs, which cannot change. */
+.sh-tabs-lock { display: inline-grid; place-items: center; padding: 0 6px; color: var(--ink-3); }
+/* The protection dialogs. */
+.sh-protect-note { margin: 0; font-size: 12.5px; line-height: 1.5; color: var(--ink-2); }
+.sh-protect-warn { margin: 0; font-size: 12px; color: var(--bad); }
+.sh-ranges { display: flex; flex-direction: column; gap: 10px; }
+.sh-ranges-body { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start; }
+.sh-ranges-list { border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface); min-height: 132px; max-height: 220px; overflow: auto; display: flex; flex-direction: column; }
+.sh-ranges-head, .sh-ranges-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 5px 10px; font-size: 12.5px; text-align: left; }
+.sh-ranges-head { position: sticky; top: 0; background: var(--surface-2); border-bottom: 1px solid var(--line-soft); font-size: 11.5px; font-weight: 600; color: var(--ink-3); }
+.sh-ranges-row { border: 0; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; cursor: default; }
+.sh-ranges-row:hover { background: var(--hover); }
+.sh-ranges-row.on { background: var(--selected); color: var(--accent); }
+.sh-ranges-row .t { display: inline-flex; align-items: center; gap: 5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-ranges-row .c { font-variant-numeric: tabular-nums; color: var(--ink-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sh-ranges-empty { padding: 26px 12px; font-size: 12px; color: var(--ink-3); text-align: center; }
+.sh-ranges-buttons { display: flex; flex-direction: column; gap: 6px; min-width: 96px; }
+.sh-ranges-buttons .rw-btn { justify-content: center; border: 1px solid var(--line); background: var(--surface); min-height: 28px; }
+.sh-ranges-buttons .rw-btn:hover:not(:disabled) { background: var(--hover); }
+.sh-ranges-locked { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-3); }
 `;

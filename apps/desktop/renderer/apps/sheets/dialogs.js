@@ -1074,3 +1074,203 @@ export function EvaluateDialog({ load, initial, onClose }) {
     </Dialog>
   );
 }
+
+/* ── Review → Protect ────────────────────────────────────────────────────── */
+
+/**
+ * Protect Sheet and Protect Workbook, as Excel asks them: a password that
+ * is optional, typed twice when there is one (Excel's Confirm Password),
+ * and — for the workbook — what is locked: its structure. Windows is
+ * Excel's own greyed choice on Windows too.
+ */
+export function ProtectDialog({ kind, onClose, onProtect }) {
+  const [password, setPassword] = useState('');
+  const [again, setAgain] = useState('');
+  const mismatch = password !== '' && again !== '' && again !== password;
+  const ok = password === '' || again === password;
+  const submit = () => ok && onProtect({ password });
+  const enter = (e) => { if (e.key === 'Enter') submit(); };
+  return (
+    <Dialog
+      title={kind === 'workbook' ? 'Protect Structure and Windows' : 'Protect Sheet'}
+      width={420}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="OK" className="sh-protect-ok" disabled={!ok} onClick={submit} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        {kind === 'workbook' ? (
+          <Field label="Protect workbook for">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={CHECK_ROW}><input type="checkbox" checked readOnly /> Structure — no sheet added, deleted, renamed, moved, hidden or shown</label>
+              <label style={{ ...CHECK_ROW, color: 'var(--ink-3)' }} data-tip="Windows — locking the window's size and place is greyed in Excel on Windows too"><input type="checkbox" disabled /> Windows</label>
+            </div>
+          </Field>
+        ) : (
+          <p className="sh-protect-note">Locked cells take no edits while the sheet is protected, except in the ranges Allow Edit Ranges leaves open.</p>
+        )}
+        <Field label="Password (optional)" hint="Without one, anyone can take the protection off. A password cannot be recovered if it is lost — keep it somewhere safe.">
+          <Input type="password" className="sh-protect-password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={enter} autoFocus />
+        </Field>
+        {password ? (
+          <Field label="Reenter password to proceed">
+            <Input type="password" className="sh-protect-again" value={again} onChange={(e) => setAgain(e.target.value)} onKeyDown={enter} />
+          </Field>
+        ) : null}
+        {mismatch ? <p className="sh-protect-warn">The two passwords are not the same.</p> : null}
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Unprotect Sheet, Unprotect Workbook and Unlock Range: one password box,
+ * Excel's sentence above it, and Excel's own words when the password is wrong.
+ */
+export function PasswordDialog({ title, message, error = '', onClose, onSubmit }) {
+  const [password, setPassword] = useState('');
+  const submit = () => onSubmit(password);
+  return (
+    <Dialog
+      title={title}
+      width={420}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="OK" className="sh-password-ok" onClick={submit} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        {message ? <p className="sh-protect-note">{message}</p> : null}
+        <Field label="Password">
+          <Input type="password" className="sh-password" value={password} onChange={(e) => setPassword(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} autoFocus />
+        </Field>
+        {error ? <p className="sh-protect-warn sh-password-error">{error}</p> : null}
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Review → Allow Edit Ranges, Excel's dialog: the ranges a protected sheet
+ * leaves open, each with its title and cells, New, Modify and Delete —
+ * greyed while the sheet is protected, as Excel greys them — and the
+ * New Range / Modify Range form in place: Title, Refers to cells, Range
+ * password (typed twice). Protect Sheet… hands over to that dialog.
+ */
+export function EditRangesDialog({ ranges = [], sheetProtected, selection = '', onClose, onSave, onDelete, onProtectSheet }) {
+  const [picked, setPicked] = useState(ranges[0]?.title ?? null);
+  const [form, setForm] = useState(null);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    if (picked === null || !ranges.some((r) => r.title === picked)) setPicked(ranges[0]?.title ?? null);
+  }, [ranges, picked]);
+  const startNew = () => {
+    let n = 1;
+    while (ranges.some((r) => r.title.toLowerCase() === 'range' + n)) n += 1;
+    setError('');
+    setForm({ was: null, title: 'Range' + n, ref: selection, password: '', again: '', keep: false });
+  };
+  const startModify = () => {
+    const r = ranges.find((x) => x.title === picked);
+    if (!r) return;
+    setError('');
+    setForm({ was: r.title, title: r.title, ref: r.ref, password: '', again: '', keep: r.hasPassword });
+  };
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  const locked = sheetProtected ? 'The sheet is protected — unprotect it to change the ranges' : null;
+  const save = async () => {
+    if (!form) return;
+    if (form.password && form.password !== form.again) { setError('The two passwords are not the same.'); return; }
+    const said = await onSave({ was: form.was, title: form.title.trim(), ref: form.ref.trim(), password: form.password ? form.password : form.keep ? null : '' });
+    if (said) { setError(said); return; }
+    setPicked(form.title.trim());
+    setForm(null);
+  };
+  if (form) {
+    return (
+      <Dialog
+        title={form.was === null ? 'New Range' : 'Modify Range'}
+        width={440}
+        onClose={() => setForm(null)}
+        actions={
+          <>
+            <Button label="Cancel" onClick={() => setForm(null)} />
+            <Button primary label="OK" className="sh-range-ok" disabled={!form.title.trim() || !form.ref.trim()} onClick={save} />
+          </>
+        }
+      >
+        <div className="ml-form">
+          <Field label="Title">
+            <Input className="sh-range-title" value={form.title} onChange={(e) => set({ title: e.target.value })} autoFocus />
+          </Field>
+          <Field label="Refers to cells" hint="One range or several, such as B2:D10 F2:F10.">
+            <Input className="sh-range-ref" value={form.ref} onChange={(e) => set({ ref: e.target.value })} placeholder="B2:D10" />
+          </Field>
+          <Field label="Range password" hint={form.keep ? 'Leave it empty to keep the password this range has.' : 'Optional: without one, anyone can edit the range when the sheet is protected.'}>
+            <Input type="password" className="sh-range-password" value={form.password} onChange={(e) => set({ password: e.target.value })} />
+          </Field>
+          {form.password ? (
+            <Field label="Reenter password to proceed">
+              <Input type="password" className="sh-range-again" value={form.again} onChange={(e) => set({ again: e.target.value })} />
+            </Field>
+          ) : null}
+          {form.was !== null && ranges.find((r) => r.title === form.was)?.hasPassword && !form.password ? (
+            <label style={CHECK_ROW}><input type="checkbox" className="sh-range-clear" checked={!form.keep} onChange={(e) => set({ keep: !e.target.checked })} /> Take the password off</label>
+          ) : null}
+          {error ? <p className="sh-protect-warn">{error}</p> : null}
+        </div>
+      </Dialog>
+    );
+  }
+  return (
+    <Dialog
+      title="Allow Users to Edit Ranges"
+      width={540}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Protect Sheet…" className="sh-ranges-protect" disabled={sheetProtected} title={sheetProtected ? 'Protect Sheet — the sheet is protected already' : 'Protect Sheet — so these ranges are the only locked cells open'} onClick={onProtectSheet} />
+          <span style={{ flex: 1 }} />
+          <Button primary label="OK" className="sh-ranges-close" onClick={onClose} />
+        </>
+      }
+    >
+      <div className="sh-ranges">
+        <p className="sh-protect-note">Ranges unlocked by a password when the sheet is protected:</p>
+        <div className="sh-ranges-body">
+          <div className="sh-ranges-list" role="listbox">
+            <div className="sh-ranges-head"><span>Title</span><span>Refers to cells</span></div>
+            {ranges.length ? ranges.map((r) => (
+              <button
+                key={r.title}
+                type="button"
+                role="option"
+                aria-selected={r.title === picked}
+                className={`sh-ranges-row${r.title === picked ? ' on' : ''}`}
+                data-title={r.title}
+                onClick={() => setPicked(r.title)}
+                onDoubleClick={() => { setPicked(r.title); if (!sheetProtected) startModify(); }}
+              >
+                <span className="t">{r.hasPassword ? <Icon name="lock" size={12} /> : null}{r.title}</span>
+                <span className="c">{r.ref}</span>
+              </button>
+            )) : <div className="sh-ranges-empty">No ranges yet — New… adds one from the selection.</div>}
+          </div>
+          <div className="sh-ranges-buttons">
+            <Button label="New…" className="sh-ranges-new" disabled={sheetProtected} title={locked || 'New… — a range from the selection, with a title and an optional password'} onClick={startNew} />
+            <Button label="Modify…" className="sh-ranges-modify" disabled={sheetProtected || !picked} title={locked || 'Modify… — the picked range'} onClick={startModify} />
+            <Button label="Delete" className="sh-ranges-delete" disabled={sheetProtected || !picked} title={locked || 'Delete — the picked range'} onClick={() => picked && onDelete(picked)} />
+          </div>
+        </div>
+        {sheetProtected ? <p className="sh-ranges-locked"><Icon name="lock" size={12} /> The sheet is protected: the ranges stay as they are until it is unprotected.</p> : null}
+      </div>
+    </Dialog>
+  );
+}

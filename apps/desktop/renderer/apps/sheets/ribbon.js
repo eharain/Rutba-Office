@@ -158,6 +158,7 @@ export default function SheetsRibbon({
   const frozen = model?.frozen || { rows: 0, cols: 0 };
   const isFrozen = frozen.rows > 0 || frozen.cols > 0;
   const protectedSheet = Boolean(model?.protection?.sheet);
+  const protectedBook = Boolean(model?.workbookProtection?.structure);
   const size = Number(format.fontSize || 11);
   const nearer = (dir) => {
     const bigger = SIZES.filter((s) => (dir > 0 ? s > size : s < size));
@@ -592,10 +593,18 @@ export default function SheetsRibbon({
             <Button tall icon="eye" label="Show Comments" pressed={Boolean(model?.comments)} title="Show Comments — every comment thread in the workbook in a pane, open or resolved" onClick={() => act('commentsOpen')} />
           </Group>
           <Group label="Protect">
-            <Button tall icon="lock" label={protectedSheet ? 'Unprotect Sheet' : 'Protect Sheet'} pressed={protectedSheet} onClick={() => dispatch({ op: protectedSheet ? 'unprotect' : 'protect' })} />
-            <Soon tall icon="lock" label="Protect Workbook" why="Workbook structure protection is a workbook setting the engine does not write yet." />
+            <Button tall icon="lock" label={protectedSheet ? 'Unprotect Sheet' : 'Protect Sheet'} pressed={protectedSheet}
+              title={protectedSheet
+                ? `Unprotect Sheet — locked cells take edits again${model?.protection?.hasPassword ? '; it asks for the password' : ''}`
+                : 'Protect Sheet — locked cells refuse edits, with an optional password'}
+              onClick={() => act('protectSheet')} />
+            <Button tall icon="lock" label={protectedBook ? 'Unprotect Workbook' : 'Protect Workbook'} pressed={protectedBook}
+              title={protectedBook
+                ? `Unprotect Workbook — sheets can be added, deleted, renamed, moved and hidden again${model?.workbookProtection?.hasPassword ? '; it asks for the password' : ''}`
+                : 'Protect Workbook — no sheet added, deleted, renamed, moved or hidden, with an optional password'}
+              onClick={() => act('protectWorkbook')} />
             <Button icon="lock" label={format.locked === false ? 'Unlocked' : 'Locked'} title="Whether these cells are locked when the sheet is protected" pressed={format.locked !== false} onClick={() => setFormat({ locked: format.locked === false })} />
-            <Soon icon="lock" label="Allow Edit Ranges" why="Editable ranges on a protected sheet are not built." />
+            <Button icon="lock" label="Allow Edit Ranges" title={`Allow Edit Ranges — ranges that stay editable when the sheet is protected, each with an optional password${(model?.editRanges || []).length ? ` (${model.editRanges.length} now)` : ''}`} onClick={() => act('editRanges')} />
           </Group>
           <Group label="Rules">
             <Button tall icon="wand" label="Conditional" onClick={() => openDialog('conditional')} />

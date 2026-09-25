@@ -71,6 +71,12 @@ const LAZY_STYLES_XML = 64 * 1024 * 1024;
  */
 export const SHEET_FILTER = '#sheet';
 
+/** Excel's words for a wrong password, on a sheet, a workbook or a range. */
+export const WRONG_PASSWORD = 'The password you supplied is not correct. Verify that the CAPS LOCK key is off and be sure to use the correct capitalization.';
+
+/** Excel's words for a sheet added, deleted, renamed, moved or hidden in a locked workbook. */
+export const WORKBOOK_LOCKED = 'Workbook is protected and cannot be changed.';
+
 /**
  * The chart kinds the shared writer takes — Studio's vocabulary, the
  * convergence the roadmap asked for. Lock-step with `chartPartXml`'s kind
@@ -184,7 +190,9 @@ export class SheetView {
     // rather than as a file that could not be read. A flipped byte in the
     // part that lists the sheets is enough to produce one; six of six hundred
     // damaged workbooks did (tools/fuzz-open.js).
-    this.activeSheet = this.workbook.sheetNames()[0];
+    // The first sheet showing: a hidden first sheet is not where Excel opens.
+    const hiddenAtOpen = new Set(this.workbook.hiddenSheets());
+    this.activeSheet = this.workbook.sheetNames().find((n) => !hiddenAtOpen.has(n)) ?? this.workbook.sheetNames()[0];
     if (!this.activeSheet) throw new Error('not a workbook: it lists no sheets');
     this.selection = Selection.at(0, 0);
     this.scrollX = 0;
@@ -223,15 +231,17 @@ export class SheetView {
    * `cells` is the range the edit will touch, captured before it runs.
    */
   _edit(label, group, cells, fn, {
-    styles = false, parts = null, structural = false, tracksNewParts = false,
+    styles = false, parts = null, structural = false, tracksNewParts = false, sheetGate = true,
   } = {}) {
     const outermost = this._editDepth === 0;
     // THE protection gate. One gate, here, because every cell-changing
     // gesture already hands `_edit` the cells it will touch — that list is
     // the undo footprint, and the same list is exactly what protection needs
     // to judge. Refusing BEFORE the history record keeps the house rule that
-    // a refused edit leaves no undo step.
-    if (outermost) {
+    // a refused edit leaves no undo step. A change to the workbook's
+    // structure (a sheet added, moved, hidden) is not the sheet's to refuse
+    // — the workbook's protection judges it — so it passes `sheetGate: false`.
+    if (outermost && sheetGate) {
       const p = this.protection();
       if (p.sheet) {
         if (structural) {
@@ -240,11 +250,19 @@ export class SheetView {
         // A pure formatting edit is governed by the author's formatCells
         // allowance, not by each cell's locked flag — Excel's own split.
         if (!(styles && p.formatCells)) {
+          // Review → Allow Edit Ranges: a locked cell in a range the author
+          // left editable may change — at once when the range has no
+          // password, once it has been unlocked when it has.
+          const ranges = cells.length && !styles ? this._editRangeIndex() : null;
           for (const { row, col } of cells) {
-            if (this.isCellLocked(row, col)) {
-              throw protectionError('This sheet is protected and ' + ref(row, col)
-                + ' is locked. Unprotect the sheet to change it.');
+            if (!this.isCellLocked(row, col)) continue;
+            const open = ranges ? this._rangeVerdict(ranges, row, col) : null;
+            if (open === true) continue;
+            if (open) {
+              throw protectionError('The range "' + open + '" is protected by a password — unlock it to change ' + ref(row, col) + '.', { range: open });
             }
+            throw protectionError('This sheet is protected and ' + ref(row, col)
+              + ' is locked. Unprotect the sheet to change it.');
           }
         }
       }
@@ -873,6 +891,7 @@ export class SheetView {
    * undoing takes the part out again.
    */
   addSheet(name) {
+    this._structureGate();
     const proposed = String(name ?? '').trim() || this._freshSheetName();
     this.workbook._checkSheetName(proposed);
     this._edit('add sheet', null, [], () => {
@@ -880,7 +899,7 @@ export class SheetView {
       this._rebuildDerivedState();
       this._structuralDirty = true;
       return this;
-    }, { parts: [this.workbook.mainPart, 'xl/_rels/workbook.xml.rels'], tracksNewParts: true, structural: true });
+    }, { parts: [this.workbook.mainPart, 'xl/_rels/workbook.xml.rels'], tracksNewParts: true, structural: true, sheetGate: false });
     this.selectSheet(proposed);
     return proposed;
   }
@@ -890,6 +909,7 @@ export class SheetView {
    * that reads it. One undo step over every part it touched.
    */
   renameSheet(from, to) {
+    this._structureGate();
     const clean = this.workbook._checkSheetName(to, { except: from });
     if (clean === from) return this;
     const parts = [this.workbook.mainPart, ...this.workbook.sheets().map((s) => s.part)];
@@ -902,7 +922,7 @@ export class SheetView {
       this._rebuildDerivedState();
       this._structuralDirty = true;
       return this;
-    }, { parts, structural: true });
+    }, { parts, structural: true, sheetGate: false });
     return this;
   }
 
@@ -911,8 +931,13 @@ export class SheetView {
    * Excel, which says so before it does it; the window asks first.
    */
   removeSheet(name) {
+    this._structureGate();
+    const hidden = new Set(this.hiddenSheets());
+    if (!hidden.has(name) && this.sheetNames().filter((n) => !hidden.has(n)).length <= 1 && this.sheetNames().length > 1) {
+      throw new Error('A workbook must contain at least one visible worksheet.');
+    }
     this.workbook.removeSheet(name);
-    if (this.activeSheet === name) this.activeSheet = this.sheetNames()[0];
+    if (this.activeSheet === name) this.activeSheet = this.sheetNames().find((n) => !hidden.has(n)) ?? this.sheetNames()[0];
     this.selection = Selection.at(0, 0);
     for (const map of [this.links, this.notes, this.geometry, this.cellStyles, this.merges, this.validations, this.conditionals]) map.delete(name);
     this._rebuildDerivedState();
@@ -1251,6 +1276,13 @@ export class SheetView {
       // Whether this sheet refuses edits to locked cells, and whether its
       // author sealed that with a password only Excel can lift.
       protection: this.protection(),
+      // Review → Protect Workbook, the tabs Hide has put away, the sheet's
+      // Allow Edit Ranges, and — when the active cell is in a password range
+      // not yet unlocked — that range's title, so the window asks first.
+      workbookProtection: this.workbookProtection(),
+      hiddenSheets: this.hiddenSheets(),
+      editRanges: this.editRanges(),
+      rangeLock: this.rangeLockAt(active.row, active.col),
       // The workbook's pivots — each says where it lives, what it summarises,
       // and why it cannot be refreshed when that is the case.
       pivots: this.pivots().map((p) => ({
@@ -1374,6 +1406,7 @@ export class SheetView {
       link: this._links().get(ref(active.row, active.col)) ?? null,
       note: this._notes().get(ref(active.row, active.col)) ?? null,
       thread: this._threads().get(ref(active.row, active.col)) ?? null,
+      rangeLock: this.rangeLockAt(active.row, active.col),
       total: this._stickyTotal(geo, {
         maxRow: Math.max(this.bounds.maxRow, this.selection.range.bottom, vp.lastRow),
         maxCol: Math.max(this.bounds.maxCol, this.selection.range.right, vp.lastCol),
@@ -1474,6 +1507,12 @@ export class SheetView {
    */
   beginEdit({ replace = false, initial = '' } = {}) {
     const { row, col } = this.selection.active;
+    // A cell in a password range, on a protected sheet, asks for the
+    // range's password before an edit starts — Excel's Unlock Range.
+    const lock = this.rangeLockAt(row, col);
+    if (lock) {
+      throw protectionError('The range "' + lock + '" is protected by a password — unlock it to change ' + ref(row, col) + '.', { range: lock });
+    }
     this.editing = {
       row, col,
       ref: ref(row, col),
@@ -4121,33 +4160,254 @@ export class SheetView {
   }
 
   /**
-   * Protect the active sheet, so locked cells refuse edits.
-   *
-   * Passwords are deliberately not offered. Matching Excel's password hash
-   * derivation byte-for-byte is real work that buys nothing here —
-   * protection in this editor is a guard rail against accidental edits, and
-   * a file that needs a cryptographic gate keeps the one Excel wrote.
+   * Protect the active sheet, so locked cells refuse edits — with a
+   * password when one is given, hashed as Excel hashes one (SHA-512, a
+   * fresh salt, 100,000 rounds), so Excel asks for the same password.
    */
-  protect() {
+  protect({ password = '' } = {}) {
     if (this.protection().sheet) return this;
     this._edit('protect sheet', null, [], () => {
-      this.workbook.setSheetProtection(this.activeSheet, true);
+      this.workbook.setSheetProtection(this.activeSheet, true, { password });
       this._structuralDirty = true;
     }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
     return this;
   }
 
-  /** Thaw the sheet — unless its author set a password we must respect. */
-  unprotect() {
+  /**
+   * Thaw the sheet. A sheet protected with a password — this editor's or
+   * Excel's, the modern hash or the legacy 16-bit one — asks for it, and
+   * refuses a wrong one with Excel's sentence.
+   */
+  unprotect({ password = '' } = {}) {
     const p = this.protection();
     if (!p.sheet) return this;
-    if (p.hasPassword) {
-      throw protectionError('This sheet’s protection has a password. Open the file in Excel to remove it.');
+    if (p.hasPassword && !this.workbook.checkSheetPassword(this.activeSheet, password)) {
+      throw protectionError(password ? WRONG_PASSWORD : 'This sheet’s protection has a password — type it to unprotect the sheet.', { needsPassword: 'sheet' });
     }
     this._edit('unprotect sheet', null, [], () => {
       this.workbook.setSheetProtection(this.activeSheet, null);
+      this._unlockedRanges?.clear();
       this._structuralDirty = true;
     }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
+    return this;
+  }
+
+  // ---- workbook protection ---------------------------------------------------
+
+  /** Review → Protect Workbook: `{ structure, windows, hasPassword }`. */
+  workbookProtection() {
+    return this.workbook.workbookProtection();
+  }
+
+  /**
+   * Lock the workbook's structure: while it is locked no sheet is added,
+   * deleted, renamed, moved, hidden or shown again. The password, when one
+   * is given, is hashed as Excel hashes it and written as
+   * `workbookAlgorithmName` / `workbookHashValue` / `workbookSaltValue` /
+   * `workbookSpinCount`. One undo step, as Protect Sheet is.
+   */
+  protectWorkbook({ password = '' } = {}) {
+    if (this.workbookProtection().structure) return this;
+    this._edit('protect workbook', null, [], () => {
+      this.workbook.setWorkbookProtection({ structure: true, password: password || null });
+      this._structuralDirty = true;
+    }, { parts: [this.workbook.mainPart], sheetGate: false });
+    return this;
+  }
+
+  /** Unlock the structure; a workbook locked with a password wants it. */
+  unprotectWorkbook({ password = '' } = {}) {
+    const p = this.workbookProtection();
+    if (!p.structure && !p.windows) return this;
+    if (p.hasPassword && !this.workbook.checkWorkbookPassword(password)) {
+      throw protectionError(password ? WRONG_PASSWORD : 'The workbook’s protection has a password — type it to unprotect the workbook.', { needsPassword: 'workbook' });
+    }
+    this._edit('unprotect workbook', null, [], () => {
+      this.workbook.setWorkbookProtection(null);
+      this._structuralDirty = true;
+    }, { parts: [this.workbook.mainPart], sheetGate: false });
+    return this;
+  }
+
+  /** Refuse a change to the workbook's structure while it is locked, in Excel's words. */
+  _structureGate() {
+    if (this.workbookProtection().structure) throw protectionError(WORKBOOK_LOCKED);
+  }
+
+  /** The sheets put away by Hide, by name. */
+  hiddenSheets() {
+    return this.workbook.hiddenSheets();
+  }
+
+  /**
+   * Hide a sheet, as its tab's Hide does. The last sheet showing cannot go
+   * (Excel's rule: a workbook keeps one visible sheet); the view moves to
+   * the next sheet showing.
+   */
+  hideSheet(name = this.activeSheet) {
+    this._structureGate();
+    if (!this.sheetNames().includes(name)) throw new Error('no such sheet: ' + name);
+    const hidden = new Set(this.hiddenSheets());
+    if (hidden.has(name)) return this;
+    const showing = this.sheetNames().filter((n) => !hidden.has(n));
+    if (showing.length <= 1) throw new Error('A workbook must contain at least one visible worksheet.');
+    this._edit('hide sheet', null, [], () => {
+      this.workbook.setSheetHidden(name, true);
+      this._structuralDirty = true;
+    }, { parts: [this.workbook.mainPart], sheetGate: false });
+    if (this.activeSheet === name) {
+      const i = showing.indexOf(name);
+      this.selectSheet(showing[i + 1] ?? showing[i - 1]);
+    }
+    return this;
+  }
+
+  /** Show a hidden sheet again — Unhide — and go to it. */
+  unhideSheet(name) {
+    this._structureGate();
+    if (!this.hiddenSheets().includes(name)) return this;
+    this._edit('unhide sheet', null, [], () => {
+      this.workbook.setSheetHidden(name, false);
+      this._structuralDirty = true;
+    }, { parts: [this.workbook.mainPart], sheetGate: false });
+    this.selectSheet(name);
+    return this;
+  }
+
+  /** Move a sheet in the tab order — its tab's Move Left and Move Right. */
+  moveSheet(name, toIndex) {
+    this._structureGate();
+    if (!this.sheetNames().includes(name)) throw new Error('no such sheet: ' + name);
+    const was = this.activeSheet;
+    this._edit('move sheet', null, [], () => {
+      this.workbook.moveSheet(name, toIndex);
+      this._rebuildDerivedState();
+      this._structuralDirty = true;
+    }, { parts: [this.workbook.mainPart], structural: true, sheetGate: false });
+    this.activeSheet = was;
+    return this;
+  }
+
+  // ---- Allow Edit Ranges --------------------------------------------------------
+
+  /**
+   * Review → Allow Edit Ranges: the active sheet's ranges that stay
+   * editable when it is protected — `{ title, ref, hasPassword }` each.
+   */
+  editRanges() {
+    return this.workbook.protectedRanges(this.activeSheet).map((r) => ({ title: r.title, ref: r.sqref, hasPassword: r.hasPassword }));
+  }
+
+  /** The active sheet's ranges parsed for the gate, kept until the sheet's tail changes. */
+  _editRangeIndex() {
+    const sheet = this.activeSheet;
+    const block = this.workbook._sheetPart(sheet).part.tailElement('protectedRanges') || '';
+    const hit = this._rangeCache;
+    if (hit && hit.sheet === sheet && hit.block === block) return hit.list;
+    const list = this.workbook.protectedRanges(sheet).map((r) => ({
+      title: r.title,
+      hasPassword: r.hasPassword,
+      areas: String(r.sqref).split(/\s+/).map((a) => parseArea(a)).filter(Boolean),
+    }));
+    this._rangeCache = { sheet, block, list };
+    return list;
+  }
+
+  /**
+   * May the gate let a locked cell change? True when it is in a range with
+   * no password, or one unlocked this session; the title of the range whose
+   * password it wants; null when it is in no range.
+   */
+  _rangeVerdict(ranges, row, col) {
+    let wants = null;
+    for (const r of ranges) {
+      if (!r.areas.some((a) => row >= a.top && row <= a.bottom && col >= a.left && col <= a.right)) continue;
+      if (!r.hasPassword || this._unlockedRanges?.has(this.activeSheet + '|' + r.title)) return true;
+      wants = wants ?? r.title;
+    }
+    return wants;
+  }
+
+  /**
+   * What the active cell says about typing into it: on a protected sheet,
+   * a locked cell in a password range not yet unlocked names that range —
+   * the window asks for its password before an edit starts, as Excel's
+   * Unlock Range does. Null otherwise.
+   */
+  rangeLockAt(row = this.selection.active.row, col = this.selection.active.col) {
+    if (!this.protection().sheet || !this.isCellLocked(row, col)) return null;
+    const v = this._rangeVerdict(this._editRangeIndex(), row, col);
+    return typeof v === 'string' ? v : null;
+  }
+
+  /** Normalise the cells of an edit range: A1-style areas, spaces between them. */
+  _cleanRangeRef(text) {
+    const areas = String(text ?? '').replace(/\$/g, '').replace(/^=/, '').split(/[\s,;]+/).filter(Boolean);
+    if (!areas.length) throw new Error('Say which cells the range covers, such as B2:D10.');
+    const out = [];
+    for (const a of areas) {
+      const bare = a.replace(/^.*!/, '');
+      const r = parseArea(bare);
+      if (!r) throw new Error('"' + a + '" is not a range of cells.');
+      out.push(r.top === r.bottom && r.left === r.right ? ref(r.top, r.left) : ref(r.top, r.left) + ':' + ref(r.bottom, r.right));
+    }
+    return out.join(' ');
+  }
+
+  /** Excel greys New, Modify and Delete while the sheet is protected; so does this. */
+  _rangesGate() {
+    if (this.protection().sheet) throw protectionError('The sheet is protected — unprotect it to change the ranges that stay editable.');
+  }
+
+  /**
+   * Add or change an edit range. `was` names the range being changed
+   * (Modify); a `password` of null keeps the one it has, '' takes it off.
+   */
+  setEditRange({ was = null, title, ref: cells, password = null }) {
+    this._rangesGate();
+    const name = String(title ?? '').trim();
+    if (!name) throw new Error('A range needs a title.');
+    if (/[^\p{L}\p{N}_ .-]/u.test(name) || name.length > 255) throw new Error('A range title is letters, digits, spaces, dots, hyphens and underscores.');
+    const sqref = this._cleanRangeRef(cells);
+    const list = this.workbook.protectedRanges(this.activeSheet);
+    if (list.some((r) => r.title.toLowerCase() === name.toLowerCase() && r.title !== was)) throw new Error('There is already a range called "' + name + '".');
+    const next = list.map((r) => ({ title: r.title, sqref: r.sqref, hash: r.hash }));
+    const entry = { title: name, sqref, password: password === null ? undefined : password };
+    const at = was === null ? -1 : next.findIndex((r) => r.title === was);
+    if (at >= 0) {
+      entry.hash = next[at].hash;
+      next[at] = entry;
+    } else {
+      next.push(entry);
+    }
+    this._edit(at >= 0 ? 'modify edit range' : 'new edit range', null, [], () => {
+      this.workbook.setProtectedRanges(this.activeSheet, next);
+      this._structuralDirty = true;
+    }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
+    return this;
+  }
+
+  /** Delete an edit range. */
+  deleteEditRange(title) {
+    this._rangesGate();
+    const list = this.workbook.protectedRanges(this.activeSheet);
+    if (!list.some((r) => r.title === title)) return this;
+    this._edit('delete edit range', null, [], () => {
+      this.workbook.setProtectedRanges(this.activeSheet, list.filter((r) => r.title !== title).map((r) => ({ title: r.title, sqref: r.sqref, hash: r.hash })));
+      this._structuralDirty = true;
+    }, { parts: [this.workbook.partNameFor(this.activeSheet)] });
+    return this;
+  }
+
+  /**
+   * Unlock Range: the password of an edit range, typed once — right, and
+   * the range's cells take edits until the workbook is closed; wrong, and
+   * Excel's sentence.
+   */
+  unlockRange(title, password) {
+    if (!this.workbook.checkRangePassword(this.activeSheet, title, password)) throw protectionError(WRONG_PASSWORD, { needsPassword: 'range', range: title });
+    if (!this._unlockedRanges) this._unlockedRanges = new Set();
+    this._unlockedRanges.add(this.activeSheet + '|' + title);
     return this;
   }
 
@@ -5265,9 +5525,10 @@ function tableLookAt(tables, row, col, theme) {
  * layer can tell "the sheet said no, in a sentence for the person" apart
  * from a genuine fault it must not swallow.
  */
-function protectionError(message) {
+function protectionError(message, extra = {}) {
   const e = new Error(message);
   e.protection = true;
+  Object.assign(e, extra);
   return e;
 }
 

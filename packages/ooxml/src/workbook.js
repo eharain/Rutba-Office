@@ -22,6 +22,7 @@
  * not rewriting a shared index is the right way round.
  */
 import { OoxmlPackage, attrs, esc } from './package.js';
+import { passwordAttrs, hasPassword, checkPassword } from './protection.js';
 
 const REL_HYPERLINK = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
 const XMLNS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -2306,12 +2307,196 @@ export class Workbook {
     };
   }
 
-  /** Protect a sheet (no password — see the view for why), or thaw it. */
-  setSheetProtection(sheetName, on) {
+  /**
+   * Protect a sheet, or thaw it (a falsy `on`). A password is written as
+   * Excel writes one — SHA-512, a fresh salt, 100,000 rounds.
+   */
+  setSheetProtection(sheetName, on, { password = '' } = {}) {
+    const pw = password ? passwordAttrs(password) : null;
+    const extra = pw ? Object.entries(pw).map(([k, v]) => ' ' + k + '="' + esc(v) + '"').join('') : '';
     this._sheetPart(sheetName).part.setSheetProtection(
-      on ? ' sheet="1" objects="1" scenarios="1"' : null,
+      on ? extra + ' sheet="1" objects="1" scenarios="1"' : null,
     );
     return this;
+  }
+
+  /** Does `password` lift this sheet's protection? True when it has none. */
+  checkSheetPassword(sheetName, password) {
+    return checkPassword(password, this._sheetPart(sheetName).part.sheetProtection(), { legacy: 'password' });
+  }
+
+  // ---- the workbook's structure: protection, order, hidden sheets -----------
+
+  /** The `<workbookProtection>` element's attributes, or null. */
+  _workbookProtectionAttrs() {
+    const m = /<workbookProtection\b([^>]*?)\/?>/.exec(this.pkg.text(this.mainPart));
+    return m ? attrs(m[1]) : null;
+  }
+
+  /**
+   * Review → Protect Workbook, digested: whether the structure (sheets
+   * added, deleted, renamed, moved, hidden) and the windows are locked, and
+   * whether a password keeps it — modern (`workbookHashValue`) or legacy
+   * (`workbookPassword`).
+   */
+  workbookProtection() {
+    const a = this._workbookProtectionAttrs();
+    const on = (v) => v === '1' || v === 'true';
+    if (!a) return { structure: false, windows: false, hasPassword: false };
+    return {
+      structure: on(a.lockStructure),
+      windows: on(a.lockWindows),
+      hasPassword: hasPassword(a, { prefix: 'workbook', legacy: 'workbookPassword' }),
+    };
+  }
+
+  /**
+   * Lock the structure (with an optional password), or take the protection
+   * off (null). Written where the schema puts it — after `workbookPr` and
+   * whatever Excel keeps beside it, before `bookViews` and `sheets`.
+   */
+  setWorkbookProtection(spec) {
+    let xml = this.pkg.text(this.mainPart).replace(/<workbookProtection\b[^>]*?(?:\/>|>[\s\S]*?<\/workbookProtection>)/, '');
+    if (spec) {
+      const pw = spec.password ? passwordAttrs(spec.password, { prefix: 'workbook', salt: spec.salt, spinCount: spec.spinCount }) : null;
+      const el = '<workbookProtection'
+        + (pw ? Object.entries(pw).map(([k, v]) => ' ' + k + '="' + esc(v) + '"').join('') : '')
+        + (spec.structure !== false ? ' lockStructure="1"' : '')
+        + (spec.windows ? ' lockWindows="1"' : '')
+        + '/>';
+      const before = /<(bookViews|sheets)\b/.exec(xml);
+      if (!before) throw new Error('the workbook lists no sheets');
+      xml = xml.slice(0, before.index) + el + xml.slice(before.index);
+    }
+    this.pkg.write_(this.mainPart, xml);
+    return this;
+  }
+
+  /** Does `password` lift the workbook's protection? True when it has none. */
+  checkWorkbookPassword(password) {
+    return checkPassword(password, this._workbookProtectionAttrs(), { prefix: 'workbook', legacy: 'workbookPassword' });
+  }
+
+  /** The sheets Hide has put away (`state="hidden"` or `"veryHidden"`), by name. */
+  hiddenSheets() {
+    const xml = this.pkg.text(this.mainPart);
+    const out = [];
+    for (const m of xml.matchAll(/<sheet\b([^>]*)\/?>/g)) {
+      const a = attrs(m[1]);
+      if (a.state === 'hidden' || a.state === 'veryHidden') out.push(a.name);
+    }
+    return out;
+  }
+
+  /**
+   * Hide a sheet or show it again, as the tab's Hide and Unhide do: the
+   * entry's `state`. The workbook's active tab moves to the first sheet left
+   * showing, so Excel does not open on a hidden one.
+   */
+  setSheetHidden(name, hidden) {
+    const entry = this.sheets().find((s) => s.name === name);
+    if (!entry) throw new Error('no such sheet: ' + name);
+    let xml = this.pkg.text(this.mainPart);
+    const re = new RegExp('<sheet\\b([^>]*\\br:id="' + entry.rId + '"[^>]*?)(\\/?)>');
+    xml = xml.replace(re, (_, a, close) => '<sheet' + withAttr(a, 'state', hidden ? 'hidden' : null) + close + '>');
+    this.pkg.write_(this.mainPart, xml);
+    const hiddenNow = new Set(this.hiddenSheets());
+    const first = this.sheetNames().findIndex((n) => !hiddenNow.has(n));
+    this._setActiveTab(Math.max(0, first));
+    return this;
+  }
+
+  /** `<workbookView activeTab>` set (0 takes the attribute off). */
+  _setActiveTab(index) {
+    const xml = this.pkg.text(this.mainPart);
+    const next = xml.replace(/<workbookView\b([^>]*?)(\/?)>/, (_, a, close) => '<workbookView' + withAttr(withAttr(a, 'activeTab', index ? String(index) : null), 'firstSheet', null) + close + '>');
+    if (next !== xml) this.pkg.write_(this.mainPart, next);
+  }
+
+  /**
+   * Move a sheet to another place in the tab order, as dragging its tab
+   * does: the entry moves, and every name scoped to a sheet by its position
+   * (`localSheetId` — print areas, print titles) follows its sheet.
+   */
+  moveSheet(name, toIndex) {
+    const sheets = this.sheets();
+    const from = sheets.findIndex((s) => s.name === name);
+    if (from < 0) throw new Error('no such sheet: ' + name);
+    const to = Math.max(0, Math.min(sheets.length - 1, Math.round(Number(toIndex))));
+    if (to === from) return false;
+    let xml = this.pkg.text(this.mainPart);
+    const block = /<sheets>([\s\S]*?)<\/sheets>/.exec(xml);
+    if (!block) throw new Error('the workbook lists no sheets');
+    const entries = [...block[1].matchAll(/<sheet\b[^>]*\/>|<sheet\b[^>]*>[\s\S]*?<\/sheet>/g)].map((m) => m[0]);
+    const [moved] = entries.splice(from, 1);
+    entries.splice(to, 0, moved);
+    xml = xml.slice(0, block.index) + '<sheets>' + entries.join('') + '</sheets>' + xml.slice(block.index + block[0].length);
+    // Old position → new position, for the scoped names.
+    const order = sheets.map((_, i) => i);
+    const [o] = order.splice(from, 1);
+    order.splice(to, 0, o);
+    const newIndexOf = new Map(order.map((old, i) => [old, i]));
+    xml = xml.replace(/<definedName\b([^>]*)>/g, (m, a) => {
+      const k = /\blocalSheetId="(\d+)"/.exec(a);
+      if (!k || !newIndexOf.has(Number(k[1]))) return m;
+      return '<definedName' + a.replace(/\blocalSheetId="\d+"/, 'localSheetId="' + newIndexOf.get(Number(k[1])) + '"') + '>';
+    });
+    this.pkg.write_(this.mainPart, xml);
+    this._sheets = null;
+    this._setActiveTab(to);
+    return true;
+  }
+
+  /**
+   * Review → Allow Edit Ranges: the ranges of a sheet that stay editable
+   * when it is protected — `<protectedRanges>`, each with its title, its
+   * cells and, when it has one, its password (modern or legacy).
+   */
+  protectedRanges(sheetName) {
+    const block = this._sheetPart(sheetName).part.tailElement('protectedRanges');
+    if (!block) return [];
+    const out = [];
+    for (const m of block.matchAll(/<protectedRange\b([^>]*?)(?:\/>|>[\s\S]*?<\/protectedRange>)/g)) {
+      const a = attrs(m[1]);
+      out.push({
+        title: a.name ?? '',
+        sqref: a.sqref ?? '',
+        hasPassword: hasPassword(a, { legacy: 'password' }),
+        // Kept verbatim so a range rewritten for another reason keeps its hash.
+        hash: {
+          algorithmName: a.algorithmName, hashValue: a.hashValue, saltValue: a.saltValue, spinCount: a.spinCount, password: a.password,
+        },
+      });
+    }
+    return out;
+  }
+
+  /**
+   * Write a sheet's edit ranges. Each is `{ title, sqref, password? , hash? }`:
+   * a new `password` is hashed as Excel hashes one; without one, a range's
+   * existing `hash` is kept; `password: ''` takes it off.
+   */
+  setProtectedRanges(sheetName, list) {
+    const { part } = this._sheetPart(sheetName);
+    const items = (list || []).map((r) => {
+      let pw = null;
+      if (r.password) pw = passwordAttrs(r.password);
+      else if (r.password === undefined && r.hash) pw = Object.fromEntries(Object.entries(r.hash).filter(([, v]) => v !== undefined && v !== null && v !== ''));
+      const extra = pw ? Object.entries(pw).map(([k, v]) => ' ' + k + '="' + esc(v) + '"').join('') : '';
+      return '<protectedRange' + extra + ' sqref="' + esc(r.sqref) + '" name="' + esc(r.title) + '"/>';
+    });
+    part.setTailElement('protectedRanges', items.length ? '<protectedRanges>' + items.join('') + '</protectedRanges>' : null);
+    return this;
+  }
+
+  /** Does `password` open this sheet's edit range? */
+  checkRangePassword(sheetName, title, password) {
+    const block = this._sheetPart(sheetName).part.tailElement('protectedRanges') || '';
+    for (const m of block.matchAll(/<protectedRange\b([^>]*?)(?:\/>|>)/g)) {
+      const a = attrs(m[1]);
+      if ((a.name ?? '') === title) return checkPassword(password, a, { legacy: 'password' });
+    }
+    return false;
   }
 
   /** The frozen pane on a sheet: {rows, cols} or null. */

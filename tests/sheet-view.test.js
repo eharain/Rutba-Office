@@ -1825,7 +1825,7 @@ test('protection survives the file: written as Excel writes it, read back enforc
   assert.equal(reopened.calc.getValue('Data', 0, 0), 2);
 });
 
-test('a password seals protection against everyone but Excel', () => {
+test('a password seals protection: without it, or with a wrong one, the sheet stays protected', () => {
   const wb = Workbook.open(simpleBook([[1]]));
   wb.pkg.write_('xl/worksheets/sheet1.xml',
     wb.pkg.text('xl/worksheets/sheet1.xml').replace('</sheetData>',
@@ -1833,7 +1833,9 @@ test('a password seals protection against everyone but Excel', () => {
   const view = SheetView.open(wb.save());
   assert.equal(view.render().protection.hasPassword, true);
   assert.throws(() => view.setCell(0, 0, 2), /locked/);
-  assert.throws(() => view.unprotect(), /password.*Excel/i);
+  assert.throws(() => view.unprotect(), (e) => e.needsPassword === 'sheet' && /password/.test(e.message));
+  assert.throws(() => view.unprotect({ password: 'guess' }), /password you supplied is not correct/);
+  assert.equal(view.protection().sheet, true);
 });
 
 test('formatting an unlocked cell no longer drops its protection child', () => {
