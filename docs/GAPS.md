@@ -24,7 +24,7 @@ a suite.
 | **Calendar** | **Built, 2026-09-09** | Month, week, day and agenda; calendars with a colour each; events with repeats, exceptions and zones; `.ics` opened, offered, imported and exported. An invitation in a message is shown in Mail's reading pane, kept as an event, and answered with the reply attached to a message to the organizer. |
 | **Contacts** | **Built, 2026-09-09** | A book in the profile: list, card, editor, search. `.vcf` and CSV opened, offered and merged by address; vCards exported. Compose completes from the book and then from the people mail has seen; a sender is kept from the reading pane in one click. |
 | **OpenDocument drawings** | **Missing** | An `.ods` written by Excel carries its charts as embedded objects and its shapes as `draw:custom-shape`; neither is read, so the Charts sheet of the showcase workbook opens empty from `.ods` and full from `.xlsx`. Its frozen panes (settings.xml) and hidden columns are not read either. An `.odp` reads only its text frames: the showcase deck's pictures, shapes, table and gradients are all dropped from `.odp` and all present from `.pptx`. Found 2026-09-10 by tools/make-rich-fixtures.ps1. |
-| **Equations** | **Built for documents, 2026-09-25** | Office Math is read, drawn through the browser's own MathML, edited in Word's linear format, written as Word writes it and printed. A deck's equations (`a14:m`) are not read yet, though the same converter could draw them. |
+| **Equations** | **Built, 2026-09-25** | Office Math is read, drawn through the browser's own MathML, edited in Word's linear format, written as Word writes it and printed. A deck's equations are read, drawn and inserted the same way since the same day. |
 | **Tracked changes, shown** | **Built for documents, 2026-09-25** | Insertions and deletions are kept with their author and date, shown as All Markup, Simple Markup, No Markup or Original, walked with Previous and Next, and accepted or rejected one at a time or all at once; recording them arrived the same day (below). A deck's and a workbook's tracked changes are not read. |
 | **Page setup as a document property** | **Built for workbooks, 2026-09-09** | Paper, orientation, margins, scaling, gridlines, headings, centring, the print area and the repeated rows are read from and written to the file where Excel keeps them. A document and a deck still choose theirs in the dialog each time. |
 | **Password-protected files** | **Missing** | Refused with a sentence that says so, since 2026-09-10 — the corpus found an encrypted `.docx` opening as an empty page and an encrypted `.pptx` refused as "a document". An encrypted OOXML package (`EncryptedPackage` in a compound file, agile encryption) is neither read nor written. |
@@ -213,9 +213,12 @@ document and workbook writers.
   from, and since 2026-09-10 the Designs pane puts an existing slide on
   another of the deck's layouts and starts a new slide from one (since
   2026-09-21 the Home tab's Layout does the same, and Reset puts moved
-  placeholders back where the layout has them); editing
-  them, swapping a theme, headers and footers, slide numbers and date
-  fields all need the writer to reach the master. Background styles
+  placeholders back where the layout has them). Since 2026-09-25 View →
+  Slide Master edits the master and its layouts on the stage — text
+  styles, placeholders, shapes, backgrounds, new and renamed layouts — and
+  Design swaps the theme (eleven of our own, with variants), its colours,
+  fonts and effects. The handout and notes masters, and a second master,
+  are not editable yet. Background styles
   arrived 2026-09-24: Design → Background Styles gives a slide its own
   `p:bg` — a solid colour, a theme colour or a gradient — with Apply to
   all, though the master's own background is still not editable there.
@@ -233,7 +236,8 @@ document and workbook writers.
   2026-09-25 (eleven transitions; entrance, emphasis and exit effects with
   the Animation Pane). Recorded narration and timings, motion paths,
   triggers, effects by paragraph and export to video are still to come.
-- **Review**: comments on a slide, tracked changes. Find and replace across
+- **Review**: comments on a slide arrived 2026-09-25, written as
+  PowerPoint 365's modern comments; tracked changes on a deck are not. Find and replace across
   a deck arrived 2026-09-24: Home → Find (Ctrl+F) and Replace (Ctrl+H) open
   a small pane at the stage's own top right, the way Word's find pane does
   rather than a dialog over the slide; Next and Previous walk every hit in
