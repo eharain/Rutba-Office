@@ -359,7 +359,9 @@ export default function SheetsRibbon({
             {CHARTS.map(([kind, label]) => (
               <Button key={kind} icon="chart" label={label} title={`${label} chart from the data around the selection`} onClick={() => dispatch({ op: 'insertChart', kind })} />
             ))}
-            <Soon icon="chart" label="Scatter" why="A scatter chart needs an XY series the chart writer does not build yet." />
+            <Button icon="chart" label="Scatter" title="Scatter — X and Y values from the data around the selection: markers only, or joined by straight or smooth lines" onClick={(e) => menu.open(e, [
+              ['markers', 'Scatter'], ['lines', 'Scatter with Straight Lines and Markers'], ['smooth', 'Scatter with Smooth Lines and Markers'],
+            ].map(([scatterStyle, label]) => ({ label, icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: 'scatter', scatterStyle }) })))} />
             <Soon icon="chart" label="PivotChart" why="Comes with a pivot table that can be charted." />
           </Group>
           <Group label="Sparklines">
@@ -609,8 +611,8 @@ export default function SheetsRibbon({
       {tab === 'view' ? (
         <>
           <Group label="Workbook Views">
-            <Button tall icon="grid" label="Normal" pressed onClick={() => act('view', 'normal')} />
-            <Soon tall icon="file" label="Page Break Preview" why="Page breaks need the print layout the paginator does not compute for a sheet yet." />
+            <Button tall icon="grid" label="Normal" title="Normal — the sheet as a grid" pressed={model?.viewMode !== 'pageBreakPreview'} onClick={() => act('view', 'normal')} />
+            <Button tall icon="file" label="Page Break Preview" title="Page Break Preview — where the pages will break when printed; drag a break to move it" pressed={model?.viewMode === 'pageBreakPreview'} onClick={() => act('view', 'pageBreakPreview')} />
             <Soon tall icon="file" label="Page Layout" why="Comes with page breaks." />
             <Soon icon="list" label="Custom Views" why="Saved views are a workbook part not written yet." />
           </Group>
@@ -634,7 +636,7 @@ export default function SheetsRibbon({
               { label: 'Choose…', run: () => openDialog('freeze') },
             ])} />
             <Soon icon="grid" label="Arrange All" why="Window tiling is the operating system's; not built." />
-            <Soon icon="minus" label="Split" why="A split grid is on the list; freeze panes covers most of it." />
+            <Button icon="minus" label="Split" title="Split — the window in four panes at the active cell (two in its first row or column), each scrolling on its own; press again to take it away" pressed={Boolean(model?.split)} onClick={() => act('split')} />
             <Soon icon="eye" label="Hide" why="Hiding a window is not built." />
             <Button icon="maximize" label="Full Screen" onClick={() => shell.win.fullscreen({})} />
           </Group>

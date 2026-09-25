@@ -866,6 +866,76 @@ class SheetPart {
     return this;
   }
 
+  /** The first `<sheetView>`'s attributes — where Excel keeps how a sheet is shown. */
+  sheetViewAttrs() {
+    const m = /<sheetView\b([^>]*?)\/?>/.exec(this.prefix);
+    return m ? attrs(m[1]) : {};
+  }
+
+  /**
+   * One attribute of the first `<sheetView>` set (a string) or taken off
+   * (null), the element made — in `<sheetViews>`, where the schema puts it —
+   * when the sheet has none.
+   */
+  setSheetViewAttr(name, value) {
+    const re = /<sheetView\b([^>]*?)(\/?)>/;
+    if (!re.test(this.prefix)) {
+      if (value === null || value === undefined) return this;
+      const views = '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
+      if (/<dimension\b[^>]*\/>/.test(this.prefix)) this.prefix = this.prefix.replace(/(<dimension\b[^>]*\/>)/, '$1' + views);
+      else this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, '$1' + views);
+    }
+    this.prefix = this.prefix.replace(re, (_, a, close) => '<sheetView' + withAttr(a, name, value === undefined ? null : value) + close + '>');
+    this.dirty = true;
+    return this;
+  }
+
+  /**
+   * A split window — View → Split — as the sheet's view declares it: a
+   * `<pane>` with no frozen state, xSplit and ySplit in twentieths of a
+   * point from the window's edge, `topLeftCell` the first cell of the
+   * bottom-right pane; the sheet view's own `topLeftCell` is the top-left
+   * pane's. `{ xSplit, ySplit, topLeftCell, viewTopLeftCell }`, or null.
+   */
+  splitPane() {
+    const m = /<pane\b([^>]*)\/?>/.exec(this.prefix);
+    if (!m) return null;
+    const a = attrs(m[1]);
+    if (a.state === 'frozen' || a.state === 'frozenSplit') return null;
+    const xSplit = Number(a.xSplit ?? 0) || 0;
+    const ySplit = Number(a.ySplit ?? 0) || 0;
+    if (!xSplit && !ySplit) return null;
+    return { xSplit, ySplit, topLeftCell: a.topLeftCell ?? null, viewTopLeftCell: this.sheetViewAttrs().topLeftCell ?? null };
+  }
+
+  /**
+   * Split the window (a spec) or take the split off (null). The pane goes
+   * where a frozen one would — the first child of `<sheetView>` — and
+   * replaces it: a sheet is split or frozen, never both.
+   */
+  setSplitPane(spec) {
+    this.prefix = this.prefix.replace(/<pane\b[^>]*\/>|<pane\b[^>]*>[\s\S]*?<\/pane>/, '');
+    if (!spec || (!spec.xSplit && !spec.ySplit)) {
+      this.setSheetViewAttr('topLeftCell', null);
+      this.dirty = true;
+      return this;
+    }
+    const activePane = spec.xSplit && spec.ySplit ? 'bottomRight' : spec.ySplit ? 'bottomLeft' : 'topRight';
+    const pane = '<pane'
+      + (spec.xSplit ? ' xSplit="' + Math.round(spec.xSplit) + '"' : '')
+      + (spec.ySplit ? ' ySplit="' + Math.round(spec.ySplit) + '"' : '')
+      + (spec.topLeftCell ? ' topLeftCell="' + esc(spec.topLeftCell) + '"' : '')
+      + ' activePane="' + activePane + '"/>';
+    this.setSheetViewAttr('topLeftCell', spec.viewTopLeftCell || null);
+    if (/<sheetView\b[^>]*\/>/.test(this.prefix)) {
+      this.prefix = this.prefix.replace(/<sheetView\b([^>]*)\/>/, '<sheetView$1>' + pane + '</sheetView>');
+    } else {
+      this.prefix = this.prefix.replace(/(<sheetView\b[^>]*>)/, '$1' + pane);
+    }
+    this.dirty = true;
+    return this;
+  }
+
   /** The `<sheetProtection>` element's attributes, or null. In the suffix. */
   sheetProtection() {
     const m = /<sheetProtection\b([^>]*?)\/?>/.exec(this.suffix);
@@ -2252,6 +2322,32 @@ export class Workbook {
   /** Freeze rows/cols at a sheet's top-left; 0 and 0 thaws. */
   setFrozenPane(sheetName, rows, cols) {
     this._sheetPart(sheetName).part.setFrozenPane(rows, cols);
+    return this;
+  }
+
+  /** A split window on a sheet (see SheetPart#splitPane), or null. */
+  splitPane(sheetName) {
+    return this._sheetPart(sheetName).part.splitPane();
+  }
+
+  setSplitPane(sheetName, spec) {
+    this._sheetPart(sheetName).part.setSplitPane(spec);
+    return this;
+  }
+
+  /**
+   * How a sheet is shown — View → Normal, Page Break Preview, Page Layout —
+   * from `<sheetView view>`: 'normal' (the attribute's absence),
+   * 'pageBreakPreview' or 'pageLayout'.
+   */
+  sheetViewMode(sheetName) {
+    const v = this._sheetPart(sheetName).part.sheetViewAttrs().view;
+    return v === 'pageBreakPreview' || v === 'pageLayout' ? v : 'normal';
+  }
+
+  setSheetViewMode(sheetName, mode) {
+    const value = mode === 'pageBreakPreview' || mode === 'pageLayout' ? mode : null;
+    this._sheetPart(sheetName).part.setSheetViewAttr('view', value);
     return this;
   }
 

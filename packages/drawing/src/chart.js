@@ -70,10 +70,13 @@ export function normaliseSpec(spec) {
   const type = spec.type ?? 'column';
   if (!CHART_TYPES.includes(type)) throw new Error('unknown chart type: ' + type);
 
+  const num = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
   const series = (spec.series ?? []).map((s, i) => ({
     name: s.name ?? 'Series ' + (i + 1),
-    values: (s.values ?? []).map((v) => (v === null || v === undefined || v === '' ? null : Number(v))),
+    values: (s.values ?? []).map(num),
     id: s.id ?? s.name ?? 'series-' + i,
+    // A scatter series' own X values; without them its points go 1, 2, 3….
+    ...(Array.isArray(s.x) ? { x: s.x.map(num) } : {}),
   }));
   if (!series.length) throw new Error('a chart needs at least one series');
 
@@ -95,6 +98,8 @@ export function normaliseSpec(spec) {
     categories: categories.map((c) => (c === null || c === undefined ? '' : String(c))),
     series,
     stacked: Boolean(spec.stacked),
+    // Excel's three scatter looks: markers only, straight lines or smooth ones.
+    scatterStyle: ['lines', 'smooth'].includes(spec.scatterStyle) ? spec.scatterStyle : 'markers',
     width: spec.width ?? 480,
     height: spec.height ?? 300,
     mode: spec.mode ?? 'light',
@@ -198,6 +203,7 @@ export function buildChart(rawSpec) {
   const labelSize = t.font.label;
 
   if (spec.type === 'pie' || spec.type === 'doughnut') return buildPie(spec, t, policy);
+  if (spec.type === 'scatter') return buildScatter(spec, t, policy);
 
   const horizontal = spec.type === 'bar';
   const flat = spec.series.flatMap((s) => s.values).filter((v) => v !== null && Number.isFinite(v));
@@ -380,6 +386,114 @@ export function buildChart(rawSpec) {
     description: describe(spec),
     children,
   });
+}
+
+/**
+ * An axis bound the way Excel picks one for a value axis: zero stays in
+ * when the data is all one side of it, unless the data sits so far from
+ * zero (its near end past five sixths of its far end) that zero would
+ * squash it into a line.
+ */
+function includeZero(min, max) {
+  if (min >= 0 && max > 0 && min < (max * 5) / 6) return [0, max];
+  if (max <= 0 && min < 0 && max > (min * 5) / 6) return [min, 0];
+  return [min, max];
+}
+
+/**
+ * A scatter (XY) chart: numbers against numbers. The X axis is a value
+ * axis like the Y — nice ticks, numbers under them — and each series is its
+ * points at (x, y), joined in the order they come by a straight line, a
+ * smooth one through them (a Catmull-Rom curve, the shape Excel's smoothing
+ * draws), or not at all, with the markers on top.
+ */
+function buildScatter(spec, t, policy) {
+  const labelSize = t.font.label;
+  const pointsOf = (s) => s.values
+    .map((y, i) => [s.x ? s.x[i] : i + 1, y])
+    .filter(([x, y]) => x !== null && y !== null && Number.isFinite(x) && Number.isFinite(y));
+  const all = spec.series.flatMap(pointsOf);
+  const xs = all.map(([x]) => x);
+  const ys = all.map(([, y]) => y);
+  const [xMin, xMax] = includeZero(Math.min(...(xs.length ? xs : [0])), Math.max(...(xs.length ? xs : [1])));
+  let [yMin, yMax] = includeZero(Math.min(...(ys.length ? ys : [0])), Math.max(...(ys.length ? ys : [1])));
+  if (spec.valueAxis.min !== undefined) yMin = spec.valueAxis.min;
+  if (spec.valueAxis.max !== undefined) yMax = spec.valueAxis.max;
+  const xScale = niceScale(xMin, xMax);
+  const yScale = niceScale(yMin, yMax);
+
+  const titleHeight = spec.title ? t.font.title + 12 : 0;
+  const yLabels = yScale.ticks.map((v) => spec.valueAxis.format(v));
+  const gutterLeft = widestText(yLabels, { size: labelSize }) + 14;
+  const gutterBottom = labelSize + 14;
+  const plot = { x: gutterLeft, y: titleHeight + 6, width: 0, height: 0 };
+  // Room on the right for the last X label, centred on the plot's edge.
+  const lastLabel = measureText(spec.valueAxis.format(xScale.max), { size: labelSize });
+  plot.width = spec.width - gutterLeft - Math.max(12, lastLabel / 2 + 4);
+  const legendProbe = buildLegend(spec, t, policy, plot.width, plot.x, 0);
+  plot.height = spec.height - plot.y - gutterBottom - legendProbe.height - 4;
+  if (plot.height < 20) plot.height = Math.max(20, spec.height * 0.4);
+
+  const xAt = (v) => plot.x + ((v - xScale.min) / (xScale.max - xScale.min)) * plot.width;
+  const yAt = (v) => plot.y + plot.height - ((v - yScale.min) / (yScale.max - yScale.min)) * plot.height;
+
+  const children = [];
+  if (spec.title) {
+    children.push(text({
+      x: 0, y: t.font.title, value: spec.title,
+      size: t.font.title, weight: '600', fill: t.ink.primary,
+    }));
+  }
+  // The frame's value gridlines and labels, and the X ticks as its "categories".
+  children.push(cartesianFrame({
+    spec: { ...spec, categories: xScale.ticks.map((v) => spec.valueAxis.format(v)) },
+    t, plot, scale: yScale, categoryPositions: xScale.ticks.map(xAt), horizontal: false,
+  }));
+  // The X axis line, where Y is zero or at the foot.
+  const axisY = yScale.min <= 0 && yScale.max >= 0 ? yAt(0) : plot.y + plot.height;
+  children.push(line({ x1: plot.x, y1: axisY, x2: plot.x + plot.width, y2: axisY, stroke: t.ink.axis, strokeWidth: t.marks.gridWidth }));
+
+  const marks = [];
+  spec.series.forEach((s, si) => {
+    const colour = seriesColour(si, spec.mode);
+    const pts = pointsOf(s).map(([x, y]) => [xAt(x), yAt(y)]);
+    if (!pts.length) return;
+    if (spec.scatterStyle === 'lines' && pts.length > 1) {
+      marks.push(polyline({ points: pts, stroke: colour, strokeWidth: t.marks.lineWidth, fill: 'none', linecap: 'round', linejoin: 'round' }));
+    } else if (spec.scatterStyle === 'smooth' && pts.length > 1) {
+      marks.push(path({ d: smoothPath(pts), stroke: colour, strokeWidth: t.marks.lineWidth, fill: 'none' }));
+    }
+    for (const [px, py] of pts) {
+      marks.push(ellipse({
+        cx: px, cy: py, rx: t.marks.markerSize / 2, ry: t.marks.markerSize / 2,
+        fill: colour, stroke: t.ink.surface, strokeWidth: 2,
+      }));
+    }
+  });
+  children.push(group(marks, { class: 'marks' }));
+
+  const legend = buildLegend(spec, t, policy, plot.width, plot.x, spec.height - 6);
+  if (legend.node) children.push(legend.node);
+  return scene({
+    width: spec.width, height: spec.height, mode: spec.mode,
+    title: spec.title ?? describe(spec), description: describe(spec), children,
+  });
+}
+
+/** A smooth curve through the points: Catmull-Rom, as cubic Béziers. */
+export function smoothPath(pts) {
+  const f = (n) => Number(n.toFixed(2));
+  let d = 'M' + f(pts[0][0]) + ' ' + f(pts[0][1]);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const c1 = [p1[0] + (p2[0] - p0[0]) / 6, p1[1] + (p2[1] - p0[1]) / 6];
+    const c2 = [p2[0] - (p3[0] - p1[0]) / 6, p2[1] - (p3[1] - p1[1]) / 6];
+    d += 'C' + f(c1[0]) + ' ' + f(c1[1]) + ' ' + f(c2[0]) + ' ' + f(c2[1]) + ' ' + f(p2[0]) + ' ' + f(p2[1]);
+  }
+  return d;
 }
 
 function buildPie(spec, t, policy) {

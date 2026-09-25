@@ -117,12 +117,39 @@ export function parseChartXml(chartXml, { mode = 'light', width = 480, height = 
     }
     const valXml = firstElement(ser, 'val') ?? firstElement(ser, 'yVal');
     const nums = valXml ? pointList(valXml) : [];
-    series.push({
+    const entry = {
       name: name ?? 'Series ' + (series.length + 1),
       values: nums.map((v) => (v === undefined || v === null || v === '' ? null : Number(v))),
-    });
+    };
+    // A scatter series plots against its own X values. Text X values (a
+    // strRef) are not numbers, and Excel then plots the points 1, 2, 3…
+    // across, which is what no `x` means to the drawing.
+    if (type === 'scatter') {
+      const xXml = firstElement(ser, 'xVal');
+      if (xXml && !firstElement(xXml, 'strRef') && !firstElement(xXml, 'strLit')) {
+        entry.x = pointList(xXml).map((v) => (v === undefined || v === null || v === '' ? null : Number(v)));
+      }
+      // The series' own line, not its marker's: switched off, it is markers only.
+      const own = ser.replace(/<([\w]+:)?marker>[\s\S]*?<\/([\w]+:)?marker>/g, '').replace(/<([\w]+:)?dPt>[\s\S]*?<\/([\w]+:)?dPt>/g, '');
+      const spPr = firstElement(own, 'spPr');
+      const ln = spPr ? firstElement(spPr, 'ln') : null;
+      entry.line = !(ln && firstElement(ln, 'noFill'));
+      entry.smooth = /<([\w]+:)?smooth\s+val="(1|true)"/.test(own);
+    }
+    series.push(entry);
   }
   if (!series.length) return null;
+
+  // Excel's three scatter looks, from what the series say: markers only
+  // (every line off), smooth lines, or straight ones.
+  let scatterStyle;
+  if (type === 'scatter') {
+    const style = attrs(firstElement(plotXml, 'scatterStyle') ?? '').val;
+    scatterStyle = series.every((s) => s.line === false) || style === 'marker' || style === 'none'
+      ? 'markers'
+      : series.some((s) => s.smooth) ? 'smooth' : 'lines';
+    for (const s of series) { delete s.line; delete s.smooth; }
+  }
 
   const titleXml = firstElement(xml, 'title');
   const title = titleXml
@@ -136,6 +163,7 @@ export function parseChartXml(chartXml, { mode = 'light', width = 480, height = 
     title,
     categories: categories ?? Array.from({ length: longest }, (_, i) => String(i + 1)),
     series,
+    ...(scatterStyle ? { scatterStyle } : {}),
     width,
     height,
     mode,

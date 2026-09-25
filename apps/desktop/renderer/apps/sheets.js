@@ -115,6 +115,10 @@ export default function Sheets({ app, shell, boot }) {
   const [card, setCard] = useState(null);
   /** The Comments pane's filter: every thread, the open ones, or the resolved. */
   const [commentFilter, setCommentFilter] = useState('all');
+  /** Page Break Preview: a break being dragged — its axis, where it was, where the pointer is. */
+  const [breakDrag, setBreakDrag] = useState(null);
+  /** View → Split: a split bar being dragged, and where the pointer has it. */
+  const [splitDrag, setSplitDrag] = useState(null);
   /** Formulas → Evaluate Formula: the cell it opened on and the dialog's first state. */
   const [evaluating, setEvaluating] = useState(null);
   const gridRef = useRef(null);
@@ -351,6 +355,35 @@ export default function Sheets({ app, shell, boot }) {
       cancelAnimationFrame(frame);
     };
   }, [syncViewport]);
+
+  /**
+   * View → Split: the wheel over the top pane scrolls it up and down, over
+   * the left pane across (Shift+wheel, or a sideways wheel), over the
+   * corner both — three rows or columns a notch, as Excel's do. Anything
+   * else the wheel does is the grid's own scrolling.
+   */
+  const hasModel = Boolean(model);
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el) return undefined;
+    const onWheel = (e) => {
+      const pin = e.target?.closest?.('.split');
+      if (!pin) return;
+      const corner = pin.classList.contains('sh-pin-corner');
+      const top = corner || pin.classList.contains('sh-pin-rows') || pin.classList.contains('sh-pin-rowheads');
+      const left = corner || pin.classList.contains('sh-pin-cols') || pin.classList.contains('sh-pin-colheads');
+      const dy = e.shiftKey ? 0 : e.deltaY;
+      const dx = e.shiftKey ? (e.deltaY || e.deltaX) : e.deltaX;
+      const step = (d) => Math.sign(d) * Math.max(1, Math.round((Math.abs(d) / 100) * 3));
+      const rows = top && dy ? step(dy) : 0;
+      const cols = left && dx ? step(dx) : 0;
+      if (!rows && !cols) return;
+      e.preventDefault();
+      navigate({ op: 'scrollSplit', rows, cols });
+    };
+    el.addEventListener('wheel', onWheel, { passive: false });
+    return () => el.removeEventListener('wheel', onWheel);
+  }, [navigate, hasModel]);
 
   /* ── commands ────────────────────────────────────────────────────────── */
 
@@ -782,6 +815,22 @@ export default function Sheets({ app, shell, boot }) {
   const headTop = view.headings ? (model?.headerHeight ?? 0) + gutH : 0;
   const headLeft = view.headings ? (model?.headerWidth ?? 0) + gutW : 0;
   const pane = (at) => (at.row < frozen.rows ? (at.col < frozen.cols ? 'corner' : 'rows') : at.col < frozen.cols ? 'cols' : 'main');
+  /**
+   * View → Split: the top and left panes are the frozen panes' pinned
+   * layers, each showing the rows or columns it has scrolled to — the top
+   * pane scrolls across with the main one and up and down on its own, the
+   * left pane the other way round. The main layer draws the viewport's own
+   * cells; a row can be in both, drawn in each.
+   */
+  const split = model?.split && !(frozen.rows || frozen.cols) ? model.split : null;
+  const splitRows = new Set(split?.rows || []);
+  const splitCols = new Set(split?.cols || []);
+  const splitH = split?.rows?.length ? split.height : 0;
+  const splitW = split?.cols?.length ? split.width : 0;
+  const vpr = model?.viewport;
+  const inMain = (at) => (split
+    ? Boolean(vpr) && at.row >= vpr.firstRow && at.row <= vpr.lastRow && at.col >= vpr.firstCol && at.col <= vpr.lastCol
+    : pane(at) === 'main');
 
   const boxOf = (range) => {
     const left = (model?.columns || []).find((c) => c.index === range.left);
@@ -800,8 +849,11 @@ export default function Sheets({ app, shell, boot }) {
     // Screen pixels to the grid's own: the grid is zoomed, the pointer is not.
     const rect = layer.getBoundingClientRect();
     const z = view.zoom || 1;
-    const x = (event.clientX - rect.left) / z;
-    const y = (event.clientY - rect.top) / z + (pin && pin.classList.contains('sh-pin-cols') ? frozenH : 0);
+    // Each pinned layer says how far its content is from where it sits:
+    // the frozen columns start under the frozen rows, a split pane shows
+    // the rows and columns it has scrolled to.
+    const x = (event.clientX - rect.left) / z + Number(pin?.dataset.ox || 0);
+    const y = (event.clientY - rect.top) / z + Number(pin?.dataset.oy || 0);
     const col = (model?.columns || []).find((c) => x >= c.x && x < c.x + c.width);
     const row = (model?.rows || []).find((r) => y >= r.y && y < r.y + r.height);
     return col && row ? { row: row.index, col: col.index } : null;
@@ -902,14 +954,14 @@ export default function Sheets({ app, shell, boot }) {
   };
 
   /** A cell, drawn where it sits — `dy` above it when its layer starts lower down. */
-  const cellNode = (cell, dy = 0) => {
+  const cellNode = (cell, dy = 0, dx = 0) => {
     const spark = sparkAt.get(cell.row + ':' + cell.col);
     return (
       <div
         key={cell.ref}
         className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}${cell.thread ? (cell.thread.done ? ' threaded resolved' : ' threaded') : ''}`}
         data-ref={cell.ref}
-        style={dy ? { ...spillStyle(cell), top: cell.y - dy } : spillStyle(cell)}
+        style={dy || dx ? (() => { const s = spillStyle(cell); return { ...s, top: cell.y - dy, left: s.left - dx }; })() : spillStyle(cell)}
         onMouseDown={(e) => {
           // Ctrl+click on a link follows it, as in Word; a plain click selects, as in Excel.
           if (cell.link && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
@@ -1054,13 +1106,13 @@ export default function Sheets({ app, shell, boot }) {
     return out;
   };
 
-  const colHead = (c) => (
+  const colHead = (c, dx = 0) => (
     <div
       key={c.index}
       className={`sh-head${c.index >= (sel?.left ?? -1) && c.index <= (sel?.right ?? -2) ? ' active' : ''}`}
       // Both coordinates, always: an absolute heading with no top took its
       // static place, which the pinned wrapper in flow had moved down.
-      style={{ left: c.x, top: gutH, width: c.width, height: model.headerHeight }}
+      style={{ left: c.x - dx, top: gutH, width: c.width, height: model.headerHeight }}
       onClick={(e) => dispatch({ op: 'selectColumn', col: c.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
       onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
     >
@@ -1196,6 +1248,114 @@ export default function Sheets({ app, shell, boot }) {
           </div>
         ) : null}
       </div>
+    );
+  };
+
+  /**
+   * View → Page Break Preview, drawn over the cells: what is not printed
+   * greyed, the printed area and each page edged in blue, a break put by
+   * hand solid and one the paper made dashed, and "Page 1", "Page 2"… across
+   * each page. A break is a handle: dragged, it goes where it is dropped.
+   */
+  const breaksNode = (shift = null) => {
+    const pb = model?.pageBreaks;
+    if (!pb || !model) return null;
+    const a = pb.area;
+    const W = model.total.width;
+    const H = model.total.height;
+    const shade = (key, x, y, w, h) => (w > 0 && h > 0 ? <div key={key} className="sh-pb-shade" style={{ left: x, top: y, width: w, height: h }} /> : null);
+    const startDrag = (e, axis, b) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const layer = gridRef.current?.querySelector('.sh-cells');
+      if (!layer) return;
+      const rect = layer.getBoundingClientRect();
+      const z = view.zoom || 1;
+      const at = (ev) => (axis === 'row' ? (ev.clientY - rect.top) / z : (ev.clientX - rect.left) / z);
+      let pos = at(e);
+      setBreakDrag({ axis, index: b.index, pos });
+      const move = (ev) => { pos = at(ev); setBreakDrag({ axis, index: b.index, pos }); };
+      const stop = () => {
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', stop);
+        setBreakDrag(null);
+        // The row or column edge nearest the drop.
+        const list = axis === 'row' ? (model.rows || []).map((r) => [r.index, r.y]) : (model.columns || []).map((c) => [c.index, c.x]);
+        let best = null;
+        for (const [index, edge] of list) if (!best || Math.abs(edge - pos) < Math.abs(best[1] - pos)) best = [index, edge];
+        if (!best || best[0] === b.index) return;
+        act('moveBreak', { axis, from: b.index, to: best[0], manual: b.manual });
+      };
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', stop);
+    };
+    return (
+      // In a split pane the same marks are drawn where the pane has scrolled
+      // to (`shift`), to be seen but not dragged; the handles are the main pane's.
+      <div className={`sh-pb${shift ? ' mirror' : ''}`} data-pages={shift ? undefined : pb.count} style={shift ? { left: -shift.x, top: -shift.y } : undefined}>
+        {shade('t', 0, 0, W, a.y)}
+        {shade('b', 0, a.y + a.height, W, H - a.y - a.height)}
+        {shade('l', 0, a.y, a.x, a.height)}
+        {shade('r', a.x + a.width, a.y, W - a.x - a.width, a.height)}
+        {pb.pages.map((p) => (
+          <div key={'p' + p.n} className="sh-pb-page" data-page={p.n} style={{ left: p.x, top: p.y, width: p.width, height: p.height }}>
+            <span style={{ fontSize: Math.max(18, Math.min(64, Math.round(Math.min(p.width / 4, p.height / 5)))) }}>Page {p.n}</span>
+          </div>
+        ))}
+        <div className="sh-pb-area" style={{ left: a.x, top: a.y, width: a.width, height: a.height }} />
+        {pb.rows.map((b) => (
+          <div key={'r' + b.index} className={`sh-pb-break row${b.manual ? ' manual' : ''}`} data-index={b.index} data-tip={`${b.manual ? 'Page break put by hand' : 'Automatic page break'} above row ${b.index + 1} — drag to move it`}
+            style={{ left: a.x, top: b.y - 4, width: a.width }} onMouseDown={shift ? undefined : (e) => startDrag(e, 'row', b)} />
+        ))}
+        {pb.cols.map((b) => (
+          <div key={'c' + b.index} className={`sh-pb-break col${b.manual ? ' manual' : ''}`} data-index={b.index} data-tip={`${b.manual ? 'Page break put by hand' : 'Automatic page break'} left of column ${colLabel(b.index)} — drag to move it`}
+            style={{ top: a.y, left: b.x - 4, height: a.height }} onMouseDown={shift ? undefined : (e) => startDrag(e, 'col', b)} />
+        ))}
+        {breakDrag ? (
+          <div className={`sh-pb-guide ${breakDrag.axis}`} style={breakDrag.axis === 'row' ? { left: a.x, width: a.width, top: breakDrag.pos - 1 } : { top: a.y, height: a.height, left: breakDrag.pos - 1 }} />
+        ) : null}
+      </div>
+    );
+  };
+
+  /**
+   * View → Split: the bars between the panes, over the grid where the
+   * panes meet. Dragged, a bar moves the split to the nearest row or column
+   * edge; dragged to the window's edge, that split goes.
+   */
+  const splitBars = () => {
+    if (!split || !model) return null;
+    const z = view.zoom || 1;
+    const el = gridRef.current;
+    const barW = el ? el.offsetWidth - el.clientWidth : 0;
+    const barH = el ? el.offsetHeight - el.clientHeight : 0;
+    const start = (e, axis) => {
+      if (e.button !== 0 || !el) return;
+      e.preventDefault();
+      const rect = el.getBoundingClientRect();
+      const at = (ev) => (axis === 'h' ? (ev.clientY - rect.top) / z - headTop : (ev.clientX - rect.left) / z - headLeft);
+      let pos = at(e);
+      setSplitDrag({ axis, pos });
+      const move = (ev) => { pos = at(ev); setSplitDrag({ axis, pos }); };
+      const stop = () => {
+        window.removeEventListener('mousemove', move);
+        window.removeEventListener('mouseup', stop);
+        setSplitDrag(null);
+        const limit = axis === 'h' ? el.clientHeight / z - headTop - 8 : el.clientWidth / z - headLeft - 8;
+        const size = pos <= 4 || pos >= limit ? 0 : pos;
+        dispatch({ op: 'setSplit', height: axis === 'h' ? size : splitH, width: axis === 'v' ? size : splitW });
+      };
+      window.addEventListener('mousemove', move);
+      window.addEventListener('mouseup', stop);
+    };
+    const hTop = (headTop + (splitDrag?.axis === 'h' ? splitDrag.pos : splitH)) * z;
+    const vLeft = (headLeft + (splitDrag?.axis === 'v' ? splitDrag.pos : splitW)) * z;
+    return (
+      <>
+        {splitH ? <div className={`sh-splitbar h${splitDrag?.axis === 'h' ? ' dragging' : ''}`} data-tip="Split — drag to move; drag to the edge to take it away" style={{ top: hTop - 2, left: 0, right: barW }} onMouseDown={(e) => start(e, 'h')} /> : null}
+        {splitW ? <div className={`sh-splitbar v${splitDrag?.axis === 'v' ? ' dragging' : ''}`} data-tip="Split — drag to move; drag to the edge to take it away" style={{ left: vLeft - 2, top: 0, bottom: barH }} onMouseDown={(e) => start(e, 'v')} /> : null}
+      </>
     );
   };
 
@@ -1448,7 +1608,41 @@ export default function Sheets({ app, shell, boot }) {
         toast(said, { tone: 'good' });
         return;
       }
-      case 'view': return;
+      // View → Normal / Page Break Preview, and the status bar's buttons.
+      case 'view': {
+        if (arg !== 'normal' && arg !== 'pageBreakPreview') return;
+        if ((model?.viewMode || 'normal') === arg) return;
+        // Each view keeps its own zoom, as Excel's do: the preview opens at
+        // 60% — whole pages in sight — and Normal goes back to where it was.
+        patchView((v) => (arg === 'pageBreakPreview'
+          ? { normalZoom: v.zoom ?? 1, zoom: v.previewZoom ?? 0.6 }
+          : { previewZoom: v.zoom ?? 0.6, zoom: v.normalZoom ?? 1 }));
+        await dispatch({ op: 'setViewMode', mode: arg });
+        return;
+      }
+      // View → Split, a toggle at the active cell.
+      case 'split':
+        await dispatch({ op: 'toggleSplit' });
+        return;
+      // A page break dragged in the preview: it becomes one put by hand where
+      // it was dropped (Excel's way); dragged out of the printed area it goes.
+      case 'moveBreak': {
+        const { axis, from, to, manual } = arg;
+        const current = await shell.doc.pageSetup({ id: doc.id });
+        const key = axis === 'row' ? 'rowBreaks' : 'colBreaks';
+        const set = new Set(current[key] || []);
+        if (manual) set.delete(from);
+        const area = model?.pageBreaks?.area;
+        const inside = area && (axis === 'row' ? to > area.top && to <= area.bottom : to > area.left && to <= area.right);
+        if (inside) set.add(to);
+        const next = { ...current, [key]: [...set].sort((a, b) => a - b) };
+        await dispatch({ op: 'setPageSetup', setup: next });
+        patchView({ page: next });
+        toast(inside
+          ? (axis === 'row' ? `Page break above row ${to + 1}` : `Page break left of column ${colLabel(to)}`)
+          : 'Page break removed', { tone: 'good', ms: 2400 });
+        return;
+      }
       case 'zoom': {
         // The grid alone is scaled, with CSS zoom on its scroll container. It
         // used to be the window's zoom — ribbon, status bar and the slider
@@ -1903,6 +2097,14 @@ export default function Sheets({ app, shell, boot }) {
             // in manual mode; pressing it is Calculate Now.
             <button type="button" className="sh-calc-pending" data-tip="Calculate — formulas are waiting for Calculate Now (F9)" onClick={() => act('calculate', 'workbook')}>Calculate</button>
           ) : null}
+          <span className="sh-viewbtns">
+            <button type="button" className={`sh-viewbtn${model?.viewMode !== 'pageBreakPreview' ? ' on' : ''}`} data-view="normal" data-tip="Normal" onClick={() => act('view', 'normal')}>
+              <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1" /><path d="M1.5 5.2h11M1.5 8.8h11M5.2 1.5v11M8.8 1.5v11" /></svg>
+            </button>
+            <button type="button" className={`sh-viewbtn${model?.viewMode === 'pageBreakPreview' ? ' on' : ''}`} data-view="pageBreakPreview" data-tip="Page Break Preview" onClick={() => act('view', 'pageBreakPreview')}>
+              <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1" /><path d="M7 1.5v11" strokeDasharray="1.6 1.4" /><path d="M1.5 7h11" /></svg>
+            </button>
+          </span>
           <ZoomSlider value={view.zoom ?? 1} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', 1)} />
         </>
       }
@@ -1989,7 +2191,12 @@ export default function Sheets({ app, shell, boot }) {
                     {(model.columns || []).filter((c) => c.index < frozen.cols).map((c) => colHead(c))}
                   </div>
                 ) : null}
-                {(model.columns || []).filter((c) => c.index >= frozen.cols).map((c) => colHead(c))}
+                {splitW ? (
+                  <div className="sh-pin sh-pin-colheads split" style={{ left: headLeft, width: splitW, height: model.headerHeight + gutH }}>
+                    {(model.columns || []).filter((c) => splitCols.has(c.index)).map((c) => colHead(c, split.leftX))}
+                  </div>
+                ) : null}
+                {(model.columns || []).filter((c) => (split ? c.index >= (vpr?.firstCol ?? 0) : c.index >= frozen.cols)).map((c) => colHead(c))}
               </div>
 
               <div className="sh-rowheads" style={{ width: model.headerWidth + gutW }}>
@@ -2000,7 +2207,12 @@ export default function Sheets({ app, shell, boot }) {
                     {(model.rows || []).filter((r) => r.index < frozen.rows).map((r) => rowHead(r))}
                   </div>
                 ) : null}
-                {(model.rows || []).filter((r) => r.index >= frozen.rows).map((r) => rowHead(r))}
+                {splitH ? (
+                  <div className="sh-pin sh-pin-rowheads split" style={{ top: headTop, height: splitH, width: model.headerWidth + gutW }}>
+                    {(model.rows || []).filter((r) => splitRows.has(r.index)).map((r) => rowHead(r, split.topY))}
+                  </div>
+                ) : null}
+                {(model.rows || []).filter((r) => (split ? r.index >= (vpr?.firstRow ?? 0) : r.index >= frozen.rows)).map((r) => rowHead(r))}
               </div>
 
               <div
@@ -2032,9 +2244,27 @@ export default function Sheets({ app, shell, boot }) {
                   </div>
                 ) : null}
                 {frozen.cols ? (
-                  <div className="sh-pin sh-pin-cols" style={{ left: headLeft, width: frozenW, height: Math.max(0, model.total.height - frozenH) }}>
+                  <div className="sh-pin sh-pin-cols" data-oy={frozenH} style={{ left: headLeft, width: frozenW, height: Math.max(0, model.total.height - frozenH) }}>
                     {model.cells.map((cell) => (pane(cell) === 'cols' ? cellNode(cell, frozenH) : null))}
                     {editing && pane(editing) === 'cols' ? editorNode(frozenH) : null}
+                  </div>
+                ) : null}
+                {splitH ? (
+                  <div className="sh-pin sh-pin-rows split" data-oy={split.topY} style={{ top: headTop, height: splitH }}>
+                    {splitW ? (
+                      <div className="sh-pin sh-pin-corner split" data-ox={split.leftX} data-oy={split.topY} style={{ left: headLeft, width: splitW, height: splitH }}>
+                        {model.cells.map((cell) => (splitRows.has(cell.row) && splitCols.has(cell.col) ? cellNode(cell, split.topY, split.leftX) : null))}
+                        {breaksNode({ x: split.leftX, y: split.topY })}
+                      </div>
+                    ) : null}
+                    {model.cells.map((cell) => (splitRows.has(cell.row) && cell.col >= (vpr?.firstCol ?? 0) ? cellNode(cell, split.topY) : null))}
+                    {breaksNode({ x: 0, y: split.topY })}
+                  </div>
+                ) : null}
+                {splitW ? (
+                  <div className="sh-pin sh-pin-cols split" data-ox={split.leftX} data-oy={splitH} style={{ left: headLeft, width: splitW, height: Math.max(0, model.total.height - splitH) }}>
+                    {model.cells.map((cell) => (splitCols.has(cell.col) && cell.row >= (vpr?.firstRow ?? 0) && cell.row <= (vpr?.lastRow ?? -1) ? cellNode(cell, splitH, split.leftX) : null))}
+                    {breaksNode({ x: split.leftX, y: splitH })}
                   </div>
                 ) : null}
                 {(() => {
@@ -2060,8 +2290,9 @@ export default function Sheets({ app, shell, boot }) {
                     style={resizing.kind === 'col' ? { left: resizing.start + resizing.size, top: 0, height: model.total.height } : { top: resizing.start + resizing.size, left: 0, width: model.total.width }}
                   />
                 ) : null}
-                {model.cells.map((cell) => (pane(cell) === 'main' ? cellNode(cell) : null))}
+                {model.cells.map((cell) => (inMain(cell) ? cellNode(cell) : null))}
                 {arrowsNode()}
+                {breaksNode()}
 
                 {/*
                   What is drawn over the cells: the shapes, pictures and charts
@@ -2088,6 +2319,7 @@ export default function Sheets({ app, shell, boot }) {
               </div>
             </div>
           </div>
+          {splitBars()}
           {errorsPane()}
           {watchPane()}
           {commentsPane()}
@@ -2647,6 +2879,44 @@ const CSS = `
 .sh-cell.link { color: var(--accent); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 55%, transparent); cursor: pointer; }
 /* A note: Excel's red corner, and the note itself on hover through the tip layer. */
 .sh-cell.noted::after { content: ''; position: absolute; top: 0; right: 0; border: 4px solid transparent; border-top-color: #d0362f; border-right-color: #d0362f; }
+/* View → Page Break Preview: the unprinted greyed, the pages edged in blue,
+   a break by hand solid and one by the paper dashed, the page numbers
+   faint across each page. The breaks are handles. */
+.sh-pb { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 3; }
+.sh-pb-shade { position: absolute; background: color-mix(in srgb, #6b6f7a 30%, transparent); pointer-events: none; }
+.sh-pb-area { position: absolute; box-sizing: border-box; border: 4px solid #2152c8; pointer-events: none; }
+.sh-pb-page { position: absolute; display: grid; place-items: center; pointer-events: none; overflow: hidden; }
+/* Over the cells, but multiplied in, so it reads as lying under their words as Excel's does. */
+.sh-pb-page span { color: #c9ccd3; mix-blend-mode: multiply; font-weight: 700; letter-spacing: 0.02em; white-space: nowrap; user-select: none; }
+.sh-pb-break { position: absolute; box-sizing: border-box; }
+.sh-pb-break.row { height: 9px; cursor: row-resize; }
+.sh-pb-break.col { width: 9px; cursor: col-resize; }
+.sh-pb-break.row::after { content: ''; position: absolute; left: 0; right: 0; top: 2px; border-top: 4px dashed #2152c8; }
+.sh-pb-break.col::after { content: ''; position: absolute; top: 0; bottom: 0; left: 2px; border-left: 4px dashed #2152c8; }
+.sh-pb-break.manual.row::after { border-top-style: solid; }
+.sh-pb-break.manual.col::after { border-left-style: solid; }
+.sh-pb-break:hover::after { border-color: var(--accent); }
+.sh-pb-guide { position: absolute; background: var(--accent); pointer-events: none; z-index: 4; }
+.sh-pb-guide.row { height: 3px; }
+.sh-pb-guide.col { width: 3px; }
+/* View → Split: the bars where the panes meet; the panes themselves are the
+   pinned layers, with no frozen shadow of their own. */
+/* clip, not hidden: a hidden overflow is a scroll container, and the corner's own stickiness would then be measured from its pane. */
+.sh-pin.split { box-shadow: none; overflow: clip; }
+.sh-pb.mirror .sh-pb-break { pointer-events: none; }
+/* The split panes cover the main pane's preview marks where they lie over it. */
+.sh-pin-cols.split { z-index: 5; }
+.sh-pin-rows.split { z-index: 6; }
+.sh-splitbar { position: absolute; z-index: 12; background: color-mix(in srgb, var(--ink) 24%, var(--surface)); }
+.sh-splitbar.h { height: 5px; cursor: row-resize; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.sh-splitbar.v { width: 5px; cursor: col-resize; border-left: 1px solid var(--line); border-right: 1px solid var(--line); }
+.sh-splitbar:hover, .sh-splitbar.dragging { background: var(--accent); border-color: var(--accent); }
+/* The status bar's view buttons, beside the zoom as Excel has them. */
+.sh-viewbtns { display: inline-flex; gap: 2px; margin-right: 4px; }
+.sh-viewbtn { width: 24px; height: 22px; display: grid; place-items: center; border: 1px solid transparent; border-radius: var(--r-2); background: transparent; color: var(--ink-2); cursor: pointer; padding: 0; }
+.sh-viewbtn svg { fill: none; stroke: currentColor; stroke-width: 1.1; }
+.sh-viewbtn:hover { background: var(--hover); }
+.sh-viewbtn.on { background: var(--selected); color: var(--accent); border-color: color-mix(in srgb, var(--accent) 35%, var(--line)); }
 /* A comment thread: Excel's purple corner — grey once the thread is resolved —
    and the corner itself is what a click opens the thread from. */
 .sh-cell.threaded::before { content: ''; position: absolute; top: 0; right: 0; border: 5px solid transparent; border-top-color: #7a3db8; border-right-color: #7a3db8; pointer-events: none; }

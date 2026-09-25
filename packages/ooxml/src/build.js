@@ -201,14 +201,30 @@ export function chartPartXml(chart) {
       + '<c:numCache><c:formatCode>General</c:formatCode><c:ptCount val="' + list.length + '"/>'
       + pts(list) + '</c:numCache></c:numRef>');
 
-  const series = chart.series.map((s, i) => '<c:ser>'
-    + '<c:idx val="' + i + '"/><c:order val="' + i + '"/>'
-    + '<c:tx>' + (s.nameRef
-      ? strRef(s.nameRef, [s.name ?? 'Series ' + (i + 1)])
-      : '<c:v>' + esc(s.name ?? 'Series ' + (i + 1)) + '</c:v>') + '</c:tx>'
-    + (chart.categories ? '<c:cat>' + strRef(chart.categories.ref, chart.categories.values) + '</c:cat>' : '')
-    + '<c:val>' + numRef(s.ref, s.values ?? []) + '</c:val>'
-    + '</c:ser>').join('');
+  // A scatter (XY) chart plots numbers against numbers: the categories are
+  // its X values (xVal) and each series its Y values (yVal). Excel's three
+  // looks — markers only, straight lines, smooth lines, each with markers —
+  // are scatterStyle and each series' own line: "markers only" is the line
+  // style with the series line switched off, which is how Excel writes it.
+  const scatter = kind === 'scatter';
+  const look = chart.scatterStyle === 'lines' || chart.scatterStyle === 'smooth' ? chart.scatterStyle : 'markers';
+  const tx = (s, i) => '<c:tx>' + (s.nameRef
+    ? strRef(s.nameRef, [s.name ?? 'Series ' + (i + 1)])
+    : '<c:v>' + esc(s.name ?? 'Series ' + (i + 1)) + '</c:v>') + '</c:tx>';
+  const series = chart.series.map((s, i) => (scatter
+    ? '<c:ser>'
+      + '<c:idx val="' + i + '"/><c:order val="' + i + '"/>' + tx(s, i)
+      + (look === 'markers' ? '<c:spPr><a:ln w="19050" cap="rnd"><a:noFill/><a:round/></a:ln></c:spPr>' : '')
+      + '<c:marker><c:symbol val="circle"/><c:size val="5"/></c:marker>'
+      + (chart.categories ? '<c:xVal>' + numRef(chart.categories.ref, chart.categories.values) + '</c:xVal>' : '')
+      + '<c:yVal>' + numRef(s.ref, s.values ?? []) + '</c:yVal>'
+      + '<c:smooth val="' + (look === 'smooth' ? 1 : 0) + '"/>'
+      + '</c:ser>'
+    : '<c:ser>'
+      + '<c:idx val="' + i + '"/><c:order val="' + i + '"/>' + tx(s, i)
+      + (chart.categories ? '<c:cat>' + strRef(chart.categories.ref, chart.categories.values) + '</c:cat>' : '')
+      + '<c:val>' + numRef(s.ref, s.values ?? []) + '</c:val>'
+      + '</c:ser>')).join('');
 
   const title = chart.title
     ? '<c:title><c:tx><c:rich><a:bodyPr/><a:lstStyle/><a:p><a:r><a:t>' + esc(chart.title)
@@ -219,7 +235,9 @@ export function chartPartXml(chart) {
   // Pie and doughnut have no axes; everything else shares the two-axis frame.
   // The kind list matches Studio's vocabulary, which is the convergence the
   // roadmap asks for: column, bar, line, area, pie, doughnut.
-  const plot = kind === 'pie'
+  const plot = scatter
+    ? '<c:scatterChart><c:scatterStyle val="' + (look === 'smooth' ? 'smoothMarker' : 'lineMarker') + '"/><c:varyColors val="0"/>' + series + axRefs + '</c:scatterChart>'
+    : kind === 'pie'
     ? '<c:pieChart><c:varyColors val="1"/>' + series + '<c:firstSliceAng val="0"/></c:pieChart>'
     : kind === 'doughnut'
       ? '<c:doughnutChart><c:varyColors val="1"/>' + series + '<c:firstSliceAng val="0"/><c:holeSize val="50"/></c:doughnutChart>'
@@ -228,7 +246,13 @@ export function chartPartXml(chart) {
         : kind === 'area'
           ? '<c:areaChart><c:grouping val="standard"/><c:varyColors val="0"/>' + series + axRefs + '</c:areaChart>'
           : '<c:barChart><c:barDir val="' + (kind === 'bar' ? 'bar' : 'col') + '"/><c:grouping val="clustered"/><c:varyColors val="0"/>' + series + axRefs + '</c:barChart>';
-  const axes = (kind === 'pie' || kind === 'doughnut') ? '' : (
+  // A scatter's X axis is a value axis too: two valAx, the X one at the foot.
+  const axes = scatter ? (
+    '<c:valAx><c:axId val="' + CAT_AX + '"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
+    + '<c:delete val="0"/><c:axPos val="b"/><c:numFmt formatCode="General" sourceLinked="1"/><c:crossAx val="' + VAL_AX + '"/><c:crosses val="autoZero"/><c:crossBetween val="midCat"/></c:valAx>'
+    + '<c:valAx><c:axId val="' + VAL_AX + '"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
+    + '<c:delete val="0"/><c:axPos val="l"/><c:majorGridlines/><c:numFmt formatCode="General" sourceLinked="1"/><c:crossAx val="' + CAT_AX + '"/><c:crosses val="autoZero"/><c:crossBetween val="midCat"/></c:valAx>'
+  ) : (kind === 'pie' || kind === 'doughnut') ? '' : (
     '<c:catAx><c:axId val="' + CAT_AX + '"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
     + '<c:delete val="0"/><c:axPos val="b"/><c:crossAx val="' + VAL_AX + '"/></c:catAx>'
     + '<c:valAx><c:axId val="' + VAL_AX + '"/><c:scaling><c:orientation val="minMax"/></c:scaling>'

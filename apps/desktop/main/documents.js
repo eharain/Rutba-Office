@@ -1067,6 +1067,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // Filter dialogs — as text, since only a primitive rides back.
     listFields: (v) => JSON.stringify(v.listFields()),
     freeze: (v, a) => v.freezePanes(a.rows ?? 0, a.cols ?? 0),
+    // View → Normal / Page Break Preview, and Split: kept in the sheet's
+    // view the way Excel keeps them. The top and left panes of a split
+    // scroll on their own (scrollSplit), which changes nothing in the file.
+    setViewMode: (v, a) => { v.setViewMode(a.mode === 'pageBreakPreview' ? 'pageBreakPreview' : 'normal'); },
+    toggleSplit: (v) => { v.toggleSplit(); },
+    setSplit: (v, a) => { v.setSplit({ width: a.width, height: a.height, top: a.top, left: a.left }); },
+    scrollSplit: (v, a) => { v.scrollSplit({ rows: a.rows, cols: a.cols }); },
     // The page setup belongs to the workbook, not to a dialog that closes:
     // Excel keeps it in the sheet and in two defined names, and so does this,
     // so the person who opens the file next gets the setup it was made with.
@@ -1364,7 +1371,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

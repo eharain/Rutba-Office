@@ -43,6 +43,7 @@ import {
   clearOutline, outlineFrame, selectionAxis, subtotal, removeSubtotals, listFields,
 } from './outline.js';
 import { advancedFilter, clearAdvancedFilter, filterNames } from './advanced-filter.js';
+import { paginate, pageSetup, readPageSetup, parseArea } from './print.js';
 import { inferProgram, runProgram } from './flash-fill.js';
 import {
   readSheetDrawings, buildChart, buildShape, buildPicture, renderSvg, scene,
@@ -75,7 +76,10 @@ export const SHEET_FILTER = '#sheet';
  * convergence the roadmap asked for. Lock-step with `chartPartXml`'s kind
  * branch; the ribbon offers exactly this list.
  */
-export const CHART_KINDS = ['column', 'bar', 'line', 'area', 'pie', 'doughnut'];
+export const CHART_KINDS = ['column', 'bar', 'line', 'area', 'pie', 'doughnut', 'scatter'];
+
+/** Insert → Scatter's three looks, as `chartPartXml` writes them. */
+export const SCATTER_STYLES = ['markers', 'lines', 'smooth'];
 
 /**
  * Error Checking: the plain-English reason behind each error type, keyed by
@@ -970,12 +974,38 @@ export class SheetView {
     // Frozen rows and columns ride in EVERY frame, wherever the viewport has
     // scrolled — the client pins them while the rest slides underneath.
     const frozen = this.frozenPane();
-    const rowIndices = [];
+    let rowIndices = [];
     for (let r = 0; r < frozen.rows && r < vp.firstRow; r++) rowIndices.push(r);
     for (let r = vp.firstRow; r <= vp.lastRow; r++) rowIndices.push(r);
-    const colIndices = [];
+    let colIndices = [];
     for (let c = 0; c < frozen.cols && c < vp.firstCol; c++) colIndices.push(c);
     for (let c = vp.firstCol; c <= vp.lastCol; c++) colIndices.push(c);
+
+    // A split window's top and left panes scroll on their own: their rows
+    // and columns ride in every frame too, from wherever each pane is.
+    const split = this.splitPane();
+    let splitFrame = null;
+    if (split) {
+      const rowsTop = [];
+      const colsLeft = [];
+      for (let r = split.top, y = 0; split.height && r < MAX_ROWS && y < split.height && rowsTop.length < 400; r++) {
+        rowsTop.push(r);
+        y += geo.rowHeight(r);
+      }
+      for (let c = split.left, x = 0; split.width && c < MAX_COLS && x < split.width && colsLeft.length < 200; c++) {
+        colsLeft.push(c);
+        x += geo.colWidth(c);
+      }
+      if (rowsTop.length) rowIndices = [...new Set([...rowsTop, ...rowIndices])].sort((a, b) => a - b);
+      if (colsLeft.length) colIndices = [...new Set([...colsLeft, ...colIndices])].sort((a, b) => a - b);
+      splitFrame = {
+        ...split,
+        topY: geo.rowOffset(split.top),
+        leftX: geo.colOffset(split.left),
+        rows: rowsTop,
+        cols: colsLeft,
+      };
+    }
 
     const cells = [];
     // Conditional-formatting range aggregates, computed once per pass — and
@@ -1263,6 +1293,15 @@ export class SheetView {
       // with their pixel extents, for the gutter's brackets and buttons.
       // Null when nothing on the sheet is grouped.
       outline: outlineFrame(geo, vp, frozen),
+      // View → Split: the two (or four) panes' sizes, where the top and left
+      // ones have scrolled to, and the rows and columns they show; null
+      // when the window is not split.
+      split: splitFrame,
+      // View → Normal / Page Break Preview, and — in the preview — the
+      // pages as the printer will cut them: the printed area, each page's
+      // box and number, and each break, put by hand or by the paper.
+      viewMode: this.viewMode(),
+      pageBreaks: this.viewMode() === 'pageBreakPreview' ? this.pageBreakPreview({ viewport: vp }) : null,
       // The frozen pane, with its band sizes in pixels for the client's clip.
       frozen: {
         rows: frozen.rows,
@@ -3293,7 +3332,10 @@ export class SheetView {
    * cached values that match the sheet, so Excel re-plots it live and every
    * non-calculating reader paints the numbers it was given.
    */
-  insertChart({ title = '', kind = 'column' } = {}) {
+  insertChart({ title = '', kind = 'column', scatterStyle = 'markers' } = {}) {
+    if (kind === 'scatter' && !SCATTER_STYLES.includes(scatterStyle)) {
+      throw new Error('"' + scatterStyle + '" is not a scatter look — ' + SCATTER_STYLES.join(', '));
+    }
     if (!CHART_KINDS.includes(kind)) {
       throw new Error('"' + kind + '" is not a chart kind this editor writes — '
         + CHART_KINDS.join(', '));
@@ -3312,12 +3354,30 @@ export class SheetView {
     const abs = (row, col) => '$' + colName(col) + '$' + (row + 1);
     const colRef = (col, top, bottom) => q + '!' + abs(top, col) + ':' + abs(bottom, col);
 
+    // A scatter plots numbers against numbers: its first column is the X
+    // values when they are all numbers (Excel's reading); a first column of
+    // words is labels, and the points go 1, 2, 3… across as Excel's do.
+    const firstIsX = kind === 'scatter' && (() => {
+      for (let row = r.top + 1; row <= r.bottom; row++) {
+        const v = this.calc.getValue(sheet, row, r.left);
+        if (typeof v !== 'number' && v !== '' && v !== null) return false;
+      }
+      return true;
+    })();
     const categories = {
       ref: colRef(r.left, r.top + 1, r.bottom),
       values: [],
     };
     for (let row = r.top + 1; row <= r.bottom; row++) {
-      categories.values.push(this.displayValue(row, r.left).text);
+      if (kind === 'scatter') {
+        const v = this.calc.getValue(sheet, row, r.left);
+        categories.values.push(typeof v === 'number' && Number.isFinite(v) ? v : null);
+      } else {
+        categories.values.push(this.displayValue(row, r.left).text);
+      }
+    }
+    if (kind === 'scatter' && r.right - r.left > 3) {
+      throw new Error('A scatter chart here plots up to three series — select a block of an X column and up to three Y columns.');
     }
     const series = [];
     for (let col = r.left + 1; col <= r.right; col++) {
@@ -3342,7 +3402,7 @@ export class SheetView {
       const n = this.pkg.nextPartNumber('xl/charts/', 'chart');
       const chartPart = 'xl/charts/chart' + n + '.xml';
       this.pkg.addPart(chartPart,
-        chartPartXml({ kind, title: String(title ?? '').trim() || undefined, categories, series }),
+        chartPartXml({ kind, title: String(title ?? '').trim() || undefined, categories: kind === 'scatter' && !firstIsX ? null : categories, series, scatterStyle }),
         'application/vnd.openxmlformats-officedocument.drawingml.chart+xml');
       const relId = this.pkg.addRelationshipTo(drawingPart,
         'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart',
@@ -4157,6 +4217,177 @@ export class SheetView {
     return FormulaEvaluation.replay(resolver, at, actions, { getFormula }).state();
   }
 
+  // ---- views: Normal, Page Break Preview, Split -------------------------------
+
+  /** View → Normal or Page Break Preview, as the sheet's view keeps it. */
+  viewMode() {
+    return this.workbook.sheetViewMode(this.activeSheet);
+  }
+
+  /**
+   * Switch the sheet's view, written to `<sheetView view>` as Excel keeps
+   * it. How a sheet is looked at is not an edit: like Excel's, it is kept
+   * in the file and never on the undo list.
+   */
+  setViewMode(mode) {
+    if (!['normal', 'pageBreakPreview'].includes(mode)) throw new Error('a sheet is shown normal or as a page break preview');
+    if (mode === this.viewMode()) return this;
+    this.workbook.setSheetViewMode(this.activeSheet, mode);
+    this._structuralDirty = true;
+    return this;
+  }
+
+  /**
+   * View → Page Break Preview: where the printer will cut the sheet, from
+   * the same page setup and the same pagination the print uses — the area
+   * printed, each page's box with its number, and the breaks between them,
+   * each marked as put by hand (a manual break) or by the paper. Pages and
+   * breaks are those near `viewport` (all of them without one); `count` is
+   * every page.
+   */
+  pageBreakPreview({ viewport = null } = {}) {
+    const sheet = this.activeSheet;
+    const geo = this.geo;
+    const setup = pageSetup(readPageSetup(this, sheet));
+    const bounds = this.calc.usedBounds(sheet);
+    const range = parseArea(setup.area) || { top: 0, left: 0, bottom: bounds.maxRow, right: bounds.maxCol };
+    // The plan is arithmetic over every row of the printed range; it is
+    // kept until the setup, the range or a size changes, so a scroll step
+    // on a long sheet pays nothing for it.
+    const key = sheet + '|' + JSON.stringify(setup) + '|' + JSON.stringify(range);
+    const rowsIndex = geo._rowIndex();
+    const colsIndex = geo._colIndex();
+    const hit = this._breakPlan;
+    let laid;
+    if (hit && hit.key === key && hit.geo === geo && hit.rows === rowsIndex && hit.cols === colsIndex) {
+      laid = hit.laid;
+    } else {
+      laid = layOutPages(geo, range, setup, paginate({ geo, range, setup, maxPages: 20000 }));
+      this._breakPlan = { key, geo, rows: rowsIndex, cols: colsIndex, laid };
+    }
+    const near = viewport
+      ? (x, y, w, h) => !(x > this.scrollX + this.viewportWidth + 200 || y > this.scrollY + this.viewportHeight + 200 || x + w < this.scrollX - 200 || y + h < this.scrollY - 200)
+      : () => true;
+    const { area } = laid;
+    return {
+      area,
+      pages: laid.pages.filter((p) => near(p.x, p.y, p.width, p.height)),
+      rows: laid.rows.filter((b) => near(area.x, b.y, area.width, 1)),
+      cols: laid.cols.filter((b) => near(b.x, area.y, 1, area.height)),
+      count: laid.count,
+      truncated: laid.truncated,
+    };
+  }
+
+  /**
+   * View → Split: the window's panes — `width` and `height` of the left
+   * and top panes in pixels (0 when the window is split one way only), and
+   * `top` / `left`, the first row and column those panes show — or null.
+   * Read from the sheet's `<pane>`, where xSplit and ySplit are twentieths
+   * of a point from the window's edge, the headings included; where the top
+   * and left panes have been scrolled to is this window's, as it is Excel's.
+   */
+  splitPane() {
+    const s = this.workbook.splitPane(this.activeSheet);
+    if (!s) return null;
+    const geo = this.geo;
+    const px = (twips) => Math.round(twips / 15);
+    const width = s.xSplit ? Math.max(0, px(s.xSplit) - geo.headerWidth) : 0;
+    const height = s.ySplit ? Math.max(0, px(s.ySplit) - geo.headerHeight) : 0;
+    if (!width && !height) return null;
+    let top = 0;
+    let left = 0;
+    if (s.viewTopLeftCell) {
+      try { [top, left] = parseRefPair(s.viewTopLeftCell); } catch { /* a bad ref starts at A1 */ }
+    }
+    const scrolled = this._splitScroll?.get(this.activeSheet);
+    return { width, height, top: scrolled?.top ?? top, left: scrolled?.left ?? left };
+  }
+
+  /**
+   * Split the window at a cell, as View → Split does at the active cell:
+   * the panes divide above and left of it, one way only when it is in the
+   * first row or column showing, and in four at the middle of the window
+   * when it is the top-left cell showing.
+   */
+  splitAt({ row = this.selection.active.row, col = this.selection.active.col } = {}) {
+    const geo = this.geo;
+    const firstRow = geo.rowAt(this.scrollY);
+    const firstCol = geo.colAt(this.scrollX);
+    let height = row > firstRow ? geo.rowOffset(row) - geo.rowOffset(firstRow) : 0;
+    let width = col > firstCol ? geo.colOffset(col) - geo.colOffset(firstCol) : 0;
+    if (height >= this.viewportHeight - 10) height = 0;
+    if (width >= this.viewportWidth - 10) width = 0;
+    if (!height && !width) {
+      height = Math.round(this.viewportHeight / 2);
+      width = Math.round(this.viewportWidth / 2);
+    }
+    return this.setSplit({ width, height, top: firstRow, left: firstCol });
+  }
+
+  /**
+   * The split bars moved: each pane's size snapped to the nearest row or
+   * column edge. A bar dragged to its edge of the window takes that split
+   * away; with neither left, the window is whole again. Not an edit: kept
+   * in the file, never on the undo list, as Excel keeps it.
+   */
+  setSplit({ width = 0, height = 0, top, left } = {}) {
+    const geo = this.geo;
+    const current = this.splitPane();
+    const t = Math.max(0, Math.round(top ?? current?.top ?? geo.rowAt(this.scrollY)));
+    const l = Math.max(0, Math.round(left ?? current?.left ?? geo.colAt(this.scrollX)));
+    const snap = (size, start, offset, sizeOf, max) => {
+      if (!(size > 6)) return 0;
+      const target = offset(start) + size;
+      let i = start;
+      while (i < max && offset(i) + sizeOf(i) <= target) i += 1;
+      const before = offset(i) - offset(start);
+      const after = offset(i) + sizeOf(i) - offset(start);
+      const snapped = Math.abs(target - offset(start) - before) <= Math.abs(after - (target - offset(start))) ? before : after;
+      return snapped > 6 ? snapped : 0;
+    };
+    const h = snap(Number(height) || 0, t, (r) => geo.rowOffset(r), (r) => geo.rowHeight(r), MAX_ROWS - 1);
+    const w = snap(Number(width) || 0, l, (c) => geo.colOffset(c), (c) => geo.colWidth(c), MAX_COLS - 1);
+    if (!this._splitScroll) this._splitScroll = new Map();
+    this._splitScroll.delete(this.activeSheet);
+    if (!h && !w) return this.removeSplit();
+    const bottomRight = ref(geo.rowAt(this.scrollY + h), geo.colAt(this.scrollX + w));
+    this.workbook.setSplitPane(this.activeSheet, {
+      xSplit: w ? (w + geo.headerWidth) * 15 : 0,
+      ySplit: h ? (h + geo.headerHeight) * 15 : 0,
+      topLeftCell: bottomRight,
+      viewTopLeftCell: ref(t, l),
+    });
+    this._structuralDirty = true;
+    return this;
+  }
+
+  /** View → Split pressed again: the window whole. */
+  removeSplit() {
+    if (!this.workbook.splitPane(this.activeSheet)) return this;
+    this.workbook.setSplitPane(this.activeSheet, null);
+    this._splitScroll?.delete(this.activeSheet);
+    this._structuralDirty = true;
+    return this;
+  }
+
+  /** View → Split as a toggle: split at the active cell, or whole again. */
+  toggleSplit() {
+    return this.splitPane() ? this.removeSplit() : this.splitAt();
+  }
+
+  /** The top or left pane scrolled by whole rows or columns, never before the first. */
+  scrollSplit({ rows = 0, cols = 0 } = {}) {
+    const s = this.splitPane();
+    if (!s) return this;
+    if (!this._splitScroll) this._splitScroll = new Map();
+    this._splitScroll.set(this.activeSheet, {
+      top: Math.max(0, Math.min(MAX_ROWS - 1, s.top + Math.round(Number(rows) || 0))),
+      left: Math.max(0, Math.min(MAX_COLS - 1, s.left + Math.round(Number(cols) || 0))),
+    });
+    return this;
+  }
+
   // ---- frozen panes -------------------------------------------------------
 
   /** The frozen pane on the active sheet, always a {rows, cols} pair. */
@@ -4802,6 +5033,46 @@ export class SheetView {
     this._structuralDirty = structural;
     return out;
   }
+}
+
+/**
+ * Page Break Preview's layout of a pagination: the printed area, every
+ * page's box in the sheet's pixels with its number, and every break between
+ * the bands, marked as put by hand or by the paper. Worked out once per
+ * plan — a long sheet has a thousand pages, and a frame only filters them.
+ */
+function layOutPages(geo, range, setup, plan) {
+  const manualRows = new Set((setup.rowBreaks || []).map(Number));
+  const manualCols = new Set((setup.colBreaks || []).map(Number));
+  const right = (c) => geo.colOffset(c) + geo.colWidth(c);
+  const bottom = (r) => geo.rowOffset(r) + geo.rowHeight(r);
+  // The bands, by where each starts: the pages are their crossings, numbered
+  // in the plan's order — down, then across.
+  const colStarts = new Set();
+  const rowStarts = new Set();
+  for (const page of plan.pages) {
+    if (page.cols.length) colStarts.add(page.cols[0].index);
+    if (page.rows.length) rowStarts.add(page.rows[0].index);
+  }
+  const firstBand = Math.min(...rowStarts);
+  const area = {
+    top: range.top, left: range.left, bottom: range.bottom, right: range.right,
+    x: geo.colOffset(range.left), y: geo.rowOffset(range.top),
+    width: right(range.right) - geo.colOffset(range.left), height: bottom(range.bottom) - geo.rowOffset(range.top),
+  };
+  const pages = [];
+  plan.pages.forEach((page, i) => {
+    if (!page.cols.length) return;
+    // The first band down starts at the top of the range: print titles are its rows too.
+    const firstRow = !page.rows.length || page.rows[0].index === firstBand ? range.top : page.rows[0].index;
+    const lastRow = page.rows.length ? page.rows[page.rows.length - 1].index : range.bottom;
+    const x = geo.colOffset(page.cols[0].index);
+    const y = geo.rowOffset(firstRow);
+    pages.push({ n: i + 1, x, y, width: right(page.cols[page.cols.length - 1].index) - x, height: bottom(lastRow) - y });
+  });
+  const rows = [...rowStarts].sort((a, b) => a - b).slice(1).map((index) => ({ index, y: geo.rowOffset(index), manual: manualRows.has(index) }));
+  const cols = [...colStarts].sort((a, b) => a - b).slice(1).map((index) => ({ index, x: geo.colOffset(index), manual: manualCols.has(index) }));
+  return { area, pages, rows, cols, count: plan.pages.length, truncated: plan.truncated };
 }
 
 /** `B7` -> [6, 1] */

@@ -86,7 +86,7 @@ export function printableArea(setup) {
 }
 
 /** A1:D40 -> { top, left, bottom, right }, or null. */
-function parseArea(area) {
+export function parseArea(area) {
   if (!area) return null;
   const m = /^\$?([A-Z]+)\$?(\d+)(?::\$?([A-Z]+)\$?(\d+))?$/i.exec(String(area).trim());
   if (!m) return null;
