@@ -80,16 +80,21 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   labelled, numbered paragraph — a SEQ field, `w:fldChar` begin/separate/end
   around ` SEQ Figure \* ARABIC `, the complex-field shape Word itself
   writes for one — and Update Fields renumbers every label's captions from
-  where they now sit, the same pass that refreshes a REF. An index, a table
-  of authorities, citations and a bibliography, `PAGE` outside the header —
-  none are written, so the table of contents this suite inserts is text
-  rather than a field that refreshes.
+  where they now sit, the same pass that refreshes a REF. The table of
+  contents arrived 2026-09-25 as the field Word writes — a TOC field in its
+  building block, entries linked to `_Toc` bookmarks with PAGEREF page
+  numbers from the window's own page layout — and Update Table rebuilds
+  it. An index, a table of authorities, citations and a bibliography,
+  `PAGE` outside the header — none are written yet.
 - **Mail merge**, envelopes and labels: a data source, merge fields, a
   preview and a run. Nothing of it exists, and Mail beside it is exactly
   what would make it worth having.
-- **Recording tracked changes.** Tracked changes are read and shown;
-  `w:ins`/`w:del` are not written as edits happen, so Accept and Reject have
-  nothing to act on. Document comparison and Restrict Editing sit behind it.
+- **Recording tracked changes.** Recorded since 2026-09-25: Review → Track
+  Changes writes `w:trackRevisions`, typing and deleting are kept as
+  `w:ins`/`w:del` with author and date, four markup views, Accept and Reject
+  one or all, Previous and Next. Not recorded yet: a paragraph split or
+  joined, a paste, find and replace, a sort, and formatting changes
+  (`w:rPrChange`). Document comparison and Restrict Editing sit behind it.
 - **Text effects and equations.** Outline, shadow and glow arrived
   2026-09-24 from Home → Text Effects, drawn on the page and, outline and
   shadow, in print; a glow is not printed. Drop caps arrived the same day:
@@ -175,9 +180,12 @@ document and workbook writers.
 
 - **Shape formatting**: since 2026-09-14 the Format pane sets a shape's
   fill and outline (colour, weight, dashes) and Quick Styles gives it the
-  theme's looks, and every shape moves and resizes by hand on the stage;
-  effects (shadow, glow, reflection), gradients and picture fills are still
-  read-only.
+  theme's looks, and every shape moves and resizes by hand on the stage.
+  Since 2026-09-25 the fill is also a gradient, a picture or a see-through
+  colour, and Shape Effects writes glow, soft edges and reflection beside
+  the shadow; Arrange aligns, distributes, rotates, flips, groups and
+  ungroups a selection of shapes gathered with Shift+click. Bevel, 3-D
+  rotation, pattern fills and editing points are still read-only.
 - **Text inside a shape**: since 2026-09-21 bullets, numbering, list
   levels, line spacing, strikethrough, character spacing, change case and
   a highlight are written from the Home tab, and a slide's own bullets,
@@ -204,7 +212,7 @@ document and workbook writers.
   `p:bg` — a solid colour, a theme colour or a gradient — with Apply to
   all, though the master's own background is still not editable there.
   The Layers pane of the same day gives the drawing order, hiding and naming;
-  grouping and alignment across shapes are still to come.
+  grouping and alignment across shapes arrived 2026-09-25.
 - **Structure**: since 2026-09-24 Home → Section adds, renames and removes
   sections, drawn as headings above their first slide in the thumbnail strip
   and in Slide Sorter view, written as PowerPoint's own `p14:sectionLst`
@@ -300,18 +308,21 @@ stage keeps a picture until the next has decoded. What is still missing:
    as OpenDocument.
 4. ~~**Calendar and contacts**, as a seventh and eighth app on the same shell.~~
    Both built 2026-09-09, and Mail answers an invitation from the message.
-5. **Floating layout in the document paginator.** One piece of work unlocks
-   eleven controls in Word and the same again in the deck. Pictures and
-   text boxes beside the words print since 2026-09-20; the deck is left.
-6. **Shape formatting and text properties in the deck writer** — the largest
-   single block of unbuilt controls in the suite.
+5. ~~**Floating layout in the document paginator.**~~ One piece of work
+   unlocks eleven controls in Word and the same again in the deck. Pictures
+   and text boxes beside the words print since 2026-09-20; the deck's
+   align, distribute, rotate, flip and group arrived 2026-09-25.
+6. ~~**Shape formatting and text properties in the deck writer**~~ —
+   gradients, picture fills, transparency, glow, soft edges and reflection
+   written since 2026-09-25; bevel and 3-D remain.
 7. ~~**Things in a sheet that are not cells**: comments, hyperlinks~~ (both
    read and written since 2026-09-20), ~~format as table, pictures~~ (both
    written since 2026-09-21).
 8. ~~**Fields in the document**: bookmarks first, then cross-references,
-   captions~~ (all three built 2026-09-24) **and a table of contents that
-   refreshes.**
-9. **Recording tracked changes**, then comparison and restricted editing.
+   captions~~ (all three built 2026-09-24) ~~**and a table of contents that
+   refreshes**~~ (built 2026-09-25).
+9. ~~**Recording tracked changes**~~ (built 2026-09-25), then comparison and
+   restricted editing.
 10. ~~**The formula language's remaining corners**: array constants, `LET`,
     `TEXT()` through the formatter the suite already owns.~~ Built 2026-09-09,
     with the phantom day; `LAMBDA` remains.
