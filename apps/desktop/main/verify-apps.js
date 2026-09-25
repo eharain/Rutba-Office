@@ -676,13 +676,26 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       };
 
       await until(() => js(`Boolean(document.querySelector('.sh-colheads .sh-head:nth-child(2) .sh-grip.col'))`), 'the column handles', 6000);
+      // The first window of a run on a busy machine can still be settling when
+      // the first drag arrives, and the drag goes nowhere: wait for the width
+      // to change, and drag once more if it never did.
       const w0 = widths()[1];
       await drag('.sh-colheads .sh-head:nth-child(2) .sh-grip.col', 60, 0);
+      if (!(await until(() => widths()[1] !== w0, 'the column to widen', 3000).catch(() => false))) {
+        await wait(500);
+        await drag('.sh-colheads .sh-head:nth-child(2) .sh-grip.col', 60, 0);
+        await until(() => widths()[1] !== w0, 'the column to widen', 3000).catch(() => {});
+      }
       const w1 = widths()[1];
       check('sheets: dragging a column heading\'s edge resizes the column', Math.abs(w1 - (w0 + 60)) <= 2, `B went ${w0} → ${w1} px`);
 
       const h0 = heights()[1];
       await drag('.sh-rowheads .sh-head:nth-child(2) .sh-grip.row', 0, 15);
+      if (!(await until(() => heights()[1] !== h0, 'the row to grow', 3000).catch(() => false))) {
+        await wait(500);
+        await drag('.sh-rowheads .sh-head:nth-child(2) .sh-grip.row', 0, 15);
+        await until(() => heights()[1] !== h0, 'the row to grow', 3000).catch(() => {});
+      }
       const h1 = heights()[1];
       check('sheets: dragging a row heading\'s edge resizes the row', Math.abs(h1 - (h0 + 15)) <= 2, `row 2 went ${h0} → ${h1} px`);
 
