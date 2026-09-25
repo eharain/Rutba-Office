@@ -27,6 +27,7 @@ import { verifySheetLinks } from './verify-sheet-links.js';
 import { verifyDeckArrange } from './verify-deck-arrange.js';
 import { verifyDeckFx } from './verify-deck-fx.js';
 import { verifyWordToc } from './verify-word-toc.js';
+import { verifyOutline } from './verify-outline.js';
 import { verifyWordTrack } from './verify-word-track.js';
 import { SheetView } from '@rutba/sheet-view';
 
@@ -3268,6 +3269,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifyWordToc({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { file: files.toc });
   };
 
+  /* ── Worksheets: Group, the outline gutter, Subtotal ─────────────────── */
+  const sheetOutline = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyOutline({ open, check, until, wait, press, errorsIn, capture }, { dir });
+  };
+
   /* ── Word: track changes — recording, not just reading ───────────────── */
   const wordTrack = async () => {
     const capture = async (win, name) => {
@@ -4201,7 +4211,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4246,6 +4256,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('viewer')) await viewer();
     if (only.includes('slideshow')) await slideshow();
     if (only.includes('links')) await sheetLinks();
+    if (only.includes('outline')) await sheetOutline();
     if (only.includes('arrange')) await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('deckfx')) await verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('providers')) await mailProviders();
@@ -4375,6 +4386,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await viewer();
   await slideshow();
   await sheetLinks();
+  await sheetOutline();
   await polish();
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */

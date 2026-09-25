@@ -987,6 +987,23 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
     // The Data tab's tools: one column split on a delimiter; repeated rows removed.
     textToColumns: (v, a) => { v.lastResult = v.textToColumns({ delimiter: a.delimiter }); return v; },
     removeDuplicates: (v) => { v.lastResult = v.removeDuplicates(); return v; },
+    // Data → Outline: Group and Ungroup (rows or columns), the + / − boxes
+    // and level buttons of the gutter, Show and Hide Detail, Clear Outline.
+    group: (v, a) => { v.group({ axis: a.axis, from: a.from, to: a.to }); },
+    ungroup: (v, a) => { v.ungroup({ axis: a.axis, from: a.from, to: a.to }); },
+    outlineToggle: (v, a) => { v.toggleOutlineGroup({ axis: a.axis || 'row', level: a.level, start: a.start }); },
+    outlineLevel: (v, a) => { v.showOutlineLevel({ axis: a.axis || 'row', level: a.level }); },
+    showDetail: (v) => { v.showDetail(); },
+    hideDetail: (v) => { v.hideDetail(); },
+    clearOutline: (v) => { v.clearOutline(); },
+    // Data → Subtotal and its Remove All; the count of groups rides back.
+    subtotal: (v, a) => v.subtotal({
+      groupBy: a.groupBy, fn: a.fn, columns: a.columns || [], replace: a.replace !== false, pageBreaks: Boolean(a.pageBreaks), summaryBelow: a.summaryBelow !== false,
+    }).groups,
+    removeSubtotals: (v) => v.removeSubtotals().removed,
+    // The list round the cell and its columns, for the Subtotal and Advanced
+    // Filter dialogs — as text, since only a primitive rides back.
+    listFields: (v) => JSON.stringify(v.listFields()),
     freeze: (v, a) => v.freezePanes(a.rows ?? 0, a.cols ?? 0),
     // The page setup belongs to the workbook, not to a dialog that closes:
     // Excel keeps it in the sheet and in two defined names, and so does this,
@@ -1247,7 +1264,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null }) {
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

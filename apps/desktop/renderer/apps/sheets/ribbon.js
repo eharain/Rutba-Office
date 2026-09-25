@@ -541,9 +541,16 @@ export default function SheetsRibbon({
             <Soon tall icon="chart" label="Forecast Sheet" why="Forecasting (FORECAST.ETS) is not built." />
           </Group>
           <Group label="Outline">
-            <Soon icon="plus" label="Group" why="Row and column outlining is a sheet property the engine does not write yet." />
-            <Soon icon="minus" label="Ungroup" why="Comes with outlining." />
-            <Soon icon="sum" label="Subtotal" why="Comes with outlining." />
+            <Button tall icon="plus" label="Group" title="Group — the selected rows or columns one outline level deeper (Shift+Alt+Right)" onClick={() => act('group')} />
+            <Button tall icon="minus" label="Ungroup" title="Ungroup — the selected rows or columns one level shallower, or clear the whole outline (Shift+Alt+Left)" onClick={(e) => menu.open(e, [
+              { label: 'Ungroup…', run: () => act('ungroup') },
+              { label: 'Clear Outline', run: () => act('clearOutline') },
+            ])} />
+            <Button tall icon="sum" label="Subtotal" title="Subtotal — a total row at each change in a column, a Grand Total, and the outline round them" onClick={() => act('subtotalDialog')} />
+            <Rows>
+              <Button icon="plus" label="Show Detail" title="Show Detail — open the folded group at the active cell" onClick={() => act('showDetail')} />
+              <Button icon="minus" label="Hide Detail" title="Hide Detail — fold the group the active cell is in" onClick={() => act('hideDetail')} />
+            </Rows>
           </Group>
           <Group label="Export">
             <Button icon="export" label="CSV" onClick={() => exportAs('csv')} />

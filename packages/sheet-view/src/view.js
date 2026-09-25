@@ -39,6 +39,10 @@ import {
 } from './geometry.js';
 import { Selection, ref, colName } from './selection.js';
 import {
+  group as outlineGroup, ungroup as outlineUngroup, toggleGroup, showLevel, detail as outlineDetail,
+  clearOutline, outlineFrame, selectionAxis, subtotal, removeSubtotals, listFields,
+} from './outline.js';
+import {
   readSheetDrawings, buildChart, buildShape, buildPicture, renderSvg, scene,
   SUPPORTED_GEOMETRY,
 } from '@rutba/drawing';
@@ -1092,6 +1096,10 @@ export class SheetView {
       }),
       headerWidth: geo.headerWidth,
       headerHeight: geo.headerHeight,
+      // The outline: per axis its depth and the groups near the viewport,
+      // with their pixel extents, for the gutter's brackets and buttons.
+      // Null when nothing on the sheet is grouped.
+      outline: outlineFrame(geo, vp, frozen),
       // The frozen pane, with its band sizes in pixels for the client's clip.
       frozen: {
         rows: frozen.rows,
@@ -1114,6 +1122,9 @@ export class SheetView {
       active: { ...active, ref: ref(active.row, active.col) },
       // Every rectangle when Ctrl+click has added some; the grid paints them all.
       ranges: this.selection.isMultiple ? this.selection.allRanges : null,
+      // Whole rows or whole columns, for Group: 'row', 'col', or null when
+      // the selection is neither and Excel would ask which.
+      whole: selectionAxis(this),
     };
   }
 
@@ -1951,6 +1962,59 @@ export class SheetView {
       return this;
     });
     return { removed, kept: kept.length, range };
+  }
+
+  // ---- the outline and Subtotal (see outline.js) --------------------------
+
+  /**
+   * Data → Group: the selected rows (whole columns: columns) a level
+   * deeper. `axis` and the span can be given; by default they are read
+   * off the selection, as Shift+Alt+Right reads them.
+   */
+  group({ axis = selectionAxis(this) ?? 'row', from, to } = {}) {
+    const r = this.selection.range;
+    return outlineGroup(this, axis, from ?? (axis === 'row' ? r.top : r.left), to ?? (axis === 'row' ? r.bottom : r.right));
+  }
+
+  /** Data → Ungroup: the mirror of `group`. */
+  ungroup({ axis = selectionAxis(this) ?? 'row', from, to } = {}) {
+    const r = this.selection.range;
+    return outlineUngroup(this, axis, from ?? (axis === 'row' ? r.top : r.left), to ?? (axis === 'row' ? r.bottom : r.right));
+  }
+
+  /** The + or − beside one group, named by its level and first row (or column). */
+  toggleOutlineGroup({ axis = 'row', level, start }) { return toggleGroup(this, axis, level, start); }
+
+  /** The outline's level buttons: show level n, fold everything deeper. */
+  showOutlineLevel({ axis = 'row', level }) { return showLevel(this, axis, level); }
+
+  /** Data → Show Detail / Hide Detail, at the active cell. */
+  showDetail() { return outlineDetail(this, true); }
+  hideDetail() { return outlineDetail(this, false); }
+
+  /** Data → Ungroup → Clear Outline. */
+  clearOutline() { return clearOutline(this); }
+
+  /** Data → Subtotal, as the dialog specifies it. */
+  subtotal(spec) { return subtotal(this, spec); }
+
+  /** Subtotal → Remove All. */
+  removeSubtotals() { return removeSubtotals(this); }
+
+  /** The list round the cell and its columns by header — what the Subtotal and Advanced Filter dialogs offer. */
+  listFields() { return listFields(this); }
+
+  /** The style index a label wears bold, made from the one it wears now. */
+  _boldIndex(base) {
+    this._ensureStylesPart();
+    const xml = this.pkg.text('xl/styles.xml');
+    const out = applyFormat(xml, base ?? null, { bold: true });
+    if (out.xml !== xml) {
+      this.pkg.write_('xl/styles.xml', out.xml);
+      this.styles = readStyles(this.pkg, { BUILTIN_FORMATS });
+      this._stylesDirty = true;
+    }
+    return out.index;
   }
 
   // ---- AutoSum -----------------------------------------------------------

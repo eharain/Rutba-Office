@@ -838,3 +838,106 @@ export function PivotDialog({ onClose, onCreate, selection, sheets }) {
     </Dialog>
   );
 }
+
+/* ── Data → Outline ──────────────────────────────────────────────────────── */
+
+const CHECK_ROW = { display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5 };
+
+/**
+ * Group or Ungroup on a selection that is neither whole rows nor whole
+ * columns: Excel asks which, and so does this.
+ */
+export function OutlineAxisDialog({ verb, onClose, onPick }) {
+  const [axis, setAxis] = useState('row');
+  const title = verb === 'ungroup' ? 'Ungroup' : 'Group';
+  return (
+    <Dialog
+      title={title}
+      width={300}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label={title} className="sh-outline-ok" onClick={() => onPick(axis)} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <label style={CHECK_ROW}><input type="radio" name="sh-outline-axis" className="sh-outline-rows" checked={axis === 'row'} onChange={() => setAxis('row')} /> Rows</label>
+        <label style={CHECK_ROW}><input type="radio" name="sh-outline-axis" className="sh-outline-cols" checked={axis === 'col'} onChange={() => setAxis('col')} /> Columns</label>
+      </div>
+    </Dialog>
+  );
+}
+
+/** Subtotal's functions in the order Excel's dialog lists them. */
+const SUBTOTAL_FNS = [
+  ['sum', 'Sum'], ['count', 'Count'], ['average', 'Average'], ['max', 'Max'], ['min', 'Min'], ['product', 'Product'],
+  ['countNumbers', 'Count Numbers'], ['stdDev', 'StdDev'], ['stdDevp', 'StdDevp'], ['var', 'Var'], ['varp', 'Varp'],
+];
+
+/**
+ * Data → Subtotal: at each change in one column, a function over the
+ * columns ticked; Replace, page breaks and where the summaries sit, as
+ * Excel's dialog has them; Remove All takes every subtotal off the list.
+ * The last column is ticked to start with, as Excel ticks it.
+ */
+export function SubtotalDialog({ list, onClose, onApply, onRemoveAll }) {
+  const columns = list.columns || [];
+  const [by, setBy] = useState(columns[0]?.col ?? 0);
+  const [fn, setFn] = useState('sum');
+  const [ticked, setTicked] = useState(() => new Set(columns.length ? [columns[columns.length - 1].col] : []));
+  const [replace, setReplace] = useState(true);
+  const [breaks, setBreaks] = useState(false);
+  const [below, setBelow] = useState(true);
+  const toggle = (col) => setTicked((s) => {
+    const next = new Set(s);
+    if (next.has(col)) next.delete(col);
+    else next.add(col);
+    return next;
+  });
+  const ok = ticked.size > 0;
+  return (
+    <Dialog
+      title="Subtotal"
+      width={400}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Remove All" className="sh-sub-remove" disabled={!list.subtotals} onClick={onRemoveAll} />
+          <span style={{ flex: 1 }} />
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="OK" className="sh-sub-ok" disabled={!ok} onClick={() => onApply({ groupBy: by, fn, columns: [...ticked], replace, pageBreaks: breaks, summaryBelow: below })} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <Field label="At each change in">
+          <Select className="sh-sub-by" value={String(by)} onChange={(e) => setBy(Number(e.target.value))} style={{ width: '100%' }}>
+            {columns.map((c) => <option key={c.col} value={String(c.col)}>{c.name}</option>)}
+          </Select>
+        </Field>
+        <Field label="Use function">
+          <Select className="sh-sub-fn" value={fn} onChange={(e) => setFn(e.target.value)} style={{ width: '100%' }}>
+            {SUBTOTAL_FNS.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+          </Select>
+        </Field>
+        <Field label="Add subtotal to">
+          <div className="sh-sub-cols">
+            {columns.map((c) => (
+              <label key={c.col} style={CHECK_ROW}>
+                <input type="checkbox" className={`sh-sub-col sh-sub-col-${c.col}`} checked={ticked.has(c.col)} onChange={() => toggle(c.col)} /> {c.name}
+              </label>
+            ))}
+          </div>
+        </Field>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={CHECK_ROW}><input type="checkbox" className="sh-sub-replace" checked={replace} onChange={(e) => setReplace(e.target.checked)} /> Replace current subtotals</label>
+          <label style={CHECK_ROW}><input type="checkbox" className="sh-sub-breaks" checked={breaks} onChange={(e) => setBreaks(e.target.checked)} /> Page break between groups</label>
+          <label style={CHECK_ROW}><input type="checkbox" className="sh-sub-below" checked={below} onChange={(e) => setBelow(e.target.checked)} /> Summary below data</label>
+        </div>
+        <div style={{ fontSize: 11.5, color: 'var(--ink-3)' }}>The list: {list.ref}{list.subtotals ? ` — it has ${list.subtotals} subtotal row${list.subtotals === 1 ? '' : 's'} now` : ''}</div>
+      </div>
+    </Dialog>
+  );
+}

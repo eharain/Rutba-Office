@@ -171,6 +171,21 @@ export class SheetGeometry {
     // The exception indexes, built on first use after a change.
     this._cols = null;
     this._rows = null;
+    // The outline: each grouped row's or column's level (1..7, absent is 0),
+    // the summary rows and columns Excel marks `collapsed`, and which side
+    // the summaries sit on. None of it moves an offset — a collapsed group
+    // is hidden rows, which the index above already counts — so a change
+    // drops only the list of groups, not the offsets.
+    const rowOutline = () => { this._rowGroups = null; };
+    const colOutline = () => { this._colGroups = null; };
+    this.rowLevels = new TrackedMap(rowOutline);
+    this.colLevels = new TrackedMap(colOutline);
+    this.collapsedRows = new TrackedSet(rowOutline);
+    this.collapsedCols = new TrackedSet(colOutline);
+    this.summaryBelow = true;
+    this.summaryRight = true;
+    this._rowGroups = null;
+    this._colGroups = null;
   }
 
   /** Read `<cols>` and row `ht` out of a sheet part's XML. */
@@ -184,6 +199,8 @@ export class SheetGeometry {
         const max = Number(/\bmax="(\d+)"/.exec(a)?.[1] ?? 0);
         const width = /\bwidth="([\d.]+)"/.exec(a)?.[1];
         const hidden = /\bhidden="(1|true)"/.test(a);
+        const level = Number(/\boutlineLevel="(\d+)"/.exec(a)?.[1] ?? 0);
+        const collapsed = /\bcollapsed="(1|true)"/.test(a);
         if (!min || !max) continue;
         // A `<col>` spans a range; a file that styles every column writes
         // min="1" max="16384", so clamp before expanding or this loops a million
@@ -192,6 +209,8 @@ export class SheetGeometry {
         for (let c = min - 1; c < upper; c++) {
           if (width !== undefined) g.colWidths.set(c, charWidthToPixels(Number(width), opts.mdw));
           if (hidden) g.hiddenCols.add(c);
+          if (level > 0) g.colLevels.set(c, Math.min(7, level));
+          if (collapsed) g.collapsedCols.add(c);
         }
       }
     }
@@ -202,8 +221,78 @@ export class SheetGeometry {
       const ht = /\bht="([\d.]+)"/.exec(a)?.[1];
       if (ht !== undefined) g.rowHeights.set(r - 1, pointsToPixels(Number(ht)));
       if (/\bhidden="(1|true)"/.test(a)) g.hiddenRows.add(r - 1);
+      // Most rows carry neither, and a sixty-thousand-row sheet reads this
+      // loop on every open: one substring test before any pattern.
+      if (a.includes('outlineLevel') || a.includes('collapsed')) {
+        const level = Number(/\boutlineLevel="(\d+)"/.exec(a)?.[1] ?? 0);
+        if (level > 0) g.rowLevels.set(r - 1, Math.min(7, level));
+        if (/\bcollapsed="(1|true)"/.test(a)) g.collapsedRows.add(r - 1);
+      }
     }
+    // Which side the summaries sit on: below and to the right unless the
+    // sheet's properties say otherwise, as Excel's defaults are.
+    const outlinePr = /<outlinePr\b([^>]*)\/?>/.exec(xml.slice(0, xml.indexOf('<sheetData') >>> 0))?.[1] ?? '';
+    if (/\bsummaryBelow="(0|false)"/.test(outlinePr)) g.summaryBelow = false;
+    if (/\bsummaryRight="(0|false)"/.test(outlinePr)) g.summaryRight = false;
     return g;
+  }
+
+  /**
+   * The outline's groups on one axis, from the levels: every run of
+   * consecutive rows (or columns) at level L or deeper is a group of level
+   * L, and its summary is the row after it (before it, when the sheet puts
+   * summaries above). Sorted by where each starts, outer before inner.
+   * Built once per change and kept — a frame asks on every scroll step.
+   *
+   * @param {'row'|'col'} axis
+   * @returns {Array<{ level: number, start: number, end: number, summary: number, collapsed: boolean }>}
+   */
+  outlineGroups(axis = 'row') {
+    const cached = axis === 'row' ? this._rowGroups : this._colGroups;
+    if (cached) return cached;
+    const levels = axis === 'row' ? this.rowLevels : this.colLevels;
+    const collapsedSet = axis === 'row' ? this.collapsedRows : this.collapsedCols;
+    const hidden = axis === 'row' ? this.hiddenRows : this.hiddenCols;
+    const after = axis === 'row' ? this.summaryBelow : this.summaryRight;
+    const indices = Int32Array.from(levels.keys()).sort();
+    const groups = [];
+    const open = []; // open[L-1] = the group of level L still running
+    let prev = -2;
+    const close = (to) => {
+      while (open.length > to) {
+        const g = open.pop();
+        g.end = prev;
+      }
+    };
+    for (const i of indices) {
+      const level = levels.get(i);
+      if (i !== prev + 1) close(0);
+      else close(level);
+      while (open.length < level) {
+        const g = { level: open.length + 1, start: i, end: i, summary: 0, collapsed: false };
+        open.push(g);
+        groups.push(g);
+      }
+      prev = i;
+    }
+    close(0);
+    for (const g of groups) {
+      g.summary = after ? g.end + 1 : g.start - 1;
+      // Excel marks the summary; a file that only hid the rows still reads
+      // as folded, or its + would draw as a −.
+      g.collapsed = collapsedSet.has(g.summary) || (hidden.has(g.start) && hidden.has(g.end));
+    }
+    groups.sort((a, b) => a.start - b.start || a.level - b.level);
+    if (axis === 'row') this._rowGroups = groups;
+    else this._colGroups = groups;
+    return groups;
+  }
+
+  /** The deepest outline level on an axis; 0 when nothing is grouped. */
+  outlineDepth(axis = 'row') {
+    let depth = 0;
+    for (const g of this.outlineGroups(axis)) if (g.level > depth) depth = g.level;
+    return depth;
   }
 
   colWidth(index) {

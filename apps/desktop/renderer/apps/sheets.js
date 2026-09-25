@@ -18,6 +18,7 @@ import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import {
   GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
+  OutlineAxisDialog, SubtotalDialog,
 } from './sheets/dialogs.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -98,6 +99,10 @@ export default function Sheets({ app, shell, boot }) {
   const [sheetTarget, setSheetTarget] = useState(null);
   /** Formulas → Watch Window: which row in the pane is selected, for Delete Watch. */
   const [watchSel, setWatchSel] = useState(null);
+  /** Data → Group / Ungroup on a selection that is neither whole rows nor whole columns: which of the two is being asked. */
+  const [outlineAsk, setOutlineAsk] = useState(null);
+  /** The list the Subtotal and Advanced Filter dialogs act on: its range and its columns by header. */
+  const [listInfo, setListInfo] = useState(null);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -490,6 +495,12 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
 
+      // Excel's own: Shift+Alt+Right groups, Shift+Alt+Left ungroups.
+      if (e.altKey && e.shiftKey && !e.ctrlKey && (e.key === 'ArrowRight' || e.key === 'ArrowLeft')) {
+        e.preventDefault();
+        await act(e.key === 'ArrowRight' ? 'group' : 'ungroup');
+        return;
+      }
       const arrows = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
       if (arrows[e.key]) {
         e.preventDefault();
@@ -729,8 +740,22 @@ export default function Sheets({ app, shell, boot }) {
   const frozen = model?.frozen || { rows: 0, cols: 0 };
   const frozenH = frozen.rows ? (model?.rows || []).reduce((m, r) => (r.index < frozen.rows ? Math.max(m, r.y + r.height) : m), 0) : 0;
   const frozenW = frozen.cols ? (model?.columns || []).reduce((m, c) => (c.index < frozen.cols ? Math.max(m, c.x + c.width) : m), 0) : 0;
-  const headTop = view.headings ? model?.headerHeight ?? 0 : 0;
-  const headLeft = view.headings ? model?.headerWidth ?? 0 : 0;
+  /**
+   * The outline gutter, Excel's: a lane per level beside the row headings
+   * (above the column headings), the brackets and − / + boxes of the
+   * groups in them, and the level buttons in the corner. It widens the
+   * heading track rather than overlaying the cells, so the grid keeps its
+   * coordinates and a frozen pane its pins. Hidden with the headings.
+   */
+  const OUTLINE_LANE = 16;
+  const outline = view.headings ? model?.outline : null;
+  const rowLevels = outline?.rows?.levels || 0;
+  const colLevels = outline?.cols?.levels || 0;
+  const gutW = rowLevels ? (rowLevels + 1) * OUTLINE_LANE + 4 : 0;
+  const gutH = colLevels ? (colLevels + 1) * OUTLINE_LANE + 4 : 0;
+  const lane = (level) => 2.5 + (level - 1) * OUTLINE_LANE + OUTLINE_LANE / 2;
+  const headTop = view.headings ? (model?.headerHeight ?? 0) + gutH : 0;
+  const headLeft = view.headings ? (model?.headerWidth ?? 0) + gutW : 0;
   const pane = (at) => (at.row < frozen.rows ? (at.col < frozen.cols ? 'corner' : 'rows') : at.col < frozen.cols ? 'cols' : 'main');
 
   const boxOf = (range) => {
@@ -901,13 +926,106 @@ export default function Sheets({ app, shell, boot }) {
     );
   };
 
+  /**
+   * One axis of the outline gutter: the bracket of each open group in its
+   * level's lane — a hook at the far end, a line to the summary — and a
+   * box at the summary, − to fold the group and + to open it. Drawn in the
+   * sheet's own coordinates, like the headings beside it.
+   */
+  const gutterNode = (axis, pinned = false) => {
+    const o = outline?.[axis === 'row' ? 'rows' : 'cols'];
+    if (!o) return null;
+    const row = axis === 'row';
+    const BOX = 11;
+    const lines = [];
+    const boxes = [];
+    // The copy in a frozen pane's pinned headings draws only what reaches
+    // into the pane; the rest is under it in the sliding copy.
+    const reach = row ? frozenH : frozenW;
+    for (const g of o.groups) {
+      const c = lane(g.level);
+      const mid = g.at === null ? null : g.at + g.size / 2;
+      if (pinned && !(g.from < reach || (mid !== null && mid - BOX / 2 < reach))) continue;
+      const key = `${g.level}:${g.start}`;
+      if (!g.collapsed && g.to > g.from) {
+        // Along the group, from its first row to the box (or its last row).
+        const a = g.from + 3;
+        const b = g.to - 3;
+        const near = mid === null ? null : o.below ? mid - BOX / 2 : mid + BOX / 2;
+        const from = o.below ? a : near ?? a;
+        const to = o.below ? near ?? b : b;
+        const hookAt = o.below ? a : b;
+        const pts = row
+          ? `${c + 5},${hookAt} ${c},${hookAt} ${c},${o.below ? to : from}`
+          : `${hookAt},${c + 5} ${hookAt},${c} ${o.below ? to : from},${c}`;
+        lines.push(<polyline key={key} points={pts} fill="none" />);
+        if (mid === null) {
+          const end = o.below ? b : a;
+          lines.push(<polyline key={key + 'e'} points={row ? `${c},${end} ${c + 5},${end}` : `${end},${c} ${end},${c + 5}`} fill="none" />);
+        }
+      }
+      if (mid !== null) {
+        const what = row ? 'rows' : 'columns';
+        const span = row ? `${g.start + 1} to ${g.end + 1}` : `${colLabel(g.start)} to ${colLabel(g.end)}`;
+        boxes.push(
+          <div
+            key={key + 'b'}
+            className={`sh-ol-box${g.collapsed ? ' folded' : ''}`}
+            data-axis={axis}
+            data-level={g.level}
+            data-start={g.start}
+            data-tip={g.collapsed ? `Show Detail — ${what} ${span}` : `Hide Detail — ${what} ${span}`}
+            style={row ? { left: c - BOX / 2, top: Math.round(mid - BOX / 2) } : { top: c - BOX / 2, left: Math.round(mid - BOX / 2) }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={() => dispatch({ op: 'outlineToggle', axis, level: g.level, start: g.start })}
+          >
+            <svg width="9" height="9" viewBox="0 0 9 9"><path d={g.collapsed ? 'M1.5 4.5h6M4.5 1.5v6' : 'M1.5 4.5h6'} /></svg>
+          </div>
+        );
+      }
+    }
+    return (
+      <div className={`sh-gutter ${row ? 'rows' : 'cols'}`} style={row ? { width: gutW, height: model.total.height } : { height: gutH, width: model.total.width }}>
+        <svg className="sh-gutter-lines" width={row ? gutW : model.total.width} height={row ? model.total.height : gutH}>{lines}</svg>
+        {boxes}
+      </div>
+    );
+  };
+
+  /** The level buttons, 1 2 3 …, in the corner: level n shows everything above it. */
+  const levelButtons = () => {
+    const out = [];
+    const button = (axis, n, style) => (
+      <button
+        key={axis + n}
+        type="button"
+        className="sh-ol-level"
+        data-axis={axis}
+        data-level={n}
+        data-tip={`${n} — show ${axis === 'row' ? 'rows' : 'columns'} down to outline level ${n}`}
+        style={style}
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={() => dispatch({ op: 'outlineLevel', axis, level: n })}
+      >
+        {n}
+      </button>
+    );
+    for (let n = 1; n <= rowLevels + 1 && rowLevels; n++) {
+      out.push(button('row', n, { left: Math.round(lane(n) - 7), top: gutH + Math.round((model.headerHeight - 14) / 2) }));
+    }
+    for (let n = 1; n <= colLevels + 1 && colLevels; n++) {
+      out.push(button('col', n, { top: Math.round(lane(n) - 7), left: gutW + Math.round((model.headerWidth - 14) / 2) }));
+    }
+    return out;
+  };
+
   const colHead = (c) => (
     <div
       key={c.index}
       className={`sh-head${c.index >= (sel?.left ?? -1) && c.index <= (sel?.right ?? -2) ? ' active' : ''}`}
       // Both coordinates, always: an absolute heading with no top took its
       // static place, which the pinned wrapper in flow had moved down.
-      style={{ left: c.x, top: 0, width: c.width, height: model.headerHeight }}
+      style={{ left: c.x, top: gutH, width: c.width, height: model.headerHeight }}
       onClick={(e) => dispatch({ op: 'selectColumn', col: c.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
       onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
     >
@@ -929,7 +1047,7 @@ export default function Sheets({ app, shell, boot }) {
     <div
       key={r.index}
       className={`sh-head${r.index >= (sel?.top ?? -1) && r.index <= (sel?.bottom ?? -2) ? ' active' : ''}`}
-      style={{ top: r.y - dy, left: 0, height: r.height, width: model.headerWidth }}
+      style={{ top: r.y - dy, left: gutW, height: r.height, width: model.headerWidth }}
       onClick={(e) => dispatch({ op: 'selectRow', row: r.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
       onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertRow', 'sheet.deleteRow']))}
     >
@@ -1225,6 +1343,30 @@ export default function Sheets({ app, shell, boot }) {
       case 'note': setDialog('note'); return;
       case 'headerFooter': setDialog('headerFooter'); return;
       case 'sortDialog': setDialog('sort'); return;
+      // Data → Outline. Whole rows group as rows and whole columns as
+      // columns; anything else asks which, as Excel's Group dialog does.
+      case 'group':
+      case 'ungroup': {
+        const axis = arg || sel?.whole;
+        if (!axis) { setOutlineAsk(name); setDialog('outlineAxis'); return; }
+        await dispatch({ op: name, axis });
+        return;
+      }
+      case 'clearOutline': await dispatch({ op: 'clearOutline' }); return;
+      case 'showDetail': await dispatch({ op: 'showDetail' }); return;
+      case 'hideDetail': await dispatch({ op: 'hideDetail' }); return;
+      case 'subtotalDialog': {
+        const next = await dispatch({ op: 'listFields' });
+        let info = null;
+        try { info = next?.opResult ? JSON.parse(next.opResult) : null; } catch { info = null; }
+        if (!info || info.bottom <= info.top) {
+          toast('Select a cell in a list with a header row first — Subtotal groups the rows under it', { tone: 'warn', ms: 5000 });
+          return;
+        }
+        setListInfo(info);
+        setDialog('subtotal');
+        return;
+      }
       case 'removeNote': await dispatch({ op: 'removeNote', row: sel?.active?.row ?? 0, col: sel?.active?.col ?? 0 }); return;
       // Format as Table: over the selection, or the block of data round the cell.
       case 'table': await dispatch({ op: 'formatAsTable', style: arg?.style, stripes: arg?.stripes !== false }); return;
@@ -1524,24 +1666,30 @@ export default function Sheets({ app, shell, boot }) {
             <div
               className="sh-canvas"
               style={{
-                gridTemplateColumns: `${model.headerWidth}px ${model.total.width}px`,
-                gridTemplateRows: `${model.headerHeight}px ${model.total.height}px`,
+                gridTemplateColumns: `${model.headerWidth + gutW}px ${model.total.width}px`,
+                gridTemplateRows: `${model.headerHeight + gutH}px ${model.total.height}px`,
               }}
             >
-              <div className="sh-corner" />
+              <div className={`sh-corner${gutW || gutH ? ' outlined' : ''}`}>
+                {gutW || gutH ? levelButtons() : null}
+              </div>
 
-              <div className="sh-colheads" style={{ height: model.headerHeight }}>
+              <div className="sh-colheads" style={{ height: model.headerHeight + gutH }}>
+                {gutH ? gutterNode('col') : null}
                 {frozen.cols ? (
-                  <div className="sh-pin sh-pin-colheads" style={{ left: headLeft, width: frozenW, height: model.headerHeight }}>
+                  <div className="sh-pin sh-pin-colheads" style={{ left: headLeft, width: frozenW, height: model.headerHeight + gutH }}>
+                    {gutH ? gutterNode('col', true) : null}
                     {(model.columns || []).filter((c) => c.index < frozen.cols).map((c) => colHead(c))}
                   </div>
                 ) : null}
                 {(model.columns || []).filter((c) => c.index >= frozen.cols).map((c) => colHead(c))}
               </div>
 
-              <div className="sh-rowheads" style={{ width: model.headerWidth }}>
+              <div className="sh-rowheads" style={{ width: model.headerWidth + gutW }}>
+                {gutW ? gutterNode('row') : null}
                 {frozen.rows ? (
-                  <div className="sh-pin sh-pin-rowheads" style={{ top: headTop, height: frozenH, width: model.headerWidth }}>
+                  <div className="sh-pin sh-pin-rowheads" style={{ top: headTop, height: frozenH, width: model.headerWidth + gutW }}>
+                    {gutW ? gutterNode('row', true) : null}
                     {(model.rows || []).filter((r) => r.index < frozen.rows).map((r) => rowHead(r))}
                   </div>
                 ) : null}
@@ -1749,6 +1897,29 @@ export default function Sheets({ app, shell, boot }) {
           })()}
           onClose={() => setDialog(null)}
           onSort={async (keys) => { setDialog(null); await dispatch({ op: 'sort', keys }); toast('Sorted', { tone: 'good' }); }}
+        />
+      ) : null}
+      {dialog === 'outlineAxis' && outlineAsk ? (
+        <OutlineAxisDialog
+          verb={outlineAsk}
+          onClose={() => setDialog(null)}
+          onPick={async (axis) => { setDialog(null); await act(outlineAsk, axis); }}
+        />
+      ) : null}
+      {dialog === 'subtotal' && listInfo ? (
+        <SubtotalDialog
+          list={listInfo}
+          onClose={() => setDialog(null)}
+          onApply={async (spec) => {
+            setDialog(null);
+            const next = await dispatch({ op: 'subtotal', ...spec });
+            if (next) toast('Subtotals added — the buttons beside the row headings fold and open the groups', { tone: 'good', ms: 4000 });
+          }}
+          onRemoveAll={async () => {
+            setDialog(null);
+            const next = await dispatch({ op: 'removeSubtotals' });
+            if (next) toast('Subtotals and their outline removed', { tone: 'good' });
+          }}
         />
       ) : null}
       {dialog === 'headerFooter' ? (
@@ -2103,6 +2274,34 @@ const CSS = `
 /* The heading of the active column carries a bar along its edge, the row's likewise. */
 .sh-colheads .sh-head.active { box-shadow: inset 0 -2px 0 var(--accent); }
 .sh-rowheads .sh-head.active { box-shadow: inset -2px 0 0 var(--accent); }
+/* The outline gutter, drawn as Excel draws it: a lane per level beside the
+   row headings (above the column headings), a bracket along each open group
+   ending in its − box at the summary, a + box where a group is folded, and
+   the level buttons 1 2 3 in the corner. Hairlines on the pixel grid. */
+.sh-gutter { position: absolute; left: 0; top: 0; pointer-events: none; box-sizing: border-box; }
+.sh-gutter.rows { border-right: 1px solid var(--line-soft); }
+.sh-gutter.cols { border-bottom: 1px solid var(--line-soft); }
+.sh-pin > .sh-gutter.rows { height: 100% !important; overflow: hidden; }
+.sh-pin > .sh-gutter.cols { width: 100% !important; overflow: hidden; }
+.sh-gutter-lines { position: absolute; left: 0; top: 0; overflow: visible; }
+.sh-gutter-lines polyline { stroke: var(--ink-3); stroke-width: 1; shape-rendering: crispEdges; }
+.sh-ol-box {
+  position: absolute; width: 11px; height: 11px; box-sizing: border-box; display: grid; place-items: center;
+  border: 1px solid var(--ink-3); border-radius: 1px; background: var(--surface); cursor: pointer; pointer-events: auto;
+}
+.sh-ol-box svg { display: block; }
+.sh-ol-box path { stroke: var(--ink); stroke-width: 1.3; shape-rendering: crispEdges; }
+.sh-ol-box:hover { border-color: var(--accent); background: var(--selected); }
+.sh-ol-box:hover path { stroke: var(--accent); }
+.sh-corner.outlined { background: var(--surface-2); }
+.sh-ol-level {
+  position: absolute; width: 14px; height: 14px; padding: 0; box-sizing: border-box;
+  border: 1px solid var(--ink-3); border-radius: 2px; background: var(--surface); color: var(--ink-2);
+  font-size: 9.5px; font-weight: 600; line-height: 12px; text-align: center; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.sh-ol-level:hover { border-color: var(--accent); color: var(--accent); background: var(--selected); }
+.sh-sub-cols { display: flex; flex-direction: column; gap: 5px; max-height: 132px; overflow: auto; padding: 6px 8px; border: 1px solid var(--line-soft); border-radius: var(--r-2); }
 /* The edge of a heading is a handle: drag it and the column or row follows. */
 .sh-grip { position: absolute; z-index: 4; }
 .sh-grip.col { top: 0; bottom: 0; right: -4px; width: 8px; cursor: col-resize; }

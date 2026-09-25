@@ -295,6 +295,17 @@ export class Spreadsheet {
       getName(name) {
         return self.names.get(String(name).toUpperCase()) ?? null;
       },
+      // Whether a cell's own formula is a SUBTOTAL, which a SUBTOTAL over
+      // it leaves out. The flag is worked out once per formula text.
+      isSubtotalCell(sheet, row, col) {
+        const c = self.cell(sheet, row, col);
+        if (!c || !c.ast) return false;
+        if (c._subtotalOf !== c.input) {
+          c._subtotalOf = c.input;
+          c._subtotal = /\bSUBTOTAL\s*\(/i.test(String(c.input ?? ''));
+        }
+        return c._subtotal;
+      },
       getTable(name) {
         return self.tables.get(String(name).toUpperCase()) ?? null;
       },

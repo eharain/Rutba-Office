@@ -115,6 +115,18 @@ function withNoteBox(xml, at) {
   return without.slice(0, end) + noteBox(at, id, z) + without.slice(end);
 }
 
+/**
+ * An attribute set, replaced or taken off in a run of attribute text:
+ * `undefined` leaves it as it is, `null` removes it, a string sets it.
+ */
+export function withAttr(attrsText, name, value) {
+  if (value === undefined) return attrsText;
+  const re = new RegExp('\\s+' + name + '="[^"]*"');
+  if (value === null) return attrsText.replace(re, '');
+  const pair = ' ' + name + '="' + esc(value) + '"';
+  return re.test(attrsText) ? attrsText.replace(re, pair) : attrsText + pair;
+}
+
 export function parseRef(ref) {
   const m = /^([A-Za-z]+)(\d+)$/.exec(String(ref).trim());
   if (!m) throw new Error('bad cell reference: ' + ref);
@@ -389,6 +401,139 @@ class SheetPart {
     else row.attrsStr += ' customHeight="1"';
     row.dirty = true;
     this.dirty = true;
+    return this;
+  }
+
+  // ── the outline: levels, folded groups, which side summaries sit ──────────
+
+  /**
+   * One row's outline attributes, as Excel writes them on `<row>`:
+   * `outlineLevel` (absent at 0), `hidden` and `collapsed` (absent when
+   * off). Each of `level`, `hidden` and `collapsed` is left alone when not
+   * given. A row that does not exist is made only when something is set.
+   */
+  setRowOutline(rowIndex, { level, hidden, collapsed } = {}) {
+    let row = this._rowAt(rowIndex);
+    if (!row) {
+      if (!(level > 0) && !hidden && !collapsed) return this;
+      row = { index: rowIndex, attrsStr: ' r="' + (rowIndex + 1) + '"', inner: '', xml: '', dirty: true };
+      const at = this.rows.findIndex((r) => r.index > rowIndex);
+      if (at < 0) this.rows.push(row);
+      else this.rows.splice(at, 0, row);
+      this._rowsChanged();
+    }
+    const before = row.attrsStr;
+    row.attrsStr = withAttr(row.attrsStr, 'outlineLevel', level === undefined ? undefined : level > 0 ? String(level) : null);
+    row.attrsStr = withAttr(row.attrsStr, 'hidden', hidden === undefined ? undefined : hidden ? '1' : null);
+    row.attrsStr = withAttr(row.attrsStr, 'collapsed', collapsed === undefined ? undefined : collapsed ? '1' : null);
+    if (row.attrsStr !== before) {
+      row.dirty = true;
+      this.dirty = true;
+    }
+    return this;
+  }
+
+  /**
+   * The mirror for one column: the `<col>` record that covers it is carved
+   * out, as a width edit carves it, so its neighbours keep their own
+   * settings. A column with nothing left to say drops its record.
+   */
+  setColOutline(colIndex, { level, hidden, collapsed } = {}) {
+    const target = colIndex + 1;
+    const edit = (rest) => {
+      let r = withAttr(rest, 'outlineLevel', level === undefined ? undefined : level > 0 ? String(level) : null);
+      r = withAttr(r, 'hidden', hidden === undefined ? undefined : hidden ? '1' : null);
+      return withAttr(r, 'collapsed', collapsed === undefined ? undefined : collapsed ? '1' : null);
+    };
+    const out = [];
+    let placed = false;
+    for (const e of this.colEntries()) {
+      if (e.max < target || e.min > target) { out.push(e); continue; }
+      if (e.min <= target - 1) out.push({ min: e.min, max: target - 1, rest: e.rest });
+      out.push({ min: target, max: target, rest: edit(e.rest) });
+      if (e.max >= target + 1) out.push({ min: target + 1, max: e.max, rest: e.rest });
+      placed = true;
+    }
+    if (!placed) out.push({ min: target, max: target, rest: edit('') });
+    // A record with nothing left on it but its span says nothing.
+    return this.setColEntries(out.filter((e) => e.rest.trim() !== ''));
+  }
+
+  /**
+   * The sheet-wide outline properties: the deepest levels in
+   * `sheetFormatPr` (`outlineLevelRow`, `outlineLevelCol`) and the sides
+   * the summaries sit on in `sheetPr/outlinePr`, written only where they
+   * differ from Excel's defaults (below, right). Each is left alone when
+   * not given.
+   */
+  setOutlineProps({ rowLevels, colLevels, summaryBelow, summaryRight } = {}) {
+    if (rowLevels !== undefined || colLevels !== undefined) {
+      let fmt = /<sheetFormatPr\b[^>]*?\/?>/.exec(this.prefix)?.[0];
+      if (!fmt) {
+        if (!(rowLevels > 0) && !(colLevels > 0)) return this._outlinePr(summaryBelow, summaryRight);
+        // Schema order: after sheetViews, before cols (which sits last).
+        const fresh = '<sheetFormatPr defaultRowHeight="15"/>';
+        const cols = /<cols\b/.exec(this.prefix);
+        this.prefix = cols ? this.prefix.slice(0, cols.index) + fresh + this.prefix.slice(cols.index) : this.prefix + fresh;
+        fmt = fresh;
+      }
+      let next = fmt.replace(/\s*\/?>$/, '');
+      next = withAttr(next, 'outlineLevelRow', rowLevels === undefined ? undefined : rowLevels > 0 ? String(rowLevels) : null);
+      next = withAttr(next, 'outlineLevelCol', colLevels === undefined ? undefined : colLevels > 0 ? String(colLevels) : null);
+      next += fmt.endsWith('/>') ? '/>' : '>';
+      if (next !== fmt) {
+        this.prefix = this.prefix.replace(fmt, next);
+        this.dirty = true;
+      }
+    }
+    return this._outlinePr(summaryBelow, summaryRight);
+  }
+
+  _outlinePr(summaryBelow, summaryRight) {
+    if (summaryBelow === undefined && summaryRight === undefined) return this;
+    const current = /<outlinePr\b([^>]*?)\/?>/.exec(this.prefix);
+    let attrsText = current ? current[1] : '';
+    attrsText = withAttr(attrsText, 'summaryBelow', summaryBelow === undefined ? undefined : summaryBelow ? null : '0');
+    attrsText = withAttr(attrsText, 'summaryRight', summaryRight === undefined ? undefined : summaryRight ? null : '0');
+    const element = attrsText.trim() ? '<outlinePr' + attrsText + '/>' : '';
+    if (current) {
+      this.prefix = this.prefix.replace(current[0], element);
+    } else if (element) {
+      // tabColor comes first inside sheetPr, then outlinePr, then pageSetUpPr.
+      if (/<sheetPr\b[^>]*\/>/.test(this.prefix)) {
+        this.prefix = this.prefix.replace(/<sheetPr\b([^>]*)\/>/, '<sheetPr$1>' + element + '</sheetPr>');
+      } else if (/<sheetPr\b/.test(this.prefix)) {
+        const tab = /<tabColor\b[^>]*\/>/.exec(this.prefix);
+        this.prefix = tab
+          ? this.prefix.replace(tab[0], tab[0] + element)
+          : this.prefix.replace(/<sheetPr\b([^>]*)>/, '<sheetPr$1>' + element);
+      } else {
+        this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, '$1<sheetPr>' + element + '</sheetPr>');
+      }
+    } else {
+      return this;
+    }
+    this.dirty = true;
+    return this;
+  }
+
+  /**
+   * One attribute on `sheetPr` itself — `filterMode`, which Excel sets
+   * while an advanced filter hides rows in place. Null takes it off.
+   */
+  setSheetPrAttr(name, value) {
+    const open = /<sheetPr\b([^>]*?)(\/?)>/.exec(this.prefix);
+    if (!open) {
+      if (value === null || value === undefined) return this;
+      this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, '$1<sheetPr ' + name + '="' + esc(String(value)) + '"/>');
+      this.dirty = true;
+      return this;
+    }
+    const next = '<sheetPr' + withAttr(open[1], name, value === null || value === undefined ? null : String(value)) + open[2] + '>';
+    if (next !== open[0]) {
+      this.prefix = this.prefix.replace(open[0], next);
+      this.dirty = true;
+    }
     return this;
   }
 
@@ -2243,6 +2388,78 @@ export class Workbook {
     return null;
   }
 
+  /**
+   * Insert one empty row before each of several rows at once — what
+   * Subtotals does, a row after every group. `points` are row indices as
+   * the sheet stands before any of them is inserted. The rows are
+   * renumbered in one pass (one insert per point was a pass per group over
+   * every row of the sheet); merges, the dimension, formulas and names are
+   * adjusted a point at a time from the bottom up, so each adjustment sees
+   * the sheet exactly as a single insert would.
+   */
+  insertRowsAt(sheetName, points, { materialize = false } = {}) {
+    // A point may repeat: two rows land before the same one (a Grand Total
+    // and the first group's subtotal, when summaries sit above).
+    const at = points.map(Number).filter((n) => Number.isInteger(n) && n >= 0).sort((a, b) => a - b);
+    if (!at.length) return this;
+    const { part } = this._sheetPart(sheetName);
+    // How many points lie at or above a row: that is how far it moves.
+    const shift = (row) => {
+      let lo = 0;
+      let hi = at.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (at[mid] <= row) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo;
+    };
+    for (let i = part.rows.length - 1; i >= 0; i--) {
+      const row = part.rows[i];
+      const by = shift(row.index);
+      if (by) part._renumberRow(row, row.index + by);
+    }
+    // The new rows as records now, all in one sort, when the caller is about
+    // to fill them: made one by one as their first cell is written, each
+    // dropped the row index and the next write rebuilt it over every row.
+    if (materialize) {
+      at.forEach((p, i) => part.rows.push({ index: p + i, attrsStr: ' r="' + (p + i + 1) + '"', inner: '', xml: '', dirty: true }));
+      part.rows.sort((a, b) => a.index - b.index);
+    }
+    part._rowsChanged();
+    part.dirty = true;
+    // From the bottom up, so each point is where it was before any insert.
+    this._adjustForEdits(sheetName, 'row', 'insert', at.map((p) => ({ at: p, count: 1 })).reverse(), { rows: false });
+    return this;
+  }
+
+  /** Delete several rows at once, the mirror of `insertRowsAt`: Remove All takes every subtotal row. */
+  deleteRowsAt(sheetName, rows) {
+    const at = [...new Set(rows.map(Number))].filter((n) => Number.isInteger(n) && n >= 0).sort((a, b) => a - b);
+    if (!at.length) return this;
+    const { part } = this._sheetPart(sheetName);
+    const gone = new Set(at);
+    const shift = (row) => {
+      let lo = 0;
+      let hi = at.length;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (at[mid] < row) lo = mid + 1;
+        else hi = mid;
+      }
+      return lo;
+    };
+    part.rows = part.rows.filter((row) => !gone.has(row.index));
+    for (const row of part.rows) {
+      const by = shift(row.index);
+      if (by) part._renumberRow(row, row.index - by);
+    }
+    part._rowsChanged();
+    part.dirty = true;
+    this._adjustForEdits(sheetName, 'row', 'delete', at.map((p) => ({ at: p, count: 1 })).reverse(), { rows: false });
+    return this;
+  }
+
   insertRows(sheetName, at, count = 1) { return this._structuralEdit(sheetName, 'row', 'insert', at, count); }
   deleteRows(sheetName, at, count = 1) { return this._structuralEdit(sheetName, 'row', 'delete', at, count); }
   insertCols(sheetName, at, count = 1) { return this._structuralEdit(sheetName, 'col', 'insert', at, count); }
@@ -2275,52 +2492,79 @@ export class Workbook {
           + ': that would split a merged cell (' + split + ')');
       }
     }
+    return this._adjustForEdit(sheetName, axis, op, at, count);
+  }
 
-    // Merges first, from the part as it still stands.
-    const merges = part.mergeRefs();
-    if (merges.length) {
-      const next = [];
-      for (const ref of merges) {
-        const [a, b] = normalizeRange(ref).split(':');
-        const from = parseRef(a);
-        const to = parseRef(b);
-        const lo = axis === 'row' ? from.row : from.col;
-        const hi = axis === 'row' ? to.row : to.col;
-        const span = shiftSpan(lo, hi, at, count, op);
-        if (span === null) continue; // fully inside a deleted slice
-        next.push(axis === 'row'
-          ? makeRef(span[0], from.col) + ':' + makeRef(span[1], to.col)
-          : makeRef(from.row, span[0]) + ':' + makeRef(to.row, span[1]));
+  /**
+   * Everything one structural edit moves: merges, the rows or cells and
+   * `<col>` records (unless the caller has already renumbered the rows),
+   * the dimension, every formula in the workbook and the defined names.
+   */
+  _adjustForEdit(sheetName, axis, op, at, count, { rows = true } = {}) {
+    return this._adjustForEdits(sheetName, axis, op, [{ at, count }], { rows });
+  }
+
+  /**
+   * The same for several edits of one kind at once, given as they apply one
+   * after another — each `at` in the sheet as the edits before it left it.
+   * Formulas and names are walked ONCE, each run through every edit in
+   * turn: a pass over every row per edit was 600 passes over sixty thousand
+   * rows for one Subtotal.
+   */
+  _adjustForEdits(sheetName, axis, op, edits, { rows = true } = {}) {
+    const { part } = this._sheetPart(sheetName);
+
+    for (const { at, count } of edits) {
+      // Merges first, from the part as it still stands.
+      const merges = part.mergeRefs();
+      if (merges.length) {
+        const next = [];
+        for (const ref of merges) {
+          const [a, b] = normalizeRange(ref).split(':');
+          const from = parseRef(a);
+          const to = parseRef(b);
+          const lo = axis === 'row' ? from.row : from.col;
+          const hi = axis === 'row' ? to.row : to.col;
+          const span = shiftSpan(lo, hi, at, count, op);
+          if (span === null) continue; // fully inside a deleted slice
+          next.push(axis === 'row'
+            ? makeRef(span[0], from.col) + ':' + makeRef(span[1], to.col)
+            : makeRef(from.row, span[0]) + ':' + makeRef(to.row, span[1]));
+        }
+        const changed = next.length !== merges.length
+          || next.some((r, i) => r !== normalizeRange(merges[i]));
+        if (changed) part.setMerges(next);
       }
-      const changed = next.length !== merges.length
-        || next.some((r, i) => r !== normalizeRange(merges[i]));
-      if (changed) part.setMerges(next);
-    }
 
-    if (axis === 'row') {
-      if (op === 'insert') part.insertRowsShift(at, count);
-      else part.deleteRowsRange(at, count);
-    } else {
-      part.shiftCells(at, count, op);
-      part.shiftColEntries(at, count, op);
+      if (axis === 'row') {
+        if (rows && op === 'insert') part.insertRowsShift(at, count);
+        else if (rows) part.deleteRowsRange(at, count);
+      } else {
+        part.shiftCells(at, count, op);
+        part.shiftColEntries(at, count, op);
+      }
+      part.shiftDimension(axis, op, at, count);
     }
-    part.shiftDimension(axis, op, at, count);
     part.dirty = true;
+
+    const through = (text, currentSheet) => {
+      let t = text;
+      for (const { at, count } of edits) {
+        t = adjustFormula(t, { editedSheet: sheetName, currentSheet, axis, op, at, count });
+      }
+      return t;
+    };
 
     // Formulas everywhere: the edited sheet's own, and every other sheet's
     // qualified references into it.
     for (const { name } of this.sheets()) {
       const { part: p } = this._sheetPart(name);
-      p.adjustFormulas((f) => adjustFormula(f, {
-        editedSheet: sheetName, currentSheet: name, axis, op, at, count,
-      }));
+      p.adjustFormulas((f) => through(f, name));
     }
 
     // Defined names live in workbook.xml and are always sheet-qualified, so
     // they go through the same adjuster with no current sheet.
-    this._adjustDefinedNames((t) => adjustFormula(t, {
-      editedSheet: sheetName, currentSheet: null, axis, op, at, count,
-    }));
+    this._adjustDefinedNames((t) => through(t, null));
     return this;
   }
 
