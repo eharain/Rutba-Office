@@ -48,6 +48,7 @@ import { readMergeSource, writeMergeList } from './mailmerge-source.js';
 import { contactsToSource, findDuplicates, MAIN_DOCUMENT_TYPES } from '@rutba/ooxml/mailmerge';
 import { CompoundFile } from '@rutba/office-formats/cfb';
 import { readZip } from '@rutba/ooxml/zip';
+import { createProofing } from './proofing.js';
 
 let seq = 0;
 const KIND_FOR_APP = { word: 'doc', sheets: 'sheet', slides: 'deck' };
@@ -278,7 +279,10 @@ function equationXml({ xml = null, linear = null, display = true } = {}) {
   return built.xml;
 }
 
-export function createDocumentService({ holdBlob, recoveryDir = null, measureMath = null }) {
+export function createDocumentService({ holdBlob, recoveryDir = null, measureMath = null, proofing = null }) {
+  // Review → Check Accessibility and Spelling (main/proofing.js): ops for the
+  // tables below, and `proof` for what reads.
+  const proof = proofing || createProofing({ worker: false });
   /** @type {Map<string, Session>} */
   const sessions = new Map();
   const nextId = () => `d${++seq}`;
@@ -1611,7 +1615,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   }
 
 
-  const OPS = { sheet: SHEET_OPS, doc: DOC_OPS, deck: DECK_OPS };
+  const OPS = { sheet: { ...SHEET_OPS, ...proof.ops.sheet }, doc: { ...DOC_OPS, ...proof.ops.doc }, deck: { ...DECK_OPS, ...proof.ops.deck } };
 
   // Operations that only move the cursor or the viewport do not make a file
   // dirty; a document that says "unsaved changes" because somebody scrolled is
@@ -1848,6 +1852,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
      * After one that changes the merge, the window asks for `mergeRefresh`.
      */
     mailMerge: ({ id, action, ...a }) => mailMergeAction(get(id), action, a),
+
+    /**
+     * Review: the accessibility findings, the spelling pass's next word, a
+     * word's suggestions, the person's own dictionary — see main/proofing.js.
+     */
+    proof: ({ id, action, ...a }, win) => proof.act(id ? get(id) : null, action, a, win),
 
     /** Throw a recovered copy away: the person has decided they do not want it. */
     discardRecovery: ({ file }) => {

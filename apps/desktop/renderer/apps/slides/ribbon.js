@@ -117,6 +117,7 @@ export default function SlidesRibbon({
   designStrip = null,
   masterView = null,
   masterPart = null,
+  review = null,
 
 }) {
   const count = model?.count || 0;
@@ -787,11 +788,12 @@ export default function SlidesRibbon({
       {tab === 'review' ? (
         <>
           <Group label="Proofing">
-            <Soon tall icon="check" label="Spelling" why="The system spell checker underlines as you type in a box; a pass over the deck is not built." />
+            <Button tall icon="check" label="Spelling" pressed={review?.pane === 'editor'} title="Spelling (F7) — check every slide's words and notes, from this slide" onClick={() => review?.startSpelling()} />
             <Soon tall icon="find" label="Thesaurus" why="A thesaurus is a dictionary this suite does not ship." />
           </Group>
           <Group label="Accessibility">
-            <Soon tall icon="check" label="Check Accessibility" why="An accessibility pass is on the list." />
+            <Button tall icon="shield" label="Check Accessibility" pressed={review?.pane === 'accessibility'} title="Check Accessibility — alt text, slide titles, reading order, contrast and table headers, with a fix for each" onClick={() => review?.openAccessibility()} />
+            <Button icon="textbox" label="Alt Text" disabled={selected == null} title={selected == null ? 'Alt Text — select a picture or shape first, then describe it' : 'Alt Text — describe the selected object for people who cannot see it'} onClick={() => selected != null && review?.openAltText({ slide: index, shape: selected })} />
           </Group>
           <Group label="Language">
             <Soon tall icon="globe" label="Translate" why="Translation is an online service this suite does not call." />

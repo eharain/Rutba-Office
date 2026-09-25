@@ -40,6 +40,7 @@
     "@rutba/ooxml": "*",
     "@rutba/pdf": "*",
     "@rutba/presentation": "*",
+    "@rutba/proofing": "*",
     "@rutba/sheet-view": "*",
     "electron-updater": "^6.8.9",
     "imapflow": "^1.7.0",

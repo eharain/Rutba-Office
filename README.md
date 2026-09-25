@@ -316,3 +316,11 @@ Wales — [tech-style.co](https://tech-style.co). The product lives at
 Dual-licensed under the GNU Affero General Public License v3.0 — see
 [LICENSE](LICENSE) — and a separate commercial licence for use without the
 AGPL's obligations: [COMMERCIAL-LICENSE.md](COMMERCIAL-LICENSE.md).
+
+Notice: the spelling dictionaries are third-party work under their own
+permissive terms — nspell (MIT, © Titus Wormer) and the English Hunspell
+dictionaries made from SCOWL (© 2000-2018 Kevin Atkinson and the other
+authors named in their licence files; MIT and BSD-style terms), shipped as
+the npm packages dictionary-en and dictionary-en-gb with their licence files.
+[packages/proofing/README.md](packages/proofing/README.md) reproduces the
+notice.

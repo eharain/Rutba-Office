@@ -12,6 +12,7 @@ import { createShell, holdBlob, broadcast } from '@rutba/office-shell/electron/m
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { fileAssociations, APPS } from '@rutba/office-formats/registry';
 import { createDocumentService } from './documents.js';
+import { createProofing } from './proofing.js';
 import { createPrintService } from './print.js';
 import { createMathMeasurer } from './math-raster.js';
 import { createMailService } from './mail.js';
@@ -90,7 +91,7 @@ createShell({
     // Unsaved work is written to a copy in the profile every half minute,
     // and the copy is deleted the moment the document is saved or closed. What
     // is left in that folder at start-up is what a crash took.
-    const doc = createDocumentService({ holdBlob: hold, recoveryDir: path.join(stores.dir, 'recovery'), measureMath: (list) => math.measure(list) });
+    const doc = createDocumentService({ holdBlob: hold, recoveryDir: path.join(stores.dir, 'recovery'), measureMath: (list) => math.measure(list), proofing: createProofing({ stores, locale: () => electron.getLocale?.() || 'en-GB' }) });
 
     // The address book, with the people mail has seen behind it for Compose
     // to complete from. Built before the mail service, which needs it too —

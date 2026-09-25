@@ -3490,8 +3490,12 @@ export class Deck {
       `</p:spTree></p:cSld><p:clrMapOvr><a:masterClrMapping/></p:clrMapOvr></p:notes>`;
 
     // An existing notes part is rewritten; a missing one is added and related.
+    // `rels()` hands back the raw attributes (Type, Target); the normalised
+    // map has `type` and `resolved`. Reading the raw ones by the normalised
+    // names found no notes part, so a second edit of a slide's notes added a
+    // second part and the slide went on showing the first.
     let target = null;
-    for (const r of this.pkg.rels(entry.part) || []) {
+    for (const r of this.#relMap(entry.part).values()) {
       if (r.type === REL.notes) target = r.resolved;
     }
 

@@ -79,7 +79,7 @@ const Soon = ({ icon, label, tall, why }) => (
 );
 
 export default function WordRibbon({
-  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null,
+  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null,
 }) {
   const format = model?.format || {};
   const styles = Array.isArray(model?.styles) ? model.styles : [];
@@ -544,7 +544,7 @@ export default function WordRibbon({
       {tab === 'review' ? (
         <>
           <Group label="Proofing">
-            <Button tall icon="check" label="Spelling" pressed={view.spell !== false} title="Underline misspellings as you type (the system's dictionary)" onClick={() => act('toggleSpell')} />
+            <Button tall icon="check" label="Spelling" pressed={review?.pane === 'editor'} title="Spelling (F7) — check the whole document from the caret in the Editor pane: body, tables, text boxes, notes, headers and footers" onClick={() => review?.startSpelling()} />
             <Soon tall icon="word" label="Thesaurus" why="A thesaurus is a data file the suite does not ship yet." />
             <Button tall icon="listNumber" label="Word Count" onClick={() => openDialog('wordCount')} />
           </Group>
@@ -552,7 +552,8 @@ export default function WordRibbon({
             <Button tall icon="volume" label="Read Aloud" pressed={Boolean(view.reading)} onClick={() => act('readAloud')} />
           </Group>
           <Group label="Accessibility">
-            <Soon tall icon="shield" label="Check Accessibility" why="An accessibility check — alt text, heading order, contrast — is on the list." />
+            <Button tall icon="shield" label="Check Accessibility" pressed={review?.pane === 'accessibility'} title="Check Accessibility — alt text, headings, tables, contrast, links and spacing, with a fix for each" onClick={() => review?.openAccessibility()} />
+            <Button icon="textbox" label="Alt Text" disabled={!picked} title={picked ? 'Alt Text — describe the selected picture for people who cannot see it' : 'Alt Text — click a picture first, then describe it'} onClick={() => picked && review?.openAltText({ block: picked.block, image: picked.image })} />
           </Group>
           <Group label="Language">
             <Soon tall icon="globe" label="Translate" why="Translation is a network service; this suite makes no requests it has not declared." />

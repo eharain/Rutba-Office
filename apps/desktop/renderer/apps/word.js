@@ -14,7 +14,7 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, useToast, useMenu, useCommands, menuItems, formatWhen } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, formatWhen } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { SITE } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
@@ -36,6 +36,7 @@ import { MathRun, mathHostOf, EQUATION_CSS, EquationDialog, clipOf, CLIP_TYPE } 
 import { useMailings, installMailingsStyles } from './word/mailings.js';
 import { useEnvelopesLabels, installEnvelopeStyles } from './word/envelopes.js';
 import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
+import { useWordReview } from './word/review.js';
 
 installMailingsStyles();
 installEnvelopeStyles();
@@ -1109,6 +1110,8 @@ export default function Word({ app, shell, boot }) {
   const readSelection = useCallback(() => window.getSelection()?.toString() || '', []);
   const envelopes = useEnvelopesLabels({ shell, doc, model, apply, toast, selectionText: readSelection });
   const mailings = useMailings({ shell, doc, model, apply, toast, extra: envelopes.extra });
+  // Review → Check Accessibility and Spelling (word/review.js).
+  const review = useWordReview({ shell, doc, model, apply, toast, pageRef, setPicked, view, patchView, menu });
 
   const commands = useMemo(
     () => ({
@@ -1190,6 +1193,7 @@ export default function Word({ app, shell, boot }) {
           view={view}
           picked={picked}
           mailings={mailings}
+          review={review}
         />
       }
       status={
@@ -1205,6 +1209,7 @@ export default function Word({ app, shell, boot }) {
           {model?.mailMerge?.type ? (
             <Chip title="Mailings — the kind of mail merge document and its recipients">{mergeChip(model.mailMerge)}</Chip>
           ) : null}
+          {review.status}
           <Chip>{model?.wordCount ?? 0} words</Chip>
           <Chip>{model?.characterCount ?? 0} characters</Chip>
           <Chip>{model?.blocks?.length ?? 0} paragraphs</Chip>
@@ -1333,7 +1338,7 @@ export default function Word({ app, shell, boot }) {
                 ops.push({ op: 'pasteRuns', lines });
                 apply(...ops);
               }}
-              onContextMenu={(e) => menu.open(e, menuItems(commands, ['edit.undo', 'edit.redo', '-', 'format.bold', 'format.italic', 'format.underline', '-', 'edit.find']))}
+              onContextMenu={(e) => review.contextMenu(e, menuItems(commands, ['edit.undo', 'edit.redo', '-', 'format.bold', 'format.italic', 'format.underline', '-', 'edit.find']))}
               style={{
                 // View → Zoom: the page scaled on its own, the window's chrome left alone.
                 zoom: view.zoom && Math.abs(view.zoom - 1) > 0.001 ? view.zoom : undefined,
@@ -1438,6 +1443,11 @@ export default function Word({ app, shell, boot }) {
               <Notes notes={model.endnotes} kind="endnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'endnote', id: note.id, initial: noteWords(note) })} />
             </div>
           </div>
+          {review.pane ? (
+            <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title="Close the pane" onClick={review.close} />}>
+              {review.paneNode}
+            </Panel>
+          ) : null}
           {menu.node}
           {find ? (
             <FindPanel
@@ -1639,6 +1649,7 @@ export default function Word({ app, shell, boot }) {
 
       {mailings.node}
       {envelopes.node}
+      {review.dialogs}
 
       {dialog === 'tracked' ? (
         <TrackedDialog

@@ -120,6 +120,7 @@ export const METHODS = {
     'discardRecovery', // ({ file }) -> { discarded }
     'adopt',        // ({ id }) -> { id, kind, model, meta } — a window takes over a session made for it (a merge's Letters1)
     'mailMerge',    // ({ id, action, ... }) -> Mailings: records, attach, sheets, attachContacts, createList, errors, finish, messages
+    'proof',        // ({ id, action, ... }) -> Review: accessibility, spellStart, spellNext, spellCheckWord, ignoreAll, addWord, dictionary, options
   ],
   mail: [
     'accounts',     // () -> [account]

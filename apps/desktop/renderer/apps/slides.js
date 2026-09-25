@@ -22,6 +22,7 @@ import { clickCount } from './slides/animate.js';
 import { Markup } from './slides/markup.js';
 import { DesignGallery, CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 import { CommentsPane, markerSpots, personColour, COMMENTS_CSS } from './slides/comments.js';
+import { useSlidesReview } from './slides/review.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 
 export default function Slides({ app, shell, boot }) {
@@ -1408,6 +1409,8 @@ export default function Slides({ app, shell, boot }) {
   };
 
   actRef.current = act;
+  // Review → Check Accessibility and Spelling (slides/review.js).
+  const review = useSlidesReview({ shell, doc, model, apply, toast, index, setIndex, setSelected, patchView });
 
   // Every hook above, every early return below. This return sat above the
   // formatting memo, so a file the engine refused made React throw
@@ -1493,6 +1496,7 @@ export default function Slides({ app, shell, boot }) {
           designStrip={designStrip}
           masterView={model?.masterView || null}
           masterPart={masterPart}
+          review={review}
         />
       }
       status={
@@ -1504,6 +1508,7 @@ export default function Slides({ app, shell, boot }) {
             return <Chip>{item?.kind === 'layout' ? `${item.name} layout: used by ${item.used === 1 ? '1 slide' : `${item.used} slides`}` : `${item?.name || 'Slide Master'}: used by every layout`}</Chip>;
           })() : <Chip>Slide {index + 1} of {model?.count ?? 0}</Chip>}
           {slide?.shapes ? <Chip>{slide.shapes.length} shapes</Chip> : null}
+          {review.status}
           <ZoomSlider value={view.zoom ?? fit} min={0.25} max={3} onChange={(v) => act('zoom', v)} onReset={() => act('zoom', null)} resetLabel="Fit to window" />
         </>
       }
@@ -1701,6 +1706,7 @@ export default function Slides({ app, shell, boot }) {
                             ...(s.text ? [{ label: 'Edit text', icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) }] : []),
                             ...(s.kind === 'chart' ? [{ label: 'Edit Data…', icon: 'table', run: () => { setSelected(s.id); setChartDataOpen(s.id); } }] : []),
                             { label: 'Format shape…', icon: 'wand', run: () => { setSelected(s.id); act('formatPane'); } },
+                            { label: 'Edit Alt Text…', icon: 'textbox', run: () => { setSelected(s.id); review.openAltText({ slide: index, shape: s.id }); } },
                             { label: 'Bring to front', icon: 'chevronUp', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'front' }); } },
                             { label: 'Send to back', icon: 'chevronDown', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'back' }); } },
                             '-',
@@ -1961,9 +1967,16 @@ export default function Slides({ app, shell, boot }) {
               )}
             </Panel>
           ) : null}
+          {review.pane && model ? (
+            <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title="Close the pane" onClick={review.close} />}>
+              {review.paneNode}
+            </Panel>
+          ) : null}
           {menu.node}
         </>
       )}
+
+      {review.dialogs}
 
       {shortcutsOpen ? <SlidesShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
 

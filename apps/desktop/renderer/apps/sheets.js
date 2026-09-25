@@ -10,12 +10,13 @@
 // the sheet came from a .xlsx, a .csv or an .ods.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS } from './sheets/ribbon.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
+import { useSheetsReview } from './sheets/review.js';
 import {
   GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
   OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog,
@@ -1669,6 +1670,10 @@ export default function Sheets({ app, shell, boot }) {
     );
   };
 
+  // Review → Check Accessibility and Spelling (sheets/review.js) — a hook,
+  // so above the early return.
+  const review = useSheetsReview({ shell, doc, model, dispatch, toast });
+
   if (error) {
     return (
       <AppFrame app={app} shell={shell} title="Worksheets" menu={appMenu}>
@@ -2324,6 +2329,7 @@ export default function Sheets({ app, shell, boot }) {
           act={act}
           view={view}
           sel={sel}
+          review={review}
         />
       }
       status={
@@ -2337,6 +2343,7 @@ export default function Sheets({ app, shell, boot }) {
               {status.numeric ? <Chip>Average {formatNumber(status.average)}</Chip> : null}
             </>
           ) : null}
+          {review.status}
           <Chip>{model?.activeSheet || ''}</Chip>
           <Chip>{sel?.ref || ''}</Chip>
           {model?.link ? <Chip title="Ctrl+click the cell to open it">{model.link.href || model.link.location}</Chip> : null}
@@ -2564,6 +2571,7 @@ export default function Sheets({ app, shell, boot }) {
                     className={`sh-drawing${d.svg ? '' : ' unsupported'}`}
                     style={{ left: d.x, top: d.y, width: d.width, height: d.height }}
                     title={d.unsupported ? `${d.name || d.kind}: ${d.unsupported}` : d.name || undefined}
+                    onContextMenu={(e) => menu.open(e, [{ label: 'Edit Alt Text…', icon: 'textbox', run: () => review.openAltText({ sheet: model.activeSheet, anchor: Number(String(d.id).replace('drawing-', '')) || 0 }) }])}
                     {...(d.svg ? { dangerouslySetInnerHTML: { __html: d.svg } } : {})}
                   >
                     {d.svg ? null : <span>{d.name || d.kind}</span>}
@@ -2579,6 +2587,11 @@ export default function Sheets({ app, shell, boot }) {
           {errorsPane()}
           {watchPane()}
           {commentsPane()}
+          {review.pane ? (
+            <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title="Close the pane" onClick={review.close} />}>
+              {review.paneNode}
+            </Panel>
+          ) : null}
           </div>
 
           <div className={`sh-tabs${model.workbookProtection?.structure ? ' locked' : ''}`}>
@@ -2636,6 +2649,8 @@ export default function Sheets({ app, shell, boot }) {
           onSaveAs={(options) => exportAs('pdf', options)}
         />
       ) : null}
+
+      {review.dialogs}
 
       {dialog === 'goto' ? (
         <GoToDialog names={model?.names || []} onClose={() => setDialog(null)} onGo={async (ref) => { setDialog(null); await act('goto', ref); }} />

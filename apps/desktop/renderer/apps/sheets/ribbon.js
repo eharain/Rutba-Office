@@ -152,7 +152,7 @@ const Soon = ({ icon, label, tall, why }) => (
 );
 
 export default function SheetsRibbon({
-  tab, setTab, model, dispatch, commands, shell, menu, save, openFile, exportAs, doc, sel, openDialog, act, view = {},
+  tab, setTab, model, dispatch, commands, shell, menu, save, openFile, exportAs, doc, sel, openDialog, act, view = {}, review = null,
 }) {
   const format = model?.format || {};
   const frozen = model?.frozen || { rows: 0, cols: 0 };
@@ -575,12 +575,12 @@ export default function SheetsRibbon({
       {tab === 'review' ? (
         <>
           <Group label="Proofing">
-            <Soon tall icon="check" label="Spelling" why="The system spell checker underlines as you type in a cell; a pass over the sheet is not built." />
+            <Button tall icon="check" label="Spelling" pressed={review?.pane === 'editor'} title="Spelling (F7) — check the text in this sheet's cells from the active cell, then the other sheets" onClick={() => review?.startSpelling()} />
             <Soon icon="find" label="Thesaurus" why="A thesaurus is a dictionary this suite does not ship." />
             <Button icon="info" label="Workbook Statistics" onClick={() => openDialog('statistics')} />
           </Group>
           <Group label="Accessibility">
-            <Soon tall icon="check" label="Check Accessibility" why="An accessibility pass is on the list." />
+            <Button tall icon="shield" label="Check Accessibility" pressed={review?.pane === 'accessibility'} title="Check Accessibility — alt text, sheet names, merged cells, table headers, contrast and links, with a fix for each" onClick={() => review?.openAccessibility()} />
           </Group>
           <Group label="Language">
             <Soon tall icon="globe" label="Translate" why="Translation is an online service this suite does not call." />

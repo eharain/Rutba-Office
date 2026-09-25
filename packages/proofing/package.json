@@ -1,0 +1,19 @@
+{
+  "name": "@rutba/proofing",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "Review tools for Word, Worksheets and Presentation: the accessibility checker's rules and fixes, and a spelling pass with a personal dictionary.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./speller-worker": "./src/speller-worker.js"
+  },
+  "sideEffects": false,
+  "dependencies": {
+    "@rutba/ooxml": "*",
+    "dictionary-en": "^4.0.0",
+    "dictionary-en-gb": "^3.0.0",
+    "nspell": "^2.1.5"
+  }
+}
