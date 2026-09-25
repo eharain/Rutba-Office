@@ -86,9 +86,12 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   numbers from the window's own page layout — and Update Table rebuilds
   it. An index, a table of authorities, citations and a bibliography,
   `PAGE` outside the header — none are written yet.
-- **Mail merge**, envelopes and labels: a data source, merge fields, a
-  preview and a run. Nothing of it exists, and Mail beside it is exactly
-  what would make it worth having.
+- ~~**Mail merge**, envelopes and labels~~ — built 2026-09-25: sources
+  from a workbook, a .csv, Contacts or a typed list; Word's merge fields,
+  Address Block, Greeting Line and rules; preview; a merge to a new
+  document, to the printer or to e-mail through Mail; envelopes and Avery
+  label sheets. Ask, Fill-in and Set Bookmark rules, and the recipient
+  list's ticks kept in the file, are not.
 - **Recording tracked changes.** Recorded since 2026-09-25: Review → Track
   Changes writes `w:trackRevisions`, typing and deleting are kept as
   `w:ins`/`w:del` with author and date, four markup views, Accept and Reject
