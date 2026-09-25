@@ -25,6 +25,7 @@
     "@rutba/formula": "*",
     "@rutba/ooxml": "*",
     "@rutba/drawing": "*",
-    "@rutba/editing": "*"
+    "@rutba/editing": "*",
+    "@rutba/office-formats": "*"
   }
 }

@@ -176,7 +176,7 @@ export function DesignGallery({ kind, anchor, shell, docId, slide, onPick, onCus
 }
 
 /** Customise Colours: the twelve slots, a sample of the palette at work, and a name to save it under. */
-export function CustomColoursDialog({ info, onClose, onSave }) {
+export function CustomColoursDialog({ info, onClose, onSave, hint = null }) {
   const start = () => Object.fromEntries(COLOUR_ROWS.map(([k]) => [k, hex(info?.colors?.[k] || '000000')]));
   const [colors, setColors] = useState(start);
   const [name, setName] = useState(info?.colorName && !/^Custom/.test(info.colorName) ? 'Custom 1' : info?.colorName || 'Custom 1');
@@ -230,7 +230,7 @@ export function CustomColoursDialog({ info, onClose, onSave }) {
             <span>Name</span>
             <input className="rw-input sl-cc-namefield" value={name} onChange={(e) => setName(e.target.value)} />
           </label>
-          <p className="rw-hint" style={{ margin: 0 }}>Saved into this deck's theme: every slide that takes its colours from the theme follows, and Undo puts the old ones back.</p>
+          <p className="rw-hint" style={{ margin: 0 }}>{hint || "Saved into this deck's theme: every slide that takes its colours from the theme follows, and Undo puts the old ones back."}</p>
         </div>
       </div>
     </Dialog>

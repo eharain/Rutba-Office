@@ -180,6 +180,11 @@ export default function SheetsRibbon({
   // Page Layout → Arrange acts on the drawings picked on the sheet.
   const nPicked = arrange.picked.length;
   const need = nPicked ? null : 'select a picture, shape, chart or slicer first';
+  // A gallery hangs under the button that opened it.
+  const openGallery = (e, kind) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    act('themeGallery', { kind, anchor: { left: r.left, bottom: r.bottom + 4 } });
+  };
   const turnable = arrange.picked.some((o) => ['shape', 'image', 'group'].includes(o.kind));
   const groupPicked = arrange.picked.some((o) => o.kind === 'group');
   const format = model?.format || {};
@@ -452,10 +457,10 @@ export default function SheetsRibbon({
       {tab === 'layout' ? (
         <>
           <Group label="Themes">
-            <Soon tall icon="wand" label="Themes" why="A theme is the theme part; the engine reads it and does not yet swap it." />
-            <Soon icon="contrast" label="Colours" why="Comes with themes." />
-            <Soon icon="textbox" label="Fonts" why="Comes with themes." />
-            <Soon icon="wand" label="Effects" why="Comes with themes." />
+            <Button tall icon="wand" label="Themes" pressed={view.gallery === 'themes'} title={`Themes — the suite's themes, the same as Presentation's; this workbook wears ${model?.design?.name || 'Office Theme'}`} onClick={(e) => openGallery(e, 'themes')} />
+            <Button icon="contrast" label="Colours" title={`Colours — the theme's twelve colours, or your own; now ${model?.design?.colorName || 'Office'}`} onClick={(e) => openGallery(e, 'colours')} />
+            <Button icon="textbox" label="Fonts" title={`Fonts — the heading and body faces; now ${model?.design?.fonts ? `${model.design.fonts.major} and ${model.design.fonts.minor}` : 'Calibri Light and Calibri'}`} onClick={(e) => openGallery(e, 'fonts')} />
+            <Button icon="wand" label="Effects" title={`Effects — how shapes styled from the theme are filled, outlined and lifted; now ${model?.design?.effectName || 'Office'}`} onClick={(e) => openGallery(e, 'effects')} />
           </Group>
           <Group label="Page Setup">
             <Button tall icon="file" label="Margins" title={`Margins — now ${marginsName(view.page?.margins) || (view.page?.margins ? `${view.page.margins.top} mm top and bottom, ${view.page.margins.left} mm at the sides` : 'normal')}`} onClick={(e) => menu.open(e, ['normal', 'narrow', 'wide'].map((m) => ({ label: capital(m), icon: marginsName(view.page?.margins) === m ? 'check' : undefined, run: () => act('page', { margins: m }) })))} />

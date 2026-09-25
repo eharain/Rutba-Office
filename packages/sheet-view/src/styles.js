@@ -90,6 +90,14 @@ export function readTheme(pkg) {
   return THEME_SLOTS.map((name) => byName[name] ?? null);
 }
 
+/** The theme's heading (major) and body (minor) faces, by scheme name. */
+export function readThemeFaces(pkg) {
+  if (!pkg.has('xl/theme/theme1.xml')) return {};
+  const xml = pkg.text('xl/theme/theme1.xml');
+  const face = (tag) => /<a:latin\b[^>]*typeface="([^"]*)"/.exec(new RegExp('<a:' + tag + '>([\\s\\S]*?)</a:' + tag + '>').exec(xml)?.[1] ?? '')?.[1] || null;
+  return { major: face('majorFont'), minor: face('minorFont') };
+}
+
 /** #rrggbb -> {h, s, l} with l in 0..1. */
 function toHsl(hex) {
   const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -202,10 +210,13 @@ const SIDES = ['left', 'right', 'top', 'bottom'];
  */
 export function readStyles(pkg, { BUILTIN_FORMATS = {} } = {}) {
   const empty = { byStyleIndex: [], numberFormats: [], theme: [], custom: {}, dxfs: [] };
-  if (!pkg.has('xl/styles.xml')) return empty;
+  // No style table: every cell is the default, but the theme's colours are
+  // still the ones a table and a theme-coloured anything are painted in.
+  if (!pkg.has('xl/styles.xml')) return { ...empty, theme: readTheme(pkg) };
 
   const xml = pkg.text('xl/styles.xml');
   const theme = readTheme(pkg);
+  const faces = readThemeFaces(pkg);
 
   const custom = {};
   for (const m of xml.matchAll(/<numFmt\b([^>]*)\/>/g)) {
@@ -219,13 +230,16 @@ export function readStyles(pkg, { BUILTIN_FORMATS = {} } = {}) {
   const fonts = (fontsBlock ? children(fontsBlock[1], 'font') : []).map((f) => {
     const size = first(f, 'sz');
     const name = first(f, 'name') ?? first(f, 'rFont');
+    // A font that names its scheme is the theme's face, whatever name it carries.
+    const scheme = first(f, 'scheme');
+    const schemeFace = scheme ? faces[attrsOf(scheme).val] : null;
     return {
       bold: flag(f, 'b'),
       italic: flag(f, 'i'),
       underline: Boolean(first(f, 'u')),
       strike: flag(f, 'strike'),
       sizePt: size ? Number(attrsOf(size).val) || null : null,
-      family: name ? attrsOf(name).val ?? null : null,
+      family: schemeFace || (name ? attrsOf(name).val ?? null : null),
       colour: readColourElement(first(f, 'color'), theme),
     };
   });

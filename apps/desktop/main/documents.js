@@ -1439,6 +1439,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     drawingHidden: (v, a) => { v.setDrawingHidden({ id: a.id, hidden: a.hidden !== false }); },
     allDrawingsHidden: (v, a) => { v.setAllDrawingsHidden({ hidden: Boolean(a.hidden) }); },
     renameDrawing: (v, a) => { v.renameDrawing({ id: a.id, name: a.name }); },
+    // Page Layout → Themes, Colours, Fonts and Effects: one of the suite's
+    // themes, a palette (or Customise Colours' twelve), a font pair (or
+    // Customise Fonts' two), a format scheme.
+    workbookTheme: (v, a) => { v.setWorkbookTheme({ theme: a.theme, colors: a.colors, fonts: a.fonts, effects: a.effects, name: a.name }); },
   };
 
   /** What the ribbon calls a format, and what the document engine calls it. */

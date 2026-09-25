@@ -105,6 +105,8 @@ export function normaliseSpec(spec) {
     width: spec.width ?? 480,
     height: spec.height ?? 300,
     mode: spec.mode ?? 'light',
+    // The theme's accents, when the caller has a theme to follow.
+    palette: Array.isArray(spec.palette) && spec.palette.length ? spec.palette : null,
     valueAxis: {
       title: spec.valueAxis?.title ?? null,
       min: spec.valueAxis?.min,
@@ -148,7 +150,7 @@ function buildLegend(spec, t, policy, plotWidth, originX, y) {
 
   const items = spec.series.map((s, i) => ({
     name: s.name,
-    colour: band && (i === band.lower || i === band.upper) ? seriesColour(band.forecast, spec.mode) : seriesColour(i, spec.mode),
+    colour: band && (i === band.lower || i === band.upper) ? seriesColour(band.forecast, spec.mode, spec.palette) : seriesColour(i, spec.mode, spec.palette),
     width: swatch + gap + measureText(s.name, { size }) + itemGap,
   }));
 
@@ -300,7 +302,7 @@ export function buildChart(rawSpec) {
     const barSize = Math.max(1, slot - t.marks.fillGap);
 
     spec.series.forEach((s, si) => {
-      const colour = seriesColour(si, spec.mode);
+      const colour = seriesColour(si, spec.mode, spec.palette);
       const running = spec.categories.map(() => 0);
       s.values.forEach((value, ci) => {
         if (value === null || !Number.isFinite(value)) return;
@@ -357,7 +359,7 @@ export function buildChart(rawSpec) {
     // "Lower Confidence Bound…" and "Upper Confidence Bound…" — are one band:
     // shaded between them in the forecast's colour, each edge a hairline.
     const band = spec.type === 'line' ? confidenceBand(spec.series) : null;
-    const colourOf = (si) => (band && (si === band.lower || si === band.upper) ? seriesColour(band.forecast, spec.mode) : seriesColour(si, spec.mode));
+    const colourOf = (si) => (band && (si === band.lower || si === band.upper) ? seriesColour(band.forecast, spec.mode, spec.palette) : seriesColour(si, spec.mode, spec.palette));
     if (band) {
       const lo = spec.series[band.lower].values;
       const hi = spec.series[band.upper].values;
@@ -370,7 +372,7 @@ export function buildChart(rawSpec) {
         bottom.push([bandCentre(ci), valueAt(v)]);
       });
       if (top.length > 1) {
-        marks.push(polygon({ points: [...top, ...bottom.reverse()], fill: seriesColour(band.forecast, spec.mode), opacity: 0.13, class: 'band' }));
+        marks.push(polygon({ points: [...top, ...bottom.reverse()], fill: seriesColour(band.forecast, spec.mode, spec.palette), opacity: 0.13, class: 'band' }));
       }
     }
     const ends = [];
@@ -425,7 +427,7 @@ export function buildChart(rawSpec) {
     }
   } else if (spec.type === 'scatter') {
     spec.series.forEach((s, si) => {
-      const colour = seriesColour(si, spec.mode);
+      const colour = seriesColour(si, spec.mode, spec.palette);
       s.values.forEach((value, ci) => {
         if (value === null || !Number.isFinite(value)) return;
         marks.push(ellipse({
@@ -520,7 +522,7 @@ function buildScatter(spec, t, policy) {
 
   const marks = [];
   spec.series.forEach((s, si) => {
-    const colour = seriesColour(si, spec.mode);
+    const colour = seriesColour(si, spec.mode, spec.palette);
     const pts = pointsOf(s).map(([x, y]) => [xAt(x), yAt(y)]);
     if (!pts.length) return;
     if (spec.scatterStyle === 'lines' && pts.length > 1) {
@@ -591,7 +593,7 @@ function buildPie(spec, t, policy) {
     if (!value || !total) return;
     const sweep = (value / total) * Math.PI * 2;
     const end = angle + sweep;
-    const colour = seriesColour(i, spec.mode);
+    const colour = seriesColour(i, spec.mode, spec.palette);
     marks.push(path({ d: arcPath(cx, cy, radius, inner, angle, end), fill: colour }));
 
     if (policy.directLabels || value / total >= 0.08) {

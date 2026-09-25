@@ -61,14 +61,14 @@ const SCHEME_SLOTS = {
   accent1: 0, accent2: 1, accent3: 2, accent4: 3, accent5: 4, accent6: 5,
 };
 
-export function resolveColour(descriptor, mode = 'light') {
+export function resolveColour(descriptor, mode = 'light', palette = null) {
   if (!descriptor) return null;
   if (descriptor.type === 'none') return 'none';
   if (descriptor.type === 'srgb') return '#' + descriptor.value.toLowerCase();
   if (descriptor.type === 'scheme') {
     const t = theme(mode);
     const slot = SCHEME_SLOTS[descriptor.value];
-    if (slot !== undefined) return seriesColour(slot, mode);
+    if (slot !== undefined) return seriesColour(slot, mode, palette);
     if (descriptor.value === 'bg1') return t.ink.surface;
     if (descriptor.value === 'tx1' || descriptor.value === 'dk1') return t.ink.primary;
     if (descriptor.value === 'bg2' || descriptor.value === 'lt2') return t.ink.gridline;
@@ -157,13 +157,13 @@ function polygonPoints(geometry, x, y, w, h) {
  * @param {object} descriptor  from parseShapeXml, or written directly by Studio
  * @param {object} box         { x, y, width, height }
  */
-export function buildShape(descriptor, box, { mode = 'light' } = {}) {
+export function buildShape(descriptor, box, { mode = 'light', palette = null } = {}) {
   const t = theme(mode);
   const { x = 0, y = 0, width = 100, height = 60 } = box ?? {};
   const geometry = descriptor.geometry ?? 'rect';
 
-  const fill = resolveColour(descriptor.fill, mode) ?? seriesColour(0, mode);
-  const stroke = resolveColour(descriptor.stroke, mode);
+  const fill = resolveColour(descriptor.fill, mode, palette) ?? seriesColour(0, mode, palette);
+  const stroke = resolveColour(descriptor.stroke, mode, palette);
   const strokeWidth = descriptor.strokeWidth ?? (stroke && stroke !== 'none' ? 1 : 0);
   const paint = { fill: fill === 'none' ? 'none' : fill, stroke: stroke === 'none' ? null : stroke, strokeWidth: strokeWidth || null };
 
@@ -202,7 +202,7 @@ export function buildShape(descriptor, box, { mode = 'light' } = {}) {
   // Shape text is centred in the box and wrapped, the way a text box behaves.
   if (descriptor.text) {
     const size = descriptor.textSize ?? t.font.label + 1;
-    const colour = resolveColour(descriptor.textColour, mode) ?? t.ink.surface;
+    const colour = resolveColour(descriptor.textColour, mode, palette) ?? t.ink.surface;
     const lines = wrapText(descriptor.text, Math.max(16, width - 12), { size });
     const lh = lineHeight(size);
     const startY = y + height / 2 - ((lines.length - 1) * lh) / 2;

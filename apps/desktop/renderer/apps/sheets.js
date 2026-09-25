@@ -23,6 +23,8 @@ import {
   OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog,
   ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog, ConsolidateDialog, ForecastDialog,
 } from './sheets/dialogs.js';
+import { WorkbookGallery, SHEET_DESIGN_CSS } from './sheets/design.js';
+import { CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 import { SlicerPanel, InsertSlicersDialog, ObjectHandles, RotateHandle, SelectionPane, angleAt, followPointer, OBJECTS_CSS } from './sheets/objects.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
@@ -152,6 +154,9 @@ export default function Sheets({ app, shell, boot }) {
   /** Insert → PivotTable / PivotChart and Insert → Slicer: what the dialog opens on. */
   const [pivotAsk, setPivotAsk] = useState(null);
   const [slicerAsk, setSlicerAsk] = useState(null);
+  /** Page Layout → Themes, Colours, Fonts, Effects: the gallery open (its kind and where), and a Customise dialog. */
+  const [gallery, setGallery] = useState(null);
+  const [customise, setCustomise] = useState(null);
   /** Page Layout → Selection Pane, open or not. */
   const [selPane, setSelPane] = useState(false);
   const gridRef = useRef(null);
@@ -2289,6 +2294,7 @@ export default function Sheets({ app, shell, boot }) {
         setPivotAsk({ list: info && info.bottom > info.top ? info : null, chart: name === 'pivotChart' });
         return;
       }
+      case 'themeGallery': setGallery(gallery?.kind === arg.kind ? null : arg); return;
       case 'arrange': {
         const ids = picked.filter((id) => (model?.drawings || []).some((d) => d.id === id) || (model?.objects || []).some((o) => o.id === id));
         if (arg?.op === 'pane') { setSelPane((v) => !v); return; }
@@ -2633,7 +2639,7 @@ export default function Sheets({ app, shell, boot }) {
         </div>
       ) : (
         <div className={`sh${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
-          <style>{CSS + OBJECTS_CSS}</style>
+          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS}</style>
 
           <div className="sh-formula" hidden={view.formulaBar === false}>
             <div className="sh-namebox">{sel?.ref}</div>
@@ -2736,8 +2742,13 @@ export default function Sheets({ app, shell, boot }) {
               <div
                 className="sh-cells"
                 data-arrows={arrows.length}
+                data-font={model.defaultFont || undefined}
                 onMouseDownCapture={(e) => { if (picked.length && !e.target.closest('.sh-drawing, .sh-obj-handle, .sh-obj-rotate')) setPicked([]); }}
-                style={backdrop && model.viewMode !== 'pageLayout' ? { backgroundImage: `url("${backdrop.url}")`, backgroundRepeat: 'repeat', backgroundPosition: '0 0' } : undefined}
+                style={{
+                  ...(backdrop && model.viewMode !== 'pageLayout' ? { backgroundImage: `url("${backdrop.url}")`, backgroundRepeat: 'repeat', backgroundPosition: '0 0' } : {}),
+                  // The workbook's default font, once it wears a theme of its own.
+                  ...(model.defaultFont ? { fontFamily: `"${model.defaultFont}", ${/georgia|times|palatino|cambria|constantia|garamond/i.test(model.defaultFont) ? 'Georgia, serif' : '"Segoe UI", system-ui, sans-serif'}` } : {}),
+                }}
                 data-background={backdrop && model.viewMode !== 'pageLayout' ? backdrop.part : undefined}
                 onMouseDown={(e) => {
                   // A press on a drawn cell is handled by the cell. Anywhere else
@@ -3152,6 +3163,36 @@ export default function Sheets({ app, shell, boot }) {
               toast(spec.chart ? 'PivotChart and PivotTable made — the chart follows the pivot' : 'PivotTable made under the data', { tone: 'good', ms: 3000 });
             }
           }}
+        />
+      ) : null}
+
+      {gallery ? (
+        <WorkbookGallery
+          kind={gallery.kind}
+          anchor={gallery.anchor}
+          design={model?.design}
+          onClose={() => setGallery(null)}
+          onPick={async (spec) => {
+            setGallery(null);
+            await dispatch({ op: 'workbookTheme', ...spec });
+          }}
+          onCustomise={(kind) => { setGallery(null); setCustomise(kind); }}
+        />
+      ) : null}
+
+      {customise === 'colours' ? (
+        <CustomColoursDialog
+          info={model?.design}
+          hint="Saved into this workbook's theme: every cell, table, chart and shape that takes its colours from the theme follows, and Undo puts the old ones back."
+          onClose={() => setCustomise(null)}
+          onSave={async (colors, name) => { const next = await dispatch({ op: 'workbookTheme', colors, name }); if (next) setCustomise(null); }}
+        />
+      ) : null}
+      {customise === 'fonts' ? (
+        <CustomFontsDialog
+          info={model?.design}
+          onClose={() => setCustomise(null)}
+          onSave={async (fonts, name) => { const next = await dispatch({ op: 'workbookTheme', fonts, name }); if (next) setCustomise(null); }}
         />
       ) : null}
 

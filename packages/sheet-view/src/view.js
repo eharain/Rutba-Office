@@ -59,6 +59,9 @@ import {
 import { drawingAnchorXml, chartPartXml } from '@rutba/ooxml/build';
 import { newGuid } from '@rutba/ooxml/workbook';
 import { History } from '@rutba/editing';
+import {
+  readWorkbookDesign, designedThemeXml, stylesFollowingFonts, THEME_PART, THEME_TYPE, THEME_REL,
+} from './themes.js';
 
 /**
  * Rows and columns drawn beyond the viewport's edges, so a scroll shows
@@ -1287,6 +1290,7 @@ export class SheetView {
     const visibleRight = this.scrollX + this.viewportWidth;
     const visibleBottom = this.scrollY + this.viewportHeight;
 
+    const palette = this._themeAccents();
     const drawings = (this.drawings.get(this.activeSheet) ?? []).map((d) => {
       const { x, y, width, height } = this._drawingBox(d);
 
@@ -1305,12 +1309,12 @@ export class SheetView {
           // the state its table or pivot is in now.
           slicer = this.slicerState(d.slicerName) ?? { name: d.slicerName, caption: d.slicerName, items: [], broken: 'its slicer part is missing' };
         } else if (d.spec) {
-          svg = renderSvg(buildChart({ ...d.spec, width, height, mode: this.mode }));
+          svg = renderSvg(buildChart({ ...d.spec, width, height, mode: this.mode, palette }));
         } else if (d.descriptor?.kind === 'shape') {
           svg = renderSvg(scene({
             width, height, mode: this.mode, background: 'none',
             title: d.name ?? 'Shape',
-            children: [buildShape(d.descriptor, box, { mode: this.mode })],
+            children: [buildShape(d.descriptor, box, { mode: this.mode, palette })],
           }));
         } else if (d.descriptor?.kind === 'picture' && d.descriptor.href) {
           svg = renderSvg(scene({
@@ -1328,8 +1332,8 @@ export class SheetView {
             };
             const own = { x: 0, y: 0, width: b.width, height: b.height };
             let child = null;
-            if (c.kind === 'chart' && c.spec) child = renderSvg(buildChart({ ...c.spec, width: b.width, height: b.height, mode: this.mode }));
-            else if (c.kind === 'shape' && c.descriptor) child = renderSvg(scene({ width: b.width, height: b.height, mode: this.mode, background: 'none', title: c.name ?? 'Shape', children: [buildShape(c.descriptor, own, { mode: this.mode })] }));
+            if (c.kind === 'chart' && c.spec) child = renderSvg(buildChart({ ...c.spec, width: b.width, height: b.height, mode: this.mode, palette }));
+            else if (c.kind === 'shape' && c.descriptor) child = renderSvg(scene({ width: b.width, height: b.height, mode: this.mode, background: 'none', title: c.name ?? 'Shape', children: [buildShape(c.descriptor, own, { mode: this.mode, palette })] }));
             else if (c.kind === 'image' && c.descriptor?.href) child = renderSvg(scene({ width: b.width, height: b.height, mode: this.mode, background: 'none', title: c.name ?? 'Picture', children: [buildPicture(c.descriptor, own)] }));
             return { key: i, ...b, svg: child, kind: c.kind };
           });
@@ -1358,6 +1362,12 @@ export class SheetView {
     const active = this.selection.active;
     return {
       drawings,
+      // Page Layout → Themes: the theme the workbook wears now, for the galleries to tick.
+      design: this.workbookDesign(),
+      // The Normal style's face, which a cell with no font of its own is
+      // written in — once the workbook wears a theme of its own (the rule
+      // charts follow); otherwise the window's own face, as ever.
+      defaultFont: palette ? (this.styles.byStyleIndex[0]?.font?.family ?? this.workbookDesign().fonts.minor) : null,
       // Every drawing on the sheet, seen or not, in drawing order — what the
       // Selection Pane lists (front first, as Excel's does).
       objects: (this.drawings.get(this.activeSheet) ?? []).map((d) => ({
@@ -5066,6 +5076,65 @@ export class SheetView {
       xml: rebuild(spans, xml, (s, i) => (i === d.index ? withNvAttr(s.xml, 'name', text) : s.xml)),
       result: true,
     }));
+  }
+
+  // ---- Page Layout → Themes, Colours, Fonts, Effects ---------------------------
+
+  /** The workbook's theme as the Page Layout tab shows it; read once per edit. */
+  workbookDesign() {
+    if (!this._designCache || this._designCache.stamp !== this._editStamp) {
+      this._designCache = { stamp: this._editStamp, design: readWorkbookDesign(this.pkg) };
+    }
+    return this._designCache.design;
+  }
+
+  /**
+   * The accents charts and theme-styled shapes are drawn in: the theme's own
+   * once the workbook wears one other than Office's — a theme picked here, or
+   * a file's own — and the suite's validated palette otherwise, as ever.
+   */
+  _themeAccents() {
+    const d = this.workbookDesign();
+    if (!d.exists || /^Office/i.test(d.colorName || d.name || '')) return null;
+    return [1, 2, 3, 4, 5, 6].map((n) => '#' + String(d.colors['accent' + n]).toLowerCase());
+  }
+
+  /**
+   * Page Layout → Themes (`{ theme }`), Colours (`{ colors, name }`), Fonts
+   * (`{ fonts, name }`) and Effects (`{ effects }`): the theme part rewritten
+   * — made, with its relationship and content type, when the workbook has
+   * none — and the style table's theme fonts and the Normal style's font
+   * following the new faces. One undo step; the cells, tables, charts and
+   * shapes that take their look from the theme follow at once.
+   */
+  setWorkbookTheme(spec = {}) {
+    const had = this.pkg.has(THEME_PART);
+    const before = this.workbookDesign();
+    // Refused before anything is recorded: a bad palette leaves no step.
+    const xml = designedThemeXml(this.pkg, spec);
+    const parts = [THEME_PART, 'xl/styles.xml', '[Content_Types].xml', OoxmlPackage.relsPathFor(this.workbook.mainPart)]
+      .filter((p) => this.pkg.has(p));
+    this._edit(spec.theme ? 'theme' : spec.colors ? 'theme colours' : spec.fonts ? 'theme fonts' : 'theme effects', null, [], () => {
+      if (had) this.pkg.write_(THEME_PART, xml);
+      else {
+        this.pkg.addPart(THEME_PART, xml, THEME_TYPE);
+        this.pkg.addRelationshipTo(this.workbook.mainPart, THEME_REL, 'theme/theme1.xml');
+      }
+      this._designCache = null;
+      const after = readWorkbookDesign(this.pkg);
+      const facesMoved = !had || after.fonts.major !== before.fonts.major || after.fonts.minor !== before.fonts.minor;
+      // A workbook with no style table gets one, so its default font can follow.
+      if (facesMoved) this._ensureStylesPart();
+      if (this.pkg.has('xl/styles.xml') && facesMoved) {
+        const styles = this.pkg.text('xl/styles.xml');
+        const next = stylesFollowingFonts(styles, after.fonts, before.fonts);
+        if (next !== styles) this.pkg.write_('xl/styles.xml', next);
+      }
+      this._afterPartsRestored([THEME_PART, 'xl/styles.xml']);
+      this._structuralDirty = true;
+    }, { parts, tracksNewParts: true, sheetGate: false });
+    this._designCache = null;
+    return this.workbookDesign();
   }
 
   // ---- sheet protection ---------------------------------------------------

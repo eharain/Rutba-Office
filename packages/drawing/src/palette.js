@@ -130,7 +130,9 @@ export const theme = (mode = 'light') => ({
  * caller is expected to fold into "Other" rather than invent a hue, so this
  * returns the muted ink instead of wrapping around.
  */
-export function seriesColour(index, mode = 'light') {
+export function seriesColour(index, mode = 'light', palette = null) {
+  // A workbook dressed in a theme of its own draws in that theme's accents.
+  if (Array.isArray(palette) && palette.length && index < palette.length) return palette[index];
   const slots = CATEGORICAL[mode] ?? CATEGORICAL.light;
   return index < slots.length ? slots[index] : (INK[mode] ?? INK.light).muted;
 }

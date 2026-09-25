@@ -17,7 +17,8 @@
     "./rtf": "./src/rtf.js",
     "./text": "./src/text.js",
     "./markdown": "./src/markdown.js",
-    "./xml": "./src/xml.js"
+    "./xml": "./src/xml.js",
+    "./themes": "./src/themes.js"
   },
   "dependencies": {
     "@rutba/ooxml": "*"
