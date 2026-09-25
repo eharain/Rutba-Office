@@ -149,7 +149,7 @@ it is where the gaps are.
   writes them — the x14 sparkline groups in the worksheet's extension
   list — and drawn in the cell layer under the cell's own words. Slicers
   are still read, not written.
-- **Data tools**: consolidate and forecast sheets. (Text to columns,
+- **Data tools**: consolidate and forecast sheets arrived 2026-09-25. (Text to columns,
   remove duplicates and a sort by up to three keys are built, 2026-09-21;
   group and outline, subtotals, advanced filter with a criteria range and
   flash fill, 2026-09-25 — Auto Outline, SUBTOTAL 101–111 and an advanced
@@ -164,15 +164,14 @@ it is where the gaps are.
   open (nothing is written to the file, the same as Excel's own watch
   window). (Trace precedents and dependents draw the dependency graph on
   the grid since 2026-09-21.)
-- A sheet background, and Page Layout view. (Page Break Preview and Split
+- (A sheet background, Page Layout view, Page Break Preview and Split all
   arrived 2026-09-25. The print settings live
   in the file, and since 2026-09-21 the Page Layout tab writes them:
   margins, orientation, paper, print titles, scale to fit and manual page
   breaks — before that its buttons changed a note in the window that
   nothing read.)
-- **Workbook protection** (structure), editable ranges on a protected sheet,
-  custom views. (Manual calculation arrived 2026-09-25, and threaded
-  comments the same day.)
+- (Workbook protection, editable ranges on a protected sheet, custom views,
+  manual calculation and threaded comments all arrived 2026-09-25.)
 - **The formula language**, where it stops: `LAMBDA`. Array constants and
   `LET` came on 2026-09-09; `TEXT()` speaks every format code the grid does
   (the formatter moved in beside the engine), and serial 60 is 29 February
