@@ -217,6 +217,8 @@ function cellBlocks(cellXml) {
         })),
         style: val(pPr, 'w:pStyle'),
         align: val(pPr, 'w:jc'),
+        // The paragraph's own left indent — a label's words sit this far in.
+        ...((() => { const ind = firstElement(pPr, 'w:ind'); const left = ind ? (attrs(ind)['w:left'] ?? attrs(ind)['w:start']) : null; return left != null ? { indentPx: twipsToPx(left) } : {}; })()),
         structural: STRUCTURAL_TAGS.some((t) => new RegExp('<' + t + '\\b').test(xml)),
         ...(sdtDepth > 0 ? { inSdt: true } : {}),
       });
@@ -278,9 +280,21 @@ export function parseTable(tblXml) {
       // to look different, so the renderer is told about it.
       header: Boolean(trPr && firstElement(trPr, 'w:tblHeader')),
       heightPx: trPr ? twipsToPx(val(trPr, 'w:trHeight')) || null : null,
+      // `exact` holds the row to its height whatever it holds — a label's.
+      heightRule: trPr ? (() => { const h = firstElement(trPr, 'w:trHeight'); return h ? attrs(h)['w:hRule'] || 'atLeast' : null; })() : null,
       cells,
     };
   });
+
+  // Every border explicitly off, and the widths fixed: a sheet of labels,
+  // drawn with no lines and with the file's own cell margins.
+  const bordersEl = tblPr ? firstElement(tblPr, 'w:tblBorders') : null;
+  const sideVals = bordersEl ? [...bordersEl.matchAll(/<w:(top|left|bottom|right|insideH|insideV|start|end)\b[^>]*\bw:val="([^"]*)"/g)].map((m) => m[2]) : [];
+  const cellMar = tblPr ? firstElement(tblPr, 'w:tblCellMar') : null;
+  const marSide = (name) => {
+    const el = cellMar ? firstElement(cellMar, 'w:' + name) : null;
+    return el ? twipsToPx(attrs(el)['w:w']) : null;
+  };
 
   const widthEl = tblPr ? firstElement(tblPr, 'w:tblW') : null;
   const widthAttrs = widthEl ? attrs(widthEl) : {};
@@ -296,6 +310,9 @@ export function parseTable(tblXml) {
     borders: readBorders(tblPr ? firstElement(tblPr, 'w:tblBorders') : null),
     shading: readShading(tblPr),
     style: tblPr ? val(tblPr, 'w:tblStyle') : null,
+    ...(sideVals.length >= 4 && sideVals.every((v) => v === 'nil' || v === 'none') ? { bordersNone: true } : {}),
+    ...(tblPr && /<w:tblLayout\b[^>]*\bw:type="fixed"/.test(tblPr) ? { layoutFixed: true } : {}),
+    ...(cellMar ? { cellMarginPx: { left: marSide('left') ?? marSide('start') ?? 0, right: marSide('right') ?? marSide('end') ?? 0, top: marSide('top') ?? 0, bottom: marSide('bottom') ?? 0 } } : {}),
     rowCount: rows.length,
     columnCount: rows.reduce(
       (n, r) => Math.max(n, r.cells.reduce((c, cell) => c + cell.gridSpan, 0)),

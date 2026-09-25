@@ -833,6 +833,23 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       }
       case 'messages':
         return view.mergeMessages({ range: a.range ?? 'all', toField: a.toField, subject: a.subject, format: a.format || 'html' });
+      // Labels → New Document or Print, and Envelopes → Print: a document of
+      // its own — Labels1, Envelope1 — for a window or the printer.
+      case 'makeLabels':
+      case 'makeEnvelope': {
+        const base = action === 'makeLabels' ? 'Labels' : 'Envelope';
+        const n = (mergedCount.get(base) || 0) + 1;
+        mergedCount.set(base, n);
+        const engine = openDocx(TEMPLATES.doc());
+        if (action === 'makeLabels') engine.setLabelSheet(a.spec || {});
+        else engine.setEnvelopeDocument(a.spec || {});
+        const made = new Session({ id: nextId(), kind: 'doc', filePath: null, engine, source: 'mailings' });
+        made.untitled = `${base}${n}`;
+        made.dirty = true;
+        made.windowId = null;
+        sessions.set(made.id, made);
+        return { id: made.id, name: made.name };
+      }
       default:
         throw new Error(`mail merge has no action "${action}"`);
     }
@@ -923,11 +940,20 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // Select Recipients and the record box change no block at all.
       mailMerge: frame.mailMerge,
       sectionCount: frame.sectionCount,
+      // An envelope added in front: a section of its own, which no block
+      // change alone tells the page to draw at the envelope's size.
+      envelope: frame.envelope,
       canUndo: view.canUndo,
       canRedo: view.canRedo,
     };
 
     if (!prev) return { model: docModel(session) };
+    // The styles part changed under the edit (an envelope's styles written):
+    // the whole model, so the page paints from the new styles too.
+    if (view.stylesChanged) {
+      view.stylesChanged = false;
+      return { model: docModel(session) };
+    }
 
     let head = 0;
     while (head < prev.length && head < next.length && prev[head] === next[head]) head++;
@@ -1333,6 +1359,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     insertMergeRule: (v, a) => v.insertMergeRule(a.kind, a.spec || {}),
     // Nothing changes: the window asks for the merge it holds to be sent again.
     mergeRefresh: () => true,
+    // Envelopes: one in front of the letter (Add to Document), or the whole
+    // document one envelope (Start Mail Merge → Envelopes).
+    addEnvelope: (v, a) => v.addEnvelope(a.spec || {}),
+    setEnvelopeDocument: (v, a) => v.setEnvelopeDocument(a.spec || {}),
+    // Labels: the document a sheet of labels; Update Labels answers how many it filled.
+    setLabelSheet: (v, a) => v.setLabelSheet(a.spec || {}),
+    updateLabels: (v) => v.updateLabels(),
   };
 
   const DECK_OPS = {

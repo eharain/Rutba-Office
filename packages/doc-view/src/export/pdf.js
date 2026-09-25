@@ -326,6 +326,13 @@ function borderOf(borders, side) {
  * landed on the sheet, header repeats included.
  */
 function drawTable(page, doc, table, rows, { xPx, yPx, widthPx, labelOf, depth = 0 }) {
+  // A table laid out to fixed widths keeps the file's own cell margins —
+  // a label's words sit where the sheet expects them; any other table the
+  // padding it always had.
+  const fixed = table.layoutFixed && table.cellMarginPx ? table.cellMarginPx : null;
+  const padL = fixed ? fixed.left : CELL_PADDING;
+  const padR = fixed ? fixed.right : CELL_PADDING;
+  const padT = fixed ? fixed.top : CELL_PADDING;
   const columns = table.columns && table.columns.length
     ? table.columns
     : Array(Math.max(1, table.columnCount || 1)).fill(widthPx / Math.max(1, table.columnCount || 1));
@@ -343,23 +350,34 @@ function drawTable(page, doc, table, rows, { xPx, yPx, widthPx, labelOf, depth =
         page.rect(cx * PT, y * PT, cellWidth * PT, h * PT, { fill: `#${String(cell.shading).replace('#', '')}` });
       }
       const borders = cell.borders ?? table.borders ?? null;
-      const sides = [
-        ['top', cx, y, cx + cellWidth, y], ['bottom', cx, y + h, cx + cellWidth, y + h],
-        ['left', cx, y, cx, y + h], ['right', cx + cellWidth, y, cx + cellWidth, y + h],
-      ];
-      for (const [side, x1, y1, x2, y2] of sides) {
-        const b = borderOf(borders, side);
-        if (b && b.widthPx === 0) continue;
-        const colour = b && b.colour && /^#?[0-9a-fA-F]{6}$/.test(String(b.colour)) ? `#${String(b.colour).replace('#', '')}` : '#9a9a9a';
-        page.line(x1 * PT, y1 * PT, x2 * PT, y2 * PT, { width: b && b.widthPx ? Math.max(0.4, b.widthPx * PT) : 0.5, colour });
+      // Every border off: no lines at all — the grey default is for a table
+      // that simply says nothing about its borders.
+      if (!(table.bordersNone && !cell.borders)) {
+        const sides = [
+          ['top', cx, y, cx + cellWidth, y], ['bottom', cx, y + h, cx + cellWidth, y + h],
+          ['left', cx, y, cx, y + h], ['right', cx + cellWidth, y, cx + cellWidth, y + h],
+        ];
+        for (const [side, x1, y1, x2, y2] of sides) {
+          const b = borderOf(borders, side);
+          if (b && b.widthPx === 0) continue;
+          const colour = b && b.colour && /^#?[0-9a-fA-F]{6}$/.test(String(b.colour)) ? `#${String(b.colour).replace('#', '')}` : '#9a9a9a';
+          page.line(x1 * PT, y1 * PT, x2 * PT, y2 * PT, { width: b && b.widthPx ? Math.max(0.4, b.widthPx * PT) : 0.5, colour });
+        }
       }
-      let cy = y + CELL_PADDING;
+      let cy = y + padT;
+      // Centred or at the foot of the cell, as the cell says: the words'
+      // own height first, then where they start.
+      if (cell.vAlign === 'center' || cell.vAlign === 'bottom') {
+        const inner = (cell.blocks || []).reduce((s, b) => s + (b.kind === 'table' ? 0 : (() => { const l = layoutParagraph(b, cellWidth - padL - padR, { cache: null }); return l.lines.length * l.lineHeightPx; })()), 0);
+        const room = h - padT - (fixed ? fixed.bottom : CELL_PADDING) - inner;
+        if (room > 0) cy += cell.vAlign === 'center' ? room / 2 : room;
+      }
       for (const b of cell.blocks || []) {
         if (b.kind === 'table') {
-          if (depth < 3) cy += drawTable(page, doc, b.table, b.table.rows, { xPx: cx + CELL_PADDING, yPx: cy, widthPx: cellWidth - CELL_PADDING * 2, labelOf, depth: depth + 1 });
+          if (depth < 3) cy += drawTable(page, doc, b.table, b.table.rows, { xPx: cx + padL, yPx: cy, widthPx: cellWidth - padL - padR, labelOf, depth: depth + 1 });
           continue;
         }
-        const laid = layoutParagraph(b, cellWidth - CELL_PADDING * 2, { cache: null });
+        const laid = layoutParagraph(b, cellWidth - padL - padR, { cache: null });
         const label = labelOf(b.blockIndex);
         const fragment = {
           sizePx: laid.style.sizePx, lineHeightPx: laid.lineHeightPx, weight: laid.style.weight,
@@ -370,7 +388,7 @@ function drawTable(page, doc, table, rows, { xPx, yPx, widthPx, labelOf, depth =
           ? laid.lines.map((l, i) => (i === 0 ? { ...l, end: l.end + label.label.length + 1 } : { ...l, start: l.start + label.label.length + 1, end: l.end + label.label.length + 1 }))
           : laid.lines;
         cy += drawParagraphLines(page, doc, {
-          lines, fragment, runs, xPx: cx + CELL_PADDING + (laid.indentPx || 0), yPx: cy, widthPx: cellWidth - CELL_PADDING * 2,
+          lines, fragment, runs, xPx: cx + padL + (laid.indentPx || 0), yPx: cy, widthPx: cellWidth - padL - padR,
         });
       }
       cx += cellWidth;
@@ -399,15 +417,16 @@ export function renderFramePdf(frame, options = {}) {
 
 function drawFrame(frame, { title = '', author = '', created = null } = {}) {
   if (!frame || !frame.pages || !frame.pages.pages) throw new Error('renderFramePdf needs a paginated frame (frame.pages)');
-  const section = frame.section || DEFAULT_SECTION;
-  const m = section.margins;
+  const mainSection = frame.section || DEFAULT_SECTION;
+  let section = mainSection;
+  let m = section.margins;
   const byIndex = new Map((frame.blocks || []).map((b) => [b.index, b]));
   const labels = frame.listLabels || null;
   const labelOf = (i) => (labels instanceof Map ? labels.get(i) : (labels ? labels[i] : null)) || null;
 
   const doc = new PdfDocument({ size: [section.widthPx * PT, section.heightPx * PT], title, author, created });
-  const xPx = m.left + (m.gutter || 0);
-  const widthPx = section.contentWidthPx;
+  let xPx = m.left + (m.gutter || 0);
+  let widthPx = section.contentWidthPx;
 
   // Line numbers count every body line; the count starts again on each
   // page when the section says so.
@@ -415,7 +434,13 @@ function drawFrame(frame, { title = '', author = '', created = null } = {}) {
   let lineNo = numbering ? numbering.start || 1 : 1;
 
   for (const sheet of frame.pages.pages) {
-    const page = doc.addPage();
+    // A page of a section on other paper — an envelope in front of the
+    // letter — is that paper, with that section's margins.
+    section = sheet.section ? { ...mainSection, ...sheet.section, pageBorders: sheet.section.envelope ? null : mainSection.pageBorders, lineNumbers: sheet.section.envelope ? null : mainSection.lineNumbers, columns: sheet.section.envelope ? null : mainSection.columns } : mainSection;
+    m = section.margins;
+    xPx = m.left + (m.gutter || 0);
+    widthPx = section.contentWidthPx;
+    const page = doc.addPage(sheet.section ? [section.widthPx * PT, section.heightPx * PT] : null);
     if (numbering && numbering.restart === 'newPage') lineNo = numbering.start || 1;
     // The page colour under everything, edge to edge, as Word prints it
     // when asked to print background colours.
@@ -481,6 +506,16 @@ function drawFrame(frame, { title = '', author = '', created = null } = {}) {
           }
           y += row.heightPx + IMAGE_GAP;
         }
+        continue;
+      }
+      if (fr.kind === 'frame') {
+        // A paragraph in a frame placed on the page — the envelope's delivery
+        // address — where the frame says, from the page's own corner.
+        const fb = byIndex.get(fr.paragraphIndex) || null;
+        drawParagraphLines(page, doc, {
+          lines: fr.lines, fragment: fr, runs: fb ? fb.runs : null,
+          xPx: fr.xPx + (fr.indent || 0), yPx: fr.yPx, widthPx: fr.widthPx - (fr.indent || 0),
+        });
         continue;
       }
       if (fr.kind === 'float') {

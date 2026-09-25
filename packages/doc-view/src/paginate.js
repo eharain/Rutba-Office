@@ -157,6 +157,27 @@ function layoutParagraphUncached(block, width, s, indent) {
 
   // An empty paragraph is still a line: it is the blank line the author typed,
   // and swallowing it would close up the space they left.
+  // A line break in the paragraph (`w:br`, a "\n" in its text) ends a line
+  // wherever it falls — an address's lines stay lines on paper. Each piece
+  // between breaks wraps on its own; a paragraph with none wraps as before.
+  if (text.includes('\n')) {
+    const lines = [];
+    let base = 0;
+    for (const piece of text.split('\n')) {
+      const wrapped = piece === '' ? [''] : wrapText(piece, usable, { size: s.sizePx, weight: s.weight });
+      let cursor = 0;
+      for (const value of wrapped) {
+        const at = value === '' ? cursor : piece.indexOf(value, cursor);
+        const start = at < 0 ? cursor : at;
+        const end = start + value.length;
+        lines.push({ text: value, start: base + start, end: base + end, width: measureText(value, { size: s.sizePx, weight: s.weight }) });
+        cursor = end;
+      }
+      base += piece.length + 1;
+    }
+    lines[lines.length - 1].end = text.length;
+    return { lines, style: s, indentPx: indent, lineHeightPx: lineHeight(s.sizePx) };
+  }
   const wrapped = text === '' ? [''] : wrapText(text, usable, { size: s.sizePx, weight: s.weight });
 
   const lines = [];
@@ -218,6 +239,9 @@ export function wrapWithObjects(value, base, width, opts, objects) {
 
 /** How tall a table row is: its tallest cell, wrapped to the column width. */
 function rowHeight(row, table, width, cache) {
+  // A row held to its height — a label's — is that tall, whatever it holds.
+  if (row.heightRule === 'exact' && row.heightPx) return row.heightPx;
+  const pad = cellPadding(table);
   const columns = table.columns.length
     ? table.columns
     : Array(Math.max(1, table.columnCount)).fill(width / Math.max(1, table.columnCount));
@@ -228,15 +252,26 @@ function rowHeight(row, table, width, cache) {
     const cellWidth = columns.slice(column, column + span).reduce((a, b) => a + b, 0) || width;
     column += span;
     if (cell.vMerge === 'continue') continue;
-    let height = CELL_PADDING;
+    let height = pad.top + pad.bottom;
     for (const b of cell.blocks) {
       if (b.kind === 'table') { height += tableHeight(b.table, cellWidth, cache); continue; }
-      const { lines, lineHeightPx } = layoutParagraph(b, cellWidth - CELL_PADDING * 2, { cache });
+      const { lines, lineHeightPx } = layoutParagraph(b, cellWidth - pad.left - pad.right, { cache });
       height += lines.length * lineHeightPx;
     }
     tallest = Math.max(tallest, height);
   }
   return Math.max(row.heightPx ?? 0, tallest);
+}
+
+/**
+ * A cell's inner margins: the file's own for a table laid out to fixed
+ * widths (a sheet of labels is measured to the millimetre), the paginator's
+ * usual padding — half of it above and below — for every other table, as
+ * it always was.
+ */
+export function cellPadding(table) {
+  if (table?.layoutFixed && table.cellMarginPx) return table.cellMarginPx;
+  return { top: CELL_PADDING / 2, bottom: CELL_PADDING / 2, left: CELL_PADDING, right: CELL_PADDING };
 }
 
 const tableHeight = (table, width, cache = null) =>
@@ -278,10 +313,25 @@ const TABLE_SPACE_AFTER = 12;
  * @param {number}   [input.maxPages] a runaway guard; a measurement bug must not
  *   produce a million empty sheets and take the browser with it
  */
-export function paginate({ flow, blocks, section, maxPages = 500, cache = null, styles = null, listLabels = null, notes = null, watermark = null, math = null }) {
+export function paginate({ flow, blocks, section: mainSection, sections = null, maxPages = 500, cache = null, styles = null, listLabels = null, notes = null, watermark = null, math = null }) {
   // No page geometry means no pages — an email body is a continuous flow, and
   // saying so is better than inventing A4 for it.
-  if (!section) return null;
+  if (!mainSection) return null;
+
+  // Sections of different pages — an envelope added in front of a letter,
+  // a landscape section in a portrait report — each lay their pages on
+  // their own paper: `sections` is `[{ endsAt, geometry }]`, the geometry
+  // shaped as `section` is. Only when two differ is any of this switched
+  // on; a document of one page size comes out exactly as it always did.
+  const geoms = distinctPages(sections) ? sections : null;
+  const sectionAt = (index) => {
+    if (!geoms || !Number.isFinite(index)) return -1;
+    const k = geoms.findIndex((s) => s.endsAt === null || s.endsAt === undefined || index <= s.endsAt);
+    return k < 0 ? geoms.length - 1 : k;
+  };
+  const entryIndex = (entry) => (entry?.kind === 'table' ? firstCellIndex(entry.table) : entry?.paragraphIndex);
+  let sectionIdx = geoms ? sectionAt(entryIndex((flow || [])[0])) : -1;
+  let section = geoms && sectionIdx >= 0 ? geoms[sectionIdx].geometry : mainSection;
 
   // More than one column: Word fills the first column top to bottom, then
   // the next, and starts a fresh PAGE only once the last column is full —
@@ -290,13 +340,25 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
   // function BYTE-IDENTICAL to what it produced before, so every
   // column-aware path here is reached only through `columnBoxes`, which
   // stays null for one column.
-  const columnBoxes = section.columns && section.columns.count > 1 ? section.columnBoxes : null;
+  let columnBoxes = section.columns && section.columns.count > 1 ? section.columnBoxes : null;
 
   let width = columnBoxes ? columnBoxes[0].widthPx : section.contentWidthPx;
-  const height = Math.max(
+  let height = Math.max(
     120,
     section.heightPx - section.margins.top - section.margins.bottom,
   );
+  /** The page a section lays on, as each page it starts carries it — see `geoms`. */
+  const pageOf = () => ({
+    widthPx: section.widthPx, heightPx: section.heightPx, orientation: section.orientation,
+    margins: section.margins, contentWidthPx: section.contentWidthPx, envelope: Boolean(geoms?.[sectionIdx]?.envelope),
+  });
+  /** Lay what follows on another section's paper. */
+  const useSection = (g) => {
+    section = g;
+    columnBoxes = section.columns && section.columns.count > 1 ? section.columnBoxes : null;
+    width = columnBoxes ? columnBoxes[0].widthPx : section.contentWidthPx;
+    height = Math.max(120, section.heightPx - section.margins.top - section.margins.bottom);
+  };
 
   const byIndex = new Map(blocks.map((b) => [b.index, b]));
   const pages = [];
@@ -334,6 +396,7 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     // pictures standing beside the words on this page, each with the band it
     // takes and the side it takes it on; a float ends with its column.
     current = { index: pages.length, number: pages.length + 1, fragments: [], contentHeightPx: height, notes: [], notesHeightPx: 0, watermark, floats: [] };
+    if (geoms) current.section = pageOf();
     if (columnBoxes) current.columns = columnBoxes;
     pages.push(current);
     used = 0;
@@ -534,6 +597,17 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
     const entry = flowList[flowIdx];
     if (pages.length > maxPages) break;
 
+    // A section of other paper starts a page of its own paper.
+    if (geoms) {
+      const k = sectionAt(entryIndex(entry));
+      if (k >= 0 && k !== sectionIdx) {
+        sectionIdx = k;
+        useSection(geoms[k].geometry);
+        if (current.fragments.length) newPage();
+        else { current.section = pageOf(); current.contentHeightPx = height; used = 0; }
+      }
+    }
+
     if (entry.kind === 'table') {
       // A table wider than the column it must now sit in — the file's own
       // width, or the file's own column widths, were set for the page before
@@ -555,6 +629,21 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
 
     const block = byIndex.get(entry.paragraphIndex);
     if (!block) continue;
+
+    // A paragraph in a frame placed on the page — an envelope's delivery
+    // address — is drawn where the frame says, and takes no room in the flow.
+    if (block.frame) {
+      const f = block.frame;
+      const fw = Math.max(24, f.widthPx || width);
+      const laid = layoutParagraph(block, fw, { cache, styles });
+      const s = laid.style;
+      place({
+        kind: 'frame', paragraphIndex: block.index, xPx: f.xPx, yPx: f.yPx, widthPx: fw, heightPx: f.heightPx ?? null,
+        lines: laid.lines, lineHeightPx: laid.lineHeightPx, sizePx: s.sizePx, weight: s.weight ?? 'normal', italic: Boolean(s.italic),
+        colour: s.colour ?? null, align: block.align ?? s.align ?? null, indent: laid.indentPx ?? 0, first: true, last: true,
+      }, 0);
+      continue;
+    }
 
     // An explicit page break is the author's instruction, not a suggestion.
     if (block.pageBreakBefore && current.fragments.length) newPage();
@@ -847,7 +936,20 @@ export function paginate({ flow, blocks, section, maxPages = 500, cache = null, 
   // section's — the section's own is what a reader means by "how wide is the
   // page", so that is what is reported, not whatever column happened to be
   // laid out last.
-  return { pages, count, contentWidthPx: section.contentWidthPx, contentHeightPx: height };
+  return { pages, count, contentWidthPx: mainSection.contentWidthPx, contentHeightPx: Math.max(120, mainSection.heightPx - mainSection.margins.top - mainSection.margins.bottom) };
+}
+
+/** Do the sections lie on more than one kind of paper? */
+function distinctPages(sections) {
+  if (!Array.isArray(sections) || sections.length < 2 || !sections.every((s) => s?.geometry)) return false;
+  const key = (g) => [g.widthPx, g.heightPx, g.margins?.top, g.margins?.right, g.margins?.bottom, g.margins?.left].map((n) => Math.round(Number(n) || 0)).join(':');
+  return new Set(sections.map((s) => key(s.geometry))).size > 1;
+}
+
+/** The edit address of a table's first cell paragraph, which says what section the table is in. */
+function firstCellIndex(table) {
+  for (const row of table?.rows || []) for (const cell of row.cells || []) for (const b of cell.blocks || []) if (Number.isFinite(b.blockIndex)) return b.blockIndex;
+  return undefined;
 }
 
 /** The room a note takes from the page: its indent, and the rule above the first. */

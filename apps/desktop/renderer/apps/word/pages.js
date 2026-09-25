@@ -36,15 +36,49 @@ export const PAGE_GAP = 22;
 /** The rule above a page's footnotes with the space round it — what `.wd-pagenotes` draws. */
 export const NOTE_RULE_PX = 17;
 
-/** The geometry the pass works in: sheet height, the gap, the top and bottom margins. */
-export function geometryOf(section) {
+/**
+ * The geometry the pass works in: sheet height, the gap, the top and bottom
+ * margins — and, when Mailings → Envelopes added an envelope in front of the
+ * letter, the first sheet's own: the envelope's height, width and margins,
+ * and where its sheet sits across the page (centred on the letter's).
+ */
+export function geometryOf(section, envelope = null) {
   if (!section) return null;
-  return {
+  const geo = {
     H: Math.round(section.heightPx || 1123),
     G: PAGE_GAP,
     top: Math.round(section.margins?.top ?? 96),
     bottom: Math.round(section.margins?.bottom ?? 96),
   };
+  if (envelope?.heightPx) {
+    const W = Math.round(envelope.widthPx);
+    const left = Math.round(((section.widthPx || 794) - W) / 2);
+    geo.first = {
+      H: Math.round(envelope.heightPx), W, left,
+      top: Math.round(envelope.margins?.top ?? 24), bottom: Math.round(envelope.margins?.bottom ?? 48),
+      // How far the envelope's text sits from where the letter's would.
+      dx: left + Math.round(envelope.margins?.left ?? 38) - Math.round(section.margins?.left ?? 96),
+      endsAt: envelope.endsAt,
+    };
+  }
+  return geo;
+}
+
+/** Where sheet `n` starts, down the page — every sheet the same height but an envelope first. */
+export function pageTopOf(geo, n) {
+  if (!geo.first) return n * (geo.H + geo.G);
+  return n <= 0 ? 0 : geo.first.H + geo.G + (n - 1) * (geo.H + geo.G);
+}
+/** Sheet `n`'s height. */
+export const pageHeightOf = (geo, n) => (geo.first && n === 0 ? geo.first.H : geo.H);
+const pageMarginTop = (geo, n) => (geo.first && n === 0 ? geo.first.top : geo.top);
+const pageMarginBottom = (geo, n) => (geo.first && n === 0 ? geo.first.bottom : geo.bottom);
+/** The sheet (0-based) a point `y` px down the page falls on. */
+export function pageIndexAt(geo, y) {
+  const P = geo.H + geo.G;
+  if (!geo.first) return Math.max(0, Math.floor(y / P));
+  const firstP = geo.first.H + geo.G;
+  return y < firstP ? 0 : 1 + Math.max(0, Math.floor((y - firstP) / P));
 }
 
 /**
@@ -100,6 +134,7 @@ export function sliceRuns(runs, from, to) {
 
 const isFlow = (el) =>
   el.nodeType === 1 &&
+  !el.classList.contains('wd-frame') &&
   (el.classList.contains('wd-block') || el.classList.contains('wd-table') || (el.classList.contains('wd-notes') && !el.classList.contains('wd-notes-measure')));
 
 /**
@@ -385,8 +420,7 @@ function settle(fresh, old, seen) {
  * the new ones and whether they differ. Pure reads first, then the writes.
  */
 export function layPages(page, geo, state) {
-  const P = geo.H + geo.G;
-  const ctop = (n) => n * P + geo.top;
+  const ctop = (n) => pageTopOf(geo, n) + pageMarginTop(geo, n);
   const pageRect = rectOf(page);
   const els = [...page.children].filter(isFlow);
 
@@ -399,7 +433,7 @@ export function layPages(page, geo, state) {
   for (const el of page.querySelectorAll('.wd-notes-measure .wd-note[data-note]')) noteHeight.set(el.dataset.note, rectOf(el).height);
   const reserved = [];
   const reservedAt = (k) => reserved[k] || 0;
-  const limit = (n) => n * P + geo.H - geo.bottom - reservedAt(n);
+  const limit = (n) => pageTopOf(geo, n) + pageHeightOf(geo, n) - pageMarginBottom(geo, n) - reservedAt(n);
   const notePages = {};
   const refsOf = (el) =>
     noteHeight.size
@@ -575,7 +609,7 @@ export function layPages(page, geo, state) {
     if (id in notePages) continue;
     const ref = page.querySelector(`.wd-noteref[data-kind="footnote"][data-id="${CSS.escape(id)}"]`);
     if (!ref) continue;
-    notePages[id] = Math.max(0, Math.floor((rectOf(ref).top - pageRect.top + 1) / P));
+    notePages[id] = pageIndexAt(geo, rectOf(ref).top - pageRect.top + 1);
   }
   const oldNotes = state.notes || {};
   const notesChanged = Object.keys(notePages).length !== Object.keys(oldNotes).length || Object.keys(notePages).some((id) => oldNotes[id] !== notePages[id]);
@@ -613,10 +647,26 @@ export function layPages(page, geo, state) {
   let count = n + 1;
   for (let k = 0; k < items.length; k++) {
     const bottom = k < i ? items[k].placedBottom : items[k].top + items[k].height;
-    count = Math.max(count, Math.floor(Math.max(0, bottom - 1) / P) + 1);
+    count = Math.max(count, pageIndexAt(geo, Math.max(0, bottom - 1)) + 1);
   }
 
-  return { changed: splits.changed || tableSplits.changed || notesChanged, splits: splits.map, tableSplits: tableSplits.map, notes: notesChanged ? notePages : oldNotes, count, processed: i, items };
+  // A paragraph in a frame placed on the page is drawn out of the flow, on
+  // the sheet of the words before it — an envelope's delivery address on
+  // the envelope. Which sheet that is comes out of this pass.
+  const frames = {};
+  if (page.querySelector(':scope > .wd-frame')) {
+    const byEl = new Map(items.map((x) => [x.el, x]));
+    let lastPage = 0;
+    for (const el of page.children) {
+      if (el.classList?.contains('wd-frame')) { frames[el.dataset.block] = lastPage; continue; }
+      const it = byEl.get(el);
+      if (it) lastPage = it.pageIndex;
+    }
+  }
+  const oldFrames = state.frames || {};
+  const framesChanged = Object.keys(frames).length !== Object.keys(oldFrames).length || Object.keys(frames).some((k) => oldFrames[k] !== frames[k]);
+
+  return { changed: splits.changed || tableSplits.changed || notesChanged || framesChanged, splits: splits.map, tableSplits: tableSplits.map, notes: notesChanged ? notePages : oldNotes, frames: framesChanged ? frames : oldFrames, count, processed: i, items };
 }
 
 /** The page (0-based) an element's top falls on, read after the pass has written. */
@@ -624,7 +674,6 @@ export function pageOfElement(el, geo) {
   if (!el) return 0;
   const page = el.closest('.wd-page');
   if (!page) return 0;
-  const P = geo.H + geo.G;
   const top = rectOf(el).top - rectOf(page).top;
-  return Math.max(0, Math.floor((top + 1) / P));
+  return pageIndexAt(geo, top + 1);
 }

@@ -8,7 +8,7 @@
  * This is the ONLY file in `@rutba/doc-view` that imports `@rutba/ooxml`. Mail
  * imports the HTML backend instead and never pulls the format layer in.
  */
-import { Document, withToggle, hasToggle, esc, unesc, STANDARD_PARAGRAPH_STYLES } from '@rutba/ooxml';
+import { Document, withToggle, hasToggle, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection } from '@rutba/ooxml';
 import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene } from '@rutba/drawing';
 import { ommlToMathml, ommlToLinear, ommlInfo, asciiLinear } from '@rutba/ooxml/math';
 import { mergeToDocument, mergeMessages } from '@rutba/ooxml/mailmerge-run';
@@ -308,8 +308,14 @@ export class OoxmlBackend {
   /** Finish & Merge: a merged document, or a message per record. */
   mergeToDocument(source, order, opts) { return mergeToDocument(this.doc, source, order, opts); }
   mergeMessages(source, order, opts) { return mergeMessages(this.doc, source, order, opts); }
-  /** Sections, in order — see `Document#sections`. */
-  sections() { return this.doc.sections(); }
+  /** Sections, in order — see `Document#sections` — each with its page as `section` gives one. */
+  sections() { return this.doc.sections().map((s) => ({ ...s, geometry: parseSection(s.sectPrXml || '') })); }
+  /** Envelopes and labels — see Document. */
+  envelope() { return this.doc.envelope(); }
+  addEnvelope(spec) { this.doc.addEnvelope(spec); return this; }
+  setEnvelopeDocument(spec) { this.doc.setEnvelopeDocument(spec); return this; }
+  setLabelSheet(spec) { this.doc.setLabelSheet(spec); return this; }
+  updateLabels() { return this.doc.updateLabels(); }
   /** How many sections, cheaply: one per `w:sectPr`. */
   sectionCount() { return Math.max(1, (this.doc.xml.match(/<w:sectPr\b/g) || []).length); }
   /** The table of contents read back — entries, bookmarks, cached pages. */

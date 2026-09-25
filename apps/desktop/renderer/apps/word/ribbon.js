@@ -537,16 +537,7 @@ export default function WordRibbon({
 
       {/* ── Mailings ─────────────────────────────────────────────────────── */}
       {tab === 'mailings' && mailings ? (
-        <MailingsTab
-          mm={mailings}
-          menu={menu}
-          create={
-            <>
-              <Soon tall icon="mail" label="Envelopes" why="An envelope's page with the addresses where they print comes next." />
-              <Soon tall icon="grid" label="Labels" why="A sheet of address labels to a stock size comes next." />
-            </>
-          }
-        />
+        <MailingsTab mm={mailings} menu={menu} />
       ) : null}
 
       {/* ── Review ───────────────────────────────────────────────────────── */}

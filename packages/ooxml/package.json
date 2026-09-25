@@ -25,7 +25,8 @@
     "./math": "./src/math.js",
     "./math-linear": "./src/math-linear.js",
     "./mailmerge": "./src/mailmerge.js",
-    "./mailmerge-run": "./src/mailmerge-run.js"
+    "./mailmerge-run": "./src/mailmerge-run.js",
+    "./labels": "./src/labels.js"
   },
   "dependencies": {
     "@rutba/formula": "*"

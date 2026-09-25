@@ -22,7 +22,7 @@ import { NavigationPane, installWordStyles } from './word/panes.js';
 import { Ruler, TableGrips, installRulerStyles } from './word/ruler.js';
 import { selectionToSend } from './word/caret.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
-import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement, columnBoxesOf } from './word/pages.js';
+import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement, columnBoxesOf, pageTopOf, pageHeightOf, pageIndexAt } from './word/pages.js';
 
 installWordStyles();
 installRulerStyles();
@@ -34,9 +34,11 @@ import {
 import { lineBoxes, rectOf } from './word/pages.js';
 import { MathRun, mathHostOf, EQUATION_CSS, EquationDialog, clipOf, CLIP_TYPE } from './word/equations.js';
 import { useMailings, installMailingsStyles } from './word/mailings.js';
+import { useEnvelopesLabels, installEnvelopeStyles } from './word/envelopes.js';
 import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
 
 installMailingsStyles();
+installEnvelopeStyles();
 
 /**
  * Character offset of a DOM position within its block element.
@@ -661,7 +663,10 @@ export default function Word({ app, shell, boot }) {
   const [lineNos, setLineNos] = useState(null);
   const lineNosKey = useRef('');
   const paged = (view.mode || 'print') === 'print' && Boolean(section);
-  const geo = useMemo(() => geometryOf(section), [section]);
+  // An envelope in front of the letter (Mailings → Envelopes) is the first
+  // sheet, at the envelope's own size — see pages.js `geometryOf`.
+  const envelopeKey = model?.envelope ? `${model.envelope.widthPx}:${model.envelope.heightPx}:${model.envelope.endsAt}:${JSON.stringify(model.envelope.margins)}` : '';
+  const geo = useMemo(() => geometryOf(section, model?.envelope || null), [section, envelopeKey]);
   // The tallest a picture may be drawn on a page: the sheet's inside, less a
   // little for the paragraph's own spacing.
   const inner = paged && geo ? geo.H - geo.top - geo.bottom - 12 : null;
@@ -696,7 +701,7 @@ export default function Word({ app, shell, boot }) {
       passes.current += 1;
       // Synchronously, so the parts are drawn before the browser paints the
       // frame; otherwise the unsplit paragraph shows over the gap for a frame.
-      flushSync(() => setPages({ splits: laid.splits, tableSplits: laid.tableSplits, notes: laid.notes, count: laid.count, at }));
+      flushSync(() => setPages({ splits: laid.splits, tableSplits: laid.tableSplits, notes: laid.notes, frames: laid.frames, count: laid.count, at }));
     } else if (laid.count !== state.count || at !== state.at) {
       setPages({ ...state, count: laid.count, at });
     }
@@ -716,7 +721,7 @@ export default function Word({ app, shell, boot }) {
     return () => {
       live = false;
     };
-  }, [model, mounted, paged, geo, pages.splits, pages.tableSplits, pages.notes]);
+  }, [model, mounted, paged, geo, pages.splits, pages.tableSplits, pages.notes, pages.frames]);
   // The numbers down the margin, from the line boxes the browser drew — after
   // the layout pass, in the same commit. Only the body's paragraphs count,
   // as in Word: not a table's cells, not the notes.
@@ -729,13 +734,14 @@ export default function Word({ app, shell, boot }) {
     }
     const pageTop = rectOf(page).top;
     const stride = paged && geo ? geo.H + geo.G : Infinity;
+    const pageAt = (top) => (paged && geo ? pageIndexAt(geo, top) : 0);
     const items = [];
     let n = spec.start || 1;
     let lastPage = 0;
     for (const el of page.querySelectorAll(':scope > .wd-block')) {
       for (const box of lineBoxes(el)) {
         const top = box.top - pageTop;
-        const k = Number.isFinite(stride) ? Math.floor(top / stride) : 0;
+        const k = Number.isFinite(stride) ? pageAt(top) : 0;
         if (spec.restart === 'newPage' && k !== lastPage) { n = spec.start || 1; lastPage = k; }
         const mine = n++;
         if (mine % spec.countBy === 0) items.push({ top: Math.round(top), height: Math.max(8, Math.round(box.bottom - box.top)), n: mine });
@@ -1098,8 +1104,11 @@ export default function Word({ app, shell, boot }) {
   );
   actRef.current = act;
 
-  // Mailings: the merge's verbs and dialogs (word/mailings.js).
-  const mailings = useMailings({ shell, doc, model, apply, toast });
+  // Mailings: envelopes and labels (word/envelopes.js), and the merge's
+  // verbs and dialogs (word/mailings.js), which the first join.
+  const readSelection = useCallback(() => window.getSelection()?.toString() || '', []);
+  const envelopes = useEnvelopesLabels({ shell, doc, model, apply, toast, selectionText: readSelection });
+  const mailings = useMailings({ shell, doc, model, apply, toast, extra: envelopes.extra });
 
   const commands = useMemo(
     () => ({
@@ -1332,8 +1341,9 @@ export default function Word({ app, shell, boot }) {
                 fontFamily: model.resolvedStyles?.['*default*']?.fontName || undefined,
                 fontSize: model.resolvedStyles?.['*default*']?.sizePx ? `${model.resolvedStyles['*default*'].sizePx}px` : undefined,
                 width: section ? Math.round(section.widthPx) : 794,
-                minHeight: paged ? pages.count * geo.H + (pages.count - 1) * geo.G : section ? Math.round(section.heightPx) : 1123,
-                paddingTop: section?.margins.top ?? 96,
+                minHeight: paged ? pageTopOf(geo, pages.count - 1) + pageHeightOf(geo, pages.count - 1) : section ? Math.round(section.heightPx) : 1123,
+                // An envelope in front starts the page at the envelope's own top margin.
+                paddingTop: paged && geo?.first ? geo.first.top : section?.margins.top ?? 96,
                 // In print layout the single flow is laid as wide as the
                 // FIRST column only — see the note above `columnBoxes` — by
                 // padding out the rest of the page on the right; the real
@@ -1366,7 +1376,7 @@ export default function Word({ app, shell, boot }) {
               */}
               {paged
                 ? Array.from({ length: pages.count }, (_, k) => (
-                    <div key={`s${k}`} className="wd-sheet" contentEditable={false} aria-hidden="true" style={{ top: k * (geo.H + geo.G), height: geo.H, background: section?.background || undefined }} />
+                    <div key={`s${k}`} className={`wd-sheet${geo.first && k === 0 ? ' wd-envelope-sheet' : ''}`} contentEditable={false} aria-hidden="true" style={{ top: pageTopOf(geo, k), height: pageHeightOf(geo, k), ...(geo.first && k === 0 ? { left: geo.first.left, width: geo.first.W, right: 'auto' } : {}), background: section?.background || undefined }} />
                   ))
                 : null}
               {/* Around a flow the watermark rides the one page; print layout puts it on every sheet below. */}
@@ -1389,21 +1399,22 @@ export default function Word({ app, shell, boot }) {
                       className="wd-pgborders"
                       contentEditable={false}
                       aria-hidden="true"
-                      style={pageBordersStyle(section, k === null ? null : { top: k * (geo.H + geo.G), height: geo.H })}
+                      style={geo?.first && k === 0 ? { display: 'none' } : pageBordersStyle(section, k === null ? null : { top: pageTopOf(geo, k), height: pageHeightOf(geo, k) })}
                     />
                   ))
                 : null}
               {paged
                 ? Array.from({ length: pages.count }, (_, k) => (
                     <React.Fragment key={`b${k}`}>
-                      {model.bands?.watermark ? (
-                        <div className="wd-watermark" contentEditable={false} aria-hidden="true" style={{ top: k * (geo.H + geo.G) + Math.round(geo.H / 3), color: model.bands.watermark.colour || 'silver', transform: `rotate(${model.bands.watermark.rotation ?? 315}deg)` }}>
+                      {model.bands?.watermark && !(geo.first && k === 0) ? (
+                        <div className="wd-watermark" contentEditable={false} aria-hidden="true" style={{ top: pageTopOf(geo, k) + Math.round(geo.H / 3), color: model.bands.watermark.colour || 'silver', transform: `rotate(${model.bands.watermark.rotation ?? 315}deg)` }}>
                           {model.bands.watermark.text}
                         </div>
                       ) : null}
-                      <Band kind="header" bands={model.bands} section={section} page={k + 1} of={pages.count} top={k * (geo.H + geo.G)} height={geo.H} onEdit={() => setDialog('header')} />
-                      <Band kind="footer" bands={model.bands} section={section} page={k + 1} of={pages.count} top={k * (geo.H + geo.G)} height={geo.H} onEdit={() => setDialog('footer')} />
-                      <PageNotes notes={model.footnotes} at={pages.notes} page={k} top={k * (geo.H + geo.G) + geo.top} height={geo.H - geo.top - geo.bottom} styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'footnote', id: note.id, initial: noteWords(note) })} />
+                      {/* An envelope has no header or footer, and is not counted: the letter starts at page 1. */}
+                      {geo.first && k === 0 ? null : <Band kind="header" bands={model.bands} section={section} page={k + 1 - (geo.first ? 1 : 0)} of={pages.count - (geo.first ? 1 : 0)} top={pageTopOf(geo, k)} height={pageHeightOf(geo, k)} onEdit={() => setDialog('header')} />}
+                      {geo.first && k === 0 ? null : <Band kind="footer" bands={model.bands} section={section} page={k + 1 - (geo.first ? 1 : 0)} of={pages.count - (geo.first ? 1 : 0)} top={pageTopOf(geo, k)} height={pageHeightOf(geo, k)} onEdit={() => setDialog('footer')} />}
+                      <PageNotes notes={model.footnotes} at={pages.notes} page={k} top={pageTopOf(geo, k) + geo.top} height={geo.H - geo.top - geo.bottom} styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'footnote', id: note.id, initial: noteWords(note) })} />
                     </React.Fragment>
                   ))
                 : null}
@@ -1411,7 +1422,7 @@ export default function Word({ app, shell, boot }) {
                 item.table ? (
                   <TableGroup key={`t${item.table.id}`} table={item.table} labels={model.listLabels} styles={model.resolvedStyles} tsplit={pages.tableSplits[item.table.id] || null} />
                 ) : (
-                  <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} split={pages.splits[item.index] || null} pickedImage={picked?.block === item.index ? picked.image : null} inner={inner} markupMode={view.markupMode || 'simple'} />
+                  <Block key={item.index} block={item} labels={model.listLabels} styles={model.resolvedStyles} split={item.frame ? null : pages.splits[item.index] || null} pickedImage={picked?.block === item.index ? picked.image : null} inner={inner} markupMode={view.markupMode || 'simple'} place={placeOf(item, paged ? geo : null, pages.frames)} />
                 )
               )}
               {mounted < flowItems.length ? <div className="wd-mounting" aria-hidden="true">{`Laying out… ${Math.round((mounted / flowItems.length) * 100)}%`}</div> : null}
@@ -1627,6 +1638,7 @@ export default function Word({ app, shell, boot }) {
       {dialog === 'shortcuts' ? <ShortcutsDialog onClose={() => setDialog(null)} /> : null}
 
       {mailings.node}
+      {envelopes.node}
 
       {dialog === 'tracked' ? (
         <TrackedDialog
@@ -1664,7 +1676,24 @@ function mergeChip(mm) {
 }
 
 /** No pages laid yet: one sheet, nothing split. */
-const NO_PAGES = { splits: {}, tableSplits: {}, notes: {}, count: 1, at: 1 };
+const NO_PAGES = { splits: {}, tableSplits: {}, notes: {}, frames: {}, count: 1, at: 1 };
+
+/**
+ * Where a block goes when the flow does not put it: a paragraph in a frame
+ * placed on the page (an envelope's delivery address) at the frame's own
+ * place on its sheet; the envelope's other words moved across to its own
+ * margin. Null for everything else — the flow places it.
+ */
+function placeOf(block, geo, frames) {
+  if (!geo) return null;
+  if (block.frame && !block.container) {
+    const k = frames?.[block.index] ?? (geo.first && block.index <= geo.first.endsAt ? 0 : 0);
+    const left = (geo.first && k === 0 ? geo.first.left : 0) + block.frame.xPx;
+    return { kind: 'frame', left: Math.round(left), top: Math.round(pageTopOf(geo, k) + block.frame.yPx), width: Math.round(block.frame.widthPx || 0) || undefined, height: block.frame.exact && block.frame.heightPx ? Math.round(block.frame.heightPx) : undefined };
+  }
+  if (geo.first && !block.container && block.index <= geo.first.endsAt && geo.first.dx) return { kind: 'shift', dx: geo.first.dx };
+  return null;
+}
 
 /** Flow items mounted before the first paint, and per slice afterwards. */
 const MOUNT_FIRST = 160;
@@ -1689,7 +1718,7 @@ function groupTables(blocks) {
       flush();
       // The file's grid and width ride every paragraph in the table; a sized
       // row and a merged cell say so on their own paragraphs.
-      current = { id: at[1], rows: new Map(), gridPx: block.gridPx || null, width: block.tableWidth || null, rowHeights: new Map(), spans: new Map() };
+      current = { id: at[1], rows: new Map(), gridPx: block.gridPx || null, width: block.tableWidth || null, rowHeights: new Map(), rowRules: new Map(), spans: new Map(), vAligns: new Map(), look: block.tableLook || null };
     }
     const row = Number(at[2]);
     const cell = Number(at[3]);
@@ -1698,6 +1727,8 @@ function groupTables(blocks) {
     if (!cells.has(cell)) cells.set(cell, []);
     cells.get(cell).push(block);
     if (block.rowHeightPx && !current.rowHeights.has(row)) current.rowHeights.set(row, block.rowHeightPx);
+    if (block.rowRule && !current.rowRules.has(row)) current.rowRules.set(row, block.rowRule);
+    if (block.cellVAlign) current.vAligns.set(`${row}:${cell}`, block.cellVAlign);
     if (block.cellSpan > 1) current.spans.set(`${row}:${cell}`, block.cellSpan);
   }
   flush();
@@ -1723,20 +1754,28 @@ function TableGroup({ table, labels, styles, tsplit }) {
   return (
     <>
       {bounds.slice(0, -1).map((from, j) => (
-        <table key={j} className="wd-table" data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined} style={width ? { width } : undefined}>
+        <table key={j} className={`wd-table${table.look?.bare ? ' wd-table-bare' : ''}`} data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined} style={width || table.look?.fixed ? { width, ...(table.look?.fixed ? { tableLayout: 'fixed' } : {}) } : undefined}>
           {grid && sum > 0 ? <colgroup>{grid.map((w, i) => <col key={i} style={{ width: `${(w / sum) * 100}%` }} />)}</colgroup> : null}
           <tbody>
             {rows.slice(from, bounds[j + 1]).map(([r, cells]) => (
               <tr key={r} style={table.rowHeights?.has(r) ? { height: table.rowHeights.get(r) } : undefined}>
                 {[...cells.entries()]
                   .sort((a, b) => a[0] - b[0])
-                  .map(([c, paragraphs]) => (
-                    <td key={c} colSpan={table.spans?.get(`${r}:${c}`) || undefined}>
-                      {paragraphs.map((block) => (
-                        <Block key={block.index} block={block} labels={labels} styles={styles} />
-                      ))}
-                    </td>
-                  ))}
+                  .map(([c, paragraphs]) => {
+                    // A row held to its height (a label's) is exactly that tall: its
+                    // words sit in a box of that height, centred if the cell says so.
+                    const exact = table.rowRules?.get(r) === 'exact' && table.rowHeights?.get(r);
+                    const v = table.vAligns?.get(`${r}:${c}`);
+                    const m = table.look?.cellMarginPx;
+                    const blocks = paragraphs.map((block) => <Block key={block.index} block={block} labels={labels} styles={styles} />);
+                    return (
+                      <td key={c} colSpan={table.spans?.get(`${r}:${c}`) || undefined} style={m || v ? { ...(m ? { padding: `${m.top}px ${m.right}px ${m.bottom}px ${m.left}px` } : {}), ...(v ? { verticalAlign: v === 'center' ? 'middle' : v } : {}) } : undefined}>
+                        {exact ? (
+                          <div className="wd-cell-exact" style={{ height: table.rowHeights.get(r) - (m ? m.top + m.bottom : 0), justifyContent: v === 'center' ? 'center' : v === 'bottom' ? 'flex-end' : 'flex-start' }}>{blocks}</div>
+                        ) : blocks}
+                      </td>
+                    );
+                  })}
               </tr>
             ))}
           </tbody>
@@ -2240,8 +2279,8 @@ function PageNotes({ notes, at, page, top, height, styles, onEdit }) {
  * Memoised, and the split array keeps its identity while it is unchanged,
  * so a keystroke re-renders the one paragraph it touched.
  */
-const Block = React.memo(function Block({ block, labels, styles, split, pickedImage = null, inner = null, markupMode = 'simple' }) {
-  if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last pickedImage={pickedImage} inner={inner} markupMode={markupMode} />;
+const Block = React.memo(function Block({ block, labels, styles, split, pickedImage = null, inner = null, markupMode = 'simple', place = null }) {
+  if (!split || !split.length) return <Part block={block} labels={labels} styles={styles} from={0} to={Infinity} first last pickedImage={pickedImage} inner={inner} markupMode={markupMode} place={place} />;
   const bounds = [0, ...split, Infinity];
   return (
     <>
@@ -2381,7 +2420,7 @@ function PictureHandles({ page, picked, model, pages, onResize, onDrag }) {
 /** The paragraphs a paginator keeps with what follows, by convention as much as by w:keepNext. */
 const KEEP_WITH_NEXT = /^(Heading[1-6]|Title|Subtitle)$/;
 
-function Part({ block, labels, styles, from, to, first, last, pickedImage = null, inner = null, markupMode = 'simple' }) {
+function Part({ block, labels, styles, from, to, first, last, pickedImage = null, inner = null, markupMode = 'simple', place = null }) {
   const ref = React.useRef(null);
   const whole = first && last;
   const pick = (e, i) => {
@@ -2428,13 +2467,18 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
   const listStyle = markerIndent ? { ...style, marginLeft: markerIndent, ...(markerHang ? { textIndent: -markerHang } : {}) } : style;
   // A continuation starts flush, without the space before; a part that goes
   // on ends without the space after, its last line justified like the rest.
-  const partStyle = whole
+  const flowStyle = whole
     ? listStyle
     : {
         ...listStyle,
         ...(first ? {} : { textIndent: 0, marginTop: 0 }),
         ...(last ? {} : { marginBottom: 0, ...(style.textAlign === 'justify' ? { textAlignLast: 'justify' } : {}) }),
       };
+  // A frame placed on the page stands where the frame says, out of the
+  // flow; an envelope's own words move across to its margin.
+  const partStyle = place?.kind === 'frame'
+    ? { ...flowStyle, position: 'absolute', left: place.left, top: place.top, width: place.width, height: place.height, margin: 0, overflow: place.height ? 'hidden' : undefined, boxSizing: 'border-box', zIndex: 1 }
+    : place?.kind === 'shift' ? { ...flowStyle, left: place.dx } : flowStyle;
   // The pictures drawn under the words continue the paragraph's address
   // space after its text — offset `length + i` is picture i, and the text
   // boxes come after every picture — so a split between two picture lines
@@ -2451,7 +2495,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
   return (
     <p
       ref={ref}
-      className={`wd-block${block.dropCap ? ' wd-dropcap' : ''}${block.dropCap?.kind === 'margin' ? ' wd-dropcap-margin' : ''}${block.tracked && markupMode !== 'final' && markupMode !== 'original' ? ' wd-changebar' : ''}`}
+      className={`wd-block${place?.kind === 'frame' ? ' wd-frame' : ''}${block.dropCap ? ' wd-dropcap' : ''}${block.dropCap?.kind === 'margin' ? ' wd-dropcap-margin' : ''}${block.tracked && markupMode !== 'final' && markupMode !== 'original' ? ' wd-changebar' : ''}`}
       data-block={block.index}
       data-style={block.style || 'Normal'}
       data-from={from > 0 ? from : undefined}
@@ -2619,6 +2663,14 @@ const CSS = `
 .wd-textbox .wd-box-p { margin: 0; min-height: 1.2em; white-space: pre-wrap; }
 .wd-table { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
 .wd-table td { border: 1px solid #bbb; padding: 4px 7px; vertical-align: top; }
+/* A table with its borders off — a sheet of labels — has no lines, only
+   Word's View Gridlines: faint dashes that take no room and never print. */
+.wd-table.wd-table-bare { margin: 0; }
+.wd-table.wd-table-bare td { border: 0; outline: 1px dashed rgba(70, 120, 200, 0.35); outline-offset: -1px; }
+.wd-cell-exact { display: flex; flex-direction: column; overflow: hidden; }
+.wd-cell-exact > .wd-block { margin-top: 0; margin-bottom: 0; }
+/* An envelope in front of the letter: its sheet at the envelope's size. */
+.wd-sheet.wd-envelope-sheet { box-shadow: 0 0 0 1px rgba(15, 20, 30, 0.08), 0 2px 6px rgba(15, 20, 30, 0.08), 0 10px 28px rgba(15, 20, 30, 0.1); }
 .wd-find {
   position: absolute; top: 12px; right: 22px; display: flex; align-items: center; gap: 7px;
   background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-3);

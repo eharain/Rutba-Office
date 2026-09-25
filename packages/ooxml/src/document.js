@@ -30,6 +30,7 @@ import { unesc } from './workbook.js';
 import { chartPartXml } from './build.js';
 import { parseTable, parseSection, childElements, firstElement, headBefore } from './table.js';
 import { readHeadersAndFooters } from './headers.js';
+import { ENVELOPE_SIZES, ENVELOPE_STYLES_XML, envelopeXml, envelopeDocumentXml, labelSheetXml, labelParagraph, nextRecordParagraph, labelProduct, NEXT_FIELD_RUNS } from './labels.js';
 import { readParagraphStyles, readCharacterStyles, readNumberingDefs, readThemeFonts, readThemeColours, STANDARD_STYLES_XML } from './docstyles.js';
 
 /**
@@ -99,6 +100,12 @@ function sourcePathOf(target) {
   s = s.replace(/^file:\/*/i, '');
   if (!/^[A-Za-z]:[\\/]/.test(s) && !s.startsWith('\\\\')) s = '/' + s;
   return s;
+}
+
+/** Whether a section is an envelope Word added, and its paper number, from its `w:sectPr`. */
+function sectionKind(sectPrXml) {
+  const code = /<w:pgSz\b[^>]*\bw:code="(\d+)"/.exec(String(sectPrXml || ''));
+  return { envelope: isEnvelopeSection(sectPrXml), code: code ? Number(code[1]) : null };
 }
 
 /** One section's page: its size, orientation and margins, from its `w:sectPr`. */
@@ -185,6 +192,25 @@ function readDropCap(pPr) {
   if (kind !== 'drop' && kind !== 'margin') return null;
   const lines = /\bw:lines="(\d+)"/.exec(m[1]);
   return { kind, lines: lines ? Number(lines[1]) : 3 };
+}
+
+/**
+ * A paragraph in a frame placed on the page — Word's Envelope Address, a
+ * text frame from an older document: `w:framePr` anchored to the page with
+ * its left and top given, in px from the page's own top-left corner, and
+ * the frame's size. A drop cap is a frame too, and is read above instead;
+ * a frame placed by alignment alone is left in the flow, as before.
+ */
+function readFrame(pPr) {
+  const m = FRAME_PR.exec(pPr || '');
+  if (!m || /\bw:dropCap="(?:drop|margin)"/.test(m[1])) return null;
+  const a = attrs(m[1]);
+  if (a['w:hAnchor'] !== 'page' || a['w:vAnchor'] !== 'page' || a['w:x'] === undefined || a['w:y'] === undefined) return null;
+  return {
+    xPx: twipsToPx(a['w:x']), yPx: twipsToPx(a['w:y']),
+    widthPx: a['w:w'] ? twipsToPx(a['w:w']) : null, heightPx: a['w:h'] ? twipsToPx(a['w:h']) : null,
+    exact: a['w:hRule'] === 'exact',
+  };
 }
 
 /**
@@ -394,7 +420,17 @@ function tableHead(body, at) {
     ? { type: 'pct', value: /%\s*$/.test(String(w['w:w'])) ? parseFloat(w['w:w']) * 50 : Number(w['w:w']) || 5000 }
     : w['w:type'] === 'dxa' && Number(w['w:w']) > 0 ? { type: 'dxa', value: Number(w['w:w']) }
     : null;
-  return { gridPx: gridPx.length ? gridPx : null, tableWidth };
+  // A table with every border explicitly off, laid out to fixed widths — a
+  // sheet of labels — is drawn as Word draws one: no lines (the dashed
+  // gridlines only), its own cell margins, the widths as given.
+  const borders = /<w:tblBorders\b[^>]*>([\s\S]*?)<\/w:tblBorders>/.exec(head);
+  const sides = borders ? [...borders[1].matchAll(/<w:(top|left|bottom|right|insideH|insideV|start|end)\b[^>]*\bw:val="([^"]*)"/g)] : [];
+  const bare = sides.length >= 4 && sides.every((s) => s[2] === 'nil' || s[2] === 'none');
+  const fixed = /<w:tblLayout\b[^>]*\bw:type="fixed"/.test(head);
+  const mar = /<w:tblCellMar\b[^>]*>([\s\S]*?)<\/w:tblCellMar>/.exec(head);
+  const side = (name) => { const m = mar ? new RegExp('<w:' + name + '\\b[^>]*\\bw:w="(\\d+)"').exec(mar[1]) : null; return m ? twipsToPx(Number(m[1])) : null; };
+  const look = bare || fixed ? { bare, fixed, ...(mar ? { cellMarginPx: { left: side('left') ?? side('start') ?? 0, right: side('right') ?? side('end') ?? 0, top: side('top') ?? 0, bottom: side('bottom') ?? 0 } } : {}) } : null;
+  return { gridPx: gridPx.length ? gridPx : null, tableWidth, ...(look ? { look } : {}) };
 }
 
 /** A row's own height, if the file sets one, and whether it is exact or a floor. */
@@ -651,6 +687,8 @@ export class Document {
       const [tbl, tr, tc] = stack;
       return {
         ...(tbl.gridPx ? { gridPx: tbl.gridPx, tableWidth: tbl.tableWidth } : {}),
+        ...(tbl.look ? { tableLook: tbl.look } : {}),
+        ...(tc.vAlign ? { cellVAlign: tc.vAlign } : {}),
         ...(tc.span > 1 ? { cellSpan: tc.span } : {}),
         ...(tr.heightPx ? { rowHeightPx: tr.heightPx, rowRule: tr.rule } : {}),
       };
@@ -696,7 +734,8 @@ export class Document {
             })();
             const hidden = /<w:vMerge\b(?![^>]*w:val="restart")/.test(head);
             const span = /<w:gridSpan\b[^>]*\bw:val="(\d+)"/.exec(head);
-            stack.push({ tag: 'tc', index: top?.tag === 'tr' ? top.nextCell++ : 0, hidden, span: span ? Number(span[1]) : 1 });
+            const vAlign = /<w:vAlign\b[^>]*\bw:val="(center|bottom)"/.exec(head);
+            stack.push({ tag: 'tc', index: top?.tag === 'tr' ? top.nextCell++ : 0, hidden, span: span ? Number(span[1]) : 1, ...(vAlign ? { vAlign: vAlign[1] } : {}) });
           }
         } else {
           for (let i = stack.length - 1; i >= 0; i--) {
@@ -861,13 +900,128 @@ export class Document {
       if (p.container !== null) continue;
       const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/.exec(p.xml);
       const brk = paragraphSectionBreak(pPr ? pPr[0] : null);
-      if (brk) out.push({ endsAt: p.index, type: brk.type, ...pageOf(brk.sectPr) });
+      if (brk) out.push({ endsAt: p.index, type: brk.type, ...pageOf(brk.sectPr), ...sectionKind(brk.sectPr), sectPrXml: brk.sectPr });
     }
     // The last section is closed by the body's own `w:sectPr`, last in it.
     const { body } = this._body();
     const all = [...body.matchAll(/<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/g)];
-    out.push({ endsAt: null, type: null, ...pageOf(all.length ? all[all.length - 1][0] : '') });
+    const last = all.length ? all[all.length - 1][0] : '';
+    out.push({ endsAt: null, type: null, ...pageOf(last), ...sectionKind(last), sectPrXml: last });
     return out;
+  }
+
+  // ---- mailings: envelopes and labels ---------------------------------------
+
+  /** Word's Envelope Address and Envelope Return styles, written once where the file has neither. */
+  _ensureEnvelopeStyles() {
+    this.ensureParagraphStyles();
+    const part = 'word/styles.xml';
+    const xml = this.pkg.text(part);
+    if (/<w:style\b[^>]*\bw:styleId="EnvelopeAddress"/.test(xml)) return;
+    this.pkg.write_(part, xml.replace('</w:styles>', ENVELOPE_STYLES_XML + '</w:styles>'));
+  }
+
+  /**
+   * The envelope Mailings → Envelopes added in front of the letter, read
+   * back — its size, the delivery and return addresses as lines, and the
+   * last paragraph of its section — or null when there is none.
+   */
+  envelope() {
+    const sections = this.sections();
+    if (sections.length < 2 || !sections[0].envelope) return null;
+    const first = sections[0];
+    const paras = this.editParagraphs().filter((p) => p.container === null && p.index <= first.endsAt);
+    const linesOf = (style) => paras.filter((p) => new RegExp('<w:pStyle\\b[^>]*w:val="' + style + '"').test(p.xml)).flatMap((p) => textOf(p.xml).split('\n')).filter((l) => l.trim());
+    return {
+      size: ENVELOPE_SIZES.find((s) => s.code === first.code)?.id ?? null,
+      widthPx: first.widthPx, heightPx: first.heightPx,
+      delivery: linesOf('EnvelopeAddress'),
+      returnAddress: linesOf('EnvelopeReturn'),
+      endsAt: first.endsAt,
+    };
+  }
+
+  /**
+   * Envelopes → Add to Document (Change Document when there is one): the
+   * envelope as the document's first section — see labels.js
+   * `envelopeXml` — in place of the one already there. The letter after it
+   * keeps its own page, and its page numbers start at 1 again.
+   */
+  addEnvelope(spec = {}) {
+    const size = ENVELOPE_SIZES.find((s) => s.id === spec.size) || ENVELOPE_SIZES[0];
+    this._ensureEnvelopeStyles();
+    const xml = envelopeXml({ ...spec, size });
+    const had = this.envelope();
+    const end = had ? this.editParagraphs()[had.endsAt].end : 0;
+    this._spliceBody(0, end, xml);
+    return this;
+  }
+
+  /** Start Mail Merge → Envelopes: the whole document one envelope — see labels.js `envelopeDocumentXml`. */
+  setEnvelopeDocument(spec = {}) {
+    const size = ENVELOPE_SIZES.find((s) => s.id === spec.size) || ENVELOPE_SIZES[0];
+    this._ensureEnvelopeStyles();
+    const { body, sectPr } = envelopeDocumentXml({ ...spec, size });
+    const { prefix, suffix } = this._body();
+    this.xml = prefix + body + sectPr + suffix;
+    this.dirty = true;
+    return this;
+  }
+
+  /**
+   * Labels → New Document, and Start Mail Merge → Labels: the whole body
+   * becomes a sheet of labels (labels.js `labelSheetXml`) on the product's
+   * own paper. `mode`: 'full' — every label the same `lines`; 'single' —
+   * only the label at `row`, `col` (1-based); 'merge' — the first label
+   * empty for the fields, every other one starting with «Next Record».
+   */
+  setLabelSheet({ product, lines = [], mode = 'full', row = 1, col = 1, font = null } = {}) {
+    const p = labelProduct(product);
+    const cell = (r, c) => {
+      if (mode === 'merge') return r === 0 && c === 0 ? labelParagraph([], font) : nextRecordParagraph();
+      if (mode === 'single') return r === row - 1 && c === col - 1 ? labelParagraph(lines, font) : null;
+      return labelParagraph(lines, font);
+    };
+    const { body, sectPr } = labelSheetXml(p, cell);
+    const { prefix, suffix } = this._body();
+    this.xml = prefix + body + sectPr + suffix;
+    this.dirty = true;
+    return this;
+  }
+
+  /**
+   * Mailings → Update Labels: what the first label on the sheet holds — its
+   * fields, typically an Address Block — copied into every other label,
+   * after that label's «Next Record», so each takes the next recipient.
+   * The narrow cells between labels are left alone. Answers how many labels
+   * it filled.
+   */
+  updateLabels() {
+    const { body } = this._body();
+    const start = body.indexOf('<w:tbl>') >= 0 ? body.indexOf('<w:tbl>') : body.search(/<w:tbl\b/);
+    if (start < 0) throw new Error('There is no sheet of labels in this document. Start Mail Merge → Labels makes one.');
+    const end = body.indexOf('</w:tbl>', start) + '</w:tbl>'.length;
+    const table = body.slice(start, end);
+    const cells = [...table.matchAll(/<w:tc>(<w:tcPr>[\s\S]*?<\/w:tcPr>)([\s\S]*?)<\/w:tc>/g)];
+    const width = (tcPr) => Number(/<w:tcW\b[^>]*\bw:w="(\d+)"/.exec(tcPr)?.[1] || 0);
+    const widest = Math.max(...cells.map((c) => width(c[1])));
+    const labels = cells.filter((c) => width(c[1]) >= widest * 0.6);
+    if (labels.length < 2) return 0;
+    // The first label's content, without a «Next Record» of its own, then
+    // with one in front of it for every other label.
+    const content = labels[0][2].split(NEXT_FIELD_RUNS).join('');
+    const withNext = content.replace(/^(\s*<w:p\b[^>]*>(?:<w:pPr>[\s\S]*?<\/w:pPr>)?)/, (m) => m + NEXT_FIELD_RUNS);
+    let out = '';
+    let at = 0;
+    let filled = 0;
+    for (const c of labels.slice(1)) {
+      out += table.slice(at, c.index) + '<w:tc>' + c[1] + withNext + '</w:tc>';
+      at = c.index + c[0].length;
+      filled += 1;
+    }
+    out += table.slice(at);
+    this._spliceBody(start, end, out);
+    return filled;
   }
 
   /**
@@ -3171,6 +3325,8 @@ export class Document {
       ...(p.gridPx ? { gridPx: p.gridPx, tableWidth: p.tableWidth ?? null } : {}),
       ...(p.cellSpan > 1 ? { cellSpan: p.cellSpan } : {}),
       ...(p.rowHeightPx ? { rowHeightPx: p.rowHeightPx, rowRule: p.rowRule } : {}),
+      ...(p.tableLook ? { tableLook: p.tableLook } : {}),
+      ...(p.cellVAlign ? { cellVAlign: p.cellVAlign } : {}),
       xml: p.xml,
       start: p.start,
       end: p.end,
@@ -3190,6 +3346,8 @@ export class Document {
       // and the painter both read straight off the block, not something
       // they have to ask the format layer for.
       dropCap: readDropCap(pPr ? pPr[0] : ''),
+      // A frame placed on the page: drawn there, out of the flow.
+      ...(p.container == null && readFrame(pPr ? pPr[0] : '') ? { frame: readFrame(pPr[0]) } : {}),
       // Direct paragraph spacing, if the paragraph sets any — the paginator
       // lets it beat the style's spacing, exactly as Word does.
       spacing: readDirectSpacing(pPr ? pPr[0] : ''),

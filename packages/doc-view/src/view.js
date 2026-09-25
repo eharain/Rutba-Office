@@ -237,8 +237,10 @@ export class DocView {
       : { headers: {}, footers: {} };
     // The notes go to the paginator numbered, so each page can carry the
     // footnotes its references call for; the watermark rides every page.
+    // Each section's own paper, when the sections differ — see paginate.
+    const sections = typeof this.doc.sections === 'function' && this.doc.sectionCount?.() > 1 ? this.doc.sections() : null;
     const laid = paginate({
-      flow: this.flow, blocks: this.blocks, section,
+      flow: this.flow, blocks: this.blocks, section, sections,
       cache: this._lineCache, styles: this._docStyles, listLabels,
       notes: this._notes(), watermark: bands.watermark ?? null,
       math: (run, sizePx) => this.mathPrint(run, sizePx),
@@ -247,13 +249,23 @@ export class DocView {
 
     const opts = { titlePage: section.titlePage, evenAndOdd: section.evenAndOdd };
 
+    // An envelope in front of the letter has no header, footer or watermark,
+    // and is not counted: the letter's first page is still page 1.
+    const before = laid.pages.filter((p) => p.section?.envelope).length;
     for (const page of laid.pages) {
-      const header = bandForPage(bands.headers, page.number, opts);
-      const footer = bandForPage(bands.footers, page.number, opts);
+      if (page.section?.envelope) {
+        page.header = null;
+        page.footer = null;
+        page.watermark = null;
+        continue;
+      }
+      const number = page.number - before;
+      const header = bandForPage(bands.headers, number, opts);
+      const footer = bandForPage(bands.footers, number, opts);
       // Fields resolve PER PAGE — the whole point of a PAGE field is that it
       // says something different on each sheet.
-      page.header = header ? resolveFields(header.paragraphs, { page: page.number, of: laid.count }) : null;
-      page.footer = footer ? resolveFields(footer.paragraphs, { page: page.number, of: laid.count }) : null;
+      page.header = header ? resolveFields(header.paragraphs, { page: number, of: laid.count - before }) : null;
+      page.footer = footer ? resolveFields(footer.paragraphs, { page: number, of: laid.count - before }) : null;
     }
     return (this._pages = laid);
   }
@@ -2490,6 +2502,86 @@ export class DocView {
     return this.doc.mergeMessages(m.source, order, { toField: toField ?? m.email.toField, subject: subject ?? m.email.subject, format, mapping: this.mergeMapping() });
   }
 
+  // ---- mailings: envelopes and labels --------------------------------------
+
+  /**
+   * The styles part was written — Envelope Address and Envelope Return added —
+   * so the copies read once for the page and the paginator are stale, and the
+   * window is told to take the whole model, styles and all, next time.
+   */
+  _stylesWritten() {
+    this._docStyles = undefined;
+    this._styleCatalogue = undefined;
+    this.stylesChanged = true;
+  }
+
+  /** The envelope in front of the letter, as the page and the dialog need it — or null. */
+  envelopeSummary() {
+    if (typeof this.doc.envelope !== 'function' || (this.doc.sectionCount?.() ?? 1) < 2) return null;
+    const e = this.doc.envelope();
+    if (!e) return null;
+    const s = this.doc.sections()[0];
+    return { ...e, margins: s.margins, orientation: s.orientation };
+  }
+
+  /** Envelopes → Add to Document / Change Document. One undo. */
+  addEnvelope(spec = {}) {
+    if (typeof this.doc.addEnvelope !== 'function') throw new Error('this document backend does not support envelopes');
+    return this._edit('envelope', null, () => {
+      this.doc.addEnvelope(spec);
+      this._stylesWritten();
+      this._invalidate();
+      this.collapseTo({ block: 0, offset: 0 });
+      return this;
+    });
+  }
+
+  /**
+   * The whole document as a sheet of labels (Labels → New Document, or Start
+   * Mail Merge → Labels with `mode: 'merge'`). One undo.
+   */
+  setLabelSheet(spec = {}) {
+    if (typeof this.doc.setLabelSheet !== 'function') throw new Error('this document backend does not support labels');
+    return this._edit('labels', null, () => {
+      this.doc.setLabelSheet(spec);
+      if (spec.mode === 'merge') this.merge.type = 'mailingLabels';
+      this._invalidate();
+      this.collapseTo({ block: 0, offset: 0 });
+      if (spec.mode === 'merge') this._writeMerge();
+      return this;
+    });
+  }
+
+  /**
+   * Start Mail Merge → Envelopes: the document becomes one envelope — its
+   * paper, the return address, and an empty delivery address frame for
+   * the Address Block. One undo.
+   */
+  setEnvelopeDocument(spec = {}) {
+    if (typeof this.doc.setEnvelopeDocument !== 'function') throw new Error('this document backend does not support envelopes');
+    return this._edit('envelope', null, () => {
+      this.doc.setEnvelopeDocument(spec);
+      this._stylesWritten();
+      this.merge.type = 'envelopes';
+      this._invalidate();
+      // The caret in the delivery address frame, where the Address Block goes.
+      const at = this.blocks.findIndex((b) => b.frame);
+      this.collapseTo({ block: Math.max(0, at), offset: 0 });
+      this._writeMerge();
+      return this;
+    });
+  }
+
+  /** Mailings → Update Labels: the first label's fields copied to every other. Answers how many. */
+  updateLabels() {
+    if (typeof this.doc.updateLabels !== 'function') throw new Error('this document backend does not support labels');
+    return this._edit('update labels', null, () => {
+      const n = this.doc.updateLabels();
+      this._invalidate();
+      return n;
+    });
+  }
+
   // ---- rendering ---------------------------------------------------------
 
   /**
@@ -2692,6 +2784,10 @@ export class DocView {
         ...(b.gridPx ? { gridPx: b.gridPx, tableWidth: b.tableWidth ?? null } : {}),
         ...(b.cellSpan ? { cellSpan: b.cellSpan } : {}),
         ...(b.rowHeightPx ? { rowHeightPx: b.rowHeightPx, rowRule: b.rowRule ?? null } : {}),
+        ...(b.tableLook ? { tableLook: b.tableLook } : {}),
+        ...(b.cellVAlign ? { cellVAlign: b.cellVAlign } : {}),
+        // A paragraph in a frame placed on the page — drawn there.
+        ...(b.frame ? { frame: b.frame } : {}),
         ...(() => {
           const runs = b.runs.map((r) => this._renderRun(r, { toc: /^TOC\d/i.test(b.style || '') }));
           // A previewed paragraph's words are the record's, so its text is too.
@@ -2757,6 +2853,9 @@ export class DocView {
       mailMerge: this.mergeSummary(),
       // How many sections — a merged letter has one per record.
       sectionCount: typeof this.doc.sectionCount === 'function' ? this.doc.sectionCount() : 1,
+      // An envelope in front of the letter: its page, and the last paragraph
+      // of its section — the page draws that sheet at the envelope's size.
+      envelope: this.envelopeSummary(),
       // Review → Track Changes: is this document recording, right now — read
       // from the file's own setting so a reopened file with it already on
       // shows the ribbon pressed without the window having to ask first.

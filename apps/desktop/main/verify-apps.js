@@ -30,6 +30,7 @@ import { verifyDeckTransitions } from './verify-deck-transitions.js';
 import { verifyDeckAnimations } from './verify-deck-animations.js';
 import { verifyWordToc } from './verify-word-toc.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
+import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
 import { verifyEvaluate } from './verify-evaluate.js';
 import { verifyComments } from './verify-comments.js';
@@ -3310,6 +3311,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifyWordMailMerge({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
   };
 
+  /* ── Word: Mailings → Envelopes and Labels ────────────────────────────── */
+  const wordLabels = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyWordLabels({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
+  };
+
   /* ── Worksheets: Group, the outline gutter, Subtotal ─────────────────── */
   const sheetOutline = async () => {
     const capture = async (win, name) => {
@@ -4297,7 +4307,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4325,6 +4335,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('captions')) await wordCaptions();
     if (only.includes('toc')) await wordToc();
     if (only.includes('mailmerge')) await wordMailMerge();
+    if (only.includes('labels')) await wordLabels();
     if (only.includes('track')) await wordTrack();
     if (only.includes('equations')) await wordEquations();
     if (only.includes('effects')) await wordEffects();
@@ -4465,6 +4476,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordCaptions();
   await wordToc();
   await wordMailMerge();
+  await wordLabels();
   await wordTrack();
   await wordEquations();
   await wordEffects();

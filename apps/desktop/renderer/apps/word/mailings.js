@@ -61,8 +61,8 @@ export function MailingsTab({ mm, menu, create = null }) {
       <Group label="Create">
         {create || (
           <>
-            <Button tall className="wd-mm-2line" icon="mail" label="Envelopes" disabled title="Envelopes — an envelope's page with the addresses where they print" />
-            <Button tall icon="grid" label="Labels" disabled title="Labels — a sheet of address labels to a stock size" />
+            <Button tall icon="mail" label="Envelopes" title="Envelopes — the delivery and return addresses on an envelope of your size, added to the document or printed" onClick={() => mm.act('envelopes')} />
+            <Button tall icon="grid" label="Labels" title="Labels — a sheet of the same address, or one label, on an Avery sheet" onClick={() => mm.act('labels')} />
           </>
         )}
       </Group>
