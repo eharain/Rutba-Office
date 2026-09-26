@@ -174,7 +174,21 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
         // An identity is a nicety; a window without one still opens.
       }
     }
-    win.once('ready-to-show', () => (hidden ? win.showInactive() : win.show()));
+    // Shown on its first painted frame, so nobody sees an empty white box —
+    // but never left waiting for that frame. On the first start after an
+    // update installed new binaries, 'ready-to-show' was seen not to come at
+    // all: the window was built, its page loaded and titled, and nothing
+    // appeared until the suite was started a second time. A window that has
+    // not painted in four seconds is shown anyway.
+    let revealed = false;
+    const reveal = () => {
+      if (revealed || win.isDestroyed()) return;
+      revealed = true;
+      if (hidden) win.showInactive();
+      else win.show();
+    };
+    win.once('ready-to-show', reveal);
+    setTimeout(reveal, 4000);
 
     const pushState = () => {
       if (win.isDestroyed()) return;
