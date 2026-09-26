@@ -87,8 +87,11 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   building block, entries linked to `_Toc` bookmarks with PAGEREF page
   numbers from the window's own page layout — and Update Table rebuilds
   it. Citations and a bibliography arrived 2026-09-25 in APA, MLA, Chicago,
-  Harvard and IEEE, written as Word writes them. An index, a table of
-  authorities, and `PAGE` outside the header are not written yet.
+  Harvard and IEEE, written as Word writes them. An index (XE and INDEX
+  fields, with Mark Entry), a table of figures, and PAGE, NUMPAGES, DATE,
+  FILENAME, AUTHOR and TITLE fields in the body arrived 2026-09-26; the
+  index is laid in one column here, and a table of authorities is not
+  written yet.
 - ~~**Mail merge**, envelopes and labels~~ — built 2026-09-25: sources
   from a workbook, a .csv, Contacts or a typed list; Word's merge fields,
   Address Block, Greeting Line and rules; preview; a merge to a new
@@ -138,6 +141,11 @@ it is where the gaps are.
   with its columns and autofilter, the sheet's rels and `tableParts`; an
   empty header cell is given its column's name. Painted at once, in this
   window's own palette, as tables from files already were.
+- **Themes**: since 2026-09-26 Page Layout → Themes, Colours, Fonts and
+  Effects write the workbook's theme as Excel does, from the same eleven
+  themes Presentation offers, and cells, tables, charts and shapes follow
+  it. A chart keeps the suite's colours while the workbook is on an Office
+  theme.
 - **Frozen panes** are read, written, chosen from the View tab and, since
   2026-09-20, pinned on screen: the frozen rows sit under the column
   headings, the frozen columns beside the row headings, the corner at both,
