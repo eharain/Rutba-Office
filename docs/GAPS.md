@@ -1,8 +1,8 @@
 # What is missing, between this and a suite somebody could use for everything
 
 Written 2026-09-09, from the code rather than from memory. Three sources: the
-suite's own register of unbuilt controls (257 of them then, 113 in
-1.29.1 — 29 in Documents, 23 in Worksheets, 61 in Presentations — each a
+suite's own register of unbuilt controls (257 of them then, 96 in
+1.29.2 — 21 in Documents, 22 in Worksheets, 53 in Presentations — each a
 `<Soon>` in a ribbon with a sentence saying what it needs), a reading of what the engines
 write as against what they read, and the things a person expects that are not
 in either list because nothing in the interface offers them at all.
