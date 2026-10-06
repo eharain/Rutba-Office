@@ -422,6 +422,35 @@ export function summarize(message, extra = {}) {
   };
 }
 
+/** The names Windows keeps for its devices, with or without an extension. */
+const DEVICE_NAMES = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
+
+/**
+ * A name an attachment can be saved under, on any of the three systems.
+ *
+ * The filename in a message is the sender's choice and arrives as written.
+ * `..\..\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\run.bat`
+ * is a filename parameter like any other, and joined to the folder a person
+ * picked for Save All it wrote outside that folder. Only the last part of
+ * the name is kept, the characters no system accepts become `_`, trailing
+ * dots and spaces go (Windows drops them and then cannot find the file), and
+ * a device name such as `CON.txt` is made an ordinary one.
+ */
+export function attachmentFileName(name, fallback = 'attachment') {
+  let base = String(name ?? '').split(/[\\/]/).pop()
+    .replace(/[<>:"|?*\u0000-\u001f\u007f]/g, '_')
+    .replace(/[. ]+$/, '')
+    .trim();
+  if (!base || /^\.+$/.test(base)) return fallback;
+  if (DEVICE_NAMES.test(base)) base = `_${base}`;
+  if (base.length > 200) {
+    const dot = base.lastIndexOf('.');
+    const ext = dot > 0 && base.length - dot <= 16 ? base.slice(dot) : '';
+    base = base.slice(0, 200 - ext.length) + ext;
+  }
+  return base;
+}
+
 /** A plain-text shadow of an HTML body, for previews and search. */
 export function stripHtml(html) {
   return String(html || '')

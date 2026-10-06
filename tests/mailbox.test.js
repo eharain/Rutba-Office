@@ -4,7 +4,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { parseMessage, parseAddresses, decodeWords, parseParameters, stripHtml } from '@rutba/mailbox/mime';
+import { parseMessage, parseAddresses, decodeWords, parseParameters, stripHtml, attachmentFileName } from '@rutba/mailbox/mime';
 import { Mbox, writeMbox } from '@rutba/mailbox/mbox';
 import { MailStore, messageKey } from '@rutba/mailbox/store';
 import { verifyTables } from '../packages/mailbox/src/pst/tables.js';
@@ -209,4 +209,47 @@ test('the same message from two sources gets the same id', () => {
   const a = parseMessage(message);
   const b = parseMessage(message);
   assert.equal(messageKey(a), messageKey(b));
+});
+
+test('an attachment is saved under a name that cannot leave the folder it is saved into', () => {
+  // The sender writes the filename. One that climbed out of the folder Save
+  // All was given is the case this exists for, and it arrives through the
+  // parser as written.
+  const hostile = [
+    'From: a@example.com',
+    'Subject: invoice',
+    'MIME-Version: 1.0',
+    'Content-Type: multipart/mixed; boundary="b"',
+    '',
+    '--b',
+    'Content-Type: text/plain',
+    '',
+    'See attached.',
+    '--b',
+    'Content-Type: application/octet-stream',
+    'Content-Disposition: attachment; filename="..\\\\..\\\\AppData\\\\Roaming\\\\Microsoft\\\\Windows\\\\Start Menu\\\\Programs\\\\Startup\\\\run.bat"',
+    'Content-Transfer-Encoding: base64',
+    '',
+    'ZWNobyBoaQ==',
+    '--b--',
+    '',
+  ].join(CRLF);
+  const [att] = parseMessage(hostile).attachments;
+  assert.match(att.filename, /Startup/, 'the parser keeps what the sender wrote');
+  assert.equal(attachmentFileName(att.filename), 'run.bat');
+
+  assert.equal(attachmentFileName('../../etc/passwd'), 'passwd');
+  assert.equal(attachmentFileName('C:\\Windows\\win.ini'), 'win.ini');
+  assert.equal(attachmentFileName('Q3 report – final.xlsx'), 'Q3 report – final.xlsx', 'an ordinary name is left as it is');
+  assert.equal(attachmentFileName('a<b>c:d"e|f?g*h.txt'), 'a_b_c_d_e_f_g_h.txt');
+  assert.equal(attachmentFileName('notes.txt. . '), 'notes.txt', 'trailing dots and spaces go');
+  assert.equal(attachmentFileName('CON.txt'), '_CON.txt');
+  assert.equal(attachmentFileName('lpt1'), '_lpt1');
+  assert.equal(attachmentFileName('..'), 'attachment');
+  assert.equal(attachmentFileName(''), 'attachment');
+  assert.equal(attachmentFileName(null), 'attachment');
+  assert.equal(attachmentFileName('dir/'), 'attachment');
+  const long = attachmentFileName(`${'x'.repeat(400)}.docx`);
+  assert.equal(long.length, 200);
+  assert.ok(long.endsWith('.docx'), 'a long name keeps its extension');
 });

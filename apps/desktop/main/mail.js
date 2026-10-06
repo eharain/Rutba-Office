@@ -13,7 +13,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { MailStore } from '@rutba/mailbox/store';
-import { parseMessage } from '@rutba/mailbox/mime';
+import { parseMessage, attachmentFileName } from '@rutba/mailbox/mime';
 import { scan, read as readArchive, identify } from '@rutba/mailbox/import';
 import { writeMbox } from '@rutba/mailbox/mbox';
 import { insightFor } from './mail-insight.js';
@@ -973,7 +973,10 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const a = message?.attachments?.[index];
       if (!a?.stored) return null;
       const bytes = fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored));
-      return { ...holdBlob(bytes, a.type, a.filename), name: a.filename, type: a.type, size: bytes.length };
+      // The window saves under this name, so it is one that cannot leave the
+      // folder it is saved into, whatever the sender wrote.
+      const name = attachmentFileName(a.filename);
+      return { ...holdBlob(bytes, a.type, name), name, type: a.type, size: bytes.length };
     },
 
     /** An attachment's text — a calendar part, a card — for the app that reads it. */
