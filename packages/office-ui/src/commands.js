@@ -69,6 +69,11 @@ export function useCommands(commands, deps = []) {
 
   useEffect(() => {
     const onKey = (event) => {
+      // A key the page has already acted on is spent. The window hears it
+      // last, after the grid or the stage that took it: Delete on a picked
+      // drawing removed the drawing and then cleared the cells under the
+      // selection too, and an arrow that nudged a shape also changed slide.
+      if (event.defaultPrevented) return;
       // Typing in a field is typing, not a shortcut — except for the few that
       // must always work, which say so.
       const el = event.target;
