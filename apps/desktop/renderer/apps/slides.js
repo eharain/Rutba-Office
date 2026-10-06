@@ -36,6 +36,7 @@ import { StageMedia, MEDIA_CSS, MEDIA_FILES, posterFrame } from './slides/media.
 import { ScreenRecorder, SCREENREC_CSS } from './slides/screen-record.js';
 import { soundWav, soundFile } from './slides/sounds.js';
 import { NarrationRecorder, RecordingBar, RecordAudioDialog, RECORD_CSS } from './slides/record.js';
+import { ExportVideoDialog, EXPORT_VIDEO_CSS } from './slides/export-video.js';
 import { isNarration } from '@rutba/presentation/narration';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise, replayInk } from './slides/ink.js';
 import { ScreenshotDialog } from '../screenshot.js';
@@ -122,6 +123,7 @@ export default function Slides({ app, shell, boot }) {
   const narrator = useRef(null);
   const [recording, setRecording] = useState(null);
   const [recordAudioOpen, setRecordAudioOpen] = useState(false);
+  const [videoOpen, setVideoOpen] = useState(false);
   // The show's transition sound now playing — stopped by the next one, by Stop Previous Sound, or by the show ending.
   const showSound = useRef(null);
   // Screen Recording: choosing what to record, then recording it.
@@ -1524,6 +1526,7 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'recordAudio': setRecordAudioOpen(true); return;
+      case 'exportVideo': setVideoOpen(true); return;
       // Record → Preview: this slide's narration, heard.
       case 'previewNarration': {
         const n = (model?.slide?.shapes || []).find((s) => isNarration(s) && s.media?.url);
@@ -2674,6 +2677,12 @@ export default function Slides({ app, shell, boot }) {
         />
       ) : null}
 
+      {videoOpen ? (
+        <>
+          <style>{EXPORT_VIDEO_CSS}</style>
+          <ExportVideoDialog shell={shell} doc={doc} model={model} toast={toast} onClose={() => setVideoOpen(false)} />
+        </>
+      ) : null}
       {recordAudioOpen ? (
         <>
           <style>{RECORD_CSS}</style>

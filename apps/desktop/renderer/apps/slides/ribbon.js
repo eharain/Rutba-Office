@@ -868,7 +868,7 @@ export default function SlidesRibbon({
           </Group>
           <Group label="Export">
             <Button tall icon="export" label="Save as Show" title="Save as Show — a copy as a .ppsx, which PowerPoint opens straight into the show" onClick={() => act('saveAsShow')} />
-            <Soon tall icon="video" label="Export to Video" why="Rendering a deck to video (frames plus encoding) is not built." />
+            <Button tall icon="video" label="Export to Video" title="Export to Video — the deck played into a video file, with its timings and narrations" onClick={() => act('exportVideo')} />
           </Group>
           <Group label="Help">
             <Button tall icon="info" label="Learn More" onClick={() => act('help')} />
