@@ -67,9 +67,13 @@ export async function verifyEvaluate(h, { dir }) {
     const step = async (cls, expected, level = null) => {
       const before = JSON.stringify(await dialog());
       const pressed = await pressIn(cls);
-      await until(async () => JSON.stringify(await dialog()) !== before, 'the dialog to move', 4000).catch(() => {});
+      const pick = (d) => (level === null ? d.levels[d.levels.length - 1] : d.levels[level]);
+      // Under a full run's load the dialog can move before its words do —
+      // the underline first — so wait for the words wanted, then for any move.
+      await until(async () => pick(await dialog())?.text === expected, 'the step', 4000).catch(() => {});
+      await until(async () => JSON.stringify(await dialog()) !== before, 'the dialog to move', 1000).catch(() => {});
       const d = await dialog();
-      const at = level === null ? d.levels[d.levels.length - 1] : d.levels[level];
+      const at = pick(d);
       return { pressed, d, ok: at && at.text === expected };
     };
 
