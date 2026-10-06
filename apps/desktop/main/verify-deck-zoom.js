@@ -58,9 +58,13 @@ export async function verifyDeckZoom(h, { dir }) {
       wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y, button: 'left', clickCount: 1 });
     }
     const went = await until(async () => (await bar()) === '3', 'slide 3', 5000).then(() => true).catch(() => false);
-    wc.sendInputEvent({ type: 'keyDown', keyCode: 'Right' });
-    wc.sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
-    const back = await until(async () => (await bar()) === '1', 'back to slide 1', 5000).then(() => true).catch(() => false);
+    // Once slide 3 has come in: a key pressed while it is still entering is not a step.
+    await wait(800);
+    const right = () => { wc.sendInputEvent({ type: 'keyDown', keyCode: 'Right' }); wc.sendInputEvent({ type: 'keyUp', keyCode: 'Right' }); };
+    right();
+    let back = await until(async () => (await bar()) !== '3', 'the next step', 3000).then(() => true).catch(() => false);
+    if (!back) { right(); await until(async () => (await bar()) !== '3', 'the next step', 3000).catch(() => {}); }
+    back = (await bar()) === '1';
     wc.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     wc.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
     await until(async () => (await bar()) === null, 'the show to end', 4000).catch(() => {});
