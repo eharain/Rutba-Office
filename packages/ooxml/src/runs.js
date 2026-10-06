@@ -375,7 +375,7 @@ export function foldMergeFields(xml) {
  * citing a source or putting a page number in the body never locks the
  * paragraph it sits in, as a caption's SEQ still does.
  */
-export const REFERENCE_KINDS = new Set(['citation', 'xe', 'page', 'numpages', 'date', 'time', 'filename', 'author', 'title']);
+export const REFERENCE_KINDS = new Set(['citation', 'xe', 'ta', 'page', 'numpages', 'date', 'time', 'filename', 'author', 'title']);
 
 /** A run-level content control round a citation, as Word writes one (`w:sdtPr` holds `w:citation`). */
 const CITATION_SDT_RE = /<w:sdt\b[^>]*>(?:(?!<w:sdt\b)[\s\S])*?<w:citation\s*\/>(?:(?!<w:sdt\b)[\s\S])*?<\/w:sdt>/g;

@@ -219,3 +219,6 @@ export function lineTail(line, { rightAlign = false } = {}) {
   }
   return segs;
 }
+
+/** The field-code tokenizer, for the table of authorities' codes too. */
+export { words as fieldWords };

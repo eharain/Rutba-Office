@@ -1696,6 +1696,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     markIndexEntry: (v, a) => v.markIndexEntry(a),
     insertIndex: (v, a) => v.insertIndex({ columns: a.columns, rightAlign: a.rightAlign, leader: a.leader, runIn: a.runIn, lcid: a.lcid || 1033, pages: a.pages || null }),
     updateIndex: (v, a) => v.updateIndex({ pages: a.pages || null }),
+    markCitation: (v, a) => v.markCitation({ long: a.long, short: a.short, category: a.category, all: Boolean(a.all), text: a.text ?? null }),
+    insertTableOfAuthorities: (v, a) => v.insertTableOfAuthorities({ category: a.category ?? 'all', passim: a.passim !== false, keepFormatting: a.keepFormatting !== false, leader: a.leader || 'dot', pages: a.pages || null }),
+    updateTablesOfAuthorities: (v, a) => v.updateTablesOfAuthorities({ pages: a.pages || null }),
     // References → Insert Table of Figures and Update Table, from the captions.
     insertTableOfFigures: (v, a) => v.insertTableOfFigures({ label: a.label || 'Figure', includeLabel: a.includeLabel !== false, pages: a.pages || null, pageNumbers: a.pageNumbers !== false, rightAlign: a.rightAlign !== false, leader: a.leader || 'dot' }),
     updateTablesOfFigures: (v, a) => v.updateTablesOfFigures({ pages: a.pages || null }),

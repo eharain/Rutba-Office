@@ -26,6 +26,7 @@ import {
   citationNumbers, segmentsText, DEFAULT_STYLE, styleById,
 } from './bibliography.js';
 import { indexMethods } from './references-index.js';
+import { toaMethods } from './references-toa.js';
 import { figuresMethods } from './references-figures.js';
 
 const CUSTOMXML_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
@@ -338,13 +339,16 @@ const methods = {
         const r = this.indexResult();
         return r ? { columns: r.columns, rightAlign: r.rightAlign, runIn: r.runIn, leader: r.leader } : null;
       })(),
+      // The authorities Mark Citation has marked, and the tables of them in the body.
+      authorities: this.authorities(),
+      toa: this._toaSpans().map((t) => ({ category: t.category, passim: t.passim, keepFormatting: t.keepFormatting, leader: t.leader })),
     };
   },
 };
 
 /** Put the References methods on the Document class. */
 export function installReferences(Document) {
-  for (const [name, fn] of Object.entries({ ...methods, ...indexMethods, ...figuresMethods })) {
+  for (const [name, fn] of Object.entries({ ...methods, ...indexMethods, ...figuresMethods, ...toaMethods })) {
     if (!Object.prototype.hasOwnProperty.call(Document.prototype, name)) Document.prototype[name] = fn;
   }
   // F9 refreshes citations and the bibliography with every other field.

@@ -69,7 +69,8 @@ export const figuresViewMethods = {
 
   /**
    * F9 and printing, for what the window's own page layout knows: every
-   * table of figures, the index and every document field, in one step.
+   * table of figures, the index, every table of authorities and every
+   * document field, in one step.
    * `pages` maps an edit-space paragraph to its page. Answers how many
    * fields changed.
    */
@@ -78,12 +79,14 @@ export const figuresViewMethods = {
     if (!doc || typeof doc.updateDocFields !== 'function') return 0;
     const tables = fieldsOnly ? 0 : doc._figureTables().length;
     const index = fieldsOnly ? false : doc.hasIndex();
+    const toa = fieldsOnly || typeof doc.hasTableOfAuthorities !== 'function' ? false : doc.hasTableOfAuthorities();
     const fields = doc.hasDocFields();
-    if (!tables && !index && !fields) return 0;
+    if (!tables && !index && !toa && !fields) return 0;
     return this._edit('update fields', null, () => {
       let n = 0;
       if (tables) n += doc.updateTablesOfFigures({ pages });
       if (index && doc.updateIndex({ pages })) n += 1;
+      if (toa) n += doc.updateTablesOfAuthorities({ pages });
       if (fields) n += doc.updateDocFields({ pages, pageCount, fileName, filePath, now: now ? new Date(now) : new Date() });
       this._invalidate();
       return n;
