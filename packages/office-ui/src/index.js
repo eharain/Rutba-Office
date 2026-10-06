@@ -766,7 +766,8 @@ export function Menu({ x, y, items, onClose }) {
               onClose?.();
             }}
           >
-            {item.icon ? <Icon name={item.icon} /> : <span style={{ width: 15 }} />}
+            {/* A gallery's sample, where an item shows what it makes (a WordArt style), in place of an icon. */}
+            {item.preview ? <span className="rw-menu-preview">{item.preview}</span> : item.icon ? <Icon name={item.icon} /> : <span style={{ width: 15 }} />}
             <span>{item.label}</span>
             {item.key ? <span className="key">{item.key}</span> : null}
           </button>

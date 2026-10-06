@@ -1440,6 +1440,19 @@ export default function Slides({ app, shell, boot }) {
         if (added) setSelected(added.id);
         return;
       }
+      case 'wordArt': {
+        // Insert → WordArt: PowerPoint's own words, big and in the chosen
+        // style, in a box of their own in the middle of the slide; selected,
+        // so the words can be typed over and the font controls act on them.
+        const W = model?.size?.width || 1280;
+        const H = model?.size?.height || 720;
+        const w = Math.round(W * 0.62);
+        const h = 96;
+        const next = await apply({ op: 'addTextBox', slide: index, name: 'WordArt', x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h, paragraphs: [{ align: 'center', runs: [{ text: 'Your text here', size: 54, ...(arg?.run || {}) }] }] });
+        const added = next?.model?.slide?.shapes?.slice(-1)[0];
+        if (added) setSelected(added.id);
+        return;
+      }
       case 'addTable': {
         // Centred, PowerPoint's own default size and style; selected, so
         // Arrange and Delete act on it at once.

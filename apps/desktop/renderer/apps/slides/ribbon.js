@@ -13,6 +13,7 @@ import { Ribbon, Group, Rows, Button, Separator, Select, Icon } from '@rutba/off
 import { TRANSITION_GALLERY, TRANSITION_OPTIONS, galleryKeyOf, optionOf, describeTransition } from './motion.js';
 import { ANIMATION_GALLERY, EFFECT_MENU, ANIMATION_OPTIONS } from './animate.js';
 import { RibbonStrip } from './design.js';
+import { wordArtMenu } from '../../wordart.js';
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
 const COLOURS = [
@@ -443,7 +444,7 @@ export default function SlidesRibbon({
           <Group label="Text">
             <Button tall icon="textbox" label="Text Box" onClick={() => commands['slide.textbox']?.run?.()} />
             <Button tall icon="file" label="Header & Footer" title="Header & Footer — the date, the slide number and the footer's words, on this slide or all of them" onClick={() => act('footer')} />
-            <Soon tall icon="wand" label="WordArt" why="WordArt is text effects the deck writer does not write." />
+            <Button tall icon="wand" label="WordArt" title="WordArt — big words in a style of their own: a fill, an outline round the letters, a shadow or a glow" onClick={(e) => menu.open(e, wordArtMenu((style) => act('wordArt', style)))} />
             <Button icon="clock" label="Date & Time" title="Date & Time — a date along the bottom, kept current or fixed" onClick={() => act('footer', 'date')} />
             <Button icon="list" label="Slide Number" title="Slide Number — the slide's number along the bottom, following it when slides move" onClick={() => act('footer', 'number')} />
             <Soon icon="file" label="Object" why="Embedded objects are not built." />
