@@ -13,17 +13,20 @@ import { Deck, buildPptx } from '@rutba/presentation';
 const deck = (n = 4) => Deck.open(buildPptx({ title: 'Show', slides: Array.from({ length: n }, (_, i) => ({ layout: 'title', title: `Slide ${i + 1}` })) }));
 
 test('a deck with no settings answers PowerPoint\'s defaults', () => {
-  assert.deepEqual(deck().showSettings(), { type: 'present', loop: false, narration: true, animation: true, useTimings: true, range: null, pen: null });
+  assert.deepEqual(deck().showSettings(), { type: 'present', loop: false, narration: true, animation: true, useTimings: true, range: null, pen: null, mediaControls: true });
 });
 
 test('written settings come back after a save, in a part made with its relationship and content type', () => {
   const d = deck();
   d.setShowSettings({ loop: true, animation: false, useTimings: false, range: { from: 2, to: 3 }, pen: '#00aa55' });
   const back = Deck.open(d.save());
-  assert.deepEqual(back.showSettings(), { type: 'present', loop: true, narration: true, animation: false, useTimings: false, range: { from: 2, to: 3 }, pen: '#00AA55' });
+  assert.deepEqual(back.showSettings(), { type: 'present', loop: true, narration: true, animation: false, useTimings: false, range: { from: 2, to: 3 }, pen: '#00AA55', mediaControls: true });
   assert.equal(back.pkg.contentTypeOf('ppt/presProps.xml'), 'application/vnd.openxmlformats-officedocument.presentationml.presProps+xml');
   assert.match(back.pkg.text('ppt/_rels/presentation.xml.rels'), /relationships\/presProps" Target="presProps\.xml"/);
-  assert.match(back.pkg.text('ppt/presProps.xml'), /<p:showPr loop="1" showNarration="1" showAnimation="0" useTimings="0"><p:present\/><p:sldRg st="2" end="3"\/><p:penClr><a:srgbClr val="00AA55"\/><\/p:penClr><\/p:showPr>/);
+  assert.match(back.pkg.text('ppt/presProps.xml'), /<p:showPr loop="1" showNarration="1" showAnimation="0" useTimings="0"><p:present\/><p:sldRg st="2" end="3"\/><p:penClr><a:srgbClr val="00AA55"\/><\/p:penClr><p:extLst><p:ext uri="\{2FDB2607-1784-4EEB-B798-7EB5836EED8A\}"><p14:showMediaCtrls xmlns:p14="http:\/\/schemas\.microsoft\.com\/office\/powerpoint\/2010\/main" val="1"\/><\/p:ext><\/p:extLst><\/p:showPr>/);
+  // Show Media Controls off, and back.
+  d.setShowSettings({ mediaControls: false });
+  assert.equal(Deck.open(d.save()).showSettings().mediaControls, false);
 });
 
 test('a kiosk always loops, a range is kept inside the deck, and every slide is written as all of them', () => {

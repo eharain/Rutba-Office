@@ -793,9 +793,20 @@ function readPicture(pic, ctx, container, groupId) {
   const srcRect = blipFill && first(blipFill, A('srcRect'));
   const meta = nameOf(pic);
   const embed = blip?.attrs['r:embed'] || blip?.attrs['r:link'] || null;
+  // Insert → Video and Audio: a picture (the poster, or a speaker) whose
+  // nvPr names the media — `a:videoFile`/`a:audioFile`, and PowerPoint
+  // 2010's embedded copy in `p14:media`.
+  const nvPr = first(kids(pic, P('nvPicPr'))[0] || pic, P('nvPr'));
+  const file = nvPr && (first(nvPr, A('videoFile')) || first(nvPr, A('audioFile')));
+  const p14 = nvPr && first(nvPr, 'p14:media');
+  const mediaId = p14?.attrs['r:embed'] || file?.attrs['r:link'] || file?.attrs['r:embed'] || null;
+  const media = file
+    ? { kind: file.name === A('videoFile') ? 'video' : 'audio', id: mediaId, source: mediaId && ctx.rel ? ctx.rel(mediaId) : null }
+    : null;
   return {
     kind: 'picture',
     ...meta,
+    ...(media ? { media } : {}),
     groupId,
     placeholder: placeholderOf(pic),
     geometry: placeInContainer(container, readXfrm(spPr)),

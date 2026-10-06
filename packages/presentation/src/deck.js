@@ -55,6 +55,26 @@ const PRES_PROPS = {
 };
 /** The chart kinds `chartPartXml` can write — Insert → Chart and its data editor may only ask for one of these. */
 const CHART_KINDS = ['column', 'bar', 'line', 'area', 'pie', 'doughnut'];/** The picture types PowerPoint itself embeds; anything else is converted first. */
+/** Video and audio a slide can hold, by content type, as PowerPoint plays them. */
+const MEDIA_EXTENSIONS = {
+  'video/mp4': 'mp4',
+  'video/x-m4v': 'm4v',
+  'video/quicktime': 'mov',
+  'video/webm': 'webm',
+  'video/x-ms-wmv': 'wmv',
+  'video/x-msvideo': 'avi',
+  'audio/mpeg': 'mp3',
+  'audio/mp4': 'm4a',
+  'audio/x-m4a': 'm4a',
+  'audio/wav': 'wav',
+  'audio/x-wav': 'wav',
+  'audio/x-ms-wma': 'wma',
+  'audio/aac': 'aac',
+};
+const MEDIA_REL = 'http://schemas.microsoft.com/office/2007/relationships/media';
+const VIDEO_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/video';
+const AUDIO_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/audio';
+
 const IMAGE_EXTENSIONS = {
   'image/png': 'png',
   'image/jpeg': 'jpeg',
@@ -397,7 +417,7 @@ export class Deck {
    * @returns {{ type: 'present'|'browse'|'kiosk', loop: boolean, narration: boolean, animation: boolean, useTimings: boolean, range: null|{ from: number, to: number }, pen: string|null }}
    */
   showSettings() {
-    const out = { type: 'present', loop: false, narration: true, animation: true, useTimings: true, range: null, pen: null };
+    const out = { type: 'present', loop: false, narration: true, animation: true, useTimings: true, range: null, pen: null, mediaControls: true };
     const part = this.#relTarget('ppt/presentation.xml', PRES_PROPS.rel);
     const xml = part ? this.pkg.text(part) : '';
     const show = /<p:showPr\b([^>]*?)(?:\/>|>([\s\S]*?)<\/p:showPr>)/.exec(xml);
@@ -417,6 +437,9 @@ export class Deck {
     if (st && end) out.range = { from: Number(st[1]), to: Number(end[1]) };
     const pen = /<p:penClr>[\s\S]*?<a:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/.exec(inner);
     if (pen) out.pen = '#' + pen[1].toUpperCase();
+    // Slide Show → Show Media Controls: PowerPoint 2010's extension on showPr.
+    const media = /<p14:showMediaCtrls\b[^>]*\bval="(\w+)"/.exec(inner);
+    if (media) out.mediaControls = media[1] === '1' || media[1] === 'true';
     return out;
   }
 
@@ -494,6 +517,7 @@ export class Deck {
       + (s.type === 'kiosk' ? '<p:kiosk/>' : s.type === 'browse' ? '<p:browse/>' : '<p:present/>')
       + (range ? `<p:sldRg st="${range.from}" end="${range.to}"/>` : '<p:sldAll/>')
       + (pen ? `<p:penClr><a:srgbClr val="${pen}"/></p:penClr>` : '')
+      + `<p:extLst><p:ext uri="{2FDB2607-1784-4EEB-B798-7EB5836EED8A}"><p14:showMediaCtrls xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" val="${s.mediaControls === false ? 0 : 1}"/></p:ext></p:extLst>`
       + '</p:showPr>';
     let part = this.#relTarget('ppt/presentation.xml', PRES_PROPS.rel);
     if (!part) {
@@ -3261,6 +3285,57 @@ export class Deck {
     this.pkg.addPart(media, bytes);
     const rId = this.pkg.addRelationshipTo(part, REL.image, `../media/image${n}.${ext}`);
     return { rId, media };
+  }
+
+  /**
+   * Insert → Video and Audio: the media in the package as PowerPoint puts
+   * it — the bytes in `ppt/media/mediaN.ext`, related from the slide twice
+   * (the 2007 `video`/`audio` link and PowerPoint 2010's `media` embed, to
+   * the same part) — and a picture on the slide whose `nvPr` names it,
+   * drawn as `poster` (a video's frame, or a speaker for audio). A click on
+   * it plays it in the show (`ppaction://media`).
+   *
+   * @param {number} slideIndex
+   * @param {{ kind: 'video'|'audio', data, contentType: string, poster: { data, contentType }, name?: string, x?: number, y?: number, w: number, h: number }} spec
+   * @returns {{ id: number, part: string }} the shape id and the media part
+   */
+  addMedia(slideIndex, { kind, data, contentType, poster, name, x = 0, y = 0, w, h }) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (kind !== 'video' && kind !== 'audio') throw new Error(`no ${kind} media`);
+    const type = String(contentType || '').toLowerCase();
+    const ext = MEDIA_EXTENSIONS[type];
+    if (!ext || !type.startsWith(kind)) throw new Error(`unsupported ${kind} type: ${contentType}`);
+    if (!(w > 0) || !(h > 0)) throw new Error('media needs a positive width and height');
+    const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data ?? ''), 'base64');
+    if (!bytes.length) throw new Error(`the ${kind} has no bytes`);
+    const names = this.pkg.partNames() || [];
+    let n = 1;
+    while (names.some((p) => p.startsWith(`ppt/media/media${n}.`))) n += 1;
+    const media = `ppt/media/media${n}.${ext}`;
+    this.pkg.ensureDefault(ext, type);
+    this.pkg.addPart(media, bytes);
+    const embed = this.pkg.addRelationshipTo(part, MEDIA_REL, `../media/media${n}.${ext}`);
+    const link = this.pkg.addRelationshipTo(part, kind === 'video' ? VIDEO_REL : AUDIO_REL, `../media/media${n}.${ext}`);
+    const { rId: blipId } = this.#embedImage(part, poster || {});
+
+    let xml = this.pkg.text(part);
+    const head = xml.slice(0, Math.max(0, xml.indexOf('<p:cSld')));
+    if (!/xmlns:r=/.test(head)) xml = xml.replace(/<p:sld\b/, '<p:sld xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"');
+    const id = nextShapeId(xml);
+    const label = escapeXml(name || (kind === 'video' ? 'Video' : 'Audio'));
+    const pic =
+      `<p:pic><p:nvPicPr><p:cNvPr id="${id}" name="${label}"><a:hlinkClick r:id="" action="ppaction://media"/></p:cNvPr>` +
+      `<p:cNvPicPr><a:picLocks noChangeAspect="1"/></p:cNvPicPr>` +
+      `<p:nvPr><a:${kind}File r:link="${link}"/><p:extLst><p:ext uri="{DAA4B4D4-6D71-4841-9C94-3DA8AD8B0F8F}"><p14:media xmlns:p14="http://schemas.microsoft.com/office/powerpoint/2010/main" r:embed="${embed}"/></p:ext></p:extLst></p:nvPr></p:nvPicPr>` +
+      `<p:blipFill><a:blip r:embed="${blipId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>` +
+      `<p:spPr><a:xfrm><a:off x="${pxToEmu(x)}" y="${pxToEmu(y)}"/>` +
+      `<a:ext cx="${Math.max(1, pxToEmu(w))}" cy="${Math.max(1, pxToEmu(h))}"/></a:xfrm>` +
+      `<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic>`;
+    const at = xml.lastIndexOf('</p:spTree>');
+    if (at < 0) throw new Error('slide has no shape tree');
+    this.#writeSlide(part, xml.slice(0, at) + pic + xml.slice(at));
+    return { id, part: media };
   }
 
   addPicture(slideIndex, { data, contentType, name = 'Picture', x = 0, y = 0, w, h }) {

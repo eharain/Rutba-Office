@@ -1225,7 +1225,20 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         return null;
       }
     };
-    return { resolveImage, thumbnailOf };
+    // A video's or a sound's own bytes, for the stage and the show to play.
+    const MEDIA_TYPES = { mp4: 'video/mp4', m4v: 'video/x-m4v', mov: 'video/quicktime', webm: 'video/webm', wmv: 'video/x-ms-wmv', avi: 'video/x-msvideo', mp3: 'audio/mpeg', m4a: 'audio/mp4', wav: 'audio/wav', wma: 'audio/x-ms-wma', aac: 'audio/aac' };
+    const resolveMedia = (media) => {
+      const part = media?.source?.part;
+      if (!part || media.source.external) return null;
+      const known = blobs.get(part);
+      if (known) return known;
+      const bytes = deck.media(part);
+      if (!bytes) return null;
+      const url = holdBlob(bytes, MEDIA_TYPES[part.split('.').pop().toLowerCase()] || 'application/octet-stream', path.basename(part)).url;
+      blobs.set(part, url);
+      return url;
+    };
+    return { resolveImage, resolveMedia, thumbnailOf };
   }
 
   /**
@@ -1274,7 +1287,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // exactly as they do on a slide.
     const masterPart = master && typeof master === 'string' && Deck.isDesignPart(master) && safely(() => deck.partScene(master)) ? master : null;
     const current = masterPart ? deck.partScene(masterPart) : count ? deck.slide(index) : null;
-    const { resolveImage, thumbnailOf } = deckThumbnailer(session);
+    const { resolveImage, resolveMedia, thumbnailOf } = deckThumbnailer(session);
     return {
       // Slide Master view's strip and which part is on the stage, or null in the other views.
       masterView: masterPart ? masterViewOf(session, masterPart) : null,
@@ -1330,6 +1343,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
               prompt: Boolean(s.prompt),
               // Insert → Action: what a click on it does in the show.
               action: s.action ?? null,
+              // Insert → Video and Audio: what it plays, and where the bytes are.
+              media: s.media ? { kind: s.media.kind, url: resolveMedia(s.media) } : null,
               // What a run that states nothing is drawn with — the master's,
               // the layout's and the shape's own styles — so the ribbon shows
               // a title's real size rather than the ribbon's own default.
@@ -1791,6 +1806,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // middle of it. The engine does not decode pictures; this reads the size
     // out of the first bytes the way the photo viewer does.
     addPicture: (d, a) => d.addPicture(a.slide, picturePlacement(d, a)),
+    addMedia: (d, a) => {
+      const bytes = (v) => (Buffer.isBuffer(v) ? v : v instanceof Uint8Array ? Buffer.from(v) : Buffer.from(String(v ?? ''), 'base64'));
+      return d.addMedia(a.slide, { kind: a.kind, data: bytes(a.data), contentType: a.contentType, poster: { data: bytes(a.poster), contentType: 'image/png' }, name: a.name, x: a.x, y: a.y, w: a.w, h: a.h }).id;
+    },
     // A preset shape in the theme's colours; the ribbon picks the preset.
     addShape: (d, a) => d.addShape(a.slide, a),
     // The Layers pane's verbs: the drawing order, a shape hidden or shown, a name.
