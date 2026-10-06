@@ -794,7 +794,7 @@ export default function WordRibbon({
           </Group>
           <Group label="Show">
             <Button icon="minus" label="Ruler" pressed={Boolean(view.ruler)} onClick={() => act('toggleRuler')} />
-            <Soon icon="grid" label="Gridlines" why="Drawing gridlines come with floating layout." />
+            <Button icon="grid" label="Gridlines" pressed={Boolean(view.gridlines)} title="Gridlines — a quarter-inch grid over the page, to line drawings up by eye; on screen only" onClick={() => act('toggleGridlines')} />
             <Button icon="list" label="Navigation Pane" pressed={Boolean(view.navigation)} title="Headings, to move around a long document" onClick={() => act('toggleNavigation')} />
           </Group>
           <Group label="Zoom">

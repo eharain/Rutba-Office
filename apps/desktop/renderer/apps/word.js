@@ -1236,6 +1236,9 @@ export default function Word({ app, shell, boot }) {
         case 'toggleRuler':
           patchView((v) => ({ ruler: !v.ruler }));
           return;
+        case 'toggleGridlines':
+          patchView((v) => ({ gridlines: !v.gridlines }));
+          return;
         case 'toggleNavigation':
           patchView((v) => ({ navigation: !v.navigation }));
           return;
@@ -1947,7 +1950,7 @@ export default function Word({ app, shell, boot }) {
               />
             ) : null}
             <div
-              className={`wd-page${view.drawBox ? ' drawing-box' : ''}${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}${mailings.highlight ? ' wd-mm-hl' : ''}${model.mailMerge?.preview ? ' wd-mm-preview' : ''}`}
+              className={`wd-page${view.drawBox ? ' drawing-box' : ''}${view.gridlines ? ' gridlines' : ''}${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}${mailings.highlight ? ' wd-mm-hl' : ''}${model.mailMerge?.preview ? ' wd-mm-preview' : ''}`}
               ref={pageRef}
               contentEditable
               suppressContentEditableWarning
@@ -2107,7 +2110,9 @@ export default function Word({ app, shell, boot }) {
               */}
               {paged
                 ? Array.from({ length: pages.count }, (_, k) => (
-                    <div key={`s${k}`} className={`wd-sheet${geo.first && k === 0 ? ' wd-envelope-sheet' : ''}`} contentEditable={false} aria-hidden="true" style={{ top: pageTopOf(geo, k), height: pageHeightOf(geo, k), ...(geo.first && k === 0 ? { left: geo.first.left, width: geo.first.W, right: 'auto' } : {}), background: section?.background || undefined }} />
+                    <div key={`s${k}`} className={`wd-sheet${geo.first && k === 0 ? ' wd-envelope-sheet' : ''}`} contentEditable={false} aria-hidden="true" style={{ top: pageTopOf(geo, k), height: pageHeightOf(geo, k), ...(geo.first && k === 0 ? { left: geo.first.left, width: geo.first.W, right: 'auto' } : {}), background: section?.background || undefined }}>
+                      {view.gridlines && section?.margins ? <div className="wd-gridlines" style={{ top: section.margins.top, right: section.margins.right, bottom: section.margins.bottom, left: section.margins.left }} /> : null}
+                    </div>
                   ))
                 : null}
               {/* Around a flow the watermark rides the one page; print layout puts it on every sheet below. */}
@@ -3390,6 +3395,17 @@ const CSS = `
 }
 /* In print layout the flow is transparent and the sheets are drawn behind it, one per page. */
 .wd-page.paged { background: transparent; box-shadow: none; }
+/* View → Gridlines: a quarter-inch grid over the words' area of each page,
+   to line drawings up by eye. On screen only, as in Word; it never prints. */
+.wd-gridlines, .wd-page.gridlines:not(.paged) {
+  background-image:
+    linear-gradient(to right, rgba(43, 95, 217, 0.16) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(43, 95, 217, 0.16) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.wd-gridlines { position: absolute; pointer-events: none; }
+.wd-page.gridlines:not(.paged) { background-color: #fff; background-origin: content-box; background-clip: content-box; }
+@media print { .wd-gridlines { display: none; } }
 /* Review → Track Changes: a paragraph carrying a change wears a bar in the
    margin, All Markup and Simple Markup alike — Word's own change bar, one
    per PARAGRAPH here rather than per line (a stated simplification). */
