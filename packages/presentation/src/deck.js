@@ -2266,6 +2266,91 @@ export class Deck {
     return part;
   }
 
+  /**
+   * Slide Master → Insert Slide Master: a second master — a copy of `from`
+   * (the first master unless named) with its layouts and its own theme, in
+   * parts of its own, so it can be restyled without touching the slides on
+   * the first. Named "Custom Design" and kept even while no slide uses it,
+   * as PowerPoint's inserted master is.
+   * @returns {string} the new master's part
+   */
+  insertMaster(from = null, { name = 'Custom Design' } = {}) {
+    const source = from || this.masterParts()[0];
+    if (!source || !this.pkg.has(source) || !/slideMasters\//.test(source)) throw new RangeError('no master to copy');
+    const sourceRels = this.#relMap(source);
+    const relsPath = (part) => part.replace(/([^/]+)$/, '_rels/$1.rels');
+    const relsXml = (part) => (this.pkg.has(relsPath(part)) ? this.pkg.text(relsPath(part)) : null);
+    const RELS_HEAD = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+    // Its theme, copied, so a new design on it is its own.
+    const themeRel = [...sourceRels.values()].find((r) => r.type === REL.theme);
+    let themeName = null;
+    if (themeRel && this.pkg.has(themeRel.resolved)) {
+      const t = this.pkg.nextPartNumber('ppt/theme/', 'theme');
+      themeName = `theme${t}.xml`;
+      this.pkg.addPart(`ppt/theme/${themeName}`, Buffer.from(this.pkg.text(themeRel.resolved), 'utf8'), this.pkg.contentTypeOf(themeRel.resolved) || 'application/vnd.openxmlformats-officedocument.theme+xml');
+    }
+    const m = this.pkg.nextPartNumber('ppt/slideMasters/', 'slideMaster');
+    const masterName = `slideMaster${m}.xml`;
+    const masterPart = `ppt/slideMasters/${masterName}`;
+    // Ids for the master and its layouts, above every id the deck has, in order.
+    const pres = this.pkg.text('ppt/presentation.xml');
+    const ids = [...pres.matchAll(/<p:sldMasterId\b[^>]*\bid="(\d+)"/g)].map((x) => Number(x[1]));
+    for (const mp of this.masterParts()) for (const x of this.pkg.text(mp).matchAll(/<p:sldLayoutId\b[^>]*\bid="(\d+)"/g)) ids.push(Number(x[1]));
+    let nextId = Math.max(2147483648, ...ids) + 1;
+    const masterId = nextId++;
+    // Its layouts, copied in the source's order, each pointing at the new master.
+    const layoutEntries = [];
+    const masterRelLines = [];
+    let rid = 1;
+    for (const l of [...this.pkg.text(source).matchAll(/<p:sldLayoutId\b[^>]*\br:id="([^"]+)"/g)]) {
+      const rel = sourceRels.get(l[1]);
+      if (!rel || !this.pkg.has(rel.resolved)) continue;
+      const n = this.pkg.nextPartNumber('ppt/slideLayouts/', 'slideLayout');
+      const layoutName = `slideLayout${n}.xml`;
+      this.pkg.addPart(`ppt/slideLayouts/${layoutName}`, Buffer.from(this.pkg.text(rel.resolved), 'utf8'), CT.layout);
+      const own = relsXml(rel.resolved);
+      if (own) {
+        const pointed = own.replace(new RegExp(`(<Relationship\\b[^>]*\\bType="${REL.master}"[^>]*\\bTarget=")[^"]*(")`), (x, a, b) => `${a}../slideMasters/${masterName}${b}`)
+          .replace(new RegExp(`(<Relationship\\b[^>]*\\bTarget=")[^"]*("[^>]*\\bType="${REL.master}")`), (x, a, b) => `${a}../slideMasters/${masterName}${b}`);
+        this.pkg.addPart(`ppt/slideLayouts/_rels/${layoutName}.rels`, Buffer.from(pointed, 'utf8'));
+      } else {
+        this.pkg.addPart(`ppt/slideLayouts/_rels/${layoutName}.rels`, Buffer.from(`${RELS_HEAD}<Relationship Id="rId1" Type="${REL.master}" Target="../slideMasters/${masterName}"/></Relationships>`, 'utf8'));
+      }
+      const id = `rId${rid++}`;
+      masterRelLines.push(`<Relationship Id="${id}" Type="${REL.layout}" Target="../slideLayouts/${layoutName}"/>`);
+      layoutEntries.push(`<p:sldLayoutId id="${nextId++}" r:id="${id}"/>`);
+    }
+    // The master's other relationships — its pictures, its theme — under new ids.
+    const renamed = new Map();
+    for (const r of sourceRels.values()) {
+      if (r.type === REL.layout) continue;
+      const id = `rId${rid++}`;
+      renamed.set(r.id, id);
+      const target = r.type === REL.theme && themeName ? `../theme/${themeName}` : r.target;
+      masterRelLines.push(`<Relationship Id="${id}" Type="${r.type}" Target="${escapeXml(target)}"${r.mode === 'External' ? ' TargetMode="External"' : ''}/>`);
+    }
+    let xml = this.pkg.text(source);
+    xml = xml.replace(/\br:(embed|link|id|pict)="([^"]+)"/g, (x, attr, id) => (renamed.has(id) ? `r:${attr}="${renamed.get(id)}"` : x));
+    xml = xml.replace(/<p:sldLayoutIdLst\b[^>]*>[\s\S]*?<\/p:sldLayoutIdLst>|<p:sldLayoutIdLst\b[^>]*\/>/, () => `<p:sldLayoutIdLst>${layoutEntries.join('')}</p:sldLayoutIdLst>`);
+    xml = /<p:cSld\b[^>]*\bname="[^"]*"/.test(xml)
+      ? xml.replace(/(<p:cSld\b[^>]*\bname=")[^"]*"/, (x, a) => `${a}${escapeXml(name)}"`)
+      : xml.replace(/<p:cSld\b/, () => `<p:cSld name="${escapeXml(name)}"`);
+    xml = xml.replace(/(<p:sldMaster\b[^>]*?)\s+preserve="[^"]*"/, '$1').replace(/<p:sldMaster\b/, '<p:sldMaster preserve="1"');
+    this.pkg.addPart(masterPart, Buffer.from(xml, 'utf8'), CT.master);
+    this.pkg.addPart(`ppt/slideMasters/_rels/${masterName}.rels`, Buffer.from(`${RELS_HEAD}${masterRelLines.join('')}</Relationships>`, 'utf8'));
+    // Listed in the presentation after the masters it has.
+    const presRid = this.pkg.addRelationshipTo('ppt/presentation.xml', REL.master, `slideMasters/${masterName}`);
+    const entry = `<p:sldMasterId id="${masterId}" r:id="${presRid}"/>`;
+    const px = this.pkg.text('ppt/presentation.xml');
+    this.pkg.write_('ppt/presentation.xml', Buffer.from(/<\/p:sldMasterIdLst>/.test(px)
+      ? px.replace('</p:sldMasterIdLst>', () => `${entry}</p:sldMasterIdLst>`)
+      : px.replace(/(<p:presentation\b[^>]*>)/, (x, open) => `${open}<p:sldMasterIdLst>${entry}</p:sldMasterIdLst>`), 'utf8'));
+    this.dirty = true;
+    this.#load();
+    this.#designChanged();
+    return masterPart;
+  }
+
   /** Slide Master → Delete: a layout no slide uses, taken out of its master's list and the package. */
   removeLayout(part) {
     if (!/slideLayouts\//.test(String(part)) || !this.pkg.has(part)) throw new RangeError(`no layout ${part}`);

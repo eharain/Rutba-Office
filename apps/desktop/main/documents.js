@@ -1867,6 +1867,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // Preserve; a placeholder inserted; and the text styles a master's
     // title and body placeholders give every slide.
     insertLayout: (d, a) => d.insertLayout(a.master || null, { name: a.name || 'Custom Layout' }),
+    insertMaster: (d, a) => d.insertMaster(a.from || null, { name: a.name || 'Custom Design' }),
     renamePart: (d, a) => d.renamePart(a.part, a.name),
     removeLayout: (d, a) => d.removeLayout(a.part),
     setMasterPlaceholders: (d, a) => d.setMasterPlaceholders(a.part, { title: a.title, footers: a.footers }),

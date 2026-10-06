@@ -369,7 +369,7 @@ export default function SlidesRibbon({
       {tab === 'master' && masterView ? (
         <>
           <Group label="Edit Master">
-            <Soon tall icon="slides" label="Insert Slide Master" why="A second master in one deck is not built; this master, its layouts and its theme are all edited here." />
+            <Button tall icon="slides" label="Insert Slide Master" title="Insert Slide Master — a second master, a copy of this one with its layouts and theme, to restyle on its own" onClick={() => act('insertMaster')} />
             <Button tall icon="plus" label="Insert Layout" title="Insert Layout — a new layout on this master, with a title and the footers" onClick={() => act('insertLayout')} />
             <Rows>
               <Button icon="trash" label="Delete" disabled={!isLayout || masterItem?.used > 0} title={!isLayout ? 'Delete — pick a layout; the master stays' : masterItem?.used ? `Delete — ${masterItem.used === 1 ? 'a slide uses' : `${masterItem.used} slides use`} this layout; put ${masterItem.used === 1 ? 'it' : 'them'} on another first` : 'Delete — this layout, which no slide uses'} onClick={() => act('deleteLayout')} />

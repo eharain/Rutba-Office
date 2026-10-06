@@ -62,6 +62,7 @@ import { verifyWordTheme } from './verify-word-theme.js';
 import { verifyDeckTrigger } from './verify-deck-trigger.js';
 import { verifySheetEquation } from './verify-sheet-equation.js';
 import { verifyWordSignature } from './verify-word-signature.js';
+import { verifyDeckInsertMaster } from './verify-deck-insert-master.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -4620,6 +4621,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('trigger')) await verifyDeckTrigger({ open, check, until, wait, doc }, { dir });
     if (only.includes('sheetequation')) await verifySheetEquation({ open, check, until, wait }, { dir });
     if (only.includes('signature')) await verifyWordSignature({ open, check, until, wait }, { dir });
+    if (only.includes('insertmaster')) await verifyDeckInsertMaster({ open, check, until, wait }, { dir });
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
@@ -4809,6 +4811,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckTrigger({ open, check, until, wait, doc }, { dir }));
   await block(() => verifySheetEquation({ open, check, until, wait }, { dir }));
   await block(() => verifyWordSignature({ open, check, until, wait }, { dir }));
+  await block(() => verifyDeckInsertMaster({ open, check, until, wait }, { dir }));
   await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => wordMailMerge());

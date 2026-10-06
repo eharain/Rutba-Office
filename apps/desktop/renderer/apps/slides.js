@@ -1242,6 +1242,13 @@ export default function Slides({ app, shell, boot }) {
         setTab('home');
         return;
       case 'masterSelect': setMasterPart(arg); return;
+      // Slide Master → Insert Slide Master: a copy of this master, its layouts and theme, to restyle on its own.
+      case 'insertMaster': {
+        const from = model?.masterView?.items?.find((it) => it.part === masterPart)?.master || (masterPart && masterPart.includes('slideMasters/') ? masterPart : null) || model?.slide?.master || null;
+        const next = await apply({ op: 'insertMaster', from, name: 'Custom Design' });
+        if (next && typeof next.opResult === 'string') setMasterPart(next.opResult);
+        return;
+      }
       case 'insertLayout': {
         const master = model?.masterView?.items?.find((it) => it.part === masterPart)?.master || model?.slide?.master || null;
         const next = await apply({ op: 'insertLayout', master, name: 'Custom Layout' });
