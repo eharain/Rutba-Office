@@ -29,6 +29,7 @@ function safeUserName() {
 const commentAuthor = () => safeUserName() || 'Rutba Office user';
 
 import { OoxmlPackage } from '@rutba/ooxml/package';
+import { compareDocx } from '@rutba/ooxml/compare';
 import { parseRef } from '@rutba/ooxml/workbook';
 import { Deck, buildPptx, photoAlbum, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES, THEMES as DECK_THEMES, PALETTES as DECK_PALETTES, FONT_PAIRS as DECK_FONT_PAIRS, EFFECT_PRESETS as DECK_EFFECTS } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';
@@ -2280,6 +2281,26 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
      * title slide, then one, two or four to a slide, captioned when asked —
      * as a session of its own, Photo Album1, for a window to adopt, unsaved.
      */
+    /**
+     * Review → Compare: two .docx files compared — a new document, the
+     * revised one with what changed marked as revisions by `author` — for a
+     * window to adopt.
+     */
+    compare: ({ original, revised, author = null }) => {
+      const read = (file) => {
+        try { return fs.readFileSync(file); } catch (err) { throw new Error(plainFsError(err, file) || plainRefusal(err, file)); }
+      };
+      const { bytes, changes } = compareDocx(read(original), read(revised), { author: author || safeUserName() || 'Compare' });
+      const n = (mergedCount.get('Compare Result') || 0) + 1;
+      mergedCount.set('Compare Result', n);
+      const made = new Session({ id: nextId(), kind: 'doc', filePath: null, engine: openDocx(Buffer.from(bytes)), source: 'compare' });
+      made.untitled = `Compare Result ${n}`;
+      made.dirty = true;
+      made.windowId = null;
+      sessions.set(made.id, made);
+      return { id: made.id, name: made.name, changes };
+    },
+
     photoAlbum: ({ files = [], perSlide = 1, captions = false, title = 'Photo Album', subtitle = '' }) => {
       const TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp' };
       const pictures = (Array.isArray(files) ? files : []).map((file) => {

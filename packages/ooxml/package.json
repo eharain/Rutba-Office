@@ -29,6 +29,7 @@
     "./bibliography": "./src/bibliography.js",
     "./wordindex": "./src/wordindex.js",
     "./wordtoa": "./src/wordtoa.js",
+    "./compare": "./src/compare.js",
     "./docfields": "./src/docfields.js",
     "./mailmerge-run": "./src/mailmerge-run.js",
     "./labels": "./src/labels.js",
