@@ -801,7 +801,7 @@ export default function SlidesRibbon({
             <Button tall icon="globe" label="Language" title="Language — mark the selected text box's words as a language, or as not to be checked, for Spelling here and proofing in PowerPoint" onClick={() => act('language')} />
           </Group>
           <Group label="Activity">
-            <Soon icon="check" label="Mark All as Read" why="Comes with comments." />
+            <Soon icon="check" label="Mark All as Read" why="A deck keeps its comments and whether each is resolved, but not who has read them, so there is nothing in the file to mark." />
             <Soon icon="eye" label="Show Changes" why="Change tracking on a deck is not built." />
           </Group>
           <Group label="Comments">
