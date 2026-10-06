@@ -1676,6 +1676,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     groupDrawings: (v, a) => { v.groupDrawings(a.ids || [], { rects: a.rects || [], place: a.place || null }); return v.lastDrawing; },
     ungroupDrawing: (v, a) => v.ungroupDrawing(a.id, { place: a.place || null }),
     removeDrawing: (v, a) => v.removeDrawing(a.ids ?? a.id),
+    insertInk: (v, a) => { v.insertInk({ block: a.block, strokes: a.strokes || [] }); return v.lastDrawing; },
+    insertFloatingShape: (v, a) => { v.insertFloatingShape({ block: a.block, preset: a.preset, x: a.x, y: a.y, width: a.width, height: a.height, colour: a.colour, widthPt: a.widthPt }); return v.lastDrawing; },
     // Layout → Hyphenation: None, Automatic and the Hyphenation Options.
     setHyphenation: (v, a) => v.setHyphenation(a.spec || {}),
     insertPageBreak: (v) => v.insertPageBreak(),

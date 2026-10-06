@@ -475,6 +475,37 @@ export function textBoxRun(spec) {
 }
 
 /**
+ * Draw → Pen, Highlighter and Ink to Shape in a document: a shape floating
+ * in front of the words where it was drawn — `h` and `v` (usually the
+ * page, by offset) — with no wrap: a freeform (`path`, its commands in EMU
+ * within the box) for ink, or a preset (`preset`) for a shape; outlined in
+ * `line` (`{ colour, widthPx, alpha, cap }`), not filled. Word's `wps`
+ * shape inside `mc:AlternateContent`, as Word writes one.
+ */
+export function floatingShapeRun({ id, name, widthPx, heightPx, h, v, relativeHeight = Z_BASE, path = null, preset = 'rect', line }) {
+  const cx = Math.max(1, toEmu(widthPx));
+  const cy = Math.max(1, toEmu(heightPx));
+  const geom = path
+    ? '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="' + cx + '" h="' + cy + '" fill="none" extrusionOk="0">' + path + '</a:path></a:pathLst></a:custGeom>'
+    : '<a:prstGeom prst="' + esc(preset) + '"><a:avLst/></a:prstGeom>';
+  const alpha = line.alpha != null && line.alpha < 1 ? '<a:alpha val="' + Math.round(line.alpha * 100000) + '"/>' : '';
+  const colour = alpha ? '<a:srgbClr val="' + hex6(line.colour) + '">' + alpha + '</a:srgbClr>' : '<a:srgbClr val="' + hex6(line.colour) + '"/>';
+  const lineXml = '<a:ln w="' + Math.max(1, toEmu(line.widthPx || 1)) + '"' + (line.cap ? ' cap="' + line.cap + '"' : '') + '><a:solidFill>' + colour + '</a:solidFill>' + (line.cap ? '<a:round/>' : '') + '</a:ln>';
+  const graphic = '<a:graphic xmlns:a="' + DRAWING_NS.a + '"><a:graphicData uri="' + DRAWING_NS.wps + '">'
+    + '<wps:wsp><wps:cNvSpPr/><wps:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>' + geom + '<a:noFill/>' + lineXml + '</wps:spPr>'
+    + '<wps:bodyPr/></wps:wsp></a:graphicData></a:graphic>';
+  const drawing = anchorXml({
+    open: '<w:drawing>',
+    extent: '<wp:extent cx="' + cx + '" cy="' + cy + '"/>',
+    effectExtent: '<wp:effectExtent l="0" t="0" r="0" b="0"/>',
+    docPr: '<wp:docPr id="' + id + '" name="' + esc(name) + '"/>',
+    frame: '<wp:cNvGraphicFramePr/>',
+    graphic,
+  }, { wrap: 'none', behind: false, relativeHeight, h, v, dist: { t: 0, b: 0, l: 0, r: 0 } });
+  return '<w:r><mc:AlternateContent><mc:Choice Requires="wps">' + drawing + '</mc:Choice><mc:Fallback/></mc:AlternateContent></w:r>';
+}
+
+/**
  * A text box's VML twin written again from its DrawingML — what an edit to
  * the box calls, so an older reader sees the same box with the same words.
  */

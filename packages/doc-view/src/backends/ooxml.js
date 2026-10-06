@@ -52,6 +52,8 @@ export class OoxmlBackend {
   /** Floating drawings: text boxes, Arrange, groups — see document.js. */
   drawings() { return this.doc.drawings(); }
   insertTextBox(index, spec) { return this.doc.insertTextBox(index, spec); }
+  insertInk(index, strokes) { return this.doc.insertInk(index, strokes); }
+  insertFloatingShape(index, spec) { return this.doc.insertFloatingShape(index, spec); }
   textBoxBlocks(id) { return this.doc.textBoxBlocks(id); }
   updateDrawing(id, patch) { this.doc.updateDrawing(id, patch); return this; }
   orderDrawings(ids, how) { this.doc.orderDrawings(ids, how); return this; }

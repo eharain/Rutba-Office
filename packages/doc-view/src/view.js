@@ -1629,6 +1629,32 @@ export class DocView {
   }
 
   /**
+   * Draw → Pen and Highlighter: strokes floating where they were drawn on
+   * a page (px from its corner), anchored in paragraph `block` (one on that
+   * page). One undo step.
+   */
+  insertInk({ block, strokes = [] } = {}) {
+    this._drawingsBackend('ink');
+    if (typeof this.doc.insertInk !== 'function') throw new Error('this document backend does not support ink');
+    return this._edit('ink', null, () => {
+      const ids = this.doc.insertInk(block, strokes);
+      this._invalidate();
+      this.lastDrawing = ids[ids.length - 1] ?? null;
+      return this;
+    });
+  }
+
+  /** Ink to Shape: a shape floating where it was drawn on a page, anchored in paragraph `block`. */
+  insertFloatingShape({ block, ...spec } = {}) {
+    this._drawingsBackend('shapes');
+    return this._edit('insert shape', null, () => {
+      this.lastDrawing = this.doc.insertFloatingShape(block, spec);
+      this._invalidate();
+      return this;
+    });
+  }
+
+  /**
    * Change drawings the way Arrange and Shape Format do — `changes` is one
    * `{ id, ...patch }` or a list of them (see Document#updateDrawing), with
    * `block` in a patch moving that drawing's anchor to another paragraph.

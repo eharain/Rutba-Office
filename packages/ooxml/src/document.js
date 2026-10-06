@@ -35,7 +35,7 @@ import { readHeadersAndFooters } from './headers.js';
 import { ENVELOPE_SIZES, ENVELOPE_STYLES_XML, envelopeXml, envelopeDocumentXml, labelSheetXml, labelParagraph, nextRecordParagraph, labelProduct, NEXT_FIELD_RUNS } from './labels.js';
 import { readParagraphStyles, readCharacterStyles, readNumberingDefs, readThemeFonts, readThemeColours, STANDARD_STYLES_XML } from './docstyles.js';
 import {
-  findDrawings, readDrawing, readBodyPr, readShapeLook, DRAWING_NS, Z_BASE, Z_STEP, textBoxRun, fallbackFor,
+  findDrawings, readDrawing, readBodyPr, readShapeLook, DRAWING_NS, Z_BASE, Z_STEP, textBoxRun, fallbackFor, floatingShapeRun,
   withAnchorAttrs, withDocPr, withPosition, withWrap, withExtent, withTransform, withShapeFill, withShapeLine, withBodyPr,
   toAnchor, toInline, memberXml, groupMembers, groupGraphic, memberToDrawing, anchorXml, EMU_PER_PX,
 } from './drawings.js';
@@ -2885,6 +2885,83 @@ export class Document {
       this._spliceBody(at, at, run);
     }
     return id;
+  }
+
+  /**
+   * Draw → Pen and Highlighter: each stroke a freeform floating in front of
+   * the words where it was drawn on its page — `points` in px from the
+   * page's top-left corner — named "Ink N", anchored in paragraph `index`
+   * (one on that page). A smooth path through the points, boxed to hold the
+   * stroke's width. Answers the strokes' drawing ids.
+   */
+  insertInk(index, strokes = []) {
+    const p = this.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    if (p.box || p.container || p.structural) throw new Error('Ink is anchored in a paragraph of the body.');
+    this.ensureDrawingNamespaces();
+    const EMU = 9525;
+    const taken = new Set([...this.xml.matchAll(/<wp:docPr\b[^>]*\bname="Ink (\d+)"/g)].map((m) => Number(m[1])));
+    let n = 1;
+    let id = this._nextDrawingId();
+    let z = this._topZ();
+    const ids = [];
+    let runs = '';
+    for (const s of strokes) {
+      const pts = (s.points || []).map(([x, y]) => [Number(x) || 0, Number(y) || 0]);
+      if (!pts.length) continue;
+      if (pts.length === 1) pts.push([pts[0][0] + 0.5, pts[0][1]]);
+      const pad = Math.max(0.25, Number(s.width) || 1) * (96 / 72) / 2 + 1;
+      const xs = pts.map((q) => q[0]);
+      const ys = pts.map((q) => q[1]);
+      const box = { x: Math.min(...xs) - pad, y: Math.min(...ys) - pad };
+      box.w = Math.max(1, Math.max(...xs) + pad - box.x);
+      box.h = Math.max(1, Math.max(...ys) + pad - box.y);
+      const at = (q) => '<a:pt x="' + Math.round((q[0] - box.x) * EMU) + '" y="' + Math.round((q[1] - box.y) * EMU) + '"/>';
+      let path = '<a:moveTo>' + at(pts[0]) + '</a:moveTo>';
+      for (let i = 1; i < pts.length - 1; i++) path += '<a:quadBezTo>' + at(pts[i]) + at([(pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2]) + '</a:quadBezTo>';
+      path += '<a:lnTo>' + at(pts[pts.length - 1]) + '</a:lnTo>';
+      while (taken.has(n)) n += 1;
+      taken.add(n);
+      z += Z_STEP;
+      runs += floatingShapeRun({
+        id, name: 'Ink ' + n, widthPx: box.w, heightPx: box.h,
+        h: { rel: 'page', offsetPx: box.x }, v: { rel: 'page', offsetPx: box.y },
+        relativeHeight: z, path,
+        line: { colour: s.color || '#000000', widthPx: Math.max(0.25, Number(s.width) || 1) * (96 / 72), alpha: s.alpha, cap: s.cap === 'sq' ? 'sq' : 'rnd' },
+      });
+      ids.push(id);
+      id += 1;
+    }
+    if (runs) this._putRunsInParagraph(index, runs);
+    return ids;
+  }
+
+  /** Ink to Shape: a rectangle, oval or triangle floating where it was drawn on its page (px), outlined in the pen's colour. */
+  insertFloatingShape(index, { preset = 'rect', x = 0, y = 0, width = 100, height = 60, colour = '#000000', widthPt = 1 } = {}) {
+    const p = this.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    this.ensureDrawingNamespaces();
+    const id = this._nextDrawingId();
+    this._putRunsInParagraph(index, floatingShapeRun({
+      id, name: 'Shape ' + id, widthPx: Math.max(1, width), heightPx: Math.max(1, height),
+      h: { rel: 'page', offsetPx: x }, v: { rel: 'page', offsetPx: y },
+      relativeHeight: this._topZ() + Z_STEP, preset,
+      line: { colour, widthPx: Math.max(0.25, Number(widthPt) || 1) * (96 / 72) },
+    }));
+    return id;
+  }
+
+  /** Runs put at the start of a paragraph, after its properties — where a floating drawing's anchor goes. */
+  _putRunsInParagraph(index, runs) {
+    const fresh = this.editParagraph(index);
+    if (/^<w:p\b[^>]*\/>$/.test(fresh.xml)) {
+      this._spliceBody(fresh.start, fresh.end, fresh.xml.replace(/\/>$/, '>') + runs + '</w:p>');
+      return;
+    }
+    const openTag = /<w:p\b[^>]*?>/.exec(fresh.xml)[0];
+    const lead = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>)?/.exec(fresh.xml);
+    const at = fresh.start + (lead ? lead[0].length : openTag.length);
+    this._spliceBody(at, at, runs);
   }
 
   /** The edit-space paragraphs of a text box, by the box's id — where the caret goes in it. */
