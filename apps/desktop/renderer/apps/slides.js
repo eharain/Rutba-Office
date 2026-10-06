@@ -29,6 +29,13 @@ import { SymbolDialog } from './word/dialogs.js';
 import { SetUpShowDialog, SETUP_CSS } from './slides/setup.js';
 import { LanguageDialog } from '@rutba/office-ui/proofing';
 
+// The splits Move Split moves, marked while it is on — in shadows, so
+// turning it on moves nothing by itself.
+const SPLIT_CSS = `
+.rw-panel:not(.right) { box-shadow: inset -2px 0 0 var(--accent); }
+.sl-notes, .sl-notespage { box-shadow: inset 0 2px 0 var(--accent); }
+`;
+
 const MONITOR_KEY = 'slides.monitor';
 /** The Monitor button's words for a choice. */
 function monitorLabel(choice, screens) {
@@ -125,8 +132,31 @@ export default function Slides({ app, shell, boot }) {
    * rulers, gridlines and guides, whether the notes strip shows, a zoom
    * level (null fits the window), and the colour/greyscale tone.
    */
-  const [view, setView] = useState({ mode: 'normal', ruler: false, gridlines: false, guides: false, notes: true, zoom: null, tone: 'colour', pane: null });
+  const [view, setView] = useState({ mode: 'normal', ruler: false, gridlines: false, guides: false, notes: true, zoom: null, tone: 'colour', pane: null, railWidth: 196, notesHeight: null });
   const patchView = useCallback((patch) => setView((v) => ({ ...v, ...(typeof patch === 'function' ? patch(v) : patch) })), []);
+  // View → Move Split: while on, the arrow keys move the splits — the slide
+  // pane's edge and the top of the notes — and Enter or Esc puts it away.
+  const [splitting, setSplitting] = useState(false);
+  useEffect(() => {
+    if (!splitting) return undefined;
+    const onKey = (e) => {
+      if (e.key === 'Enter' || e.key === 'Escape') setSplitting(false);
+      else if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        // From the width the pane has now — it may have been dragged since.
+        const rail = document.querySelector('.rw-panel:not(.right)');
+        const from = rail?.offsetWidth || view.railWidth || 196;
+        patchView({ railWidth: Math.max(160, Math.min(640, from + (e.key === 'ArrowRight' ? 16 : -16))) });
+      } else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+        const notes = document.querySelector('.sl-notes, .sl-notespage');
+        const from = notes?.offsetHeight || 110;
+        patchView({ notesHeight: Math.max(48, Math.min(480, from + (e.key === 'ArrowUp' ? 16 : -16))) });
+      } else return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
+  }, [splitting, view.railWidth, patchView]);
   // The selection — Shift+click or Ctrl+click adds or removes a shape, a
   // click on empty stage clears it. `selectedIds[0]` is the primary — the
   // one the Font and Paragraph groups act on, and what a plain click always
@@ -845,6 +875,11 @@ export default function Slides({ app, shell, boot }) {
       case 'toggle': patchView((v) => ({ [arg]: arg === 'notes' ? v.notes === false : !v[arg] })); return;
       case 'zoom': patchView({ zoom: arg }); return;
       case 'tone': patchView({ tone: arg }); return;
+      // View → Move Split: the arrow keys move the splits between the panes.
+      case 'moveSplit':
+        setSplitting(true);
+        toast('Move Split — ← and → move the slide pane\'s edge, ↑ and ↓ the notes; Enter or Esc when done.', { ms: 6000 });
+        return;
       // The right-hand pane: Layers (the slide's shapes, in drawing order)
       // or Designs (the deck's layouts). Asking for the one that is open closes it.
       case 'pane': patchView((v) => ({ pane: v.pane === arg ? null : arg })); return;
@@ -1681,7 +1716,8 @@ export default function Slides({ app, shell, boot }) {
       ) : (
         <>
           <style>{CSS + DESIGN_CSS + COMMENTS_CSS + EQUATION_CSS}</style>
-          <Panel width={196} resizable title={model.masterView ? 'Slide Master' : 'Slides'}>
+          {splitting ? <style>{SPLIT_CSS}</style> : null}
+          <Panel width={view.railWidth || 196} resizable title={model.masterView ? 'Slide Master' : 'Slides'}>
             {model.masterView ? (
               <div className="sl-sorter sl-masterstrip">
                 {model.masterView.items.map((it) => (
@@ -2099,11 +2135,12 @@ export default function Slides({ app, shell, boot }) {
               <textarea
                 key={`notes-${index}`}
                 className="sl-notespage"
+                style={view.notesHeight ? { height: view.notesHeight, minHeight: 0 } : undefined}
                 defaultValue={slide.notes || ''}
                 placeholder="Click to add notes"
                 onBlur={async (e) => { if (e.target.value !== (slide.notes || '')) await apply({ op: 'setNotes', slide: index, text: e.target.value }); }}
               />
-            ) : slide?.notes && view.notes !== false ? <div className="sl-notes">{slide.notes}</div> : null}
+            ) : slide?.notes && view.notes !== false ? <div className="sl-notes" style={view.notesHeight ? { height: view.notesHeight, maxHeight: 'none' } : undefined}>{slide.notes}</div> : null}
           </Content>
 
           {view.pane && model ? (
