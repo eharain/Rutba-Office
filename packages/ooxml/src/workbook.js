@@ -125,7 +125,7 @@ export function withAttr(attrsText, name, value) {
   const re = new RegExp('\\s+' + name + '="[^"]*"');
   if (value === null) return attrsText.replace(re, '');
   const pair = ' ' + name + '="' + esc(value) + '"';
-  return re.test(attrsText) ? attrsText.replace(re, pair) : attrsText + pair;
+  return re.test(attrsText) ? attrsText.replace(re, () => pair) : attrsText + pair;
 }
 
 /* ── threaded comments ───────────────────────────────────────────────────── */
@@ -369,11 +369,17 @@ class SheetPart {
     const style = existing?.style ?? null;
     const cellXml = renderCell(ref, value, style);
 
+    // Every splice in this file hands `replace` a function, never the string
+    // itself. In a replacement string `$&`, `$'`, `` $` `` and `$$` are
+    // instructions, not text: "cost $' and $&" typed into a cell wrote the
+    // rest of the row into it, and a sheet renamed "Sales $'000" took the
+    // workbook part apart. Whatever a person typed or a file held arrives
+    // here, so none of it may be read as a pattern.
     if (existing) {
-      row.inner = row.inner.replace(existing.xml, cellXml);
+      row.inner = row.inner.replace(existing.xml, () => cellXml);
     } else {
       const after = cells.filter((c) => c.col < colIndex).pop();
-      if (after) row.inner = row.inner.replace(after.xml, after.xml + cellXml);
+      if (after) row.inner = row.inner.replace(after.xml, () => after.xml + cellXml);
       else row.inner = cellXml + row.inner;
     }
     row.dirty = true;
@@ -410,11 +416,11 @@ class SheetPart {
       const withStyle = /\bs="\d+"/.test(head)
         ? head.replace(/\bs="\d+"/, styleIndex === null ? '' : 's="' + styleIndex + '"')
         : (styleIndex === null ? head : head.replace(/(<c\b[^>]*?)(\/?>)$/, '$1 s="' + styleIndex + '"$2'));
-      row.inner = row.inner.replace(existing.xml, withStyle + existing.xml.slice(head.length));
+      row.inner = row.inner.replace(existing.xml, () => withStyle + existing.xml.slice(head.length));
     } else {
       const cellXml = '<c r="' + ref + '"' + (styleIndex === null ? '' : ' s="' + styleIndex + '"') + '/>';
       const before = cells.filter((c) => c.col < colIndex).pop();
-      if (before) row.inner = row.inner.replace(before.xml, before.xml + cellXml);
+      if (before) row.inner = row.inner.replace(before.xml, () => before.xml + cellXml);
       else row.inner = cellXml + row.inner;
     }
     row.dirty = true;
@@ -456,8 +462,8 @@ class SheetPart {
       : '';
     const paired = /<cols\b[^>]*>[\s\S]*?<\/cols>/;
     const empty = /<cols\b[^>]*\/>/;
-    if (paired.test(this.prefix)) this.prefix = this.prefix.replace(paired, block);
-    else if (empty.test(this.prefix)) this.prefix = this.prefix.replace(empty, block);
+    if (paired.test(this.prefix)) this.prefix = this.prefix.replace(paired, () => block);
+    else if (empty.test(this.prefix)) this.prefix = this.prefix.replace(empty, () => block);
     // The prefix ends exactly where <sheetData> begins, and the schema puts
     // cols immediately before sheetData, so appending is the correct position.
     else if (block) this.prefix += block;
@@ -592,7 +598,7 @@ class SheetPart {
       next = withAttr(next, 'outlineLevelCol', colLevels === undefined ? undefined : colLevels > 0 ? String(colLevels) : null);
       next += fmt.endsWith('/>') ? '/>' : '>';
       if (next !== fmt) {
-        this.prefix = this.prefix.replace(fmt, next);
+        this.prefix = this.prefix.replace(fmt, () => next);
         this.dirty = true;
       }
     }
@@ -607,7 +613,7 @@ class SheetPart {
     attrsText = withAttr(attrsText, 'summaryRight', summaryRight === undefined ? undefined : summaryRight ? null : '0');
     const element = attrsText.trim() ? '<outlinePr' + attrsText + '/>' : '';
     if (current) {
-      this.prefix = this.prefix.replace(current[0], element);
+      this.prefix = this.prefix.replace(current[0], () => element);
     } else if (element) {
       // tabColor comes first inside sheetPr, then outlinePr, then pageSetUpPr.
       if (/<sheetPr\b[^>]*\/>/.test(this.prefix)) {
@@ -615,7 +621,7 @@ class SheetPart {
       } else if (/<sheetPr\b/.test(this.prefix)) {
         const tab = /<tabColor\b[^>]*\/>/.exec(this.prefix);
         this.prefix = tab
-          ? this.prefix.replace(tab[0], tab[0] + element)
+          ? this.prefix.replace(tab[0], () => tab[0] + element)
           : this.prefix.replace(/<sheetPr\b([^>]*)>/, '<sheetPr$1>' + element);
       } else {
         this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, '$1<sheetPr>' + element + '</sheetPr>');
@@ -641,7 +647,7 @@ class SheetPart {
     }
     const next = '<sheetPr' + withAttr(open[1], name, value === null || value === undefined ? null : String(value)) + open[2] + '>';
     if (next !== open[0]) {
-      this.prefix = this.prefix.replace(open[0], next);
+      this.prefix = this.prefix.replace(open[0], () => next);
       this.dirty = true;
     }
     return this;
@@ -699,7 +705,7 @@ class SheetPart {
         } else if (cell.col >= (op === 'insert' ? at : at + count)) {
           const next = op === 'insert' ? cell.col + count : cell.col - count;
           const moved = cell.xml.replace(/(<c\b[^>]*?\br=")[A-Za-z]+(\d+")/, '$1' + indexToCol(next) + '$2');
-          row.inner = row.inner.replace(cell.xml, moved);
+          row.inner = row.inner.replace(cell.xml, () => moved);
           touched = true;
         }
       }
@@ -822,9 +828,9 @@ class SheetPart {
     const paired = /<mergeCells\b[^>]*>[\s\S]*?<\/mergeCells>/;
     const empty = /<mergeCells\b[^>]*\/>/;
     if (paired.test(this.suffix)) {
-      this.suffix = this.suffix.replace(paired, block);
+      this.suffix = this.suffix.replace(paired, () => block);
     } else if (empty.test(this.suffix)) {
-      this.suffix = this.suffix.replace(empty, block);
+      this.suffix = this.suffix.replace(empty, () => block);
     } else if (block) {
       this.suffix = block + this.suffix;
     }
@@ -1133,7 +1139,7 @@ class SheetPart {
     if (block) {
       const count = (block[2].match(/<dataValidation\b/g) ?? []).length + 1;
       const attrs = block[1].replace(/\s*count="[^"]*"/, '') + ' count="' + count + '"';
-      this.suffix = this.suffix.replace(block[0],
+      this.suffix = this.suffix.replace(block[0], () =>
         '<dataValidations' + attrs.replace(/^ +/, ' ') + '>' + block[2] + entryXml + '</dataValidations>');
     } else {
       const el = '<dataValidations count="1">' + entryXml + '</dataValidations>';
@@ -1160,7 +1166,7 @@ class SheetPart {
     if (!removed) return 0;
     const count = (kept.match(/<dataValidation\b/g) ?? []).length;
     this.suffix = count
-      ? this.suffix.replace(block[0],
+      ? this.suffix.replace(block[0], () =>
         '<dataValidations' + block[1].replace(/\s*count="[^"]*"/, '') + ' count="' + count + '">' + kept + '</dataValidations>')
       : this.suffix.replace(block[0], '');
     this.dirty = true;
@@ -1194,7 +1200,7 @@ class SheetPart {
     }
     const existing = new RegExp('<' + name + '\\b[^>]*(?:/>|>[\\s\\S]*?</' + name + '>)');
     if (existing.test(this.suffix)) {
-      this.suffix = this.suffix.replace(existing, xml ?? '');
+      this.suffix = this.suffix.replace(existing, () => xml ?? '');
       this.dirty = true;
       return this;
     }
@@ -1225,7 +1231,7 @@ class SheetPart {
   setAutoFilter(block) {
     const existing = /<autoFilter\b[^>]*(?:\/>|>[\s\S]*?<\/autoFilter>)/;
     if (existing.test(this.suffix)) {
-      this.suffix = this.suffix.replace(existing, block ?? '');
+      this.suffix = this.suffix.replace(existing, () => block ?? '');
     } else if (block) {
       const before = /(<sheetCalcPr\b[^>]*\/?>|<sheetProtection\b[^>]*\/?>|<protectedRanges\b[^>]*>[\s\S]*?<\/protectedRanges>|<scenarios\b[^>]*>[\s\S]*?<\/scenarios>)/g;
       let at = 0;
@@ -1251,9 +1257,9 @@ class SheetPart {
     const paired = /<scenarios\b[^>]*>[\s\S]*?<\/scenarios>/;
     const empty = /<scenarios\b[^>]*\/>/;
     if (paired.test(this.suffix)) {
-      this.suffix = this.suffix.replace(paired, block);
+      this.suffix = this.suffix.replace(paired, () => block);
     } else if (empty.test(this.suffix)) {
-      this.suffix = this.suffix.replace(empty, block);
+      this.suffix = this.suffix.replace(empty, () => block);
     } else if (block) {
       const before = /(<sheetCalcPr\b[^>]*\/?>|<sheetProtection\b[^>]*\/?>|<protectedRanges\b[^>]*>[\s\S]*?<\/protectedRanges>)/g;
       let at = 0;
@@ -1725,7 +1731,7 @@ export class Workbook {
     const ids = [...xml.matchAll(/<sheet\b[^>]*\bsheetId="(\d+)"/g)].map((m) => Number(m[1]));
     const sheetId = (ids.length ? Math.max(...ids) : 0) + 1;
     if (!/<\/sheets>/.test(xml)) throw new Error('the workbook lists no sheets');
-    xml = xml.replace('</sheets>', '<sheet name="' + esc(clean) + '" sheetId="' + sheetId + '" r:id="' + rId + '"/></sheets>');
+    xml = xml.replace('</sheets>', () => '<sheet name="' + esc(clean) + '" sheetId="' + sheetId + '" r:id="' + rId + '"/></sheets>');
     this.pkg.write_(this.mainPart, xml);
     this._sheets = null;
     return { name: clean, part };
@@ -1787,7 +1793,7 @@ export class Workbook {
     const rewrite = (text) => text.replace(refRx, '$1' + quotedTo + '!');
 
     let xml = this.pkg.text(this.mainPart);
-    xml = xml.replace(new RegExp('(<sheet\\b[^>]*\\bname=")' + rx(esc(from)) + '(")'), '$1' + esc(clean) + '$2');
+    xml = xml.replace(new RegExp('(<sheet\\b[^>]*\\bname=")' + rx(esc(from)) + '(")'), (m, open, close) => open + esc(clean) + close);
     xml = xml.replace(/<definedName\b([^>]*)>([\s\S]*?)<\/definedName>/g, (m, attrsText, inner) => '<definedName' + attrsText + '>' + esc(rewrite(unesc(inner))) + '</definedName>');
     this.pkg.write_(this.mainPart, xml);
 
@@ -1918,7 +1924,7 @@ export class Workbook {
     const open = /^<c\b[^>]*>/.exec(cell.xml)?.[0]
       ?? cell.xml.replace(/\/>$/, '>');
     const rebuilt = open + '<f' + attrsText + '/>' + inner + '</c>';
-    rowRec.inner = rowRec.inner.replace(cell.xml, rebuilt);
+    rowRec.inner = rowRec.inner.replace(cell.xml, () => rebuilt);
     rowRec.dirty = true;
     part.dirty = true;
     return this;
@@ -1982,14 +1988,14 @@ export class Workbook {
       : `(?=[^>]*localSheetId="${extra.localSheetId}")`;
     const existing = new RegExp('<definedName\\b(?=[^>]*name="' + escaped + '")' + scope + '[^>]*>[\\s\\S]*?</definedName>');
     if (existing.test(xml)) {
-      xml = xml.replace(existing, entry);
+      xml = xml.replace(existing, () => entry);
     } else if (!entry) {
       return this; // nothing to remove
     } else if (/<definedNames>/.test(xml)) {
-      xml = xml.replace('</definedNames>', entry + '</definedNames>');
+      xml = xml.replace('</definedNames>', () => entry + '</definedNames>');
     } else {
       // Schema order matters: definedNames must follow sheets.
-      xml = xml.replace('</sheets>', '</sheets><definedNames>' + entry + '</definedNames>');
+      xml = xml.replace('</sheets>', () => '</sheets><definedNames>' + entry + '</definedNames>');
     }
     this.pkg.write_(this.mainPart, xml);
     return this;
@@ -2057,7 +2063,7 @@ export class Workbook {
       xml = xml.replace(/(<table\b[^>]*>)/, '$1<autoFilter ref="' + esc(ref) + '"></autoFilter>');
     }
     const af = /<autoFilter\b[^>]*(?:\/>|>[\s\S]*?<\/autoFilter>)/.exec(xml);
-    xml = xml.replace(af[0], withFilterColumn(af[0], colId, values));
+    xml = xml.replace(af[0], () => withFilterColumn(af[0], colId, values));
     this.pkg.write_(tablePartName, xml);
     return this;
   }
@@ -2145,9 +2151,9 @@ export class Workbook {
     const { part } = this._sheetPart(sheetName);
     const extLst = part.tailElement('extLst');
     if (extLst && /<x14:sparklineGroups\b/.test(extLst)) {
-      part.setTailElement('extLst', extLst.replace('</x14:sparklineGroups>', groupXml + '</x14:sparklineGroups>'));
+      part.setTailElement('extLst', extLst.replace('</x14:sparklineGroups>', () => groupXml + '</x14:sparklineGroups>'));
     } else if (extLst) {
-      part.setTailElement('extLst', extLst.replace('</extLst>', sparklineExtXml(groupXml) + '</extLst>'));
+      part.setTailElement('extLst', extLst.replace('</extLst>', () => sparklineExtXml(groupXml) + '</extLst>'));
     } else {
       part.setTailElement('extLst', '<extLst>' + sparklineExtXml(groupXml) + '</extLst>');
     }
@@ -2237,7 +2243,7 @@ export class Workbook {
     const xml = this.pkg.text(drawingPartName);
     const ids = [...xml.matchAll(/<xdr:cNvPr\b[^>]*\bid="(\d+)"/g)].map((m) => Number(m[1]));
     const id = (ids.length ? Math.max(...ids) : 1) + 1;
-    this.pkg.write_(drawingPartName, xml.replace('</xdr:wsDr>', anchorXmlOf(id) + '</xdr:wsDr>'));
+    this.pkg.write_(drawingPartName, xml.replace('</xdr:wsDr>', () => anchorXmlOf(id) + '</xdr:wsDr>'));
     return id;
   }
 

@@ -237,7 +237,7 @@ export function writeCachedValue(wb, sheetName, ref, formula, value, { arrayRef 
   // anchor keeps whatever `<f>` it already had, verbatim.
   const fXml = arrayRef
     ? '<f t="array" ref="' + arrayRef + '">' + escapeXml(String(formula).replace(/^=/, '')) + '</f>'
-    : (fMatch ? fMatch[0] : '<f>' + String(formula).replace(/^=/, '') + '</f>');
+    : (fMatch ? fMatch[0] : '<f>' + escapeXml(String(formula).replace(/^=/, '')) + '</f>');
 
   // The cached value's type attribute must agree with what we cached.
   attrs = attrs.replace(/\s+t="[^"]*"/, '');
@@ -263,7 +263,9 @@ export function writeCachedValue(wb, sheetName, ref, formula, value, { arrayRef 
   // move and never marks a part modified without cause.
   if (rebuilt === existing[0]) return false;
 
-  rowRec.inner = rowRec.inner.replace(existing[0], rebuilt);
+  // A function, not the string: in a replacement string `$$`, `$&` and `$'`
+  // are instructions, so a formula holding "a$$b" was saved as "a$b".
+  rowRec.inner = rowRec.inner.replace(existing[0], () => rebuilt);
   rowRec.dirty = true;
   part.dirty = true;
   return true;

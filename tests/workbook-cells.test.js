@@ -11,6 +11,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Workbook } from '@rutba/ooxml';
 import { buildXlsx } from '@rutba/ooxml/build';
+import { SheetView } from '@rutba/sheet-view';
 
 const book = () => Workbook.open(buildXlsx({
   sheets: [{ name: 'S', rows: [[1, 'two', null, '=A1*2', 3.5], [], ['last']] }],
@@ -63,4 +64,36 @@ test('a wide sheet loads in linear time, not quadratic', () => {
   assert.equal(narrow.count, 12000);
   assert.equal(wide.count, 24000);
   assert.ok(wide.ms < narrow.ms * 3 + 40, `24,000 cells walked in ${wide.ms.toFixed(0)} ms against ${narrow.ms.toFixed(0)} ms for 12,000`);
+});
+
+test('text holding $&, $\', $` or $$ is written as typed, into a cell, a sheet name and a formula', () => {
+  // In a replacement string those four are instructions, and the engine
+  // spliced what a person typed in as one: "cost $' and $&" over a cell left
+  // it holding the old value, "a $$ b" lost a dollar, and a sheet renamed
+  // "Sales $'000" took the workbook part apart.
+  const typed = ["cost $' and $&", 'a $$ b $` c', 'US$1,000'];
+  const wb = Workbook.open(buildXlsx({ sheets: [{ name: 'S', rows: [['x', 'y'], ['p']] }] }));
+  wb.setCell('S', 'A1', typed[0]);
+  wb.setCell('S', 'B2', typed[1]);
+  wb.setCell('S', 'C1', typed[2]);
+  const back = Workbook.open(wb.save());
+  assert.deepEqual(['A1', 'B2', 'C1'].map((r) => back.getCell('S', r)), typed);
+  assert.equal(back.getCell('S', 'B1'), 'y', 'the cell beside the edited one is untouched');
+
+  const renamed = Workbook.open(buildXlsx({ sheets: [{ name: 'S', rows: [['x']] }, { name: 'T', rows: [['=S!A1']] }] }));
+  renamed.renameSheet('S', "Sales $'000");
+  const reread = Workbook.open(renamed.save());
+  assert.deepEqual(reread.sheetNames(), ["Sales $'000", 'T']);
+
+  const view = SheetView.open(buildXlsx({ sheets: [{ name: 'S', rows: [['x']] }] }));
+  view.setCell(0, 0, '=CONCATENATE("a$$b","-$&")');
+  const saved = SheetView.open(view.save());
+  assert.equal(saved.workbook.getCell('S', 'A1'), '=CONCATENATE("a$$b","-$&")', 'the formula is saved as typed');
+  assert.equal(saved.displayValue(0, 0).text, 'a$$b-$&', 'and so is the value it caches');
+  // The reader is forgiving enough to find the formula inside a broken cell,
+  // so the cell itself is read: caching the value had nested a second A1
+  // inside the first.
+  const sheetXml = saved.workbook.pkg.text(saved.workbook.partNameFor('S'));
+  assert.equal(sheetXml.match(/<c\b[^>]*\br="A1"[\s\S]*?<\/c>/)?.[0],
+    '<c r="A1" t="str"><f>CONCATENATE(&quot;a$$b&quot;,&quot;-$&amp;&quot;)</f><v>a$$b-$&amp;</v></c>');
 });
