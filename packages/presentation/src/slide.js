@@ -175,6 +175,8 @@ function readLine(spPr, theme) {
     color: c?.hex || null,
     alpha: c?.alpha ?? 1,
     dash: dash && dash !== 'solid' ? dash : null,
+    // A pen's round end, or a highlighter's square one.
+    cap: { rnd: 'round', sq: 'square' }[ln.attrs.cap] || null,
   };
 }
 

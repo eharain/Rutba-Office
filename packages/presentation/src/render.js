@@ -656,6 +656,9 @@ export function renderSlide(slide, opts = {}) {
 
     const strokeBits = line && line.type !== 'none' && line.color
       ? ` stroke="${line.color}" stroke-width="${(line.width || 1).toFixed(2)}"${line.dash ? ` stroke-dasharray="${line.dash === 'dash' ? '6 4' : '2 3'}"` : ''}`
+        // Ink: a pen's round ends and joins, a highlighter's see-through stroke.
+        + (line.cap ? ` stroke-linecap="${line.cap}" stroke-linejoin="round"` : '')
+        + (line.alpha != null && line.alpha < 1 ? ` stroke-opacity="${line.alpha}"` : '')
       : '';
     const fillValue = fillAttr(fill, shape.kind === 'connector' ? 'none' : 'none');
     const opacity = fill?.alpha != null && fill.alpha < 1 ? ` fill-opacity="${fill.alpha}"` : '';

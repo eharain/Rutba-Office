@@ -3338,6 +3338,62 @@ export class Deck {
     return { id, part: media };
   }
 
+  /**
+   * Draw → Pen, Pencil and Highlighter: each stroke a freeform shape on the
+   * slide, named "Ink N" as PowerPoint names ink — its points (slide
+   * pixels) joined by a smooth path in the pen's colour and width (points),
+   * see-through at `alpha`, with round ends (`cap` 'rnd') or a highlighter's
+   * square ones ('sq'). Answers each stroke's shape id, in order.
+   *
+   * @param {number|string} slideIndex
+   * @param {Array<{ points: Array<[number, number]>, color: string, width: number, alpha?: number, cap?: 'rnd'|'sq' }>} strokes
+   */
+  addInk(slideIndex, strokes = []) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    let xml = this.pkg.text(part);
+    const ids = [];
+    let shapes = '';
+    let id = nextShapeId(xml);
+    const taken = new Set([...xml.matchAll(/<p:cNvPr\b[^>]*\bname="Ink (\d+)"/g)].map((m) => Number(m[1])));
+    let n = 1;
+    for (const s of strokes) {
+      const pts = (s.points || []).map(([x, y]) => [Number(x) || 0, Number(y) || 0]);
+      if (!pts.length) continue;
+      if (pts.length === 1) pts.push([pts[0][0] + 0.5, pts[0][1]]);
+      const xs = pts.map((p) => p[0]);
+      const ys = pts.map((p) => p[1]);
+      const left = Math.min(...xs);
+      const top = Math.min(...ys);
+      const cx = Math.max(1, pxToEmu(Math.max(...xs) - left));
+      const cy = Math.max(1, pxToEmu(Math.max(...ys) - top));
+      const at = (p) => `<a:pt x="${pxToEmu(p[0] - left)}" y="${pxToEmu(p[1] - top)}"/>`;
+      // Smoothed: each point a control, the curve passing through the midpoints.
+      let path = `<a:moveTo>${at(pts[0])}</a:moveTo>`;
+      for (let i = 1; i < pts.length - 1; i++) {
+        const mid = [(pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2];
+        path += `<a:quadBezTo>${at(pts[i])}${at(mid)}</a:quadBezTo>`;
+      }
+      path += `<a:lnTo>${at(pts[pts.length - 1])}</a:lnTo>`;
+      while (taken.has(n)) n += 1;
+      taken.add(n);
+      const color = String(s.color || '#000000').replace('#', '').toUpperCase();
+      const alpha = s.alpha != null && s.alpha < 1 ? `<a:alpha val="${Math.round(Math.max(0, s.alpha) * 100000)}"/>` : '';
+      const cap = s.cap === 'sq' ? 'sq' : 'rnd';
+      shapes += `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="Ink ${n}"/><p:cNvSpPr/><p:nvPr/></p:nvSpPr>`
+        + `<p:spPr><a:xfrm><a:off x="${pxToEmu(left)}" y="${pxToEmu(top)}"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>`
+        + `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="${cx}" h="${cy}" fill="none" extrusionOk="0">${path}</a:path></a:pathLst></a:custGeom>`
+        + `<a:noFill/><a:ln w="${Math.round(Math.max(0.25, Number(s.width) || 1) * 12700)}" cap="${cap}"><a:solidFill>${alpha ? `<a:srgbClr val="${escapeXml(color)}">${alpha}</a:srgbClr>` : `<a:srgbClr val="${escapeXml(color)}"/>`}</a:solidFill><a:round/></a:ln></p:spPr></p:sp>`;
+      ids.push(id);
+      id += 1;
+    }
+    if (!shapes) return ids;
+    const end = xml.lastIndexOf('</p:spTree>');
+    if (end < 0) throw new Error('slide has no shape tree');
+    this.#writeSlide(part, xml.slice(0, end) + shapes + xml.slice(end));
+    return ids;
+  }
+
   addPicture(slideIndex, { data, contentType, name = 'Picture', x = 0, y = 0, w, h }) {
     const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);

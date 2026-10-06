@@ -1796,6 +1796,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     setText: (d, a) => d.setText(a.slide, a.shape, a.paragraphs),
     setGeometry: (d, a) => d.setGeometry(a.slide, a.shape, a),
     removeShape: (d, a) => d.removeShape(a.slide, a.shape),
+    // Draw → Pen, Pencil, Highlighter: strokes as ink shapes; the last one's id answers.
+    addInk: (d, a) => d.addInk(a.slide, a.strokes || []).pop() ?? null,
+    removeShapes: (d, a) => { for (const id of a.shapes || []) d.removeShape(a.slide, id); },
     // A shape copied with shapeClip, put on a slide with a fresh id and its relationships.
     pasteShape: (d, a) => d.pasteShape(a.slide, a.clip, a.geometry || null),
     addTextBox: (d, a) => d.addTextBox(a.slide, a),
