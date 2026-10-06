@@ -2152,6 +2152,8 @@ export default function Slides({ app, shell, boot }) {
           {/* Review → Hide Ink: the strokes out of sight on the stage, and nothing else changed. */}
           {ink.hide && slide ? <style>{slide.shapes.filter(isInk).map((s) => `.sl-slide [data-shape="${String(s.id).replace(/[^\w-]/g, '')}"]`).join(', ') + ' { visibility: hidden; }'}</style> : null}
           {splitting ? <style>{SPLIT_CSS}</style> : null}
+          {/* View → View Direction, right to left: the panes mirrored — the slides strip on the right — each pane's own content as it was. */}
+          {view.rtl ? <style>{'.rw-body { direction: rtl; } .rw-body > * { direction: ltr; }'}</style> : null}
           <Panel width={view.railWidth || 196} resizable title={model.masterView ? ({ notes: 'Notes Master', handout: 'Handout Master' }[model.masterView.kind] || 'Slide Master') : 'Slides'}>
             {model.masterView ? (
               <div className="sl-sorter sl-masterstrip">

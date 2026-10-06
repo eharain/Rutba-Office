@@ -76,6 +76,7 @@ import { verifySheetInk } from './verify-sheet-ink.js';
 import { verifyWordInk } from './verify-word-ink.js';
 import { verifyDeckNarration } from './verify-deck-narration.js';
 import { verifyDeckVideo } from './verify-deck-video.js';
+import { verifyDeckDirection } from './verify-deck-direction.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -4648,6 +4649,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordink')) await verifyWordInk({ open, check, until, wait, capture: shotTo }, { dir });
     if (only.includes('narration')) await verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('deckvideo')) await verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir });
+    if (only.includes('viewdirection')) await verifyDeckDirection({ open, check, until, wait }, { dir });
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
@@ -4851,6 +4853,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyWordInk({ open, check, until, wait, capture: shotTo }, { dir }));
   await block(() => verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir }));
+  await block(() => verifyDeckDirection({ open, check, until, wait }, { dir }));
   await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => wordMailMerge());

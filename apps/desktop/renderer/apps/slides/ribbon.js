@@ -941,7 +941,7 @@ export default function SlidesRibbon({
             <Button icon="grid" label="Designs" pressed={view.pane === 'designs'} title="The deck's layouts — put this slide on one, or start a new slide from it" onClick={() => act('pane', 'designs')} />
           </Group>
           <Group label="Direction">
-            <Soon icon="rotate" label="View Direction" why="Right-to-left layout is not built." />
+            <Button icon="rotate" label="View Direction" pressed={Boolean(view.rtl)} title={view.rtl ? "View Direction — right to left: the slides on the right, the strip and the panes mirrored; click for left to right" : "View Direction — left to right; click for right to left, the slides strip on the right as a right-to-left language reads"} onClick={() => act('toggle', 'rtl')} />
           </Group>
           <Group label="Zoom">
             <Button tall icon="zoomIn" label="Zoom" onClick={(e) => menu.open(e, [50, 75, 100, 150, 200].map((z) => ({ label: `${z}%`, run: () => act('zoom', z / 100) })))} />
