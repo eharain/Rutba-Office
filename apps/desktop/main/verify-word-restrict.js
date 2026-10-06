@@ -216,6 +216,10 @@ export async function verifyWordRestrict(h, { dir }) {
     await until(() => model().protection?.enforced === false, 'protection off', 8000).catch(() => {});
 
     // 9. Comments: typing refused, the sentence says comments only.
+    // The model says the protection is off a frame before the pane does, so
+    // the settings are waited for here as step 8 waits for them: read at
+    // once, the list was not there yet and the whole block stopped.
+    await until(() => js(`Boolean(document.querySelector('.wd-restrict-kind'))`), 'the settings after Stop Protection', 4000).catch(() => {});
     await js(`(() => { const s = document.querySelector('.wd-restrict-kind'); const set = Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set; set.call(s, 'comments'); s.dispatchEvent(new Event('change', { bubbles: true })); return s.value; })()`);
     await wait(200);
     await click('.wd-restrict-start');
