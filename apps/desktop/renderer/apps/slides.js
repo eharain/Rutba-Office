@@ -30,6 +30,7 @@ import { SetUpShowDialog, SETUP_CSS } from './slides/setup.js';
 import { LanguageDialog } from '@rutba/office-ui/proofing';
 import { ActionDialog, ACTION_CSS } from './slides/action.js';
 import { PhotoAlbumDialog, ALBUM_CSS } from './slides/album.js';
+import { CustomShowsDialog, CUSTOM_SHOWS_CSS } from './slides/custom-shows.js';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog } from '../icons-insert.js';
 
@@ -97,6 +98,9 @@ export default function Slides({ app, shell, boot }) {
   const [symbolOpen, setSymbolOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
   const [albumOpen, setAlbumOpen] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  // Slide Show → Custom Slide Show, while one plays: its slides and where it is.
+  const customRun = useRef(null);
   const [shotOpen, setShotOpen] = useState(false);
   const [iconsOpen, setIconsOpen] = useState(false);
   // The slide the show was on before this one, for a "last slide viewed" action.
@@ -753,7 +757,7 @@ export default function Slides({ app, shell, boot }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shell]);
   useEffect(() => {
-    if (!present) presenterOpen.current = false;
+    if (!present) { presenterOpen.current = false; customRun.current = null; }
   }, [present]);
 
   useEffect(() => {
@@ -795,6 +799,14 @@ export default function Slides({ app, shell, boot }) {
   const inShow = (i) => !showSet.range || (i >= showSet.range.from - 1 && i <= showSet.range.to - 1);
   /** The next shown slide in the show's range, or `from` at its end (the first again when it loops). */
   const nextInShow = (from, delta) => {
+    // A custom show plays its own slides in its own order.
+    const run = customRun.current;
+    if (run && present) {
+      const to = run.at + delta;
+      if (to >= 0 && to < run.slides.length) { run.at = to; return run.slides[to]; }
+      if (showSet.loop && run.slides.length) { run.at = delta > 0 ? 0 : run.slides.length - 1; return run.slides[run.at]; }
+      return from;
+    }
     let i = nextShown(model, from, delta);
     if (i !== from && inShow(i)) return i;
     if (!showSet.loop) return from;
@@ -1337,6 +1349,22 @@ export default function Slides({ app, shell, boot }) {
       case 'setupShow': setSetupOpen(true); return;
       // Insert → Photo Album: a new presentation of pictures, in its own window.
       case 'photoAlbum': setAlbumOpen(true); return;
+      // Slide Show → Custom Slide Show: play one of the deck's named shows, or manage them.
+      case 'customShowMenu':
+        menu.open(arg, [
+          ...(model?.customShows || []).map((s) => ({ label: s.name, icon: 'play', disabled: !s.slides.length, run: () => act('playCustom', s) })),
+          ...((model?.customShows || []).length ? ['-'] : []),
+          { label: 'Custom Shows…', icon: 'list', run: () => setCustomOpen(true) },
+        ]);
+        return;
+      case 'playCustom': {
+        if (!arg?.slides?.length) return toast('That custom show has no slides yet.', { ms: 3000 });
+        customRun.current = { slides: [...arg.slides], at: 0 };
+        setIndex(arg.slides[0]);
+        setReading(false);
+        setPresent(true);
+        return;
+      }
       // Insert → Screenshot: a window or a screen, taken as a picture on this slide.
       case 'screenshot': setShotOpen(true); return;
       // Insert → Icons: one of the suite's own icons, as a picture on this slide.
@@ -2386,6 +2414,19 @@ export default function Slides({ app, shell, boot }) {
             if (added) setSelected(added.id);
           }}
         />
+      ) : null}
+
+      {customOpen ? (
+        <>
+          <style>{CUSTOM_SHOWS_CSS}</style>
+          <CustomShowsDialog
+            shows={model?.customShows || []}
+            outline={model?.outline || []}
+            onClose={() => setCustomOpen(false)}
+            onSave={async (shows) => { const next = await apply({ op: 'setCustomShows', shows }); if (!next) throw new Error('The custom shows could not be saved.'); }}
+            onPlay={(show) => { setCustomOpen(false); act('playCustom', show); }}
+          />
+        </>
       ) : null}
 
       {albumOpen ? (

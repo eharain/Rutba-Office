@@ -737,7 +737,7 @@ export default function SlidesRibbon({
           <Group label="Start Slide Show">
             <Button tall icon="play" label="From Beginning" title="Start the show at the first slide (F5)" onClick={() => act('present', 'start')} />
             <Button tall icon="play" label="From Current Slide" title="Start the show at this slide" onClick={() => act('present', 'here')} />
-            <Soon tall icon="list" label="Custom Slide Show" why="Named subsets of a deck are a presentation-part list the engine does not write yet." />
+            <Button tall icon="list" label="Custom Slide Show" title="Custom Slide Show — play one of the deck's named shows, or make one: some of its slides, in an order of their own" onClick={(e) => act('customShowMenu', e)} />
           </Group>
           <Group label="Rehearse">
             <Soon tall icon="volume" label="Rehearse with Coach" why="Presenter Coach is a Microsoft cloud service." />
