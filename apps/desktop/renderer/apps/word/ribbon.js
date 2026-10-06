@@ -428,7 +428,7 @@ export default function WordRibbon({
             <Soon tall icon="shape" label="3D Models" why="3D models need a renderer the suite does not have." />
             <Soon tall icon="grid" label="SmartArt" why="SmartArt is a diagram grammar the engine does not write yet." />
             <Button tall icon="chart" label="Chart" title="A chart drawn from the table the caret is in — put the caret in a table first" onClick={(e) => menu.open(e, CHARTS.map(([k, l]) => ({ label: l, icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: k }) })))} />
-            <Soon tall icon="picture" label="Screenshot" why="Screenshots need a capture permission this build does not ask for." />
+            <Button tall icon="picture" label="Screenshot" title="Screenshot — a picture of another open window, or of a whole screen, put in at the caret" onClick={() => act('screenshot')} />
           </Group>
           <Group label="Media">
             <Soon tall icon="video" label="Online Videos" why="Embedding a video is a network request; this suite makes none it has not declared." />

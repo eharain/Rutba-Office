@@ -8,7 +8,7 @@
 // Every handler receives the calling window, because almost everything an
 // office app asks for is about *this* document window, not about the app.
 
-import { app, BrowserWindow, dialog, shell, nativeTheme, clipboard } from 'electron';
+import { app, BrowserWindow, dialog, shell, nativeTheme, clipboard, desktopCapturer, screen } from 'electron';
 import fsp from 'node:fs/promises';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -307,6 +307,30 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   impl.clipboard = {
     writeText: ({ text }) => void clipboard.writeText(text ?? ''),
     readText: () => clipboard.readText(),
+  };
+
+  // Insert → Screenshot. Only on a press of the button, and only into the
+  // document of the window that asked: the list leaves that window out, as
+  // Office's does, and a picture is taken of the one chosen and nothing else.
+  impl.capture = {
+    sources: async (_p, win) => {
+      const own = win && !win.isDestroyed() ? win.getMediaSourceId() : null;
+      const found = await desktopCapturer.getSources({ types: ['window', 'screen'], thumbnailSize: { width: 320, height: 200 }, fetchWindowIcons: false });
+      return found
+        .filter((s) => s.id !== own && !s.thumbnail.isEmpty())
+        .map((s) => ({ id: s.id, name: s.name, kind: s.id.startsWith('screen:') ? 'screen' : 'window', thumbnail: s.thumbnail.toDataURL() }))
+        .sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'window' ? -1 : 1));
+    },
+    grab: async ({ id }) => {
+      // As large as the largest screen, so a window or a screen comes at its own size.
+      const big = screen.getAllDisplays().reduce((m, d) => ({ width: Math.max(m.width, Math.round(d.size.width * d.scaleFactor)), height: Math.max(m.height, Math.round(d.size.height * d.scaleFactor)) }), { width: 0, height: 0 });
+      const found = await desktopCapturer.getSources({ types: ['window', 'screen'], thumbnailSize: big, fetchWindowIcons: false });
+      const source = found.find((s) => s.id === id);
+      if (!source) throw new Error('That window has closed since the list was made.');
+      if (source.thumbnail.isEmpty()) throw new Error(`${source.name} could not be captured — a minimised window shows nothing to take.`);
+      const { width, height } = source.thumbnail.getSize();
+      return { bytes: new Uint8Array(source.thumbnail.toPNG()), width, height, name: source.name };
+    },
   };
 
   return impl;

@@ -415,7 +415,7 @@ export default function SlidesRibbon({
           <Group label="Images">
             <Button tall icon="picture" label="Pictures" title="Pictures — a picture from this device, onto this slide" onClick={insertPicture} />
 
-            <Soon tall icon="picture" label="Screenshot" why="Comes with pictures." />
+            <Button tall icon="picture" label="Screenshot" title="Screenshot — a picture of another open window, or of a whole screen, put on this slide" onClick={() => act('screenshot')} />
             <Button tall icon="picture" label="Photo Album" title="Photo Album — a new presentation of your pictures, one, two or four to a slide, captioned if you like" onClick={() => act('photoAlbum')} />
           </Group>
           <Group label="Camera">

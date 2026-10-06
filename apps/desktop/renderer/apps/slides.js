@@ -30,6 +30,7 @@ import { SetUpShowDialog, SETUP_CSS } from './slides/setup.js';
 import { LanguageDialog } from '@rutba/office-ui/proofing';
 import { ActionDialog, ACTION_CSS } from './slides/action.js';
 import { PhotoAlbumDialog, ALBUM_CSS } from './slides/album.js';
+import { ScreenshotDialog } from '../screenshot.js';
 
 // The splits Move Split moves, marked while it is on — in shadows, so
 // turning it on moves nothing by itself.
@@ -95,6 +96,7 @@ export default function Slides({ app, shell, boot }) {
   const [symbolOpen, setSymbolOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
   const [albumOpen, setAlbumOpen] = useState(false);
+  const [shotOpen, setShotOpen] = useState(false);
   // The slide the show was on before this one, for a "last slide viewed" action.
   const lastViewed = useRef(null);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -1326,6 +1328,8 @@ export default function Slides({ app, shell, boot }) {
       case 'setupShow': setSetupOpen(true); return;
       // Insert → Photo Album: a new presentation of pictures, in its own window.
       case 'photoAlbum': setAlbumOpen(true); return;
+      // Insert → Screenshot: a window or a screen, taken as a picture on this slide.
+      case 'screenshot': setShotOpen(true); return;
       // Insert → Action: what a click on the selected shape does in the show.
       case 'action':
         if (!selectedShape) return toast('Click a shape first, then choose what a click on it does in the show.', { ms: 3500 });
@@ -2339,6 +2343,19 @@ export default function Slides({ app, shell, boot }) {
 
       {symbolOpen ? (
         <SymbolDialog onClose={() => setSymbolOpen(false)} onInsert={(ch) => { setSymbolOpen(false); act('insertSymbol', ch); }} />
+      ) : null}
+
+      {shotOpen ? (
+        <ScreenshotDialog
+          shell={shell}
+          onClose={() => setShotOpen(false)}
+          onPick={async (shot) => {
+            setShotOpen(false);
+            const next = await apply({ op: 'addPicture', slide: index, name: 'Screenshot', contentType: 'image/png', data: shot.bytes });
+            const added = next?.model?.slide?.shapes?.slice(-1)[0];
+            if (added) setSelected(added.id);
+          }}
+        />
       ) : null}
 
       {albumOpen ? (

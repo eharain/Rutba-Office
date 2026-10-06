@@ -40,6 +40,7 @@ import { useEnvelopesLabels, installEnvelopeStyles } from './word/envelopes.js';
 import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
 import { useWordReview } from './word/review.js';
 import { LanguageDialog } from '@rutba/office-ui/proofing';
+import { ScreenshotDialog } from '../screenshot.js';
 import {
   drawingLayer, geomOf, spacerStyles, blockCss, turnCss, TextBox, GroupBox, DrawingLayer, DrawingFrame, SelectionPane,
   measureAnchors, textBoxPresets, DRAWING_CSS,
@@ -226,6 +227,7 @@ export default function Word({ app, shell, boot }) {
   // One name at a time, the way the spreadsheet does it.
   const [dialog, setDialog] = useState(null);
   const [languageDialog, setLanguageDialog] = useState(null);
+  const [shotOpen, setShotOpen] = useState(false);
   // The equation editor: null, or what it opened on — a new equation, or
   // one being edited at `block`/`offset`.
   const [equation, setEquation] = useState(null);
@@ -1246,6 +1248,10 @@ export default function Word({ app, shell, boot }) {
           return;
         case 'toggleSpell':
           patchView((v) => ({ spell: !v.spell }));
+          return;
+        // Insert → Screenshot: a window or a screen, taken as a picture.
+        case 'screenshot':
+          setShotOpen(true);
           return;
         // Review → Language: the dialog opens on the selection's language,
         // with the document's own beside it.
@@ -2427,6 +2433,21 @@ export default function Word({ app, shell, boot }) {
       ) : null}
 
       {dialog === 'wordCount' ? <WordCountDialog blocks={model?.blocks || []} onClose={() => setDialog(null)} /> : null}
+
+      {shotOpen ? (
+        <ScreenshotDialog
+          shell={shell}
+          onClose={() => setShotOpen(false)}
+          onPick={async (shot) => {
+            setShotOpen(false);
+            // As wide as the text, or the picture's own width if less.
+            const page = model?.section;
+            const room = page ? Math.round(page.widthPx - page.margins.left - page.margins.right) : 600;
+            const w = Math.max(1, Math.min(room, shot.width));
+            await apply({ op: 'insertImage', name: 'Screenshot.png', contentType: 'image/png', data: shot.bytes, widthPx: w, heightPx: Math.max(1, Math.round((w * shot.height) / shot.width)) });
+          }}
+        />
+      ) : null}
 
       {languageDialog ? (
         <LanguageDialog

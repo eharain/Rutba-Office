@@ -245,6 +245,11 @@ export const METHODS = {
     'writeText',    // ({ text }) -> void
     'readText',     // () -> string
   ],
+  // Insert → Screenshot: the windows and screens there are, and one of them as a picture.
+  capture: [
+    'sources',      // () -> [{ id, name, kind, thumbnail }]   every window but the asking one, then each screen
+    'grab',         // ({ id }) -> { bytes, width, height, name }   that window or screen as a PNG
+  ],
 };
 
 /** Backend-to-renderer events. */
