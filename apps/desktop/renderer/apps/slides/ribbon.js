@@ -449,7 +449,7 @@ export default function SlidesRibbon({
           </Group>
           <Group label="Symbols">
             <Button tall icon="formula" label="Equation" title="Equation — Office Math on this slide, typed in Word's linear format with a live preview; double-click one to edit it" onClick={() => act('equation')} />
-            <Soon tall icon="plus" label="Symbol" why="Comes with text selection inside a box." />
+            <Button tall icon="star" label="Symbol" title="Symbol — a character from the symbol sets, put in where the caret is in a text box" onClick={() => act('symbol')} />
           </Group>
           <Group label="Media">
             <Soon tall icon="video" label="Video" why="Video on a slide is a media part plus a relationship the deck writer does not write yet." />

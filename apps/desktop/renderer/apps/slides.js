@@ -25,6 +25,7 @@ import { DesignGallery, CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } fro
 import { CommentsPane, markerSpots, personColour, COMMENTS_CSS } from './slides/comments.js';
 import { useSlidesReview } from './slides/review.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
+import { SymbolDialog } from './word/dialogs.js';
 
 export default function Slides({ app, shell, boot }) {
   // A presenter window is the same app pointed at the same open document,
@@ -57,6 +58,13 @@ export default function Slides({ app, shell, boot }) {
   /** Slide Master → Rename: the part and the name it has now. */
   const [partRename, setPartRename] = useState(null);
   const [editing, setEditing] = useState(null);
+  // Where the caret last stood in a box's words. A ribbon press takes the
+  // focus, which commits the edit and closes the editor before the press
+  // lands; Insert → Symbol puts its character here and reopens the editor
+  // with the caret just past it.
+  const lastCaret = useRef(null);
+  const caretAfterOpen = useRef(null);
+  const [symbolOpen, setSymbolOpen] = useState(false);
   /** The shape clipboard: one shape, copied in this window, pasted on any slide of it. */
   const [clip, setClip] = useState(null);
   /** The Format Painter, armed with a shape's look: its fill, its outline and its first run's font. */
@@ -537,6 +545,11 @@ export default function Slides({ app, shell, boot }) {
     },
     [apply, index, model]
   );
+
+  const rememberCaret = (el) => {
+    if (!editing || !el) return;
+    lastCaret.current = { id: editing.id, row: editing.row ?? null, col: editing.col ?? null, slide: index, start: el.selectionStart, end: el.selectionEnd, text: el.value };
+  };
 
   const commitText = useCallback(
     async (shapeId, text) => {
@@ -1109,6 +1122,27 @@ export default function Slides({ app, shell, boot }) {
         } catch (err) {
           toast(err.message, { tone: 'bad' });
         }
+        return;
+      }
+      // Insert → Symbol: into the box being edited, where its caret was.
+      case 'symbol': {
+        const at = lastCaret.current;
+        const shape = at && at.slide === index ? slide?.shapes?.find((x) => x.id === at.id) : null;
+        if (!shape) return toast('Click into a text box first — the symbol goes in where the caret is.', { ms: 4500 });
+        setSymbolOpen(true);
+        return;
+      }
+      case 'insertSymbol': {
+        const at = lastCaret.current;
+        if (!at || at.slide !== index || !arg) return;
+        const text = at.text.slice(0, at.start) + arg + at.text.slice(at.end);
+        if (at.row != null) await commitTableCell(at.id, at.row, at.col, text);
+        else await commitText(at.id, text);
+        const caret = at.start + arg.length;
+        lastCaret.current = { ...at, start: caret, end: caret, text };
+        caretAfterOpen.current = caret;
+        const rev = (editing?.rev ?? 0) + 1;
+        setEditing(at.row != null ? { id: at.id, row: at.row, col: at.col, text, rev } : { id: at.id, text, rev });
         return;
       }
       case 'help': shell.shell.openExternal({ url: SITE.help }); return;
@@ -1897,9 +1931,22 @@ export default function Slides({ app, shell, boot }) {
                     : null}
                   {editing ? (
                     <textarea
+                      // A fresh editor for each box, cell and reopening: a
+                      // textarea already typed in ignores a new defaultValue,
+                      // so Tab into the next cell showed the last cell's words
+                      // and saved them there.
+                      key={`${editing.id}|${editing.row ?? ''}|${editing.col ?? ''}|${editing.rev ?? 0}`}
                       className="sl-editor"
                       autoFocus
                       defaultValue={editing.text}
+                      ref={(el) => {
+                        if (el && caretAfterOpen.current != null) {
+                          el.setSelectionRange(caretAfterOpen.current, caretAfterOpen.current);
+                          caretAfterOpen.current = null;
+                        }
+                      }}
+                      onSelect={(e) => rememberCaret(e.target)}
+                      onKeyUp={(e) => rememberCaret(e.target)}
                       style={(() => {
                         const s = slide.shapes.find((x) => x.id === editing.id);
                         if (editing.row != null) {
@@ -1908,7 +1955,7 @@ export default function Slides({ app, shell, boot }) {
                         }
                         return s?.geometry ? { left: s.geometry.x, top: s.geometry.y, width: s.geometry.w, height: s.geometry.h } : {};
                       })()}
-                      onBlur={(e) => (editing.row != null ? commitTableCell(editing.id, editing.row, editing.col, e.target.value) : commitText(editing.id, e.target.value))}
+                      onBlur={(e) => { rememberCaret(e.target); return editing.row != null ? commitTableCell(editing.id, editing.row, editing.col, e.target.value) : commitText(editing.id, e.target.value); }}
                       onKeyDown={(e) => {
                         if (e.key === 'Escape') { setEditing(null); return; }
                         if (editing.row == null) {
@@ -2003,6 +2050,10 @@ export default function Slides({ app, shell, boot }) {
       {review.dialogs}
 
       {shortcutsOpen ? <SlidesShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
+
+      {symbolOpen ? (
+        <SymbolDialog onClose={() => setSymbolOpen(false)} onInsert={(ch) => { setSymbolOpen(false); act('insertSymbol', ch); }} />
+      ) : null}
 
       {equationOpen ? (
         <EquationDialog

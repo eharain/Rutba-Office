@@ -67,12 +67,6 @@ const CSS = `
 .wd-fields { display: flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-2); }
 .wd-fields label { min-width: 44px; }
 .wd-field-value { min-width: 46px; text-align: center; font-variant-numeric: tabular-nums; }
-.wd-symbols { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; }
-.wd-symbol {
-  border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--r-1);
-  font-size: 18px; height: 34px; cursor: pointer; font-family: "Segoe UI Symbol", "Segoe UI", system-ui, sans-serif;
-}
-.wd-symbol:hover { border-color: var(--accent-line); background: var(--hover); }
 
 /* the navigation pane ------------------------------------------------------ */
 /* The pane sits beside the scroll area; the scroll area takes the rest, or

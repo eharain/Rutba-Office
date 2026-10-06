@@ -527,11 +527,27 @@ const SYMBOLS = [
   ['Letters', 'à á â ä å æ ç è é ê ë ì í î ï ñ ò ó ô ö ø ù ú û ü ý ÿ ß À Á Â Ä Å Æ Ç È É Ê Ë Ñ Ö Ø Ü'],
 ];
 
+/**
+ * The symbol grid's look travels with the dialog: Worksheets and
+ * Presentations open it too, and in their windows the rules that lived in
+ * Documents' stylesheet were never loaded, so the grid fell to a column of
+ * plain buttons.
+ */
+const SYMBOL_CSS = `
+.wd-symbols { display: grid; grid-template-columns: repeat(12, 1fr); gap: 3px; }
+.wd-symbol {
+  border: 1px solid var(--line); background: var(--surface); color: var(--ink); border-radius: var(--r-1);
+  font-size: 18px; height: 34px; cursor: pointer; font-family: "Segoe UI Symbol", "Segoe UI", system-ui, sans-serif;
+}
+.wd-symbol:hover { border-color: var(--accent-line); background: var(--hover); }
+`;
+
 export function SymbolDialog({ onClose, onInsert }) {
   const [set, setSet] = useState(0);
   const chars = SYMBOLS[set][1].split(/\s+/).filter(Boolean);
   return (
     <Dialog title="Symbol" width={520} onClose={onClose} actions={<Button label="Close" onClick={onClose} />}>
+      <style>{SYMBOL_CSS}</style>
       <div className="ml-filters" style={{ flexWrap: 'wrap', marginBottom: 10 }}>
         {SYMBOLS.map(([label], i) => (
           <button key={label} type="button" className={`ml-filter${set === i ? ' on' : ''}`} onClick={() => setSet(i)}>{label}</button>
