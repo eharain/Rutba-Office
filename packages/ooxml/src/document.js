@@ -69,10 +69,10 @@ function toDataUri(bytes, partName) {
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
 export {
-  textOf, parseRuns, hasToggle, withToggle, renderRuns, renderRun, firstRunProps, RPR_RE,
+  textOf, parseRuns, hasToggle, withToggle, langElement, renderRuns, renderRun, firstRunProps, RPR_RE,
 } from './runs.js';
 import {
-  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults, mergeFieldsOnly, foldsToRuns,
+  textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults, mergeFieldsOnly, foldsToRuns, langElement,
 } from './runs.js';
 import { installReferences } from './references.js';
 
@@ -1906,6 +1906,45 @@ export class Document {
     this.pkg.addPart(part, STANDARD_STYLES_XML, STYLES_CT);
     this._addRel(STYLES_REL_TYPE, 'styles.xml');
     return true;
+  }
+
+  /**
+   * Review → Language → Set As Default: the language every run without one
+   * of its own is proofed in — `<w:lang>` in the stylesheet's
+   * `w:docDefaults`, the floor of every style chain, as Word keeps it. The
+   * rest of the defaults and the catalogue are left as they were; a document
+   * with no styles part is given the standard one first.
+   */
+  setDefaultLanguage(tag) {
+    langElement(null, tag);
+    this.ensureParagraphStyles();
+    const part = 'word/styles.xml';
+    let xml = this.pkg.text(part);
+    if (!/<w:docDefaults\b/.test(xml)) {
+      xml = xml.replace(/<w:styles\b[^>]*>/, (open) => open + '<w:docDefaults></w:docDefaults>');
+    } else if (/<w:docDefaults\b[^>]*\/>/.test(xml)) {
+      xml = xml.replace(/<w:docDefaults\b[^>]*\/>/, () => '<w:docDefaults></w:docDefaults>');
+    }
+    const defaults = /<w:docDefaults\b[^>]*>[\s\S]*?<\/w:docDefaults>/.exec(xml);
+    let inner = defaults[0];
+    // rPrDefault leads docDefaults; its rPr may be missing, bare or empty.
+    if (/<w:rPrDefault\b[^>]*\/>/.test(inner)) inner = inner.replace(/<w:rPrDefault\b[^>]*\/>/, () => '<w:rPrDefault></w:rPrDefault>');
+    if (!/<w:rPrDefault\b/.test(inner)) inner = inner.replace(/^<w:docDefaults\b[^>]*>/, (open) => open + '<w:rPrDefault></w:rPrDefault>');
+    inner = inner.replace(/(<w:rPrDefault\b[^>]*>)([\s\S]*?)(<\/w:rPrDefault>)/, (m, open, body, close) => {
+      let rPr = /<w:rPr\b[^>]*\/>/.test(body) ? body.replace(/<w:rPr\b[^>]*\/>/, () => '<w:rPr></w:rPr>') : body;
+      if (!/<w:rPr\b/.test(rPr)) rPr = '<w:rPr></w:rPr>' + rPr;
+      rPr = rPr.replace(/(<w:rPr\b[^>]*>)([\s\S]*?)(<\/w:rPr>)/, (whole, o, props, c) => {
+        const existing = /<w:lang\b([^>]*)\/>/.exec(props);
+        const element = langElement(existing ? existing[1] : null, tag);
+        if (existing) return o + props.replace(existing[0], () => element) + c;
+        // lang sits ahead of the East Asian layout and the rest that close rPr.
+        const tail = /<w:(?:eastAsianLayout|specVanish|oMath)\b/.exec(props);
+        return tail ? o + props.slice(0, tail.index) + element + props.slice(tail.index) + c : o + props + element + c;
+      });
+      return open + rPr + close;
+    });
+    this.pkg.write_(part, xml.slice(0, defaults.index) + inner + xml.slice(defaults.index + defaults[0].length));
+    this.dirty = true;
   }
 
   /**

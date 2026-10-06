@@ -91,8 +91,8 @@ export function wordDrawings(view) {
   return out;
 }
 
-/** The document's language: the defaults in the stylesheet, else the runs' own, most common first. */
-export function wordLanguage(view) {
+/** The language the stylesheet's defaults give every run without its own — or null. */
+export function wordDefaultLanguage(view) {
   const doc = docOf(view);
   if (!doc) return null;
   try {
@@ -104,6 +104,15 @@ export function wordLanguage(view) {
   } catch {
     /* no stylesheet to read */
   }
+  return null;
+}
+
+/** The document's language: the defaults in the stylesheet, else the runs' own, most common first. */
+export function wordLanguage(view) {
+  const doc = docOf(view);
+  if (!doc) return null;
+  const byDefault = wordDefaultLanguage(view);
+  if (byDefault) return byDefault;
   const counts = new Map();
   for (const m of doc.xml.matchAll(/<w:lang\b[^>]*\bw:val="([^"]+)"/g)) counts.set(m[1], (counts.get(m[1]) || 0) + 1);
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
@@ -336,7 +345,78 @@ export function setWordTitle(view, { title }) {
   });
 }
 
+/**
+ * Review → Language → Set As Default: the language every run without its
+ * own is proofed in, kept in the stylesheet's defaults. Undo puts the
+ * stylesheet back as it was.
+ */
+export function setWordDefaultLanguage(view, { lang }) {
+  const doc = docOf(view);
+  doc._undoParts?.add('word/styles.xml');
+  return view._edit('default language', null, () => {
+    doc.setDefaultLanguage(lang);
+    view.touched = true;
+    return true;
+  });
+}
+
 /* ── the words, for the spelling pass ──────────────────────────────────── */
+
+// A run marked "Do not check spelling or grammar", or marked as a language
+// other than English — the only dictionaries the suite has — is read past.
+const NO_PROOF = /<w:noProof\b(?![^>]*\bw:val="(?:0|false|off)")[^>]*\/?>/;
+function unproofed(rPr) {
+  if (!rPr) return false;
+  if (NO_PROOF.test(rPr)) return true;
+  const lang = /<w:lang\b[^>]*\bw:val="([^"]+)"/.exec(rPr)?.[1];
+  return Boolean(lang) && !/^en(?:[-_]|$)/i.test(lang);
+}
+
+/** `[from, to)` ranges of the runs read past, from `{ from, to, rPr }` stretches in text order. */
+function skipOf(stretches) {
+  const out = [];
+  for (const { from, to, rPr } of stretches) {
+    if (to <= from || !unproofed(rPr)) continue;
+    const last = out[out.length - 1];
+    if (last && last[1] === from) last[1] = to;
+    else out.push([from, to]);
+  }
+  return out;
+}
+
+/** The view's runs of a body paragraph as stretches — or none, when they do not add up to its text. */
+function blockStretches(b) {
+  const stretches = [];
+  let at = 0;
+  for (const r of b.runs || []) {
+    const n = String(r.text ?? '').length;
+    stretches.push({ from: at, to: at + n, rPr: r.rPr || null });
+    at += n;
+  }
+  return at === String(b.text || '').length ? stretches : [];
+}
+
+/** A paragraph's text pieces (wordml.js) as stretches, each with the rPr of the run it is in. */
+function pieceStretches(pXml, pieces) {
+  const xml = String(pXml);
+  return pieces.map((p) => {
+    const head = xml.slice(0, p.openStart);
+    const run = Math.max(head.lastIndexOf('<w:r>'), head.lastIndexOf('<w:r '));
+    const rPr = run < 0 ? null : /<w:rPr\b[\s\S]*?<\/w:rPr>/.exec(head.slice(run))?.[0] || null;
+    return { from: p.from, to: p.to, rPr };
+  });
+}
+
+/** A segment, with what the pass reads past when there is any. */
+function segment(key, text, where, stretches) {
+  const skip = skipOf(stretches);
+  return skip.length ? { key, text, where, skip } : { key, text, where };
+}
+
+const pieceSegment = (key, q, where) => {
+  const { text, pieces } = paragraphText(q.xml);
+  return segment(key, text, where, pieceStretches(q.xml, pieces));
+};
 
 /**
  * Every piece of text in the document in the order the pass walks it: the
@@ -350,11 +430,11 @@ export function wordSegments(view) {
   const out = [];
   const raw = doc ? doc.editParagraphs() : [];
   for (const b of view.blocks) {
-    out.push({ key: `b:${b.index}`, text: b.text || '', where: { story: 'body', block: b.index } });
+    out.push(segment(`b:${b.index}`, b.text || '', { story: 'body', block: b.index }, blockStretches(b)));
     const p = raw[b.index];
     if (p && p.xml.includes('<w:txbxContent')) {
       textBoxesIn(p.xml).forEach((box, bi) => box.paragraphs.forEach((q, qi) => {
-        out.push({ key: `x:${b.index}:${bi}:${qi}`, text: paragraphText(q.xml).text, where: { story: 'textbox', block: b.index } });
+        out.push(pieceSegment(`x:${b.index}:${bi}:${qi}`, q, { story: 'textbox', block: b.index }));
       }));
     }
   }
@@ -366,7 +446,7 @@ export function wordSegments(view) {
         const type = /\bw:type="([^"]+)"/.exec(m[1])?.[1];
         if (type && type !== 'normal') continue;
         const id = /\bw:id="([^"]+)"/.exec(m[1])?.[1];
-        paragraphsIn(m[2]).forEach((q, qi) => out.push({ key: `n:${part}:${id}:${qi}`, text: paragraphText(q.xml).text, where: { story, id } }));
+        paragraphsIn(m[2]).forEach((q, qi) => out.push(pieceSegment(`n:${part}:${id}:${qi}`, q, { story, id })));
       }
     }
     const bands = safely(() => doc.headerFooters()) || {};
@@ -375,7 +455,7 @@ export function wordSegments(view) {
       for (const band of Object.values(bands[group] || {})) {
         if (!band?.part || seen.has(band.part) || !doc.pkg.has(band.part)) continue;
         seen.add(band.part);
-        paragraphsIn(doc.pkg.text(band.part)).forEach((q, qi) => out.push({ key: `h:${band.part}:${qi}`, text: paragraphText(q.xml).text, where: { story } }));
+        paragraphsIn(doc.pkg.text(band.part)).forEach((q, qi) => out.push(pieceSegment(`h:${band.part}:${qi}`, q, { story })));
       }
     }
   }

@@ -839,7 +839,7 @@ export class DocView {
       throw new Error('this document backend does not support character formatting');
     }
     const props = {};
-    for (const key of ['fontName', 'fontSize', 'fontColour', 'highlight', 'vertAlign', 'outline', 'shadow', 'glow']) {
+    for (const key of ['fontName', 'fontSize', 'fontColour', 'highlight', 'vertAlign', 'outline', 'shadow', 'glow', 'lang', 'noProof']) {
       if (delta && key in delta) props[key] = delta[key];
     }
     if (Object.keys(props).length === 0) return this;
@@ -2909,6 +2909,10 @@ export class DocView {
       if (props.outline) out.outline = true;
       if (props.shadow) out.shadow = true;
       if (props.glow) out.glow = props.glow;
+      // The proofing language, so the page's own underline can leave alone
+      // words in another language and words marked not to be checked.
+      if (props.lang) out.lang = props.lang;
+      if (props.noProof) out.noProof = true;
     }
     // The painter gets the TARGET, never the token: the frame stays
     // format-free, and a dangling id degrades to plain text.

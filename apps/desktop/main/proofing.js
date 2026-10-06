@@ -17,10 +17,10 @@ import fs from 'node:fs';
 import {
   RULES, wordDrawings, sheetDrawings, readAltProps, findElements, toDic, fromDic, checkAccessibility,
   describeWord, describeSheet, describeDeck,
-  setWordAltText, setWordTableHeader, removeWordParagraphs, setWordTitle,
+  setWordAltText, setWordTableHeader, removeWordParagraphs, setWordTitle, setWordDefaultLanguage,
   setSheetAltText, setSheetTableHeader,
   setDeckAltText, setDeckTableHeader, setDeckTextColour, setDeckSlideTitle,
-  wordSegments, wordStart, wordLanguage, replaceWordText,
+  wordSegments, wordStart, wordLanguage, wordDefaultLanguage, replaceWordText,
   sheetSegments, sheetStart, replaceSheetText,
   deckSegments, deckLanguage, replaceDeckText,
   createSpellerHost, chooseLanguage, LANGUAGE_NAMES, nextMisspelling, changeAllEdits, acceptedBy, DEFAULT_OPTIONS,
@@ -107,6 +107,7 @@ export function createProofing({ stores = null, locale = systemLocale, worker = 
       setHeaderRow: (v, a) => setWordTableHeader(v, { table: a.table }),
       removeEmptyParagraphs: (v, a) => removeWordParagraphs(v, { blocks: a.blocks }),
       setDocTitle: (v, a) => setWordTitle(v, { title: a.title }),
+      setDefaultLanguage: (v, a) => setWordDefaultLanguage(v, { lang: a.lang }),
       spellReplace: (v, a) => { replaceWordText(v, a.edits || []); },
       spellChangeAll: (v, a) => {
         const edits = changeAllEdits(wordSegments(v), a.word, a.replacement, readOptions());
@@ -191,6 +192,16 @@ export function createProofing({ stores = null, locale = systemLocale, worker = 
         // (spellSuggest), on a thread of their own — an unusual name can
         // take two seconds, and the pane shows the word meanwhile.
         return step;
+      }
+
+      case 'language': {
+        // Review → Language: the language the document says it is in, the
+        // default its stylesheet keeps (a document's only), and the English
+        // its words are checked in.
+        const own = session.kind === 'doc' ? wordLanguage(session.engine) : session.kind === 'deck' ? deckLanguage(session.engine) : null;
+        const byDefault = session.kind === 'doc' ? wordDefaultLanguage(session.engine) : null;
+        const { lang } = languageOf(session);
+        return { document: own || null, default: byDefault, checking: lang, checkingName: LANGUAGE_NAMES[lang] };
       }
 
       case 'spellWarm': {

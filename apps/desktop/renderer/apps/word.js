@@ -39,6 +39,7 @@ import { useMailings, installMailingsStyles } from './word/mailings.js';
 import { useEnvelopesLabels, installEnvelopeStyles } from './word/envelopes.js';
 import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
 import { useWordReview } from './word/review.js';
+import { LanguageDialog } from '@rutba/office-ui/proofing';
 import {
   drawingLayer, geomOf, spacerStyles, blockCss, turnCss, TextBox, GroupBox, DrawingLayer, DrawingFrame, SelectionPane,
   measureAnchors, textBoxPresets, DRAWING_CSS,
@@ -224,6 +225,7 @@ export default function Word({ app, shell, boot }) {
   const [tab, setTab] = useState('home');
   // One name at a time, the way the spreadsheet does it.
   const [dialog, setDialog] = useState(null);
+  const [languageDialog, setLanguageDialog] = useState(null);
   // The equation editor: null, or what it opened on — a new equation, or
   // one being edited at `block`/`offset`.
   const [equation, setEquation] = useState(null);
@@ -1245,6 +1247,13 @@ export default function Word({ app, shell, boot }) {
         case 'toggleSpell':
           patchView((v) => ({ spell: !v.spell }));
           return;
+        // Review → Language: the dialog opens on the selection's language,
+        // with the document's own beside it.
+        case 'language': {
+          const info = await Promise.resolve(shell.doc.proof?.({ id: doc.id, action: 'language' })).catch(() => null);
+          setLanguageDialog({ defaultLang: info?.default || null, documentLang: info?.document || null });
+          return;
+        }
         case 'focus': {
           const on = !view.focus;
           patchView({ focus: on });
@@ -2419,6 +2428,21 @@ export default function Word({ app, shell, boot }) {
 
       {dialog === 'wordCount' ? <WordCountDialog blocks={model?.blocks || []} onClose={() => setDialog(null)} /> : null}
 
+      {languageDialog ? (
+        <LanguageDialog
+          current={format.lang || null}
+          noProof={Boolean(format.noProof)}
+          defaultLang={languageDialog.defaultLang}
+          documentLang={languageDialog.documentLang}
+          onClose={() => setLanguageDialog(null)}
+          onApply={async ({ lang, noProof }) => {
+            setLanguageDialog(null);
+            await apply({ op: 'setRunFormat', delta: { lang, noProof } });
+          }}
+          onSetDefault={(lang) => apply({ op: 'setDefaultLanguage', lang })}
+        />
+      ) : null}
+
       {dialog === 'dateTime' ? (
         <DateTimeDialog
           onClose={() => setDialog(null)}
@@ -3027,6 +3051,11 @@ function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
       data-xe={run.field?.kind === 'xe' ? '{ ' + run.field.instr.trim() + ' }' : undefined}
       data-name={run.field?.kind === 'ref' ? run.field.name : undefined}
       data-link={run.link || undefined}
+      // Review → Language: the run's language for the page, and no red
+      // underline under words marked not to be checked or marked as a
+      // language the English dictionary would only call wrong.
+      lang={run.lang || undefined}
+      spellCheck={run.noProof || (run.lang && !/^en(?:-|$)/i.test(run.lang)) ? false : undefined}
       title={run.field
         ? (run.field.kind === 'ref' ? `REF ${run.field.name} — Ctrl+click to go to the bookmark` : run.field.instr.trim())
         : run.ins ? `Inserted by ${run.ins.author || 'Someone'}${run.ins.date ? ' · ' + formatWhen(run.ins.date) : ''}`

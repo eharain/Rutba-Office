@@ -1,7 +1,7 @@
 // Review's panes and dialogs, shared by Documents, Worksheets and
 // Presentations: the Accessibility pane (Office's "Inspection Results"), the
 // Editor pane the spelling pass runs in, the status-bar verdict, and the Alt
-// Text, Dictionary and one-line prompt dialogs.
+// Text, Dictionary, Language and one-line prompt dialogs.
 //
 // Presentational only. What a finding is, where it points and what a fix
 // writes are the app's (renderer/review.js and each app's own review.js);
@@ -359,6 +359,125 @@ export function DictionaryDialog({ words = [], onSave, onImport, onExport, onClo
   );
 }
 
+/**
+ * The languages Review → Language offers, by their tags, named as Office
+ * names them. English is the one with dictionaries; the rest are marked so
+ * Spelling reads past them, and so Office proofs them in their own language.
+ */
+export const LANGUAGES = [
+  ['ar-SA', 'Arabic (Saudi Arabia)'], ['bn-BD', 'Bangla (Bangladesh)'], ['bg-BG', 'Bulgarian'], ['ca-ES', 'Catalan'],
+  ['zh-CN', 'Chinese (Simplified, China)'], ['zh-TW', 'Chinese (Traditional, Taiwan)'], ['hr-HR', 'Croatian'], ['cs-CZ', 'Czech'],
+  ['da-DK', 'Danish'], ['nl-NL', 'Dutch (Netherlands)'], ['nl-BE', 'Dutch (Belgium)'],
+  ['en-AU', 'English (Australia)'], ['en-CA', 'English (Canada)'], ['en-IN', 'English (India)'], ['en-IE', 'English (Ireland)'],
+  ['en-NZ', 'English (New Zealand)'], ['en-PK', 'English (Pakistan)'], ['en-ZA', 'English (South Africa)'],
+  ['en-GB', 'English (United Kingdom)'], ['en-US', 'English (United States)'],
+  ['et-EE', 'Estonian'], ['fil-PH', 'Filipino'], ['fi-FI', 'Finnish'], ['fr-BE', 'French (Belgium)'], ['fr-CA', 'French (Canada)'],
+  ['fr-FR', 'French (France)'], ['fr-CH', 'French (Switzerland)'], ['de-AT', 'German (Austria)'], ['de-DE', 'German (Germany)'],
+  ['de-CH', 'German (Switzerland)'], ['el-GR', 'Greek'], ['gu-IN', 'Gujarati'], ['he-IL', 'Hebrew'], ['hi-IN', 'Hindi'],
+  ['hu-HU', 'Hungarian'], ['is-IS', 'Icelandic'], ['id-ID', 'Indonesian'], ['ga-IE', 'Irish'], ['it-IT', 'Italian (Italy)'],
+  ['ja-JP', 'Japanese'], ['kn-IN', 'Kannada'], ['ko-KR', 'Korean'], ['lv-LV', 'Latvian'], ['lt-LT', 'Lithuanian'],
+  ['ms-MY', 'Malay (Malaysia)'], ['ml-IN', 'Malayalam'], ['mr-IN', 'Marathi'], ['nb-NO', 'Norwegian (Bokmål)'],
+  ['ps-AF', 'Pashto'], ['fa-IR', 'Persian'], ['pl-PL', 'Polish'], ['pt-BR', 'Portuguese (Brazil)'], ['pt-PT', 'Portuguese (Portugal)'],
+  ['pa-IN', 'Punjabi'], ['ro-RO', 'Romanian'], ['ru-RU', 'Russian'], ['sr-Latn-RS', 'Serbian (Latin)'], ['sd-Arab-PK', 'Sindhi'],
+  ['sk-SK', 'Slovak'], ['sl-SI', 'Slovenian'], ['es-AR', 'Spanish (Argentina)'], ['es-MX', 'Spanish (Mexico)'],
+  ['es-ES', 'Spanish (Spain)'], ['es-US', 'Spanish (United States)'], ['sw-KE', 'Kiswahili'], ['sv-SE', 'Swedish'],
+  ['ta-IN', 'Tamil'], ['te-IN', 'Telugu'], ['th-TH', 'Thai'], ['tr-TR', 'Turkish'], ['uk-UA', 'Ukrainian'],
+  ['ur-PK', 'Urdu'], ['vi-VN', 'Vietnamese'], ['cy-GB', 'Welsh'],
+].sort((a, b) => a[1].localeCompare(b[1]));
+
+const spelt = (tag) => /^en(?:-|$)/i.test(String(tag || ''));
+
+/** A language's name: Office's, from the list, or the system's for a tag the list does not have. */
+export function languageName(tag) {
+  if (!tag) return '';
+  const known = LANGUAGES.find(([t]) => t.toLowerCase() === String(tag).toLowerCase());
+  if (known) return known[1];
+  try {
+    return `${new Intl.DisplayNames(['en'], { type: 'language' }).of(tag)} (${tag})`;
+  } catch {
+    return tag;
+  }
+}
+
+/**
+ * Review → Language: mark the selected text as a language, or as not to be
+ * checked at all, and — where the app keeps one — set the document's
+ * default. `current` is the selection's own language; words without one
+ * are in `defaultLang`, the document's default, or failing that in
+ * `documentLang`, the language most of it is marked as.
+ */
+export function LanguageDialog({ current, noProof: initialNoProof = false, defaultLang = null, documentLang = null, onApply, onSetDefault, onClose }) {
+  const start = current || defaultLang || documentLang || 'en-GB';
+  const [picked, setPicked] = useState(start);
+  const [noProof, setNoProof] = useState(Boolean(initialNoProof));
+  const [filter, setFilter] = useState('');
+  const [byDefault, setByDefault] = useState(defaultLang);
+  const listRef = useRef(null);
+  const rows = useMemo(() => {
+    const list = LANGUAGES.some(([t]) => t.toLowerCase() === String(start).toLowerCase()) ? LANGUAGES : [[start, languageName(start)], ...LANGUAGES];
+    const f = filter.trim().toLowerCase();
+    return f ? list.filter(([t, n]) => n.toLowerCase().includes(f) || t.toLowerCase().startsWith(f)) : list;
+  }, [filter, start]);
+  useEffect(() => {
+    listRef.current?.querySelector('[aria-selected="true"]')?.scrollIntoView({ block: 'center' });
+  }, []);
+  return (
+    <Dialog
+      title="Language"
+      width={440}
+      onClose={onClose}
+      actions={(
+        <>
+          {onSetDefault ? (
+            <Button
+              label="Set As Default"
+              className="pf-lang-default"
+              title={`Set As Default — words in this document with no language of their own are proofed in ${languageName(picked)}`}
+              disabled={byDefault === picked}
+              onClick={async () => { await onSetDefault(picked); setByDefault(picked); }}
+            />
+          ) : null}
+          <span style={{ flex: 1 }} />
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="OK" className="pf-lang-ok" onClick={() => onApply?.({ lang: picked, noProof })} />
+        </>
+      )}
+    >
+      <label className="pf-alt-label" htmlFor="pf-lang-find">Mark selected text as:</label>
+      <input id="pf-lang-find" className="rw-input pf-dict-filter pf-lang-find" value={filter} placeholder="Find a language" spellCheck={false} onChange={(e) => setFilter(e.target.value)} autoFocus />
+      <div className="pf-dict-list pf-lang-list" role="listbox" aria-label="Languages" ref={listRef}>
+        {rows.length ? rows.map(([tag, name]) => (
+          <button
+            key={tag}
+            type="button"
+            role="option"
+            aria-selected={tag === picked}
+            className={`pf-lang-row${tag === picked ? ' on' : ''}`}
+            data-tag={tag}
+            onClick={() => setPicked(tag)}
+            onDoubleClick={() => onApply?.({ lang: tag, noProof })}
+          >
+            <span className="pf-lang-mark" title={spelt(tag) ? 'Spelling is checked in this language' : undefined}>{spelt(tag) ? <Icon name="check" size={12} /> : null}</span>
+            <span>{name}</span>
+          </button>
+        )) : <div className="pf-note small">No language matches.</div>}
+      </div>
+      <label className="pf-check pf-lang-check">
+        <input type="checkbox" className="pf-lang-noproof" checked={noProof} onChange={(e) => setNoProof(e.target.checked)} />
+        <span>Do not check spelling or grammar</span>
+      </label>
+      <div className="pf-hint">
+        {noProof
+          ? 'Spelling reads past the selected words, and so does Office.'
+          : spelt(picked)
+            ? `Spelling checks ${languageName(picked)} words with its English dictionary.`
+            : `The suite has English dictionaries only, so Spelling reads past words in ${languageName(picked)} rather than marking them wrong; Office proofs them in ${languageName(picked)}.`}
+        {byDefault ? <> Default: <b className="pf-lang-current">{languageName(byDefault)}</b>.</> : null}
+      </div>
+    </Dialog>
+  );
+}
+
 /* ── the look ────────────────────────────────────────────────────────── */
 
 const CSS = `
@@ -460,6 +579,13 @@ const CSS = `
 .pf-dict-row:hover { background: var(--hover); }
 .pf-dict-remove { border: 0; background: none; color: var(--ink-3); cursor: pointer; display: grid; place-items: center; width: 22px; height: 22px; border-radius: var(--r-1); }
 .pf-dict-remove:hover { background: var(--active); color: var(--bad); }
+
+.pf-lang-list { height: 220px; margin-bottom: 8px; }
+.pf-lang-row { display: flex; align-items: center; gap: 6px; width: 100%; border: 0; border-bottom: 1px solid var(--line-soft); background: none; font: inherit; font-size: 12.5px; color: var(--ink); text-align: left; padding: 4px 8px; cursor: pointer; }
+.pf-lang-row:hover { background: var(--hover); }
+.pf-lang-row.on { background: var(--selected); color: var(--accent); font-weight: 600; }
+.pf-lang-mark { width: 14px; display: inline-grid; place-items: center; color: var(--good); flex: none; }
+.pf-lang-check { margin-top: 2px; }
 `;
 
 let installed = false;

@@ -728,7 +728,7 @@ export default function WordRibbon({
           </Group>
           <Group label="Language">
             <Soon tall icon="globe" label="Translate" why="Translation is a network service; this suite makes no requests it has not declared." />
-            <Soon tall icon="globe" label="Language" why="Proofing language is w:lang on runs, not written yet." />
+            <Button tall icon="globe" label="Language" title="Language — mark the selected words as a language, or as not to be checked, for Spelling here and proofing in Office" onClick={() => act('language')} />
           </Group>
           <Group label="Comments">
             <Button tall icon="reply" label="New Comment" onClick={() => openDialog('comment')} />

@@ -17,6 +17,19 @@ export function acceptedBy(list, word) {
   return has(word) || has(word.toLowerCase());
 }
 
+/**
+ * The words of a segment the pass asks the dictionary about. A segment may
+ * carry `skip`, `[from, to)` ranges the pass reads past — words marked not
+ * to be checked, or marked as a language there is no dictionary for — and a
+ * word with no Latin letter in it (Arabic, Hebrew, Chinese, Greek) is never
+ * put to the English dictionaries, which could only call it wrong.
+ */
+function wordsOf(seg, options) {
+  const skip = Array.isArray(seg.skip) ? seg.skip : [];
+  return tokenize(seg.text, options).filter((t) => /\p{Script=Latin}/u.test(t.word)
+    && !skip.some(([a, b]) => t.offset < b && t.offset + t.length > a));
+}
+
 /** The index of the segment a position is in; a key that has gone falls back to `fallback`. */
 function indexOf(segments, key, fallback) {
   const i = segments.findIndex((s) => s.key === key);
@@ -67,7 +80,7 @@ export async function nextMisspelling({ segments, from, stop, wrapped = false, m
     const upto = Math.min(segments.length, i + SLICE);
     const batch = [];
     for (let k = i; k < upto; k++) {
-      const words = tokenize(segments[k].text, options).filter((t) => (k === i ? t.offset >= offset : true));
+      const words = wordsOf(segments[k], options).filter((t) => (k === i ? t.offset >= offset : true));
       batch.push({ k, words });
     }
     const unknown = await misspelt([...new Set(batch.flatMap((b) => b.words.map((t) => t.word)))]);
@@ -99,7 +112,7 @@ export function changeAllEdits(segments, word, replacement, options = {}) {
   const target = String(word).replace(/’/g, "'").toLowerCase();
   const edits = [];
   for (const seg of segments) {
-    for (const t of tokenize(seg.text, { ...options, ignoreUppercase: false, ignoreNumbers: false })) {
+    for (const t of wordsOf(seg, { ...options, ignoreUppercase: false, ignoreNumbers: false })) {
       if (t.word.toLowerCase() !== target) continue;
       edits.push({ key: seg.key, from: t.offset, to: t.offset + t.length, text: matchCase(seg.text.slice(t.offset, t.offset + t.length), replacement) });
     }

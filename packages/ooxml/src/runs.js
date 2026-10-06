@@ -603,6 +603,37 @@ export function parseRuns(paragraphXml) {
   return runs;
 }
 
+// `<w:lang>` carries up to three languages, one for each kind of script a
+// run can hold: `w:val` for Latin text, `w:bidi` for right-to-left scripts
+// (Arabic, Hebrew, Urdu), `w:eastAsia` for Chinese, Japanese and Korean.
+// A language chosen for some text always fills `w:val`, and the
+// right-to-left and East Asian languages fill their own slot as well, so
+// Word proofs the script the words are actually in with the language that
+// was chosen. A slot the choice does not name is kept as it was.
+const RTL_LANGUAGES = new Set(['ar', 'he', 'iw', 'fa', 'ur', 'ps', 'sd', 'yi', 'ug', 'ckb', 'dv', 'syr']);
+const EAST_ASIAN_LANGUAGES = new Set(['zh', 'ja', 'ko']);
+
+/**
+ * The `<w:lang>` element with `tag` (a BCP 47 tag, "fr-FR") chosen, from the
+ * one already there (`existing`, or null) — or, with `tag` null, with the
+ * Latin slot cleared. Null when no slot is left.
+ */
+export function langElement(existing, tag) {
+  if (tag != null && !/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/.test(String(tag))) throw new Error('not a language tag: ' + tag);
+  const attrs = {};
+  if (existing) for (const m of String(existing).matchAll(/\s(w:[A-Za-z]+)="([^"]*)"/g)) attrs[m[1]] = m[2];
+  if (tag == null) {
+    delete attrs['w:val'];
+  } else {
+    attrs['w:val'] = String(tag);
+    const primary = String(tag).split('-')[0].toLowerCase();
+    if (RTL_LANGUAGES.has(primary)) attrs['w:bidi'] = String(tag);
+    if (EAST_ASIAN_LANGUAGES.has(primary)) attrs['w:eastAsia'] = String(tag);
+  }
+  const names = Object.keys(attrs);
+  return names.length ? '<w:lang' + names.map((k) => ' ' + k + '="' + attrs[k] + '"').join('') + '/>' : null;
+}
+
 /** `<w:b/>` and `<w:b w:val="1"/>` are on; `<w:b w:val="0"/>` is off. */
 export function hasToggle(rPr, tag) {
   if (!rPr) return false;

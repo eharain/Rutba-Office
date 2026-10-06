@@ -8,7 +8,7 @@
  * This is the ONLY file in `@rutba/doc-view` that imports `@rutba/ooxml`. Mail
  * imports the HTML backend instead and never pulls the format layer in.
  */
-import { Document, withToggle, hasToggle, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection } from '@rutba/ooxml';
+import { Document, withToggle, hasToggle, langElement, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection } from '@rutba/ooxml';
 import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene } from '@rutba/drawing';
 import { ommlToMathml, ommlToLinear, ommlInfo, asciiLinear } from '@rutba/ooxml/math';
 import { mergeToDocument, mergeMessages } from '@rutba/ooxml/mailmerge-run';
@@ -563,8 +563,22 @@ function withFontName(rPr, name) {
   return rPr.replace(/^(<w:rPr\b[^>]*>)/, (m, p1) => (p1 ?? '') + element);
 }
 
+// ---- the proofing language: Review → Language -----------------------------
+//
+// `<w:lang>`, its three script slots filled by `langElement` (ooxml/runs.js).
+
+/** Set (or, with null, clear) the language a run is proofed in, as a BCP 47 tag ("fr-FR"). */
+function withLang(rPr, tag) {
+  const existing = /<w:lang\b([^>]*)\/>/.exec(rPr || '');
+  const element = langElement(existing ? existing[1] : null, tag);
+  return withOrderedElement(rPr, 'lang', element !== null, element ?? '');
+}
+
 /** Set or clear one value run property. `null` clears; anything else sets. */
 function withRunProp(rPr, prop, value, declaresW14 = false) {
+  if (prop === 'lang') return withLang(rPr, value == null ? null : value);
+  // Review → Language's "Do not check spelling or grammar".
+  if (prop === 'noProof') return withOrderedElement(rPr, 'noProof', Boolean(value), '<w:noProof/>');
   if (prop === 'outline') return withOrderedElement(rPr, 'outline', Boolean(value), '<w:outline/>');
   if (prop === 'shadow') return withOrderedElement(rPr, 'shadow', Boolean(value), '<w:shadow/>');
   if (prop === 'glow') return withGlow(rPr, value, declaresW14);
@@ -589,7 +603,7 @@ function withRunProp(rPr, prop, value, declaresW14 = false) {
 function readRunProps(rPr, themeFonts = null) {
   const out = {
     fontName: null, fontSize: null, fontColour: null, highlight: null,
-    outline: false, shadow: false, glow: null,
+    outline: false, shadow: false, glow: null, lang: null, noProof: false,
   };
   if (!rPr) return out;
   const font = /<w:rFonts\b[^>]*\bw:ascii="([^"]*)"/.exec(rPr);
@@ -617,6 +631,10 @@ function readRunProps(rPr, themeFonts = null) {
   out.outline = hasToggle(rPr, 'outline');
   out.shadow = hasToggle(rPr, 'shadow');
   out.glow = readGlow(rPr);
+  // The language the run's Latin text is proofed in, and whether it is proofed at all.
+  const lang = /<w:lang\b[^>]*\bw:val="([^"]+)"/.exec(rPr);
+  if (lang) out.lang = unesc(lang[1]);
+  out.noProof = hasToggle(rPr, 'noProof');
   return out;
 }
 

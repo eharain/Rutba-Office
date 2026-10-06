@@ -12,7 +12,7 @@ export { DECORATIVE_URI, findElements, readAltProps, writeAltProps } from './alt
 export { readTitle, writeTitle } from './core-props.js';
 export { paragraphText, paragraphsIn, replaceInParagraph, textBoxesIn } from './wordml.js';
 export {
-  describeWord, wordDrawings, wordLanguage, setWordAltText, setWordTableHeader, removeWordParagraphs, setWordTitle,
+  describeWord, wordDrawings, wordLanguage, wordDefaultLanguage, setWordAltText, setWordTableHeader, removeWordParagraphs, setWordTitle, setWordDefaultLanguage,
   wordSegments, wordStart, replaceWordText,
 } from './word.js';
 export {

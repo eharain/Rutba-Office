@@ -21,7 +21,7 @@ export {
   Workbook, colToIndex, indexToCol, parseRef, makeRef, unesc,
 } from './workbook.js';
 export {
-  Document, textOf, parseRuns, renderRuns, hasToggle, withToggle, WORD_NS,
+  Document, textOf, parseRuns, renderRuns, hasToggle, withToggle, langElement, WORD_NS,
 } from './document.js';
 export {
   parseTable, parseSection, twipsToPx, eighthPointsToPx, TWIPS_PER_INCH,
