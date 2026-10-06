@@ -254,6 +254,16 @@ function readRunProps(rPr, theme) {
   if (highlight) out.highlight = colorChildOf(highlight, theme)?.hex || null;
   if (latin?.attrs.typeface) out.font = theme?.font(latin.attrs.typeface) || latin.attrs.typeface;
   if (hlink) out.link = hlink.attrs['r:id'] || true;
+  // WordArt: the words' own outline, no fill (an outline alone), and a
+  // shadow or glow round the words.
+  const ln = kids(rPr, A('ln'))[0];
+  if (ln) {
+    const line = readLine(holder(ln), theme);
+    if (line && line.type !== 'none' && line.color) out.outline = { width: line.width, color: line.color };
+  }
+  if (kids(rPr, A('noFill'))[0]) out.noFill = true;
+  const fx = readEffects(rPr, theme);
+  if (fx?.shadow || fx?.glow) out.textEffects = { ...(fx.shadow ? { shadow: fx.shadow } : {}), ...(fx.glow ? { glow: fx.glow } : {}) };
   return out;
 }
 

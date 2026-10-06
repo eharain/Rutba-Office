@@ -4559,7 +4559,17 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
         if (r.caps) bits.push(`cap="${r.caps === 'small' ? 'small' : 'all'}"`);
         if (r.baseline) bits.push(`baseline="${r.baseline === 'super' ? 30000 : -25000}"`);
         if (r.noProof) bits.push('noProof="1"');
-        const fill = r.color ? `<a:solidFill><a:srgbClr val="${String(r.color).replace('#', '')}"/></a:solidFill>` : '';
+        // WordArt's own: an outline round the words (first in rPr), no fill
+        // for an outline alone, and a glow and shadow on the words.
+        const outline = r.outline?.color ? `<a:ln w="${Math.round(Math.max(0.25, Number(r.outline.width) || 1) * 12700)}"><a:solidFill>${colourXml(String(r.outline.color))}</a:solidFill></a:ln>` : '';
+        const fx = r.textEffects || {};
+        const effects = fx.glow || fx.shadow
+          ? '<a:effectLst>'
+            + (fx.glow ? `<a:glow rad="${Math.round((Number(fx.glow.radiusPt) || 5) * 12700)}">${colourXml({ color: fx.glow.color || '#000000', alpha: fx.glow.alpha ?? 0.6 })}</a:glow>` : '')
+            + (fx.shadow ? outerShadowXml({ blur: (Number(fx.shadow.blurPx) || 0) * 0.75, dist: (Number(fx.shadow.distPx) || 0) * 0.75, dir: Number(fx.shadow.dir) || 0, color: fx.shadow.color, alpha: fx.shadow.alpha ?? 1 }) : '')
+            + '</a:effectLst>'
+          : '';
+        const fill = outline + (r.noFill ? '<a:noFill/>' : r.color ? `<a:solidFill><a:srgbClr val="${String(r.color).replace('#', '')}"/></a:solidFill>` : '') + effects;
         // A highlight sits after the fill and before the font in rPr's order.
         const highlight = r.highlight ? `<a:highlight><a:srgbClr val="${String(r.highlight).replace('#', '')}"/></a:highlight>` : '';
         const font = r.font ? `<a:latin typeface="${escapeXml(r.font)}"/>` : '';

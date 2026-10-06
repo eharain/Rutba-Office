@@ -400,8 +400,11 @@ function drawLines(body, box, opts, lines, height, insets) {
         if (s.italic) attrs.push('font-style="italic"');
         // A link is underlined, in Office's link blue unless the run says otherwise.
         if (s.underline || s.strike || s.link) attrs.push(`text-decoration="${[s.underline || s.link ? 'underline' : '', s.strike ? 'line-through' : ''].filter(Boolean).join(' ')}"`);
-        if (s.color) attrs.push(`fill="${s.color}"`);
+        // WordArt: an outline alone has no fill; an outline is a stroke round each letter.
+        if (s.noFill) attrs.push('fill="none"');
+        else if (s.color) attrs.push(`fill="${s.color}"`);
         else if (s.link) attrs.push('fill="#0563C1"');
+        if (s.outline?.color) attrs.push(`stroke="${s.outline.color}" stroke-width="${(Math.max(0.25, Number(s.outline.width) || 1) * (96 / 72) * (opts?.scale || 1)).toFixed(2)}" stroke-linejoin="round"`);
         if (s.size && s.size !== line.size) attrs.push(`font-size="${(s.size * (opts?.scale || 1)).toFixed(2)}"`);
         if (s.font) attrs.push(`font-family="${fontStack(s.font)}"`);
         if (s.colorAlpha != null && s.colorAlpha < 1) attrs.push(`fill-opacity="${s.colorAlpha}"`);
@@ -410,9 +413,13 @@ function drawLines(body, box, opts, lines, height, insets) {
 
       })
       .join('');
+    // A shadow or glow on the words is drawn round the whole line — a filter
+    // belongs to the text element, not to one run of it.
+    const fx = line.segments.find((s) => s.textEffects)?.textEffects;
+    const filter = fx && opts?.registerEffects ? opts.registerEffects(fx) : '';
     out.push(
       `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-size="${line.size.toFixed(2)}" ` +
-      `font-family="${DEFAULT_FONT}" fill="${line.segments[0]?.color || '#1a1a1a'}" xml:space="preserve">${spans}</text>`
+      `font-family="${DEFAULT_FONT}" fill="${line.segments[0]?.color || '#1a1a1a'}"${filter} xml:space="preserve">${spans}</text>`
     );
   }
   return out.join('');
@@ -654,7 +661,7 @@ export function renderSlide(slide, opts = {}) {
     const opacity = fill?.alpha != null && fill.alpha < 1 ? ` fill-opacity="${fill.alpha}"` : '';
     const text = shape.text && shape.text.paragraphs?.length ? shape.text : null;
     const shapeMarkup = `${geom} fill="${fillValue}"${opacity}${strokeBits}${registerEffects(shape.effects)}${transform}/>`;
-    const textMarkup = text ? `<g${textTransform}>${textSvg(text, g, { scale: 1, baseSize: defaultSizeFor(shape.placeholder), levels: shape.textStyle || null })}</g>` : '';
+    const textMarkup = text ? `<g${textTransform}>${textSvg(text, g, { scale: 1, baseSize: defaultSizeFor(shape.placeholder), levels: shape.textStyle || null, registerEffects })}</g>` : '';
 
     // A reflection is a mirrored copy of the shape and its words, drawn from
     // a `<use>` on a group that wraps both — which is only worth the extra
