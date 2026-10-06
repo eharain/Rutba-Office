@@ -32,8 +32,9 @@ import { ActionDialog, ACTION_CSS } from './slides/action.js';
 import { PhotoAlbumDialog, ALBUM_CSS } from './slides/album.js';
 import { CustomShowsDialog, CUSTOM_SHOWS_CSS } from './slides/custom-shows.js';
 import { HandoutSlots, HANDOUT_CSS } from './slides/handout.js';
+import { StageMedia, MEDIA_CSS, MEDIA_FILES, posterFrame } from './slides/media.js';
 import { ScreenshotDialog } from '../screenshot.js';
-import { IconsDialog } from '../icons-insert.js';
+import { IconsDialog, iconPng } from '../icons-insert.js';
 
 // The splits Move Split moves, marked while it is on — in shadows, so
 // turning it on moves nothing by itself.
@@ -450,6 +451,43 @@ export default function Slides({ app, shell, boot }) {
    * size out of the picture's own header and fits it to the slide; what comes
    * back is selected, so Arrange and Delete act on it at once.
    */
+  /**
+   * Insert → Video → This Device and Audio → Audio on My PC: the file in
+   * the deck, in the middle of the slide — a video at its own shape (six
+   * tenths of the slide at most) with its poster frame, a sound as a
+   * speaker — and selected.
+   */
+  const insertMedia = useCallback(async (kind) => {
+    const types = MEDIA_FILES[kind];
+    const [file] = await shell.dialog.open({
+      title: kind === 'video' ? 'Insert Video' : 'Insert Audio',
+      filters: [{ name: kind === 'video' ? 'Videos' : 'Audio', extensions: Object.keys(types) }],
+    });
+    if (!file) return;
+    const { bytes, stat } = await shell.fs.read({ path: file });
+    const ext = String(stat?.ext || file.split('.').pop()).replace('.', '').toLowerCase();
+    const contentType = types[ext];
+    if (!contentType) { toast(`A .${ext} file is not ${kind === 'video' ? 'a video' : 'a sound'} a slide can hold.`, { ms: 3500 }); return; }
+    const W = model?.size?.width || 1280;
+    const H = model?.size?.height || 720;
+    let poster;
+    let w = 48;
+    let h = 48;
+    if (kind === 'video') {
+      const frame = await posterFrame(bytes, contentType);
+      poster = frame.png;
+      const scale = Math.min((W * 0.6) / frame.width, (H * 0.6) / frame.height, 1);
+      w = Math.max(32, Math.round(frame.width * scale));
+      h = Math.max(18, Math.round(frame.height * scale));
+      if (!frame.decoded) toast('This video plays in PowerPoint; this window cannot show its picture, so it stands as a plain poster.', { ms: 4500 });
+    } else {
+      poster = await iconPng('volume', '#3b3f46', 192);
+    }
+    const next = await apply({ op: 'addMedia', slide: index, kind, data: bytes, contentType, poster, name: stat?.name || file.split(/[\\/]/).pop(), x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h });
+    const added = next?.model?.slide?.shapes?.slice(-1)[0];
+    if (added) setSelected(added.id);
+  }, [shell, apply, index, model?.size?.width, model?.size?.height, toast]);
+
   const insertPicture = useCallback(async () => {
     const [file] = await shell.dialog.open({
       title: 'Insert picture',
@@ -1391,6 +1429,7 @@ export default function Slides({ app, shell, boot }) {
       case 'screenshot': setShotOpen(true); return;
       // Insert → Icons: one of the suite's own icons, as a picture on this slide.
       case 'icons': setIconsOpen(true); return;
+      case 'insertMedia': await insertMedia(arg); return;
       // Insert → Action: what a click on the selected shape does in the show.
       case 'action':
         if (!selectedShape) return toast('Click a shape first, then choose what a click on it does in the show.', { ms: 3500 });
@@ -1847,10 +1886,10 @@ export default function Slides({ app, shell, boot }) {
           showKeys.current.next();
         }}
       >
-        <style>{CSS}</style>
+        <style>{CSS + MEDIA_CSS}</style>
         {actioned.length ? <style>{`${actioned.map((s) => `.sl-present [data-shape="${String(s.id).replace(/[^\w-]/g, '')}"]`).join(', ')} { cursor: pointer; }`}</style> : null}
         {/* A black screen is a thing speakers ask for by name: attention back on them. It hides the stage rather than dropping it, so coming back does not replay the transition. */}
-        <ShowStage slide={slide} size={model.size} step={showStep} hidden={blank} onSettled={setSettled} control={showControl} />
+        <ShowStage slide={slide} size={model.size} step={showStep} hidden={blank} onSettled={setSettled} control={showControl} mediaControls={model?.showSettings?.mediaControls !== false} />
         <div className="sl-present-bar">
           {index + 1} / {model.count}{led ? ' · driven from the presenter window' : ' · press Esc to leave'}
         </div>
@@ -1931,7 +1970,7 @@ export default function Slides({ app, shell, boot }) {
         </div>
       ) : (
         <>
-          <style>{CSS + DESIGN_CSS + COMMENTS_CSS + EQUATION_CSS + HANDOUT_CSS}</style>
+          <style>{CSS + DESIGN_CSS + COMMENTS_CSS + EQUATION_CSS + HANDOUT_CSS + MEDIA_CSS}</style>
           {splitting ? <style>{SPLIT_CSS}</style> : null}
           <Panel width={view.railWidth || 196} resizable title={model.masterView ? ({ notes: 'Notes Master', handout: 'Handout Master' }[model.masterView.kind] || 'Slide Master') : 'Slides'}>
             {model.masterView ? (
@@ -2069,6 +2108,8 @@ export default function Slides({ app, shell, boot }) {
                 {view.ruler ? <><div className="sl-ruler-h" /><div className="sl-ruler-v" /></> : null}
                 <div className="sl-slide" style={{ width: model.size.width, height: model.size.height, transform: `scale(${view.zoom ?? fit})`, transformOrigin: 'top left' }}>
                   <Markup className="sl-svg" html={slide.svg} />
+                  {/* Videos and sounds: a play bar under each, as PowerPoint draws one. */}
+                  {!model.masterView ? <StageMedia shapes={slide.shapes} /> : null}
                   {/* Transitions → Preview: the slide before (or black) into this one, over the stage. */}
                   {preview?.kind === 'transition' && slide.transition ? (
                     <TransitionPreview key={preview.key} fromSvg={index > 0 ? model.outline?.[index - 1]?.thumbnail || '' : ''} toSvg={slide.svg} transition={slide.transition} onDone={() => setPreview(null)} />

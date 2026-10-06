@@ -481,8 +481,8 @@ export default function SlidesRibbon({
             <Button tall icon="star" label="Symbol" title="Symbol — a character from the symbol sets, put in where the caret is in a text box" onClick={() => act('symbol')} />
           </Group>
           <Group label="Media">
-            <Soon tall icon="video" label="Video" why="Video on a slide is a media part plus a relationship the deck writer does not write yet." />
-            <Soon tall icon="volume" label="Audio" why="Comes with media." />
+            <Button tall icon="video" label="Video" title="Video — a video from this computer on the slide; a click on it plays it in the show" onClick={(e) => menu.open(e, [{ label: 'This Device…', icon: 'video', run: () => act('insertMedia', 'video') }])} />
+            <Button tall icon="volume" label="Audio" title="Audio — a sound from this computer on the slide, as a speaker; a click on it plays it in the show" onClick={(e) => menu.open(e, [{ label: 'Audio on My PC…', icon: 'volume', run: () => act('insertMedia', 'audio') }])} />
             <Soon tall icon="video" label="Screen Recording" why="Comes with media." />
           </Group>
         </>
@@ -797,7 +797,13 @@ export default function SlidesRibbon({
               title="Use Timings — slides with a timing move on by themselves; off, the show moves only when you move it"
               onClick={() => act('showFlag', { useTimings: model?.showSettings?.useTimings === false })}
             />
-            <Soon icon="check" label="Show Media Controls" why="Comes with media." />
+            <Button
+              icon="check"
+              label="Show Media Controls"
+              pressed={model?.showSettings?.mediaControls !== false}
+              title="Show Media Controls — a video in the show gets its play bar once it has started"
+              onClick={() => act('showFlag', { mediaControls: model?.showSettings?.mediaControls === false })}
+            />
           </Group>
           <Group label="Monitors">
             <Button icon="grid" label={`Monitor: ${monitorName}`} title="Monitor — the screen the slide show plays on; Automatic puts it on another screen than Presenter View's" onClick={(e) => act('monitorMenu', e)} />
