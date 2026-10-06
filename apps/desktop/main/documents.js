@@ -1324,6 +1324,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
             // (which the scene shows, inherited when the slide states none)
             // — so the ribbon can tick the choice that is actually this slide's.
             ownBackground: safely(() => deck.background(masterPart || index)) ?? null,
+            // Transitions → Sound: what plays as the slide comes in, and a URL to play it from.
+            transitionSound: masterPart ? null : (() => {
+              const s = safely(() => deck.transitionSound(index));
+              return s ? { ...s, url: s.part ? resolveMedia({ source: { part: s.part } }) : null } : null;
+            })(),
             shapes: current.shapes.map((s) => ({
               id: s.id,
               kind: s.kind,
@@ -1806,6 +1811,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // middle of it. The engine does not decode pictures; this reads the size
     // out of the first bytes the way the photo viewer does.
     addPicture: (d, a) => d.addPicture(a.slide, picturePlacement(d, a)),
+    setTransitionSound: (d, a) => d.setTransitionSound(a.slide, a.sound == null ? null : { ...a.sound, data: a.sound.data ? (Buffer.isBuffer(a.sound.data) ? a.sound.data : Buffer.from(a.sound.data)) : undefined }),
     addMedia: (d, a) => {
       const bytes = (v) => (Buffer.isBuffer(v) ? v : v instanceof Uint8Array ? Buffer.from(v) : Buffer.from(String(v ?? ''), 'base64'));
       return d.addMedia(a.slide, { kind: a.kind, data: bytes(a.data), contentType: a.contentType, poster: { data: bytes(a.poster), contentType: 'image/png' }, name: a.name, x: a.x, y: a.y, w: a.w, h: a.h }).id;

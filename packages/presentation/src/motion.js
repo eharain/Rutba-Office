@@ -283,7 +283,8 @@ export function withTransition(xml, spec) {
       duration: spec.duration !== undefined && spec.duration !== null ? spec.duration : base.duration,
       advanceOnClick: spec.advanceOnClick !== undefined ? spec.advanceOnClick : current?.advanceOnClick ?? true,
       advanceAfter: spec.advanceAfter !== undefined ? spec.advanceAfter : current?.advanceAfter ?? null,
-      sound: current?.sound || null,
+      // Transitions → Sound: the `p:sndAc` as written, kept unless one is given (null takes it off).
+      sound: spec.sound !== undefined ? spec.sound : current?.sound || null,
     };
     if (type === 'none' && next.advanceOnClick !== false && next.advanceAfter == null && !next.sound) return without;
     block = transitionXml(next);

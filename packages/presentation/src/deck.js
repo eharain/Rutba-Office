@@ -19,7 +19,7 @@ import { equationShapeXml, ommlForSlide } from './equations.js';
 import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS, COLOUR_SLOTS, themePartXml, clrSchemeXml, fontSchemeXml, fmtSchemeXml, masterBackgroundXml, clrMapAttrs, variantsOf, themeById } from './themes.js';
 import { slideXml } from './build.js';
 import { chartPartXml } from '@rutba/ooxml/build';
-import { readTransition, withTransition, transitionBlock, insertTransition, transitionRange } from './motion.js';
+import { readTransition, withTransition, transitionBlock, insertTransition, transitionRange, transitionXml } from './motion.js';
 import { readAnimations, addAnimation, setAnimation, removeAnimation, moveAnimation, removeShapeAnimations, pruneAnimations } from './timing.js';
 import { parseChartXml } from '@rutba/drawing';
 import { masterPartXml, placeholderXml, placeholderBox, placeholderTypesIn, MASTER_PLACEHOLDERS, NOTES_MASTER_CT, HANDOUT_MASTER_CT, NOTES_MASTER_REL, HANDOUT_MASTER_REL } from './notes-master.js';
@@ -4081,6 +4081,81 @@ export class Deck {
     const next = withTransition(xml, spec);
     if (next === xml) return false;
     this.#writeSlide(entry.part, next);
+    return true;
+  }
+
+  /**
+   * Transitions → Sound: what plays as the slide comes in — `{ name, part,
+   * loop }` for a sound, `{ stop: true }` for Stop Previous Sound — or null.
+   */
+  transitionSound(index) {
+    const entry = this.slideParts[index];
+    if (!entry) return null;
+    const xml = this.pkg.text(entry.part);
+    const range = transitionRange(xml);
+    if (!range) return null;
+    const block = xml.slice(range.start, range.end);
+    if (/<p:endSnd\b/.test(block)) return { stop: true };
+    const st = /<p:stSnd\b([^>]*)>[\s\S]*?<p:snd\b([^>]*?)\/?>/.exec(block);
+    if (!st) return null;
+    const embed = /\br:embed="([^"]+)"/.exec(st[2])?.[1];
+    const rel = embed ? this.#relMap(entry.part).get(embed) : null;
+    return { name: unescapeXml(/\bname="([^"]*)"/.exec(st[2])?.[1] || ''), part: rel?.resolved || null, loop: /\bloop="(1|true)"/.test(st[1]) };
+  }
+
+  /**
+   * Transitions → Sound: `null` for No Sound, `{ stop: true }` for Stop
+   * Previous Sound, `{ data, name, loop }` for a sound — a WAV, as
+   * PowerPoint plays a transition's — or `{ loop }` alone for Loop Until
+   * Next Sound on the one there. Written in every `p:transition` the slide
+   * has (a PowerPoint 2010 effect's and its fallback's), after the effect.
+   */
+  setTransitionSound(index, spec = null) {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+    let xml = this.pkg.text(entry.part);
+    const range0 = transitionRange(xml);
+    let snd = null;
+    if (spec?.stop) snd = '<p:sndAc><p:endSnd/></p:sndAc>';
+    else if (spec?.data) {
+      const bytes = Buffer.isBuffer(spec.data) ? spec.data : Buffer.from(spec.data);
+      if (bytes.length < 12 || bytes.toString('ascii', 0, 4) !== 'RIFF' || bytes.toString('ascii', 8, 12) !== 'WAVE') throw new Error('a transition sound is a WAV file');
+      const names = this.pkg.partNames() || [];
+      let n = 1;
+      while (names.some((p) => p.startsWith(`ppt/media/audio${n}.`))) n += 1;
+      this.pkg.ensureDefault('wav', 'audio/wav');
+      this.pkg.addPart(`ppt/media/audio${n}.wav`, bytes);
+      const rId = this.pkg.addRelationshipTo(entry.part, AUDIO_REL, `../media/audio${n}.wav`);
+      xml = this.pkg.text(entry.part);
+      const head = xml.slice(0, Math.max(0, xml.indexOf('<p:cSld')));
+      if (!/xmlns:r=/.test(head)) xml = xml.replace(/<p:sld\b/, '<p:sld xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"');
+      snd = `<p:sndAc><p:stSnd${spec.loop ? ' loop="1"' : ''}><p:snd r:embed="${rId}" name="${escapeXml(spec.name || 'sound.wav')}"/></p:stSnd></p:sndAc>`;
+    } else if (spec && spec.loop !== undefined) {
+      // Loop Until Next Sound: the sound there, looping or not.
+      if (!range0) return false;
+      const block = xml.slice(range0.start, range0.end);
+      if (!/<p:stSnd\b/.test(block)) return false;
+      const next = block.replace(/<p:stSnd\b[^>]*>/g, () => (spec.loop ? '<p:stSnd loop="1">' : '<p:stSnd>'));
+      if (next === block) return false;
+      this.#writeSlide(entry.part, xml.slice(0, range0.start) + next + xml.slice(range0.end));
+      return true;
+    }
+    const range = transitionRange(xml);
+    if (!range) {
+      if (!snd) return false;
+      xml = insertTransition(xml, transitionXml({ type: 'none', sound: snd }));
+    } else {
+      let block = xml.slice(range.start, range.end).replace(/<p:sndAc\b[\s\S]*?<\/p:sndAc>/g, '');
+      if (snd) {
+        block = block
+          .replace(/<p:transition\b([^>]*?)\/>/g, (m, a) => `<p:transition${a}></p:transition>`)
+          .replace(/(<p:extLst\b(?:(?!<\/p:transition>)[\s\S])*?<\/p:extLst>)?<\/p:transition>/g, (m, ext) => snd + (ext || '') + '</p:transition>');
+      }
+      const before = xml;
+      xml = xml.slice(0, range.start) + block + xml.slice(range.end);
+      if (xml === before) return false;
+    }
+    this.#writeSlide(entry.part, xml);
     return true;
   }
 
