@@ -424,7 +424,7 @@ export default function SheetsRibbon({
             <Soon icon="wand" label="WordArt" why="WordArt is DrawingML text effects the engine does not write." />
           </Group>
           <Group label="Symbols">
-            <Soon icon="formula" label="Equation" why="Equations are OMML the engine does not write." />
+            <Button icon="formula" label="Equation" title="Equation — typed in its linear form (x^2+y^2=r^2), set as math over the selection; double-click one to change it" onClick={() => act('equation')} />
             <Button icon="plus" label="Symbol" onClick={() => openDialog('symbol')} />
           </Group>
           <Group label="Names">

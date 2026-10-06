@@ -118,6 +118,37 @@ export function drawingAnchorXml(d, relIdOf) {
     .replace(/<\/xdr:wsDr>$/, '');
 }
 
+const MC_NS = 'http://schemas.openxmlformats.org/markup-compatibility/2006';
+const A14_NS = 'http://schemas.microsoft.com/office/drawing/2010/main';
+const MATH_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/math';
+const CAMBRIA_MATH = '<a:latin typeface="Cambria Math" panose="02040503050406030204" pitchFamily="18" charset="0"/>';
+
+/**
+ * Insert → Equation on a sheet, as Excel writes one: a text box whose
+ * paragraph holds the equation (`a14:m` around the OMML, its runs in
+ * DrawingML's own run properties, in Cambria Math), inside
+ * `mc:AlternateContent` — a reader without math gets the same box with the
+ * equation's linear form as words. `d.omml` is OMML as `linearToOmml` makes
+ * it; `d.linear` the linear form; `d.size` the type size in points.
+ */
+export function equationContentXml(d) {
+  const sz = Math.round((d.size ?? 11) * 100);
+  const math = String(d.omml || '')
+    .replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/g, (m, inner) => '<a:rPr lang="en-GB"' + (/<w:i\s*\/>|<w:i\b[^>]*w:val="(1|true|on)"/.test(inner) ? ' i="1"' : '') + '>' + CAMBRIA_MATH + '</a:rPr>')
+    .replace(/<w:rPr\s*\/>/g, () => '<a:rPr lang="en-GB">' + CAMBRIA_MATH + '</a:rPr>')
+    .replace(/^\s*<(m:oMathPara|m:oMath)\b(?![^>]*\bxmlns:m=)/, (m, tag) => '<' + tag + ' xmlns:m="' + MATH_NS + '"');
+  const label = esc(d.name ?? 'Equation ' + d.id);
+  const nv = '<xdr:nvSpPr><xdr:cNvPr id="' + d.id + '" name="' + label + '"/><xdr:cNvSpPr txBox="1"/></xdr:nvSpPr>';
+  const spPr = '<xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></xdr:spPr>';
+  const bodyPr = '<a:bodyPr vertOverflow="clip" horzOverflow="clip" wrap="none" rtlCol="0" anchor="ctr"><a:spAutoFit/></a:bodyPr><a:lstStyle/>';
+  const choice = '<xdr:sp macro="" textlink="">' + nv + spPr + '<xdr:txBody>' + bodyPr
+    + '<a:p><a:pPr algn="ctr"/><a14:m>' + math + '</a14:m><a:endParaRPr lang="en-GB" sz="' + sz + '"/></a:p></xdr:txBody></xdr:sp>';
+  const fallback = '<xdr:sp macro="" textlink="">' + nv + spPr + '<xdr:txBody>' + bodyPr
+    + '<a:p><a:pPr algn="ctr"/><a:r><a:rPr lang="en-GB" sz="' + sz + '"/><a:t>' + esc(d.linear ?? '') + '</a:t></a:r></a:p></xdr:txBody></xdr:sp>';
+  return '<mc:AlternateContent xmlns:mc="' + MC_NS + '"><mc:Choice xmlns:a14="' + A14_NS + '" Requires="a14">' + choice
+    + '</mc:Choice><mc:Fallback>' + fallback + '</mc:Fallback></mc:AlternateContent>';
+}
+
 function drawingPartXml(drawings, relIdOf) {
   const anchors = drawings.map((d) => {
     const from = '<xdr:from><xdr:col>' + d.from.col + '</xdr:col><xdr:colOff>0</xdr:colOff>'
@@ -146,6 +177,7 @@ function drawingPartXml(drawings, relIdOf) {
     }
     const to = '<xdr:to><xdr:col>' + d.to.col + '</xdr:col><xdr:colOff>0</xdr:colOff>'
       + '<xdr:row>' + d.to.row + '</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>';
+    if (d.kind === 'equation') return '<xdr:twoCellAnchor>' + from + to + equationContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     const fill = d.fill
       ? '<a:solidFill>' + (/^[0-9A-Fa-f]{6}$/.test(d.fill)
         ? '<a:srgbClr val="' + d.fill.toUpperCase() + '"/>'

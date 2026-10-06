@@ -56,7 +56,30 @@ import {
   readSheetDrawings, buildChart, buildShape, buildPicture, renderSvg, scene,
   SUPPORTED_GEOMETRY, childElements, xfrmOf, anchorBody,
 } from '@rutba/drawing';
-import { drawingAnchorXml, chartPartXml } from '@rutba/ooxml/build';
+import { drawingAnchorXml, chartPartXml, equationContentXml } from '@rutba/ooxml/build';
+import { ommlToMathml, ommlToLinear } from '@rutba/ooxml/math';
+import { linearToOmml } from '@rutba/ooxml/math-linear';
+
+/** An equation's linear form from its OMML, or '' when it cannot be read. */
+function safeLinear(omml) {
+  try { return ommlToLinear(omml); } catch { return ''; }
+}
+
+/**
+ * An equation drawn for the grid: its MathML in an SVG of the box's size,
+ * centred, at its own type size — the page draws MathML itself, so the
+ * equation is set as math rather than as a picture of it.
+ */
+function equationSvg(omml, { width, height, sizePt = 11, dark = false, title = 'Equation' }) {
+  const mathml = ommlToMathml(omml);
+  const px = Math.max(8, Math.round((sizePt * 96) / 72));
+  const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+  return '<svg xmlns="http://www.w3.org/2000/svg" width="' + width + '" height="' + height + '" viewBox="0 0 ' + width + ' ' + height + '">'
+    + '<title>' + esc(title) + '</title><foreignObject x="0" y="0" width="' + width + '" height="' + height + '">'
+    + '<div xmlns="http://www.w3.org/1999/xhtml" class="sh-equation" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;'
+    + 'font-family:\'Cambria Math\',\'STIX Two Math\',serif;font-size:' + px + 'px;color:' + (dark ? '#f2f2f2' : '#000') + '">' + mathml + '</div>'
+    + '</foreignObject></svg>';
+}
 import { newGuid } from '@rutba/ooxml/workbook';
 import { History } from '@rutba/editing';
 import {
@@ -1310,6 +1333,8 @@ export class SheetView {
           slicer = this.slicerState(d.slicerName) ?? { name: d.slicerName, caption: d.slicerName, items: [], broken: 'its slicer part is missing' };
         } else if (d.spec) {
           svg = renderSvg(buildChart({ ...d.spec, width, height, mode: this.mode, palette }));
+        } else if (d.kind === 'equation' && d.omml) {
+          svg = equationSvg(d.omml, { width, height, sizePt: d.sizePt, dark: this.mode === 'dark', title: d.name ?? 'Equation' });
         } else if (d.descriptor?.kind === 'shape') {
           svg = renderSvg(scene({
             width, height, mode: this.mode, background: 'none',
@@ -1349,6 +1374,8 @@ export class SheetView {
       }
       return {
         id: d.id, kind: d.kind, name: d.name, x, y, width, height, svg, unsupported,
+        // An equation's linear form, for Insert → Equation to open it again.
+        ...(d.kind === 'equation' && d.omml ? { linear: safeLinear(d.omml) } : {}),
         anchor: d.from ? { row: d.from.row, col: d.from.col } : null,
         index: d.index, hidden: Boolean(d.hidden), pivot: d.pivot ?? null,
         // The turn and flips of what turns (a shape and a picture draw theirs
@@ -3489,6 +3516,47 @@ export class SheetView {
    * moment the drawings cache refreshes, because rendering existing shapes
    * has worked all along.
    */
+  /**
+   * Insert → Equation: an equation typed in its linear form ("x^2+y^2=r^2",
+   * "\sqrt(a)"), written as Excel writes one — a text box holding the OMML —
+   * over the selection, or a box sized to the equation at the active cell.
+   */
+  insertEquation({ linear = '', size = 11 } = {}) {
+    const text = String(linear ?? '').trim();
+    if (!text) throw new Error('Type the equation first.');
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before inserting objects.');
+    const omml = linearToOmml(text, { display: true }).xml;
+    const sel = this.selection.range;
+    const single = sel.top === sel.bottom && sel.left === sel.right;
+    const from = { row: sel.top, col: sel.left };
+    // A box about as wide as the equation reads, at the default column width.
+    const to = single
+      ? { row: sel.top + 2, col: sel.left + Math.max(2, Math.min(12, Math.ceil((text.length * size * 0.75 + 24) / 64))) }
+      : { row: sel.bottom + 1, col: sel.right + 1 };
+    const { sheetPartName, parts } = this._drawingEditParts();
+    this._edit('insert equation', null, [], () => {
+      const drawingPart = this.workbook.ensureSheetDrawing(this.activeSheet);
+      this.workbook.appendDrawingAnchor(drawingPart, (id) => drawingAnchorXml({ kind: 'equation', id, name: 'Equation ' + id, omml, linear: text, size, from, to }, () => null));
+      this.drawings.set(this.activeSheet, this._readDrawings(sheetPartName));
+      this._structuralDirty = true;
+    }, { parts, tracksNewParts: true });
+    return this;
+  }
+
+  /** An equation typed again: the same box, its math replaced. */
+  setEquation({ id, linear = '' } = {}) {
+    const d = this._drawingById(id);
+    if (d.kind !== 'equation') throw new Error('That object is not an equation.');
+    const text = String(linear ?? '').trim();
+    if (!text) throw new Error('Type the equation first.');
+    const omml = linearToOmml(text, { display: true }).xml;
+    const content = equationContentXml({ id: d.nvId || 2, name: d.name || 'Equation', omml, linear: text, size: d.sizePt || 11 });
+    return this._editAnchors('edit equation', (spans, xml) => ({
+      xml: rebuild(spans, xml, (s, i) => (i === d.index ? s.xml.replace(/<mc:AlternateContent\b[\s\S]*<\/mc:AlternateContent>/, () => content) : s.xml)),
+      result: true,
+    }));
+  }
+
   insertShape({ geometry = 'rect', text = '' } = {}) {
     if (!SUPPORTED_GEOMETRY.includes(geometry)) {
       throw new Error('"' + geometry + '" is not a shape this editor draws — pick one of the presets');

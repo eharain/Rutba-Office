@@ -1391,6 +1391,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     enter: (v, a) => v.enterKey(a.back),
     insertChart: (v, a) => v.insertChart(a),
     insertShape: (v, a) => v.insertShape(a),
+    insertEquation: (v, a) => v.insertEquation(a),
+    setEquation: (v, a) => v.setEquation(a),
     formatBrush: (v) => v.markFormatBrush(),
     paintFormat: (v) => v.paintFormat(),
 

@@ -27,6 +27,7 @@ import { WorkbookGallery, SHEET_DESIGN_CSS } from './sheets/design.js';
 import { CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 import { SlicerPanel, InsertSlicersDialog, ObjectHandles, RotateHandle, SelectionPane, angleAt, followPointer, OBJECTS_CSS } from './sheets/objects.js';
 import { IconsDialog } from '../icons-insert.js';
+import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
 } from './sheets/dialogs.js';
@@ -1109,6 +1110,8 @@ export default function Sheets({ app, shell, boot }) {
               style={{ left: box.x, top: box.y, width: box.width, height: box.height, ...(transform ? { transform } : {}) }}
               title={d.unsupported ? `${d.name || d.kind}: ${d.unsupported}` : d.pivot ? `${d.name || 'PivotChart'} — a PivotChart of ${d.pivot}` : d.name || undefined}
               onMouseDown={(e) => press(e, d)}
+              // An equation opens again in the equation editor.
+              onDoubleClick={d.kind === 'equation' ? () => setDialog({ kind: 'equation', id: d.id, initial: d.linear || '' }) : undefined}
               {...(d.svg ? { dangerouslySetInnerHTML: { __html: d.svg } } : {})}
             >
               {d.svg ? null : d.members ? d.members.map((m) => (
@@ -2354,6 +2357,8 @@ export default function Sheets({ app, shell, boot }) {
       case 'picture': await insertPicture(); return;
       // Insert → Icons: one of the suite's own icons, as a picture at the cell.
       case 'icons': setDialog('icons'); return;
+      // Insert → Equation: typed in its linear form, set as math over the selection.
+      case 'equation': setDialog({ kind: 'equation', id: null, initial: '' }); return;
       // Page Layout → Print Area: the page setup is rebuilt from what it is
       // given, so the file's own setup is read first and sent back with the
       // area changed — what the print dialog does.
@@ -2955,6 +2960,21 @@ export default function Sheets({ app, shell, boot }) {
 
       {review.dialogs}
 
+      {dialog?.kind === 'equation' ? (
+        <>
+          <style>{EQUATION_CSS}</style>
+          <EquationDialog
+            initial={dialog.initial}
+            editing={dialog.id != null}
+            onClose={() => setDialog(null)}
+            onInsert={async (linear) => {
+              const id = dialog.id;
+              setDialog(null);
+              await dispatch(id != null ? { op: 'setEquation', id, linear } : { op: 'insertEquation', linear });
+            }}
+          />
+        </>
+      ) : null}
       {dialog === 'icons' ? (
         <IconsDialog
           onClose={() => setDialog(null)}

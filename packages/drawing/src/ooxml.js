@@ -209,6 +209,9 @@ export function parseDrawingAnchors(drawingXml) {
     // A slicer's graphic frame sits inside mc:AlternateContent with a plain
     // rectangle as the fallback: the frame, not the rectangle, is what it is.
     if (/drawing\/2010\/slicer/.test(xml) && /<([\w]+:)?slicer\b/.test(xml)) return 'slicer';
+    // An equation: a text box whose paragraph holds OMML (a14:m), with a
+    // fallback box of plain words beside it in mc:AlternateContent.
+    if (/<a14:m\b/.test(xml)) return 'equation';
     // A group: its own grpSp, whatever its members are.
     if (anchorBody(xml)?.name === 'grpSp') return 'group';
     if (firstElement(xml, 'graphicFrame')) return 'chart';
@@ -417,6 +420,12 @@ export function readSheetDrawings({
     }
     if (anchor.kind === 'shape') {
       return { ...anchor, spec: null, descriptor: parseShapeXml(anchor.xml) };
+    }
+    if (anchor.kind === 'equation') {
+      // The OMML for the caller to turn into MathML, and its type size.
+      const math = /<a14:m\b[^>]*>([\s\S]*?)<\/a14:m>/.exec(anchor.xml);
+      const sz = /<a:(?:endParaRPr|rPr)\b[^>]*\bsz="(\d+)"/.exec(anchor.xml);
+      return { ...anchor, spec: null, descriptor: null, omml: math ? math[1] : null, sizePt: sz ? Number(sz[1]) / 100 : 11 };
     }
     if (anchor.kind === 'group') {
       const body = anchorBody(anchor.xml);
