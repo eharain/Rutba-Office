@@ -198,10 +198,32 @@ export function wordArtContentXml(d) {
     + '<xdr:txBody><a:bodyPr wrap="none" lIns="91440" tIns="45720" rIns="91440" bIns="45720" anchor="ctr"><a:spAutoFit/></a:bodyPr><a:lstStyle/>' + paras + '</xdr:txBody></xdr:sp>';
 }
 
+/**
+ * Draw → Pen and Highlighter on a sheet: one stroke as a freeform shape
+ * named "Ink N" — `d.points` (in sheet pixels, relative to the drawing's
+ * box, which is `d.box`) joined by a smooth path in the pen's colour and
+ * width (points), see-through at `d.alpha`, with round or square ends.
+ */
+export function inkContentXml(d) {
+  const EMU = 9525;
+  const cx = Math.max(1, Math.round(d.box.width * EMU));
+  const cy = Math.max(1, Math.round(d.box.height * EMU));
+  const pts = d.points.length > 1 ? d.points : [d.points[0], [d.points[0][0] + 0.5, d.points[0][1]]];
+  const at = (p) => '<a:pt x="' + Math.round(p[0] * EMU) + '" y="' + Math.round(p[1] * EMU) + '"/>';
+  let path = '<a:moveTo>' + at(pts[0]) + '</a:moveTo>';
+  for (let i = 1; i < pts.length - 1; i++) path += '<a:quadBezTo>' + at(pts[i]) + at([(pts[i][0] + pts[i + 1][0]) / 2, (pts[i][1] + pts[i + 1][1]) / 2]) + '</a:quadBezTo>';
+  path += '<a:lnTo>' + at(pts[pts.length - 1]) + '</a:lnTo>';
+  return '<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="' + d.id + '" name="' + esc(d.name) + '"/><xdr:cNvSpPr/></xdr:nvSpPr>'
+    + '<xdr:spPr><a:xfrm><a:off x="' + Math.round(d.box.x * EMU) + '" y="' + Math.round(d.box.y * EMU) + '"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>'
+    + '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="' + cx + '" h="' + cy + '" fill="none" extrusionOk="0">' + path + '</a:path></a:pathLst></a:custGeom>'
+    + '<a:noFill/><a:ln w="' + Math.round(Math.max(0.25, Number(d.width) || 1) * 12700) + '" cap="' + (d.cap === 'sq' ? 'sq' : 'rnd') + '"><a:solidFill>' + srgbXml(d.color, d.alpha ?? 1) + '</a:solidFill><a:round/></a:ln></xdr:spPr></xdr:sp>';
+}
+
 function drawingPartXml(drawings, relIdOf) {
   const anchors = drawings.map((d) => {
-    const from = '<xdr:from><xdr:col>' + d.from.col + '</xdr:col><xdr:colOff>0</xdr:colOff>'
-      + '<xdr:row>' + d.from.row + '</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:from>';
+    // A marker's offsets into its cell (EMU), when the drawing does not start at the cell's corner.
+    const from = '<xdr:from><xdr:col>' + d.from.col + '</xdr:col><xdr:colOff>' + Math.round(d.from.colOff || 0) + '</xdr:colOff>'
+      + '<xdr:row>' + d.from.row + '</xdr:row><xdr:rowOff>' + Math.round(d.from.rowOff || 0) + '</xdr:rowOff></xdr:from>';
     if (d.kind === 'chart') {
       const to = '<xdr:to><xdr:col>' + d.to.col + '</xdr:col><xdr:colOff>0</xdr:colOff>'
         + '<xdr:row>' + d.to.row + '</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>';
@@ -224,15 +246,18 @@ function drawingPartXml(drawings, relIdOf) {
         + '<xdr:blipFill><a:blip r:embed="' + relIdOf(d) + '"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'
         + '<xdr:spPr/></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>';
     }
-    const to = '<xdr:to><xdr:col>' + d.to.col + '</xdr:col><xdr:colOff>0</xdr:colOff>'
-      + '<xdr:row>' + d.to.row + '</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>';
+    const to = '<xdr:to><xdr:col>' + d.to.col + '</xdr:col><xdr:colOff>' + Math.round(d.to.colOff || 0) + '</xdr:colOff>'
+      + '<xdr:row>' + d.to.row + '</xdr:row><xdr:rowOff>' + Math.round(d.to.rowOff || 0) + '</xdr:rowOff></xdr:to>';
     if (d.kind === 'equation') return '<xdr:twoCellAnchor>' + from + to + equationContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     if (d.kind === 'wordart') return '<xdr:twoCellAnchor>' + from + to + wordArtContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
-    const fill = d.fill
+    if (d.kind === 'ink') return '<xdr:twoCellAnchor editAs="oneCell">' + from + to + inkContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
+    // Ink to Shape: a shape with no fill and a line in the pen's colour.
+    const line = d.line?.color ? '<a:ln w="' + Math.round((Number(d.line.width) || 1) * 12700) + '"><a:solidFill>' + srgbXml(d.line.color) + '</a:solidFill></a:ln>' : '';
+    const fill = d.fill === 'none' ? '<a:noFill/>' + line : (d.fill
       ? '<a:solidFill>' + (/^[0-9A-Fa-f]{6}$/.test(d.fill)
         ? '<a:srgbClr val="' + d.fill.toUpperCase() + '"/>'
         : '<a:schemeClr val="' + esc(d.fill) + '"/>') + '</a:solidFill>'
-      : '';
+      : '') + (d.fill === 'none' ? '' : line);
     const body = d.text
       ? '<xdr:txBody><a:bodyPr/><a:p><a:r>'
         + '<a:rPr lang="en-GB"' + (d.bold ? ' b="1"' : '') + (d.textSize ? ' sz="' + Math.round(d.textSize * 100) + '"' : '') + '/>'

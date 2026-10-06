@@ -300,6 +300,19 @@ function readColour(xml) {
   return null;
 }
 
+/** A custom geometry's first path: its size and commands — M, L, Q, C, Z — each with its points. */
+function customPath(xml) {
+  const p = /<([\w]+:)?path\b([^>]*)>([\s\S]*?)<\/([\w]+:)?path>/.exec(xml);
+  if (!p) return null;
+  const a = attrs('<p ' + p[2] + '>');
+  const cmds = [];
+  for (const m of p[3].matchAll(/<([\w]+:)?(moveTo|lnTo|quadBezTo|cubicBezTo|close)\b[^>]*?(?:\/>|>([\s\S]*?)<\/([\w]+:)?\2>)/g)) {
+    const pts = [...(m[3] || '').matchAll(/<([\w]+:)?pt\b[^>]*\bx="(-?\d+)"[^>]*\by="(-?\d+)"/g)].map((q) => [Number(q[2]), Number(q[3])]);
+    cmds.push({ c: { moveTo: 'M', lnTo: 'L', quadBezTo: 'Q', cubicBezTo: 'C', close: 'Z' }[m[2]], pts });
+  }
+  return { w: Number(a.w) || 1, h: Number(a.h) || 1, filled: a.fill !== 'none', cmds };
+}
+
 /** A colour element's `#rrggbb` and alpha, when it states an sRGB one. */
 function srgbOf(xml) {
   const el = xml ? firstElement(xml, 'srgbClr') : null;
@@ -351,7 +364,8 @@ function textLook(rPr) {
 export function parseShapeXml(spXml) {
   if (!spXml) return null;
   const prstGeom = firstElement(spXml, 'prstGeom');
-  const geometry = prstGeom ? (attrs(prstGeom).prst ?? 'rect') : 'rect';
+  const custGeom = prstGeom ? null : firstElement(spXml, 'custGeom');
+  const geometry = prstGeom ? (attrs(prstGeom).prst ?? 'rect') : custGeom ? 'custom' : 'rect';
 
   const spPr = firstElement(spXml, 'spPr') ?? spXml;
   // The outline's own fill must not be mistaken for the shape's fill.
@@ -394,6 +408,11 @@ export function parseShapeXml(spXml) {
     // Scene units are pixels, so the outline width converts here rather than
     // leaking EMUs into the renderer.
     strokeWidth: lnXml && attrs(lnXml).w ? Math.max(1, Math.round(emuToPx(attrs(lnXml).w))) : null,
+    // Ink: a highlighter's see-through stroke, and a pen's round ends.
+    strokeAlpha: lnXml ? srgbOf(lnXml)?.alpha ?? 1 : 1,
+    strokeCap: lnXml ? ({ rnd: 'round', sq: 'square' }[attrs(lnXml.slice(0, lnXml.indexOf('>'))).cap] || null) : null,
+    // A freeform's path, in its own units: each command and its points.
+    path: custGeom ? customPath(custGeom) : null,
     text: text || null,
     textBold: rPr ? attrs(rPr).b === '1' : false,
     textSize: rPr && attrs(rPr).sz ? Number(attrs(rPr).sz) / 100 : null,

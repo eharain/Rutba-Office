@@ -3615,6 +3615,63 @@ export class SheetView {
     }));
   }
 
+  /**
+   * Draw → Pen and Highlighter: each stroke a freeform drawing named "Ink
+   * N", anchored to the cells under it (to the offset), its points in
+   * sheet pixels. Answers how many strokes went in.
+   */
+  insertInk({ strokes = [] } = {}) {
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before drawing on it.');
+    const list = strokes.filter((s) => Array.isArray(s?.points) && s.points.length);
+    if (!list.length) return 0;
+    const { sheetPartName, parts } = this._drawingEditParts();
+    this._edit('ink', null, [], () => {
+      const drawingPart = this.workbook.ensureSheetDrawing(this.activeSheet);
+      const taken = new Set([...(this.pkg.text(drawingPart) || '').matchAll(/\bname="Ink (\d+)"/g)].map((m) => Number(m[1])));
+      let n = 1;
+      for (const s of list) {
+        const pts = s.points.map(([x, y]) => [Math.max(0, Number(x) || 0), Math.max(0, Number(y) || 0)]);
+        const xs = pts.map((p) => p[0]);
+        const ys = pts.map((p) => p[1]);
+        // The box holds the whole stroke, its width too — a drawing is clipped to its box,
+        // and a straight highlighter stroke would otherwise be a box one pixel high.
+        const pad = Math.max(0.25, Number(s.width) || 1) * (96 / 72) / 2 + 1;
+        const box = { x: Math.max(0, Math.min(...xs) - pad), y: Math.max(0, Math.min(...ys) - pad) };
+        box.width = Math.max(1, Math.max(...xs) + pad - box.x);
+        box.height = Math.max(1, Math.max(...ys) + pad - box.y);
+        while (taken.has(n)) n += 1;
+        taken.add(n);
+        const from = this._markerAt(box.x, box.y);
+        const to = this._markerAt(box.x + box.width, box.y + box.height);
+        const name = 'Ink ' + n;
+        this.workbook.appendDrawingAnchor(drawingPart, (id) => drawingAnchorXml({
+          kind: 'ink', id, name, box, from, to,
+          points: pts.map(([x, y]) => [x - box.x, y - box.y]),
+          color: s.color, width: s.width, alpha: s.alpha, cap: s.cap,
+        }, () => null));
+      }
+      this.drawings.set(this.activeSheet, this._readDrawings(sheetPartName));
+      this._structuralDirty = true;
+    }, { parts, tracksNewParts: true });
+    return list.length;
+  }
+
+  /** Ink to Shape: a rectangle, oval or triangle at the box drawn (sheet pixels), outlined in the pen's colour, not filled. */
+  insertShapeAt({ geometry = 'rect', x = 0, y = 0, width = 100, height = 60, line = null } = {}) {
+    if (!SUPPORTED_GEOMETRY.includes(geometry)) throw new Error('"' + geometry + '" is not a shape this editor draws — pick one of the presets');
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before inserting objects.');
+    const from = this._markerAt(x, y);
+    const to = this._markerAt(x + Math.max(1, width), y + Math.max(1, height));
+    const { sheetPartName, parts } = this._drawingEditParts();
+    this._edit('insert shape', null, [], () => {
+      const drawingPart = this.workbook.ensureSheetDrawing(this.activeSheet);
+      this.workbook.appendDrawingAnchor(drawingPart, (id) => drawingAnchorXml({ kind: 'shape', id, name: 'Shape ' + id, geometry, fill: 'none', line: line || { color: '#000000', width: 1 }, from, to }, () => null));
+      this.drawings.set(this.activeSheet, this._readDrawings(sheetPartName));
+      this._structuralDirty = true;
+    }, { parts, tracksNewParts: true });
+    return this;
+  }
+
   insertShape({ geometry = 'rect', text = '' } = {}) {
     if (!SUPPORTED_GEOMETRY.includes(geometry)) {
       throw new Error('"' + geometry + '" is not a shape this editor draws — pick one of the presets');
