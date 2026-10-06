@@ -527,6 +527,41 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     return win;
   };
 
+  /**
+   * The windows a block opened, closed when it is done.
+   *
+   * Every window used to stay open until app.exit: a full run held a hundred
+   * and forty renderers at the end, fourteen gigabytes on a laptop, still
+   * climbing when another program stopped the run to keep the machine
+   * alive. A block's windows are its own — no later block reaches back for
+   * one — so each block's go when it ends. Closed past the save question,
+   * since a check's edits are not anybody's work, and a few at a time rather
+   * than ninety at once at the end, which Electron did not survive. The
+   * windows opened before the first block stay: they keep the run alive.
+   */
+  const closeSince = async (mark) => {
+    const done = opened.splice(mark).filter((w) => !w.isDestroyed());
+    if (!done.length) return;
+    closingPhase.value = true;
+    for (const w of done) {
+      try {
+        windows.forceClose(w);
+      } catch {
+        /* already on its way */
+      }
+    }
+    await until(() => done.every((w) => w.isDestroyed()), 'the block\'s windows to close', 8000).catch(() => {});
+    closingPhase.value = false;
+  };
+  const block = async (run) => {
+    const mark = opened.length;
+    try {
+      await run();
+    } finally {
+      await closeSince(mark);
+    }
+  };
+
   const sessionFor = (kind) => doc.sessions().filter((s) => s.kind === kind).pop();
   const errorsIn = (win) =>
     win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-toast.bad')].map((n) => n.textContent)`);
@@ -4678,82 +4713,86 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('word: the round trip ran', false, err.message);
   }
 
-  await wordPages();
-  await wordFloat();
-  await sheetGrips();
-  await slidePanes();
-  await slideShapes();
-  await slideParagraphs();
-  await slideClipboard();
-  await slideFooter();
-  await slideFind();
-  await slideSections();
-  await slideHidden();
-  await slideBackground();
-  await slideTable();
-  await slideChart();
-  await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
-  await verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
-  await verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
-  await verifyDeckAnimations({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
-  await verifyDeckThemes({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) });
-  await verifyDeckMaster({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) });
-  await verifyDeckComments({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) });
-  await verifyDeckMath({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) });
-  await verifyAccessibility({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) });
-  await verifySpelling({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) });
-  await sheetFill();
-  await wordPictures();
-  await wordLook();
-  await wordDropCap();
-  await wordBookmarks();
-  await wordCrossRef();
-  await wordCaptions();
-  await wordToc();
-  await wordTextBox();
-  await wordArrange();
-  await encryptedFiles();
-  await wordHyphenation();
-  await wordCitations();
-  await wordRestrict();
-  await wordComments();
-  await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
-  await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
-  await wordMailMerge();
-  await wordLabels();
-  await wordTrack();
-  await wordEquations();
-  await wordEffects();
-  await wordPictureFits();
-  await wordCards();
-  await wordRuler();
-  await wordColumns();
-  await updatePrompt();
-  await launcherRecent();
-  await launcherDrop();
-  await appNames();
-  await homeRecentEdit();
-  await sheetFreeze();
-  await sheetErrors();
-  await sheetWatch();
-  await sheetSparklines();
-  await zoomStaysOnThePage();
-  await sheetPicture();
-  await viewer();
-  await slideshow();
-  await sheetLinks();
-  await sheetOutline();
-  await sheetDataTools();
-  await sheetEvaluate();
-  await sheetComments();
-  await sheetViews();
-  await sheetProtect();
-  await sheetLayoutViews();
-  await sheetAnalysis();
-  await sheetSlicers();
-  await sheetArrange();
-  await sheetThemes();
-  await polish();
+  await block(() => wordPages());
+  await block(() => wordFloat());
+  await block(() => sheetGrips());
+  await block(() => slidePanes());
+  await block(() => slideShapes());
+  await block(() => slideParagraphs());
+  await block(() => slideClipboard());
+  await block(() => slideFooter());
+  await block(() => slideFind());
+  await block(() => slideSections());
+  await block(() => slideHidden());
+  await block(() => slideBackground());
+  await block(() => slideTable());
+  await block(() => slideChart());
+  await block(() => verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
+  await block(() => verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
+  await block(() => verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
+  await block(() => verifyDeckAnimations({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
+  await block(() => verifyDeckThemes({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await block(() => verifyDeckMaster({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await block(() => verifyDeckComments({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await block(() => verifyDeckMath({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await block(() => verifyAccessibility({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await block(() => verifySpelling({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir: path.dirname(files.pptx) }));
+  await block(() => sheetFill());
+  await block(() => wordPictures());
+  await block(() => wordLook());
+  await block(() => wordDropCap());
+  await block(() => wordBookmarks());
+  await block(() => wordCrossRef());
+  await block(() => wordCaptions());
+  await block(() => wordToc());
+  await block(() => wordTextBox());
+  await block(() => wordArrange());
+  await block(() => encryptedFiles());
+  await block(() => wordHyphenation());
+  await block(() => wordCitations());
+  await block(() => wordRestrict());
+  await block(() => wordComments());
+  await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
+  await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
+  await block(() => wordMailMerge());
+  await block(() => wordLabels());
+  await block(() => wordTrack());
+  await block(() => wordEquations());
+  await block(() => wordEffects());
+  await block(() => wordPictureFits());
+  await block(() => wordCards());
+  await block(() => wordRuler());
+  await block(() => wordColumns());
+  await block(() => updatePrompt());
+  await block(() => launcherRecent());
+  await block(() => launcherDrop());
+  await block(() => appNames());
+  await block(() => homeRecentEdit());
+  await block(() => sheetFreeze());
+  await block(() => sheetErrors());
+  await block(() => sheetWatch());
+  await block(() => sheetSparklines());
+  await block(() => zoomStaysOnThePage());
+  await block(() => sheetPicture());
+  await block(() => viewer());
+  await block(() => slideshow());
+  await block(() => sheetLinks());
+  await block(() => sheetOutline());
+  await block(() => sheetDataTools());
+  await block(() => sheetEvaluate());
+  await block(() => sheetComments());
+  await block(() => sheetViews());
+  await block(() => sheetProtect());
+  await block(() => sheetLayoutViews());
+  await block(() => sheetAnalysis());
+  await block(() => sheetSlicers());
+  await block(() => sheetArrange());
+  await block(() => sheetThemes());
+  await block(() => polish());
+
+  // The sections below are written inline rather than as blocks; each one's
+  // windows are closed when the next begins, as the blocks' are.
+  const tailMark = opened.length;
 
   /* ── Worksheets: type a value, save, reopen ──────────────────────────── */
 
@@ -4815,6 +4854,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('sheets: the round trip ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Presentation: navigate, save, reopen ────────────────────────────── */
 
   try {
@@ -4841,6 +4883,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('slides: the checks ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Pictures: the file actually decodes in the window ───────────────── */
 
   if (files.png) {
@@ -4864,6 +4909,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('pictures: the checks ran', false, err.message);
     }
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Image: open, rotate, and check the result is turned ─────────────── */
 
@@ -4890,6 +4938,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check('image: the checks ran', false, err.message);
     }
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Video: the media element loads what the protocol served ─────────── */
 
@@ -4921,6 +4972,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('video: the checks ran', false, err.message);
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Presentation: a deck can gain a slide, and a slide can gain notes ─ */
 
@@ -4981,6 +5035,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('slides: the deck checks ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── The launcher survives a notice board that is not there ──────────── */
 
   try {
@@ -5002,6 +5059,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('home: the launcher checks ran', false, err.message);
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Worksheets: the ribbon can actually format a cell ───────────────── */
 
@@ -5059,6 +5119,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('sheets: the ribbon checks ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Every window offers full screen ─────────────────────────────────── */
 
   try {
@@ -5070,6 +5133,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('the full-screen check ran', false, err.message);
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Word: a GitHub README opens, edits and saves as Markdown ────────── */
 
@@ -5106,6 +5172,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('word: the Markdown round trip ran', false, err.message);
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Word: the ribbon reaches what the engine can do ─────────────────── */
 
@@ -5157,6 +5226,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('word: the ribbon checks ran', false, err.message);
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Word: the buttons a person clicks do what they say ──────────────── */
   //
@@ -5342,6 +5414,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('word: the button checks ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Word: the rest of the ribbon, tab by tab ─────────────────────────── */
 
   try {
@@ -5526,6 +5601,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('word: the ribbon-tab checks ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Worksheets: the rest of the ribbon, tab by tab ───────────────────── */
 
   try {
@@ -5669,6 +5747,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('sheets: the ribbon-tab checks ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Worksheets: clicking empty grid, typing, and formatting that paints ── */
 
   try {
@@ -5809,6 +5890,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('sheets: the click checks ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Presentation, Pictures, Image, Video, Mail: pressed, not driven ──── */
 
   const clickIn = async (win, title) => {
@@ -5941,6 +6025,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('slides: the button checks ran', false, err.message);
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Presentation: the rest of the ribbon, tab by tab ─────────────────── */
 
@@ -6109,6 +6196,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('video: the button checks ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Mail and the calendar: an invitation in a message is answered from it ─ */
   //
   // The seed carries a message with a text/calendar part. Opening it shows
@@ -6150,6 +6240,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('mail: the invitation checks ran', false, err.message);
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Mail: a seeded message opens in the reading pane ────────────────── */
 
@@ -6333,6 +6426,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('mail: the checks ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Mail: adding an account is an address and a password ────────────── */
   //
   // The dialog finds the server from the address — a check run asks only the
@@ -6375,6 +6471,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await mailSendLater();
   await mailOOO();
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── OpenDocument goes out as OpenDocument ───────────────────────────── */
   try {
     const odt = path.join(path.dirname(files.docx), 'report.odt');
@@ -6387,6 +6486,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('the OpenDocument check ran', false, err.message);
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Contacts: a file is shown and offered, a card is kept and found ─── */
   try {
@@ -6415,6 +6517,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('contacts: the checks ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Calendar: a file is shown beside the person's own, kept, and added to ─ */
   try {
     const win = await open('calendar', files.ics);
@@ -6440,6 +6545,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   } catch (err) {
     check('calendar: the checks ran', false, err.message);
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Journeys: the things a person does between the buttons ──────────── */
   //
@@ -6532,6 +6640,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('journeys: the launcher journey ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── A presenter window ends with its editor ─────────────────────────── */
   //
   // The presenter shows the deck its editor holds open. Closing the editor
@@ -6551,6 +6662,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     closingPhase.value = false;
     check('journeys: the presenter-close check ran', false, err.message);
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Real input: the mouse and the keyboard, not element clicks ──────── */
   //
@@ -6745,6 +6859,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('real input: the Word journey ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Autosave: a crash does not take the work ────────────────────────── */
   //
   // The copies are written on a timer while a document is open and deleted the
@@ -6828,6 +6945,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('autosave: the recovery checks ran', false, err.message);
   }
 
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
+
   /* ── Printing: paper, and a PDF of anything ──────────────────────────── */
   //
   // A suite that cannot print is not an office suite. Until this existed the
@@ -6889,6 +7009,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       check(`${appName}: the printing checks ran`, false, err.message);
     }
   }
+
+  // The section before is done: its windows go (see closeSince).
+  await closeSince(tailMark);
 
   /* ── Last of all: a dirty window refuses to close ─────────────────────── */
 
