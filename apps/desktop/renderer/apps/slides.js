@@ -34,6 +34,7 @@ import { CustomShowsDialog, CUSTOM_SHOWS_CSS } from './slides/custom-shows.js';
 import { HandoutSlots, HANDOUT_CSS } from './slides/handout.js';
 import { StageMedia, MEDIA_CSS, MEDIA_FILES, posterFrame } from './slides/media.js';
 import { ScreenRecorder, SCREENREC_CSS } from './slides/screen-record.js';
+import { soundWav, soundFile } from './slides/sounds.js';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog, iconPng } from '../icons-insert.js';
 
@@ -105,6 +106,8 @@ export default function Slides({ app, shell, boot }) {
   // Slide Show → Custom Slide Show, while one plays: its slides and where it is.
   const customRun = useRef(null);
   const [shotOpen, setShotOpen] = useState(false);
+  // The show's transition sound now playing — stopped by the next one, by Stop Previous Sound, or by the show ending.
+  const showSound = useRef(null);
   // Screen Recording: choosing what to record, then recording it.
   const [recPick, setRecPick] = useState(false);
   const [recSource, setRecSource] = useState(null);
@@ -808,6 +811,23 @@ export default function Slides({ app, shell, boot }) {
     if (!present) { presenterOpen.current = false; customRun.current = null; }
   }, [present]);
 
+  // Transitions → Sound in the show: a slide's sound plays as it comes in,
+  // looping until the next sound when it says so; Stop Previous Sound, or
+  // the show ending, stops it.
+  // Only once the model is the slide the show is on: a show started elsewhere must not play the slide it left.
+  const soundCue = present && model?.slide && model.index === index ? `${model.index}:${model.slide.transitionSound?.url || ''}:${model.slide.transitionSound?.stop ? 'stop' : ''}` : null;
+  useEffect(() => {
+    const s = soundCue ? model?.slide?.transitionSound : null;
+    if (!soundCue || s?.stop) { showSound.current?.pause(); showSound.current = null; return; }
+    if (!s?.url) return;
+    showSound.current?.pause();
+    const a = new Audio(s.url);
+    a.loop = Boolean(s.loop);
+    a.play().catch(() => {});
+    showSound.current = a;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [soundCue]);
+
   useEffect(() => {
     if (!present) return undefined;
     const onKey = (e) => {
@@ -1437,6 +1457,31 @@ export default function Slides({ app, shell, boot }) {
       // Insert → Screenshot: a window or a screen, taken as a picture on this slide.
       case 'screenshot': setShotOpen(true); return;
       case 'screenRecording': setRecPick(true); return;
+      // Transitions → Sound: none, stop the last, one of the suite's, a WAV of your own, or loop the one there.
+      case 'transitionSound': {
+        if (arg?.builtin) {
+          const data = soundWav(arg.builtin);
+          if (!data) return;
+          await apply({ op: 'setTransitionSound', slide: index, sound: { data, name: soundFile(arg.builtin) } });
+          // Heard once as it is picked, as PowerPoint plays it.
+          const url = URL.createObjectURL(new Blob([data], { type: 'audio/wav' }));
+          const a = new Audio(url);
+          a.onended = () => URL.revokeObjectURL(url);
+          a.play().catch(() => URL.revokeObjectURL(url));
+          return;
+        }
+        if (arg?.other) {
+          const [file] = await shell.dialog.open({ title: 'Add Audio', filters: [{ name: 'Wave sound', extensions: ['wav'] }] });
+          if (!file) return;
+          const { bytes, stat } = await shell.fs.read({ path: file });
+          await apply({ op: 'setTransitionSound', slide: index, sound: { data: bytes, name: stat?.name || file.split(/[\\/]/).pop() } });
+          return;
+        }
+        if (arg?.stop) { await apply({ op: 'setTransitionSound', slide: index, sound: { stop: true } }); return; }
+        if (arg?.none) { await apply({ op: 'setTransitionSound', slide: index, sound: null }); return; }
+        if (arg && 'loop' in arg) await apply({ op: 'setTransitionSound', slide: index, sound: { loop: Boolean(arg.loop) } });
+        return;
+      }
       // Insert → Icons: one of the suite's own icons, as a picture on this slide.
       case 'icons': setIconsOpen(true); return;
       case 'insertMedia': await insertMedia(arg); return;

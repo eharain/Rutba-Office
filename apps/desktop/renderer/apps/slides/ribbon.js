@@ -14,6 +14,7 @@ import { TRANSITION_GALLERY, TRANSITION_OPTIONS, galleryKeyOf, optionOf, describ
 import { ANIMATION_GALLERY, EFFECT_MENU, ANIMATION_OPTIONS } from './animate.js';
 import { RibbonStrip } from './design.js';
 import { wordArtMenu } from '../../wordart.js';
+import { SOUNDS, soundFile } from './sounds.js';
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
 const COLOURS = [
@@ -615,7 +616,20 @@ export default function SlidesRibbon({
           </Group>
           <Group label="Timing">
             <Rows>
-              <Soon icon="volume" label="Sound" why="A transition sound is a media part the deck writer does not embed; one already in the file is kept." />
+              <Button icon="volume" label="Sound" title="Sound — what plays as this slide comes in: one of the suite's sounds, a WAV of your own, or one that stops the last" onClick={(e) => {
+                const s = model?.slide?.transitionSound || null;
+                const tick = (on) => (on ? 'check' : undefined);
+                menu.open(e, [
+                  { label: '[No Sound]', icon: tick(!s), run: () => act('transitionSound', { none: true }) },
+                  { label: '[Stop Previous Sound]', icon: tick(Boolean(s?.stop)), run: () => act('transitionSound', { stop: true }) },
+                  '-',
+                  ...SOUNDS.map((name) => ({ label: name, icon: tick(s?.name === soundFile(name)) || 'volume', run: () => act('transitionSound', { builtin: name }) })),
+                  '-',
+                  { label: 'Other Sound…', icon: 'folder', run: () => act('transitionSound', { other: true }) },
+                  '-',
+                  { label: 'Loop Until Next Sound', icon: tick(Boolean(s?.loop)), disabled: !s || s.stop, run: () => act('transitionSound', { loop: !s?.loop }) },
+                ]);
+              }} />
               <div className="sl-rb-field" data-tip="Duration — how long the transition takes, in seconds">
                 <Icon name="clock" size={15} />
                 <span>Duration</span>
