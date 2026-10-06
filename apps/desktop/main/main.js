@@ -62,6 +62,8 @@ function renameRecent({ stores, doc, path: from, name }) {
 // A screenshot build asks for a device scale of its own (`RUTBA_SCREEN_SCALE=2`),
 // so a capture is crisp at twice the window's size whatever display it ran on.
 if (process.env.RUTBA_SCREEN_SCALE) electron.commandLine.appendSwitch('force-device-scale-factor', process.env.RUTBA_SCREEN_SCALE);
+// A check run's microphone is Chromium's own stand-in: a tone, so Record has something to record.
+if (process.env.RUTBA_FAKE_MEDIA) electron.commandLine.appendSwitch('use-fake-device-for-media-stream');
 
 createShell({
   appName: 'Rutba Office',

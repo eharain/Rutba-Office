@@ -6,6 +6,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Icon } from '@rutba/office-ui';
+import { isNarration } from '@rutba/presentation/narration';
 
 /** The kinds of file each button opens, and what each is. */
 export const MEDIA_FILES = {
@@ -123,14 +124,24 @@ function StageClip({ shape }) {
  * by a click on it — which does not move the show on — and shown only once
  * it has started, its own controls on it when `controls` is on.
  */
-export function ShowMedia({ shapes, size, controls }) {
+export function ShowMedia({ shapes, size, controls, narration = true }) {
   const media = (shapes || []).filter((s) => s.media?.url && s.geometry && !s.hidden);
   if (!media.length || !size?.width) return null;
   return (
     <div className="sl-show-media">
-      {media.map((s) => <ShowClip key={s.id} shape={s} size={size} controls={controls} />)}
+      {media.map((s) => (isNarration(s) ? (narration ? <Narration key={s.id} shape={s} /> : null) : <ShowClip key={s.id} shape={s} size={size} controls={controls} />))}
     </div>
   );
+}
+
+/** A slide's narration: heard as the slide comes in, while Play Narrations is on; never seen. */
+function Narration({ shape }) {
+  const el = useRef(null);
+  useEffect(() => {
+    el.current?.play().catch(() => {});
+    return () => el.current?.pause?.();
+  }, []);
+  return <audio ref={el} src={shape.media.url} preload="auto" data-narration={shape.id} />;
 }
 
 function ShowClip({ shape, size, controls }) {

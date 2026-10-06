@@ -35,6 +35,8 @@ import { HandoutSlots, HANDOUT_CSS } from './slides/handout.js';
 import { StageMedia, MEDIA_CSS, MEDIA_FILES, posterFrame } from './slides/media.js';
 import { ScreenRecorder, SCREENREC_CSS } from './slides/screen-record.js';
 import { soundWav, soundFile } from './slides/sounds.js';
+import { NarrationRecorder, RecordingBar, RecordAudioDialog, RECORD_CSS } from './slides/record.js';
+import { isNarration } from '@rutba/presentation/narration';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise, replayInk } from './slides/ink.js';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog, iconPng } from '../icons-insert.js';
@@ -116,6 +118,10 @@ export default function Slides({ app, shell, boot }) {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [ink.tool]);
+  // Record: the narration being recorded (the microphone, and the bar's clock), and Record Sound's box.
+  const narrator = useRef(null);
+  const [recording, setRecording] = useState(null);
+  const [recordAudioOpen, setRecordAudioOpen] = useState(false);
   // The show's transition sound now playing — stopped by the next one, by Stop Previous Sound, or by the show ending.
   const showSound = useRef(null);
   // Screen Recording: choosing what to record, then recording it.
@@ -931,7 +937,8 @@ export default function Slides({ app, shell, boot }) {
   }, [present, index]);
 
   // A rehearsal is the speaker's own pace: the old timings do not move it.
-  const advanceAfter = showSet.useTimings === false || rehearsing ? null : model?.slide?.transition?.advanceAfter;
+  // Rehearsing or recording, the show moves only when it is moved.
+  const advanceAfter = showSet.useTimings === false || rehearsing || recording ? null : model?.slide?.transition?.advanceAfter;
 
   // Rehearse Timings: the time on each slide, as the show leaves it — a
   // slide gone back to is timed again — and, when the show ends, the offer
@@ -952,6 +959,33 @@ export default function Slides({ app, shell, boot }) {
     const tick = setInterval(() => setRehearseTick((n) => n + 1), 500);
     return () => clearInterval(tick);
   }, [rehearsing]);
+  // Recording: each slide shown closes the voice so far for the one before.
+  useEffect(() => {
+    const rec = narrator.current;
+    if (!present || !recording || !rec || rec.current?.slide === index) return;
+    rec.mark(index);
+    setRecording((r) => (r ? { ...r, slideAt: Date.now() } : r));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [index, present]);
+  // The show over: each slide's voice put on it as its narration, its time as its timing.
+  useEffect(() => {
+    const rec = narrator.current;
+    if (present || !recording || !rec) return;
+    narrator.current = null;
+    setRecording(null);
+    (async () => {
+      const parts = (await rec.stop()).filter((p) => p.ms >= 300);
+      if (!parts.length) return;
+      const poster = await iconPng('volume', '#3b3f46', 192);
+      const ops = parts.flatMap((p) => [
+        { op: 'addNarration', slide: p.slide, data: p.wav, contentType: 'audio/wav', durationMs: p.ms, poster },
+        { op: 'setTransition', slide: p.slide, spec: { advanceAfter: Math.round(p.ms / 10) / 100 } },
+      ]);
+      await apply(...ops, { op: 'setShowSettings', settings: { useTimings: true, narration: true } });
+      toast(`Narration recorded on ${parts.length} ${parts.length === 1 ? 'slide' : 'slides'}`, { tone: 'good' });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [present, recording]);
   useEffect(() => {
     const r = rehearse.current;
     if (present || !rehearsing || !r || !r.shown) return;
@@ -1467,6 +1501,44 @@ export default function Slides({ app, shell, boot }) {
       // Insert → Screenshot: a window or a screen, taken as a picture on this slide.
       case 'screenshot': setShotOpen(true); return;
       case 'screenRecording': setRecPick(true); return;
+      // Record → From Beginning / From Current Slide: the show, with the microphone on; each slide's voice and time kept.
+      case 'recordShow': {
+        let rec;
+        try { rec = await NarrationRecorder.open(); } catch (err) { toast(`The microphone could not be opened: ${err.message || err}`, { ms: 4500 }); return; }
+        const first = nextShown(model, (showSet.range?.from ?? 1) - 2, 1);
+        const start = arg === 'here' ? index : inShow(first) ? first : nextShown(model, -1, 1);
+        narrator.current = rec;
+        rec.mark(start);
+        const now = Date.now();
+        setRecording({ startedAt: now, slideAt: now, paused: false });
+        setIndex(start);
+        setReading(false);
+        setPresent(true);
+        return;
+      }
+      case 'recordPause': {
+        const rec = narrator.current;
+        if (!rec) return;
+        if (rec.paused) rec.resume(); else rec.pause();
+        setRecording((r) => (r ? { ...r, paused: rec.paused } : r));
+        return;
+      }
+      case 'recordAudio': setRecordAudioOpen(true); return;
+      // Record → Preview: this slide's narration, heard.
+      case 'previewNarration': {
+        const n = (model?.slide?.shapes || []).find((s) => isNarration(s) && s.media?.url);
+        if (!n) { toast('This slide has no narration to play.', { ms: 2500 }); return; }
+        new Audio(n.media.url).play().catch(() => {});
+        return;
+      }
+      // Record → Clear: narration or timings, on this slide or all of them.
+      case 'clearRecording': {
+        const slides = arg.endsWith('All') ? (model?.outline || []).map((o) => o.index) : [index];
+        const ops = slides.map((slide) => (arg.startsWith('narration') ? { op: 'clearNarration', slide } : { op: 'setTransition', slide, spec: { advanceAfter: null } }));
+        if (ops.length) await apply(...ops);
+        toast(arg.startsWith('narration') ? 'Narration cleared' : 'Timings cleared', { ms: 2000 });
+        return;
+      }
       // Draw: which tool is in hand — null for Select, 'eraser', 'lasso', or a pen by its id.
       case 'inkTool':
         setSelected(null);
@@ -1990,7 +2062,8 @@ export default function Slides({ app, shell, boot }) {
         <style>{CSS + MEDIA_CSS}</style>
         {actioned.length ? <style>{`${actioned.map((s) => `.sl-present [data-shape="${String(s.id).replace(/[^\w-]/g, '')}"]`).join(', ')} { cursor: pointer; }`}</style> : null}
         {/* A black screen is a thing speakers ask for by name: attention back on them. It hides the stage rather than dropping it, so coming back does not replay the transition. */}
-        <ShowStage slide={slide} size={model.size} step={showStep} hidden={blank} onSettled={setSettled} control={showControl} mediaControls={model?.showSettings?.mediaControls !== false} />
+        <ShowStage slide={slide} size={model.size} step={showStep} hidden={blank} onSettled={setSettled} control={showControl} mediaControls={model?.showSettings?.mediaControls !== false} narration={!recording && model?.showSettings?.narration !== false} />
+        {recording ? <><style>{RECORD_CSS}</style><RecordingBar startedAt={recording.startedAt} slideAt={recording.slideAt} paused={recording.paused} onPause={() => act('recordPause')} onStop={() => setPresent(false)} /></> : null}
         <div className="sl-present-bar">
           {index + 1} / {model.count}{led ? ' · driven from the presenter window' : ' · press Esc to leave'}
         </div>
@@ -2601,6 +2674,15 @@ export default function Slides({ app, shell, boot }) {
         />
       ) : null}
 
+      {recordAudioOpen ? (
+        <>
+          <style>{RECORD_CSS}</style>
+          <RecordAudioDialog
+            onClose={() => setRecordAudioOpen(false)}
+            onInsert={async (clip) => { setRecordAudioOpen(false); await placeMedia({ kind: 'audio', bytes: clip.wav, contentType: 'audio/wav', name: 'Recorded Sound' }); }}
+          />
+        </>
+      ) : null}
       {recPick ? (
         <ScreenshotDialog
           shell={shell}

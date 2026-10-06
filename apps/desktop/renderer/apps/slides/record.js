@@ -1,0 +1,201 @@
+// Record: the microphone as the show goes — each slide's stretch of voice
+// kept apart, with how long the slide was up — and Insert → Audio's Record
+// Audio box. The voice is kept as a WAV, the one sound every PowerPoint
+// plays, made here from the microphone's own samples.
+
+import React, { useEffect, useRef, useState } from 'react';
+import { Button, Dialog } from '@rutba/office-ui';
+import { wavOf } from './sounds.js';
+
+const RATE = 22050;
+
+/** Samples at one rate as samples at another, by straight lines between them. */
+function resample(samples, from, to = RATE) {
+  if (from === to) return samples;
+  const out = new Float32Array(Math.max(1, Math.floor((samples.length * to) / from)));
+  const step = from / to;
+  for (let i = 0; i < out.length; i++) {
+    const at = i * step;
+    const a = Math.floor(at);
+    const t = at - a;
+    out[i] = (samples[a] || 0) * (1 - t) + (samples[a + 1] ?? samples[a] ?? 0) * t;
+  }
+  return out;
+}
+
+const join = (chunks) => {
+  const out = new Float32Array(chunks.reduce((n, c) => n + c.length, 0));
+  let at = 0;
+  for (const c of chunks) { out.set(c, at); at += c.length; }
+  return out;
+};
+
+/**
+ * The microphone, recording: `mark(slide)` closes the stretch so far (for
+ * the slide that was up) and begins one for `slide`; `pause()`/`resume()`
+ * hold it; `stop()` answers each slide's stretch — `{ slide, wav, ms }` —
+ * its voice as WAV bytes and how long the slide was up.
+ */
+export class NarrationRecorder {
+  static async open() {
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true }, video: false });
+    return new NarrationRecorder(stream);
+  }
+
+  constructor(stream) {
+    this.stream = stream;
+    this.ctx = new AudioContext();
+    this.source = this.ctx.createMediaStreamSource(stream);
+    this.node = this.ctx.createScriptProcessor(4096, 1, 1);
+    this.chunks = [];
+    this.paused = false;
+    this.parts = [];
+    this.current = null;
+    this.node.onaudioprocess = (e) => {
+      if (this.paused || !this.current) return;
+      this.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    };
+    this.source.connect(this.node);
+    // A processor runs only while connected onward; nothing reaches the speakers.
+    this.mute = this.ctx.createGain();
+    this.mute.gain.value = 0;
+    this.node.connect(this.mute);
+    this.mute.connect(this.ctx.destination);
+    this.heldMs = 0;
+    this.heldAt = null;
+  }
+
+  /** The slide now up: what was recorded for the one before is closed off. */
+  mark(slide) {
+    const now = performance.now();
+    this.close(now);
+    this.current = { slide, at: now };
+    this.heldMs = 0;
+  }
+
+  close(now = performance.now()) {
+    if (!this.current) return;
+    const held = this.heldMs + (this.heldAt != null ? now - this.heldAt : 0);
+    const ms = Math.max(0, now - this.current.at - held);
+    const samples = resample(join(this.chunks), this.ctx.sampleRate);
+    this.parts.push({ slide: this.current.slide, samples, ms });
+    this.chunks = [];
+    this.current = null;
+  }
+
+  pause() { if (!this.paused) { this.paused = true; this.heldAt = performance.now(); } }
+
+  resume() {
+    if (!this.paused) return;
+    this.paused = false;
+    this.heldMs += performance.now() - (this.heldAt ?? performance.now());
+    this.heldAt = null;
+  }
+
+  async stop() {
+    this.close();
+    this.node.disconnect();
+    this.source.disconnect();
+    this.stream.getTracks().forEach((t) => t.stop());
+    await this.ctx.close().catch(() => {});
+    // A slide shown twice keeps its last stretch, as PowerPoint records over it.
+    const last = new Map();
+    for (const p of this.parts) last.set(p.slide, p);
+    return [...last.values()].map((p) => ({ slide: p.slide, ms: Math.round(p.ms), wav: wavOf(p.samples, RATE) }));
+  }
+}
+
+const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms / 1000) % 60)).padStart(2, '0')}`;
+
+/** The show's recording bar: the red dot, the time on this slide and in all, Pause and Stop. */
+export function RecordingBar({ startedAt, slideAt, paused, onPause, onStop }) {
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <div className="sl-recbar" role="status" aria-label="Recording">
+      <span className={`sl-recbar-dot${paused ? ' paused' : ''}`} />
+      <span>{paused ? 'Paused' : 'Recording'}</span>
+      <b className="sl-recbar-slide">{clock(now - slideAt)}</b>
+      <span>this slide ·</span>
+      <b className="sl-recbar-total">{clock(now - startedAt)}</b>
+      <button type="button" className="sl-recbar-btn sl-recbar-pause" onClick={(e) => { e.stopPropagation(); onPause(); }}>{paused ? 'Resume' : 'Pause'}</button>
+      <button type="button" className="sl-recbar-btn sl-recbar-stop" onClick={(e) => { e.stopPropagation(); onStop(); }}>Stop</button>
+    </div>
+  );
+}
+
+/** Insert → Audio → Record Audio: record, stop, hear it back, and put it on the slide as a sound. */
+export function RecordAudioDialog({ onInsert, onClose }) {
+  const [state, setState] = useState('idle');
+  const [error, setError] = useState(null);
+  const [clip, setClip] = useState(null);
+  const [started, setStarted] = useState(0);
+  const [now, setNow] = useState(0);
+  const rec = useRef(null);
+  const url = useRef(null);
+  useEffect(() => () => {
+    rec.current?.stop().catch(() => {});
+    if (url.current) URL.revokeObjectURL(url.current);
+  }, []);
+  useEffect(() => {
+    if (state !== 'recording') return undefined;
+    const t = setInterval(() => setNow(Date.now()), 250);
+    return () => clearInterval(t);
+  }, [state]);
+  const start = async () => {
+    try {
+      setError(null);
+      rec.current = await NarrationRecorder.open();
+      rec.current.mark(0);
+      setStarted(Date.now());
+      setNow(Date.now());
+      setState('recording');
+    } catch (err) {
+      setError(`The microphone could not be opened: ${err.message || err}`);
+    }
+  };
+  const stop = async () => {
+    const [part] = await rec.current.stop();
+    rec.current = null;
+    if (url.current) URL.revokeObjectURL(url.current);
+    url.current = URL.createObjectURL(new Blob([part.wav], { type: 'audio/wav' }));
+    setClip(part);
+    setState('done');
+  };
+  return (
+    <Dialog
+      title="Record Sound"
+      width={380}
+      onClose={onClose}
+      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="OK" className="sl-recaudio-ok" disabled={!clip} onClick={() => onInsert(clip)} /></>}
+    >
+      <div className="sl-recaudio">
+        <div className="sl-recaudio-time">{state === 'recording' ? clock(now - started) : clip ? clock(clip.ms) : '0:00'}</div>
+        <div className="sl-recaudio-row">
+          {state === 'recording'
+            ? <Button label="Stop" className="sl-recaudio-stop" onClick={stop} />
+            : <Button primary={!clip} label={clip ? 'Record again' : 'Record'} className="sl-recaudio-record" onClick={start} />}
+          <Button label="Play" disabled={!clip || state === 'recording'} onClick={() => { if (url.current) new Audio(url.current).play().catch(() => {}); }} />
+        </div>
+        {error ? <div className="sl-recaudio-error">{error}</div> : null}
+      </div>
+    </Dialog>
+  );
+}
+
+export const RECORD_CSS = `
+.sl-recbar { position: fixed; left: 50%; top: 16px; transform: translateX(-50%); z-index: 50; display: flex; align-items: center; gap: 8px; padding: 7px 10px 7px 14px; background: rgba(20, 22, 26, 0.9); color: #fff; border-radius: 10px; font: 12.5px/1 var(--font-ui, sans-serif); }
+.sl-recbar-dot { width: 10px; height: 10px; border-radius: 50%; background: #e5484d; animation: sl-rec-blink 1.2s infinite; }
+.sl-recbar-dot.paused { animation: none; background: #f5a524; }
+@keyframes sl-rec-blink { 50% { opacity: 0.35; } }
+.sl-recbar b { font-variant-numeric: tabular-nums; }
+.sl-recbar-btn { border: 1px solid rgba(255,255,255,0.35); background: transparent; color: #fff; border-radius: 6px; padding: 4px 10px; font: inherit; cursor: pointer; }
+.sl-recbar-btn:hover { background: rgba(255,255,255,0.12); }
+.sl-recaudio { display: flex; flex-direction: column; gap: 12px; align-items: center; }
+.sl-recaudio-time { font: 600 28px/1 var(--font-ui, sans-serif); font-variant-numeric: tabular-nums; }
+.sl-recaudio-row { display: flex; gap: 8px; }
+.sl-recaudio-error { color: var(--bad); font-size: 12.5px; }
+`;

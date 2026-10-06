@@ -22,7 +22,7 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-verify-'));
 // failing on the monitor it happened to be plugged into.
 const child = spawn(electron, [app, `--user-data-dir=${profile}`], {
   stdio: ['inherit', 'pipe', 'inherit'],
-  env: { ...process.env, RUTBA_OFFICE_VERIFY_APPS: '1', RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY ?? 'offscreen', RUTBA_SMOKE_SEED: '1', RUTBA_SCREEN_SCALE: process.env.RUTBA_SCREEN_SCALE ?? '1' },
+  env: { ...process.env, RUTBA_OFFICE_VERIFY_APPS: '1', RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY ?? 'offscreen', RUTBA_SMOKE_SEED: '1', RUTBA_SCREEN_SCALE: process.env.RUTBA_SCREEN_SCALE ?? '1', RUTBA_FAKE_MEDIA: '1' },
 });
 
 // The run's own verdict is the code its main process ends on, and it says so

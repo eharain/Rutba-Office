@@ -16,6 +16,7 @@ import { playTransition } from './motion.js';
 import { sequence, applyState, playGroup, triggered } from './animate.js';
 import { Markup, FILL } from './markup.js';
 import { ShowMedia } from './media.js';
+import { isNarration } from '@rutba/presentation/narration';
 
 const plays = (t) => Boolean(t && t.type && t.type !== 'none' && Number(t.duration) > 0);
 
@@ -35,7 +36,7 @@ const plays = (t) => Boolean(t && t.type && t.type !== 'none' && Number(t.durati
  * `control.current.finish()` jumps whatever is moving to its end and says
  * whether anything was, so a click during an animation completes it.
  */
-export function ShowStage({ slide, size = null, step = null, hidden = false, onSettled, control, mediaControls = true }) {
+export function ShowStage({ slide, size = null, step = null, hidden = false, onSettled, control, mediaControls = true, narration = true }) {
   const [layers, setLayers] = useState([]);
   const w = size?.width || 16;
   const h = size?.height || 9;
@@ -227,7 +228,9 @@ export function ShowStage({ slide, size = null, step = null, hidden = false, onS
         </div>
       ))}
       {/* Videos and sounds: a click on one plays it, and does not move the show on. */}
-      {slide?.shapes?.some((s) => s.media) ? <ShowMedia key={`media-${slide.index}`} shapes={slide.shapes} size={size} controls={mediaControls} /> : null}
+      {slide?.shapes?.some((s) => s.media) ? <ShowMedia key={`media-${slide.index}`} shapes={slide.shapes} size={size} controls={mediaControls} narration={narration} /> : null}
+      {/* A narration's speaker is not seen in the show, as PowerPoint hides it. */}
+      {slide?.shapes?.some(isNarration) ? <style>{slide.shapes.filter(isNarration).map((s) => `.sl-show-stage [data-shape="${String(s.id).replace(/[^\w-]/g, '')}"]`).join(', ') + ' { visibility: hidden; }'}</style> : null}
     </div>
   );
 }

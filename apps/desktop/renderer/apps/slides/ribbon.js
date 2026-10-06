@@ -812,7 +812,7 @@ export default function SlidesRibbon({
               onClick={() => act('hideSlide')}
             />
             <Button tall icon="clock" label="Rehearse Timings" title="Rehearse Timings — run the show from the start with a clock, and keep how long each slide was on screen as its timing" onClick={() => act('rehearse')} />
-            <Soon tall icon="video" label="Record" why="Recording narration is not built." />
+            <Button tall icon="video" label="Record" title="Record — the show with the microphone on: each slide's narration and how long it was up" onClick={(e) => menu.open(e, [{ label: 'From Current Slide…', icon: 'play', run: () => act('recordShow', 'here') }, { label: 'From Beginning…', icon: 'play', run: () => act('recordShow', 'start') }])} />
             <Soon icon="check" label="Keep Slides Updated" why="Live co-authoring is not built." />
             <Button
               icon="check"
@@ -851,19 +851,19 @@ export default function SlidesRibbon({
       {tab === 'record' ? (
         <>
           <Group label="Preview">
-            <Soon tall icon="play" label="Preview" why="Comes with recording." />
+            <Button tall icon="play" label="Preview" title="Preview — this slide's narration, heard" onClick={() => act('previewNarration')} />
           </Group>
           <Group label="Camera">
             <Soon tall icon="video" label="Cameo" why="A live camera feed on a slide is a PowerPoint-only feature." />
           </Group>
           <Group label="Record">
-            <Soon tall icon="video" label="From Beginning" why="Recording a narrated show (audio plus timings into the file) is not built." />
-            <Soon tall icon="video" label="From Current Slide" why="Comes with recording." />
+            <Button tall icon="video" label="From Beginning" title="Record From Beginning — the show from its first slide with the microphone on" onClick={() => act('recordShow', 'start')} />
+            <Button tall icon="video" label="From Current Slide" title="Record From Current Slide — the show from this slide with the microphone on" onClick={() => act('recordShow', 'here')} />
             <Button tall icon="video" label="Screen Recording" title="Screen Recording — record a window or a screen until Stop, and put the recording on this slide as a video" onClick={() => act('screenRecording')} />
-            <Soon tall icon="volume" label="Audio" why="Comes with media." />
+            <Button tall icon="volume" label="Audio" title="Record Audio — record a sound and put it on this slide" onClick={() => act('recordAudio')} />
           </Group>
           <Group label="Edit">
-            <Soon tall icon="close" label="Clear Recording" why="Comes with recording." />
+            <Button tall icon="close" label="Clear Recording" title="Clear — narration or timings, on this slide or every slide" onClick={(e) => menu.open(e, [{ label: 'Clear Narration on Current Slide', run: () => act('clearRecording', 'narrationHere') }, { label: 'Clear Narration on All Slides', run: () => act('clearRecording', 'narrationAll') }, '-', { label: 'Clear Timings on Current Slide', run: () => act('clearRecording', 'timingsHere') }, { label: 'Clear Timings on All Slides', run: () => act('clearRecording', 'timingsAll') }])} />
             <Soon tall icon="undo" label="Reset to Cameo" why="Comes with recording." />
           </Group>
           <Group label="Export">
