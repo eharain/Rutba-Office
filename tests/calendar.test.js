@@ -267,3 +267,45 @@ test('zones: a wall-clock time becomes the right instant either side of a clock 
   assert.equal(ianaZone('GMT Standard Time'), 'Europe/London');
   assert.equal(ianaZone('Nowhere/Land'), null);
 });
+
+test('a rule that never lands on a day answers nothing, at once, rather than walking for ever', () => {
+  // The walk stopped only when it had found enough days, so a rule with no
+  // days in it never stopped — and one invitation opened from Mail froze
+  // every window. Each of these is legal and has no occurrence at all.
+  const never = ['FREQ=MONTHLY;BYMONTHDAY=30;BYMONTH=2', 'FREQ=YEARLY;BYMONTH=4;BYMONTHDAY=31', 'FREQ=DAILY;INTERVAL=7;BYDAY=MO', 'FREQ=MONTHLY;INTERVAL=12;BYMONTH=6'];
+  for (const rule of never) {
+    const event = readCalendar(CRLF(`BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:never
+DTSTART:20260106T090000Z
+DTEND:20260106T100000Z
+RRULE:${rule}
+SUMMARY:Never
+END:VEVENT
+END:VCALENDAR
+`)).events[0];
+    for (const range of [{ from: Date.UTC(2026, 0, 1), to: Date.UTC(2026, 11, 31) }, {}]) {
+      const t0 = Date.now();
+      const found = occurrences(event, range);
+      const ms = Date.now() - t0;
+      assert.deepEqual(found, [], `${rule} has no occurrences`);
+      assert.ok(ms < 1500, `${rule} gave up in ${ms} ms${range.to ? '' : ' with no end to the range'}`);
+    }
+  }
+
+  // And a rule that does land still finds its days far from its start.
+  const weekly = readCalendar(CRLF(`BEGIN:VCALENDAR
+VERSION:2.0
+BEGIN:VEVENT
+UID:standup
+DTSTART:20200106T090000Z
+DTEND:20200106T091500Z
+RRULE:FREQ=WEEKLY;BYDAY=MO
+SUMMARY:Stand-up
+END:VEVENT
+END:VCALENDAR
+`)).events[0];
+  const days = occurrences(weekly, { from: Date.UTC(2026, 9, 1), to: Date.UTC(2026, 9, 31) }).map((o) => new Date(o.start).toISOString().slice(0, 10));
+  assert.deepEqual(days, ['2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26']);
+});

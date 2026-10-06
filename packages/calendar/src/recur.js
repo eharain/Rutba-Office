@@ -69,10 +69,19 @@ function daysOfMonth(y, m, rule, startDay) {
 /**
  * The wall-clock starts of an event's occurrences, in order, from the
  * rule alone — before exceptions and additions.
+ *
+ * A rule can be written that never lands on a day — the 30th of February,
+ * every seventh day counted from a Tuesday but only on Mondays — and the
+ * walk only ever stopped once enough days had been found, so it never
+ * stopped: one such invitation opened from Mail froze every window. The walk
+ * now ends past `lastYear` (the year after the rule's UNTIL or the range
+ * being drawn, whichever is nearer) and never goes more than 400 years past
+ * the start, far beyond any calendar a person opens.
  */
-function* ruleStarts(start, rule, hardLimit) {
+function* ruleStarts(start, rule, hardLimit, lastYear = Infinity) {
   const first = partsOf(start);
   const interval = rule.interval || 1;
+  const stopYear = Math.min(first.y + 400, lastYear);
   let produced = 0;
   const wkst = DAYS.indexOf(rule.wkst || 'MO');
   const emit = function* (p) {
@@ -83,6 +92,7 @@ function* ruleStarts(start, rule, hardLimit) {
     const startNumber = dayNumber(first);
     for (let i = 0; produced < hardLimit; i++) {
       const p = { ...fromDayNumber(startNumber + i * interval), H: first.H, M: first.M, S: first.S };
+      if (p.y > stopYear) return;
       if (rule.byMonth?.length && !rule.byMonth.includes(p.m)) continue;
       if (rule.byDay?.length && !rule.byDay.some((b) => b.day === weekday(p))) continue;
       yield* emit(p);
@@ -95,6 +105,7 @@ function* ruleStarts(start, rule, hardLimit) {
     const weekStart = startNumber - back;
     for (let w = 0; produced < hardLimit; w++) {
       const base = weekStart + w * interval * 7;
+      if (fromDayNumber(base).y > stopYear) return;
       for (let i = 0; i < 7; i++) {
         const n = base + i;
         if (n < startNumber) continue;
@@ -110,6 +121,7 @@ function* ruleStarts(start, rule, hardLimit) {
       const total = (first.y * 12 + first.m - 1) + k * interval;
       const y = Math.floor(total / 12);
       const m = (total % 12) + 1;
+      if (y > stopYear) return;
       if (rule.byMonth?.length && !rule.byMonth.includes(m)) continue;
       for (const d of daysOfMonth(y, m, rule, first.d)) {
         const p = { y, m, d, H: first.H, M: first.M, S: first.S };
@@ -122,6 +134,7 @@ function* ruleStarts(start, rule, hardLimit) {
     const months = rule.byMonth?.length ? rule.byMonth : [first.m];
     for (let k = 0; produced < hardLimit; k++) {
       const y = first.y + k * interval;
+      if (y > stopYear) return;
       for (const m of months) {
         const days = rule.byMonthDay?.length || rule.byDay?.length ? daysOfMonth(y, m, rule, first.d) : first.d <= daysInMonth(y, m) ? [first.d] : [];
         for (const d of days) {
@@ -166,8 +179,11 @@ export function occurrences(event, { from, to, siblings = [], limit = 1000 } = {
   } else {
     const rule = event.rrule;
     const hardLimit = Math.min(limit * 4, rule.count || Infinity, 20000);
+    // A year past the nearer end, so a date in another time zone is not cut.
+    const yearAfter = (at) => new Date(at).getUTCFullYear() + 1;
+    const lastYear = Math.min(rule.until ? yearAfter(rule.until.at) : Infinity, to != null ? yearAfter(to) : Infinity);
     let count = 0;
-    for (const p of ruleStarts(event.start, rule, hardLimit)) {
+    for (const p of ruleStarts(event.start, rule, hardLimit, lastYear)) {
       const at = instantOf(p, event.start);
       if (rule.until && at > rule.until.at + (rule.until.allDay ? DAY_MS - 1 : 0)) break;
       if (rule.count && count >= rule.count) break;
