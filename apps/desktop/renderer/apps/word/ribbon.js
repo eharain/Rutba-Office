@@ -476,7 +476,7 @@ export default function WordRibbon({
             ])} />
             <Button icon="check" label="Signature Line" title="Signature Line — a line for someone to sign in Word, with their name, title and e-mail under it" onClick={() => act('signatureLine')} />
             <Button icon="clock" label="Date & Time" onClick={() => openDialog('dateTime')} />
-            <Soon icon="file" label="Object" why="Embedded objects (OLE) need an embeddings part the engine does not write." />
+            <Button icon="file" label="Object" title="Object — a Word, Excel or PowerPoint document embedded as an icon; a double-click opens it" onClick={() => act('insertObject')} />
           </Group>
           <Group label="Symbols">
             <Button tall icon="formula" label="Equation" title="Equation — type one in Word's linear format, or build it from structures and symbols (Alt+=)" onClick={() => act('equation')} />

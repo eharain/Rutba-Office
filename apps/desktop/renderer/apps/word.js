@@ -43,6 +43,7 @@ import { LanguageDialog } from '@rutba/office-ui/proofing';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog } from '../icons-insert.js';
 import { CompareDialog, COMPARE_CSS } from './word/compare.js';
+import { ObjectDialog, OBJECT_CSS, objectIcon, typeOfExt, appOfProgId } from '../object-insert.js';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, recognise } from './slides/ink.js';
 import { SignatureSetupDialog, signatureLinePng, SIGNATURE_CSS } from './word/signature.js';
 import {
@@ -1456,6 +1457,23 @@ export default function Word({ app, shell, boot }) {
         }
         // Review → Compare: the Compare Documents box.
         case 'compare': setDialog('compare'); return;
+        // Insert → Object: the box, then the document (or a blank one) embedded as its icon.
+        case 'insertObject': setDialog('object'); return;
+        case 'placeObject': {
+          const type = typeOfExt(arg.ext);
+          if (!type) { toast('Only Word, Excel and PowerPoint documents embed.', { ms: 3000 }); return; }
+          const data = arg.file ? (await shell.fs.read({ path: arg.file })).bytes : null;
+          await apply({ op: 'insertObject', ext: type.ext, name: arg.name, data, icon: await objectIcon(type, arg.name) });
+          return;
+        }
+        // An embedded document, double-clicked: a copy of it opened in its own app.
+        case 'openObject': {
+          const app = appOfProgId(arg?.progId);
+          if (!app || !arg?.part) { toast('This object is kept in the document, but nothing here opens it.', { ms: 3000 }); return; }
+          const out = await shell.doc.objectFile({ id: doc.id, part: arg.part });
+          await shell.win.create({ app, file: out.path });
+          return;
+        }
         case 'wordArt': {
           // WordArt: big words of their own in a box with no fill and no
           // line, centred over the column, their effects the ones Home → Text
@@ -1855,6 +1873,14 @@ export default function Word({ app, shell, boot }) {
     },
     [model, view, apply, shell, toast, doc, patchView, picked, headingPages, geom, geo, editingBox, selectedDrawing, drawnBox, paragraphTop, paragraphAt, offsetsFor, ink, paged, blockLayout]
   );
+  // An embedded document double-clicked on the page (Insert → Object) opens in its own app.
+  useEffect(() => {
+    const el = pageRef.current;
+    if (!el) return undefined;
+    const open = (e) => act('openObject', e.detail || null);
+    el.addEventListener('wd-open-object', open);
+    return () => el.removeEventListener('wd-open-object', open);
+  }, [act, busy, model === null]);
   actRef.current = act;
 
   // A contextual tab goes when what it formats is no longer selected.
@@ -2436,6 +2462,12 @@ export default function Word({ app, shell, boot }) {
         />
       ) : null}
 
+      {dialog === 'object' ? (
+        <>
+          <style>{OBJECT_CSS}</style>
+          <ObjectDialog shell={shell} onClose={() => setDialog(null)} onInsert={(spec) => { setDialog(null); act('placeObject', spec); }} />
+        </>
+      ) : null}
       {dialog === 'compare' ? (
         <>
           <style>{COMPARE_CSS}</style>
@@ -3508,6 +3540,8 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
         draggable={false}
         // A VML picture — an old Word's, or a signature line — is drawn but not picked.
         onClick={image.vml ? undefined : (e) => pick(e, i, image)}
+        // An embedded document opens in its own app.
+        onDoubleClick={image.object ? (e) => e.currentTarget.dispatchEvent(new CustomEvent('wd-open-object', { bubbles: true, detail: image.object })) : undefined}
         title={image.signatureLine ? `Signature line${image.signatureLine.signer ? ` for ${image.signatureLine.signer}` : ''} — signed in Word` : undefined}
         style={style}
       />
