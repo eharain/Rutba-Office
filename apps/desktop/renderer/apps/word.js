@@ -43,6 +43,7 @@ import { LanguageDialog } from '@rutba/office-ui/proofing';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog } from '../icons-insert.js';
 import { CompareDialog, COMPARE_CSS } from './word/compare.js';
+import { SplitPane, SPLIT_CSS } from './word/split.js';
 import { ObjectDialog, OBJECT_CSS, objectIcon, typeOfExt, appOfProgId } from '../object-insert.js';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, recognise } from './slides/ink.js';
 import { SignatureSetupDialog, signatureLinePng, SIGNATURE_CSS } from './word/signature.js';
@@ -1457,6 +1458,8 @@ export default function Word({ app, shell, boot }) {
         }
         // Review → Compare: the Compare Documents box.
         case 'compare': setDialog('compare'); return;
+        // View → Split: the document in two panes, one over the other, or back to one.
+        case 'toggleSplit': patchView((v) => ({ split: !v.split })); return;
         // Insert → Object: the box, then the document (or a blank one) embedded as its icon.
         case 'insertObject': setDialog('object'); return;
         case 'placeObject': {
@@ -2067,10 +2070,12 @@ export default function Word({ app, shell, boot }) {
           <style>{RESTRICT_CSS}</style>
           <style>{EQUATION_CSS}</style>
           <style>{DRAWING_CSS}</style>
+          <style>{SPLIT_CSS}</style>
           {view.navigation ? (
             <NavigationPane blocks={model.blocks} at={model.selection?.focus?.block ?? -1} onGo={(i) => act('goto', i)} onClose={() => act('toggleNavigation')} />
           ) : null}
-          <div className="wd-scroll">
+          <div className="wd-splits" style={view.split ? { '--split': `${Math.round((view.splitAt ?? 0.5) * 100)}%` } : undefined}>
+          <div className={`wd-scroll${view.split ? ' split-top' : ''}`}>
             {view.immersive?.focus ? <LineFocus lines={view.immersive.focus} page={pageRef} /> : null}
             {view.ruler ? (
               <Ruler
@@ -2380,6 +2385,8 @@ export default function Word({ app, shell, boot }) {
               <Notes notes={model.footnotes} kind="footnotes" styles={model.resolvedStyles} measure={paged} onEdit={(note) => act('editNote', { kind: 'footnote', id: note.id, initial: noteWords(note) })} />
               <Notes notes={model.endnotes} kind="endnotes" styles={model.resolvedStyles} onEdit={(note) => act('editNote', { kind: 'endnote', id: note.id, initial: noteWords(note) })} />
             </div>
+          </div>
+          {view.split ? <SplitPane pageRef={pageRef} version={model} onGo={(i) => act('goto', i)} onResize={(at) => patchView({ splitAt: Math.round(at * 100) / 100 })} /> : null}
           </div>
           {review.pane ? (
             <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title="Close the pane" onClick={review.close} />}>

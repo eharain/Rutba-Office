@@ -886,7 +886,7 @@ export default function WordRibbon({
           <Group label="Window">
             <Button tall icon="new" label="New Window" title="This document again, in another window" onClick={() => act('newWindow')} />
             <Button icon="grid" label="Arrange All" title="Arrange All — every Documents window, one above another" onClick={() => act('arrange', 'stack')} />
-            <Soon icon="minus" label="Split" why="A split view is on the list." />
+            <Button icon="minus" label="Split" pressed={Boolean(view.split)} title={view.split ? 'Remove Split — the document in one pane again' : 'Split — the document in two panes, one over the other, each scrolled on its own'} onClick={() => act('toggleSplit')} />
             <Button icon="copy" label="Side by Side" title="View Side by Side — this document and the one before it, half the screen each" onClick={() => act('arrange', 'sideBySide')} />
           </Group>
           <Group label="Macros">
