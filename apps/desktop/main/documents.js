@@ -1666,6 +1666,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // Buffer: a picture inserted from the window's own file dialog was
     // written as the digits of its array until they were normalised here.
     insertImage: (v, a) => v.insertImage({ ...a, data: Buffer.isBuffer(a.data) ? a.data : a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64') }),
+    insertObject: (v, a) => v.insertObject({ data: a.data ? Buffer.from(a.data) : (a.ext === 'xlsx' ? TEMPLATES.sheet() : a.ext === 'pptx' ? TEMPLATES.deck() : TEMPLATES.doc()), ext: a.ext, name: a.name, icon: Buffer.from(a.icon), widthPx: a.widthPx, heightPx: a.heightPx }),
     insertSignatureLine: (v, a) => v.insertSignatureLine({ ...a, png: Buffer.isBuffer(a.png) ? a.png : a.png instanceof Uint8Array ? Buffer.from(a.png) : Buffer.from(String(a.png ?? ''), 'base64') }),
     removeImage: (v, a) => v.removeImage({ block: a.block, image: a.image ?? 0 }),
     // Wrap Text and Position: a picture in the line, or floating with the text round it.
@@ -2296,8 +2297,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
      */
     objectFile: ({ id, part }) => {
       const session = get(id);
-      if (session.kind !== 'deck' || !/^ppt\/embeddings\//.test(String(part || ''))) throw new Error('That is not an embedded document.');
-      const bytes = session.engine.media(part);
+      const deck = session.kind === 'deck' && /^ppt\/embeddings\//.test(String(part || ''));
+      const word = session.kind === 'doc' && /^word\/embeddings\//.test(String(part || ''));
+      if (!deck && !word) throw new Error('That is not an embedded document.');
+      const pkg = word ? session.engine.doc?.doc?.pkg : null;
+      const bytes = deck ? session.engine.media(part) : pkg?.has(part) ? pkg.read(part) : null;
       if (!bytes) throw new Error('The embedded document is missing from the deck.');
       const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-object-'));
       const file = path.join(dir, path.basename(part).replace(/\d+(\.\w+)$/, '$1'));

@@ -1559,6 +1559,20 @@ export class DocView {
     });
   }
 
+  /** Insert → Object: an Office document embedded as its icon, in a paragraph of its own after the caret's. One undo step. */
+  insertObject(spec = {}) {
+    if (typeof this.doc.insertObject !== 'function') throw new Error('this document backend does not support embedded objects');
+    if (this._containerOf(this.focus.block) !== null) throw new Error('An object cannot go inside a table cell yet — move the caret out of the table.');
+    return this._edit('insert object', null, () => {
+      const { block } = this.focus;
+      if (!this.block(block)) throw new Error('no paragraph at index ' + block);
+      this.doc.insertObject(block, spec);
+      this._invalidate();
+      this.collapseTo({ block: block + 1, offset: 0 });
+      return this;
+    });
+  }
+
   /** The picked picture out of its paragraph — the paragraph too when it held nothing else. One undo step. */
   removeImage({ block, image = 0 } = {}) {
     if (typeof this.doc.removeImage !== 'function') {

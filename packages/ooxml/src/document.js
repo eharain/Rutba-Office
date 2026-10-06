@@ -1639,7 +1639,8 @@ export class Document {
     if (!xml.includes('<v:imagedata')) return [];
     const fallbacks = [...xml.matchAll(/<mc:Fallback\b[\s\S]*?<\/mc:Fallback>/g)].map((f) => [f.index, f.index + f[0].length]);
     const out = [];
-    for (const m of xml.matchAll(/<w:pict\b[^>]*>[\s\S]*?<\/w:pict>/g)) {
+    // A VML picture, or an embedded object drawn as one (Insert → Object).
+    for (const m of xml.matchAll(/<w:(pict|object)\b[^>]*>[\s\S]*?<\/w:\1>/g)) {
       const pict = m[0];
       if (fallbacks.some(([a, b]) => m.index >= a && m.index < b)) continue;
       if (pict.includes('<w:txbxContent') || WATERMARK_P.test(pict)) continue;
@@ -1662,6 +1663,14 @@ export class Document {
         vml: true,
         // Insert → Signature Line: who is asked to sign it.
         ...(sa ? { kind: 'signatureLine', signatureLine: { signer: unesc(sa['o:suggestedsigner'] ?? ''), title: unesc(sa['o:suggestedsigner2'] ?? ''), email: unesc(sa['o:suggestedsigneremail'] ?? '') } } : {}),
+        // Insert → Object: what program the document is for, and where it is kept.
+        ...(() => {
+          const ole = /<o:OLEObject\b([^>]*)>/.exec(pict);
+          if (!ole) return {};
+          const oa = attrs(ole[1]);
+          const t = oa['r:id'] ? rels.get(oa['r:id']) : null;
+          return { kind: 'object', object: { progId: oa.ProgID ?? null, part: t ? OoxmlPackage.resolveTarget(this.mainPart, t) : null } };
+        })(),
       });
     }
     return out;
@@ -3219,6 +3228,44 @@ export class Document {
       + '<v:imagedata r:id="' + rId + '" o:title=""/><o:lock v:ext="edit" ungrouping="t" rotation="t" cropping="t" verticies="t" text="t" grouping="t"/>'
       + sig + '</v:shape></w:pict>';
     this._spliceBody(p.end, p.end, '<w:p><w:r>' + pict + '</w:r></w:p>');
+    return this;
+  }
+
+  /**
+   * Insert → Object: an Office document embedded as Word embeds one — the
+   * file whole in `word/embeddings`, related as a package, and in a new
+   * paragraph after `index` a `w:object` whose VML picture shows `icon`
+   * (PNG bytes) and whose `o:OLEObject` names its program and the file.
+   */
+  insertObjectParagraph(index, { data, ext, name = 'Object', icon, widthPx = 128, heightPx = 120 } = {}) {
+    const kinds = {
+      docx: ['Word.Document.12', 'Microsoft_Word_Document', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+      xlsx: ['Excel.Sheet.12', 'Microsoft_Excel_Worksheet', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+      pptx: ['PowerPoint.Show.12', 'Microsoft_PowerPoint_Presentation', 'application/vnd.openxmlformats-officedocument.presentationml.presentation'],
+    };
+    const kind = kinds[String(ext || '').toLowerCase()];
+    if (!kind) throw new Error('a .' + ext + ' file is not a document this embeds (Word, Excel or PowerPoint)');
+    const p = this.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    const file = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    const png = Buffer.isBuffer(icon) ? icon : Buffer.from(icon);
+    let n = 1;
+    while (this.pkg.has('word/embeddings/' + kind[1] + n + '.' + ext)) n += 1;
+    this.pkg.addPart('word/embeddings/' + kind[1] + n + '.' + ext, file, kind[2]);
+    const pkgRel = this._addRel('http://schemas.openxmlformats.org/officeDocument/2006/relationships/package', 'embeddings/' + kind[1] + n + '.' + ext);
+    let m = 1;
+    while (this.pkg.has('word/media/rutba' + m + '.png')) m += 1;
+    this.pkg.addPart('word/media/rutba' + m + '.png', png, 'image/png');
+    const imgRel = this._addRel(IMAGE_REL_TYPE, 'media/rutba' + m + '.png');
+    const pt = (px) => Math.round((Number(px) * 72) / 96 * 10) / 10;
+    const shapeId = '_x0000_i' + (1025 + this._nextDrawingId());
+    const type = this.xml.includes('id="_x0000_t75"') ? '' : SHAPETYPE_75;
+    const objectId = '_' + String(1700000000 + Math.floor(Math.random() * 99999999));
+    const object = '<w:object xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'
+      + ' w:dxaOrig="' + Math.round(widthPx * 15) + '" w:dyaOrig="' + Math.round(heightPx * 15) + '">' + type
+      + '<v:shape id="' + shapeId + '" type="#_x0000_t75" alt="' + esc(String(name)) + '" style="width:' + pt(widthPx) + 'pt;height:' + pt(heightPx) + 'pt" o:ole=""><v:imagedata r:id="' + imgRel + '" o:title=""/></v:shape>'
+      + '<o:OLEObject Type="Embed" ProgID="' + kind[0] + '" ShapeID="' + shapeId + '" DrawAspect="Icon" ObjectID="' + objectId + '" r:id="' + pkgRel + '"><o:FieldCodes>\\s</o:FieldCodes></o:OLEObject></w:object>';
+    this._spliceBody(p.end, p.end, '<w:p><w:r>' + object + '</w:r></w:p>');
     return this;
   }
 

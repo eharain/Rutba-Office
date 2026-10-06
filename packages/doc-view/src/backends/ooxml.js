@@ -38,6 +38,7 @@ export class OoxmlBackend {
   /** Insert a picture as its own paragraph — the ribbon's Insert picture. */
   insertImage(index, spec) { this.doc.insertImageParagraph(index, spec); return this; }
   insertSignatureLine(index, spec) { this.doc.insertSignatureLineParagraph(index, spec); return this; }
+  insertObject(index, spec) { this.doc.insertObjectParagraph(index, spec); return this; }
   sortParagraphs(from, to, options) { this.doc.sortParagraphs(from, to, options); return this; }
   /** `xmlns:m` on the document, before an equation is written into it. */
   ensureMathNamespace() { this.doc.ensureMathNamespace(); return this; }
