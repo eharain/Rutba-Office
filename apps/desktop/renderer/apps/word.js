@@ -42,6 +42,7 @@ import { useWordReview } from './word/review.js';
 import { LanguageDialog } from '@rutba/office-ui/proofing';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog } from '../icons-insert.js';
+import { SignatureSetupDialog, signatureLinePng, SIGNATURE_CSS } from './word/signature.js';
 import {
   drawingLayer, geomOf, spacerStyles, blockCss, turnCss, TextBox, GroupBox, DrawingLayer, DrawingFrame, SelectionPane,
   measureAnchors, textBoxPresets, DRAWING_CSS,
@@ -230,6 +231,7 @@ export default function Word({ app, shell, boot }) {
   const [languageDialog, setLanguageDialog] = useState(null);
   const [shotOpen, setShotOpen] = useState(false);
   const [iconsOpen, setIconsOpen] = useState(false);
+  const [signatureOpen, setSignatureOpen] = useState(false);
   // The equation editor: null, or what it opened on — a new equation, or
   // one being edited at `block`/`offset`.
   const [equation, setEquation] = useState(null);
@@ -1292,6 +1294,10 @@ export default function Word({ app, shell, boot }) {
         // Insert → Screenshot: a window or a screen, taken as a picture.
         case 'screenshot':
           setShotOpen(true);
+          return;
+        // Insert → Signature Line: Signature Setup, then the line after the caret's paragraph.
+        case 'signatureLine':
+          setSignatureOpen(true);
           return;
         // Insert → Icons: one of the suite's own icons, as a picture at the caret.
         case 'icons':
@@ -2493,6 +2499,20 @@ export default function Word({ app, shell, boot }) {
 
       {dialog === 'wordCount' ? <WordCountDialog blocks={model?.blocks || []} onClose={() => setDialog(null)} /> : null}
 
+      {signatureOpen ? (
+        <>
+          <style>{SIGNATURE_CSS}</style>
+          <SignatureSetupDialog
+            onClose={() => setSignatureOpen(false)}
+            onInsert={async (spec) => {
+              setSignatureOpen(false);
+              const picture = await signatureLinePng(spec);
+              await apply({ op: 'insertSignatureLine', ...spec, ...picture });
+            }}
+          />
+        </>
+      ) : null}
+
       {iconsOpen ? (
         <IconsDialog
           onClose={() => setIconsOpen(false)}
@@ -3391,7 +3411,9 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
         src={image.href}
         alt={image.name || ''}
         draggable={false}
-        onClick={(e) => pick(e, i, image)}
+        // A VML picture — an old Word's, or a signature line — is drawn but not picked.
+        onClick={image.vml ? undefined : (e) => pick(e, i, image)}
+        title={image.signatureLine ? `Signature line${image.signatureLine.signer ? ` for ${image.signatureLine.signer}` : ''} — signed in Word` : undefined}
         style={style}
       />
     );

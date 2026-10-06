@@ -472,7 +472,7 @@ export default function WordRibbon({
               { label: 'Dropped, two lines', icon: format.dropCap?.kind === 'drop' && format.dropCap?.lines === 2 ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: { kind: 'drop', lines: 2 } }) },
               { label: 'In margin', icon: format.dropCap?.kind === 'margin' ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: { kind: 'margin', lines: 3 } }) },
             ])} />
-            <Soon icon="check" label="Signature Line" why="Signature lines are content controls plus a signature part; not written yet." />
+            <Button icon="check" label="Signature Line" title="Signature Line — a line for someone to sign in Word, with their name, title and e-mail under it" onClick={() => act('signatureLine')} />
             <Button icon="clock" label="Date & Time" onClick={() => openDialog('dateTime')} />
             <Soon icon="file" label="Object" why="Embedded objects (OLE) need an embeddings part the engine does not write." />
           </Group>

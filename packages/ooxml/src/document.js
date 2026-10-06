@@ -23,6 +23,7 @@
  * resolution, or track-changes semantics. It edits named anchors and paragraph
  * text in a file it otherwise leaves alone. See FORMAT-FIDELITY.md.
  */
+import { randomBytes } from 'node:crypto';
 import { OoxmlPackage, attrs, esc } from './package.js';
 import { wordProtectionAttrs, wordHasPassword, checkWordPassword } from './protection.js';
 import { unesc } from './workbook.js';
@@ -489,6 +490,14 @@ const SHAPETYPE_136 = '<v:shapetype id="_x0000_t136" coordsize="21600,21600" o:s
   + '<v:path textpathok="t" o:connecttype="custom" o:connectlocs="@9,0;@10,10800;@11,21600;@12,10800" o:connectangles="270,180,90,0"/>'
   + '<v:textpath on="t" fitshape="t"/><v:handles><v:h position="#0,bottomRight" xrange="6629,14971"/></v:handles>'
   + '<o:lock v:ext="edit" text="t" shapetype="t"/></v:shapetype>';
+
+/** A picture frame's shape type, as Word declares it before a VML picture — a signature line among them. */
+const SHAPETYPE_75 = '<v:shapetype id="_x0000_t75" coordsize="21600,21600" o:spt="75" o:preferrelative="t" path="m@4@5l@4@11@9@11@9@5xe" filled="f" stroked="f">'
+  + '<v:stroke joinstyle="miter"/><v:formulas><v:f eqn="if lineDrawn pixelLineWidth 0"/><v:f eqn="sum @0 1 0"/><v:f eqn="sum 0 0 @1"/>'
+  + '<v:f eqn="prod @2 1 2"/><v:f eqn="prod @3 21600 pixelWidth"/><v:f eqn="prod @3 21600 pixelHeight"/><v:f eqn="sum @0 0 1"/>'
+  + '<v:f eqn="prod @6 1 2"/><v:f eqn="prod @7 21600 pixelWidth"/><v:f eqn="sum @8 21600 0"/><v:f eqn="prod @7 21600 pixelHeight"/>'
+  + '<v:f eqn="sum @10 21600 0"/></v:formulas><v:path o:extrusionok="f" gradientshapeok="t" o:connecttype="rect"/>'
+  + '<o:lock v:ext="edit" aspectratio="t"/></v:shapetype>';
 
 /**
  * The watermark's paragraph as Word writes one: the shape type, then the
@@ -1583,9 +1592,10 @@ export class Document {
    * either way, so a file we cannot lay out perfectly still round-trips.
    */
   _paragraphImages(paragraphXml) {
-    if (!paragraphXml.includes('<w:drawing')) return [];
+    if (!paragraphXml.includes('<w:drawing') && !paragraphXml.includes('<v:imagedata')) return [];
     const out = [];
     const rels = new Map(this.pkg.rels(this.mainPart).map((r) => [r.Id, r.Target]));
+    const vml = this._paragraphVmlPictures(paragraphXml, rels);
     for (const m of String(paragraphXml).matchAll(/<w:drawing\b[^>]*>([\s\S]*?)<\/w:drawing>/g)) {
       const inner = m[1];
       const extent = /<wp:extent\b([^>]*)\/>/.exec(inner);
@@ -1611,6 +1621,47 @@ export class Document {
         href: bytes ? toDataUri(bytes, part) : null,
         ...anchorLayout(inner),
         ...arrangeOf(m[0]),
+      });
+    }
+    // VML pictures come after the DrawingML ones, whose places the picture
+    // handles count by; they are drawn but not picked.
+    return out.concat(vml);
+  }
+
+  /**
+   * A paragraph's VML pictures — `w:pict` with `v:imagedata`, as older Words
+   * wrote every picture and Word still writes a signature line — sized from
+   * the shape's style. A text box or a watermark is not a picture, and the
+   * fallback of an AlternateContent is the DrawingML picture's twin.
+   */
+  _paragraphVmlPictures(paragraphXml, rels) {
+    const xml = String(paragraphXml);
+    if (!xml.includes('<v:imagedata')) return [];
+    const fallbacks = [...xml.matchAll(/<mc:Fallback\b[\s\S]*?<\/mc:Fallback>/g)].map((f) => [f.index, f.index + f[0].length]);
+    const out = [];
+    for (const m of xml.matchAll(/<w:pict\b[^>]*>[\s\S]*?<\/w:pict>/g)) {
+      const pict = m[0];
+      if (fallbacks.some(([a, b]) => m.index >= a && m.index < b)) continue;
+      if (pict.includes('<w:txbxContent') || WATERMARK_P.test(pict)) continue;
+      const data = /<v:imagedata\b([^>]*)\/?>/.exec(pict);
+      if (!data) continue;
+      const relId = attrs(data[1])['r:id'] ?? null;
+      const target = relId ? rels.get(relId) : null;
+      const part = target ? OoxmlPackage.resolveTarget(this.mainPart, target) : null;
+      const bytes = part && this.pkg.has(part) ? this.pkg.read(part) : null;
+      const style = /<v:shape\b[^>]*\bstyle="([^"]*)"/.exec(pict)?.[1] ?? '';
+      const dim = (name) => { const d = new RegExp('(?:^|;)\\s*' + name + ':\\s*([\\d.]+)(pt|px|in|cm)?').exec(style); return d ? Number(d[1]) * ({ pt: 96 / 72, px: 1, in: 96, cm: 96 / 2.54 })[d[2] || 'pt'] : null; };
+      const sig = /<o:signatureline\b([^>]*)\/?>/.exec(pict);
+      const sa = sig ? attrs(sig[1]) : null;
+      out.push({
+        name: attrs(/<v:shape\b([^>]*)>/.exec(pict)?.[1] ?? '').alt ?? null,
+        part,
+        widthPx: dim('width') ?? 96,
+        heightPx: dim('height') ?? 96,
+        href: bytes ? toDataUri(bytes, part) : null,
+        vml: true,
+        // Insert → Signature Line: who is asked to sign it.
+        ...(sa ? { kind: 'signatureLine', signatureLine: { signer: unesc(sa['o:suggestedsigner'] ?? ''), title: unesc(sa['o:suggestedsigner2'] ?? ''), email: unesc(sa['o:suggestedsigneremail'] ?? '') } } : {}),
       });
     }
     return out;
@@ -3057,6 +3108,40 @@ export class Document {
       '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>' +
       '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>';
     this._spliceBody(p.end, p.end, '<w:p><w:r>' + drawing + '</w:r></w:p>');
+    return this;
+  }
+
+  /**
+   * Insert → Signature Line: a paragraph after `index` holding a signature
+   * line as Word writes one — a VML picture shape carrying
+   * `o:signatureline` (the suggested signer, title and e-mail, instructions,
+   * whether the date is shown) — so Word offers to sign it. `png` is the
+   * picture of the line, drawn by the window; `widthPx`/`heightPx` its size.
+   */
+  insertSignatureLineParagraph(index, { png, widthPx = 256, heightPx = 128, signer = '', title = '', email = '', instructions = '', showDate = true, allowComments = false } = {}) {
+    const bytes = Buffer.isBuffer(png) ? png : png instanceof Uint8Array ? Buffer.from(png) : Buffer.from(String(png ?? ''), 'base64');
+    if (!bytes.length) throw new Error('the signature line has no picture');
+    const p = this.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    let n = 1;
+    while (this.pkg.has('word/media/rutba' + n + '.png')) n += 1;
+    this.pkg.addPart('word/media/rutba' + n + '.png', bytes, 'image/png');
+    const rId = this._addRel(IMAGE_REL_TYPE, 'media/rutba' + n + '.png');
+    const g = randomBytes(16).toString('hex').toUpperCase();
+    const guid = '{' + g.slice(0, 8) + '-' + g.slice(8, 12) + '-' + g.slice(12, 16) + '-' + g.slice(16, 20) + '-' + g.slice(20, 32) + '}';
+    const pt = (px) => Math.round((Number(px) * 72) / 96 * 10) / 10;
+    const shapeId = '_x0000_i' + (1025 + this._nextDrawingId());
+    const type = this.xml.includes('id="_x0000_t75"') ? '' : SHAPETYPE_75;
+    const sig = '<o:signatureline v:ext="edit" id="' + guid + '" provid="{00000000-0000-0000-0000-000000000000}"'
+      + ' o:suggestedsigner="' + esc(String(signer)) + '" o:suggestedsigner2="' + esc(String(title)) + '" o:suggestedsigneremail="' + esc(String(email)) + '"'
+      + (instructions ? ' signinginstructionsset="t" o:signinginstructions="' + esc(String(instructions)) + '"' : '')
+      + (allowComments ? ' allowcomments="t"' : '') + ' issignatureline="t"' + (showDate ? ' showsigndate="t"' : ' showsigndate="f"') + '/>';
+    const pict = '<w:pict xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+      + type
+      + '<v:shape id="' + shapeId + '" type="#_x0000_t75" alt="Signature line for ' + esc(String(signer || 'the signer')) + '" style="width:' + pt(widthPx) + 'pt;height:' + pt(heightPx) + 'pt">'
+      + '<v:imagedata r:id="' + rId + '" o:title=""/><o:lock v:ext="edit" ungrouping="t" rotation="t" cropping="t" verticies="t" text="t" grouping="t"/>'
+      + sig + '</v:shape></w:pict>';
+    this._spliceBody(p.end, p.end, '<w:p><w:r>' + pict + '</w:r></w:p>');
     return this;
   }
 

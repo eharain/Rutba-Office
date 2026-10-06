@@ -1622,6 +1622,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // Buffer: a picture inserted from the window's own file dialog was
     // written as the digits of its array until they were normalised here.
     insertImage: (v, a) => v.insertImage({ ...a, data: Buffer.isBuffer(a.data) ? a.data : a.data instanceof Uint8Array ? Buffer.from(a.data) : Buffer.from(String(a.data ?? ''), 'base64') }),
+    insertSignatureLine: (v, a) => v.insertSignatureLine({ ...a, png: Buffer.isBuffer(a.png) ? a.png : a.png instanceof Uint8Array ? Buffer.from(a.png) : Buffer.from(String(a.png ?? ''), 'base64') }),
     removeImage: (v, a) => v.removeImage({ block: a.block, image: a.image ?? 0 }),
     // Wrap Text and Position: a picture in the line, or floating with the text round it.
     setImageLayout: (v, a) => v.setImageLayout(a),

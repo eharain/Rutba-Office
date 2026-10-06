@@ -1545,6 +1545,20 @@ export class DocView {
     });
   }
 
+  /** Insert → Signature Line: a paragraph after the caret's holding one, as Word writes it. One undo step. */
+  insertSignatureLine(spec = {}) {
+    if (typeof this.doc.insertSignatureLine !== 'function') throw new Error('this document backend does not support signature lines');
+    if (this._containerOf(this.focus.block) !== null) throw new Error('A signature line cannot go inside a table cell yet — move the caret out of the table.');
+    return this._edit('insert signature line', null, () => {
+      const { block } = this.focus;
+      if (!this.block(block)) throw new Error('no paragraph at index ' + block);
+      this.doc.insertSignatureLine(block, spec);
+      this._invalidate();
+      this.collapseTo({ block: block + 1, offset: 0 });
+      return this;
+    });
+  }
+
   /** The picked picture out of its paragraph — the paragraph too when it held nothing else. One undo step. */
   removeImage({ block, image = 0 } = {}) {
     if (typeof this.doc.removeImage !== 'function') {
