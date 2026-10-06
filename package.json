@@ -14,7 +14,7 @@
   "scripts": {
     "prepare": "git config core.hooksPath .githooks",
     "build": "npm run build --workspace=@rutba/office-desktop",
-    "dev": "npm run dev --workspace=@rutba/office-desktop",
+    "dev": "npm run dev --workspace=@rutba/office-desktop --",
     "start": "npm run start --workspace=@rutba/office-desktop",
     "dist": "npm run dist --workspace=@rutba/office-desktop",
     "dist:win": "npm run dist:win --workspace=@rutba/office-desktop",
