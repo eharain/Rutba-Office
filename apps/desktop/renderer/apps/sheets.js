@@ -614,6 +614,15 @@ export default function Sheets({ app, shell, boot }) {
   const onKeyDown = useCallback(
     async (e) => {
       if (!model) return;
+      // A field inside the sheet keeps its own keys. The formula bar and the
+      // spelling pane's box sit within this element, and their keys bubbled
+      // here: a letter typed into the bar was taken as the start of a new
+      // entry and replaced the whole cell, so a value could not be amended
+      // from the bar, and Delete in the bar cleared the cell. Only the grid
+      // and the cell's own editor are the grid's to answer.
+      const field = e.target;
+      if (field !== e.currentTarget && field !== editorRef.current
+        && (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' || field.tagName === 'SELECT' || field.isContentEditable)) return;
       if (editing) {
         if (e.key === 'Escape') {
           e.preventDefault();
@@ -2676,7 +2685,11 @@ export default function Sheets({ app, shell, boot }) {
                 // moving with my keys".
                 if (e.key === 'Enter' || e.key === 'Tab') {
                   e.preventDefault();
-                  commitDraft(e.key === 'Tab' ? (e.shiftKey ? 'left' : 'right') : e.shiftKey ? 'up' : 'down');
+                  // Nothing typed, nothing written: Enter in the bar moves on,
+                  // as Excel's does. Committing the empty draft wrote '' over
+                  // the cell the bar was only showing.
+                  if (!editing && draftRef.current == null && !startingRef.current) navigate({ op: e.key === 'Tab' ? 'tab' : 'enter', back: e.shiftKey });
+                  else commitDraft(e.key === 'Tab' ? (e.shiftKey ? 'left' : 'right') : e.shiftKey ? 'up' : 'down');
                   shRef.current?.focus();
                 }
                 if (e.key === 'Escape') {

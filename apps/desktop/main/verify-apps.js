@@ -6577,6 +6577,30 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         (await cellText('B9')) === 'hello' && (await active()) === 'B11',
         `B9 = ${JSON.stringify(await cellText('B9'))}; after Enter, Down: ${await active()}; focus ${await focused()}; before typing ${JSON.stringify(before)}`
       );
+
+      // The bar amends what is there. The check above typed into an empty
+      // cell, where replacing and amending look the same; the grid took the
+      // bar's keys as the start of a new entry, so "!" typed after "hello"
+      // left the cell reading "!".
+      await mouse(win, 'cell:B9');
+      await until(async () => (await active()) === 'B9', 'B9 to be selected again', 3000).catch(() => {});
+      await mouse(win, '.sh-formula input, .sh-formula-input');
+      await press(win.webContents, 'End');
+      await typeText(win.webContents, '!');
+      await press(win.webContents, 'Return');
+      await until(async () => (await cellText('B9')) === 'hello!', 'the amended value to land', 4000).catch(() => {});
+      const amended = await cellText('B9');
+      // And Enter in the bar with nothing typed moves on and writes nothing.
+      await mouse(win, 'cell:B9');
+      await until(async () => (await active()) === 'B9', 'B9 to be selected once more', 3000).catch(() => {});
+      await mouse(win, '.sh-formula input, .sh-formula-input');
+      await press(win.webContents, 'Return');
+      await until(async () => (await active()) === 'B10', 'Enter in the bar to move down', 3000).catch(() => {});
+      check(
+        'real input: the formula bar amends the value it shows, and Enter with nothing typed leaves the cell as it was',
+        amended === 'hello!' && (await cellText('B9')) === 'hello!' && (await active()) === 'B10',
+        `after "!": B9 = ${JSON.stringify(amended)}; after a bare Enter: B9 = ${JSON.stringify(await cellText('B9'))}, active ${await active()}; focus ${await focused()}`
+      );
     } else {
       check('real input: the formula bar is there to click', false, 'no formula bar input found');
     }
