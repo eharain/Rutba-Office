@@ -16,9 +16,13 @@ import electron from 'electron';
 const app = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-verify-'));
 
+// At the scale of a 100% display, whatever the machine's own: a run on a
+// laptop's 125% panel measured a 1 px rule as 0.8 px, laid arranged windows
+// a pixel over each other, and missed what it clicked — checks of the code
+// failing on the monitor it happened to be plugged into.
 const child = spawn(electron, [app, `--user-data-dir=${profile}`], {
   stdio: ['inherit', 'pipe', 'inherit'],
-  env: { ...process.env, RUTBA_OFFICE_VERIFY_APPS: '1', RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY ?? 'offscreen', RUTBA_SMOKE_SEED: '1' },
+  env: { ...process.env, RUTBA_OFFICE_VERIFY_APPS: '1', RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY ?? 'offscreen', RUTBA_SMOKE_SEED: '1', RUTBA_SCREEN_SCALE: process.env.RUTBA_SCREEN_SCALE ?? '1' },
 });
 
 // The run's own verdict is the code its main process ends on, and it says so

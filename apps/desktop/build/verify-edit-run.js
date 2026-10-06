@@ -22,7 +22,8 @@ const profile = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-edit-'));
 
 const child = spawn(electron, [app, `--user-data-dir=${profile}`], {
   stdio: 'inherit',
-  env: { ...process.env, RUTBA_OFFICE_VERIFY_EDIT: '1', RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY ?? 'offscreen', ELECTRON_ENABLE_LOGGING: '1' },
+  // At a 100% display's scale, as the application checks run (verify-apps-run.js).
+  env: { ...process.env, RUTBA_OFFICE_VERIFY_EDIT: '1', RUTBA_WINDOW_DISPLAY: process.env.RUTBA_WINDOW_DISPLAY ?? 'offscreen', ELECTRON_ENABLE_LOGGING: '1', RUTBA_SCREEN_SCALE: process.env.RUTBA_SCREEN_SCALE ?? '1' },
 });
 
 child.on('exit', (code) => {
