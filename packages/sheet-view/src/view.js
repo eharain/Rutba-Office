@@ -1376,6 +1376,8 @@ export class SheetView {
         id: d.id, kind: d.kind, name: d.name, x, y, width, height, svg, unsupported,
         // An equation's linear form, for Insert → Equation to open it again.
         ...(d.kind === 'equation' && d.omml ? { linear: safeLinear(d.omml) } : {}),
+        // A shape's words, for a double-click to change them; whether it is a text box (WordArt is one).
+        ...(d.descriptor?.kind === 'shape' ? { text: d.descriptor.text ?? '', textBox: Boolean(d.descriptor.textBox) } : {}),
         anchor: d.from ? { row: d.from.row, col: d.from.col } : null,
         index: d.index, hidden: Boolean(d.hidden), pivot: d.pivot ?? null,
         // The turn and flips of what turns (a shape and a picture draw theirs
@@ -3553,6 +3555,62 @@ export class SheetView {
     const content = equationContentXml({ id: d.nvId || 2, name: d.name || 'Equation', omml, linear: text, size: d.sizePt || 11 });
     return this._editAnchors('edit equation', (spans, xml) => ({
       xml: rebuild(spans, xml, (s, i) => (i === d.index ? s.xml.replace(/<mc:AlternateContent\b[\s\S]*<\/mc:AlternateContent>/, () => content) : s.xml)),
+      result: true,
+    }));
+  }
+
+  /**
+   * Insert → WordArt: `text` big, centred, in a text box with no fill and
+   * no line over the selection, its look (`style`: a fill or none, an
+   * outline, a glow or shadow — see textLookXml) in the run, as Excel
+   * writes WordArt.
+   */
+  insertWordArt({ text = 'Your text here', style = {}, size = 36 } = {}) {
+    const words = String(text ?? '').trim();
+    if (!words) throw new Error('Type the words first.');
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before inserting objects.');
+    const sel = this.selection.range;
+    const from = { row: sel.top, col: sel.left };
+    // A box about as wide and as tall as the words read at this size.
+    const lines = words.split(/\r?\n/);
+    const widest = Math.max(...lines.map((l) => l.length));
+    const to = { row: sel.top + Math.max(3, Math.ceil((lines.length * size * 1.6 + 16) / 20)), col: sel.left + Math.max(3, Math.min(14, Math.ceil((widest * size * 0.62 + 24) / 64))) };
+    const { sheetPartName, parts } = this._drawingEditParts();
+    this._edit('insert WordArt', null, [], () => {
+      const drawingPart = this.workbook.ensureSheetDrawing(this.activeSheet);
+      this.workbook.appendDrawingAnchor(drawingPart, (id) => drawingAnchorXml({ kind: 'wordart', id, name: 'TextBox ' + (id - 1), text: words, size, run: style, from, to }, () => null));
+      this.drawings.set(this.activeSheet, this._readDrawings(sheetPartName));
+      this._structuralDirty = true;
+    }, { parts, tracksNewParts: true });
+    return this;
+  }
+
+  /**
+   * A shape's or text box's words changed — WordArt's among them: the
+   * paragraphs written afresh, each line one, in the first paragraph's
+   * alignment and the first run's look, so a WordArt keeps its style.
+   */
+  setShapeText({ id, text = '' } = {}) {
+    const d = this._drawingById(id);
+    if (d.kind !== 'shape') throw new Error('Only a shape or a text box has words to change.');
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before changing objects.');
+    const lines = String(text ?? '').split(/\r?\n/);
+    const withText = (xml) => {
+      const sp = /<xdr:sp\b[\s\S]*<\/xdr:sp>/.exec(xml);
+      if (!sp) return xml;
+      const body = /<xdr:txBody>([\s\S]*?)<\/xdr:txBody>/.exec(sp[0]);
+      const inner = body ? body[1] : '<a:bodyPr/><a:lstStyle/><a:p/>';
+      const firstP = inner.search(/<a:p[\s>/]/);
+      const head = firstP < 0 ? inner : inner.slice(0, firstP);
+      const pPr = /<a:pPr\b[^>]*\/>|<a:pPr\b[^>]*>[\s\S]*?<\/a:pPr>/.exec(inner)?.[0] || '';
+      const rPr = /<a:rPr\b[^>]*\/>|<a:rPr\b[^>]*>[\s\S]*?<\/a:rPr>/.exec(inner)?.[0] || '<a:rPr lang="en-US"/>';
+      const paras = lines.map((l) => '<a:p>' + pPr + (l ? '<a:r>' + rPr + '<a:t>' + escapeXml(l) + '</a:t></a:r>' : '') + '</a:p>').join('');
+      const next = '<xdr:txBody>' + head + paras + '</xdr:txBody>';
+      const spXml = body ? sp[0].replace(body[0], () => next) : sp[0].replace(/<\/xdr:sp>$/, () => next + '</xdr:sp>');
+      return xml.replace(sp[0], () => spXml);
+    };
+    return this._editAnchors('edit text', (spans, xml) => ({
+      xml: rebuild(spans, xml, (s, i) => (i === d.index ? withText(s.xml) : s.xml)),
       result: true,
     }));
   }

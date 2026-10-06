@@ -202,15 +202,34 @@ export function buildShape(descriptor, box, { mode = 'light', palette = null } =
   // Shape text is centred in the box and wrapped, the way a text box behaves.
   if (descriptor.text) {
     const size = descriptor.textSize ?? t.font.label + 1;
-    const colour = resolveColour(descriptor.textColour, mode, palette) ?? t.ink.surface;
-    const lines = wrapText(descriptor.text, Math.max(16, width - 12), { size });
+    const colour = descriptor.textNoFill ? 'none' : resolveColour(descriptor.textColour, mode, palette) ?? t.ink.surface;
+    // Each paragraph wrapped on its own; an empty one is an empty line.
+    const lines = String(descriptor.text).split('\n').flatMap((p) => (p.trim() ? wrapText(p, Math.max(16, width - 12), { size }) : ['']));
     const lh = lineHeight(size);
     const startY = y + height / 2 - ((lines.length - 1) * lh) / 2;
+    // WordArt's look: the outline as a stroke round each letter, a glow and
+    // a shadow as the words' own drop shadows.
+    const outline = descriptor.textOutline;
+    const fx = descriptor.textEffects;
+    const rgba = (c) => {
+      const hex = String(c.color || '#000000').replace('#', '');
+      const n = parseInt(hex.length === 6 ? hex : '000000', 16);
+      return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${r2(c.alpha ?? 1)})`;
+    };
+    const shadows = [];
+    if (fx?.glow) shadows.push(`drop-shadow(0 0 ${r2((fx.glow.radiusPt || 5) * (96 / 72) * 0.6)}px ${rgba(fx.glow)})`);
+    if (fx?.shadow) {
+      const rad = ((fx.shadow.dir || 0) * Math.PI) / 180;
+      const d = fx.shadow.distPx || 0;
+      shadows.push(`drop-shadow(${r2(d * Math.cos(rad))}px ${r2(d * Math.sin(rad))}px ${r2((fx.shadow.blurPx || 0) / 2)}px ${rgba(fx.shadow)})`);
+    }
     lines.forEach((lineText, i) => {
       children.push(textNode({
         x: x + width / 2, y: startY + i * lh, value: lineText,
         size, fill: colour, anchor: 'middle', baseline: 'middle',
         weight: descriptor.textBold ? '600' : null,
+        ...(outline?.color ? { stroke: outline.color, strokeWidth: Number(r2(Math.max(0.5, (outline.width || 1) * (96 / 72)))) } : {}),
+        ...(shadows.length ? { filter: shadows.join(' ') } : {}),
       }));
     });
   }

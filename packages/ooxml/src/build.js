@@ -149,6 +149,55 @@ export function equationContentXml(d) {
     + '</mc:Choice><mc:Fallback>' + fallback + '</mc:Fallback></mc:AlternateContent>';
 }
 
+/** A colour as DrawingML writes it, from `#RRGGBB` (or `RRGGBB`), with its alpha. */
+const srgbXml = (hex, alpha = 1) => {
+  const val = String(hex || '000000').replace('#', '').toUpperCase();
+  return alpha < 1 ? '<a:srgbClr val="' + val + '"><a:alpha val="' + Math.round(alpha * 100000) + '"/></a:srgbClr>' : '<a:srgbClr val="' + val + '"/>';
+};
+
+/**
+ * A run's WordArt look as run-property children, in the order
+ * CT_TextCharacterProperties wants: the outline round the letters (`a:ln`),
+ * the fill (or `a:noFill` for an outline alone), then a glow and an outer
+ * shadow (`a:effectLst`). `run` is `{ color, noFill, outline: { width,
+ * color }, textEffects: { glow: { radiusPt, color, alpha }, shadow: {
+ * blurPx, distPx, dir, color, alpha } } }`, as Presentations reads a run.
+ */
+export function textLookXml(run = {}) {
+  let out = '';
+  if (run.outline?.color) out += '<a:ln w="' + Math.round(Math.max(0.25, Number(run.outline.width) || 1) * 12700) + '"><a:solidFill>' + srgbXml(run.outline.color) + '</a:solidFill></a:ln>';
+  if (run.noFill) out += '<a:noFill/>';
+  else if (run.color) out += '<a:solidFill>' + srgbXml(run.color) + '</a:solidFill>';
+  const fx = run.textEffects || {};
+  if (fx.glow || fx.shadow) {
+    out += '<a:effectLst>';
+    if (fx.glow) out += '<a:glow rad="' + Math.round((Number(fx.glow.radiusPt) || 5) * 12700) + '">' + srgbXml(fx.glow.color, fx.glow.alpha ?? 0.6) + '</a:glow>';
+    if (fx.shadow) {
+      const emu = (px) => Math.round((Number(px) || 0) * 0.75 * 12700);
+      out += '<a:outerShdw blurRad="' + emu(fx.shadow.blurPx) + '" dist="' + emu(fx.shadow.distPx) + '" dir="' + Math.round((Number(fx.shadow.dir) || 0) * 60000) + '" algn="tl" rotWithShape="0">' + srgbXml(fx.shadow.color, fx.shadow.alpha ?? 0.4) + '</a:outerShdw>';
+    }
+    out += '</a:effectLst>';
+  }
+  return out;
+}
+
+/**
+ * Insert → WordArt on a sheet, as Excel writes it: a text box with no fill
+ * and no line, sized to its words, the words centred, big, and carrying
+ * their WordArt look in the run. `d.text` may hold line breaks; `d.size` is
+ * the type size in points; `d.run` the look (see `textLookXml`).
+ */
+export function wordArtContentXml(d) {
+  const label = esc(d.name ?? 'TextBox ' + d.id);
+  const sz = Math.round((d.size ?? 36) * 100);
+  const rPr = '<a:rPr lang="en-US" sz="' + sz + '" b="0" cap="none" spc="0">' + textLookXml(d.run) + '</a:rPr>';
+  const paras = String(d.text ?? '').split(/\r?\n/).map((line) => '<a:p><a:pPr algn="ctr"/>'
+    + (line ? '<a:r>' + rPr + '<a:t>' + esc(line) + '</a:t></a:r>' : '<a:endParaRPr lang="en-US" sz="' + sz + '"/>') + '</a:p>').join('');
+  return '<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="' + d.id + '" name="' + label + '"/><xdr:cNvSpPr txBox="1"/></xdr:nvSpPr>'
+    + '<xdr:spPr><a:prstGeom prst="rect"><a:avLst/></a:prstGeom><a:noFill/></xdr:spPr>'
+    + '<xdr:txBody><a:bodyPr wrap="none" lIns="91440" tIns="45720" rIns="91440" bIns="45720" anchor="ctr"><a:spAutoFit/></a:bodyPr><a:lstStyle/>' + paras + '</xdr:txBody></xdr:sp>';
+}
+
 function drawingPartXml(drawings, relIdOf) {
   const anchors = drawings.map((d) => {
     const from = '<xdr:from><xdr:col>' + d.from.col + '</xdr:col><xdr:colOff>0</xdr:colOff>'
@@ -178,6 +227,7 @@ function drawingPartXml(drawings, relIdOf) {
     const to = '<xdr:to><xdr:col>' + d.to.col + '</xdr:col><xdr:colOff>0</xdr:colOff>'
       + '<xdr:row>' + d.to.row + '</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>';
     if (d.kind === 'equation') return '<xdr:twoCellAnchor>' + from + to + equationContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
+    if (d.kind === 'wordart') return '<xdr:twoCellAnchor>' + from + to + wordArtContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     const fill = d.fill
       ? '<a:solidFill>' + (/^[0-9A-Fa-f]{6}$/.test(d.fill)
         ? '<a:srgbClr val="' + d.fill.toUpperCase() + '"/>'

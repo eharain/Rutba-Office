@@ -87,6 +87,10 @@ function renderNode(node, theme) {
         + attr('font-weight', node.weight)
         + attr('font-style', node.style)
         + attr('fill', node.fill)
+        // WordArt: an outline round the letters, and a glow or shadow round the words.
+        + attr('stroke', node.stroke)
+        + (node.stroke ? numAttr('stroke-width', node.strokeWidth ?? 1) + attr('stroke-linejoin', 'round') : '')
+        + attr('style', node.filter ? 'filter:' + node.filter : null)
         + attr('class', node.class)
         + '>' + esc(node.value) + '</text>';
     }

@@ -300,6 +300,46 @@ function readColour(xml) {
   return null;
 }
 
+/** A colour element's `#rrggbb` and alpha, when it states an sRGB one. */
+function srgbOf(xml) {
+  const el = xml ? firstElement(xml, 'srgbClr') : null;
+  if (!el) return null;
+  const alpha = /<([\w]+:)?alpha\b[^>]*\bval="(\d+)"/.exec(el)?.[2];
+  return { color: '#' + String(attrs(el.slice(0, el.indexOf('>'))).val ?? '000000').toLowerCase(), alpha: alpha ? Number(alpha) / 100000 : 1 };
+}
+
+/**
+ * A run's WordArt look: `textOutline` `{ width, color }` (points), `textNoFill`,
+ * and `textEffects` `{ glow: { radiusPt, color, alpha }, shadow: { blurPx,
+ * distPx, dir, color, alpha } }` — the shapes Presentations reads a run's in.
+ */
+function textLook(rPr) {
+  if (!rPr) return {};
+  const out = {};
+  const ln = firstElement(rPr, 'ln');
+  if (ln && !firstElement(ln, 'noFill')) {
+    const c = srgbOf(ln);
+    if (c) out.textOutline = { width: attrs(ln).w ? Number(attrs(ln).w) / 12700 : 1, color: c.color };
+  }
+  const rest = ln ? rPr.replace(ln, '') : rPr;
+  if (/<([\w]+:)?noFill\b/.test(rest.replace(/<([\w]+:)?effectLst\b[\s\S]*?<\/([\w]+:)?effectLst>/, ''))) out.textNoFill = true;
+  const lst = firstElement(rPr, 'effectLst');
+  if (lst) {
+    const fx = {};
+    const glow = firstElement(lst, 'glow');
+    const gc = glow ? srgbOf(glow) : null;
+    if (gc) fx.glow = { radiusPt: Number(attrs(glow).rad || 0) / 12700, color: gc.color, alpha: gc.alpha };
+    const sh = firstElement(lst, 'outerShdw');
+    const sc = sh ? srgbOf(sh) : null;
+    if (sc) {
+      const a = attrs(sh);
+      fx.shadow = { blurPx: (Number(a.blurRad || 0) / 12700) * (96 / 72), distPx: (Number(a.dist || 0) / 12700) * (96 / 72), dir: Number(a.dir || 0) / 60000, color: sc.color, alpha: sc.alpha };
+    }
+    if (fx.glow || fx.shadow) out.textEffects = fx;
+  }
+  return out;
+}
+
 /**
  * Parse an `xdr:sp` into a shape descriptor.
  *
@@ -318,7 +358,11 @@ export function parseShapeXml(spXml) {
   const lnXml = firstElement(spPr, 'ln');
   const fillSource = lnXml ? spPr.replace(lnXml, '') : spPr;
 
-  const text = textOf(spXml);
+  // Each paragraph a line of its own: a two-line text box is not one run-on line.
+  const txBody = firstElement(spXml, 'txBody');
+  const text = txBody
+    ? [...txBody.matchAll(/<([\w]+:)?p\b[^>]*>([\s\S]*?)<\/([\w]+:)?p>/g)].map((m) => textOf(m[2])).join('\n').replace(/\n+$/, '')
+    : textOf(spXml);
   const rPr = firstElement(spXml, 'rPr');
   const nvPr = firstElement(spXml, 'cNvPr');
 
@@ -353,10 +397,20 @@ export function parseShapeXml(spXml) {
     text: text || null,
     textBold: rPr ? attrs(rPr).b === '1' : false,
     textSize: rPr && attrs(rPr).sz ? Number(attrs(rPr).sz) / 100 : null,
+    // The words' colour, from their run's own fill — not from the outline
+    // round the letters, which comes first in the run's properties.
     textColour: (() => {
       const body = firstElement(spXml, 'txBody');
-      return (body ? readColour(firstElement(body, 'rPr') ?? '') : null) ?? ref('fontRef');
+      const own = body ? firstElement(body, 'rPr') ?? '' : '';
+      const ln = own ? firstElement(own, 'ln') : null;
+      const fill = ln ? own.replace(ln, '') : own;
+      const effects = fill ? firstElement(fill, 'effectLst') : null;
+      return (own ? readColour(effects ? fill.replace(effects, '') : fill) : null) ?? ref('fontRef');
     })(),
+    // WordArt: the outline round the letters, an outline alone, and a glow
+    // or shadow round the words — and whether the shape is a text box.
+    ...textLook(rPr),
+    textBox: /<([\w]+:)?cNvSpPr\b[^>]*\btxBox="1"/.test(spXml),
 
     // False means we draw a box instead of the real outline. The caller can say
     // so; the part itself is preserved either way.
