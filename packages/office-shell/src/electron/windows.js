@@ -226,7 +226,11 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
           .then((decision) => {
             // 'cancel' leaves the window exactly as it was, including the flag,
             // so a second attempt asks again rather than closing silently.
-            if (decision === 'cancel') info.closing = false;
+            // So does 'save': the window saves and then closes itself with
+            // force, which needs no flag, and a save that was cancelled at
+            // its dialog or failed leaves the work still unsaved. The flag
+            // left standing there let the next close through without a word.
+            if (decision === 'cancel' || decision === 'save') info.closing = false;
           })
           .catch(() => {
             info.closing = false;
