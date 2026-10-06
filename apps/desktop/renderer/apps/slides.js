@@ -37,6 +37,7 @@ import { ScreenRecorder, SCREENREC_CSS } from './slides/screen-record.js';
 import { soundWav, soundFile } from './slides/sounds.js';
 import { NarrationRecorder, RecordingBar, RecordAudioDialog, RECORD_CSS } from './slides/record.js';
 import { ExportVideoDialog, EXPORT_VIDEO_CSS } from './slides/export-video.js';
+import { ZoomDialog, ZOOM_CSS, zoomKind, slidePicture } from './slides/zoom.js';
 import { isNarration } from '@rutba/presentation/narration';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise, replayInk } from './slides/ink.js';
 import { ScreenshotDialog } from '../screenshot.js';
@@ -124,6 +125,9 @@ export default function Slides({ app, shell, boot }) {
   const [recording, setRecording] = useState(null);
   const [recordAudioOpen, setRecordAudioOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
+  // Insert → Zoom: which box is open; in the show, the zoom to come back to and after which slide.
+  const [zoomOpen, setZoomOpen] = useState(null);
+  const zoomReturn = useRef(null);
   // The show's transition sound now playing — stopped by the next one, by Stop Previous Sound, or by the show ending.
   const showSound = useRef(null);
   // Screen Recording: choosing what to record, then recording it.
@@ -826,7 +830,7 @@ export default function Slides({ app, shell, boot }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shell]);
   useEffect(() => {
-    if (!present) { presenterOpen.current = false; customRun.current = null; }
+    if (!present) { presenterOpen.current = false; customRun.current = null; zoomReturn.current = null; }
   }, [present]);
 
   // Transitions → Sound in the show: a slide's sound plays as it comes in,
@@ -885,6 +889,9 @@ export default function Slides({ app, shell, boot }) {
   const inShow = (i) => !showSet.range || (i >= showSet.range.from - 1 && i <= showSet.range.to - 1);
   /** The next shown slide in the show's range, or `from` at its end (the first again when it loops). */
   const nextInShow = (from, delta) => {
+    // A zoom's slide (or section) over, the show goes back to the zoom.
+    const z = zoomReturn.current;
+    if (z && present && delta > 0 && from === z.after) { zoomReturn.current = null; return z.to; }
     // A custom show plays its own slides in its own order.
     const run = customRun.current;
     if (run && present) {
@@ -1527,6 +1534,41 @@ export default function Slides({ app, shell, boot }) {
       }
       case 'recordAudio': setRecordAudioOpen(true); return;
       case 'exportVideo': setVideoOpen(true); return;
+      case 'insertZoom': setZoomOpen(arg); return;
+      // The zooms picked: a picture of each target, linked to it, in a grid — on this slide, or on a new Summary slide before the first.
+      case 'placeZoom': {
+        const { kind, targets: picked } = arg;
+        const W = model?.size?.width || 1280;
+        const H = model?.size?.height || 720;
+        let at = index;
+        let targets = picked;
+        if (kind === 'summary') {
+          const after = Math.max(-1, targets[0] - 1);
+          await apply({ op: 'insertSlide', after, layout: 'obj', title: 'Summary', body: '' });
+          at = after + 1;
+          targets = targets.map((t) => (t >= at ? t + 1 : t));
+        }
+        const cols = Math.min(targets.length, kind === 'summary' ? 3 : 4);
+        const rows = Math.ceil(targets.length / cols);
+        const gap = 24;
+        const w = Math.round(Math.min(kind === 'summary' ? 300 : 280, (W * 0.84 - (cols - 1) * gap) / cols));
+        const h = Math.round((w * H) / W);
+        const x0 = Math.round((W - (cols * w + (cols - 1) * gap)) / 2);
+        const y0 = Math.round(kind === 'summary' ? H * 0.3 : (H - (rows * h + (rows - 1) * gap)) / 2);
+        const label = { summary: 'Summary Zoom', section: 'Section Zoom', slide: 'Slide Zoom' }[kind];
+        for (let i = 0; i < targets.length; i++) {
+          const t = targets[i];
+          const m = await shell.doc.model({ id: doc.id, slide: t, width: 640 });
+          if (!m?.slide?.svg) continue;
+          const png = await slidePicture(m.slide.svg, 640, Math.round((640 * H) / W));
+          await apply({ op: 'addPicture', slide: at, name: `${label} ${i + 1}`, contentType: 'image/png', data: png, x: x0 + (i % cols) * (w + gap), y: y0 + Math.floor(i / cols) * (h + gap), w, h });
+          const shapes = (await shell.doc.model({ id: doc.id, slide: at }))?.slide?.shapes || [];
+          const added = shapes[shapes.length - 1];
+          if (added) await apply({ op: 'setAction', slide: at, shape: added.id, action: { kind: 'slide', slide: t } });
+        }
+        setIndex(at);
+        return;
+      }
       // Record → Preview: this slide's narration, heard.
       case 'previewNarration': {
         const n = (model?.slide?.shapes || []).find((s) => isNarration(s) && s.media?.url);
@@ -2042,7 +2084,15 @@ export default function Slides({ app, shell, boot }) {
       else if (a.kind === 'first') go(nextShown(model, (showSet.range?.from ?? 1) - 2, 1));
       else if (a.kind === 'last') go(nextShown(model, showSet.range?.to ?? model.count, -1));
       else if (a.kind === 'lastViewed') go(lastViewed.current);
-      else if (a.kind === 'slide') go(a.slide);
+      else if (a.kind === 'slide') {
+        // A zoom: back here at the end of its slide, or of its section for a Section or Summary Zoom.
+        const zk = zoomKind(shape);
+        if (zk) {
+          const section = zk !== 'slide' ? (model?.sections || []).find((s) => s.slides.includes(a.slide)) : null;
+          zoomReturn.current = { to: index, after: section ? section.slides[section.slides.length - 1] : a.slide };
+        }
+        go(a.slide);
+      }
       else if (a.kind === 'end') setPresent(false);
       else if (a.kind === 'url') shell.shell.openExternal({ url: a.url }).catch(() => {});
       return true;
@@ -2679,6 +2729,12 @@ export default function Slides({ app, shell, boot }) {
         />
       ) : null}
 
+      {zoomOpen ? (
+        <>
+          <style>{ZOOM_CSS}</style>
+          <ZoomDialog kind={zoomOpen} outline={model?.outline || []} sections={model?.sections || []} onClose={() => setZoomOpen(null)} onInsert={(targets) => { const kind = zoomOpen; setZoomOpen(null); act('placeZoom', { kind, targets }); }} />
+        </>
+      ) : null}
       {videoOpen ? (
         <>
           <style>{EXPORT_VIDEO_CSS}</style>

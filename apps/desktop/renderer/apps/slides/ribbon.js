@@ -464,7 +464,7 @@ export default function SlidesRibbon({
             <Soon tall icon="check" label="Forms" why="Forms is a Microsoft cloud service." />
           </Group>
           <Group label="Links">
-            <Soon tall icon="zoomIn" label="Zoom" why="Slide zooms are a PowerPoint-only feature." />
+            <Button tall icon="zoomIn" label="Zoom" title="Zoom — a picture of a slide or a section that takes the show there with a click, and back here after" onClick={(e) => menu.open(e, [{ label: 'Summary Zoom…', icon: 'grid', run: () => act('insertZoom', 'summary') }, { label: 'Section Zoom…', icon: 'list', disabled: !(model?.sections || []).length, run: () => act('insertZoom', 'section') }, { label: 'Slide Zoom…', icon: 'slides', run: () => act('insertZoom', 'slide') }])} />
             <Button tall icon="link" label="Link" disabled={!hasShape} title={needShape || 'Link — a web address on the selected shape’s words (Ctrl+K); Ctrl+click follows it'} onClick={() => act('link')} />
             <Button tall icon="play" label="Action" title="Action — what a click on the selected shape does in the show: another slide, the end of the show, or a web address" onClick={() => act('action')} />
           </Group>
