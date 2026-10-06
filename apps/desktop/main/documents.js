@@ -2449,7 +2449,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       if (session.kind === 'sheet' && /^xl\/media\//.test(String(ref)) && session.engine.pkg.has(ref)) {
         const ext = String(ref).split('.').pop().toLowerCase();
         const type = { png: 'image/png', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp', svg: 'image/svg+xml' }[ext] || 'image/jpeg';
-        return holdBlob(session.engine.pkg.read(ref), type, path.basename(ref));
+        return holdBlob(session.engine.pkg.read(ref), type, path.basename(ref), { group: `asset:${id}`, generation: String(ref) });
       }
       if (session.kind === 'deck') {
         const bytes = session.engine.media(ref);

@@ -717,7 +717,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         if (!a.inline || !a.stored || !a.contentId) continue;
         try {
           const bytes = fs.readFileSync(store.attachmentPath(accountId, folder, id, a.stored));
-          inline[a.contentId] = holdBlob(bytes, a.type, a.filename).url;
+          // The next message read replaces these: nothing draws them after.
+          inline[a.contentId] = holdBlob(bytes, a.type, a.filename, { group: 'mail-message', generation: `${accountId}|${folder}|${id}` }).url;
         } catch {
           /* an attachment that did not survive a copy */
         }
@@ -995,7 +996,9 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       // The window saves under this name, so it is one that cannot leave the
       // folder it is saved into, whatever the sender wrote.
       const name = attachmentFileName(a.filename);
-      return { ...holdBlob(bytes, a.type, name), name, type: a.type, size: bytes.length };
+      // Fetched by the window at once and written to disk; the next one
+      // replaces it.
+      return { ...holdBlob(bytes, a.type, name, { group: 'mail-attachment', generation: `${accountId}|${folder}|${id}|${index}` }), name, type: a.type, size: bytes.length };
     },
 
     /** An attachment's text — a calendar part, a card — for the app that reads it. */

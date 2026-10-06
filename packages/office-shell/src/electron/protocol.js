@@ -17,6 +17,7 @@ import { protocol, net } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+import { hold, heldBlob, release, releaseOwner } from './blobs.js';
 
 export const SCHEME = 'rutba';
 
@@ -95,19 +96,22 @@ export function thumbUrl(p, size = 256) {
   return `${SCHEME}://thumb/${encodePath(p)}?s=${size}`;
 }
 
-const blobs = new Map();
-let blobSeq = 0;
-
-/** Hold bytes for the renderer to fetch by URL — attachments, generated previews. */
-export function holdBlob(bytes, type = 'application/octet-stream', name = '') {
-  const id = `b${++blobSeq}`;
-  blobs.set(id, { bytes: Buffer.from(bytes), type, name });
-  return { id, url: `${SCHEME}://blob/${id}`, size: bytes.length };
+/**
+ * Hold bytes for the renderer to fetch by URL — attachments, generated
+ * previews. Owned by the window whose request asked, and let go when it
+ * closes (blobs.js); `group` lets go of that window's earlier blob of the
+ * same group, as the next message read replaces the last one's pictures.
+ */
+export function holdBlob(bytes, type = 'application/octet-stream', name = '', options = {}) {
+  const { id, size } = hold(bytes, type, name, options);
+  return { id, url: `${SCHEME}://blob/${id}`, size };
 }
 
 export function releaseBlob(id) {
-  blobs.delete(id);
+  release(id);
 }
+
+export { releaseOwner as releaseBlobsOf };
 
 // The renderer's page is the app host and a file is the file host: two
 // origins of one scheme. A window may read what it draws — a frame of a
@@ -226,7 +230,7 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
 
     if (host === 'blob') {
       const id = decodeURIComponent(url.pathname).replace(/^\/+/, '');
-      const held = blobs.get(id);
+      const held = heldBlob(id);
       if (!held) return new Response('not found', { status: 404 });
       const headers = {
         'content-type': held.type,

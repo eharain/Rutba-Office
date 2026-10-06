@@ -15,6 +15,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { ipcMain } from 'electron';
 import { METHODS, CHANNEL_PREFIX } from '../contract.js';
+import { blobOwner } from './blobs.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -358,7 +359,8 @@ export function installIpc(impls) {
           trace.set(key, (trace.get(key) || 0) + 1);
         }
         try {
-          return await fn(payload ?? {}, win);
+          // Anything held for the window during the request is owned by it.
+          return await blobOwner.run(win?.id ?? null, () => fn(payload ?? {}, win));
         } catch (err) {
           // A window that has gone cannot be answered, and its last request
           // failing is not a fault: the documents it held were freed the

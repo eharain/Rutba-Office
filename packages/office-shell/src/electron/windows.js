@@ -12,7 +12,7 @@
 
 import { app, BrowserWindow, screen, nativeTheme } from 'electron';
 import path from 'node:path';
-import { SCHEME, encodePath } from './protocol.js';
+import { SCHEME, encodePath, releaseBlobsOf } from './protocol.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -240,7 +240,12 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
       clearTimeout(saveTimer);
       rememberBounds(win, appKey);
     });
-    win.on('closed', () => meta.delete(win.id));
+    // What the window was handed goes with it.
+    const winId = win.id;
+    win.on('closed', () => {
+      meta.delete(winId);
+      releaseBlobsOf(winId);
+    });
 
     // Nothing in this app navigates. A link goes to the browser, a popup is
     // refused, and a dropped file is handled by the renderer, not by Chromium
