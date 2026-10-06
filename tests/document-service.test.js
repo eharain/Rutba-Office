@@ -103,6 +103,40 @@ test('the disk failing is a sentence, not an error code', () => {
   doc.close({ id: session.id });
 });
 
+test('a save that fails halfway leaves the file as it was', () => {
+  // Save wrote straight over the file, so a disk that filled up halfway left
+  // half a document where the last good one had been. The disk here fills
+  // up halfway through whatever is written next to the file.
+  const file = write('half.docx', buildDocx({ paragraphs: ['The good copy.'] }));
+  const before = fs.readFileSync(file);
+  const session = doc.open({ path: file });
+  doc.apply({ id: session.id, ops: [{ op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 0, offset: 0 } }, { op: 'insertText', text: 'Changed. ' }] });
+
+  const realWrite = fs.writeFileSync;
+  fs.writeFileSync = (target, data, ...rest) => {
+    if (String(target).endsWith('.saving')) {
+      realWrite(target, Buffer.from(data).subarray(0, 100), ...rest);
+      throw Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' });
+    }
+    return realWrite(target, data, ...rest);
+  };
+  let said;
+  try {
+    said = refusal(() => doc.save({ id: session.id, path: file }));
+  } finally {
+    fs.writeFileSync = realWrite;
+  }
+  assert.match(said || '', /no room left on the disk/);
+  assert.deepEqual(fs.readFileSync(file), before, 'the file on disk is the last good one, byte for byte');
+  assert.deepEqual(fs.readdirSync(dir).filter((n) => n.endsWith('.saving')), [], 'and nothing is left beside it');
+
+  doc.save({ id: session.id, path: file });
+  const again = doc.open({ path: file });
+  assert.ok(textOf(again.model).join('').startsWith('Changed. '), 'a save that can finish still does');
+  doc.close({ id: again.id });
+  doc.close({ id: session.id });
+});
+
 test('a converted file says what saving will actually do', () => {
   // "Saving will write a .docx" was said of every converted file, and it was
   // true of almost none of them: a .md saves as .md, an .rtf cannot be saved

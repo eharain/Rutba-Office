@@ -514,6 +514,54 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     }
   }
 
+  /**
+   * A whole file, written so that what is on disk is the old file or the new
+   * one and never part of either.
+   *
+   * Save wrote straight over the person's file: a full disk, a dropped
+   * network share or a crash halfway through left a truncated document where
+   * the last good one had been. The bytes now go to a file beside it and take
+   * its place in one rename. A link is followed, so the file it points at is
+   * the one replaced; the old file's permissions are kept; and a read-only
+   * file is refused as it was, rather than renamed over. Where Windows will
+   * not let the rename replace a file another program holds open, the bytes
+   * already safe on disk are copied over it instead, which is no worse than
+   * before.
+   */
+  function writeWhole(target, data, encoding) {
+    let real = target;
+    try {
+      real = fs.realpathSync(target);
+    } catch {
+      /* a new file: there is no link to follow */
+    }
+    const old = fs.existsSync(real) ? fs.statSync(real) : null;
+    if (old) fs.accessSync(real, fs.constants.W_OK);
+    const temp = path.join(path.dirname(real), `.${path.basename(real)}.${process.pid}.saving`);
+    try {
+      fs.writeFileSync(temp, data, encoding);
+      if (old) {
+        try {
+          fs.chmodSync(temp, old.mode);
+        } catch {
+          /* a disk that keeps no modes */
+        }
+      }
+      try {
+        fs.renameSync(temp, real);
+      } catch (err) {
+        if (!old || !['EPERM', 'EACCES', 'EBUSY'].includes(err.code)) throw err;
+        fs.copyFileSync(temp, real);
+      }
+    } finally {
+      try {
+        fs.rmSync(temp, { force: true });
+      } catch {
+        /* already renamed into place */
+      }
+    }
+  }
+
   const PLAIN_TEXT_KINDS = new Set(['txt', 'md', 'markdown', 'csv', 'tsv', 'html', 'htm']);
   const OOXML_KINDS = new Set(['docx', 'docm', 'dotx', 'xlsx', 'xlsm', 'xltx', 'pptx', 'pptm', 'potx', 'ppsx']);
   const REFUSED_SNIFFS = new Set(['eml', 'msg', 'mbox', 'emlx', 'olm', 'pst', 'ost', 'vcf', 'ics', 'unknown']);
@@ -2202,7 +2250,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
 
       // Encrypted with the document's password when Info set one.
       const bytes = session.fileBytes();
-      writing(to, () => fs.writeFileSync(to, bytes));
+      writing(to, () => writeWhole(to, bytes));
       session.path = to;
       session.dirty = false;
       session.converted = null;
@@ -2476,7 +2524,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         // anyone who pressed it, every time.
         const { buffer, pages } = renderPdf(session.engine, { title: session.name }) || {};
         if (buffer) {
-          fs.writeFileSync(target, Buffer.from(buffer));
+          writeWhole(target, Buffer.from(buffer));
           return { path: target, format: 'pdf', pages };
         }
       }
@@ -2512,7 +2560,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       } finally {
         if (current) view.selectSheet(current);
       }
-      fs.writeFileSync(target, writeOds({ sheets, title: session.name }));
+      writeWhole(target, writeOds({ sheets, title: session.name }));
       return { path: target, format: 'ods', sheets: sheets.length };
     }
     if (session.kind === 'deck' && ext === 'odp') {
@@ -2534,7 +2582,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         }
         slides.push({ name: slide.name, shapes, notes: slide.notes || '' });
       }
-      fs.writeFileSync(target, writeOdp({ slides, size: deck.size, title: session.name }));
+      writeWhole(target, writeOdp({ slides, size: deck.size, title: session.name }));
       return { path: target, format: 'odp', slides: slides.length };
     }
 
@@ -2547,7 +2595,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         for (let c = 0; c <= bounds.maxCol; c++) row.push(view.displayValue(r, c)?.text ?? '');
         rows.push(row);
       }
-      fs.writeFileSync(target, writeDelimited(rows, { delimiter: ext === 'tsv' ? '\t' : ',' }), 'utf8');
+      writeWhole(target, writeDelimited(rows, { delimiter: ext === 'tsv' ? '\t' : ',' }), 'utf8');
       return { path: target, format: ext, rows: rows.length };
     }
 
@@ -2555,7 +2603,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       const frame = session.engine.render();
 
       if (ext === 'odt') {
-        fs.writeFileSync(target, writeOdt({ blocks: frame.blocks || [], title: session.name }));
+        writeWhole(target, writeOdt({ blocks: frame.blocks || [], title: session.name }));
         return { path: target, format: 'odt' };
       }
 
@@ -2563,7 +2611,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // The runs carry their own weight, slant, size, font and colour, so the
       // writer is given the frame's blocks rather than their text.
       if (ext === 'rtf') {
-        fs.writeFileSync(target, writeRtf({ blocks: frame.blocks || [], title: session.name }), 'utf8');
+        writeWhole(target, writeRtf({ blocks: frame.blocks || [], title: session.name }), 'utf8');
         return { path: target, format: 'rtf' };
       }
 
@@ -2571,7 +2619,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // what each paragraph style meant and still holds the parts of the file
       // a document cannot carry.
       if (ext === 'md') {
-        fs.writeFileSync(target, paragraphsToMarkdown(frame.blocks || [], session.converted?.markdown || {}), 'utf8');
+        writeWhole(target, paragraphsToMarkdown(frame.blocks || [], session.converted?.markdown || {}), 'utf8');
         return { path: target, format: 'md' };
       }
 
@@ -2584,7 +2632,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       const text = ext === 'txt'
         ? writePlain(blocks)
         : `<!doctype html>\n<meta charset="utf-8">\n<title>${escapeHtml(session.name)}</title>\n${blocks.map((b) => (b.type === 'heading' ? `<h${b.level}>${escapeHtml(b.text)}</h${b.level}>` : `<p>${escapeHtml(b.text)}</p>`)).join('\n')}\n`;
-      fs.writeFileSync(target, text, 'utf8');
+      writeWhole(target, text, 'utf8');
       return { path: target, format: ext };
     }
 
