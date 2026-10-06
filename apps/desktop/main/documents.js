@@ -1834,6 +1834,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     },
     // A preset shape in the theme's colours; the ribbon picks the preset.
     addShape: (d, a) => d.addShape(a.slide, a),
+    // Insert → SmartArt: the layout's shapes, laid out by the window, as one group; its id comes back.
+    addDiagram: (d, a) => d.addDiagram(a.slide, { name: a.name, shapes: a.shapes || [] }),
     // The Layers pane's verbs: the drawing order, a shape hidden or shown, a name.
     reorderShape: (d, a) => d.reorderShape(a.slide, a.shape, a.to),
     // Home → Arrange: align/distribute the selected shapes, rotate or flip

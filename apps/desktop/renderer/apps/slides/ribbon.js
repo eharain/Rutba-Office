@@ -301,7 +301,7 @@ export default function SlidesRibbon({
                 <Button icon="alignRight" title={needShape || 'Align right'} pressed={format.align === 'right'} disabled={!hasShape} onClick={() => fmt({ align: 'right' })} />
                 <Button icon="alignJustify" title={needShape || 'Justify'} pressed={format.align === 'justify'} disabled={!hasShape} onClick={() => fmt({ align: 'justify' })} />
                 <Separator />
-                <Soon icon="shape" label="SmartArt" why="SmartArt is a diagram part the engine does not write." />
+                <Button icon="shape" label="SmartArt" title={needShape || 'Convert to SmartArt — this box\'s lines as a diagram: a list, a process, a cycle or a hierarchy'} disabled={!hasShape} onClick={() => act('convertSmartArt')} />
               </>
             </Rows>
           </Group>
@@ -457,7 +457,7 @@ export default function SlidesRibbon({
 
             <Button tall icon="star" label="Icons" title="Icons — one of the suite's own icons, in the colour you choose, as a picture on this slide" onClick={() => act('icons')} />
             <Soon tall icon="shape" label="3D Models" why="3D models are an online library." />
-            <Soon tall icon="shape" label="SmartArt" why="SmartArt is a diagram part the engine does not write." />
+            <Button tall icon="shape" label="SmartArt" title="SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes" onClick={() => act('insertSmartArt')} />
             <Button tall icon="chart" label="Chart" title="Chart — a sample chart, drawn from the writer Documents and Worksheets already use; double-click it to edit its data" onClick={(e) => menu.open(e, CHART_TYPES.map(([type, label]) => ({ label, icon: 'chart', run: () => act('addChart', { type }) })))} />
           </Group>
           <Group label="Forms">

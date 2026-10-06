@@ -3521,7 +3521,8 @@ export class Deck {
   } = {}) {
     const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
-    if (!(w > 0) || !(h >= 0)) throw new Error('a shape needs a positive width and a height');
+    // A line may stand straight up, no wider than nothing; any other shape has a width.
+    if (!(w > 0 || (preset === 'line' && w === 0 && h > 0)) || !(h >= 0)) throw new Error('a shape needs a positive width and a height');
     if (!/^[A-Za-z][A-Za-z0-9]*$/.test(String(preset))) throw new Error(`not a preset geometry: ${preset}`);
 
     const xml = this.pkg.text(part);
@@ -3550,6 +3551,32 @@ export class Deck {
     if (at < 0) throw new Error('slide has no shape tree');
     this.#writeSlide(part, xml.slice(0, at) + sp + xml.slice(at));
     return id;
+  }
+
+  /**
+   * Insert → SmartArt: a diagram as one group of preset shapes, each of
+   * `shapes` (px, in drawing order) — a node filled (a theme colour when it
+   * names one) with a white edge and its words centred in white at their
+   * size, an arrow filled, a ring or a line outlined — the group named
+   * `name` and its id, as "Basic Process 12". PowerPoint opens it as a
+   * group, every word editable; it is not a SmartArt part.
+   * @param {number} slideIndex
+   * @param {{ name?: string, shapes: Array<{ preset: string, x: number, y: number, w: number, h: number,
+   *   text?: string, size?: number, fill?: string|null, scheme?: string, line?: string|null, lineWidth?: number }> }} spec
+   * @returns {number} the group's id (the shape's, when there is one)
+   */
+  addDiagram(slideIndex, { name = 'Diagram', shapes = [] } = {}) {
+    if (!shapes.length) throw new Error('a diagram needs at least one shape');
+    const ids = shapes.map((s) => this.addShape(slideIndex, {
+      preset: s.preset, x: s.x, y: s.y, w: s.w, h: s.h,
+      fill: s.fill ? (s.scheme ? { scheme: s.scheme } : s.fill) : 'none',
+      line: s.line ? { color: s.line, width: s.lineWidth ?? 1 } : 'none',
+      text: s.text ? [{ align: 'center', runs: [{ text: s.text, color: '#FFFFFF', ...(s.size ? { size: s.size } : {}) }] }] : null,
+    }));
+    if (ids.length < 2) return ids[0];
+    const group = this.groupShapes(slideIndex, ids);
+    this.renameShape(slideIndex, group, `${name} ${group}`);
+    return group;
   }
 
   /**

@@ -39,6 +39,8 @@ import { NarrationRecorder, RecordingBar, RecordAudioDialog, RECORD_CSS } from '
 import { ExportVideoDialog, EXPORT_VIDEO_CSS } from './slides/export-video.js';
 import { ZoomDialog, ZOOM_CSS, zoomKind, slidePicture } from './slides/zoom.js';
 import { ObjectDialog, OBJECT_CSS, objectIcon, typeOfExt, appOfProgId } from '../object-insert.js';
+import { SmartArtDialog, SMARTART_CSS } from '../smartart-dialog.js';
+import { layoutSmartArt, itemsText } from '../smartart.js';
 import { isNarration } from '@rutba/presentation/narration';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise, replayInk } from './slides/ink.js';
 import { ScreenshotDialog } from '../screenshot.js';
@@ -129,6 +131,8 @@ export default function Slides({ app, shell, boot }) {
   // Insert → Zoom: which box is open; in the show, the zoom to come back to and after which slide.
   const [zoomOpen, setZoomOpen] = useState(null);
   const [objectOpen, setObjectOpen] = useState(false);
+  // Insert → SmartArt (or Convert to SmartArt, with the box it replaces): the box open.
+  const [smartArt, setSmartArt] = useState(null);
   const zoomReturn = useRef(null);
   // The show's transition sound now playing — stopped by the next one, by Stop Previous Sound, or by the show ending.
   const showSound = useRef(null);
@@ -1538,6 +1542,27 @@ export default function Slides({ app, shell, boot }) {
       case 'exportVideo': setVideoOpen(true); return;
       case 'insertZoom': setZoomOpen(arg); return;
       case 'insertObject': setObjectOpen(true); return;
+      case 'insertSmartArt': setSmartArt({ initial: '' }); return;
+      // Home → Convert to SmartArt: the box's lines, a level a tab in, to start the diagram with.
+      case 'convertSmartArt': {
+        const paras = (selectedShape?.text?.paragraphs || []).filter((p) => (p.plain || '').trim());
+        if (!selectedShape || !paras.length) { toast('Select a box with words in it to convert.', { ms: 3000 }); return; }
+        setSmartArt({ initial: itemsText(paras.map((p) => ({ text: p.plain.trim(), level: p.level || 0 }))), replace: selectedShape.id, box: selectedShape.geometry });
+        return;
+      }
+      // SmartArt, OK: the layout's shapes in the middle of the slide (or where the converted box was), one group, selected.
+      case 'placeSmartArt': {
+        const W = model?.size?.width || 1280;
+        const H = model?.size?.height || 720;
+        const g = arg.box;
+        const box = g && g.w > 80 && g.h > 60 ? { x: g.x, y: g.y, w: g.w, h: g.h } : { x: Math.round(W * 0.2), y: Math.round(H * 0.17), w: Math.round(W * 0.6), h: Math.round(H * 0.667) };
+        const shapes = layoutSmartArt(arg.layout, arg.items, box);
+        const ops = [...(arg.replace != null ? [{ op: 'removeShape', slide: index, shape: arg.replace }] : []), { op: 'addDiagram', slide: index, name: arg.name, shapes }];
+        const next = await apply(...ops);
+        const gid = next?.model?.slide?.shapes?.find((s) => String(s.id) === String(next?.opResult))?.id;
+        if (gid != null) setSelected(gid);
+        return;
+      }
       // Insert → Object, OK: the document (or a blank one) embedded as its icon, in the middle of the slide.
       case 'placeObject': {
         const type = typeOfExt(arg.ext);
@@ -2754,6 +2779,17 @@ export default function Slides({ app, shell, boot }) {
         />
       ) : null}
 
+      {smartArt ? (
+        <>
+          <style>{SMARTART_CSS}</style>
+          <SmartArtDialog
+            initial={smartArt.initial}
+            title={smartArt.replace != null ? 'Convert to SmartArt' : 'Choose a SmartArt Graphic'}
+            onClose={() => setSmartArt(null)}
+            onInsert={(spec) => { const from = smartArt; setSmartArt(null); act('placeSmartArt', { ...spec, replace: from.replace, box: from.box }); }}
+          />
+        </>
+      ) : null}
       {objectOpen ? (
         <>
           <style>{OBJECT_CSS}</style>
