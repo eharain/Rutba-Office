@@ -218,6 +218,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
 
   impl.dialog = {
     open: async (p, win) => {
+      const planned = plannedAnswer('open');
+      if (planned !== undefined) return planned;
       const props = ['openFile'];
       if (p.multiple) props.push('multiSelections');
       if (p.directory) {
@@ -233,6 +235,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       return r.canceled ? [] : r.filePaths;
     },
     save: async (p, win) => {
+      const planned = plannedAnswer('save');
+      if (planned !== undefined) return planned;
       const r = await dialog.showSaveDialog(win ?? undefined, {
         title: p.title,
         defaultPath: p.defaultPath,
@@ -242,6 +246,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       return r.canceled ? null : r.filePath;
     },
     message: async (p, win) => {
+      const planned = plannedAnswer('message');
+      if (planned !== undefined) return planned;
       const r = await dialog.showMessageBox(win ?? undefined, {
         type: p.type || 'none',
         message: p.message || '',
@@ -301,6 +307,24 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   };
 
   return impl;
+}
+
+/**
+ * Answers a check run hands the system's dialogs, taken in order by kind.
+ *
+ * A native Open or Save dialog is a window no check can click, so a button
+ * that opens one could not be checked at all, and the checks steered round
+ * every such button. In a check run — and only then — a check puts the
+ * answer a person would give on this queue first: `{ kind: 'save', answer:
+ * path }`, `'open'` with a list of paths, `'message'` with `{ response }`.
+ * A dialog with no answer waiting opens as it always does.
+ */
+const CHECK_RUN = Boolean(process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_EDIT);
+if (CHECK_RUN) globalThis.__rutbaCheckDialogAnswers = globalThis.__rutbaCheckDialogAnswers || [];
+function plannedAnswer(kind) {
+  const queue = CHECK_RUN ? globalThis.__rutbaCheckDialogAnswers : null;
+  const at = queue ? queue.findIndex((a) => a.kind === kind) : -1;
+  return at < 0 ? undefined : queue.splice(at, 1)[0].answer;
 }
 
 /**
