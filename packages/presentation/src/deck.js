@@ -56,6 +56,14 @@ const PRES_PROPS = {
 };
 /** The chart kinds `chartPartXml` can write — Insert → Chart and its data editor may only ask for one of these. */
 const CHART_KINDS = ['column', 'bar', 'line', 'area', 'pie', 'doughnut'];/** The picture types PowerPoint itself embeds; anything else is converted first. */
+/** The Office documents Insert → Object embeds, by extension: their program, the part's name and type. */
+const OBJECT_KINDS = {
+  docx: { progId: 'Word.Document.12', file: 'Microsoft_Word_Document', ext: 'docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' },
+  xlsx: { progId: 'Excel.Sheet.12', file: 'Microsoft_Excel_Worksheet', ext: 'xlsx', type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' },
+  pptx: { progId: 'PowerPoint.Show.12', file: 'Microsoft_PowerPoint_Presentation', ext: 'pptx', type: 'application/vnd.openxmlformats-officedocument.presentationml.presentation' },
+};
+const PACKAGE_REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/package';
+
 /** Video and audio a slide can hold, by content type, as PowerPoint plays them. */
 const MEDIA_EXTENSIONS = {
   'video/mp4': 'mp4',
@@ -3337,6 +3345,44 @@ export class Deck {
     if (at < 0) throw new Error('slide has no shape tree');
     this.#writeSlide(part, xml.slice(0, at) + pic + xml.slice(at));
     return { id, part: media };
+  }
+
+  /**
+   * Insert → Object: an Office document embedded in the slide as PowerPoint
+   * embeds one — the file whole in `ppt/embeddings`, related as a package,
+   * and a graphic frame whose `p:oleObj` names it (Word.Document.12,
+   * Excel.Sheet.12 or PowerPoint.Show.12) and shows `icon` (PNG bytes) as
+   * its picture. Answers the frame's shape id.
+   */
+  addObject(slideIndex, { data, ext, name = 'Object', icon, x = 0, y = 0, w, h, asIcon = true } = {}) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const kind = OBJECT_KINDS[String(ext || '').toLowerCase()];
+    if (!kind) throw new Error(`a .${ext} file is not a document this embeds (Word, Excel or PowerPoint)`);
+    const bytes = Buffer.isBuffer(data) ? data : Buffer.from(data);
+    if (!bytes.length) throw new Error('the document has no bytes');
+    const names = this.pkg.partNames() || [];
+    let n = 1;
+    while (names.includes(`ppt/embeddings/${kind.file}${n}.${kind.ext}`)) n += 1;
+    const target = `ppt/embeddings/${kind.file}${n}.${kind.ext}`;
+    this.pkg.ensureDefault(kind.ext, kind.type);
+    this.pkg.addPart(target, bytes);
+    const pkgRel = this.pkg.addRelationshipTo(part, PACKAGE_REL, `../embeddings/${kind.file}${n}.${kind.ext}`);
+    const { rId: blipId } = this.#embedImage(part, { data: icon, contentType: 'image/png' });
+    let xml = this.pkg.text(part);
+    const head = xml.slice(0, Math.max(0, xml.indexOf('<p:cSld')));
+    if (!/xmlns:r=/.test(head)) xml = xml.replace(/<p:sld\b/, '<p:sld xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"');
+    const id = nextShapeId(xml);
+    const off = `<a:off x="${pxToEmu(x)}" y="${pxToEmu(y)}"/><a:ext cx="${Math.max(1, pxToEmu(w))}" cy="${Math.max(1, pxToEmu(h))}"/>`;
+    const frame = `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Object ${id - 1}"/><p:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>`
+      + `<p:xfrm>${off}</p:xfrm><a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/presentationml/2006/ole">`
+      + `<p:oleObj name="${escapeXml(name)}" r:id="${pkgRel}" imgW="${Math.max(1, pxToEmu(w))}" imgH="${Math.max(1, pxToEmu(h))}" progId="${kind.progId}"${asIcon ? ' showAsIcon="1"' : ''}><p:embed/>`
+      + `<p:pic><p:nvPicPr><p:cNvPr id="0" name=""/><p:cNvPicPr/><p:nvPr/></p:nvPicPr><p:blipFill><a:blip r:embed="${blipId}"/><a:stretch><a:fillRect/></a:stretch></p:blipFill>`
+      + `<p:spPr><a:xfrm>${off}</a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></p:spPr></p:pic></p:oleObj></a:graphicData></a:graphic></p:graphicFrame>`;
+    const at = xml.lastIndexOf('</p:spTree>');
+    if (at < 0) throw new Error('slide has no shape tree');
+    this.#writeSlide(part, xml.slice(0, at) + frame + xml.slice(at));
+    return id;
   }
 
   /**

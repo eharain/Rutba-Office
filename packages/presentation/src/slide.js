@@ -580,8 +580,20 @@ export function readSlideScene(xml, ctx = {}) {
         const geom = placeInContainer(container, local);
         const table = readTable(node, ctx.theme, geom);
         const meta = nameOf(node);
+        // Insert → Object: an embedded document, drawn as its picture (its
+        // icon, or its first page), what it is and where it is kept beside.
+        const ole = table ? null : first(node, P('oleObj'));
+        const olePic = ole ? first(node, A('blip')) : null;
         if (table) shapes.push({ kind: 'table', ...meta, groupId, geometry: geom, table });
-        else {
+        else if (ole) {
+          const embed = olePic?.attrs['r:embed'] || null;
+          const rid = ole.attrs['r:id'] || null;
+          shapes.push({
+            kind: 'picture', ...meta, groupId, geometry: geom, line: null, preset: 'rect', crop: null,
+            embed, source: embed && ctx.rel ? ctx.rel(embed) : null,
+            object: { progId: ole.attrs.progId || null, name: ole.attrs.name || null, icon: ole.attrs.showAsIcon === '1', source: rid && ctx.rel ? ctx.rel(rid) : null },
+          });
+        } else {
           // A chart. The frame names its part through a relationship, and
           // the part is read the way a worksheet's is, into the spec
           // @rutba/drawing draws — a chart on a slide and a chart on a

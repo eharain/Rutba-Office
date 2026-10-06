@@ -125,6 +125,7 @@ export const METHODS = {
     'adopt',        // ({ id }) -> { id, kind, model, meta } — a window takes over a session made for it (a merge's Letters1)
     'photoAlbum',   // ({ files, perSlide, captions, title, subtitle }) -> { id, name, slides } — Insert → Photo Album, a new deck for a window to adopt
     'compare',      // ({ original, revised, author }) -> { id, name, changes } — Review → Compare, a new document with the changes marked, for a window to adopt
+    'objectFile',   // ({ id, part }) -> { path } — Insert → Object, double-clicked: the embedded document written to a file for its app to open
     'mailMerge',    // ({ id, action, ... }) -> Mailings: records, attach, sheets, attachContacts, createList, errors, finish, messages
     'proof',        // ({ id, action, ... }) -> Review: accessibility, spellStart, spellNext, spellCheckWord, ignoreAll, addWord, dictionary, options
   ],

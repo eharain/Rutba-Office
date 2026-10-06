@@ -1351,6 +1351,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
               action: s.action ?? null,
               // Insert → Video and Audio: what it plays, and where the bytes are.
               media: s.media ? { kind: s.media.kind, url: resolveMedia(s.media) } : null,
+              // Insert → Object: the embedded document's program and name, for a double-click to open it.
+              object: s.object ? { progId: s.object.progId, name: s.object.name, part: s.object.source?.part || null } : null,
               // What a run that states nothing is drawn with — the master's,
               // the layout's and the shape's own styles — so the ribbon shows
               // a title's real size rather than the ribbon's own default.
@@ -1823,6 +1825,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // Record: a slide's narration (its WAV and length), and taking narration or timings off.
     addNarration: (d, a) => d.addNarration(a.slide, { data: Buffer.from(a.data), contentType: a.contentType || 'audio/wav', durationMs: Number(a.durationMs) || 0, poster: { data: Buffer.from(a.poster), contentType: 'image/png' } }),
     clearNarration: (d, a) => d.clearNarration(a.slide),
+    // Insert → Object: a document from this computer, or a new blank one, embedded with its icon.
+    addObject: (d, a) => d.addObject(a.slide, { data: a.data ? Buffer.from(a.data) : (a.ext === 'xlsx' ? TEMPLATES.sheet() : a.ext === 'pptx' ? TEMPLATES.deck() : TEMPLATES.doc()), ext: a.ext, name: a.name, icon: Buffer.from(a.icon), x: a.x, y: a.y, w: a.w, h: a.h }),
     addMedia: (d, a) => {
       const bytes = (v) => (Buffer.isBuffer(v) ? v : v instanceof Uint8Array ? Buffer.from(v) : Buffer.from(String(v ?? ''), 'base64'));
       return d.addMedia(a.slide, { kind: a.kind, data: bytes(a.data), contentType: a.contentType, poster: { data: bytes(a.poster), contentType: 'image/png' }, name: a.name, x: a.x, y: a.y, w: a.w, h: a.h }).id;
@@ -2286,6 +2290,21 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
      * revised one with what changed marked as revisions by `author` — for a
      * window to adopt.
      */
+    /**
+     * Insert → Object, double-clicked: the embedded document written out to
+     * a file of its own, for its app to open — a copy; the deck keeps its own.
+     */
+    objectFile: ({ id, part }) => {
+      const session = get(id);
+      if (session.kind !== 'deck' || !/^ppt\/embeddings\//.test(String(part || ''))) throw new Error('That is not an embedded document.');
+      const bytes = session.engine.media(part);
+      if (!bytes) throw new Error('The embedded document is missing from the deck.');
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-object-'));
+      const file = path.join(dir, path.basename(part).replace(/\d+(\.\w+)$/, '$1'));
+      fs.writeFileSync(file, bytes);
+      return { path: file };
+    },
+
     compare: ({ original, revised, author = null }) => {
       const read = (file) => {
         try { return fs.readFileSync(file); } catch (err) { throw new Error(plainFsError(err, file) || plainRefusal(err, file)); }
