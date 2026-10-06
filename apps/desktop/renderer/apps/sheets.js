@@ -682,7 +682,10 @@ export default function Sheets({ app, shell, boot }) {
         navigate({ op: 'enter', back: e.shiftKey });
         return;
       }
-      if (e.key === 'F2') {
+      // F2 alone edits the cell. With Shift it is Excel's note, which the
+      // command table answers; taken here as well, it began an edit in the
+      // cell underneath the note dialog.
+      if (e.key === 'F2' && !e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
         e.preventDefault();
         await dispatch({ op: 'beginEdit' });
         return;
