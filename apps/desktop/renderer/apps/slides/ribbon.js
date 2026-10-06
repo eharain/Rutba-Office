@@ -775,7 +775,7 @@ export default function SlidesRibbon({
             <Soon tall icon="undo" label="Reset to Cameo" why="Comes with recording." />
           </Group>
           <Group label="Export">
-            <Soon tall icon="export" label="Save as Show" why="A .ppsx is a .pptx with a different content type; on the list." />
+            <Button tall icon="export" label="Save as Show" title="Save as Show — a copy as a .ppsx, which PowerPoint opens straight into the show" onClick={() => act('saveAsShow')} />
             <Soon tall icon="video" label="Export to Video" why="Rendering a deck to video (frames plus encoding) is not built." />
           </Group>
           <Group label="Help">

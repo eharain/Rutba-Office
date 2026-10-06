@@ -21,6 +21,9 @@ import { fileURLToPath } from 'node:url';
 import { createDocumentService } from '../apps/desktop/main/documents.js';
 import { buildDocx, buildXlsx } from '@rutba/ooxml/build';
 import { buildPptx } from '@rutba/presentation';
+import { OoxmlPackage } from '@rutba/ooxml/package';
+
+const readZipText = (bytes, name) => OoxmlPackage.read(bytes).text(name);
 
 const doc = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }) });
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-doc-service-'));
@@ -361,4 +364,66 @@ test('moving through a workbook by Enter, Tab, Find Next or Go To leaves it unch
   const edited = doc.apply({ id: s.id, ops: [{ op: 'setCell', row: 5, col: 0, value: 'x' }] });
   assert.equal(edited.dirty, true, 'and an edit still counts');
   doc.close({ id: s.id });
+});
+
+test('a file saved as a show, a template or with macros is labelled as one, and as an ordinary file again', () => {
+  // The main part says what kind of file a package is. Save As kept the label
+  // the file came with, so a .ppsx said it was a presentation and a .dotx a
+  // document: two names for one file that disagreed.
+  const kinds = [
+    ['deck.pptx', buildPptx({ title: 'D', slides: [{ layout: 'title', title: 'x' }] }), 'ppt/presentation.xml', {
+      '.ppsx': 'presentationml.slideshow.main+xml',
+      '.potx': 'presentationml.template.main+xml',
+      '.pptm': 'ms-powerpoint.presentation.macroEnabled.main+xml',
+      '.pptx': 'presentationml.presentation.main+xml',
+    }],
+    ['words.docx', buildDocx({ paragraphs: ['x'] }), 'word/document.xml', {
+      '.dotx': 'wordprocessingml.template.main+xml',
+      '.docm': 'ms-word.document.macroEnabled.main+xml',
+      '.docx': 'wordprocessingml.document.main+xml',
+    }],
+    ['book.xlsx', buildXlsx({ sheets: [{ name: 'S', rows: [[1]] }] }), 'xl/workbook.xml', {
+      '.xltx': 'spreadsheetml.template.main+xml',
+      '.xlsm': 'ms-excel.sheet.macroEnabled.main+xml',
+      '.xlsx': 'spreadsheetml.sheet.main+xml',
+    }],
+  ];
+  for (const [name, bytes, main, saves] of kinds) {
+    const session = doc.open({ path: write(name, bytes) });
+    for (const [ext, label] of Object.entries(saves)) {
+      const to = path.join(dir, `labelled-${path.basename(name, path.extname(name))}${ext}`);
+      doc.save({ id: session.id, path: to });
+      const types = readZipText(fs.readFileSync(to), '[Content_Types].xml');
+      const override = new RegExp(`PartName="/${main.replace(/\//g, '\/')}" ContentType="([^"]+)"`).exec(types)?.[1] ?? '';
+      assert.ok(override.endsWith(label), `${name} saved as ${ext} says ${override}`);
+    }
+    doc.close({ id: session.id });
+  }
+});
+
+test('a file carrying macros is not saved under a name that cannot hold them, and keeps them under one that can', () => {
+  const pkg = OoxmlPackage.read(buildDocx({ paragraphs: ['With macros.'] }));
+  pkg.addPart('word/vbaProject.bin', Buffer.from('VBA-PROJECT-BYTES'), 'application/vnd.ms-office.vbaProject');
+  pkg.addRelationshipTo('word/document.xml', 'http://schemas.microsoft.com/office/2006/relationships/vbaProject', 'vbaProject.bin');
+  const session = doc.open({ path: write('macros.docm', pkg.write()) });
+  assert.match(refusal(() => doc.save({ id: session.id, path: path.join(dir, 'macros-free.docx') })) || '', /carries macros, which a \.docx file cannot hold\. Save it as \.docm/);
+  assert.ok(!fs.existsSync(path.join(dir, 'macros-free.docx')), 'nothing is written');
+  doc.save({ id: session.id, path: path.join(dir, 'macros-kept.docm') });
+  const kept = OoxmlPackage.read(fs.readFileSync(path.join(dir, 'macros-kept.docm')));
+  assert.equal(kept.read('word/vbaProject.bin').toString(), 'VBA-PROJECT-BYTES', 'the macros come back byte for byte');
+  doc.close({ id: session.id });
+});
+
+test('Save as Show writes a copy labelled as a show, and the deck stays under its own name', () => {
+  const deckPath = write('talk.pptx', buildPptx({ title: 'Talk', slides: [{ layout: 'title', title: 'Hello' }] }));
+  const session = doc.open({ path: deckPath });
+  const show = path.join(dir, 'talk.ppsx');
+  const out = doc.export({ id: session.id, format: 'ppsx', path: show });
+  assert.equal(out.format, 'ppsx');
+  assert.match(readZipText(fs.readFileSync(show), '[Content_Types].xml'), /PartName="\/ppt\/presentation\.xml" ContentType="application\/vnd\.openxmlformats-officedocument\.presentationml\.slideshow\.main\+xml"/);
+  const again = doc.open({ path: deckPath });
+  assert.equal(again.path, deckPath, 'the deck is still the .pptx it was');
+  assert.match(readZipText(fs.readFileSync(deckPath), '[Content_Types].xml'), /presentationml\.presentation\.main\+xml/, 'and still labelled a presentation');
+  doc.close({ id: again.id });
+  doc.close({ id: session.id });
 });

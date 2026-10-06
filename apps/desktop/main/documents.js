@@ -233,6 +233,54 @@ function legacyText(bytes) {
   return { app, blocks: [] };
 }
 
+/**
+ * What the main part says the file is, for each name the writers save under.
+ *
+ * A package carries its kind twice: in its name and in the content type of
+ * its main part — a template, a show, a macro-enabled file each have their
+ * own. Save As kept the content type the file was opened with whatever the
+ * new name said, so "Save as Show" made a .ppsx labelled as a presentation,
+ * and a .dotx, .potx or .xltx was labelled as an ordinary document — a file
+ * whose two names for itself disagree.
+ */
+const MAIN_CONTENT_TYPE = {
+  '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml',
+  '.docm': 'application/vnd.ms-word.document.macroEnabled.main+xml',
+  '.dotx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.template.main+xml',
+  '.dotm': 'application/vnd.ms-word.template.macroEnabledTemplate.main+xml',
+  '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml',
+  '.xlsm': 'application/vnd.ms-excel.sheet.macroEnabled.main+xml',
+  '.xltx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.template.main+xml',
+  '.xltm': 'application/vnd.ms-excel.template.macroEnabled.main+xml',
+  '.pptx': 'application/vnd.openxmlformats-officedocument.presentationml.presentation.main+xml',
+  '.pptm': 'application/vnd.ms-powerpoint.presentation.macroEnabled.main+xml',
+  '.potx': 'application/vnd.openxmlformats-officedocument.presentationml.template.main+xml',
+  '.potm': 'application/vnd.ms-powerpoint.template.macroEnabled.main+xml',
+  '.ppsx': 'application/vnd.openxmlformats-officedocument.presentationml.slideshow.main+xml',
+  '.ppsm': 'application/vnd.ms-powerpoint.slideshow.macroEnabled.main+xml',
+};
+/** A macro-free name, and the name that keeps the macros. */
+const WITH_MACROS = { '.docx': '.docm', '.dotx': '.dotm', '.xlsx': '.xlsm', '.xltx': '.xltm', '.pptx': '.pptm', '.potx': '.potm', '.ppsx': '.ppsm' };
+
+/**
+ * The package, its main part labelled for `ext`. Unchanged bytes when the
+ * label already agrees, so an ordinary save rewrites nothing it need not.
+ * A file carrying macros is not saved under a name that cannot hold them:
+ * the macros are kept, never dropped, and the person is told which name does.
+ */
+function labelledFor(bytes, ext, name) {
+  const wanted = MAIN_CONTENT_TYPE[ext];
+  if (!wanted) return bytes;
+  const pkg = OoxmlPackage.read(bytes);
+  if (WITH_MACROS[ext] && [...pkg.partNames()].some((part) => /vbaProject\.bin$/i.test(part))) {
+    throw new Error(`${name} carries macros, which a ${ext} file cannot hold. Save it as ${WITH_MACROS[ext]} to keep them; they are never dropped.`);
+  }
+  const main = pkg.mainDocument();
+  if (pkg.contentTypeOf(main) === wanted) return bytes;
+  pkg.setOverride(main, wanted);
+  return Buffer.from(pkg.write());
+}
+
 class Session {
   constructor({ id, kind, filePath, engine, source, converted }) {
     this.id = id;
@@ -262,9 +310,13 @@ class Session {
     this.keyCache = this.password ? {} : null;
   }
 
-  /** The bytes Save writes: the package, encrypted when a password is set. */
-  fileBytes() {
-    const plain = Buffer.from(this.engine.save());
+  /**
+   * The bytes Save writes: the package, labelled for the name it is saved
+   * under when one is given, and encrypted when a password is set.
+   */
+  fileBytes(ext = null) {
+    let plain = Buffer.from(this.engine.save());
+    if (ext) plain = labelledFor(plain, ext, this.name);
     return this.password ? encryptPackage(plain, this.password, { cache: this.keyCache }) : plain;
   }
 
@@ -2253,8 +2305,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         return writing(to, () => exportTo(session, to, ext.replace('.', '')));
       }
 
-      // Encrypted with the document's password when Info set one.
-      const bytes = session.fileBytes();
+      // Labelled for the name it goes under — a show, a template, a
+      // macro-enabled file — and encrypted with the document's password when
+      // Info set one.
+      const bytes = session.fileBytes(ext);
       writing(to, () => writeWhole(to, bytes));
       session.path = to;
       session.dirty = false;
@@ -2513,6 +2567,15 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
 
   function exportTo(session, target, format) {
     const ext = (format || path.extname(target).replace('.', '')).toLowerCase();
+
+    // A copy in another of the kind's own formats — Presentations' Save as
+    // Show, a template — labelled for its name, with the open document left
+    // under the name it has.
+    const siblings = { doc: ['docx', 'docm', 'dotx'], sheet: ['xlsx', 'xlsm', 'xltx'], deck: ['pptx', 'pptm', 'potx', 'ppsx'] }[session.kind];
+    if (siblings?.includes(ext)) {
+      writeWhole(target, session.fileBytes('.' + ext));
+      return { path: target, format: ext };
+    }
 
     // Only a document has a PDF writer. A workbook and a deck fall through to
     // the refusal at the end, which names what they CAN be written as — the

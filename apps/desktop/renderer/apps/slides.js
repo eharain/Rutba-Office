@@ -1096,6 +1096,21 @@ export default function Slides({ app, shell, boot }) {
         if (!doc?.path) return toast('Save the presentation first, so a second window can open the same file.', { ms: 5000 });
         shell.win.create({ app: 'slides', file: doc.path });
         return;
+      // Record → Save as Show: a copy as a .ppsx, which PowerPoint opens
+      // straight into the show. The deck being edited keeps its own name.
+      case 'saveAsShow': {
+        if (!doc) return;
+        const base = doc.path ? doc.path.replace(/\.[^.\\/]+$/, '') : (doc.name || 'Presentation').replace(/\.[^.]+$/, '');
+        const target = await shell.dialog.save({ title: 'Save as Show', filters: [{ name: 'PowerPoint Show', extensions: ['ppsx'] }], defaultPath: `${base}.ppsx` });
+        if (!target) return;
+        try {
+          await shell.doc.export({ id: doc.id, format: 'ppsx', path: target });
+          toast(`Saved ${target.split(/[\\/]/).pop()} — it opens straight into the show`, { tone: 'good' });
+        } catch (err) {
+          toast(err.message, { tone: 'bad' });
+        }
+        return;
+      }
       case 'help': shell.shell.openExternal({ url: SITE.help }); return;
       case 'feedback': shell.shell.openExternal({ url: SITE.contact }); return;
       case 'releases': shell.shell.openExternal({ url: SITE.releases }); return;
