@@ -273,3 +273,113 @@ export function variantsOf(base, dark = false) {
 export function themeById(id) {
   return THEMES.find((t) => t.id === id) || null;
 }
+
+// ---- a theme part, read and redesigned ---------------------------------------
+//
+// One theme part is the same thing in a workbook (xl/theme/theme1.xml) and a
+// document (word/theme/theme1.xml): what Page Layout and Design show as
+// current is read from it, and each choice there changes one of its three
+// schemes — or, for a whole theme, replaces it.
+
+/** Office's own theme, which a file that names no other has. */
+export const OFFICE_THEME = {
+  name: 'Office Theme',
+  colorName: 'Office',
+  colors: {
+    dk1: '000000', lt1: 'FFFFFF', dk2: '44546A', lt2: 'E7E6E6',
+    accent1: '4472C4', accent2: 'ED7D31', accent3: 'A5A5A5', accent4: 'FFC000', accent5: '5B9BD5', accent6: '70AD47',
+    hlink: '0563C1', folHlink: '954F72',
+  },
+  fontName: 'Office',
+  fonts: { major: 'Calibri Light', minor: 'Calibri' },
+};
+
+const attrOf = (tag, name) => new RegExp('\\b' + name + '="([^"]*)"').exec(tag ?? '')?.[1];
+const unescXml = (s) => String(s ?? '').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, '&');
+
+/**
+ * A theme part's design: its name and which of the suite's it is, its
+ * twelve colours as hex and their scheme's name, its two faces and their
+ * scheme's name, its format scheme. Null XML reads as Office's own.
+ */
+export function readThemeDesign(xml) {
+  if (!xml) {
+    return { exists: false, name: OFFICE_THEME.name, builtIn: null, colors: { ...OFFICE_THEME.colors }, colorName: OFFICE_THEME.colorName, fonts: { ...OFFICE_THEME.fonts }, fontName: OFFICE_THEME.fontName, effects: null, effectName: 'Office' };
+  }
+  const name = unescXml(attrOf(/<a:theme\b[^>]*>/.exec(xml)?.[0], 'name') ?? 'Theme');
+  const clr = /<a:clrScheme\b([^>]*)>([\s\S]*?)<\/a:clrScheme>/.exec(xml);
+  const colors = {};
+  for (const k of COLOUR_SLOTS) {
+    const m = clr ? new RegExp('<a:' + k + '>([\\s\\S]*?)</a:' + k + '>').exec(clr[2]) : null;
+    const v = m ? (attrOf(/<a:srgbClr\b[^>]*>/.exec(m[1])?.[0], 'val') ?? attrOf(/<a:sysClr\b[^>]*>/.exec(m[1])?.[0], 'lastClr')) : null;
+    colors[k] = v ? v.toUpperCase() : OFFICE_THEME.colors[k];
+  }
+  const fontBlock = /<a:fontScheme\b([^>]*)>([\s\S]*?)<\/a:fontScheme>/.exec(xml);
+  const face = (tag) => {
+    const m = fontBlock ? new RegExp('<a:' + tag + '>[\\s\\S]*?<a:latin\\b([^>]*)/?>').exec(fontBlock[2]) : null;
+    return m ? unescXml(attrOf(m[1], 'typeface') ?? '') : '';
+  };
+  const effectName = unescXml(attrOf(/<a:fmtScheme\b[^>]*>/.exec(xml)?.[0], 'name') ?? '');
+  return {
+    exists: true,
+    name,
+    builtIn: THEMES.find((t) => t.name === name)?.id ?? null,
+    colors,
+    colorName: unescXml(clr ? attrOf(clr[1], 'name') ?? '' : ''),
+    fonts: { major: face('majorFont') || OFFICE_THEME.fonts.major, minor: face('minorFont') || OFFICE_THEME.fonts.minor },
+    fontName: unescXml(fontBlock ? attrOf(fontBlock[1], 'name') ?? '' : ''),
+    effects: EFFECT_PRESETS.find((p) => p.name === effectName)?.id ?? null,
+    effectName,
+  };
+}
+
+/** One of `themeElements`' three schemes replaced (or put in its place when missing). */
+export function withThemeElement(xml, tag, element) {
+  const re = new RegExp('<a:' + tag + '\\b[^>]*?(?:/>|>[\\s\\S]*?</a:' + tag + '>)');
+  if (re.test(xml)) return xml.replace(re, () => element);
+  const order = ['clrScheme', 'fontScheme', 'fmtScheme'];
+  const after = order.slice(0, order.indexOf(tag)).reverse().map((t) => new RegExp('</a:' + t + '>')).find((r) => r.test(xml));
+  if (after) return xml.replace(after, (m) => m + element);
+  return xml.replace(/<a:themeElements>/, (m) => m + element);
+}
+
+/**
+ * The theme part as a design choice makes it, from the part there is
+ * (`base`, or null for none): `{ theme }` one of the suite's themes whole;
+ * `{ colors }` a palette id or twelve slots (with `name`); `{ fonts }` a
+ * pair id or `{ major, minor }` (with `name`); `{ effects }` a format
+ * scheme. A file with no part gets Office's with the change.
+ */
+export function designedThemePart(base, spec) {
+  const from = base || themePartXml({ name: OFFICE_THEME.name, colors: OFFICE_THEME.colors, colorName: OFFICE_THEME.colorName, fonts: OFFICE_THEME.fonts, fontName: OFFICE_THEME.fontName, effects: 'flat' });
+  if (spec.theme) {
+    const t = themeById(spec.theme);
+    if (!t) throw new Error('no theme "' + spec.theme + '"');
+    // A dark theme's palette is for slides on a dark ground; a sheet or a
+    // page is white paper, so its text and background colours stay light.
+    const colors = t.dark ? { ...t.palette, dk1: t.palette.dk1, lt1: 'FFFFFF' } : t.palette;
+    return themePartXml({ name: t.name, colors, colorName: t.name, fonts: t.fonts, fontName: t.name, effects: t.effects });
+  }
+  if (spec.colors) {
+    const builtIn = typeof spec.colors === 'string' ? PALETTES.find((p) => p.id === spec.colors) : null;
+    if (typeof spec.colors === 'string' && !builtIn) throw new Error('no palette "' + spec.colors + '"');
+    const colors = builtIn ? builtIn.colors : spec.colors;
+    for (const k of COLOUR_SLOTS) {
+      if (!/^#?[0-9a-f]{6}$/i.test(String(colors?.[k] ?? ''))) throw new Error(k + ' needs a colour like 1F6FB2');
+    }
+    return withThemeElement(from, 'clrScheme', clrSchemeXml(String(spec.name || builtIn?.name || 'Custom').trim() || 'Custom', colors));
+  }
+  if (spec.fonts) {
+    const pair = typeof spec.fonts === 'string' ? FONT_PAIRS.find((p) => p.id === spec.fonts) : null;
+    if (typeof spec.fonts === 'string' && !pair) throw new Error('no font pair "' + spec.fonts + '"');
+    const major = String(pair ? pair.major : spec.fonts.major ?? '').trim();
+    const minor = String(pair ? pair.minor : spec.fonts.minor ?? '').trim();
+    if (!major || !minor) throw new Error('a heading font and a body font are both needed');
+    return withThemeElement(from, 'fontScheme', fontSchemeXml(String(spec.name || pair?.name || 'Custom').trim() || 'Custom', { major, minor }));
+  }
+  if (spec.effects) {
+    if (!EFFECT_PRESETS.some((p) => p.id === spec.effects)) throw new Error('no effects "' + spec.effects + '"');
+    return withThemeElement(from, 'fmtScheme', fmtSchemeXml(spec.effects));
+  }
+  throw new Error('say which theme, colours, fonts or effects');
+}
