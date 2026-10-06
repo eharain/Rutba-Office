@@ -31,6 +31,7 @@ import { LanguageDialog } from '@rutba/office-ui/proofing';
 import { ActionDialog, ACTION_CSS } from './slides/action.js';
 import { PhotoAlbumDialog, ALBUM_CSS } from './slides/album.js';
 import { ScreenshotDialog } from '../screenshot.js';
+import { IconsDialog } from '../icons-insert.js';
 
 // The splits Move Split moves, marked while it is on — in shadows, so
 // turning it on moves nothing by itself.
@@ -97,6 +98,7 @@ export default function Slides({ app, shell, boot }) {
   const [actionOpen, setActionOpen] = useState(false);
   const [albumOpen, setAlbumOpen] = useState(false);
   const [shotOpen, setShotOpen] = useState(false);
+  const [iconsOpen, setIconsOpen] = useState(false);
   // The slide the show was on before this one, for a "last slide viewed" action.
   const lastViewed = useRef(null);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -1330,6 +1332,8 @@ export default function Slides({ app, shell, boot }) {
       case 'photoAlbum': setAlbumOpen(true); return;
       // Insert → Screenshot: a window or a screen, taken as a picture on this slide.
       case 'screenshot': setShotOpen(true); return;
+      // Insert → Icons: one of the suite's own icons, as a picture on this slide.
+      case 'icons': setIconsOpen(true); return;
       // Insert → Action: what a click on the selected shape does in the show.
       case 'action':
         if (!selectedShape) return toast('Click a shape first, then choose what a click on it does in the show.', { ms: 3500 });
@@ -2343,6 +2347,22 @@ export default function Slides({ app, shell, boot }) {
 
       {symbolOpen ? (
         <SymbolDialog onClose={() => setSymbolOpen(false)} onInsert={(ch) => { setSymbolOpen(false); act('insertSymbol', ch); }} />
+      ) : null}
+
+      {iconsOpen ? (
+        <IconsDialog
+          onClose={() => setIconsOpen(false)}
+          onInsert={async ({ name, bytes, contentType }) => {
+            setIconsOpen(false);
+            // An inch and a half square, in the middle of the slide.
+            const side = 144;
+            const x = Math.round(((model?.size?.width || 1280) - side) / 2);
+            const y = Math.round(((model?.size?.height || 720) - side) / 2);
+            const next = await apply({ op: 'addPicture', slide: index, name, contentType, data: bytes, x, y, w: side, h: side });
+            const added = next?.model?.slide?.shapes?.slice(-1)[0];
+            if (added) setSelected(added.id);
+          }}
+        />
       ) : null}
 
       {shotOpen ? (

@@ -26,6 +26,7 @@ import {
 import { WorkbookGallery, SHEET_DESIGN_CSS } from './sheets/design.js';
 import { CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 import { SlicerPanel, InsertSlicersDialog, ObjectHandles, RotateHandle, SelectionPane, angleAt, followPointer, OBJECTS_CSS } from './sheets/objects.js';
+import { IconsDialog } from '../icons-insert.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
 } from './sheets/dialogs.js';
@@ -2351,6 +2352,8 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'picture': await insertPicture(); return;
+      // Insert → Icons: one of the suite's own icons, as a picture at the cell.
+      case 'icons': setDialog('icons'); return;
       // Page Layout → Print Area: the page setup is rebuilt from what it is
       // given, so the file's own setup is read first and sent back with the
       // area changed — what the print dialog does.
@@ -2952,6 +2955,15 @@ export default function Sheets({ app, shell, boot }) {
 
       {review.dialogs}
 
+      {dialog === 'icons' ? (
+        <IconsDialog
+          onClose={() => setDialog(null)}
+          onInsert={async ({ name, bytes, contentType }) => {
+            setDialog(null);
+            await dispatch({ op: 'insertPicture', name: `${name}.png`, contentType, data: bytes, widthPx: 96, heightPx: 96 });
+          }}
+        />
+      ) : null}
       {dialog === 'goto' ? (
         <GoToDialog names={model?.names || []} onClose={() => setDialog(null)} onGo={async (ref) => { setDialog(null); await act('goto', ref); }} />
       ) : null}

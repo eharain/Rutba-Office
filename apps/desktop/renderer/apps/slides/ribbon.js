@@ -424,7 +424,7 @@ export default function SlidesRibbon({
           <Group label="Illustrations">
             <Button tall icon="shape" label="Shapes" title="Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
 
-            <Soon tall icon="star" label="Icons" why="Icons are an online library." />
+            <Button tall icon="star" label="Icons" title="Icons — one of the suite's own icons, in the colour you choose, as a picture on this slide" onClick={() => act('icons')} />
             <Soon tall icon="shape" label="3D Models" why="3D models are an online library." />
             <Soon tall icon="shape" label="SmartArt" why="SmartArt is a diagram part the engine does not write." />
             <Button tall icon="chart" label="Chart" title="Chart — a sample chart, drawn from the writer Documents and Worksheets already use; double-click it to edit its data" onClick={(e) => menu.open(e, CHART_TYPES.map(([type, label]) => ({ label, icon: 'chart', run: () => act('addChart', { type }) })))} />

@@ -172,4 +172,19 @@ export function Icon({ name, size = 16, className, style, title, strokeWidth = 1
 }
 
 export const iconNames = Object.keys(PATHS);
+
+/**
+ * An icon as a standalone SVG document — Insert → Icons draws it to a
+ * picture from this. `colour` is the stroke, `#RRGGBB`; `size` the
+ * document's own width and height.
+ */
+export function iconSvg(name, { colour = '#000000', strokeWidth = 1.7, size = 24 } = {}) {
+  const paths = PATHS[name];
+  if (!paths) return null;
+  const stroke = /^#[0-9a-f]{6}$/i.test(colour) ? colour : '#000000';
+  const attr = (k) => k.replace(/[A-Z]/g, (c) => `-${c.toLowerCase()}`);
+  const body = paths.map(({ d, ...extra }) => `<path d="${d}"${Object.entries(extra).map(([k, v]) => ` ${attr(k)}="${v}"`).join('')}/>`).join('');
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="${stroke}" stroke-width="${strokeWidth}" stroke-linecap="round" stroke-linejoin="round">${body}</svg>`;
+}
+
 export default Icon;

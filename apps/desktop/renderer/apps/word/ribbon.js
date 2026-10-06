@@ -424,7 +424,7 @@ export default function WordRibbon({
           <Group label="Illustrations">
             <Button tall icon="picture" label="Pictures" onClick={insertPicture} />
             <Button tall icon="shape" label="Shapes" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', preset, widthPx: 200, heightPx: 120 }) })))} />
-            <Soon tall icon="star" label="Icons" why="An icon library is a download; this suite makes no requests it has not declared." />
+            <Button tall icon="star" label="Icons" title="Icons — one of the suite's own icons, in the colour you choose, as a picture at the caret" onClick={() => act('icons')} />
             <Soon tall icon="shape" label="3D Models" why="3D models need a renderer the suite does not have." />
             <Soon tall icon="grid" label="SmartArt" why="SmartArt is a diagram grammar the engine does not write yet." />
             <Button tall icon="chart" label="Chart" title="A chart drawn from the table the caret is in — put the caret in a table first" onClick={(e) => menu.open(e, CHARTS.map(([k, l]) => ({ label: l, icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: k }) })))} />

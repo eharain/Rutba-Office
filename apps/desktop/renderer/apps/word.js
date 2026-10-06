@@ -41,6 +41,7 @@ import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
 import { useWordReview } from './word/review.js';
 import { LanguageDialog } from '@rutba/office-ui/proofing';
 import { ScreenshotDialog } from '../screenshot.js';
+import { IconsDialog } from '../icons-insert.js';
 import {
   drawingLayer, geomOf, spacerStyles, blockCss, turnCss, TextBox, GroupBox, DrawingLayer, DrawingFrame, SelectionPane,
   measureAnchors, textBoxPresets, DRAWING_CSS,
@@ -228,6 +229,7 @@ export default function Word({ app, shell, boot }) {
   const [dialog, setDialog] = useState(null);
   const [languageDialog, setLanguageDialog] = useState(null);
   const [shotOpen, setShotOpen] = useState(false);
+  const [iconsOpen, setIconsOpen] = useState(false);
   // The equation editor: null, or what it opened on — a new equation, or
   // one being edited at `block`/`offset`.
   const [equation, setEquation] = useState(null);
@@ -1252,6 +1254,10 @@ export default function Word({ app, shell, boot }) {
         // Insert → Screenshot: a window or a screen, taken as a picture.
         case 'screenshot':
           setShotOpen(true);
+          return;
+        // Insert → Icons: one of the suite's own icons, as a picture at the caret.
+        case 'icons':
+          setIconsOpen(true);
           return;
         // Review → Language: the dialog opens on the selection's language,
         // with the document's own beside it.
@@ -2433,6 +2439,17 @@ export default function Word({ app, shell, boot }) {
       ) : null}
 
       {dialog === 'wordCount' ? <WordCountDialog blocks={model?.blocks || []} onClose={() => setDialog(null)} /> : null}
+
+      {iconsOpen ? (
+        <IconsDialog
+          onClose={() => setIconsOpen(false)}
+          onInsert={async ({ name, bytes, contentType }) => {
+            setIconsOpen(false);
+            // An inch square, as Word puts an icon in.
+            await apply({ op: 'insertImage', name: `${name}.png`, contentType, data: bytes, widthPx: 96, heightPx: 96 });
+          }}
+        />
+      ) : null}
 
       {shotOpen ? (
         <ScreenshotDialog

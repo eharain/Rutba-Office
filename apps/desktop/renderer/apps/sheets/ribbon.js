@@ -387,7 +387,7 @@ export default function SheetsRibbon({
           <Group label="Illustrations">
             <Button tall icon="picture" label="Pictures" title="Pictures — a picture from a file, at the cell, at its own proportions" onClick={() => act('picture')} />
             <Button tall icon="shape" label="Shapes" onClick={(e) => menu.open(e, SHAPES.map(([geometry, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', geometry, text: '' }) })))} />
-            <Soon icon="star" label="Icons" why="Icons are an online library." />
+            <Button icon="star" label="Icons" title="Icons — one of the suite's own icons, in the colour you choose, as a picture at the cell" onClick={() => act('icons')} />
             <Soon icon="shape" label="SmartArt" why="SmartArt is a diagram part the engine does not write." />
           </Group>
           <Group label="Charts">
