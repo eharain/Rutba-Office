@@ -204,8 +204,6 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     // Deleting is always to the OS trash. An office suite must never be the
     // reason a file is unrecoverable.
     remove: async ({ path: p }) => void (await shell.trashItem(p)),
-    rename: async ({ from, to }) => void (await fsp.rename(from, to)),
-    copy: async ({ from, to }) => void (await fsp.copyFile(from, to)),
     temp: async ({ ext = '', bytes = null }) => {
       const dir = await fsp.mkdtemp(path.join(app.getPath('temp'), 'rutba-office-'));
       const p = path.join(dir, `scratch${ext.startsWith('.') || !ext ? ext : `.${ext}`}`);
@@ -269,14 +267,6 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     showInFolder: ({ path: p }) => void shell.showItemInFolder(p),
     openPath: ({ path: p }) => shell.openPath(p),
     beep: () => void shell.beep(),
-  };
-
-  impl.secrets = {
-    available: () => stores.secrets.available(),
-    get: ({ key }) => stores.secrets.get(key),
-    set: ({ key, value }) => void stores.secrets.set(key, value),
-    delete: ({ key }) => void stores.secrets.delete(key),
-    keys: () => stores.secrets.keys(),
   };
 
   impl.store = {

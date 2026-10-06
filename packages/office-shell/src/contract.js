@@ -10,6 +10,11 @@
 //   - No method takes a callback; events travel on the separate event list.
 //   - A method that touches the file system takes an absolute path, never a
 //     path relative to some ambient working directory the renderer cannot see.
+//   - A window is given only what a window uses. Stored passwords and sign-in
+//     tokens stay in the main process: no window ever asked for them, and a
+//     page that read a hostile document would otherwise be one call away from
+//     every account's credentials. The same went for renaming and copying
+//     files, which nothing in a window did.
 
 /** Namespaced methods: renderer calls, backend answers. */
 export const METHODS = {
@@ -49,8 +54,6 @@ export const METHODS = {
     'list',         // ({ path, filter }) -> [{ name, path, dir, size, mtime, ext }]
     'mkdirp',       // ({ path }) -> void
     'remove',       // ({ path }) -> void        (to the OS trash, never unlink)
-    'rename',       // ({ from, to }) -> void
-    'copy',         // ({ from, to }) -> void
     'temp',         // ({ ext, bytes }) -> { path }
     'exists',       // ({ path }) -> boolean
   ],
@@ -70,13 +73,6 @@ export const METHODS = {
     'showInFolder', // ({ path }) -> void
     'openPath',     // ({ path }) -> void
     'beep',         // () -> void
-  ],
-  secrets: [
-    'available',    // () -> boolean
-    'get',          // ({ key }) -> string | null
-    'set',          // ({ key, value }) -> void
-    'delete',       // ({ key }) -> void
-    'keys',         // () -> [key]
   ],
   store: [
     'get',          // ({ key, fallback }) -> value

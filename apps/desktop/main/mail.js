@@ -6,8 +6,8 @@
 // folder are the same thing to the window drawing them.
 //
 // Passwords never live here. They go to the operating system's keystore through
-// the shell's `secrets` namespace and come back only for the moment a
-// connection is being made.
+// the shell's secrets store, which no window can read, and come back only for
+// the moment a connection is being made.
 
 import fs from 'node:fs';
 import path from 'node:path';
