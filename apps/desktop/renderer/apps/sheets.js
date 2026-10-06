@@ -27,6 +27,7 @@ import { WorkbookGallery, SHEET_DESIGN_CSS } from './sheets/design.js';
 import { CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 import { SlicerPanel, InsertSlicersDialog, ObjectHandles, RotateHandle, SelectionPane, angleAt, followPointer, OBJECTS_CSS } from './sheets/objects.js';
 import { IconsDialog } from '../icons-insert.js';
+import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise } from './slides/ink.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
 import {
@@ -151,6 +152,14 @@ export default function Sheets({ app, shell, boot }) {
    * as the pointer has it, drawn until the button comes up.
    */
   const [picked, setPicked] = useState([]);
+  // Draw: the tool in hand (null for Select), a sheet's pens (a pen and a highlighter), Ink to Shape, Hide Ink.
+  const [ink, setInk] = useState({ tool: null, penId: 'pen', pens: DEFAULT_PENS.filter((p) => p.tool !== 'pencil'), toShape: false, hide: false });
+  useEffect(() => {
+    if (!ink.tool) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setInk((v) => ({ ...v, tool: null })); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ink.tool]);
   const [live, setLive] = useState(null);
   /** Each slicer's Multi-Select, as Excel keeps it: per panel, for the session. */
   const [slicerMulti, setSlicerMulti] = useState({});
@@ -1945,6 +1954,26 @@ export default function Sheets({ app, shell, boot }) {
   };
 
   const act = async (name, arg, opts = {}) => {
+    // Draw: the tool in hand, a pen's colour and thickness, Add, Ink to Shape, Hide Ink, and a finished stroke.
+    if (name === 'inkTool') { setPicked([]); setInk((v) => (arg == null ? { ...v, tool: null } : arg === 'eraser' || arg === 'lasso' ? { ...v, tool: arg } : { ...v, tool: 'pen', penId: arg })); return; }
+    if (name === 'inkPen') { setInk((v) => ({ ...v, pens: v.pens.map((p) => (p.id === arg.id ? { ...p, ...arg } : p)) })); return; }
+    if (name === 'inkAdd') {
+      setInk((v) => {
+        const used = new Set(v.pens.map((p) => p.color));
+        const pen = { id: `${arg}-${v.pens.length + 1}`, tool: arg, color: PEN_COLOURS.find((c) => !used.has(c)) || PEN_COLOURS[3], width: PEN_WIDTHS[arg][1] };
+        return { ...v, pens: [...v.pens, pen], tool: 'pen', penId: pen.id };
+      });
+      return;
+    }
+    if (name === 'inkToShape') { setInk((v) => ({ ...v, toShape: !v.toShape })); return; }
+    if (name === 'hideInk') { setInk((v) => ({ ...v, hide: !v.hide })); return; }
+    if (name === 'inkStroke') {
+      const pen = ink.pens.find((p) => p.id === ink.penId) || ink.pens[0];
+      const shape = ink.toShape && pen.tool !== 'highlighter' ? recognise(arg.points) : null;
+      if (shape) await dispatch({ op: 'insertShapeAt', geometry: shape.preset, x: shape.x, y: shape.y, width: shape.w, height: shape.h, line: { color: pen.color, width: pen.width } });
+      else await dispatch({ op: 'insertInk', strokes: [{ points: arg.points.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]), ...strokeLook(pen) }] });
+      return;
+    }
     const at = sel?.active || { row: 0, col: 0 };
     const range = sel?.range || { top: at.row, left: at.col, bottom: at.row, right: at.col };
     switch (name) {
@@ -2614,6 +2643,7 @@ export default function Sheets({ app, shell, boot }) {
       menu={appMenu}
       ribbon={
         <SheetsRibbon
+          ink={ink}
           tab={tab}
           setTab={setTab}
           arrange={{ picked: (model?.objects || []).filter((o) => picked.includes(o.id)), pane: selPane }}
@@ -2877,6 +2907,22 @@ export default function Sheets({ app, shell, boot }) {
                   Excel opened as an empty grid with its captions.
                 */}
                 {drawingsNode()}
+                {/* Draw: the pen surface over the cells while a pen, the Eraser or the Lasso is in hand. */}
+                {ink.tool && model.total ? (
+                  <InkSurface
+                    size={{ width: model.total.width, height: model.total.height }}
+                    tool={ink.tool}
+                    pen={ink.pens.find((p) => p.id === ink.penId) || ink.pens[0]}
+                    touch
+                    shapes={(model.drawings || []).filter((d) => !d.hidden).map((d) => ({ id: d.id, kind: d.kind, name: d.name, geometry: { x: d.x, y: d.y, w: d.width, h: d.height } }))}
+                    hit={(el) => { const n = el.closest?.('.sh-drawing'); return n && /^Ink \d+$/.test(n.dataset.name || '') ? { id: n.dataset.id, node: n } : null; }}
+                    onStroke={(points) => act('inkStroke', { points })}
+                    onErase={(ids) => dispatch({ op: 'deleteDrawings', ids })}
+                    onLasso={(ids) => { setPicked(ids); setInk((v) => ({ ...v, tool: null })); }}
+                  />
+                ) : null}
+                {ink.hide ? <style>{(model.drawings || []).filter(isInk).map((d) => `.sh-drawing[data-id="${String(d.id).replace(/[^\w-]/g, '')}"]`).join(', ') + ' { visibility: hidden; }'}</style> : null}
+                <style>{INK_CSS}</style>
 
                 {editing && pane(editing) === 'main' ? editorNode() : null}
                 {commentCard()}

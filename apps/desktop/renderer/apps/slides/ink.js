@@ -18,7 +18,7 @@ const PT = 96 / 72;
  * The surface: over the slide while a pen, the Eraser or the Lasso is on.
  * `size` is the slide's in its own pixels; strokes come back in them.
  */
-export function InkSurface({ size, tool, pen, ruler, onRuler, touch, shapes, onStroke, onErase, onLasso }) {
+export function InkSurface({ size, tool, pen, ruler, onRuler, touch, shapes, onStroke, onErase, onLasso, hit = null }) {
   const host = useRef(null);
   const [live, setLive] = useState(null);
   const erased = useRef(new Set());
@@ -29,13 +29,18 @@ export function InkSurface({ size, tool, pen, ruler, onRuler, touch, shapes, onS
   };
   const inkIds = new Set((shapes || []).filter(isInk).map((s) => String(s.id)));
 
+  // Which stroke an element under the pointer belongs to: a slide's ink by its data-shape, or the app's own `hit`.
+  const hitOf = hit || ((el) => {
+    const g = el.closest?.('[data-shape]');
+    const id = g?.getAttribute('data-shape');
+    return id && inkIds.has(id) ? { id, node: g } : null;
+  });
   const eraseAt = (e) => {
     for (const el of document.elementsFromPoint(e.clientX, e.clientY)) {
-      const g = el.closest?.('[data-shape]');
-      const id = g?.getAttribute('data-shape');
-      if (id && inkIds.has(id) && !erased.current.has(id)) {
-        erased.current.add(id);
-        g.style.visibility = 'hidden';
+      const h = hitOf(el);
+      if (h && !erased.current.has(h.id)) {
+        erased.current.add(h.id);
+        h.node.style.visibility = 'hidden';
       }
     }
   };
@@ -81,6 +86,8 @@ export function InkSurface({ size, tool, pen, ruler, onRuler, touch, shapes, onS
       className={`sl-ink-surface sl-ink-${tool}`}
       style={{ width: size.width, height: size.height }}
       onPointerDown={down}
+      // A press here draws; it does not also select what is under it.
+      onMouseDown={(e) => e.stopPropagation()}
       onPointerMove={move}
       onPointerUp={up}
       onPointerCancel={up}

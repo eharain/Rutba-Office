@@ -13,6 +13,7 @@ import { catalogByCategory } from '@rutba/formula';
 import { NUMBER_FORMATS } from './dialogs.js';
 import { MARGIN_PRESETS as PRINT_MARGINS } from '../../print.js';
 import { wordArtMenu } from '../../wordart.js';
+import { PEN_COLOURS, PEN_WIDTHS } from '../slides/ink-geometry.js';
 
 /** The palette a toolbar offers before it offers a colour picker. */
 const SWATCHES = [
@@ -176,7 +177,7 @@ const Soon = ({ icon, label, tall, why }) => (
 );
 
 export default function SheetsRibbon({
-  tab, setTab, model, dispatch, commands, shell, menu, save, openFile, exportAs, doc, sel, openDialog, act, view = {}, review = null, arrange = { picked: [], pane: false },
+  tab, setTab, model, dispatch, commands, shell, menu, save, openFile, exportAs, doc, sel, openDialog, act, view = {}, review = null, arrange = { picked: [], pane: false }, ink = null,
 }) {
   // Page Layout → Arrange acts on the drawings picked on the sheet.
   const nPicked = arrange.picked.length;
@@ -438,18 +439,34 @@ export default function SheetsRibbon({
       {tab === 'draw' ? (
         <>
           <Group label="Drawing Tools">
-            <Soon tall icon="wand" label="Select" why="Ink needs a pointer surface the grid does not have." />
-            <Soon tall icon="wand" label="Lasso" why="Comes with ink." />
-            <Soon tall icon="close" label="Eraser" why="Comes with ink." />
-            <Soon tall icon="wand" label="Pen" why="Ink is a drawing part (ink ML) the engine does not write." />
-            <Soon tall icon="wand" label="Highlighter" why="Comes with ink." />
+            <Button tall icon="mouse" label="Select" pressed={!ink?.tool} title="Select — put the pen down and work with the cells again (Esc)" onClick={() => act('inkTool', null)} />
+            <Button tall icon="wand" label="Lasso" pressed={ink?.tool === 'lasso'} title="Lasso Select — draw a loop round strokes to select them" onClick={() => act('inkTool', 'lasso')} />
+            <Button tall icon="close" label="Eraser" pressed={ink?.tool === 'eraser'} title="Eraser — take away each stroke the pointer passes over" onClick={() => act('inkTool', 'eraser')} />
+            {(ink?.pens || []).map((p) => {
+              const on = ink.tool === 'pen' && ink.penId === p.id;
+              const label = { pen: 'Pen', pencil: 'Pencil', highlighter: 'Highlighter' }[p.tool];
+              return (
+                <Button key={p.id} tall icon="wand" label={label} pressed={on} className={`sl-pen sl-pen-${p.tool}`} data-pen={p.id} style={{ '--pen': p.color }}
+                  title={on ? `${label} — click again for its colour and thickness` : `${label} — draw over the cells`}
+                  onClick={(e) => {
+                    if (!on) { act('inkTool', p.id); return; }
+                    menu.open(e, [
+                      { heading: true, label: 'Thickness' },
+                      ...PEN_WIDTHS[p.tool].map((w) => ({ label: `${w} pt`, icon: p.width === w ? 'check' : undefined, run: () => act('inkPen', { id: p.id, width: w }) })),
+                      { heading: true, label: 'Colour' },
+                      ...PEN_COLOURS.map((c) => ({ label: c, icon: p.color === c ? 'check' : undefined, preview: <span style={{ display: 'inline-block', width: 16, height: 16, borderRadius: 8, background: c, border: '1px solid rgba(0,0,0,.25)' }} />, run: () => act('inkPen', { id: p.id, color: c }) })),
+                    ]);
+                  }} />
+              );
+            })}
+            <Button tall icon="plus" label="Add" title="Add Pen — another pen or highlighter in the gallery" onClick={(e) => menu.open(e, [['pen', 'Pen'], ['highlighter', 'Highlighter']].map(([tool, label]) => ({ label, icon: 'plus', run: () => act('inkAdd', tool) })))} />
           </Group>
           <Group label="Convert">
-            <Soon tall icon="shape" label="Ink to Shape" why="Comes with ink." />
-            <Soon tall icon="formula" label="Ink to Math" why="Comes with ink." />
+            <Button tall icon="shape" label="Ink to Shape" pressed={Boolean(ink?.toShape)} title="Ink to Shape — a rectangle, oval or triangle drawn becomes that shape" onClick={() => act('inkToShape')} />
+            <Soon tall icon="formula" label="Ink to Math" why="Turning handwriting into an equation needs handwriting recognition, which this suite does not have." />
           </Group>
           <Group label="Shapes">
-            <Button tall icon="shape" label="Shapes" title="A shape, since a pen is not here yet" onClick={(e) => menu.open(e, SHAPES.map(([geometry, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', geometry, text: '' }) })))} />
+            <Button tall icon="shape" label="Shapes" title="Shapes — a rectangle, an oval, an arrow, in the theme's colours" onClick={(e) => menu.open(e, SHAPES.map(([geometry, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', geometry, text: '' }) })))} />
           </Group>
         </>
       ) : null}
@@ -670,7 +687,7 @@ export default function SheetsRibbon({
             <Button tall icon="check" label="Validation" onClick={() => openDialog('validation')} />
           </Group>
           <Group label="Ink">
-            <Soon icon="eye" label="Hide Ink" why="Comes with ink." />
+            <Button icon="eye" label="Hide Ink" pressed={Boolean(ink?.hide)} title="Hide Ink — the sheet's strokes out of sight while you work; they stay in the file" onClick={() => act('hideInk')} />
           </Group>
         </>
       ) : null}
