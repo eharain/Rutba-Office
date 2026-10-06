@@ -12,6 +12,7 @@ import { Ribbon, Group, Rows, Button, Separator, Select } from '@rutba/office-ui
 import { catalogByCategory } from '@rutba/formula';
 import { NUMBER_FORMATS } from './dialogs.js';
 import { MARGIN_PRESETS as PRINT_MARGINS } from '../../print.js';
+import { wordArtMenu } from '../../wordart.js';
 
 /** The palette a toolbar offers before it offers a colour picker. */
 const SWATCHES = [
@@ -421,7 +422,7 @@ export default function SheetsRibbon({
           <Group label="Text">
             <Button tall icon="textbox" label="Text Box" title="A rectangle with words in it" onClick={() => act('textBox')} />
             <Button icon="file" label="Header & Footer" title="Header & Footer — what prints at the top and the foot of every page" onClick={() => act('headerFooter')} />
-            <Soon icon="wand" label="WordArt" why="WordArt is DrawingML text effects the engine does not write." />
+            <Button icon="wand" label="WordArt" title="WordArt — big words in a style of their own: a fill, an outline round the letters, a shadow or a glow" onClick={(e) => menu.open(e, wordArtMenu((style) => act('wordArt', style)))} />
           </Group>
           <Group label="Symbols">
             <Button icon="formula" label="Equation" title="Equation — typed in its linear form (x^2+y^2=r^2), set as math over the selection; double-click one to change it" onClick={() => act('equation')} />

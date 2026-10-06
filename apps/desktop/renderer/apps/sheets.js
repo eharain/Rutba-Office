@@ -28,6 +28,7 @@ import { CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/des
 import { SlicerPanel, InsertSlicersDialog, ObjectHandles, RotateHandle, SelectionPane, angleAt, followPointer, OBJECTS_CSS } from './sheets/objects.js';
 import { IconsDialog } from '../icons-insert.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
+import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
 } from './sheets/dialogs.js';
@@ -1111,7 +1112,8 @@ export default function Sheets({ app, shell, boot }) {
               title={d.unsupported ? `${d.name || d.kind}: ${d.unsupported}` : d.pivot ? `${d.name || 'PivotChart'} — a PivotChart of ${d.pivot}` : d.name || undefined}
               onMouseDown={(e) => press(e, d)}
               // An equation opens again in the equation editor.
-              onDoubleClick={d.kind === 'equation' ? () => setDialog({ kind: 'equation', id: d.id, initial: d.linear || '' }) : undefined}
+              // A text box or a shape with words (WordArt among them) opens its words.
+              onDoubleClick={d.kind === 'equation' ? () => setDialog({ kind: 'equation', id: d.id, initial: d.linear || '' }) : d.kind === 'shape' && (d.textBox || d.text) ? () => setDialog({ kind: 'words', id: d.id, initial: d.text || '', title: 'Edit Text' }) : undefined}
               {...(d.svg ? { dangerouslySetInnerHTML: { __html: d.svg } } : {})}
             >
               {d.svg ? null : d.members ? d.members.map((m) => (
@@ -2359,6 +2361,8 @@ export default function Sheets({ app, shell, boot }) {
       case 'icons': setDialog('icons'); return;
       // Insert → Equation: typed in its linear form, set as math over the selection.
       case 'equation': setDialog({ kind: 'equation', id: null, initial: '' }); return;
+      // Insert → WordArt: the words asked for, in the chosen style.
+      case 'wordArt': setDialog({ kind: 'words', id: null, initial: 'Your text here', look: arg?.run || {}, title: 'WordArt' }); return;
       // Page Layout → Print Area: the page setup is rebuilt from what it is
       // given, so the file's own setup is read first and sent back with the
       // area changed — what the print dialog does.
@@ -2971,6 +2975,22 @@ export default function Sheets({ app, shell, boot }) {
               const id = dialog.id;
               setDialog(null);
               await dispatch(id != null ? { op: 'setEquation', id, linear } : { op: 'insertEquation', linear });
+            }}
+          />
+        </>
+      ) : null}
+      {dialog?.kind === 'words' ? (
+        <>
+          <style>{WORDS_CSS}</style>
+          <ShapeWordsDialog
+            title={dialog.title}
+            initial={dialog.initial}
+            look={dialog.look || null}
+            onClose={() => setDialog(null)}
+            onOk={async (text) => {
+              const { id, look } = dialog;
+              setDialog(null);
+              await dispatch(id != null ? { op: 'setShapeText', id, text } : { op: 'insertWordArt', text, style: look || {} });
             }}
           />
         </>

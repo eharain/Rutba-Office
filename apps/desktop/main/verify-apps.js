@@ -66,6 +66,7 @@ import { verifyDeckInsertMaster } from './verify-deck-insert-master.js';
 import { verifyDeckCustomShows } from './verify-deck-custom-shows.js';
 import { verifyWordToa } from './verify-word-toa.js';
 import { verifyDeckWordArt } from './verify-deck-wordart.js';
+import { verifySheetWordArt } from './verify-sheet-wordart.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -4628,6 +4629,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('customshows')) await verifyDeckCustomShows({ open, check, until, wait, doc }, { dir });
     if (only.includes('wordtoa')) await verifyWordToa({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('deckwordart')) await verifyDeckWordArt({ open, check, until, wait, doc, capture: shotTo }, { dir });
+    if (only.includes('sheetwordart')) await verifySheetWordArt({ open, check, until, wait, capture: shotTo }, { dir });
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
@@ -4821,6 +4823,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckCustomShows({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyWordToa({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyDeckWordArt({ open, check, until, wait, doc, capture: shotTo }, { dir }));
+  await block(() => verifySheetWordArt({ open, check, until, wait, capture: shotTo }, { dir }));
   await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => wordMailMerge());
