@@ -38,7 +38,8 @@ export const METHODS = {
     'setTitle',     // ({ title }) -> void
     'setDocumentEdited', // ({ edited }) -> void
     'setDirty',     // ({ dirty, name }) -> void   guards the close
-    'fullscreen',   // ({ on }) -> { fullscreen }
+    'fullscreen',   // ({ on, display, presenter }) -> { fullscreen, display }   display: 'automatic' | 'primary' | a display's id
+    'displays',     // () -> [{ id, name, primary, current, width, height }]   for Slide Show → Monitor
     'zoom',         // ({ delta, reset }) -> { factor }
     'state',        // () -> { maximized, fullscreen, focused, platform }
     'devtools',     // () -> void

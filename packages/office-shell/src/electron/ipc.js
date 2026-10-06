@@ -124,11 +124,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       if (isMac) win.setDocumentEdited(Boolean(p.edited));
       // Windows and Linux have no such concept; the renderer shows the dot itself.
     },
-    fullscreen: (p, win) => {
-      if (!win) return { fullscreen: false };
-      win.setFullScreen(p.on ?? !win.isFullScreen());
-      return { fullscreen: win.isFullScreen() };
-    },
+    fullscreen: (p, win) => (win ? windows.fullscreen(win, p) : { fullscreen: false }),
+    displays: (_p, win) => windows.displaysFor(win),
     arrange: (p, win) => (win ? windows.arrange(win, p.mode) : { count: 0 }),
     list: (_p, win) => (win ? windows.listFor(win) : []),
     focus: (p) => windows.focusById(p.id),

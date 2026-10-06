@@ -114,6 +114,7 @@ function SecondsField({ value, onCommit, disabled = false, min = 0, max = 3600, 
 export default function SlidesRibbon({
   tab, setTab, model, doc, commands, shell, menu, save, openFile, exportAs,
   act, view = {}, index = 0, selected = null, selectedIds = [], format = {}, canPaste = false, painter = false, animation = null, animPainter = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
+  monitorName = 'Automatic',
   designStrip = null,
   masterView = null,
   masterPart = null,
@@ -745,7 +746,7 @@ export default function SlidesRibbon({
             <Soon icon="check" label="Show Media Controls" why="Comes with media." />
           </Group>
           <Group label="Monitors">
-            <Soon icon="grid" label="Monitor: Automatic" why="Choosing the display comes with a second-window layout the shell does not manage yet; Presenter View opens on whichever screen you drag it to." />
+            <Button icon="grid" label={`Monitor: ${monitorName}`} title="Monitor — the screen the slide show plays on; Automatic puts it on another screen than Presenter View's" onClick={(e) => act('monitorMenu', e)} />
             <Button icon="check" label="Use Presenter View" title="Opens a second window with your notes, the next slide and a clock — put it on the other screen" onClick={presentWithNotes} />
           </Group>
           <Group label="Captions & Subtitles">

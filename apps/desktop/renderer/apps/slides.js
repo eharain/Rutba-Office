@@ -29,6 +29,14 @@ import { SymbolDialog } from './word/dialogs.js';
 import { SetUpShowDialog, SETUP_CSS } from './slides/setup.js';
 import { LanguageDialog } from '@rutba/office-ui/proofing';
 
+const MONITOR_KEY = 'slides.monitor';
+/** The Monitor button's words for a choice. */
+function monitorLabel(choice, screens) {
+  if (choice === 'primary') return 'Primary Monitor';
+  const d = screens.find((s) => s.id === choice);
+  return d ? d.name : 'Automatic';
+}
+
 export default function Slides({ app, shell, boot }) {
   // A presenter window is the same app pointed at the same open document,
   // told to draw the speaker's side of it. It is a window rather than a panel
@@ -74,6 +82,14 @@ export default function Slides({ app, shell, boot }) {
   /** The Format Painter, armed with a shape's look: its fill, its outline and its first run's font. */
   const [painter, setPainter] = useState(null);
   const [present, setPresent] = useState(false);
+  // Slide Show → Monitor: the screen the show plays on — kept for this
+  // computer, as PowerPoint keeps it, not in the file. 'automatic' takes
+  // another screen than Presenter View's when it is open.
+  const [monitor, setMonitor] = useState('automatic');
+  const [monitorName, setMonitorName] = useState('Automatic');
+  const monitorRef = useRef('automatic');
+  monitorRef.current = monitor;
+  const presenterOpen = useRef(false);
   const [notesOpen, setNotesOpen] = useState(false);
   /** The Header & Footer dialog, open with a box pre-ticked ('date' | 'number') or as it stands. */
   const [footerOpen, setFooterOpen] = useState(null);
@@ -607,10 +623,13 @@ export default function Slides({ app, shell, boot }) {
    */
   const presentWithNotes = useCallback(async () => {
     if (!doc) return;
-    await shell.present.set({ id: doc.id, index, step: 0, running: true, blank: false });
+    // The presenter's window first, so the show — which starts as soon as
+    // the shared position says it is running — takes a screen knowing
+    // where the presenter is.
+    presenterOpen.current = true;
     await shell.win.create({ app: 'slides', query: { presenter: doc.id } });
+    await shell.present.set({ id: doc.id, index, step: 0, running: true, blank: false });
     setPresent(true);
-    shell.win.fullscreen({ on: true });
   }, [shell, doc, index]);
 
   const exportAs = useCallback(
@@ -663,6 +682,22 @@ export default function Slides({ app, shell, boot }) {
 
   useCommands(commands, [doc, model, index]);
 
+  // The Monitor choice this computer keeps, named from the screens there are.
+  useEffect(() => {
+    if (presenterFor) return;
+    (async () => {
+      const choice = await Promise.resolve(shell.store.get({ key: MONITOR_KEY, fallback: 'automatic' })).catch(() => 'automatic');
+      const screens = await Promise.resolve(shell.win.displays?.()).catch(() => []);
+      const known = typeof choice === 'string' && (choice === 'automatic' || choice === 'primary' || (screens || []).some((d) => d.id === choice));
+      setMonitor(known ? choice : 'automatic');
+      setMonitorName(monitorLabel(known ? choice : 'automatic', screens || []));
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell]);
+  useEffect(() => {
+    if (!present) presenterOpen.current = false;
+  }, [present]);
+
   useEffect(() => {
     if (!present) return undefined;
     const onKey = (e) => {
@@ -673,7 +708,7 @@ export default function Slides({ app, shell, boot }) {
       if (e.key === 'ArrowLeft' || e.key === 'PageUp' || e.key === 'Backspace') showKeys.current.prev();
     };
     window.addEventListener('keydown', onKey);
-    if (!reading) shell.win.fullscreen({ on: true });
+    if (!reading) shell.win.fullscreen({ on: true, display: monitorRef.current, presenter: presenterOpen.current });
     return () => {
       window.removeEventListener('keydown', onKey);
       if (!reading) shell.win.fullscreen({ on: false });
@@ -1160,6 +1195,22 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'setupShow': setSetupOpen(true); return;
+      // Slide Show → Monitor: Automatic, the primary screen, or one by name.
+      case 'monitorMenu': {
+        const at = { clientX: arg?.clientX ?? 0, clientY: arg?.clientY ?? 0, preventDefault() {}, stopPropagation() {} };
+        const screens = (await Promise.resolve(shell.win.displays?.()).catch(() => [])) || [];
+        const pick = (choice) => {
+          setMonitor(choice);
+          setMonitorName(monitorLabel(choice, screens));
+          Promise.resolve(shell.store.set({ key: MONITOR_KEY, value: choice })).catch(() => {});
+        };
+        menu.open(at, [
+          { label: 'Automatic', icon: monitor === 'automatic' ? 'check' : undefined, run: () => pick('automatic') },
+          { label: 'Primary Monitor', icon: monitor === 'primary' ? 'check' : undefined, run: () => pick('primary') },
+          ...screens.map((d) => ({ label: `${d.name} — ${d.width} × ${d.height}${d.primary ? ', primary' : ''}`, icon: monitor === d.id ? 'check' : undefined, run: () => pick(d.id) })),
+        ]);
+        return;
+      }
       // Review → Language: the selected box's words, marked as a language
       // or as not to be checked — opened on the language they are in.
       case 'language': {
@@ -1599,6 +1650,7 @@ export default function Slides({ app, shell, boot }) {
           addSlide={addSlide}
           insertPicture={insertPicture}
           presentWithNotes={presentWithNotes}
+          monitorName={monitorName}
 
           setPresent={setPresent}
           setNotesOpen={setNotesOpen}

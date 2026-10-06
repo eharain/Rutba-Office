@@ -149,7 +149,8 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
       },
     });
 
-    meta.set(win.id, { app: appKey, file, dirty: false, name: '', closing: false });
+    // A presenter window is marked, so a show going full screen can keep off its screen.
+    meta.set(win.id, { app: appKey, file, dirty: false, name: '', closing: false, presenter: query?.presenter != null });
     if (!away && saved?.maximized) win.maximize();
 
 
@@ -428,6 +429,78 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     return true;
   }
 
+  /* ── Slide Show → Monitor: which screen a show plays on ────────────────── */
+
+  /** The displays, named for the Monitor list: the primary first, then the rest from left to right. */
+  function displaysFor(win) {
+    const primary = screen.getPrimaryDisplay();
+    const here = win ? screen.getDisplayMatching(win.getBounds()) : primary;
+    const list = screen.getAllDisplays().sort((a, b) => (a.id === primary.id ? -1 : b.id === primary.id ? 1 : a.bounds.x - b.bounds.x || a.bounds.y - b.bounds.y));
+    return list.map((d, i) => ({
+      id: String(d.id),
+      name: d.label || `Display ${i + 1}`,
+      primary: d.id === primary.id,
+      current: d.id === here.id,
+      width: d.size.width,
+      height: d.size.height,
+    }));
+  }
+
+  /**
+   * The display a show goes to: 'primary', a display's id, or 'automatic' —
+   * with Presenter View open, the largest screen other than the one the
+   * presenter's window is on, as PowerPoint picks; otherwise this window's own.
+   * A display that has gone since it was chosen falls back to automatic.
+   */
+  function showDisplayFor(win, choice, presenter) {
+    const all = screen.getAllDisplays();
+    const here = screen.getDisplayMatching(win.getBounds());
+    if (choice === 'primary') return screen.getPrimaryDisplay();
+    const named = all.find((d) => String(d.id) === String(choice));
+    if (named) return named;
+    if (presenter) {
+      const speaker = BrowserWindow.getAllWindows().filter((w) => w !== win && !w.isDestroyed() && meta.get(w.id)?.presenter).pop();
+      const theirs = speaker ? screen.getDisplayMatching(speaker.getBounds()) : here;
+      const others = all.filter((d) => d.id !== theirs.id);
+      if (others.length) return others.sort((a, b) => b.bounds.width * b.bounds.height - a.bounds.width * a.bounds.height)[0];
+    }
+    return here;
+  }
+
+  /**
+   * Full screen on, on the display the Monitor choice names — the window is
+   * moved there first, and put back where it was when the show ends — or
+   * off. A check run keeps its windows off every screen, so there the choice
+   * is worked out and kept on the window but the window is not moved.
+   */
+  function fullscreen(win, { on, display, presenter = false } = {}) {
+    const going = on ?? !win.isFullScreen();
+    // Asked again while the show is already up, the screen it is on stands.
+    if (going && display != null && !win.isFullScreen()) {
+      const target = showDisplayFor(win, display, presenter);
+      win.rutbaShowDisplay = String(target.id);
+      const here = screen.getDisplayMatching(win.getBounds());
+      if (target.id !== here.id && process.env.RUTBA_WINDOW_DISPLAY !== 'offscreen') {
+        win.rutbaShowReturn = { bounds: win.getNormalBounds(), maximized: win.isMaximized() };
+        if (win.isMaximized()) win.unmaximize();
+        const a = target.workArea;
+        win.setBounds({ x: a.x + 40, y: a.y + 40, width: Math.min(win.getBounds().width, a.width - 80), height: Math.min(win.getBounds().height, a.height - 80) });
+      }
+    }
+    if (!going && win.rutbaShowReturn) {
+      const back = win.rutbaShowReturn;
+      win.rutbaShowReturn = null;
+      const restore = () => {
+        win.setBounds(back.bounds);
+        if (back.maximized) win.maximize();
+      };
+      if (win.isFullScreen()) win.once('leave-full-screen', restore);
+      else setImmediate(restore);
+    }
+    win.setFullScreen(going);
+    return { fullscreen: win.isFullScreen(), display: win.rutbaShowDisplay ?? null };
+  }
+
   // The last window on screen closing must not leave hidden ones running
   // with nothing to bring them back from: they come back instead.
   app.on('browser-window-created', (_e, created) => {
@@ -437,5 +510,5 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     });
   });
 
-  return { create, open, findByFile, setFile, setDirty, forceClose, infoFor, all, encodePath, GEOMETRY, arrange, listFor, focusById, hideWindow, unhide };
+  return { create, open, findByFile, setFile, setDirty, forceClose, infoFor, all, encodePath, GEOMETRY, arrange, listFor, focusById, hideWindow, unhide, displaysFor, fullscreen };
 }
