@@ -2070,6 +2070,26 @@ export class DocView {
   }
 
   /**
+   * Review → Delete: the given comments — their replies with them — as one
+   * step. The comment parts are registered for undo before the snapshot, as
+   * for adding one, so an undone delete puts every part back.
+   * @returns {number} how many comments went
+   */
+  deleteComments(ids) {
+    if (typeof this.doc.deleteComments !== 'function') {
+      throw new Error('this document backend cannot delete comments');
+    }
+    if (typeof this.doc.registerCommentUndo === 'function') this.doc.registerCommentUndo();
+    let gone = 0;
+    this._edit('delete comment', null, () => {
+      gone = this.doc.deleteComments(ids);
+      this._invalidate();
+      return this;
+    });
+    return gone;
+  }
+
+  /**
    * A footnote or endnote at the caret. The note's words go into the notes
    * part; the REFERENCE — one character, U+FFFC, the way Word counts it —
    * goes into the paragraph as a run of its own wearing the reference style.

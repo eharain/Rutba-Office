@@ -42,6 +42,7 @@ import { verifyWordArrange } from './verify-word-arrange.js';
 import { verifyEncrypted } from './verify-encrypted.js';
 import { verifyWordHyphenation } from './verify-word-hyphen.js';
 import { verifyWordRestrict } from './verify-word-restrict.js';
+import { verifyWordComments } from './verify-word-comments.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -3382,6 +3383,15 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await verifyWordRestrict({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
   };
 
+  /* ── Documents: Review → Delete, for comments ───────────────────────── */
+  const wordComments = async () => {
+    const capture = async (win, name) => {
+      if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+    };
+    await verifyWordComments({ open, check, until, wait, press, errorsIn, capture, doc, sessionFor }, { dir });
+  };
+
   /* ── Word: Mailings → mail merge ──────────────────────────────────────── */
   const wordMailMerge = async () => {
     const capture = async (win, name) => {
@@ -4536,6 +4546,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('hyphen')) await wordHyphenation();
     if (only.includes('citations')) await wordCitations();
     if (only.includes('restrict')) await wordRestrict();
+    if (only.includes('wordcomments')) await wordComments();
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
@@ -4705,6 +4716,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordHyphenation();
   await wordCitations();
   await wordRestrict();
+  await wordComments();
   await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
   await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
   await wordMailMerge();

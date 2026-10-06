@@ -1039,6 +1039,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // And the bookmarks: adding one changes no block's text, and the
       // dialog lists them from the model it holds.
       bookmarks: frame.bookmarks,
+      // The comments as well: deleting one may change no block's words, and
+      // the Review tab's Delete and Show, and the Comments list, read them.
+      comments: safely(() => view.doc?.comments?.()) || [],
       // Fields, the same reason: the Caption dialog's "Figure 3" preview
       // reads this rather than waiting for a block to change.
       fields: frame.fields,
@@ -1565,6 +1568,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     setTableColumnWidths: (v, a) => v.setTableColumnWidths(a),
     setTableRowHeight: (v, a) => v.setTableRowHeight(a),
     addComment: (v, a) => v.addComment(a.text, { author: a.author }),
+    deleteComments: (v, a) => v.deleteComments(Array.isArray(a.ids) ? a.ids : [a.ids]),
     // Insert → Bookmark: name a span of paragraphs, take the name off again,
     // or jump to it — the last one only moves the caret (see CLEAN_OPS).
     addBookmark: (v, a) => v.addBookmark(a.name),

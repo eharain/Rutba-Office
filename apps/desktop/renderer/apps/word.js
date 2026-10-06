@@ -1664,6 +1664,21 @@ export default function Word({ app, shell, boot }) {
           notes.scrollIntoView({ block: 'start', behavior: 'smooth' });
           return;
         }
+        // Review → Delete: the comment on the caret's paragraph, as Word
+        // deletes the one at the selection; 'all' every comment in the
+        // document; an id, the one picked in the Comments list. Replies go
+        // with the comment they answer.
+        case 'deleteComment': {
+          const all = model?.comments || [];
+          const ids = arg === 'all' ? all.map((c) => c.id)
+            : arg != null ? [arg]
+            : all.filter((c) => c.blockIndex === at).map((c) => c.id);
+          if (!ids.length) return toast('Put the caret in a paragraph with a comment first — Previous and Next go to them.', { ms: 4500 });
+          const next = await apply({ op: 'deleteComments', ids });
+          const gone = next?.opResult ?? 0;
+          if (gone) toast(gone === 1 ? 'Comment deleted.' : `${gone} comments deleted.`, { tone: 'good', ms: 2500 });
+          return;
+        }
         case 'comment': {
           const list = (model?.comments || []).map((c) => c.blockIndex).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
           if (!list.length) return;
@@ -2343,7 +2358,7 @@ export default function Word({ app, shell, boot }) {
       ) : null}
 
       {dialog === 'comments' ? (
-        <CommentsDialog comments={model?.comments || []} onClose={() => setDialog(null)} onGoto={() => setDialog(null)} />
+        <CommentsDialog comments={model?.comments || []} onClose={() => setDialog(null)} onGoto={(c) => { setDialog(null); if (Number.isFinite(c.blockIndex)) act('goto', c.blockIndex); }} onDelete={(c) => act('deleteComment', c.id)} />
       ) : null}
 
       {dialog === 'bookmark' ? (

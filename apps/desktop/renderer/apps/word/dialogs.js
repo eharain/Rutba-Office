@@ -234,25 +234,29 @@ export function NoteDialog({ kind = 'footnote', initial = '', onClose, onSave })
   );
 }
 
-export function CommentsDialog({ comments, onClose, onGoto }) {
+export function CommentsDialog({ comments, onClose, onGoto, onDelete = null }) {
   return (
     <Dialog title="Comments" width={520} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
       {comments?.length ? (
         <div className="ml-import-folders" style={{ maxHeight: 340 }}>
           {comments.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              className="ml-found-item"
-              style={{ border: 0, borderBottom: '1px solid var(--line-soft)', borderRadius: 0 }}
-              onClick={() => onGoto(c)}
-            >
-              <span className="ml-found-logo"><Icon name="reply" size={14} /></span>
-              <span className="grow">
-                <div className="who">{c.author || 'Someone'}{c.date ? ` · ${formatWhen(c.date)}` : ''}</div>
-                <div className="what">{c.text}</div>
-              </span>
-            </button>
+            <div key={c.id} className="wd-comment-row" style={{ display: 'flex', alignItems: 'center', borderBottom: '1px solid var(--line-soft)' }}>
+              <button
+                type="button"
+                className="ml-found-item grow"
+                style={{ border: 0, borderRadius: 0 }}
+                onClick={() => onGoto(c)}
+              >
+                <span className="ml-found-logo"><Icon name="reply" size={14} /></span>
+                <span className="grow">
+                  <div className="who">{c.author || 'Someone'}{c.date ? ` · ${formatWhen(c.date)}` : ''}</div>
+                  <div className="what">{c.text}</div>
+                </span>
+              </button>
+              {onDelete ? (
+                <Button icon="trash" className="wd-comment-delete" title="Delete this comment, and any replies to it" aria-label={`Delete the comment from ${c.author || 'someone'}`} onClick={() => onDelete(c)} />
+              ) : null}
+            </div>
           ))}
         </div>
       ) : (

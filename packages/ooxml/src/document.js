@@ -510,6 +510,8 @@ function watermarkParagraph(text, colour, rotation) {
 }
 const COMMENTS_CT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
 const COMMENTS_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
+/** The parts Word 2013 and later keep beside the comments: threads and resolved state, durable ids, dates. */
+const COMMENT_COMPANIONS = ['word/commentsExtended.xml', 'word/commentsIds.xml', 'word/commentsExtensible.xml'];
 const CHART_CT = 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml';
 const CHART_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart';
 const EMPTY_COMMENTS_XML =
@@ -3072,7 +3074,107 @@ export class Document {
       this._addRel(COMMENTS_REL_TYPE, 'comments.xml');
     }
     this._undoParts.add('word/comments.xml');
+    // The parts Word keeps beside it — replies and resolved state, durable
+    // ids, dates — go on the list too, so an undone delete puts them back.
+    for (const name of COMMENT_COMPANIONS) if (this.pkg.has(name)) this._undoParts.add(name);
     return this;
+  }
+
+  /**
+   * Review → Delete: comments, with their replies and every mark they left.
+   *
+   * A comment is more than its entry in the comments part: the text carries
+   * its range marks and the run holding its reference, and Word keeps three
+   * more parts beside it — the replies and resolved state (commentsExtended),
+   * the durable ids (commentsIds) and the dates (commentsExtensible). Each
+   * comment goes from all of them, and a reply goes with the comment it
+   * answers, as Word deletes a thread. A reference that shares its run with
+   * words loses only the reference; a run that held nothing else goes whole.
+   *
+   * @param {Array<string|number>} ids  the comments to delete
+   * @returns {number} how many comments went, replies included
+   */
+  deleteComments(ids) {
+    const part = 'word/comments.xml';
+    if (!this.pkg.has(part)) return 0;
+    this.registerCommentUndo();
+    const commentsXml = this.pkg.text(part);
+    const entries = [...commentsXml.matchAll(/<w:comment\b([^>]*?)(?:\/>|>([\s\S]*?)<\/w:comment>)/g)].map((m) => ({
+      xml: m[0],
+      id: String(attrs(m[1])['w:id'] ?? ''),
+      paraIds: [...(m[2] || '').matchAll(/\bw14:paraId="([0-9A-Fa-f]+)"/g)].map((p) => p[1].toUpperCase()),
+    }));
+    const doomed = new Set(ids.map(String).filter((id) => entries.some((e) => e.id === id)));
+    if (!doomed.size) return 0;
+
+    // A thread's replies, and replies to them: commentsExtended ties a
+    // reply's paragraph to the paragraph of the comment it answers.
+    const extPart = 'word/commentsExtended.xml';
+    const parentOf = new Map();
+    if (this.pkg.has(extPart)) {
+      for (const m of this.pkg.text(extPart).matchAll(/<w15:commentEx\b([^>]*)\/>/g)) {
+        const a = attrs(m[1]);
+        if (a['w15:paraId'] && a['w15:paraIdParent']) parentOf.set(String(a['w15:paraId']).toUpperCase(), String(a['w15:paraIdParent']).toUpperCase());
+      }
+    }
+    for (let grew = true; grew;) {
+      grew = false;
+      const gonePara = new Set(entries.filter((e) => doomed.has(e.id)).flatMap((e) => e.paraIds));
+      for (const e of entries) {
+        if (doomed.has(e.id)) continue;
+        if (e.paraIds.some((p) => gonePara.has(parentOf.get(p)))) { doomed.add(e.id); grew = true; }
+      }
+    }
+    const goneEntries = entries.filter((e) => doomed.has(e.id));
+    const goneParas = new Set(goneEntries.flatMap((e) => e.paraIds));
+
+    let nextComments = commentsXml;
+    for (const e of goneEntries) nextComments = nextComments.replace(e.xml, () => '');
+    this.pkg.write_(part, nextComments);
+
+    if (this.pkg.has(extPart)) {
+      const ext = this.pkg.text(extPart).replace(/<w15:commentEx\b([^>]*)\/>/g, (m, a) =>
+        goneParas.has(String(attrs(a)['w15:paraId'] ?? '').toUpperCase()) ? '' : m);
+      this.pkg.write_(extPart, ext);
+    }
+    const durable = new Set();
+    const idsPart = 'word/commentsIds.xml';
+    if (this.pkg.has(idsPart)) {
+      const xml = this.pkg.text(idsPart).replace(/<w16cid:commentId\b([^>]*)\/>/g, (m, a) => {
+        const at = attrs(a);
+        if (!goneParas.has(String(at['w16cid:paraId'] ?? '').toUpperCase())) return m;
+        if (at['w16cid:durableId']) durable.add(String(at['w16cid:durableId']).toUpperCase());
+        return '';
+      });
+      this.pkg.write_(idsPart, xml);
+    }
+    const extensiblePart = 'word/commentsExtensible.xml';
+    if (this.pkg.has(extensiblePart) && durable.size) {
+      const xml = this.pkg.text(extensiblePart).replace(/<w16cex:commentExtensible\b([^>]*?)(?:\/>|>[\s\S]*?<\/w16cex:commentExtensible>)/g, (m, a) =>
+        durable.has(String(attrs(a)['w16cex:durableId'] ?? '').toUpperCase()) ? '' : m);
+      this.pkg.write_(extensiblePart, xml);
+    }
+
+    // The marks in the text: the range, and the reference with its run.
+    let xml = this.xml;
+    for (const id of doomed) {
+      xml = xml.replace(new RegExp('<w:commentRange(?:Start|End)\\b[^>]*\\bw:id="' + id + '"[^>]*\\/>', 'g'), () => '');
+      for (let at; (at = xml.search(new RegExp('<w:commentReference\\b[^>]*\\bw:id="' + id + '"[^>]*\\/>'))) >= 0;) {
+        const ref = /^<w:commentReference\b[^>]*\/>/.exec(xml.slice(at))[0];
+        const runStart = Math.max(xml.lastIndexOf('<w:r>', at), xml.lastIndexOf('<w:r ', at));
+        const runEnd = xml.indexOf('</w:r>', at);
+        const run = runStart >= 0 && runEnd > at ? xml.slice(runStart, runEnd + '</w:r>'.length) : null;
+        const onlyReference = run && !/<w:(?:t|tab|br|cr|drawing|pict|object|sym|fldChar|instrText|footnoteReference|endnoteReference)\b/.test(run.replace(ref, ''));
+        xml = onlyReference
+          ? xml.slice(0, runStart) + xml.slice(runEnd + '</w:r>'.length)
+          : xml.slice(0, at) + xml.slice(at + ref.length);
+      }
+    }
+    if (xml !== this.xml) {
+      this.xml = xml;
+      this.dirty = true;
+    }
+    return goneEntries.length;
   }
 
   /**

@@ -732,7 +732,17 @@ export default function WordRibbon({
           </Group>
           <Group label="Comments">
             <Button tall icon="reply" label="New Comment" onClick={() => openDialog('comment')} />
-            <Soon tall icon="trash" label="Delete" why="Deleting a comment means removing its range marks; the engine writes comments and does not remove them yet." />
+            <Button
+              tall
+              icon="trash"
+              label="Delete"
+              disabled={!comments.length}
+              title={comments.length ? 'Delete — the comment on the caret\'s paragraph, or every comment in the document' : 'Delete — this document has no comments'}
+              onClick={(e) => menu.open(e, [
+                { label: 'Delete', icon: 'trash', disabled: !comments.some((c) => c.blockIndex === (model?.selection?.focus?.block ?? -1)), run: () => act('deleteComment') },
+                { label: 'Delete All Comments in Document', icon: 'trash', run: () => act('deleteComment', 'all') },
+              ])}
+            />
             <Button icon="chevronUp" label="Previous" disabled={!comments.length} onClick={() => act('comment', -1)} />
             <Button icon="chevronDown" label="Next" disabled={!comments.length} onClick={() => act('comment', 1)} />
             <Button icon="listBullet" label={comments.length ? `Show (${comments.length})` : 'Show Comments'} disabled={!comments.length} onClick={() => openDialog('comments')} />
