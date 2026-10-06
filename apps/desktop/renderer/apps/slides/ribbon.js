@@ -416,7 +416,7 @@ export default function SlidesRibbon({
             <Button tall icon="picture" label="Pictures" title="Pictures — a picture from this device, onto this slide" onClick={insertPicture} />
 
             <Soon tall icon="picture" label="Screenshot" why="Comes with pictures." />
-            <Soon tall icon="picture" label="Photo Album" why="Comes with pictures." />
+            <Button tall icon="picture" label="Photo Album" title="Photo Album — a new presentation of your pictures, one, two or four to a slide, captioned if you like" onClick={() => act('photoAlbum')} />
           </Group>
           <Group label="Camera">
             <Soon tall icon="video" label="Cameo" why="A live camera feed on a slide is a PowerPoint-only feature." />

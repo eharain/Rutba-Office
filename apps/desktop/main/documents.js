@@ -30,7 +30,7 @@ const commentAuthor = () => safeUserName() || 'Rutba Office user';
 
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parseRef } from '@rutba/ooxml/workbook';
-import { Deck, buildPptx, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES, THEMES as DECK_THEMES, PALETTES as DECK_PALETTES, FONT_PAIRS as DECK_FONT_PAIRS, EFFECT_PRESETS as DECK_EFFECTS } from '@rutba/presentation';
+import { Deck, buildPptx, photoAlbum, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES, THEMES as DECK_THEMES, PALETTES as DECK_PALETTES, FONT_PAIRS as DECK_FONT_PAIRS, EFFECT_PRESETS as DECK_EFFECTS } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';
 import { linearToOmml } from '@rutba/ooxml/math-linear';
 import { ommlToMathml } from '@rutba/ooxml/math';
@@ -2151,6 +2151,36 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       session.recoveredAt = 0;
       sessions.set(session.id, session);
       return { ...session.meta(), recoveredFrom: entry.at, model: modelOf(session) };
+    },
+
+    /**
+     * Insert → Photo Album: a new presentation of the pictures named — a
+     * title slide, then one, two or four to a slide, captioned when asked —
+     * as a session of its own, Photo Album1, for a window to adopt, unsaved.
+     */
+    photoAlbum: ({ files = [], perSlide = 1, captions = false, title = 'Photo Album', subtitle = '' }) => {
+      const TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp' };
+      const pictures = (Array.isArray(files) ? files : []).map((file) => {
+        const ext = path.extname(String(file)).slice(1).toLowerCase();
+        if (!TYPES[ext]) throw new Error(`${path.basename(String(file))} is not a picture a photo album can hold (PNG, JPEG, GIF or BMP).`);
+        let data;
+        try {
+          data = fs.readFileSync(file);
+        } catch (err) {
+          throw new Error(plainFsError(err, file) || plainRefusal(err, file));
+        }
+        const probe = safely(() => probeImage(data)) || {};
+        return { data, contentType: TYPES[ext], name: path.basename(String(file)), width: probe.width, height: probe.height };
+      });
+      const engine = photoAlbum({ pictures, perSlide: Number(perSlide) || 1, captions: Boolean(captions), title: String(title || 'Photo Album'), subtitle: String(subtitle || '') });
+      const n = (mergedCount.get('Photo Album') || 0) + 1;
+      mergedCount.set('Photo Album', n);
+      const made = new Session({ id: nextId(), kind: 'deck', filePath: null, engine, source: 'album' });
+      made.untitled = `Photo Album${n}`;
+      made.dirty = true;
+      made.windowId = null;
+      sessions.set(made.id, made);
+      return { id: made.id, name: made.name, slides: engine.slideCount };
     },
 
     /**

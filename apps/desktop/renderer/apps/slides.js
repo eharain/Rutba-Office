@@ -29,6 +29,7 @@ import { SymbolDialog } from './word/dialogs.js';
 import { SetUpShowDialog, SETUP_CSS } from './slides/setup.js';
 import { LanguageDialog } from '@rutba/office-ui/proofing';
 import { ActionDialog, ACTION_CSS } from './slides/action.js';
+import { PhotoAlbumDialog, ALBUM_CSS } from './slides/album.js';
 
 // The splits Move Split moves, marked while it is on — in shadows, so
 // turning it on moves nothing by itself.
@@ -93,6 +94,7 @@ export default function Slides({ app, shell, boot }) {
   const caretAfterOpen = useRef(null);
   const [symbolOpen, setSymbolOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
+  const [albumOpen, setAlbumOpen] = useState(false);
   // The slide the show was on before this one, for a "last slide viewed" action.
   const lastViewed = useRef(null);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -460,9 +462,14 @@ export default function Slides({ app, shell, boot }) {
       setBusy(true);
       try {
         const recover = new URLSearchParams(location.search).get('recover');
+        // Insert → Photo Album: the album is a session already, made for
+        // this window to take over.
+        const adopt = new URLSearchParams(location.search).get('session');
         // A password-protected file (or the encrypted copy of one) asks
         // for its password in this window before anything opens.
-        const opened = recover
+        const opened = adopt
+          ? await shell.doc.adopt({ id: adopt })
+          : recover
           ? await openProtected((password) => shell.doc.recover({ file: recover, password }), gate)
           : boot.file
             ? await openProtected((password) => shell.doc.open({ path: boot.file, kind: 'deck', width: 1280, password }), gate)
@@ -1317,6 +1324,8 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'setupShow': setSetupOpen(true); return;
+      // Insert → Photo Album: a new presentation of pictures, in its own window.
+      case 'photoAlbum': setAlbumOpen(true); return;
       // Insert → Action: what a click on the selected shape does in the show.
       case 'action':
         if (!selectedShape) return toast('Click a shape first, then choose what a click on it does in the show.', { ms: 3500 });
@@ -2330,6 +2339,26 @@ export default function Slides({ app, shell, boot }) {
 
       {symbolOpen ? (
         <SymbolDialog onClose={() => setSymbolOpen(false)} onInsert={(ch) => { setSymbolOpen(false); act('insertSymbol', ch); }} />
+      ) : null}
+
+      {albumOpen ? (
+        <>
+          <style>{ALBUM_CSS}</style>
+          <PhotoAlbumDialog
+            shell={shell}
+            onClose={() => setAlbumOpen(false)}
+            onCreate={async (spec) => {
+              try {
+                const made = await shell.doc.photoAlbum(spec);
+                setAlbumOpen(false);
+                await shell.win.create({ app: 'slides', query: { session: made.id } });
+                toast(`${made.name}: ${spec.files.length} ${spec.files.length === 1 ? 'picture' : 'pictures'} on ${made.slides - 1} ${made.slides === 2 ? 'slide' : 'slides'}`, { tone: 'good' });
+              } catch (err) {
+                toast(err.message, { tone: 'bad', ms: 5000 });
+              }
+            }}
+          />
+        </>
       ) : null}
 
       {actionOpen && selectedShape ? (
