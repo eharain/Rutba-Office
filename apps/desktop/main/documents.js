@@ -1236,6 +1236,18 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   function masterViewOf(session, current) {
     const deck = session.engine;
     const { resolveImage } = deckThumbnailer(session);
+    // Notes Master and Handout Master: one page, its placeholders, and which way the page is turned.
+    const notesKind = /^ppt\/notesMasters\//.test(current) ? 'notes' : /^ppt\/handoutMasters\//.test(current) ? 'handout' : null;
+    if (notesKind) {
+      const size = deck.notesSize;
+      return {
+        kind: notesKind,
+        current,
+        items: [{ part: current, kind: notesKind, name: notesKind === 'notes' ? 'Notes Master' : 'Handout Master', thumbnail: safely(() => renderThumbnail(deck.partScene(current), 220, { resolveImage, placeholderFrames: true })) || null }],
+        placeholders: safely(() => deck.masterPlaceholders(current)) || {},
+        portrait: size.cy >= size.cx,
+      };
+    }
     const cache = session.masterThumbs || (session.masterThumbs = new Map());
     const thumb = (part) => {
       const key = `${deck.designStamp}:${part}`;
@@ -1250,7 +1262,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       items.push({ part: m.part, kind: 'master', name: m.name, preserve: m.preserve, hasTitle: m.hasTitle, hasFooters: m.hasFooters, thumbnail: thumb(m.part) });
       for (const l of m.layouts) items.push({ ...l, kind: 'layout', master: m.part, thumbnail: thumb(l.part) });
     }
-    return { current, items };
+    return { kind: 'slide', current, items };
   }
 
   function deckModel(session, { slide = 0, width = 960, master = null } = {}) {
@@ -1268,7 +1280,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       masterView: masterPart ? masterViewOf(session, masterPart) : null,
       count,
       index,
-      size: deck.size,
+      // The slides' own size, which a handout lays its slides out by.
+      slideSize: deck.size,
+      // A notes or handout master is a page of the notes' size.
+      size: masterPart && /^ppt\/(notesMasters|handoutMasters)\//.test(masterPart) ? deck.notesSize : deck.size,
       outline: deck.outline().map((o) => ({ ...o, thumbnail: thumbnailOf(o, Math.abs(o.index - index) <= 2) })),
       // The deck's sections, for the headings in the strip and the sorter; none for most decks.
       sections: safely(() => deck.sections()) || [],
@@ -1874,6 +1889,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // Preserve; a placeholder inserted; and the text styles a master's
     // title and body placeholders give every slide.
     insertLayout: (d, a) => d.insertLayout(a.master || null, { name: a.name || 'Custom Layout' }),
+    ensureMaster: (d, a) => d.ensureMaster(a.kind),
+    setMasterPlaceholder: (d, a) => d.setMasterPlaceholder(a.part, a.type, Boolean(a.on)),
+    setNotesOrientation: (d, a) => d.setNotesOrientation(Boolean(a.portrait)),
     insertMaster: (d, a) => d.insertMaster(a.from || null, { name: a.name || 'Custom Design' }),
     renamePart: (d, a) => d.renamePart(a.part, a.name),
     removeLayout: (d, a) => d.removeLayout(a.part),

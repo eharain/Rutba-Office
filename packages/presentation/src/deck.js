@@ -22,6 +22,7 @@ import { chartPartXml } from '@rutba/ooxml/build';
 import { readTransition, withTransition, transitionBlock, insertTransition, transitionRange } from './motion.js';
 import { readAnimations, addAnimation, setAnimation, removeAnimation, moveAnimation, removeShapeAnimations, pruneAnimations } from './timing.js';
 import { parseChartXml } from '@rutba/drawing';
+import { masterPartXml, placeholderXml, placeholderBox, placeholderTypesIn, MASTER_PLACEHOLDERS, NOTES_MASTER_CT, HANDOUT_MASTER_CT, NOTES_MASTER_REL, HANDOUT_MASTER_REL } from './notes-master.js';
 
 const A = (n) => `a:${n}`;
 const P = (n) => `p:${n}`;
@@ -297,14 +298,14 @@ export class Deck {
   /** A slide index to its part; a master's or a layout's part name to itself, so Slide Master view edits them with the same verbs. */
   #partOf(target) {
     if (typeof target === 'string') {
-      return /^ppt\/(slideMasters\/slideMaster|slideLayouts\/slideLayout)\d+\.xml$/.test(target) && this.pkg.has(target) ? target : null;
+      return /^ppt\/(slideMasters\/slideMaster|slideLayouts\/slideLayout|notesMasters\/notesMaster|handoutMasters\/handoutMaster)\d+\.xml$/.test(target) && this.pkg.has(target) ? target : null;
     }
     return this.slideParts[target]?.part || null;
   }
 
   /** Whether a part is a master's or a layout's — an edit to one restyles every slide on it. */
   static isDesignPart(part) {
-    return /^ppt\/(slideMasters|slideLayouts|theme)\//.test(String(part || ''));
+    return /^ppt\/(slideMasters|slideLayouts|notesMasters|handoutMasters|theme)\//.test(String(part || ''));
   }
 
   /** Every cache that read a master, a layout or a theme, dropped. */
@@ -725,6 +726,9 @@ export class Deck {
         out.body = readLevels(first(tx, P('bodyStyle')), theme);
         out.other = readLevels(first(tx, P('otherStyle')), theme);
       }
+      // A notes master's text styles are its notes' own.
+      const notes = tx ? null : first(parse(this.pkg.text(masterPart)), P('notesStyle'));
+      if (notes) out.body = readLevels(notes, theme);
     }
     const def = first(parse(this.pkg.text('ppt/presentation.xml')), P('defaultTextStyle'));
     if (def) out.default = readLevels(def, theme);
@@ -995,7 +999,8 @@ export class Deck {
       const out = { ...s };
       const master = isLayout && s.placeholder ? find(s.placeholder) : null;
       if (s.text || s.inheritedText || s.placeholder) out.textStyle = this.#cascade(s, { layout: null, master }, styles, theme);
-      if (prompts && s.placeholder && !hasWords(s.text)) {
+      // The slide's picture on a notes master is the slide itself: no words of its own.
+      if (prompts && s.placeholder && !hasWords(s.text) && s.placeholder.type !== 'sldImg') {
         out.text = promptBody(s.placeholder.type, isLayout, s.text || s.inheritedText);
         out.prompt = true;
       }
@@ -1012,7 +1017,8 @@ export class Deck {
       part,
       layout: isLayout ? part : null,
       master: masterPart,
-      size: this.size,
+      // A notes or handout master is a page of the notes' size, not a slide.
+      size: /^ppt\/(notesMasters|handoutMasters)\//.test(part) ? this.notesSize : this.size,
       background,
       shapes,
       underlay,
@@ -3787,10 +3793,131 @@ export class Deck {
       const part = `ppt/notesSlides/notesSlide${n}.xml`;
       this.pkg.addPart(part, Buffer.from(xml, 'utf8'), CT.notes);
       this.pkg.addRelationshipTo(entry.part, REL.notes, `../notesSlides/notesSlide${n}.xml`);
+      // A notes page belongs to the notes master and to its slide, as
+      // PowerPoint relates every one — a deck with none gets the master
+      // PowerPoint would make.
+      const master = this.ensureMaster('notes');
+      this.pkg.addRelationshipTo(part, NOTES_MASTER_REL, `../${master.replace(/^ppt\//, '')}`);
+      this.pkg.addRelationshipTo(part, REL.slide, `../${entry.part.replace(/^ppt\//, '')}`);
     }
 
     this.dirty = true;
     this.#load();
+    return true;
+  }
+
+  /** The printed notes page's and handout's size, as the presentation states it (`p:notesSz`). */
+  get notesSize() {
+    const sz = /<p:notesSz\b[^>]*\/>/.exec(this.pkg.text('ppt/presentation.xml'))?.[0] || '';
+    const cx = Number(/\bcx="(\d+)"/.exec(sz)?.[1]) || 6858000;
+    const cy = Number(/\bcy="(\d+)"/.exec(sz)?.[1]) || 9144000;
+    return { cx, cy, width: emuToPx(cx), height: emuToPx(cy) };
+  }
+
+  /** The notes master's or the handout master's part (`kind` 'notes' or 'handout'), or null when the deck has none. */
+  masterFor(kind) {
+    const type = kind === 'notes' ? NOTES_MASTER_REL : HANDOUT_MASTER_REL;
+    for (const r of this.#relMap('ppt/presentation.xml').values()) {
+      if (r.type === type && this.pkg.has(r.resolved)) return r.resolved;
+    }
+    return null;
+  }
+
+  /**
+   * View → Notes Master / Handout Master: the master's part, made as
+   * PowerPoint makes one when the deck has none — its placeholders laid out
+   * for the notes size, its own copy of the slide master's theme, related
+   * from the presentation and listed after the slide masters.
+   */
+  ensureMaster(kind) {
+    if (kind !== 'notes' && kind !== 'handout') throw new Error(`no ${kind} master`);
+    const have = this.masterFor(kind);
+    if (have) return have;
+    const dir = kind === 'notes' ? 'notesMasters' : 'handoutMasters';
+    const base = kind === 'notes' ? 'notesMaster' : 'handoutMaster';
+    const n = this.pkg.nextPartNumber(`ppt/${dir}/`, base);
+    const part = `ppt/${dir}/${base}${n}.xml`;
+    this.pkg.addPart(part, Buffer.from(masterPartXml(kind, this.notesSize, this.size), 'utf8'), kind === 'notes' ? NOTES_MASTER_CT : HANDOUT_MASTER_CT);
+    // Its own theme: a copy of the first slide master's, as PowerPoint gives it.
+    const firstMaster = [...this.#relMap('ppt/presentation.xml').values()].find((r) => r.type === REL.master)?.resolved;
+    const themeOf = firstMaster ? [...this.#relMap(firstMaster).values()].find((r) => r.type === REL.theme)?.resolved : null;
+    let rels = '';
+    if (themeOf && this.pkg.has(themeOf)) {
+      const t = this.pkg.nextPartNumber('ppt/theme/', 'theme');
+      this.pkg.addPart(`ppt/theme/theme${t}.xml`, Buffer.from(this.pkg.text(themeOf), 'utf8'), this.pkg.contentTypeOf(themeOf) || 'application/vnd.openxmlformats-officedocument.theme+xml');
+      rels = `<Relationship Id="rId1" Type="${REL.theme}" Target="../theme/theme${t}.xml"/>`;
+    }
+    this.pkg.addPart(`ppt/${dir}/_rels/${base}${n}.xml.rels`, Buffer.from('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + rels + '</Relationships>', 'utf8'));
+    const rid = this.pkg.addRelationshipTo('ppt/presentation.xml', kind === 'notes' ? NOTES_MASTER_REL : HANDOUT_MASTER_REL, `${dir}/${base}${n}.xml`);
+    // In the schema's order: the slide masters, the notes master, the handout master.
+    let px = this.pkg.text('ppt/presentation.xml');
+    if (kind === 'notes') {
+      const list = `<p:notesMasterIdLst><p:notesMasterId r:id="${rid}"/></p:notesMasterIdLst>`;
+      px = /<\/p:sldMasterIdLst>/.test(px) ? px.replace('</p:sldMasterIdLst>', () => '</p:sldMasterIdLst>' + list) : px.replace(/(<p:presentation\b[^>]*>)/, (x, open) => open + list);
+    } else {
+      const list = `<p:handoutMasterIdLst><p:handoutMasterId r:id="${rid}"/></p:handoutMasterIdLst>`;
+      const after = /<\/p:notesMasterIdLst>/.test(px) ? '</p:notesMasterIdLst>' : '</p:sldMasterIdLst>';
+      px = px.includes(after) ? px.replace(after, () => after + list) : px.replace(/(<p:presentation\b[^>]*>)/, (x, open) => open + list);
+    }
+    this.pkg.write_('ppt/presentation.xml', Buffer.from(px, 'utf8'));
+    this.dirty = true;
+    this.#load();
+    this.#designChanged();
+    return part;
+  }
+
+  /** Which of a notes or handout master's placeholders it has: `{ hdr, dt, sldImg, body, ftr, sldNum }`, each true or false. */
+  masterPlaceholders(part) {
+    const kind = /notesMasters\//.test(part) ? 'notes' : /handoutMasters\//.test(part) ? 'handout' : null;
+    if (!kind || !this.pkg.has(part)) throw new RangeError(`no notes or handout master ${part}`);
+    const have = placeholderTypesIn(this.pkg.text(part));
+    return Object.fromEntries(MASTER_PLACEHOLDERS[kind].map((p) => [p.type, have.has(p.type)]));
+  }
+
+  /**
+   * The Notes Master and Handout Master tabs' Placeholders boxes: a
+   * placeholder taken off the master, or put back where PowerPoint puts a
+   * new one.
+   */
+  setMasterPlaceholder(part, type, on) {
+    const kind = /notesMasters\//.test(part) ? 'notes' : /handoutMasters\//.test(part) ? 'handout' : null;
+    if (!kind || !this.pkg.has(part)) throw new RangeError(`no notes or handout master ${part}`);
+    if (!MASTER_PLACEHOLDERS[kind].some((p) => p.type === type)) throw new Error(`a ${kind} master has no ${type} placeholder`);
+    let xml = this.pkg.text(part);
+    const sp = [...xml.matchAll(/<p:sp\b[\s\S]*?<\/p:sp>/g)].find((m) => new RegExp(`<p:ph\\b[^>]*\\btype="${type}"`).test(m[0]));
+    if (on && !sp) xml = xml.replace('</p:spTree>', () => placeholderXml(kind, type, nextShapeId(xml), this.notesSize, this.size) + '</p:spTree>');
+    else if (!on && sp) xml = xml.slice(0, sp.index) + xml.slice(sp.index + sp[0].length);
+    else return false;
+    this.#writeSlide(part, xml);
+    return true;
+  }
+
+  /**
+   * Notes Page Orientation and Handout Orientation: the notes size turned
+   * portrait or landscape — it is one size for both — and each master's
+   * placeholders laid out again for it, as PowerPoint lays them.
+   */
+  setNotesOrientation(portrait) {
+    const sz = this.notesSize;
+    if (Boolean(portrait) === sz.cy >= sz.cx) return false;
+    const page = { cx: sz.cy, cy: sz.cx };
+    const px = this.pkg.text('ppt/presentation.xml');
+    this.pkg.write_('ppt/presentation.xml', Buffer.from(/<p:notesSz\b[^>]*\/>/.test(px)
+      ? px.replace(/<p:notesSz\b[^>]*\/>/, () => `<p:notesSz cx="${page.cx}" cy="${page.cy}"/>`)
+      : px.replace(/(<p:sldSz\b[^>]*\/>)/, (x, s) => `${s}<p:notesSz cx="${page.cx}" cy="${page.cy}"/>`), 'utf8'));
+    for (const kind of ['notes', 'handout']) {
+      const part = this.masterFor(kind);
+      if (!part) continue;
+      const xml = this.pkg.text(part).replace(/<p:sp\b[\s\S]*?<\/p:sp>/g, (spXml) => {
+        const type = /<p:ph\b[^>]*\btype="([A-Za-z]+)"/.exec(spXml)?.[1];
+        const box = type ? placeholderBox(type, page, this.size) : null;
+        if (!box) return spXml;
+        return spXml.replace(/<a:xfrm\b[^>]*>[\s\S]*?<\/a:xfrm>/, () => `<a:xfrm><a:off x="${box.x}" y="${box.y}"/><a:ext cx="${box.cx}" cy="${box.cy}"/></a:xfrm>`);
+      });
+      this.pkg.write_(part, Buffer.from(xml, 'utf8'));
+    }
+    this.dirty = true;
+    this.#designChanged();
     return true;
   }
 
@@ -4006,6 +4133,7 @@ const PROMPTS = {
   ctrTitle: 'Click to edit Master title style',
   subTitle: 'Click to edit Master subtitle style',
   dt: 'Date',
+  hdr: 'Header',
   ftr: 'Footer',
   sldNum: '‹#›',
   pic: 'Picture',
