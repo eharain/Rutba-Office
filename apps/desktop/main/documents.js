@@ -1436,6 +1436,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     insertInk: (v, a) => v.insertInk({ strokes: a.strokes || [] }),
     insertShapeAt: (v, a) => v.insertShapeAt({ geometry: a.geometry, x: a.x, y: a.y, width: a.width, height: a.height, line: a.line || null }),
     insertWordArt: (v, a) => v.insertWordArt({ text: a.text, style: a.style || {}, size: Number(a.size) || 36 }),
+    // Insert → SmartArt: the layout's shapes, laid out by the window, as one group at the selection; its id comes back.
+    insertDiagram: (v, a) => v.insertDiagram({ name: a.name, shapes: a.shapes || [] }),
     setShapeText: (v, a) => v.setShapeText({ id: a.id, text: a.text }),
     formatBrush: (v) => v.markFormatBrush(),
     paintFormat: (v) => v.paintFormat(),

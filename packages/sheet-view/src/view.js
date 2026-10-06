@@ -1351,11 +1351,16 @@ export class SheetView {
           // A group's members, each laid out in the group's box by its place
           // in the group's own space, and drawn as it would be on its own.
           members = d.descriptor.children.map((c, i) => {
+            // A line may have no width or no height: it is drawn in a box a
+            // stroke wider all round, so its stroke is not cut away.
+            const pad = c.kind === 'shape' && /^(line|straightConnector\d*)$/.test(c.descriptor?.geometry || '') ? 3 : 0;
+            const w = Math.round(c.frac.w * width);
+            const h = Math.round(c.frac.h * height);
             const b = {
-              x: Math.round(c.frac.x * width), y: Math.round(c.frac.y * height),
-              width: Math.max(1, Math.round(c.frac.w * width)), height: Math.max(1, Math.round(c.frac.h * height)),
+              x: Math.round(c.frac.x * width) - pad, y: Math.round(c.frac.y * height) - pad,
+              width: Math.max(1, w) + 2 * pad, height: Math.max(1, h) + 2 * pad,
             };
-            const own = { x: 0, y: 0, width: b.width, height: b.height };
+            const own = pad ? { x: pad, y: pad, width: w, height: h } : { x: 0, y: 0, width: b.width, height: b.height };
             let child = null;
             if (c.kind === 'chart' && c.spec) child = renderSvg(buildChart({ ...c.spec, width: b.width, height: b.height, mode: this.mode, palette }));
             else if (c.kind === 'shape' && c.descriptor) child = renderSvg(scene({ width: b.width, height: b.height, mode: this.mode, background: 'none', title: c.name ?? 'Shape', children: [buildShape(c.descriptor, own, { mode: this.mode, palette })] }));
@@ -3654,6 +3659,37 @@ export class SheetView {
       this._structuralDirty = true;
     }, { parts, tracksNewParts: true });
     return list.length;
+  }
+
+  /**
+   * Insert → SmartArt: a diagram as one group of shapes on the sheet, its
+   * top-left corner at the selection's — `shapes` the layout's (px, in
+   * drawing order) — named `name` and its id, as "Basic Process 4". Excel
+   * opens it as a group, every word editable; it is not a SmartArt part.
+   * Answers the group's id.
+   */
+  insertDiagram({ name = 'Diagram', shapes = [] } = {}) {
+    if (!shapes.length) throw new Error('a diagram needs at least one shape');
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before inserting objects.');
+    const sel = this.selection.range;
+    const x0 = Math.min(...shapes.map((s) => s.x));
+    const y0 = Math.min(...shapes.map((s) => s.y));
+    const ox = this.geo.colOffset(sel.left);
+    const oy = this.geo.rowOffset(sel.top);
+    const placed = shapes.map((s) => ({ ...s, x: s.x - x0 + ox, y: s.y - y0 + oy }));
+    const right = Math.max(...placed.map((s) => s.x + s.w));
+    const bottom = Math.max(...placed.map((s) => s.y + s.h));
+    const from = this._markerAt(ox, oy);
+    const to = this._markerAt(right, bottom);
+    const { sheetPartName, parts } = this._drawingEditParts();
+    let id = null;
+    this._edit('insert SmartArt', null, [], () => {
+      const drawingPart = this.workbook.ensureSheetDrawing(this.activeSheet);
+      id = this.workbook.appendDrawingAnchor(drawingPart, (n) => drawingAnchorXml({ kind: 'diagram', id: n, name: name + ' ' + n, shapes: placed, from, to }, () => null));
+      this.drawings.set(this.activeSheet, this._readDrawings(sheetPartName));
+      this._structuralDirty = true;
+    }, { parts, tracksNewParts: true });
+    return id;
   }
 
   /** Ink to Shape: a rectangle, oval or triangle at the box drawn (sheet pixels), outlined in the pen's colour, not filled. */

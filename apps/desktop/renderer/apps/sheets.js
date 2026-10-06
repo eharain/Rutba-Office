@@ -30,6 +30,8 @@ import { IconsDialog } from '../icons-insert.js';
 import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise } from './slides/ink.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
+import { SmartArtDialog, SMARTART_CSS } from '../smartart-dialog.js';
+import { layoutSmartArt } from '../smartart.js';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
 } from './sheets/dialogs.js';
@@ -2392,6 +2394,8 @@ export default function Sheets({ app, shell, boot }) {
       case 'equation': setDialog({ kind: 'equation', id: null, initial: '' }); return;
       // Insert → WordArt: the words asked for, in the chosen style.
       case 'wordArt': setDialog({ kind: 'words', id: null, initial: 'Your text here', look: arg?.run || {}, title: 'WordArt' }); return;
+      // Insert → SmartArt: the box, then the layout's shapes as one group at the selection.
+      case 'smartArt': setDialog('smartart'); return;
       // Page Layout → Print Area: the page setup is rebuilt from what it is
       // given, so the file's own setup is read first and sent back with the
       // area changed — what the print dialog does.
@@ -3037,6 +3041,18 @@ export default function Sheets({ app, shell, boot }) {
               const { id, look } = dialog;
               setDialog(null);
               await dispatch(id != null ? { op: 'setShapeText', id, text } : { op: 'insertWordArt', text, style: look || {} });
+            }}
+          />
+        </>
+      ) : null}
+      {dialog === 'smartart' ? (
+        <>
+          <style>{SMARTART_CSS}</style>
+          <SmartArtDialog
+            onClose={() => setDialog(null)}
+            onInsert={async ({ layout, name, items }) => {
+              setDialog(null);
+              await dispatch({ op: 'insertDiagram', name, shapes: layoutSmartArt(layout, items, { x: 0, y: 0, w: 576, h: 324 }) });
             }}
           />
         </>

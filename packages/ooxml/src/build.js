@@ -219,6 +219,39 @@ export function inkContentXml(d) {
     + '<a:noFill/><a:ln w="' + Math.round(Math.max(0.25, Number(d.width) || 1) * 12700) + '" cap="' + (d.cap === 'sq' ? 'sq' : 'rnd') + '"><a:solidFill>' + srgbXml(d.color, d.alpha ?? 1) + '</a:solidFill><a:round/></a:ln></xdr:spPr></xdr:sp>';
 }
 
+const DIAGRAM_NAMES = { roundRect: 'Rectangle: Rounded Corners', rect: 'Rectangle', ellipse: 'Oval', chevron: 'Arrow: Chevron', rightArrow: 'Arrow: Right', line: 'Straight Connector' };
+
+/**
+ * Insert → SmartArt on a sheet: one group (`xdr:grpSp`) of preset shapes —
+ * `d.shapes` in sheet pixels, in drawing order: a node filled (a theme
+ * colour when it names one) with its words centred in white at their size,
+ * an arrow filled, a ring or a line edged — the group named `d.name`, its
+ * members numbered on from its id. Excel opens it as a group of shapes.
+ */
+export function diagramContentXml(d) {
+  const EMU = 9525;
+  const xs = d.shapes.map((s) => s.x);
+  const ys = d.shapes.map((s) => s.y);
+  const x0 = Math.min(...xs);
+  const y0 = Math.min(...ys);
+  const cx = Math.max(1, Math.round((Math.max(...d.shapes.map((s) => s.x + s.w)) - x0) * EMU));
+  const cy = Math.max(1, Math.round((Math.max(...d.shapes.map((s) => s.y + s.h)) - y0) * EMU));
+  const place = '<a:off x="' + Math.round(x0 * EMU) + '" y="' + Math.round(y0 * EMU) + '"/><a:ext cx="' + cx + '" cy="' + cy + '"/>';
+  const kids = d.shapes.map((s, i) => {
+    const id = d.id + 1 + i;
+    const fill = s.fill ? '<a:solidFill>' + (s.scheme ? '<a:schemeClr val="' + esc(s.scheme) + '"/>' : srgbXml(s.fill)) + '</a:solidFill>' : '<a:noFill/>';
+    const line = s.line ? '<a:ln w="' + Math.round((Number(s.lineWidth) || 1) * 12700) + '"><a:solidFill>' + srgbXml(s.line) + '</a:solidFill></a:ln>' : '<a:ln><a:noFill/></a:ln>';
+    const sz = Math.round((Number(s.size) || 14) * 100);
+    const words = s.text ? '<a:r><a:rPr lang="en-US" sz="' + sz + '"><a:solidFill><a:srgbClr val="FFFFFF"/></a:solidFill></a:rPr><a:t>' + esc(s.text) + '</a:t></a:r>' : '';
+    return '<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="' + id + '" name="' + esc((DIAGRAM_NAMES[s.preset] || 'Shape') + ' ' + id) + '"/><xdr:cNvSpPr/></xdr:nvSpPr>'
+      + '<xdr:spPr><a:xfrm><a:off x="' + Math.round(s.x * EMU) + '" y="' + Math.round(s.y * EMU) + '"/><a:ext cx="' + Math.round(s.w * EMU) + '" cy="' + Math.round(s.h * EMU) + '"/></a:xfrm>'
+      + '<a:prstGeom prst="' + esc(s.preset) + '"><a:avLst/></a:prstGeom>' + fill + line + '</xdr:spPr>'
+      + '<xdr:txBody><a:bodyPr rtlCol="0" anchor="ctr"/><a:lstStyle/><a:p><a:pPr algn="ctr"/>' + words + '</a:p></xdr:txBody></xdr:sp>';
+  }).join('');
+  return '<xdr:grpSp><xdr:nvGrpSpPr><xdr:cNvPr id="' + d.id + '" name="' + esc(d.name ?? 'Group ' + d.id) + '"/><xdr:cNvGrpSpPr/></xdr:nvGrpSpPr>'
+    + '<xdr:grpSpPr><a:xfrm>' + place + place.replace('<a:off', '<a:chOff').replace('<a:ext', '<a:chExt') + '</a:xfrm></xdr:grpSpPr>' + kids + '</xdr:grpSp>';
+}
+
 function drawingPartXml(drawings, relIdOf) {
   const anchors = drawings.map((d) => {
     // A marker's offsets into its cell (EMU), when the drawing does not start at the cell's corner.
@@ -251,6 +284,7 @@ function drawingPartXml(drawings, relIdOf) {
     if (d.kind === 'equation') return '<xdr:twoCellAnchor>' + from + to + equationContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     if (d.kind === 'wordart') return '<xdr:twoCellAnchor>' + from + to + wordArtContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     if (d.kind === 'ink') return '<xdr:twoCellAnchor editAs="oneCell">' + from + to + inkContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
+    if (d.kind === 'diagram') return '<xdr:twoCellAnchor editAs="oneCell">' + from + to + diagramContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     // Ink to Shape: a shape with no fill and a line in the pen's colour.
     const line = d.line?.color ? '<a:ln w="' + Math.round((Number(d.line.width) || 1) * 12700) + '"><a:solidFill>' + srgbXml(d.line.color) + '</a:solidFill></a:ln>' : '';
     const fill = d.fill === 'none' ? '<a:noFill/>' + line : (d.fill

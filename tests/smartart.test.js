@@ -14,7 +14,7 @@ import { SMARTART_LAYOUTS, parseItems, itemsText, layoutSmartArt, fitSize, bound
 import { createDocumentService } from '../apps/desktop/main/documents.js';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { renderPdf } from '@rutba/doc-view/export/pdf';
-import { buildDocx } from '@rutba/ooxml/build';
+import { buildDocx, drawingAnchorXml } from '@rutba/ooxml/build';
 
 const BOX = { x: 100, y: 120, w: 1080, h: 480 };
 const inside = (s, box) => s.x >= box.x - 1 && s.y >= box.y - 1 && s.x + s.w <= box.x + box.w + 1 && s.y + s.h <= box.y + box.h + 1;
@@ -150,4 +150,33 @@ test('a hierarchy\'s lines in a document are painted a stroke wider all round, s
   assert.equal(Math.round(down.widthPx), 6, 'a line no wider than nothing, painted 3 px either side');
   assert.match(down.href, /^data:image\/svg\+xml/);
   assert.throws(() => docs.apply({ id, ops: [{ op: 'insertDiagram', name: 'Hierarchy', shapes: [] }] }), /at least one shape/);
+});
+
+test('Worksheets puts a diagram in as one group of shapes at the selected cell, the words white in the theme colour', () => {
+  const docs = createDocumentService({ holdBlob: () => ({ url: 'blob:x' }) });
+  const { id } = docs.new({ kind: 'sheet' });
+  docs.apply({ id, ops: [{ op: 'select', row: 2, col: 2 }] });
+  const shapes = layoutSmartArt('hierarchy', parseItems('Lead\n\tNorth\n\tSouth'), { x: 0, y: 0, w: 576, h: 324 });
+  const out = docs.apply({ id, ops: [{ op: 'insertDiagram', name: 'Hierarchy', shapes }] });
+  assert.equal(typeof out.opResult, 'number');
+  const group = docs.model({ id }).drawings.find((d) => d.kind === 'group');
+  assert.equal(group.name, `Hierarchy ${out.opResult}`);
+  assert.deepEqual(group.anchor, { row: 2, col: 2 }, 'at the selected cell');
+  assert.equal(group.members.length, 7);
+  assert.ok(['Lead', 'North', 'South'].every((w) => group.members.some((m) => m.svg.includes(`>${w}<`))), 'every word drawn');
+  // A line straight down is drawn in a box a stroke wider all round.
+  const down = group.members.find((m) => m.height > 20 && m.width < 10);
+  assert.equal(down.width, 7);
+  assert.match(down.svg, /<line\b/);
+});
+
+test('the diagram writer puts the group\'s members in its own space, numbered on from its id', () => {
+  const shapes = layoutSmartArt('process', parseItems('One\nTwo'), { x: 100, y: 50, w: 400, h: 200 });
+  const xml = drawingAnchorXml({ kind: 'diagram', id: 5, name: 'Basic Process 5', shapes, from: { row: 1, col: 1 }, to: { row: 12, col: 8 } }, () => null);
+  assert.match(xml, /^<xdr:twoCellAnchor editAs="oneCell"><xdr:from>/);
+  assert.match(xml, /<xdr:grpSp><xdr:nvGrpSpPr><xdr:cNvPr id="5" name="Basic Process 5"\/><xdr:cNvGrpSpPr\/><\/xdr:nvGrpSpPr>/);
+  assert.match(xml, /<a:xfrm><a:off x="952500" y="(\d+)"\/><a:ext cx="3810000" cy="(\d+)"\/><a:chOff x="952500" y="\1"\/><a:chExt cx="3810000" cy="\2"\/><\/a:xfrm>/);
+  assert.deepEqual([...xml.matchAll(/<xdr:cNvPr id="(\d+)" name="([^"]+)"\/>/g)].map((m) => m[2]), ['Basic Process 5', 'Rectangle: Rounded Corners 6', 'Arrow: Right 7', 'Rectangle: Rounded Corners 8']);
+  assert.match(xml, /<a:solidFill><a:schemeClr val="accent1"\/><\/a:solidFill><a:ln w="12700"><a:solidFill><a:srgbClr val="FFFFFF"\/><\/a:solidFill><\/a:ln>/);
+  assert.match(xml, /<a:rPr lang="en-US" sz="\d+00"><a:solidFill><a:srgbClr val="FFFFFF"\/><\/a:solidFill><\/a:rPr><a:t>Two<\/a:t>/);
 });
