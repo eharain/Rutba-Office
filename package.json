@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "license": "AGPL-3.0-or-later",
-  "description": "Rutba Office — free, open-source, cross-platform desktop office suite: Mail, Word, Worksheets, Presentation, Pictures, Image and Video. One installer, seven apps, on an engine we own.",
+  "description": "Rutba Office — free, open-source, cross-platform desktop office suite: Mail, Calendar, Contacts, Documents, Worksheets, Presentations, Pictures, Image and Video. One installer, nine apps, on an engine we own.",
   "homepage": "https://office.rutba.io",
   "author": "Tech Style Ltd <hello@tech-style.co> (https://tech-style.co)",
   "workspaces": [

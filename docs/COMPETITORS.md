@@ -77,7 +77,7 @@ this, and the 180-pixel image is the sender's own logo"*. See
 
 ---
 
-## Rutba Word
+## Documents
 
 Against **Microsoft Word**, **LibreOffice Writer**, **OnlyOffice**, **Google Docs**.
 
@@ -140,7 +140,7 @@ title that says why — so the gap is visible in the product, not only here.
 
 ---
 
-## Presentation
+## Presentations
 
 Against **PowerPoint**, **Impress**, **Keynote**, **Google Slides**.
 
@@ -162,7 +162,7 @@ Against **PowerPoint**, **Impress**, **Keynote**, **Google Slides**.
 | ✅ ~~Pictures and shapes on a slide~~ — a picture from disk (sized from its own header), fifteen preset shapes in the theme's colours | all |
 | ⬜ Tables and charts on a slide | all |
 
-| ⬜ Legacy `.ppt` (the binary format) — Word reads `.doc`, Presentation does not read `.ppt` yet | PowerPoint, Impress |
+| ⬜ Legacy `.ppt` (the binary format) — Documents reads `.doc`, Presentations does not read `.ppt` yet | PowerPoint, Impress |
 
 ---
 

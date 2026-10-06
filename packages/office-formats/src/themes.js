@@ -1,4 +1,4 @@
-// The suite's own themes — shared by Presentation (Design → Themes, Variants,
+// The suite's own themes — shared by Presentations (Design → Themes, Variants,
 // Colours, Fonts, Effects) and Worksheets (Page Layout → Themes, Colours,
 // Fonts, Effects), so a deck and a workbook dressed in one theme match.
 //

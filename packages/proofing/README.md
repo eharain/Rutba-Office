@@ -1,6 +1,6 @@
 # @rutba/proofing
 
-Review's tools for Rutba Word, Worksheets and Presentation.
+Review's tools for Documents, Worksheets and Presentations.
 
 - **Check Accessibility** — `accessibility.js` holds the rules (Office's
   Errors / Warnings / Tips and its rule names); `word.js`, `sheet.js` and

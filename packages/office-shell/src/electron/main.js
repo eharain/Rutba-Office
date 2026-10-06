@@ -25,7 +25,10 @@ const isMac = process.platform === 'darwin';
 // run at import time.
 registerSchemePrivileges();
 
-function buildMenu({ send, appName }) {
+/** The apps the Apps menu offers, in its order. */
+const MENU_APPS = ['mail', 'word', 'sheets', 'slides', 'pictures', 'image', 'video'];
+
+function buildMenu({ send, appName, appShortNames = {} }) {
   const cmd = (command, args) => () => send(command, args);
   const template = [
     ...(isMac
@@ -107,13 +110,10 @@ function buildMenu({ send, appName }) {
       submenu: [
         { label: 'Home', accelerator: 'CmdOrCtrl+Shift+H', click: cmd('open.app', { app: 'home' }) },
         { type: 'separator' },
-        { label: 'Mail', click: cmd('open.app', { app: 'mail' }) },
-        { label: 'Rutba Word', click: cmd('open.app', { app: 'word' }) },
-        { label: 'Worksheets', click: cmd('open.app', { app: 'sheets' }) },
-        { label: 'Presentation', click: cmd('open.app', { app: 'slides' }) },
-        { label: 'Pictures', click: cmd('open.app', { app: 'pictures' }) },
-        { label: 'Image', click: cmd('open.app', { app: 'image' }) },
-        { label: 'Video', click: cmd('open.app', { app: 'video' }) },
+        // Named by the app's own registry entry, as the windows and the
+        // taskbar are, so a rename reaches the menu too: written out here,
+        // the menu still said Rutba Word after the app had a new name.
+        ...MENU_APPS.map((key) => ({ label: appShortNames[key] || key, click: cmd('open.app', { app: key }) })),
       ],
     },
     {
@@ -142,6 +142,7 @@ function buildMenu({ send, appName }) {
  * @param {string} [o.iconPath]
  * @param {Record<string,string>} [o.appIcons]  per-app .ico paths on disk, for the taskbar
  * @param {Record<string,string>} [o.appNames]  per-app display names, for a pinned taskbar entry
+ * @param {Record<string,string>} [o.appShortNames]  per-app short names, for the Apps menu
  * @param {string} [o.appName]
  * @param {(ctx) => object} [o.namespaces] extra IPC namespaces, given the shell context
  * @param {(path: string) => string} [o.appForFile] which app opens this file
@@ -152,6 +153,7 @@ export function createShell({
   iconPath,
   appIcons = {},
   appNames = {},
+  appShortNames = {},
   appName = 'Rutba Office',
   namespaces,
   appForFile = () => 'home',
@@ -356,7 +358,7 @@ export function createShell({
     for (const [ns, methods] of Object.entries(extra)) merged[ns] = { ...(merged[ns] || {}), ...methods };
     installIpc(merged);
 
-    Menu.setApplicationMenu(buildMenu({ send, appName }));
+    Menu.setApplicationMenu(buildMenu({ send, appName, appShortNames }));
 
     nativeTheme.on('updated', () => broadcast('theme:changed', { dark: nativeTheme.shouldUseDarkColors }));
 

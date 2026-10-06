@@ -1,7 +1,7 @@
 // Password-protected documents, the window's side: the password asked for
 // when a protected file opens, File → Info with its Protect card, and the
-// Encrypt with Password dialog. Shared by Rutba Word, Worksheets and
-// Presentation, which differ only in their words ("document", "workbook",
+// Encrypt with Password dialog. Shared by Documents, Worksheets and
+// Presentations, which differ only in their words ("document", "workbook",
 // "presentation") and in what else their Protect menu offers.
 //
 // A password typed here goes straight to the document service in the main

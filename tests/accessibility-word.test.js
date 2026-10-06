@@ -1,4 +1,4 @@
-// Review → Check Accessibility in Rutba Word: what it finds in a document,
+// Review → Check Accessibility in Documents: what it finds in a document,
 // and the fixes it writes the way Word writes them — a picture's description
 // on `wp:docPr descr` (and on the picture's own `pic:cNvPr`), "decorative" as
 // the adec extension, a header row as `w:tblHeader`, the title in the core

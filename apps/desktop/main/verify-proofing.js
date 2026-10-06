@@ -132,7 +132,7 @@ export async function verifyAccessibility(h, { dir }) {
     return check('a11y: the fixtures were written', false, err.message);
   }
 
-  // Rutba Word.
+  // Documents.
   try {
     const win = await open('word', files.docx);
     const w = helpers(win, wait);
@@ -290,7 +290,7 @@ export async function verifySpelling(h, { dir }) {
     return { found, suggestions, chosen, changed, next, added, done, message };
   };
 
-  // Rutba Word, from the caret at the start of the document.
+  // Documents, from the caret at the start of the document.
   try {
     const win = await open('word', files.docx);
     const w = helpers(win, wait);

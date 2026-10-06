@@ -1,4 +1,4 @@
-// Rutba Word: what the accessibility checker reads, the fixes it writes, and
+// Documents: what the accessibility checker reads, the fixes it writes, and
 // the text the spelling pass walks — all against a DocView (doc-view) over
 // the OOXML Document (ooxml/document.js).
 //

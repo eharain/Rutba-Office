@@ -18,7 +18,7 @@ import { THEMES as DECK_THEMES } from '@rutba/presentation';
 const BOOK = () => buildXlsx({ sheets: [{ name: 'Sales', rows: [['Region', 'Units'], ['North', 12], ['South', 30], ['East', 18]] }] });
 const accent1 = (view) => view.styles.theme[4];
 
-test('the suite\'s themes are one list, shared by Presentation and Worksheets', () => {
+test('the suite\'s themes are one list, shared by Presentations and Worksheets', () => {
   assert.equal(THEMES.length, 11);
   assert.equal(DECK_THEMES, THEMES, 'Presentation reads the same list');
   assert.ok(PALETTES.length > THEMES.length && FONT_PAIRS.length === 11);

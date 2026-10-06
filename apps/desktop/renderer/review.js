@@ -8,7 +8,7 @@
 //   goTo(where, issue)        show and select a finding's object, cell or paragraph
 //   fix(issue, fix)           the fixes that are the app's own ops
 //   altText(target, props)    write an object's description or decorative mark
-//   renameSheet / slideTitle  (Worksheets, Presentation) the prompts' ops
+//   renameSheet / slideTitle  (Worksheets, Presentations) the prompts' ops
 //   openLayers(target)        (Presentation) the reading-order fix
 //   spellArgs()               what the pass starts from beyond the caret: the slide on screen
 //   showWord(found)           select the misspelt word where it is

@@ -213,7 +213,7 @@ export function AppFrame({ app, shell, title, subtitle, dirty, ribbon, status, m
 
 /**
  * The word that a release is waiting — in every window, not only the
- * launcher, because a person who works in Rutba Word all day never sees the
+ * launcher, because a person who works in Documents all day never sees the
  * launcher's chip.
  *
  * The service does the finding and the downloading; this only says so. A

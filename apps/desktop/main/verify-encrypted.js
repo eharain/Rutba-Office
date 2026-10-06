@@ -228,7 +228,7 @@ export async function verifyEncrypted(h, { dir }) {
       await js(`document.querySelector('.pw-open-ok').click()`);
       const shown = await until(() => js(shownJs), `the ${app} content`, 20000).catch(() => false);
       const meta = doc.sessions().filter((s) => s.path === target).pop();
-      check(`encrypted: ${app === 'sheets' ? 'Worksheets' : 'Presentation'} asks for the password in its window and opens the file with it`, asked === true && shown === true && Boolean(meta), JSON.stringify({ asked, shown }));
+      check(`encrypted: ${app === 'sheets' ? 'Worksheets' : 'Presentations'} asks for the password in its window and opens the file with it`, asked === true && shown === true && Boolean(meta), JSON.stringify({ asked, shown }));
       if (app === 'sheets') {
         // Info's Protect Workbook menu, as Excel lists it.
         await js(`document.querySelector('.rw-appmark').click()`);

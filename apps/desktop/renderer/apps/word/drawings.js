@@ -571,7 +571,7 @@ const KIND_ICONS = { picture: 'picture', textbox: 'textbox', shape: 'shape', gro
 
 /**
  * Layout → Selection Pane: every drawing, the one on top first — Word's
- * pane, in the suite's look (the Presentation's Layers pane): a click
+ * pane, in the suite's look (Presentations' Layers pane): a click
  * selects (Shift or Ctrl adds one), the eye hides or shows it, a
  * double-click renames it, the arrows change the order, and Show All /
  * Hide All do what they say. A group's members are listed under it.

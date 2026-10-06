@@ -1,5 +1,5 @@
-// Review's panes and dialogs, shared by Rutba Word, Worksheets and
-// Presentation: the Accessibility pane (Office's "Inspection Results"), the
+// Review's panes and dialogs, shared by Documents, Worksheets and
+// Presentations: the Accessibility pane (Office's "Inspection Results"), the
 // Editor pane the spelling pass runs in, the status-bar verdict, and the Alt
 // Text, Dictionary and one-line prompt dialogs.
 //
@@ -224,7 +224,7 @@ export function EditorPane({ state, options, onChange, onChangeAll, onIgnoreOnce
               <Button label="Ignore All" title="Ignore All — this word, everywhere in this document" disabled={busy} onClick={onIgnoreAll} />
             </div>
             <div className="pf-buttons">
-              <Button icon="plus" label="Add to Dictionary" title="Add to Dictionary — your own list, shared by Word, Worksheets and Presentation" disabled={busy} onClick={onAdd} />
+              <Button icon="plus" label="Add to Dictionary" title="Add to Dictionary — your own list, shared by Documents, Worksheets and Presentations" disabled={busy} onClick={onAdd} />
             </div>
           </>
         ) : null}
@@ -338,7 +338,7 @@ export function DictionaryDialog({ words = [], onSave, onImport, onExport, onClo
         </>
       )}
     >
-      <p className="pf-dict-lead">Words you have added are never marked as misspelt — in Word, Worksheets and Presentation alike.</p>
+      <p className="pf-dict-lead">Words you have added are never marked as misspelt — in Documents, Worksheets and Presentations alike.</p>
       <div className="pf-dict-add">
         <input className="rw-input pf-dict-word" value={draft} placeholder="Add a word" spellCheck={false} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
         <Button label="Add" title="Add — put the word in the dictionary" disabled={!draft.trim() || /\s/.test(draft.trim())} onClick={add} />

@@ -1,4 +1,4 @@
-// Rutba Presentation.
+// Presentations (Presentation until 1.29).
 //
 // The slide you are looking at is drawn by the engine as SVG and sent here as
 // one string. That sounds lazy and is the opposite: the same renderer produces
@@ -14,7 +14,7 @@ import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Fie
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
-import { SITE } from '@rutba/office-formats/registry';
+import { SITE, APPS } from '@rutba/office-formats/registry';
 import Presenter, { nextShown } from './slides/presenter.js';
 import SlidesRibbon from './slides/ribbon.js';
 import { ShowStage, TransitionPreview, AnimationPreview } from './slides/show.js';
@@ -1427,7 +1427,7 @@ export default function Slides({ app, shell, boot }) {
   // instead of the reason — for a truncated deck, twenty seconds of nothing.
   if (error) {
     return (
-      <AppFrame app={app} shell={shell} title="Presentation" menu={appMenu}>
+      <AppFrame app={app} shell={shell} title={APPS.slides.short} menu={appMenu}>
         <Empty icon={lockedOut ? 'lock' : 'slides'} title={lockedOut ? 'This presentation is password-protected' : 'This file could not be opened'} action={lockedOut ? <LockedAction /> : null}>{error}</Empty>
       </AppFrame>
     );
@@ -1470,7 +1470,7 @@ export default function Slides({ app, shell, boot }) {
     <AppFrame
       app={app}
       shell={shell}
-      title={doc?.name || 'Presentation'}
+      title={doc?.name || APPS.slides.short}
       subtitle={doc?.converted ? `from ${doc.converted.from.toUpperCase()}` : null}
       dirty={doc?.dirty}
       menu={appMenu}

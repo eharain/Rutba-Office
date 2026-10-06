@@ -39,6 +39,7 @@ import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, readPag
 import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
 
 import { sniff, refineOoxml, kindFromExtension } from '@rutba/office-formats/sniff';
+import { APPS } from '@rutba/office-formats/registry';
 import { readOdf } from '@rutba/office-formats/odf';
 import { writeOdt, writeOds, writeOdp } from '@rutba/office-formats/odf-write';
 import { readRtf, writeRtf } from '@rutba/office-formats/rtf';
@@ -56,7 +57,7 @@ const KIND_FOR_APP = { word: 'doc', sheets: 'sheet', slides: 'deck' };
 
 /** What each kind is called, and the app that opens it, for a window given the wrong one. */
 const KIND_LABEL = { doc: 'a document', sheet: 'a workbook', deck: 'a presentation' };
-const KIND_APP = { doc: 'Rutba Word', sheet: 'Worksheets', deck: 'Presentation' };
+const KIND_APP = { doc: APPS.word.short, sheet: APPS.sheets.short, deck: APPS.slides.short };
 
 /**
  * The formats each kind can be written out as, besides its own.
@@ -1749,7 +1750,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     removeTableRow: (d, a) => d.removeTableRow(a.slide, a.shape, a.at),
     insertTableColumn: (d, a) => d.insertTableColumn(a.slide, a.shape, a.at),
     removeTableColumn: (d, a) => d.removeTableColumn(a.slide, a.shape, a.at),
-    // Insert → Chart: a chart part written with the writer Word and Worksheets
+    // Insert → Chart: a chart part written with the writer Documents and Worksheets
     // already use, framed the way PowerPoint frames one.
     addChart: (d, a) => d.addChart(a.slide, a),
     // The chart data dialog's Apply: the part rewritten from new values; the frame is untouched.

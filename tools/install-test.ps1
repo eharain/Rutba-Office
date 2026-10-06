@@ -2,13 +2,13 @@
 # published: one copy registered, one icon per file type, the app tiles
 # unpacked beside the archive, and the installed copy — not the unpacked
 # build, which sits inside the repository and finds packages there that the
-# installer never packed — opening a Rutba Word window from --app=word.
+# installer never packed — opening a Documents window from --app=word.
 #
 #   powershell -NoProfile -ExecutionPolicy Bypass -File tools\install-test.ps1 `
 #     -Installer apps\desktop\release\Rutba-Office-1.8.0-win-x64.exe -Label 1.8.0
 #
 # Exit codes: 0 proven; 1 no installed exe; 2 a copy is running, nothing was
-# installed over it; 3 the installed copy did not open a Rutba Word window, and what
+# installed over it; 3 the installed copy did not open a Documents window, and what
 # it showed instead is printed — an "Error" box's text included, read through
 # UI Automation, because that box is the one thing a person sees when the
 # archive is missing a package.
@@ -49,7 +49,9 @@ foreach ($ext in @('.docx', '.xlsx', '.pptx', '.jpg', '.mp4', '.eml', '.pdf', '.
 $tiles = Join-Path (Split-Path $exe) 'resources\app.asar.unpacked\resources\apps'
 if (Test-Path $tiles) { "[$Label] tiles: {0}" -f ((Get-ChildItem $tiles -Filter *.ico | ForEach-Object { $_.Name }) -join ' ') } else { "[$Label] tiles MISSING at $tiles" }
 
-# --app=word opens a Rutba Word window, in a profile of its own, off the desktop.
+# --app=word opens a Documents window, in a profile of its own, off the desktop.
+# Its title names the app — "Rutba Documents" since 1.29.0, "Rutba Word" before
+# it — and either is accepted, so an older installer can still be put to this.
 Add-Type -AssemblyName UIAutomationClient
 Add-Type -AssemblyName UIAutomationTypes
 $dataDir = Join-Path $env:TEMP ('rutba-apptest-' + [guid]::NewGuid().ToString('N').Substring(0, 6))
@@ -59,10 +61,10 @@ $titles = @()
 for ($i = 0; $i -lt 20; $i++) {
   Start-Sleep -Seconds 1
   $titles = @(Get-Process -Name 'Rutba Office' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle } | ForEach-Object { $_.MainWindowTitle })
-  if ($titles -match 'Word' -or $titles -contains 'Error') { break }
+  if ($titles -match 'Rutba (Documents|Word)' -or $titles -contains 'Error') { break }
 }
 "[$Label] windows after --app=word: {0}" -f ($titles -join ' | ')
-$opened = [bool]($titles -match 'Word')
+$opened = [bool]($titles -match 'Rutba (Documents|Word)')
 if (-not $opened) {
   # What it showed instead: the text of every top-level window this process owns.
   Get-Process -Name 'Rutba Office' -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowHandle -ne 0 } | ForEach-Object {
@@ -82,6 +84,6 @@ function Tree($id) { $out = @($id); foreach ($c in (Get-CimInstance Win32_Proces
 foreach ($id in (Tree $proc.Id)) { Stop-Process -Id $id -Force -ErrorAction SilentlyContinue }
 Start-Sleep -Seconds 2
 Remove-Item $dataDir -Recurse -Force -ErrorAction SilentlyContinue
-if (-not $opened) { "[$Label] FAILED: the installed copy did not open a Rutba Word window."; exit 3 }
+if (-not $opened) { "[$Label] FAILED: the installed copy did not open a Documents window."; exit 3 }
 if ($missingIcons -gt 0) { "[$Label] FAILED: $missingIcons file types have no icon."; exit 3 }
-"[$Label] proven: installed, registered with icons, tiles unpacked, and a Rutba Word window opened."
+"[$Label] proven: installed, registered with icons, tiles unpacked, and a Documents window opened."

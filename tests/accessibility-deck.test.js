@@ -1,4 +1,4 @@
-// Review → Check Accessibility in Presentation: a picture with no
+// Review → Check Accessibility in Presentations: a picture with no
 // description (written on `p:cNvPr descr`), a slide with no title, two with
 // the same one, objects layered out of reading order, pale text on a shape's
 // fill, and a table whose first row is not a header.

@@ -12,9 +12,9 @@ with the network switched off.
 | **Mail** | Every account, every archive, one inbox | An address and a password — the servers are found from the domain's own records — with sign-in to Gmail, Outlook.com and Microsoft 365, or a file of accounts set up at once; plus the archives other clients leave behind — Outlook `.pst` and `.ost`, `.olm`, mbox, `.eml`, `.msg`. Names the trackers in a message, and offers the way off the list |
 | **Calendar** | Meetings, kept on your own machine | Month, week, day and agenda; `.ics` in and out, repeats and time zones included; an invitation in a message answered from Mail, with a reply the organizer's calendar understands |
 | **Contacts** | The address book Mail completes from | `.vcf` and CSV in, vCards out; a sender kept from the reading pane in one click |
-| **Rutba Word** | Documents that open the same everywhere, laid out on pages | `.docx` on an engine we own, reading `.odt`, `.rtf`, `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
+| **Documents** | Documents that open the same everywhere, laid out on pages | `.docx` on an engine we own, reading `.odt`, `.rtf`, `.doc` and text — and a GitHub-flavoured Markdown editor that gives a README back unchanged |
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.ods` and `.csv` |
-| **Presentation** | Slides that survive the round trip, shapes you move and recolour by hand | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen |
+| **Presentations** | Slides that survive the round trip, shapes you move and recolour by hand | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen |
 
 | **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn |
 | **Image** | Crop, correct, annotate, export | Non-destructive: your original is never touched |
@@ -80,7 +80,7 @@ Once Rutba Office is the default, each kind of file wears the icon of the
 app that opens it — a document, a workbook, a deck, a picture, a video, a
 message and a PDF each look like what they are in Explorer — and on
 Windows each app's windows carry that app's tile and sit under their own
-taskbar icon, so Rutba Word and Worksheets can be pinned and opened on their own.
+taskbar icon, so Documents and Worksheets can be pinned and opened on their own.
 
 
 ### What the website links to

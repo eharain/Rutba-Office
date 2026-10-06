@@ -134,7 +134,7 @@ module.exports = async () => {
       icon: path.resolve(__dirname, 'resources/icon.png'),
       synopsis: 'Free office suite: mail, documents, worksheets, presentations and media',
       description:
-        'Rutba Office is a free, open-source desktop suite: Mail, Word, Worksheets, Presentation, ' +
+        'Rutba Office is a free, open-source desktop suite: Mail, Calendar, Contacts, Documents, Worksheets, Presentations, ' +
         'Pictures, Image and Video. It opens Microsoft and OpenDocument files, and reads the mail ' +
         'archives other clients leave behind — including Outlook .pst and .ost. It works with no ' +
         'network connection.',
@@ -142,7 +142,7 @@ module.exports = async () => {
       desktop: {
         entry: {
           StartupWMClass: 'rutba-office',
-          Keywords: 'office;word;spreadsheet;presentation;mail;email;pst;image;video;',
+          Keywords: 'office;documents;word;spreadsheet;presentation;mail;email;calendar;contacts;pst;image;video;',
         },
       },
     },

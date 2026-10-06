@@ -73,6 +73,7 @@ createShell({
   // the archive, and the path says so.
   appIcons: Object.fromEntries(Object.keys(APPS).map((key) => [key, path.join(app, 'resources', 'apps', `${key}.ico`).replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`)])),
   appNames: Object.fromEntries(Object.entries(APPS).map(([key, a]) => [key, a.name])),
+  appShortNames: Object.fromEntries(Object.entries(APPS).map(([key, a]) => [key, a.short])),
 
   /**
    * Which window a double-clicked file opens. The extension decides, because

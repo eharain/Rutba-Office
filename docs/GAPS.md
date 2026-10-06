@@ -35,7 +35,7 @@ a suite.
 
 ---
 
-## 1. Rutba Word — the document
+## 1. Documents — the document
 
 Reads more than it writes. What it draws faithfully and cannot yet produce:
 
@@ -143,7 +143,7 @@ it is where the gaps are.
   window's own palette, as tables from files already were.
 - **Themes**: since 2026-09-26 Page Layout → Themes, Colours, Fonts and
   Effects write the workbook's theme as Excel does, from the same eleven
-  themes Presentation offers, and cells, tables, charts and shapes follow
+  themes Presentations offers, and cells, tables, charts and shapes follow
   it. A chart keeps the suite's colours while the workbook is on an Office
   theme.
 - **Frozen panes** are read, written, chosen from the View tab and, since
@@ -194,7 +194,7 @@ it is where the gaps are.
   deliberately never run — a workbook that runs code it arrived with is how
   ransomware starts. VBA in a file is preserved untouched.
 
-## 3. Presentation — the deck
+## 3. Presentations — the deck
 
 The largest register of the three: the deck writer is younger than the
 document and workbook writers.

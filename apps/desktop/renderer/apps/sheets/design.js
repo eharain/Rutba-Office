@@ -1,6 +1,6 @@
 // Worksheets: Page Layout → Themes, Colours, Fonts and Effects.
 //
-// The same galleries Presentation's Design tab has, over the same eleven
+// The same galleries Presentations' Design tab has, over the same eleven
 // themes of the suite's own, each choice drawn as a little sheet in it — a
 // table with its header in the first accent, banded rows, a chart in the
 // accents, "Aa" in the heading face — so a theme is picked by looking at a

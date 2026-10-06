@@ -36,11 +36,17 @@ export const APPS = {
     accent: '#3b7de0',
     icon: 'mail',
   },
+  // The names are plurals, like Worksheets, Contacts and Pictures: the place
+  // where everything of a kind lives. Mail and Calendar stay singular, each
+  // the one place for all of its kind. This was Rutba Word, and Presentation,
+  // until 1.29.0. The keys stay as they were — `word`, `slides` — because the
+  // taskbar identities, the file associations and people's pins are keyed by
+  // them, and a rename must not undo any of that.
   word: {
     key: 'word',
-    name: 'Rutba Word',
-    // The short name carries the brand too: "Word" alone is Microsoft's.
-    short: 'Rutba Word',
+    name: 'Rutba Documents',
+    short: 'Documents',
+    noun: 'document',
     tagline: 'Documents that open the same everywhere',
     accent: '#2b5fd9',
     icon: 'word',
@@ -49,14 +55,16 @@ export const APPS = {
     key: 'sheets',
     name: 'Rutba Worksheets',
     short: 'Worksheets',
+    noun: 'workbook',
     tagline: 'Real formulas, real recalculation',
     accent: '#0f9d58',
     icon: 'sheets',
   },
   slides: {
     key: 'slides',
-    name: 'Rutba Presentation',
-    short: 'Presentation',
+    name: 'Rutba Presentations',
+    short: 'Presentations',
+    noun: 'presentation',
     tagline: 'Slides that survive the round trip',
     accent: '#d9534f',
     icon: 'slides',

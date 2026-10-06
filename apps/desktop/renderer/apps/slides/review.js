@@ -1,4 +1,4 @@
-// Presentation's side of Review → Check Accessibility and Spelling: a
+// Presentations' side of Review → Check Accessibility and Spelling: a
 // finding or a misspelt word is a shape on a slide (or the slide's notes);
 // going to it turns to the slide and selects the shape. The reading-order
 // fix opens the Layers pane beside the findings, as PowerPoint opens its

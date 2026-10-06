@@ -1,4 +1,4 @@
-// Rutba Word's side of Review → Check Accessibility and Spelling: where a
+// Documents' side of Review → Check Accessibility and Spelling: where a
 // finding or a misspelt word is on the page, the fixes that are ordinary
 // edits (a style, a colour), and the right-click menu's suggestions.
 // The panes, the pass and the dialogs are renderer/review.js.

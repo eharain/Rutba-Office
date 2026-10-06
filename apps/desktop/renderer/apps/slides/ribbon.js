@@ -426,7 +426,7 @@ export default function SlidesRibbon({
             <Soon tall icon="star" label="Icons" why="Icons are an online library." />
             <Soon tall icon="shape" label="3D Models" why="3D models are an online library." />
             <Soon tall icon="shape" label="SmartArt" why="SmartArt is a diagram part the engine does not write." />
-            <Button tall icon="chart" label="Chart" title="Chart — a sample chart, drawn from the writer Word and Worksheets already use; double-click it to edit its data" onClick={(e) => menu.open(e, CHART_TYPES.map(([type, label]) => ({ label, icon: 'chart', run: () => act('addChart', { type }) })))} />
+            <Button tall icon="chart" label="Chart" title="Chart — a sample chart, drawn from the writer Documents and Worksheets already use; double-click it to edit its data" onClick={(e) => menu.open(e, CHART_TYPES.map(([type, label]) => ({ label, icon: 'chart', run: () => act('addChart', { type }) })))} />
           </Group>
           <Group label="Forms">
             <Soon tall icon="check" label="Forms" why="Forms is a Microsoft cloud service." />

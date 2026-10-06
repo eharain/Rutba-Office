@@ -49,9 +49,9 @@ test('a file that is not the kind this window edits is refused, by name', () => 
   const asPptx = write('xlsx-named.pptx', buildXlsx({ sheets: [{ name: 'S', rows: [[1, 2]] }] }));
   const asDocx = write('deck-named.docx', buildPptx({ title: 'D', slides: [{ layout: 'title', title: 'T' }] }));
 
-  assert.match(refusal(() => doc.open({ path: asXlsx, kind: 'sheet' })), /is a document, not a workbook\. Open it in Rutba Word./);
+  assert.match(refusal(() => doc.open({ path: asXlsx, kind: 'sheet' })), /is a document, not a workbook\. Open it in Documents\./);
   assert.match(refusal(() => doc.open({ path: asPptx, kind: 'deck' })), /is a workbook, not a presentation\. Open it in Worksheets\./);
-  assert.match(refusal(() => doc.open({ path: asDocx, kind: 'doc' })), /is a presentation, not a document\. Open it in Presentation\./);
+  assert.match(refusal(() => doc.open({ path: asDocx, kind: 'doc' })), /is a presentation, not a document\. Open it in Presentations\./);
 
   // The right window still opens it, and a window that names no kind is not
   // second-guessed.
@@ -76,10 +76,10 @@ test('a password-protected file asks for its password, whatever its extension', 
   assert.equal(opened.encrypted, true);
   doc.close({ id: opened.id });
   // Under a .pptx name it still asks, and once open it is what it is: a
-  // document, refused by the Presentation window with the sentence naming Word.
+  // document, refused by the Presentations window with the sentence naming Documents.
   const asPptx = write('encrypted-named.pptx', fs.readFileSync(encrypted));
   assert.equal(doc.open({ path: asPptx, kind: 'deck' }).locked, true);
-  assert.match(refusal(() => doc.open({ path: asPptx, kind: 'deck', password: '123' })), /is a document, not a presentation\. Open it in Rutba Word/);
+  assert.match(refusal(() => doc.open({ path: asPptx, kind: 'deck', password: '123' })), /is a document, not a presentation\. Open it in Documents\./);
 });
 
 test('the disk failing is a sentence, not an error code', () => {

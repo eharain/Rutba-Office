@@ -1,4 +1,4 @@
-// Rutba Word.
+// Documents (Rutba Word until 1.29).
 //
 // The page is a view of a model that lives in the backend, and every keystroke
 // becomes a named operation on it. The surface is contenteditable — that is the
@@ -16,7 +16,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { flushSync } from 'react-dom';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, formatWhen } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
-import { SITE } from '@rutba/office-formats/registry';
+import { SITE, APPS } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
 import { NavigationPane, installWordStyles } from './word/panes.js';
 import { Ruler, TableGrips, installRulerStyles } from './word/ruler.js';
@@ -1839,7 +1839,7 @@ export default function Word({ app, shell, boot }) {
 
   if (error) {
     return (
-      <AppFrame app={app} shell={shell} title="Rutba Word" menu={appMenu}>
+      <AppFrame app={app} shell={shell} title={APPS.word.short} menu={appMenu}>
         <Empty icon={lockedOut ? 'lock' : 'word'} title={lockedOut ? 'This document is password-protected' : 'This file could not be opened'} action={lockedOut ? <LockedAction /> : null}>{error}</Empty>
       </AppFrame>
     );
@@ -1849,7 +1849,7 @@ export default function Word({ app, shell, boot }) {
     <AppFrame
       app={app}
       shell={shell}
-      title={doc?.name || 'Rutba Word'}
+      title={doc?.name || APPS.word.short}
       subtitle={doc?.converted ? `from ${doc.converted.from.toUpperCase()}` : null}
       dirty={doc?.dirty}
       menu={appMenu}

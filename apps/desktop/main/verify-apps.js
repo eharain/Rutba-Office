@@ -800,7 +800,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  /* ── Rutba Word: a picture floats and the words wrap round it ─────────── */
+  /* ── Documents: a picture floats and the words wrap round it ─────────── */
   //
   // Pictures sat in a paragraph of their own whatever the file said. A
   // picture in a wp:anchor now floats where the file puts it and the words
@@ -2759,7 +2759,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  /* ── Rutba Word: picture handles ──────────────────────────────────────── */
+  /* ── Documents: picture handles ──────────────────────────────────────── */
   //
   // Click a picture and it wears Word's eight handles; drag a corner and the
   // picture grows, keeping its proportions, and the engine writes the size.
@@ -2801,7 +2801,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  /* ── Rutba Word: a picture at the foot of a page ──────────────────────── */
+  /* ── Documents: a picture at the foot of a page ──────────────────────── */
   //
   // A picture whose paragraph sits near a page's foot goes whole to the
   // next page, and one taller than a page is drawn to fit it: neither is
@@ -2898,7 +2898,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  /* ── Rutba Word: a paragraph of pictures splits between its lines ─────── */
+  /* ── Documents: a paragraph of pictures splits between its lines ─────── */
   //
   // Six scans of a card in one paragraph, two to a line: the paragraph is
   // taller than a page, so the pass must split it between two picture lines
@@ -2940,7 +2940,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  /* ── Rutba Word: the ruler and the grips on a table ───────────────────── */
+  /* ── Documents: the ruler and the grips on a table ───────────────────── */
   //
   // The ruler's markers and the grips on a table's borders are dragged with
   // real pointer events; what they wrote is read from the engine, from the
@@ -3567,6 +3567,38 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── What the apps are called ─────────────────────────────────────────── */
+  //
+  // Rutba Word became Documents and Presentation became Presentations in
+  // 1.29.0. The names come from one registry; this reads them where a person
+  // meets them — a window's title, the launcher's cards and its New button,
+  // the Apps menu — so a name written out anywhere else shows up here.
+  const appNames = async () => {
+    try {
+      const { Menu } = await import('electron');
+      const word = await open('word', null);
+      const deck = await open('slides', null);
+      await until(() => /Rutba Documents/.test(word.getTitle()) && /Rutba Presentations/.test(deck.getTitle()), 'the window titles', 8000).catch(() => {});
+      const titles = { word: word.getTitle(), deck: deck.getTitle() };
+      check('names: the windows are titled Rutba Documents and Rutba Presentations', /Rutba Documents/.test(titles.word) && /Rutba Presentations/.test(titles.deck) && !/Rutba Word/.test(titles.word), JSON.stringify(titles));
+
+      const home = await open('home');
+      const js = (code) => home.webContents.executeJavaScript(code);
+      await until(() => js(`document.querySelectorAll('.home-card').length >= 3`), 'the launcher cards', 8000).catch(() => {});
+      const cards = await js(`(() => {
+        const of = (k) => document.querySelector('.home-card[data-app="' + k + '"]');
+        return { word: of('word')?.querySelector('strong')?.textContent, slides: of('slides')?.querySelector('strong')?.textContent, newWord: of('word')?.querySelector('.home-card-new')?.title || null };
+      })()`);
+      check('names: the launcher offers Documents and Presentations, and a New document', cards.word === 'Documents' && cards.slides === 'Presentations' && (cards.newWord === null || cards.newWord === 'New document'), JSON.stringify(cards));
+
+      const apps = Menu.getApplicationMenu()?.items.find((i) => /Apps/.test(i.label));
+      const labels = (apps?.submenu?.items || []).map((i) => i.label).filter(Boolean);
+      check('names: the Apps menu lists Documents and Presentations', labels.includes('Documents') && labels.includes('Presentations') && !labels.includes('Rutba Word'), JSON.stringify(labels));
+    } catch (err) {
+      check('names: the name checks ran', false, err.message);
+    }
+  };
+
   /* ── A file dragged onto a window ─────────────────────────────────────── */
   //
   // Electron 32 took `File.path` away, and every drop arrived with no path:
@@ -3591,7 +3623,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       }
       const same = (p) => path.resolve(p || '').toLowerCase() === path.resolve(dropped).toLowerCase();
       const openedOn = await until(() => doc.sessions().some((s) => s.kind === 'doc' && same(s.path)), 'the dropped document to open', 8000).catch(() => false);
-      check('launcher: a document dragged onto the window opens in Rutba Word', openedOn === true, `sessions ${JSON.stringify(doc.sessions().map((s) => path.basename(s.path || '(new)')))}`);
+      check('launcher: a document dragged onto the window opens in Documents', openedOn === true, `sessions ${JSON.stringify(doc.sessions().map((s) => path.basename(s.path || '(new)')))}`);
     } catch (err) {
       check('launcher: the drop check ran', false, err.message);
     }
@@ -3699,7 +3731,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   // them; a press on a pinned cell selects it.
   /* ── Zoom scales the page, not the window ─────────────────────────────── */
   //
-  // The slider in Rutba Word and Worksheets used to zoom the whole window
+  // The slider in Documents and Worksheets used to zoom the whole window
   // — the ribbon, the status bar and the slider itself grew under the
   // pointer, which made it unusable (owner, 2026-09-24). Now the page (or
   // the grid) alone is scaled with CSS zoom: the ribbon keeps its height,
@@ -4516,6 +4548,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('update')) await updatePrompt();
     if (only.includes('home')) await launcherRecent();
     if (only.includes('drop')) await launcherDrop();
+    if (only.includes('names')) await appNames();
     if (only.includes('recent')) await homeRecentEdit();
     if (only.includes('freeze')) await sheetFreeze();
     if (only.includes('errors')) await sheetErrors();
@@ -4558,7 +4591,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
   /* ── A broken file gets a sentence, not a blank window ───────────────── */
   //
-  // A truncated deck made the Presentation window throw "rendered fewer
+  // A truncated deck made the Presentations window throw "rendered fewer
   // hooks than expected" and show nothing for as long as the person waited:
   // the error return sat above a hook. Each document app opens a file of
   // junk here and must show "This file could not be opened" with the reason,
@@ -4686,6 +4719,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await updatePrompt();
   await launcherRecent();
   await launcherDrop();
+  await appNames();
   await homeRecentEdit();
   await sheetFreeze();
   await sheetErrors();
