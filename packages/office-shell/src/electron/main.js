@@ -90,9 +90,16 @@ function buildMenu({ send, appName }) {
         { type: 'separator' },
         { label: 'Toggle Theme', accelerator: 'CmdOrCtrl+Shift+D', click: cmd('view.toggleTheme') },
         { label: 'Full Screen', accelerator: isMac ? 'Ctrl+Cmd+F' : 'F11', click: cmd('view.fullscreen') },
-        { type: 'separator' },
-        { label: 'Reload', accelerator: 'CmdOrCtrl+R', role: 'reload' },
-        { label: 'Developer Tools', accelerator: isMac ? 'Alt+Cmd+I' : 'Ctrl+Shift+I', role: 'toggleDevTools' },
+        // For working on the suite, not in it. Reload sat on Ctrl+R, which a
+        // Word user presses for Align Right: the window reloaded the file
+        // from disk and said nothing about the edits left behind. An
+        // installed copy has neither; a copy run from source keeps both,
+        // with Reload where nothing else wants it.
+        ...(app.isPackaged ? [] : [
+          { type: 'separator' },
+          { label: 'Reload', accelerator: 'CmdOrCtrl+Shift+R', role: 'reload' },
+          { label: 'Developer Tools', accelerator: isMac ? 'Alt+Cmd+I' : 'Ctrl+Shift+I', role: 'toggleDevTools' },
+        ]),
       ],
     },
     {
