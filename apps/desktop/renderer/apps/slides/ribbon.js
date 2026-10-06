@@ -477,7 +477,7 @@ export default function SlidesRibbon({
             <Button tall icon="wand" label="WordArt" title="WordArt — big words in a style of their own: a fill, an outline round the letters, a shadow or a glow" onClick={(e) => menu.open(e, wordArtMenu((style) => act('wordArt', style)))} />
             <Button icon="clock" label="Date & Time" title="Date & Time — a date along the bottom, kept current or fixed" onClick={() => act('footer', 'date')} />
             <Button icon="list" label="Slide Number" title="Slide Number — the slide's number along the bottom, following it when slides move" onClick={() => act('footer', 'number')} />
-            <Soon icon="file" label="Object" why="Embedded objects are not built." />
+            <Button icon="file" label="Object" title="Object — a Word, Excel or PowerPoint document embedded on the slide as an icon; a double-click opens it" onClick={() => act('insertObject')} />
           </Group>
           <Group label="Symbols">
             <Button tall icon="formula" label="Equation" title="Equation — Office Math on this slide, typed in Word's linear format with a live preview; double-click one to edit it" onClick={() => act('equation')} />

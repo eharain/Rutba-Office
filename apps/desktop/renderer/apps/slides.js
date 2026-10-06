@@ -38,6 +38,7 @@ import { soundWav, soundFile } from './slides/sounds.js';
 import { NarrationRecorder, RecordingBar, RecordAudioDialog, RECORD_CSS } from './slides/record.js';
 import { ExportVideoDialog, EXPORT_VIDEO_CSS } from './slides/export-video.js';
 import { ZoomDialog, ZOOM_CSS, zoomKind, slidePicture } from './slides/zoom.js';
+import { ObjectDialog, OBJECT_CSS, objectIcon, typeOfExt, appOfProgId } from '../object-insert.js';
 import { isNarration } from '@rutba/presentation/narration';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise, replayInk } from './slides/ink.js';
 import { ScreenshotDialog } from '../screenshot.js';
@@ -127,6 +128,7 @@ export default function Slides({ app, shell, boot }) {
   const [videoOpen, setVideoOpen] = useState(false);
   // Insert → Zoom: which box is open; in the show, the zoom to come back to and after which slide.
   const [zoomOpen, setZoomOpen] = useState(null);
+  const [objectOpen, setObjectOpen] = useState(false);
   const zoomReturn = useRef(null);
   // The show's transition sound now playing — stopped by the next one, by Stop Previous Sound, or by the show ending.
   const showSound = useRef(null);
@@ -1535,6 +1537,28 @@ export default function Slides({ app, shell, boot }) {
       case 'recordAudio': setRecordAudioOpen(true); return;
       case 'exportVideo': setVideoOpen(true); return;
       case 'insertZoom': setZoomOpen(arg); return;
+      case 'insertObject': setObjectOpen(true); return;
+      // Insert → Object, OK: the document (or a blank one) embedded as its icon, in the middle of the slide.
+      case 'placeObject': {
+        const type = typeOfExt(arg.ext);
+        if (!type) { toast('Only Word, Excel and PowerPoint documents embed.', { ms: 3000 }); return; }
+        const data = arg.file ? (await shell.fs.read({ path: arg.file })).bytes : null;
+        const icon = await objectIcon(type, arg.name);
+        const W = model?.size?.width || 1280;
+        const H = model?.size?.height || 720;
+        const next = await apply({ op: 'addObject', slide: index, ext: type.ext, name: arg.name, data, icon, x: Math.round((W - 128) / 2), y: Math.round((H - 120) / 2), w: 128, h: 120 });
+        const added = next?.model?.slide?.shapes?.slice(-1)[0];
+        if (added) setSelected(added.id);
+        return;
+      }
+      // An embedded document, double-clicked: a copy of it opened in its own app.
+      case 'openObject': {
+        const app = appOfProgId(arg.object?.progId);
+        if (!app || !arg.object?.part) { toast('This object is kept in the deck, but nothing here opens it.', { ms: 3000 }); return; }
+        const out = await shell.doc.objectFile({ id: doc.id, part: arg.object.part });
+        await shell.win.create({ app, file: out.path });
+        return;
+      }
       // The zooms picked: a picture of each target, linked to it, in a grid — on this slide, or on a new Summary slide before the first.
       case 'placeZoom': {
         const { kind, targets: picked } = arg;
@@ -2398,6 +2422,7 @@ export default function Slides({ app, shell, boot }) {
                         }}
                         onDoubleClick={() => {
                           if (s.kind === 'chart') { setSelected(s.id); setChartDataOpen(s.id); return; }
+                          if (s.object) { setSelected(s.id); act('openObject', s); return; }
                           // An equation opens in the equation editor, in its linear form.
                           const eq = (s.text?.paragraphs || []).flatMap((p) => p.runs || []).find((r) => r.math);
                           if (eq && !masterPart) { setSelected(s.id); setEquationOpen({ shape: s.id, initial: eq.math.linear || '', display: eq.math.display !== false }); return; }
@@ -2729,6 +2754,12 @@ export default function Slides({ app, shell, boot }) {
         />
       ) : null}
 
+      {objectOpen ? (
+        <>
+          <style>{OBJECT_CSS}</style>
+          <ObjectDialog shell={shell} onClose={() => setObjectOpen(false)} onInsert={(spec) => { setObjectOpen(false); act('placeObject', spec); }} />
+        </>
+      ) : null}
       {zoomOpen ? (
         <>
           <style>{ZOOM_CSS}</style>
