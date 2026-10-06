@@ -45,6 +45,7 @@ import { verifyWordRestrict } from './verify-word-restrict.js';
 import { verifyWordComments } from './verify-word-comments.js';
 import { verifyDeckShow } from './verify-deck-show.js';
 import { verifyDeckSymbol } from './verify-deck-symbol.js';
+import { verifyWindows } from './verify-windows.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -4586,6 +4587,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordcomments')) await wordComments();
     if (only.includes('saveshow')) await verifyDeckShow({ open, check, until, wait }, { file: files.pptx });
     if (only.includes('decksymbol')) await verifyDeckSymbol({ open, check, until, wait, doc }, { dir });
+    if (only.includes('windowing')) await verifyWindows({ open, check, until, wait }, { files });
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
@@ -4758,6 +4760,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => wordComments());
   await block(() => verifyDeckShow({ open, check, until, wait }, { file: files.pptx }));
   await block(() => verifyDeckSymbol({ open, check, until, wait, doc }, { dir }));
+  await block(() => verifyWindows({ open, check, until, wait }, { files }));
   await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => wordMailMerge());

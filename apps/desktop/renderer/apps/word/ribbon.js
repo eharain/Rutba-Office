@@ -806,9 +806,9 @@ export default function WordRibbon({
           </Group>
           <Group label="Window">
             <Button tall icon="new" label="New Window" title="This document again, in another window" onClick={() => act('newWindow')} />
-            <Soon icon="grid" label="Arrange All" why="Window tiling is on the list." />
+            <Button icon="grid" label="Arrange All" title="Arrange All — every Documents window, one above another" onClick={() => act('arrange', 'stack')} />
             <Soon icon="minus" label="Split" why="A split view is on the list." />
-            <Soon icon="copy" label="Side by Side" why="Comes with window tiling." />
+            <Button icon="copy" label="Side by Side" title="View Side by Side — this document and the one before it, half the screen each" onClick={() => act('arrange', 'sideBySide')} />
           </Group>
           <Group label="Macros">
             <Soon tall icon="settings" label="Macros" why="A macro engine is not built, and VBA in a file is preserved untouched rather than run." />

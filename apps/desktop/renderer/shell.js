@@ -111,6 +111,41 @@ export async function pickOpen(shell, appKey, { multiple = false } = {}) {
   return multiple ? paths : paths[0] || null;
 }
 
+/**
+ * View → Window → Arrange All, Side by Side, Cascade: this app's windows laid
+ * out by the shell, which knows where every one of them is. Says so when
+ * there is nothing to arrange beside this one.
+ */
+export async function arrangeWindows(shell, toast, mode) {
+  const { count } = await shell.win.arrange({ mode });
+  if (count < 2) {
+    toast(mode === 'sideBySide'
+      ? 'Open a second window first — Side by Side lays two of this app\'s windows next to each other.'
+      : 'This is the only window to arrange.', { ms: 4000 });
+  }
+  return count;
+}
+
+/**
+ * View → Window → Switch Windows (or Unhide, with `hiddenOnly`): this app's
+ * windows as a menu, opened where the button was pressed. The point is taken
+ * before the list is asked for, since the press is over by the time it comes.
+ */
+export async function openWindowMenu(e, menu, shell, { hiddenOnly = false, toast = null } = {}) {
+  const at = { clientX: e.clientX, clientY: e.clientY, preventDefault() {}, stopPropagation() {} };
+  e.preventDefault?.();
+  const list = (await shell.win.list()).filter((w) => !hiddenOnly || w.hidden);
+  if (!list.length) {
+    toast?.(hiddenOnly ? 'No window of this app is hidden.' : 'There are no other windows.', { ms: 3500 });
+    return;
+  }
+  menu.open(at, list.map((w) => ({
+    label: w.name || 'Untitled',
+    icon: w.current ? 'check' : undefined,
+    run: () => (hiddenOnly ? shell.win.unhide({ id: w.id }) : shell.win.focus({ id: w.id })),
+  })));
+}
+
 export async function pickSave(shell, appKey, defaultPath) {
   return shell.dialog.save({ title: 'Save as', filters: saveFilters(appKey), defaultPath });
 }

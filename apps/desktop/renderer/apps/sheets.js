@@ -11,7 +11,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
-import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS } from './sheets/ribbon.js';
@@ -2082,6 +2082,19 @@ export default function Sheets({ app, shell, boot }) {
         patchView({ zoom: Math.max(0.3, Math.min(3, Math.round((Number(arg) || 1) * 100) / 100)) });
         return;
       }
+      // View → Window: Arrange All tiles this app's windows; Hide puts this
+      // one away with its work kept, and Unhide lists the hidden ones.
+      case 'arrangeWindows':
+        await arrangeWindows(shell, toast, arg);
+        return;
+      case 'hideWindow': {
+        const { hidden, reason } = await shell.win.hide();
+        if (!hidden && reason) toast(reason, { ms: 4500 });
+        return;
+      }
+      case 'unhideMenu':
+        await openWindowMenu(arg, menu, shell, { hiddenOnly: true, toast });
+        return;
       case 'newWindow':
         if (!doc?.path) return toast('Save the workbook first, so a second window can open the same file.', { ms: 5000 });
         shell.win.create({ app: 'sheets', file: doc.path });

@@ -42,6 +42,11 @@ export const METHODS = {
     'zoom',         // ({ delta, reset }) -> { factor }
     'state',        // () -> { maximized, fullscreen, focused, platform }
     'devtools',     // () -> void
+    'arrange',      // ({ mode }) -> { count }   this app's windows: stack, columns, tile, cascade, sideBySide
+    'list',         // () -> [{ id, name, current, hidden }]   this app's windows, for Switch Windows
+    'focus',        // ({ id }) -> boolean
+    'hide',         // () -> { hidden, reason }   refused for the last window on screen
+    'unhide',       // ({ id }) -> boolean
   ],
   fs: [
     'read',         // ({ path }) -> { bytes: Uint8Array, stat }

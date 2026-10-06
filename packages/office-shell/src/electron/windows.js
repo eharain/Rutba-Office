@@ -313,5 +313,129 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     return BrowserWindow.getAllWindows();
   }
 
-  return { create, open, findByFile, setFile, setDirty, forceClose, infoFor, all, encodePath, GEOMETRY };
+  /* ── Arranging, switching, hiding ─────────────────────────────────────
+   *
+   * View → Window in each app: Arrange All, Side by Side, Cascade, Switch
+   * Windows, Hide and Unhide work on that app's own windows, as Office's do.
+   */
+
+  /** A window of the suite's, not a presenter or a dialog hung on another. */
+  const isAppWindow = (w) => !w.isDestroyed() && meta.has(w.id) && !w.getParentWindow();
+
+  /** The windows of `win`'s app, `win` first, then the rest as they were opened. */
+  function windowsOf(win, { visible = true } = {}) {
+    const appKey = meta.get(win.id)?.app;
+    const list = BrowserWindow.getAllWindows().filter((w) => isAppWindow(w) && meta.get(w.id)?.app === appKey && (!visible || w.isVisible()));
+    list.sort((a, b) => (a === win ? -1 : b === win ? 1 : a.id - b.id));
+    return list;
+  }
+
+  /**
+   * Where windows are laid out: where this run puts its windows — off the
+   * desktop in a check run, so arranging never brings a check's windows onto
+   * somebody's screen — and otherwise the display the window is on.
+   */
+  function workAreaFor(win) {
+    if (process.env.RUTBA_WINDOW_DISPLAY === 'offscreen') {
+      // Room for a few windows above their least size (900 by 600), so a
+      // check reads a layout rather than windows held at their minimum.
+      const o = offscreenOrigin();
+      return { x: o.x, y: o.y, width: 2400, height: 1500 };
+    }
+    if (process.env.RUTBA_WINDOW_DISPLAY === 'secondary') {
+      const away = secondaryDisplay();
+      if (away) return away.workArea;
+    }
+    return screen.getDisplayMatching(win.getBounds()).workArea;
+  }
+
+  /**
+   * Lay out `win`'s app's windows over the work area.
+   * 'stack' — one above another, full width (Documents' Arrange All);
+   * 'columns' — side by side, full height (Presentations');
+   * 'tile' — a grid (Worksheets');
+   * 'cascade' — each a step down and across from the last;
+   * 'sideBySide' — this window and the one used before it, half each.
+   * @returns {{ count: number }}
+   */
+  function arrange(win, mode = 'tile') {
+    let list = windowsOf(win);
+    if (mode === 'sideBySide') list = list.slice(0, 2);
+    const area = workAreaFor(win);
+    const n = list.length;
+    const boxes = [];
+    if (mode === 'cascade') {
+      const step = 32;
+      const width = Math.round(area.width * 0.72);
+      const height = Math.round(area.height * 0.72);
+      list.forEach((_, i) => boxes.push({ x: area.x + (i * step) % Math.max(step, area.width - width), y: area.y + (i * step) % Math.max(step, area.height - height), width, height }));
+    } else {
+      const cols = mode === 'stack' ? 1 : mode === 'columns' || mode === 'sideBySide' ? n : Math.ceil(Math.sqrt(n));
+      const rows = Math.ceil(n / cols);
+      const w = Math.floor(area.width / cols);
+      const h = Math.floor(area.height / rows);
+      list.forEach((_, i) => boxes.push({ x: area.x + (i % cols) * w, y: area.y + Math.floor(i / cols) * h, width: w, height: h }));
+    }
+    list.forEach((w, i) => {
+      if (w.isFullScreen()) w.setFullScreen(false);
+      if (w.isMaximized()) w.unmaximize();
+      if (w.isMinimized()) w.restore();
+      w.setBounds(boxes[i]);
+    });
+    // The window the command came from is the one in front.
+    if (mode === 'cascade') list.slice().reverse().forEach((w) => w.moveTop());
+    else win.focus();
+    return { count: n };
+  }
+
+  /** The app's windows for Switch Windows: the name each one shows, and which is this one. */
+  function listFor(win) {
+    return windowsOf(win, { visible: false }).sort((a, b) => a.id - b.id).map((w) => ({
+      id: w.id,
+      name: meta.get(w.id)?.name || w.getTitle(),
+      current: w === win,
+      hidden: !w.isVisible(),
+    }));
+  }
+
+  function focusById(id) {
+    const w = BrowserWindow.fromId(Number(id));
+    if (!w || !isAppWindow(w)) return false;
+    if (!w.isVisible()) w.show();
+    if (w.isMinimized()) w.restore();
+    w.focus();
+    return true;
+  }
+
+  /**
+   * Hide a window — not closed, its work kept — as Worksheets' View → Hide
+   * does. The suite's last window on screen is not hidden: with nothing to
+   * Unhide from, it would be running with no way back.
+   */
+  function hideWindow(win) {
+    const others = BrowserWindow.getAllWindows().filter((w) => w !== win && isAppWindow(w) && w.isVisible());
+    if (!others.length) return { hidden: false, reason: 'This is the only window on screen, and hiding it would leave nothing to unhide it from.' };
+    win.hide();
+    others[0].focus();
+    return { hidden: true };
+  }
+
+  function unhide(id) {
+    const w = BrowserWindow.fromId(Number(id));
+    if (!w || !isAppWindow(w) || w.isVisible()) return false;
+    w.show();
+    w.focus();
+    return true;
+  }
+
+  // The last window on screen closing must not leave hidden ones running
+  // with nothing to bring them back from: they come back instead.
+  app.on('browser-window-created', (_e, created) => {
+    created.once('closed', () => {
+      const left = BrowserWindow.getAllWindows().filter((w) => isAppWindow(w));
+      if (left.length && !left.some((w) => w.isVisible())) left.forEach((w) => w.show());
+    });
+  });
+
+  return { create, open, findByFile, setFile, setDirty, forceClose, infoFor, all, encodePath, GEOMETRY, arrange, listFor, focusById, hideWindow, unhide };
 }

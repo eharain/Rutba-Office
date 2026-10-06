@@ -707,9 +707,10 @@ export default function SheetsRibbon({
               { label: 'Freeze first column', run: () => act('freeze', 'col') },
               { label: 'Choose…', run: () => openDialog('freeze') },
             ])} />
-            <Soon icon="grid" label="Arrange All" why="Window tiling is the operating system's; not built." />
+            <Button icon="grid" label="Arrange All" title="Arrange All — every Worksheets window, tiled" onClick={() => act('arrangeWindows', 'tile')} />
             <Button icon="minus" label="Split" title="Split — the window in four panes at the active cell (two in its first row or column), each scrolling on its own; press again to take it away" pressed={Boolean(model?.split)} onClick={() => act('split')} />
-            <Soon icon="eye" label="Hide" why="Hiding a window is not built." />
+            <Button icon="eye" label="Hide" title="Hide — this window put away, its work kept; Unhide brings it back" onClick={() => act('hideWindow')} />
+            <Button icon="eye" label="Unhide" title="Unhide — a hidden Worksheets window, back on screen" onClick={(e) => act('unhideMenu', e)} />
             <Button icon="maximize" label="Full Screen" onClick={() => shell.win.fullscreen({})} />
           </Group>
           <Group label="Macros">

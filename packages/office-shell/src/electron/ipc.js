@@ -129,6 +129,11 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       win.setFullScreen(p.on ?? !win.isFullScreen());
       return { fullscreen: win.isFullScreen() };
     },
+    arrange: (p, win) => (win ? windows.arrange(win, p.mode) : { count: 0 }),
+    list: (_p, win) => (win ? windows.listFor(win) : []),
+    focus: (p) => windows.focusById(p.id),
+    hide: (_p, win) => (win ? windows.hideWindow(win) : { hidden: false }),
+    unhide: (p) => windows.unhide(p.id),
     zoom: (p, win) => {
       if (!win) return { factor: 1 };
       const wc = win.webContents;

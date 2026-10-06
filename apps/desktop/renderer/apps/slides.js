@@ -11,7 +11,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
-import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
@@ -1105,6 +1105,14 @@ export default function Slides({ app, shell, boot }) {
         if (next) setIndex(Math.min(index + 1, (next.model?.count || index + 2) - 1));
         return;
       }
+      // View → Window: Arrange All puts this app's windows side by side,
+      // Cascade steps them, and Switch Windows lists them.
+      case 'arrange':
+        await arrangeWindows(shell, toast, arg);
+        return;
+      case 'switchWindows':
+        await openWindowMenu(arg, menu, shell, { toast });
+        return;
       case 'newWindow':
         if (!doc?.path) return toast('Save the presentation first, so a second window can open the same file.', { ms: 5000 });
         shell.win.create({ app: 'slides', file: doc.path });

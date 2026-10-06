@@ -862,10 +862,10 @@ export default function SlidesRibbon({
           </Group>
           <Group label="Window">
             <Button tall icon="new" label="New Window" title="This deck in a second window" onClick={() => act('newWindow')} />
-            <Soon icon="grid" label="Arrange All" why="Window tiling is the operating system's; not built." />
-            <Soon icon="grid" label="Cascade" why="Comes with window tiling." />
+            <Button icon="grid" label="Arrange All" title="Arrange All — every Presentations window, side by side" onClick={() => act('arrange', 'columns')} />
+            <Button icon="grid" label="Cascade" title="Cascade — every Presentations window, each a step down and across from the last" onClick={() => act('arrange', 'cascade')} />
             <Soon icon="minus" label="Move Split" why="The slide pane is dragged at its edge; a split command is not built." />
-            <Soon icon="list" label="Switch Windows" why="Switching windows is the operating system's; not built." />
+            <Button icon="list" label="Switch Windows" title="Switch Windows — the Presentations windows open now" onClick={(e) => act('switchWindows', e)} />
             <Button icon="maximize" label="Full Screen" onClick={() => shell.win.fullscreen({})} />
           </Group>
           <Group label="Macros">

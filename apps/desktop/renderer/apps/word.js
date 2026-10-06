@@ -15,7 +15,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, formatWhen } from '@rutba/office-ui';
-import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows } from '../shell.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
 import { NavigationPane, installWordStyles } from './word/panes.js';
@@ -1264,6 +1264,11 @@ export default function Word({ app, shell, boot }) {
           patchView({ zoom: Math.round(level * 100) / 100 });
           return;
         }
+        // View → Window: Arrange All stacks this app's windows, Side by Side
+        // puts this one beside the one used before it.
+        case 'arrange':
+          await arrangeWindows(shell, toast, arg);
+          return;
         case 'newWindow':
           if (!doc?.path) return toast('Save the document first, so a second window can open the same file.', { ms: 5000 });
           shell.win.create({ app: 'word', file: doc.path });
