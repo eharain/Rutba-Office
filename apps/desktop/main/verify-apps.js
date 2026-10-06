@@ -57,6 +57,7 @@ import { verifyDeckAction } from './verify-deck-action.js';
 import { verifyDeckAlbum } from './verify-deck-album.js';
 import { verifyScreenshot } from './verify-screenshot.js';
 import { verifyIcons } from './verify-icons.js';
+import { verifyWordImmersive } from './verify-word-immersive.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -4610,6 +4611,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('album')) await verifyDeckAlbum({ open, check, until, wait, doc }, { dir });
     if (only.includes('screenshot')) await verifyScreenshot({ open, check, until, wait, doc }, { dir });
     if (only.includes('icons')) await verifyIcons({ open, check, until, wait, doc }, { dir });
+    if (only.includes('immersive')) await verifyWordImmersive({ open, check, until, wait }, { dir });
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
@@ -4794,6 +4796,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckAlbum({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyScreenshot({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyIcons({ open, check, until, wait, doc }, { dir }));
+  await block(() => verifyWordImmersive({ open, check, until, wait }, { dir }));
   await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => wordMailMerge());

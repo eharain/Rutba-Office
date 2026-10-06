@@ -748,7 +748,7 @@ export default function Word({ app, shell, boot }) {
   /** Line numbers, measured from the drawn lines after every layout: [{ top, height, n }], page-relative. */
   const [lineNos, setLineNos] = useState(null);
   const lineNosKey = useRef('');
-  const paged = (view.mode || 'print') === 'print' && Boolean(section);
+  const paged = (view.mode || 'print') === 'print' && Boolean(section) && !view.immersive;
   // An envelope in front of the letter (Mailings → Envelopes) is the first
   // sheet, at the envelope's own size — see pages.js `geometryOf`.
   const envelopeKey = model?.envelope ? `${model.envelope.widthPx}:${model.envelope.heightPx}:${model.envelope.endsAt}:${JSON.stringify(model.envelope.margins)}` : '';
@@ -933,7 +933,10 @@ export default function Word({ app, shell, boot }) {
   const geom = useMemo(() => geomOf(section, columnBoxes), [section, columnBoxes]);
   // Layout → Hyphenation → Automatic: the rules every paragraph not left whole breaks its words by.
   const hyphKey = JSON.stringify(model?.hyphenation || null);
-  const hyph = useMemo(() => (model?.hyphenation?.auto ? hyphenationRules(model.hyphenation) : null), [hyphKey]);
+  // Immersive Reader's Syllables: every long word broken at its syllables,
+  // which the page then shows as dots, whatever the document's own hyphenation.
+  const syllables = Boolean(view.immersive?.syllables);
+  const hyph = useMemo(() => (syllables ? { auto: true, caps: true, zonePx: 0, limit: 0 } : model?.hyphenation?.auto ? hyphenationRules(model.hyphenation) : null), [hyphKey, syllables]);
   const [anchors, setAnchors] = useState({});
   const anchorsKey = useRef('');
   useLayoutEffect(() => {
@@ -1244,6 +1247,19 @@ export default function Word({ app, shell, boot }) {
           return;
         case 'toggleGridlines':
           patchView((v) => ({ gridlines: !v.gridlines }));
+          return;
+        // View → Immersive Reader: open with Word's defaults on its own tab,
+        // change one of its settings, or close it back to the View tab.
+        case 'immersive':
+          patchView({ immersive: { width: 'moderate', colour: 'none', focus: 0, spacing: true, syllables: false } });
+          setTab('immersive');
+          return;
+        case 'immersiveSet':
+          patchView((v) => ({ immersive: v.immersive ? { ...v.immersive, ...arg } : v.immersive }));
+          return;
+        case 'immersiveClose':
+          patchView({ immersive: null });
+          setTab('view');
           return;
         case 'toggleNavigation':
           patchView((v) => ({ navigation: !v.navigation }));
@@ -1947,7 +1963,7 @@ export default function Word({ app, shell, boot }) {
           <Spinner style={{ width: 22, height: 22 }} />
         </div>
       ) : (
-        <div className={`wd mode-${view.mode || 'print'}${view.focus ? ' focus' : ''}${view.navigation || view.restrict ? ' wd-side' : ''}`}>
+        <div className={`wd mode-${view.mode || 'print'}${view.focus ? ' focus' : ''}${view.navigation || view.restrict ? ' wd-side' : ''}${view.immersive ? ` immersive ir-${view.immersive.colour}${view.immersive.spacing ? ' ir-spacing' : ''}${view.immersive.syllables ? ' ir-syllables' : ''}` : ''}`}>
           <style>{CSS}</style>
           <style>{RESTRICT_CSS}</style>
           <style>{EQUATION_CSS}</style>
@@ -1956,6 +1972,7 @@ export default function Word({ app, shell, boot }) {
             <NavigationPane blocks={model.blocks} at={model.selection?.focus?.block ?? -1} onGo={(i) => act('goto', i)} onClose={() => act('toggleNavigation')} />
           ) : null}
           <div className="wd-scroll">
+            {view.immersive?.focus ? <LineFocus lines={view.immersive.focus} page={pageRef} /> : null}
             {view.ruler ? (
               <Ruler
                 section={section}
@@ -1973,7 +1990,8 @@ export default function Word({ app, shell, boot }) {
             <div
               className={`wd-page${view.drawBox ? ' drawing-box' : ''}${view.gridlines ? ' gridlines' : ''}${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}${mailings.highlight ? ' wd-mm-hl' : ''}${model.mailMerge?.preview ? ' wd-mm-preview' : ''}`}
               ref={pageRef}
-              contentEditable
+              // Immersive Reader is for reading: the words are not edited there, as in Word.
+              contentEditable={!view.immersive}
               suppressContentEditableWarning
               spellCheck={view.spell !== false}
               onMouseDown={(e) => {
@@ -2122,6 +2140,19 @@ export default function Word({ app, shell, boot }) {
                 // The bands read the margins too, to line up with the body.
                 '--wd-margin-left': `${section?.margins.left ?? 96}px`,
                 '--wd-margin-right': `${section?.margins.right ?? 96}px`,
+                // View → Immersive Reader: a column of its own width, no page
+                // edges, and room above and below for line focus to reach the
+                // first line and the last.
+                ...(view.immersive ? {
+                  width: IR_COLUMN[view.immersive.width] || IR_COLUMN.moderate,
+                  minHeight: 0,
+                  columnCount: undefined,
+                  paddingLeft: 40,
+                  paddingRight: 40,
+                  paddingTop: view.immersive.focus ? '42vh' : 40,
+                  paddingBottom: view.immersive.focus ? '42vh' : 40,
+                  background: undefined,
+                } : {}),
               }}
             >
               {/*
@@ -3010,6 +3041,54 @@ function authorColour(author) {
  * never counted as the document's characters). The printout breaks at the
  * same places: both ask `@rutba/doc-view/hyphenate`.
  */
+/** Immersive Reader's column widths, in pixels: Word's four. */
+const IR_COLUMN = { veryNarrow: 440, narrow: 560, moderate: 720, wide: 920 };
+
+/**
+ * Immersive Reader → Line Focus: the window dimmed but for a band of one,
+ * three or five lines across its middle, and the arrow keys move the words
+ * through the band a line at a time — or Page Up and Down a band at a time.
+ */
+function LineFocus({ lines, page }) {
+  const ref = useRef(null);
+  const line = useRef(28);
+  const [box, setBox] = useState(null);
+  useLayoutEffect(() => {
+    const host = ref.current?.parentElement;
+    if (!host) return undefined;
+    const measure = () => {
+      const r = host.getBoundingClientRect();
+      const p = page.current?.querySelector('.wd-block');
+      const style = p ? getComputedStyle(p) : null;
+      const lh = style ? parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5 : 28;
+      line.current = lh > 0 ? lh : 28;
+      setBox({ top: r.top, left: r.left, width: r.width - (host.offsetWidth - host.clientWidth), height: r.height });
+    };
+    measure();
+    const watch = new ResizeObserver(measure);
+    watch.observe(host);
+    if (page.current) watch.observe(page.current);
+    const onKey = (e) => {
+      const step = { ArrowDown: 1, ArrowUp: -1, PageDown: lines, PageUp: -lines }[e.key];
+      if (!step) return;
+      e.preventDefault();
+      host.scrollBy({ top: step * line.current });
+    };
+    window.addEventListener('keydown', onKey);
+    return () => { watch.disconnect(); window.removeEventListener('keydown', onKey); };
+  }, [lines, page]);
+  if (!box) return <div ref={ref} hidden />;
+  const band = line.current * lines;
+  const top = box.top + box.height / 2 - band / 2;
+  return (
+    <div ref={ref} className="wd-linefocus" aria-hidden="true">
+      <div style={{ left: box.left, width: box.width, top: box.top, height: Math.max(0, top - box.top) }} />
+      <div className="wd-linefocus-band" style={{ left: box.left, width: box.width, top, height: band }} />
+      <div style={{ left: box.left, width: box.width, top: top + band, height: Math.max(0, box.top + box.height - top - band) }} />
+    </div>
+  );
+}
+
 function withBreaks(text, hyph) {
   if (!hyph || !text) return withTabs(text);
   const out = [];
@@ -3462,6 +3541,21 @@ const CSS = `
 }
 /* In print layout the flow is transparent and the sheets are drawn behind it, one per page. */
 .wd-page.paged { background: transparent; box-shadow: none; }
+/* View → Immersive Reader: the words in a column of their own on a page
+   colour that is easier on the eyes, larger, with room between letters,
+   words and lines when Text Spacing is on, and syllables shown as dots. */
+.wd.immersive .wd-scroll { background: var(--ir-back); padding: 0; }
+.wd.immersive .wd-page { box-shadow: none; border-radius: 0; background: var(--ir-back); color: var(--ir-ink); font-size: 1.15em !important; max-width: calc(100% - 32px); margin: 0 auto; }
+.wd.immersive { --ir-back: #ffffff; --ir-ink: #111111; }
+.wd.immersive.ir-sepia { --ir-back: #f4ecd8; --ir-ink: #5b4636; }
+.wd.immersive.ir-inverse { --ir-back: #1e1e1e; --ir-ink: #f0f0f0; }
+.wd.immersive.ir-sepia .wd-page *, .wd.immersive.ir-inverse .wd-page * { color: var(--ir-ink) !important; background-color: transparent !important; }
+.wd.immersive.ir-spacing .wd-page { letter-spacing: 0.05em; word-spacing: 0.2em; }
+.wd.immersive.ir-spacing .wd-page .wd-block { line-height: 1.9 !important; }
+.wd.immersive.ir-syllables .wd-shy::after { content: '·'; opacity: 0.6; }
+.wd.immersive .wd-band, .wd.immersive .wd-sheet { display: none; }
+.wd-linefocus > div { position: fixed; z-index: 6; pointer-events: none; background: rgba(0, 0, 0, 0.72); }
+.wd-linefocus > .wd-linefocus-band { background: transparent; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.06); }
 /* View → Gridlines: a quarter-inch grid over the words' area of each page,
    to line drawings up by eye. On screen only, as in Word; it never prints. */
 .wd-gridlines, .wd-page.gridlines:not(.paged) {

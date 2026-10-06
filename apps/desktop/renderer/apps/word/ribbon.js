@@ -33,6 +33,11 @@ import { captionsExtra } from './references-figures.js';
 const FONTS = ['Calibri', 'Calibri Light', 'Cambria', 'Arial', 'Times New Roman', 'Georgia', 'Verdana', 'Segoe UI', 'Tahoma', 'Garamond', 'Consolas', 'Courier New'];
 const SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
 
+// Immersive Reader's choices, as Word names them.
+const IR_WIDTHS = [['veryNarrow', 'Very Narrow'], ['narrow', 'Narrow'], ['moderate', 'Moderate'], ['wide', 'Wide']];
+const IR_COLOURS = [['none', 'None'], ['sepia', 'Sepia'], ['inverse', 'Inverse']];
+const IR_FOCUS = [[0, 'None'], [1, 'One Line'], [3, 'Three Lines'], [5, 'Five Lines']];
+
 const TEXT_COLOURS = [
   [null, 'Automatic'], ['000000', 'Black'], ['444444', 'Dark grey'], ['767171', 'Grey'], ['FFFFFF', 'White'],
   ['C00000', 'Dark red'], ['E03131', 'Red'], ['E08B2B', 'Orange'], ['E0A800', 'Gold'],
@@ -267,6 +272,8 @@ export default function WordRibbon({
         // The contextual tab, as Word's: there while a drawing is selected.
         ...(formatTab === 'shapeFormat' ? [{ id: 'shapeFormat', label: 'Shape Format' }] : []),
         ...(formatTab === 'pictureFormat' ? [{ id: 'pictureFormat', label: 'Picture Format' }] : []),
+        // View → Immersive Reader's own tab, there while the reader is open.
+        ...(view.immersive ? [{ id: 'immersive', label: 'Immersive Reader' }] : []),
       ]}
       active={tab}
       onTab={setTab}
@@ -779,6 +786,40 @@ export default function WordRibbon({
       ) : null}
 
       {/* ── View ─────────────────────────────────────────────────────────── */}
+      {tab === 'immersive' && view.immersive ? (
+        <>
+          <Group label="Immersive Reader">
+            <Button
+              tall
+              icon="alignJustify"
+              label="Column Width"
+              title="Column Width — how long the lines are"
+              onClick={(e) => menu.open(e, IR_WIDTHS.map(([k, label]) => ({ label, icon: view.immersive.width === k ? 'check' : undefined, run: () => act('immersiveSet', { width: k }) })))}
+            />
+            <Button
+              tall
+              icon="contrast"
+              label="Page Color"
+              title="Page Color — the colour behind the words"
+              onClick={(e) => menu.open(e, IR_COLOURS.map(([k, label]) => ({ label, icon: view.immersive.colour === k ? 'check' : undefined, run: () => act('immersiveSet', { colour: k }) })))}
+            />
+            <Button
+              tall
+              icon="eye"
+              label="Line Focus"
+              title="Line Focus — one, three or five lines in view at a time; the arrow keys move the words through them"
+              onClick={(e) => menu.open(e, IR_FOCUS.map(([n, label]) => ({ label, icon: view.immersive.focus === n ? 'check' : undefined, run: () => act('immersiveSet', { focus: n }) })))}
+            />
+            <Button tall icon="sliders" label="Text Spacing" pressed={Boolean(view.immersive.spacing)} title="Text Spacing — more room between letters, words and lines" onClick={() => act('immersiveSet', { spacing: !view.immersive.spacing })} />
+            <Button tall icon="scissors" label="Syllables" pressed={Boolean(view.immersive.syllables)} title="Syllables — long words shown in their syllables, a dot between each" onClick={() => act('immersiveSet', { syllables: !view.immersive.syllables })} />
+            <Button tall icon="volume" label="Read Aloud" pressed={Boolean(view.reading)} onClick={() => act('readAloud')} />
+          </Group>
+          <Group label="Close">
+            <Button tall icon="close" label="Close Immersive Reader" onClick={() => act('immersiveClose')} />
+          </Group>
+        </>
+      ) : null}
+
       {tab === 'view' ? (
         <>
           <Group label="Views">
@@ -790,7 +831,7 @@ export default function WordRibbon({
           </Group>
           <Group label="Immersive">
             <Button tall icon="maximize" label="Focus" pressed={Boolean(view.focus)} title="Just the page, full screen" onClick={() => act('focus')} />
-            <Soon tall icon="eye" label="Immersive Reader" why="Line focus and syllable spacing are on the list." />
+            <Button tall icon="eye" label="Immersive Reader" pressed={Boolean(view.immersive)} title="Immersive Reader — the words in a column of their own, with line focus, wider spacing, syllables and a page colour that is easier to read" onClick={() => act(view.immersive ? 'immersiveClose' : 'immersive')} />
           </Group>
           <Group label="Show">
             <Button icon="minus" label="Ruler" pressed={Boolean(view.ruler)} onClick={() => act('toggleRuler')} />
