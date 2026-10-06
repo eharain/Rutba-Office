@@ -38,6 +38,19 @@ installStyles();
 /** Every account at once. Not an id any account can have. */
 const EVERYTHING = '*';
 
+/**
+ * Kinds of file that do something when opened, rather than show something:
+ * programs, scripts, installers, shortcuts, and the disk images that carry
+ * them past the system's own warning. The extensions mail is used to deliver
+ * malware under, on all three systems.
+ */
+const RUNS_WHEN_OPENED = new Set([
+  'exe', 'com', 'scr', 'pif', 'bat', 'cmd', 'msi', 'msp', 'cpl', 'dll', 'hta', 'jar',
+  'js', 'jse', 'vbs', 'vbe', 'wsf', 'wsh', 'ps1', 'psm1', 'reg', 'lnk', 'url', 'scf', 'inf', 'msc', 'chm',
+  'application', 'appref-ms', 'iso', 'img', 'vhd', 'vhdx',
+  'app', 'command', 'pkg', 'dmg', 'sh', 'desktop', 'appimage', 'deb', 'rpm',
+]);
+
 const keyOf = (row) => `${row.accountId}|${row.folder}|${row.id}`;
 
 export default function Mail({ app, shell }) {
@@ -581,8 +594,22 @@ export default function Mail({ app, shell }) {
       const owner = appFor(kindFromExtension(name));
       // Anything the suite understands opens in the app that owns it; anything
       // else goes to whatever this computer uses for that kind of file.
-      if (owner) await shell.win.create({ app: owner, file: path });
-      else await shell.shell.openPath({ path });
+      if (owner) return shell.win.create({ app: owner, file: path });
+      // For a program, "whatever this computer uses" is the computer itself:
+      // one click on a .exe or a .js chip ran it, with no word first. It is
+      // still the person's file and their choice, so it is asked, not refused.
+      if (RUNS_WHEN_OPENED.has(name.split('.').pop().toLowerCase())) {
+        const { response } = await shell.dialog.message({
+          type: 'warning',
+          message: `${held.name} is a program. Opening it runs it on this computer.`,
+          detail: 'Mail cannot tell whether a program is safe. Open it only if you were expecting it from someone you know; a message that presses you to open an attachment is the commonest way a computer is taken over.',
+          buttons: ['Open', 'Cancel'],
+          defaultId: 1,
+          cancelId: 1,
+        });
+        if (response !== 0) return;
+      }
+      await shell.shell.openPath({ path });
     },
     [selected, shell, toast]
   );
