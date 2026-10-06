@@ -4319,7 +4319,10 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
       .filter((r) => r.text != null)
       .map((r) => {
         if (r.text === '\n') return '<a:br/>';
-        const bits = ['lang="en-US"'];
+        // The run's own language, as read, or as Review → Language chose it;
+        // PowerPoint writes one on every run.
+        const lang = r.lang && /^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/.test(String(r.lang)) ? String(r.lang) : 'en-US';
+        const bits = [`lang="${lang}"`];
         if (r.size) bits.push(`sz="${ptToSz(r.size)}"`);
         if (r.bold != null) bits.push(`b="${r.bold ? 1 : 0}"`);
         if (r.italic != null) bits.push(`i="${r.italic ? 1 : 0}"`);
@@ -4330,6 +4333,7 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
         if (r.spacing) bits.push(`spc="${Math.round(Number(r.spacing) * 100)}"`);
         if (r.caps) bits.push(`cap="${r.caps === 'small' ? 'small' : 'all'}"`);
         if (r.baseline) bits.push(`baseline="${r.baseline === 'super' ? 30000 : -25000}"`);
+        if (r.noProof) bits.push('noProof="1"');
         const fill = r.color ? `<a:solidFill><a:srgbClr val="${String(r.color).replace('#', '')}"/></a:solidFill>` : '';
         // A highlight sits after the fill and before the font in rPr's order.
         const highlight = r.highlight ? `<a:highlight><a:srgbClr val="${String(r.highlight).replace('#', '')}"/></a:highlight>` : '';

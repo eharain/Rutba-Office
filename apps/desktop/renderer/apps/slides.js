@@ -27,6 +27,7 @@ import { useSlidesReview } from './slides/review.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import { SymbolDialog } from './word/dialogs.js';
 import { SetUpShowDialog, SETUP_CSS } from './slides/setup.js';
+import { LanguageDialog } from '@rutba/office-ui/proofing';
 
 export default function Slides({ app, shell, boot }) {
   // A presenter window is the same app pointed at the same open document,
@@ -67,6 +68,7 @@ export default function Slides({ app, shell, boot }) {
   const caretAfterOpen = useRef(null);
   const [symbolOpen, setSymbolOpen] = useState(false);
   const [setupOpen, setSetupOpen] = useState(false);
+  const [languageOpen, setLanguageOpen] = useState(null);
   /** The shape clipboard: one shape, copied in this window, pasted on any slide of it. */
   const [clip, setClip] = useState(null);
   /** The Format Painter, armed with a shape's look: its fill, its outline and its first run's font. */
@@ -1158,6 +1160,19 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'setupShow': setSetupOpen(true); return;
+      // Review → Language: the selected box's words, marked as a language
+      // or as not to be checked — opened on the language they are in.
+      case 'language': {
+        if (!selectedShape?.text) return toast('Click a text box first, then mark its words as a language.', { ms: 3500 });
+        const info = await Promise.resolve(shell.doc.proof?.({ id: doc.id, action: 'language' })).catch(() => null);
+        const runs = selectedShape.text.paragraphs.flatMap((p) => p.runs || []).filter((r) => r.text && r.text !== '\n');
+        setLanguageOpen({
+          current: runs.find((r) => r.lang)?.lang || null,
+          noProof: runs.length > 0 && runs.every((r) => r.noProof),
+          documentLang: info?.document || null,
+        });
+        return;
+      }
       // Insert → Symbol: into the box being edited, where its caret was.
       case 'symbol': {
         const at = lastCaret.current;
@@ -1377,6 +1392,8 @@ export default function Slides({ app, shell, boot }) {
               size: arg.size ?? r.size,
               color: arg.color ?? r.color,
               font: 'font' in arg ? (arg.font || undefined) : r.font,
+              lang: arg.lang ?? r.lang,
+              noProof: 'noProof' in arg ? (arg.noProof || undefined) : r.noProof,
             })),
           };
         });
@@ -2099,6 +2116,16 @@ export default function Slides({ app, shell, boot }) {
 
       {symbolOpen ? (
         <SymbolDialog onClose={() => setSymbolOpen(false)} onInsert={(ch) => { setSymbolOpen(false); act('insertSymbol', ch); }} />
+      ) : null}
+
+      {languageOpen ? (
+        <LanguageDialog
+          current={languageOpen.current}
+          noProof={languageOpen.noProof}
+          documentLang={languageOpen.documentLang}
+          onClose={() => setLanguageOpen(null)}
+          onApply={async ({ lang, noProof }) => { setLanguageOpen(null); await act('format', { lang, noProof }); }}
+        />
       ) : null}
 
       {equationOpen ? (

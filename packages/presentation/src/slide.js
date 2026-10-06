@@ -243,6 +243,9 @@ function readRunProps(rPr, theme) {
   if (rPr.attrs.baseline) out.baseline = Number(rPr.attrs.baseline) > 0 ? 'super' : 'sub';
   if (rPr.attrs.spc) out.spacing = Number(rPr.attrs.spc) / 100;
   if (rPr.attrs.cap && rPr.attrs.cap !== 'none') out.caps = rPr.attrs.cap;
+  // The language the run is proofed in, and whether it is proofed at all.
+  if (rPr.attrs.lang) out.lang = rPr.attrs.lang;
+  if (rPr.attrs.noProof === '1' || rPr.attrs.noProof === 'true') out.noProof = true;
   if (color) {
     out.color = color.hex;
     if (color.alpha < 1) out.colorAlpha = color.alpha;

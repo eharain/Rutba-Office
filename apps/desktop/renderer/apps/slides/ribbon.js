@@ -797,7 +797,7 @@ export default function SlidesRibbon({
           </Group>
           <Group label="Language">
             <Soon tall icon="globe" label="Translate" why="Translation is an online service this suite does not call." />
-            <Soon tall icon="globe" label="Language" why="Proofing language is a run property the deck writer does not write yet." />
+            <Button tall icon="globe" label="Language" title="Language — mark the selected text box's words as a language, or as not to be checked, for Spelling here and proofing in PowerPoint" onClick={() => act('language')} />
           </Group>
           <Group label="Activity">
             <Soon icon="check" label="Mark All as Read" why="Comes with comments." />

@@ -199,6 +199,9 @@ export function deckSegments(deck) {
     for (const s of scene.shapes) {
       const walk = (paragraphs, row, col) => paragraphs.forEach((p, pi) => (p.runs || []).forEach((r, ri) => {
         if (!r.text || r.field || r.break || r.math) return;
+        // Marked not to be checked, or as a language other than English —
+        // the only dictionaries there are — and the pass reads past it.
+        if (r.noProof || (r.lang && !/^en(?:[-_]|$)/i.test(r.lang))) return;
         out.push({ key: `r:${i}:${s.id}:${row ?? ''}:${col ?? ''}:${pi}:${ri}`, text: r.text, where: { slide: i, shape: s.id, row, col } });
       }));
       if (s.text?.paragraphs) walk(s.text.paragraphs, null, null);
