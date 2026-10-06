@@ -1,8 +1,8 @@
 # What is missing, between this and a suite somebody could use for everything
 
 Written 2026-09-09, from the code rather than from memory. Three sources: the
-suite's own register of unbuilt controls (257 of them then, 129 on
-2026-10-06 — 34 in Documents, 25 in Worksheets, 70 in Presentations — each a
+suite's own register of unbuilt controls (257 of them then, 113 in
+1.29.1 — 29 in Documents, 23 in Worksheets, 61 in Presentations — each a
 `<Soon>` in a ribbon with a sentence saying what it needs), a reading of what the engines
 write as against what they read, and the things a person expects that are not
 in either list because nothing in the interface offers them at all.
@@ -29,7 +29,7 @@ a suite.
 | **Tracked changes, shown** | **Built for documents, 2026-09-25** | Insertions and deletions are kept with their author and date, shown as All Markup, Simple Markup, No Markup or Original, walked with Previous and Next, and accepted or rejected one at a time or all at once; recording them arrived the same day (below). A deck's and a workbook's tracked changes are not read. |
 | **Page setup as a document property** | **Built for workbooks, 2026-09-09** | Paper, orientation, margins, scaling, gridlines, headings, centring, the print area and the repeated rows are read from and written to the file where Excel keeps them. A document and a deck still choose theirs in the dialog each time. |
 | **Password-protected files** | **Built, 2026-09-25** | An encrypted `.docx`, `.xlsx` or `.pptx` opens through a Password dialog, reading Agile and Standard Encryption and checking the file's HMAC. Info → Encrypt with Password saves Agile AES-256/SHA-512 inside a compound file as Office writes one, and the autosave copy is encrypted too. The older RC4 encryption of Office 97–2003 binary files is not read. |
-| **A spell-check pass** | **Built, 2026-09-25** | Review → Spelling (F7) runs an Editor pane over a document, a workbook or a deck with Change, Change All, Ignore and Add to Dictionary. It uses English (UK) and English (US) Hunspell dictionaries on the machine and a personal dictionary shared by the three apps. Suggestions are not ranked by how common a word is ("brwn" offers bran before brown). The language is chosen once per document, not per paragraph. The grid and the slides have no spelling right-click. No other languages ship yet. |
+| **A spell-check pass** | **Built, 2026-09-25** | Review → Spelling (F7) runs an Editor pane over a document, a workbook or a deck with Change, Change All, Ignore and Add to Dictionary. It uses English (UK) and English (US) Hunspell dictionaries on the machine and a personal dictionary shared by the three apps. Suggestions are not ranked by how common a word is ("brwn" offers bran before brown). The language is chosen once per document, not per paragraph; words marked as another language or not to be checked (Review → Language, 1.29.1) are read past rather than checked in their own. The grid and the slides have no spelling right-click. No other languages ship yet. |
 | **Accessibility check** | **Built, 2026-09-25** | Review → Check Accessibility lists Errors, Warnings and Tips under Office's rule names in all three apps, with one-click fixes, Alt Text, Mark as decorative and a status-bar indicator that follows edits. Table-cell shading is not read for contrast. Merged cells and unclear links have no one-click fix. |
 | **Right-to-left layout** | **Missing** | Arabic and Hebrew text draws, and paragraph direction, mirrored margins and RTL ribbons are not built. |
 | **Localisation** | **Missing** | Every string in the interface is English, written inline. There is no message catalogue and no way to add one. |
