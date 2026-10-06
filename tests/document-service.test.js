@@ -310,3 +310,21 @@ test('a selection move that scrolls nothing answers with the selection, not a fr
   assert.ok(typed.model, 'an edit answers with a frame');
   doc.close({ id: s.id });
 });
+
+test('moving through a workbook by Enter, Tab, Find Next or Go To leaves it unchanged', () => {
+  // Each of these moves the selection and nothing else, and each one made
+  // the workbook ask to be saved: a file opened, read by pressing Enter down
+  // a column, and closed was "unsaved".
+  const file = write('moving.xlsx', buildXlsx({
+    sheets: [{ name: 'Data', rows: [['Region', 'Total'], ['North', 12], ['South', 30]] }],
+    definedNames: [{ name: 'Totals', ref: 'Data!$B$2:$B$3' }],
+  }));
+  const s = doc.open({ path: file });
+  for (const op of [{ op: 'enter' }, { op: 'tab' }, { op: 'enter', back: true }, { op: 'findNext', text: 'South' }, { op: 'gotoName', name: 'Totals' }]) {
+    const next = doc.apply({ id: s.id, ops: [op] });
+    assert.equal(next.dirty, false, `${op.op} leaves the workbook as it was opened`);
+  }
+  const edited = doc.apply({ id: s.id, ops: [{ op: 'setCell', row: 5, col: 0, value: 'x' }] });
+  assert.equal(edited.dirty, true, 'and an edit still counts');
+  doc.close({ id: s.id });
+});
