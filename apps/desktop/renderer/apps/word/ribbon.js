@@ -23,6 +23,7 @@
 import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select, Input } from '@rutba/office-ui';
 import { EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
+import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS } from '@rutba/office-formats/themes';
 import { MailingsTab } from './mailings.js';
 import { CitationsGroup } from './references.js';
 import { IndexGroup } from './references-index.js';
@@ -116,6 +117,7 @@ export default function WordRibbon({
   tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null,
 }) {
   const format = model?.format || {};
+  const design = model?.design || null;
   const styles = Array.isArray(model?.styles) ? model.styles : [];
   const section = model?.section || null;
   const comments = model?.comments || [];
@@ -517,7 +519,13 @@ export default function WordRibbon({
       {tab === 'design' ? (
         <>
           <Group label="Document Formatting">
-            <Soon tall icon="wand" label="Themes" why="Themes rewrite the theme part; the engine reads it and does not write it yet." />
+            <Button
+              tall
+              icon="wand"
+              label="Themes"
+              title={`Themes — colours, fonts and effects for the whole document, in one; now ${design?.name || 'Office Theme'}`}
+              onClick={(e) => menu.open(e, THEMES.map((t) => ({ label: t.name, icon: design?.builtIn === t.id ? 'check' : undefined, run: () => dispatch({ op: 'setDocTheme', spec: { theme: t.id } }) })))}
+            />
             <div className="wd-styles">
               {(styles.length ? styles : [{ id: 'Normal', name: 'Normal' }]).slice(0, 6).map((s) => (
                 <button key={s.id} type="button" className={`wd-style${(format.paragraphStyle || 'Normal') === s.id ? ' on' : ''}`} style={STYLE_LOOK[s.id] || undefined} title={`Apply ${s.name || s.id} to this paragraph`} onClick={() => para({ styleId: s.id })}>
@@ -525,8 +533,18 @@ export default function WordRibbon({
                 </button>
               ))}
             </div>
-            <Soon icon="contrast" label="Colours" why="Theme colours live in the theme part, not written yet." />
-            <Soon icon="word" label="Fonts" why="Theme fonts live in the theme part, not written yet." />
+            <Button
+              icon="contrast"
+              label="Colours"
+              title={`Colours — the theme's twelve colours, which headings and theme-coloured text follow; now ${design?.colorName || 'Office'}`}
+              onClick={(e) => menu.open(e, PALETTES.map((p) => ({ label: p.name, icon: design?.colorName === p.name ? 'check' : undefined, run: () => dispatch({ op: 'setDocTheme', spec: { colors: p.id } }) })))}
+            />
+            <Button
+              icon="word"
+              label="Fonts"
+              title={`Fonts — the theme's heading and body faces, which the styles follow; now ${design?.fonts ? `${design.fonts.major} / ${design.fonts.minor}` : 'Calibri Light / Calibri'}`}
+              onClick={(e) => menu.open(e, FONT_PAIRS.map((p) => ({ label: `${p.name} — ${p.major} / ${p.minor}`, icon: design?.fontName === p.name ? 'check' : undefined, run: () => dispatch({ op: 'setDocTheme', spec: { fonts: p.id } }) })))}
+            />
             <Button icon="listNumber" label="Paragraph Spacing" title="Spacing for the paragraphs you have selected" onClick={(e) =>
               menu.open(e, [
                 { label: 'No paragraph space', run: () => para({ spaceBefore: 0, spaceAfter: 0, lineSpacing: 1 }) },
@@ -537,7 +555,12 @@ export default function WordRibbon({
                 { label: 'Double', run: () => para({ spaceBefore: 0, spaceAfter: 8, lineSpacing: 2 }) },
               ])
             } />
-            <Soon icon="wand" label="Effects" why="Theme effects live in the theme part, not written yet." />
+            <Button
+              icon="wand"
+              label="Effects"
+              title={`Effects — the fills, lines and shadows that shapes taking their look from the theme are drawn with; now ${design?.effectName || 'Office'}`}
+              onClick={(e) => menu.open(e, EFFECT_PRESETS.map((p) => ({ label: p.name, title: p.description, icon: design?.effects === p.id ? 'check' : undefined, run: () => dispatch({ op: 'setDocTheme', spec: { effects: p.id } }) })))}
+            />
             <Soon icon="check" label="Set as Default" why="A default template is a file the suite does not keep yet." />
           </Group>
           <Group label="Page Background">

@@ -40,6 +40,7 @@ import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
 
 import { sniff, refineOoxml, kindFromExtension } from '@rutba/office-formats/sniff';
 import { APPS } from '@rutba/office-formats/registry';
+import { designedThemePart, readThemeDesign } from '@rutba/office-formats/themes';
 import { readOdf } from '@rutba/office-formats/odf';
 import { writeOdt, writeOds, writeOdp } from '@rutba/office-formats/odf-write';
 import { readRtf, writeRtf } from '@rutba/office-formats/rtf';
@@ -1048,6 +1049,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       section: safely(() => view.section),
       bands: safely(() => view.doc?.headerFooters?.()),
       comments: safely(() => view.doc?.comments?.()) || [],
+      // Design → Themes, Colours, Fonts and Effects: what the theme part says now.
+      design: safely(() => { const d = view.doc?.doc; const part = d?.themePart?.(); return readThemeDesign(part ? d.pkg.text(part) : null); }),
     };
   }
 
@@ -1563,6 +1566,20 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   };
 
   const DOC_OPS = {
+    // Design → Themes, Colours, Fonts, Effects: the theme part redesigned —
+    // `spec` is `{ theme }`, `{ colors }`, `{ fonts }` or `{ effects }` —
+    // one undo step, and the styles read afresh from it.
+    setDocTheme: (v, a) => {
+      const d = v.doc.doc;
+      const part = d.themePart();
+      if (part) d._undoParts?.add(part);
+      return v._edit('theme', null, () => {
+        d.setThemePart(designedThemePart(part ? d.pkg.text(part) : null, a.spec || {}));
+        v._stylesWritten();
+        v._invalidate();
+        return true;
+      });
+    },
     setSelection: (v, a) => v.setSelection(a.anchor, a.focus ?? a.anchor),
     moveCaret: (v, a) => v.moveCaret(a.direction, { extend: a.extend }),
     selectAll: (v) => v.selectAll(),

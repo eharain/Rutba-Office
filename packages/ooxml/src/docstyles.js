@@ -58,6 +58,10 @@ function readProps(styleXml) {
     smallCaps: toggle(rPr, 'w:smallCaps'),
     sizePx: sz !== null ? halfPointsToPx(sz) : undefined,
     colour: (() => {
+      // A theme slot, resolved once the chain is flattened — see `resolveThemeColour`.
+      const el = first(rPr, 'w:color');
+      const marked = el ? colourMarker(el) : null;
+      if (marked) return marked;
       const c = val(rPr, 'w:color');
       // "auto" is a colour, not the absence of one: a run that says auto on a
       // heading whose style says blue is black in Word, and was blue here.
@@ -192,6 +196,81 @@ export function readThemeColours(themeXml) {
   return out;
 }
 
+// ---- theme colours: `w:themeColor`, as Word draws it ------------------------
+//
+// A colour can name a slot of the theme — `w:themeColor="accent1"` — and
+// darken or lighten it (`w:themeShade`, `w:themeTint`, a byte in hex). Word
+// draws the slot, not the `w:val` written beside it, so a document's
+// headings follow Design → Colours; `w:val` is what a reader without the
+// theme falls back on, and is kept as that.
+
+const THEME_COLOUR_SLOT = {
+  dark1: 'dk1', text1: 'dk1', light1: 'lt1', background1: 'lt1',
+  dark2: 'dk2', text2: 'dk2', light2: 'lt2', background2: 'lt2',
+  accent1: 'accent1', accent2: 'accent2', accent3: 'accent3', accent4: 'accent4', accent5: 'accent5', accent6: 'accent6',
+  hyperlink: 'hlink', followedHyperlink: 'folHlink',
+};
+
+function hslOf(hex) {
+  const [r, g, b] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return [0, 0, l];
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  const h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [h / 6, s, l];
+}
+
+function hexOf([h, s, l]) {
+  const f = (p, q, t) => {
+    const u = t < 0 ? t + 1 : t > 1 ? t - 1 : t;
+    return u < 1 / 6 ? p + (q - p) * 6 * u : u < 1 / 2 ? q : u < 2 / 3 ? p + (q - p) * (2 / 3 - u) * 6 : p;
+  };
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+  const p = 2 * l - q;
+  const rgb = s === 0 ? [l, l, l] : [f(p, q, h + 1 / 3), f(p, q, h), f(p, q, h - 1 / 3)];
+  return rgb.map((v) => Math.round(Math.max(0, Math.min(1, v)) * 255).toString(16).padStart(2, '0')).join('').toUpperCase();
+}
+
+/**
+ * A theme colour as Word draws it: `name` a `w:themeColor` value, `tint` and
+ * `shade` its `w:themeTint` / `w:themeShade` (hex bytes, or null), from the
+ * theme's twelve `colours`. Hex without the #, or null for "none" or a name
+ * the theme has no slot for.
+ */
+export function themeColourHex(colours, name, tint = null, shade = null) {
+  const slot = THEME_COLOUR_SLOT[name];
+  const base = slot && colours ? colours[slot] : null;
+  if (!base || !/^[0-9A-Fa-f]{6}$/.test(base)) return null;
+  let [h, s, l] = hslOf(base);
+  const byte = (v) => (v != null && /^[0-9A-Fa-f]{2}$/.test(v) ? parseInt(v, 16) / 255 : null);
+  const t = byte(tint);
+  const d = byte(shade);
+  if (t != null) l = l * t + (1 - t);
+  if (d != null) l *= d;
+  return t == null && d == null ? base.toUpperCase() : hexOf([h, s, l]);
+}
+
+const THEME_COLOUR = '@theme-colour:';
+/** A `w:color` element's colour: a theme slot kept as a marker (with its `w:val` to fall back on) for `resolveThemeColour`. */
+function colourMarker(el) {
+  const a = attrs(el);
+  if (a['w:themeColor'] && a['w:themeColor'] !== 'none') {
+    return THEME_COLOUR + [a['w:themeColor'], a['w:themeTint'] || '', a['w:themeShade'] || '', (a['w:val'] || '').toLowerCase()].join(':');
+  }
+  return null;
+}
+/** A style's colour with its theme marker resolved — through `colours`, else its `w:val`. */
+function resolveThemeColour(colour, colours) {
+  if (typeof colour !== 'string' || !colour.startsWith(THEME_COLOUR)) return colour;
+  const [name, tint, shade, fallback] = colour.slice(THEME_COLOUR.length).split(':');
+  const hex = themeColourHex(colours, name, tint || null, shade || null);
+  if (hex) return '#' + hex.toLowerCase();
+  return /^[0-9a-f]{6}$/.test(fallback) ? '#' + fallback : fallback === 'auto' ? '#000000' : undefined;
+}
+
 /**
  * Every paragraph style, chains flattened, in CSS pixels.
  *
@@ -243,10 +322,12 @@ export function readParagraphStyles(stylesXml, themeFonts = null) {
   resolved['*default*'] = defaultId ? resolved[defaultId] : { ...defaults };
 
   // A font named by theme slot becomes the theme's face — after flattening, so
-  // a heading based on Normal that names the major slot keeps it.
+  // a heading based on Normal that names the major slot keeps it. A colour
+  // named by theme slot becomes the theme's colour the same way.
   for (const s of Object.values(resolved)) {
     if (s.fontName === THEME_MAJOR) s.fontName = theme.major;
     else if (s.fontName === THEME_MINOR) s.fontName = theme.minor;
+    if (s.colour) s.colour = resolveThemeColour(s.colour, theme.colours);
   }
   return resolved;
 }
@@ -296,6 +377,7 @@ export function readCharacterStyles(stylesXml, themeFonts = null) {
   for (const s of Object.values(resolved)) {
     if (s.fontName === THEME_MAJOR) s.fontName = theme.major;
     else if (s.fontName === THEME_MINOR) s.fontName = theme.minor;
+    if (s.colour) s.colour = resolveThemeColour(s.colour, theme.colours);
   }
   return resolved;
 }

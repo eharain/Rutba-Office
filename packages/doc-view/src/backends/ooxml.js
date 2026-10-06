@@ -8,7 +8,7 @@
  * This is the ONLY file in `@rutba/doc-view` that imports `@rutba/ooxml`. Mail
  * imports the HTML backend instead and never pulls the format layer in.
  */
-import { Document, withToggle, hasToggle, langElement, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection } from '@rutba/ooxml';
+import { Document, withToggle, hasToggle, langElement, themeColourHex, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection } from '@rutba/ooxml';
 import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene } from '@rutba/drawing';
 import { ommlToMathml, ommlToLinear, ommlInfo, asciiLinear } from '@rutba/ooxml/math';
 import { mergeToDocument, mergeMessages } from '@rutba/ooxml/mailmerge-run';
@@ -116,7 +116,10 @@ export class OoxmlBackend {
   }
 
   /** Read family/size/colour back off an rPr — the toolbar's caret state. */
-  readRunProps(rPr) { return readRunProps(rPr, typeof this.doc.themeFonts === 'function' ? this.doc.themeFonts() : null); }
+  readRunProps(rPr) {
+    if (typeof this.doc.themeFonts !== 'function') return readRunProps(rPr, null);
+    return readRunProps(rPr, { ...this.doc.themeFonts(), colours: typeof this.doc.themeColours === 'function' ? this.doc.themeColours() : null });
+  }
 
   /**
    * An equation run as a painter wants it: MathML for the page, the linear
@@ -620,8 +623,14 @@ function readRunProps(rPr, themeFonts = null) {
   if (/<w:smallCaps\b(?![^>]*w:val="(?:0|false)")/.test(rPr)) out.smallCaps = true;
   const sz = /<w:sz\b[^>]*\bw:val="([^"]*)"/.exec(rPr);
   if (sz && /^\d+$/.test(sz[1])) out.fontSize = Number(sz[1]) / 2;
+  // A theme slot, as Word draws it, over the hex written beside it — so the
+  // run follows Design → Colours; the hex is the fallback without a theme.
+  const colourEl = /<w:color\b[^>]*\/?>/.exec(rPr)?.[0];
+  const themed = colourEl && themeFonts?.colours ? /\bw:themeColor="([^"]+)"/.exec(colourEl) : null;
+  const fromTheme = themed ? themeColourHex(themeFonts.colours, themed[1], /\bw:themeTint="([^"]+)"/.exec(colourEl)?.[1] ?? null, /\bw:themeShade="([^"]+)"/.exec(colourEl)?.[1] ?? null) : null;
   const colour = /<w:color\b[^>]*\bw:val="([^"]*)"/.exec(rPr);
-  if (colour && /^[0-9A-Fa-f]{6}$/.test(colour[1])) out.fontColour = colour[1].toUpperCase();
+  if (fromTheme) out.fontColour = fromTheme;
+  else if (colour && /^[0-9A-Fa-f]{6}$/.test(colour[1])) out.fontColour = colour[1].toUpperCase();
   // "auto" is the default colour, stated: a run that says so on a heading
   // whose style says blue is black in Word, and it has to beat the style.
   else if (colour && colour[1] === 'auto') out.fontColour = '000000';

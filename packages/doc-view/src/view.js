@@ -153,6 +153,9 @@ export class DocView {
     this._blocks = null;
     this._flow = null;
     this._pages = null;
+    // The step may have changed the styles or the theme they read from.
+    this._docStyles = undefined;
+    this._styleCatalogue = undefined;
     this.touched = true;
     this.pendingFormat = null;
     if (entry.meta) {

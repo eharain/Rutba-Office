@@ -1687,19 +1687,51 @@ export class Document {
   /** Paragraph styles resolved from word/styles.xml, flattened, in CSS px. */
   paragraphStyles() {
     const part = 'word/styles.xml';
-    return readParagraphStyles(this.pkg.has(part) ? this.pkg.text(part) : null, this.themeFonts());
+    return readParagraphStyles(this.pkg.has(part) ? this.pkg.text(part) : null, { ...this.themeFonts(), colours: this.themeColours() });
   }
 
   /** Character styles resolved from word/styles.xml — what a `w:rStyle` gives a run. */
   characterStyles() {
     const part = 'word/styles.xml';
-    return readCharacterStyles(this.pkg.has(part) ? this.pkg.text(part) : null, this.themeFonts());
+    return readCharacterStyles(this.pkg.has(part) ? this.pkg.text(part) : null, { ...this.themeFonts(), colours: this.themeColours() });
+  }
+
+  /** The theme part, by the main part's relationship, or the first there is — or null. */
+  themePart() {
+    const rel = this.pkg.rels(this.mainPart).find((r) => /\/relationships\/theme$/.test(r.Type));
+    if (rel) {
+      const dir = this.mainPart.slice(0, this.mainPart.lastIndexOf('/') + 1);
+      const target = rel.Target.startsWith('/') ? rel.Target.slice(1) : dir + rel.Target;
+      if (this.pkg.has(target)) return target;
+    }
+    return this.pkg.partNames().find((n) => /^word\/theme\/theme\d*\.xml$/.test(n)) || null;
+  }
+
+  /**
+   * Design → Themes, Colours, Fonts and Effects: the theme part replaced —
+   * written where the document keeps it, or made with its relationship and
+   * content type for a document that had none. The heading and body faces
+   * and the theme colours the styles and runs name are read afresh.
+   */
+  setThemePart(xml) {
+    let part = this.themePart();
+    if (!part) {
+      part = 'word/theme/theme1.xml';
+      this.pkg.addPart(part, Buffer.from(String(xml), 'utf8'), 'application/vnd.openxmlformats-officedocument.theme+xml');
+      this._addRel('http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme', 'theme/theme1.xml');
+    } else {
+      this.pkg.write_(part, Buffer.from(String(xml), 'utf8'));
+    }
+    this._themeFonts = null;
+    this._themeColours = null;
+    this.dirty = true;
+    return part;
   }
 
   /**
    * The theme's heading and body faces. Word names nearly every font through
    * these two slots, so a reader that ignores the theme shows every document
-   * in Calibri. Cached: no editing operation writes the theme part.
+   * in Calibri. Cached; Design's theme choices clear it (`setThemePart`).
    */
   themeFonts() {
     if (this._themeFonts) return this._themeFonts;
@@ -3442,6 +3474,9 @@ export class Document {
         if (this.pkg.has(name) && this.pkg.text(name) !== xml) this.pkg.write_(name, xml);
       }
     }
+    // A theme part put back is read afresh.
+    this._themeFonts = null;
+    this._themeColours = null;
     return this;
   }
 
