@@ -738,11 +738,23 @@ export default function SlidesRibbon({
               title={model?.slide?.hidden ? 'Hide Slide — this slide is hidden from the show; press again to show it' : 'Hide Slide — leave this slide out of the show'}
               onClick={() => act('hideSlide')}
             />
-            <Soon tall icon="clock" label="Rehearse Timings" why="Comes with recorded timings." />
+            <Button tall icon="clock" label="Rehearse Timings" title="Rehearse Timings — run the show from the start with a clock, and keep how long each slide was on screen as its timing" onClick={() => act('rehearse')} />
             <Soon tall icon="video" label="Record" why="Recording narration is not built." />
             <Soon icon="check" label="Keep Slides Updated" why="Live co-authoring is not built." />
-            <Soon icon="check" label="Play Narrations" why="Comes with recording." />
-            <Soon icon="check" label="Use Timings" why="Comes with recorded timings." />
+            <Button
+              icon="check"
+              label="Play Narrations"
+              pressed={model?.showSettings?.narration !== false}
+              title="Play Narrations — whether the show plays the narration recorded with it; kept in the file for PowerPoint, as this suite records none"
+              onClick={() => act('showFlag', { narration: model?.showSettings?.narration === false })}
+            />
+            <Button
+              icon="check"
+              label="Use Timings"
+              pressed={model?.showSettings?.useTimings !== false}
+              title="Use Timings — slides with a timing move on by themselves; off, the show moves only when you move it"
+              onClick={() => act('showFlag', { useTimings: model?.showSettings?.useTimings === false })}
+            />
             <Soon icon="check" label="Show Media Controls" why="Comes with media." />
           </Group>
           <Group label="Monitors">

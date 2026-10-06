@@ -36,6 +36,15 @@ const SPLIT_CSS = `
 .sl-notes, .sl-notespage { box-shadow: inset 0 2px 0 var(--accent); }
 `;
 
+/** A rehearsal's time as a clock reads it: 0:07, 1:23, 1:02:05. */
+function clockOf(ms) {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const two = (n) => String(n).padStart(2, '0');
+  return h ? `${h}:${two(m)}:${two(s % 60)}` : `${m}:${two(s % 60)}`;
+}
+
 const MONITOR_KEY = 'slides.monitor';
 /** The Monitor button's words for a choice. */
 function monitorLabel(choice, screens) {
@@ -89,6 +98,10 @@ export default function Slides({ app, shell, boot }) {
   /** The Format Painter, armed with a shape's look: its fill, its outline and its first run's font. */
   const [painter, setPainter] = useState(null);
   const [present, setPresent] = useState(false);
+  // Slide Show → Rehearse Timings, while the rehearsal runs.
+  const [rehearsing, setRehearsing] = useState(false);
+  const [, setRehearseTick] = useState(0);
+  const rehearse = useRef(null);
   // Slide Show → Monitor: the screen the show plays on — kept for this
   // computer, as PowerPoint keeps it, not in the file. 'automatic' takes
   // another screen than Presenter View's when it is open.
@@ -804,7 +817,52 @@ export default function Slides({ app, shell, boot }) {
   // itself after that many seconds. The presenter window never runs this
   // clock; the audience window does.
   // "Advance slides: Manually" in Set Up Slide Show turns the clock off.
-  const advanceAfter = showSet.useTimings === false ? null : model?.slide?.transition?.advanceAfter;
+  // A rehearsal is the speaker's own pace: the old timings do not move it.
+  const advanceAfter = showSet.useTimings === false || rehearsing ? null : model?.slide?.transition?.advanceAfter;
+
+  // Rehearse Timings: the time on each slide, as the show leaves it — a
+  // slide gone back to is timed again — and, when the show ends, the offer
+  // to keep them: each slide then moves on by itself after its time, and
+  // Use Timings is turned on, as PowerPoint asks and does.
+  useEffect(() => {
+    const r = rehearse.current;
+    if (!rehearsing || !r || !present) return;
+    r.shown = true;
+    if (r.at === index) return;
+    const now = Date.now();
+    r.times[r.at] = now - r.slideAt;
+    r.at = index;
+    r.slideAt = now;
+  }, [rehearsing, present, index]);
+  useEffect(() => {
+    if (!rehearsing) return undefined;
+    const tick = setInterval(() => setRehearseTick((n) => n + 1), 500);
+    return () => clearInterval(tick);
+  }, [rehearsing]);
+  useEffect(() => {
+    const r = rehearse.current;
+    if (present || !rehearsing || !r || !r.shown) return;
+    rehearse.current = null;
+    setRehearsing(false);
+    const now = Date.now();
+    r.times[r.at] = now - r.slideAt;
+    const total = now - r.startedAt;
+    (async () => {
+      const answer = await shell.dialog.message({
+        type: 'question',
+        message: `The show took ${clockOf(total)}. Keep the new slide timings?`,
+        detail: 'Each slide then moves on by itself after the time it was on screen, and Use Timings is turned on.',
+        buttons: ['Yes', 'No'],
+        defaultId: 0,
+        cancelId: 1,
+      }).catch(() => null);
+      if (answer?.response !== 0) return;
+      const ops = Object.entries(r.times).map(([slide, ms]) => ({ op: 'setTransition', slide: Number(slide), spec: { advanceAfter: Math.round(ms / 10) / 100 } }));
+      await apply(...ops, { op: 'setShowSettings', settings: { useTimings: true } });
+      toast(`Timings kept for ${ops.length} ${ops.length === 1 ? 'slide' : 'slides'}`, { tone: 'good' });
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [present, rehearsing]);
   useEffect(() => {
     if (!present || presenterFor || blank || advanceAfter == null) return undefined;
     if (!settled || settled.index !== model?.slide?.index || settled.step < settled.clicks) return undefined;
@@ -870,6 +928,23 @@ export default function Slides({ app, shell, boot }) {
         // "Browsed by an individual" is a show in its window, not full screen.
         if (arg === 'reading' || showSet.type === 'browse') setReading(true);
         setPresent(true);
+        return;
+      // Slide Show → Rehearse Timings: the show from its start with a clock,
+      // each slide's time kept, and the timings offered when it ends.
+      case 'rehearse': {
+        const first = nextShown(model, (showSet.range?.from ?? 1) - 2, 1);
+        const start = inShow(first) ? first : nextShown(model, -1, 1);
+        const now = Date.now();
+        rehearse.current = { startedAt: now, slideAt: now, at: start, times: {} };
+        setRehearsing(true);
+        setIndex(start);
+        setReading(false);
+        setPresent(true);
+        return;
+      }
+      // Slide Show → Use Timings and Play Narrations: one flag of the show's settings each.
+      case 'showFlag':
+        await apply({ op: 'setShowSettings', settings: arg });
         return;
       case 'mode': patchView({ mode: arg }); return;
       case 'toggle': patchView((v) => ({ [arg]: arg === 'notes' ? v.notes === false : !v[arg] })); return;
@@ -1648,6 +1723,15 @@ export default function Slides({ app, shell, boot }) {
         <div className="sl-present-bar">
           {index + 1} / {model.count}{led ? ' · driven from the presenter window' : ' · press Esc to leave'}
         </div>
+        {rehearsing && rehearse.current ? (
+          <div className="sl-rehearse" role="timer" aria-label="Rehearsal">
+            <span>Recording</span>
+            <b className="sl-rehearse-slide">{clockOf(Date.now() - rehearse.current.slideAt)}</b>
+            <span>this slide ·</span>
+            <b className="sl-rehearse-total">{clockOf(Date.now() - rehearse.current.startedAt)}</b>
+            <span>in all</span>
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -3017,6 +3101,14 @@ const CSS = `
   position: fixed; z-index: 1; bottom: 14px; left: 50%; transform: translateX(-50%);
   color: rgba(255,255,255,0.55); font-size: 12px; letter-spacing: 0.02em;
 }
+/* Rehearse Timings: the clock in the corner, as PowerPoint's Recording bar. */
+.sl-rehearse {
+  position: fixed; z-index: 2; top: 12px; left: 12px; display: flex; align-items: baseline; gap: 6px;
+  padding: 6px 12px; border-radius: 6px; background: rgba(20,20,20,0.78); color: rgba(255,255,255,0.8);
+  font-size: 12px; font-variant-numeric: tabular-nums;
+}
+.sl-rehearse span:first-child { color: #ff6b6b; font-weight: 600; margin-right: 4px; }
+.sl-rehearse b { color: #fff; font-size: 14px; font-weight: 600; }
 `;
 
 const SLIDE_SHORTCUTS = [
