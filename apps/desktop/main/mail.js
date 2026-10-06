@@ -163,6 +163,15 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     return { user, pass: password };
   }
 
+  /**
+   * A plain IMAP port is upgraded with STARTTLS before the password is sent,
+   * or not used, as the outgoing side already insists. Left to itself the
+   * client upgraded only when the server offered to, and anybody between the
+   * two can take the offer out of the greeting: the password then went over
+   * the wire as it was typed.
+   */
+  const imapUpgrade = (imap) => (imap.secure ? {} : { doSTARTTLS: imap.starttls !== false });
+
   /** ImapFlow is loaded when an account is actually used, not at start-up. */
   async function imapFor(account) {
     const { ImapFlow } = await import('imapflow');
@@ -170,6 +179,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       host: account.imap.host,
       port: account.imap.port,
       secure: account.imap.secure,
+      ...imapUpgrade(account.imap),
       auth: await credentialsFor(account),
       logger: false,
       tls: { rejectUnauthorized: account.imap.rejectUnauthorized !== false },
@@ -414,12 +424,14 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
 
     testAccount: async ({ account, password }) => {
       const result = { imap: null, smtp: null, error: null };
+      let client = null;
       try {
         const { ImapFlow } = await import('imapflow');
-        const client = new ImapFlow({
+        client = new ImapFlow({
           host: account.imap.host,
           port: account.imap.port,
           secure: account.imap.secure,
+          ...imapUpgrade(account.imap),
           auth: { user: account.imap.user || account.email, pass: password },
           logger: false,
         });
@@ -430,6 +442,13 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       } catch (err) {
         result.imap = { ok: false, message: err.message };
         result.error = err.message;
+        // A test that failed half-way left its connection open for good: one
+        // more socket held against the server for every address tried.
+        try {
+          client?.close();
+        } catch {
+          /* never opened */
+        }
       }
       try {
         const nodemailer = (await import('nodemailer')).default;
