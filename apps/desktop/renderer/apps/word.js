@@ -42,6 +42,7 @@ import { useWordReview } from './word/review.js';
 import { LanguageDialog } from '@rutba/office-ui/proofing';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog } from '../icons-insert.js';
+import { CompareDialog, COMPARE_CSS } from './word/compare.js';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, recognise } from './slides/ink.js';
 import { SignatureSetupDialog, signatureLinePng, SIGNATURE_CSS } from './word/signature.js';
 import {
@@ -1453,6 +1454,8 @@ export default function Word({ app, shell, boot }) {
           else await apply({ op: 'insertInk', block: anchor, strokes: [{ points: local, ...strokeLook(pen) }] });
           return;
         }
+        // Review → Compare: the Compare Documents box.
+        case 'compare': setDialog('compare'); return;
         case 'wordArt': {
           // WordArt: big words of their own in a box with no fill and no
           // line, centred over the column, their effects the ones Home → Text
@@ -2433,6 +2436,26 @@ export default function Word({ app, shell, boot }) {
         />
       ) : null}
 
+      {dialog === 'compare' ? (
+        <>
+          <style>{COMPARE_CSS}</style>
+          <CompareDialog
+            shell={shell}
+            current={doc?.path || null}
+            onClose={() => setDialog(null)}
+            onCompare={async (spec) => {
+              setDialog(null);
+              try {
+                const made = await shell.doc.compare(spec);
+                await shell.win.create({ app: 'word', query: { session: made.id } });
+                toast(`${made.name}: ${made.changes} ${made.changes === 1 ? 'change' : 'changes'} marked`, { tone: 'good' });
+              } catch (err) {
+                toast(err.message || String(err), { tone: 'bad', ms: 5000 });
+              }
+            }}
+          />
+        </>
+      ) : null}
       {dialog === 'hyphenation' ? (
         <HyphenationDialog
           current={model?.hyphenation}

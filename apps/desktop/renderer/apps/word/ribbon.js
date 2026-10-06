@@ -815,7 +815,7 @@ export default function WordRibbon({
             <Button icon="chevronDown" label="Next" disabled={!anyTracked} title="Next tracked change" onClick={() => act('nextChange', 1)} />
           </Group>
           <Group label="Compare">
-            <Soon tall icon="copy" label="Compare" why="Comparing two documents is a diff over blocks; on the list." />
+            <Button tall icon="copy" label="Compare" title="Compare — two versions of a document side by side, as a new document with what changed marked as revisions" onClick={() => act('compare')} />
           </Group>
           <Group label="Protect">
             <Button tall icon="lock" label="Restrict Editing" pressed={Boolean(view.restrict)} title={model?.protection?.enforced ? 'Restrict Editing — the document is protected; the pane says what you may do and stops protection' : 'Restrict Editing — limit formatting and editing, with exceptions, and enforce it with an optional password'} onClick={() => act('restrictPane')} />
