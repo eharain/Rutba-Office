@@ -42,6 +42,7 @@ import { useWordReview } from './word/review.js';
 import { LanguageDialog } from '@rutba/office-ui/proofing';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog } from '../icons-insert.js';
+import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, recognise } from './slides/ink.js';
 import { SignatureSetupDialog, signatureLinePng, SIGNATURE_CSS } from './word/signature.js';
 import {
   drawingLayer, geomOf, spacerStyles, blockCss, turnCss, TextBox, GroupBox, DrawingLayer, DrawingFrame, SelectionPane,
@@ -285,6 +286,14 @@ export default function Word({ app, shell, boot }) {
   // A click on a picture says so through a DOM event from the memoised
   // paragraph; a caret move takes the pick away, as in Word.
   const [picked, setPicked] = useState(null);
+  // Draw: the tool in hand (null for Select), a document's pens (a pen and a highlighter), the Ruler, Ink to Shape, Draw with Touch.
+  const [ink, setInk] = useState({ tool: null, penId: 'pen', pens: DEFAULT_PENS.filter((p) => p.tool !== 'pencil'), ruler: null, toShape: false, touch: true });
+  useEffect(() => {
+    if (!ink.tool) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setInk((v) => ({ ...v, tool: null })); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ink.tool]);
   // True while a picture handle is being dragged: the mouseup that ends
   // the drag lands wherever the pointer is, and must not take the pick away.
   const pictureDrag = useRef(false);
@@ -1414,6 +1423,36 @@ export default function Word({ app, shell, boot }) {
           }
           return;
         }
+        // Draw: the tool in hand, a pen's colour and thickness, Add, the Ruler, Ink to Shape, Draw with Touch.
+        case 'inkTool':
+          if (arg != null && !paged) { toast('Ink goes on the page: switch to Print Layout to draw.', { ms: 3500 }); return; }
+          setPicked(null);
+          setInk((v) => (arg == null ? { ...v, tool: null } : arg === 'eraser' || arg === 'lasso' ? { ...v, tool: arg } : { ...v, tool: 'pen', penId: arg }));
+          return;
+        case 'inkPen': setInk((v) => ({ ...v, pens: v.pens.map((p) => (p.id === arg.id ? { ...p, ...arg } : p)) })); return;
+        case 'inkAdd': setInk((v) => {
+          const used = new Set(v.pens.map((p) => p.color));
+          const pen = { id: `${arg}-${v.pens.length + 1}`, tool: arg, color: PEN_COLOURS.find((c) => !used.has(c)) || PEN_COLOURS[3], width: PEN_WIDTHS[arg][1] };
+          return { ...v, pens: [...v.pens, pen], tool: paged ? 'pen' : v.tool, penId: pen.id };
+        }); return;
+        case 'inkRuler': setInk((v) => ({ ...v, ruler: v.ruler ? null : { x: (pageRef.current?.offsetWidth || 816) / 2, y: (pageRef.current?.parentElement?.scrollTop || 0) + 300, angle: 0, depth: 64 } })); return;
+        case 'inkToShape': setInk((v) => ({ ...v, toShape: !v.toShape })); return;
+        case 'inkTouch': setInk((v) => ({ ...v, touch: !v.touch })); return;
+        // A finished stroke: on the page it was begun on, page-relative, anchored in the first paragraph of the body there.
+        case 'inkStroke': {
+          if (!geo) return;
+          const k = pageIndexAt(geo, arg.points[0][1]);
+          const top = pageTopOf(geo, k);
+          const local = arg.points.map(([x, y]) => [Math.round(x * 10) / 10, Math.round((y - top) * 10) / 10]);
+          const where = blockLayout().pages || {};
+          const onPage = blocks.map((b, i) => i).filter((i) => where[i] === k + 1);
+          const anchor = onPage.find((i) => !blocks[i]?.container && !blocks[i]?.box && !blocks[i]?.structural) ?? onPage[0] ?? 0;
+          const pen = ink.pens.find((p) => p.id === ink.penId) || ink.pens[0];
+          const shape = ink.toShape && pen.tool !== 'highlighter' ? recognise(local) : null;
+          if (shape) await apply({ op: 'insertFloatingShape', block: anchor, preset: shape.preset, x: shape.x, y: shape.y, width: shape.w, height: shape.h, colour: pen.color, widthPt: pen.width });
+          else await apply({ op: 'insertInk', block: anchor, strokes: [{ points: local, ...strokeLook(pen) }] });
+          return;
+        }
         case 'wordArt': {
           // WordArt: big words of their own in a box with no fill and no
           // line, centred over the column, their effects the ones Home → Text
@@ -1811,7 +1850,7 @@ export default function Word({ app, shell, boot }) {
           return;
       }
     },
-    [model, view, apply, shell, toast, doc, patchView, picked, headingPages, geom, geo, editingBox, selectedDrawing, drawnBox, paragraphTop, paragraphAt, offsetsFor]
+    [model, view, apply, shell, toast, doc, patchView, picked, headingPages, geom, geo, editingBox, selectedDrawing, drawnBox, paragraphTop, paragraphAt, offsetsFor, ink, paged, blockLayout]
   );
   actRef.current = act;
 
@@ -1945,6 +1984,7 @@ export default function Word({ app, shell, boot }) {
       menu={appMenu}
       ribbon={
         <WordRibbon
+          ink={ink}
           tab={tab}
           setTab={setTab}
           doc={doc}
@@ -2190,6 +2230,36 @@ export default function Word({ app, shell, boot }) {
                 counted — and on each the watermark, the header and the footer
                 that page calls for, its page number resolved.
               */}
+              {/* Draw: the pen surface over the pages while a pen, the Eraser or the Lasso is in hand; the Ruler on its own otherwise. */}
+              {paged && (ink.tool || ink.ruler) ? (
+                <div className="wd-ink-host" contentEditable={false} suppressContentEditableWarning>
+                  <style>{INK_CSS}</style>
+                  {ink.tool ? (
+                    <InkSurface
+                      size={{ width: pageRef.current?.offsetWidth || 816, height: pageRef.current?.offsetHeight || 1056 }}
+                      tool={ink.tool}
+                      pen={ink.pens.find((p) => p.id === ink.penId) || ink.pens[0]}
+                      ruler={ink.ruler}
+                      onRuler={(ruler) => setInk((v) => ({ ...v, ruler }))}
+                      touch={ink.touch}
+                      shapes={(() => {
+                        const host = pageRef.current;
+                        if (!host || ink.tool !== 'lasso') return [];
+                        const r = host.getBoundingClientRect();
+                        const k = r.width / (host.offsetWidth || 1);
+                        return [...host.querySelectorAll('.wd-drawing')].map((n) => {
+                          const b = n.getBoundingClientRect();
+                          return { id: n.dataset.drawing, kind: 'shape', name: n.getAttribute('alt') || '', geometry: { x: (b.left - r.left) / k, y: (b.top - r.top) / k, w: b.width / k, h: b.height / k } };
+                        });
+                      })()}
+                      hit={(el) => { const n = el.closest?.('.wd-drawing'); return n && /^Ink \d+$/.test(n.getAttribute('alt') || '') ? { id: n.dataset.drawing, node: n } : null; }}
+                      onStroke={(points) => act('inkStroke', { points })}
+                      onErase={(ids) => apply({ op: 'removeDrawing', ids: ids.map(Number) })}
+                      onLasso={(found) => { const ids = found.map(Number); if (ids.length) setPicked({ block: null, image: null, id: ids[0], kind: 'shape', ids }); setInk((v) => ({ ...v, tool: null })); }}
+                    />
+                  ) : <RulerOverlay ruler={ink.ruler} size={{ width: pageRef.current?.offsetWidth || 816, height: pageRef.current?.offsetHeight || 1056 }} onChange={(ruler) => setInk((v) => ({ ...v, ruler }))} />}
+                </div>
+              ) : null}
               {paged
                 ? Array.from({ length: pages.count }, (_, k) => (
                     <div key={`s${k}`} className={`wd-sheet${geo.first && k === 0 ? ' wd-envelope-sheet' : ''}`} contentEditable={false} aria-hidden="true" style={{ top: pageTopOf(geo, k), height: pageHeightOf(geo, k), ...(geo.first && k === 0 ? { left: geo.first.left, width: geo.first.W, right: 'auto' } : {}), background: section?.background || undefined }}>

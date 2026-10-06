@@ -27,6 +27,7 @@ import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS } from '@rutba/office-form
 import { MailingsTab } from './mailings.js';
 import { CitationsGroup } from './references.js';
 import { IndexGroup } from './references-index.js';
+import { PEN_COLOURS, PEN_WIDTHS } from '../slides/ink-geometry.js';
 import { ToaGroup } from './references-toa.js';
 import { captionsExtra } from './references-figures.js';
 
@@ -115,7 +116,7 @@ const Soon = ({ icon, label, tall, why }) => (
 );
 
 export default function WordRibbon({
-  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null,
+  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null,
 }) {
   const format = model?.format || {};
   const design = model?.design || null;
@@ -494,21 +495,37 @@ export default function WordRibbon({
       {tab === 'draw' ? (
         <>
           <Group label="Drawing Tools">
-            <Soon icon="find" label="Select" why="Inking needs a pen layer the page does not have yet." />
-            <Soon icon="shape" label="Lasso" why="Inking needs a pen layer the page does not have yet." />
-            <Soon icon="wand" label="Eraser" why="Inking needs a pen layer the page does not have yet." />
-            <Soon icon="wand" label="Pen" why="Inking needs a pen layer the page does not have yet." />
-            <Soon icon="wand" label="Highlighter" why="Inking needs a pen layer the page does not have yet." />
+            <Button tall icon="mouse" label="Select" pressed={!ink?.tool} title="Select — put the pen down and type again (Esc)" onClick={() => act('inkTool', null)} />
+            <Button tall icon="shape" label="Lasso" pressed={ink?.tool === 'lasso'} title="Lasso Select — draw a loop round strokes to select them" onClick={() => act('inkTool', 'lasso')} />
+            <Button tall icon="close" label="Eraser" pressed={ink?.tool === 'eraser'} title="Eraser — take away each stroke the pointer passes over" onClick={() => act('inkTool', 'eraser')} />
+            {(ink?.pens || []).map((p) => {
+              const on = ink.tool === 'pen' && ink.penId === p.id;
+              const label = { pen: 'Pen', pencil: 'Pencil', highlighter: 'Highlighter' }[p.tool];
+              return (
+                <Button key={p.id} tall icon="wand" label={label} pressed={on} className={`sl-pen sl-pen-${p.tool}`} data-pen={p.id} style={{ '--pen': p.color }}
+                  title={on ? `${label} — click again for its colour and thickness` : `${label} — draw on the page`}
+                  onClick={(e) => {
+                    if (!on) { act('inkTool', p.id); return; }
+                    menu.open(e, [
+                      { heading: true, label: 'Thickness' },
+                      ...PEN_WIDTHS[p.tool].map((w) => ({ label: `${w} pt`, icon: p.width === w ? 'check' : undefined, run: () => act('inkPen', { id: p.id, width: w }) })),
+                      { heading: true, label: 'Colour' },
+                      ...PEN_COLOURS.map((c) => ({ label: c, icon: p.color === c ? 'check' : undefined, preview: <span style={{ display: 'inline-block', width: 16, height: 16, borderRadius: 8, background: c, border: '1px solid rgba(0,0,0,.25)' }} />, run: () => act('inkPen', { id: p.id, color: c }) })),
+                    ]);
+                  }} />
+              );
+            })}
+            <Button tall icon="plus" label="Add" title="Add Pen — another pen or highlighter in the gallery" onClick={(e) => menu.open(e, [['pen', 'Pen'], ['highlighter', 'Highlighter']].map(([tool, label]) => ({ label, icon: 'plus', run: () => act('inkAdd', tool) })))} />
           </Group>
           <Group label="Touch">
-            <Soon tall icon="wand" label="Draw with Touch" why="Inking needs a pen layer the page does not have yet." />
+            <Button tall icon="wand" label="Draw with Touch" pressed={ink?.touch !== false} title="Draw with Touch — a finger draws with the pen in hand; off, only a pen or the mouse does" onClick={() => act('inkTouch')} />
           </Group>
           <Group label="Stencils">
-            <Soon tall icon="minus" label="Ruler" why="Ink stencils come with inking." />
+            <Button tall icon="minus" label="Ruler" pressed={Boolean(ink?.ruler)} title="Ruler — a straight edge on the page: a stroke begun along it follows it; drag it to move, the wheel to turn it" onClick={() => act('inkRuler')} />
           </Group>
           <Group label="Convert">
-            <Soon tall icon="shape" label="Ink to Shape" why="There is no ink to convert yet." />
-            <Soon tall icon="formula" label="Ink to Maths" why="There is no ink to convert yet." />
+            <Button tall icon="shape" label="Ink to Shape" pressed={Boolean(ink?.toShape)} title="Ink to Shape — a rectangle, oval or triangle drawn becomes that shape" onClick={() => act('inkToShape')} />
+            <Soon tall icon="formula" label="Ink to Maths" why="Turning handwriting into an equation needs handwriting recognition, which this suite does not have." />
           </Group>
           <Group label="Insert">
             <Button tall icon="shape" label="Shape" title="The shapes the engine can draw" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', preset, widthPx: 200, heightPx: 120 }) })))} />

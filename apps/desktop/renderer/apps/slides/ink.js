@@ -167,6 +167,7 @@ export const INK_CSS = `
 .sl-ink-surface.sl-ink-eraser { cursor: cell; }
 .sl-ink-surface.sl-ink-lasso { cursor: crosshair; }
 .sl-ink-live { position: absolute; left: 0; top: 0; pointer-events: none; overflow: visible; }
+.wd-ink-host { position: absolute; left: 0; top: 0; width: 0; height: 0; z-index: 30; }
 .rw-btn.sl-pen svg { color: var(--pen); filter: drop-shadow(0 0 1px rgba(0,0,0,0.45)); }
 .sl-ink-rulerhost { position: absolute; left: 0; top: 0; z-index: 19; pointer-events: none; }
 .sl-ink-rulerhost .sl-ink-ruler { pointer-events: auto; }
