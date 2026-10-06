@@ -9,6 +9,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Window, TitleBar, Body, StatusBar, Menu, Icon, useToast, useTheme, Button, Progress } from '@rutba/office-ui';
 import { APPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
+import { pathOf } from '@rutba/office-shell/client';
 import { WhatsNew } from './whatsnew.js';
 
 /** The menu behind the app mark: new, open, recent, and the way out. */
@@ -127,9 +128,7 @@ export function useFileDrop(handler) {
     };
     const drop = (e) => {
       e.preventDefault();
-      const files = [...(e.dataTransfer?.files || [])]
-        .map((f) => window.rutbaOffice?.pathOf?.(f) || f.path)
-        .filter(Boolean);
+      const files = [...(e.dataTransfer?.files || [])].map(pathOf).filter(Boolean);
       if (files.length) handler(files);
     };
     window.addEventListener('dragover', over);

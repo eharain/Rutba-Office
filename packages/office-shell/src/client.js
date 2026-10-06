@@ -82,8 +82,13 @@ export function on(event, handler) {
   return bridge().on(event, handler);
 }
 
+/** A dropped File's path on disk, or null for one that is not on disk. */
+export function pathOf(file) {
+  return hasShell() ? bridge().pathOf?.(file) ?? null : null;
+}
+
 export function boot() {
   return hasShell() ? bridge().boot() : { app: 'home', file: null, platform: 'web', arch: '', versions: {} };
 }
 
-export default { app, win, fs, dialog, shell, store, doc, mail, oauth, present, update, announce, defaults, discover, print, clipboard, calendar, contacts, thumbs, on, boot, hasShell };
+export default { app, win, fs, dialog, shell, store, doc, mail, oauth, present, update, announce, defaults, discover, print, clipboard, calendar, contacts, thumbs, on, boot, pathOf, hasShell };

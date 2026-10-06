@@ -16,6 +16,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Dialog, Field, Input, Icon, Select, Separator, formatBytes } from '@rutba/office-ui';
 import { stripTags } from './parts.js';
 import { swapSignature } from '@rutba/mailbox/signature';
+import { pathOf } from '@rutba/office-shell/client';
 import { scheduleChoices, parseCustomSchedule } from '@rutba/mailbox/schedule';
 
 const exec = (command, value) => {
@@ -272,16 +273,14 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
               suppressContentEditableWarning
               spellCheck
               onDrop={(e) => {
-                const paths = [...(e.dataTransfer?.files || [])].map((f) => f.path).filter(Boolean);
-                if (!paths.length) return;
+                const dropped = [...(e.dataTransfer?.files || [])].map((f) => ({ filename: f.name, path: pathOf(f), size: f.size })).filter((f) => f.path);
+                if (!dropped.length) return;
                 e.preventDefault();
-                onChange({
-                  ...draft,
-                  attachments: [
-                    ...(draft.attachments || []),
-                    ...[...e.dataTransfer.files].map((f) => ({ filename: f.name, path: f.path, size: f.size })),
-                  ],
-                });
+                // The window has a drop handler of its own, which imports a
+                // file dropped on Mail as an archive: a file dropped onto a
+                // message is an attachment and goes no further.
+                e.stopPropagation();
+                onChange({ ...draft, attachments: [...(draft.attachments || []), ...dropped] });
               }}
             />
           </div>

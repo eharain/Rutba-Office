@@ -3567,6 +3567,36 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
+  /* ── A file dragged onto a window ─────────────────────────────────────── */
+  //
+  // Electron 32 took `File.path` away, and every drop arrived with no path:
+  // dragging a file onto any window did nothing at all. The drag here is
+  // Chromium's own, from the file on disk, so the page reads the path the way
+  // it does when a person drops one.
+  const launcherDrop = async () => {
+    try {
+      const dropped = path.join(dir, 'dropped.docx');
+      fs.copyFileSync(files.docx, dropped);
+      const win = await open('home');
+      const wc = win.webContents;
+      await until(() => wc.executeJavaScript(`Boolean(document.querySelector('.home-recent, .home-empty, .home'))`), 'the launcher', 8000).catch(() => {});
+      const { width, height } = win.getContentBounds();
+      const at = { x: Math.round(width / 2), y: Math.round(height / 2) };
+      const data = { items: [], files: [dropped], dragOperationsMask: 1 };
+      wc.debugger.attach('1.3');
+      try {
+        for (const type of ['dragEnter', 'dragOver', 'drop']) await wc.debugger.sendCommand('Input.dispatchDragEvent', { type, ...at, data });
+      } finally {
+        wc.debugger.detach();
+      }
+      const same = (p) => path.resolve(p || '').toLowerCase() === path.resolve(dropped).toLowerCase();
+      const openedOn = await until(() => doc.sessions().some((s) => s.kind === 'doc' && same(s.path)), 'the dropped document to open', 8000).catch(() => false);
+      check('launcher: a document dragged onto the window opens in Rutba Word', openedOn === true, `sessions ${JSON.stringify(doc.sessions().map((s) => path.basename(s.path || '(new)')))}`);
+    } catch (err) {
+      check('launcher: the drop check ran', false, err.message);
+    }
+  };
+
   /* ── The launcher's recent list: rename and remove in place ──────────── */
   //
   // Rename… turns a row's own name into a text box rather than a dialog,
@@ -4485,6 +4515,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('columns')) await wordColumns();
     if (only.includes('update')) await updatePrompt();
     if (only.includes('home')) await launcherRecent();
+    if (only.includes('drop')) await launcherDrop();
     if (only.includes('recent')) await homeRecentEdit();
     if (only.includes('freeze')) await sheetFreeze();
     if (only.includes('errors')) await sheetErrors();
@@ -4654,6 +4685,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await wordColumns();
   await updatePrompt();
   await launcherRecent();
+  await launcherDrop();
   await homeRecentEdit();
   await sheetFreeze();
   await sheetErrors();

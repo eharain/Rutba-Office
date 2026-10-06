@@ -4,7 +4,7 @@
 // preload. Nothing here decides policy — it only forwards the calls the
 // contract names, which is why adding a capability means editing one list.
 
-import { contextBridge, ipcRenderer } from 'electron';
+import { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { METHODS, EVENTS, CHANNEL_PREFIX } from '../contract.js';
 
 const api = { __contract: { methods: METHODS, events: EVENTS } };
@@ -25,6 +25,18 @@ api.on = (event, handler) => {
   const wrapped = (_e, payload) => handler(payload);
   ipcRenderer.on(channel, wrapped);
   return () => ipcRenderer.removeListener(channel, wrapped);
+};
+
+// Where a dropped file lives on disk. Electron 32 took `File.path` away and
+// left this in its place, and it can only be asked from the preload: without
+// it every drop arrived with no path, and dragging a file onto a window did
+// nothing at all. A file that is not on disk answers null.
+api.pathOf = (file) => {
+  try {
+    return webUtils.getPathForFile(file) || null;
+  } catch {
+    return null;
+  }
 };
 
 // The window's own identity, handed over at creation time so the renderer knows
