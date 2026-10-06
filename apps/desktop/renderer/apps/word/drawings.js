@@ -281,9 +281,12 @@ export function GroupBox({ group, block = null, kidsOf = null, renderBlock = nul
         const at = { position: 'absolute', left: Math.round(m.xPx), top: Math.round(m.yPx), width: Math.round(m.widthPx), height: Math.round(m.heightPx) };
         if (m.kind === 'textbox') {
           const kids = kidsOf ? kidsOf(m) : null;
+          // A shape holding words (an oval, a rounded box): its shape painted, its words over it.
+          const shaped = Boolean(m.href);
           return (
             <div key={i} style={at} contentEditable={kids && kids.length ? true : false} suppressContentEditableWarning>
-              <TextBox box={{ ...m, widthPx: m.widthPx, heightPx: m.heightPx, id: null }} kids={kids} renderBlock={renderBlock} renderLite={renderLite} style={{ width: '100%', minHeight: '100%' }} />
+              {shaped ? <img className="wd-member" src={m.href} alt="" draggable={false} contentEditable={false} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', transform: turnCss(m) }} /> : null}
+              <TextBox box={{ ...m, widthPx: m.widthPx, heightPx: m.heightPx, id: null, ...(shaped ? { fill: null, line: null } : {}) }} kids={kids} renderBlock={renderBlock} renderLite={renderLite} style={{ width: '100%', minHeight: '100%', ...(shaped ? { position: 'relative' } : {}) }} />
             </div>
           );
         }

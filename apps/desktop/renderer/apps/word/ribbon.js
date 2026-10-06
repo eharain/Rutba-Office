@@ -437,7 +437,7 @@ export default function WordRibbon({
             <Button tall icon="shape" label="Shapes" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', preset, widthPx: 200, heightPx: 120 }) })))} />
             <Button tall icon="star" label="Icons" title="Icons — one of the suite's own icons, in the colour you choose, as a picture at the caret" onClick={() => act('icons')} />
             <Soon tall icon="shape" label="3D Models" why="3D models need a renderer the suite does not have." />
-            <Soon tall icon="grid" label="SmartArt" why="SmartArt is a diagram grammar the engine does not write yet." />
+            <Button tall icon="grid" label="SmartArt" title="SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes after this paragraph" onClick={() => act('insertSmartArt')} />
             <Button tall icon="chart" label="Chart" title="A chart drawn from the table the caret is in — put the caret in a table first" onClick={(e) => menu.open(e, CHARTS.map(([k, l]) => ({ label: l, icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: k }) })))} />
             <Button tall icon="picture" label="Screenshot" title="Screenshot — a picture of another open window, or of a whole screen, put in at the caret" onClick={() => act('screenshot')} />
           </Group>

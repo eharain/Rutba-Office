@@ -735,7 +735,11 @@ function drawDrawing(page, doc, fr, xPx, yPx) {
       const my = yPx + m.yPx;
       const mt = Boolean(m.rot || m.flipH || m.flipV) && m.kind !== 'textbox';
       if (mt) page.turn((mx + m.widthPx / 2) * PT, (my + m.heightPx / 2) * PT, m.rot || 0, { flipH: m.flipH, flipV: m.flipV });
-      if (m.kind === 'textbox') drawTextBox(page, doc, { ...m, hAlign: null }, { xPx: mx, yPx: my, widthPx: m.widthPx });
+      if (m.kind === 'textbox' && m.href) {
+        // A shape holding words: its shape painted, its words over it.
+        drawImage(page, doc, { href: m.href, name: m.name, widthPx: m.widthPx, heightPx: m.heightPx }, mx, my);
+        drawTextBox(page, doc, { ...m, fill: null, line: null, hAlign: null }, { xPx: mx, yPx: my, widthPx: m.widthPx });
+      } else if (m.kind === 'textbox') drawTextBox(page, doc, { ...m, hAlign: null }, { xPx: mx, yPx: my, widthPx: m.widthPx });
       else if (m.href) drawImage(page, doc, { href: m.href, name: m.name, widthPx: m.widthPx, heightPx: m.heightPx }, mx, my);
       if (mt) page.restore();
     }

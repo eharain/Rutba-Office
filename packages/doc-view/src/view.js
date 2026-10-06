@@ -1573,6 +1573,19 @@ export class DocView {
     });
   }
 
+  /** Insert → SmartArt: a diagram as one group of shapes, in a paragraph of its own after the caret's. One undo step; its id is `lastDrawing`. */
+  insertDiagram({ name, shapes = [] } = {}) {
+    if (typeof this.doc.insertDiagram !== 'function') throw new Error('this document backend does not support diagrams');
+    if (this._containerOf(this.focus.block) !== null) throw new Error('A diagram cannot go inside a table cell — move the caret out of the table.');
+    return this._edit('insert SmartArt', null, () => {
+      const { block } = this.focus;
+      if (!this.block(block)) throw new Error('no paragraph at index ' + block);
+      this.lastDrawing = this.doc.insertDiagram(block, { name, shapes });
+      this._invalidate();
+      return this;
+    });
+  }
+
   /** The picked picture out of its paragraph — the paragraph too when it held nothing else. One undo step. */
   removeImage({ block, image = 0 } = {}) {
     if (typeof this.doc.removeImage !== 'function') {

@@ -626,6 +626,28 @@ export function groupMembers(groupXml) {
   };
 }
 
+/**
+ * One shape of a diagram, as a member of its Word group: a preset (`x`, `y`,
+ * `w`, `h` in px within the group), filled in `fill` (or not, for a line or
+ * a ring), edged in `line`, and — a node — its words centred in a text box
+ * of its own, white at `sizePt`, as Word writes a shape with words in it.
+ */
+export function diagramMemberXml({ id, name, preset, x, y, w, h, fill = null, line = null, lineWidthPx = 1, text = '', sizePt = 18 }) {
+  const fillXml = fill ? '<a:solidFill><a:srgbClr val="' + hex6(fill) + '"/></a:solidFill>' : '<a:noFill/>';
+  const lineXml = line ? '<a:ln w="' + Math.max(1, toEmu(lineWidthPx)) + '"><a:solidFill><a:srgbClr val="' + hex6(line) + '"/></a:solidFill></a:ln>' : '<a:ln><a:noFill/></a:ln>';
+  const sz = Math.round(sizePt * 2);
+  const rPr = '<w:rPr><w:color w:val="FFFFFF"/><w:sz w:val="' + sz + '"/><w:szCs w:val="' + sz + '"/></w:rPr>';
+  const words = text
+    ? '<wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"/><w:jc w:val="center"/>' + rPr + '</w:pPr>'
+      + '<w:r>' + rPr + '<w:t xml:space="preserve">' + esc(text) + '</w:t></w:r></w:p></w:txbxContent></wps:txbx>'
+    : '';
+  const bodyPr = '<wps:bodyPr rot="0" vert="horz" wrap="square" lIns="45720" tIns="45720" rIns="45720" bIns="45720" anchor="ctr" anchorCtr="0"><a:noAutofit/></wps:bodyPr>';
+  return '<wps:wsp><wps:cNvPr id="' + id + '" name="' + esc(name) + '"/><wps:cNvSpPr/>'
+    + '<wps:spPr><a:xfrm><a:off x="' + toEmu(x) + '" y="' + toEmu(y) + '"/><a:ext cx="' + toEmu(w) + '" cy="' + toEmu(h) + '"/></a:xfrm>'
+    + '<a:prstGeom prst="' + esc(preset) + '"><a:avLst/></a:prstGeom>' + fillXml + lineXml + '</wps:spPr>'
+    + words + bodyPr + '</wps:wsp>';
+}
+
 /** A group's graphic around its members, the group's space the members' box. */
 export function groupGraphic(members, { cx, cy }) {
   return '<a:graphic xmlns:a="' + DRAWING_NS.a + '"><a:graphicData uri="' + DRAWING_NS.wpg + '">'

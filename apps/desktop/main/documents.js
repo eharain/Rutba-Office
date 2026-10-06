@@ -1681,6 +1681,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     ungroupDrawing: (v, a) => v.ungroupDrawing(a.id, { place: a.place || null }),
     removeDrawing: (v, a) => v.removeDrawing(a.ids ?? a.id),
     insertInk: (v, a) => { v.insertInk({ block: a.block, strokes: a.strokes || [] }); return v.lastDrawing; },
+    // Insert → SmartArt: the layout's shapes, laid out by the window, as one group after the caret's paragraph; its id comes back.
+    insertDiagram: (v, a) => { v.insertDiagram({ name: a.name, shapes: a.shapes || [] }); return v.lastDrawing; },
     insertFloatingShape: (v, a) => { v.insertFloatingShape({ block: a.block, preset: a.preset, x: a.x, y: a.y, width: a.width, height: a.height, colour: a.colour, widthPt: a.widthPt }); return v.lastDrawing; },
     // Layout → Hyphenation: None, Automatic and the Hyphenation Options.
     setHyphenation: (v, a) => v.setHyphenation(a.spec || {}),

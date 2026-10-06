@@ -12,6 +12,9 @@ import assert from 'node:assert/strict';
 import { Deck, buildPptx, renderSlide } from '@rutba/presentation';
 import { SMARTART_LAYOUTS, parseItems, itemsText, layoutSmartArt, fitSize, boundsOf, smartArtSvg } from '../apps/desktop/renderer/smartart.js';
 import { createDocumentService } from '../apps/desktop/main/documents.js';
+import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { renderPdf } from '@rutba/doc-view/export/pdf';
+import { buildDocx } from '@rutba/ooxml/build';
 
 const BOX = { x: 100, y: 120, w: 1080, h: 480 };
 const inside = (s, box) => s.x >= box.x - 1 && s.y >= box.y - 1 && s.x + s.w <= box.x + box.w + 1 && s.y + s.h <= box.y + box.h + 1;
@@ -101,4 +104,50 @@ test('the service puts a diagram in by the addDiagram op, its group id back, in 
   assert.equal(out.model.slide.shapes.length, before + 1 + shapes.length);
   docs.undo({ id, slide: 0 });
   assert.equal(docs.model({ id, slide: 0 }).slide.shapes.length, before);
+});
+
+test('Documents puts a diagram in as one Word group of shapes holding their words, in a paragraph of its own, wrapped top and bottom', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'The stages follow.' }, { text: 'The end.' }] }));
+  view.setSelection({ block: 0, offset: 0 });
+  const shapes = layoutSmartArt('chevron', parseItems('Plan\nBuild\nShip'), { x: 0, y: 0, w: 600, h: 336 });
+  view.insertDiagram({ name: 'Basic Chevron Process', shapes });
+  const id = view.lastDrawing;
+  const xml = view.doc.doc.xml;
+  assert.match(xml, new RegExp(`<wp:docPr id="${id}" name="Basic Chevron Process ${id}"/>`));
+  assert.match(xml, /<wp:positionH relativeFrom="column"><wp:align>center<\/wp:align><\/wp:positionH>/);
+  assert.match(xml, /<wp:wrapTopAndBottom\/>/);
+  assert.equal((xml.match(/<a:prstGeom prst="chevron">/g) || []).length, 3);
+  assert.match(xml, /<wps:txbx><w:txbxContent><w:p><w:pPr><w:spacing w:after="0" w:line="240" w:lineRule="auto"\/><w:jc w:val="center"\/>/);
+  // The group's box is the shapes' own: no band above a layout centred in a taller box.
+  const group = view.drawings().find((d) => d.id === id);
+  assert.equal(group.kind, 'group');
+  assert.ok(Math.abs(group.heightPx - shapes[0].h) <= 1, 'as tall as the chevrons');
+  assert.match(xml, /<wps:spPr><a:xfrm><a:off x="0" y="0"\/>/);
+  // Drawn: each chevron painted as its shape, its words over it as the edit space's own paragraphs.
+  const block = view.render({ pages: false }).blocks.find((b) => b.groups);
+  const members = block.groups[0].members;
+  assert.deepEqual(members.map((m) => [m.kind, m.geom]), [['textbox', 'chevron'], ['textbox', 'chevron'], ['textbox', 'chevron']]);
+  assert.ok(members.every((m) => /^data:image\/svg\+xml/.test(m.href) && m.blocks?.length === 1));
+  assert.deepEqual(members.map((m) => view.block(m.blocks[0]).text), ['Plan', 'Build', 'Ship']);
+  // Printed: the shapes and their words.
+  const pdf = renderPdf(view, { created: '2026-10-07T00:00:00Z' }).buffer.toString('latin1');
+  assert.ok(['Plan', 'Build', 'Ship'].every((w) => pdf.includes(`(${w})`)), 'the words printed');
+  // Saved and read again, it is the same group.
+  const again = openDocx(view.save());
+  assert.equal(again.drawings().find((d) => d.kind === 'group')?.name, `Basic Chevron Process ${id}`);
+});
+
+test('a hierarchy\'s lines in a document are painted a stroke wider all round, so a line straight down still shows', () => {
+  const docs = createDocumentService({ holdBlob: () => ({ url: 'blob:x' }) });
+  const { id } = docs.new({ kind: 'doc' });
+  const shapes = layoutSmartArt('hierarchy', parseItems('Lead\n\tA\n\tB'), { x: 0, y: 0, w: 600, h: 336 });
+  const out = docs.apply({ id, ops: [{ op: 'insertDiagram', name: 'Hierarchy', shapes }] });
+  assert.equal(typeof out.opResult, 'number');
+  const group = docs.model({ id }).blocks.flatMap((b) => b.groups || []).find((g) => g.name === `Hierarchy ${out.opResult}`);
+  const lines = group.members.filter((m) => m.kind === 'shape');
+  assert.equal(lines.length, 4);
+  const down = lines.find((m) => m.heightPx > m.widthPx);
+  assert.equal(Math.round(down.widthPx), 6, 'a line no wider than nothing, painted 3 px either side');
+  assert.match(down.href, /^data:image\/svg\+xml/);
+  assert.throws(() => docs.apply({ id, ops: [{ op: 'insertDiagram', name: 'Hierarchy', shapes: [] }] }), /at least one shape/);
 });

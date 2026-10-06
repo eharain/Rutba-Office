@@ -45,6 +45,8 @@ import { IconsDialog } from '../icons-insert.js';
 import { CompareDialog, COMPARE_CSS } from './word/compare.js';
 import { SplitPane, SPLIT_CSS } from './word/split.js';
 import { ObjectDialog, OBJECT_CSS, objectIcon, typeOfExt, appOfProgId } from '../object-insert.js';
+import { SmartArtDialog, SMARTART_CSS } from '../smartart-dialog.js';
+import { layoutSmartArt } from '../smartart.js';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, recognise } from './slides/ink.js';
 import { SignatureSetupDialog, signatureLinePng, SIGNATURE_CSS } from './word/signature.js';
 import {
@@ -1462,6 +1464,13 @@ export default function Word({ app, shell, boot }) {
         case 'toggleSplit': patchView((v) => ({ split: !v.split })); return;
         // Insert → Object: the box, then the document (or a blank one) embedded as its icon.
         case 'insertObject': setDialog('object'); return;
+        // Insert → SmartArt: the box, then the layout's shapes as one group after the caret's paragraph, the column's width.
+        case 'insertSmartArt': setDialog('smartart'); return;
+        case 'placeSmartArt': {
+          const w = Math.round(Math.min(geom.columnWidthPx, 640));
+          await apply({ op: 'insertDiagram', name: arg.name, shapes: layoutSmartArt(arg.layout, arg.items, { x: 0, y: 0, w, h: Math.round(w * 0.56) }) });
+          return;
+        }
         case 'placeObject': {
           const type = typeOfExt(arg.ext);
           if (!type) { toast('Only Word, Excel and PowerPoint documents embed.', { ms: 3000 }); return; }
@@ -2469,6 +2478,12 @@ export default function Word({ app, shell, boot }) {
         />
       ) : null}
 
+      {dialog === 'smartart' ? (
+        <>
+          <style>{SMARTART_CSS}</style>
+          <SmartArtDialog onClose={() => setDialog(null)} onInsert={(spec) => { setDialog(null); act('placeSmartArt', spec); }} />
+        </>
+      ) : null}
       {dialog === 'object' ? (
         <>
           <style>{OBJECT_CSS}</style>

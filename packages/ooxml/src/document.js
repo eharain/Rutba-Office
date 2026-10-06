@@ -37,7 +37,7 @@ import { readParagraphStyles, readCharacterStyles, readNumberingDefs, readThemeF
 import {
   findDrawings, readDrawing, readBodyPr, readShapeLook, DRAWING_NS, Z_BASE, Z_STEP, textBoxRun, fallbackFor, floatingShapeRun,
   withAnchorAttrs, withDocPr, withPosition, withWrap, withExtent, withTransform, withShapeFill, withShapeLine, withBodyPr,
-  toAnchor, toInline, memberXml, groupMembers, groupGraphic, memberToDrawing, anchorXml, EMU_PER_PX,
+  toAnchor, toInline, memberXml, groupMembers, groupGraphic, memberToDrawing, anchorXml, EMU_PER_PX, diagramMemberXml,
 } from './drawings.js';
 
 /** What the Arrange commands need of a drawing, off its XML: its id, what it is, its z-order and its turn. */
@@ -2960,6 +2960,48 @@ export class Document {
     return id;
   }
 
+  /**
+   * Insert → SmartArt: a diagram as one Word group of shapes, in a
+   * paragraph of its own after paragraph `index` — wrapped top and bottom,
+   * centred on the column — named `name` and its id, as "Basic Process 12".
+   * `shapes` are the layout's (px, from the group's top-left corner, in
+   * drawing order): a node a filled preset holding its words, an arrow
+   * filled, a ring or a line edged. Word opens it as a group, every word
+   * editable; it is not a SmartArt part. Answers the group's id.
+   */
+  insertDiagram(index, { name = 'Diagram', shapes = [] } = {}) {
+    const p = this.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    if (p.box || p.container || p.structural) throw new Error('A diagram goes in the body, after a paragraph of its own — move the caret out of the box or the table first.');
+    if (!shapes.length) throw new Error('a diagram needs at least one shape');
+    this.ensureDrawingNamespaces();
+    // The group's box is the shapes' own: a layout centred in a taller box leaves no band above it.
+    const x0 = Math.min(...shapes.map((s) => s.x));
+    const y0 = Math.min(...shapes.map((s) => s.y));
+    shapes = shapes.map((s) => ({ ...s, x: s.x - x0, y: s.y - y0 }));
+    const w = Math.max(1, ...shapes.map((s) => s.x + s.w));
+    const h = Math.max(1, ...shapes.map((s) => s.y + s.h));
+    const id = this._nextDrawingId();
+    const names = { roundRect: 'Rectangle: Rounded Corners', rect: 'Rectangle', ellipse: 'Oval', chevron: 'Arrow: Chevron', rightArrow: 'Arrow: Right', line: 'Straight Connector' };
+    const members = shapes.map((s, i) => diagramMemberXml({
+      id: id + 1 + i, name: (names[s.preset] || 'Shape') + ' ' + (id + 1 + i),
+      preset: s.preset, x: s.x, y: s.y, w: s.w, h: s.h,
+      fill: s.fill || null, line: s.line || null, lineWidthPx: (s.lineWidth ?? 1) * (96 / 72), text: s.text || '', sizePt: s.size || 18,
+    }));
+    const cx = Math.round(w * EMU_PER_PX);
+    const cy = Math.round(h * EMU_PER_PX);
+    const drawing = anchorXml({
+      open: '<w:drawing>',
+      extent: '<wp:extent cx="' + cx + '" cy="' + cy + '"/>',
+      effectExtent: '<wp:effectExtent l="0" t="0" r="0" b="0"/>',
+      docPr: '<wp:docPr id="' + id + '" name="' + esc(name + ' ' + id) + '"/>',
+      frame: '<wp:cNvGraphicFramePr/>',
+      graphic: groupGraphic(members, { cx, cy }),
+    }, { wrap: 'topAndBottom', relativeHeight: this._topZ() + Z_STEP, h: { rel: 'column', align: 'center' }, v: { rel: 'paragraph', offsetPx: 0 }, dist: { t: 0, b: 0, l: 114300, r: 114300 } });
+    this._spliceBody(p.end, p.end, '<w:p><w:pPr><w:spacing w:after="160"/></w:pPr><w:r>' + drawing + '</w:r></w:p>');
+    return id;
+  }
+
   /** Runs put at the start of a paragraph, after its properties — where a floating drawing's anchor goes. */
   _putRunsInParagraph(index, runs) {
     const fresh = this.editParagraph(index);
@@ -3124,8 +3166,12 @@ export class Document {
           const spPr = /<wps:spPr\b[^>]*>([\s\S]*?)<\/wps:spPr>/.exec(m.xml)?.[1] ?? '';
           const line = /<a:ln\b[^>]*>([\s\S]*?)<\/a:ln>/.exec(spPr);
           const bodyPr = readBodyPr(m.xml);
+          // A shape holding words — an oval, a rounded box, a chevron — is
+          // painted as its shape, and its words drawn over it.
+          const prst = /<a:prstGeom\b[^>]*\bprst="([^"]+)"/.exec(spPr)?.[1] ?? 'rect';
           return {
             ...box, kind: 'textbox', id: m.id, name: m.name,
+            ...(prst !== 'rect' ? { geom: prst, shapeXml: m.xml.replace(/<wps:txbx\b[\s\S]*?<\/wps:txbx>/, '') } : {}),
             fill: colourOf(spPr.replace(/<a:ln\b[^>]*>[\s\S]*?<\/a:ln>/, ''), colours), line: line ? colourOf(line[1], colours) : null,
             insets: bodyPr.insets, vAnchor: bodyPr.anchor, vert: bodyPr.vert,
             paragraphs: this._liteParagraphs(content), ...(blocks && blocks.length ? { blocks } : {}),

@@ -55,6 +55,7 @@ export class OoxmlBackend {
   insertTextBox(index, spec) { return this.doc.insertTextBox(index, spec); }
   insertInk(index, strokes) { return this.doc.insertInk(index, strokes); }
   insertFloatingShape(index, spec) { return this.doc.insertFloatingShape(index, spec); }
+  insertDiagram(index, spec) { return this.doc.insertDiagram(index, spec); }
   textBoxBlocks(id) { return this.doc.textBoxBlocks(id); }
   updateDrawing(id, patch) { this.doc.updateDrawing(id, patch); return this; }
   orderDrawings(ids, how) { this.doc.orderDrawings(ids, how); return this; }
@@ -1131,6 +1132,18 @@ function drawingToImagePainted(d) {
   return null;
 }
 
+/** A line painted `bleed` px in from every side of its picture, so its stroke shows whole. */
+function lineImage(shapeXml, widthPx, heightPx, bleed) {
+  try {
+    const descriptor = parseShapeXml(shapeXml);
+    if (!descriptor) return null;
+    const width = Math.max(0, widthPx) + 2 * bleed;
+    const height = Math.max(0, heightPx) + 2 * bleed;
+    const built = buildShape(descriptor, { x: bleed, y: bleed, width: Math.max(0, widthPx), height: Math.max(0, heightPx) });
+    return svgDataUri(scene({ width, height, background: 'none', children: [built] }));
+  } catch { return null; }
+}
+
 function withDrawingsPainted(p) {
   if (p?.groups?.length) {
     // A group's shapes are painted the same way, each at its own size.
@@ -1138,9 +1151,17 @@ function withDrawingsPainted(p) {
       ...p,
       groups: p.groups.map((g) => ({
         ...g,
-        members: g.members.map((m) => (m.kind === 'shape' && m.shapeXml
-          ? { ...m, href: drawingToImagePainted({ kind: 'shape', widthPx: Math.max(1, Math.round(m.widthPx)), heightPx: Math.max(1, Math.round(m.heightPx)), shapeXml: m.shapeXml })?.href ?? null, shapeXml: undefined }
-          : m)),
+        members: g.members.map((m) => {
+          if (!m.shapeXml || (m.kind !== 'shape' && m.kind !== 'textbox')) return m;
+          // A line has no width or no height of its own: it is painted in a
+          // box a stroke wider all round, so the stroke is not cut away.
+          const bleed = /<a:prstGeom\b[^>]*\bprst="(?:line|straightConnector\d*)"/.test(m.shapeXml) ? 3 : 0;
+          const w = Math.max(1, Math.round(m.widthPx));
+          const h = Math.max(1, Math.round(m.heightPx));
+          const href = bleed ? lineImage(m.shapeXml, m.widthPx, m.heightPx, bleed) : drawingToImagePainted({ kind: 'shape', widthPx: w, heightPx: h, shapeXml: m.shapeXml })?.href ?? null;
+          const out = { ...m, href, shapeXml: undefined };
+          return bleed ? { ...out, xPx: m.xPx - bleed, yPx: m.yPx - bleed, widthPx: m.widthPx + 2 * bleed, heightPx: m.heightPx + 2 * bleed } : out;
+        }),
       })),
     };
   }
