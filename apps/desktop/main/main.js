@@ -180,6 +180,12 @@ createShell({
     if (process.env.RUTBA_OFFICE_VERIFY_EDIT || process.env.RUTBA_OFFICE_VERIFY_APPS || process.env.RUTBA_OFFICE_VERIFY_CORPUS || process.env.RUTBA_OFFICE_SMOKE) {
       stores.settings.set('announcements.enabled', false);
       stores.settings.set('updates.automatic', false);
+      // Nor does it take its look from the machine. Left on 'system', a
+      // computer in dark mode drew every window dark, and a check that reads
+      // an unfilled cell as white or clear failed there and passed everywhere
+      // else — a verdict on the operating system's setting, not the code.
+      // `RUTBA_SMOKE_THEME` still asks for the dark captures on purpose.
+      stores.settings.set('theme', 'light');
     }
 
     // `--import-accounts=<file>` sets up the accounts in a file before the
