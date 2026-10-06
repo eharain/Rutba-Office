@@ -27,6 +27,7 @@ import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS } from '@rutba/office-form
 import { MailingsTab } from './mailings.js';
 import { CitationsGroup } from './references.js';
 import { IndexGroup } from './references-index.js';
+import { ToaGroup } from './references-toa.js';
 import { captionsExtra } from './references-figures.js';
 
 /* ── vocabularies ────────────────────────────────────────────────────────── */
@@ -729,10 +730,7 @@ export default function WordRibbon({
             <Button tall icon="refresh" label="Update Fields" title="Update Fields (F9) — refresh every cross-reference to its bookmark's current words" onClick={() => commands['field.update']?.run?.()} />
           </Group>
           {references ? <IndexGroup act={references.act} hasIndex={Boolean(references.info?.index)} /> : null}
-          <Group label="Table of Authorities">
-            <Soon tall icon="flag" label="Mark Citation" why="TA fields, not written yet." />
-            <Soon icon="listBullet" label="Insert Table of Authorities" why="Comes with citations." />
-          </Group>
+          {references ? <ToaGroup act={references.act} hasTable={Boolean(references.info?.toa?.length)} /> : null}
         </>
       ) : null}
 

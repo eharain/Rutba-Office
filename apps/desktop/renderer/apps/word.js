@@ -1897,6 +1897,8 @@ export default function Word({ app, shell, boot }) {
       // `apply`), which is the only way this toast can say how many.
       // References → Mark Entry, Word's own shortcut.
       'references.markEntry': { label: 'Mark Entry', icon: 'flag', key: 'Alt+Shift+X', global: true, run: () => references.act('markEntry') },
+      // References → Mark Citation, Word's own shortcut.
+      'references.markCitation': { label: 'Mark Citation', icon: 'flag', key: 'Alt+Shift+I', global: true, run: () => references.act('markCitation') },
       'field.update': {
         label: 'Update Fields', icon: 'refresh', key: 'F9', global: true,
         run: async () => {
@@ -1908,7 +1910,7 @@ export default function Word({ app, shell, boot }) {
           // The index, tables of figures and fields in the body too, with the
           // pages as this window lays them.
           const refs = model?.references;
-          if (refs?.index || refs?.figures?.length || refs?.docFields) ops.push({ op: 'refreshReferences', ...references.fieldContext() });
+          if (refs?.index || refs?.figures?.length || refs?.toa?.length || refs?.docFields) ops.push({ op: 'refreshReferences', ...references.fieldContext() });
           const next = await apply(...ops);
           if (!next) return;
           const n = next.opResult ?? 0;
@@ -3207,10 +3209,10 @@ function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
       // `data-name` are what the page's Ctrl+click handler reads to follow a
       // REF to its bookmark (`gotoBookmark`), without the engine's frame
       // having to carry anything more than the run already does.
-      className={[run.field ? 'wd-field' : null, run.field?.kind === 'xe' ? 'wd-xe' : null, run.field && MERGE_KINDS.has(run.field.kind) ? 'wd-mergefield' : null, run.link ? 'wd-link' : null, run.ins ? 'wd-ins' : null].filter(Boolean).join(' ') || undefined}
+      className={[run.field ? 'wd-field' : null, run.field?.kind === 'xe' || run.field?.kind === 'ta' ? 'wd-xe' : null, run.field && MERGE_KINDS.has(run.field.kind) ? 'wd-mergefield' : null, run.link ? 'wd-link' : null, run.ins ? 'wd-ins' : null].filter(Boolean).join(' ') || undefined}
       data-kind={run.field && MERGE_KINDS.has(run.field.kind) ? run.field.kind : undefined}
       data-instr={run.field ? run.field.instr : undefined}
-      data-xe={run.field?.kind === 'xe' ? '{ ' + run.field.instr.trim() + ' }' : undefined}
+      data-xe={run.field?.kind === 'xe' || run.field?.kind === 'ta' ? '{ ' + run.field.instr.trim() + ' }' : undefined}
       data-name={run.field?.kind === 'ref' ? run.field.name : undefined}
       data-link={run.link || undefined}
       // Review → Language: the run's language for the page, and no red

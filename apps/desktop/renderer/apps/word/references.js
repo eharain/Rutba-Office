@@ -16,6 +16,8 @@ import {
 } from '@rutba/ooxml/bibliography';
 import { MarkEntryPanel, IndexDialog, INDEX_CSS } from './references-index.js';
 import { FiguresDialog, FieldDialog, FIGURES_CSS } from './references-figures.js';
+import { MarkCitationPanel, ToaDialog, TOA_CSS } from './references-toa.js';
+import { CITATION_HINTS } from '@rutba/ooxml/wordtoa';
 
 /** Where the master list lives in the profile: Word's Sources.xml, as the same XML. */
 const MASTER_KEY = 'word.bibliography.master';
@@ -80,6 +82,7 @@ export function useReferences({ shell, doc = null, model, apply, toast, layout =
   const info = model?.references || null;
   const [dialog, setDialog] = useState(null);
   const [marking, setMarking] = useState(false);
+  const [citing, setCiting] = useState(false);
   const [master, setMaster] = useState([]);
 
   // The master list, read from the profile when a dialog needs it.
@@ -161,7 +164,24 @@ export function useReferences({ shell, doc = null, model, apply, toast, layout =
   /** The References verbs that open something or need the page layout: Mark Entry, Insert Index, Update Index. */
   const act = useCallback(async (name) => {
     if (name === 'markEntry') {
+      setCiting(false);
       setMarking(true);
+      return;
+    }
+    if (name === 'markCitation') {
+      setMarking(false);
+      setDialog(null);
+      setCiting(true);
+      return;
+    }
+    if (name === 'insertToa') {
+      setDialog({ kind: 'toa' });
+      return;
+    }
+    if (name === 'updateToa') {
+      if (!info?.toa?.length) return;
+      const next = await apply({ op: 'updateTablesOfAuthorities', pages: layout()?.pages || null });
+      if (next) toast('Table of authorities updated', { tone: 'good' });
       return;
     }
     if (name === 'insertIndex') {
@@ -218,6 +238,34 @@ export function useReferences({ shell, doc = null, model, apply, toast, layout =
     return next?.opResult ?? (next ? 1 : 0);
   }, [apply, patchView]);
 
+  const markCitation = useCallback(async (spec) => {
+    const next = await apply({ op: 'markCitation', ...spec });
+    // The TA field is hidden text, as an XE is: ¶ goes on to show it.
+    if (next && patchView) patchView({ marks: true });
+    return next?.opResult ?? (next ? 1 : 0);
+  }, [apply, patchView]);
+
+  /** Next Citation: the next words after the caret that look like a citation, selected — from the top again past the end. */
+  const nextCitation = useCallback(async () => {
+    const blocks = model?.blocks || [];
+    const focus = model?.selection?.focus || { block: 0, offset: 0 };
+    const hints = new RegExp(CITATION_HINTS.source, 'gi');
+    const skip = (b) => /^(TableofAuthorities|TOAHeading|Index|TOC|TableofFigures)/.test(b?.style || '');
+    const n = blocks.length;
+    for (let k = 0; k <= n; k++) {
+      const i = (focus.block + k) % Math.max(1, n);
+      const b = blocks[i];
+      if (!b || skip(b)) continue;
+      hints.lastIndex = k === 0 ? focus.offset : 0;
+      const m = hints.exec(b.text || '');
+      if (!m || (k === n && m.index >= focus.offset)) continue;
+      const words = m[0].replace(/\s+$/, '');
+      await apply({ op: 'setSelection', anchor: { block: i, offset: m.index }, focus: { block: i, offset: m.index + words.length } });
+      return true;
+    }
+    return false;
+  }, [apply, model]);
+
   let node = null;
   if (dialog?.kind === 'manage') {
     node = (
@@ -267,6 +315,19 @@ export function useReferences({ shell, doc = null, model, apply, toast, layout =
         }}
       />
     );
+  } else if (dialog?.kind === 'toa') {
+    node = (
+      <ToaDialog
+        authorities={info?.authorities || []}
+        current={info?.toa || null}
+        onClose={close}
+        onMark={() => { close(); setMarking(false); setCiting(true); }}
+        onOk={async (opts) => {
+          close();
+          await apply({ op: 'insertTableOfAuthorities', ...opts, pages: layout()?.pages || null });
+        }}
+      />
+    );
   } else if (dialog?.kind === 'index') {
     node = (
       <IndexDialog
@@ -312,6 +373,8 @@ export function useReferences({ shell, doc = null, model, apply, toast, layout =
   }
   const panel = marking ? (
     <MarkEntryPanel selected={selected} bookmarks={model?.bookmarks || []} onMark={markEntry} onClose={() => setMarking(false)} />
+  ) : citing ? (
+    <MarkCitationPanel selected={selected} authorities={info?.authorities || []} onMark={markCitation} onNext={nextCitation} onClose={() => setCiting(false)} />
   ) : null;
 
   return { info, open, setStyle, citationMenu, bibliographyMenu, act, quickParts, beforePrint, fieldContext, node: <>{node}{panel}</>, dialog };
@@ -728,6 +791,6 @@ export function installReferencesStyles() {
   installed = true;
   const style = document.createElement('style');
   style.id = 'rutba-word-references-css';
-  style.textContent = REFERENCES_CSS + INDEX_CSS + FIGURES_CSS;
+  style.textContent = REFERENCES_CSS + INDEX_CSS + FIGURES_CSS + TOA_CSS;
   document.head.appendChild(style);
 }
