@@ -31,6 +31,7 @@ import { LanguageDialog } from '@rutba/office-ui/proofing';
 import { ActionDialog, ACTION_CSS } from './slides/action.js';
 import { PhotoAlbumDialog, ALBUM_CSS } from './slides/album.js';
 import { CustomShowsDialog, CUSTOM_SHOWS_CSS } from './slides/custom-shows.js';
+import { HandoutSlots, HANDOUT_CSS } from './slides/handout.js';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog } from '../icons-insert.js';
 
@@ -1243,7 +1244,9 @@ export default function Slides({ app, shell, boot }) {
         const layout = model?.slide?.layout || null;
         setSelected(null);
         setEditing(null);
-        setMasterPart(layout || model?.slide?.master || 'ppt/slideMasters/slideMaster1.xml');
+        // From the Notes or Handout Master, the slides' own master; from a slide, its layout.
+        const own = model?.masterView?.kind === 'notes' || model?.masterView?.kind === 'handout' ? null : layout || model?.slide?.master;
+        setMasterPart(own || 'ppt/slideMasters/slideMaster1.xml');
         setTab('master');
         return;
       }
@@ -1254,6 +1257,25 @@ export default function Slides({ app, shell, boot }) {
         setTab('home');
         return;
       case 'masterSelect': setMasterPart(arg); return;
+      // View → Notes Master and Handout Master: the master on the stage, made as PowerPoint makes one if the deck has none.
+      case 'notesMasterView':
+      case 'handoutMasterView': {
+        const kind = name === 'notesMasterView' ? 'notes' : 'handout';
+        setSelected(null);
+        setEditing(null);
+        const next = await apply({ op: 'ensureMaster', kind });
+        if (next && typeof next.opResult === 'string') {
+          setMasterPart(next.opResult);
+          setTab(kind === 'notes' ? 'notesMaster' : 'handoutMaster');
+        }
+        return;
+      }
+      // The Notes Master and Handout Master tabs: a placeholder off or on, the page turned.
+      case 'masterPlaceholder':
+        if (masterPart) await apply({ op: 'setMasterPlaceholder', part: masterPart, type: arg.type, on: arg.on });
+        return;
+      case 'notesOrientation': await apply({ op: 'setNotesOrientation', portrait: arg === 'portrait' }); return;
+      case 'handoutPer': patchView({ handoutPer: arg }); return;
       // Slide Master → Insert Slide Master: a copy of this master, its layouts and theme, to restyle on its own.
       case 'insertMaster': {
         const from = model?.masterView?.items?.find((it) => it.part === masterPart)?.master || (masterPart && masterPart.includes('slideMasters/') ? masterPart : null) || model?.slide?.master || null;
@@ -1894,6 +1916,7 @@ export default function Slides({ app, shell, boot }) {
           <Spacer />
           {model?.masterView ? (() => {
             const item = model.masterView.items.find((it) => it.part === masterPart);
+            if (item?.kind === 'notes' || item?.kind === 'handout') return <Chip>{item.kind === 'notes' ? 'Notes Master: the printed notes page' : `Handout Master: ${view.handoutPer || 6} slides a page`}</Chip>;
             return <Chip>{item?.kind === 'layout' ? `${item.name} layout: used by ${item.used === 1 ? '1 slide' : `${item.used} slides`}` : `${item?.name || 'Slide Master'}: used by every layout`}</Chip>;
           })() : <Chip>Slide {index + 1} of {model?.count ?? 0}</Chip>}
           {slide?.shapes ? <Chip>{slide.shapes.length} shapes</Chip> : null}
@@ -1908,9 +1931,9 @@ export default function Slides({ app, shell, boot }) {
         </div>
       ) : (
         <>
-          <style>{CSS + DESIGN_CSS + COMMENTS_CSS + EQUATION_CSS}</style>
+          <style>{CSS + DESIGN_CSS + COMMENTS_CSS + EQUATION_CSS + HANDOUT_CSS}</style>
           {splitting ? <style>{SPLIT_CSS}</style> : null}
-          <Panel width={view.railWidth || 196} resizable title={model.masterView ? 'Slide Master' : 'Slides'}>
+          <Panel width={view.railWidth || 196} resizable title={model.masterView ? ({ notes: 'Notes Master', handout: 'Handout Master' }[model.masterView.kind] || 'Slide Master') : 'Slides'}>
             {model.masterView ? (
               <div className="sl-sorter sl-masterstrip">
                 {model.masterView.items.map((it) => (
@@ -1921,6 +1944,7 @@ export default function Slides({ app, shell, boot }) {
                     data-part={it.part}
                     onClick={() => act('masterSelect', it.part)}
                     onContextMenu={(e) => {
+                      if (it.kind !== 'master' && it.kind !== 'layout') return;
                       act('masterSelect', it.part);
                       menu.open(e, [
                         { label: 'Insert Layout', icon: 'plus', run: () => act('insertLayout') },
@@ -2053,6 +2077,7 @@ export default function Slides({ app, shell, boot }) {
                   {preview?.kind === 'animation' && animations.length ? (
                     <AnimationPreview key={preview.key} slide={slide} size={model.size} only={preview.only} onDone={() => setPreview(null)} />
                   ) : null}
+                  {model.masterView?.kind === 'handout' ? <HandoutSlots size={model.size} slide={model.slideSize || null} per={view.handoutPer || 6} /> : null}
                   {view.gridlines ? <div className="sl-gridlines" /> : null}
                   {view.guides ? <div className="sl-guides" /> : null}
                   {/*
@@ -3126,6 +3151,8 @@ const CSS = `
 .sl-masterstrip { gap: 8px; }
 .sl-mthumb { flex-direction: column; gap: 3px; position: relative; }
 .sl-mthumb .sl-thumb-card { flex: none; width: 100%; }
+/* A notes or handout page keeps its own shape — portrait, as often as not. */
+.sl-mthumb-notes .sl-thumb-card, .sl-mthumb-handout .sl-thumb-card { aspect-ratio: auto; width: 62%; }
 .sl-thumb.sl-mthumb-layout { padding-left: 22px; }
 .sl-mthumb-layout::before { content: ''; position: absolute; left: 9px; top: -8px; bottom: 50%; width: 9px; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); border-bottom-left-radius: 4px; }
 .sl-mthumb-name { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-2); padding: 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

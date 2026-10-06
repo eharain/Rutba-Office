@@ -183,7 +183,7 @@ export default function SlidesRibbon({
   return (
     <Ribbon
       tabs={[
-        ...(masterView ? [{ id: 'master', label: 'Slide Master' }] : []),
+        ...(masterView ? [masterView.kind === 'notes' ? { id: 'notesMaster', label: 'Notes Master' } : masterView.kind === 'handout' ? { id: 'handoutMaster', label: 'Handout Master' } : { id: 'master', label: 'Slide Master' }] : []),
         { id: 'home', label: 'Home' },
         { id: 'insert', label: 'Insert' },
         { id: 'draw', label: 'Draw' },
@@ -397,6 +397,33 @@ export default function SlidesRibbon({
             <Button tall icon="picture" label="Background Styles" title={`Background Styles — ${isLayout ? 'this layout' : 'the master'}'s background`} onClick={backgroundMenu} />
             <Rows>
               <label className="sl-rb-field sl-rb-check" data-tip={isLayout ? "Hide Background Graphics — this layout without the master's own shapes" : 'Hide Background Graphics — pick a layout; the master always draws its own'}><input type="checkbox" className="sl-master-hidebg" disabled={!isLayout} checked={Boolean(masterItem?.hidesBackgroundGraphics)} onChange={(e) => act('hideBackgroundGraphics', e.target.checked)} /> Hide Background Graphics</label>
+            </Rows>
+          </Group>
+          <Group label="Close">
+            <Button tall icon="close" label="Close Master View" title="Close Master View — back to the slides" onClick={() => act('closeMaster')} />
+          </Group>
+        </>
+      ) : null}
+
+      {(tab === 'notesMaster' || tab === 'handoutMaster') && (masterView?.kind === 'notes' || masterView?.kind === 'handout') ? (
+        <>
+          <Group label="Page Setup">
+            <Button tall icon="file" label={masterView.kind === 'notes' ? 'Notes Page Orientation' : 'Handout Orientation'} title="Orientation — the printed page portrait or landscape; the notes page and the handout share one size" onClick={(e) => menu.open(e, [
+              { label: 'Portrait', icon: masterView.portrait ? 'check' : undefined, run: () => act('notesOrientation', 'portrait') },
+              { label: 'Landscape', icon: masterView.portrait ? undefined : 'check', run: () => act('notesOrientation', 'landscape') },
+            ])} />
+            {masterView.kind === 'handout' ? (
+              <Button tall icon="grid" label="Slides Per Page" title="Slides Per Page — how many slides each handout page shows" onClick={(e) => menu.open(e, [1, 2, 3, 4, 6, 9].map((n) => ({ label: `${n} ${n === 1 ? 'Slide' : 'Slides'}`, icon: (view.handoutPer || 6) === n ? 'check' : undefined, run: () => act('handoutPer', n) })))} />
+            ) : null}
+          </Group>
+          <Group label="Placeholders">
+            <Rows>
+              {(masterView.kind === 'notes'
+                ? [['hdr', 'Header'], ['sldImg', 'Slide Image'], ['ftr', 'Footer'], ['dt', 'Date'], ['body', 'Body'], ['sldNum', 'Page Number']]
+                : [['hdr', 'Header'], ['ftr', 'Footer'], ['dt', 'Date'], ['sldNum', 'Page Number']]
+              ).map(([type, label]) => (
+                <label key={type} className="sl-rb-field sl-rb-check" data-tip={`${label} — this placeholder on the master, or none`}><input type="checkbox" className={`sl-nm-ph sl-nm-${type}`} checked={Boolean(masterView.placeholders?.[type])} onChange={(e) => act('masterPlaceholder', { type, on: e.target.checked })} /> {label}</label>
+              ))}
             </Rows>
           </Group>
           <Group label="Close">
@@ -864,9 +891,9 @@ export default function SlidesRibbon({
             <Button tall icon="play" label="Reading View" title="The show in this window, not full screen" onClick={() => act('present', 'reading')} />
           </Group>
           <Group label="Master Views">
-            <Button tall icon="slides" label="Slide Master" pressed={Boolean(masterView)} title="Slide Master — edit the master and its layouts; every slide on them follows" onClick={() => act(masterView ? 'closeMaster' : 'masterView')} />
-            <Soon tall icon="file" label="Handout Master" why="Printed handouts are laid out by the Print dialog's own pages-per-sheet; a handout master part is kept in the file but not drawn or edited." />
-            <Soon tall icon="word" label="Notes Master" why="The notes page is drawn from the slide and its notes; a notes master part is kept in the file but not drawn or edited." />
+            <Button tall icon="slides" label="Slide Master" pressed={masterView?.kind === 'slide'} title="Slide Master — edit the master and its layouts; every slide on them follows" onClick={() => act(masterView?.kind === 'slide' ? 'closeMaster' : 'masterView')} />
+            <Button tall icon="file" label="Handout Master" pressed={masterView?.kind === 'handout'} title="Handout Master — the printed handout's header, date, footer and page number, and how many slides a page shows" onClick={() => act(masterView?.kind === 'handout' ? 'closeMaster' : 'handoutMasterView')} />
+            <Button tall icon="word" label="Notes Master" pressed={masterView?.kind === 'notes'} title="Notes Master — the printed notes page: where the slide and the notes go, the notes' text styles, the header and footer" onClick={() => act(masterView?.kind === 'notes' ? 'closeMaster' : 'notesMasterView')} />
           </Group>
           <Group label="Show">
             <Button icon="minus" label="Ruler" pressed={Boolean(view.ruler)} onClick={() => act('toggle', 'ruler')} />
