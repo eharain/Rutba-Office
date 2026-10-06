@@ -1766,6 +1766,9 @@ export default function Slides({ app, shell, boot }) {
       <div
         className="sl-present"
         onClick={(e) => {
+          // Animations → Trigger: a click on a trigger shape plays its effects, not the next step.
+          const hit = e.target?.closest?.('[data-shape]');
+          if (hit && [hit.getAttribute('data-shape'), ...(hit.getAttribute('data-groups') || '').split(' ').filter(Boolean)].some((id) => showControl.current?.trigger?.(id))) return;
           if (runAction(e)) return;
           // Advance Slide → On Mouse Click off: a click still plays this
           // slide's animations but does not move the show off it (the keys
@@ -2823,6 +2826,7 @@ const KIND_WORDS = { entr: 'Entrance', emph: 'Emphasis', exit: 'Exit', path: 'Mo
 function AnimationPane({ slide, current, act, playing }) {
   const list = slide?.animations || [];
   const names = new Map((slide?.shapes || []).map((s) => [String(s.id), s.name || `Shape ${s.id}`]));
+  const shapeName = (id) => names.get(String(id)) || `shape ${id}`;
   const [dragFrom, setDragFrom] = React.useState(null);
   const [over, setOver] = React.useState(null);
   const at = current?.index ?? -1;
@@ -2851,7 +2855,7 @@ function AnimationPane({ slide, current, act, playing }) {
               onDragEnd={() => { setDragFrom(null); setOver(null); }}
               onClick={() => act('animSelect', i)}
               onContextMenu={(ev) => { act('animSelect', i); act('animMenu', { ev, index: i }); }}
-              title={`${KIND_WORDS[e.kind] || 'Effect'}: ${e.name}${e.direction ? ` (${e.direction})` : ''} — starts ${TRIGGER_WORDS[e.trigger] || e.trigger}${e.delay ? `, ${e.delay} s later` : ''}; ${e.duration ? `${e.duration} s` : 'at once'}${e.known ? '' : '. Kept as the file has it.'}`}
+              title={`${KIND_WORDS[e.kind] || 'Effect'}: ${e.name}${e.direction ? ` (${e.direction})` : ''} — starts ${e.triggerShape ? `on a click on ${shapeName(e.triggerShape)}` : TRIGGER_WORDS[e.trigger] || e.trigger}${e.delay ? `, ${e.delay} s later` : ''}; ${e.duration ? `${e.duration} s` : 'at once'}${e.known ? '' : '. Kept as the file has it.'}`}
             >
               <span className="sl-animrow-n">{newGroup ? e.group : ''}</span>
               <span className="sl-animrow-trigger">{e.trigger === 'onClick' ? <Icon name="mouse" size={13} /> : e.trigger === 'afterPrevious' ? <Icon name="clock" size={13} /> : null}</span>

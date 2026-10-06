@@ -58,6 +58,15 @@ export function rangeTree(xml) {
   return root;
 }
 
+/** Whether the time-node tags in `xml` open and close in equal number — a tree this can rebuild. */
+function balanced(xml) {
+  return ['p:seq', 'p:par', 'p:cTn', 'p:childTnLst'].every((tag) => {
+    const opens = (xml.match(new RegExp(`<${tag}\\b(?:[^>"]|"[^"]*")*?(?<!/)>`, 'g')) || []).length;
+    const closes = (xml.match(new RegExp(`</${tag}>`, 'g')) || []).length;
+    return opens === closes;
+  });
+}
+
 const kid = (node, name) => node?.children.find((c) => c.name === name) || null;
 const kidsOf = (node, name) => (node ? node.children.filter((c) => c.name === name) : []);
 function* walk(node) {
@@ -181,15 +190,33 @@ function readTree(timingXml) {
   const mainSeq = seqs.find((s) => kid(s, 'p:cTn')?.attrs.nodeType === 'mainSeq') || null;
   const mainCtn = kid(mainSeq, 'p:cTn');
   const mainKids = kid(mainCtn, 'p:childTnLst');
+  // Animations → Trigger: an interactive sequence started by a click on a
+  // shape. One started any other way (a media bookmark) is kept, not read.
+  const interactive = [];
+  for (const seq of seqs) {
+    const ctn = kid(seq, 'p:cTn');
+    if (ctn?.attrs.nodeType !== 'interactiveSeq') continue;
+    const cond = kidsOf(kid(ctn, 'p:stCondLst'), 'p:cond').find((c) => c.attrs.evt === 'onClick');
+    const spTgt = cond ? [...walk(cond)].find((n) => n.name === 'p:spTgt') : null;
+    // Only one whose tags balance is read; anything else stays as it is.
+    if (spTgt?.attrs.spid != null && balanced(timingXml.slice(seq.start, seq.end))) interactive.push({ seq, kids: kid(ctn, 'p:childTnLst'), spid: String(spTgt.attrs.spid) });
+  }
   const effects = [];
   let editable = true;
+  collect(mainKids, null);
+  for (const s of interactive) collect(s.kids, s.spid);
+  return { tree, timing, rootCtn, rootKids, mainSeq, mainCtn, mainKids, interactive, effects, editable };
+
+  // The effects of one sequence's click groups, in order. In a trigger's
+  // sequence every group is started by a click on the trigger.
+  function collect(seqKids, triggerShape) {
   let click = 0;
-  kidsOf(mainKids, 'p:par').forEach((groupPar, gi) => {
+  kidsOf(seqKids, 'p:par').forEach((groupPar, gi) => {
     const groupCtn = kid(groupPar, 'p:cTn');
     const conds = kidsOf(kid(groupCtn, 'p:stCondLst'), 'p:cond');
     // A group that starts with the slide (an After/With Previous first
     // effect) carries an onBegin condition beside "indefinite".
-    const auto = gi === 0 && (conds.some((c) => c.attrs.evt === 'onBegin') || conds.every((c) => c.attrs.delay !== 'indefinite'));
+    const auto = !triggerShape && gi === 0 && (conds.some((c) => c.attrs.evt === 'onBegin') || conds.every((c) => c.attrs.delay !== 'indefinite'));
     if (!auto) click += 1;
     const subs = kidsOf(kid(groupCtn, 'p:childTnLst'), 'p:par');
     if (!subs.length) editable = false;
@@ -233,12 +260,13 @@ function readTree(timingXml) {
           grpId: ctn.attrs.grpId != null ? Number(ctn.attrs.grpId) : null,
           presetId: ctn.attrs.presetID != null ? Number(ctn.attrs.presetID) : null,
           presetSubtype: ctn.attrs.presetSubtype != null ? Number(ctn.attrs.presetSubtype) : null,
+          triggerShape,
           ...kind,
         });
       });
     });
   });
-  return { tree, timing, rootCtn, rootKids, mainSeq, mainCtn, mainKids, effects, editable };
+  }
 }
 
 /**
@@ -272,6 +300,8 @@ function publicEntry(e, index) {
     group: e.group,
     paragraph: e.paragraph,
     presetId: e.presetId,
+    // Animations → Trigger: the shape a click on which starts it, or null for the slide's own sequence.
+    triggerShape: e.triggerShape ?? null,
     known,
   };
 }
@@ -442,11 +472,15 @@ function placed(e) {
   return out;
 }
 
-/** The click groups of the main sequence, as XML, from the list in order. */
-function groupsXml(effects, mainSeqId) {
+/**
+ * The click groups of a sequence, as XML, from the list in order. In a
+ * trigger's sequence (`interactive`) the first group starts with the click
+ * on the trigger itself, and none starts with the slide.
+ */
+function groupsXml(effects, mainSeqId, { interactive = false } = {}) {
   const groups = [];
   for (const e of effects) {
-    if (!groups.length || e.trigger === 'onClick') groups.push({ auto: !groups.length && e.trigger !== 'onClick', subs: [] });
+    if (!groups.length || e.trigger === 'onClick') groups.push({ auto: !interactive && !groups.length && e.trigger !== 'onClick', first: !groups.length, subs: [] });
     const g = groups[groups.length - 1];
     if (!g.subs.length || e.trigger === 'afterPrevious') g.subs.push({ effects: [] });
     g.subs[g.subs.length - 1].effects.push(e);
@@ -459,9 +493,19 @@ function groupsXml(effects, mainSeqId) {
       start = at + length;
       return `<p:par><p:cTn id="${token()}" fill="hold"><p:stCondLst><p:cond delay="${Math.round(at)}"/></p:stCondLst><p:childTnLst>${s.effects.map(placed).join('')}</p:childTnLst></p:cTn></p:par>`;
     });
-    const cond = g.auto ? `<p:cond delay="indefinite"/><p:cond evt="onBegin" delay="0"><p:tn val="${mainSeqId}"/></p:cond>` : '<p:cond delay="indefinite"/>';
+    const cond = interactive && g.first ? '<p:cond delay="0"/>'
+      : g.auto ? `<p:cond delay="indefinite"/><p:cond evt="onBegin" delay="0"><p:tn val="${mainSeqId}"/></p:cond>` : '<p:cond delay="indefinite"/>';
     return `<p:par><p:cTn id="${token()}" fill="hold"><p:stCondLst>${cond}</p:stCondLst><p:childTnLst>${subs.join('')}</p:childTnLst></p:cTn></p:par>`;
   }).join('');
+}
+
+/** A trigger's interactive sequence — a click on shape `spid` plays its groups in turn — as PowerPoint writes one. */
+function interactiveSeqXml(spid, effects) {
+  const id = token();
+  const click = `<p:cond evt="onClick" delay="0"><p:tgtEl><p:spTgt spid="${spid}"/></p:tgtEl></p:cond>`;
+  return `<p:seq concurrent="1" nextAc="seek"><p:cTn id="${id}" restart="whenNotActive" fill="hold" evtFilter="cancelBubble" nodeType="interactiveSeq">` +
+    `<p:stCondLst>${click}</p:stCondLst><p:endSync evt="end" delay="0"><p:rtn val="all"/></p:endSync>` +
+    `<p:childTnLst>${groupsXml(effects, id, { interactive: true })}</p:childTnLst></p:cTn><p:nextCondLst>${click}</p:nextCondLst></p:seq>`;
 }
 
 const MAIN_SEQ_CONDS = '<p:prevCondLst><p:cond evt="onPrev" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:prevCondLst><p:nextCondLst><p:cond evt="onNext" delay="0"><p:tgtEl><p:sldTgt/></p:tgtEl></p:cond></p:nextCondLst>';
@@ -552,27 +596,45 @@ function effectRefs(timingXml) {
  */
 function writeList(slideXml, list) {
   const range = timingRange(slideXml);
-  const before = range ? slideXml.slice(range.start, range.end) : null;
-  const parts = before ? readTree(before) : null;
-  if (parts && !parts.editable) throw new Error('This slide\'s animations are laid out in a way this cannot rewrite; they are kept as they are.');
+  const original = range ? slideXml.slice(range.start, range.end) : null;
+  const read = original ? readTree(original) : null;
+  if (read && !read.editable) throw new Error('This slide\'s animations are laid out in a way this cannot rewrite; they are kept as they are.');
 
   // The effects in their new order, each as XML ready to place.
   const fresh = [];
-  const effects = list.map((e) => {
+  const all = list.map((e) => {
     if (!e.fresh) return e;
     const xml = effectXml({ ...e.spec, grpId: e.grpId, nodeType: NODE_TYPE[e.trigger], delay: e.delay, spid: e.shapeId, paragraph: e.paragraph ?? null });
     fresh.push({ spid: e.shapeId, grpId: e.grpId });
     return { ...e, xml, fresh: false, scaleTo: null };
   });
+  // The main sequence's effects; a trigger's go in a sequence of their own.
+  const effects = all.filter((e) => !e.triggerShape);
+  const byTrigger = new Map();
+  for (const e of all) {
+    if (!e.triggerShape) continue;
+    if (!byTrigger.has(e.triggerShape)) byTrigger.set(e.triggerShape, []);
+    byTrigger.get(e.triggerShape).push(e);
+  }
+
+  // The trigger sequences read from the file come out here, and those the
+  // list has go back in after the main sequence below.
+  let before = original;
+  if (read?.interactive.length) {
+    for (const s of [...read.interactive].sort((a, b) => b.seq.start - a.seq.start)) before = before.slice(0, s.seq.start) + before.slice(s.seq.end);
+  }
+  const parts = before ? readTree(before) : null;
 
   const mainId = parts?.mainCtn?.attrs.id ?? token();
   let timing;
   if (!parts) {
-    if (!effects.length) return slideXml;
+    if (!effects.length) timing = '';
+    else {
     const root = token();
     timing = `<p:timing><p:tnLst><p:par><p:cTn id="${root}" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst>` +
       `<p:seq concurrent="1" nextAc="seek"><p:cTn id="${mainId}" dur="indefinite" nodeType="mainSeq"><p:childTnLst>${groupsXml(effects, mainId)}</p:childTnLst></p:cTn>${MAIN_SEQ_CONDS}</p:seq>` +
       `</p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>`;
+    }
   } else {
     const t = before;
     if (parts.mainSeq) {
@@ -600,10 +662,27 @@ function writeList(slideXml, list) {
     }
   }
 
+  // The triggers' sequences, after the main sequence (or first under the
+  // root when there is none), as PowerPoint orders them.
+  if (byTrigger.size) {
+    const seqs = [...byTrigger].map(([spid, es]) => interactiveSeqXml(spid, es.map((e, i) => (i === 0 ? { ...e, trigger: 'onClick' } : e)))).join('');
+    if (!timing) {
+      timing = `<p:timing><p:tnLst><p:par><p:cTn id="${token()}" dur="indefinite" restart="never" nodeType="tmRoot"><p:childTnLst>${seqs}</p:childTnLst></p:cTn></p:par></p:tnLst></p:timing>`;
+    } else {
+      const now = readTree(timing);
+      const at = now.mainSeq ? now.mainSeq.end : now.rootKids ? now.rootKids.innerStart : null;
+      timing = at != null
+        ? timing.slice(0, at) + seqs + timing.slice(at)
+        : timing.slice(0, now.rootCtn.innerEnd) + `<p:childTnLst>${seqs}</p:childTnLst>` + timing.slice(now.rootCtn.innerEnd);
+    }
+  }
+
   if (timing) {
-    // The build list, rebuilt against the effects that are left.
-    const oldList = /<p:bldLst\b[^>]*?(?:\/>|>[\s\S]*?<\/p:bldLst>)/.exec(timing)?.[0] || null;
-    const withoutList = oldList ? timing.replace(oldList, '') : timing;
+    // The build list, rebuilt against the effects that are left — from the
+    // list the slide had, which a timing rebuilt from nothing has lost.
+    const oldList = /<p:bldLst\b[^>]*?(?:\/>|>[\s\S]*?<\/p:bldLst>)/.exec(original || timing)?.[0] || null;
+    const ownList = /<p:bldLst\b[^>]*?(?:\/>|>[\s\S]*?<\/p:bldLst>)/.exec(timing)?.[0] || null;
+    const withoutList = ownList ? timing.replace(ownList, '') : timing;
     const refs = effectRefs(withoutList);
     const bld = buildList(oldList, refs, fresh, slideXml);
     timing = bld ? withoutList.replace(/<\/p:tnLst>/, () => `</p:tnLst>${bld}`) : withoutList;
@@ -685,6 +764,14 @@ export function setAnimation(slideXml, index, patch = {}) {
   if (!e) throw new RangeError(`no animation at ${index}`);
   const next = { ...e };
   if (patch.trigger) next.trigger = patch.trigger;
+  // Animations → Trigger: on a click on a shape of the slide, or (null) back
+  // in the slide's own sequence. Moved onto a trigger it starts on that click.
+  if (patch.triggerShape !== undefined) {
+    const spid = patch.triggerShape == null ? null : String(patch.triggerShape);
+    if (spid && !new RegExp(`<p:cNvPr\\b[^>]*\\bid="${spid}"`).test(slideXml)) throw new Error(`shape ${spid} is not on this slide to start the effect`);
+    next.triggerShape = spid;
+    if (spid && !patch.trigger) next.trigger = 'onClick';
+  }
   if (patch.delay != null) next.delay = Math.max(0, Math.round(Number(patch.delay) * 1000));
   const rebuild = patch.effect !== undefined || patch.kind !== undefined || patch.direction !== undefined;
   if (rebuild) {
@@ -726,7 +813,8 @@ export function removeAnimation(slideXml, index) {
 export function removeShapeAnimations(slideXml, shapeId) {
   if (!timingRange(slideXml)) return slideXml;
   const list = currentList(slideXml);
-  const kept = list.filter((e) => String(e.shapeId) !== String(shapeId));
+  // Its effects go, and so do the effects a click on it started.
+  const kept = list.filter((e) => String(e.shapeId) !== String(shapeId) && String(e.triggerShape) !== String(shapeId));
   return kept.length === list.length ? slideXml : writeList(slideXml, kept);
 }
 
@@ -737,7 +825,7 @@ export function pruneAnimations(slideXml) {
   const parts = readTree(slideXml.slice(range.start, range.end));
   if (!parts.editable) return slideXml;
   const ids = new Set([...slideXml.matchAll(/<p:cNvPr\b[^>]*\bid="(\d+)"/g)].map((m) => m[1]));
-  const kept = parts.effects.filter((e) => e.shapeId == null || ids.has(String(e.shapeId)));
+  const kept = parts.effects.filter((e) => (e.shapeId == null || ids.has(String(e.shapeId))) && (!e.triggerShape || ids.has(String(e.triggerShape))));
   return kept.length === parts.effects.length ? slideXml : writeList(slideXml, kept);
 }
 

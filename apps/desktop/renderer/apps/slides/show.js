@@ -13,7 +13,7 @@
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { playTransition } from './motion.js';
-import { sequence, applyState, playGroup } from './animate.js';
+import { sequence, applyState, playGroup, triggered } from './animate.js';
 import { Markup, FILL } from './markup.js';
 
 const plays = (t) => Boolean(t && t.type && t.type !== 'none' && Number(t.duration) > 0);
@@ -41,7 +41,7 @@ export function ShowStage({ slide, size = null, step = null, hidden = false, onS
   const stageRef = useRef(null);
   const runRef = useRef(null);
   const groupRef = useRef(null);
-  const phase = useRef({ key: null, index: null, step: 0, entering: false, autoDone: true, svg: null });
+  const phase = useRef({ key: null, index: null, step: 0, entering: false, autoDone: true, svg: null, fired: new Map() });
   const settledRef = useRef(onSettled);
   settledRef.current = onSettled;
   const slideRef = useRef(slide);
@@ -85,6 +85,21 @@ export function ShowStage({ slide, size = null, step = null, hidden = false, onS
         if (groupRef.current?.running()) { groupRef.current.finish(); moving = true; }
         return moving;
       },
+      /**
+       * Animations → Trigger: a click on shape `id` plays its next group, as
+       * PowerPoint's interactive sequence does. Says whether the shape is a
+       * trigger at all, so the click does not also move the show on.
+       */
+      trigger(id) {
+        const groups = triggered(slideRef.current?.animations || []).get(String(id));
+        if (!groups?.length) return false;
+        const p = phase.current;
+        const n = p.fired.get(String(id)) || 0;
+        if (n >= groups.length) return true;
+        p.fired.set(String(id), n + 1);
+        runGroup(groups[n]);
+        return true;
+      },
     };
   }
 
@@ -118,12 +133,12 @@ export function ShowStage({ slide, size = null, step = null, hidden = false, onS
       groupRef.current = null;
       const seq = seqOf();
       const at = step && step.index === top.index ? Math.min(Math.max(0, step.value), seq.clicks.length) : 0;
-      phase.current = { key: top.key, index: top.index, step: at, entering: true, autoDone: at > 0 || !seq.auto, svg: top.svg };
+      phase.current = { key: top.key, index: top.index, step: at, entering: true, autoDone: at > 0 || !seq.auto, svg: top.svg, fired: new Map() };
       applyState(el, slideRef.current?.animations || [], at, at > 0);
     } else if (p.svg !== top.svg) {
       // The same slide drawn again: the shapes put back where the show has them.
       p.svg = top.svg;
-      applyState(el, slideRef.current?.animations || [], p.step, p.autoDone);
+      applyState(el, slideRef.current?.animations || [], p.step, p.autoDone, p.fired);
     }
     if (!top.transition) {
       if (phase.current.entering) entered();
@@ -166,7 +181,7 @@ export function ShowStage({ slide, size = null, step = null, hidden = false, onS
       // click before — ends where it was going, then the next click's plays.
       groupRef.current?.finish();
       if (!p.autoDone) {
-        applyState(topEl(), slideRef.current?.animations || [], p.step, true);
+        applyState(topEl(), slideRef.current?.animations || [], p.step, true, p.fired);
         p.autoDone = true;
       }
       p.step = target;
@@ -176,7 +191,7 @@ export function ShowStage({ slide, size = null, step = null, hidden = false, onS
       groupRef.current = null;
       p.step = target;
       p.autoDone = true;
-      applyState(topEl(), slideRef.current?.animations || [], target, true);
+      applyState(topEl(), slideRef.current?.animations || [], target, true, p.fired);
       settle();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -263,7 +278,8 @@ export function AnimationPreview({ slide, size, only = null, onDone }) {
     const { animations, shapes } = playing.current;
     const list = only == null ? animations : animations.filter((e) => e.index === only).map((e) => ({ ...e, trigger: 'onClick', delay: 0 }));
     const seq = sequence(list);
-    const groups = [...(seq.auto ? [seq.auto] : []), ...seq.clicks];
+    // The triggers' effects play after the slide's own, each trigger's in turn.
+    const groups = [...(seq.auto ? [seq.auto] : []), ...seq.clicks, ...[...triggered(list).values()].flat()];
     applyState(el, list, 0, false);
     let live = true;
     let player = null;

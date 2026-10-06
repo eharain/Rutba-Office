@@ -47,14 +47,15 @@ export function shapeNodes(root, id) {
  * from the group's start — With Previous shares the start of the effect
  * before it, After Previous starts when everything before it has ended.
  */
-export function sequence(animations = []) {
+export function sequence(animations = [], { interactive = false } = {}) {
   const groups = [];
   let current = null;
   let subStart = 0;
   let subEnd = 0;
-  for (const e of animations) {
+  // The slide's own sequence leaves out what a click on a trigger starts.
+  for (const e of interactive ? animations : animations.filter((a) => !a.triggerShape)) {
     if (!current || e.trigger === 'onClick') {
-      current = { auto: !groups.length && e.trigger !== 'onClick', effects: [], length: 0 };
+      current = { auto: !interactive && !groups.length && e.trigger !== 'onClick', effects: [], length: 0 };
       groups.push(current);
       subStart = 0;
       subEnd = 0;
@@ -74,16 +75,33 @@ export function sequence(animations = []) {
 export const clickCount = (animations) => sequence(animations).clicks.length;
 
 /**
- * Whether each animated shape shows once `step` clicks have played (the
- * group that starts with the slide counted in when `auto` is true): a
- * shape whose first effect is an entrance starts hidden, an entrance shows
- * it and an exit hides it.
+ * Animations → Trigger: each trigger shape's own groups, played one per
+ * click on that shape — `Map(shapeId → groups)`.
  */
-export function visibilityAt(animations = [], step = 0, auto = true) {
+export function triggered(animations = []) {
+  const by = new Map();
+  for (const e of animations) {
+    if (!e.triggerShape) continue;
+    if (!by.has(e.triggerShape)) by.set(e.triggerShape, []);
+    by.get(e.triggerShape).push(e);
+  }
+  return new Map([...by].map(([id, list]) => [id, sequence(list, { interactive: true }).clicks]));
+}
+
+/**
+ * Whether each animated shape shows once `step` clicks have played (the
+ * group that starts with the slide counted in when `auto` is true), and
+ * each trigger's groups that `fired` says have played: a shape whose first
+ * effect is an entrance starts hidden, an entrance shows it and an exit
+ * hides it.
+ */
+export function visibilityAt(animations = [], step = 0, auto = true, fired = null) {
   const seq = sequence(animations);
   const shown = new Map();
   for (const e of animations) if (e.shapeId != null && !shown.has(e.shapeId)) shown.set(e.shapeId, e.kind !== 'entr');
-  const played = [...(auto && seq.auto ? [seq.auto] : []), ...seq.clicks.slice(0, Math.max(0, step))];
+  const byTrigger = fired?.size ? triggered(animations) : null;
+  const firedGroups = byTrigger ? [...fired].flatMap(([id, n]) => (byTrigger.get(id) || []).slice(0, n)) : [];
+  const played = [...(auto && seq.auto ? [seq.auto] : []), ...seq.clicks.slice(0, Math.max(0, step)), ...firedGroups];
   for (const g of played) {
     for (const e of g.effects) {
       if (e.kind === 'entr') shown.set(e.shapeId, true);
@@ -98,8 +116,8 @@ export function visibilityAt(animations = [], step = 0, auto = true) {
  * once — no animation: entering a slide, stepping back, or the presenter's
  * picture of where the show is.
  */
-export function applyState(root, animations = [], step = 0, auto = true) {
-  const shown = visibilityAt(animations, step, auto);
+export function applyState(root, animations = [], step = 0, auto = true, fired = null) {
+  const shown = visibilityAt(animations, step, auto, fired);
   for (const [id, visible] of shown) {
     for (const el of shapeNodes(root, id)) {
       for (const a of el.getAnimations?.() || []) a.cancel();

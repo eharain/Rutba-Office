@@ -674,7 +674,21 @@ export default function SlidesRibbon({
             <Button tall icon="plus" label="Add Animation" disabled={!hasShape} title={hasShape ? 'Add Animation — another effect on the selected shape, after its others' : 'Add Animation — select a shape first'} onClick={(e) => menu.open(e, effectMenu('addAnimation'))} />
             <Rows>
               <Button icon="list" label="Animation Pane" pressed={view.pane === 'animations'} title="Animation Pane — the slide's effects in order, to pick, reorder, retime or remove" onClick={() => act('pane', 'animations')} />
-              <Soon icon="play" label="Trigger" why="A trigger — starting an effect on a click on another shape — is an interactive sequence this does not write; one already in the file is kept and plays as the file has it." />
+              <Button
+                icon="play"
+                label="Trigger"
+                disabled={!animation}
+                title={animation ? `Trigger — start this effect on a click on a shape in the show${animation.triggerShape ? ', not in the slide\'s own order' : ''}` : 'Trigger — pick an effect in the Animation Pane first'}
+                onClick={(e) => menu.open(e, [
+                  { label: 'On Click Sequence', icon: !animation?.triggerShape ? 'check' : undefined, run: () => act('animPatch', { triggerShape: null }) },
+                  '-',
+                  ...(model?.slide?.shapes || []).filter((s) => s.groupId == null).map((s) => ({
+                    label: `On Click of ${s.name || `Shape ${s.id}`}`,
+                    icon: String(animation?.triggerShape) === String(s.id) ? 'check' : undefined,
+                    run: () => act('animPatch', { triggerShape: s.id }),
+                  })),
+                ])}
+              />
               <Button
                 icon="wand"
                 label="Animation Painter"
