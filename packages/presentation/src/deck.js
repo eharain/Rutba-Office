@@ -22,6 +22,7 @@ import { chartPartXml } from '@rutba/ooxml/build';
 import { readTransition, withTransition, transitionBlock, insertTransition, transitionRange, transitionXml } from './motion.js';
 import { readAnimations, addAnimation, setAnimation, removeAnimation, moveAnimation, removeShapeAnimations, pruneAnimations } from './timing.js';
 import { parseChartXml } from '@rutba/drawing';
+import { withNarration, withoutMediaNode, isNarration, NARRATION_NAME } from './narration.js';
 import { masterPartXml, placeholderXml, placeholderBox, placeholderTypesIn, MASTER_PLACEHOLDERS, NOTES_MASTER_CT, HANDOUT_MASTER_CT, NOTES_MASTER_REL, HANDOUT_MASTER_REL } from './notes-master.js';
 
 const A = (n) => `a:${n}`;
@@ -3336,6 +3337,34 @@ export class Deck {
     if (at < 0) throw new Error('slide has no shape tree');
     this.#writeSlide(part, xml.slice(0, at) + pic + xml.slice(at));
     return { id, part: media };
+  }
+
+  /**
+   * Record → narration: the slide's recorded voice as PowerPoint keeps it —
+   * an "Audio Recording" speaker in the slide's corner, hidden in the show,
+   * played from the start as the slide comes in for `durationMs` — in place
+   * of any narration the slide had. Answers the narration's shape id.
+   */
+  addNarration(index, { data, contentType = 'audio/wav', durationMs = 0, poster } = {}) {
+    const entry = this.slideParts[index];
+    if (!entry) throw new RangeError(`no slide at index ${index}`);
+    this.clearNarration(index);
+    const { id } = this.addMedia(index, { kind: 'audio', data, contentType, poster, name: NARRATION_NAME, x: this.size.width - 64, y: this.size.height - 64, w: 48, h: 48 });
+    this.#writeSlide(entry.part, withNarration(this.pkg.text(entry.part), id, durationMs));
+    return id;
+  }
+
+  /** Record → Clear → narration: the slide's recorded voice taken off, its timing with it. Answers how many went. */
+  clearNarration(index) {
+    const entry = this.slideParts[index];
+    if (!entry) return 0;
+    const ids = this.slide(index).shapes.filter(isNarration).map((s) => s.id);
+    for (const sid of ids) {
+      this.#writeSlide(entry.part, withoutMediaNode(this.pkg.text(entry.part), sid));
+      this.removeShapeAnimations(index, sid);
+      this.removeShape(index, sid);
+    }
+    return ids.length;
   }
 
   /**

@@ -1819,6 +1819,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // out of the first bytes the way the photo viewer does.
     addPicture: (d, a) => d.addPicture(a.slide, picturePlacement(d, a)),
     setTransitionSound: (d, a) => d.setTransitionSound(a.slide, a.sound == null ? null : { ...a.sound, data: a.sound.data ? (Buffer.isBuffer(a.sound.data) ? a.sound.data : Buffer.from(a.sound.data)) : undefined }),
+    // Record: a slide's narration (its WAV and length), and taking narration or timings off.
+    addNarration: (d, a) => d.addNarration(a.slide, { data: Buffer.from(a.data), contentType: a.contentType || 'audio/wav', durationMs: Number(a.durationMs) || 0, poster: { data: Buffer.from(a.poster), contentType: 'image/png' } }),
+    clearNarration: (d, a) => d.clearNarration(a.slide),
     addMedia: (d, a) => {
       const bytes = (v) => (Buffer.isBuffer(v) ? v : v instanceof Uint8Array ? Buffer.from(v) : Buffer.from(String(v ?? ''), 'base64'));
       return d.addMedia(a.slide, { kind: a.kind, data: bytes(a.data), contentType: a.contentType, poster: { data: bytes(a.poster), contentType: 'image/png' }, name: a.name, x: a.x, y: a.y, w: a.w, h: a.h }).id;
