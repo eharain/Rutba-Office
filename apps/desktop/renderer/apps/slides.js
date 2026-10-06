@@ -35,6 +35,7 @@ import { HandoutSlots, HANDOUT_CSS } from './slides/handout.js';
 import { StageMedia, MEDIA_CSS, MEDIA_FILES, posterFrame } from './slides/media.js';
 import { ScreenRecorder, SCREENREC_CSS } from './slides/screen-record.js';
 import { soundWav, soundFile } from './slides/sounds.js';
+import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise, replayInk } from './slides/ink.js';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog, iconPng } from '../icons-insert.js';
 
@@ -106,6 +107,15 @@ export default function Slides({ app, shell, boot }) {
   // Slide Show → Custom Slide Show, while one plays: its slides and where it is.
   const customRun = useRef(null);
   const [shotOpen, setShotOpen] = useState(false);
+  // Draw: the tool in hand (null for Select), the pens, the Ruler, Ink to Shape, Draw with Touch, Hide Ink.
+  const [ink, setInk] = useState({ tool: null, penId: 'pen', pens: DEFAULT_PENS, ruler: null, toShape: false, touch: true, hide: false });
+  // Esc puts the pen down, as it does in PowerPoint.
+  useEffect(() => {
+    if (!ink.tool) return undefined;
+    const onKey = (e) => { if (e.key === 'Escape') setInk((v) => ({ ...v, tool: null })); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [ink.tool]);
   // The show's transition sound now playing — stopped by the next one, by Stop Previous Sound, or by the show ending.
   const showSound = useRef(null);
   // Screen Recording: choosing what to record, then recording it.
@@ -1457,6 +1467,42 @@ export default function Slides({ app, shell, boot }) {
       // Insert → Screenshot: a window or a screen, taken as a picture on this slide.
       case 'screenshot': setShotOpen(true); return;
       case 'screenRecording': setRecPick(true); return;
+      // Draw: which tool is in hand — null for Select, 'eraser', 'lasso', or a pen by its id.
+      case 'inkTool':
+        setSelected(null);
+        setEditing(null);
+        setInk((v) => (arg == null ? { ...v, tool: null } : arg === 'eraser' || arg === 'lasso' ? { ...v, tool: arg } : { ...v, tool: 'pen', penId: arg }));
+        return;
+      case 'inkPen': setInk((v) => ({ ...v, pens: v.pens.map((p) => (p.id === arg.id ? { ...p, ...arg } : p)) })); return;
+      // Draw → Add: another pen in the gallery, in the next colour.
+      case 'inkAdd': setInk((v) => {
+        const used = new Set(v.pens.map((p) => p.color));
+        const pen = { id: `${arg}-${v.pens.length + 1}`, tool: arg, color: PEN_COLOURS.find((c) => !used.has(c)) || PEN_COLOURS[3], width: PEN_WIDTHS[arg][1] };
+        return { ...v, pens: [...v.pens, pen], tool: 'pen', penId: pen.id };
+      }); return;
+      case 'inkRuler': setInk((v) => ({ ...v, ruler: v.ruler ? null : { x: (model?.size?.width || 1280) / 2, y: (model?.size?.height || 720) / 2, angle: 0, depth: 64 } })); return;
+      case 'inkToShape': setInk((v) => ({ ...v, toShape: !v.toShape })); return;
+      case 'inkTouch': setInk((v) => ({ ...v, touch: !v.touch })); return;
+      case 'hideInk': setInk((v) => ({ ...v, hide: !v.hide })); return;
+      // A finished stroke: a shape when Ink to Shape knows it, ink otherwise.
+      case 'inkStroke': {
+        const pen = ink.pens.find((p) => p.id === ink.penId) || ink.pens[0];
+        const shape = ink.toShape && !arg.straight && pen.tool !== 'highlighter' ? recognise(arg.points) : null;
+        if (shape) {
+          await apply({ op: 'addShape', slide: index, preset: shape.preset, x: Math.round(shape.x), y: Math.round(shape.y), w: Math.round(shape.w), h: Math.round(shape.h), fill: 'none', line: { color: pen.color, width: pen.width } });
+          return;
+        }
+        await apply({ op: 'addInk', slide: index, strokes: [{ points: arg.points.map(([x, y]) => [Math.round(x * 10) / 10, Math.round(y * 10) / 10]), ...strokeLook(pen) }] });
+        return;
+      }
+      // Draw → Ink Replay: the strokes drawn again in the order they were made.
+      case 'inkReplay': {
+        const ids = (model?.slide?.shapes || []).filter(isInk).map((s) => s.id);
+        if (!ids.length) { toast('There is no ink on this slide to replay.', { ms: 2500 }); return; }
+        const stage = document.querySelector('.sl-slide .sl-svg');
+        if (stage) await replayInk(stage, ids);
+        return;
+      }
       // Transitions → Sound: none, stop the last, one of the suite's, a WAV of your own, or loop the one there.
       case 'transitionSound': {
         if (arg?.builtin) {
@@ -1971,6 +2017,7 @@ export default function Slides({ app, shell, boot }) {
       menu={appMenu}
       ribbon={
         <SlidesRibbon
+          ink={ink}
           tab={tab}
           setTab={setTab}
           model={model}
@@ -2025,7 +2072,9 @@ export default function Slides({ app, shell, boot }) {
         </div>
       ) : (
         <>
-          <style>{CSS + DESIGN_CSS + COMMENTS_CSS + EQUATION_CSS + HANDOUT_CSS + MEDIA_CSS}</style>
+          <style>{CSS + DESIGN_CSS + COMMENTS_CSS + EQUATION_CSS + HANDOUT_CSS + MEDIA_CSS + INK_CSS}</style>
+          {/* Review → Hide Ink: the strokes out of sight on the stage, and nothing else changed. */}
+          {ink.hide && slide ? <style>{slide.shapes.filter(isInk).map((s) => `.sl-slide [data-shape="${String(s.id).replace(/[^\w-]/g, '')}"]`).join(', ') + ' { visibility: hidden; }'}</style> : null}
           {splitting ? <style>{SPLIT_CSS}</style> : null}
           <Panel width={view.railWidth || 196} resizable title={model.masterView ? ({ notes: 'Notes Master', handout: 'Handout Master' }[model.masterView.kind] || 'Slide Master') : 'Slides'}>
             {model.masterView ? (
@@ -2165,6 +2214,21 @@ export default function Slides({ app, shell, boot }) {
                   <Markup className="sl-svg" html={slide.svg} />
                   {/* Videos and sounds: a play bar under each, as PowerPoint draws one. */}
                   {!model.masterView ? <StageMedia shapes={slide.shapes} /> : null}
+                  {/* Draw: the pen surface while a pen, the Eraser or the Lasso is in hand; the Ruler on its own otherwise. */}
+                  {ink.tool && !model.masterView ? (
+                    <InkSurface
+                      size={model.size}
+                      tool={ink.tool}
+                      pen={ink.pens.find((p) => p.id === ink.penId) || ink.pens[0]}
+                      ruler={ink.ruler}
+                      onRuler={(ruler) => setInk((v) => ({ ...v, ruler }))}
+                      touch={ink.touch}
+                      shapes={slide.shapes}
+                      onStroke={(points, straight) => act('inkStroke', { points, straight })}
+                      onErase={(ids) => apply({ op: 'removeShapes', slide: index, shapes: ids })}
+                      onLasso={(ids) => { setSelectedIds(ids); setInk((v) => ({ ...v, tool: null })); }}
+                    />
+                  ) : ink.ruler && !model.masterView ? <RulerOverlay ruler={ink.ruler} size={model.size} onChange={(ruler) => setInk((v) => ({ ...v, ruler }))} /> : null}
                   {/* Transitions → Preview: the slide before (or black) into this one, over the stage. */}
                   {preview?.kind === 'transition' && slide.transition ? (
                     <TransitionPreview key={preview.key} fromSvg={index > 0 ? model.outline?.[index - 1]?.thumbnail || '' : ''} toSvg={slide.svg} transition={slide.transition} onDone={() => setPreview(null)} />

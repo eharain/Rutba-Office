@@ -15,6 +15,7 @@ import { ANIMATION_GALLERY, EFFECT_MENU, ANIMATION_OPTIONS } from './animate.js'
 import { RibbonStrip } from './design.js';
 import { wordArtMenu } from '../../wordart.js';
 import { SOUNDS, soundFile } from './sounds.js';
+import { PEN_COLOURS, PEN_WIDTHS } from './ink.js';
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
 const COLOURS = [
@@ -117,6 +118,7 @@ export default function SlidesRibbon({
   tab, setTab, model, doc, commands, shell, menu, save, openFile, exportAs,
   act, view = {}, index = 0, selected = null, selectedIds = [], format = {}, canPaste = false, painter = false, animation = null, animPainter = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
   monitorName = 'Automatic',
+  ink = null,
   designStrip = null,
   masterView = null,
   masterPart = null,
@@ -493,26 +495,41 @@ export default function SlidesRibbon({
       {tab === 'draw' ? (
         <>
           <Group label="Drawing Tools">
-            <Soon tall icon="wand" label="Select" why={INK} />
-            <Soon tall icon="wand" label="Lasso" why={INK} />
-            <Soon tall icon="close" label="Eraser" why={INK} />
-            <Soon tall icon="wand" label="Pen" why={INK} />
-            <Soon tall icon="wand" label="Pencil" why={INK} />
-            <Soon tall icon="wand" label="Highlighter" why={INK} />
-            <Soon tall icon="plus" label="Add" why={INK} />
+            <Button tall icon="mouse" label="Select" pressed={!ink?.tool} title="Select — put the pen down and work with the slide's shapes again (Esc)" onClick={() => act('inkTool', null)} />
+            <Button tall icon="wand" label="Lasso" pressed={ink?.tool === 'lasso'} title="Lasso Select — draw a loop round strokes to select them" onClick={() => act('inkTool', 'lasso')} />
+            <Button tall icon="close" label="Eraser" pressed={ink?.tool === 'eraser'} title="Eraser — take away each stroke the pointer passes over" onClick={() => act('inkTool', 'eraser')} />
+            {(ink?.pens || []).map((p) => {
+              const on = ink.tool === 'pen' && ink.penId === p.id;
+              const label = { pen: 'Pen', pencil: 'Pencil', highlighter: 'Highlighter' }[p.tool];
+              return (
+                <Button key={p.id} tall icon="wand" label={label} pressed={on} className={`sl-pen sl-pen-${p.tool}`} data-pen={p.id}
+                  style={{ '--pen': p.color }}
+                  title={on ? `${label} — click again for its colour and thickness` : `${label} — draw on the slide`}
+                  onClick={(e) => {
+                    if (!on) { act('inkTool', p.id); return; }
+                    menu.open(e, [
+                      { heading: true, label: 'Thickness' },
+                      ...PEN_WIDTHS[p.tool].map((w) => ({ label: `${w} pt`, icon: p.width === w ? 'check' : undefined, run: () => act('inkPen', { id: p.id, width: w }) })),
+                      { heading: true, label: 'Colour' },
+                      ...PEN_COLOURS.map((c) => ({ label: c, icon: p.color === c ? 'check' : undefined, preview: <span style={{ display: 'inline-block', width: 16, height: 16, borderRadius: 8, background: c, border: '1px solid rgba(0,0,0,.25)' }} />, run: () => act('inkPen', { id: p.id, color: c }) })),
+                    ]);
+                  }} />
+              );
+            })}
+            <Button tall icon="plus" label="Add" title="Add Pen — another pen, pencil or highlighter in the gallery" onClick={(e) => menu.open(e, [['pen', 'Pen'], ['pencil', 'Pencil'], ['highlighter', 'Highlighter']].map(([tool, label]) => ({ label, icon: 'plus', run: () => act('inkAdd', tool) })))} />
           </Group>
           <Group label="Touch">
-            <Soon tall icon="wand" label="Draw with Touch" why={INK} />
+            <Button tall icon="wand" label="Draw with Touch" pressed={ink?.touch !== false} title="Draw with Touch — a finger draws with the pen in hand; off, only a pen or the mouse does" onClick={() => act('inkTouch')} />
           </Group>
           <Group label="Stencils">
-            <Soon tall icon="minus" label="Ruler" why="The drawing ruler comes with ink." />
+            <Button tall icon="minus" label="Ruler" pressed={Boolean(ink?.ruler)} title="Ruler — a straight edge on the slide: a stroke begun along it follows it; drag it to move, the wheel to turn it" onClick={() => act('inkRuler')} />
           </Group>
           <Group label="Convert">
-            <Soon tall icon="shape" label="Ink to Shape" why={INK} />
-            <Soon tall icon="formula" label="Ink to Math" why={INK} />
+            <Button tall icon="shape" label="Ink to Shape" pressed={Boolean(ink?.toShape)} title="Ink to Shape — a rectangle, oval or triangle drawn becomes that shape" onClick={() => act('inkToShape')} />
+            <Soon tall icon="formula" label="Ink to Math" why="Turning handwriting into an equation needs handwriting recognition, which this suite does not have." />
           </Group>
           <Group label="Replay">
-            <Soon tall icon="play" label="Ink Replay" why={INK} />
+            <Button tall icon="play" label="Ink Replay" title="Ink Replay — the slide's strokes drawn again, in the order they were made" onClick={() => act('inkReplay')} />
           </Group>
           <Group label="Help">
             <Button tall icon="info" label="Ink Help" onClick={() => act('help')} />
@@ -895,7 +912,7 @@ export default function SlidesRibbon({
             <Button tall icon="word" label="Speaker Notes" title="Speaker Notes — this slide's, shown in Presenter View" onClick={() => setNotesOpen(true)} />
           </Group>
           <Group label="Ink">
-            <Soon icon="eye" label="Hide Ink" why={INK} />
+            <Button icon="eye" label="Hide Ink" pressed={Boolean(ink?.hide)} title="Hide Ink — the slide's strokes out of sight while you work; they stay in the deck" onClick={() => act('hideInk')} />
           </Group>
         </>
       ) : null}
