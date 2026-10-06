@@ -483,7 +483,7 @@ export default function SlidesRibbon({
           <Group label="Media">
             <Button tall icon="video" label="Video" title="Video — a video from this computer on the slide; a click on it plays it in the show" onClick={(e) => menu.open(e, [{ label: 'This Device…', icon: 'video', run: () => act('insertMedia', 'video') }])} />
             <Button tall icon="volume" label="Audio" title="Audio — a sound from this computer on the slide, as a speaker; a click on it plays it in the show" onClick={(e) => menu.open(e, [{ label: 'Audio on My PC…', icon: 'volume', run: () => act('insertMedia', 'audio') }])} />
-            <Soon tall icon="video" label="Screen Recording" why="Comes with media." />
+            <Button tall icon="video" label="Screen Recording" title="Screen Recording — record a window or a screen until Stop, and put the recording on this slide as a video" onClick={() => act('screenRecording')} />
           </Group>
         </>
       ) : null}
@@ -828,7 +828,7 @@ export default function SlidesRibbon({
           <Group label="Record">
             <Soon tall icon="video" label="From Beginning" why="Recording a narrated show (audio plus timings into the file) is not built." />
             <Soon tall icon="video" label="From Current Slide" why="Comes with recording." />
-            <Soon tall icon="video" label="Screen Recording" why="Comes with media." />
+            <Button tall icon="video" label="Screen Recording" title="Screen Recording — record a window or a screen until Stop, and put the recording on this slide as a video" onClick={() => act('screenRecording')} />
             <Soon tall icon="volume" label="Audio" why="Comes with media." />
           </Group>
           <Group label="Edit">

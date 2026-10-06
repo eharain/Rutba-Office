@@ -33,6 +33,7 @@ import { PhotoAlbumDialog, ALBUM_CSS } from './slides/album.js';
 import { CustomShowsDialog, CUSTOM_SHOWS_CSS } from './slides/custom-shows.js';
 import { HandoutSlots, HANDOUT_CSS } from './slides/handout.js';
 import { StageMedia, MEDIA_CSS, MEDIA_FILES, posterFrame } from './slides/media.js';
+import { ScreenRecorder, SCREENREC_CSS } from './slides/screen-record.js';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog, iconPng } from '../icons-insert.js';
 
@@ -104,6 +105,9 @@ export default function Slides({ app, shell, boot }) {
   // Slide Show → Custom Slide Show, while one plays: its slides and where it is.
   const customRun = useRef(null);
   const [shotOpen, setShotOpen] = useState(false);
+  // Screen Recording: choosing what to record, then recording it.
+  const [recPick, setRecPick] = useState(false);
+  const [recSource, setRecSource] = useState(null);
   const [iconsOpen, setIconsOpen] = useState(false);
   // The slide the show was on before this one, for a "last slide viewed" action.
   const lastViewed = useRef(null);
@@ -447,27 +451,11 @@ export default function Slides({ app, shell, boot }) {
   );
 
   /**
-   * A picture from this device onto the current slide. The service reads the
-   * size out of the picture's own header and fits it to the slide; what comes
-   * back is selected, so Arrange and Delete act on it at once.
+   * A video's or a sound's bytes on the current slide, in the middle — a
+   * video at its own shape (six tenths of the slide at most) with its
+   * poster frame, a sound as a speaker — and selected.
    */
-  /**
-   * Insert → Video → This Device and Audio → Audio on My PC: the file in
-   * the deck, in the middle of the slide — a video at its own shape (six
-   * tenths of the slide at most) with its poster frame, a sound as a
-   * speaker — and selected.
-   */
-  const insertMedia = useCallback(async (kind) => {
-    const types = MEDIA_FILES[kind];
-    const [file] = await shell.dialog.open({
-      title: kind === 'video' ? 'Insert Video' : 'Insert Audio',
-      filters: [{ name: kind === 'video' ? 'Videos' : 'Audio', extensions: Object.keys(types) }],
-    });
-    if (!file) return;
-    const { bytes, stat } = await shell.fs.read({ path: file });
-    const ext = String(stat?.ext || file.split('.').pop()).replace('.', '').toLowerCase();
-    const contentType = types[ext];
-    if (!contentType) { toast(`A .${ext} file is not ${kind === 'video' ? 'a video' : 'a sound'} a slide can hold.`, { ms: 3500 }); return; }
+  const placeMedia = useCallback(async ({ kind, bytes, contentType, name }) => {
     const W = model?.size?.width || 1280;
     const H = model?.size?.height || 720;
     let poster;
@@ -483,10 +471,31 @@ export default function Slides({ app, shell, boot }) {
     } else {
       poster = await iconPng('volume', '#3b3f46', 192);
     }
-    const next = await apply({ op: 'addMedia', slide: index, kind, data: bytes, contentType, poster, name: stat?.name || file.split(/[\\/]/).pop(), x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h });
+    const next = await apply({ op: 'addMedia', slide: index, kind, data: bytes, contentType, poster, name, x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h });
     const added = next?.model?.slide?.shapes?.slice(-1)[0];
     if (added) setSelected(added.id);
-  }, [shell, apply, index, model?.size?.width, model?.size?.height, toast]);
+  }, [apply, index, model?.size?.width, model?.size?.height, toast]);
+
+  /** Insert → Video → This Device and Audio → Audio on My PC: a file from this computer, placed as above. */
+  const insertMedia = useCallback(async (kind) => {
+    const types = MEDIA_FILES[kind];
+    const [file] = await shell.dialog.open({
+      title: kind === 'video' ? 'Insert Video' : 'Insert Audio',
+      filters: [{ name: kind === 'video' ? 'Videos' : 'Audio', extensions: Object.keys(types) }],
+    });
+    if (!file) return;
+    const { bytes, stat } = await shell.fs.read({ path: file });
+    const ext = String(stat?.ext || file.split('.').pop()).replace('.', '').toLowerCase();
+    const contentType = types[ext];
+    if (!contentType) { toast(`A .${ext} file is not ${kind === 'video' ? 'a video' : 'a sound'} a slide can hold.`, { ms: 3500 }); return; }
+    await placeMedia({ kind, bytes, contentType, name: stat?.name || file.split(/[\\/]/).pop() });
+  }, [shell, toast, placeMedia]);
+
+  /**
+   * A picture from this device onto the current slide. The service reads the
+   * size out of the picture's own header and fits it to the slide; what comes
+   * back is selected, so Arrange and Delete act on it at once.
+   */
 
   const insertPicture = useCallback(async () => {
     const [file] = await shell.dialog.open({
@@ -1427,6 +1436,7 @@ export default function Slides({ app, shell, boot }) {
       }
       // Insert → Screenshot: a window or a screen, taken as a picture on this slide.
       case 'screenshot': setShotOpen(true); return;
+      case 'screenRecording': setRecPick(true); return;
       // Insert → Icons: one of the suite's own icons, as a picture on this slide.
       case 'icons': setIconsOpen(true); return;
       case 'insertMedia': await insertMedia(arg); return;
@@ -2480,6 +2490,29 @@ export default function Slides({ app, shell, boot }) {
             if (added) setSelected(added.id);
           }}
         />
+      ) : null}
+
+      {recPick ? (
+        <ScreenshotDialog
+          shell={shell}
+          record
+          onClose={() => setRecPick(false)}
+          onPick={(source) => { setRecPick(false); setRecSource(source); }}
+        />
+      ) : null}
+      {recSource ? (
+        <>
+          <style>{SCREENREC_CSS}</style>
+          <ScreenRecorder
+            source={recSource}
+            onCancel={() => setRecSource(null)}
+            onError={(message) => toast(message, { ms: 4500 })}
+            onDone={async (clip) => {
+              setRecSource(null);
+              await placeMedia({ kind: 'video', bytes: clip.bytes, contentType: clip.contentType, name: clip.name });
+            }}
+          />
+        </>
       ) : null}
 
       {shotOpen ? (

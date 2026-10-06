@@ -7,10 +7,11 @@ import React, { useEffect, useState } from 'react';
 import { Button, Dialog, Spinner } from '@rutba/office-ui';
 
 /**
- * @param {{ shell, onPick, onClose }} props
- *   onPick({ bytes, width, height, name }) — the picture, taken
+ * @param {{ shell, onPick, onClose, record? }} props
+ *   onPick({ bytes, width, height, name }) — the picture, taken; or, with
+ *   `record` (Screen Recording), onPick(source) — the window or screen to record
  */
-export function ScreenshotDialog({ shell, onPick, onClose }) {
+export function ScreenshotDialog({ shell, onPick, onClose, record = false }) {
   const [sources, setSources] = useState(null);
   const [error, setError] = useState(null);
   const [taking, setTaking] = useState(null);
@@ -27,8 +28,7 @@ export function ScreenshotDialog({ shell, onPick, onClose }) {
     if (taking) return;
     setTaking(source.id);
     try {
-      const shot = await shell.capture.grab({ id: source.id });
-      await onPick(shot);
+      await onPick(record ? source : await shell.capture.grab({ id: source.id }));
     } catch (err) {
       setError(err.message || String(err));
       setTaking(null);
@@ -54,7 +54,7 @@ export function ScreenshotDialog({ shell, onPick, onClose }) {
   };
 
   return (
-    <Dialog title="Screenshot" width={620} onClose={onClose} actions={<Button label="Cancel" onClick={onClose} />}>
+    <Dialog title={record ? 'Screen Recording' : 'Screenshot'} width={620} onClose={onClose} actions={<Button label="Cancel" onClick={onClose} />}>
       <style>{SCREENSHOT_CSS}</style>
       <div className="ss">
         {error ? <div className="ss-error">{error}</div> : null}
