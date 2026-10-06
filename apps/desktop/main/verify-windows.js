@@ -4,6 +4,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import { BrowserWindow } from 'electron';
 
 const overlap = (a, b) => a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
 
@@ -29,6 +30,10 @@ export async function verifyWindows(h, { files }) {
   const menuItems = (win) => win.webContents.executeJavaScript(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim())`);
   const pickItem = (win, label) => win.webContents.executeJavaScript(`(() => { const b = [...document.querySelectorAll('.rw-menu button')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); if (!b) return 'no item'; b.click(); return 'picked'; })()`);
 
+  // The windows already open — a full run keeps a few from before the first
+  // block — are arranged along with this check's own, so each is put back
+  // where it was when the check is done, for the checks that use it next.
+  const others = BrowserWindow.getAllWindows().map((w) => ({ w, bounds: w.getBounds(), maximized: w.isMaximized(), visible: w.isVisible() }));
   try {
     // Worksheets: three windows tiled, none over another.
     const sheets = [];
@@ -75,10 +80,13 @@ export async function verifyWindows(h, { files }) {
     const deckA = await open('slides', copy(files.pptx, 'cascade-a.pptx'));
     const deckB = await open('slides', copy(files.pptx, 'cascade-b.pptx'));
     const cascaded = await press(deckA, 'View', 'Cascade');
+    // A step of 32 down and across per window — a step or more apart, as
+    // another deck already open takes its place in the cascade too.
     const stepped = await until(() => {
       const a = deckA.getBounds();
       const b = deckB.getBounds();
-      return a.width === b.width && a.height === b.height && Math.abs(a.x - b.x) === 32 && Math.abs(a.y - b.y) === 32;
+      const dx = Math.abs(a.x - b.x);
+      return a.width === b.width && a.height === b.height && dx > 0 && dx % 32 === 0 && dx === Math.abs(a.y - b.y);
     }, 'a cascade', 4000).then(() => true).catch(() => false);
     await deckA.webContents.executeJavaScript(`(() => {
       const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Switch Windows');
@@ -94,5 +102,13 @@ export async function verifyWindows(h, { files }) {
     await wait(100);
   } catch (err) {
     check('windows: the window checks ran', false, err.message);
+  } finally {
+    for (const { w, bounds, maximized, visible } of others) {
+      if (w.isDestroyed()) continue;
+      if (w.isFullScreen()) w.setFullScreen(false);
+      if (visible && !w.isVisible()) w.show();
+      w.setBounds(bounds);
+      if (maximized) w.maximize();
+    }
   }
 }

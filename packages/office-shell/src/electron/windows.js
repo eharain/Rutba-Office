@@ -33,6 +33,7 @@ const GEOMETRY = {
 export function createWindowManager({ stores, preloadPath, iconPath, appIcons = {}, appNames = {}, appUserModelId = null, onWindowEvent, confirmClose }) {
   /** @type {Map<number, { app: string, file: string|null, dirty: boolean, name: string, closing: boolean }>} */
   const meta = new Map();
+  let focusTick = 0;
 
   function savedBounds(appKey) {
     const saved = stores.settings.get(`window.${appKey}`, null);
@@ -150,7 +151,9 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     });
 
     // A presenter window is marked, so a show going full screen can keep off its screen.
-    meta.set(win.id, { app: appKey, file, dirty: false, name: '', closing: false, presenter: query?.presenter != null });
+    meta.set(win.id, { app: appKey, file, dirty: false, name: '', closing: false, presenter: query?.presenter != null, usedAt: 0 });
+    // When it was last in front, so Side by Side can pair a window with the one used before it.
+    win.on('focus', () => { const m = meta.get(win.id); if (m) m.usedAt = ++focusTick; });
     if (!away && saved?.maximized) win.maximize();
 
 
@@ -361,7 +364,12 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
    */
   function arrange(win, mode = 'tile') {
     let list = windowsOf(win);
-    if (mode === 'sideBySide') list = list.slice(0, 2);
+    // Side by Side: this window and the one used before it — the last other
+    // one in front, or, if none has been, the last one opened.
+    if (mode === 'sideBySide') {
+      const before = list.slice(1).sort((a, b) => (meta.get(b.id)?.usedAt || 0) - (meta.get(a.id)?.usedAt || 0) || b.id - a.id)[0];
+      list = before ? [win, before] : [win];
+    }
     const area = workAreaFor(win);
     const n = list.length;
     const boxes = [];
