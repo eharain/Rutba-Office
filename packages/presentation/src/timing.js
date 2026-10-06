@@ -416,14 +416,14 @@ function placed(e) {
   // The effect cTn's own opening tag: node type.
   const open = e.xml.slice(ctn.start, ctn.openEnd);
   const nodeType = NODE_TYPE[e.trigger];
-  let nextOpen = /\snodeType="[^"]*"/.test(open) ? open.replace(/\snodeType="[^"]*"/, ` nodeType="${nodeType}"`) : open.replace(/(\/?>)$/, ` nodeType="${nodeType}"$1`);
+  let nextOpen = /\snodeType="[^"]*"/.test(open) ? open.replace(/\snodeType="[^"]*"/, () => ` nodeType="${nodeType}"`) : open.replace(/(\/?>)$/, (m, p1) => ` nodeType="${nodeType}"${p1 ?? ''}`);
   edits.push([ctn.start, ctn.openEnd, nextOpen]);
   // Its own start condition: the delay.
   const cond = kid(kid(ctn, 'p:stCondLst'), 'p:cond');
   if (cond) {
     const tag = e.xml.slice(cond.start, cond.openEnd);
     const delay = String(Math.max(0, Math.round(e.delay)));
-    edits.push([cond.start, cond.openEnd, /\sdelay="[^"]*"/.test(tag) ? tag.replace(/\sdelay="[^"]*"/, ` delay="${delay}"`) : tag.replace(/(\/?>)$/, ` delay="${delay}"$1`)]);
+    edits.push([cond.start, cond.openEnd, /\sdelay="[^"]*"/.test(tag) ? tag.replace(/\sdelay="[^"]*"/, () => ` delay="${delay}"`) : tag.replace(/(\/?>)$/, (m, p1) => ` delay="${delay}"${p1 ?? ''}`)]);
   }
   // A new length: every timed behaviour stretched by the same factor.
   if (e.scaleTo != null && e.duration > 1) {
@@ -433,7 +433,7 @@ function placed(e) {
       const d = Number(n.attrs.dur);
       if (!Number.isFinite(d) || d <= 1) continue;
       const tag = e.xml.slice(n.start, n.openEnd);
-      edits.push([n.start, n.openEnd, tag.replace(/\sdur="[^"]*"/, ` dur="${Math.max(2, Math.round(d * factor))}"`)]);
+      edits.push([n.start, n.openEnd, tag.replace(/\sdur="[^"]*"/, () => ` dur="${Math.max(2, Math.round(d * factor))}"`)]);
     }
   }
   edits.sort((a, b) => b[0] - a[0]);
@@ -606,7 +606,7 @@ function writeList(slideXml, list) {
     const withoutList = oldList ? timing.replace(oldList, '') : timing;
     const refs = effectRefs(withoutList);
     const bld = buildList(oldList, refs, fresh, slideXml);
-    timing = bld ? withoutList.replace(/<\/p:tnLst>/, `</p:tnLst>${bld}`) : withoutList;
+    timing = bld ? withoutList.replace(/<\/p:tnLst>/, () => `</p:tnLst>${bld}`) : withoutList;
     timing = renumber(timing);
   }
 

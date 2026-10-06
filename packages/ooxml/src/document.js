@@ -989,7 +989,7 @@ export class Document {
     const part = 'word/styles.xml';
     const xml = this.pkg.text(part);
     if (/<w:style\b[^>]*\bw:styleId="EnvelopeAddress"/.test(xml)) return;
-    this.pkg.write_(part, xml.replace('</w:styles>', ENVELOPE_STYLES_XML + '</w:styles>'));
+    this.pkg.write_(part, xml.replace('</w:styles>', () => ENVELOPE_STYLES_XML + '</w:styles>'));
   }
 
   /**
@@ -1289,7 +1289,7 @@ export class Document {
       settings = settings.slice(0, later.index) + element + settings.slice(later.index);
       // The r: prefix must be in scope for the data source reference.
       if (dataSource && !/<w:settings\b[^>]*\bxmlns:r=/.test(settings)) {
-        settings = settings.replace(/<w:settings\b/, '<w:settings xmlns:r="' + R_NS + '"');
+        settings = settings.replace(/<w:settings\b/, () => '<w:settings xmlns:r="' + R_NS + '"');
       }
     }
     this.pkg.write_(part, settings);
@@ -1630,9 +1630,9 @@ export class Document {
     if (!d) throw new Error('no picture ' + imageIndex + ' in paragraph ' + index);
     const cx = w * PX_TO_EMU;
     const cy = h * PX_TO_EMU;
-    let drawing = d[0].replace(/<wp:extent\b[^>]*\/>/, '<wp:extent cx="' + cx + '" cy="' + cy + '"/>');
+    let drawing = d[0].replace(/<wp:extent\b[^>]*\/>/, () => '<wp:extent cx="' + cx + '" cy="' + cy + '"/>');
     // The picture's own transform: the first a:ext inside pic:spPr.
-    drawing = drawing.replace(/(<pic:spPr\b[\s\S]*?<a:ext\b)[^>]*(\/>)/, '$1 cx="' + cx + '" cy="' + cy + '"$2');
+    drawing = drawing.replace(/(<pic:spPr\b[\s\S]*?<a:ext\b)[^>]*(\/>)/, (m, p1, p2) => (p1 ?? '') + ' cx="' + cx + '" cy="' + cy + '"' + (p2 ?? ''));
     const xml = p.xml.slice(0, d.index) + drawing + p.xml.slice(d.index + d[0].length);
     this._spliceBody(p.start, p.end, xml);
     return this;
@@ -1823,9 +1823,9 @@ export class Document {
       const firstNum = /<w:num\b/.exec(out);
       out = firstNum
         ? out.slice(0, firstNum.index) + abstractsXml + out.slice(firstNum.index)
-        : out.replace('</w:numbering>', abstractsXml + '</w:numbering>');
+        : out.replace('</w:numbering>', () => abstractsXml + '</w:numbering>');
     }
-    if (numsXml) out = out.replace('</w:numbering>', numsXml + '</w:numbering>');
+    if (numsXml) out = out.replace('</w:numbering>', () => numsXml + '</w:numbering>');
     return out;
   }
 
@@ -1858,7 +1858,7 @@ export class Document {
     const ids = [...xml.matchAll(/Id="rId(\d+)"/g)].map((m) => Number(m[1]));
     const next = 'rId' + ((ids.length ? Math.max(...ids) : 0) + 1);
     const rel = '<Relationship Id="' + next + '" Type="' + type + '" Target="' + esc(target) + '"' + mode + '/>';
-    this.pkg.write_(relsPath, xml.replace('</Relationships>', rel + '</Relationships>'));
+    this.pkg.write_(relsPath, xml.replace('</Relationships>', () => rel + '</Relationships>'));
     return next;
   }
 
@@ -1923,7 +1923,7 @@ export class Document {
     if (/<w:style\b[^>]*\bw:styleId="Caption"/.test(xml)) return;
     const style = '<w:style w:type="paragraph" w:styleId="Caption"><w:name w:val="caption"/><w:basedOn w:val="Normal"/>'
       + '<w:pPr><w:spacing w:after="200"/></w:pPr><w:rPr><w:i/><w:sz w:val="18"/><w:szCs w:val="18"/></w:rPr></w:style>';
-    this.pkg.write_(part, xml.replace('</w:styles>', style + '</w:styles>'));
+    this.pkg.write_(part, xml.replace('</w:styles>', () => style + '</w:styles>'));
   }
 
   /**
@@ -1976,7 +1976,7 @@ export class Document {
         ? sectPr.slice(0, before) + xml + sectPr.slice(before)
         : later
           ? sectPr.slice(0, later.index) + xml + sectPr.slice(later.index)
-          : sectPr.replace('</w:sectPr>', xml + '</w:sectPr>');
+          : sectPr.replace('</w:sectPr>', () => xml + '</w:sectPr>');
     }
     this.xml = prefix + body.slice(0, at.index) + sectPr + body.slice(at.index + at[0].length) + suffix;
     this.dirty = true;
@@ -2011,7 +2011,7 @@ export class Document {
         ? sectPr.slice(0, before) + xml + sectPr.slice(before)
         : later
           ? sectPr.slice(0, later.index) + xml + sectPr.slice(later.index)
-          : sectPr.replace('</w:sectPr>', xml + '</w:sectPr>');
+          : sectPr.replace('</w:sectPr>', () => xml + '</w:sectPr>');
     }
     this.xml = prefix + body.slice(0, at.index) + sectPr + body.slice(at.index + at[0].length) + suffix;
     this.dirty = true;
@@ -2054,11 +2054,11 @@ export class Document {
         if (value !== null) attrsXml += ' ' + name + '="' + value + '"';
       }
       const element = '<w:' + tag + attrsXml + '/>';
-      if (m) { sectPr = sectPr.replace(one, element); return; }
+      if (m) { sectPr = sectPr.replace(one, () => element); return; }
       const anchor = before ? new RegExp('<w:' + before + '\\b').exec(sectPr) : null;
       sectPr = anchor
         ? sectPr.slice(0, anchor.index) + element + sectPr.slice(anchor.index)
-        : sectPr.replace('</w:sectPr>', element + '</w:sectPr>');
+        : sectPr.replace('</w:sectPr>', () => element + '</w:sectPr>');
     };
 
     if (orientation !== undefined || size !== undefined) {
@@ -2110,7 +2110,7 @@ export class Document {
           ? sectPr.slice(0, before) + xml + sectPr.slice(before)
           : later
             ? sectPr.slice(0, later.index) + xml + sectPr.slice(later.index)
-            : sectPr.replace('</w:sectPr>', xml + '</w:sectPr>');
+            : sectPr.replace('</w:sectPr>', () => xml + '</w:sectPr>');
       }
     }
 
@@ -2331,7 +2331,7 @@ export class Document {
     const entry = '<w:' + kind + ' w:id="' + id + '"><w:p><w:pPr><w:pStyle w:val="' + spec.textStyle + '"/></w:pPr>'
       + '<w:r><w:rPr><w:rStyle w:val="' + spec.refStyle + '"/><w:vertAlign w:val="superscript"/></w:rPr><w:' + kind + 'Ref/></w:r>'
       + renderRun(null, ' ' + body) + '</w:p></w:' + kind + '>';
-    this.pkg.write_(spec.part, xml.replace('</w:' + kind + 's>', entry + '</w:' + kind + 's>'));
+    this.pkg.write_(spec.part, xml.replace('</w:' + kind + 's>', () => entry + '</w:' + kind + 's>'));
     this.dirty = true;
     return String(id);
   }
@@ -2353,7 +2353,7 @@ export class Document {
     const mark = (firstP && new RegExp('<w:r\\b[^>]*>(?:(?!</w:r>)[\\s\\S])*?<w:' + kind + 'Ref\\b[^>]*/>[\\s\\S]*?</w:r>').exec(firstP[1])?.[0])
       || '<w:r><w:rPr><w:rStyle w:val="' + spec.refStyle + '"/><w:vertAlign w:val="superscript"/></w:rPr><w:' + kind + 'Ref/></w:r>';
     const rebuilt = m[1] + '<w:p>' + pPr + mark + renderRun(null, ' ' + body) + '</w:p>' + m[3];
-    this.pkg.write_(spec.part, xml.replace(m[0], rebuilt));
+    this.pkg.write_(spec.part, xml.replace(m[0], () => rebuilt));
     this.dirty = true;
     return this;
   }
@@ -2477,7 +2477,7 @@ export class Document {
     if (!open) return false;
     let tag = open[0];
     for (const [prefix, uri] of Object.entries(DRAWING_NS)) {
-      if (!new RegExp('\\sxmlns:' + prefix + '=').test(tag)) tag = tag.replace(/^<w:document\b/, '<w:document xmlns:' + prefix + '="' + uri + '"');
+      if (!new RegExp('\\sxmlns:' + prefix + '=').test(tag)) tag = tag.replace(/^<w:document\b/, () => '<w:document xmlns:' + prefix + '="' + uri + '"');
     }
     if (tag === open[0]) return false;
     this.xml = this.xml.slice(0, open.index) + tag + this.xml.slice(open.index + open[0].length);
@@ -3103,7 +3103,7 @@ export class Document {
     const stamp = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
     const entry = '<w:comment w:id="' + id + '" w:author="' + esc(String(author)) + '" w:date="' + stamp + '">'
       + '<w:p>' + renderRun(null, body) + '</w:p></w:comment>';
-    this.pkg.write_(part, xml.replace('</w:comments>', entry + '</w:comments>'));
+    this.pkg.write_(part, xml.replace('</w:comments>', () => entry + '</w:comments>'));
 
     const reference = '<w:r><w:commentReference w:id="' + id + '"/></w:r>';
     if (/^<w:p\b[^>]*\/>$/.test(p.xml)) {
@@ -3168,8 +3168,8 @@ export class Document {
       const root = /<w:hdr\b[^>]*>/.exec(xml);
       if (!root) throw new Error('unrecognised header part: ' + band.part);
       let open = root[0];
-      if (!/\bxmlns:v=/.test(open)) open = open.replace(/>$/, ' xmlns:v="' + VML_NS + '">');
-      if (!/\bxmlns:o=/.test(open)) open = open.replace(/>$/, ' xmlns:o="' + VML_OFFICE_NS + '">');
+      if (!/\bxmlns:v=/.test(open)) open = open.replace(/>$/, () => ' xmlns:v="' + VML_NS + '">');
+      if (!/\bxmlns:o=/.test(open)) open = open.replace(/>$/, () => ' xmlns:o="' + VML_OFFICE_NS + '">');
       xml = xml.slice(0, root.index) + open + watermarkParagraph(words, colour, rotation) + xml.slice(root.index + root[0].length);
     }
     if (!/<w:p\b/.test(xml)) xml = xml.replace(/<\/w:hdr>/, '<w:p/></w:hdr>');
@@ -3614,7 +3614,7 @@ export class Document {
       const indent = (level - 1) * 220;
       const style = '<w:style w:type="paragraph" w:styleId="' + id + '"><w:name w:val="toc ' + level + '"/><w:basedOn w:val="Normal"/>'
         + '<w:pPr>' + (indent ? '<w:ind w:left="' + indent + '"/>' : '') + '<w:spacing w:after="100"/></w:pPr></w:style>';
-      xml = xml.replace('</w:styles>', style + '</w:styles>');
+      xml = xml.replace('</w:styles>', () => style + '</w:styles>');
       changed = true;
     }
     if (changed) this.pkg.write_(part, xml);
@@ -3988,9 +3988,9 @@ export class Document {
     const rPr = firstRunProps(content[1]);
     const replaced = sdt.replace(
       contentRe,
-      '<w:sdtContent>' + renderRun(rPr, String(value)) + '</w:sdtContent>',
+      () => '<w:sdtContent>' + renderRun(rPr, String(value)) + '</w:sdtContent>',
     );
-    this.xml = this.xml.replace(sdt, replaced);
+    this.xml = this.xml.replace(sdt, () => replaced);
     this.dirty = true;
     return this;
   }
@@ -4951,13 +4951,13 @@ export class Document {
     const wA = /<w:tcW\b[^>]*\bw:w="(\d+)"[^>]*\bw:type="dxa"/.exec(a.tcPr ?? '');
     const wB = /<w:tcW\b[^>]*\bw:w="(\d+)"[^>]*\bw:type="dxa"/.exec(b.tcPr ?? '');
     if (wA && wB) {
-      tcPr = tcPr.replace(/<w:tcW\b[^>]*\/>/, '<w:tcW w:w="' + (Number(wA[1]) + Number(wB[1])) + '" w:type="dxa"/>');
+      tcPr = tcPr.replace(/<w:tcW\b[^>]*\/>/, () => '<w:tcW w:w="' + (Number(wA[1]) + Number(wB[1])) + '" w:type="dxa"/>');
     }
     const gridSpan = '<w:gridSpan w:val="' + span + '"/>';
     // gridSpan follows tcW in the schema's order; with no tcW it leads.
     tcPr = /<w:tcW\b[^>]*\/>/.test(tcPr)
-      ? tcPr.replace(/(<w:tcW\b[^>]*\/>)/, '$1' + gridSpan)
-      : tcPr.replace(/^(<w:tcPr\b[^>]*>)/, '$1' + gridSpan);
+      ? tcPr.replace(/(<w:tcW\b[^>]*\/>)/, (m, p1) => (p1 ?? '') + gridSpan)
+      : tcPr.replace(/^(<w:tcPr\b[^>]*>)/, (m, p1) => (p1 ?? '') + gridSpan);
 
     const merged = a.open + tcPr + a.content + b.content + '</w:tc>';
     this._spliceBody(row.start + left.start, row.start + right.end, merged);
@@ -5087,14 +5087,14 @@ export class Document {
       if (/^<w:tcPr\b[^>]*\/>$/.test(out)) out = out.replace(/\/>$/, '>') + '</w:tcPr>';
       if (widthKnown && width > 0) {
         out = /<w:tcW\b[^>]*\/>/.test(out)
-          ? out.replace(/<w:tcW\b[^>]*\/>/, '<w:tcW w:w="' + width + '" w:type="dxa"/>')
-          : out.replace(/^(<w:tcPr\b[^>]*>)/, '$1<w:tcW w:w="' + width + '" w:type="dxa"/>');
+          ? out.replace(/<w:tcW\b[^>]*\/>/, () => '<w:tcW w:w="' + width + '" w:type="dxa"/>')
+          : out.replace(/^(<w:tcPr\b[^>]*>)/, (m, p1) => (p1 ?? '') + '<w:tcW w:w="' + width + '" w:type="dxa"/>');
       }
       const marks = (spanW > 1 ? '<w:gridSpan w:val="' + spanW + '"/>' : '')
         + (spanH > 1 ? (isTop ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>') : '');
       return /<w:tcW\b[^>]*\/>/.test(out)
-        ? out.replace(/(<w:tcW\b[^>]*\/>)/, '$1' + marks)
-        : out.replace(/^(<w:tcPr\b[^>]*>)/, '$1' + marks);
+        ? out.replace(/(<w:tcW\b[^>]*\/>)/, (m, p1) => (p1 ?? '') + marks)
+        : out.replace(/^(<w:tcPr\b[^>]*>)/, (m, p1) => (p1 ?? '') + marks);
     };
 
     // Bottom-up, splicing each row's range down to one cell.
@@ -5133,8 +5133,8 @@ export class Document {
       if (tcPr) {
         if (/^<w:tcPr\b[^>]*\/>$/.test(next)) next = next.replace(/\/>$/, '>') + '</w:tcPr>';
         next = /<w:tcW\b[^>]*\/>/.test(next)
-          ? next.replace(/<w:tcW\b[^>]*\/>/, el)
-          : next.replace(/^(<w:tcPr\b[^>]*>)/, '$1' + el); // tcW leads tcPr by schema order
+          ? next.replace(/<w:tcW\b[^>]*\/>/, () => el)
+          : next.replace(/^(<w:tcPr\b[^>]*>)/, (m, p1) => (p1 ?? '') + el); // tcW leads tcPr by schema order
       }
       return open + next + content + '</w:tc>';
     };

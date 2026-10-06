@@ -626,7 +626,7 @@ export function withToggle(rPr, tag, on) {
   if (!rPr) return '<w:rPr>' + element + '</w:rPr>';
   if (/<w:rPr\b[^>]*\/>/.test(rPr)) return '<w:rPr>' + element + '</w:rPr>';
   // Order matters to Word: toggles belong near the front of rPr.
-  return rPr.replace(/^(<w:rPr\b[^>]*>)/, '$1' + element);
+  return rPr.replace(/^(<w:rPr\b[^>]*>)/, (m, p1) => (p1 ?? '') + element);
 }
 
 /** `<w:ins>`/`<w:del>` wrapping some inner XML, with an id, an author and a date its own attributes. */

@@ -238,7 +238,7 @@ const mo = (c, attrs = '') => `<mo${attrs}>${escapeText(c)}</mo>`;
 const isEmpty = (node) => !node || !textUnder(node) && !kids(node).some((c) => !/Pr$/.test(c.name));
 
 /** A base with a rule drawn over or under it. */
-const barOver = (row, top) => (row.startsWith("<mrow>") ? row : "<mrow>" + row + "</mrow>").replace(/^<mrow>/, `<mrow style="border-${top ? 'top' : 'bottom'}:0.06em solid currentColor;padding-${top ? 'top' : 'bottom'}:0.08em">`);
+const barOver = (row, top) => (row.startsWith("<mrow>") ? row : "<mrow>" + row + "</mrow>").replace(/^<mrow>/, () => `<mrow style="border-${top ? 'top' : 'bottom'}:0.06em solid currentColor;padding-${top ? 'top' : 'bottom'}:0.08em">`);
 
 function elementToMathml(el, ctx) {
   const pr = kid(el, el.name + 'Pr');

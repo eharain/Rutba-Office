@@ -776,7 +776,7 @@ export function ensureSharedItems(wb, pivot, fld, live) {
     if (/<sharedItems\b[^>]*?(?:\/>|>[\s\S]*?<\/sharedItems>)/.test(fieldXml)) {
       fieldXml = fieldXml.replace(/<sharedItems\b[^>]*?(?:\/>|>[\s\S]*?<\/sharedItems>)/, () => shared);
     } else if (/\/>$/.test(fieldXml)) {
-      fieldXml = fieldXml.replace(/\s*\/>$/, '>' + shared + '</cacheField>');
+      fieldXml = fieldXml.replace(/\s*\/>$/, () => '>' + shared + '</cacheField>');
     } else {
       fieldXml = fieldXml.replace(/^(<cacheField\b[^>]*>)/, (m) => m + shared);
     }
@@ -888,7 +888,7 @@ export function pivotChartXml({ sourceName, kind = 'column', title = '', sheet, 
     })),
   });
   return xml
-    .replace('<c:chart>', '<c:pivotSource><c:name>' + esc(sourceName) + '</c:name><c:fmtId val="0"/></c:pivotSource><c:chart>')
+    .replace('<c:chart>', () => '<c:pivotSource><c:name>' + esc(sourceName) + '</c:name><c:fmtId val="0"/></c:pivotSource><c:chart>')
     .replace('<c:plotArea>', '<c:pivotFmts><c:pivotFmt><c:idx val="0"/></c:pivotFmt></c:pivotFmts><c:plotArea>')
     .replace('<c:plotVisOnly val="1"/>', (m) => (chart.series.length > 1 || kind === 'pie' || kind === 'doughnut' ? '<c:legend><c:legendPos val="r"/><c:overlay val="0"/></c:legend>' : '') + m);
 }
@@ -1076,7 +1076,7 @@ export function createPivot(wb, spec, plan = planPivot(wb, spec)) {
   const recordsRelId = addRelationship(wb.pkg, cachePart, OFFICE_REL + 'pivotCacheRecords',
     'pivotCacheRecords' + cacheNum + '.xml');
   wb.pkg.write_(cachePart, wb.pkg.text(cachePart)
-    .replace('<pivotCacheDefinition ', '<pivotCacheDefinition r:id="' + recordsRelId + '" '));
+    .replace('<pivotCacheDefinition ', () => '<pivotCacheDefinition r:id="' + recordsRelId + '" '));
 
   // ---- the pivot table definition ---------------------------------------
   const axisAttr = (f) => (rowFields.includes(f) ? ' axis="axisRow"'
@@ -1149,7 +1149,7 @@ export function createPivot(wb, spec, plan = planPivot(wb, spec)) {
   const cacheEntry = '<pivotCache cacheId="' + cacheId + '" r:id="' + wbRelId + '"/>';
   let nextWbXml = wb.pkg.text(wb.mainPart);
   if (/<pivotCaches>/.test(nextWbXml)) {
-    nextWbXml = nextWbXml.replace('</pivotCaches>', cacheEntry + '</pivotCaches>');
+    nextWbXml = nextWbXml.replace('</pivotCaches>', () => cacheEntry + '</pivotCaches>');
   } else {
     // Before the extension list when there is one: extLst is always last.
     const tail = /<(smartTagPr|smartTagTypes|webPublishing|fileRecoveryPr|webPublishObjects|extLst)\b|<\/workbook>/.exec(nextWbXml);
@@ -1158,7 +1158,7 @@ export function createPivot(wb, spec, plan = planPivot(wb, spec)) {
   // A workbook built without one has no r: namespace declared, and an
   // undeclared prefix is a corrupt package rather than a cosmetic problem.
   if (!/xmlns:r=/.test(nextWbXml)) {
-    nextWbXml = nextWbXml.replace('<workbook ', '<workbook xmlns:r="' + OFFICE_REL.slice(0, -1) + '" ');
+    nextWbXml = nextWbXml.replace('<workbook ', () => '<workbook xmlns:r="' + OFFICE_REL.slice(0, -1) + '" ');
   }
   wb.pkg.write_(wb.mainPart, nextWbXml);
 

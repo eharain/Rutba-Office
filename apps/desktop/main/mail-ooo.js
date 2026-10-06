@@ -96,7 +96,7 @@ export function planAutoReplies(messages, account, atMs, { sentTo = [], isContac
 export function buildReply(message, account, settings) {
   const original = message.subject || '(no subject)';
   const template = settings?.subject?.trim() || 'Automatic reply: <original subject>';
-  const subject = template.includes('<original subject>') ? template.replace(/<original subject>/g, original) : template;
+  const subject = template.includes('<original subject>') ? template.replace(/<original subject>/g, () => original) : template;
   const references = [...(message.references || []), message.messageId].filter(Boolean);
   return {
     to: message.from?.[0]?.address || message.from?.[0] || '',

@@ -167,11 +167,11 @@ function addToExt(extLst, uri, nsDecl, listOpen, entry) {
   const re = new RegExp('<(?:\\w+:)?ext\\b[^>]*uri="' + uri.replace(/[{}]/g, '\\$&') + '"[^>]*>([\\s\\S]*?)</(?:\\w+:)?ext>');
   const found = re.exec(extLst ?? '');
   if (found) {
-    const inner = found[1].replace('</' + listTag + '>', entry + '</' + listTag + '>');
+    const inner = found[1].replace('</' + listTag + '>', () => entry + '</' + listTag + '>');
     return extLst.replace(found[0], () => found[0].replace(found[1], () => inner));
   }
   const ext = '<ext uri="' + uri + '" ' + nsDecl + '><' + listOpen + '>' + entry + '</' + listTag + '></ext>';
-  if (extLst) return extLst.replace(/<\/extLst>\s*$/, ext + '</extLst>');
+  if (extLst) return extLst.replace(/<\/extLst>\s*$/, () => ext + '</extLst>');
   return '<extLst>' + ext + '</extLst>';
 }
 
@@ -194,9 +194,9 @@ function workbookExt(wb) {
       const has = /<extLst>[\s\S]*<\/extLst>/.exec(cur);
       let out;
       if (has) out = next ? cur.replace(has[0], () => next) : cur.replace(has[0], '');
-      else out = next ? cur.replace(/<\/workbook>\s*$/, next + '</workbook>') : cur;
+      else out = next ? cur.replace(/<\/workbook>\s*$/, () => next + '</workbook>') : cur;
       if (!/xmlns:r=/.test(out.slice(0, out.indexOf('>', out.indexOf('<workbook'))))) {
-        out = out.replace('<workbook ', '<workbook xmlns:r="' + R_NS + '" ');
+        out = out.replace('<workbook ', () => '<workbook xmlns:r="' + R_NS + '" ');
       }
       wb.pkg.write_(wb.mainPart, out);
     },
@@ -222,9 +222,9 @@ function ensurePivotCacheId(wb, pivot) {
   while (used.has(id)) id += 1;
   const ext = '<ext uri="' + EXT.pivotCacheId + '" xmlns:x14="' + X14 + '"><x14:pivotCacheDefinition pivotCacheId="' + id + '"/></ext>';
   let next;
-  if (had) next = xml.replace(had[0], '<x14:pivotCacheDefinition' + had[1].replace(/\/$/, '') + ' pivotCacheId="' + id + '"/>');
-  else if (/<extLst>/.test(xml)) next = xml.replace('</extLst>', ext + '</extLst>');
-  else next = xml.replace(/<\/pivotCacheDefinition>\s*$/, '<extLst>' + ext + '</extLst></pivotCacheDefinition>');
+  if (had) next = xml.replace(had[0], () => '<x14:pivotCacheDefinition' + had[1].replace(/\/$/, '') + ' pivotCacheId="' + id + '"/>');
+  else if (/<extLst>/.test(xml)) next = xml.replace('</extLst>', () => ext + '</extLst>');
+  else next = xml.replace(/<\/pivotCacheDefinition>\s*$/, () => '<extLst>' + ext + '</extLst></pivotCacheDefinition>');
   wb.pkg.write_(pivot.cachePart, next);
   return id;
 }
@@ -337,7 +337,7 @@ export function addSlicer(wb, spec) {
   let slicerPart;
   if (own) {
     slicerPart = own.part;
-    wb.pkg.write_(slicerPart, wb.pkg.text(slicerPart).replace(/<\/slicers>\s*$/, slicerXml + '</slicers>'));
+    wb.pkg.write_(slicerPart, wb.pkg.text(slicerPart).replace(/<\/slicers>\s*$/, () => slicerXml + '</slicers>'));
   } else {
     const sn = wb.pkg.nextPartNumber('xl/slicers/', 'slicer');
     slicerPart = 'xl/slicers/slicer' + sn + '.xml';
@@ -407,8 +407,8 @@ export function setSlicerProps(wb, sheet, name, { caption, columns } = {}) {
   const re = new RegExp('<slicer\\b[^>]*name="' + esc(name).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*/>');
   const next = xml.replace(re, (tag) => {
     let t = tag;
-    if (caption !== undefined) t = t.replace(/\s+caption="[^"]*"/, '').replace(/\s*\/>$/, ' caption="' + esc(caption) + '"/>');
-    if (columns !== undefined) t = t.replace(/\s+columnCount="[^"]*"/, '').replace(/\s*\/>$/, (columns > 1 ? ' columnCount="' + columns + '"' : '') + '/>');
+    if (caption !== undefined) t = t.replace(/\s+caption="[^"]*"/, '').replace(/\s*\/>$/, () => ' caption="' + esc(caption) + '"/>');
+    if (columns !== undefined) t = t.replace(/\s+columnCount="[^"]*"/, '').replace(/\s*\/>$/, () => (columns > 1 ? ' columnCount="' + columns + '"' : '') + '/>');
     return t;
   });
   if (next !== xml) wb.pkg.write_(s.part, next);

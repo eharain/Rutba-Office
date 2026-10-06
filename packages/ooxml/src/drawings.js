@@ -158,7 +158,7 @@ export function withAnchorAttrs(xml, values) {
     for (const [name, value] of Object.entries(values)) {
       const re = new RegExp('\\s' + name + '="[^"]*"');
       if (value == null) out = out.replace(re, '');
-      else if (re.test(out)) out = out.replace(re, ' ' + name + '="' + esc(String(value)) + '"');
+      else if (re.test(out)) out = out.replace(re, () => ' ' + name + '="' + esc(String(value)) + '"');
       else out += ' ' + name + '="' + esc(String(value)) + '"';
     }
     return '<wp:anchor' + out + '>';
@@ -170,7 +170,7 @@ export function withDocPr(xml, { name, hidden } = {}) {
   return xml.replace(/<wp:docPr\b([^>]*?)(\/?)>/, (tag, inner, self) => {
     let out = inner;
     if (name !== undefined) {
-      out = /\sname="/.test(out) ? out.replace(/\sname="[^"]*"/, ' name="' + esc(String(name)) + '"') : out + ' name="' + esc(String(name)) + '"';
+      out = /\sname="/.test(out) ? out.replace(/\sname="[^"]*"/, () => ' name="' + esc(String(name)) + '"') : out + ' name="' + esc(String(name)) + '"';
     }
     if (hidden !== undefined) {
       out = out.replace(/\shidden="[^"]*"/, '');
@@ -189,7 +189,7 @@ export function positionXml(axis, { rel, align = null, offsetPx = 0 }) {
 
 export function withPosition(xml, axis, spec) {
   const re = new RegExp('<wp:position' + axis + '\\b[\\s\\S]*?<\\/wp:position' + axis + '>');
-  return re.test(xml) ? xml.replace(re, positionXml(axis, spec)) : xml;
+  return re.test(xml) ? xml.replace(re, () => positionXml(axis, spec)) : xml;
 }
 
 const WRAP_RE = /<wp:(wrapSquare|wrapTight|wrapThrough|wrapTopAndBottom|wrapNone)\b(?:[^>]*\/>|[^>]*>[\s\S]*?<\/wp:\1>)/;
@@ -206,23 +206,23 @@ export function wrapXml(wrap, side = 'bothSides') {
 
 export function withWrap(xml, wrap, side) {
   const el = wrapXml(wrap, side);
-  if (WRAP_RE.test(xml)) return xml.replace(WRAP_RE, el);
+  if (WRAP_RE.test(xml)) return xml.replace(WRAP_RE, () => el);
   // No wrap element yet: it goes after the effect extent, or the extent.
-  if (/<wp:effectExtent\b[^>]*\/>/.test(xml)) return xml.replace(/(<wp:effectExtent\b[^>]*\/>)/, '$1' + el);
-  return xml.replace(/(<wp:extent\b[^>]*\/>)/, '$1' + el);
+  if (/<wp:effectExtent\b[^>]*\/>/.test(xml)) return xml.replace(/(<wp:effectExtent\b[^>]*\/>)/, (m, p1) => (p1 ?? '') + el);
+  return xml.replace(/(<wp:extent\b[^>]*\/>)/, (m, p1) => (p1 ?? '') + el);
 }
 
 /** The drawing's size: its extent and its own top transform's extent. */
 export function withExtent(xml, widthPx, heightPx) {
   const cx = Math.max(1, toEmu(widthPx));
   const cy = Math.max(1, toEmu(heightPx));
-  let out = xml.replace(/<wp:extent\b[^>]*\/>/, '<wp:extent cx="' + cx + '" cy="' + cy + '"/>');
+  let out = xml.replace(/<wp:extent\b[^>]*\/>/, () => '<wp:extent cx="' + cx + '" cy="' + cy + '"/>');
   const xf = topXfrm(out);
   if (xf && !xf.tag.endsWith('/>')) {
     const close = out.indexOf('</a:xfrm>', xf.index);
     const inner = out.slice(xf.index + xf.tag.length, close);
     const next = /<a:ext\b[^>]*\/>/.test(inner)
-      ? inner.replace(/<a:ext\b[^>]*\/>/, '<a:ext cx="' + cx + '" cy="' + cy + '"/>')
+      ? inner.replace(/<a:ext\b[^>]*\/>/, () => '<a:ext cx="' + cx + '" cy="' + cy + '"/>')
       : '<a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/>' + inner;
     out = out.slice(0, xf.index + xf.tag.length) + next + out.slice(close);
   }
@@ -537,7 +537,7 @@ export function memberXml(drawingXml, { x, y, cx, cy }) {
     el = el.slice(0, xf.index) + '<a:xfrm' + xf[1] + '>' + place + '</a:xfrm>' + el.slice(xf.index + xf[0].length);
   } else {
     // A member with no transform of its own gets one, first in its shape properties.
-    el = el.replace(/(<(?:pic|wps|wpg):(?:spPr|grpSpPr)\b[^>]*>)/, '$1<a:xfrm>' + place + '</a:xfrm>');
+    el = el.replace(/(<(?:pic|wps|wpg):(?:spPr|grpSpPr)\b[^>]*>)/, (m, p1) => (p1 ?? '') + '<a:xfrm>' + place + '</a:xfrm>');
   }
   return el;
 }
@@ -623,7 +623,7 @@ export function memberToDrawing(member, { id, widthPx, heightPx, h, v, wrap, beh
   const cx = Math.max(1, toEmu(widthPx));
   const cy = Math.max(1, toEmu(heightPx));
   // The member's transform now sits at its own origin.
-  el = el.replace(/<a:off\b[^>]*\/>/, '<a:off x="0" y="0"/>').replace(/<a:ext\b[^>]*\/>/, '<a:ext cx="' + cx + '" cy="' + cy + '"/>');
+  el = el.replace(/<a:off\b[^>]*\/>/, '<a:off x="0" y="0"/>').replace(/<a:ext\b[^>]*\/>/, () => '<a:ext cx="' + cx + '" cy="' + cy + '"/>');
   const name = member.name || (member.kind === 'picture' ? 'Picture ' : 'Shape ') + id;
   const graphic = '<a:graphic xmlns:a="' + DRAWING_NS.a + '"><a:graphicData uri="' + uri + '">' + el + '</a:graphicData></a:graphic>';
   return anchorXml({

@@ -42,10 +42,10 @@ export function writeTitle(pkg, title) {
   let xml = pkg.text(part);
   const element = text ? `<dc:title>${esc(text)}</dc:title>` : '';
   if (/<dc:title\b[^>]*\/>|<dc:title\b[^>]*>[\s\S]*?<\/dc:title>/.test(xml)) {
-    xml = xml.replace(/<dc:title\b[^>]*\/>|<dc:title\b[^>]*>[\s\S]*?<\/dc:title>/, element);
+    xml = xml.replace(/<dc:title\b[^>]*\/>|<dc:title\b[^>]*>[\s\S]*?<\/dc:title>/, () => element);
   } else if (element) {
     if (!/xmlns:dc=/.test(xml)) xml = xml.replace(/<cp:coreProperties\b/, '<cp:coreProperties xmlns:dc="http://purl.org/dc/elements/1.1/"');
-    xml = xml.replace(/(<cp:coreProperties\b[^>]*>)/, `$1${element}`);
+    xml = xml.replace(/(<cp:coreProperties\b[^>]*>)/, (m, p1) => `${p1 ?? ''}${element}`);
   }
   pkg.write_(part, xml);
   return part;

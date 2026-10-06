@@ -6451,7 +6451,7 @@ export class SheetView {
         const id = 'rId' + (used.length ? Math.max(...used) + 1 : 1);
         this.pkg.write_(relsPart, rels.replace(
           '</Relationships>',
-          '<Relationship Id="' + id + '" Type="http://schemas.openxmlformats.org/'
+          () => '<Relationship Id="' + id + '" Type="http://schemas.openxmlformats.org/'
           + 'officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>',
         ));
       }
@@ -7188,8 +7188,8 @@ function withTransform(xml, box, mutate, { absolute = false } = {}) {
   }
   const xfrm = '<a:xfrm' + head + '>' + offXml + extXml + ch + '</a:xfrm>';
   let nextBlock;
-  if (current) nextBlock = block[0].replace(current[0], xfrm);
-  else if (/\/>$/.test(block[0])) nextBlock = block[0].replace(/\s*\/>$/, '>' + xfrm + '</' + (block[1] ?? '') + block[2] + '>');
+  if (current) nextBlock = block[0].replace(current[0], () => xfrm);
+  else if (/\/>$/.test(block[0])) nextBlock = block[0].replace(/\s*\/>$/, () => '>' + xfrm + '</' + (block[1] ?? '') + block[2] + '>');
   else nextBlock = block[0].replace(/^<[^>]*>/, (m) => m + xfrm);
   return xml.slice(0, block.index) + nextBlock + xml.slice(block.index + block[0].length);
 }

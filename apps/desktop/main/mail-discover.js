@@ -292,7 +292,7 @@ export function parseAutoconfig(xml, email) {
     const kind = tag === 'incomingServer' ? (type === 'imap' ? 'imap' : null) : type === 'smtp' ? 'smtp' : null;
     if (!kind) continue;
     const socket = (pick('socketType') || '').toUpperCase();
-    const username = (pick('username') || '').replace('%EMAILADDRESS%', email).replace('%EMAILLOCALPART%', email.split('@')[0]).replace('%EMAILDOMAIN%', email.split('@')[1] || '');
+    const username = (pick('username') || '').replace('%EMAILADDRESS%', () => email).replace('%EMAILLOCALPART%', () => email.split('@')[0]).replace('%EMAILDOMAIN%', () => email.split('@')[1] || '');
     servers.push({ kind, host: pick('hostname'), port: Number(pick('port')), secure: socket === 'SSL', starttls: socket === 'STARTTLS', user: username || null, auth: pick('authentication') || null });
   }
   return servers.filter((s) => s.host && s.port);

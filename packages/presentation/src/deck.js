@@ -497,9 +497,9 @@ export class Deck {
         `<p14:sectionLst xmlns:p14="${P14_NS}">` +
         kept.map((s) => `<p14:section name="${escapeXml(s.name)}" id="${s.id}">${s.slideIds.length ? `<p14:sldIdLst>${s.slideIds.map((id) => `<p14:sldId id="${id}"/>`).join('')}</p14:sldIdLst>` : '<p14:sldIdLst/>'}</p14:section>`).join('') +
         `</p14:sectionLst></p:ext>`;
-      if (extRe.test(presXml)) next = presXml.replace(extRe, ext);
-      else if (/<\/p:extLst>\s*<\/p:presentation>/.test(presXml)) next = presXml.replace(/<\/p:extLst>(\s*<\/p:presentation>)/, `${ext}</p:extLst>$1`);
-      else next = presXml.replace(/<\/p:presentation>\s*$/, `<p:extLst>${ext}</p:extLst></p:presentation>`);
+      if (extRe.test(presXml)) next = presXml.replace(extRe, () => ext);
+      else if (/<\/p:extLst>\s*<\/p:presentation>/.test(presXml)) next = presXml.replace(/<\/p:extLst>(\s*<\/p:presentation>)/, (m, p1) => `${ext}</p:extLst>${p1 ?? ''}`);
+      else next = presXml.replace(/<\/p:presentation>\s*$/, () => `<p:extLst>${ext}</p:extLst></p:presentation>`);
     }
     if (next === presXml) return;
     this.pkg.write_('ppt/presentation.xml', Buffer.from(next, 'utf8'));
@@ -1045,8 +1045,8 @@ export class Deck {
       const touchesTransform = rot !== undefined || flipH !== undefined || flipV !== undefined;
 
       if (hasXfrm) {
-        shapeXml = offRe.test(shapeXml) ? shapeXml.replace(offRe, offXml) : shapeXml.replace(/<a:xfrm\b[^>]*>/, (m) => m + offXml);
-        shapeXml = extRe.test(shapeXml) ? shapeXml.replace(extRe, extXml) : shapeXml.replace(offXml, offXml + extXml);
+        shapeXml = offRe.test(shapeXml) ? shapeXml.replace(offRe, () => offXml) : shapeXml.replace(/<a:xfrm\b[^>]*>/, (m) => m + offXml);
+        shapeXml = extRe.test(shapeXml) ? shapeXml.replace(extRe, () => extXml) : shapeXml.replace(offXml, () => offXml + extXml);
         if (touchesTransform) {
           shapeXml = shapeXml.replace(/<a:xfrm\b([^>]*)>/, (m, attrs) => {
             let next = attrs;
@@ -1117,7 +1117,7 @@ export class Deck {
     for (const rel of clip.rels || []) {
       const same = [...have.values()].find((r) => r.type === rel.type && r.target === rel.target && r.mode === rel.mode);
       const rId = same ? same.id : this.pkg.addRelationshipTo(part, rel.type, rel.target, { external: rel.mode === 'External' });
-      if (rId !== rel.id) shapeXml = shapeXml.replace(new RegExp('(\\br:(?:embed|link|id|pict)=")' + rel.id + '"', 'g'), '$1' + rId + '"');
+      if (rId !== rel.id) shapeXml = shapeXml.replace(new RegExp('(\\br:(?:embed|link|id|pict)=")' + rel.id + '"', 'g'), (m, p1) => (p1 ?? '') + rId + '"');
     }
     // A slide that has never had a relationship may not declare the prefix.
     const head = xml.slice(0, Math.max(0, xml.indexOf('<p:cSld')));
@@ -1637,7 +1637,7 @@ export class Deck {
   renameShape(slideIndex, shapeId, name) {
     const safe = escapeXml(String(name ?? '').trim() || `Shape ${shapeId}`);
     return this.#editShapeProps(slideIndex, shapeId, (open) => (
-      /\sname="/.test(open) ? open.replace(/\sname="[^"]*"/, ` name="${safe}"`) : open.replace(/\/?>$/, (m) => ` name="${safe}"${m}`)
+      /\sname="/.test(open) ? open.replace(/\sname="[^"]*"/, () => ` name="${safe}"`) : open.replace(/\/?>$/, (m) => ` name="${safe}"${m}`)
     ));
   }
 
@@ -1701,7 +1701,7 @@ export class Deck {
     const relsPath = part.replace(/([^/]+)$/, '_rels/$1.rels');
     const rels = this.pkg.text(relsPath);
     const target = `../slideLayouts/${layoutPart.split('/').pop()}`;
-    const next = rels.replace(/<Relationship\b[^>]*>/g, (el) => (/\bType="[^"]*\/slideLayout"/.test(el) ? el.replace(/\bTarget="[^"]*"/, `Target="${target}"`) : el));
+    const next = rels.replace(/<Relationship\b[^>]*>/g, (el) => (/\bType="[^"]*\/slideLayout"/.test(el) ? el.replace(/\bTarget="[^"]*"/, () => `Target="${target}"`) : el));
     if (next === rels) throw new Error('this slide has no layout to change');
     this.pkg.write_(relsPath, Buffer.from(next, 'utf8'));
     // The scene cache is keyed on the slide's XML, which this leaves as it
@@ -1761,11 +1761,11 @@ export class Deck {
       else if (range.alt) {
         const { rId } = this.#embedImage(part, { data: png, contentType: 'image/png' });
         shapeXml = embed
-          ? shapeXml.replace(`r:embed="${embed}"`, `r:embed="${rId}"`)
+          ? shapeXml.replace(`r:embed="${embed}"`, () => `r:embed="${rId}"`)
           : shapeXml;
       }
     }
-    if (w > 0 && h > 0) shapeXml = shapeXml.replace(/<a:ext\b[^>]*\/>/g, `<a:ext cx="${pxToEmu(w)}" cy="${pxToEmu(h)}"/>`);
+    if (w > 0 && h > 0) shapeXml = shapeXml.replace(/<a:ext\b[^>]*\/>/g, () => `<a:ext cx="${pxToEmu(w)}" cy="${pxToEmu(h)}"/>`);
     this.#writeSlide(part, this.pkg.text(part).slice(0, range.start) + shapeXml + this.pkg.text(part).slice(range.end));
     return true;
   }
@@ -1834,11 +1834,11 @@ export class Deck {
     if (!cNvPr) throw new Error(`shape ${shapeId} has no properties`);
     let next;
     if (cNvPr[1] === '/>') {
-      next = shapeXml.slice(0, cNvPr.index) + cNvPr[0].replace(/\/>$/, `><a:extLst>${ext}</a:extLst></p:cNvPr>`) + shapeXml.slice(cNvPr.index + cNvPr[0].length);
+      next = shapeXml.slice(0, cNvPr.index) + cNvPr[0].replace(/\/>$/, () => `><a:extLst>${ext}</a:extLst></p:cNvPr>`) + shapeXml.slice(cNvPr.index + cNvPr[0].length);
     } else {
       const close = shapeXml.indexOf('</p:cNvPr>', cNvPr.index);
       const inner = shapeXml.slice(cNvPr.index + cNvPr[0].length, close);
-      const nextInner = /<a:extLst>/.test(inner) ? inner.replace('</a:extLst>', `${ext}</a:extLst>`) : `${inner}<a:extLst>${ext}</a:extLst>`;
+      const nextInner = /<a:extLst>/.test(inner) ? inner.replace('</a:extLst>', () => `${ext}</a:extLst>`) : `${inner}<a:extLst>${ext}</a:extLst>`;
       next = shapeXml.slice(0, cNvPr.index + cNvPr[0].length) + nextInner + shapeXml.slice(close);
     }
     this.#writeSlide(part, xml.slice(0, range.start) + next + xml.slice(range.end));
@@ -1857,7 +1857,7 @@ export class Deck {
     this.pkg.addPart(part, Buffer.from(commentListXml(''), 'utf8'), COMMENT_CT.modern);
     const rId = this.pkg.addRelationshipTo(entry.part, COMMENT_REL.modern, `../comments/${name}`);
     const xml = this.pkg.text(entry.part);
-    const withNs = /<p:sld\b[^>]*xmlns:r=/.test(xml) ? xml : xml.replace(/<p:sld\b/, `<p:sld xmlns:r="${CM_NS.r}"`);
+    const withNs = /<p:sld\b[^>]*xmlns:r=/.test(xml) ? xml : xml.replace(/<p:sld\b/, () => `<p:sld xmlns:r="${CM_NS.r}"`);
     this.#writeSlide(entry.part, withSlideExt(withNs, COMMENT_REL_EXT, `<p188:commentRel xmlns:p188="${CM_NS.p188}" r:id="${rId}"/>`));
     this._scenes.delete(entry.part);
     return part;
@@ -1908,7 +1908,7 @@ export class Deck {
       text: words,
     });
     const xml = this.pkg.text(part);
-    this.pkg.write_(part, Buffer.from(xml.replace('</p188:cmLst>', `${cm}</p188:cmLst>`), 'utf8'));
+    this.pkg.write_(part, Buffer.from(xml.replace('</p188:cmLst>', () => `${cm}</p188:cmLst>`), 'utf8'));
     this.dirty = true;
     return id;
   }
@@ -1925,7 +1925,7 @@ export class Deck {
     const replyId = commentGuid();
     const reply = `<p188:reply id="${replyId}" authorId="${who.id}" created="${stamp()}"><p188:txBody><a:bodyPr/><a:lstStyle/>${words.split('\n').map((l) => (l ? `<a:p><a:r><a:rPr lang="en-US"/><a:t>${escapeXml(l)}</a:t></a:r></a:p>` : '<a:p><a:endParaRPr lang="en-US"/></a:p>')).join('')}</p188:txBody></p188:reply>`;
     let cm = range.xml;
-    if (/<p188:replyLst>/.test(cm)) cm = cm.replace('</p188:replyLst>', `${reply}</p188:replyLst>`);
+    if (/<p188:replyLst>/.test(cm)) cm = cm.replace('</p188:replyLst>', () => `${reply}</p188:replyLst>`);
     else {
       // The reply list goes after the anchor and position, before the thread's own words.
       const at = cm.lastIndexOf('<p188:txBody>');
@@ -2101,7 +2101,7 @@ export class Deck {
     const xml = this.pkg.text(p);
     const next = /<p:cSld\b[^>]*\bname="[^"]*"/.test(xml)
       ? xml.replace(/(<p:cSld\b[^>]*\bname=")[^"]*"/, (m, a) => `${a}${escapeXml(clean)}"`)
-      : xml.replace(/<p:cSld\b/, `<p:cSld name="${escapeXml(clean)}"`);
+      : xml.replace(/<p:cSld\b/, () => `<p:cSld name="${escapeXml(clean)}"`);
     if (next === xml) return false;
     this.#writeSlide(p, next);
     return true;
@@ -2127,7 +2127,7 @@ export class Deck {
     const open = new RegExp(`<${tag}\\b[^>]*>`).exec(xml);
     if (!open) return false;
     const bare = open[0].replace(/\s+showMasterSp="[^"]*"/, '');
-    const nextOpen = hide ? bare.replace(new RegExp(`^<${tag}`), `<${tag} showMasterSp="0"`) : bare;
+    const nextOpen = hide ? bare.replace(new RegExp(`^<${tag}`), () => `<${tag} showMasterSp="0"`) : bare;
     if (nextOpen === open[0]) return false;
     this.#writeSlide(part, xml.slice(0, open.index) + nextOpen + xml.slice(open.index + open[0].length));
     if (tag === 'p:sld') this._scenes.delete(part);
@@ -2169,8 +2169,8 @@ export class Deck {
     const entry = `<p:sldLayoutId id="${next}" r:id="${rId}"/>`;
     const mx = this.pkg.text(m);
     const withEntry = /<\/p:sldLayoutIdLst>/.test(mx)
-      ? mx.replace('</p:sldLayoutIdLst>', `${entry}</p:sldLayoutIdLst>`)
-      : mx.replace(/(<p:clrMap\b[^>]*\/>)/, `$1<p:sldLayoutIdLst>${entry}</p:sldLayoutIdLst>`);
+      ? mx.replace('</p:sldLayoutIdLst>', () => `${entry}</p:sldLayoutIdLst>`)
+      : mx.replace(/(<p:clrMap\b[^>]*\/>)/, (m, p1) => `${p1 ?? ''}<p:sldLayoutIdLst>${entry}</p:sldLayoutIdLst>`);
     this.#writeSlide(m, withEntry);
     return part;
   }
@@ -2293,10 +2293,10 @@ export class Deck {
       const tag = kind === 'title' ? 'p:titleStyle' : 'p:bodyStyle';
       const re = new RegExp(`<${tag}>[\\s\\S]*?</${tag}>|<${tag}/>`);
       const style = re.exec(xml);
-      const edited = editListStyle(style ? style[0].replace(`<${tag}/>`, `<${tag}></${tag}>`) : `<${tag}></${tag}>`, tag, props, levels);
+      const edited = editListStyle(style ? style[0].replace(`<${tag}/>`, () => `<${tag}></${tag}>`) : `<${tag}></${tag}>`, tag, props, levels);
       if (style) xml = xml.slice(0, style.index) + edited + xml.slice(style.index + style[0].length);
-      else if (/<p:txStyles>/.test(xml)) xml = xml.replace('<p:txStyles>', `<p:txStyles>${edited}`);
-      else xml = xml.replace(/<\/p:sldMaster>\s*$/, `<p:txStyles>${edited}</p:txStyles></p:sldMaster>`);
+      else if (/<p:txStyles>/.test(xml)) xml = xml.replace('<p:txStyles>', () => `<p:txStyles>${edited}`);
+      else xml = xml.replace(/<\/p:sldMaster>\s*$/, () => `<p:txStyles>${edited}</p:txStyles></p:sldMaster>`);
     } else {
       const lst = /<a:lstStyle>[\s\S]*?<\/a:lstStyle>|<a:lstStyle\/>/.exec(shapeXml);
       let nextShape;
@@ -2424,7 +2424,7 @@ export class Deck {
     let xml = this.pkg.text(master);
     if (dark != null) {
       const map = `<p:clrMap ${clrMapAttrs(dark)}/>`;
-      xml = /<p:clrMap\b[^>]*\/>/.test(xml) ? xml.replace(/<p:clrMap\b[^>]*\/>/, map) : xml.replace(/<\/p:cSld>/, (m) => m + map);
+      xml = /<p:clrMap\b[^>]*\/>/.test(xml) ? xml.replace(/<p:clrMap\b[^>]*\/>/, () => map) : xml.replace(/<\/p:cSld>/, (m) => m + map);
     }
     if (background) {
       if (/<p:bg>[\s\S]*?<\/p:bg>/.test(xml)) xml = xml.replace(/<p:bg>[\s\S]*?<\/p:bg>/, () => background);
@@ -3371,7 +3371,7 @@ export class Deck {
     const marker = new RegExp(`<p:sldId\\b[^>]*r:id="${anchor}"[^>]*/>`);
     const next = marker.test(presXml)
       ? presXml.replace(marker, (m) => m + entry)
-      : presXml.replace('</p:sldIdLst>', `${entry}</p:sldIdLst>`);
+      : presXml.replace('</p:sldIdLst>', () => `${entry}</p:sldIdLst>`);
     this.pkg.write_('ppt/presentation.xml', Buffer.from(next, 'utf8'));
     this.dirty = true;
     this.#load();
@@ -3440,8 +3440,8 @@ export class Deck {
     const next = marker && marker.test(presXml)
       ? presXml.replace(marker, (m) => m + entry)
       : after < 0 && /<p:sldIdLst>/.test(presXml)
-        ? presXml.replace('<p:sldIdLst>', `<p:sldIdLst>${entry}`)
-        : presXml.replace('</p:sldIdLst>', `${entry}</p:sldIdLst>`);
+        ? presXml.replace('<p:sldIdLst>', () => `<p:sldIdLst>${entry}`)
+        : presXml.replace('</p:sldIdLst>', () => `${entry}</p:sldIdLst>`);
 
     this.pkg.write_('ppt/presentation.xml', Buffer.from(next, 'utf8'));
     this.dirty = true;
@@ -3795,11 +3795,11 @@ function editListStyle(xml, tag, props, levels) {
   const colour = props.color ? String(props.color).replace('#', '').toUpperCase() : null;
   const setAttr = (openTag, name, value) => {
     const bare = openTag.replace(new RegExp(`\\s+${name}="[^"]*"`), '');
-    return value == null ? bare : bare.replace(/^(<[A-Za-z0-9_:]+)/, `$1 ${name}="${value}"`);
+    return value == null ? bare : bare.replace(/^(<[A-Za-z0-9_:]+)/, (m, p1) => `${p1 ?? ''} ${name}="${value}"`);
   };
   const editLevel = (n, el) => {
     let lvl = el || `<a:lvl${n}pPr></a:lvl${n}pPr>`;
-    if (/^<a:lvl\dpPr\b[^>]*\/>$/.test(lvl)) lvl = lvl.replace(/\/>$/, `></a:lvl${n}pPr>`);
+    if (/^<a:lvl\dpPr\b[^>]*\/>$/.test(lvl)) lvl = lvl.replace(/\/>$/, () => `></a:lvl${n}pPr>`);
     const lvlOpen = /^<a:lvl\dpPr\b[^>]*>/.exec(lvl)[0];
     let head = lvlOpen;
     if (props.align) head = setAttr(head, 'algn', { left: 'l', center: 'ctr', right: 'r', justify: 'just' }[props.align] || 'l');
@@ -3865,10 +3865,10 @@ function withSlideExt(xml, uri, inner) {
   const tail = /<p:extLst>((?:(?!<p:extLst>)[\s\S])*)<\/p:extLst>(\s*<\/p:sld>\s*)$/.exec(xml);
   if (tail) {
     const list = tail[1];
-    const nextList = existing.test(list) ? list.replace(existing, ext) : list + ext;
+    const nextList = existing.test(list) ? list.replace(existing, () => ext) : list + ext;
     return xml.slice(0, tail.index) + `<p:extLst>${nextList}</p:extLst>` + tail[2];
   }
-  return xml.replace(/<\/p:sld>\s*$/, `<p:extLst>${ext}</p:extLst></p:sld>`);
+  return xml.replace(/<\/p:sld>\s*$/, () => `<p:extLst>${ext}</p:extLst></p:sld>`);
 }
 
 /** A slide's animations, or none when its timing is past reading — the slide still opens. */

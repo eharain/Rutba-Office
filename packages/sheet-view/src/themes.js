@@ -148,10 +148,10 @@ export function stylesFollowingFonts(stylesXml, { major, minor }, was = OFFICE.f
     let next = font;
     if (/\/>$/.test(next) && !/<\/font>$/.test(next)) next = next.replace(/\s*\/>$/, '></font>');
     next = /<name\b[^>]*\/>/.test(next)
-      ? next.replace(/<name\b[^>]*\/>/, '<name val="' + face.replace(/"/g, '&quot;') + '"/>')
-      : next.replace('</font>', '<name val="' + face.replace(/"/g, '&quot;') + '"/></font>');
+      ? next.replace(/<name\b[^>]*\/>/, () => '<name val="' + face.replace(/"/g, '&quot;') + '"/>')
+      : next.replace('</font>', () => '<name val="' + face.replace(/"/g, '&quot;') + '"/></font>');
     // Schema order: name, charset, family, … scheme last.
-    if (!/<scheme\b/.test(next)) next = next.replace('</font>', '<scheme val="' + kind + '"/></font>');
+    if (!/<scheme\b/.test(next)) next = next.replace('</font>', () => '<scheme val="' + kind + '"/></font>');
     return next;
   });
   return stylesXml.replace(block[1], () => fonts);

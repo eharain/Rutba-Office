@@ -433,10 +433,10 @@ function withElement(rPr, tag, element) {
   }
   if (!rPr) return '<w:rPr>' + element + '</w:rPr>';
   if (/<w:rPr\b[^>]*\/>/.test(rPr)) return '<w:rPr>' + element + '</w:rPr>';
-  if (one.test(rPr)) return rPr.replace(one, element);
+  if (one.test(rPr)) return rPr.replace(one, () => element);
   // A value element rides near the end of rPr; Word reads it there just as it
   // reads the toggles `withToggle` writes at the front.
-  return rPr.replace('</w:rPr>', element + '</w:rPr>');
+  return rPr.replace('</w:rPr>', () => element + '</w:rPr>');
 }
 
 // ---- outline, shadow, glow: the text effects the "A" button turns on ------
@@ -522,7 +522,7 @@ function withGlow(rPr, glow, declaresW14) {
   }
   const stripped = rPr.replace(existingRe, '');
   if (!glow) return /<w:rPr\b[^>]*>\s*<\/w:rPr>/.test(stripped) ? null : stripped;
-  return stripped.replace('</w:rPr>', glowElement(glow, declaresW14) + '</w:rPr>');
+  return stripped.replace('</w:rPr>', () => glowElement(glow, declaresW14) + '</w:rPr>');
 }
 
 /**
@@ -539,7 +539,7 @@ function withFontName(rPr, name) {
     let attrs = existing[1];
     for (const k of FAMILY) attrs = attrs.replace(new RegExp('\\s+' + k + '="[^"]*"'), '');
     const rebuilt = /\S/.test(attrs) ? '<w:rFonts' + attrs + '/>' : '';
-    const stripped = rPr.replace(/<w:rFonts\b[^>]*\/>/, rebuilt);
+    const stripped = rPr.replace(/<w:rFonts\b[^>]*\/>/, () => rebuilt);
     return /<w:rPr\b[^>]*>\s*<\/w:rPr>/.test(stripped) ? null : stripped;
   }
 
@@ -549,17 +549,17 @@ function withFontName(rPr, name) {
     for (const k of FAMILY) {
       const attrRe = new RegExp('\\s+' + k + '="[^"]*"');
       attrs = attrRe.test(attrs)
-        ? attrs.replace(attrRe, ' ' + k + '="' + value + '"')
+        ? attrs.replace(attrRe, () => ' ' + k + '="' + value + '"')
         : attrs + ' ' + k + '="' + value + '"';
     }
-    return rPr.replace(/<w:rFonts\b[^>]*\/>/, '<w:rFonts' + attrs + '/>');
+    return rPr.replace(/<w:rFonts\b[^>]*\/>/, () => '<w:rFonts' + attrs + '/>');
   }
 
   const element = '<w:rFonts w:ascii="' + value + '" w:hAnsi="' + value + '" w:cs="' + value + '"/>';
   if (!rPr) return '<w:rPr>' + element + '</w:rPr>';
   if (/<w:rPr\b[^>]*\/>/.test(rPr)) return '<w:rPr>' + element + '</w:rPr>';
   // rFonts belongs at the FRONT of rPr by the schema's ordering.
-  return rPr.replace(/^(<w:rPr\b[^>]*>)/, '$1' + element);
+  return rPr.replace(/^(<w:rPr\b[^>]*>)/, (m, p1) => (p1 ?? '') + element);
 }
 
 /** Set or clear one value run property. `null` clears; anything else sets. */
@@ -870,7 +870,7 @@ function setIndLeft(indXml, twips) {
   if (!indXml) return '<w:ind w:left="' + twips + '"/>';
   const attrs = /^<w:ind\b([^>]*?)\s*\/?>$/.exec(indXml)[1];
   const next = /\bw:left="[^"]*"/.test(attrs)
-    ? attrs.replace(/\bw:left="[^"]*"/, 'w:left="' + twips + '"')
+    ? attrs.replace(/\bw:left="[^"]*"/, () => 'w:left="' + twips + '"')
     : attrs + ' w:left="' + twips + '"';
   return '<w:ind' + next + '/>';
 }
@@ -887,7 +887,7 @@ function setAttr(elXml, attr, value) {
   const m = /^(<w:\w+)\b([^>]*?)\s*\/?>$/.exec(elXml);
   const attrRe = new RegExp('\\b' + attr + '="[^"]*"');
   const attrs = attrRe.test(m[2])
-    ? m[2].replace(attrRe, attr + '="' + value + '"')
+    ? m[2].replace(attrRe, () => attr + '="' + value + '"')
     : m[2] + ' ' + attr + '="' + value + '"';
   return m[1] + attrs + '/>';
 }

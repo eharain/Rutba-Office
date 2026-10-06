@@ -152,7 +152,7 @@ function withSectionBreak(paragraphXml, sectPr) {
   else {
     inner = inner.replace(/<w:sectPr\b[^>]*\/>|<w:sectPr\b[^>]*>[\s\S]*?<\/w:sectPr>/, '');
     const change = inner.indexOf('<w:pPrChange');
-    inner = change >= 0 ? inner.slice(0, change) + sectPr + inner.slice(change) : inner.replace(/<\/w:pPr>$/, sectPr + '</w:pPr>');
+    inner = change >= 0 ? inner.slice(0, change) + sectPr + inner.slice(change) : inner.replace(/<\/w:pPr>$/, () => sectPr + '</w:pPr>');
   }
   return p.slice(0, at) + inner + p.slice(at + pPr[0].length);
 }

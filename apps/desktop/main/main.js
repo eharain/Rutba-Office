@@ -71,7 +71,7 @@ createShell({
   // One tile per app for the taskbar (build/make-file-icons.js). The taskbar
   // reads the file itself, so in a packaged copy it lives unpacked beside
   // the archive, and the path says so.
-  appIcons: Object.fromEntries(Object.keys(APPS).map((key) => [key, path.join(app, 'resources', 'apps', `${key}.ico`).replace(`${path.sep}app.asar${path.sep}`, `${path.sep}app.asar.unpacked${path.sep}`)])),
+  appIcons: Object.fromEntries(Object.keys(APPS).map((key) => [key, path.join(app, 'resources', 'apps', `${key}.ico`).replace(`${path.sep}app.asar${path.sep}`, () => `${path.sep}app.asar.unpacked${path.sep}`)])),
   appNames: Object.fromEntries(Object.entries(APPS).map(([key, a]) => [key, a.name])),
   appShortNames: Object.fromEntries(Object.entries(APPS).map(([key, a]) => [key, a.short])),
 

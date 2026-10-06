@@ -276,10 +276,10 @@ export class OoxmlPackage {
     if (new RegExp('<Override[^>]*PartName="' + partName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*/?>').test(xml)) {
       xml = xml.replace(
         new RegExp('<Override[^>]*PartName="' + partName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*/>'),
-        '<Override PartName="' + esc(partName) + '" ContentType="' + esc(contentType) + '"/>',
+        () => '<Override PartName="' + esc(partName) + '" ContentType="' + esc(contentType) + '"/>',
       );
     } else {
-      xml = xml.replace(/<\/Types>\s*$/, '<Override PartName="' + esc(partName) + '" ContentType="' + esc(contentType) + '"/></Types>');
+      xml = xml.replace(/<\/Types>\s*$/, () => '<Override PartName="' + esc(partName) + '" ContentType="' + esc(contentType) + '"/></Types>');
     }
     this.write_('[Content_Types].xml', xml);
   }
@@ -335,7 +335,7 @@ export class OoxmlPackage {
     // or Excel looks for a part by that name and calls the file corrupt.
     const entry = '<Relationship Id="' + id + '" Type="' + type + '" Target="' + esc(target) + '"' + (external ? ' TargetMode="External"' : '') + '/>';
     if (existing) {
-      this.write_(relsPath, existing.replace('</Relationships>', entry + '</Relationships>'));
+      this.write_(relsPath, existing.replace('</Relationships>', () => entry + '</Relationships>'));
     } else {
       this.addPart(relsPath,
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'

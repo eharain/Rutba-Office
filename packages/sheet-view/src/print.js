@@ -265,12 +265,12 @@ function rotationCss(r) {
 /** &P, &N, &A, &D, &F — the header and footer codes people already know. */
 function fields(text, { page, pages, sheet, file, date }) {
   return esc(String(text ?? ''))
-    .replace(/&amp;P/g, String(page))
-    .replace(/&amp;N/g, String(pages))
-    .replace(/&amp;A/g, esc(sheet))
-    .replace(/&amp;F/g, esc(file || ''))
-    .replace(/&amp;D/g, esc(date.toLocaleDateString()))
-    .replace(/&amp;T/g, esc(date.toLocaleTimeString()));
+    .replace(/&amp;P/g, () => String(page))
+    .replace(/&amp;N/g, () => String(pages))
+    .replace(/&amp;A/g, () => esc(sheet))
+    .replace(/&amp;F/g, () => esc(file || ''))
+    .replace(/&amp;D/g, () => esc(date.toLocaleDateString()))
+    .replace(/&amp;T/g, () => esc(date.toLocaleTimeString()));
 }
 
 /**

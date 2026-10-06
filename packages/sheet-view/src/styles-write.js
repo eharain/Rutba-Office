@@ -82,7 +82,7 @@ function block(xml, name) {
 function replaceBlock(xml, name, inner, count) {
   const b = block(xml, name);
   if (!b) return null;
-  const openTag = b.openTag.replace(/\bcount="\d+"/, 'count="' + count + '"');
+  const openTag = b.openTag.replace(/\bcount="\d+"/, () => 'count="' + count + '"');
   return xml.slice(0, b.start) + openTag + inner + '</' + name + '>' + xml.slice(b.end);
 }
 
@@ -131,7 +131,7 @@ function fontWith(xml, delta) {
   const setValue = (tag, attrs) => {
     const re = new RegExp('<' + tag + '\\b[^>]*?/?>(?:</' + tag + '>)?', 'i');
     const el = attrs === null ? '' : '<' + tag + ' ' + attrs + '/>';
-    if (re.test(inner)) inner = inner.replace(re, el);
+    if (re.test(inner)) inner = inner.replace(re, () => el);
     else if (el) inner += el;
   };
   if (delta.fontSize !== undefined) {
@@ -534,7 +534,7 @@ export function ensureDxf(xml, { fontColour = null, fill = null, bold = false } 
     const at = items.indexOf(dxfXml);
     if (at >= 0) return { xml, index: at };
     const rebuilt = '<dxfs count="' + (items.length + 1) + '">' + items.join('') + dxfXml + '</dxfs>';
-    return { xml: xml.replace(block[0], rebuilt), index: items.length };
+    return { xml: xml.replace(block[0], () => rebuilt), index: items.length };
   }
   // No dxfs block yet — per schema it sits after cellStyles, before
   // tableStyles / colors / extLst / the end.

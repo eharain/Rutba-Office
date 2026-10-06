@@ -194,7 +194,7 @@ export function setSheetTableHeader(view, { part }) {
     xml = xml.replace(/(<table\b[^>]*?)\sheaderRowCount="0"/, '$1');
     let i = 0;
     xml = xml.replace(/<tableColumn\b([^>]*?)\sname="[^"]*"/g, (m, pre) => `<tableColumn${pre} name="${escAttr(names[i++] ?? `Column${i}`)}"`);
-    if (!/<autoFilter\b/.test(xml)) xml = xml.replace(/(<table\b[^>]*>)/, `$1<autoFilter ref="${info.ref}"/>`);
+    if (!/<autoFilter\b/.test(xml)) xml = xml.replace(/(<table\b[^>]*>)/, (m, p1) => `${p1 ?? ''}<autoFilter ref="${info.ref}"/>`);
     view.pkg.write_(part, xml);
     view.dirtyCells.clear();
     view.styledCells.clear();

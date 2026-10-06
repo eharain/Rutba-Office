@@ -293,7 +293,7 @@ function htmlTextSvg(body, box, opts = {}) {
     const runs = p.runs.map((r) => {
       if (r.math) {
         const side = { left: 'left', right: 'right' }[r.math.jc] || null;
-        const mathml = String(r.math.mathml || '').replace(/<math\b(?![^>]*\bxmlns=)/g, `<math xmlns="${MATHML_NS}"`).replace(/<math\b/g, `<math style="font-family:${MATH_FACE}"`);
+        const mathml = String(r.math.mathml || '').replace(/<math\b(?![^>]*\bxmlns=)/g, () => `<math xmlns="${MATHML_NS}"`).replace(/<math\b/g, () => `<math style="font-family:${MATH_FACE}"`);
         return r.math.display ? `<div style="text-align:${side || 'center'}">${mathml}</div>` : mathml;
       }
       if (r.break) return '<br/>';

@@ -91,7 +91,7 @@ export const indexMethods = {
     let changed = false;
     for (const [id, name, body, next] of INDEX_STYLES) {
       if (new RegExp('<w:style\\b[^>]*\\bw:styleId="' + id + '"').test(xml)) continue;
-      xml = xml.replace('</w:styles>', '<w:style w:type="paragraph" w:styleId="' + id + '"><w:name w:val="' + name + '"/><w:basedOn w:val="Normal"/>'
+      xml = xml.replace('</w:styles>', () => '<w:style w:type="paragraph" w:styleId="' + id + '"><w:name w:val="' + name + '"/><w:basedOn w:val="Normal"/>'
         + (next ? '<w:next w:val="' + next + '"/>' : '') + '<w:uiPriority w:val="99"/><w:unhideWhenUsed/>' + body + '</w:style></w:styles>');
       changed = true;
     }

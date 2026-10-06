@@ -83,7 +83,7 @@ export function writeAltProps(elementXml, { descr = '', decorative = false } = {
   children = children.replace(/<a:extLst\b[^>]*>\s*<\/a:extLst>/g, '').replace(/<a:extLst\b[^>]*\/>/g, '');
   if (decorative) {
     const ext = `<a:ext uri="${DECORATIVE_URI}"><adec:decorative xmlns:adec="${ADEC_NS}" val="1"/></a:ext>`;
-    if (/<a:extLst\b[^>]*>/.test(children)) children = children.replace(/<\/a:extLst>/, `${ext}</a:extLst>`);
+    if (/<a:extLst\b[^>]*>/.test(children)) children = children.replace(/<\/a:extLst>/, () => `${ext}</a:extLst>`);
     else children += `<a:extLst xmlns:a="${A_NS}">${ext}</a:extLst>`;
   }
   return children ? `<${tag}${attrs}>${children}</${tag}>` : `<${tag}${attrs}/>`;

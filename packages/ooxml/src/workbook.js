@@ -414,8 +414,8 @@ class SheetPart {
       // a cached result, an inline string — are none of this method's business.
       const head = existing.xml.slice(0, existing.xml.indexOf('>') + 1);
       const withStyle = /\bs="\d+"/.test(head)
-        ? head.replace(/\bs="\d+"/, styleIndex === null ? '' : 's="' + styleIndex + '"')
-        : (styleIndex === null ? head : head.replace(/(<c\b[^>]*?)(\/?>)$/, '$1 s="' + styleIndex + '"$2'));
+        ? head.replace(/\bs="\d+"/, () => styleIndex === null ? '' : 's="' + styleIndex + '"')
+        : (styleIndex === null ? head : head.replace(/(<c\b[^>]*?)(\/?>)$/, (m, p1, p2) => (p1 ?? '') + ' s="' + styleIndex + '"' + (p2 ?? '')));
       row.inner = row.inner.replace(existing.xml, () => withStyle + existing.xml.slice(head.length));
     } else {
       const cellXml = '<c r="' + ref + '"' + (styleIndex === null ? '' : ' s="' + styleIndex + '"') + '/>';
@@ -479,7 +479,7 @@ class SheetPart {
     const target = colIndex + 1; // <col> is 1-based
     const withWidth = (rest) => {
       let r = /\bwidth="[^"]*"/.test(rest)
-        ? rest.replace(/\bwidth="[^"]*"/, 'width="' + widthChars + '"')
+        ? rest.replace(/\bwidth="[^"]*"/, () => 'width="' + widthChars + '"')
         : rest + ' width="' + widthChars + '"';
       if (/\bcustomWidth="[^"]*"/.test(r)) r = r.replace(/\bcustomWidth="[^"]*"/, 'customWidth="1"');
       else r += ' customWidth="1"';
@@ -511,7 +511,7 @@ class SheetPart {
       else this.rows.splice(at, 0, row);
       this._rowsChanged();
     }
-    if (/\bht="[^"]*"/.test(row.attrsStr)) row.attrsStr = row.attrsStr.replace(/\bht="[^"]*"/, 'ht="' + points + '"');
+    if (/\bht="[^"]*"/.test(row.attrsStr)) row.attrsStr = row.attrsStr.replace(/\bht="[^"]*"/, () => 'ht="' + points + '"');
     else row.attrsStr += ' ht="' + points + '"';
     if (/\bcustomHeight="[^"]*"/.test(row.attrsStr)) row.attrsStr = row.attrsStr.replace(/\bcustomHeight="[^"]*"/, 'customHeight="1"');
     else row.attrsStr += ' customHeight="1"';
@@ -617,14 +617,14 @@ class SheetPart {
     } else if (element) {
       // tabColor comes first inside sheetPr, then outlinePr, then pageSetUpPr.
       if (/<sheetPr\b[^>]*\/>/.test(this.prefix)) {
-        this.prefix = this.prefix.replace(/<sheetPr\b([^>]*)\/>/, '<sheetPr$1>' + element + '</sheetPr>');
+        this.prefix = this.prefix.replace(/<sheetPr\b([^>]*)\/>/, (m, p1) => '<sheetPr' + (p1 ?? '') + '>' + element + '</sheetPr>');
       } else if (/<sheetPr\b/.test(this.prefix)) {
         const tab = /<tabColor\b[^>]*\/>/.exec(this.prefix);
         this.prefix = tab
           ? this.prefix.replace(tab[0], () => tab[0] + element)
-          : this.prefix.replace(/<sheetPr\b([^>]*)>/, '<sheetPr$1>' + element);
+          : this.prefix.replace(/<sheetPr\b([^>]*)>/, (m, p1) => '<sheetPr' + (p1 ?? '') + '>' + element);
       } else {
-        this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, '$1<sheetPr>' + element + '</sheetPr>');
+        this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, (m, p1) => (p1 ?? '') + '<sheetPr>' + element + '</sheetPr>');
       }
     } else {
       return this;
@@ -641,7 +641,7 @@ class SheetPart {
     const open = /<sheetPr\b([^>]*?)(\/?)>/.exec(this.prefix);
     if (!open) {
       if (value === null || value === undefined) return this;
-      this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, '$1<sheetPr ' + name + '="' + esc(String(value)) + '"/>');
+      this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, (m, p1) => (p1 ?? '') + '<sheetPr ' + name + '="' + esc(String(value)) + '"/>');
       this.dirty = true;
       return this;
     }
@@ -658,9 +658,9 @@ class SheetPart {
   /** Rewrite a row record to live at a new index: its `r` and every cell ref. */
   _renumberRow(row, newIndex) {
     const r = newIndex + 1;
-    if (/\br="\d+"/.test(row.attrsStr)) row.attrsStr = row.attrsStr.replace(/\br="\d+"/, 'r="' + r + '"');
+    if (/\br="\d+"/.test(row.attrsStr)) row.attrsStr = row.attrsStr.replace(/\br="\d+"/, () => 'r="' + r + '"');
     else row.attrsStr += ' r="' + r + '"';
-    row.inner = row.inner.replace(/(<c\b[^>]*?\br=")([A-Za-z]+)\d+(?=")/g, '$1$2' + r);
+    row.inner = row.inner.replace(/(<c\b[^>]*?\br=")([A-Za-z]+)\d+(?=")/g, (m, p1, p2) => (p1 ?? '') + (p2 ?? '') + r);
     row.index = newIndex;
     row.dirty = true;
   }
@@ -704,7 +704,7 @@ class SheetPart {
           touched = true;
         } else if (cell.col >= (op === 'insert' ? at : at + count)) {
           const next = op === 'insert' ? cell.col + count : cell.col - count;
-          const moved = cell.xml.replace(/(<c\b[^>]*?\br=")[A-Za-z]+(\d+")/, '$1' + indexToCol(next) + '$2');
+          const moved = cell.xml.replace(/(<c\b[^>]*?\br=")[A-Za-z]+(\d+")/, (m, p1, p2) => (p1 ?? '') + indexToCol(next) + (p2 ?? ''));
           row.inner = row.inner.replace(cell.xml, () => moved);
           touched = true;
         }
@@ -714,7 +714,7 @@ class SheetPart {
         const left = SheetPart._parseCells(row.inner);
         row.attrsStr = left.length
           ? row.attrsStr.replace(/\bspans="[^"]*"/,
-            'spans="' + (Math.min(...left.map((c) => c.col)) + 1) + ':' + (Math.max(...left.map((c) => c.col)) + 1) + '"')
+            () => 'spans="' + (Math.min(...left.map((c) => c.col)) + 1) + ':' + (Math.max(...left.map((c) => c.col)) + 1) + '"')
           : row.attrsStr.replace(/\s*\bspans="[^"]*"/, '');
       }
       row.dirty = true;
@@ -864,15 +864,15 @@ class SheetPart {
         + (rows ? ' ySplit="' + rows + '"' : '')
         + ' topLeftCell="' + makeRef(rows, cols) + '" activePane="' + activePane + '" state="frozen"/>';
       if (/<sheetView\b[^>]*\/>/.test(this.prefix)) {
-        this.prefix = this.prefix.replace(/<sheetView\b([^>]*)\/>/, '<sheetView$1>' + pane + '</sheetView>');
+        this.prefix = this.prefix.replace(/<sheetView\b([^>]*)\/>/, (m, p1) => '<sheetView' + (p1 ?? '') + '>' + pane + '</sheetView>');
       } else if (/<sheetView\b[^>]*>/.test(this.prefix)) {
-        this.prefix = this.prefix.replace(/(<sheetView\b[^>]*>)/, '$1' + pane);
+        this.prefix = this.prefix.replace(/(<sheetView\b[^>]*>)/, (m, p1) => (p1 ?? '') + pane);
       } else {
         const views = '<sheetViews><sheetView workbookViewId="0">' + pane + '</sheetView></sheetViews>';
         if (/<dimension\b[^>]*\/>/.test(this.prefix)) {
-          this.prefix = this.prefix.replace(/(<dimension\b[^>]*\/>)/, '$1' + views);
+          this.prefix = this.prefix.replace(/(<dimension\b[^>]*\/>)/, (m, p1) => (p1 ?? '') + views);
         } else {
-          this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, '$1' + views);
+          this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, (m, p1) => (p1 ?? '') + views);
         }
       }
     }
@@ -896,8 +896,8 @@ class SheetPart {
     if (!re.test(this.prefix)) {
       if (value === null || value === undefined) return this;
       const views = '<sheetViews><sheetView workbookViewId="0"/></sheetViews>';
-      if (/<dimension\b[^>]*\/>/.test(this.prefix)) this.prefix = this.prefix.replace(/(<dimension\b[^>]*\/>)/, '$1' + views);
-      else this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, '$1' + views);
+      if (/<dimension\b[^>]*\/>/.test(this.prefix)) this.prefix = this.prefix.replace(/(<dimension\b[^>]*\/>)/, (m, p1) => (p1 ?? '') + views);
+      else this.prefix = this.prefix.replace(/(<worksheet\b[^>]*>)/, (m, p1) => (p1 ?? '') + views);
     }
     this.prefix = this.prefix.replace(re, (_, a, close) => '<sheetView' + withAttr(a, name, value === undefined ? null : value) + close + '>');
     this.dirty = true;
@@ -942,9 +942,9 @@ class SheetPart {
       + ' activePane="' + activePane + '"/>';
     this.setSheetViewAttr('topLeftCell', spec.viewTopLeftCell || null);
     if (/<sheetView\b[^>]*\/>/.test(this.prefix)) {
-      this.prefix = this.prefix.replace(/<sheetView\b([^>]*)\/>/, '<sheetView$1>' + pane + '</sheetView>');
+      this.prefix = this.prefix.replace(/<sheetView\b([^>]*)\/>/, (m, p1) => '<sheetView' + (p1 ?? '') + '>' + pane + '</sheetView>');
     } else {
-      this.prefix = this.prefix.replace(/(<sheetView\b[^>]*>)/, '$1' + pane);
+      this.prefix = this.prefix.replace(/(<sheetView\b[^>]*>)/, (m, p1) => (p1 ?? '') + pane);
     }
     this.dirty = true;
     return this;
@@ -966,7 +966,7 @@ class SheetPart {
     if (attrsText !== null) {
       const el = '<sheetProtection' + attrsText + '/>';
       if (/<sheetCalcPr\b[^>]*\/?>/.test(this.suffix)) {
-        this.suffix = this.suffix.replace(/(<sheetCalcPr\b[^>]*\/?>)/, '$1' + el);
+        this.suffix = this.suffix.replace(/(<sheetCalcPr\b[^>]*\/?>)/, (m, p1) => (p1 ?? '') + el);
       } else {
         this.suffix = el + this.suffix;
       }
@@ -1034,7 +1034,7 @@ class SheetPart {
       this.suffix = this.suffix.slice(0, anchor.index) + '<hyperlinks>' + el + '</hyperlinks>' + this.suffix.slice(anchor.index);
     }
     if (rId && !/\sxmlns:r=/.test(this.prefix)) {
-      this.prefix = this.prefix.replace(/<worksheet\b/, '<worksheet xmlns:r="' + XMLNS_R + '"');
+      this.prefix = this.prefix.replace(/<worksheet\b/, () => '<worksheet xmlns:r="' + XMLNS_R + '"');
     }
     this.dirty = true;
     return this;
@@ -1051,7 +1051,7 @@ class SheetPart {
     const anchor = AFTER_LEGACY_DRAWING.exec(this.suffix);
     this.suffix = this.suffix.slice(0, anchor.index) + '<legacyDrawing r:id="' + rId + '"/>' + this.suffix.slice(anchor.index);
     if (!/\sxmlns:r=/.test(this.prefix)) {
-      this.prefix = this.prefix.replace(/<worksheet\b/, '<worksheet xmlns:r="' + XMLNS_R + '"');
+      this.prefix = this.prefix.replace(/<worksheet\b/, () => '<worksheet xmlns:r="' + XMLNS_R + '"');
     }
     this.dirty = true;
     return this;
@@ -1093,7 +1093,7 @@ class SheetPart {
       }
     }
     if (!/\sxmlns:r=/.test(this.prefix)) {
-      this.prefix = this.prefix.replace(/<worksheet\b/, '<worksheet xmlns:r="' + XMLNS_R + '"');
+      this.prefix = this.prefix.replace(/<worksheet\b/, () => '<worksheet xmlns:r="' + XMLNS_R + '"');
     }
     this.dirty = true;
     return this;
@@ -1756,7 +1756,7 @@ export class Workbook {
       if (!scoped) return m;
       const k = Number(scoped[1]);
       if (k === index) return '';
-      if (k > index) return '<definedName' + attrsText.replace(/\blocalSheetId="\d+"/, 'localSheetId="' + (k - 1) + '"') + '>' + inner + '</definedName>';
+      if (k > index) return '<definedName' + attrsText.replace(/\blocalSheetId="\d+"/, () => 'localSheetId="' + (k - 1) + '"') + '>' + inner + '</definedName>';
       return m;
     });
     xml = xml.replace(/<definedNames>\s*<\/definedNames>/, '');
@@ -1790,7 +1790,7 @@ export class Workbook {
     const quotedTo = /[^A-Za-z0-9_]/.test(clean) || /^\d/.test(clean) ? "'" + clean.replace(/'/g, "''") + "'" : clean;
     // A reference to the old name: quoted or bare, followed by the bang.
     const refRx = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(from.replace(/'/g, "''")) + "'|" + rx(from) + ')!', 'g');
-    const rewrite = (text) => text.replace(refRx, '$1' + quotedTo + '!');
+    const rewrite = (text) => text.replace(refRx, (m, p1) => (p1 ?? '') + quotedTo + '!');
 
     let xml = this.pkg.text(this.mainPart);
     xml = xml.replace(new RegExp('(<sheet\\b[^>]*\\bname=")' + rx(esc(from)) + '(")'), (m, open, close) => open + esc(clean) + close);
@@ -2060,7 +2060,7 @@ export class Workbook {
     let xml = this.pkg.text(tablePartName);
     if (!/<autoFilter\b/.test(xml)) {
       const ref = attrs((/<table\b([^>]*?)>/.exec(xml) ?? [])[1] ?? '').ref ?? '';
-      xml = xml.replace(/(<table\b[^>]*>)/, '$1<autoFilter ref="' + esc(ref) + '"></autoFilter>');
+      xml = xml.replace(/(<table\b[^>]*>)/, (m, p1) => (p1 ?? '') + '<autoFilter ref="' + esc(ref) + '"></autoFilter>');
     }
     const af = /<autoFilter\b[^>]*(?:\/>|>[\s\S]*?<\/autoFilter>)/.exec(xml);
     xml = xml.replace(af[0], () => withFilterColumn(af[0], colId, values));
@@ -2467,7 +2467,7 @@ export class Workbook {
     xml = xml.replace(/<definedName\b([^>]*)>/g, (m, a) => {
       const k = /\blocalSheetId="(\d+)"/.exec(a);
       if (!k || !newIndexOf.has(Number(k[1]))) return m;
-      return '<definedName' + a.replace(/\blocalSheetId="\d+"/, 'localSheetId="' + newIndexOf.get(Number(k[1])) + '"') + '>';
+      return '<definedName' + a.replace(/\blocalSheetId="\d+"/, () => 'localSheetId="' + newIndexOf.get(Number(k[1])) + '"') + '>';
     });
     this.pkg.write_(this.mainPart, xml);
     this._sheets = null;
@@ -3310,7 +3310,7 @@ export class Workbook {
       return open + esc(adjusted) + close;
     });
     if (changed) {
-      xml = xml.replace(block[0], next);
+      xml = xml.replace(block[0], () => next);
       this.pkg.write_(this.mainPart, xml);
     }
     return this;
@@ -3432,7 +3432,7 @@ function withFilterColumn(afBlock, colId, values) {
     });
   }
   kept.sort((a, b) => a.colId - b.colId);
-  block = block.replace(af[0], '<autoFilter' + af[1] + '>' + kept.map((k) => k.xml).join('') + '</autoFilter>');
+  block = block.replace(af[0], () => '<autoFilter' + af[1] + '>' + kept.map((k) => k.xml).join('') + '</autoFilter>');
   // A block left with no children collapses back to the self-closing form a
   // fresh toggle writes, so on-then-off round-trips to the same bytes.
   return block.replace(/<autoFilter\b([^>]*)><\/autoFilter>/, '<autoFilter$1/>');

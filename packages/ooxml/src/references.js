@@ -232,7 +232,7 @@ const methods = {
     const xml = this.pkg.text(part);
     if (/<w:style\b[^>]*\bw:styleId="Bibliography"/.test(xml)) return false;
     const style = '<w:style w:type="paragraph" w:styleId="Bibliography"><w:name w:val="Bibliography"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="37"/><w:unhideWhenUsed/></w:style>';
-    this.pkg.write_(part, xml.replace('</w:styles>', style + '</w:styles>'));
+    this.pkg.write_(part, xml.replace('</w:styles>', () => style + '</w:styles>'));
     return true;
   },
 

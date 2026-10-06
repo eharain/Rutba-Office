@@ -19,8 +19,8 @@ const CAMBRIA = '<a:latin typeface="Cambria Math" panose="02040503050406030204" 
 export function ommlForSlide(omml) {
   let xml = String(omml || '')
     .replace(/<w:rPr>([\s\S]*?)<\/w:rPr>/g, (m, inner) => `<a:rPr lang="en-US"${/<w:i\s*\/>|<w:i\b[^>]*w:val="(1|true|on)"/.test(inner) ? ' i="1"' : ''}>${CAMBRIA}</a:rPr>`)
-    .replace(/<w:rPr\s*\/>/g, `<a:rPr lang="en-US">${CAMBRIA}</a:rPr>`);
-  xml = xml.replace(/^\s*<(m:oMathPara|m:oMath)\b(?![^>]*\bxmlns:m=)/, `<$1 xmlns:m="${MATH_NS}"`);
+    .replace(/<w:rPr\s*\/>/g, () => `<a:rPr lang="en-US">${CAMBRIA}</a:rPr>`);
+  xml = xml.replace(/^\s*<(m:oMathPara|m:oMath)\b(?![^>]*\bxmlns:m=)/, (m, p1) => `<${p1 ?? ''} xmlns:m="${MATH_NS}"`);
   return xml;
 }
 
