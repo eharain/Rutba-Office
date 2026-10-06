@@ -43,6 +43,15 @@ const REL = {
   hyperlink: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink',
   chart: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/chart',
 };
+
+/** The presentation's properties part, where Set Up Slide Show's settings live. */
+const PRES_PROPS = {
+  rel: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/presProps',
+  ct: 'application/vnd.openxmlformats-officedocument.presentationml.presProps+xml',
+  a: 'http://schemas.openxmlformats.org/drawingml/2006/main',
+  r: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships',
+  p: 'http://schemas.openxmlformats.org/presentationml/2006/main',
+};
 /** The chart kinds `chartPartXml` can write — Insert → Chart and its data editor may only ask for one of these. */
 const CHART_KINDS = ['column', 'bar', 'line', 'area', 'pie', 'doughnut'];/** The picture types PowerPoint itself embeds; anything else is converted first. */
 const IMAGE_EXTENSIONS = {
@@ -372,6 +381,85 @@ export class Deck {
 
   get slideCount() {
     return this.slideParts.length;
+  }
+
+  // ---- the show's own settings --------------------------------------------
+
+  /**
+   * Slide Show → Set Up Slide Show, as PowerPoint keeps it in
+   * `ppt/presProps.xml`'s `p:showPr`: who the show is for (presented by a
+   * speaker, browsed in a window, or a kiosk that loops by itself), whether
+   * it loops, plays its narration and its animations and keeps to its
+   * timings, which slides it shows, and the pen's colour. A deck with no
+   * settings answers PowerPoint's defaults.
+   *
+   * @returns {{ type: 'present'|'browse'|'kiosk', loop: boolean, narration: boolean, animation: boolean, useTimings: boolean, range: null|{ from: number, to: number }, pen: string|null }}
+   */
+  showSettings() {
+    const out = { type: 'present', loop: false, narration: true, animation: true, useTimings: true, range: null, pen: null };
+    const part = this.#relTarget('ppt/presentation.xml', PRES_PROPS.rel);
+    const xml = part ? this.pkg.text(part) : '';
+    const show = /<p:showPr\b([^>]*?)(?:\/>|>([\s\S]*?)<\/p:showPr>)/.exec(xml);
+    if (!show) return out;
+    const a = Object.fromEntries([...show[1].matchAll(/(\w+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+    const flag = (v, d) => (v == null ? d : v === '1' || v === 'true');
+    out.loop = flag(a.loop, false);
+    out.narration = flag(a.showNarration, false);
+    out.animation = flag(a.showAnimation, true);
+    out.useTimings = flag(a.useTimings, true);
+    const inner = show[2] || '';
+    if (/<p:kiosk\b/.test(inner)) out.type = 'kiosk';
+    else if (/<p:browse\b/.test(inner)) out.type = 'browse';
+    const rg = /<p:sldRg\b([^>]*)\/?>/.exec(inner);
+    const st = rg && /\bst="(\d+)"/.exec(rg[1]);
+    const end = rg && /\bend="(\d+)"/.exec(rg[1]);
+    if (st && end) out.range = { from: Number(st[1]), to: Number(end[1]) };
+    const pen = /<p:penClr>[\s\S]*?<a:srgbClr\b[^>]*\bval="([0-9A-Fa-f]{6})"/.exec(inner);
+    if (pen) out.pen = '#' + pen[1].toUpperCase();
+    return out;
+  }
+
+  /**
+   * Write the show's settings: the `p:showPr` rebuilt from them, the rest of
+   * presProps (colour lists, extensions) kept as it was. The part and its
+   * relationship are made when the deck has none. A kiosk loops, as
+   * PowerPoint sets it.
+   */
+  setShowSettings(spec = {}) {
+    const s = { ...this.showSettings(), ...spec };
+    if (!['present', 'browse', 'kiosk'].includes(s.type)) throw new Error(`unknown show type: ${s.type}`);
+    if (s.type === 'kiosk') s.loop = true;
+    const count = this.slideParts.length;
+    let range = s.range;
+    if (range) {
+      const from = Math.max(1, Math.min(count, Math.round(Number(range.from) || 1)));
+      const to = Math.max(from, Math.min(count, Math.round(Number(range.to) || count)));
+      range = from === 1 && to === count ? null : { from, to };
+    }
+    const pen = s.pen && /^#?[0-9A-Fa-f]{6}$/.test(s.pen) ? s.pen.replace('#', '').toUpperCase() : null;
+    const showPr = `<p:showPr loop="${s.loop ? 1 : 0}" showNarration="${s.narration ? 1 : 0}" showAnimation="${s.animation ? 1 : 0}" useTimings="${s.useTimings ? 1 : 0}">`
+      + (s.type === 'kiosk' ? '<p:kiosk/>' : s.type === 'browse' ? '<p:browse/>' : '<p:present/>')
+      + (range ? `<p:sldRg st="${range.from}" end="${range.to}"/>` : '<p:sldAll/>')
+      + (pen ? `<p:penClr><a:srgbClr val="${pen}"/></p:penClr>` : '')
+      + '</p:showPr>';
+    let part = this.#relTarget('ppt/presentation.xml', PRES_PROPS.rel);
+    if (!part) {
+      part = 'ppt/presProps.xml';
+      this.pkg.addPart(part, Buffer.from(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentationPr xmlns:a="${PRES_PROPS.a}" xmlns:r="${PRES_PROPS.r}" xmlns:p="${PRES_PROPS.p}"></p:presentationPr>`, 'utf8'), PRES_PROPS.ct);
+      this.pkg.addRelationshipTo('ppt/presentation.xml', PRES_PROPS.rel, 'presProps.xml');
+    }
+    let xml = this.pkg.text(part);
+    if (/<p:showPr\b[^>]*?(?:\/>|>[\s\S]*?<\/p:showPr>)/.test(xml)) {
+      xml = xml.replace(/<p:showPr\b[^>]*?(?:\/>|>[\s\S]*?<\/p:showPr>)/, () => showPr);
+    } else if (/<p:presentationPr\b[^>]*\/>/.test(xml)) {
+      xml = xml.replace(/<p:presentationPr\b([^>]*)\/>/, (m, attrsText) => `<p:presentationPr${attrsText}>${showPr}</p:presentationPr>`);
+    } else {
+      // showPr leads presentationPr by schema order, ahead of the colour lists.
+      xml = xml.replace(/(<p:presentationPr\b[^>]*>)/, (m, open) => open + showPr);
+    }
+    this.pkg.write_(part, Buffer.from(xml, 'utf8'));
+    this.dirty = true;
+    return this.showSettings();
   }
 
   // ---- sections ----------------------------------------------------------

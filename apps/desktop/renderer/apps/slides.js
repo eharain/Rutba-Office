@@ -26,6 +26,7 @@ import { CommentsPane, markerSpots, personColour, COMMENTS_CSS } from './slides/
 import { useSlidesReview } from './slides/review.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import { SymbolDialog } from './word/dialogs.js';
+import { SetUpShowDialog, SETUP_CSS } from './slides/setup.js';
 
 export default function Slides({ app, shell, boot }) {
   // A presenter window is the same app pointed at the same open document,
@@ -65,6 +66,7 @@ export default function Slides({ app, shell, boot }) {
   const lastCaret = useRef(null);
   const caretAfterOpen = useRef(null);
   const [symbolOpen, setSymbolOpen] = useState(false);
+  const [setupOpen, setSetupOpen] = useState(false);
   /** The shape clipboard: one shape, copied in this window, pasted on any slide of it. */
   const [clip, setClip] = useState(null);
   /** The Format Painter, armed with a shape's look: its fill, its outline and its first run's font. */
@@ -691,25 +693,42 @@ export default function Slides({ app, shell, boot }) {
     setShowStep({ index: i, value });
     setIndex(i);
   };
-  const clicksHere = () => (model?.slide?.index === index ? clickCount(model.slide.animations) : 0);
+  // Set Up Slide Show, as the deck keeps it: which slides, looping, whether
+  // the animations play and the timings count, and a kiosk that takes no
+  // clicks.
+  const showSet = model?.showSettings || {};
+  const inShow = (i) => !showSet.range || (i >= showSet.range.from - 1 && i <= showSet.range.to - 1);
+  /** The next shown slide in the show's range, or `from` at its end (the first again when it loops). */
+  const nextInShow = (from, delta) => {
+    let i = nextShown(model, from, delta);
+    if (i !== from && inShow(i)) return i;
+    if (!showSet.loop) return from;
+    i = delta > 0 ? nextShown(model, (showSet.range?.from ?? 1) - 2, 1) : nextShown(model, (showSet.range?.to ?? model?.count ?? 1), -1);
+    return inShow(i) ? i : from;
+  };
+  const clicksHere = () => (showSet.animation === false ? 0 : model?.slide?.index === index ? clickCount(model.slide.animations) : 0);
   const stepHere = () => (showStep.index === index ? Math.min(showStep.value, clicksHere()) : 0);
   /** A click, a space or an arrow: the next animation on this slide, or the next slide. A press while something moves finishes it. */
   const showNext = () => {
     if (showControl.current?.finish()) return;
     if (model?.slide?.index !== index) return;
     if (stepHere() < clicksHere()) return goShow(index, stepHere() + 1);
-    const next = nextShown(model, index, 1);
-    if (next !== index) goShow(next, 0);
+    const next = nextInShow(index, 1);
+    // Without animation, each slide arrives fully built.
+    if (next !== index) goShow(next, showSet.animation === false ? 9999 : 0);
   };
   /** Back: one click undone on this slide, or the slide before, shown as it ends. */
   const showPrev = () => {
     showControl.current?.finish();
     if (stepHere() > 0) return goShow(index, stepHere() - 1);
-    const prev = nextShown(model, index, -1);
+    const prev = nextInShow(index, -1);
     if (prev !== index) goShow(prev, 9999);
   };
-  const showKeys = useRef({ next: () => {}, prev: () => {} });
-  showKeys.current = { next: showNext, prev: showPrev };
+  const showKeys = useRef({ next: () => {}, prev: () => {}, auto: () => {} });
+  // A kiosk is advanced by its timings only: a click or a key does nothing
+  // but Escape, so a visitor cannot walk the show off its loop.
+  const kiosk = showSet.type === 'kiosk';
+  showKeys.current = { next: () => (kiosk ? undefined : showNext()), prev: () => (kiosk ? undefined : showPrev()), auto: showNext };
   // A show starts at the first click of its first slide.
   useEffect(() => { if (present) setShowStep({ index, value: 0 }); else setSettled(null); }, [present]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -717,11 +736,12 @@ export default function Slides({ app, shell, boot }) {
   // (its transition over, its animations played), the show moves on by
   // itself after that many seconds. The presenter window never runs this
   // clock; the audience window does.
-  const advanceAfter = model?.slide?.transition?.advanceAfter;
+  // "Advance slides: Manually" in Set Up Slide Show turns the clock off.
+  const advanceAfter = showSet.useTimings === false ? null : model?.slide?.transition?.advanceAfter;
   useEffect(() => {
     if (!present || presenterFor || blank || advanceAfter == null) return undefined;
     if (!settled || settled.index !== model?.slide?.index || settled.step < settled.clicks) return undefined;
-    const timer = setTimeout(() => showKeys.current.next(), Math.max(0, advanceAfter * 1000));
+    const timer = setTimeout(() => showKeys.current.auto(), Math.max(0, advanceAfter * 1000));
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [present, blank, advanceAfter, settled, model?.slide?.index]);
@@ -774,9 +794,14 @@ export default function Slides({ app, shell, boot }) {
   const act = async (name, arg) => {
     switch (name) {
       case 'present':
-        // A hidden slide never opens the show — PowerPoint starts on the first shown one.
-        if (arg === 'start') setIndex(nextShown(model, -1, 1));
-        if (arg === 'reading') setReading(true);
+        // A hidden slide never opens the show — PowerPoint starts on the
+        // first shown one, and on the first of the range Set Up gave it.
+        if (arg === 'start') {
+          const first = nextShown(model, (showSet.range?.from ?? 1) - 2, 1);
+          setIndex(inShow(first) ? first : nextShown(model, -1, 1));
+        }
+        // "Browsed by an individual" is a show in its window, not full screen.
+        if (arg === 'reading' || showSet.type === 'browse') setReading(true);
         setPresent(true);
         return;
       case 'mode': patchView({ mode: arg }); return;
@@ -1132,6 +1157,7 @@ export default function Slides({ app, shell, boot }) {
         }
         return;
       }
+      case 'setupShow': setSetupOpen(true); return;
       // Insert → Symbol: into the box being edited, where its caret was.
       case 'symbol': {
         const at = lastCaret.current;
@@ -1510,7 +1536,7 @@ export default function Slides({ app, shell, boot }) {
           // slide's animations but does not move the show off it (the keys
           // still do), as in PowerPoint.
           if (slide.transition?.advanceOnClick === false && stepHere() >= clicksHere()) return;
-          showNext();
+          showKeys.current.next();
         }}
       >
         <style>{CSS}</style>
@@ -2058,6 +2084,18 @@ export default function Slides({ app, shell, boot }) {
       {review.dialogs}
 
       {shortcutsOpen ? <SlidesShortcutsDialog onClose={() => setShortcutsOpen(false)} /> : null}
+
+      {setupOpen && model ? (
+        <>
+          <style>{SETUP_CSS}</style>
+          <SetUpShowDialog
+            settings={model.showSettings}
+            count={model.count || 1}
+            onClose={() => setSetupOpen(false)}
+            onApply={async (settings) => { setSetupOpen(false); await apply({ op: 'setShowSettings', settings }); }}
+          />
+        </>
+      ) : null}
 
       {symbolOpen ? (
         <SymbolDialog onClose={() => setSymbolOpen(false)} onInsert={(ch) => { setSymbolOpen(false); act('insertSymbol', ch); }} />

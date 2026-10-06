@@ -1256,6 +1256,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       layouts: (session.layoutsAt === deck.designStamp && session.layouts) || ((session.layoutsAt = deck.designStamp), (session.layouts = safely(() => deck.layoutList()) || [])),
       // Review → every comment thread in the deck, and the name a new one is signed with.
       comments: safely(() => deck.comments()) || [],
+      // Set Up Slide Show: who the show is for, looping, the range, the pen.
+      showSettings: safely(() => deck.showSettings()),
       me: safeUserName() || 'Rutba Office user',
       // Design → the theme, colours, fonts and effects this deck has now, for the gallery to tick.
       design: safely(() => deck.designInfo(index)) || null,
@@ -1833,6 +1835,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // Review → Comments: a thread on a slide or one of its shapes, by whoever
     // the window says or else the account at the keyboard (the rule a note's
     // and a tracked change's author follow); a reply; Resolve; Delete.
+    setShowSettings: (d, a) => { d.setShowSettings(a.settings || {}); },
     addComment: (d, a) => d.addComment(a.slide, { text: a.text, author: a.author || safeUserName() || 'Rutba Office user', shape: a.shape ?? null, x: a.x ?? null, y: a.y ?? null }),
     replyComment: (d, a) => d.replyComment(a.slide, a.id, { text: a.text, author: a.author || safeUserName() || 'Rutba Office user' }),
     resolveComment: (d, a) => d.resolveComment(a.slide, a.id, a.resolved !== false),

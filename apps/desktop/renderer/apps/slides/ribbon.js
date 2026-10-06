@@ -728,7 +728,7 @@ export default function SlidesRibbon({
             <Soon tall icon="volume" label="Rehearse with Coach" why="Presenter Coach is a Microsoft cloud service." />
           </Group>
           <Group label="Set Up">
-            <Soon tall icon="settings" label="Set Up Slide Show" why="Show settings (kiosk, loop, pen colour) are not built." />
+            <Button tall icon="settings" label="Set Up Slide Show" title="Set Up Slide Show — who the show is for, looping, which slides and how it moves on" onClick={() => act('setupShow')} />
             <Button
               tall
               icon="eye"
