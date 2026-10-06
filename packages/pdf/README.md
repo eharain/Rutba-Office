@@ -39,9 +39,10 @@ in `metrics.js` gives the same answer the viewer will. No font files, no
 embedding, and — unlike the HTML path, which has to guess at what a browser
 will do — measurement and rendering agree by construction.
 
-`test/readback.test.js` puts that to `pdfjs-dist`, the reader the suite
-already ships: our widths and its widths agree to within a hundredth of a
-point on real strings.
+`test/readback.test.js` puts that to `pdfjs-dist`, an independent reader:
+our widths and its widths agree to within a hundredth of a point on real
+strings. It is not a dependency of the suite, so those six checks skip on a
+machine without it and run where it has been installed beside the repository.
 
 ## The four layers
 
@@ -83,7 +84,7 @@ paper.
 npm test --workspace @rutba/pdf
 ```
 
-48 checks. The interesting ones: every cross-reference offset points at the
+65 checks, run by the root `npm test` too. The interesting ones: every cross-reference offset points at the
 object it claims, a bracket in a company name does not corrupt the page, a
 table takes its headings onto the next sheet, and a cell too tall for the
 page continues rather than being drawn off the bottom.

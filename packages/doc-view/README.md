@@ -65,5 +65,8 @@ the browser re-wrap, is how a page silently overflows by a line.
 
 Plain ESM JavaScript, no build step. Depends only on `@rutba/drawing` (text
 metrics) and `@rutba/editing` (undo) — both shared packages that travel with it.
-The OOXML backend is the only file that imports a format layer, and
-`tests/shared-seam.test.js` in Rutba-Workspace enforces that.
+The OOXML backend is meant to be the only file that imports a format layer,
+and `tests/engine-seam.test.js` checks it — though it reads single-line
+imports only, and `src/view.js` takes the mail-merge rules from
+`@rutba/ooxml/mailmerge`, which a consumer of this package must therefore be
+able to resolve.

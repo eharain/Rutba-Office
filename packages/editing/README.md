@@ -52,5 +52,6 @@ leaves the file byte-identical.**
 
 ## Status
 
-Plain ESM JavaScript, no build step, no dependencies. Lives in Rutba-Workspace
-for now; belongs in Rutba-Platform once a second consumer arrives.
+Plain ESM JavaScript, no build step, no dependencies. Lives in Rutba Office,
+and the Rutba consumer line links it from here by `file:` path — see "The
+engines have a second consumer" in the root README.

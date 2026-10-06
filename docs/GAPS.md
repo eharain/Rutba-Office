@@ -1,8 +1,9 @@
 # What is missing, between this and a suite somebody could use for everything
 
 Written 2026-09-09, from the code rather than from memory. Three sources: the
-suite's own register of unbuilt controls (257 of them, each a `<Soon>` in a
-ribbon with a sentence saying what it needs), a reading of what the engines
+suite's own register of unbuilt controls (257 of them then, 129 on
+2026-10-06 — 34 in Documents, 25 in Worksheets, 70 in Presentations — each a
+`<Soon>` in a ribbon with a sentence saying what it needs), a reading of what the engines
 write as against what they read, and the things a person expects that are not
 in either list because nothing in the interface offers them at all.
 
@@ -267,10 +268,13 @@ Mail carries no `<Soon>` markers at all: IMAP and SMTP, sign-in to Google and
 Microsoft, rules, search, conversations, attachments in one place, tracker
 blocking and unsubscribe are built. What it is missing is not inside mail:
 
-- the **calendar** and **contacts** above, which is where a mail client
-  stops being half an application;
-- **local search across archives** is there, but there is no index, so a
-  large mailbox searches by walking;
+- ~~the **calendar** and **contacts** above~~ — both built 2026-09-09, on
+  this computer; keeping them in step with a server (CalDAV, CardDAV) is
+  not built;
+- **search** is indexed per account — an inverted index, with `from:`,
+  `subject:`, `has:attachment`, `is:unread` and quoted phrases, an
+  imported archive being an account of its own — but there is no one search
+  across every account and archive at once;
 - ~~**out-of-office and send-later**~~ — both built 2026-09-25: Send later
   holds a message in an Outbox on this computer until its time and sends it
   while the suite runs (at start-up if it fell due while closed), a failed
@@ -294,13 +298,13 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
 | `.pdf` | viewed | written, for all three kinds since printing landed |
 | `.eml` `.msg` `.mbox` `.pst` `.ost` `.olm` | yes | mbox only |
 | `.ics` `.vcf` | yes | **yes**, 2026-09-09 — events and cards, read and written; a reply to an invitation written as `.ics` |
-| Encrypted OOXML | no | no |
+| Encrypted OOXML | **yes**, 2026-09-25 — Agile and Standard Encryption, the HMAC checked | **yes**, 2026-09-25 — Agile AES-256/SHA-512, as Office writes it |
 
 RTF and OpenDocument were the trap — the installer told Windows this suite
 was the **editor** of `.odt`, `.ods` and `.odp` while Ctrl+S on one refused —
 and both are written now. What is left in the table is the binary Office
-formats, which are read as text and never claimed as editable, and the
-encrypted package.
+formats, which are read as text and never claimed as editable, and the old
+RC4 encryption of those binary files, which is not read.
 
 ## 6. Pictures — the viewer
 

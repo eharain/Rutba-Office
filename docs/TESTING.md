@@ -228,6 +228,11 @@ and each has caught something the gate cannot:
    profile of its own, off the desktop. When it does not, the script prints
    what the copy showed instead — the text of an "Error" box included — and
    exits 3. It refuses to install over a running copy (exit 2).
+   **Then the upgrade:** run it once with the previous release's installer
+   and again with the new one, so the new copy is installed over the old
+   and its first start is the one a person gets after an update. A copy
+   installed fresh never meets that start, and it is where 1.28.0's window
+   stayed hidden; the second run fails (exit 3) if the window does not come.
 3. **Publish**, with `node tools/publish-release.js`, a pre-release by
    default; the tag goes on the commit the notes and the version bump are
    in, after the two runs above, never before.
@@ -322,8 +327,8 @@ every Excel table's total row read `#NAME?`; an `.ods` lost its named
 ranges (`$$Name` in the file), merged cells and number formats; built-in
 date format 14 was rendered in the American order rather than the
 machine's; and a chart on a slide was an empty frame. All four are fixed
-and pinned. Still open, in docs/GAPS.md: OpenDocument drawings, equations,
-and tracked changes shown as changes.
+and pinned. Equations and tracked changes shown as changes were built on
+2026-09-25; OpenDocument drawings are still open, in docs/GAPS.md.
 
 ### The downloaded corpus
 

@@ -66,6 +66,7 @@ emailed chart needs a raster step to PNG that does not exist in this process.
 
 ## Status
 
-Plain ESM JavaScript, no build step, no runtime dependencies. Lives in
-Rutba-Workspace for now; belongs in Rutba-Platform once a second consumer
-arrives. See `BOUNDARIES.md` and `SHARED.md` in Rutba-Workspace.
+Plain ESM JavaScript, no build step, no runtime dependencies. Lives in Rutba
+Office, and the Rutba consumer line links it from here by `file:` path — see
+"The engines have a second consumer" in the root README, and
+`tests/engine-seam.test.js`, which pins what that line imports.
