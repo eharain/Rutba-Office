@@ -425,6 +425,58 @@ export class Deck {
    * relationship are made when the deck has none. A kiosk loops, as
    * PowerPoint sets it.
    */
+  /**
+   * Slide Show → Custom Slide Show: the deck's named shows — `[{ id, name,
+   * slides }]`, each its slides by index in the order the show plays them —
+   * from the presentation's `p:custShowLst`. A slide the deck no longer has
+   * is left out.
+   */
+  customShows() {
+    const pres = this.pkg.text('ppt/presentation.xml');
+    const lst = /<p:custShowLst\b[^>]*>([\s\S]*?)<\/p:custShowLst>/.exec(pres);
+    if (!lst) return [];
+    const byRid = new Map(this.slideParts.map((s, i) => [s.rId, i]));
+    return [...lst[1].matchAll(/<p:custShow\b([^>]*?)(?:\/>|>([\s\S]*?)<\/p:custShow>)/g)].map((m) => ({
+      id: Number(/\bid="(\d+)"/.exec(m[1])?.[1] ?? 0),
+      name: unescapeXml(/\bname="([^"]*)"/.exec(m[1])?.[1] ?? ''),
+      slides: [...(m[2] || '').matchAll(/<p:sld\b[^>]*\br:id="([^"]+)"/g)].map((x) => byRid.get(x[1])).filter((i) => i != null),
+    }));
+  }
+
+  /**
+   * The deck's custom shows replaced by `list` — `[{ name, slides, id? }]` —
+   * written where PowerPoint keeps them, each slide by the presentation's own
+   * relationship to it. Names must be there and differ; an empty list takes
+   * the custom shows out. Returns the shows as read back.
+   */
+  setCustomShows(list = []) {
+    const shows = (Array.isArray(list) ? list : []).map((s, k) => ({ id: Number.isInteger(s.id) && s.id >= 0 ? s.id : k, name: String(s.name ?? '').trim(), slides: (s.slides || []).map(Number) }));
+    const names = new Set();
+    for (const s of shows) {
+      if (!s.name) throw new Error('A custom show needs a name.');
+      if (names.has(s.name.toLowerCase())) throw new Error(`There is already a custom show called "${s.name}".`);
+      names.add(s.name.toLowerCase());
+      for (const i of s.slides) if (!this.slideParts[i]) throw new RangeError(`no slide at index ${i} for "${s.name}"`);
+    }
+    // Ids stay unique, an existing show keeping its own.
+    const used = new Set();
+    for (const s of shows) { while (used.has(s.id)) s.id += 1; used.add(s.id); }
+    const xml = shows.length
+      ? `<p:custShowLst>${shows.map((s) => `<p:custShow name="${escapeXml(s.name)}" id="${s.id}"><p:sldLst>${s.slides.map((i) => `<p:sld r:id="${this.slideParts[i].rId}"/>`).join('')}</p:sldLst></p:custShow>`).join('')}</p:custShowLst>`
+      : '';
+    let pres = this.pkg.text('ppt/presentation.xml');
+    if (/<p:custShowLst\b/.test(pres)) {
+      pres = pres.replace(/<p:custShowLst\b[^>]*>[\s\S]*?<\/p:custShowLst>|<p:custShowLst\b[^>]*\/>/, () => xml);
+    } else if (xml) {
+      // custShowLst sits after the slide and notes sizes and the embedded fonts, ahead of the rest.
+      const next = /<p:(photoAlbum|custDataLst|kinsoku|defaultTextStyle|modifyVerifier|extLst)\b/.exec(pres);
+      pres = next ? pres.slice(0, next.index) + xml + pres.slice(next.index) : pres.replace('</p:presentation>', () => `${xml}</p:presentation>`);
+    }
+    this.pkg.write_('ppt/presentation.xml', Buffer.from(pres, 'utf8'));
+    this.dirty = true;
+    return this.customShows();
+  }
+
   setShowSettings(spec = {}) {
     const s = { ...this.showSettings(), ...spec };
     if (!['present', 'browse', 'kiosk'].includes(s.type)) throw new Error(`unknown show type: ${s.type}`);
@@ -3752,6 +3804,8 @@ export class Deck {
     this.dirty = true;
     this.#load();
     this.#syncSections();
+    // A custom show that played it plays on without it, as in PowerPoint.
+    if (/<p:custShowLst\b/.test(next)) this.setCustomShows(this.customShows());
     return true;
   }
 

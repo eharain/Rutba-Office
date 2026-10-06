@@ -1280,6 +1280,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       comments: safely(() => deck.comments()) || [],
       // Set Up Slide Show: who the show is for, looping, the range, the pen.
       showSettings: safely(() => deck.showSettings()),
+      // Slide Show → Custom Slide Show: the named shows, each its slides in order.
+      customShows: safely(() => deck.customShows()) || [],
       me: safeUserName() || 'Rutba Office user',
       // Design → the theme, colours, fonts and effects this deck has now, for the gallery to tick.
       design: safely(() => deck.designInfo(index)) || null,
@@ -1879,6 +1881,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // the window says or else the account at the keyboard (the rule a note's
     // and a tracked change's author follow); a reply; Resolve; Delete.
     setShowSettings: (d, a) => { d.setShowSettings(a.settings || {}); },
+    setCustomShows: (d, a) => { d.setCustomShows(a.shows || []); },
     addComment: (d, a) => d.addComment(a.slide, { text: a.text, author: a.author || safeUserName() || 'Rutba Office user', shape: a.shape ?? null, x: a.x ?? null, y: a.y ?? null }),
     replyComment: (d, a) => d.replyComment(a.slide, a.id, { text: a.text, author: a.author || safeUserName() || 'Rutba Office user' }),
     resolveComment: (d, a) => d.resolveComment(a.slide, a.id, a.resolved !== false),
