@@ -756,7 +756,10 @@ export class Deck {
     const rels = this.#relMap(slidePart);
     const notesPart = [...rels.values()].find((r) => r.type === REL.notes && this.pkg.has(r.resolved))?.resolved || null;
     const notesXml = notesPart ? this.pkg.text(notesPart) : '';
-    const cacheKey = index + ':' + this.designStamp + ':' + slideXml.length + ':' + notesXml.length + ':' + slideXml + notesXml;
+    // A click that goes to another slide is read as that slide's place in
+    // the deck, which a reorder changes without touching this slide's XML.
+    const order = slideXml.includes('hlinksldjump') ? this.slideParts.map((s) => s.part).join(',') : '';
+    const cacheKey = index + ':' + this.designStamp + ':' + order + ':' + slideXml.length + ':' + notesXml.length + ':' + slideXml + notesXml;
     const cached = this._scenes.get(slidePart);
     if (cached && cached.key === cacheKey) return cached.scene;
     const result = this.#scene(index);
@@ -852,7 +855,7 @@ export class Deck {
       master: masterPart,
       size: this.size,
       background: scene.background,
-      shapes: withLinks(withSlideNumber(scene.shapes, index + 1), rel),
+      shapes: withActions(withLinks(withSlideNumber(scene.shapes, index + 1), rel), rel, (p) => this.slideParts.findIndex((s) => s.part === p)),
       underlay,
       notes,
       hidden: slideHiddenFrom(slideXml),
@@ -2850,6 +2853,59 @@ export class Deck {
   }
 
   /**
+   * Insert → Action: what a click on a shape does in the show — the next,
+   * previous, first or last slide, the end of the show, one slide of the
+   * deck, or a web address — kept as PowerPoint keeps it, an `a:hlinkClick`
+   * first in the shape's own `p:cNvPr`. A slide is named by its index and
+   * kept as a relationship to its part, so the action follows the slide
+   * when slides move. null takes the action off.
+   *
+   *   spec  { kind: 'next' | 'previous' | 'first' | 'last' | 'end' }
+   *         { kind: 'slide', slide }      a slide's index
+   *         { kind: 'url', url }          http, https or mailto
+   */
+  setAction(slideIndex, shapeId, spec) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    let xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found`);
+    const kind = spec?.kind || null;
+    // The relationships namespace, inline when the slide does not declare it.
+    const ns = /<p:sld\b[^>]*\bxmlns:r=/.test(xml) ? '' : ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
+    let link = '';
+    if (kind && JUMPS[kind] && kind !== 'lastViewed') {
+      link = `<a:hlinkClick${ns} r:id="" action="ppaction://hlinkshowjump?jump=${JUMPS[kind]}"/>`;
+    } else if (kind === 'slide') {
+      const target = this.slideParts[Number(spec.slide)]?.part;
+      if (!target) throw new RangeError(`no slide at index ${spec.slide} to go to`);
+      const same = [...this.#relMap(part).values()].find((r) => r.type === REL.slide && r.resolved === target);
+      const from = part.slice(0, part.lastIndexOf('/'));
+      const relative = target.startsWith(from + '/') ? target.slice(from.length + 1) : `../${target.split('/').slice(-2).join('/')}`;
+      const rId = same ? same.id : this.pkg.addRelationshipTo(part, REL.slide, relative);
+      link = `<a:hlinkClick${ns} r:id="${rId}" action="ppaction://hlinksldjump"/>`;
+    } else if (kind === 'url') {
+      const url = String(spec.url ?? '').trim();
+      if (!/^(https?:\/\/|mailto:)\S+$/i.test(url)) throw new Error('An action goes to a web address (http:// or https://) or an e-mail address (mailto:).');
+      const rId = this.pkg.addRelationshipTo(part, REL.hyperlink, url, { external: true });
+      link = `<a:hlinkClick${ns} r:id="${rId}"/>`;
+    } else if (kind) {
+      throw new Error(`unknown action: ${kind}`);
+    }
+    // The shape's own cNvPr: the first after its opening tag.
+    const shapeXml = xml.slice(range.start, range.end);
+    const own = new RegExp(`<p:cNvPr\\b[^>]*\\bid="${shapeId}"[^>]*?(\\/>|>([\\s\\S]*?)<\\/p:cNvPr>)`).exec(shapeXml);
+    if (!own) throw new Error(`shape ${shapeId} has no properties to carry an action`);
+    const open = /^<p:cNvPr\b[^>]*?(?=\/?>)/.exec(own[0])[0];
+    const inner = own[1] === '/>' ? '' : own[2].replace(/<a:hlinkClick\b[^>]*?(?:\/>|>[\s\S]*?<\/a:hlinkClick>)/g, '');
+    const rebuilt = link || inner ? `${open}>${link}${inner}</p:cNvPr>` : `${open}/>`;
+    const at = range.start + own.index;
+    xml = xml.slice(0, at) + rebuilt + xml.slice(at + own[0].length);
+    this.#writeSlide(part, xml);
+    return this.slide(slideIndex).shapes.find((s) => String(s.id) === String(shapeId))?.action ?? null;
+  }
+
+  /**
    * Every place the words appear across the deck — per slide and shape, how
    * many times, with the shape's words to show. Case-insensitive unless
    * asked. Only shapes with a text body are searched: a picture has none,
@@ -4210,6 +4266,36 @@ function withLinks(shapes, rel) {
         })),
       },
     };
+  });
+}
+
+/** PowerPoint's show jumps, by the name the suite gives them. */
+const JUMPS = { next: 'nextslide', previous: 'previousslide', first: 'firstslide', last: 'lastslide', end: 'endshow', lastViewed: 'lastslideviewed' };
+
+/**
+ * A shape's click, as the reader gives it, resolved to what the show does:
+ * `{ kind: 'next' | 'previous' | 'first' | 'last' | 'end' | 'lastViewed' }`,
+ * `{ kind: 'slide', slide }` (an index), `{ kind: 'url', url }`, or
+ * `{ kind: 'other', action }` for what the suite keeps but does not run — a
+ * macro, a program, a custom show.
+ */
+function withActions(shapes, rel, indexOfPart) {
+  if (typeof rel !== 'function' || !shapes.some((s) => s.click)) return shapes;
+  return shapes.map((s) => {
+    if (!s.click) return s;
+    const { click, ...rest } = s;
+    const jump = /^ppaction:\/\/hlinkshowjump\?jump=(\w+)$/i.exec(click.action || '')?.[1]?.toLowerCase();
+    const kind = jump && Object.keys(JUMPS).find((k) => JUMPS[k] === jump);
+    let action;
+    if (kind) action = { kind };
+    else if (/^ppaction:\/\/hlinksldjump$/i.test(click.action || '')) {
+      const slide = indexOfPart(rel(click.rId)?.part);
+      action = slide >= 0 ? { kind: 'slide', slide } : { kind: 'other', action: click.action };
+    } else if (!click.action && click.rId) {
+      const target = rel(click.rId);
+      action = target?.external ? { kind: 'url', url: target.target } : { kind: 'other', action: null };
+    } else action = { kind: 'other', action: click.action || null };
+    return { ...rest, action };
   });
 }
 

@@ -435,7 +435,7 @@ export default function SlidesRibbon({
           <Group label="Links">
             <Soon tall icon="zoomIn" label="Zoom" why="Slide zooms are a PowerPoint-only feature." />
             <Button tall icon="link" label="Link" disabled={!hasShape} title={needShape || 'Link — a web address on the selected shape’s words (Ctrl+K); Ctrl+click follows it'} onClick={() => act('link')} />
-            <Soon tall icon="play" label="Action" why="Comes with links." />
+            <Button tall icon="play" label="Action" title="Action — what a click on the selected shape does in the show: another slide, the end of the show, or a web address" onClick={() => act('action')} />
           </Group>
           <Group label="Comments">
             <Button tall icon="reply" label="Comment" title="Comment — a new comment on the selected shape, or on this slide" onClick={() => act('newComment')} />

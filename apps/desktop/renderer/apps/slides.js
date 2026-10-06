@@ -28,6 +28,7 @@ import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import { SymbolDialog } from './word/dialogs.js';
 import { SetUpShowDialog, SETUP_CSS } from './slides/setup.js';
 import { LanguageDialog } from '@rutba/office-ui/proofing';
+import { ActionDialog, ACTION_CSS } from './slides/action.js';
 
 // The splits Move Split moves, marked while it is on — in shadows, so
 // turning it on moves nothing by itself.
@@ -91,6 +92,9 @@ export default function Slides({ app, shell, boot }) {
   const lastCaret = useRef(null);
   const caretAfterOpen = useRef(null);
   const [symbolOpen, setSymbolOpen] = useState(false);
+  const [actionOpen, setActionOpen] = useState(false);
+  // The slide the show was on before this one, for a "last slide viewed" action.
+  const lastViewed = useRef(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const [languageOpen, setLanguageOpen] = useState(null);
   /** The shape clipboard: one shape, copied in this window, pasted on any slide of it. */
@@ -817,6 +821,14 @@ export default function Slides({ app, shell, boot }) {
   // itself after that many seconds. The presenter window never runs this
   // clock; the audience window does.
   // "Advance slides: Manually" in Set Up Slide Show turns the clock off.
+  // The slide the show was on before this one, for a "last slide viewed" action.
+  const shownIndex = useRef(null);
+  useEffect(() => {
+    if (!present) { shownIndex.current = null; lastViewed.current = null; return; }
+    if (shownIndex.current != null && shownIndex.current !== index) lastViewed.current = shownIndex.current;
+    shownIndex.current = index;
+  }, [present, index]);
+
   // A rehearsal is the speaker's own pace: the old timings do not move it.
   const advanceAfter = showSet.useTimings === false || rehearsing ? null : model?.slide?.transition?.advanceAfter;
 
@@ -1305,6 +1317,11 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'setupShow': setSetupOpen(true); return;
+      // Insert → Action: what a click on the selected shape does in the show.
+      case 'action':
+        if (!selectedShape) return toast('Click a shape first, then choose what a click on it does in the show.', { ms: 3500 });
+        setActionOpen(true);
+        return;
       // Slide Show → Monitor: Automatic, the primary screen, or one by name.
       case 'monitorMenu': {
         const at = { clientX: arg?.clientX ?? 0, clientY: arg?.clientY ?? 0, preventDefault() {}, stopPropagation() {} };
@@ -1706,10 +1723,33 @@ export default function Slides({ app, shell, boot }) {
   }
 
   if (present && slide) {
+    // Insert → Action: a click on a shape that has one does what it says —
+    // in a kiosk too, where it is how a visitor finds the way — instead of
+    // moving the show on. Its own shape first, then the groups it is in.
+    const actioned = (slide.shapes || []).filter((s) => s.action && s.action.kind !== 'other');
+    const runAction = (e) => {
+      const hit = e.target?.closest?.('[data-shape]');
+      if (!hit || !actioned.length) return false;
+      const ids = [hit.getAttribute('data-shape'), ...(hit.getAttribute('data-groups') || '').split(' ').filter(Boolean)];
+      const shape = ids.map((id) => actioned.find((s) => String(s.id) === id)).find(Boolean);
+      if (!shape) return false;
+      const a = shape.action;
+      const go = (i) => { if (i != null && i >= 0 && i < (model?.count || 0) && i !== index) goShow(i, 0); };
+      if (a.kind === 'next') go(nextInShow(index, 1));
+      else if (a.kind === 'previous') go(nextInShow(index, -1));
+      else if (a.kind === 'first') go(nextShown(model, (showSet.range?.from ?? 1) - 2, 1));
+      else if (a.kind === 'last') go(nextShown(model, showSet.range?.to ?? model.count, -1));
+      else if (a.kind === 'lastViewed') go(lastViewed.current);
+      else if (a.kind === 'slide') go(a.slide);
+      else if (a.kind === 'end') setPresent(false);
+      else if (a.kind === 'url') shell.shell.openExternal({ url: a.url }).catch(() => {});
+      return true;
+    };
     return (
       <div
         className="sl-present"
-        onClick={() => {
+        onClick={(e) => {
+          if (runAction(e)) return;
           // Advance Slide → On Mouse Click off: a click still plays this
           // slide's animations but does not move the show off it (the keys
           // still do), as in PowerPoint.
@@ -1718,6 +1758,7 @@ export default function Slides({ app, shell, boot }) {
         }}
       >
         <style>{CSS}</style>
+        {actioned.length ? <style>{`${actioned.map((s) => `.sl-present [data-shape="${String(s.id).replace(/[^\w-]/g, '')}"]`).join(', ')} { cursor: pointer; }`}</style> : null}
         {/* A black screen is a thing speakers ask for by name: attention back on them. It hides the stage rather than dropping it, so coming back does not replay the transition. */}
         <ShowStage slide={slide} size={model.size} step={showStep} hidden={blank} onSettled={setSettled} control={showControl} />
         <div className="sl-present-bar">
@@ -2289,6 +2330,18 @@ export default function Slides({ app, shell, boot }) {
 
       {symbolOpen ? (
         <SymbolDialog onClose={() => setSymbolOpen(false)} onInsert={(ch) => { setSymbolOpen(false); act('insertSymbol', ch); }} />
+      ) : null}
+
+      {actionOpen && selectedShape ? (
+        <>
+          <style>{ACTION_CSS}</style>
+          <ActionDialog
+            action={selectedShape.action || null}
+            outline={model?.outline || []}
+            onClose={() => setActionOpen(false)}
+            onApply={async (action) => { setActionOpen(false); await apply({ op: 'setAction', slide: index, shape: selectedShape.id, action }); }}
+          />
+        </>
       ) : null}
 
       {languageOpen ? (

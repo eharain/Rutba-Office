@@ -415,7 +415,12 @@ function placeholderOf(sp) {
 function nameOf(sp) {
   const nv = kids(sp, P('nvSpPr'))[0] || kids(sp, P('nvPicPr'))[0] || kids(sp, P('nvGraphicFramePr'))[0] || kids(sp, P('nvCxnSpPr'))[0] || kids(sp, P('nvGrpSpPr'))[0];
   const cNv = nv && (kids(nv, P('cNvPr'))[0] || null);
-  return { id: cNv?.attrs.id || null, name: cNv?.attrs.name || '', hidden: cNv?.attrs.hidden === '1' };
+  const out = { id: cNv?.attrs.id || null, name: cNv?.attrs.name || '', hidden: cNv?.attrs.hidden === '1' };
+  // Insert → Action: what a click on the shape does in the show, as the
+  // file says it; the deck resolves the relationship it may name.
+  const click = cNv && kids(cNv, A('hlinkClick'))[0];
+  if (click) out.click = { rId: click.attrs['r:id'] || null, action: click.attrs.action || null };
+  return out;
 }
 
 /**

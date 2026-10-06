@@ -53,6 +53,7 @@ import { verifyDeckLanguage } from './verify-deck-language.js';
 import { verifyDeckMonitor } from './verify-deck-monitor.js';
 import { verifyDeckSplit } from './verify-deck-split.js';
 import { verifyDeckRehearse } from './verify-deck-rehearse.js';
+import { verifyDeckAction } from './verify-deck-action.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -4602,6 +4603,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('monitor')) await verifyDeckMonitor({ open, check, until, wait }, { dir });
     if (only.includes('movesplit')) await verifyDeckSplit({ open, check, until, wait }, { dir });
     if (only.includes('rehearse')) await verifyDeckRehearse({ open, check, until, wait, doc }, { dir });
+    if (only.includes('deckaction')) await verifyDeckAction({ open, check, until, wait, doc }, { dir });
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
@@ -4782,6 +4784,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckMonitor({ open, check, until, wait }, { dir }));
   await block(() => verifyDeckSplit({ open, check, until, wait }, { dir }));
   await block(() => verifyDeckRehearse({ open, check, until, wait, doc }, { dir }));
+  await block(() => verifyDeckAction({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => wordMailMerge());

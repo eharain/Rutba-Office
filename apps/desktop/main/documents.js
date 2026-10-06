@@ -1289,6 +1289,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
               placeholder: s.placeholder,
               // Slide Master view: the words shown are the placeholder's prompt, not its own.
               prompt: Boolean(s.prompt),
+              // Insert → Action: what a click on it does in the show.
+              action: s.action ?? null,
               // What a run that states nothing is drawn with — the master's,
               // the layout's and the shape's own styles — so the ribbon shows
               // a title's real size rather than the ribbon's own default.
@@ -1775,6 +1777,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     clearTextFormat: (d, a) => d.clearTextFormat(a.slide, a.shape),
     // Insert → Link: an address on the selected shape's words, or none.
     setLink: (d, a) => d.setLink(a.slide, a.shape, a.url ?? null),
+    setAction: (d, a) => d.setAction(a.slide, a.shape, a.action ?? null),
     // Home → Editing: the words replaced across every slide.
     replaceText: (d, a) => d.replaceText(a.find, a.replace, { matchCase: Boolean(a.matchCase) }),
     // The find pane's Next/Previous and Replace: one hit, exactly as
