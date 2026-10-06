@@ -83,3 +83,21 @@ test('the document service: Colours, Fonts, Effects and a whole theme rewrite th
   assert.equal(saved.contentTypeOf('word/theme/theme1.xml'), 'application/vnd.openxmlformats-officedocument.theme+xml');
   assert.throws(() => docs.apply({ id, ops: [{ op: 'setDocTheme', spec: { colors: 'no-such-palette' } }] }), /no palette/);
 });
+
+test('Set as Default: a document\'s theme and styles, and a new blank document made in them, unmodified', async () => {
+  const docs = createDocumentService({ holdBlob: () => ({ url: 'blob:x' }) });
+  const source = docs.new({ kind: 'word', template: 'doc' });
+  docs.apply({ id: source.id, ops: [{ op: 'setDocTheme', spec: { theme: 'meadow' } }] });
+  const design = docs.design({ id: source.id });
+  assert.equal(design.name, 'Meadow');
+  assert.match(design.theme, /<a:theme\b[^>]*name="Meadow"/);
+  assert.match(design.styles, /<w:styles\b/);
+
+  const made = docs.new({ kind: 'word', template: 'doc', design: { theme: design.theme, styles: design.styles } });
+  assert.equal(made.model.design.name, 'Meadow', 'the new document starts in the default theme');
+  assert.equal(made.dirty, false, 'and nothing has been done to it yet');
+  const plain = docs.new({ kind: 'word', template: 'doc' });
+  assert.notEqual(plain.model.design.name, 'Meadow', 'without the default, the suite\'s own');
+  const junk = docs.new({ kind: 'word', template: 'doc', design: { theme: '<html>not a theme</html>', styles: 42 } });
+  assert.notEqual(junk.model.design.name, 'Meadow', 'what is not a theme part is not put on');
+});

@@ -382,7 +382,12 @@ export default function Word({ app, shell, boot }) {
           ? await openProtected((password) => shell.doc.recover({ file: recover, password }), gate)
           : boot.file
             ? await openProtected((password) => shell.doc.open({ path: boot.file, kind: 'doc', password }), gate)
-            : await shell.doc.new({ kind: 'word', template: template && template !== 'blank' ? template : 'doc' });
+            : await shell.doc.new({
+              kind: 'word',
+              template: template && template !== 'blank' ? template : 'doc',
+              // Design → Set as Default: a blank document starts in the design set as the default.
+              design: template && template !== 'blank' ? null : await Promise.resolve(shell.store.get({ key: DEFAULT_DESIGN_KEY, fallback: null })).catch(() => null),
+            });
         if (recover) toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 });
         setDoc(opened);
         setModel(opened.model);
@@ -1267,6 +1272,23 @@ export default function Word({ app, shell, boot }) {
         case 'toggleSpell':
           patchView((v) => ({ spell: !v.spell }));
           return;
+        // Design → Set as Default: this document's theme and styles for every
+        // new blank document, after asking, as Word asks.
+        case 'setDefaultDesign': {
+          const answer = await shell.dialog.message({
+            type: 'question',
+            message: 'Set the current theme and styles as the default?',
+            detail: 'Every new blank document will start with them. Documents already made keep their own.',
+            buttons: ['Yes', 'No'],
+            defaultId: 0,
+            cancelId: 1,
+          }).catch(() => null);
+          if (answer?.response !== 0) return;
+          const design = await shell.doc.design({ id: doc.id });
+          await shell.store.set({ key: DEFAULT_DESIGN_KEY, value: { theme: design.theme, styles: design.styles } });
+          toast(`New documents will start in ${design.name || 'this design'}.`, { tone: 'good' });
+          return;
+        }
         // Insert → Screenshot: a window or a screen, taken as a picture.
         case 'screenshot':
           setShotOpen(true);
@@ -3041,6 +3063,9 @@ function authorColour(author) {
  * never counted as the document's characters). The printout breaks at the
  * same places: both ask `@rutba/doc-view/hyphenate`.
  */
+/** Where Design → Set as Default keeps the theme and styles new documents start in. */
+const DEFAULT_DESIGN_KEY = 'documents.defaultDesign';
+
 /** Immersive Reader's column widths, in pixels: Word's four. */
 const IR_COLUMN = { veryNarrow: 440, narrow: 560, moderate: 720, wide: 920 };
 

@@ -4613,7 +4613,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('screenshot')) await verifyScreenshot({ open, check, until, wait, doc }, { dir });
     if (only.includes('icons')) await verifyIcons({ open, check, until, wait, doc }, { dir });
     if (only.includes('immersive')) await verifyWordImmersive({ open, check, until, wait }, { dir });
-    if (only.includes('doctheme')) await verifyWordTheme({ open, check, until, wait }, { dir });
+    if (only.includes('doctheme')) await verifyWordTheme({ open, check, until, wait, doc }, { dir });
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
@@ -4799,7 +4799,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyScreenshot({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyIcons({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyWordImmersive({ open, check, until, wait }, { dir }));
-  await block(() => verifyWordTheme({ open, check, until, wait }, { dir }));
+  await block(() => verifyWordTheme({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => wordMailMerge());

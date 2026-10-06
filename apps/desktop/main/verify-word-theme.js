@@ -21,7 +21,7 @@ function wordLike() {
  * @param {object} h the harness: open, check, until, wait
  */
 export async function verifyWordTheme(h, { dir }) {
-  const { open, check, until, wait } = h;
+  const { open, check, until, wait, doc } = h;
   const file = path.join(dir, 'theme.docx');
   try {
     fs.writeFileSync(file, wordLike());
@@ -59,6 +59,17 @@ export async function verifyWordTheme(h, { dir }) {
       try { return /<a:theme\b[^>]*name="Harbour"/.test(OoxmlPackage.read(fs.readFileSync(file)).text('word/theme/theme1.xml')); } catch { return false; }
     }, 'the saved theme', 8000).then(() => true).catch(() => false);
     check('documents: Design → Themes puts a whole theme on the document, and the saved file carries it', themed === 'picked' && saved, JSON.stringify({ themed, saved }));
+
+    // Set as Default (the question answered Yes), then a new blank document.
+    globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'message', answer: { response: 0, checked: false } });
+    const pressed = await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Set as Default'); if (!b) return 'no button'; b.click(); return 'clicked'; })()`);
+    const kept = await until(() => js(`window.rutbaOffice.store.get({ key: 'documents.defaultDesign', fallback: null }).then((d) => Boolean(d && /name="Harbour"/.test(d.theme || '')))`), 'the default kept', 4000).then(() => true).catch(() => false);
+    const known = new Set(doc.sessions().map((s) => s.id));
+    await js(`window.rutbaOffice.win.create({ app: 'word' }), 1`);
+    const fresh = await until(() => doc.sessions().some((s) => s.kind === 'doc' && !known.has(s.id)), 'the new document', 8000).then(() => doc.sessions().find((s) => s.kind === 'doc' && !known.has(s.id))).catch(() => null);
+    const startsIn = fresh ? doc.model({ id: fresh.id }).design?.name : null;
+    check('documents: Design → Set as Default, asked and answered, makes new blank documents start in this theme',
+      pressed === 'clicked' && kept && startsIn === 'Harbour' && fresh?.dirty === false, JSON.stringify({ pressed, kept, startsIn, dirty: fresh?.dirty }));
   } catch (err) {
     check('documents: the Design theme checks ran', false, err.message);
   }

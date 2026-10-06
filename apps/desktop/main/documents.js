@@ -746,6 +746,25 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     }
   }
 
+  /**
+   * A default design, as Set as Default kept it, put on a new document: its
+   * theme part and its styles part, each only when it is the part it says
+   * it is and of a sensible size. The document stays unmodified.
+   */
+  function applyDefaultDesign(view, design) {
+    const d = view?.doc?.doc;
+    if (!d) return;
+    const fits = (xml, root) => typeof xml === 'string' && xml.length < 4 * 1024 * 1024 && new RegExp(`<${root}\\b`).test(xml.slice(0, 2000));
+    if (fits(design.theme, 'a:theme')) d.setThemePart(design.theme);
+    if (fits(design.styles, 'w:styles')) {
+      d.ensureParagraphStyles();
+      d.pkg.write_('word/styles.xml', Buffer.from(design.styles, 'utf8'));
+    }
+    view._stylesWritten?.();
+    view._invalidate?.();
+    d.dirty = false;
+  }
+
   function engineFor(kind, bytes) {
     if (kind === 'sheet') return SheetView.open(Buffer.from(bytes), { viewportWidth: 1100, viewportHeight: 620 });
     if (kind === 'doc') return openDocx(Buffer.from(bytes));
@@ -1953,11 +1972,16 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   /* ── the namespace ────────────────────────────────────────────────────── */
 
   return {
-    new: ({ kind = 'doc', template }, win) => {
+    new: ({ kind = 'doc', template, design = null }, win) => {
       const make = TEMPLATES[template] || TEMPLATES[KIND_FOR_APP[kind] || kind] || TEMPLATES.doc;
       const bytes = make();
       const resolved = template && TEMPLATES[template] ? (['budget', 'invoice', 'sheet'].includes(template) ? 'sheet' : ['pitch', 'deck'].includes(template) ? 'deck' : 'doc') : KIND_FOR_APP[kind] || kind;
-      const session = new Session({ id: nextId(), kind: resolved, filePath: null, engine: engineFor(resolved, bytes), source: 'new' });
+      const engine = engineFor(resolved, bytes);
+      // Design → Set as Default: a new blank document starts in the theme and
+      // styles that were set as the default, as Word's Normal template does —
+      // unmodified, since nothing has been done to it yet.
+      if (resolved === 'doc' && design && (!template || template === 'doc')) safely(() => applyDefaultDesign(engine, design));
+      const session = new Session({ id: nextId(), kind: resolved, filePath: null, engine, source: 'new' });
       session.windowId = win?.id ?? null;
       sessions.set(session.id, session);
 
@@ -2168,6 +2192,22 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       session.recoveredAt = 0;
       sessions.set(session.id, session);
       return { ...session.meta(), recoveredFrom: entry.at, model: modelOf(session) };
+    },
+
+    /**
+     * Design → Set as Default: the document's theme and styles, for new
+     * documents to start in. The window keeps them in the settings and hands
+     * them to `new`.
+     */
+    design: ({ id }) => {
+      const d = get(id).engine?.doc?.doc;
+      if (!d) throw new Error('Only a document has a design to set as the default.');
+      const part = d.themePart();
+      return {
+        theme: part ? d.pkg.text(part) : null,
+        styles: d.pkg.has('word/styles.xml') ? d.pkg.text('word/styles.xml') : null,
+        name: readThemeDesign(part ? d.pkg.text(part) : null).name,
+      };
     },
 
     /**

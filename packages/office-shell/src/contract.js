@@ -94,7 +94,8 @@ export const METHODS = {
   // workbook out of the window's heap: the grid asks for the viewport it is
   // about to paint, and nothing else crosses.
   doc: [
-    'new',          // ({ kind, template }) -> { id, kind, model, meta }
+    'new',          // ({ kind, template, design }) -> { id, kind, model, meta } — design: Set as Default's theme and styles, for a blank document
+    'design',       // ({ id }) -> { theme, styles, name } — a document's theme and styles, for Design → Set as Default
     'open',         // ({ path, kind, password }) -> { id, kind, model, meta } | { locked, name, wrong } — a protected file asks for its password
     'setPassword',  // ({ id, password }) -> meta — File → Info → Encrypt with Password; '' goes back to a plain save
     'close',        // ({ id }) -> void

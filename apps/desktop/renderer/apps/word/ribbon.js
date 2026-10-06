@@ -561,7 +561,7 @@ export default function WordRibbon({
               title={`Effects — the fills, lines and shadows that shapes taking their look from the theme are drawn with; now ${design?.effectName || 'Office'}`}
               onClick={(e) => menu.open(e, EFFECT_PRESETS.map((p) => ({ label: p.name, title: p.description, icon: design?.effects === p.id ? 'check' : undefined, run: () => dispatch({ op: 'setDocTheme', spec: { effects: p.id } }) })))}
             />
-            <Soon icon="check" label="Set as Default" why="A default template is a file the suite does not keep yet." />
+            <Button icon="check" label="Set as Default" title="Set as Default — new blank documents start in this document's theme and styles" onClick={() => act('setDefaultDesign')} />
           </Group>
           <Group label="Page Background">
             <Button tall icon="shield" label="Watermark" title="Watermark — faint words behind every page" onClick={(e) => menu.open(e, [
