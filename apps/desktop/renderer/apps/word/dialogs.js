@@ -616,6 +616,17 @@ export function ShortcutsDialog({ onClose }) {
 
 /* ── the reviewing pane ──────────────────────────────────────────────────── */
 
+/** What a paragraph's changes are, in words: "2 insertions, formatting, a new paragraph". */
+export function trackedKinds(t) {
+  const n = (count, one, many) => (count === 1 ? one : `${count} ${many}`);
+  return [
+    t.inserted ? n(t.inserted, 'an insertion', 'insertions') : null,
+    t.deleted ? n(t.deleted, 'a deletion', 'deletions') : null,
+    t.formatted ? 'formatting' : null,
+    t.mark === 'inserted' ? 'a new paragraph' : t.mark === 'deleted' ? 'paragraphs joined' : null,
+  ].filter(Boolean).join(', ') || 'changed';
+}
+
 /** Every tracked change the document carries, read from the file. */
 export function TrackedDialog({ blocks, onClose, onGoto }) {
   const changed = (blocks || []).filter((b) => b.tracked);
@@ -627,7 +638,7 @@ export function TrackedDialog({ blocks, onClose, onGoto }) {
             <button key={b.index} type="button" className="ml-found-item" style={{ border: 0, borderBottom: '1px solid var(--line-soft)', borderRadius: 0 }} onClick={() => onGoto(b.index)}>
               <span className="ml-found-logo"><Icon name="eye" size={14} /></span>
               <span className="grow">
-                <div className="who">{typeof b.tracked === 'object' ? ((b.tracked.authors || []).join(', ') || 'Someone') : 'Changed'}</div>
+                <div className="who">{typeof b.tracked === 'object' ? ((b.tracked.authors || []).join(', ') || 'Someone') : 'Changed'}{typeof b.tracked === 'object' ? <span className="wd-tracked-kinds"> — {trackedKinds(b.tracked)}</span> : null}</div>
                 <div className="what">{(b.text || (b.runs || []).map((r) => r.text).join('')).slice(0, 120) || '(empty paragraph)'}</div>
               </span>
             </button>

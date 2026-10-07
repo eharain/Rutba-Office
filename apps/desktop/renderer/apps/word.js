@@ -3344,6 +3344,11 @@ function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
       </span>
     );
   }
+  // A change of formatting: Original draws the words as they looked before
+  // it; the other views as they look now, its author and time in the tip.
+  if (run.formatChange && markupMode === 'original') {
+    run = { ...run, bold: false, italic: false, underline: false, strike: false, fontName: null, fontSize: null, fontColour: null, highlight: null, vertAlign: null, ...run.formatChange.was };
+  }
   // An insertion is real, live text — it is already part of the document,
   // so it keeps its place in the caret's own offsets. All Markup underlines
   // it in the author's colour; Original hides it (visually only: it stays
@@ -3370,6 +3375,7 @@ function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
       title={run.field
         ? (run.field.kind === 'ref' ? `REF ${run.field.name} — Ctrl+click to go to the bookmark` : run.field.instr.trim())
         : run.ins ? `Inserted by ${run.ins.author || 'Someone'}${run.ins.date ? ' · ' + formatWhen(run.ins.date) : ''}`
+        : run.formatChange && markupMode !== 'final' ? `Formatted by ${run.formatChange.author || 'Someone'}${run.formatChange.date ? ' · ' + formatWhen(run.formatChange.date) : ''}`
         : (run.link ? `Ctrl+click to go there` : undefined)}
       style={{
         fontWeight: run.bold ? 700 : undefined,
