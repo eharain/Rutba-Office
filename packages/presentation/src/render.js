@@ -15,6 +15,8 @@
 import { wrapText, measureText, lineHeight } from '@rutba/drawing/measure';
 import { buildChart, renderSvg } from '@rutba/drawing';
 import { escapeXml } from '@rutba/office-formats/xml';
+import { patternDef } from './patterns.js';
+import { cameraLook } from './shape3d.js';
 
 const DEFAULT_FONT = 'Segoe UI, system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif';
 
@@ -23,8 +25,18 @@ function fillAttr(fill, fallback = 'none') {
   if (fill.type === 'none') return 'none';
   if (fill.type === 'solid') return fill.color;
   if (fill.type === 'gradient') return `url(#${fill._id})`;
+  if (fill.type === 'pattern') return fill._id ? `url(#${fill._id})` : fill.color;
   if (fill.type === 'picture') return fill._id ? `url(#${fill._id})` : fallback;
   return fallback;
+}
+
+/** A colour darkened by `by` (0–1) — the side of a shape's depth, when the file names no colour for it. */
+function shadeHex(hex, by) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+  if (!m) return '#7f7f7f';
+  const n = parseInt(m[1], 16);
+  const ch = (shift) => Math.round(((n >> shift) & 255) * (1 - by)).toString(16).padStart(2, '0');
+  return '#' + ch(16) + ch(8) + ch(0);
 }
 
 function gradientDef(fill, id) {
@@ -478,10 +490,10 @@ export function renderSlide(slide, opts = {}) {
   // inside it is layering, not the schema's: the glow sits furthest back,
   // the shadow in front of that, and the (softened, if asked) shape itself
   // on top — which is how PowerPoint draws the combination too.
-  const registerEffects = (effects) => {
-    if (!effects) return '';
-    const { glow, shadow: sh, softEdge } = effects;
-    if (!glow && !sh && !softEdge) return '';
+  const registerEffects = (effects, shape3d = null) => {
+    const { glow, shadow: sh, softEdge } = effects || {};
+    const bevel = shape3d?.bevel || null;
+    if (!glow && !sh && !softEdge && !bevel) return '';
     const id = `${ID}fx${++effectSeq}`;
     const parts = [];
     let top = 'SourceGraphic';
@@ -490,6 +502,23 @@ export function renderSlide(slide, opts = {}) {
       // transparency — its edge — which is exactly what soft edges are.
       parts.push(`<feGaussianBlur in="SourceGraphic" stdDeviation="${((softEdge.radiusPt ?? 2.5) * (96 / 72)).toFixed(2)}" result="softSrc"/>`);
       top = 'softSrc';
+    }
+    if (bevel) {
+      // A bevel, lit from the top left: the shape's own edge blurred into a
+      // slope as wide as the bevel, shaded by a light at PowerPoint's angle
+      // and given its highlight — the flat middle left as it was.
+      const wide = Math.max(0.5, ((bevel.w ?? 6) * (96 / 72)) / 2);
+      const tall = Math.max(0.5, (bevel.h ?? 6) * (96 / 72) * 0.6);
+      parts.push(
+        `<feGaussianBlur in="SourceAlpha" stdDeviation="${wide.toFixed(2)}" result="bvBlur"/>` +
+        `<feDiffuseLighting in="bvBlur" surfaceScale="${tall.toFixed(2)}" diffuseConstant="1" lighting-color="#ffffff" result="bvShade"><feDistantLight azimuth="225" elevation="50"/></feDiffuseLighting>` +
+        `<feSpecularLighting in="bvBlur" surfaceScale="${tall.toFixed(2)}" specularConstant="0.7" specularExponent="16" lighting-color="#ffffff" result="bvShine"><feDistantLight azimuth="225" elevation="40"/></feSpecularLighting>` +
+        `<feComposite in="${top}" in2="bvShade" operator="arithmetic" k1="1.3" k2="0" k3="0" k4="0" result="bvShaded"/>` +
+        `<feComposite in="bvShine" in2="SourceAlpha" operator="in" result="bvShineIn"/>` +
+        `<feComposite in="bvShaded" in2="bvShineIn" operator="arithmetic" k1="0" k2="1" k3="0.55" k4="0" result="bvLit"/>` +
+        `<feComposite in="bvLit" in2="SourceAlpha" operator="in" result="bevelled"/>`
+      );
+      top = 'bevelled';
     }
     const layers = [];
     if (glow) {
@@ -538,7 +567,10 @@ export function renderSlide(slide, opts = {}) {
     return `<use href="#${refId}" transform="translate(0 ${(2 * bottom).toFixed(2)}) scale(1 -1)" mask="url(#${maskId})"/>`;
   };
   const registerFill = (fill, href) => {
-    if (fill?.type === 'gradient') {
+    if (fill?.type === 'pattern') {
+      fill._id = `${ID}pat${++picSeq}`;
+      defs.push(patternDef(fill._id, fill.preset, fill.color, fill.background, { fgAlpha: fill.alpha ?? 1, bgAlpha: fill.backgroundAlpha ?? 1 }));
+    } else if (fill?.type === 'gradient') {
       fill._id = `${ID}g${++gradSeq}`;
       defs.push(gradientDef(fill, fill._id));
     } else if (fill?.type === 'picture' && href) {
@@ -661,20 +693,42 @@ export function renderSlide(slide, opts = {}) {
         + (line.alpha != null && line.alpha < 1 ? ` stroke-opacity="${line.alpha}"` : '')
       : '';
     const fillValue = fillAttr(fill, shape.kind === 'connector' ? 'none' : 'none');
-    const opacity = fill?.alpha != null && fill.alpha < 1 ? ` fill-opacity="${fill.alpha}"` : '';
+    // A pattern carries its colours' own opacity in its tile.
+    const opacity = fill?.type !== 'pattern' && fill?.alpha != null && fill.alpha < 1 ? ` fill-opacity="${fill.alpha}"` : '';
     const text = shape.text && shape.text.paragraphs?.length ? shape.text : null;
-    const shapeMarkup = `${geom} fill="${fillValue}"${opacity}${strokeBits}${registerEffects(shape.effects)}${transform}/>`;
+    const shapeMarkup = `${geom} fill="${fillValue}"${opacity}${strokeBits}${registerEffects(shape.effects, shape.shape3d)}${transform}/>`;
     const textMarkup = text ? `<g${textTransform}>${textSvg(text, g, { scale: 1, baseSize: defaultSizeFor(shape.placeholder), levels: shape.textStyle || null, registerEffects })}</g>` : '';
 
     // A reflection is a mirrored copy of the shape and its words, drawn from
     // a `<use>` on a group that wraps both — which is only worth the extra
     // wrapper element when there is one to draw.
+    // 3-D Rotation: the shape and its words seen through the camera's flat
+    // projection, about the shape's centre, its depth stepped out behind
+    // it in the depth's colour (or its fill's, darkened).
+    let face = shapeMarkup + textMarkup;
+    const look = shape.shape3d ? cameraLook(shape.shape3d.camera) : null;
+    if (look) {
+      const [a, b, c, d] = look.matrix;
+      const turned = a !== 1 || b !== 0 || c !== 0 || d !== 1;
+      const mat = `matrix(${a} ${b} ${c} ${d} ${(cx - (a * cx + c * cy)).toFixed(2)} ${(cy - (b * cx + d * cy)).toFixed(2)})`;
+      const depthPx = (shape.shape3d.depth || 0) * (96 / 72);
+      let side = '';
+      if (depthPx > 0 && (look.step[0] || look.step[1])) {
+        const steps = Math.min(48, Math.ceil(depthPx));
+        const stride = depthPx / steps;
+        const colour = shape.shape3d.depthColor || shadeHex(fill?.color, 0.35);
+        for (let k = steps; k >= 1; k -= 1) {
+          side += `<g transform="translate(${(look.step[0] * k * stride).toFixed(2)} ${(look.step[1] * k * stride).toFixed(2)})${turned ? ' ' + mat : ''}">${geom} fill="${colour}"${transform}/></g>`;
+        }
+      }
+      if (turned || side) face = side + (turned ? `<g transform="${mat}">${face}</g>` : face);
+    }
     if (shape.effects?.reflection) {
       const wrapId = `${ID}shpref${++shapeSeq}`;
-      body.push(`<g id="${wrapId}">${shapeMarkup}${textMarkup}</g>`);
+      body.push(`<g id="${wrapId}">${face}</g>`);
       body.push(reflectionSvg(shape, g, wrapId));
     } else {
-      body.push(shapeMarkup + textMarkup);
+      body.push(face);
     }
     // Slide Master view: each placeholder's box, dashed, the way PowerPoint marks them.
     if (placeholderFrames && shape.placeholder) {

@@ -1343,6 +1343,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
               fill: s.fill ?? null,
               line: s.line ?? null,
               effects: s.effects ?? null,
+              // Format Shape → 3-D Format and 3-D Rotation: the bevel, the depth and the camera.
+              shape3d: s.shape3d ?? null,
               geometry: s.geometry,
               placeholder: s.placeholder,
               // Slide Master view: the words shown are the placeholder's prompt, not its own.
@@ -1883,6 +1885,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     setBodyProps: (d, a) => d.setBodyProps(a.slide, a.shape, { anchor: a.anchor, vert: a.vert, columns: a.columns }),
     // The Format pane: a shape's fill and outline.
     setShapeStyle: (d, a) => d.setShapeStyle(a.slide, a.shape, { fill: a.fill ?? null, line: a.line ?? null, effects: a.effects ?? null }),
+    setShape3d: (d, a) => d.setShape3d(a.slide, a.shape, a.spec || {}),
     // Home → Clear all formatting: the selected shape's words keep only their links.
     clearTextFormat: (d, a) => d.clearTextFormat(a.slide, a.shape),
     // Insert → Link: an address on the selected shape's words, or none.

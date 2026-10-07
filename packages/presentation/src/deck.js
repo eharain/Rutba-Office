@@ -22,6 +22,8 @@ import { chartPartXml } from '@rutba/ooxml/build';
 import { readTransition, withTransition, transitionBlock, insertTransition, transitionRange, transitionXml } from './motion.js';
 import { readAnimations, addAnimation, setAnimation, removeAnimation, moveAnimation, removeShapeAnimations, pruneAnimations } from './timing.js';
 import { parseChartXml } from '@rutba/drawing';
+import { isPattern } from './patterns.js';
+import { BEVELS, CAMERAS, shape3dXml } from './shape3d.js';
 import { withNarration, withoutMediaNode, isNarration, NARRATION_NAME } from './narration.js';
 import { masterPartXml, placeholderXml, placeholderBox, placeholderTypesIn, MASTER_PLACEHOLDERS, NOTES_MASTER_CT, HANDOUT_MASTER_CT, NOTES_MASTER_REL, HANDOUT_MASTER_REL } from './notes-master.js';
 
@@ -1789,7 +1791,9 @@ export class Deck {
         ? '<a:noFill/>'
         : fill.gradient
           ? gradientFillXml(fill.gradient)
-          : fill.picture
+          : fill.pattern
+            ? patternFillXml(fill.pattern)
+            : fill.picture
             ? `<a:blipFill><a:blip r:embed="${pictureRId}"/>${fill.picture.tile ? '<a:tile/>' : '<a:stretch><a:fillRect/></a:stretch>'}</a:blipFill>`
             : `<a:solidFill>${colourXml(fill)}</a:solidFill>`;
     const lineXml = line === null
@@ -1802,6 +1806,39 @@ export class Deck {
     const xfrm = geom ? null : /<a:xfrm\b[^>]*\/>|<a:xfrm\b[^>]*>[\s\S]*?<\/a:xfrm>/.exec(inner);
     const at = geom ? geom.index + geom[0].length : xfrm ? xfrm.index + xfrm[0].length : 0;
     inner = inner.slice(0, at) + fillXml + lineXml + effectXml + inner.slice(at);
+    shapeXml = shapeXml.slice(0, m.index) + open + inner + '</p:spPr>' + shapeXml.slice(m.index + m[0].length);
+    this.#writeSlide(part, xml.slice(0, range.start) + shapeXml + xml.slice(range.end));
+    return true;
+  }
+
+  /**
+   * Format Shape → 3-D Format and 3-D Rotation: a shape's top bevel
+   * (`bevel` `{ prst, w, h }`, points, or null), its depth in points and
+   * the depth's colour, and the camera preset it is seen through — written
+   * as PowerPoint writes them, `a:scene3d` and `a:sp3d` after the effects.
+   * A shape left flat, front on, with no bevel, carries neither.
+   */
+  setShape3d(slideIndex, shapeId, { bevel = null, depth = 0, depthColor = null, camera = 'orthographicFront' } = {}) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (bevel && !BEVELS.some(([prst]) => prst === (bevel.prst ?? 'circle'))) throw new Error(`not a bevel: ${bevel.prst}`);
+    if (camera && !CAMERAS.some(([prst]) => prst === camera)) throw new Error(`not a 3-D rotation: ${camera}`);
+    if (!(Number(depth) >= 0)) throw new Error('the depth is a number of points, 0 or more');
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found`);
+    if (range.tag !== '<p:sp>') throw new Error('3-D is for a shape — a picture, table, chart or group has none here.');
+    let shapeXml = xml.slice(range.start, range.end);
+    const m = /<p:spPr\b[^>]*\/>|<p:spPr\b[^>]*>[\s\S]*?<\/p:spPr>/.exec(shapeXml);
+    if (!m) throw new Error(`shape ${shapeId} has no properties to write`);
+    const spPr = m[0].endsWith('/>') ? m[0].replace(/\/>$/, '></p:spPr>') : m[0];
+    const open = /^<p:spPr\b[^>]*>/.exec(spPr)[0];
+    let inner = spPr.slice(open.length, -'</p:spPr>'.length)
+      .replace(/<a:scene3d\b[^>]*\/>|<a:scene3d\b[^>]*>[\s\S]*?<\/a:scene3d>/, '')
+      .replace(/<a:sp3d\b[^>]*\/>|<a:sp3d\b[^>]*>[\s\S]*?<\/a:sp3d>/, '');
+    const three = shape3dXml({ bevel, depth: Number(depth) || 0, depthColor, camera });
+    const ext = inner.search(/<a:extLst\b/);
+    inner = ext >= 0 ? inner.slice(0, ext) + three + inner.slice(ext) : inner + three;
     shapeXml = shapeXml.slice(0, m.index) + open + inner + '</p:spPr>' + shapeXml.slice(m.index + m[0].length);
     this.#writeSlide(part, xml.slice(0, range.start) + shapeXml + xml.slice(range.end));
     return true;
@@ -4717,6 +4754,12 @@ function gradientPresetStops(preset, colour) {
  * (top to bottom) unless stated — PowerPoint's own default for a fill
  * applied from the gallery.
  */
+/** `<a:pattFill>`: one of DrawingML's presets in a foreground and a background colour (a hex or a theme colour). */
+function patternFillXml({ preset = 'pct50', fg = { scheme: 'accent1' }, bg = '#FFFFFF' } = {}) {
+  if (!isPattern(preset)) throw new Error(`not a pattern: ${preset}`);
+  return `<a:pattFill prst="${preset}"><a:fgClr>${colourXml(fg)}</a:fgClr><a:bgClr>${colourXml(bg)}</a:bgClr></a:pattFill>`;
+}
+
 function gradientFillXml(g) {
   const stops = g.stops && g.stops.length ? g.stops : gradientPresetStops(g.preset === 'dark' ? 'dark' : 'light', g.color ?? { scheme: 'accent1' });
   const gsLst = stops.map((s) => `<a:gs pos="${Math.round(Math.max(0, Math.min(1, s.pos)) * 100000)}">${colourXml(s)}</a:gs>`).join('');

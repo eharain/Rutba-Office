@@ -95,10 +95,17 @@ function readFill(spPr, theme) {
     const b = first(blip, A('blip'));
     return { type: 'picture', embed: b?.attrs['r:embed'] || null, tile: Boolean(kids(blip, A('tile'))[0]) };
   }
+  // A pattern: its preset, its foreground (the colour a reader of one
+  // colour takes for the shape's) and its background.
   const pattern = kids(spPr, A('pattFill'))[0];
   if (pattern) {
     const fg = colorChildOf(kids(pattern, A('fgClr'))[0], theme);
-    return { type: 'solid', color: fg?.hex || '#888888', alpha: fg?.alpha ?? 1 };
+    const bg = colorChildOf(kids(pattern, A('bgClr'))[0], theme);
+    return {
+      type: 'pattern', preset: pattern.attrs.prst || 'pct5',
+      color: fg?.hex || '#000000', alpha: fg?.alpha ?? 1,
+      background: bg?.hex || '#FFFFFF', backgroundAlpha: bg?.alpha ?? 1,
+    };
   }
   return null;
 }
@@ -161,6 +168,27 @@ function readEffects(spPr, theme) {
   const reflection = kids(lst, A('reflection'))[0];
   if (reflection) out.reflection = reflectionKindOf(Number(reflection.attrs.endPos || 0), Number(reflection.attrs.dist || 0));
   return out;
+}
+
+/**
+ * Format Shape → 3-D Format and 3-D Rotation: the top bevel (preset, width
+ * and height in points), the depth and its colour, and the camera preset —
+ * null for a shape seen flat from the front.
+ */
+function read3d(spPr, theme) {
+  const sp3d = spPr && kids(spPr, A('sp3d'))[0];
+  const scene = spPr && kids(spPr, A('scene3d'))[0];
+  if (!sp3d && !scene) return null;
+  const bevel = sp3d && kids(sp3d, A('bevelT'))[0];
+  const camera = scene && kids(scene, A('camera'))[0];
+  const extrusion = sp3d && kids(sp3d, A('extrusionClr'))[0];
+  const out = {
+    bevel: bevel ? { prst: bevel.attrs.prst || 'circle', w: Number(bevel.attrs.w ?? 76200) / 12700, h: Number(bevel.attrs.h ?? 76200) / 12700 } : null,
+    depth: sp3d?.attrs.extrusionH ? Number(sp3d.attrs.extrusionH) / 12700 : 0,
+    depthColor: extrusion ? colorChildOf(extrusion, theme)?.hex ?? null : null,
+    camera: camera?.attrs.prst || 'orthographicFront',
+  };
+  return out.bevel || out.depth > 0 || out.camera !== 'orthographicFront' ? out : null;
 }
 
 function readLine(spPr, theme) {
@@ -726,6 +754,7 @@ function readShape(sp, ctx, container, groupId) {
     fill,
     line,
     effects,
+    shape3d: read3d(spPr, ctx.theme),
     styleText,
     preset: first(spPr, A('prstGeom'))?.attrs.prst || (kids(spPr || { children: [] }, A('custGeom'))[0] ? 'custom' : 'rect'),
     adjustments: readAdjustments(spPr),
