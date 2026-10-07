@@ -1655,6 +1655,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // view the way Excel keeps them. The top and left panes of a split
     // scroll on their own (scrollSplit), which changes nothing in the file.
     setViewMode: (v, a) => { v.setViewMode(a.mode === 'pageBreakPreview' || a.mode === 'pageLayout' ? a.mode : 'normal'); },
+    // Page Layout → Sheet Right-to-Left, kept in the sheet's view.
+    setRightToLeft: (v, a) => { v.setRightToLeft(a.on !== false); },
     // View → Ruler in Page Layout; View → Custom Views (Show answers the
     // zoom it kept, as text); Page Layout → Background and its Delete.
     setShowRuler: (v, a) => { v.setShowRuler(a.on !== false); },

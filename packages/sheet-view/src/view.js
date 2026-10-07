@@ -1142,6 +1142,10 @@ export class SheetView {
     // scrolled — the client pins them while the rest slides underneath.
     // Page Layout draws the sheet as paper: no pane is frozen or split there.
     const frozen = this._inPageLayout ? { rows: 0, cols: 0 } : this.frozenPane();
+    // A sheet right to left: the client mirrors the grid, so a cell set
+    // left or right by its own alignment is turned here to stay on that side,
+    // as Excel keeps it; general alignment mirrors with the sheet.
+    const rtl = this.rightToLeft();
     let rowIndices = [];
     for (let r = 0; r < frozen.rows && r < vp.firstRow; r++) rowIndices.push(r);
     for (let r = vp.firstRow; r <= vp.lastRow; r++) rowIndices.push(r);
@@ -1260,7 +1264,9 @@ export class SheetView {
           text: cf?.hideValue ? '' : display.text,
           // The file's own alignment wins over the format's default: a number
           // the author centred is centred, however it is formatted.
-          align: style?.align?.horizontal ?? display.align,
+          align: rtl && (style?.align?.horizontal === 'left' || style?.align?.horizontal === 'right')
+            ? (style.align.horizontal === 'left' ? 'right' : 'left')
+            : style?.align?.horizontal ?? display.align,
           valign: style?.align?.vertical ?? null,
           wrap: Boolean(style?.align?.wrap),
           indent: style?.align?.indent ?? 0,
@@ -1527,6 +1533,10 @@ export class SheetView {
       // pages as the printer will cut them: the printed area, each page's
       // box and number, and each break, put by hand or by the paper.
       viewMode: this.viewMode(),
+      // Page Layout → Sheet Right-to-Left: column A at the right. The
+      // geometry stays as it is, every x counted from column A; the client
+      // draws it mirrored.
+      rtl,
       pageBreaks: this.viewMode() === 'pageBreakPreview' ? this.pageBreakPreview({ viewport: vp }) : null,
       // The frozen pane, with its band sizes in pixels for the client's clip.
       frozen: {
@@ -5829,6 +5839,23 @@ export class SheetView {
    * it. How a sheet is looked at is not an edit: like Excel's, it is kept
    * in the file and never on the undo list.
    */
+  /** Page Layout → Sheet Right-to-Left: whether the sheet reads from the right, as its view keeps it. */
+  rightToLeft() {
+    return this.workbook.sheetRightToLeft(this.activeSheet);
+  }
+
+  /**
+   * Turn the sheet to read from the right — column A at the right, the row
+   * headings on the right — or back; kept in `<sheetView rightToLeft>` as
+   * Excel keeps it and, like the view, not an edit for the undo list.
+   */
+  setRightToLeft(on) {
+    if (Boolean(on) === this.rightToLeft()) return this;
+    this.workbook.setSheetRightToLeft(this.activeSheet, Boolean(on));
+    this._structuralDirty = true;
+    return this;
+  }
+
   setViewMode(mode) {
     if (!['normal', 'pageBreakPreview', 'pageLayout'].includes(mode)) throw new Error('a sheet is shown normal, as a page break preview or as its page layout');
     if (mode === this.viewMode()) return this;

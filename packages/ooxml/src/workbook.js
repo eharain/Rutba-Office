@@ -2784,6 +2784,22 @@ export class Workbook {
     return this;
   }
 
+  /**
+   * Whether a sheet reads from the right — Page Layout → Sheet Right-to-Left,
+   * column A at the right and the row headings with it — from
+   * `<sheetView rightToLeft>`.
+   */
+  sheetRightToLeft(sheetName) {
+    const v = this._sheetPart(sheetName).part.sheetViewAttrs().rightToLeft;
+    return v === '1' || v === 'true';
+  }
+
+  /** The sheet turned to read from the right, or back: written as Excel writes it, the attribute gone when off. */
+  setSheetRightToLeft(sheetName, on) {
+    this._sheetPart(sheetName).part.setSheetViewAttr('rightToLeft', on ? '1' : null);
+    return this;
+  }
+
   // ── scenarios ─────────────────────────────────────────────────────────────
 
   /** A sheet's scenarios: name, comment, and the input cells with values. */

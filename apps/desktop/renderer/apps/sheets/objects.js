@@ -34,14 +34,16 @@ export function draggedBox(box, mode, handle, dx, dy) {
  * Follow the pointer from a press on a drawing (move) or on one of its
  * handles (resize), in the grid's own pixels — the grid is zoomed, the
  * pointer is not. `onMove` is called with the box as it would be, `onDone`
- * once with the last one when the button comes up after a real drag.
+ * once with the last one when the button comes up after a real drag. On a
+ * sheet right to left (`mirrored`) the grid is drawn mirrored, so a drag
+ * across counts the other way.
  */
-export function followPointer(e, { box, mode, handle = null, zoom = 1, onMove, onDone }) {
+export function followPointer(e, { box, mode, handle = null, zoom = 1, mirrored = false, onMove, onDone }) {
   const start = { x: e.clientX, y: e.clientY };
   let last = null;
   let moved = false;
   const move = (ev) => {
-    const dx = (ev.clientX - start.x) / zoom;
+    const dx = ((ev.clientX - start.x) * (mirrored ? -1 : 1)) / zoom;
     const dy = (ev.clientY - start.y) / zoom;
     if (!moved && Math.abs(dx) < 3 && Math.abs(dy) < 3) return;
     moved = true;

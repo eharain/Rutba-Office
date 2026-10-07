@@ -706,7 +706,9 @@ export default function Sheets({ app, shell, boot }) {
       requestAnimationFrame(() => { if (document.activeElement === input) input.setSelectionRange(pos, pos); });
       return true;
     }
-    const step = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];
+    // On a sheet right to left the arrows go the way they point on screen.
+    const across = rtlRef.current ? -1 : 1;
+    const step = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -across], ArrowRight: [0, across] }[e.key];
     if (!step || !typedRef.current || input !== editorRef.current || !editing) return false;
     const spot = pointSpot();
     const prev = continuing(spot);
@@ -797,7 +799,8 @@ export default function Sheets({ app, shell, boot }) {
           setPicked([]);
           return;
         }
-        const nudge = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-1, 0], ArrowRight: [1, 0] }[e.key];
+        const across = rtlRef.current ? -1 : 1;
+        const nudge = { ArrowUp: [0, -1], ArrowDown: [0, 1], ArrowLeft: [-across, 0], ArrowRight: [across, 0] }[e.key];
         if (nudge && !e.altKey) {
           e.preventDefault();
           const step = e.ctrlKey || e.metaKey ? 10 : 1;
@@ -813,7 +816,10 @@ export default function Sheets({ app, shell, boot }) {
         await act(e.key === 'ArrowRight' ? 'group' : 'ungroup');
         return;
       }
-      const arrows = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
+      // Right to left, as Excel's: Left moves to the column on the left of the screen, the next one.
+      const arrows = rtlRef.current
+        ? { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'right', ArrowRight: 'left' }
+        : { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' };
       if (arrows[e.key]) {
         e.preventDefault();
         navigate({ op: 'move', direction: arrows[e.key], extend: e.shiftKey, jump: e.ctrlKey || e.metaKey });
@@ -902,6 +908,15 @@ export default function Sheets({ app, shell, boot }) {
   // Text wider than its cell spills over empty neighbours, as in Excel; the
   // boxes are worked out once per frame and applied on top of the cell style.
   const spills = useMemo(() => spillBoxes(model), [model]);
+  /**
+   * Page Layout → Sheet Right-to-Left: the grid is drawn mirrored, so its
+   * coordinates stay the engine's — every x counted from column A — and a
+   * point on the screen is measured from the right edge of the layer it is
+   * in, a drag across counted the other way.
+   */
+  const rtlRef = useRef(false);
+  rtlRef.current = Boolean(model?.rtl);
+  const xIn = (rect, clientX) => (rtlRef.current ? rect.right - clientX : clientX - rect.left);
   const spillStyle = (cell) => {
     const base = cellStyle(cell);
     const sp = spills.get(cell.ref);
@@ -975,7 +990,7 @@ export default function Sheets({ app, shell, boot }) {
       setResizing({ kind, index, size, start });
       const move = (ev) => {
         // Pointer travel is in screen pixels; the grid's sizes are its own, zoomed.
-        next = Math.max(min, Math.min(max, Math.round(size + ((kind === 'col' ? ev.clientX : ev.clientY) - origin) / (view.zoom || 1))));
+        next = Math.max(min, Math.min(max, Math.round(size + ((kind === 'col' ? ev.clientX : ev.clientY) - origin) * (kind === 'col' && rtlRef.current ? -1 : 1) / (view.zoom || 1))));
         setResizing({ kind, index, size: next, start });
       };
       const stop = () => {
@@ -1017,10 +1032,10 @@ export default function Sheets({ app, shell, boot }) {
       const z = view.zoom || 1;
       const columns = model?.columns || [];
       const rows = model?.rows || [];
-      const corner = { x: (e.clientX - rect.left) / z, y: (e.clientY - rect.top) / z };
+      const corner = { x: xIn(rect, e.clientX) / z, y: (e.clientY - rect.top) / z };
       let target = source;
       const move = (ev) => {
-        const px = (ev.clientX - rect.left) / z;
+        const px = xIn(rect, ev.clientX) / z;
         const py = (ev.clientY - rect.top) / z;
         const col = columns.find((c) => px >= c.x && px < c.x + c.width) || (px >= (columns[columns.length - 1]?.x ?? 0) ? columns[columns.length - 1] : columns[0]);
         const row = rows.find((r) => py >= r.y && py < r.y + r.height) || (py >= (rows[rows.length - 1]?.y ?? 0) ? rows[rows.length - 1] : rows[0]);
@@ -1122,7 +1137,7 @@ export default function Sheets({ app, shell, boot }) {
     // Each pinned layer says how far its content is from where it sits:
     // the frozen columns start under the frozen rows, a split pane shows
     // the rows and columns it has scrolled to.
-    const x = (clientX - rect.left) / z + Number(pin?.dataset.ox || 0);
+    const x = xIn(rect, clientX) / z + Number(pin?.dataset.ox || 0);
     const y = (clientY - rect.top) / z + Number(pin?.dataset.oy || 0);
     const col = (model?.columns || []).find((c) => x >= c.x && x < c.x + c.width);
     const row = (model?.rows || []).find((r) => y >= r.y && y < r.y + r.height);
@@ -1144,7 +1159,7 @@ export default function Sheets({ app, shell, boot }) {
     const finish = (op) => Promise.resolve(dispatch(op)).finally(() => setLive(null));
     // Resize one, from a handle.
     const resize = (e, d, handle) => followPointer(e, {
-      box: boxFor(d), mode: 'resize', handle, zoom: z,
+      box: boxFor(d), mode: 'resize', handle, zoom: z, mirrored: rtlRef.current,
       onMove: (box) => setLive({ boxes: { [d.id]: box } }),
       onDone: (box) => (box ? finish({ op: 'drawingBox', id: d.id, ...box }) : setLive(null)),
     });
@@ -1152,7 +1167,7 @@ export default function Sheets({ app, shell, boot }) {
     const move = (e, lead, group, { pickAlone = false } = {}) => {
       const start = boxFor(lead);
       followPointer(e, {
-        box: start, mode: 'move', zoom: z,
+        box: start, mode: 'move', zoom: z, mirrored: rtlRef.current,
         onMove: (box) => {
           const dx = box.x - start.x;
           const dy = box.y - start.y;
@@ -1174,7 +1189,7 @@ export default function Sheets({ app, shell, boot }) {
       const el = e.currentTarget.closest('.sh-cells') || e.currentTarget.parentElement;
       const rect = el.getBoundingClientRect();
       const b = boxFor(d);
-      const cx = rect.left + (b.x + b.width / 2) * z;
+      const cx = rtlRef.current ? rect.right - (b.x + b.width / 2) * z : rect.left + (b.x + b.width / 2) * z;
       const cy = rect.top + (b.y + b.height / 2) * z;
       let last = null;
       const onMove = (ev) => {
@@ -1424,7 +1439,11 @@ export default function Sheets({ app, shell, boot }) {
         ) : null}
         {cell.rotation
           ? <span className="sh-rot" style={rotationStyle(cell.rotation)}>{view.formulas && cell.formula ? cell.formula : cell.text}</span>
-          : (view.formulas && cell.formula ? cell.formula : cell.text)}
+          : model.rtl
+            // Right to left the cell is mirrored with the grid and its words
+            // turned back to read, their lines kept to the side they sit on.
+            ? <span className="sh-words" dir="auto" style={{ textAlign: cell.align === 'right' ? 'left' : cell.align === 'center' ? 'center' : 'right' }}>{view.formulas && cell.formula ? cell.formula : cell.text}</span>
+            : (view.formulas && cell.formula ? cell.formula : cell.text)}
       </div>
     );
   };
@@ -1471,6 +1490,7 @@ export default function Sheets({ app, shell, boot }) {
       >
         <input
           ref={editorRef}
+          dir={model.rtl ? 'auto' : undefined}
           className={`sh-editor${paint ? ' painted' : ''}`}
           value={draft ?? ''}
           onChange={(e) => { putDraft(e.target.value); trackCaret(e); }}
@@ -1616,7 +1636,7 @@ export default function Sheets({ app, shell, boot }) {
       onClick={(e) => dispatch({ op: 'selectColumn', col: c.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
       onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
     >
-      {c.label || colLabel(c.index)}
+      {model.rtl ? <span className="sh-words">{c.label || colLabel(c.index)}</span> : (c.label || colLabel(c.index))}
       <div
         className="sh-grip col"
         title="Drag to resize the column; double-click to fit its text"
@@ -1638,7 +1658,7 @@ export default function Sheets({ app, shell, boot }) {
       onClick={(e) => dispatch({ op: 'selectRow', row: r.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
       onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertRow', 'sheet.deleteRow']))}
     >
-      {r.label ?? r.index + 1}
+      {model.rtl ? <span className="sh-words">{r.label ?? r.index + 1}</span> : (r.label ?? r.index + 1)}
       <div
         className="sh-grip row"
         title="Drag to resize the row; double-click for the default height"
@@ -1772,7 +1792,7 @@ export default function Sheets({ app, shell, boot }) {
       if (!layer) return;
       const rect = layer.getBoundingClientRect();
       const z = view.zoom || 1;
-      const at = (ev) => (axis === 'row' ? (ev.clientY - rect.top) / z : (ev.clientX - rect.left) / z);
+      const at = (ev) => (axis === 'row' ? (ev.clientY - rect.top) / z : xIn(rect, ev.clientX) / z);
       let pos = at(e);
       setBreakDrag({ axis, index: b.index, pos });
       const move = (ev) => { pos = at(ev); setBreakDrag({ axis, index: b.index, pos }); };
@@ -1936,7 +1956,7 @@ export default function Sheets({ app, shell, boot }) {
       if (e.button !== 0 || !el) return;
       e.preventDefault();
       const rect = el.getBoundingClientRect();
-      const at = (ev) => (axis === 'h' ? (ev.clientY - rect.top) / z - headTop : (ev.clientX - rect.left) / z - headLeft);
+      const at = (ev) => (axis === 'h' ? (ev.clientY - rect.top) / z - headTop : xIn(rect, ev.clientX) / z - headLeft);
       let pos = at(e);
       setSplitDrag({ axis, pos });
       const move = (ev) => { pos = at(ev); setSplitDrag({ axis, pos }); };
@@ -1955,8 +1975,9 @@ export default function Sheets({ app, shell, boot }) {
     const vLeft = (headLeft + (splitDrag?.axis === 'v' ? splitDrag.pos : splitW)) * z;
     return (
       <>
-        {splitH ? <div className={`sh-splitbar h${splitDrag?.axis === 'h' ? ' dragging' : ''}`} data-tip="Split — drag to move; drag to the edge to take it away" style={{ top: hTop - 2, left: 0, right: barW }} onMouseDown={(e) => start(e, 'h')} /> : null}
-        {splitW ? <div className={`sh-splitbar v${splitDrag?.axis === 'v' ? ' dragging' : ''}`} data-tip="Split — drag to move; drag to the edge to take it away" style={{ left: vLeft - 2, top: 0, bottom: barH }} onMouseDown={(e) => start(e, 'v')} /> : null}
+        {/* Right to left the grid's own scroll bar is on the left and its columns count from the right. */}
+        {splitH ? <div className={`sh-splitbar h${splitDrag?.axis === 'h' ? ' dragging' : ''}`} data-tip="Split — drag to move; drag to the edge to take it away" style={model.rtl ? { top: hTop - 2, left: barW, right: 0 } : { top: hTop - 2, left: 0, right: barW }} onMouseDown={(e) => start(e, 'h')} /> : null}
+        {splitW ? <div className={`sh-splitbar v${splitDrag?.axis === 'v' ? ' dragging' : ''}`} data-tip="Split — drag to move; drag to the edge to take it away" style={{ left: model.rtl ? (el?.offsetWidth ?? 0) - vLeft - 3 : vLeft - 2, top: 0, bottom: barH }} onMouseDown={(e) => start(e, 'v')} /> : null}
       </>
     );
   };
@@ -2920,7 +2941,7 @@ export default function Sheets({ app, shell, boot }) {
           <Spinner style={{ width: 22, height: 22 }} />
         </div>
       ) : (
-        <div className={`sh${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
+        <div className={`sh${model.rtl ? ' rtl' : ''}${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
           <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS}</style>
 
           <div className="sh-formula" hidden={view.formulaBar === false}>
@@ -3145,6 +3166,7 @@ export default function Sheets({ app, shell, boot }) {
                     touch
                     shapes={(model.drawings || []).filter((d) => !d.hidden).map((d) => ({ id: d.id, kind: d.kind, name: d.name, geometry: { x: d.x, y: d.y, w: d.width, h: d.height } }))}
                     hit={(el) => { const n = el.closest?.('.sh-drawing'); return n && /^Ink \d+$/.test(n.dataset.name || '') ? { id: n.dataset.id, node: n } : null; }}
+                    mirrored={Boolean(model.rtl)}
                     onStroke={(points) => act('inkStroke', { points })}
                     onErase={(ids) => dispatch({ op: 'deleteDrawings', ids })}
                     onLasso={(ids) => { setPicked(ids); setInk((v) => ({ ...v, tool: null })); }}
@@ -4083,6 +4105,18 @@ const CSS = `
 .sh-drawing { position: absolute; overflow: visible; z-index: 2; }
 .sh-drawing > svg { display: block; overflow: visible; }
 .sh-drawing.unsupported { display: grid; place-items: center; border: 1px dashed var(--line); color: var(--ink-3); font-size: 11px; background: rgba(255, 255, 255, 0.6); }
+/* Page Layout → Sheet Right-to-Left: the grid drawn mirrored — column A at
+   the right, the row headings and the outline on the right, the scroll bar
+   starting there — and what is read in it turned back about its own middle,
+   where it sits: words, labels, the editor, pictures and charts, cards,
+   the page numbers. The scale property rather than a transform, so a
+   drawing's own turn or flip still applies. */
+.sh.rtl .sh-grid { scale: -1 1; }
+.sh.rtl .sh-words, .sh.rtl .sh-rot, .sh.rtl .sh-cf-icon, .sh.rtl .sh-editor-box, .sh.rtl .sh-drawing, .sh.rtl .sh-card,
+.sh.rtl .sh-ol-level, .sh.rtl .sh-pb-page span, .sh.rtl .sh-pl-zone > *, .sh.rtl .sh-pl-blank span { scale: -1 1; }
+.sh.rtl .sh-pl-ruler text { transform-box: fill-box; transform-origin: center; scale: -1 1; }
+/* The card's arrow points back at its cell, now on its right. */
+.sh.rtl .sh-card::before { left: auto; right: -6px; scale: -1 1; }
 
 /* Excel's View toggles: gridlines off leaves the cells' own borders; headings off drops the rails. */
 .sh.no-grid .sh-cell { border-right-color: transparent; border-bottom-color: transparent; }

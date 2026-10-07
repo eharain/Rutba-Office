@@ -17,15 +17,17 @@ const PT = 96 / 72;
 /**
  * The surface: over the slide while a pen, the Eraser or the Lasso is on.
  * `size` is the slide's in its own pixels; strokes come back in them.
+ * `mirrored`: the surface is drawn mirrored (a sheet right to left), so a
+ * point is measured from its right edge.
  */
-export function InkSurface({ size, tool, pen, ruler, onRuler, touch, shapes, onStroke, onErase, onLasso, hit = null }) {
+export function InkSurface({ size, tool, pen, ruler, onRuler, touch, shapes, onStroke, onErase, onLasso, hit = null, mirrored = false }) {
   const host = useRef(null);
   const [live, setLive] = useState(null);
   const erased = useRef(new Set());
   const drag = useRef(null);
   const at = (e) => {
     const r = host.current.getBoundingClientRect();
-    return [((e.clientX - r.left) * size.width) / r.width, ((e.clientY - r.top) * size.height) / r.height];
+    return [(((mirrored ? r.right - e.clientX : e.clientX - r.left)) * size.width) / r.width, ((e.clientY - r.top) * size.height) / r.height];
   };
   const inkIds = new Set((shapes || []).filter(isInk).map((s) => String(s.id)));
 

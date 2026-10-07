@@ -519,6 +519,7 @@ export default function SheetsRibbon({
           <Group label="Sheet Options">
             <Button icon="grid" label="Gridlines" pressed={view.gridlines !== false} title="Show the gridlines on screen" onClick={() => act('toggleGridlines')} />
             <Button icon="list" label="Headings" pressed={view.headings !== false} title="Show the row and column headings" onClick={() => act('toggleHeadings')} />
+            <Button icon="textRtl" label="Sheet Right-to-Left" pressed={Boolean(model?.rtl)} title="Sheet Right-to-Left — column A at the right and the row headings with it, as an Arabic or Hebrew sheet reads" onClick={() => dispatch({ op: 'setRightToLeft', on: !model?.rtl })} />
           </Group>
           <Group label="Arrange">
             <Button icon="chevronUp" label="Bring Forward" disabled={!nPicked} title={`Bring Forward — ${need || 'the picked object one step, or all the way, to the front'}`} onClick={(e) => menu.open(e, [
