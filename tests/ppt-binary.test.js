@@ -30,7 +30,7 @@ test('a PowerPoint 97-2003 presentation reads as its slides: size, backgrounds, 
   assert.deepEqual(model.size, { width: 1280, height: 720 });
   assert.equal(model.slides.length, 8);
   const [first, second] = model.slides;
-  assert.equal(first.background, '#1F4E79');
+  assert.equal(first.background.gradient.stops[0].color, '#1F4E79', 'the title slide\'s gradient, from its first colour');
   const title = first.shapes.find((s) => textOf(s) === 'The Rutba Office showcase');
   assert.ok(title, 'the title slide\'s title');
   assert.equal(title.paragraphs[0].runs[0].size, 60);
@@ -89,7 +89,7 @@ test('written as a .pptx: eight slides, each shape where it stood, the notes kep
   const slide3 = pkg.text('ppt/slides/slide3.xml');
   assert.match(slide3, /<a:prstGeom prst="chevron">/);
   assert.match(slide3, /<a:custGeom>/, 'a freeform\'s own outline');
-  assert.match(pkg.text('ppt/slides/slide1.xml'), /<p:bg><p:bgPr><a:solidFill><a:srgbClr val="1F4E79"\/>/);
+  assert.match(pkg.text('ppt/slides/slide1.xml'), /<p:bg><p:bgPr><a:gradFill/);
   const deck = Deck.open(Buffer.from(bytes));
   assert.ok(deck, 'the deck opens');
   assert.ok(pkg.partNames().some((n) => /^ppt\/notesSlides\//.test(n)), 'notes pages');
@@ -136,6 +136,27 @@ test('a table\'s merged cells, a cell set in the middle and one with no fill com
   assert.match(tbl, /<a:tc hMerge="1">/);
   assert.match(tbl, /<a:tc rowSpan="3">[\s\S]*?<a:tcPr anchor="ctr">/);
   assert.equal((tbl.match(/<a:tc vMerge="1">/g) || []).length, 2);
+});
+
+test('gradients, transparency, shadows and where words sit come as the original has them', () => {
+  const model = readPpt(fixture('binary', 'showcase.ppt'));
+  // The title slide's background: Office Art's shaded fill read as the gradient the .pptx had (blue to red at 135°).
+  assert.deepEqual(model.slides[0].background, { gradient: { stops: [{ pos: 0, color: '#1F4E79' }, { pos: 1, color: '#C00000' }], angle: 135 } });
+  // A centred title takes the title style's font where its own style says none.
+  assert.equal(model.slides[0].shapes[0].paragraphs[0].runs[0].font, 'Aptos Display');
+  const shapes = Object.fromEntries(model.slides[2].shapes.map((s) => [textOf(s), s]));
+  assert.deepEqual(shapes.Rounded.fill.gradient, { stops: [{ pos: 0, color: '#ED7D31' }, { pos: 1, color: '#FFFFFF' }], angle: 90 }, 'the second colour white where it does not say');
+  assert.equal(Math.round(shapes.Smile.fill.alpha * 100), 60);
+  assert.ok(Math.abs(shapes.Triangle.shadow.dist * 12700 - 37357) < 2, 'as far off as the original\'s shadow');
+  assert.equal(shapes.Triangle.shadow.dir, 45);
+  assert.equal(shapes.Rectangle.shadow, undefined);
+
+  const pkg = OoxmlPackage.read(pptModelToDeck(model));
+  assert.match(pkg.text('ppt/slides/slide1.xml'), /<p:bg><p:bgPr><a:gradFill[^>]*><a:gsLst><a:gs pos="0"><a:srgbClr val="1F4E79"\/><\/a:gs><a:gs pos="100000"><a:srgbClr val="C00000"\/><\/a:gs><\/a:gsLst><a:lin ang="8100000"/);
+  const slide3 = pkg.text('ppt/slides/slide3.xml');
+  assert.equal((slide3.match(/<a:outerShdw /g) || []).length, 4);
+  assert.match(slide3, /<a:srgbClr val="806000"><a:alpha val="60000"\/><\/a:srgbClr>/);
+  assert.match(pkg.text('ppt/slides/slide4.xml'), /<a:bodyPr[^>]*anchor="ctr"/, 'the title in the middle of its box, as the placeholder says');
 });
 
 test('a slide hidden from the show stays hidden, and each comes on with its transition', () => {

@@ -21,7 +21,10 @@ export function pptModelToDeck(model) {
   }));
   slides.forEach((slide, i) => {
     if (slide.background && slide.background !== 'none') {
-      try { deck.setBackground(i, { colour: slide.background.replace('#', '') }); } catch { /* a background this cannot write leaves the default */ }
+      const g = slide.background.gradient;
+      const hex = (c) => String(typeof c === 'object' ? c.color : c).replace('#', '');
+      const spec = g ? { gradient: { from: { colour: hex(g.stops[0].color) }, to: { colour: hex(g.stops[1].color) }, angle: g.angle } } : { colour: hex(slide.background) };
+      try { deck.setBackground(i, spec); } catch { /* a background this cannot write leaves the default */ }
     }
     const builds = [];
     for (const sh of slide.shapes || []) {
@@ -32,7 +35,8 @@ export function pptModelToDeck(model) {
           id = deck.addTextBox(i, { ...box, name: sh.name || 'TextBox', paragraphs: sh.paragraphs });
           if ((sh.fill && sh.fill !== 'none') || (sh.line && sh.line !== 'none')) deck.setShapeStyle(i, id, { fill: sh.fill || 'none', line: sh.line || 'none' });
         } else if (sh.type === 'shape') {
-          id = deck.addShape(i, { ...box, preset: sh.preset, name: sh.name || null, fill: sh.fill || 'none', line: sh.line || 'none', text: sh.paragraphs?.length ? sh.paragraphs : null });
+          id = deck.addShape(i, { ...box, preset: sh.preset, name: sh.name || null, fill: sh.fill?.gradient ? 'none' : sh.fill || 'none', line: sh.line || 'none', text: sh.paragraphs?.length ? sh.paragraphs : null });
+          if (sh.fill?.gradient) deck.setShapeStyle(i, id, { fill: sh.fill });
           if (sh.path) deck.setShapePath(i, id, { commands: sh.path.commands, w: box.w, h: box.h, filled: sh.path.filled });
         } else if (sh.type === 'line') {
           id = deck.addShape(i, { preset: 'line', x: box.x, y: box.y, w: Math.max(0, Math.round(sh.w)), h: Math.max(0, Math.round(sh.h)) || (Math.round(sh.w) ? 0 : 1), name: sh.name || null, fill: 'none', line: sh.line === 'none' ? { color: '#000000', width: 0.75 } : sh.line });
@@ -50,6 +54,8 @@ export function pptModelToDeck(model) {
             cells: sh.cells.map((row) => row.map((c) => ({ ...c, fill: c.fill === 'none' ? null : c.fill }))),
           });
         }
+        if (id != null && sh.anchor && (sh.type === 'text' || (sh.type === 'shape' && sh.paragraphs?.length))) deck.setBodyProps(i, id, { anchor: sh.anchor });
+        if (id != null && sh.shadow) deck.setShapeStyle(i, id, { effects: { shadow: sh.shadow } });
         if (id != null && (sh.rotation || sh.flipH || sh.flipV)) deck.setGeometry(i, id, { ...box, rot: sh.rotation || 0, flipH: Boolean(sh.flipH), flipV: Boolean(sh.flipV) });
         if (id != null) builds.push({ id, spid: sh.spid, animation: sh.animation });
       } catch {

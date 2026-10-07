@@ -358,11 +358,19 @@ function mergeStyles(base, over) {
   return out;
 }
 
-/** A text type's master style: subtitles and half/quarter bodies are the body's, centred titles the title's, where not their own. */
+/**
+ * A text type's master style: subtitles and half/quarter bodies take the
+ * body's, centred titles the title's, each level with its own look over it
+ * where it has one — a centred title's own style is often empty, and its
+ * font the title's.
+ */
 function styleFor(styles, textType) {
   const order = { 0: [0], 1: [1], 2: [2, 1], 4: [4, 1], 5: [5, 1], 6: [6, 0], 7: [7, 1], 8: [8, 1] }[textType] || [4, 1];
-  for (const k of order) if (styles[k]?.length) return styles[k];
-  return [];
+  const out = [];
+  for (const k of [...order].reverse()) {
+    (styles[k] || []).forEach((lv, i) => { out[i] = { pf: { ...(out[i]?.pf || {}), ...lv.pf }, cf: { ...(out[i]?.cf || {}), ...lv.cf } }; });
+  }
+  return out;
 }
 
 /** A colour in a run, a bullet or a shape: a scheme entry by number, or its own RGB. */
@@ -445,7 +453,8 @@ function readTable(doc, kids, transform, ctx) {
     const anchor = props.get(0x0087)?.op ?? 0;
     boxes.push({
       ...box,
-      fill: props.has(0x0181) || props.get(0x01bf)?.op & 0x100000 ? fillOf(props, ctx) : 'none',
+      // A cell's shading drawn as its first colour: a table cell holds one.
+      fill: ((f) => (f?.gradient ? f.gradient.stops[0].color : typeof f === 'object' ? f.color : f))(props.has(0x0181) || props.get(0x01bf)?.op & 0x100000 ? fillOf(props, ctx) : 'none'),
       paragraphs: shapeText(doc, child(doc, k, T.ClientTextbox), ctx, null) || [],
       anchor: [1, 4].includes(anchor) ? 'middle' : [2, 5, 7, 9].includes(anchor) ? 'bottom' : 'top',
     });
@@ -642,9 +651,38 @@ function fillOf(props, ctx, background = false) {
   if (!filled) return 'none';
   const type = get(0x0180)?.op ?? 0;
   const colour = get(0x0181) ? artColour(get(0x0181).op, ctx.scheme) : background ? ctx.scheme[0] : 'FFFFFF';
-  // A gradient or a texture is drawn as its first colour; a picture fill as nothing this can draw.
+  // A shaded fill is a gradient; a texture is drawn as its colour; a picture fill as nothing this can draw.
   if (type === 3) return background ? null : 'none';
-  return colour ? '#' + colour : 'none';
+  // How opaque each colour is, where it is not wholly.
+  const opacity = (id) => (get(id) ? fraction(get(id).op) : 1);
+  const tint = (hex, a) => (a < 1 ? { color: '#' + hex, alpha: a } : '#' + hex);
+  if (type >= 4 && type <= 8 && colour) {
+    // The second colour, white where it does not say (Office Art's own).
+    const back = get(0x0183) ? artColour(get(0x0183).op, ctx.scheme) : 'FFFFFF';
+    if (back) return gradientOf(props, tint(colour, opacity(0x0182)), tint(back, opacity(0x0184)), type);
+  }
+  return colour ? tint(colour, opacity(0x0182)) : 'none';
+}
+
+/**
+ * Office Art's shaded fill as a linear gradient: { gradient: { stops,
+ * angle } }, the angle DrawingML's. Which colour comes first follows
+ * LibreOffice's reading — the angle's sign, the focus (none, negative or
+ * about half, which makes it run out and back) and a centre or shape-shaded
+ * fill each turn it round; a centre or shape-shaded fill is drawn linear.
+ */
+function gradientOf(props, fore, back, type) {
+  const raw = (props.get(0x018b)?.op ?? 0) | 0;
+  const focus = (props.get(0x018c)?.op ?? 0) | 0;
+  const axial = Math.abs(focus) > 40 && Math.abs(focus) < 60;
+  let swap = raw >= 0;
+  if (!focus || focus < 0) swap = !swap;
+  if (axial) swap = !swap;
+  if (type === 5 || type === 6) swap = !swap;
+  const [start, end] = swap ? [fore, back] : [back, fore];
+  const stop = (pos, c) => (typeof c === 'string' ? { pos, color: c } : { pos, ...c });
+  const stops = axial ? [stop(0, start), stop(0.5, end), stop(1, start)] : [stop(0, start), stop(1, end)];
+  return { gradient: { stops, angle: (((450 - raw / 65536) % 360) + 360) % 360 } };
 }
 
 /** A shape's outline, or 'none': black, three quarters of a point, where it does not say. */
@@ -675,8 +713,21 @@ function readShape(doc, sp, transform, ctx) {
   const name = props.get(0x0380)?.complex ? utf16(props.get(0x0380).complex) : null;
   const rotation = props.get(0x0004) ? i32(new Uint8Array(new Uint32Array([props.get(0x0004).op]).buffer), 0) / 65536 : 0;
   const base = { x: box.x, y: box.y, w: box.w, h: box.h, name, rotation, flipH: Boolean(flags & 0x40), flipV: Boolean(flags & 0x80) };
-  // Its id, which a later PowerPoint's effects name it by, and its PowerPoint 97 build.
+  // Its id, which a later PowerPoint's effects name it by, where its words sit in it when it says, and its PowerPoint 97 build.
   base.spid = u32(doc, fsp.body);
+  // Its shadow: Office Art's offset, colour and opacity; it keeps no blur, so PowerPoint's own five points.
+  const shadowBits = props.get(0x023f)?.op ?? 0;
+  if (shadowBits & 0x20000 && shadowBits & 0x2) {
+    const dx = (props.get(0x0205)?.op ?? 25400) | 0;
+    const dy = (props.get(0x0206)?.op ?? 25400) | 0;
+    const tone = props.get(0x0201) ? artColour(props.get(0x0201).op, ctx.scheme) : '808080';
+    base.shadow = {
+      color: '#' + (tone || '808080'), alpha: props.has(0x0204) ? fraction(props.get(0x0204).op) : 1,
+      dist: Math.hypot(dx, dy) / 12700, dir: ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360, blur: 5,
+    };
+  }
+  const anchorText = props.get(0x0087)?.op;
+  if (anchorText != null) base.anchor = [1, 4].includes(anchorText) ? 'middle' : [2, 5, 7, 9].includes(anchorText) ? 'bottom' : 'top';
   const animation = animationOf(doc, data);
   if (animation) base.animation = animation;
 
@@ -719,6 +770,8 @@ function readShape(doc, sp, transform, ctx) {
 
 
 const utf16 = (b) => { let s = ''; for (let i = 0; i + 1 < b.length; i += 2) { const c = u16(b, i); if (!c) break; s += String.fromCharCode(c); } return s; };
+/** An Office Art 16.16 fraction (an opacity) as the thousandths PowerPoint means: 0x9999 is 60%. */
+const fraction = (op) => Math.max(0, Math.min(1, Math.round(((op >>> 0) / 65536) * 1000) / 1000));
 
 /** A placeholder's kind, as the kind of text it holds — what its master style is. */
 const PLACEMENT_TEXT = { 1: 0, 2: 1, 3: 6, 4: 5, 13: 0, 14: 1, 15: 6, 16: 5, 17: 0, 18: 1 };
