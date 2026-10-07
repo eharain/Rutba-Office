@@ -1165,6 +1165,102 @@ export function createPivot(wb, spec, plan = planPivot(wb, spec)) {
   return readPivotPart(wb, target.sheet, tablePart);
 }
 
+/**
+ * PivotTable Fields: the fields on the rows, the columns and the values of
+ * a pivot changed (`layout` by field index: `rowFields`, `colFields`,
+ * `dataFields` as `{ fld, subtotal, name? }`). The table definition is
+ * written again — each field's axis and data flag, a field newly on an axis
+ * given shared items in the cache and its items, the Values marker when
+ * there is more than one value — and the cache asked to refresh when Excel
+ * next opens the file, so Excel lays the new rows out itself. A field on an
+ * axis keeps the items it hides. The caller recomputes and writes the cells.
+ */
+export function setPivotLayout(wb, pivot, layout, readCell) {
+  const count = pivot.cacheFields.length;
+  const rowFields = [...(layout.rowFields ?? [])];
+  const colFields = [...(layout.colFields ?? [])];
+  const dataFields = (layout.dataFields ?? []).map((d) => ({ fld: d.fld, subtotal: d.subtotal ?? 'sum', name: d.name ?? null }));
+  for (const f of [...rowFields, ...colFields, ...dataFields.map((d) => d.fld)]) {
+    if (!Number.isInteger(f) || f < 0 || f >= count) throw new Error('the pivot has no field ' + f);
+  }
+  if (!dataFields.length) throw new Error('a pivot needs at least one value to summarise');
+  for (const d of dataFields) if (!SUBTOTALS.has(d.subtotal)) throw new Error('"' + d.subtotal + '" is not a way to summarise');
+  const both = rowFields.find((f) => colFields.includes(f));
+  if (both !== undefined) throw new Error('"' + pivot.cacheFields[both].name + '" cannot be on both axes');
+  if (new Set(rowFields).size !== rowFields.length || new Set(colFields).size !== colFields.length) throw new Error('a field is on an axis once');
+
+  // A field on an axis is counted by its items, which the cache must share.
+  for (const f of [...rowFields, ...colFields]) {
+    if (!pivot.cacheFields[f].items) ensureSharedItems(wb, pivot, f, sourceValues(pivot, readCell, f));
+  }
+
+  let xml = wb.pkg.text(pivot.part);
+  const block = /<pivotFields\b[^>]*>([\s\S]*?)<\/pivotFields>/.exec(xml);
+  const fields = block ? [...block[1].matchAll(/<pivotField\b([^>]*?)(?:\/>|>([\s\S]*?)<\/pivotField>)/g)].map((m) => ({ attrs: m[1], body: m[2] ?? '' })) : [];
+  while (fields.length < count) fields.push({ attrs: ' showAll="0"', body: '' });
+  const fieldsXml = fields.map((f, i) => {
+    let attrsText = f.attrs.replace(/\s+axis="[^"]*"/, '').replace(/\s+dataField="[^"]*"/, '');
+    if (rowFields.includes(i)) attrsText = ' axis="axisRow"' + attrsText;
+    else if (colFields.includes(i)) attrsText = ' axis="axisCol"' + attrsText;
+    if (dataFields.some((d) => d.fld === i)) attrsText += ' dataField="1"';
+    let body = f.body;
+    const onAxis = rowFields.includes(i) || colFields.includes(i);
+    if (onAxis && !/<items\b/.test(body)) {
+      const items = pivot.cacheFields[i].items ?? [];
+      body = '<items count="' + (items.length + 1) + '">' + items.map((_v, k) => '<item x="' + k + '"/>').join('') + '<item t="default"/></items>' + body;
+    }
+    return body ? '<pivotField' + attrsText + '>' + body + '</pivotField>' : '<pivotField' + attrsText + '/>';
+  }).join('');
+  const pivotFieldsXml = '<pivotFields count="' + count + '">' + fieldsXml + '</pivotFields>';
+
+  // More than one value: Excel keeps a Values field (-2) on the columns, or the rows.
+  const values = dataFields.length > 1 ? [-2] : [];
+  const rowList = pivot.dataOnRows ? [...rowFields, ...values] : rowFields;
+  const colList = pivot.dataOnRows ? colFields : [...colFields, ...values];
+  const list = (tag, items) => (items.length ? '<' + tag + ' count="' + items.length + '">' + items.map((f) => '<field x="' + f + '"/>').join('') + '</' + tag + '>' : '');
+  const axisItems = (fieldsOn, tag) => {
+    const first = fieldsOn.find((f) => f >= 0);
+    const n = first === undefined ? 0 : (pivot.cacheFields[first].items?.length ?? 0);
+    const lines = [];
+    for (let i = 0; i < n; i++) lines.push('<i>' + (i === 0 ? '<x/>' : '<x v="' + i + '"/>') + '</i>');
+    lines.push(n ? '<i t="grand"><x/></i>' : '<i/>');
+    return '<' + tag + ' count="' + lines.length + '">' + lines.join('') + '</' + tag + '>';
+  };
+  // A value field keeps the name it had for the same field and sum.
+  const named = new Map(pivot.dataFields.map((d) => [d.fld + ':' + d.subtotal, d.name]));
+  const dataFieldsXml = '<dataFields count="' + dataFields.length + '">'
+    + dataFields.map((d) => '<dataField name="' + esc(d.name ?? named.get(d.fld + ':' + d.subtotal) ?? defaultDataName(pivot.cacheFields[d.fld].name, d.subtotal))
+      + '" fld="' + d.fld + '"' + (d.subtotal === 'sum' ? '' : ' subtotal="' + d.subtotal + '"') + ' baseField="0" baseItem="0"/>').join('')
+    + '</dataFields>';
+  // A page filter on a field now on an axis or among the values gives way to it.
+  const taken = new Set([...rowFields, ...colFields]);
+  xml = xml.replace(/<pageFields\b[^>]*>([\s\S]*?)<\/pageFields>/, (whole, inner) => {
+    const kept = [...inner.matchAll(/<pageField\b[^>]*?\/>/g)].map((m) => m[0]).filter((p) => !taken.has(Number(/\bfld="(-?\d+)"/.exec(p)?.[1])));
+    return kept.length ? '<pageFields count="' + kept.length + '">' + kept.join('') + '</pageFields>' : '';
+  });
+  xml = xml
+    .replace(/<pivotFields\b[^>]*>[\s\S]*?<\/pivotFields>/, () => pivotFieldsXml)
+    .replace(/<rowFields\b[^>]*>[\s\S]*?<\/rowFields>|<rowFields\b[^>]*\/>/, '')
+    .replace(/<rowItems\b[^>]*>[\s\S]*?<\/rowItems>|<rowItems\b[^>]*\/>/, '')
+    .replace(/<colFields\b[^>]*>[\s\S]*?<\/colFields>|<colFields\b[^>]*\/>/, '')
+    .replace(/<colItems\b[^>]*>[\s\S]*?<\/colItems>|<colItems\b[^>]*\/>/, '')
+    .replace(/<dataFields\b[^>]*>[\s\S]*?<\/dataFields>/, '');
+  // In the schema's order: after pivotFields, the rows, the columns, then (after any page fields) the values.
+  xml = xml.replace(pivotFieldsXml, () => pivotFieldsXml + list('rowFields', rowList) + axisItems(rowList, 'rowItems') + list('colFields', colList) + axisItems(colList, 'colItems'));
+  const afterPages = /<\/pageFields>/.exec(xml);
+  if (afterPages) xml = xml.slice(0, afterPages.index + afterPages[0].length) + dataFieldsXml + xml.slice(afterPages.index + afterPages[0].length);
+  else xml = xml.replace(/<colItems\b[^>]*>[\s\S]*?<\/colItems>/, (m) => m + dataFieldsXml);
+  wb.pkg.write_(pivot.part, xml);
+
+  // Excel lays the rows out again from the cache when the file next opens.
+  const cacheXml = wb.pkg.text(pivot.cachePart);
+  const refreshed = /\brefreshOnLoad="/.test(cacheXml)
+    ? cacheXml.replace(/\brefreshOnLoad="[^"]*"/, 'refreshOnLoad="1"')
+    : cacheXml.replace('<pivotCacheDefinition ', () => '<pivotCacheDefinition refreshOnLoad="1" ');
+  if (refreshed !== cacheXml) wb.pkg.write_(pivot.cachePart, refreshed);
+  return readPivotPart(wb, pivot.sheet, pivot.part);
+}
+
 /** "Sum of Qty" — the name Excel gives a value field nobody renamed. */
 function defaultDataName(field, subtotal) {
   const verb = {

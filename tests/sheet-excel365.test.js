@@ -184,3 +184,25 @@ test('adding or moving a sheet keeps what was just typed, and undo keeps it too'
     assert.equal(SheetView.open(view.save()).calc.getValue('Data', 0, 1), 'typed', step + ', saved');
   }
 });
+
+test('PivotTable Fields changes a pivot\'s rows, columns and values, laid out again at once, one step of undo', () => {
+  const rows = [['Region', 'Product', 'Qty', 'Price'], ['North', 'Ink', 4, 2], ['South', 'Ink', 6, 2], ['North', 'Paper', 3, 5], ['South', 'Paper', 1, 5]];
+  const view = SheetView.open(buildXlsx({ sheets: [{ name: 'Data', rows }] }));
+  view.createPivot({ name: 'Sales', source: 'Data!A1:D5', target: { sheet: 'Data', row: 0, col: 6 }, rowFields: ['Region'], dataFields: [{ field: 'Qty', subtotal: 'sum' }] });
+  const at = (r, c) => view.calc.getValue('Data', r, c);
+  assert.deepEqual([at(1, 6), at(1, 7), at(3, 6), at(3, 7)], ['North', 7, 'Grand Total', 14]);
+  view.setPivotLayout('Sales', { rows: ['Product'], cols: ['Region'], values: [{ field: 'Qty', subtotal: 'sum' }] });
+  assert.deepEqual([at(0, 7), at(0, 8), at(1, 6), at(1, 7), at(3, 9)], ['North', 'South', 'Ink', 4, 14], 'products down, regions across');
+  view.setPivotLayout('Sales', { rows: ['Region'], values: [{ field: 'Qty', subtotal: 'sum' }, { field: 'Price', subtotal: 'max' }] });
+  assert.deepEqual([at(0, 7), at(0, 8), at(1, 8)], ['Sum of Qty', 'Max of Price', 5]);
+  const xml = Workbook.open(view.save()).pkg.text('xl/pivotTables/pivotTable1.xml');
+  assert.match(xml, /<pivotField axis="axisRow" showAll="0"><items count="3">/);
+  assert.match(xml, /<colFields count="1"><field x="-2"\/><\/colFields>/, 'two values: the Values field on the columns, as Excel writes it');
+  assert.match(xml, /<dataField name="Max of Price" fld="3" subtotal="max"/);
+  assert.match(Workbook.open(view.save()).pkg.text('xl/pivotCache/pivotCacheDefinition1.xml'), /refreshOnLoad="1"/);
+  view.undo();
+  view.undo();
+  assert.deepEqual([at(1, 6), at(1, 7), at(0, 8)], ['North', 7, ''], 'back as it was, the cells it took cleared');
+  assert.throws(() => view.setPivotLayout('Sales', { rows: ['Region'], values: [] }), /at least one field in Values/);
+  assert.throws(() => view.setPivotLayout('Sales', { rows: ['Region'], cols: ['Region'], values: [{ field: 'Qty' }] }), /both axes/);
+});

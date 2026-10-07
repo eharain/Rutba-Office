@@ -1592,6 +1592,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       dataFields: a.dataFields || [], chart: a.chart || null, fileName: a.fileName || null,
     }).name,
     refreshPivot: (v, a) => { v.refreshPivot(a.name); },
+    // PivotTable Fields: the rows, columns and values of a pivot changed, and the pivot laid out again.
+    pivotLayout: (v, a) => { v.setPivotLayout(a.name, { rows: a.rows || [], cols: a.cols || [], values: a.values || [] }); },
     // Insert → PivotChart with the cursor in a pivot.
     insertPivotChart: (v, a) => { v.insertPivotChart({ kind: a.kind || 'column', title: a.title || '', fileName: a.fileName || null }); },
     // Insert → Slicer: what the cursor is in and its fields (for the

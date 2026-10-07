@@ -24,7 +24,7 @@ import {
   readPivots, computePivot, updatePivotLocation, dataFieldLabel, areaRef,
   createPivot, planPivot, parseArea as parsePivotArea,
   pivotChartXml, readPivotChart, pivotSourceName, PIVOT_CHART_KINDS,
-  sourceValues, ensureSharedItems, setPivotItemsShown, itemLabel, pivotKey,
+  sourceValues, ensureSharedItems, setPivotItemsShown, itemLabel, pivotKey, setPivotLayout,
 } from '@rutba/ooxml/pivot';
 import {
   readSlicers, addSlicer, removeSlicer, slicerAnchorXml, writeSlicerCacheItems, setSlicerProps as writeSlicerProps,
@@ -1483,6 +1483,10 @@ export class SheetView {
         rows: p.rowFields.map((f) => p.cacheFields[f]?.name ?? ''),
         cols: p.colFields.map((f) => p.cacheFields[f]?.name ?? ''),
         values: p.dataFields.map((d) => dataFieldLabel(p, d)),
+        // The value fields as PivotTable Fields lists them: the heading and how it is summarised.
+        valueFields: p.dataFields.map((d) => ({ field: p.cacheFields[d.fld]?.name ?? '', subtotal: d.subtotal })),
+        // Which fields hold numbers, by their first value — a tick puts those in Values.
+        numeric: p.source ? p.cacheFields.map((_, i) => typeof this.calc.getValue(p.source.sheet, p.source.top + 1, p.source.left + i) === 'number') : [],
         unsupported: p.unsupported,
       })),
       viewport: vp,
@@ -4585,6 +4589,57 @@ export class SheetView {
         dataCol: grid.firstDataCol,
       });
       this._updatePivotCharts(pivot, grid);
+      this._pivots = null;
+      this._structuralDirty = true;
+      return this;
+    }, { parts });
+    return { rows: grid.height, cols: grid.width };
+  }
+
+  /**
+   * PivotTable Fields: the fields on a pivot's rows, columns and values
+   * changed, by heading — `rows` and `cols` as names, `values` as
+   * `{ field, subtotal }` — and the pivot laid out again at once. One undo
+   * step: the definition, the cache and every cell the pivot covered before
+   * or covers now.
+   */
+  setPivotLayout(name, { rows = [], cols = [], values = [] } = {}) {
+    const pivot = this.pivots().find((p) => p.name === String(name ?? '').trim());
+    if (!pivot) throw new Error('no pivot table "' + String(name ?? '').trim() + '"');
+    if (pivot.unsupported) throw new Error('"' + pivot.name + '" cannot be changed here: ' + pivot.unsupported);
+    if (pivot.sheet !== this.activeSheet) throw new Error('"' + pivot.name + '" is on sheet ' + pivot.sheet);
+    const indexOf = (label) => {
+      const i = pivot.cacheFields.findIndex((f) => f.name.toLowerCase() === String(label ?? '').toLowerCase());
+      if (i < 0) throw new Error('the pivot has no field "' + label + '"');
+      return i;
+    };
+    const layout = {
+      rowFields: rows.map(indexOf),
+      colFields: cols.map(indexOf),
+      dataFields: values.map((v) => ({ fld: indexOf(v.field), subtotal: v.subtotal ?? 'sum' })),
+    };
+    if (!layout.dataFields.length) throw new Error('A pivot needs at least one field in Values.');
+    const readCell = (sheet, row, col) => this.calc.getValue(sheet, row, col);
+    // The new grid first — what it covers is the undo footprint.
+    const grid = computePivot({ ...pivot, ...layout, dataFields: layout.dataFields.map((d) => ({ ...d, name: null })) }, readCell);
+    const touched = new Map();
+    const mark = (row, col) => touched.set(row + ':' + col, { row, col });
+    const old = pivot.location;
+    for (let r = old.top; r <= old.bottom; r++) for (let c = old.left; c <= old.right; c++) mark(r, c);
+    for (let r = grid.area.top; r <= grid.area.bottom; r++) for (let c = grid.area.left; c <= grid.area.right; c++) mark(r, c);
+    const recRel = this.pkg.rels(pivot.cachePart).find((r) => String(r.Type).endsWith('/pivotCacheRecords'));
+    const records = recRel ? OoxmlPackage.resolveTarget(pivot.cachePart, recRel.Target) : null;
+    const parts = [...new Set([this.workbook.partNameFor(this.activeSheet), pivot.part, pivot.cachePart, ...(records ? [records] : []), ...this._pivotChartParts(pivot)])];
+    this._edit('pivot fields', null, [...touched.values()], () => {
+      const next = setPivotLayout(this.workbook, pivot, layout, readCell);
+      const laid = computePivot(next, readCell);
+      const wanted = new Map(laid.cells.map((c) => [c.row + ':' + c.col, c.value]));
+      for (const { row, col } of touched.values()) {
+        const value = wanted.has(row + ':' + col) ? wanted.get(row + ':' + col) : '';
+        this._setCell(row, col, value === '' ? '' : value);
+      }
+      updatePivotLocation(this.workbook, next, laid.area, { headerRows: laid.firstHeaderRow, dataRow: laid.firstDataRow, dataCol: laid.firstDataCol });
+      this._updatePivotCharts(next, laid);
       this._pivots = null;
       this._structuralDirty = true;
       return this;
