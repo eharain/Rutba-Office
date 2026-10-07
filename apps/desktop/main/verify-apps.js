@@ -97,6 +97,7 @@ import { verifyWordBinary } from './verify-word-binary.js';
 import { verifySheetBinary } from './verify-sheet-binary.js';
 import { verifyDeckBinary } from './verify-deck-binary.js';
 import { verifyDrawingDelete } from './verify-drawing-delete.js';
+import { verifySheetPointing } from './verify-sheet-pointing.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -4691,6 +4692,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('xls')) await verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('ppt')) await verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('delete')) await verifyDrawingDelete({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('pointing')) await verifySheetPointing({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
@@ -4913,6 +4915,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDrawingDelete({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await block(() => verifySheetPointing({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => wordMailMerge());

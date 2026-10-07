@@ -33,6 +33,7 @@ import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
 import { SmartArtDialog, SMARTART_CSS } from '../smartart-dialog.js';
 import { layoutSmartArt } from '../smartart.js';
+import { formulaReferences, pointSpan, rangeText, rangeOf, cycleAbsolute, REF_COLOURS } from '@rutba/sheet-view/formula-refs';
 import {
   ConditionalDialog, ValidationDialog, GoalSeekDialog, DataTableDialog, NameManager, FindDialog, PivotDialog,
 } from './sheets/dialogs.js';
@@ -540,6 +541,30 @@ export default function Sheets({ app, shell, boot }) {
    */
   const startingRef = useRef(false);
 
+  /**
+   * Pointing, as Excel does while a formula is typed. Each reference in
+   * the draft is coloured, in the text and round its cells; with the caret
+   * where a reference can go — after "=", a bracket, a comma or an
+   * operator, or just after a reference — a click on a cell puts its
+   * reference there, a drag makes it a range, Shift+click stretches it, and
+   * the next click replaces it. An edit begun by typing (Excel's Enter
+   * mode) points with the arrow keys too; F4 turns a reference's dollar
+   * signs. `pointRef` is the reference last put in this way: where it sits
+   * in the draft, where its drag began and where it reached.
+   */
+  const barRef = useRef(null);
+  const pointRef = useRef(null);
+  const typedRef = useRef(false);
+  const [caret, setCaret] = useState(null);
+  const [pointing, setPointing] = useState(false);
+  const refs = useMemo(() => (draft != null && draft.startsWith('=') ? formulaReferences(draft) : []), [draft]);
+  const trackCaret = (e) => setCaret(e.target.selectionStart);
+  const caretRef = refs.find((r) => caret != null && caret >= r.start && caret <= r.end) || null;
+
+  useEffect(() => {
+    if (!editing) { pointRef.current = null; typedRef.current = false; setCaret(null); }
+  }, [Boolean(editing)]);
+
   useEffect(() => {
     if (editing) putDraft((d) => (d == null ? editing.draft ?? '' : d));
     // The editor has gone (a commit, a cancel): its draft goes with it —
@@ -600,6 +625,100 @@ export default function Sheets({ app, shell, boot }) {
     [dispatch, putDraft]
   );
 
+  /** The formula field the caret is in — the cell's editor or the bar — or null. */
+  const formulaInput = () => {
+    const a = document.activeElement;
+    return a && (a === editorRef.current || a === barRef.current) ? a : null;
+  };
+
+  /** Where a reference would go if a cell were pointed at now: the span to replace, and the field. */
+  const pointSpot = () => {
+    const input = formulaInput();
+    const text = draftRef.current;
+    if (!input || text == null || !text.startsWith('=') || input.selectionStart !== input.selectionEnd) return null;
+    const span = pointSpan(text, input.selectionStart);
+    return span ? { ...span, input } : null;
+  };
+
+  /** Put the range from `anchor` to `at` in the draft over `span`, the caret after it. */
+  const pointAt = (anchor, at, span, input) => {
+    const text = rangeText(rangeOf(anchor, at));
+    const d = draftRef.current ?? '';
+    putDraft(d.slice(0, span.start) + text + d.slice(span.end));
+    pointRef.current = { start: span.start, end: span.start + text.length, anchor, at };
+    const pos = span.start + text.length;
+    setCaret(pos);
+    requestAnimationFrame(() => { if (input && document.activeElement === input) input.setSelectionRange(pos, pos); });
+  };
+
+  /** The reference just pointed at, when the caret is still after it: the one a Shift or an arrow carries on. */
+  const continuing = (spot) => {
+    const p = pointRef.current;
+    return p && spot && p.start === spot.start && p.end === spot.end ? p : null;
+  };
+
+  /**
+   * A press on a cell while pointing — a drawn cell or empty grid: its
+   * reference in, and a drag stretches it to a range, found by where the
+   * pointer is, as the empty grid is found.
+   */
+  const startPoint = (e, cell, spot) => {
+    const at = { row: cell.row, col: cell.col };
+    const prev = continuing(spot);
+    pointAt(e.shiftKey && prev ? prev.anchor : at, at, spot, spot.input);
+    setPointing(true);
+    const layer = e.currentTarget.closest('.sh-cells');
+    const move = (ev) => {
+      const hit = cellAtPoint(document.elementFromPoint(ev.clientX, ev.clientY), layer, ev.clientX, ev.clientY);
+      const p = pointRef.current;
+      if (!hit || !p || (p.at.row === hit.row && p.at.col === hit.col)) return;
+      pointAt(p.anchor, hit, { start: p.start, end: p.end }, spot.input);
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      setPointing(false);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  /**
+   * The formula fields' own keys: F4 turns the dollar signs of the
+   * reference at the caret; in an edit begun by typing, an arrow points
+   * where a reference can go. True when the key was taken.
+   */
+  const formulaKey = (e) => {
+    const input = formulaInput();
+    const text = draftRef.current;
+    if (!input || text == null || !text.startsWith('=') || e.ctrlKey || e.metaKey || e.altKey) return false;
+    if (e.key === 'F4') {
+      const at = input.selectionStart;
+      const r = formulaReferences(text).find((x) => at >= x.start && at <= x.end);
+      if (!r) return false;
+      e.preventDefault();
+      const turned = cycleAbsolute(r.text);
+      putDraft(text.slice(0, r.start) + turned + text.slice(r.end));
+      const pos = r.start + turned.length;
+      if (pointRef.current?.start === r.start) pointRef.current = { ...pointRef.current, end: pos };
+      setCaret(pos);
+      requestAnimationFrame(() => { if (document.activeElement === input) input.setSelectionRange(pos, pos); });
+      return true;
+    }
+    const step = { ArrowUp: [-1, 0], ArrowDown: [1, 0], ArrowLeft: [0, -1], ArrowRight: [0, 1] }[e.key];
+    if (!step || !typedRef.current || input !== editorRef.current || !editing) return false;
+    const spot = pointSpot();
+    const prev = continuing(spot);
+    // A reference typed by hand is text to move through; one pointed at, or
+    // the place after an operator, is where the arrows point.
+    if (!spot || (spot.start !== spot.end && !prev)) return false;
+    e.preventDefault();
+    const from = prev ? prev.at : { row: editing.row, col: editing.col };
+    const at = { row: Math.max(0, from.row + step[0]), col: Math.max(0, from.col + step[1]) };
+    pointAt(e.shiftKey && prev ? prev.anchor : at, at, spot, input);
+    return true;
+  };
+
   /**
    * Insert → Pictures: a file, put at the active cell at its own
    * proportions, its longer side no more than 320 px. The size comes from
@@ -641,6 +760,7 @@ export default function Sheets({ app, shell, boot }) {
       if (field !== e.currentTarget && field !== editorRef.current
         && (field.tagName === 'INPUT' || field.tagName === 'TEXTAREA' || field.tagName === 'SELECT' || field.isContentEditable)) return;
       if (editing) {
+        if (formulaKey(e)) return;
         if (e.key === 'Escape') {
           e.preventDefault();
           putDraft(null);
@@ -759,6 +879,8 @@ export default function Sheets({ app, shell, boot }) {
           return;
         }
         startingRef.current = true;
+        // Begun by typing: Excel's Enter mode, in which the arrows point.
+        typedRef.current = true;
         putDraft(e.key);
         await dispatch({ op: 'beginEdit', replace: true, initial: e.key });
       }
@@ -985,19 +1107,22 @@ export default function Sheets({ app, shell, boot }) {
     return { x: left.x, y: top.y, right: right.x + right.width, bottom: bottom.y + bottom.height };
   };
 
-  const cellAt = (event) => {
+  const cellAt = (event) => cellAtPoint(event.target, event.currentTarget, event.clientX, event.clientY);
+  /** The cell under a point on the screen: `target` what is there, `cells` the cells layer. */
+  const cellAtPoint = (target, cells, clientX, clientY) => {
     // A press inside a pinned layer is measured from the layer, which has
     // slid with the scroll; the columns layer starts under the frozen rows.
-    const pin = event.target?.closest?.('.sh-pin');
-    const layer = pin || event.currentTarget;
+    const pin = target?.closest?.('.sh-pin');
+    const layer = pin || cells;
+    if (!layer) return null;
     // Screen pixels to the grid's own: the grid is zoomed, the pointer is not.
     const rect = layer.getBoundingClientRect();
     const z = view.zoom || 1;
     // Each pinned layer says how far its content is from where it sits:
     // the frozen columns start under the frozen rows, a split pane shows
     // the rows and columns it has scrolled to.
-    const x = (event.clientX - rect.left) / z + Number(pin?.dataset.ox || 0);
-    const y = (event.clientY - rect.top) / z + Number(pin?.dataset.oy || 0);
+    const x = (clientX - rect.left) / z + Number(pin?.dataset.ox || 0);
+    const y = (clientY - rect.top) / z + Number(pin?.dataset.oy || 0);
     const col = (model?.columns || []).find((c) => x >= c.x && x < c.x + c.width);
     const row = (model?.rows || []).find((r) => y >= r.y && y < r.y + r.height);
     return col && row ? { row: row.index, col: col.index } : null;
@@ -1264,6 +1389,12 @@ export default function Sheets({ app, shell, boot }) {
         data-ref={cell.ref}
         style={dy || dx ? (() => { const s = spillStyle(cell); return { ...s, top: cell.y - dy, left: s.left - dx }; })() : spillStyle(cell)}
         onMouseDown={(e) => {
+          // Typing a formula, with the caret where a reference can go: the
+          // cell is pointed at, not selected, and the formula keeps the keys.
+          if (e.button === 0 && editing) {
+            const spot = pointSpot();
+            if (spot) { e.preventDefault(); startPoint(e, cell, spot); return; }
+          }
           // Ctrl+click on a link follows it, as in Word; a plain click selects, as in Excel.
           if (cell.link && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
           dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
@@ -1294,24 +1425,88 @@ export default function Sheets({ app, shell, boot }) {
     );
   };
 
+  /**
+   * A formula's text with each reference in its colour: drawn under its
+   * field, whose own letters are made transparent, so the caret and the
+   * selection are the field's and the colours are these.
+   */
+  const paintedText = (text) => {
+    const out = [];
+    let at = 0;
+    refs.forEach((r, i) => {
+      if (r.start > at) out.push(<span key={`t${i}`}>{text.slice(at, r.start)}</span>);
+      out.push(<span key={`r${i}`} className="sh-ref-text" style={{ color: REF_COLOURS[r.colour] }}>{text.slice(r.start, r.end)}</span>);
+      at = r.end;
+    });
+    if (at < text.length) out.push(<span key="end">{text.slice(at)}</span>);
+    return out;
+  };
+  /** The painted copy follows its field's scroll, a long formula's caret at its end. */
+  const followScroll = (input) => {
+    const paint = input?.parentElement?.querySelector(':scope > .sh-paint');
+    if (paint) paint.scrollLeft = input.scrollLeft;
+  };
+  useEffect(() => {
+    followScroll(editorRef.current);
+    followScroll(barRef.current);
+  });
+
   /** The cell editor, over the active cell, in whichever layer holds it. */
   const editorNode = (dy = 0) => {
     const active = model.cells.find((c) => c.active);
+    const paint = refs.length > 0;
     return (
-      <input
-        ref={editorRef}
-        className="sh-editor"
-        value={draft ?? ''}
-        onChange={(e) => putDraft(e.target.value)}
-        onBlur={() => editing && commitDraft('none')}
+      <div
+        className="sh-editor-box"
         style={{
           left: editing.x ?? active?.x ?? 0,
           top: (editing.y ?? active?.y ?? 0) - dy,
           width: Math.max(80, active?.width ?? 80),
-          height: active?.height ?? 20,
+          height: Math.max(20, active?.height ?? 20),
         }}
-      />
+      >
+        <input
+          ref={editorRef}
+          className={`sh-editor${paint ? ' painted' : ''}`}
+          value={draft ?? ''}
+          onChange={(e) => { putDraft(e.target.value); trackCaret(e); }}
+          onSelect={trackCaret}
+          onKeyUp={trackCaret}
+          onScroll={(e) => followScroll(e.target)}
+          onBlur={() => editing && commitDraft('none')}
+        />
+        {paint ? <div className="sh-paint sh-paint-cell" aria-hidden="true">{paintedText(draft ?? '')}</div> : null}
+      </div>
     );
+  };
+
+  /**
+   * The cells each reference of the formula being typed names, boxed in
+   * its colour — the one the caret is in drawn heavier, with Excel's
+   * corner marks, and dashed while it is being pointed out.
+   */
+  const refsNode = () => {
+    if (!editing || !refs.length) return null;
+    const sheet = String(model.activeSheet ?? '').toLowerCase();
+    const box = (range) => {
+      const cols = (model.columns || []).filter((c) => c.index >= range.left && c.index <= range.right);
+      const rows = (model.rows || []).filter((r) => r.index >= range.top && r.index <= range.bottom);
+      if (!cols.length || !rows.length) return null;
+      const x = Math.min(...cols.map((c) => c.x));
+      const y = Math.min(...rows.map((r) => r.y));
+      return { left: x, top: y, width: Math.max(...cols.map((c) => c.x + c.width)) - x, height: Math.max(...rows.map((r) => r.y + r.height)) - y };
+    };
+    return refs.map((r, i) => {
+      if (r.sheet && r.sheet.toLowerCase() !== sheet) return null;
+      const b = box(r.range);
+      if (!b) return null;
+      const on = caretRef === r;
+      return (
+        <div key={`ref${i}`} className={`sh-refbox${on ? ' on' : ''}${on && pointing ? ' pointing' : ''}`} data-ref-text={r.text} style={{ ...b, color: REF_COLOURS[r.colour] }}>
+          {on ? <><i className="tl" /><i className="tr" /><i className="bl" /><i className="br" /></> : null}
+        </div>
+      );
+    });
   };
 
   /**
@@ -2727,7 +2922,13 @@ export default function Sheets({ app, shell, boot }) {
           <div className="sh-formula" hidden={view.formulaBar === false}>
             <div className="sh-namebox">{sel?.ref}</div>
             <Icon name="formula" size={14} style={{ color: 'var(--ink-3)' }} />
+            <div className="sh-barbox">
             <Input
+              ref={barRef}
+              className={`rw-input${refs.length && (editing || draft != null) ? ' painted' : ''}`}
+              onSelect={trackCaret}
+              onKeyUp={trackCaret}
+              onScroll={(e) => followScroll(e.target)}
               // The draft wins the moment there is one, not once the engine
               // has answered. Beginning an edit is a round trip; until it
               // returned, `editing` was false and this fell back to the
@@ -2739,6 +2940,7 @@ export default function Sheets({ app, shell, boot }) {
               value={editing || draft != null ? draft ?? '' : model.formulaBar ?? ''}
               onChange={(e) => {
                 putDraft(e.target.value);
+                trackCaret(e);
                 if (!editing && !startingRef.current) {
                   startingRef.current = true;
                   // A refused edit — a protected sheet, say — must not leave
@@ -2749,6 +2951,7 @@ export default function Sheets({ app, shell, boot }) {
                 }
               }}
               onKeyDown={(e) => {
+                if (formulaKey(e)) return;
                 // Enter, Tab and Escape finish with the bar and hand the keys
                 // back to the grid, as Excel does. The bar kept focus after
                 // Enter, so the next arrow key moved the caret in the bar
@@ -2772,6 +2975,8 @@ export default function Sheets({ app, shell, boot }) {
               style={{ flex: 1, border: 0, background: 'transparent' }}
 
             />
+            {refs.length && (editing || draft != null) ? <div className="rw-input sh-paint sh-paint-bar" aria-hidden="true">{paintedText(draft ?? '')}</div> : null}
+            </div>
           </div>
 
           {/*
@@ -2842,6 +3047,9 @@ export default function Sheets({ app, shell, boot }) {
                   // is empty grid, and empty grid is still grid.
                   if (e.button !== 0 || e.target.closest('.sh-cell, .sh-editor, .sh-drawing, .sh-card, .sh-pl-zone')) return;
                   const at = cellAt(e);
+                  // Typing a formula: an empty cell is pointed at as a drawn one is.
+                  const spot = at && editing ? pointSpot() : null;
+                  if (spot) { e.preventDefault(); startPoint(e, at, spot); return; }
                   if (at) dispatch({ op: 'select', row: at.row, col: at.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
                 }}
                 onDoubleClick={(e) => {
@@ -2912,6 +3120,7 @@ export default function Sheets({ app, shell, boot }) {
                 {pageLayoutNode()}
                 {model.cells.map((cell) => (inMain(cell) ? cellNode(cell) : null))}
                 {arrowsNode()}
+                {refsNode()}
                 {breaksNode()}
 
                 {/*
@@ -3877,10 +4086,36 @@ const CSS = `
 .sh.no-heads .sh-canvas { grid-template-columns: 0 auto !important; grid-template-rows: 0 auto !important; }
 .sh-cell.active { outline: 2px solid var(--accent); outline-offset: -1px; z-index: 2; background: var(--surface); }
 .sh-cell.err { color: var(--bad); }
+.sh-editor-box { position: absolute; z-index: 6; background: var(--surface); }
 .sh-editor {
-  position: absolute; z-index: 6; border: 2px solid var(--accent); border-radius: 2px;
+  position: absolute; left: 0; top: 0; width: 100%; height: 100%; box-sizing: border-box; z-index: 1;
+  border: 2px solid var(--accent); border-radius: 2px;
   padding: 0 4px; font: inherit; font-size: 12.5px; background: var(--surface); color: var(--ink); outline: none;
 }
+/* A formula's references in their colours: a copy of the text under the
+   field, whose own letters go transparent; the caret and selection stay the field's. */
+.sh-editor.painted { background: transparent; }
+.painted { color: transparent !important; caret-color: var(--ink); }
+.painted::selection { color: transparent; background: var(--accent-soft); }
+.sh-paint {
+  position: absolute; left: 0; top: 0; width: 100%; height: 100%; box-sizing: border-box; z-index: 0;
+  display: flex; align-items: center; overflow: hidden; white-space: pre; pointer-events: none; color: var(--ink);
+}
+.sh-paint > span { flex: none; }
+.sh-paint-cell { border: 2px solid transparent; padding: 0 4px; font: inherit; font-size: 12.5px; }
+.sh-paint-bar { border-color: transparent !important; background: transparent !important; box-shadow: none !important; }
+.sh-barbox { flex: 1; position: relative; display: flex; min-width: 0; }
+.sh-barbox > input { position: relative; z-index: 1; }
+/* The cells each reference names, in its colour. */
+.sh-refbox {
+  position: absolute; z-index: 5; pointer-events: none; box-sizing: border-box;
+  border: 1.5px solid currentColor; background: color-mix(in srgb, currentColor 9%, transparent);
+}
+.sh-refbox.on { border-width: 2.5px; background: color-mix(in srgb, currentColor 15%, transparent); }
+.sh-refbox.pointing { border-style: dashed; }
+.sh-refbox i { position: absolute; width: 6px; height: 6px; background: currentColor; border: 1px solid var(--surface); }
+.sh-refbox i.tl { left: -4px; top: -4px; } .sh-refbox i.tr { right: -4px; top: -4px; }
+.sh-refbox i.bl { left: -4px; bottom: -4px; } .sh-refbox i.br { right: -4px; bottom: -4px; }
 .sh-tabs {
   display: flex; align-items: stretch; gap: 3px; padding: 4px 8px;
   background: var(--chrome); border-top: 1px solid var(--line-soft); overflow-x: auto;
