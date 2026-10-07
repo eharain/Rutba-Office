@@ -72,7 +72,8 @@ const R = {
   ROW2: 0x0008, ROW: 0x0208, COLINFO: 0x007d, COLWIDTH2: 0x0024, DEFCOLWIDTH: 0x0055, STANDARDWIDTH: 0x0099,
   DEFROWHEIGHT2: 0x0025, DEFROWHEIGHT: 0x0225, MERGEDCELLS: 0x00e5, WINDOW2_2: 0x003e, WINDOW2: 0x023e, PANE: 0x0041,
   BUNDLESHEET: 0x008f, MSODRAWINGGROUP: 0x00eb, MSODRAWING: 0x00ec, OBJ: 0x005d, TXO: 0x01b6, NOTE: 0x001c, HLINK: 0x01b8, HLINKTOOLTIP: 0x0800,
-  IMGDATA: 0x007f, THEME: 0x0896, CONTINUEFRT: 0x0812, XFEXT: 0x087d,
+  IMGDATA: 0x007f, THEME: 0x0896, CONTINUEFRT: 0x0812, XFEXT: 0x087d, FEAT11: 0x0872, FEAT12: 0x0878, LIST12: 0x0877,
+  CONDFMT: 0x01b0, CF: 0x01b1, CONDFMT12: 0x0879, CF12: 0x087a, CFEX: 0x087b,
 };
 
 /** Which BIFF a BOF record opens: 8, 5, 4, 3, 2 — or 0. */
@@ -228,7 +229,7 @@ export function readXls(bytes) {
   let lastFormula = null;
   let ixfe = null;
   const newSheet = (name, state = 'visible') => {
-    const s = { name, state, cells: new Map(), rows: new Map(), cols: [], merges: [], frozen: null, grid: true, headings: true, formulas: false, selected: false, defaultColWidth: null, defaultRowHeight: null, shared: new Map(), arrays: new Map(), pending: [], drawing: [], objectText: new Map(), notes: [], links: [], pictures: [], charts: [], shapes: [], lastObject: null };
+    const s = { name, state, cells: new Map(), rows: new Map(), cols: [], merges: [], frozen: null, grid: true, headings: true, formulas: false, selected: false, defaultColWidth: null, defaultRowHeight: null, shared: new Map(), arrays: new Map(), pending: [], drawing: [], objectText: new Map(), notes: [], links: [], pictures: [], charts: [], shapes: [], tables: [], condFormats: [], lastObject: null };
     book.sheets.push(s);
     return s;
   };
@@ -492,6 +493,8 @@ export function readXls(bytes) {
         // A height of its own: BIFF5 and 8 flag it; before them the top bit says "the default".
         const custom = biff >= 5 ? Boolean(flags & 0x40) : !(raw & 0x8000);
         if (custom && (raw & 0x7fff)) entry.height = raw & 0x7fff;
+        // One sized from its fonts: the height Excel gave it, which its drawings were placed against.
+        else if (biff >= 5 && (raw & 0x7fff) && (raw & 0x7fff) !== (sheet.defaultRowHeight ?? 255)) entry.fitted = raw & 0x7fff;
         if (flags & 0x20) entry.hidden = true;
         if (flags & 0x80 && biff >= 5) entry.xf = u16(data, 14) & 0x0fff;
         if (flags & 0x0007) entry.level = flags & 7;
@@ -617,6 +620,72 @@ export function readXls(bytes) {
         else if (u16(data, 0) === 0xffff && sheet.notes.length) sheet.notes[sheet.notes.length - 1].text += decode(data.subarray(6, 6 + u16(data, 4)));
         else sheet.notes.push({ row: u16(data, 0), col: u16(data, 2), author: '', text: decode(data.subarray(6, 6 + u16(data, 4))) });
         break;
+      // Conditional formatting: a block of ranges, then its rules — Excel 97's (CF) or Excel 2007's (CF12).
+      case R.CONDFMT: case R.CONDFMT12: {
+        if (!sheet || biff !== 8) break;
+        const at = id === R.CONDFMT12 ? 12 : 0;
+        const ranges = [];
+        for (let i = 0, n = u16(data, at + 12); i < n; i++) {
+          const p = at + 14 + i * 8;
+          ranges.push({ top: u16(data, p), bottom: u16(data, p + 2), left: u16(data, p + 4), right: u16(data, p + 6) });
+        }
+        if (ranges.length) sheet.condFormats.push({ id: u16(data, at + 2) >> 1, ranges, rules: [] });
+        break;
+      }
+      case R.CF: case R.CF12: {
+        const block = sheet?.condFormats[sheet.condFormats.length - 1];
+        if (!block) break;
+        try { block.rules.push(readCondition(data, id === R.CF12)); } catch { /* a rule this cannot read is left out */ }
+        break;
+      }
+      case R.CFEX: {
+        // An Excel 97-style rule's priority, and the exact colours Excel 2007 kept for its formatting after a copy of it.
+        if (!sheet || u32(data, 12) !== 0) break;
+        const rule = sheet.condFormats.find((b) => b.id === u16(data, 16))?.rules[u16(data, 18)];
+        if (!rule) break;
+        rule.priority = u16(data, 22);
+        if (!u8(data, 25) || !rule.dxf || data.length < 36) break;
+        const end = 30 + u32(data, 26);
+        let p = readDxf(data, 30).end;
+        if (p + 8 > end) break;
+        const count = u16(data, p + 6);
+        p += 8;
+        for (let i = 0; i < count && p + 4 <= end; i++) {
+          const key = { 4: 'fillFg', 5: 'fillBg', 13: 'text' }[u16(data, p)];
+          if (key) (rule.dxf.exact ??= {})[key] = fullColour(data, p + 4);
+          p += Math.max(4, u16(data, p + 2));
+        }
+        break;
+      }
+      case R.FEAT11: case R.FEAT12: {
+        // A table (ListObject): its range, and how many header and totals rows it has.
+        if (!sheet || u16(data, 12) !== 5) break;
+        const cref = u16(data, 19);
+        const at = 27 + cref * 8;
+        if (at + 16 > data.length) break;
+        sheet.tables.push({
+          id: u32(data, at + 4), header: u32(data, at + 8), totals: u32(data, at + 12),
+          ref: { top: u16(data, 4), bottom: u16(data, 6), left: u16(data, 8), right: u16(data, 10) },
+          name: null, style: null, stripes: true, firstColumn: false, lastColumn: false, columnStripes: false,
+        });
+        break;
+      }
+      case R.LIST12: {
+        // A table's style (and which of its stripes and columns it shows), or its name.
+        const table = sheet?.tables.find((t) => t.id === u32(data, 14));
+        if (!table) break;
+        const lsd = u16(data, 12);
+        if (lsd === 1 && data.length >= 23) {
+          const flags = u16(data, 18);
+          Object.assign(table, { firstColumn: Boolean(flags & 1), lastColumn: Boolean(flags & 2), stripes: Boolean(flags & 4), columnStripes: Boolean(flags & 8) });
+          const cch = u16(data, 20);
+          const high = u8(data, 22) & 1;
+          let name = '';
+          for (let i = 0; i < cch; i++) name += String.fromCharCode(high ? u16(data, 23 + i * 2) : u8(data, 23 + i));
+          if (name) table.style = name;
+        } else if (lsd === 2 && data.length >= 21) table.name = uni(data, 18, 2).text || null;
+        break;
+      }
       case R.XFEXT: {
         // Excel 2007's exact colours for a cell format, beside the palette's nearest in its XF: fill, borders, text.
         const ixfe = u16(data, 14);
@@ -675,6 +744,16 @@ export function readXls(bytes) {
     },
   };
   for (const s of book.sheets) {
+    for (const block of s.condFormats) {
+      const top = block.ranges[0];
+      const read = (rgce) => { try { return rgce?.length ? decompile(rgce, new Uint8Array(0), { book, biff, row: top.top, col: top.left, decode, sheetNames: book.allNames }) : null; } catch { return null; } };
+      for (const rule of block.rules) {
+        rule.formulas = (rule.rgce || []).map(read).filter((x) => x != null);
+        for (const t of rule.thresholds || []) if (t.rgce) t.formula = read(t.rgce);
+        delete rule.rgce;
+        for (const t of rule.thresholds || []) delete t.rgce;
+      }
+    }
     for (const c of s.charts) {
       try { c.chart = readChart(c.records, chartCtx); } catch { c.chart = null; }
       delete c.records;
@@ -749,6 +828,126 @@ function imageData(d, biff) {
   if (biff <= 4 && u32(body, 0) === 12 && u16(body, 8) === 1 && u16(body, 10) === 32) body = concat([body.subarray(0, 12), body.subarray(15)]);
   return { contentType: 'image/bmp', ext: 'bmp', bytes: dibFile(body) };
 }
+
+/**
+ * One conditional-formatting rule. Excel 97's (CF): a comparison of the
+ * cell's value, or a formula, and the formatting it sets — font colour,
+ * bold and italic, fill. Excel 2007's (CF12) add colour scales, data
+ * bars and icon sets, each with its thresholds (Apache POI's reading of
+ * the record) and its priority.
+ */
+function readCondition(d, v12) {
+  const f64at = (at) => (at + 8 <= d.length ? new DataView(d.buffer, d.byteOffset + at, 8).getFloat64(0, true) : 0);
+  let q = v12 ? 12 : 0;
+  const ct = u8(d, q);
+  const cp = u8(d, q + 1);
+  const cce1 = u16(d, q + 2);
+  const cce2 = u16(d, q + 4);
+  q += 6;
+  let dxf = null;
+  if (v12) {
+    const cb = u32(d, q);
+    q += 4;
+    if (cb) { dxf = readDxf(d, q); q += cb; } else q += 2;
+  } else {
+    dxf = readDxf(d, q);
+    q = dxf.end;
+  }
+  const rgce = [d.subarray(q, q + cce1), d.subarray(q + cce1, q + cce1 + cce2)].filter((x) => x.length);
+  q += cce1 + cce2;
+  const rule = { type: ct === 2 ? 'expression' : 'cellIs', operator: OPERATORS[cp] || null, rgce, dxf, priority: null };
+  if (!v12) return rule;
+  q += 2 + u16(d, q); // the scale's formula
+  q += 1; // its options
+  rule.priority = u16(d, q);
+  q += 4;
+  q += 1 + u8(d, q); // the template's parameters
+  const colour = () => {
+    const type = u32(d, q);
+    const value = u32(d, q + 4);
+    const rgb = [0, 1, 2].map((c) => u8(d, q + 4 + c).toString(16).padStart(2, '0')).join('').toUpperCase();
+    const tint = f64at(q + 8);
+    q += 16;
+    return type === 2 ? { rgb, tint } : type === 3 ? { theme: value, tint } : type === 1 ? { indexed: value, tint } : null;
+  };
+  const threshold = (extra) => {
+    const type = u8(d, q);
+    const cce = u16(d, q + 1);
+    q += 3;
+    const t = { type: CFVO[type] || 'num', value: null, rgce: cce ? d.subarray(q, q + cce) : null };
+    q += cce;
+    if (!cce && type !== 2 && type !== 3) { t.value = f64at(q); q += 8; }
+    return Object.assign(t, extra ? extra() : {});
+  };
+  if (ct === 3) {
+    q += 3;
+    const n = u8(d, q);
+    q += 3;
+    const thresholds = [];
+    for (let i = 0; i < n; i++) thresholds.push(threshold(() => { q += 8; return {}; }));
+    const colours = [];
+    for (let i = 0; i < n; i++) { q += 8; colours.push(colour()); }
+    return { type: 'colorScale', priority: rule.priority, thresholds, colours };
+  }
+  if (ct === 4) {
+    q += 3;
+    const options = u8(d, q);
+    const min = u8(d, q + 1);
+    const max = u8(d, q + 2);
+    q += 3;
+    const c = colour();
+    const thresholds = [threshold(), threshold()];
+    return { type: 'dataBar', priority: rule.priority, thresholds, colours: [c], showValue: !(options & 1), minLength: min, maxLength: max };
+  }
+  if (ct === 6) {
+    q += 3;
+    const n = u8(d, q);
+    const set = u8(d, q + 1);
+    const options = u8(d, q + 2);
+    q += 3;
+    const thresholds = [];
+    for (let i = 0; i < n; i++) thresholds.push(threshold(() => { const gte = u8(d, q) !== 0; q += 5; return { gte }; }));
+    return { type: 'iconSet', priority: rule.priority, thresholds, iconSet: ICON_SETS[set] || '3TrafficLights1', showValue: !(options & 1), reverse: Boolean(options & 4) };
+  }
+  return rule;
+}
+
+/** A rule's own formatting (DXFN): a number format, font, alignment, border, fill and protection, those it has; the font's colour, bold, italic and struck, and the fill, read. */
+function readDxf(d, at) {
+  const flags = u32(d, at);
+  const ext = u16(d, at + 4);
+  let p = at + 6;
+  const out = {};
+  if (flags & 0x02000000) p += ext & 1 ? u16(d, p) : 2;
+  if (flags & 0x04000000) {
+    const options = u32(d, p + 68);
+    const weight = u16(d, p + 72);
+    const colour = u32(d, p + 80);
+    const modified = u32(d, p + 88);
+    if (!(modified & 0x02)) out.italic = Boolean(options & 0x02);
+    if (!(modified & 0x80)) out.strike = Boolean(options & 0x80);
+    if (u32(d, p + 100) === 0 && weight) out.bold = weight >= 600;
+    if (colour !== 0xffffffff && colour < 64) out.colour = colour;
+    p += 118;
+  }
+  if (flags & 0x08000000) p += 8;
+  if (flags & 0x10000000) p += 8;
+  if (flags & 0x20000000) {
+    const style = u16(d, p) >> 10;
+    const colours = u16(d, p + 2);
+    if (!(flags & 0x00010000)) out.pattern = style;
+    if (!(flags & 0x00020000)) out.fg = colours & 0x7f;
+    if (!(flags & 0x00040000)) out.bg = (colours >> 7) & 0x7f;
+    p += 4;
+  }
+  if (flags & 0x40000000) p += 2;
+  out.end = p;
+  return out;
+}
+
+const OPERATORS = { 1: 'between', 2: 'notBetween', 3: 'equal', 4: 'notEqual', 5: 'greaterThan', 6: 'lessThan', 7: 'greaterThanOrEqual', 8: 'lessThanOrEqual' };
+const CFVO = { 1: 'num', 2: 'min', 3: 'max', 4: 'percent', 5: 'percentile', 7: 'formula' };
+const ICON_SETS = ['3Arrows', '3ArrowsGray', '3Flags', '3TrafficLights1', '3TrafficLights2', '3Signs', '3Symbols', '3Symbols2', '4Arrows', '4ArrowsGray', '4RedToBlack', '4Rating', '4TrafficLights', '5Arrows', '5ArrowsGray', '5Rating', '5Quarters'];
 
 /** A FullColorExt: automatic, a palette index, an RGB colour or a theme colour with its tint (-1 to 1). */
 function fullColour(d, at) {
@@ -888,6 +1087,8 @@ function finishDrawings(sheet, book) {
         return;
       }
       const props = readFopt(dg, artChild(dg, c, 0xf00b));
+      // Excel 2007 and later keep the shape as they drew it too, as DrawingML (metroBlob); the writer checks it is still this shape.
+      const drawingML = readFopt(dg, artChild(dg, c, 0xf122)).get(0x03a9)?.complex || null;
       const name = props.get(0x0380)?.complex;
       let label = null;
       if (name) { label = ''; for (let i = 0; i + 1 < name.length; i += 2) { const ch = u16(name, i); if (!ch) break; label += String.fromCharCode(ch); } }
@@ -901,7 +1102,7 @@ function finishDrawings(sheet, book) {
       if (object && ![1, 2, 3, 4, 6, 9, 0x1e].includes(object.type)) return;
       if (!object && !fsp?.inst) return;
       const shape = drawnShape(fsp.inst, flags, props, object ? sheet.objectText.get(object.id) : null, book);
-      if (shape) sheet.shapes.push({ ...shape, name: label, ...(place.anchor || { place }), order });
+      if (shape) sheet.shapes.push({ ...shape, name: label, ...(place.anchor || { place }), order, drawingML });
     });
   };
   /** A shape's place: the cells its corners are in (a client anchor), or a box in its group's coordinates. */
@@ -913,6 +1114,8 @@ function finishDrawings(sheet, book) {
         anchor: {
           from: { col: u16(dg, a + 2), dx: u16(dg, a + 4) / 1024, row: u16(dg, a + 6), dy: u16(dg, a + 8) / 256 },
           to: { col: u16(dg, a + 10), dx: u16(dg, a + 12) / 1024, row: u16(dg, a + 14), dy: u16(dg, a + 16) / 256 },
+          // Whether it moves and sizes with its cells (0), only moves with them (2), or does neither (3).
+          edit: { 2: 'oneCell', 3: 'absolute' }[u16(dg, a) & 3] || null,
         },
       };
     }

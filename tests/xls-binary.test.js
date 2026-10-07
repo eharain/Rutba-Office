@@ -7,8 +7,8 @@
  * the cells show after the round trip is what they showed before. Excel
  * 2.1, 3.0 and 4.0 files, which no Excel on hand writes, are laid out from
  * their published layouts in fixtures/old-excel.js. charts.xls and
- * charts-95.xls are the charts the showcase has not got, made by Excel the
- * same way.
+ * charts-95.xls are the charts the showcase has not got, and conditions.xls
+ * conditional formats of the Excel 97 kind, made by Excel the same way.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -161,12 +161,75 @@ test('an Excel 97-2003 sheet keeps its shapes: presets, freeforms, gradients, a 
   assert.equal(charts.shapes.filter((s) => s.place).length, 2, 'the group\'s two ellipses, placed in their group');
   assert.equal(charts.shapes.find((s) => s.rotation).rotation, 30);
 
-  const drawing = OoxmlPackage.read(Buffer.from(xlsModelToXlsx(book))).text('xl/drawings/drawing3.xml');
+  // As an Excel before 2007 would have kept it: the 97-2003 description alone.
+  const older = { ...book, sheets: book.sheets.map((x) => ({ ...x, shapes: x.shapes.map((sh) => ({ ...sh, drawingML: null })) })) };
+  const drawing = OoxmlPackage.read(Buffer.from(xlsModelToXlsx(older))).text('xl/drawings/drawing3.xml');
   assert.equal((drawing.match(/<xdr:sp /g) || []).length, 16);
   assert.match(drawing, /<xdr:cxnSp macro="">[\s\S]*?<a:prstGeom prst="bentConnector3">/);
   assert.match(drawing, /<a:custGeom>[\s\S]*?<a:path w="100000" h="100000">/);
   assert.match(drawing, /<a:xfrm rot="1800000">/, 'turned thirty degrees');
   assert.match(drawing, /<xdr:cNvSpPr txBox="1"\/>[\s\S]*?<a:t>Third line, bold.<\/a:t>/);
+});
+
+/** A drawing part's shapes, each its name, preset, colours and words. */
+const shapesOf = (pkg) => {
+  const part = pkg.partNames().find((n) => /^xl\/drawings\/drawing\d+\.xml$/.test(n) && pkg.text(n).includes('Shape Heart'));
+  return [...pkg.text(part).matchAll(/<xdr:(sp|cxnSp)\b[\s\S]*?<\/xdr:\1>/g)].map(([x]) => ({
+    name: /name="([^"]*)"/.exec(x)[1], preset: /prst="(\w+)"/.exec(x)?.[1], colours: (x.match(/srgbClr val="\w+"/g) || []).join(), words: (x.match(/<a:t>[^<]*/g) || []).join('|'),
+  }));
+};
+
+test('an Excel 97-2003 sheet\'s shapes are the shapes Excel 2007 kept in it beside the older description: each preset, colour and word', () => {
+  const after = shapesOf(OoxmlPackage.read(Buffer.from(xlsModelToXlsx(readXls(fixture('binary', 'showcase.xls'))))));
+  assert.deepEqual(after, shapesOf(OoxmlPackage.read(Buffer.from(fixture('rich', 'showcase.xlsx')))), 'the heart and the star their presets, the text box\'s red C00000');
+});
+
+test('a shape an older Excel changed after Excel 2007 kept it is read from the older description, which it changed', () => {
+  const book = readXls(fixture('binary', 'showcase.xls'));
+  const charts = book.sheets.find((x) => x.name === 'Charts');
+  const box = charts.shapes.find((x) => x.textBox);
+  box.paragraphs = [{ runs: [{ text: 'Rewritten in Excel 2003.' }] }];
+  const heart = charts.shapes.find((x) => x.name === 'Shape Heart');
+  heart.from = { ...heart.from, row: heart.from.row + 2 };
+  heart.to = { ...heart.to, row: heart.to.row + 2 };
+  const shapes = shapesOf(OoxmlPackage.read(Buffer.from(xlsModelToXlsx(book))));
+  assert.equal(shapes.find((x) => x.name === 'TextBox 19').words, '<a:t>Rewritten in Excel 2003.');
+  assert.equal(shapes.find((x) => x.name === 'Shape Heart').preset, undefined, 'moved since: its own points, not the kept heart');
+  assert.equal(shapes.find((x) => x.name === 'Shape Star').preset, 'star5', 'the rest as kept');
+});
+
+test('an Excel 97-2003 workbook keeps its colour scale, data bars and icons, drawn as the workbook it was saved from draws them', () => {
+  const look = (bytes) => {
+    const view = open(bytes);
+    view.selectSheet('Sales');
+    return new Map(view.render().cells.filter((c) => /^[B-H](\d|1[0-3])$/.test(c.ref)).map((c) => [c.ref, { fill: c.style?.fill ?? null, bar: c.bar, icon: c.icon }]));
+  };
+  const before = look(fixture('rich', 'showcase.xlsx'));
+  const after = look(xlsModelToXlsx(readXls(fixture('binary', 'showcase.xls'))));
+  assert.match(before.get('B2').fill.colour, /^#f8696b$/i, 'the scale\'s low end, to know it is drawn at all');
+  assert.ok(before.get('F5').bar && before.get('H3').icon);
+  for (const [ref, b] of before) assert.deepEqual(after.get(ref), b, ref);
+});
+
+test('an Excel 97-2003 workbook keeps its Excel 97 conditional formats, in the exact colours Excel 2007 kept for them', () => {
+  const sheet = OoxmlPackage.read(Buffer.from(xlsModelToXlsx(readXls(fixture('binary', 'conditions.xls'))))).text('xl/worksheets/sheet1.xml');
+  assert.match(sheet, /<conditionalFormatting sqref="B2:B9"><cfRule type="cellIs" dxfId="0" priority="1" operator="greaterThan"><formula>100<\/formula><\/cfRule><cfRule type="cellIs" dxfId="1" priority="2" operator="between"><formula>60<\/formula><formula>90<\/formula><\/cfRule>/);
+  assert.match(sheet, /<cfRule type="expression" dxfId="2" priority="3"><formula>MOD\(ROW\(\),2\)=0<\/formula>/);
+  const view = open(xlsModelToXlsx(readXls(fixture('binary', 'conditions.xls'))));
+  const at = new Map(view.render().cells.map((c) => [c.ref, c.style]));
+  assert.deepEqual([at.get('B5').font.bold, at.get('B5').font.colour, at.get('B5').fill?.colour], [true, '#c00000', '#ffc7ce'], '120: over a hundred, not the palette\'s 993300 on FF99CC');
+  assert.deepEqual([at.get('B4').font.italic, at.get('B4').font.colour, at.get('B4').fill], [true, '#006100', null], '78: between sixty and ninety');
+  assert.equal(at.get('B3').font.colour, '#000000', '47: neither');
+  assert.deepEqual([at.get('A2').fill?.colour, at.get('A3').fill], ['#ddebf7', null], 'every other row');
+});
+
+test('an Excel 97-2003 workbook keeps its table: its name, style, header row and totals row', () => {
+  const pkg = OoxmlPackage.read(Buffer.from(xlsModelToXlsx(readXls(fixture('binary', 'showcase.xls')))));
+  const table = pkg.text(pkg.partNames().find((n) => /^xl\/tables\/table\d+\.xml$/.test(n)));
+  assert.match(table, /name="Orders" displayName="Orders" ref="A1:D8" totalsRowCount="1"><autoFilter ref="A1:D7"\/>/);
+  assert.match(table, /<tableColumn id="1" name="Product" totalsRowLabel="Total"\/>[\s\S]*<tableColumn id="4" name="Amount" totalsRowFunction="sum"\/>/);
+  assert.match(table, /<tableStyleInfo name="TableStyleMedium9" [^>]*showRowStripes="1"/);
+  assert.match(pkg.text('xl/worksheets/sheet5.xml'), /<tableParts count="1">/);
 });
 
 /** Each chart part of a package: its XML, and what the suite's chart drawing reads from it. */

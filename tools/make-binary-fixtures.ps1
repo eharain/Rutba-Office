@@ -4,7 +4,7 @@
 # writes. The readers in packages/office-formats are judged against these,
 # files Office wrote, not files written from what we think the formats say.
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\make-binary-fixtures.ps1 [-Out tests\fixtures\binary] [-Only word,excel,charts,powerpoint,tables]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\make-binary-fixtures.ps1 [-Out tests\fixtures\binary] [-Only word,excel,charts,conditions,powerpoint,tables]
 #
 # Office is driven invisibly; each application is quit and the processes this
 # run started are reaped at the end of its section, even when a step fails.
@@ -22,7 +22,7 @@
 # This Excel no longer writes the 2.1, 3.0 and 4.0 formats; those, and the
 # Word 2.0, 6.0/95, DOS and Write formats no Office here writes, are built
 # from their published layouts in the tests that read them.
-param([string]$Out = 'tests\fixtures\binary', [string]$Only = 'word,excel,charts,powerpoint,tables')
+param([string]$Out = 'tests\fixtures\binary', [string]$Only = 'word,excel,charts,conditions,powerpoint,tables')
 $run = $Only.Split(',')
 
 $ErrorActionPreference = 'Stop'
@@ -132,6 +132,40 @@ if ($run -contains 'charts') { try {
     $p = Join-Path $outDir $f[1]; Remove-Existing $p
     try { $wb.SaveAs($p, $f[0]); "$($f[1]) written as Excel $($f[2]) ($((Get-Item $p).Length) bytes)" } catch { "warn: charts as Excel $($f[2]) - $($_.Exception.Message)" }
   }
+  $wb.Close($false)
+} finally {
+  if ($xl) { try { $xl.Quit() } catch {}; Release $xl }
+  Reap
+} }
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Excel: conditional formats of the Excel 97 kind, as 97-2003
+# ═══════════════════════════════════════════════════════════════════════════
+# A value over a number in red on pink and bold, a value between two numbers
+# in green italic, and every other row filled by a formula.
+$xl = $null
+if ($run -contains 'conditions') { try {
+  $xl = New-Object -ComObject Excel.Application
+  $xl.Visible = $false
+  $xl.DisplayAlerts = $false
+  $wb = $xl.Workbooks.Add()
+  while ($wb.Worksheets.Count -gt 1) { $wb.Worksheets.Item($wb.Worksheets.Count).Delete() }
+  $ws = $wb.Worksheets.Item(1)
+  $ws.Name = 'Scores'
+  $block = New-Object 'object[,]' 9, 2
+  $block[0, 0] = 'Name'; $block[0, 1] = 'Score'
+  $people = @('Asha', 'Bilal', 'Chen', 'Dara', 'Ezra', 'Farah', 'Gita', 'Hugo'); $scores = @(91, 47, 78, 120, 63, 105, 55, 84)
+  for ($r = 0; $r -lt 8; $r++) { $block[($r + 1), 0] = $people[$r]; $block[($r + 1), 1] = $scores[$r] }
+  $ws.Range('A1:B9').Value2 = $block
+  $over = $ws.Range('B2:B9').FormatConditions.Add(1, 5, '100')
+  $over.Font.Bold = $true; $over.Font.Color = RGB 192 0 0; $over.Interior.Color = RGB 255 199 206
+  $mid = $ws.Range('B2:B9').FormatConditions.Add(1, 1, '60', '90')
+  $mid.Font.Italic = $true; $mid.Font.Color = RGB 0 97 0
+  $rows = $ws.Range('A2:A9').FormatConditions.Add(2, 0, '=MOD(ROW(),2)=0')
+  $rows.Interior.Color = RGB 221 235 247
+  $p = Join-Path $outDir 'conditions.xls'; Remove-Existing $p
+  $wb.SaveAs($p, 56)
+  "conditions.xls written ($((Get-Item $p).Length) bytes)"
   $wb.Close($false)
 } finally {
   if ($xl) { try { $xl.Quit() } catch {}; Release $xl }

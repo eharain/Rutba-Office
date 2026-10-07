@@ -7,19 +7,21 @@
 // its value and, for a formula, the formula and the value Excel last
 // calculated, each sheet's column widths, row heights, hidden rows and
 // columns, merged areas, frozen panes and window, and the defined names.
-// A sheet's pictures, charts, hyperlinks and notes come too, and the
+// A sheet's pictures, charts, shapes, tables, hyperlinks and notes come too, and the
 // workbook's theme when Excel 2007 or later kept it in the file.
 
 import zlib from 'node:zlib';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
-import { Workbook } from '@rutba/ooxml/workbook';
+import { Workbook, unesc } from '@rutba/ooxml/workbook';
 import { readZip } from '@rutba/ooxml/zip';
 import { chartXml } from './msxls-chart.js';
 
 const NS = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
 const esc = (s) => String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f￾￿]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
+/** SUBTOTAL's function numbers, as a totals row names them. */
+const TOTALS = { 101: 'average', 102: 'countNums', 103: 'count', 104: 'max', 105: 'min', 107: 'stdDev', 109: 'sum', 110: 'var', 1: 'average', 2: 'countNums', 3: 'count', 4: 'max', 5: 'min', 7: 'stdDev', 9: 'sum', 10: 'var' };
 const H_ALIGN = ['general', 'left', 'center', 'right', 'fill', 'justify', 'centerContinuous', 'distributed'];
 const V_ALIGN = ['top', 'center', 'bottom', 'justify', 'distributed'];
 const LINES = ['none', 'thin', 'medium', 'dashed', 'dotted', 'thick', 'double', 'hair', 'mediumDashed', 'dashDot', 'mediumDashDot', 'dashDotDot', 'mediumDashDotDot', 'slantDashDot'];
@@ -59,7 +61,10 @@ export function xlsModelToXlsx(book) {
     if (index == null || index >= 64 || index < 0) return null;
     return book.palette[index] || null;
   };
-  const styles = stylesXml(book, colour);
+  // The conditional formats' own formatting, as the styles part's dxfs, each rule pointing at its own.
+  const dxfs = [];
+  for (const sheet of book.sheets) for (const block of sheet.condFormats || []) for (const rule of block.rules) if (rule.dxf) { rule.dxfId = dxfs.length; dxfs.push(rule.dxf); }
+  const styles = stylesXml(book, colour, dxfs);
   pkg.write_('xl/styles.xml', styles.xml);
   book.sheets.forEach((sheet, i) => pkg.write_(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sheet, i === book.activeSheet, drawings[i].length > 0, styles.runPr)));
   pkg.write_('xl/workbook.xml', workbookXml(book, names));
@@ -71,7 +76,7 @@ export function xlsModelToXlsx(book) {
   }
   let bytes = pkg.write();
   // Links and notes, as the workbook engine writes them: a link's relationship, a note's comments part and the box Excel draws it in.
-  if (book.sheets.some((s) => s.links?.length || s.notes?.length)) {
+  if (book.sheets.some((s) => s.links?.length || s.notes?.length || s.tables?.length)) {
     const wb = Workbook.open(Buffer.from(bytes));
     book.sheets.forEach((s, i) => {
       for (const l of s.links || []) {
@@ -79,6 +84,26 @@ export function xlsModelToXlsx(book) {
       }
       for (const n of s.notes || []) {
         try { wb.setComment(names[i], ref(n.row, n.col), { author: n.author || '', text: n.text || '' }); } catch { /* so is a note */ }
+      }
+      // Its tables: their range, style and name, the header row's words their columns', and a totals row's labels and functions.
+      for (const t of s.tables || []) {
+        try {
+          const at = (r, c) => s.cells.get(r * 0x4000 + c);
+          const columns = [];
+          for (let c = t.ref.left; c <= t.ref.right; c++) columns.push(t.header ? String(at(t.ref.top, c)?.v ?? '') : '');
+          const totals = [];
+          if (t.totals) {
+            for (let c = t.ref.left; c <= t.ref.right; c++) {
+              const cell = at(t.ref.bottom, c);
+              const code = /^SUBTOTAL\((\d+),/i.exec(cell?.formula || '')?.[1];
+              totals.push(code ? { fn: TOTALS[code] } : cell && cell.t === 's' && !cell.formula ? { label: String(cell.v) } : null);
+            }
+          }
+          wb.addTable(names[i], rangeRef(t.ref), {
+            name: t.name, style: t.style || 'TableStyleMedium2', stripes: t.stripes, headerNames: columns, totalsRow: Boolean(t.totals), totals,
+            firstColumn: t.firstColumn, lastColumn: t.lastColumn, columnStripes: t.columnStripes,
+          });
+        } catch { /* a table this cannot write leaves its cells */ }
       }
     });
     bytes = wb.save();
@@ -144,7 +169,7 @@ function sheetDrawings(sheet, book) {
   const rowPx = (r) => {
     const info = sheet.rows.get(r);
     if (info?.hidden) return 0;
-    return (info?.height || sheet.defaultRowHeight || 300) / 15;
+    return (info?.height || info?.fitted || sheet.defaultRowHeight || 300) / 15;
   };
   // The sheet in pixels: where a column or row starts, a cell marker's point, and the marker at a point.
   const lefts = [0];
@@ -184,7 +209,8 @@ function sheetDrawings(sheet, book) {
     if (!r) return null;
     return {
       kind: 'picture', name: p.name || `Picture ${i + 1}`, bytes: Buffer.from(bytes), extension: kinds[p.blip.ext], order: p.order ?? i,
-      from: p.from ? marker(p.from) : markerAt(r.x, r.y), widthPx: Math.max(1, r.w), heightPx: Math.max(1, r.h),
+      from: p.from ? marker(p.from) : markerAt(r.x, r.y), to: p.to ? marker(p.to) : markerAt(r.x + r.w, r.y + r.h),
+      editAs: p.from ? p.edit || 'twoCell' : 'oneCell', widthPx: Math.max(1, r.w), heightPx: Math.max(1, r.h),
     };
   }).filter(Boolean);
   const page = { from: { col: 0, row: 0, dx: 0, dy: 0 }, to: { col: 14, row: 32, dx: 0, dy: 0 } };
@@ -201,13 +227,52 @@ function sheetDrawings(sheet, book) {
     if (!r) return null;
     const turn = ((sh.rotation % 360) + 360) % 360;
     if ((turn >= 45 && turn < 135) || (turn >= 225 && turn < 315)) r = { x: r.x + r.w / 2 - r.h / 2, y: r.y + r.h / 2 - r.w / 2, w: r.h, h: r.w };
+    // As Excel 2007 or later drew it, in its own cells, where the workbook kept that and it is still this shape.
+    const kept = keptShape(sh);
     return {
-      kind: 'raw', order: sh.order ?? 2e6 + i, from: markerAt(r.x, r.y), to: markerAt(r.x + r.w, r.y + r.h),
-      contentXml: (id) => drawnShapeXml(sh, id, r),
+      kind: 'raw', order: sh.order ?? 2e6 + i, from: kept?.from ?? markerAt(r.x, r.y), to: kept?.to ?? markerAt(r.x + r.w, r.y + r.h), editAs: sh.edit || undefined,
+      contentXml: (id) => (kept ? keptShapeXml(kept, id, r) : drawnShapeXml(sh, id, r)),
     };
   }).filter(Boolean);
   // In the order they were drawn, the later over the earlier.
   return [...pictures, ...charts, ...shapes].sort((a, b) => a.order - b.order).map(({ order, ...d }) => d);
+}
+
+/**
+ * A shape as Excel 2007 or later drew it, which they keep in a 97-2003
+ * workbook beside its older description (Office Art's metroBlob, a package
+ * holding the shape's DrawingML and the cells it was in): its element, and
+ * its cells when it had its own. Only while it is still this shape — an
+ * older Excel that changed it since rewrote only the older description, so
+ * a shape whose cells or words are not those the package says is read from
+ * that. A shape that would need the package's own relationships is too.
+ */
+function keptShape(sh) {
+  if (!sh.drawingML || sh.drawingML[0] !== 0x50 || sh.drawingML[1] !== 0x4b) return null;
+  let entries;
+  try { entries = readZip(Buffer.from(sh.drawingML)).entries; } catch { return null; }
+  const part = (name) => { const e = entries.find((x) => x.name === name); return e ? Buffer.from(e.data).toString('utf8') : null; };
+  const xml = part('drs/shapexml.xml') ?? part('drs/connectorxml.xml');
+  const el = xml && /<xdr:(sp|cxnSp)\b[\s\S]*<\/xdr:\1>/.exec(xml)?.[0];
+  if (!el || /\sr:(id|embed|link|pict)=/.test(el)) return null;
+  // The cells its older description had when this was kept, against those it has.
+  const was = /<a:from row="(\d+)" col="(\d+)"[^>]*\/>\s*<a:to row="(\d+)" col="(\d+)"/.exec(part('drs/downrev.xml') || '');
+  if (sh.from && was && was.slice(1).join() !== [sh.from.row, sh.from.col, sh.to.row, sh.to.col].join()) return null;
+  // Its words, against the text object's.
+  const words = (el.match(/<a:p\b[\s\S]*?<\/a:p>/g) || []).map((p) => [...p.matchAll(/<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>|<a:br\b/g)].map((m) => (m[1] == null ? '\n' : unesc(m[1]))).join('')).join('\n');
+  const own = (sh.paragraphs || []).map((p) => p.runs.map((r) => r.text).join('')).join('\n');
+  if (words.trimEnd() !== own.trimEnd()) return null;
+  const m = /<xdr:from><xdr:col>(\d+)<\/xdr:col><xdr:colOff>(-?\d+)<\/xdr:colOff><xdr:row>(\d+)<\/xdr:row><xdr:rowOff>(-?\d+)<\/xdr:rowOff><\/xdr:from><xdr:to><xdr:col>(\d+)<\/xdr:col><xdr:colOff>(-?\d+)<\/xdr:colOff><xdr:row>(\d+)<\/xdr:row><xdr:rowOff>(-?\d+)<\/xdr:rowOff><\/xdr:to>/.exec(xml);
+  const at = (i) => ({ col: Number(m[i]), colOff: Math.max(0, Number(m[i + 1])), row: Number(m[i + 2]), rowOff: Math.max(0, Number(m[i + 3])) });
+  return m && sh.from ? { xml: el, own: true, from: at(1), to: at(5) } : { xml: el, own: false };
+}
+
+/** A kept shape given this drawing's id; one placed in a group, now on its own, its box where the group put it. */
+function keptShapeXml(kept, id, r) {
+  const emu = (px) => Math.round(px * 9525);
+  let xml = kept.xml.replace(/(<xdr:cNvPr\b[^>]*?\bid=")\d+"/, (_, head) => `${head}${id}"`);
+  if (!kept.own) xml = xml.replace(/(<a:xfrm\b[^>]*>)\s*<a:off [^>]*\/>\s*<a:ext [^>]*\/>/, (_, head) => `${head}<a:off x="${emu(r.x)}" y="${emu(r.y)}"/><a:ext cx="${emu(r.w)}" cy="${emu(r.h)}"/>`);
+  return xml;
 }
 
 /** A drawn shape as DrawingML: a connector, or a shape with its outline, fill, line, shadow and words. */
@@ -254,6 +319,40 @@ function drawnShapeXml(sh, id, r) {
     + `<xdr:spPr>${xfrm}${geom}${fillXml(sh.fill)}${lineXml(sh.line)}${shadow}</xdr:spPr>${body}</xdr:sp>`;
 }
 
+/** A conditional format's formatting: its font's colour, bold, italic and strike, and its fill. */
+function dxfXml(x, colour) {
+  // Excel 2007's exact colours where it kept them (CFEX), else the palette's.
+  const exact = x.exact || {};
+  const paletteEl = (name, index) => { const c = index != null ? colour(index) : null; return c ? `<${name} rgb="FF${c}"/>` : ''; };
+  const text = exact.text ? colourEl('color', exact.text) : paletteEl('color', x.colour);
+  const font = x.bold != null || x.italic != null || x.strike || text ? '<font>' + (x.bold ? '<b/>' : '') + (x.italic ? '<i/>' : '') + (x.strike ? '<strike/>' : '') + text + '</font>' : '';
+  const fg = exact.fillFg ? colourEl('fgColor', exact.fillFg) : paletteEl('fgColor', x.fg);
+  // A rule's solid fill shows its background colour, as Excel writes a dxf's.
+  const bg = exact.fillBg ? colourEl('bgColor', exact.fillBg) : x.bg != null ? paletteEl('bgColor', x.bg) : fg.replace('<fgColor', '<bgColor');
+  const fill = fg || bg ? `<fill><patternFill${x.pattern && x.pattern !== 1 && PATTERNS[x.pattern] ? ` patternType="${PATTERNS[x.pattern]}"` : ''}>${fg}${bg}</patternFill></fill>` : '';
+  return `<dxf>${font}${fill}</dxf>`;
+}
+
+/** A sheet's conditional formats, each block's ranges and rules in the order the schema wants. */
+function condFormatsXml(sheet) {
+  let priority = 0;
+  const cfvo = (t) => `<cfvo type="${t.type}"${t.formula != null ? ` val="${esc(t.formula)}"` : t.value != null ? ` val="${t.value}"` : ''}${t.gte === false ? ' gte="0"' : ''}/>`;
+  const colourOf = (c) => (c ? colourEl('color', c) : '<color rgb="FF638EC6"/>');
+  return (sheet.condFormats || []).map((block) => {
+    const rules = block.rules.map((r) => {
+      const p = ` priority="${r.priority || (priority += 1)}"`;
+      if (r.type === 'colorScale') return `<cfRule type="colorScale"${p}><colorScale>${r.thresholds.map(cfvo).join('')}${r.colours.map(colourOf).join('')}</colorScale></cfRule>`;
+      if (r.type === 'dataBar') return `<cfRule type="dataBar"${p}><dataBar${r.minLength != null && r.minLength !== 10 ? ` minLength="${r.minLength}"` : ''}${r.maxLength != null && r.maxLength !== 90 ? ` maxLength="${r.maxLength}"` : ''}${r.showValue ? '' : ' showValue="0"'}>${r.thresholds.map(cfvo).join('')}${colourOf(r.colours[0])}</dataBar></cfRule>`;
+      if (r.type === 'iconSet') return `<cfRule type="iconSet"${p}><iconSet iconSet="${r.iconSet}"${r.showValue ? '' : ' showValue="0"'}${r.reverse ? ' reverse="1"' : ''}>${r.thresholds.map(cfvo).join('')}</iconSet></cfRule>`;
+      const formulas = (r.formulas || []).map((x) => `<formula>${esc(x)}</formula>`).join('');
+      if (!formulas) return '';
+      const dxf = r.dxfId != null ? ` dxfId="${r.dxfId}"` : '';
+      return r.type === 'expression' ? `<cfRule type="expression"${dxf}${p}>${formulas}</cfRule>` : `<cfRule type="cellIs"${dxf}${p}${r.operator ? ` operator="${r.operator}"` : ''}>${formulas}</cfRule>`;
+    }).join('');
+    return rules ? `<conditionalFormatting sqref="${block.ranges.map(rangeRef).join(' ')}">${rules}</conditionalFormatting>` : '';
+  }).join('');
+}
+
 /** A colour element for an exact colour: its RGB, its theme colour and tint, or its palette index. */
 function colourEl(name, c) {
   const tint = c.tint ? ` tint="${Math.round(c.tint * 1e6) / 1e6}"` : '';
@@ -263,7 +362,7 @@ function colourEl(name, c) {
 }
 
 /** The styles part: number formats, fonts, fills, borders and one cell format per XF, in the XFs' order. */
-function stylesXml(book, colour) {
+function stylesXml(book, colour, dxfs = []) {
   // Number formats: the workbook's own each given an id of the .xlsx's own; the built-in ones as they are.
   const numFmts = [];
   const fmtId = new Map();
@@ -282,7 +381,9 @@ function stylesXml(book, colour) {
       + `<name val="${esc(f.name || 'Arial')}"/>` + (f.family ? `<family val="${f.family}"/>` : '') + (f.charset ? `<charset val="${f.charset}"/>` : '')
       + '</font>';
   };
-  const fonts = book.fonts.length ? book.fonts.map((f) => fontXml(f)) : ['<font><sz val="10"/><name val="Arial"/></font>'];
+  // The first font is the Normal style's, in the colour Excel 2007 kept for that style: a cell format that only
+  // says so again has the workbook's default font still, which a table's style may colour over.
+  const fonts = book.fonts.length ? book.fonts.map((f, i) => fontXml(f, i === 0 ? book.xfExt?.get(0)?.text : null)) : ['<font><sz val="10"/><name val="Arial"/></font>'];
   // Font 4 is never written: the fourth and later are one out.
   const fontOf = (i) => Math.min(fonts.length - 1, i < 4 ? i : i === 4 ? 0 : i - 1);
   // A font in an XF's exact colour: one more font, once for each font and colour.
@@ -291,6 +392,7 @@ function stylesXml(book, colour) {
     const base = book.fonts[fontOf(i)];
     if (!exact || !base) return fontOf(i);
     const xml = fontXml(base, exact);
+    if (xml === fonts[fontOf(i)]) return fontOf(i);
     if (!exactFonts.has(xml)) { exactFonts.set(xml, fonts.length); fonts.push(xml); }
     return exactFonts.get(xml);
   };
@@ -354,6 +456,7 @@ function stylesXml(book, colour) {
     + '<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>'
     + `<cellXfs count="${xfs.length}">${xfs.join('')}</cellXfs>`
     + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
+    + (dxfs.length ? `<dxfs count="${dxfs.length}">${dxfs.map((x) => dxfXml(x, colour)).join('')}</dxfs>` : '')
     + '</styleSheet>';
   // A rich string's run in its font: rPr in the order the schema wants.
   const runPr = (i) => {
@@ -407,7 +510,8 @@ function sheetXml(sheet, active, drawing = false, runPr = () => '') {
     if (!byRow.has(c.row)) byRow.set(c.row, []);
     byRow.get(c.row).push(c);
   }
-  for (const r of sheet.rows.keys()) if (!byRow.has(r)) byRow.set(r, []);
+  // A row of no cells for what it says of itself; Excel sizes one from its fonts again.
+  for (const [r, info] of sheet.rows) if (!byRow.has(r) && Object.keys(info).some((k) => k !== 'fitted')) byRow.set(r, []);
   const rowsXml = [...byRow.keys()].sort((a, b) => a - b).map((r) => {
     const info = sheet.rows.get(r) || {};
     const attrs = [`r="${r + 1}"`];
@@ -426,6 +530,7 @@ function sheetXml(sheet, active, drawing = false, runPr = () => '') {
     + (cols.length ? `<cols>${cols.join('')}</cols>` : '')
     + `<sheetData>${rowsXml.join('')}</sheetData>`
     + merges
+    + condFormatsXml(sheet)
     // The drawing that holds its pictures: the skeleton's first relationship.
     + (drawing ? '<drawing r:id="rId1"/>' : '')
     + '</worksheet>';

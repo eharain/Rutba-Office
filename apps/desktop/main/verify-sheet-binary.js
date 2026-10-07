@@ -3,8 +3,8 @@
 // A .xls Excel itself wrote (tests/fixtures/binary/showcase.xls) opens as
 // its sheets — the values and the formulas' results, the header row bold
 // on its fill, the frozen first row and column, the other sheets in their
-// tabs — where it used to open as one cell saying it could not be read.
-// Run alone with RUTBA_VERIFY_ONLY=xls.
+// tabs, its colour scale and its table — where it used to open as one cell
+// saying it could not be read. Run alone with RUTBA_VERIFY_ONLY=xls.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,6 +35,7 @@ export async function verifySheetBinary(h, { dir }) {
         fill: a1 ? getComputedStyle(a1).backgroundColor : null,
         tabs: [...document.querySelectorAll('.sh-tab')].map((t) => t.innerText.trim()),
         pinned: document.querySelectorAll('.sh-pin-rows .sh-cell, .sh-pin-corner .sh-cell').length,
+        scale: ['B2', 'E13'].map((r) => (cell(r) ? getComputedStyle(cell(r)).backgroundColor : null)),
       };
     })()`);
     check('sheets: an Excel 97-2003 workbook opens with its values and its formulas\' results, not a "could not be converted" cell',
@@ -61,6 +62,14 @@ export async function verifySheetBinary(h, { dir }) {
     if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'sheet-binary-charts.png'), (await win.webContents.capturePage()).toPNG());
     check('sheets: the .xls\'s charts are drawn where they were, each with its title',
       pie && want.every((w) => drawn.includes(w)), `pie ${pie}; Charts sheet: ${want.filter((w) => drawn.includes(w)).length}/4 titles drawn`);
+
+    // The colour scale from red to green over Sales, and the table on its sheet in its style: its header row, its stripes.
+    await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((t) => t.innerText.trim().startsWith('Table'))?.click(); return 1; })()`);
+    await until(() => js(`document.querySelector('.sh-cell[data-ref="A1"]')?.innerText.trim() === 'Product'`), 'the Table sheet', 6000).catch(() => {});
+    const table = await js(`['A1', 'A2', 'A3'].map((r) => { const c = document.querySelector('.sh-cell[data-ref="' + r + '"]'); return c ? getComputedStyle(c).backgroundColor + ' ' + getComputedStyle(c).color : null; })`);
+    check('sheets: the .xls\'s colour scale is drawn on its cells, and its table in its style',
+      shown.scale[0] === 'rgb(248, 105, 107)' && shown.scale[1] !== shown.scale[0] && /^rgb\(21, 96, 130\) rgb\(255, 255, 255\)/.test(table[0] || '') && table[2]?.startsWith('rgb(224, 242, 250)') && table[1] !== table[2],
+      `scale B2 ${shown.scale[0]}, E13 ${shown.scale[1]}; table ${table.join(' | ')}`);
 
     const complaints = await errorsIn(win);
     check('sheets: opening an .xls reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

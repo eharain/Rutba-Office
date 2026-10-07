@@ -98,7 +98,8 @@ export const cellRef = (row, col) => colName(col) + (row + 1);
  * @typedef {{kind:'shape', geometry?:string, fill?:string, text?:string, bold?:boolean,
  *            from:{col:number,row:number}, to:{col:number,row:number}}} TemplateShape
  * @typedef {{kind:'picture', bytes:Buffer, extension?:string,
- *            from:{col:number,row:number}, widthPx?:number, heightPx?:number}} TemplatePicture
+ *            from:{col:number,row:number}, widthPx?:number, heightPx?:number,
+ *            to?:{col:number,row:number,colOff?:number,rowOff?:number}, editAs?:'twoCell'|'oneCell'|'absolute'}} TemplatePicture
  * @typedef {{kind:'chart', title?:string, name?:string,
  *            categories?:{ref?:string, values:Array<string>},
  *            series:Array<{name?:string, nameRef?:string, ref?:string, values:Array<number|null>}>,
@@ -270,22 +271,27 @@ function drawingPartXml(drawings, relIdOf) {
         + 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:id="' + relIdOf(d) + '"/>'
         + '</a:graphicData></a:graphic></xdr:graphicFrame><xdr:clientData/></xdr:twoCellAnchor>';
     }
+    // How a drawing given both corners goes with its cells, when not moving and sizing with them.
+    const editAs = d.editAs && d.editAs !== 'twoCell' ? ' editAs="' + esc(d.editAs) + '"' : '';
     if (d.kind === 'picture') {
-      const ext = '<xdr:ext cx="' + Math.round((d.widthPx ?? 96) * EMU_PX)
-        + '" cy="' + Math.round((d.heightPx ?? 48) * EMU_PX) + '"/>';
-      return '<xdr:oneCellAnchor>' + from + ext
+      // Its size, or (a converted workbook's) the cell its other corner is in.
+      const ext = d.to
+        ? '<xdr:to><xdr:col>' + d.to.col + '</xdr:col><xdr:colOff>' + Math.round(d.to.colOff || 0) + '</xdr:colOff><xdr:row>' + d.to.row + '</xdr:row><xdr:rowOff>' + Math.round(d.to.rowOff || 0) + '</xdr:rowOff></xdr:to>'
+        : '<xdr:ext cx="' + Math.round((d.widthPx ?? 96) * EMU_PX) + '" cy="' + Math.round((d.heightPx ?? 48) * EMU_PX) + '"/>';
+      const anchor = d.to ? 'twoCellAnchor' : 'oneCellAnchor';
+      return '<xdr:' + anchor + (d.to ? editAs : '') + '>' + from + ext
         + '<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="' + d.id + '" name="' + esc(d.name ?? 'Picture') + '"/>'
         + '<xdr:cNvPicPr/></xdr:nvPicPr>'
         + '<xdr:blipFill><a:blip r:embed="' + relIdOf(d) + '"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'
         // Its own box and a rectangle to clip to: Excel draws no picture without them.
         + '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + Math.round((d.widthPx ?? 96) * EMU_PX) + '" cy="' + Math.round((d.heightPx ?? 48) * EMU_PX) + '"/></a:xfrm>'
-        + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>';
+        + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:' + anchor + '>';
     }
     const to = '<xdr:to><xdr:col>' + d.to.col + '</xdr:col><xdr:colOff>' + Math.round(d.to.colOff || 0) + '</xdr:colOff>'
       + '<xdr:row>' + d.to.row + '</xdr:row><xdr:rowOff>' + Math.round(d.to.rowOff || 0) + '</xdr:rowOff></xdr:to>';
     if (d.kind === 'equation') return '<xdr:twoCellAnchor>' + from + to + equationContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     // A shape already written (a converted workbook's own): its XML, given the id this drawing gives it.
-    if (d.kind === 'raw' && typeof d.contentXml === 'function') return '<xdr:twoCellAnchor>' + from + to + d.contentXml(d.id) + '<xdr:clientData/></xdr:twoCellAnchor>';
+    if (d.kind === 'raw' && typeof d.contentXml === 'function') return '<xdr:twoCellAnchor' + editAs + '>' + from + to + d.contentXml(d.id) + '<xdr:clientData/></xdr:twoCellAnchor>';
     if (d.kind === 'wordart') return '<xdr:twoCellAnchor>' + from + to + wordArtContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     if (d.kind === 'ink') return '<xdr:twoCellAnchor editAs="oneCell">' + from + to + inkContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     if (d.kind === 'diagram') return '<xdr:twoCellAnchor editAs="oneCell">' + from + to + diagramContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';

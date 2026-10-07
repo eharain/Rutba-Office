@@ -2927,7 +2927,7 @@ export class Workbook {
    * was written, columns included, so the caller can put a made-up name
    * into the header cell it stands for.
    */
-  addTable(sheetName, ref, { name = null, style = 'TableStyleMedium2', stripes = true, headerNames = [] } = {}) {
+  addTable(sheetName, ref, { name = null, style = 'TableStyleMedium2', stripes = true, headerNames = [], totalsRow = false, totals = [], firstColumn = false, lastColumn = false, columnStripes = false } = {}) {
     const sheetPartName = this.partNameFor(sheetName);
     const { part } = this._sheetPart(sheetName);
     const existing = this.tables();
@@ -2950,14 +2950,27 @@ export class Workbook {
     });
     const n = this.pkg.nextPartNumber('xl/tables/', 'table');
     const partName = 'xl/tables/table' + n + '.xml';
+    // A totals row is the range's last: the filter stops above it, and each
+    // column says what its total is — a label or one of Excel's functions.
+    const [first, last] = String(ref).split(':');
+    const start = parseRef(first);
+    const end = parseRef(last || first);
+    const filterRef = totalsRow && end.row > start.row + 1 ? makeRef(start.row, start.col) + ':' + makeRef(end.row - 1, end.col) : ref;
+    const totalOf = (i) => {
+      const t = totals[i];
+      if (!totalsRow || !t) return '';
+      if (t.label != null) return ' totalsRowLabel="' + esc(t.label) + '"';
+      return t.fn ? ' totalsRowFunction="' + esc(t.fn) + '"' : '';
+    };
     const xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
       + '<table xmlns="' + XMLNS_MAIN + '" id="' + id + '" name="' + esc(displayName) + '" displayName="' + esc(displayName)
-      + '" ref="' + esc(ref) + '" totalsRowShown="0">'
-      + '<autoFilter ref="' + esc(ref) + '"/>'
+      + '" ref="' + esc(ref) + '"' + (totalsRow ? ' totalsRowCount="1"' : ' totalsRowShown="0"') + '>'
+      + '<autoFilter ref="' + esc(filterRef) + '"/>'
       + '<tableColumns count="' + columns.length + '">'
-      + columns.map((c, i) => '<tableColumn id="' + (i + 1) + '" name="' + esc(c) + '"/>').join('')
+      + columns.map((c, i) => '<tableColumn id="' + (i + 1) + '" name="' + esc(c) + '"' + totalOf(i) + '/>').join('')
       + '</tableColumns>'
-      + '<tableStyleInfo name="' + esc(style) + '" showFirstColumn="0" showLastColumn="0" showRowStripes="' + (stripes ? '1' : '0') + '" showColumnStripes="0"/>'
+      + '<tableStyleInfo name="' + esc(style) + '" showFirstColumn="' + (firstColumn ? 1 : 0) + '" showLastColumn="' + (lastColumn ? 1 : 0)
+      + '" showRowStripes="' + (stripes ? '1' : '0') + '" showColumnStripes="' + (columnStripes ? 1 : 0) + '"/>'
       + '</table>';
     this.pkg.addPart(partName, xml, CT_TABLE);
     const rId = this.pkg.addRelationshipTo(sheetPartName, REL_TABLE, '../tables/table' + n + '.xml');
