@@ -90,6 +90,7 @@ import { verifySheetPivotFields } from './verify-sheet-pivot-fields.js';
 import { verifyDeck3d } from './verify-deck-3d.js';
 import { verifyDeckPoints } from './verify-deck-points.js';
 import { verifyWordRtl } from './verify-word-rtl.js';
+import { verifyWordTable } from './verify-word-table.js';
 import { verifyMailJunk } from './verify-mail-junk.js';
 import { verifyMailRichSignature } from './verify-mail-signature.js';
 import { verifyWordBlocks } from './verify-word-blocks.js';
@@ -4686,6 +4687,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('pivotfields')) await verifySheetPivotFields({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('deck3d')) await verifyDeck3d({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('points')) await verifyDeckPoints({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('wordtable')) await verifyWordTable({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('rtl')) await verifyWordRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('junk')) await verifyMailJunk({ open, check, until, wait, errorsIn });
     if (only.includes('richsignature')) await verifyMailRichSignature({ open, check, until, wait, errorsIn });
@@ -4914,6 +4916,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeck3d({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyDeckPoints({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await block(() => verifyWordTable({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordBlocks({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));

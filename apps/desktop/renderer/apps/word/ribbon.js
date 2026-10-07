@@ -116,8 +116,14 @@ const Soon = ({ icon, label, tall, why }) => (
 );
 
 export default function WordRibbon({
-  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null, blocks = null,
+  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null, blocks = null, table = null,
 }) {
+  // Table Layout: an operation on the caret's table, and whether the selection runs across its cells.
+  const tableOp = (kind, arg) => dispatch({ op: 'tableOp', kind, ...(arg ? { arg } : {}) });
+  const innermost = (block) => /(t\d+):r(\d+):c(\d+)(?!.*:t\d+:)/.exec(String(model?.blocks?.[block]?.container || ''));
+  const anchorCell = innermost(model?.selection?.anchor?.block ?? -1);
+  const focusCell = innermost(model?.selection?.focus?.block ?? -1);
+  const acrossCells = Boolean(anchorCell && focusCell && anchorCell[1] === focusCell[1] && (anchorCell[2] !== focusCell[2] || anchorCell[3] !== focusCell[3]));
   const format = model?.format || {};
   const design = model?.design || null;
   const styles = Array.isArray(model?.styles) ? model.styles : [];
@@ -276,6 +282,8 @@ export default function WordRibbon({
         // The contextual tab, as Word's: there while a drawing is selected.
         ...(formatTab === 'shapeFormat' ? [{ id: 'shapeFormat', label: 'Shape Format' }] : []),
         ...(formatTab === 'pictureFormat' ? [{ id: 'pictureFormat', label: 'Picture Format' }] : []),
+        // Table Layout, as Word's: there while the caret is in a table.
+        ...(table ? [{ id: 'tableLayout', label: 'Table Layout' }] : []),
         // View → Immersive Reader's own tab, there while the reader is open.
         ...(view.immersive ? [{ id: 'immersive', label: 'Immersive Reader' }] : []),
       ]}
@@ -704,6 +712,51 @@ export default function WordRibbon({
               {sizeBox('Height', 'h')}
               {sizeBox('Width', 'w')}
             </Rows>
+          </Group>
+        </>
+      ) : null}
+
+      {/* ── Table Layout (contextual) ─────────────────────────────────────── */}
+      {tab === 'tableLayout' && table ? (
+        <>
+          <Group label="Rows & Columns">
+            <Button tall icon="minus" label="Delete" title="Delete — the row, the column or the whole table at the caret" onClick={(e) => menu.open(e, [
+              { label: 'Delete columns', icon: 'minus', run: () => tableOp('deleteColumn') },
+              { label: 'Delete rows', icon: 'minus', run: () => tableOp('deleteRow') },
+              { label: 'Delete table', icon: 'trash', run: () => tableOp('deleteTable') },
+            ])} />
+            <Button tall icon="rowAbove" label="Insert Above" title="Insert a row above the caret's" onClick={() => tableOp('insertRowAbove')} />
+            <Button tall icon="rowBelow" label="Insert Below" title="Insert a row below the caret's" onClick={() => tableOp('insertRowBelow')} />
+            <Rows>
+              <Button icon="colLeft" label="Insert Left" title="Insert a column to the left of the caret's" onClick={() => tableOp('insertColumnLeft')} />
+              <Button icon="colRight" label="Insert Right" title="Insert a column to the right of the caret's" onClick={() => tableOp('insertColumnRight')} />
+            </Rows>
+          </Group>
+          <Group label="Merge">
+            <Button tall icon="mergeCells" label="Merge Cells" title={acrossCells ? 'Merge the selected cells into one' : 'Merge Cells — select from one cell to another first'} disabled={!acrossCells} onClick={() => tableOp('mergeCells')} />
+            <Button tall icon="splitCells" label="Split Cells" title="Split a merged cell back into the cells it covers" onClick={() => tableOp('splitCell')} />
+          </Group>
+          <Group label="Cell Size">
+            <Rows>
+              <div className="wd-fields" title="The caret's column width, in centimetres">
+                <label>Width</label>
+                <Input
+                  key={`${table.id}:${table.col}:${Math.round((table.gridPx?.[table.col] ?? 0) * 10)}`}
+                  type="number" min="0.3" max="50" step="0.1"
+                  defaultValue={table.gridPx?.[table.col] ? (table.gridPx[table.col] / CM).toFixed(2) : ''}
+                  style={{ width: 64 }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur(); }}
+                  onBlur={(e) => {
+                    const cm = Number(e.currentTarget.value);
+                    if (Number.isFinite(cm) && cm > 0 && Math.abs(cm - (table.gridPx[table.col] / CM)) > 0.004) tableOp('columnWidth', { cm });
+                  }}
+                />
+                <span className="wd-field-value" style={{ minWidth: 0 }}>cm</span>
+              </div>
+            </Rows>
+          </Group>
+          <Group label="Direction">
+            <Button tall icon="textRtl" label="Right to Left" title="Right to left — the table's columns run from the right, as an Arabic or Hebrew table's do" pressed={table.rtl} onClick={() => tableOp('direction', { rtl: !table.rtl })} />
           </Group>
         </>
       ) : null}

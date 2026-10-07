@@ -927,10 +927,11 @@ export default function Word({ app, shell, boot }) {
   // that is in, and what a dragged border asks of the engine.
   const at = model?.selection?.focus?.block ?? 0;
   const tableAt = useMemo(() => {
-    const key = /^(t\d+):r\d+:c\d+$/.exec(String(model?.blocks?.[at]?.container || ''));
+    const key = /^(t\d+):r(\d+):c(\d+)$/.exec(String(model?.blocks?.[at]?.container || ''));
     if (!key) return null;
     const group = flowItems.find((item) => item.table?.id === key[1]);
-    return group?.table?.gridPx ? { id: key[1], gridPx: group.table.gridPx } : null;
+    // Its row and column at the caret and its direction too, for the Table Layout tab.
+    return group?.table?.gridPx ? { id: key[1], gridPx: group.table.gridPx, row: Number(key[2]), col: Number(key[3]), rtl: Boolean(group.table.look?.rtl) } : null;
   }, [model, at, flowItems]);
   const resizeColumn = useCallback((id, k, dx) => {
     const grid = flowItems.find((item) => item.table?.id === id)?.table?.gridPx;
@@ -1904,7 +1905,8 @@ export default function Word({ app, shell, boot }) {
   // A contextual tab goes when what it formats is no longer selected.
   useEffect(() => {
     if ((tab === 'shapeFormat' || tab === 'pictureFormat') && !selectedDrawing && !picked?.ids?.length) setTab('home');
-  }, [tab, selectedDrawing, picked]);
+    if (tab === 'tableLayout' && !tableAt) setTab('home');
+  }, [tab, selectedDrawing, picked, tableAt]);
 
   /** Stop Protection: the whole model back, or the dialog told the password was wrong. */
   const stopProtection = useCallback(
@@ -2039,6 +2041,7 @@ export default function Word({ app, shell, boot }) {
       ribbon={
         <WordRibbon
           ink={ink}
+          table={tableAt}
           tab={tab}
           setTab={setTab}
           doc={doc}
@@ -2237,7 +2240,21 @@ export default function Word({ app, shell, boot }) {
                 ops.push({ op: 'pasteRuns', lines });
                 apply(...ops);
               }}
-              onContextMenu={(e) => review.contextMenu(e, menuItems(commands, ['edit.undo', 'edit.redo', '-', 'format.bold', 'format.italic', 'format.underline', '-', 'edit.find']))}
+              onContextMenu={(e) => review.contextMenu(e, [
+                ...menuItems(commands, ['edit.undo', 'edit.redo', '-', 'format.bold', 'format.italic', 'format.underline', '-', 'edit.find']),
+                // In a table, what Word's right-click offers there: rows and columns in and out, cells merged and split.
+                ...(tableAt ? [
+                  '-',
+                  { label: 'Insert row above', icon: 'rowAbove', run: () => apply({ op: 'tableOp', kind: 'insertRowAbove' }) },
+                  { label: 'Insert row below', icon: 'rowBelow', run: () => apply({ op: 'tableOp', kind: 'insertRowBelow' }) },
+                  { label: 'Insert column left', icon: 'colLeft', run: () => apply({ op: 'tableOp', kind: 'insertColumnLeft' }) },
+                  { label: 'Insert column right', icon: 'colRight', run: () => apply({ op: 'tableOp', kind: 'insertColumnRight' }) },
+                  { label: 'Delete row', icon: 'minus', run: () => apply({ op: 'tableOp', kind: 'deleteRow' }) },
+                  { label: 'Delete column', icon: 'minus', run: () => apply({ op: 'tableOp', kind: 'deleteColumn' }) },
+                  { label: 'Merge cells', icon: 'mergeCells', run: () => apply({ op: 'tableOp', kind: 'mergeCells' }) },
+                  { label: 'Split cells', icon: 'splitCells', run: () => apply({ op: 'tableOp', kind: 'splitCell' }) },
+                ] : []),
+              ])}
               style={{
                 // View → Zoom: the page scaled on its own, the window's chrome left alone.
                 zoom: view.zoom && Math.abs(view.zoom - 1) > 0.001 ? view.zoom : undefined,

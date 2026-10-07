@@ -1871,7 +1871,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     setPageBorders: (v, a) => v.setPageBorders(a.borders ?? null),
     setLineNumbers: (v, a) => v.setLineNumbers(a.spec ?? null),
     sortParagraphs: (v, a) => v.sortParagraphs({ descending: Boolean(a.descending) }),
-    tableOp: (v, a) => v.tableOp(a.op, a.arg),
+    // Table Layout: the operation by its kind (the action's own `op` names this one), on the caret's table.
+    tableOp: (v, a) => v.tableOp(a.kind, a.arg ?? {}),
     // A border dragged on the page: the columns either side of it, or a row's height.
     setTableColumnWidths: (v, a) => v.setTableColumnWidths(a),
     setTableRowHeight: (v, a) => v.setTableRowHeight(a),
