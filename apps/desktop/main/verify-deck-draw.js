@@ -38,11 +38,11 @@ export async function verifyDeckDraw(h, { dir }) {
     const outlines = await js(`(() => {
       const svg = document.querySelector('.sl-stage svg');
       if (!svg) return null;
-      // Each shape's own element: the first drawn element after its words' group start is the outline; count paths and boxes.
+      // The heart, smiley, process box, callout, cloud, up arrow and can are paths; the rest polygons, rects and ellipses.
       return { paths: svg.querySelectorAll('path').length, words: svg.textContent };
     })()`);
     check('slides: the heart, smiley, callout, arrow and can are drawn as their outlines, not boxes',
-      outlines && ['Heart', 'Smile', 'Callout', 'Up arrow', 'Parallelogram'].every((w) => outlines.words.includes(w)) && outlines.paths >= 8,
+      outlines && ['Heart', 'Smile', 'Callout', 'Up arrow', 'Parallelogram'].every((w) => outlines.words.includes(w)) && outlines.paths >= 7,
       outlines ? `${outlines.paths} paths` : 'no stage');
 
     // The table slide: its style's header, bands and borders.
