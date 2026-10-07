@@ -42,6 +42,8 @@ import { ObjectDialog, OBJECT_CSS, objectIcon, typeOfExt, appOfProgId } from '..
 import { SmartArtDialog, SMARTART_CSS } from '../smartart-dialog.js';
 import { layoutSmartArt, itemsText } from '../smartart.js';
 import { isNarration } from '@rutba/presentation/narration';
+import { PATTERNS, patternDef } from '@rutba/presentation/patterns';
+import { BEVELS, CAMERAS, DEPTHS } from '@rutba/presentation/shape3d';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise, replayInk } from './slides/ink.js';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog, iconPng } from '../icons-insert.js';
@@ -1182,6 +1184,15 @@ export default function Slides({ app, shell, boot }) {
         if (!selectedShape) return;
         await apply({ op: 'setShapeStyle', slide: index, shape: selectedShape.id, fill: arg });
         return;
+      // Format Shape → 3-D Format and 3-D Rotation: `arg` names what changes —
+      // the bevel, the depth, its colour, the camera — and the rest rides along.
+      case 'shape3d': {
+        if (!selectedShape) return;
+        const cur = selectedShape.shape3d || {};
+        const spec = { bevel: cur.bevel ?? null, depth: cur.depth ?? 0, depthColor: cur.depthColor ?? null, camera: cur.camera ?? 'orthographicFront', ...arg };
+        await apply({ op: 'setShape3d', slide: index, shape: selectedShape.id, spec });
+        return;
+      }
       case 'shapeLine': {
         // A change to one of colour, weight or dashes keeps the other two.
         if (!selectedShape) return;
@@ -3174,7 +3185,8 @@ function FormatPane({ shape, theme, act }) {
   );
   // The fill's own kind — what the segmented control shows current, and
   // which of the four sub-panels below it draws.
-  const fillType = shape.fill?.type === 'gradient' ? 'gradient' : shape.fill?.type === 'picture' ? 'picture' : shape.fill?.type === 'none' ? 'none' : 'solid';
+  const fillType = ['gradient', 'picture', 'pattern', 'none'].includes(shape.fill?.type) ? shape.fill.type : 'solid';
+  const three = shape.shape3d || {};
   const transparency = shape.fill?.type === 'solid' ? Math.round((1 - (shape.fill.alpha ?? 1)) * 100) : 0;
   const angle = shape.fill?.type === 'gradient' ? Math.round(shape.fill.angle ?? 90) : 90;
   const glow = shape.effects?.glow || null;
@@ -3187,7 +3199,7 @@ function FormatPane({ shape, theme, act }) {
       <section className="sl-format-fill">
         <h4>Fill</h4>
         <div className="sl-format-row sl-format-kinds">
-          {[['none', 'No fill'], ['solid', 'Solid'], ['gradient', 'Gradient'], ['picture', 'Picture']].map(([key, label]) => (
+          {[['none', 'No fill'], ['solid', 'Solid'], ['gradient', 'Gradient'], ['picture', 'Picture'], ['pattern', 'Pattern']].map(([key, label]) => (
             <button
               key={key}
               type="button"
@@ -3196,6 +3208,7 @@ function FormatPane({ shape, theme, act }) {
                 if (key === 'none') act('shapeFill', 'none');
                 else if (key === 'solid') act('shapeFill', { color: fill && fill !== 'none' ? fill : (colours.accent1 || '#4472C4'), alpha: 1 });
                 else if (key === 'gradient') act('shapeFill', { gradient: { preset: 'light', color: { scheme: 'accent1' } } });
+                else if (key === 'pattern') act('shapeFill', { pattern: { preset: 'pct50', fg: fill && fill !== 'none' ? fill : (colours.accent1 || '#4472C4'), bg: '#FFFFFF' } });
                 else act('pickPictureFill');
               }}
             >
@@ -3224,6 +3237,29 @@ function FormatPane({ shape, theme, act }) {
               <input type="range" min="0" max="360" value={angle} onChange={(e) => act('shapeFill', { gradient: { stops: shape.fill?.stops?.map((s) => ({ pos: s.offset, color: s.color, alpha: s.alpha })), angle: Number(e.target.value) } })} />
             </label>
           </div>
+        ) : null}
+        {fillType === 'pattern' ? (
+          <>
+            <div className="sl-patterns" role="listbox" aria-label="Pattern">
+              {PATTERNS.map(([preset, label]) => (
+                <button
+                  key={preset}
+                  type="button"
+                  role="option"
+                  aria-selected={shape.fill.preset === preset}
+                  className={`sl-pattern${shape.fill.preset === preset ? ' current' : ''}`}
+                  data-pattern={preset}
+                  title={label}
+                  onClick={() => act('shapeFill', { pattern: { preset, fg: shape.fill.color, bg: shape.fill.background } })}
+                  dangerouslySetInnerHTML={{ __html: `<svg width="22" height="22" viewBox="0 0 16 16"><defs>${patternDef('p-' + preset, preset, shape.fill.color, shape.fill.background)}</defs><rect width="16" height="16" fill="url(#p-${preset})"/></svg>` }}
+                />
+              ))}
+            </div>
+            <div className="sl-format-row">
+              <label>Foreground <input type="color" className="sl-colour sl-pattern-fg" value={shape.fill.color || '#000000'} onChange={(e) => act('shapeFill', { pattern: { preset: shape.fill.preset, fg: e.target.value, bg: shape.fill.background } })} /></label>
+              <label>Background <input type="color" className="sl-colour sl-pattern-bg" value={shape.fill.background || '#ffffff'} onChange={(e) => act('shapeFill', { pattern: { preset: shape.fill.preset, fg: shape.fill.color, bg: e.target.value } })} /></label>
+            </div>
+          </>
         ) : null}
         {fillType === 'picture' && shape.fill?.embed ? (
           <div className="sl-format-row">
@@ -3281,6 +3317,32 @@ function FormatPane({ shape, theme, act }) {
           {[1, 2.5, 5, 10].map((pt) => (
             <button key={pt} type="button" className={`sl-chip${softEdge && Math.round(softEdge.radiusPt * 2) === Math.round(pt * 2) ? ' current' : ''}`} onClick={() => act('shapeEffects', { softEdge: { radius: pt } })}>{pt} pt</button>
           ))}
+        </div>
+      </section>
+      <section className="sl-format-3d">
+        <h4>3-D Format</h4>
+        <div className="sl-format-row" style={{ flexWrap: 'wrap' }}>
+          <button type="button" className={`sl-chip${!three.bevel ? ' current' : ''}`} data-bevel="none" onClick={() => act('shape3d', { bevel: null })}>No bevel</button>
+          {BEVELS.map(([prst, label]) => (
+            <button key={prst} type="button" className={`sl-chip${three.bevel?.prst === prst ? ' current' : ''}`} data-bevel={prst} onClick={() => act('shape3d', { bevel: { prst, w: three.bevel?.w ?? 6, h: three.bevel?.h ?? 6 } })}>{label}</button>
+          ))}
+        </div>
+        <div className="sl-format-row">
+          <label>
+            Depth
+            <select className="rw-input sl-depth" value={String(three.depth ?? 0)} onChange={(e) => act('shape3d', { depth: Number(e.target.value) })}>
+              {DEPTHS.map((pt) => <option key={pt} value={String(pt)}>{pt} pt</option>)}
+            </select>
+          </label>
+          <input type="color" className="sl-colour" title="Depth colour" value={three.depthColor || '#7f7f7f'} onChange={(e) => act('shape3d', { depthColor: e.target.value })} />
+        </div>
+      </section>
+      <section className="sl-format-rotation">
+        <h4>3-D Rotation</h4>
+        <div className="sl-format-row">
+          <select className="rw-input sl-camera" value={three.camera || 'orthographicFront'} onChange={(e) => act('shape3d', { camera: e.target.value })}>
+            {CAMERAS.map(([prst, label]) => <option key={prst} value={prst}>{label}</option>)}
+          </select>
         </div>
       </section>
       <section className="sl-format-reflection">
@@ -3505,6 +3567,9 @@ const CSS = `
 .sl-format section { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); }
 .sl-format h4 { margin: 0 0 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--ink-3); font-weight: 600; }
 .sl-swatches { display: grid; grid-template-columns: repeat(10, 1fr); gap: 4px; margin-bottom: 5px; }
+.sl-patterns { display: grid; grid-template-columns: repeat(auto-fill, minmax(24px, 1fr)); gap: 3px; margin-bottom: 6px; }
+.sl-pattern { padding: 0; border: 1px solid var(--line-soft); border-radius: 3px; background: var(--window); line-height: 0; cursor: pointer; }
+.sl-pattern.current { outline: 2px solid var(--accent); outline-offset: 1px; }
 .sl-swatch { height: 18px; border-radius: 4px; border: 1px solid rgba(0, 0, 0, .14); cursor: pointer; padding: 0; }
 .sl-swatch:hover { transform: scale(1.12); }
 .sl-swatch.current { outline: 2px solid var(--accent); outline-offset: 1px; }
