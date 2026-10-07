@@ -280,6 +280,8 @@ export function applyPap(pap, grpprl, data = null) {
       case 0x2406: pap.keepNext = o[0] !== 0; break;
       case 0x2407: pap.pageBreakBefore = o[0] !== 0; break;
       case 0x2431: pap.widowControl = o[0] !== 0; break;
+      // Word 2007's "don't add space between paragraphs of the same style".
+      case 0x246d: pap.contextualSpacing = o[0] !== 0; break;
       // Word 6's numbering, which Word 97 still reads: the level kind, and how the number looks.
       case 0x240d: pap.nLvlAnm = o[0]; break;
       case 0xc63e: pap.anld = readAnld(o); break;
@@ -555,7 +557,8 @@ export function resolveStyles(styles, defaultFonts) {
     const base = st.base != null && depth < 16 ? styles[st.base] : null;
     if (base) resolve(base, depth + 1);
     const basePap = base?.pap ?? {};
-    const baseChp = base?.chp ?? { ...DEFAULT_CHP, font: defaultFonts[0], fontFE: defaultFonts[1], fontOther: defaultFonts[2] };
+    // A character style is only what it changes over the paragraph's look: it starts from nothing.
+    const baseChp = base?.chp ?? (st.kind === 'character' ? {} : { ...DEFAULT_CHP, font: defaultFonts[0], fontFE: defaultFonts[1], fontOther: defaultFonts[2] });
     st.pap = applyPap({ ...basePap }, st.papx ?? new Uint8Array(0));
     st.chp = applyChp({ ...baseChp }, st.chpx ?? new Uint8Array(0), baseChp);
     delete st.chp.istd;
@@ -751,6 +754,36 @@ function blipBytes(b, body, end, type, inst) {
   p += 1;
   const bytes = b.subarray(p, end);
   return { contentType: kind.type, ext: kind.ext, bytes: kind.dib ? dibFile(bytes) : bytes };
+}
+
+// The DOP's compatibility options, bit by bit, as the w:compat elements Word
+// writes for them (LibreOffice's layout of the bits, ww8scan.cxx). The first
+// word is Word 6's and later; the second, from Word 2000 on, sits after it.
+const COMPAT_1 = {
+  0x1: 'noTabHangInd', 0x2: 'noSpaceRaiseLower', 0x4: 'suppressSpBfAfterPgBrk', 0x8: 'wrapTrailSpaces', 0x10: 'printColBlack',
+  0x20: 'noColumnBalance', 0x40: 'convMailMergeEsc', 0x80: 'suppressTopSpacing', 0x100: 'useSingleBorderforContiguousCells',
+  0x400: 'showBreaksInFrames', 0x800: 'swapBordersFacingPages', 0x10000: 'suppressTopSpacingWP', 0x20000: 'spacingInWholePoints',
+  0x40000: 'printBodyTextBeforeHeader', 0x80000: 'noLeading', 0x200000: 'mwSmallCaps', 0x80000000: 'usePrinterMetrics',
+};
+const COMPAT_2 = {
+  0x1: 'shapeLayoutLikeWW8', 0x2: 'footnoteLayoutLikeWW8', 0x4: 'doNotUseHTMLParagraphAutoSpacing', 0x10: 'forgetLastTabAlignment',
+  0x20: 'autoSpaceLikeWord95', 0x40: 'alignTablesRowByRow', 0x80: 'layoutRawTableWidth', 0x100: 'layoutTableRowsApart',
+  0x200: 'useWord97LineBreakRules', 0x400: 'doNotBreakWrappedTables', 0x800: 'doNotSnapToGridInCell', 0x2000: 'applyBreakingRules',
+  0x4000: 'doNotWrapTextWithPunct', 0x8000: 'doNotUseEastAsianBreakRules', 0x10000: 'useWord2002TableStyleRules', 0x20000: 'growAutofit',
+  0x40000: 'useNormalStyleForList', 0x80000: 'doNotUseIndentAsNumberingTabStop', 0x100000: 'useAltKinsokuLineBreakRules',
+  0x200000: 'allowSpaceOfSameStyleInTable', 0x400000: 'doNotSuppressIndentation', 0x800000: 'doNotAutofitConstrainedTables',
+  0x1000000: 'autofitToFirstFixedWidthCell', 0x2000000: 'underlineTabInNumList', 0x4000000: 'displayHangulFixedWidth',
+  0x8000000: 'splitPgBreakAndParaMark', 0x10000000: 'doNotVertAlignCellWithSp', 0x20000000: 'doNotBreakConstrainedForcedTable',
+  0x40000000: 'doNotVertAlignInTxbx', 0x80000000: 'useAnsiKerningPairs',
+};
+
+/** The document's layout rules from its DOP, as w:compat element names. */
+function compatOf(table, dop) {
+  const bits = (word, map) => Object.entries(map).filter(([bit]) => (word & Number(bit)) >>> 0).map(([, name]) => name);
+  const end = dop.fc + dop.lcb;
+  if (dop.lcb >= 516 && end <= table.length) return [...bits(u32(table, dop.fc + 508), COMPAT_1), ...bits(u32(table, dop.fc + 512), COMPAT_2)];
+  if (dop.lcb >= 88 && end <= table.length) return bits(u32(table, dop.fc + 84), COMPAT_1);
+  return [];
 }
 
 /** A DIB is a BMP without its 14-byte file header: given one, a browser draws it. */
@@ -1217,13 +1250,14 @@ export function buildModel({
     while (sIdx < sections.length - 1 && para.cpEnd >= sections[sIdx].cpEnd) { para.sectionEnd = sIdx; sIdx += 1; }
   }
 
-  // The document's own settings: whether odd and even pages have headers of their own.
+  // The document's own settings: whether odd and even pages have headers of their own, and its layout rules.
   const dop = fib.pair(FC.Dop);
   return {
     format,
     nFib: fib.nFib,
     defaultFonts,
     evenAndOdd: dop.lcb ? Boolean(u8(table, dop.fc) & 1) : false,
+    compat: dop.lcb ? compatOf(table, dop) : [],
     styles: styles.filter(Boolean),
     fonts,
     lists,

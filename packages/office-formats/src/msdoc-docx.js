@@ -138,6 +138,7 @@ export function docModelToDocx(model) {
     if (d('right')) ind.push(`w:right="${pap.right}"`);
     if (d('firstLine')) ind.push(pap.firstLine < 0 ? `w:hanging="${-pap.firstLine}"` : `w:firstLine="${pap.firstLine}"`);
     if (ind.length) out.push(`<w:ind ${ind.join(' ')}/>`);
+    if (d('contextualSpacing')) out.push(pap.contextualSpacing ? '<w:contextualSpacing/>' : '<w:contextualSpacing w:val="0"/>');
     if (d('jc')) out.push(`<w:jc w:val="${JC[pap.jc] || 'left'}"/>`);
     if (d('outLvl') && pap.outLvl < 9) out.push(`<w:outlineLvl w:val="${pap.outLvl}"/>`);
     if (markChp) {
@@ -242,7 +243,8 @@ export function docModelToDocx(model) {
       case 'noBreakHyphen': return `<w:r>${rPr}<w:noBreakHyphen/></w:r>`;
       case 'softHyphen': return `<w:r>${rPr}<w:softHyphen/></w:r>`;
       case 'symbol': return `<w:r>${rPr}<w:sym w:font="${esc(fontName(run.font) || 'Symbol')}" w:char="${run.char.toString(16).toUpperCase().padStart(4, '0')}"/></w:r>`;
-      case 'picture': return `<w:r>${rPr}${pictureXml(run.image, ctx.part)}</w:r>`;
+      // A .doc's picture is not raised or lowered whatever its character says (Word draws it on the line); a .docx's would be.
+      case 'picture': return `<w:r>${rPr.replace(/<w:vertAlign w:val="\w+"\/>/, '').replace('<w:rPr></w:rPr>', '')}${pictureXml(run.image, ctx.part)}</w:r>`;
       case 'float': return floatXml(run.float, ctx);
       case 'noteRef': return `<w:r>${rPr}<w:${run.note.kind}Reference w:id="${run.note.id}"/></w:r>`;
       case 'noteMark': return ctx.noteKind ? `<w:r>${rPr}<w:${ctx.noteKind}Ref/></w:r>` : '';
@@ -419,12 +421,37 @@ export function docModelToDocx(model) {
   pkg.write_('word/document.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${W}><w:body>${body || '<w:p/>'}${sectPrXml(lastSection)}</w:body></w:document>`);
 
   pkg.write_('word/styles.xml', stylesXml(model, styleById, fontName));
+  // The document's settings: odd and even pages' own headers, and Word 2003's
+  // layout rules — what Word itself keeps when it saves a .doc as a .docx, so
+  // the pages break as they did (a page break's paragraph mark on the next page).
+  const compat = [...new Set(model.compat || [])].filter((n) => COMPAT_ORDER.includes(n)).sort((a, b) => COMPAT_ORDER.indexOf(a) - COMPAT_ORDER.indexOf(b)).map((n) => `<w:${n}/>`).join('');
+  pkg.addPart('word/settings.xml', `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:settings ${W}>${model.evenAndOdd ? '<w:evenAndOddHeaders/>' : ''}`
+    + `<w:compat>${compat}<w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="11"/></w:compat></w:settings>`, CT + 'settings+xml');
+  pkg.addRelationshipTo('word/document.xml', REL + 'settings', 'settings.xml');
   if (model.lists?.lists?.length) {
     pkg.addPart('word/numbering.xml', numberingXml(model, fontName), CT + 'numbering+xml');
     pkg.addRelationshipTo('word/document.xml', REL + 'numbering', 'numbering.xml');
   }
   return pkg.write();
 }
+
+/** w:compat's children in the order the schema wants them (ECMA-376, CT_Compat). */
+const COMPAT_ORDER = [
+  'useSingleBorderforContiguousCells', 'wpJustification', 'noTabHangInd', 'noLeading', 'spaceForUL', 'noColumnBalance',
+  'balanceSingleByteDoubleByteWidth', 'noExtraLineSpacing', 'doNotLeaveBackslashAlone', 'ulTrailSpace', 'doNotExpandShiftReturn',
+  'spacingInWholePoints', 'lineWrapLikeWord6', 'printBodyTextBeforeHeader', 'printColBlack', 'wpSpaceWidth', 'showBreaksInFrames',
+  'subFontBySize', 'suppressBottomSpacing', 'suppressTopSpacing', 'suppressSpacingAtTopOfPage', 'suppressTopSpacingWP',
+  'suppressSpBfAfterPgBrk', 'swapBordersFacingPages', 'convMailMergeEsc', 'truncateFontHeightsLikeWP6', 'mwSmallCaps',
+  'usePrinterMetrics', 'doNotSuppressParagraphBorders', 'wrapTrailSpaces', 'footnoteLayoutLikeWW8', 'shapeLayoutLikeWW8',
+  'alignTablesRowByRow', 'forgetLastTabAlignment', 'adjustLineHeightInTable', 'autoSpaceLikeWord95', 'noSpaceRaiseLower',
+  'doNotUseHTMLParagraphAutoSpacing', 'layoutRawTableWidth', 'layoutTableRowsApart', 'useWord97LineBreakRules',
+  'doNotBreakWrappedTables', 'doNotSnapToGridInCell', 'selectFldWithFirstOrLastChar', 'applyBreakingRules', 'doNotWrapTextWithPunct',
+  'doNotUseEastAsianBreakRules', 'useWord2002TableStyleRules', 'growAutofit', 'useFELayout', 'useNormalStyleForList',
+  'doNotUseIndentAsNumberingTabStop', 'useAltKinsokuLineBreakRules', 'allowSpaceOfSameStyleInTable', 'doNotSuppressIndentation',
+  'doNotAutofitConstrainedTables', 'autofitToFirstFixedWidthCell', 'underlineTabInNumList', 'displayHangulFixedWidth',
+  'splitPgBreakAndParaMark', 'doNotVertAlignCellWithSp', 'doNotBreakConstrainedForcedTable', 'doNotVertAlignInTxbx',
+  'useAnsiKerningPairs', 'cachedColBalance',
+];
 
 /** Register a file extension's content type, once. */
 function ensureDefaultType(pkg, ext, type) {
@@ -483,6 +510,7 @@ function ownPap(st, base) {
   if (d('right')) ind.push(`w:right="${p.right}"`);
   if (d('firstLine')) ind.push(p.firstLine < 0 ? `w:hanging="${-p.firstLine}"` : `w:firstLine="${p.firstLine}"`);
   if (ind.length) out.push(`<w:ind ${ind.join(' ')}/>`);
+  if (d('contextualSpacing') && p.contextualSpacing) out.push('<w:contextualSpacing/>');
   if (d('jc')) out.push(`<w:jc w:val="${JC[p.jc] || 'left'}"/>`);
   if (d('outLvl') && p.outLvl < 9) out.push(`<w:outlineLvl w:val="${p.outLvl}"/>`);
   return out.length ? `<w:pPr>${out.join('')}</w:pPr>` : '';

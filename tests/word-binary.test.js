@@ -145,6 +145,21 @@ test('a Word 97-2003 document keeps its floating picture, text box and shapes, w
   assert.ok(view.blocks.some((b) => /After the drawings/.test(b.text)));
 });
 
+test('a Word 97-2003 document lays out as Word laid it out: its layout rules, its character styles, its list spacing', () => {
+  const docx = (name) => OoxmlPackage.read(Buffer.from(docModelToDocx(readWordDocument(fixture(name)))));
+  const structure = docx('structure.doc');
+  // The document's own layout rules from its DOP, and Word 2003's: what Word writes saving it as a .docx.
+  const settings = structure.text('word/settings.xml');
+  assert.match(settings, /<w:compat><w:useNormalStyleForList\/>[\s\S]*<w:splitPgBreakAndParaMark\/>[\s\S]*<w:useAnsiKerningPairs\/><w:compatSetting w:name="compatibilityMode" w:uri="http:\/\/schemas.microsoft.com\/office\/word" w:val="11"\/><\/w:compat>/);
+  // A character style is only what it changes: the link keeps its paragraph's size and font.
+  const link = /<w:style w:type="character" w:styleId="Hyperlink">[\s\S]*?<\/w:style>/.exec(structure.text('word/styles.xml'))[0];
+  assert.match(link, /<w:rPr><w:color w:val="467886"\/><w:u w:val="single"\/><\/w:rPr>/);
+  assert.doesNotMatch(structure.text('word/document.xml'), /<w:vertAlign w:val="superscript"\/><\/w:rPr><w:drawing>/, 'a picture is not raised');
+  // "Don't add space between paragraphs of the same style", as the list's style says.
+  const listStyle = /<w:style w:type="paragraph" w:styleId="ListParagraph">[\s\S]*?<\/w:style>/.exec(docx('paragraphs.doc').text('word/styles.xml'))?.[0] ?? '';
+  assert.match(listStyle, /<w:contextualSpacing\/>/);
+});
+
 /* ── Word 6.0/95 ──────────────────────────────────────────────────────── */
 
 const SYMBOL_BULLET = anld6({ before: [0xb7], font: 1 });
