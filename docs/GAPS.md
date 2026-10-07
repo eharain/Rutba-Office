@@ -2,7 +2,7 @@
 
 Written 2026-09-09, from the code rather than from memory. Three sources: the
 suite's own register of unbuilt controls (257 of them then, 36 in
-1.29.4 — 6 in Documents, 12 in Worksheets, 18 in Presentations — each a
+1.29.5 — 6 in Documents, 12 in Worksheets, 18 in Presentations — each a
 `<Soon>` in a ribbon with a sentence saying what it needs), a reading of what the engines
 write as against what they read, and the things a person expects that are not
 in either list because nothing in the interface offers them at all.
@@ -212,7 +212,9 @@ document and workbook writers.
   the shadow; Arrange aligns, distributes, rotates, flips, groups and
   ungroups a selection of shapes gathered with Shift+click. Since 1.29.4
   pattern fills, a bevel, depth and 3-D rotation are written, and Edit
-  Points changes a shape's outline point by point.
+  Points changes a shape's outline point by point. Since 1.29.5 a heart, a
+  smiley, callouts, block arrows, a can, a cube, a cloud and the flowchart
+  shapes are drawn as their outlines, not as a box; rarer presets still are.
 - **Text inside a shape**: since 2026-09-21 bullets, numbering, list
   levels, line spacing, strikethrough, character spacing, change case and
   a highlight are written from the Home tab, and a slide's own bullets,
@@ -220,7 +222,8 @@ document and workbook writers.
   edited line dropped them), and the box's own anchor, text direction
   and columns are written from the same tab. WordArt is still read past.
 - **What can be put on a slide**: a table and a chart are read and drawn —
-  a chart since 2026-09-10, through the same chart kit a worksheet uses,
+  a table in its table style since 1.29.5 (its header, bands, borders and
+  first and last rows and columns), and a chart since 2026-09-10, through the same chart kit a worksheet uses,
   found by the corpus deck whose six chart slides showed an empty frame
   each. Both arrived to insert 2026-09-24: Insert → Table puts one on the
   slide with its cells edited in place, and rows and columns added and
@@ -297,7 +300,7 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
 | Format | Read | Write |
 | :-- | :-- | :-- |
 | `.docx` `.xlsx` `.pptx` | yes, preserving | yes, preserving |
-| `.doc` `.xls` `.ppt` | text only — an approximation, and only `.xls` says so | no |
+| `.doc` `.xls` `.ppt` | **yes**, 1.29.5 — Word 97–2003, 6.0/95, 2.0, 1.0, Write and DOS Word; Excel 2.1 to 97–2003 with charts, shapes, tables and conditional formats; PowerPoint 97–2003; one Office 2007 or later saved is opened from the newer description it keeps inside | no — saved as `.docx`, `.xlsx` or `.pptx` |
 | `.odt` `.ods` `.odp` | yes — an `.ods` reads its named ranges, merged cells and number formats since 2026-09-10, and its column widths, hidden rows and columns and frozen panes since 1.29.4; an `.odp` its pictures, shapes, lines and tables where they stood since 1.29.4; an `.ods`'s charts and shapes are not read | **yes**, 2026-09-09 — what the suite models: text, structure, tables and run formatting; values, formulas and value types; text boxes, pictures and notes |
 | `.rtf` | yes | **yes**, 2026-09-09 |
 | `.csv` `.tsv` `.txt` `.md` `.html` | yes | yes |
@@ -308,9 +311,9 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
 
 RTF and OpenDocument were the trap — the installer told Windows this suite
 was the **editor** of `.odt`, `.ods` and `.odp` while Ctrl+S on one refused —
-and both are written now. What is left in the table is the binary Office
-formats, which are read as text and never claimed as editable, and the old
-RC4 encryption of those binary files, which is not read.
+and both are written now. The binary Office formats are read in full since
+1.29.5 and saved as their newer counterparts, never written back; the old RC4
+encryption of those binary files is still not read.
 
 ## 6. Pictures — the viewer
 
