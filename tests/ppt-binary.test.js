@@ -138,6 +138,30 @@ test('a table\'s merged cells, a cell set in the middle and one with no fill com
   assert.equal((tbl.match(/<a:tc vMerge="1">/g) || []).length, 2);
 });
 
+test('a slide hidden from the show stays hidden, and each comes on with its transition', () => {
+  const model = readPpt(fixture('binary', 'showcase.ppt'));
+  assert.deepEqual(model.slides.map((s) => s.hidden), [false, false, false, false, false, false, true, false]);
+  assert.deepEqual(model.slides.map((s) => s.transition?.type ?? null), [null, null, 'cut', null, null, 'cut', null, null], 'the two cuts the original has, and no more');
+  const deck = Deck.open(Buffer.from(pptModelToDeck(model)));
+  assert.equal(deck.isSlideHidden(6), true);
+  assert.equal(deck.transition(2)?.type, 'cut');
+  assert.equal(deck.transition(0), null);
+});
+
+test('a slide\'s effects come as a later PowerPoint kept them, the PowerPoint 97 builds beside them read too', () => {
+  const model = readPpt(fixture('binary', 'showcase.ppt'));
+  const slide = model.slides[6];
+  assert.deepEqual(slide.timing.map(({ kind, effect, direction, trigger }) => [kind, effect, direction, trigger]), [
+    ['entr', 'fly', 'bottom', 'onClick'], ['entr', 'fade', null, 'onClick'], ['entr', 'zoom', null, 'withPrevious'],
+  ]);
+  // PowerPoint 97 had no fade and no "with previous": what it kept is the nearest.
+  assert.deepEqual(slide.shapes.filter((s) => s.animation).map((s) => [s.animation.effect, s.animation.direction, s.animation.trigger]), [
+    ['fly', 'bottom', 'onClick'], ['appear', null, 'onClick'], ['zoom', null, 'afterPrevious'],
+  ]);
+  const deck = Deck.open(Buffer.from(pptModelToDeck(model)));
+  assert.deepEqual(deck.animations(6).map((a) => [a.effect, a.direction, a.trigger]), [['fly', 'bottom', 'onClick'], ['fade', null, 'onClick'], ['zoom', null, 'withPrevious']]);
+});
+
 test('the suite opens a .ppt as a presentation, read in full, and says it saves a .pptx', () => {
   const doc = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }) });
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-ppt-'));

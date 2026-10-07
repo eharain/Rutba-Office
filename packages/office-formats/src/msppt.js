@@ -14,9 +14,11 @@
 //
 // Read here into a plain model of slides — each its background and its
 // shapes (text boxes with their paragraphs and runs, shapes with their
-// fill, outline and words, pictures, lines, tables) in slide pixels, and its
-// speaker notes — for the deck builder to write as a .pptx. Text takes its
-// look from the run first, then the master's style for its kind and level.
+// fill, outline and words, pictures, lines, tables) in slide pixels, its
+// speaker notes, and how it plays in the show (hidden or not, its
+// transition, its shapes' effects) — for the deck builder to write as a
+// .pptx. Text takes its look from the run first, then the master's style
+// for its kind and level.
 //
 // The layouts follow [MS-PPT] and LibreOffice's PowerPoint import
 // (filter/source/msfilter/svdfppt.cxx). Pure: bytes in, a model out.
@@ -46,7 +48,9 @@ const T = {
   TextHeader: 0x0f9f, TextChars: 0x0fa0, StyleTextProp: 0x0fa1, TextBytes: 0x0fa8, TxMasterStyle: 0x0fa3, Placeholder: 0x0bc3,
   DggContainer: 0xf000, BStore: 0xf001, DgContainer: 0xf002, SpgrContainer: 0xf003, SpContainer: 0xf004, FBSE: 0xf007,
   FSPGR: 0xf009, FSP: 0xf00a, FOPT: 0xf00b, ClientTextbox: 0xf00d, ChildAnchor: 0xf00f, ClientAnchor: 0xf010, ClientData: 0xf011,
-  TertiaryFOPT: 0xf122,
+  TertiaryFOPT: 0xf122, SlideShowSlideInfo: 0x03f9, AnimationInfo: 0x1014, AnimationInfoAtom: 0x0ff1,
+  ProgTags: 0x1388, ProgBinaryTag: 0x138a, BinaryTagData: 0x138b, CString: 0x0fba, AnimGroup: 0xf144, AnimSubGroup: 0xf145,
+  AnimPropertySet: 0xf13d, AnimAttributeValue: 0xf142, AnimReference: 0x2afb,
 };
 
 
@@ -171,9 +175,47 @@ export function readPpt(bytes) {
     const notesEntry = notesId ? lists[2].find((n) => n.id === notesId) : null;
     const notesH = notesEntry ? at(notesEntry.ref) : null;
     const notes = notesH && notesH.type === T.Notes ? readNotes(doc, notesH, { ...look, texts: notesEntry.texts }) : '';
-    slides.push({ background, shapes: [...behind.shapes, ...own.shapes], notes });
+    slides.push({ background, shapes: [...behind.shapes, ...own.shapes], notes, ...showOf(doc, child(doc, h, T.SlideShowSlideInfo)), timing: timingOf(doc, h) });
   }
   return { size, slides, images, fonts };
+}
+
+/**
+ * How a slide comes on in the show (its SlideShowSlideInfoAtom): whether it
+ * is hidden, its transition — PowerPoint 97's effect and direction as the
+ * classic effect a .pptx names, the eight that have none as the nearest —
+ * at its speed, and whether a click or the time on it moves the show on.
+ */
+function showOf(doc, atom) {
+  if (!atom) return { hidden: false, transition: null };
+  const d = atom.body;
+  const time = i32(doc, d);
+  const dir = u8(doc, d + 8);
+  const effect = u8(doc, d + 9);
+  const flags = u16(doc, d + 10);
+  const speed = u8(doc, d + 12);
+  const SIDES = ['l', 'u', 'r', 'd'];
+  const EIGHT = ['l', 'u', 'r', 'd', 'lu', 'ru', 'ld', 'rd'];
+  const bars = (vertical) => ({ type: 'randomBar', direction: vertical ? 'vert' : 'horz' });
+  const as = {
+    // A cut, through black or not; any other direction is no effect at all (a hidden slide's, for one).
+    0: dir === 1 ? { type: 'cut', direction: 'black' } : dir === 0 ? { type: 'cut', direction: 'smooth' } : null,
+    1: { type: 'fade', direction: 'smooth' },
+    2: bars(dir === 0), 3: bars(dir === 1), 4: { type: 'cover', direction: EIGHT[dir] ?? 'l' }, 5: { type: 'dissolve', direction: null },
+    6: { type: 'fade', direction: 'black' }, 7: { type: 'pull', direction: EIGHT[dir] ?? 'l' }, 8: bars(dir === 1),
+    9: { type: 'cover', direction: EIGHT[dir] ?? 'lu' }, 10: { type: 'wipe', direction: SIDES[dir] ?? 'l' },
+    11: { type: 'zoom', direction: dir === 1 ? 'in' : 'out' }, 13: { type: 'split', direction: ['horz-out', 'horz-in', 'vert-out', 'vert-in'][dir] ?? 'horz-out' },
+    17: { type: 'diamond', direction: null }, 18: { type: 'plus', direction: null }, 19: { type: 'circle', direction: null },
+    20: { type: 'push', direction: SIDES[dir] ?? 'l' }, 21: bars(dir === 1), 22: { type: 'zoom', direction: 'in' },
+    23: { type: 'fade', direction: 'smooth' }, 26: { type: 'circle', direction: null }, 27: { type: 'circle', direction: null },
+    30: { type: 'fade', direction: 'smooth' },
+  }[effect] ?? null;
+  const advanceAfter = flags & 0x0400 ? Math.max(0, time) / 1000 : null;
+  const advanceOnClick = Boolean(flags & 0x0001);
+  const transition = as || advanceAfter != null || !advanceOnClick
+    ? { type: as?.type ?? 'none', direction: as?.direction ?? null, duration: as ? [1, 0.75, 0.5][speed] ?? 1 : null, advanceOnClick, advanceAfter }
+    : null;
+  return { hidden: Boolean(flags & 0x0004), transition };
 }
 
 function locked() {
@@ -461,6 +503,112 @@ function readTable(doc, kids, transform, ctx) {
   return { type: 'table', x: lefts[0], y: tops[0], w: right - lefts[0], h: bottom - tops[0], rows, columns, cells };
 }
 
+/**
+ * A shape's build in the show, as PowerPoint 97 kept it (its
+ * AnimationInfoAtom): its place in the slide's order, and its effect and
+ * direction as the entrance effect a .pptx names — LibreOffice's table of
+ * them, each of PowerPoint 97's as the nearest the deck writes — on a click,
+ * or by itself after the one before. A later PowerPoint's effect comes as
+ * the PowerPoint 97 one it saved beside it.
+ */
+function animationOf(doc, data) {
+  const atom = data ? child(doc, child(doc, data, T.AnimationInfo), T.AnimationInfoAtom) : null;
+  if (!atom || atom.len < 24) return null;
+  const d = atom.body;
+  if (!u8(doc, d + 20)) return null; // no build
+  const flags = u32(doc, d + 4);
+  const delay = i32(doc, d + 12);
+  const method = u8(doc, d + 21);
+  const dir = u8(doc, d + 22);
+  const SIDES = ['left', 'top', 'right', 'bottom', 'top-left', 'top-right', 'bottom-left', 'bottom-right'];
+  let effect = 'appear';
+  let direction = null;
+  let duration = null;
+  if (method === 0x01 || method === 0x03 || method === 0x05) effect = 'fade';
+  else if (method === 0x02 || method === 0x08 || method === 0x09) effect = 'wipe';
+  else if (method === 0x0a) { effect = 'wipe'; direction = ['right', 'bottom', 'left', 'top'][dir] ?? null; }
+  else if (method === 0x0b) effect = 'zoom';
+  else if (method === 0x0d) { effect = 'split'; direction = ['horizontal-out', 'horizontal-in', 'vertical-out', 'vertical-in'][dir] ?? null; }
+  else if (method === 0x0c) {
+    if (dir <= 7) { effect = 'fly'; direction = SIDES[dir]; }
+    else if (dir <= 0x0b) { effect = 'wipe'; direction = ['left', 'bottom', 'right', 'top'][dir - 8]; }
+    else if (dir <= 0x0f) { effect = 'fly'; direction = SIDES[dir - 0x0c]; duration = 1; }
+    else effect = 'zoom';
+  }
+  return {
+    order: u16(doc, d + 16), effect, direction, duration,
+    trigger: flags & 0x04 ? 'afterPrevious' : 'onClick',
+    delay: delay > 0 && delay !== 0x7fffffff ? delay / 1000 : 0,
+  };
+}
+
+/**
+ * A slide's effects as PowerPoint 2002 and later keep them — beside the
+ * PowerPoint 97 builds, in the slide's "___PPT10" binary tag: a tree of
+ * time nodes the same shape as a .pptx's timing. Each effect node says its
+ * class (entrance, emphasis, exit), its preset and subtype and how it
+ * starts; the shape it acts on is named in a reference under it. In the
+ * main sequence's order: [{ spid, kind, effect, direction, trigger }].
+ */
+function timingOf(doc, slideH) {
+  const tags = child(doc, slideH, T.ProgTags);
+  let root = null;
+  for (const tag of children(doc, tags)) {
+    if (tag.type !== T.ProgBinaryTag) continue;
+    const name = child(doc, tag, T.CString);
+    if (!name || utf16(doc.subarray(name.body, name.end)) !== '___PPT10') continue;
+    root = child(doc, child(doc, tag, T.BinaryTagData), T.AnimGroup);
+  }
+  if (!root) return null;
+  const props = (node) => {
+    const out = new Map();
+    for (const v of children(doc, child(doc, node, T.AnimPropertySet))) {
+      if (v.type === T.AnimAttributeValue && v.len >= 5 && u8(doc, v.body) === 1) out.set(v.inst, i32(doc, v.body + 1));
+    }
+    return out;
+  };
+  const shapeOf = (node) => {
+    for (const c of children(doc, node)) {
+      if (c.type === T.AnimReference && c.len >= 12 && i32(doc, c.body + 4) === 1) return i32(doc, c.body + 8);
+      if (c.ver === 0xf) { const found = shapeOf(c); if (found != null) return found; }
+    }
+    return null;
+  };
+  const SIDES = { 1: 'top', 2: 'right', 4: 'bottom', 8: 'left', 3: 'top-right', 6: 'bottom-right', 9: 'top-left', 12: 'bottom-left' };
+  const SPLITS = { 37: 'vertical-out', 42: 'horizontal-out', 21: 'vertical-in', 26: 'horizontal-in' };
+  const effects = [];
+  const walk = (node) => {
+    const p = props(node);
+    const type = p.get(20);
+    if (type === 5) return; // a sequence a shape's click starts: not the slide's own
+    const cls = p.get(11);
+    if (cls != null && type >= 1 && type <= 3) {
+      const kind = { 1: 'entr', 2: 'exit', 3: 'emph' }[cls];
+      const spid = shapeOf(node);
+      if (kind && spid != null) {
+        const id = p.get(9) ?? 0;
+        const sub = p.get(10) ?? 0;
+        let effect;
+        let direction = null;
+        if (kind === 'emph') effect = { 26: 'pulse', 8: 'spin', 6: 'grow' }[id] ?? 'pulse';
+        else if (id === 1) effect = 'appear';
+        else if (id === 2 || id === 7) { effect = 'fly'; direction = SIDES[sub] ?? 'bottom'; }
+        else if (id === 42 || id === 47) { effect = 'float'; direction = (id === 42) === (kind === 'entr') ? 'up' : 'down'; }
+        else if (id === 16) { effect = 'split'; direction = SPLITS[sub] ?? 'vertical-out'; }
+        else if (id === 22 || id === 12) { effect = 'wipe'; direction = SIDES[sub] ?? 'bottom'; }
+        else if ([3, 14, 18, 20, 21].includes(id)) effect = 'wipe';
+        else if ([4, 6, 8, 13, 15, 17, 19, 23, 53].includes(id)) effect = 'zoom';
+        else effect = 'fade';
+        effects.push({ spid, kind, effect, direction, trigger: { 1: 'onClick', 2: 'withPrevious', 3: 'afterPrevious' }[type] });
+        return;
+      }
+    }
+    for (const c of children(doc, node)) if (c.type === T.AnimGroup || c.type === T.AnimSubGroup) walk(c);
+  };
+  walk(root);
+  return effects;
+}
+
 /** A shape's box: a top-level shape's client anchor (master units), or a child's anchor in its group's coordinates. */
 function anchorOf(doc, sp, transform) {
   const client = child(doc, sp, T.ClientAnchor);
@@ -527,6 +675,10 @@ function readShape(doc, sp, transform, ctx) {
   const name = props.get(0x0380)?.complex ? utf16(props.get(0x0380).complex) : null;
   const rotation = props.get(0x0004) ? i32(new Uint8Array(new Uint32Array([props.get(0x0004).op]).buffer), 0) / 65536 : 0;
   const base = { x: box.x, y: box.y, w: box.w, h: box.h, name, rotation, flipH: Boolean(flags & 0x40), flipV: Boolean(flags & 0x80) };
+  // Its id, which a later PowerPoint's effects name it by, and its PowerPoint 97 build.
+  base.spid = u32(doc, fsp.body);
+  const animation = animationOf(doc, data);
+  if (animation) base.animation = animation;
 
   const pib = props.get(0x0104)?.op;
   if (pib && (type === 75 || !child(doc, sp, T.ClientTextbox))) {

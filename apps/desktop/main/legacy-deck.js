@@ -2,8 +2,10 @@
 // Presentations edits: blank slides at the presentation's own size, each
 // with its background, and on it every shape where it stood — text boxes
 // with their paragraphs and runs, shapes in their fill and outline with
-// their words (a freeform with its own outline), lines, pictures, tables — turned
-// and flipped as they were, and the speaker notes.
+// their words (a freeform with its own outline), lines, pictures and
+// tables — turned and flipped as they were, each built in the show as it
+// was, and the speaker notes; a slide hidden from the show stays hidden,
+// and comes on with its transition.
 import zlib from 'node:zlib';
 import { Deck, buildPptx } from '@rutba/presentation';
 
@@ -21,6 +23,7 @@ export function pptModelToDeck(model) {
     if (slide.background && slide.background !== 'none') {
       try { deck.setBackground(i, { colour: slide.background.replace('#', '') }); } catch { /* a background this cannot write leaves the default */ }
     }
+    const builds = [];
     for (const sh of slide.shapes || []) {
       try {
         const box = { x: Math.round(sh.x), y: Math.round(sh.y), w: Math.max(1, Math.round(sh.w)), h: Math.max(1, Math.round(sh.h)) };
@@ -48,11 +51,26 @@ export function pptModelToDeck(model) {
           });
         }
         if (id != null && (sh.rotation || sh.flipH || sh.flipV)) deck.setGeometry(i, id, { ...box, rot: sh.rotation || 0, flipH: Boolean(sh.flipH), flipV: Boolean(sh.flipV) });
+        if (id != null) builds.push({ id, spid: sh.spid, animation: sh.animation });
       } catch {
         // A drawing this cannot express is left out; the slide keeps the rest.
       }
     }
+    // Its effects: a later PowerPoint's, each on the shape it names, or else
+    // the PowerPoint 97 builds, in the slide's own order.
+    const byId = new Map(builds.filter((b) => b.spid != null).map((b) => [b.spid, b.id]));
+    const effects = slide.timing?.length
+      ? slide.timing.filter((e) => byId.has(e.spid)).map((e) => ({ ...e, id: byId.get(e.spid) }))
+      : builds.filter((b) => b.animation).sort((x, y) => x.animation.order - y.animation.order).map((b) => ({ id: b.id, kind: 'entr', ...b.animation }));
+    for (const e of effects) {
+      try {
+        deck.addAnimation(i, e.id, { kind: e.kind, effect: e.effect, ...(e.direction ? { direction: e.direction } : {}), ...(e.duration ? { duration: e.duration } : {}), trigger: e.trigger, delay: e.delay || 0 });
+      } catch { /* an effect this cannot write is left out */ }
+    }
     if (slide.notes) deck.setNotes(i, slide.notes);
+    // How it comes on in the show: hidden from it, and its transition.
+    if (slide.hidden) deck.setSlideHidden(i, true);
+    if (slide.transition) { try { deck.setTransition(i, slide.transition); } catch { /* a transition this cannot write leaves none */ } }
   });
   return deck.save();
 }
