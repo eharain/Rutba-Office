@@ -23,6 +23,7 @@ export {
 export {
   Document, textOf, parseRuns, renderRuns, hasToggle, withToggle, langElement, WORD_NS,
   splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf,
+  splitParagraphChange, joinParagraphChange, withParagraphChange, paragraphChangeOf,
 } from './document.js';
 export {
   parseTable, parseSection, twipsToPx, eighthPointsToPx, TWIPS_PER_INCH,

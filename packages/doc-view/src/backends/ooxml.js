@@ -8,7 +8,7 @@
  * This is the ONLY file in `@rutba/doc-view` that imports `@rutba/ooxml`. Mail
  * imports the HTML backend instead and never pulls the format layer in.
  */
-import { Document, withToggle, hasToggle, langElement, themeColourHex, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection, splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf } from '@rutba/ooxml';
+import { Document, withToggle, hasToggle, langElement, themeColourHex, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection, splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf, splitParagraphChange, joinParagraphChange, withParagraphChange } from '@rutba/ooxml';
 import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene } from '@rutba/drawing';
 import { ommlToMathml, ommlToLinear, ommlInfo, asciiLinear } from '@rutba/ooxml/math';
 import { mergeToDocument, mergeMessages } from '@rutba/ooxml/mailmerge-run';
@@ -172,7 +172,8 @@ export class OoxmlBackend {
   getParagraphProps(index) {
     const p = this.doc.editParagraph(index);
     if (!p) return null;
-    const props = readParagraphProps(p.pPr);
+    // As formatted now: a tracked change's record of before is not it.
+    const props = readParagraphProps(splitParagraphChange(p.pPr).own);
     // List membership is a paragraph property too, but its VOCABULARY is neutral
     // ('bullet'|'number'|null) rather than the numId a docx stores: the numId is
     // meaningless outside this file, and classifying it here means the view — and
@@ -240,7 +241,7 @@ export class OoxmlBackend {
       // WITH a styles part is never touched here.
       if (typeof this.doc.ensureParagraphStyles === 'function') this.doc.ensureParagraphStyles();
     }
-    return this._replacePPr(p, withParagraphProp(p.pPr, prop, value));
+    return this._replaceOwnPPr(p, (own) => withParagraphProp(own, prop, value));
   }
 
   /**
@@ -284,7 +285,7 @@ export class OoxmlBackend {
       const ids = this.doc.ensureListNumbering();
       numId = listType === 'bullet' ? ids.bullet : listType === 'outline' ? ids.outline : ids.number;
     }
-    return this._replacePPr(p, withNumPr(p.pPr, numId));
+    return this._replaceOwnPPr(p, (own) => withNumPr(own, numId));
   }
 
   /**
@@ -297,7 +298,7 @@ export class OoxmlBackend {
     if (!p) throw new Error('no paragraph at index ' + index);
     if (!p.numbering) return this;
     const lvl = Math.max(0, Math.min(8, Math.round(Number(level) || 0)));
-    return this._replacePPr(p, withNumPr(p.pPr, p.numbering.numId, lvl));
+    return this._replaceOwnPPr(p, (own) => withNumPr(own, p.numbering.numId, lvl));
   }
 
   /**
@@ -306,6 +307,32 @@ export class OoxmlBackend {
    * opened up first; the normal path keeps everything after the old pPr — the
    * runs — exactly as it was.
    */
+  /** `edit` applied to the paragraph's own properties, a tracked change of them kept as it was, last. */
+  _replaceOwnPPr(p, edit) {
+    const { own, change } = splitParagraphChange(p.pPr ?? null);
+    return this._replacePPr(p, joinParagraphChange(edit(own), change));
+  }
+
+  /** A paragraph's properties as the file has them — what Track Changes records a change from. */
+  paragraphPPr(index) { return this.doc.editParagraph(index)?.pPr ?? null; }
+
+  /** A paragraph given another's properties outright (its tracked change kept) — Sort moves them with the words. */
+  setParagraphPPr(index, pPr) {
+    const p = this.doc.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    return this._replaceOwnPPr(p, () => splitParagraphChange(pPr).own);
+  }
+
+  /**
+   * Review → Track Changes: paragraph `index` formatted since it had
+   * `before` — recorded as Word records it, a `w:pPrChange` holding what it had.
+   */
+  recordParagraphChange(index, before, meta) {
+    const p = this.doc.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    return this._replacePPr(p, withParagraphChange(before, p.pPr ?? null, meta));
+  }
+
   _replacePPr(p, nextPPr) {
     if (nextPPr === (p.pPr ?? null)) return this;   // nothing actually changed
     const selfClosing = /^<w:p\b[^>]*\/>$/.test(p.xml);

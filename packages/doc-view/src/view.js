@@ -27,7 +27,7 @@ import {
 } from '@rutba/ooxml/mailmerge';
 import {
   runsText, locate, clampPosition, comparePositions, orderedRange,
-  sliceRuns, removeRange, trackedRemoveRange, coalesce, samePosition,
+  sliceRuns, removeRange, trackedRemoveRange, insertAfterDeletions, coalesce, samePosition,
 } from './positions.js';
 import { installReferenceViews } from './references.js';
 
@@ -554,7 +554,12 @@ export class DocView {
   _trackMeta(existing) {
     const author = this._trackAuthor || 'Rutba Office user';
     if (existing && existing.author === author) return existing;
-    return { id: String(this.doc.nextTrackChangeId()), author, date: new Date().toISOString() };
+    // One past the file's highest, and past every id this window has handed
+    // out — several changes made in one edit (a replace-all) are not in the
+    // file yet when the next is minted, and each needs an id of its own.
+    const id = Math.max(Number(this.doc.nextTrackChangeId()), (this._trackIdIssued ?? -1) + 1);
+    this._trackIdIssued = id;
+    return { id: String(id), author, date: new Date().toISOString() };
   }
 
   /** The tag one change of formatting is recorded under while Track Changes is on — null when it is off. */
@@ -1075,16 +1080,53 @@ export class DocView {
     const last = collapsed ? this.blocks.length - 1 : to.block;
     if (last <= first) return this;
     return this._edit('sort paragraphs', null, () => {
-      this.doc.sortParagraphs(first, last, { descending });
+      if (this.recording) this._sortTracked(first, last, descending);
+      else this.doc.sortParagraphs(first, last, { descending });
       this._invalidate();
       this.collapseTo({ block: first, offset: 0 });
       return this;
     });
   }
 
+  /**
+   * Sort while recording, as Word records one: every paragraph that moves
+   * has its words taken out where they were and put in where they go, and
+   * its formatting goes with them as a change of the paragraph's own — so
+   * Reject All puts the list back in its first order. The order is the one
+   * Sort uses unrecorded: the words, numbers by value, case aside.
+   */
+  _sortTracked(first, last, descending) {
+    for (let i = first; i <= last; i++) {
+      this._editable(i);
+      if (this._containerOf(i) !== null) throw new Error("Sort works on the body's paragraphs; a table sorts by its own rows.");
+    }
+    const span = Array.from({ length: last - first + 1 }, (_, k) => first + k);
+    const was = span.map((i) => ({ text: this.block(i).text, runs: this.block(i).runs, pPr: typeof this.doc.paragraphPPr === 'function' ? this.doc.paragraphPPr(i) : null }));
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+    const order = was.map((_, k) => k).sort((a, b) => (collator.compare(was[a].text, was[b].text) * (descending ? -1 : 1)) || a - b);
+    order.forEach((src, k) => {
+      if (src === k) return;
+      const at = first + k;
+      const del = this._trackMeta(null);
+      const ins = this._trackMeta(null);
+      const taken = trackedRemoveRange(was[k].runs, 0, was[k].text.length, true, del);
+      const put = was[src].runs.filter((r) => !r.del && r.text).map((r) => ({ ...r, ins }));
+      this.doc.setParagraphRuns(at, coalesce([...taken, ...put]));
+      this._invalidate();
+      if (typeof this.doc.setParagraphPPr === 'function' && was[src].pPr !== was[k].pPr) {
+        this.doc.setParagraphPPr(at, was[src].pPr);
+        this.doc.recordParagraphChange(at, was[k].pPr, this._trackMeta(null));
+        this._invalidate();
+      }
+    });
+  }
+
   _setParagraphFormat(delta) {
     const { from, to } = this.selection;
     for (let i = from.block; i <= to.block; i++) this._editable(i);
+    // While recording, each paragraph's properties before, for its change.
+    const meta = this.recording && typeof this.doc.recordParagraphChange === 'function' ? this._trackMeta(null) : null;
+    const before = meta ? Array.from({ length: to.block - from.block + 1 }, (_, k) => this.doc.paragraphPPr(from.block + k)) : null;
 
     for (let i = from.block; i <= to.block; i++) {
       if ('styleId' in delta) {
@@ -1128,6 +1170,7 @@ export class DocView {
       if ('noHyphens' in delta) this.doc.setParagraphProp(i, 'suppressAutoHyphens', Boolean(delta.noHyphens));
       if ('borders' in delta) this.doc.setParagraphProp(i, 'borders', delta.borders ?? null);
     }
+    if (meta) for (let i = from.block; i <= to.block; i++) this.doc.recordParagraphChange(i, before[i - from.block], meta);
     // A list toggle can add a definition to numbering.xml, and applying a
     // named style can add the standard styles part to a file that had none —
     // either way the copies cached for pagination (read once on the
@@ -1450,6 +1493,7 @@ export class DocView {
     if (!found.size) return 0;
 
     let count = 0;
+    const recording = this.recording;
     this._edit('replace all', null, () => {
       // Last block to first, so nothing this loop rewrites moves an index it
       // has not visited yet.
@@ -1459,11 +1503,20 @@ export class DocView {
         let runs = b.runs;
         for (const at of matches.reverse()) {
           const covered = sliceRuns(runs, at, at + needle.length);
-          runs = [
-            ...sliceRuns(runs, 0, at),
-            { rPr: covered[0]?.rPr ?? null, text: replacement },
-            ...sliceRuns(runs, at + needle.length, Infinity),
-          ];
+          const rPr = covered.find((r) => !r.del)?.rPr ?? null;
+          if (recording) {
+            // While recording, as Word records a replace: the words found
+            // taken out, then the replacement put in after them.
+            const del = this._trackMeta(null);
+            const removed = trackedRemoveRange(runs, at, at + needle.length, true, del);
+            runs = replacement ? insertAfterDeletions(removed, at, { rPr, text: replacement, ins: this._trackMeta(null) }) : removed;
+          } else {
+            runs = [
+              ...sliceRuns(runs, 0, at),
+              { rPr, text: replacement },
+              ...sliceRuns(runs, at + needle.length, Infinity),
+            ];
+          }
           count += 1;
         }
         this.doc.setParagraphRuns(i, coalesce(runs));

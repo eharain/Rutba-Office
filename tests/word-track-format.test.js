@@ -213,3 +213,64 @@ test('a paragraph holding a tracked move stays as Word wrote it, and Accept or R
   assert.equal(rejected.blocks[0].text, 'Moved words. Staying words.');
   assert.equal(rejected.blocks[0].structural, false);
 });
+
+test('paragraph formatting while recording is written as a w:pPrChange; Reject puts the paragraph back, Accept keeps it', () => {
+  const make = () => {
+    const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Centre me' }, { text: 'Leave me' }] }));
+    view.setTrackChanges(true, 'Kim');
+    view.setSelection({ block: 0, offset: 2 });
+    view.setParagraphFormat({ align: 'center' });
+    return view;
+  };
+  const view = make();
+  assert.match(bodyOf(view), /^<w:p><w:pPr><w:jc w:val="center"\/><w:pPrChange w:id="\d+" w:author="Kim" w:date="[^"]+"><w:pPr><\/w:pPr><\/w:pPrChange><\/w:pPr>/);
+  assert.equal(view.doc.getParagraphProps(0).align, 'center');
+  assert.equal(view.render({ pages: false }).blocks[0].tracked.formatted, 1);
+  // Formatted again, the change is still from how it first was; back to that, none.
+  view.setParagraphFormat({ align: 'right' });
+  assert.match(bodyOf(view), /<w:jc w:val="right"\/><w:pPrChange [^>]*><w:pPr><\/w:pPr><\/w:pPrChange>/);
+  view.setParagraphFormat({ align: null });
+  assert.ok(!/pPrChange/.test(bodyOf(view)));
+  const rejected = make();
+  rejected.rejectChanges({ all: true });
+  assert.equal(rejected.doc.getParagraphProps(0).align, null);
+  const accepted = make();
+  accepted.acceptChanges({ all: true });
+  assert.equal(accepted.doc.getParagraphProps(0).align, 'center');
+  assert.ok(!/pPrChange/.test(bodyOf(accepted)));
+});
+
+test('Replace All while recording takes the words found out and puts the replacement in after them, each change its own id', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'The cat sat by the cat flap.' }] }));
+  view.setTrackChanges(true, 'Kim');
+  assert.equal(view.replaceAll('cat', 'dog'), 2);
+  assert.deepEqual(shape(view), ['The ', '-cat', 'dog', ' sat by the ', '-cat', 'dog', ' flap.']);
+  assert.equal(view.blocks[0].text, 'The dog sat by the dog flap.');
+  const ids = [...bodyOf(view).matchAll(/<w:(?:ins|del) w:id="(\d+)"/g)].map((m) => m[1]);
+  assert.equal(ids.length, 4);
+  assert.equal(new Set(ids).size, 4, 'no two changes share an id');
+  view.rejectChanges({ all: true });
+  assert.equal(view.blocks[0].text, 'The cat sat by the cat flap.');
+});
+
+test('Sort while recording moves each paragraph\'s words as a deletion and an insertion, its formatting as a change, and Reject All restores the order', () => {
+  const make = () => {
+    const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Cherry' }, { text: 'apple', style: 'Heading1' }, { text: 'Banana' }] }));
+    view.setTrackChanges(true, 'Kim');
+    view.setSelection({ block: 0, offset: 0 }, { block: 2, offset: 6 });
+    view.sortParagraphs();
+    return view;
+  };
+  const view = make();
+  assert.deepEqual(view.blocks.map((b) => b.text), ['apple', 'Banana', 'Cherry']);
+  assert.deepEqual(shape(view, 0), ['-Cherry', 'apple']);
+  assert.equal(view.blocks[0].style, 'Heading1', 'the heading\'s formatting went with its words');
+  assert.match(bodyOf(view), /^<w:p><w:pPr><w:pStyle w:val="Heading1"\/><w:pPrChange [^>]*><w:pPr><\/w:pPr><\/w:pPrChange><\/w:pPr>/);
+  const rejected = make();
+  rejected.rejectChanges({ all: true });
+  assert.deepEqual(rejected.blocks.map((b) => [b.text, b.style ?? null]), [['Cherry', null], ['apple', 'Heading1'], ['Banana', null]]);
+  const accepted = make();
+  accepted.acceptChanges({ all: true });
+  assert.deepEqual(accepted.blocks.map((b) => [b.text, b.style ?? null]), [['apple', 'Heading1'], ['Banana', null], ['Cherry', null]]);
+  assert.ok(wellFormed(bodyOf(accepted)) && !/<w:(?:ins|del|pPrChange)\b/.test(bodyOf(accepted)));
+});

@@ -73,6 +73,7 @@ export {
   textOf, parseRuns, hasToggle, withToggle, langElement, renderRuns, renderRun, firstRunProps, RPR_RE,
   splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf,
 } from './runs.js';
+export { splitParagraphChange, joinParagraphChange, withParagraphChange, paragraphChangeOf } from './revisions.js';
 import {
   textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults, mergeFieldsOnly, foldsToRuns, langElement,
 } from './runs.js';
@@ -1318,10 +1319,10 @@ export class Document {
     if (next !== xml) this.pkg.write_(relsPath, next);
   }
 
-  /** A fresh `w:id` for the next `w:ins`/`w:del` — one past the highest either kind already carries. */
+  /** A fresh `w:id` for the next tracked change — one past the highest any tracked change already carries. */
   nextTrackChangeId() {
     let maxId = -1;
-    for (const m of this.xml.matchAll(/<w:(?:ins|del)\b[^>]*\bw:id="(\d+)"/g)) maxId = Math.max(maxId, Number(m[1]));
+    for (const m of this.xml.matchAll(/<w:(?:ins|del|rPrChange|pPrChange|moveFrom|moveTo)\b[^>]*\bw:id="(\d+)"/g)) maxId = Math.max(maxId, Number(m[1]));
     return maxId + 1;
   }
 
@@ -4625,7 +4626,9 @@ export class Document {
     // take the first one inside its box for its own.
     const own = ownXml;
     const pPr = /<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(own);
-    const style = /<w:pStyle\b[^>]*w:val="([^"]*)"/.exec(pPr ? pPr[0] : '');
+    // How the paragraph is formatted now: a tracked change's record of before (w:pPrChange) is not it.
+    const now = pPr ? pPr[0].replace(/<w:pPrChange\b[\s\S]*?<\/w:pPrChange>/, '') : null;
+    const style = /<w:pStyle\b[^>]*w:val="([^"]*)"/.exec(now ?? '');
     // `open` is normalised to a real opening tag: a self-closing `<w:p/>` (an
     // empty cell, a blank line) must not be used as a prefix and then closed
     // AGAIN by the rebuilders — `<w:p/>…</w:p>` is how typing into a fresh
@@ -4651,42 +4654,42 @@ export class Document {
       // the paginator must not decide it knows better.
       // A section break before it — Next Page, Odd or Even — is one too: a
       // merged letter's records each start a page that way.
-      pageBreakBefore: PAGE_BREAK_BEFORE.test(pPr ? pPr[0] : '') || EXPLICIT_BREAK.test(p.xml) || (p.container == null && this._sectionStarts().has(p.start)),
-      ...(p.container == null && paragraphSectionBreak(pPr ? pPr[0] : null) ? { sectionBreak: paragraphSectionBreak(pPr[0]).type } : {}),
-      keepNext: KEEP_NEXT.test(pPr ? pPr[0] : ''),
-      keepLines: KEEP_LINES.test(pPr ? pPr[0] : ''),
+      pageBreakBefore: PAGE_BREAK_BEFORE.test(now ?? '') || EXPLICIT_BREAK.test(p.xml) || (p.container == null && this._sectionStarts().has(p.start)),
+      ...(p.container == null && paragraphSectionBreak(now) ? { sectionBreak: paragraphSectionBreak(now).type } : {}),
+      keepNext: KEEP_NEXT.test(now ?? ''),
+      keepLines: KEEP_LINES.test(now ?? ''),
       // A drop cap rides the same way — a paragraph property the paginator
       // and the painter both read straight off the block, not something
       // they have to ask the format layer for.
-      dropCap: readDropCap(pPr ? pPr[0] : ''),
+      dropCap: readDropCap(now ?? ''),
       // Layout → Hyphenation leaves this paragraph whole.
-      ...(/<w:suppressAutoHyphens\b(?![^>]*w:val="(?:0|false)")/.test(pPr ? pPr[0] : '') ? { noHyphens: true } : {}),
+      ...(/<w:suppressAutoHyphens\b(?![^>]*w:val="(?:0|false)")/.test(now ?? '') ? { noHyphens: true } : {}),
       // A frame placed on the page: drawn there, out of the flow.
-      ...(p.container == null && readFrame(pPr ? pPr[0] : '') ? { frame: readFrame(pPr[0]) } : {}),
+      ...(p.container == null && readFrame(now ?? '') ? { frame: readFrame(now) } : {}),
       // Direct paragraph spacing, if the paragraph sets any — the paginator
       // lets it beat the style's spacing, exactly as Word does.
-      spacing: readDirectSpacing(pPr ? pPr[0] : ''),
+      spacing: readDirectSpacing(now ?? ''),
       // Direct alignment and indent, the same rule: the paragraph's own `w:jc`
       // and `w:ind` beat the style's. Alignment stays in the docx vocabulary
       // ('both', 'end') — the same one table cells and resolved styles carry,
       // so the painter learns each spelling exactly once.
       align: (() => {
-        const jc = /<w:jc\b[^>]*w:val="([^"]*)"/.exec(pPr ? pPr[0] : '');
+        const jc = /<w:jc\b[^>]*w:val="([^"]*)"/.exec(now ?? '');
         return jc ? jc[1] : null;
       })(),
       indentPx: (() => {
-        const ind = /<w:ind\b([^>]*?)\/?>/.exec(pPr ? pPr[0] : '');
+        const ind = /<w:ind\b([^>]*?)\/?>/.exec(now ?? '');
         if (!ind) return null;
         const left = /\bw:left="(-?\d+)"/.exec(ind[1]) || /\bw:start="(-?\d+)"/.exec(ind[1]);
         return left ? twipsToPx(Number(left[1])) : null;
       })(),
       // Tab stops, shading, borders and the other indents — direct formatting
       // the page draws. Null when the paragraph sets none of them.
-      decor: readParagraphDecor(pPr ? pPr[0] : ''),
+      decor: readParagraphDecor(now ?? ''),
       // A list paragraph names its numbering; the LABEL is computed by the view,
       // because "3." depends on the two list items before it, not on this XML.
       numbering: (() => {
-        const numPr = /<w:numPr\b[^>]*>([\s\S]*?)<\/w:numPr>/.exec(pPr ? pPr[0] : '');
+        const numPr = /<w:numPr\b[^>]*>([\s\S]*?)<\/w:numPr>/.exec(now ?? '');
         if (!numPr) return null;
         const numId = /<w:numId\b[^>]*w:val="([^"]*)"/.exec(numPr[1]);
         const ilvl = /<w:ilvl\b[^>]*w:val="([^"]*)"/.exec(numPr[1]);

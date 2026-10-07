@@ -151,6 +151,39 @@ export function trackedRemoveRange(runs, from, to, recording, meta) {
 }
 
 /**
+ * `run` put in at text offset `at` — after any deletion standing there, so
+ * a tracked replacement reads as Word shows one: the old words struck
+ * through, then the new.
+ */
+export function insertAfterDeletions(runs, at, run) {
+  const out = [];
+  let seen = 0;
+  let placed = false;
+  for (let i = 0; i < runs.length; i++) {
+    const r = runs[i];
+    const end = seen + r.text.length;
+    if (!placed && seen <= at && at < end) {
+      // Inside a run of words: split it there.
+      const cut = at - seen;
+      if (cut) out.push({ ...r, text: r.text.slice(0, cut) });
+      out.push(run);
+      out.push({ ...r, text: r.text.slice(cut) });
+      placed = true;
+    } else {
+      out.push(r);
+      // At `at` once every deletion there has gone by.
+      if (!placed && end === at && !(runs[i + 1]?.del && runs[i + 1].text === '')) {
+        out.push(run);
+        placed = true;
+      }
+    }
+    seen = end;
+  }
+  if (!placed) out.push(run);
+  return out;
+}
+
+/**
  * Merge adjacent runs that carry identical properties.
  *
  * Without this, every keystroke fragments a paragraph a little further — type
