@@ -2394,7 +2394,8 @@ export default function Slides({ app, shell, boot }) {
                 const nudge = { ArrowLeft: { dx: -step }, ArrowRight: { dx: step }, ArrowUp: { dy: -step }, ArrowDown: { dy: step } }[e.key];
                 if (nudge) { e.preventDefault(); act('nudge', nudge); }
                 else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); act('deleteShape'); }
-                else if (e.key === 'Escape') { if (painter) setPainter(null); else if (animPainter) setAnimPainter(null); else setSelected(null); }
+                // Escape leaves Edit Points first, the shape still picked, as in PowerPoint.
+                else if (e.key === 'Escape') { if (points) setPoints(null); else if (painter) setPainter(null); else if (animPainter) setAnimPainter(null); else setSelected(null); }
               }}
             >
               {findOpen ? (
