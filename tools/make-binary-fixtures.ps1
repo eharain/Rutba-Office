@@ -12,11 +12,12 @@
 # Word's Save As hangs for ever in an automated session on this machine when
 # the document was built inside a PowerShell function or script block; the
 # same steps written at the top level save (see make-binary-word.ps1, and
-# make-rich-fixtures.ps1, which met the hang first). So Word makes three
+# make-rich-fixtures.ps1, which met the hang first). So Word makes four
 # small documents, each by make-binary-word.ps1 in a PowerShell of its own:
 # the characters, the paragraphs and lists, and the structure (a table, a
 # link, a footnote, a picture, a header and footer, a page break) — which
-# also lets each reader test aim at one thing.
+# also lets each reader test aim at one thing — and the floating drawings
+# (a picture, a text box, two shapes) in a fourth.
 #
 # This Excel no longer writes the 2.1, 3.0 and 4.0 formats; those, and the
 # Word 2.0, 6.0/95, DOS and Write formats no Office here writes, are built
@@ -47,7 +48,7 @@ function Reap {
 # Each document in a PowerShell of its own — make-binary-word.ps1 says why —
 # given three minutes, and the Word it started reaped either way.
 if ($run -contains 'word') {
-  foreach ($kind in @('text', 'paragraphs', 'structure')) {
+  foreach ($kind in @('text', 'paragraphs', 'structure', 'floats')) {
     $target = Join-Path $outDir "$kind.doc"
     $log = Join-Path $env:TEMP "rutba-binary-word-$kind.log"
     $child = Start-Process powershell -ArgumentList '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', (Join-Path $PSScriptRoot 'make-binary-word.ps1'), '-Out', $target, '-Kind', $kind, '-Picture', (Join-Path $rich 'picture.png') -PassThru -WindowStyle Hidden -RedirectStandardOutput $log

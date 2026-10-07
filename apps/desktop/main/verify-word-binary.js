@@ -56,4 +56,30 @@ export async function verifyWordBinary(h, { dir }) {
   } catch (err) {
     check('word: the .doc checks ran', false, err.message);
   }
+
+  // Floating drawings: a picture the words wrap round, a text box, two shapes.
+  const floats = path.join(dir, 'floats.doc');
+  try {
+    fs.copyFileSync(path.join(path.dirname(FIXTURE), 'floats.doc'), floats);
+    const win = await open('word', floats);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`document.querySelectorAll('.wd-page .wd-drawing, .wd-page .wd-float').length >= 3`), 'the floating drawings', 8000).catch(() => {});
+    if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-binary-floats.png'), (await win.webContents.capturePage()).toPNG());
+    const drawn = await js(`(() => {
+      const page = document.querySelector('.wd-page');
+      return {
+        pictures: page ? [...page.querySelectorAll('img')].filter((i) => i.naturalWidth > 0).length : 0,
+        drawings: page ? page.querySelectorAll('.wd-drawing').length : 0,
+        boxText: page ? page.innerText.includes('Words in a text box') : false,
+        after: page ? page.innerText.includes('After the drawings.') : false,
+      };
+    })()`);
+    check('word: a .doc\'s floating picture, text box and shapes are drawn on the page',
+      drawn.pictures >= 1 && drawn.drawings >= 3 && drawn.boxText && drawn.after,
+      JSON.stringify(drawn));
+    const complaints = await errorsIn(win);
+    check('word: opening a .doc with floating drawings reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the floating-drawing checks ran', false, err.message);
+  }
 }

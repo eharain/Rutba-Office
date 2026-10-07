@@ -23,6 +23,7 @@
 
 import { CompoundFile } from './cfb.js';
 import { findBlip } from './msdoc.js';
+import { header, children, child, artColour, readFopt, PRESETS, LINES, freeformPath } from './officeart.js';
 
 export class PptError extends Error {
   constructor(message) {
@@ -47,26 +48,6 @@ const T = {
   FSPGR: 0xf009, FSP: 0xf00a, FOPT: 0xf00b, ClientTextbox: 0xf00d, ChildAnchor: 0xf00f, ClientAnchor: 0xf010, ClientData: 0xf011,
 };
 
-/** A record's header: version, instance, type, and where its body is. */
-function header(b, at) {
-  const vi = u16(b, at);
-  const len = u32(b, at + 4);
-  return { ver: vi & 0xf, inst: vi >> 4, type: u16(b, at + 2), len, body: at + 8, end: Math.min(b.length, at + 8 + len) };
-}
-/** A container's children. */
-function children(b, h) {
-  const out = [];
-  if (!h) return out;
-  let p = h.body;
-  while (p + 8 <= h.end) {
-    const c = header(b, p);
-    out.push(c);
-    if (c.len === 0 && c.ver !== 0xf) { p = c.body; continue; }
-    p = c.body + c.len;
-  }
-  return out;
-}
-const child = (b, h, type, inst = null) => children(b, h).find((c) => c.type === type && (inst == null || c.inst === inst)) || null;
 
 /* ── the document ─────────────────────────────────────────────────────── */
 
@@ -348,61 +329,6 @@ function colourOf(value, scheme) {
   if (index < 8) return scheme[index] ?? null;
   return null;
 }
-/** An Office Art colour: its RGB, or a scheme entry when it says so. */
-function artColour(value, scheme) {
-  const flags = value >>> 24;
-  if (flags & 0x08) return scheme[value & 0xff] ?? null;
-  if (flags & 0x10) return null; // a system colour this has no table for
-  return [0, 8, 16].map((s) => ((value >>> s) & 0xff).toString(16).padStart(2, '0')).join('').toUpperCase();
-}
-
-/* ── shapes ───────────────────────────────────────────────────────────── */
-
-/** An OfficeArtFOPT's properties, by id: { op, complex? }. */
-function readFopt(doc, h) {
-  const props = new Map();
-  if (!h) return props;
-  const n = h.inst;
-  let complexAt = h.body + n * 6;
-  for (let k = 0; k < n; k++) {
-    const id = u16(doc, h.body + k * 6);
-    const op = u32(doc, h.body + k * 6 + 2);
-    const entry = { op };
-    if (id & 0x8000) { entry.complex = doc.subarray(complexAt, Math.min(h.end, complexAt + op)); complexAt += op; }
-    props.set(id & 0x3fff, entry);
-  }
-  return props;
-}
-
-// Office Art's shape types, by number, as DrawingML's preset geometries (LibreOffice's
-// table of them, filter/source/msfilter/util.cxx). Lines and connectors, pictures,
-// text boxes and WordArt are read as what they are, not as presets.
-const PRESETS = {
-  1: 'rect', 2: 'roundRect', 3: 'ellipse', 4: 'diamond', 5: 'triangle', 6: 'rtTriangle', 7: 'parallelogram', 8: 'trapezoid', 9: 'hexagon',
-  10: 'octagon', 11: 'plus', 12: 'star5', 13: 'rightArrow', 14: 'rightArrow', 15: 'homePlate', 16: 'cube', 17: 'wedgeRoundRectCallout', 18: 'star16',
-  19: 'arc', 21: 'plaque', 22: 'can', 23: 'donut', 41: 'callout1', 42: 'callout2', 43: 'callout3', 44: 'accentCallout1', 45: 'accentCallout2',
-  46: 'accentCallout3', 47: 'borderCallout1', 48: 'borderCallout2', 49: 'borderCallout3', 50: 'accentBorderCallout1', 51: 'accentBorderCallout2',
-  52: 'accentBorderCallout3', 53: 'ribbon', 54: 'ribbon2', 55: 'chevron', 56: 'pentagon', 57: 'noSmoking', 58: 'star8', 59: 'star16', 60: 'star32',
-  61: 'wedgeRectCallout', 62: 'wedgeRoundRectCallout', 63: 'wedgeEllipseCallout', 64: 'wave', 65: 'foldedCorner', 66: 'leftArrow', 67: 'downArrow',
-  68: 'upArrow', 69: 'leftRightArrow', 70: 'upDownArrow', 71: 'irregularSeal1', 72: 'irregularSeal2', 73: 'lightningBolt', 74: 'heart',
-  76: 'quadArrow', 77: 'leftArrowCallout', 78: 'rightArrowCallout', 79: 'upArrowCallout', 80: 'downArrowCallout', 81: 'leftRightArrowCallout',
-  82: 'upDownArrowCallout', 83: 'quadArrowCallout', 84: 'bevel', 85: 'leftBracket', 86: 'rightBracket', 87: 'leftBrace', 88: 'rightBrace',
-  89: 'leftUpArrow', 90: 'bentUpArrow', 91: 'bentArrow', 92: 'star24', 93: 'stripedRightArrow', 94: 'notchedRightArrow', 95: 'blockArc',
-  96: 'smileyFace', 97: 'verticalScroll', 98: 'horizontalScroll', 99: 'circularArrow', 100: 'notchedCircularArrow', 101: 'uturnArrow',
-  102: 'curvedRightArrow', 103: 'curvedLeftArrow', 104: 'curvedUpArrow', 105: 'curvedDownArrow', 106: 'cloudCallout', 107: 'ellipseRibbon',
-  108: 'ellipseRibbon2', 109: 'flowChartProcess', 110: 'flowChartDecision', 111: 'flowChartInputOutput', 112: 'flowChartPredefinedProcess',
-  113: 'flowChartInternalStorage', 114: 'flowChartDocument', 115: 'flowChartMultidocument', 116: 'flowChartTerminator', 117: 'flowChartPreparation',
-  118: 'flowChartManualInput', 119: 'flowChartManualOperation', 121: 'flowChartPunchedCard', 122: 'flowChartPunchedTape',
-  123: 'flowChartSummingJunction', 124: 'flowChartOr', 125: 'flowChartCollate', 126: 'flowChartSort', 127: 'flowChartExtract', 128: 'flowChartMerge',
-  129: 'flowChartOfflineStorage', 130: 'flowChartOnlineStorage', 131: 'flowChartMagneticTape', 132: 'flowChartMagneticDisk',
-  133: 'flowChartMagneticDrum', 134: 'flowChartDisplay', 135: 'flowChartDelay', 176: 'flowChartAlternateProcess', 178: 'callout1',
-  179: 'accentCallout1', 180: 'borderCallout1', 181: 'accentBorderCallout1', 182: 'leftRightUpArrow', 183: 'sun', 184: 'moon', 185: 'bracketPair',
-  186: 'bracePair', 187: 'star4', 188: 'doubleWave', 189: 'actionButtonBlank', 190: 'actionButtonHome', 191: 'actionButtonHelp',
-  192: 'actionButtonInformation', 193: 'actionButtonForwardNext', 194: 'actionButtonBackPrevious', 195: 'actionButtonEnd',
-  196: 'actionButtonBeginning', 197: 'actionButtonReturn', 198: 'actionButtonDocument', 199: 'actionButtonSound', 200: 'actionButtonMovie',
-  203: 'roundRect',
-};
-const LINES = new Set([20, 32, 33, 34, 35, 36, 37, 38, 39, 40]);
 
 /**
  * A slide's (or master's) drawing: its shapes, in slide pixels, and its
@@ -555,55 +481,6 @@ function readShape(doc, sp, transform, ctx) {
   return { ...base, type: 'shape', preset, fill: fillOf(props, ctx), line: lineOf(props, ctx, true), paragraphs };
 }
 
-/** An Office Art array (IMsoArray): its elements' bytes, each `size` long. */
-function msoArray(b) {
-  if (!b || b.length < 6) return [];
-  const n = u16(b, 0);
-  let size = u16(b, 4);
-  if (size === 0xfff0) size = 4;
-  const out = [];
-  for (let i = 0; i < n && 6 + (i + 1) * size <= b.length; i++) out.push(b.subarray(6 + i * size, 6 + (i + 1) * size));
-  return out;
-}
-
-/**
- * A freeform's outline, as path commands in the shape's own pixels: its
- * points (pVertices) in the coordinates geoLeft..geoRight, geoTop..geoBottom
- * name, walked by its segments (pSegmentInfo) — move, line, curve, close —
- * or joined in order when it has none.
- */
-function freeformPath(props, box) {
-  const vertices = msoArray(props.get(0x0145)?.complex).map((e) => (e.length >= 8 ? [i32(e, 0), i32(e, 4)] : [i16(e, 0), i16(e, 2)]));
-  if (vertices.length < 2) return null;
-  const left = props.get(0x0140)?.op ?? 0;
-  const top = props.get(0x0141)?.op ?? 0;
-  const right = props.get(0x0142)?.op ?? 21600;
-  const bottom = props.get(0x0143)?.op ?? 21600;
-  const sx = box.w / ((right | 0) - (left | 0) || 1);
-  const sy = box.h / ((bottom | 0) - (top | 0) || 1);
-  const pt = (v) => [(v[0] - (left | 0)) * sx, (v[1] - (top | 0)) * sy];
-  const commands = [];
-  let k = 0;
-  let closed = false;
-  const segments = msoArray(props.get(0x0146)?.complex).map((e) => u16(e, 0));
-  if (!segments.length) {
-    commands.push({ op: 'M', pts: [pt(vertices[0])] });
-    for (let i = 1; i < vertices.length; i++) commands.push({ op: 'L', pts: [pt(vertices[i])] });
-  } else {
-    for (const seg of segments) {
-      const kind = seg >> 13;
-      const count = seg & 0x1fff;
-      if (kind === 2 && vertices[k]) commands.push({ op: 'M', pts: [pt(vertices[k++])] });
-      else if (kind === 0) for (let i = 0; i < Math.max(1, count) && vertices[k]; i++) commands.push({ op: 'L', pts: [pt(vertices[k++])] });
-      else if (kind === 1) for (let i = 0; i < Math.max(1, count) && vertices[k + 2]; i++) { commands.push({ op: 'C', pts: [pt(vertices[k]), pt(vertices[k + 1]), pt(vertices[k + 2])] }); k += 3; }
-      else if (kind === 3) { commands.push({ op: 'Z' }); closed = true; }
-      else if (kind === 4) break;
-      else if (kind === 5) k += seg & 0xff; // an escape: its points skipped
-    }
-  }
-  if (!commands.length || commands[0].op !== 'M') return null;
-  return { commands, w: box.w, h: box.h, filled: closed };
-}
 
 const utf16 = (b) => { let s = ''; for (let i = 0; i + 1 < b.length; i += 2) { const c = u16(b, i); if (!c) break; s += String.fromCharCode(c); } return s; };
 

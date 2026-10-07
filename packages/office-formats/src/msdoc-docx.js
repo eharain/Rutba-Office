@@ -12,9 +12,13 @@
 import zlib from 'node:zlib';
 import { buildDocx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
+import { anchorXml, textBoxRun, DRAWING_NS, Z_BASE } from '@rutba/ooxml/drawings';
 import { ICO } from './msdoc.js';
 
-const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"';
+// WordprocessingML, and every namespace a drawing in it may use — floating
+// text boxes and shapes (wps, inside mc:AlternateContent, with a VML twin).
+const W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" '
+  + Object.entries(DRAWING_NS).map(([p, uri]) => `xmlns:${p}="${uri}"`).join(' ');
 const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/';
 const CT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.';
 
@@ -165,6 +169,13 @@ export function docModelToDocx(model) {
     return rId;
   };
 
+  /** A picture's graphic: its bytes by relationship, stretched to its box. */
+  const pictureGraphic = (rId, cx, cy, id, name) => '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic>'
+    + `<pic:nvPicPr><pic:cNvPr id="${id}" name="${esc(name)}"/><pic:cNvPicPr/></pic:nvPicPr>`
+    + `<pic:blipFill><a:blip r:embed="${rId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`
+    + `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>`
+    + '</pic:pic></a:graphicData></a:graphic>';
+
   const pictureXml = (index, part) => {
     const img = model.images[index];
     if (!img) return '';
@@ -173,12 +184,49 @@ export function docModelToDocx(model) {
     const cy = Math.max(1, Math.round((img.heightTwips || 1440) * 635));
     const id = ++drawingId;
     return `<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="Picture ${id}"/>`
-      + '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic>'
-      + `<pic:nvPicPr><pic:cNvPr id="${id}" name="Picture ${id}"/><pic:cNvPicPr/></pic:nvPicPr>`
-      + `<pic:blipFill><a:blip r:embed="${rId}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>`
-      + `<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>`
-      + '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing>';
+      + pictureGraphic(rId, cx, cy, id, `Picture ${id}`) + '</wp:inline></w:drawing>';
   };
+
+  /**
+   * A floating drawing, where its anchor stood: each of its pictures, text
+   * boxes and shapes (a group's members one by one) at its place on the
+   * page or by the paragraph, wrapped and stacked as it was — written as the
+   * editor writes its own floating drawings.
+   */
+  let stack = Z_BASE;
+  const floatXml = (float, ctx) => float.items.map((item) => {
+    const id = ++drawingId;
+    stack += 1024;
+    const name = item.name || `${item.kind === 'picture' ? 'Picture' : item.kind === 'textbox' ? 'Text Box' : 'Shape'} ${id}`;
+    const place = { wrap: float.wrap, side: float.side, behind: float.behind, relativeHeight: stack, h: { rel: float.relH, offsetPx: item.x }, v: { rel: float.relV, offsetPx: item.y } };
+    const cx = Math.max(1, Math.round(item.w * 9525));
+    const cy = Math.max(1, Math.round(item.h * 9525));
+    const pieces = (graphic, frame = '<wp:cNvGraphicFramePr/>') => ({
+      open: '<w:drawing>', extent: `<wp:extent cx="${cx}" cy="${cy}"/>`, effectExtent: '<wp:effectExtent l="0" t="0" r="0" b="0"/>',
+      docPr: `<wp:docPr id="${id}" name="${esc(name)}"/>`, frame, graphic,
+    });
+    if (item.kind === 'picture') {
+      if (!model.images[item.image]) return '';
+      const graphic = pictureGraphic(imageRelFor(ctx.part, item.image), cx, cy, id, name);
+      return `<w:r>${anchorXml(pieces(graphic, '<wp:cNvGraphicFramePr><a:graphicFrameLocks noChangeAspect="1"/></wp:cNvGraphicFramePr>'), place)}</w:r>`;
+    }
+    if (item.kind === 'textbox') {
+      const inner = blocksXml(item.blocks, { part: ctx.part });
+      return textBoxRun({ id, name, widthPx: item.w, heightPx: item.h, ...place, fill: item.fill, line: item.line, lineWidthPx: item.lineWidthPx, paragraphs: /<w:p[ >]/.test(inner) ? inner : '<w:p/>' });
+    }
+    const e = (v) => Math.round(v * 9525);
+    const geom = item.path
+      ? `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="${cx}" h="${cy}"${item.path.filled ? '' : ' fill="none"'}>`
+        + item.path.commands.map((c) => (c.op === 'M' ? `<a:moveTo><a:pt x="${e(c.pts[0][0])}" y="${e(c.pts[0][1])}"/></a:moveTo>`
+          : c.op === 'L' ? `<a:lnTo><a:pt x="${e(c.pts[0][0])}" y="${e(c.pts[0][1])}"/></a:lnTo>`
+            : c.op === 'C' ? `<a:cubicBezTo>${c.pts.map(([x, y]) => `<a:pt x="${e(x)}" y="${e(y)}"/>`).join('')}</a:cubicBezTo>` : '<a:close/>')).join('')
+        + '</a:path></a:pathLst></a:custGeom>'
+      : `<a:prstGeom prst="${esc(item.preset)}"><a:avLst/></a:prstGeom>`;
+    const fill = item.fill ? `<a:solidFill><a:srgbClr val="${item.fill}"/></a:solidFill>` : '<a:noFill/>';
+    const line = item.line ? `<a:ln w="${Math.max(1, Math.round((item.lineWidthPx || 1) * 9525))}"><a:solidFill><a:srgbClr val="${item.line}"/></a:solidFill></a:ln>` : '<a:ln><a:noFill/></a:ln>';
+    const graphic = `<a:graphic><a:graphicData uri="${DRAWING_NS.wps}"><wps:wsp><wps:cNvSpPr/><wps:spPr><a:xfrm${item.flipH ? ' flipH="1"' : ''}${item.flipV ? ' flipV="1"' : ''}><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm>${geom}${fill}${line}</wps:spPr><wps:bodyPr/></wps:wsp></a:graphicData></a:graphic>`;
+    return `<w:r><mc:AlternateContent><mc:Choice Requires="wps">${anchorXml(pieces(graphic), place)}</mc:Choice></mc:AlternateContent></w:r>`;
+  }).join('');
 
   /** One run, of any kind, as w:r (or w:r runs). */
   const runXml = (run, base, ctx, instr = false) => {
@@ -195,6 +243,7 @@ export function docModelToDocx(model) {
       case 'softHyphen': return `<w:r>${rPr}<w:softHyphen/></w:r>`;
       case 'symbol': return `<w:r>${rPr}<w:sym w:font="${esc(fontName(run.font) || 'Symbol')}" w:char="${run.char.toString(16).toUpperCase().padStart(4, '0')}"/></w:r>`;
       case 'picture': return `<w:r>${rPr}${pictureXml(run.image, ctx.part)}</w:r>`;
+      case 'float': return floatXml(run.float, ctx);
       case 'noteRef': return `<w:r>${rPr}<w:${run.note.kind}Reference w:id="${run.note.id}"/></w:r>`;
       case 'noteMark': return ctx.noteKind ? `<w:r>${rPr}<w:${ctx.noteKind}Ref/></w:r>` : '';
       default: return '';

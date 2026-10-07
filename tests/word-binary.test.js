@@ -119,6 +119,32 @@ test('a Word 97-2003 document keeps its table, link, footnote, picture, header a
   assert.match(part('word/footer1.xml'), /PAGE/);
 });
 
+test('a Word 97-2003 document keeps its floating picture, text box and shapes, where Word put them', () => {
+  const model = readWordDocument(fixture('floats.doc'));
+  const floats = paragraphs(model.body).flatMap((p) => p.runs.filter((r) => r.kind === 'float')).map((r) => r.float);
+  const items = floats.flatMap((f) => f.items.map((i) => ({ ...i, wrap: f.wrap, relH: f.relH })));
+  const picture = items.find((i) => i.kind === 'picture');
+  assert.ok(picture, 'the picture');
+  assert.equal(picture.wrap, 'square', 'with the words wrapped round it');
+  assert.equal(Math.round(picture.x), 400, '300 points in from the column');
+  assert.equal(Math.round(picture.w), 160);
+  const box = items.find((i) => i.kind === 'textbox');
+  assert.deepEqual([box.fill, box.line], ['FFF2CC', 'C00000']);
+  assert.equal(box.blocks.map(textOf).join(''), 'Words in a text box');
+  const shapes = items.filter((i) => i.kind === 'shape');
+  assert.deepEqual(shapes.map((s) => s.preset).sort(), ['ellipse', 'rect']);
+  assert.equal(shapes.find((s) => s.preset === 'rect').fill, '4472C4');
+  assert.equal(shapes.find((s) => s.preset === 'ellipse').fill, '70AD47');
+
+  const { view, part } = roundTrip(model);
+  const xml = part('word/document.xml');
+  assert.equal((xml.match(/<wp:anchor\b/g) || []).length, 4, 'four floating drawings');
+  assert.match(xml, /<wp:wrapSquare wrapText="bothSides"\/>/);
+  assert.match(xml, /<w:txbxContent>[\s\S]*Words in a text box/);
+  assert.match(xml, /<a:prstGeom prst="ellipse">/);
+  assert.ok(view.blocks.some((b) => /After the drawings/.test(b.text)));
+});
+
 /* ── Word 6.0/95 ──────────────────────────────────────────────────────── */
 
 const SYMBOL_BULLET = anld6({ before: [0xb7], font: 1 });

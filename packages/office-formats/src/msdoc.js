@@ -22,6 +22,7 @@
 // Pure: bytes in, a document model out. Nothing here writes.
 
 import { CompoundFile } from './cfb.js';
+import { header as artHeader, children as artChildren, child as artChild, artColour, readFopt, PRESETS, LINES, freeformPath } from './officeart.js';
 import { decode1252 } from './codepage.js';
 
 export class DocError extends Error {
@@ -42,7 +43,7 @@ const FC = {
   Stshf: 1, PlcffndRef: 2, PlcffndTxt: 3, PlcfandRef: 4, PlcfandTxt: 5, PlcfSed: 6, PlcfHdd: 11,
   PlcfBteChpx: 12, PlcfBtePapx: 13, SttbfFfn: 15, PlcfFldMom: 16, SttbfBkmk: 21, PlcfBkf: 22, PlcfBkl: 23,
   Dop: 31, Clx: 33, GrpXstAtnOwners: 36, PlcSpaMom: 40, PlcfendRef: 46, PlcfendTxt: 47, DggInfo: 50,
-  PlcftxbxTxt: 56, PlfLst: 73, PlfLfo: 74,
+  PlcSpaHdr: 41, PlcftxbxTxt: 56, PlcfHdrtxbxTxt: 57, PlfLst: 73, PlfLfo: 74,
 };
 
 /* ── the FIB and the text ─────────────────────────────────────────────── */
@@ -767,6 +768,63 @@ export function dibFile(bytes) {
   return file;
 }
 
+/**
+ * The Office Art behind a document's floating drawings (DggInfo): the
+ * drawing group's pictures — kept in the WordDocument stream, or in the
+ * record itself — then a drawing for the main text and one for the
+ * headers, every shape in them by its id: a group with its members, their
+ * boxes in the group's own coordinates.
+ */
+function readOfficeArt(table, pair, wd) {
+  const out = { shapes: new Map(), blips: [] };
+  if (!pair.lcb || pair.fc + 8 > table.length) return out;
+  const end = Math.min(table.length, pair.fc + pair.lcb);
+  const dgg = artHeader(table, pair.fc);
+  if (dgg.type !== 0xf000) return out;
+  for (const c of artChildren(table, artChild(table, dgg, 0xf001))) {
+    if (c.type !== 0xf007) { out.blips.push(null); continue; }
+    const foDelay = u32(table, c.body + 28);
+    const cbName = u8(table, c.body + 33);
+    out.blips.push(foDelay !== 0xffffffff && foDelay + 8 <= wd.length
+      ? findBlip(wd, foDelay, Math.min(wd.length, foDelay + 8 + u32(wd, foDelay + 4)))
+      : findBlip(table, c.body + 36 + cbName, c.end));
+  }
+  const rect = (h) => ({ left: i32(table, h.body), top: i32(table, h.body + 4), right: i32(table, h.body + 8), bottom: i32(table, h.body + 12) });
+  const shapeOf = (sp) => {
+    const fsp = artChild(table, sp, 0xf00a);
+    if (!fsp) return null;
+    const props = readFopt(table, artChild(table, sp, 0xf00b));
+    for (const [k, v] of readFopt(table, artChild(table, sp, 0xf122))) if (!props.has(k)) props.set(k, v);
+    const anchor = artChild(table, sp, 0xf00f);
+    const group = artChild(table, sp, 0xf009);
+    return { spid: u32(table, fsp.body), type: fsp.inst, flags: u32(table, fsp.body + 4), props, anchor: anchor ? rect(anchor) : null, group: group ? rect(group) : null };
+  };
+  const readGroup = (h) => {
+    const kids = artChildren(table, h);
+    const own = kids[0]?.type === 0xf004 ? shapeOf(kids[0]) : null;
+    if (!own) return null;
+    own.children = [];
+    for (const k of kids.slice(1)) {
+      const s = k.type === 0xf003 ? readGroup(k) : k.type === 0xf004 ? shapeOf(k) : null;
+      if (s) { own.children.push(s); out.shapes.set(s.spid, s); }
+    }
+    out.shapes.set(own.spid, own);
+    return own;
+  };
+  // Each drawing after its one-byte label: 0 the main text's, 1 the headers'.
+  let p = dgg.end;
+  while (p + 9 <= end) {
+    const dg = artHeader(table, p + 1);
+    if (dg.type !== 0xf002) break;
+    for (const k of artChildren(table, dg)) if (k.type === 0xf003) readGroup(k);
+    p = dg.end;
+  }
+  return out;
+}
+
+/** A UTF-16 string up to its terminating zero. */
+const utf16z = (b) => { let s = ''; for (let i = 0; i + 1 < b.length; i += 2) { const c = u16(b, i); if (!c) break; s += String.fromCharCode(c); } return s; };
+
 /* ── the document ─────────────────────────────────────────────────────── */
 
 /**
@@ -948,7 +1006,12 @@ export function buildModel({
         return { kind: 'noteMark', cp };
       case 0x03: case 0x04: return chp.spec ? 'skip' : null;
       case 0x05: return chp.spec ? 'skip' : null;
-      case 0x08: return chp.spec ? 'skip' : null;
+      case 0x08: { // a floating drawing's anchor
+        if (!chp.spec) return null;
+        const spa = floats.get(cp);
+        const float = spa ? floatOf(spa) : null;
+        return float ? { kind: 'float', float } : 'skip';
+      }
       case 0x28: case 0xf000:
         if (chp.symbol) return { kind: 'symbol', font: chp.symbol.font, char: chp.symbol.char };
         return null;
@@ -976,6 +1039,97 @@ export function buildModel({
     header: fib.ccpText + fib.ccpFtn,
     annotation: fib.ccpText + fib.ccpFtn + fib.ccpHdd + fib.ccpMcr,
     endnote: fib.ccpText + fib.ccpFtn + fib.ccpHdd + fib.ccpMcr + fib.ccpAtn,
+    textbox: fib.ccpText + fib.ccpFtn + fib.ccpHdd + fib.ccpMcr + fib.ccpAtn + fib.ccpEdn,
+  };
+  base.headerTextbox = base.textbox + (fib.ccpTxbx || 0);
+
+  // Floating drawings: each anchor's place in the text (the main text's,
+  // and the headers', whose places count from their story), its box, wrap
+  // and stacking, and the Office Art shape it is — read once, drawn where
+  // its anchor character is met.
+  const art = readOfficeArt(table, fib.pair(FC.DggInfo), wd);
+  const floats = new Map();
+  for (const [pair, from] of [[fib.pair(FC.PlcSpaMom), base.main], [fib.pair(FC.PlcSpaHdr), base.header]]) {
+    const plc = readPlc(table, pair, 26);
+    plc.entries.forEach((e, i) => {
+      floats.set(from + plc.cps[i], { spid: u32(table, e), left: i32(table, e + 4), top: i32(table, e + 8), right: i32(table, e + 12), bottom: i32(table, e + 16), flags: u16(table, e + 20) });
+    });
+  }
+  // The text boxes' stories: each box's paragraphs, found by the shape's id.
+  const boxStories = [];
+  for (const [pair, from] of [[fib.pair(FC.PlcftxbxTxt), base.textbox], [fib.pair(FC.PlcfHdrtxbxTxt), base.headerTextbox]]) {
+    const plc = readPlc(table, pair, 22);
+    plc.entries.forEach((e, i) => boxStories.push({ lid: i32(table, e + 14), index: i, from: from + plc.cps[i], to: from + plc.cps[i + 1], header: from !== base.textbox }));
+  }
+  const boxBlocks = (shape) => {
+    const txid = shape.props.get(0x0080)?.op;
+    if (txid == null) return null;
+    const story = boxStories.find((s) => s.lid === shape.spid) || boxStories.filter((s) => !s.header)[(txid >>> 16) - 1];
+    if (!story || story.to <= story.from) return null;
+    const paras = readParagraphs(story.from, story.to);
+    if (paras.length > 1 && !paras[paras.length - 1].runs.length) paras.pop();
+    return groupTables(paras);
+  };
+  const floatOf = (spa) => {
+    const shape = art.shapes.get(spa.spid);
+    if (!shape) return null;
+    const px = (tw) => tw / 15;
+    const box = { x: px(spa.left), y: px(spa.top), w: Math.max(1, px(spa.right - spa.left)), h: Math.max(1, px(spa.bottom - spa.top)) };
+    const wr = (spa.flags >> 5) & 0x0f;
+    const float = {
+      relH: ['margin', 'page', 'column'][(spa.flags >> 1) & 3] || 'column',
+      relV: ['margin', 'page', 'paragraph'][(spa.flags >> 3) & 3] || 'paragraph',
+      wrap: { 0: 'square', 1: 'topAndBottom', 2: 'square', 3: 'none', 4: 'tight', 5: 'through' }[wr] || 'square',
+      side: ['bothSides', 'left', 'right', 'largest'][(spa.flags >> 9) & 0x0f] || 'bothSides',
+      behind: Boolean(spa.flags & 0x4000),
+      items: [],
+    };
+    // A group's members, each carried from the group's own coordinates into the anchor's box.
+    const place = (s, at) => {
+      if (s.children?.length && s.group) {
+        const g = s.group;
+        const gw = g.right - g.left || 1;
+        const gh = g.bottom - g.top || 1;
+        for (const c of s.children) {
+          const a = c.anchor;
+          if (!a) continue;
+          place(c, { x: at.x + ((a.left - g.left) * at.w) / gw, y: at.y + ((a.top - g.top) * at.h) / gh, w: ((a.right - a.left) * at.w) / gw, h: ((a.bottom - a.top) * at.h) / gh });
+        }
+        return;
+      }
+      const item = drawingItem(s, at);
+      if (item) float.items.push(item);
+    };
+    place(shape, box);
+    return float.items.length ? float : null;
+  };
+  // One shape as what a .docx draws: a picture, a text box, a preset or freeform, a line.
+  const drawingItem = (s, at) => {
+    const p = s.props;
+    const name = p.get(0x0380)?.complex ? utf16z(p.get(0x0380).complex) : null;
+    const pib = p.get(0x0104)?.op;
+    if (pib && art.blips[pib - 1]) {
+      const blip = art.blips[pib - 1];
+      const key = 'art:' + pib;
+      if (!imageAt.has(key)) imageAt.set(key, images.push({ ...blip, widthTwips: at.w * 15, heightTwips: at.h * 15 }) - 1);
+      return { kind: 'picture', ...at, name, image: imageAt.get(key) };
+    }
+    const bools = (id) => p.get(id)?.op;
+    const filled = bools(0x01bf) != null && bools(0x01bf) & 0x100000 ? Boolean(bools(0x01bf) & 0x10) : true;
+    const lined = bools(0x01ff) != null && bools(0x01ff) & 0x80000 ? Boolean(bools(0x01ff) & 0x08) : true;
+    const rgb = (id, fallback) => (p.get(id) ? artColour(p.get(id).op, []) || fallback : fallback);
+    const look = {
+      fill: filled ? rgb(0x0181, 'FFFFFF') : null,
+      line: lined ? rgb(0x01c0, '000000') : null,
+      lineWidthPx: Math.max(0.5, (p.get(0x01cb)?.op ?? 9525) / 9525),
+    };
+    const blocks = boxBlocks(s);
+    if (blocks) return { kind: 'textbox', ...at, name, blocks, ...look };
+    if (LINES.has(s.type)) return { kind: 'shape', ...at, name, preset: 'line', fill: null, line: look.line || '000000', lineWidthPx: look.lineWidthPx, flipH: Boolean(s.flags & 0x40), flipV: Boolean(s.flags & 0x80) };
+    const path = p.has(0x0145) ? freeformPath(p, { w: at.w, h: at.h }) : null;
+    if (path) return { kind: 'shape', ...at, name, path, ...look, fill: path.filled ? look.fill : null };
+    const preset = PRESETS[s.type];
+    return preset ? { kind: 'shape', ...at, name, preset, ...look } : null;
   };
 
   // Notes: the references in the body, and each note's own paragraphs.

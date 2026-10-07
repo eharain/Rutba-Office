@@ -17,6 +17,7 @@
     "./workbook": "./src/workbook.js",
     "./fidelity": "./src/fidelity.js",
     "./document": "./src/document.js",
+    "./drawings": "./src/drawings.js",
     "./capabilities": "./src/capabilities.js",
     "./recalc": "./src/recalc.js",
     "./pivot": "./src/pivot.js",

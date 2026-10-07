@@ -89,6 +89,24 @@ if ($Kind -eq 'structure') {
   $s.TypeText('After a page break, the last paragraph.')
 }
 
+if ($Kind -eq 'floats') {
+  $s.Style = 'Heading 1'; $s.TypeText('Floating drawings'); $s.TypeParagraph(); $s.Style = 'Normal'
+  $s.TypeText(('A paragraph the drawings float beside, long enough to wrap round them. ' * 6)); $s.TypeParagraph()
+  $anchor = $d.Paragraphs.Item(2).Range
+  $pic = $d.Shapes.AddPicture($Picture, $false, $true, 300, 60, 120, 80, $anchor)
+  $pic.WrapFormat.Type = 0
+  $tb = $d.Shapes.AddTextbox(1, 72, 220, 200, 60, $anchor)
+  $tb.TextFrame.TextRange.Text = 'Words in a text box'
+  $tb.Fill.ForeColor.RGB = RGB 255 242 204
+  $tb.Line.ForeColor.RGB = RGB 192 0 0
+  $rect = $d.Shapes.AddShape(1, 300, 220, 100, 60, $anchor)
+  $rect.Fill.ForeColor.RGB = RGB 68 114 196
+  $oval = $d.Shapes.AddShape(9, 420, 220, 80, 60, $anchor)
+  $oval.Fill.ForeColor.RGB = RGB 112 173 71
+  $s.EndKey(6) | Out-Null
+  $s.TypeParagraph(); $s.TypeText('After the drawings.')
+}
+
 # In Word 2003's mode first, so saving as 97-2003 has nothing to ask.
 $d.SetCompatibilityMode(11)
 if (Test-Path $Out) { Remove-Item $Out -Force }
