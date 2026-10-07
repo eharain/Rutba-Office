@@ -14,7 +14,7 @@
 //
 // Read here into a plain model of slides — each its background and its
 // shapes (text boxes with their paragraphs and runs, shapes with their
-// fill, outline and words, pictures, lines) in slide pixels, and its
+// fill, outline and words, pictures, lines, tables) in slide pixels, and its
 // speaker notes — for the deck builder to write as a .pptx. Text takes its
 // look from the run first, then the master's style for its kind and level.
 //
@@ -46,6 +46,7 @@ const T = {
   TextHeader: 0x0f9f, TextChars: 0x0fa0, StyleTextProp: 0x0fa1, TextBytes: 0x0fa8, TxMasterStyle: 0x0fa3, Placeholder: 0x0bc3,
   DggContainer: 0xf000, BStore: 0xf001, DgContainer: 0xf002, SpgrContainer: 0xf003, SpContainer: 0xf004, FBSE: 0xf007,
   FSPGR: 0xf009, FSP: 0xf00a, FOPT: 0xf00b, ClientTextbox: 0xf00d, ChildAnchor: 0xf00f, ClientAnchor: 0xf010, ClientData: 0xf011,
+  TertiaryFOPT: 0xf122,
 };
 
 
@@ -368,6 +369,11 @@ function walkGroup(doc, group, transform, ctx, shapes, top) {
       inner = (r) => ({ x: box.x + ((r.x - cx) * box.w) / cw, y: box.y + ((r.y - cy) * box.h) / ch, w: (r.w * box.w) / cw, h: (r.h * box.h) / ch });
     }
   }
+  // A table is a group its own shape marks as one: its cells, and the lines between them.
+  if (own.type === T.SpContainer && !top && (readFopt(doc, child(doc, own, T.TertiaryFOPT)).get(0x03a0)?.op ?? 0) & 3) {
+    const table = readTable(doc, kids.slice(1), inner, ctx);
+    if (table) { shapes.push(table); return; }
+  }
   for (const k of kids.slice(1)) {
     if (k.type === T.SpgrContainer) walkGroup(doc, k, inner, ctx, shapes, false);
     else if (k.type === T.SpContainer) {
@@ -375,6 +381,84 @@ function walkGroup(doc, group, transform, ctx, shapes, top) {
       if (shape) shapes.push(shape);
     }
   }
+}
+
+/**
+ * A table, from the group PowerPoint keeps one as: each cell a box with its
+ * words and fill, each border a line. Its rows are where the cells' tops
+ * are and its columns where their lefts are (LibreOffice's reading); a cell
+ * reaching over more of them spans them, and each line is the border of the
+ * cells along it.
+ */
+function readTable(doc, kids, transform, ctx) {
+  const boxes = [];
+  const lines = [];
+  for (const k of kids) {
+    if (k.type !== T.SpContainer) continue;
+    const fsp = child(doc, k, T.FSP);
+    const box = anchorOf(doc, k, transform);
+    if (!fsp || !box) continue;
+    const props = readFopt(doc, child(doc, k, T.FOPT));
+    if (LINES.has(fsp.inst)) { lines.push({ ...box, line: lineOf(props, ctx, true) }); continue; }
+    const anchor = props.get(0x0087)?.op ?? 0;
+    boxes.push({
+      ...box,
+      fill: props.has(0x0181) || props.get(0x01bf)?.op & 0x100000 ? fillOf(props, ctx) : 'none',
+      paragraphs: shapeText(doc, child(doc, k, T.ClientTextbox), ctx, null) || [],
+      anchor: [1, 4].includes(anchor) ? 'middle' : [2, 5, 7, 9].includes(anchor) ? 'bottom' : 'top',
+    });
+  }
+  if (!boxes.length) return null;
+  // Edges within a pixel of each other are one edge.
+  const edges = (values) => values.sort((a, b) => a - b).filter((v, i, all) => i === 0 || v - all[i - 1] > 1);
+  const tops = edges(boxes.map((b) => b.y));
+  const lefts = edges(boxes.map((b) => b.x));
+  const bottom = Math.max(...boxes.map((b) => b.y + b.h));
+  const right = Math.max(...boxes.map((b) => b.x + b.w));
+  const at = (list, v) => list.findIndex((e) => Math.abs(e - v) <= 1);
+  const rows = tops.map((t, i) => (tops[i + 1] ?? bottom) - t);
+  const columns = lefts.map((l, i) => (lefts[i + 1] ?? right) - l);
+  const cells = tops.map(() => lefts.map(() => ({ paragraphs: [], fill: 'none', anchor: 'top', borders: {}, covered: true })));
+  for (const b of boxes) {
+    const r = at(tops, b.y);
+    const c = at(lefts, b.x);
+    if (r < 0 || c < 0) continue;
+    const rowSpan = tops.filter((t) => t >= b.y - 1 && t < b.y + b.h - 1).length || 1;
+    const colSpan = lefts.filter((l) => l >= b.x - 1 && l < b.x + b.w - 1).length || 1;
+    cells[r][c] = { paragraphs: b.paragraphs, fill: b.fill, anchor: b.anchor, borders: {}, rowSpan, colSpan, covered: false };
+    for (let i = 0; i < rowSpan; i++) {
+      for (let j = 0; j < colSpan; j++) if ((i || j) && cells[r + i]?.[c + j]) cells[r + i][c + j] = { ...cells[r + i][c + j], covered: true, hMerge: j > 0, vMerge: i > 0 };
+    }
+  }
+  // Each line, the border of the cells either side of it along its length.
+  const edgeAt = (list, end, v) => (Math.abs(v - end) <= 1 ? list.length : at(list, v));
+  for (const l of lines) {
+    if (Math.abs(l.h) <= 1) {
+      const r = edgeAt(tops, bottom, l.y);
+      if (r < 0) continue;
+      lefts.forEach((x, c) => {
+        if (x + columns[c] / 2 < l.x || x + columns[c] / 2 > l.x + l.w) return;
+        if (r < tops.length) cells[r][c].borders.top = l.line;
+        if (r > 0) cells[r - 1][c].borders.bottom = l.line;
+      });
+    } else if (Math.abs(l.w) <= 1) {
+      const c = edgeAt(lefts, right, l.x);
+      if (c < 0) continue;
+      tops.forEach((y, r) => {
+        if (y + rows[r] / 2 < l.y || y + rows[r] / 2 > l.y + l.h) return;
+        if (c < lefts.length) cells[r][c].borders.left = l.line;
+        if (c > 0) cells[r][c - 1].borders.right = l.line;
+      });
+    }
+  }
+  // A merged cell's far edges are those of the last cells it covers; an edge no line runs along has no border.
+  cells.forEach((row, r) => row.forEach((cell, c) => {
+    if (cell.covered) return;
+    if (cell.rowSpan > 1) cell.borders.bottom = cells[r + cell.rowSpan - 1]?.[c]?.borders.bottom;
+    if (cell.colSpan > 1) cell.borders.right = cells[r]?.[c + cell.colSpan - 1]?.borders.right;
+  }));
+  for (const row of cells) for (const cell of row) for (const side of ['left', 'right', 'top', 'bottom']) cell.borders[side] ??= 'none';
+  return { type: 'table', x: lefts[0], y: tops[0], w: right - lefts[0], h: bottom - tops[0], rows, columns, cells };
 }
 
 /** A shape's box: a top-level shape's client anchor (master units), or a child's anchor in its group's coordinates. */

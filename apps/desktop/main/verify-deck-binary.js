@@ -46,6 +46,16 @@ export async function verifyDeckBinary(h, { dir }) {
     const wanted = ['Rectangle', 'Oval', 'Star', 'Chevron', 'Heart', 'Cloud', 'Diamond'];
     check('slides: the .ppt\'s shapes come with their words, the freeforms among them',
       wanted.every((w) => all.includes(w)), `${shapes} shapes; missing ${wanted.filter((w) => !all.includes(w)).join(', ') || 'none'}`);
+    // Slide 4: the table, a table again — five rows of four, each cell its words.
+    await js(`(() => { document.querySelectorAll('.sl-thumb')[3]?.click(); return 1; })()`);
+    await until(() => js(`document.querySelectorAll('.sl-thumb')[3]?.classList.contains('active')`), 'the fourth slide', 4000).catch(() => {});
+    await wait(400);
+    await capture('deck-binary-4.png');
+    const table = (doc.model({ id: session.id, slide: 3 }).slide?.shapes || []).find((s) => s.kind === 'table');
+    const drawn = await js(`document.querySelector('.sl-stage svg')?.textContent || ''`);
+    check('slides: the .ppt\'s table opens as a table, its cells with their words',
+      table?.table?.rows === 5 && table.table.cols === 4 && ['Region', 'North', '7,590'].every((w) => drawn.includes(w)),
+      table ? `${table.table?.rows} rows of ${table.table?.cols}; words drawn ${['Region', 'North', '7,590'].filter((w) => drawn.includes(w)).length}/3` : 'no table on the slide');
     const notesShown = (model().slide?.notes ?? model().notes ?? '') || '';
     await js(`(() => { document.querySelectorAll('.sl-thumb')[0]?.click(); return 1; })()`);
     await until(() => js(`document.querySelectorAll('.sl-thumb')[0]?.classList.contains('active')`), 'the first slide again', 4000).catch(() => {});

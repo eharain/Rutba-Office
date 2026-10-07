@@ -2,7 +2,7 @@
 // Presentations edits: blank slides at the presentation's own size, each
 // with its background, and on it every shape where it stood — text boxes
 // with their paragraphs and runs, shapes in their fill and outline with
-// their words (a freeform with its own outline), lines, pictures — turned
+// their words (a freeform with its own outline), lines, pictures, tables — turned
 // and flipped as they were, and the speaker notes.
 import zlib from 'node:zlib';
 import { Deck, buildPptx } from '@rutba/presentation';
@@ -40,6 +40,12 @@ export function pptModelToDeck(model) {
           if (img.deflated) { try { data = zlib.inflateSync(Buffer.from(data)); } catch { data = Buffer.from(data); } }
           const placed = deck.addPicture(i, { ...box, name: sh.name || 'Picture', data: Buffer.from(data), contentType: img.contentType });
           id = placed?.id ?? placed;
+        } else if (sh.type === 'table') {
+          // A table as a table: its own columns and rows, each cell its words, fill, borders and merging; no table style over them.
+          deck.addTable(i, {
+            ...box, rows: sh.rows.length, cols: sh.columns.length, columnWidths: sh.columns, rowHeights: sh.rows, styled: false,
+            cells: sh.cells.map((row) => row.map((c) => ({ ...c, fill: c.fill === 'none' ? null : c.fill }))),
+          });
         }
         if (id != null && (sh.rotation || sh.flipH || sh.flipV)) deck.setGeometry(i, id, { ...box, rot: sh.rotation || 0, flipH: Boolean(sh.flipH), flipV: Boolean(sh.flipV) });
       } catch {

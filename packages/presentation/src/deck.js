@@ -3654,11 +3654,18 @@ export class Deck {
    * entry whose cell is a run of words or, empty, just an `endParaRPr` so it
    * still measures a line's height.
    *
+   * A table brought from elsewhere (a PowerPoint 97-2003 file) gives its own
+   * column widths and row heights, `styled: false` for no table style, and
+   * cells that are objects: { paragraphs, fill, anchor, borders: { left,
+   * right, top, bottom } (each { color, width } or 'none'), colSpan,
+   * rowSpan, hMerge, vMerge }.
+   *
    * @param {number} slideIndex
-   * @param {{ rows?: number, cols?: number, x?: number, y?: number, w?: number, h?: number, cells?: string[][] }} [spec] pixels; cells[row][col] is that cell's words
+   * @param {{ rows?: number, cols?: number, x?: number, y?: number, w?: number, h?: number, cells?: Array<Array<string|object>>,
+   *           columnWidths?: number[], rowHeights?: number[], styled?: boolean }} [spec] pixels; cells[row][col] is that cell's words, or the cell
    * @returns {number} the frame's id
    */
-  addTable(slideIndex, { rows = 3, cols = 3, x, y, w, h, cells = null } = {}) {
+  addTable(slideIndex, { rows = 3, cols = 3, x, y, w, h, cells = null, columnWidths = null, rowHeights = null, styled = true } = {}) {
     const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const r = Math.max(1, Math.round(rows));
@@ -3669,14 +3676,17 @@ export class Deck {
     const frameX = x != null ? pxToEmu(x) : Math.round((cx - frameW) / 2);
     const frameY = y != null ? pxToEmu(y) : Math.round((cy - frameH) / 2);
     const colW = Math.round(frameW / c);
+    const widthOf = (ci) => (columnWidths?.[ci] != null ? pxToEmu(columnWidths[ci]) : colW);
+    const heightOf = (ri) => (rowHeights?.[ri] != null ? pxToEmu(rowHeights[ri]) : TABLE_ROW_H);
 
     const xml = this.pkg.text(part);
     const id = nextShapeId(xml);
-    const grid = `<a:tblGrid>${Array.from({ length: c }, () => `<a:gridCol w="${colW}"/>`).join('')}</a:tblGrid>`;
+    const grid = `<a:tblGrid>${Array.from({ length: c }, (_, ci) => `<a:gridCol w="${widthOf(ci)}"/>`).join('')}</a:tblGrid>`;
     const rowsXml = Array.from({ length: r }, (_, ri) =>
-      `<a:tr h="${TABLE_ROW_H}">${Array.from({ length: c }, (_, ci) => tableCellXml(cells?.[ri]?.[ci] ?? null)).join('')}</a:tr>`
+      `<a:tr h="${heightOf(ri)}">${Array.from({ length: c }, (_, ci) => tableCellXml(cells?.[ri]?.[ci] ?? null)).join('')}</a:tr>`
     ).join('');
-    const tbl = `<a:tbl><a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>${TABLE_STYLE_ID}</a:tableStyleId></a:tblPr>${grid}${rowsXml}</a:tbl>`;
+    const tblPr = styled ? `<a:tblPr firstRow="1" bandRow="1"><a:tableStyleId>${TABLE_STYLE_ID}</a:tableStyleId></a:tblPr>` : '<a:tblPr/>';
+    const tbl = `<a:tbl>${tblPr}${grid}${rowsXml}</a:tbl>`;
     const frame =
       `<p:graphicFrame><p:nvGraphicFramePr><p:cNvPr id="${id}" name="Table ${id}"/>` +
       `<p:cNvGraphicFramePr><a:graphicFrameLocks noGrp="1"/></p:cNvGraphicFramePr><p:nvPr/></p:nvGraphicFramePr>` +
@@ -5106,12 +5116,36 @@ const TR_RE = /<a:tr\b[^>]*>[\s\S]*?<\/a:tr>/g;
 const TC_RE = /<a:tc\b[^>]*>[\s\S]*?<\/a:tc>/g;
 const GRIDCOL_RE = /<a:gridCol\b[^>]*\/>|<a:gridCol\b[^>]*>[\s\S]*?<\/a:gridCol>/g;
 
-/** One table cell: a run of words, or — empty — just enough to measure a line's height. */
+/**
+ * One table cell: a run of words, or — empty — just enough to measure a
+ * line's height; or, given as an object, a cell with its own paragraphs,
+ * fill, borders, vertical alignment and merging.
+ */
 function tableCellXml(text) {
+  if (text && typeof text === 'object') return richTableCellXml(text);
   const body = text
     ? `<a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:r><a:rPr lang="en-US" dirty="0"/><a:t>${escapeXml(String(text))}</a:t></a:r></a:p></a:txBody>`
     : `<a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US" dirty="0"/></a:p></a:txBody>`;
   return `<a:tc>${body}<a:tcPr/></a:tc>`;
+}
+
+/** A table cell with its own look: paragraphs as a text box takes them, then its tcPr — borders, fill — in schema order. */
+function richTableCellXml(cell) {
+  const hex = (c) => String(c).replace('#', '').toUpperCase();
+  const attrs = (cell.colSpan > 1 ? ` gridSpan="${cell.colSpan}"` : '') + (cell.rowSpan > 1 ? ` rowSpan="${cell.rowSpan}"` : '')
+    + (cell.hMerge ? ' hMerge="1"' : '') + (cell.vMerge ? ' vMerge="1"' : '');
+  const body = cell.paragraphs?.length
+    ? buildTextBody(cell.paragraphs, '', -1, -1).replace(/^<p:txBody>/, '<a:txBody>').replace(/<\/p:txBody>$/, '</a:txBody>')
+    : '<a:txBody><a:bodyPr/><a:lstStyle/><a:p><a:endParaRPr lang="en-US" dirty="0"/></a:p></a:txBody>';
+  const border = (tag, b) => {
+    if (b == null) return '';
+    if (b === 'none') return `<a:${tag} w="12700"><a:noFill/></a:${tag}>`;
+    return `<a:${tag} w="${Math.round((Number(b.width) || 1) * 12700)}"><a:solidFill><a:srgbClr val="${hex(b.color || '#000000')}"/></a:solidFill></a:${tag}>`;
+  };
+  const b = cell.borders || {};
+  const fill = cell.fill == null ? '' : cell.fill === 'none' ? '<a:noFill/>' : `<a:solidFill><a:srgbClr val="${hex(cell.fill)}"/></a:solidFill>`;
+  const anchor = { middle: 'ctr', bottom: 'b' }[cell.anchor];
+  return `<a:tc${attrs}>${body}<a:tcPr${anchor ? ` anchor="${anchor}"` : ''}>${border('lnL', b.left)}${border('lnR', b.right)}${border('lnT', b.top)}${border('lnB', b.bottom)}${fill}</a:tcPr></a:tc>`;
 }
 
 /** A graphic frame's own width, in EMU, off its `p:xfrm`. */

@@ -6,7 +6,8 @@
  * slides of titles, bullets at three levels, sixteen preset shapes (some
  * PowerPoint can only save as freeforms), a table, two charts, a picture,
  * WordArt, notes. The reader is judged by whether the slides come back
- * with the words, shapes, pictures and notes the original had.
+ * with the words, shapes, pictures and notes the original had. tables.ppt
+ * is a table with merged cells PowerPoint made and saved the same way.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -92,6 +93,49 @@ test('written as a .pptx: eight slides, each shape where it stood, the notes kep
   const deck = Deck.open(Buffer.from(bytes));
   assert.ok(deck, 'the deck opens');
   assert.ok(pkg.partNames().some((n) => /^ppt\/notesSlides\//.test(n)), 'notes pages');
+});
+
+test('a table comes back a table: its columns and rows, each cell its words, fill and borders', () => {
+  const model = readPpt(fixture('binary', 'showcase.ppt'));
+  const table = model.slides[3].shapes.find((s) => s.type === 'table');
+  assert.ok(table, 'not twenty boxes and eleven lines');
+  assert.deepEqual([table.rows.length, table.columns.length], [5, 4]);
+  assert.deepEqual(table.cells.map((row) => row.map((c) => textOf(c))), [
+    ['Region', 'Q1', 'Q2', 'Total'], ['North', '1,200', '1,350', '2,550'], ['South', '980', '1,120', '2,100'],
+    ['East', '1,430', '1,510', '2,940'], ['All', '3,610', '3,980', '7,590'],
+  ]);
+  const header = table.cells[0][0];
+  assert.equal(header.fill, '#156082');
+  assert.equal(header.paragraphs[0].runs[0].bold, true);
+  assert.equal(header.borders.bottom.width, 3, 'the line under the header, thicker');
+  assert.equal(table.cells[4][3].fill, '#FFE699', 'the one cell picked out');
+
+  const xml = OoxmlPackage.read(pptModelToDeck(model)).text('ppt/slides/slide4.xml');
+  const tbl = /<a:tbl>[\s\S]*<\/a:tbl>/.exec(xml)?.[0] ?? '';
+  assert.equal((tbl.match(/<a:tr /g) || []).length, 5);
+  assert.equal((tbl.match(/<a:gridCol /g) || []).length, 4);
+  assert.match(tbl, /<a:tblPr\/>/, 'its own look, no table style over it');
+  assert.match(tbl, /<a:lnB w="38100"><a:solidFill><a:srgbClr val="FFFFFF"\/><\/a:solidFill><\/a:lnB><a:solidFill><a:srgbClr val="156082"\/>/);
+});
+
+test('a table\'s merged cells, a cell set in the middle and one with no fill come too', () => {
+  const model = readPpt(fixture('binary', 'tables.ppt'));
+  const table = model.slides[0].shapes.find((s) => s.type === 'table');
+  assert.deepEqual([table.rows.length, table.columns.length], [4, 3]);
+  const [[across, coveredRight], [, , down], [south, , below]] = table.cells;
+  assert.equal(across.colSpan, 2);
+  assert.equal(coveredRight.hMerge, true);
+  assert.equal(down.rowSpan, 3);
+  assert.equal(down.anchor, 'middle');
+  assert.equal(below.vMerge, true);
+  assert.equal(south.fill, 'none');
+  assert.equal(across.borders.right.color, '#FFFFFF', 'a merged cell\'s far edge from the last cell it covers');
+
+  const tbl = /<a:tbl>[\s\S]*<\/a:tbl>/.exec(OoxmlPackage.read(pptModelToDeck(model)).text('ppt/slides/slide1.xml'))?.[0] ?? '';
+  assert.match(tbl, /<a:tc gridSpan="2">[\s\S]*?<a:t[^>]*>Across two<\/a:t>/);
+  assert.match(tbl, /<a:tc hMerge="1">/);
+  assert.match(tbl, /<a:tc rowSpan="3">[\s\S]*?<a:tcPr anchor="ctr">/);
+  assert.equal((tbl.match(/<a:tc vMerge="1">/g) || []).length, 2);
 });
 
 test('the suite opens a .ppt as a presentation, read in full, and says it saves a .pptx', () => {

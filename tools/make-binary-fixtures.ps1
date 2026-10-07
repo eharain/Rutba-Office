@@ -4,7 +4,7 @@
 # writes. The readers in packages/office-formats are judged against these,
 # files Office wrote, not files written from what we think the formats say.
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\make-binary-fixtures.ps1 [-Out tests\fixtures\binary] [-Only word,excel,charts,powerpoint]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\make-binary-fixtures.ps1 [-Out tests\fixtures\binary] [-Only word,excel,charts,powerpoint,tables]
 #
 # Office is driven invisibly; each application is quit and the processes this
 # run started are reaped at the end of its section, even when a step fails.
@@ -22,7 +22,7 @@
 # This Excel no longer writes the 2.1, 3.0 and 4.0 formats; those, and the
 # Word 2.0, 6.0/95, DOS and Write formats no Office here writes, are built
 # from their published layouts in the tests that read them.
-param([string]$Out = 'tests\fixtures\binary', [string]$Only = 'word,excel,charts,powerpoint')
+param([string]$Out = 'tests\fixtures\binary', [string]$Only = 'word,excel,charts,powerpoint,tables')
 $run = $Only.Split(',')
 
 $ErrorActionPreference = 'Stop'
@@ -148,6 +148,32 @@ if ($run -contains 'powerpoint') { try {
   $p = Join-Path $outDir 'showcase.ppt'; Remove-Existing $p
   $pres.SaveAs($p, 1)
   "showcase.ppt written ($((Get-Item $p).Length) bytes)"
+  $pres.Close()
+} finally {
+  if ($pp) { try { $pp.Quit() } catch {}; Release $pp }
+  Reap
+} }
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PowerPoint: a table with merged cells, as 97-2003
+# ═══════════════════════════════════════════════════════════════════════════
+# Cells merged across and down, one set in the middle, one with no fill —
+# what the showcase's table has not got.
+$pp = $null
+if ($run -contains 'tables') { try {
+  $pp = New-Object -ComObject PowerPoint.Application
+  $pres = $pp.Presentations.Add(0)
+  $slide = $pres.Slides.Add(1, 12)
+  $table = $slide.Shapes.AddTable(4, 3, 60, 80, 600, 240).Table
+  $words = @(@('Across two', '', 'Top right'), @('North', '12', 'Down three'), @('South', '9', ''), @('East', '15', ''))
+  for ($r = 1; $r -le 4; $r++) { for ($k = 1; $k -le 3; $k++) { if ($words[$r - 1][$k - 1]) { $table.Cell($r, $k).Shape.TextFrame.TextRange.Text = $words[$r - 1][$k - 1] } } }
+  $table.Cell(1, 1).Merge($table.Cell(1, 2))
+  $table.Cell(2, 3).Merge($table.Cell(4, 3))
+  $table.Cell(2, 3).Shape.TextFrame.VerticalAnchor = 3
+  $table.Cell(3, 1).Shape.Fill.Visible = 0
+  $p = Join-Path $outDir 'tables.ppt'; Remove-Existing $p
+  $pres.SaveAs($p, 1)
+  "tables.ppt written ($((Get-Item $p).Length) bytes)"
   $pres.Close()
 } finally {
   if ($pp) { try { $pp.Quit() } catch {}; Release $pp }
