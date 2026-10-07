@@ -365,7 +365,7 @@ export default function WordRibbon({
                 <Button icon="alignLeft" title="Align left (Ctrl+L)" pressed={format.paragraphAlign === 'left'} onClick={() => para({ align: 'left' })} />
                 <Button icon="alignCenter" title="Centre (Ctrl+E)" pressed={format.paragraphAlign === 'center'} onClick={() => para({ align: 'center' })} />
                 <Button icon="alignRight" title="Align right (Ctrl+R)" pressed={format.paragraphAlign === 'right'} onClick={() => para({ align: 'right' })} />
-                <Button icon="alignJustify" title="Justify (Ctrl+J)" pressed={format.paragraphAlign === 'both'} onClick={() => para({ align: 'both' })} />
+                <Button icon="alignJustify" title="Justify (Ctrl+J)" pressed={format.paragraphAlign === 'justify' || format.paragraphAlign === 'both'} onClick={() => para({ align: 'both' })} />
                 <Separator />
                 <Button icon="listNumber" title={`Line and paragraph spacing${format.lineSpacing ? ` — ${format.lineSpacing}` : ''}`} onClick={(e) =>
                   menu.open(e, [
