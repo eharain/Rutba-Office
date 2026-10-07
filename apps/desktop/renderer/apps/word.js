@@ -1968,6 +1968,11 @@ export default function Word({ app, shell, boot }) {
       'format.bold': { label: 'Bold', icon: 'bold', key: 'Mod+B', global: true, run: () => apply({ op: 'toggleFormat', tag: 'bold' }) },
       'format.italic': { label: 'Italic', icon: 'italic', key: 'Mod+I', global: true, run: () => apply({ op: 'toggleFormat', tag: 'italic' }) },
       'format.underline': { label: 'Underline', icon: 'underline', key: 'Mod+U', global: true, run: () => apply({ op: 'toggleFormat', tag: 'underline' }) },
+      // Word's alignment keys, the ones the buttons' tooltips name.
+      'format.alignLeft': { label: 'Align left', icon: 'alignLeft', key: 'Mod+L', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'left' } }) },
+      'format.alignCenter': { label: 'Centre', icon: 'alignCenter', key: 'Mod+E', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'center' } }) },
+      'format.alignRight': { label: 'Align right', icon: 'alignRight', key: 'Mod+R', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'right' } }) },
+      'format.justify': { label: 'Justify', icon: 'alignJustify', key: 'Mod+J', global: true, run: () => apply({ op: 'setParagraphFormat', delta: { align: 'both' } }) },
       'format.clear': { label: 'Clear formatting', icon: 'close', run: () => apply({ op: 'clearFormat' }) },
       'insert.table': { label: 'Table', icon: 'table', run: () => apply({ op: 'insertTable', rows: 3, cols: 3 }) },
       'insert.break': { label: 'Page break', icon: 'file', run: () => apply({ op: 'insertPageBreak' }) },

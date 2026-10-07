@@ -595,7 +595,7 @@ export function PropertiesDialog({ doc, model, onClose }) {
 const SHORTCUTS = [
   ['Ctrl+N', 'New document'], ['Ctrl+O', 'Open'], ['Ctrl+S', 'Save'], ['Ctrl+Shift+S', 'Save as'], ['Ctrl+P', 'Print'],
   ['Ctrl+Z / Ctrl+Y', 'Undo / Redo'], ['Ctrl+X / C / V', 'Cut / Copy / Paste'], ['Ctrl+A', 'Select all'], ['Ctrl+F', 'Find and replace'],
-  ['Ctrl+B / I / U', 'Bold / Italic / Underline'], ['Ctrl+K', 'Link'], ['Ctrl+Enter', 'Page break'],
+  ['Ctrl+B / I / U', 'Bold / Italic / Underline'], ['Ctrl+L / E / R / J', 'Align left / Centre / Align right / Justify'], ['Ctrl+K', 'Link'], ['Ctrl+Enter', 'Page break'],
   ['F11', 'Full screen'], ['Esc', 'Leave full screen'],
 ];
 

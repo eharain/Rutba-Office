@@ -87,6 +87,14 @@ export async function verifyWordRtl(h, { dir }) {
     check('word: Align left puts a right-to-left paragraph at the left margin',
       aligned === 'clicked' && moved === true && model().format?.paragraphAlign === 'left', `${aligned}; ${JSON.stringify(await placed(2))}; ${model().format?.paragraphAlign}`);
 
+    // Word's keys: Ctrl+R back to the right margin, Ctrl+E to the middle.
+    await press(wc, 'r', { modifiers: ['control'] });
+    const keyRight = await until(async () => { const p = await placed(2); return p && p.right <= 2 && p.left > 40; }, 'the Arabic back at the right', 4000).catch(() => false);
+    await press(wc, 'e', { modifiers: ['control'] });
+    const keyCentre = await until(async () => { const p = await placed(2); return p && Math.abs(p.left - p.right) <= 3; }, 'the Arabic centred', 4000).catch(() => false);
+    check('word: Ctrl+R and Ctrl+E align the paragraph, as the buttons\' tooltips say',
+      keyRight === true && keyCentre === true && model().format?.paragraphAlign === 'center', `right ${keyRight}, centre ${keyCentre}; ${JSON.stringify(await placed(2))}`);
+
     // The English paragraph turned right to left, and back.
     await clickInto(1);
     await wait(200);
@@ -111,8 +119,8 @@ export async function verifyWordRtl(h, { dir }) {
     const saved = openDocx(fs.readFileSync(file));
     const xml = saved.doc.doc.xml;
     const blocks = saved.render({ pages: false }).blocks;
-    check('word: the file keeps the right-to-left paragraph as w:bidi, its left alignment written as Word\'s mirrored "right"',
-      blocks[2].rtl === true && blocks[1].rtl === undefined && /<w:bidi\/>[\s\S]*?<w:jc w:val="right"\/>/.test(xml),
+    check('word: the file keeps the right-to-left paragraph as w:bidi and its alignment',
+      blocks[2].rtl === true && blocks[1].rtl === undefined && /<w:bidi\/>[\s\S]*?<w:jc w:val="center"\/>/.test(xml),
       `rtl ${blocks.map((b) => b.rtl).join(',')}; ${(/<w:pPr>(?:(?!<\/w:pPr>)[\s\S])*<w:bidi[\s\S]*?<\/w:pPr>/.exec(xml) || ['no w:bidi'])[0].slice(0, 160)}`);
 
     const complaints = await errorsIn(win);
