@@ -260,6 +260,15 @@ export default function Slides({ app, shell, boot }) {
   const [reading, setReading] = useState(false);
   const stageRef = useRef(null);
   const dragRef = useRef(null);
+  // A shape newly selected — Insert → Picture or Shapes selects what it put
+  // in — gives the stage the keyboard, so Delete takes it out at once, as in
+  // PowerPoint; unless someone is typing in a field, which keeps it.
+  useEffect(() => {
+    if (!selectedIds.length || !stageRef.current) return;
+    const active = document.activeElement;
+    if (active && active !== document.body && (/^(INPUT|TEXTAREA|SELECT)$/.test(active.tagName) || active.isContentEditable)) return;
+    if (!stageRef.current.contains(active)) stageRef.current.focus({ preventScroll: true });
+  }, [selectedIds]);
   const actRef = useRef(null);
 
   /**
@@ -272,6 +281,9 @@ export default function Slides({ app, shell, boot }) {
     if (e.button !== 0 || !shape.geometry) return;
     e.preventDefault();
     e.stopPropagation();
+    // The press is kept from moving the focus, so the stage takes it here:
+    // Delete, the arrows and Escape then reach the shape just picked.
+    stageRef.current?.focus({ preventScroll: true });
     const g0 = { ...shape.geometry };
     const s = dragRef.current?.scale ?? 1;
     const x0 = e.clientX;
@@ -313,6 +325,7 @@ export default function Slides({ app, shell, boot }) {
     }
     e.preventDefault();
     e.stopPropagation();
+    stageRef.current?.focus({ preventScroll: true });
     const g0s = new Map(ids.map((id) => [id, slide?.shapes?.find((s) => s.id === id)?.geometry]).filter(([, g]) => g).map(([id, g]) => [id, { ...g }]));
     const s = dragRef.current?.scale ?? 1;
     const x0 = e.clientX;

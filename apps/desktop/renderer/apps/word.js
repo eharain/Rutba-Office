@@ -687,6 +687,9 @@ export default function Word({ app, shell, boot }) {
     const pick = (e) => {
       const d = e.detail || {};
       const id = d.id ?? null;
+      // The page takes the keyboard, so Delete, the arrows and Escape reach
+      // the drawing: a floating drawing's press keeps the focus where it was.
+      if (document.activeElement !== el) el.focus({ preventScroll: true });
       setPicked((was) => {
         if (d.add && was?.ids?.length && id != null) {
           const ids = was.ids.includes(id) ? was.ids.filter((x) => x !== id) : [...was.ids, id];
@@ -1694,6 +1697,8 @@ export default function Word({ app, shell, boot }) {
             return { block: d.block, image: image >= 0 ? image : null, id: d.id, kind: d.kind, ids: [d.id] };
           });
           pageRef.current?.querySelector(`.wd-drawing[data-drawing="${d.id}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          // The page takes the keyboard, so Delete reaches what was picked here.
+          pageRef.current?.focus({ preventScroll: true });
           return;
         }
         case 'hideDrawing':
@@ -2166,10 +2171,14 @@ export default function Word({ app, shell, boot }) {
                   const target = picked;
                   setPicked(null);
                   const d = (model?.drawings || []).find((x) => x.id === target.ids?.[0]);
-                  // A picture in the line goes with its paragraph when that held
+                  // By its id, whatever it is — a picture, a shape, a chart: a
+                  // shape or chart sent as a picture was refused ("no picture
+                  // in paragraph"), and a picture after a group was miscounted.
+                  // One in the line goes with its paragraph when that held
                   // nothing else; anything floating goes on its own.
-                  if (target.image != null && (!d || !d.anchored) && target.ids?.length <= 1) apply({ op: 'removeImage', block: target.block, image: target.image });
-                  else if (target.ids?.length) apply({ op: 'removeDrawing', ids: target.ids });
+                  const inline = target.image != null && (!d || !d.anchored) && target.ids?.length === 1;
+                  if (target.ids?.length) apply({ op: 'removeDrawing', ids: target.ids, inline });
+                  else if (target.image != null) apply({ op: 'removeImage', block: target.block, image: target.image });
                   return;
                 }
                 if (e.key === 'Escape' && (picked || view.drawBox)) {

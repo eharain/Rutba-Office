@@ -1391,7 +1391,8 @@ export class SheetView {
         unsupported = e.message;
       }
       return {
-        id: d.id, kind: d.kind, name: d.name, x, y, width, height, svg, unsupported,
+        // Its place among the sheet's drawings, which Alt Text names it by.
+        id: d.id, index: d.index, kind: d.kind, name: d.name, x, y, width, height, svg, unsupported,
         // An equation's linear form, for Insert → Equation to open it again.
         ...(d.kind === 'equation' && d.omml ? { linear: safeLinear(d.omml) } : {}),
         // A shape's words, for a double-click to change them; whether it is a text box (WordArt is one).

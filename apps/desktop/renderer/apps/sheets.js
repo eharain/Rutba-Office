@@ -1120,7 +1120,12 @@ export default function Sheets({ app, shell, boot }) {
               className={`sh-drawing${d.svg || d.members ? '' : ' unsupported'}${picked.includes(d.id) ? ' picked' : ''}`}
               data-id={d.id}
               data-kind={d.kind}
-              onContextMenu={(e) => menu.open(e, [{ label: 'Edit Alt Text…', icon: 'textbox', run: () => review.openAltText({ sheet: model.activeSheet, anchor: Number(String(d.id).replace('drawing-', '')) || 0 }) }])}
+              // The drawing's own place on the sheet: an id like "d5" is its
+              // drawing number, not its place, and read as one named the first.
+              onContextMenu={(e) => menu.open(e, [
+                { label: 'Edit Alt Text…', icon: 'textbox', run: () => review.openAltText({ sheet: model.activeSheet, anchor: d.index ?? (Number(String(d.id).replace('drawing-', '')) || 0) }) },
+                { label: picked.includes(d.id) && picked.length > 1 ? 'Delete drawings' : 'Delete', icon: 'trash', run: () => { const ids = picked.includes(d.id) ? picked : [d.id]; setPicked([]); dispatch({ op: 'deleteDrawings', ids }); } },
+              ])}
               data-name={d.name || ''}
               style={{ left: box.x, top: box.y, width: box.width, height: box.height, ...(transform ? { transform } : {}) }}
               title={d.unsupported ? `${d.name || d.kind}: ${d.unsupported}` : d.pivot ? `${d.name || 'PivotChart'} — a PivotChart of ${d.pivot}` : d.name || undefined}

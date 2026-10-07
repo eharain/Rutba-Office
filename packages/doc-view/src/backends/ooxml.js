@@ -63,7 +63,7 @@ export class OoxmlBackend {
   updateDrawing(id, patch) { this.doc.updateDrawing(id, patch); return this; }
   orderDrawings(ids, how) { this.doc.orderDrawings(ids, how); return this; }
   moveDrawing(id, toIndex) { this.doc.moveDrawing(id, toIndex); return this; }
-  removeDrawing(id) { this.doc.removeDrawing(id); return this; }
+  removeDrawing(id, opts) { this.doc.removeDrawing(id, opts); return this; }
   groupDrawings(ids, opts) { return this.doc.groupDrawings(ids, opts); }
   ungroupDrawing(id, opts) { return this.doc.ungroupDrawing(id, opts); }
   /** A chart after a table, its data literal in the part; a preset shape. */

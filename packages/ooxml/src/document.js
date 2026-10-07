@@ -2843,14 +2843,29 @@ export class Document {
     return this;
   }
 
-  /** A drawing taken out of the document — its run, when the run held nothing else. The paragraph stays. */
-  removeDrawing(id) {
+  /**
+   * A drawing taken out of the document — its run, when the run held
+   * nothing else. The paragraph stays, unless `emptyParagraph` asks for a
+   * drawing in the line to go as a picture does: with the paragraph it
+   * leaves holding nothing, when that is neither the body's last nor a
+   * table cell's.
+   */
+  removeDrawing(id, { emptyParagraph = false } = {}) {
     const d = this._drawingById(id);
     const { prefix, body, suffix } = this._body();
     const run = d.runStart >= 0 ? body.slice(d.runStart, d.runEnd) : null;
     const rest = run ? run.slice(0, d.unitStart - d.runStart) + run.slice(d.unitEnd - d.runStart) : '';
     const bare = !run || /^<w:r\b[^>]*>\s*(?:<w:rPr\b[^>]*\/>|<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>)?\s*<\/w:r>$/.test(rest);
-    const [from, to] = run && bare ? [d.runStart, d.runEnd] : [d.unitStart, d.unitEnd];
+    let [from, to] = run && bare ? [d.runStart, d.runEnd] : [d.unitStart, d.unitEnd];
+    if (emptyParagraph) {
+      const open = Math.max(body.lastIndexOf('<w:p>', from), body.lastIndexOf('<w:p ', from));
+      const close = body.indexOf('</w:p>', to);
+      const inCell = (body.slice(0, open).match(/<w:tc\b/g) || []).length > (body.slice(0, open).match(/<\/w:tc>/g) || []).length;
+      const left = open >= 0 && close >= 0 ? body.slice(open, from) + body.slice(to, close) : null;
+      const empty = left != null && !/<w:r\b|<w:hyperlink\b|<m:oMath/.test(left.replace(/<w:pPr\b[\s\S]*?<\/w:pPr>/, ''));
+      const paragraphs = (body.match(/<w:p[ >]/g) || []).length;
+      if (empty && !inCell && paragraphs > 1) [from, to] = [open, close + '</w:p>'.length];
+    }
     this.xml = prefix + body.slice(0, from) + body.slice(to) + suffix;
     this.dirty = true;
     return this;

@@ -1840,7 +1840,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     orderDrawings: (v, a) => v.orderDrawings(a.ids || [], a.how),
     groupDrawings: (v, a) => { v.groupDrawings(a.ids || [], { rects: a.rects || [], place: a.place || null }); return v.lastDrawing; },
     ungroupDrawing: (v, a) => v.ungroupDrawing(a.id, { place: a.place || null }),
-    removeDrawing: (v, a) => v.removeDrawing(a.ids ?? a.id),
+    removeDrawing: (v, a) => v.removeDrawing(a.ids ?? a.id, { emptyParagraph: Boolean(a.inline) }),
     insertInk: (v, a) => { v.insertInk({ block: a.block, strokes: a.strokes || [] }); return v.lastDrawing; },
     // Insert → SmartArt: the layout's shapes, laid out by the window, as one group after the caret's paragraph; its id comes back.
     insertDiagram: (v, a) => { v.insertDiagram({ name: a.name, shapes: a.shapes || [] }); return v.lastDrawing; },

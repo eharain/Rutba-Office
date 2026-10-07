@@ -1901,12 +1901,16 @@ export class DocView {
     });
   }
 
-  /** A drawing out of the document — Delete on a selected one. */
-  removeDrawing(ids) {
+  /**
+   * A drawing out of the document — Delete on a selected one. A picture,
+   * shape or chart in the line (`emptyParagraph`) takes its paragraph with
+   * it when that held nothing else, as Word does.
+   */
+  removeDrawing(ids, { emptyParagraph = false } = {}) {
     this._drawingsBackend('floating drawings');
     const list = Array.isArray(ids) ? ids : [ids];
     return this._edit('delete drawing', null, () => {
-      for (const id of list) this.doc.removeDrawing(id);
+      for (const id of list) this.doc.removeDrawing(id, { emptyParagraph });
       this._invalidate();
       // A caret that was in a removed box's words goes back to the body.
       const here = this.blocks[this.focus.block];
