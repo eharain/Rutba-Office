@@ -14,6 +14,8 @@
     "./codepage": "./src/codepage.js",
     "./msword": "./src/msword.js",
     "./msdoc-docx": "./src/msdoc-docx.js",
+    "./msxls": "./src/msxls.js",
+    "./msxls-xlsx": "./src/msxls-xlsx.js",
     "./crypt": "./src/crypt.js",
     "./odf": "./src/odf.js",
     "./odf-write": "./src/odf-write.js",

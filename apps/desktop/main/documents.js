@@ -53,6 +53,8 @@ import { CompoundFile } from '@rutba/office-formats/cfb';
 import { readWordDocument, wordKind } from '@rutba/office-formats/msword';
 import { docModelToDocx } from '@rutba/office-formats/msdoc-docx';
 import { decode1252 } from '@rutba/office-formats/codepage';
+import { readXls, xlsKind } from '@rutba/office-formats/msxls';
+import { xlsModelToXlsx } from '@rutba/office-formats/msxls-xlsx';
 import { isEncryptedPackage, decryptPackage, encryptPackage, EncryptedFileError } from '@rutba/office-formats/crypt';
 import { readZip } from '@rutba/ooxml/zip';
 import { createProofing } from './proofing.js';
@@ -301,6 +303,21 @@ function wordDocumentToDocx(bytes, shown, locked) {
     throw new Error(`${shown} could not be read: ${err.message}.`);
   }
   return { kind: 'doc', bytes: Buffer.from(docModelToDocx(model)), source: 'doc', converted: { from: model.format === 'write' ? 'wri' : 'doc', format: model.format } };
+}
+
+/**
+ * An Excel binary workbook of any age — 97-2003, 5.0/95, 2.1 to 4.0 — read
+ * in full and written as the .xlsx this suite edits.
+ */
+function workbookToXlsx(bytes, shown, locked) {
+  let book;
+  try {
+    book = readXls(new Uint8Array(bytes));
+  } catch (err) {
+    if (err.encrypted) throw new Error(locked);
+    throw new Error(`${shown} could not be read: ${err.message}.`);
+  }
+  return { kind: 'sheet', bytes: Buffer.from(xlsModelToXlsx(book)), source: 'xls', converted: { from: 'xls', format: 'biff' + book.biff } };
 }
 
 /** A .doc/.xls/.ppt: extract what text we can rather than refuse the file. */
@@ -803,8 +820,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       case 'ppt': {
         const shown = filePath ? path.basename(filePath) : 'This file';
         const locked = `${shown} is password-protected. This suite cannot open an encrypted file yet — open it in the program that set the password, remove the password, and save it again.`;
-        // Word 2.0 and 1.x, Windows Write and Word for DOS are no compound file.
+        // Word 2.0 and 1.x, Windows Write, Word for DOS and Excel 2.1 to 4.0 are no compound file.
         if (!CompoundFile.is(bytes)) {
+          if (kind === 'xls' && xlsKind(bytes)) return workbookToXlsx(bytes, shown, locked);
           if (kind !== 'doc' || !wordKind(bytes)) throw new Error(`Rutba Office cannot open ${detected.label || kind} files yet.`);
           return wordDocumentToDocx(bytes, shown, locked);
         }
@@ -827,6 +845,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         }
         const legacy = legacyText(bytes);
         if (app === 'xls') {
+          try {
+            return workbookToXlsx(bytes, shown, locked);
+          } catch (err) {
+            if (err.message === locked) throw err;
+            // A workbook the reader cannot follow opens as a sentence saying so.
+          }
           return {
             kind: 'sheet',
             bytes: rowsToWorkbook([['This 97-2003 workbook could not be converted in full.']]),
