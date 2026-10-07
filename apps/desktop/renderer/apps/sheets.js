@@ -14,7 +14,8 @@ import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, 
 import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
-import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS } from './sheets/ribbon.js';
+import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS, pivotAround } from './sheets/ribbon.js';
+import { PivotFieldsPane, PIVOT_FIELDS_CSS } from './sheets/pivot-fields.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import { useSheetsReview } from './sheets/review.js';
@@ -173,6 +174,8 @@ export default function Sheets({ app, shell, boot }) {
   const [customise, setCustomise] = useState(null);
   /** Page Layout → Selection Pane, open or not. */
   const [selPane, setSelPane] = useState(false);
+  /** PivotTable Fields: the pivot whose pane was closed (it opens again for another, or from Field List). */
+  const [pfClosed, setPfClosed] = useState(null);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -1932,6 +1935,9 @@ export default function Sheets({ app, shell, boot }) {
 
   const sel = model?.selection;
   const status = model?.status;
+  // The pivot under the cell, its fields pane shown beside the sheet as Excel shows it.
+  const pivotHere = pivotAround(model, sel);
+  const pivotPane = pivotHere && !pivotHere.unsupported && pfClosed !== pivotHere.name ? pivotHere : null;
 
   /**
    * The ribbon's verbs that are not one engine operation: the View toggles,
@@ -2344,6 +2350,7 @@ export default function Sheets({ app, shell, boot }) {
       // Insert → PivotTable, and PivotChart: on a pivot a chart of it (its
       // kind from the menu), on data PivotChart & PivotTable — a dialog that
       // opens on the list round the cursor.
+      case 'pivotFields': setPfClosed(null); return;
       case 'pivotTable':
       case 'pivotChart': {
         if (name === 'pivotChart' && arg?.kind) {
@@ -2937,6 +2944,16 @@ export default function Sheets({ app, shell, boot }) {
           {errorsPane()}
           {watchPane()}
           {commentsPane()}
+          {pivotPane ? (
+            <Panel right width={300} resizable title="PivotTable Fields" actions={<Button icon="close" title="Close the pane — Field List opens it again" onClick={() => setPfClosed(pivotPane.name)} />}>
+              <style>{PIVOT_FIELDS_CSS}</style>
+              <PivotFieldsPane
+                pivot={pivotPane}
+                numeric={(field) => Boolean(pivotPane.numeric?.[(pivotPane.fields || []).indexOf(field)])}
+                onChange={(layout) => dispatch({ op: 'pivotLayout', name: pivotPane.name, ...layout })}
+              />
+            </Panel>
+          ) : null}
           {review.pane ? (
             <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title="Close the pane" onClick={review.close} />}>
               {review.paneNode}

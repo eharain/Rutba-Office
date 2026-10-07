@@ -58,7 +58,7 @@ const PIVOT_CHARTS = [
 ];
 
 /** The pivot the active cell is in, from the frame's list of pivots. */
-function pivotAround(model, sel) {
+export function pivotAround(model, sel) {
   const at = sel?.active;
   if (!at || !model?.pivots) return null;
   const cell = (t) => {
@@ -384,6 +384,7 @@ export default function SheetsRibbon({
         <>
           <Group label="Tables">
             <Button tall icon="table" label="PivotTable" title="PivotTable — summarise the list round the cell: rows, columns and values" onClick={() => act('pivotTable')} />
+            {inPivot && !inPivot.unsupported ? <Button icon="list" label="Field List" title={`Field List — the fields of ${inPivot.name}: what is on its rows, columns and values`} onClick={() => act('pivotFields')} /> : null}
             <Button tall icon="table" label="Table" title="Table — the selection or the block of data round the cell, with a header row, banded rows and filters" onClick={tableMenu} />
           </Group>
           <Group label="Illustrations">
