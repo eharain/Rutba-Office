@@ -18,6 +18,7 @@
     "./msxls-xlsx": "./src/msxls-xlsx.js",
     "./msppt": "./src/msppt.js",
     "./crypt": "./src/crypt.js",
+    "./crypt-binary": "./src/crypt-binary.js",
     "./odf": "./src/odf.js",
     "./odf-write": "./src/odf-write.js",
     "./rtf": "./src/rtf.js",

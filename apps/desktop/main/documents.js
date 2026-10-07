@@ -58,6 +58,7 @@ import { xlsModelToXlsx } from '@rutba/office-formats/msxls-xlsx';
 import { readPpt } from '@rutba/office-formats/msppt';
 import { pptModelToDeck } from './legacy-deck.js';
 import { isEncryptedPackage, decryptPackage, encryptPackage, EncryptedFileError } from '@rutba/office-formats/crypt';
+import { binaryEncryption, decryptBinary } from '@rutba/office-formats/crypt-binary';
 import { readZip } from '@rutba/ooxml/zip';
 import { createProofing } from './proofing.js';
 
@@ -569,12 +570,22 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
    * the window must ask for the password (again, when `wrong`). A file that
    * was changed after it was encrypted, or is protected some way a password
    * cannot open, is refused here with its sentence.
+   *
+   * A Word, Excel or PowerPoint 97-2003 file with a password to open is
+   * decrypted the same way, into the file it would be without one; saved,
+   * it is written as the newer format, still under its password.
    */
   function unlock(bytes, shownPath, password) {
-    if (!isEncryptedPackage(bytes)) return { bytes, password: null };
+    const binary = isEncryptedPackage(bytes) ? null : binaryEncryption(bytes);
+    if (!binary && !isEncryptedPackage(bytes)) return { bytes, password: null };
     const name = shownPath ? path.basename(shownPath) : 'This file';
+    // Word's old XOR obfuscation is not undone here: said at once, not after a password is typed.
+    if (binary?.app === 'doc' && binary.method === 'xor') {
+      throw new Error(`${name} is protected with Word's old XOR obfuscation, which this version cannot open. Open it in Word, save it with a newer kind of password or none, and open it again.`);
+    }
     if (password == null) return { locked: { name, wrong: false } };
     try {
+      if (binary) return { bytes: Buffer.from(decryptBinary(bytes, String(password))), password: String(password) };
       return { bytes: decryptPackage(bytes, String(password)).bytes, password: String(password) };
     } catch (err) {
       if (!(err instanceof EncryptedFileError)) throw err;
