@@ -17,10 +17,10 @@
  * value and is reported — degrading loudly beats silently writing a wrong
  * number into a file that goes to a bank.
  */
-import { Spreadsheet, isError, formatNumber } from '@rutba/formula';
+import { Spreadsheet, isError, formatNumber, parse } from '@rutba/formula';
 import { Workbook, parseRef, makeRef } from './workbook.js';
 import { OoxmlPackage } from './package.js';
-import { toFileFormula } from './xlfn.js';
+import { toFileFormula, fromFileFormula } from './xlfn.js';
 
 /**
  * Load a workbook's cells and defined names into a calculation model.
@@ -140,7 +140,7 @@ export function toSpreadsheet(wb, { now } = {}) {
   }
 
   for (const { name, ref } of wb.definedNames()) {
-    const parsed = parseDefinedNameRange(ref);
+    const parsed = parseDefinedName(ref);
     if (parsed) sheet.defineName(name, parsed);
   }
 
@@ -171,6 +171,24 @@ export function parseDefinedNameRange(ref) {
   const start = parseRef(m[3] + m[4]);
   const end = m[5] ? parseRef(m[5] + m[6]) : start;
   return { sheet: sheetName, start, end };
+}
+
+/**
+ * A defined name's target: a range, as parseDefinedNameRange reads one, or —
+ * a name holding a formula: a constant, a calculation, a LAMBDA — the
+ * formula itself, parsed (`{ formula }`), its file prefixes taken off. Null
+ * for what cannot be worked out here: another workbook, a #REF!.
+ */
+export function parseDefinedName(ref) {
+  const range = parseDefinedNameRange(ref);
+  if (range) return range;
+  const text = String(ref ?? '').trim().replace(/^=/, '');
+  if (!text || /#REF!/.test(text) || /\[\d+\]/.test(text)) return null;
+  try {
+    return { formula: parse(fromFileFormula(text)) };
+  } catch {
+    return null;
+  }
 }
 
 /**

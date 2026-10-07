@@ -70,6 +70,117 @@ const transposeGrid = (g) => {
   return out;
 };
 
+/** A row padded out to `width` with `pad` — #N/A unless said otherwise, as Excel pads a stack. */
+const padTo = (line, width, pad = ERR.NA('padded to the widest')) => {
+  const out = [...line];
+  while (out.length < width) out.push(pad);
+  return out;
+};
+
+/** TAKE and DROP: rows (and columns) from the start, or from the end when negative. */
+function cutGrid(array, rows, cols, how) {
+  const g = gridOf(array);
+  const counts = [rows, cols].map((v) => (v === undefined || isBlank(Array.isArray(v) ? v.flat(Infinity)[0] : v) ? null : num1(v)));
+  const e = firstError(counts.filter((n) => n !== null));
+  if (e) return e;
+  const cut = (list, n) => {
+    if (n === null) return list;
+    const k = Math.trunc(n);
+    if (how === 'take') return k >= 0 ? list.slice(0, k) : list.slice(Math.max(0, list.length + k));
+    return k >= 0 ? list.slice(k) : list.slice(0, Math.max(0, list.length + k));
+  };
+  const out = cut(g, counts[0]).map((line) => cut(line, counts[1]));
+  if (!out.length || !out[0].length) return ERR.CALC((how === 'take' ? 'TAKE' : 'DROP') + ' left nothing');
+  return out;
+}
+
+/** CHOOSECOLS and CHOOSEROWS: the 1-based picks (negative from the end) as indices, or #VALUE!. */
+function pickIndices(picks, size, name) {
+  if (!picks.length) return ERR.VALUE(name + ' needs at least one to choose');
+  const out = [];
+  for (const raw of picks.flatMap(vec)) {
+    const n = toNumber(raw);
+    if (isError(n)) return n;
+    const k = Math.trunc(n);
+    if (k === 0 || Math.abs(k) > size) return ERR.VALUE(name + ' asked for one the array does not have');
+    out.push(k > 0 ? k - 1 : size + k);
+  }
+  return out;
+}
+
+/** TOCOL and TOROW: the values in reading order (or down each column), blanks and errors left out as asked. */
+function lineUp(array, ignore, byColumn) {
+  const g = gridOf(array);
+  const mode = ignore === undefined || isBlank(Array.isArray(ignore) ? ignore.flat(Infinity)[0] : ignore) ? 0 : num1(ignore);
+  if (isError(mode)) return mode;
+  if (![0, 1, 2, 3].includes(mode)) return ERR.VALUE('ignore is 0, 1, 2 or 3');
+  const down = byColumn !== undefined && toBoolean(Array.isArray(byColumn) ? byColumn.flat(Infinity)[0] : byColumn) === true;
+  const order = down ? transposeGrid(g) : g;
+  return order.flat().filter((v) => !((mode & 1) && isBlank(v)) && !((mode & 2) && isError(v)));
+}
+
+/** WRAPROWS and WRAPCOLS: a line of values folded into rows (or columns) of `count`. */
+function wrapLine(vector, count, padWith, into) {
+  const g = gridOf(vector);
+  if (g.length > 1 && (g[0]?.length ?? 0) > 1) return ERR.VALUE('wrapping takes one row or one column');
+  const n = num1(count);
+  if (isError(n)) return n;
+  const k = Math.trunc(n);
+  if (k < 1) return ERR.NUM('the wrap count must be at least 1');
+  const flat = g.flat();
+  const pad = padWith === undefined ? ERR.NA('wrapping padded the last line') : (Array.isArray(padWith) ? padWith.flat(Infinity)[0] : padWith);
+  const lines = [];
+  for (let i = 0; i < flat.length; i += k) lines.push(padTo(flat.slice(i, i + k), k, pad));
+  return into === 'rows' ? lines : transposeGrid(lines);
+}
+
+/** VALUETOTEXT and ARRAYTOTEXT: a value as text — strict quoting text, as Excel's format 1 does. */
+function valueText(v, strict) {
+  if (isError(v)) return v.type ?? String(v);
+  if (typeof v === 'boolean') return v ? 'TRUE' : 'FALSE';
+  if (typeof v === 'number') return String(v);
+  const s = String(v ?? '');
+  return strict ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+/**
+ * TEXTBEFORE and TEXTAFTER: the words before (or after) the nth delimiter —
+ * counted from the end when n is negative — case aside when asked, the
+ * text's end standing for a delimiter when asked, `ifNotFound` (or #N/A)
+ * when there are not that many.
+ */
+function textAround(side, value, delimiter, instance, matchMode, matchEnd, ifNotFound) {
+  const name = side === 'before' ? 'TEXTBEFORE' : 'TEXTAFTER';
+  const text = toText(Array.isArray(value) ? value.flat(Infinity)[0] : value);
+  if (isError(text)) return text;
+  const delims = vec(delimiter).map((d) => toText(d));
+  const bad = delims.find(isError);
+  if (bad) return bad;
+  const n = instance === undefined || isBlank(Array.isArray(instance) ? instance.flat(Infinity)[0] : instance) ? 1 : Math.trunc(num1(instance));
+  if (isError(n)) return n;
+  if (n === 0 || Math.abs(n) > text.length + 1) return ERR.VALUE(name + ' instance is outside the text');
+  const fold = matchMode !== undefined && num1(matchMode) === 1;
+  const toEnd = matchEnd !== undefined && num1(matchEnd) === 1;
+  const hay = fold ? text.toLowerCase() : text;
+  // Every place a delimiter stands, in order: [start, end).
+  const hits = [];
+  for (let i = 0; i <= hay.length; i++) {
+    for (const d of delims) {
+      const needle = fold ? d.toLowerCase() : d;
+      if (needle === '' ? true : hay.startsWith(needle, i)) { hits.push([i, i + needle.length]); break; }
+    }
+  }
+  if (delims.every((d) => d === '')) {
+    // An empty delimiter stands at the start (or, counting back, the end).
+    return side === 'before' ? (n > 0 ? '' : text) : (n > 0 ? text : '');
+  }
+  const found = hits.filter(([a, b], k) => k === 0 || a >= hits[k - 1][1]);
+  if (toEnd) { if (n > 0) found.push([text.length, text.length]); else found.unshift([0, 0]); }
+  const hit = n > 0 ? found[n - 1] : found[found.length + n];
+  if (!hit) return ifNotFound === undefined ? ERR.NA(name + ' found no such delimiter') : (Array.isArray(ifNotFound) ? ifNotFound.flat(Infinity)[0] : ifNotFound);
+  return side === 'before' ? text.slice(0, hit[0]) : text.slice(hit[1]);
+}
+
 /** Numbers usable by an aggregate, applying convention 1 above. */
 function aggregateNumbers(args) {
   const out = [];
@@ -1199,6 +1310,165 @@ export const FUNCTIONS = {
     if (out.length) return out;
     return ifEmpty === undefined ? ERR.CALC('FILTER kept nothing') : ifEmpty;
   }),
+
+  // ---- Excel 365's arrays: shaping, stacking, picking ----------------------
+  // These pass an error inside an array on as an element, as Excel does,
+  // rather than letting it stand for the whole answer (`keepsErrors`); an
+  // error in a number they are given is still the answer.
+  XMATCH: def((needle, lookupArray, matchMode, searchMode) => {
+    const looks = vec(lookupArray);
+    const mode = matchMode === undefined || isBlank(firstOf(matchMode)) ? 0 : num1(matchMode);
+    const dir = searchMode === undefined || isBlank(firstOf(searchMode)) ? 1 : num1(searchMode);
+    const e = firstError([mode, dir]);
+    if (e) return e;
+    if (![0, -1, 1, 2].includes(mode)) return ERR.VALUE('XMATCH match mode is 0, -1, 1 or 2');
+    if (![1, -1, 2, -2].includes(dir)) return ERR.VALUE('XMATCH search mode is 1, -1, 2 or -2');
+    const order = [...looks.keys()];
+    if (dir < 0) order.reverse();
+    const one = (key) => {
+      if (isError(key)) return key;
+      if (mode === 2) {
+        const re = wildcardRegex(toText(key));
+        for (const i of order) if (re.test(toText(looks[i]))) return i + 1;
+        return ERR.NA('XMATCH found no match');
+      }
+      let best = -1;
+      for (const i of order) {
+        const cmp = compareValues(looks[i], key);
+        if (isError(cmp)) continue;
+        if (cmp === 0) return i + 1;
+        if (mode === -1 && cmp < 0 && (best < 0 || compareValues(looks[i], looks[best]) > 0)) best = i;
+        if (mode === 1 && cmp > 0 && (best < 0 || compareValues(looks[i], looks[best]) < 0)) best = i;
+      }
+      return best >= 0 ? best + 1 : ERR.NA('XMATCH found no match');
+    };
+    return Array.isArray(needle) ? gridOf(needle).map((line) => line.map(one)) : one(needle);
+  }),
+  TEXTSPLIT: def((value, colDelim, rowDelim, ignoreEmpty, matchMode, padWith) => {
+    const text = text1(value);
+    if (isError(text)) return text;
+    const list = (d) => (d === undefined || isBlank(firstOf(d)) ? [] : vec(d).map((x) => toText(x)).filter((x) => x !== ''));
+    const cols = list(colDelim);
+    const rows = list(rowDelim);
+    if (!cols.length && !rows.length) return ERR.VALUE('TEXTSPLIT needs a delimiter');
+    const skip = ignoreEmpty !== undefined && toBoolean(firstOf(ignoreEmpty)) === true;
+    const fold = matchMode !== undefined && num1(matchMode) === 1;
+    const pad = padWith === undefined ? ERR.NA('TEXTSPLIT padded a short row') : firstOf(padWith);
+    const splitter = (delims) => {
+      if (!delims.length) return null;
+      const source = [...delims].sort((a, b) => b.length - a.length).map((d) => d.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
+      return new RegExp(source, fold ? 'i' : '');
+    };
+    const byRow = splitter(rows);
+    const byCol = splitter(cols);
+    const lines = (byRow ? text.split(byRow) : [text]).filter((line) => !skip || line !== '');
+    const grid = lines.map((line) => (byCol ? line.split(byCol) : [line]).filter((cell) => !skip || cell !== ''));
+    const width = Math.max(1, ...grid.map((line) => line.length));
+    const out = grid.map((line) => { const l = [...line]; while (l.length < width) l.push(pad); return l; });
+    return out.length ? out : [['']];
+  }),
+  TEXTBEFORE: def((value, delimiter, instance, matchMode, matchEnd, ifNotFound) => textAround('before', value, delimiter, instance, matchMode, matchEnd, ifNotFound)),
+  TEXTAFTER: def((value, delimiter, instance, matchMode, matchEnd, ifNotFound) => textAround('after', value, delimiter, instance, matchMode, matchEnd, ifNotFound)),
+  VSTACK: def((...arrays) => {
+    const grids = arrays.map(gridOf);
+    const width = Math.max(...grids.map((g) => g[0]?.length ?? 0));
+    return grids.flatMap((g) => g.map((line) => padTo(line, width)));
+  }, { keepsErrors: true }),
+  HSTACK: def((...arrays) => {
+    const grids = arrays.map(gridOf);
+    const height = Math.max(...grids.map((g) => g.length));
+    const out = [];
+    for (let i = 0; i < height; i++) out.push(grids.flatMap((g) => (i < g.length ? g[i] : padTo([], g[0]?.length ?? 1))));
+    return out;
+  }, { keepsErrors: true }),
+  TAKE: def((array, rows, cols) => cutGrid(array, rows, cols, 'take'), { keepsErrors: true }),
+  DROP: def((array, rows, cols) => cutGrid(array, rows, cols, 'drop'), { keepsErrors: true }),
+  CHOOSECOLS: def((array, ...picks) => {
+    const g = gridOf(array);
+    const at = pickIndices(picks, g[0]?.length ?? 0, 'CHOOSECOLS');
+    return isError(at) ? at : g.map((line) => at.map((j) => line[j]));
+  }, { keepsErrors: true }),
+  CHOOSEROWS: def((array, ...picks) => {
+    const g = gridOf(array);
+    const at = pickIndices(picks, g.length, 'CHOOSEROWS');
+    return isError(at) ? at : at.map((i) => [...g[i]]);
+  }, { keepsErrors: true }),
+  TOCOL: def((array, ignore, byColumn) => {
+    const flat = lineUp(array, ignore, byColumn);
+    return isError(flat) ? flat : flat.length ? flat.map((v) => [v]) : ERR.CALC('TOCOL kept nothing');
+  }, { keepsErrors: true }),
+  TOROW: def((array, ignore, byColumn) => {
+    const flat = lineUp(array, ignore, byColumn);
+    return isError(flat) ? flat : flat.length ? [flat] : ERR.CALC('TOROW kept nothing');
+  }, { keepsErrors: true }),
+  WRAPROWS: def((vector, count, padWith) => wrapLine(vector, count, padWith, 'rows'), { keepsErrors: true }),
+  WRAPCOLS: def((vector, count, padWith) => wrapLine(vector, count, padWith, 'cols'), { keepsErrors: true }),
+  EXPAND: def((array, rows, cols, padWith) => {
+    const g = gridOf(array);
+    const h = rows === undefined || isBlank(firstOf(rows)) ? g.length : num1(rows);
+    const w = cols === undefined || isBlank(firstOf(cols)) ? (g[0]?.length ?? 0) : num1(cols);
+    const e = firstError([h, w]);
+    if (e) return e;
+    if (h < g.length || w < (g[0]?.length ?? 0)) return ERR.VALUE('EXPAND cannot make an array smaller');
+    const pad = padWith === undefined ? ERR.NA('EXPAND padded the array') : firstOf(padWith);
+    const out = [];
+    for (let i = 0; i < Math.trunc(h); i++) out.push(i < g.length ? padTo(g[i], Math.trunc(w), pad) : padTo([], Math.trunc(w), pad));
+    return out;
+  }, { keepsErrors: true }),
+  SORTBY: def((array, ...keys) => {
+    const g = gridOf(array);
+    if (!keys.length) return ERR.VALUE('SORTBY needs something to sort by');
+    const sorts = [];
+    for (let k = 0; k < keys.length; k += 2) {
+      const by = gridOf(keys[k]);
+      const order = keys[k + 1] === undefined || isBlank(firstOf(keys[k + 1])) ? 1 : num1(keys[k + 1]);
+      if (isError(order)) return order;
+      if (order !== 1 && order !== -1) return ERR.VALUE('SORTBY order is 1 or -1');
+      sorts.push({ by, order });
+    }
+    // A key one column tall sorts the rows; one row wide, the columns.
+    const byCols = sorts.every(({ by }) => by.length === 1 && (by[0]?.length ?? 0) === (g[0]?.length ?? 0) && g.length !== by[0].length);
+    const lines = byCols ? transposeGrid(g) : g;
+    const keyOf = ({ by }) => (byCols ? by[0] : by.map((line) => line[0]));
+    if (sorts.some((s) => keyOf(s).length !== lines.length)) return ERR.VALUE('SORTBY needs a key the size of the array');
+    const order = lines.map((_, i) => i).sort((a, b) => {
+      for (const s of sorts) {
+        const key = keyOf(s);
+        const c = compareValues(key[a], key[b]);
+        if (!isError(c) && c !== 0) return c * s.order;
+      }
+      return a - b;
+    });
+    const sorted = order.map((i) => lines[i]);
+    return byCols ? transposeGrid(sorted) : sorted;
+  }),
+  RANDARRAY: def((rows, cols, min, max, whole) => {
+    const opt = (v, d) => (v === undefined || isBlank(firstOf(v)) ? d : num1(v));
+    const r = opt(rows, 1);
+    const c = opt(cols, 1);
+    const lo = opt(min, 0);
+    const hi = opt(max, 1);
+    const e = firstError([r, c, lo, hi]);
+    if (e) return e;
+    const integer = whole !== undefined && toBoolean(firstOf(whole)) === true;
+    if (r < 1 || c < 1 || r * c > 1048576) return ERR.VALUE('RANDARRAY needs positive dimensions');
+    if (hi < lo) return ERR.VALUE('RANDARRAY maximum is below its minimum');
+    if (integer && (lo !== Math.trunc(lo) || hi !== Math.trunc(hi))) return ERR.VALUE('RANDARRAY whole numbers need a whole minimum and maximum');
+    const draw = () => (integer ? lo + Math.floor(Math.random() * (hi - lo + 1)) : lo + Math.random() * (hi - lo));
+    return Array.from({ length: Math.trunc(r) }, () => Array.from({ length: Math.trunc(c) }, draw));
+  }, { volatile: true }),
+  VALUETOTEXT: def((value, format) => {
+    const strict = format !== undefined && num1(format) === 1;
+    return Array.isArray(value) ? gridOf(value).map((line) => line.map((v) => valueText(v, strict))) : valueText(value, strict);
+  }, { keepsErrors: true }),
+  ARRAYTOTEXT: def((array, format) => {
+    const strict = format !== undefined && num1(format) === 1;
+    const g = gridOf(array);
+    if (!strict) return g.flat().map((v) => valueText(v, false)).join(', ');
+    return '{' + g.map((line) => line.map((v) => valueText(v, true)).join(',')).join(';') + '}';
+  }, { keepsErrors: true }),
+  // `@` written out: the one value an array stands for where one is wanted.
+  SINGLE: def((v) => firstOf(v)),
 
   // ---- information ---------------------------------------------------------
   ISEVEN: def((v) => {

@@ -20,6 +20,20 @@ import { FUNCTIONS } from './functions.js';
 import { parse, indexToCol } from './parser.js';
 
 const MAX_ROWS = 1048576;
+
+/**
+ * A LAMBDA: its parameters' names (upper case), the calculation, and the
+ * names bound where it was written — what it sees when it is called later,
+ * from a LET, a defined name or MAP. A value of its own kind: it is called,
+ * never shown, so a cell left holding one is #CALC!.
+ */
+export class Lambda {
+  constructor(params, body, scope) {
+    this.params = params;
+    this.body = body;
+    this.scope = scope;
+  }
+}
 const MAX_COLS = 16384;
 
 /** Clip whole-column/row ranges to what the sheet actually uses. */
@@ -56,6 +70,40 @@ export function evaluate(ast, resolver, context = {}) {
 
   /** Names LET has bound, innermost last. Empty for every other formula. */
   const bindings = new Map();
+  /** The parameters the LAMBDA now running was called without — what ISOMITTED asks. */
+  let omitted = new Set();
+
+  /**
+   * A LAMBDA called with values: its parameters bound to them (those it was
+   * not given bound blank, and ISOMITTED says so) over the names it saw when
+   * it was written, the calculation worked out, and every name put back.
+   */
+  const invoke = (fn, values) => {
+    if (!(fn instanceof Lambda)) return ERR.VALUE('only a LAMBDA can be called');
+    if (values.length > fn.params.length) return ERR.VALUE('the LAMBDA was given more values than it has parameters');
+    if (ctx.depth > 128) return ERR.NUM('formula nested too deeply');
+    const saved = new Map(bindings);
+    const savedOmitted = omitted;
+    ctx.depth += 1;
+    try {
+      bindings.clear();
+      for (const [key, value] of fn.scope) bindings.set(key, value);
+      omitted = new Set();
+      fn.params.forEach((name, i) => {
+        if (i < values.length) bindings.set(name, values[i]);
+        else { bindings.set(name, ''); omitted.add(name); }
+      });
+      return evalNode(fn.body);
+    } finally {
+      ctx.depth -= 1;
+      bindings.clear();
+      for (const [key, value] of saved) bindings.set(key, value);
+      omitted = savedOmitted;
+    }
+  };
+
+  /** One value a LAMBDA hands back where one is wanted: an array there is #CALC!, as in Excel. */
+  const one = (v) => (Array.isArray(v) ? (v.flat(Infinity).length === 1 ? v.flat(Infinity)[0] : ERR.CALC('a LAMBDA here must give one value, not an array')) : v);
 
   const evalNode = (node) => {
     switch (node.type) {
@@ -109,6 +157,10 @@ export function evaluate(ast, resolver, context = {}) {
         if (bindings.has(bound)) return bindings.get(bound);
         const resolved = resolver.getName ? resolver.getName(node.name, ctx.sheet) : null;
         if (resolved === null || resolved === undefined) return ERR.NAME('unknown name "' + node.name + '"');
+        // A name holding a formula — a constant, a calculation, a LAMBDA — worked out where it is asked for.
+        if (typeof resolved === 'object' && resolved.formula) {
+          return evaluate(resolved.formula, resolver, { sheet: ctx.sheet, row: ctx.row, col: ctx.col, depth: ctx.depth + 1, spill: true, lambda: true });
+        }
         if (typeof resolved === 'object' && resolved.start && resolved.end) {
           const bounds = clip(resolver, resolved.sheet ?? ctx.sheet, resolved.start, resolved.end);
           return resolver.getRange(resolved.sheet ?? ctx.sheet, bounds.start, bounds.end);
@@ -141,6 +193,13 @@ export function evaluate(ast, resolver, context = {}) {
 
       case 'call':
         return call(node);
+
+      // LAMBDA(x, x+1)(5): the callee worked out, then called.
+      case 'invoke': {
+        const fn = evalNode(node.callee);
+        if (isError(fn)) return fn;
+        return invoke(fn, node.args.map((a) => evalNode(a)));
+      }
 
       default:
         return ERR.VALUE('cannot evaluate node type ' + node.type);
@@ -304,6 +363,41 @@ export function evaluate(ast, resolver, context = {}) {
      * Each value may use the names before it, as Excel's does, and the
      * bindings are put back afterwards so a LET inside a LET cannot leak.
      */
+    // LAMBDA: the calculation kept, not worked out, with the names it sees.
+    if (node.name === 'LAMBDA') {
+      const args = node.args;
+      if (!args.length) return ERR.VALUE('LAMBDA needs a calculation');
+      const params = [];
+      for (const p of args.slice(0, -1)) {
+        if (!p || p.type !== 'name') return ERR.VALUE('LAMBDA names each parameter before the calculation');
+        const name = String(p.name).toUpperCase();
+        if (params.includes(name)) return ERR.VALUE('LAMBDA names a parameter twice');
+        params.push(name);
+      }
+      return new Lambda(params, args[args.length - 1], new Map(bindings));
+    }
+    // ISOMITTED: whether the LAMBDA now running was called without this parameter.
+    if (node.name === 'ISOMITTED') {
+      const p = node.args[0];
+      if (node.args.length !== 1 || !p || p.type !== 'name') return ERR.VALUE('ISOMITTED takes one parameter name');
+      return omitted.has(String(p.name).toUpperCase());
+    }
+    // The helpers that call a LAMBDA for each value: MAP, REDUCE, SCAN, BYROW, BYCOL, MAKEARRAY.
+    if (LAMBDA_HELPERS.has(node.name)) return lambdaHelper(node);
+    // A name bound to a LAMBDA — by LET, or a defined name — called.
+    {
+      const bound = bindings.get(String(node.name).toUpperCase());
+      if (bound instanceof Lambda) return invoke(bound, node.args.map((a) => evalNode(a)));
+      if (!FUNCTIONS[node.name] && !bound && resolver.getName) {
+        const named = resolver.getName(node.name, ctx.sheet);
+        if (named && named.formula) {
+          const fn = evaluate(named.formula, resolver, { sheet: ctx.sheet, row: ctx.row, col: ctx.col, depth: ctx.depth + 1, spill: true, lambda: true });
+          if (fn instanceof Lambda) return invoke(fn, node.args.map((a) => evalNode(a)));
+          if (isError(fn)) return fn;
+        }
+      }
+    }
+
     if (node.name === 'LET') {
       const args = node.args;
       if (args.length < 3 || args.length % 2 === 0) {
@@ -480,7 +574,9 @@ export function evaluate(ast, resolver, context = {}) {
     }
 
     const args = node.args.map((a) => scalarOrArray(evalNode(a)));
-    if (!entry.wantsContext) {
+    // A function that shapes arrays passes an error inside one on as an
+    // element (`keepsErrors`) and answers for its own scalar arguments.
+    if (!entry.wantsContext && !entry.keepsErrors) {
       const e = firstError(args);
       // Aggregates still need to see errors inside ranges, and firstError walks
       // into arrays, so this catches both literal and in-range errors.
@@ -493,10 +589,65 @@ export function evaluate(ast, resolver, context = {}) {
     }
   }
 
+  /**
+   * MAP, REDUCE, SCAN, BYROW, BYCOL and MAKEARRAY: each calls the LAMBDA it
+   * is given, its last argument, once for each value (or row, column or
+   * cell) — the arrays laid out as the result, values in reading order.
+   */
+  function lambdaHelper(node) {
+    const values = node.args.map((a) => evalNode(a));
+    const fn = values[values.length - 1];
+    if (!(fn instanceof Lambda)) return ERR.VALUE(node.name + ' needs a LAMBDA last');
+    const lead = values.slice(0, -1);
+    const firstErr = lead.find((v) => isError(v));
+    if (firstErr) return firstErr;
+    switch (node.name) {
+      case 'MAP': {
+        if (!lead.length) return ERR.VALUE('MAP needs an array');
+        const grids = lead.map(to2d);
+        const rows = Math.max(...grids.map((g) => g.length));
+        const cols = Math.max(...grids.map((g) => g[0]?.length ?? 0));
+        return Array.from({ length: rows }, (_, i) => Array.from({ length: cols }, (_, j) => one(invoke(fn, grids.map((g) => pick2d(g, i, j))))));
+      }
+      case 'REDUCE':
+      case 'SCAN': {
+        const [initial, array] = lead.length >= 2 ? lead : ['', lead[0]];
+        if (array === undefined) return ERR.VALUE(node.name + ' needs an array');
+        const g = to2d(array);
+        let acc = initial;
+        const out = g.map((line) => line.map((v) => {
+          acc = invoke(fn, [acc, v]);
+          return node.name === 'SCAN' ? one(acc) : acc;
+        }));
+        return node.name === 'SCAN' ? out : acc;
+      }
+      case 'BYROW':
+      case 'BYCOL': {
+        const g = to2d(lead[0] ?? '');
+        if (node.name === 'BYROW') return g.map((line) => [one(invoke(fn, [[line]]))]);
+        const cols = g[0]?.length ?? 0;
+        return [Array.from({ length: cols }, (_, j) => one(invoke(fn, [g.map((line) => [line[j]])])))];
+      }
+      case 'MAKEARRAY': {
+        const r = toNumber(scalar(lead[0]));
+        const c = toNumber(scalar(lead[1]));
+        const e = firstError([r, c]);
+        if (e) return e;
+        if (r < 1 || c < 1 || r * c > 1048576) return ERR.VALUE('MAKEARRAY needs positive dimensions');
+        return Array.from({ length: Math.trunc(r) }, (_, i) => Array.from({ length: Math.trunc(c) }, (_, j) => one(invoke(fn, [i + 1, j + 1]))));
+      }
+      default:
+        return ERR.NAME('unknown function ' + node.name);
+    }
+  }
+
   const scalarOrArray = (v) => v;
 
   try {
     const result = evalNode(ast);
+    // A LAMBDA is called, never shown — unless the caller asked for it (a
+    // defined name holding one, about to be called).
+    if (result instanceof Lambda) return context.lambda ? result : ERR.CALC('a LAMBDA must be called with values');
     // In spill mode the caller WANTS the whole array — that is what spills.
     // Everywhere else a top-level array collapses to its first cell, the
     // legacy implicit intersection.
@@ -506,6 +657,9 @@ export function evaluate(ast, resolver, context = {}) {
     return isError(e) ? e : ERR.VALUE(e.message ?? String(e));
   }
 }
+
+/** The functions that call a LAMBDA once for each value. */
+const LAMBDA_HELPERS = new Set(['MAP', 'REDUCE', 'SCAN', 'BYROW', 'BYCOL', 'MAKEARRAY']);
 
 /** Any value as a rectangular 2-D array — the shape broadcasting works in. */
 function to2d(v) {

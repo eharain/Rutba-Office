@@ -442,6 +442,18 @@ export function parse(input, { spans = false } = {}) {
   }
   function parsePostfix() {
     let node = parsePrimary();
+    // A LAMBDA called where it is written — LAMBDA(x, x+1)(5) — or the
+    // LAMBDA another call hands back, called in turn.
+    while (at(T.LPAREN) && (node.type === 'call' || node.type === 'invoke')) {
+      next();
+      const args = [];
+      if (!at(T.RPAREN)) {
+        args.push(parseComparison());
+        while (at(T.COMMA)) { next(); args.push(parseComparison()); }
+      }
+      const close = expect(T.RPAREN);
+      node = spans ? mark({ type: 'invoke', callee: node, args }, ext(node)[0], close.end) : { type: 'invoke', callee: node, args };
+    }
     while (at(T.PERCENT)) {
       const pct = next();
       const wrapped = { type: 'unary', op: '%', operand: node };
@@ -644,7 +656,7 @@ export function dependencies(ast, out = []) {
   if (!ast || typeof ast !== 'object') return out;
   if (ast.type === 'cell' || ast.type === 'range' || ast.type === 'name'
     || ast.type === 'structref' || ast.type === 'spillref') out.push(ast);
-  for (const key of ['left', 'right', 'operand']) if (ast[key]) dependencies(ast[key], out);
+  for (const key of ['left', 'right', 'operand', 'callee']) if (ast[key]) dependencies(ast[key], out);
   // ROW(ref) and COLUMN(ref) read a reference's POSITION, never its value —
   // the evaluator answers them from the AST. Counting the reference as a
   // dependency here would invent edges (and with them, false cycles: a cell

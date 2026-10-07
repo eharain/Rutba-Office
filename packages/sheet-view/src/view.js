@@ -17,8 +17,8 @@
  * (so dependents update immediately), and to the file only on save — which keeps
  * typing fast and keeps the preserving write path on one well-tested road.
  */
-import { Workbook, OoxmlPackage } from '@rutba/ooxml';
-import { toSpreadsheet, writeCachedValue, parseDefinedNameRange } from '@rutba/ooxml/recalc';
+import { Workbook, OoxmlPackage, toFileFormula, fromFileFormula } from '@rutba/ooxml';
+import { toSpreadsheet, writeCachedValue, parseDefinedNameRange, parseDefinedName } from '@rutba/ooxml/recalc';
 import {
 
   readPivots, computePivot, updatePivotLocation, dataFieldLabel, areaRef,
@@ -3844,9 +3844,11 @@ export class SheetView {
    * still listed — it is real and deletable — with a null target.
    */
   names() {
-    return this.workbook.definedNames().map(({ name, ref: target }) => ({
-      name, ref: target, target: parseDefinedNameRange(target),
-    }));
+    return this.workbook.definedNames().map(({ name, ref: target }) => {
+      const range = parseDefinedNameRange(target);
+      // A name holding a formula reads as it was typed, Excel's prefixes off.
+      return { name, ref: range ? target : '=' + fromFileFormula(target), target: range, ...(range ? {} : { formula: true }) };
+    });
   }
 
   /** The tables on the active sheet, parsed, for the frame and the filter UI. */
@@ -3881,7 +3883,7 @@ export class SheetView {
   _syncNames() {
     this.calc.names.clear();
     for (const { name, ref: target } of this.workbook.definedNames()) {
-      const parsed = parseDefinedNameRange(target);
+      const parsed = parseDefinedName(target);
       if (parsed) this.calc.defineName(name, parsed);
     }
   }
@@ -3914,9 +3916,14 @@ export class SheetView {
     if (/^[A-Za-z]{1,3}\d+$/.test(trimmed)) {
       throw new Error('"' + trimmed + '" reads as a cell reference — pick another name');
     }
-    const target = refText === undefined ? this._selectionRefText() : String(refText).trim();
-    if (!parseDefinedNameRange(target)) {
-      throw new Error('"' + target + '" is not a range a name can point at — use Sheet!$A$1:$B$3');
+    const raw = refText === undefined ? this._selectionRefText() : String(refText).trim();
+    // A range, as Sheet!$A$1:$B$3 — or a formula: a constant, a calculation,
+    // a LAMBDA — kept as Excel writes one, its newer functions prefixed.
+    let target = raw;
+    if (!parseDefinedNameRange(raw)) {
+      const formula = raw.replace(/^=/, '');
+      if (!parseDefinedName(formula)) throw new Error('"' + raw + '" is not a range or a formula a name can hold — use Sheet!$A$1:$B$3, or =LAMBDA(x, x*2)');
+      target = toFileFormula(formula);
     }
     this._edit('define name', null, [], () => {
       this.workbook.setDefinedName(trimmed, target);

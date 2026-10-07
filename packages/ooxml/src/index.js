@@ -17,6 +17,7 @@
  */
 export { OoxmlPackage, OoxmlError, attrs, esc } from './package.js';
 export { readZip, writeZip, ZipEntry, crc32 } from './zip.js';
+export { toFileFormula, fromFileFormula } from './xlfn.js';
 export {
   Workbook, colToIndex, indexToCol, parseRef, makeRef, unesc,
 } from './workbook.js';
@@ -31,7 +32,7 @@ export {
 export { readHeadersAndFooters, parseBand } from './headers.js';
 export { readParagraphStyles, readCharacterStyles, readNumberingDefs, readThemeFonts, readThemeColours, themeColourHex, STANDARD_PARAGRAPH_STYLES, STANDARD_STYLES_XML } from './docstyles.js';
 export {
-  recalculateWorkbook, inspectCalculation, toSpreadsheet, parseDefinedNameRange,
+  recalculateWorkbook, inspectCalculation, toSpreadsheet, parseDefinedNameRange, parseDefinedName,
 } from './recalc.js';
 export {
   fidelityOf, comparePackages, formatReport, preservedButUnsupported, xmlEquivalent,

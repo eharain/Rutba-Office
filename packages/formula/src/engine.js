@@ -21,7 +21,7 @@
 import { parse, dependencies, indexToCol, colToIndex } from './parser.js';
 import { evaluate } from './evaluator.js';
 import { ERR, isError, isBlank } from './values.js';
-import { isVolatile } from './functions.js';
+import { isVolatile, FUNCTIONS } from './functions.js';
 
 const key = (sheet, row, col) => sheet + '!' + row + ':' + col;
 
@@ -155,6 +155,9 @@ export class Spreadsheet {
       try {
         cell.ast = parse(input);
         cell.deps = dependencies(cell.ast);
+        // A call to a name no function has — a LAMBDA kept in a defined name —
+        // depends on what that name's formula reads, as a name's range does.
+        for (const name of calledNames(cell.ast)) if (!FUNCTIONS[name] && !FORMS.has(name)) cell.deps.push({ type: 'name', name });
         cell.volatile = hasVolatileCall(cell.ast);
       } catch (e) {
         cell.ast = null;
@@ -363,6 +366,13 @@ export class Spreadsheet {
         for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) out.add(key(sheet, r, c));
       } else if (dep.type === 'name') {
         const target = this.names.get(String(dep.name).toUpperCase());
+        // A name holding a formula reads what its formula reads.
+        if (target && target.formula) {
+          // Names that name each other stop somewhere: the evaluator answers such a loop #NUM!.
+          if ((cell.nameDepth ?? 0) > 16) continue;
+          for (const k of this._dependencyKeys({ sheet: cell.sheet, row: cell.row, col: cell.col, deps: dependencies(target.formula), nameDepth: (cell.nameDepth ?? 0) + 1 })) out.add(k);
+          continue;
+        }
         if (target && target.start && target.end) {
           const sheet = target.sheet ?? cell.sheet;
           for (let r = target.start.row; r <= target.end.row; r++) {
@@ -734,11 +744,23 @@ function sameCellValue(a, b) {
   return a === b;
 }
 
+/** The calls the evaluator answers itself rather than the library. */
+const FORMS = new Set(['LET', 'LAMBDA', 'ISOMITTED', 'MAP', 'REDUCE', 'SCAN', 'BYROW', 'BYCOL', 'MAKEARRAY', 'ROW', 'COLUMN', 'OFFSET', 'INDIRECT', 'SUBTOTAL']);
+
+/** Every function name a formula calls. */
+function calledNames(node, out = new Set()) {
+  if (!node || typeof node !== 'object') return out;
+  if (node.type === 'call') out.add(node.name);
+  for (const k of ['left', 'right', 'operand', 'callee']) calledNames(node[k], out);
+  for (const a of node.args ?? []) calledNames(a, out);
+  return out;
+}
+
 /** Does a formula call a volatile function, at any depth? */
 function hasVolatileCall(node) {
   if (!node || typeof node !== 'object') return false;
   if (node.type === 'call' && isVolatile(node.name)) return true;
-  for (const k of ['left', 'right', 'operand']) if (hasVolatileCall(node[k])) return true;
+  for (const k of ['left', 'right', 'operand', 'callee']) if (hasVolatileCall(node[k])) return true;
   return (node.args ?? []).some(hasVolatileCall);
 }
 
