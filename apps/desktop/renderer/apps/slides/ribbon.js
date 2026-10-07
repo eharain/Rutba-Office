@@ -358,7 +358,7 @@ export default function SlidesRibbon({
             ])} />
           </Group>
           <Group label="Edit Shape">
-            <Button tall icon="shape" label="Edit Shape" disabled={!canEditPoints} title={canEditPoints ? 'Edit Points — drag the selected shape\'s points, add one on its outline or delete one' : 'Select a shape to edit its points'} onClick={(e) => menu.open(e, [
+            <Button tall icon="shape" label="Edit Shape" disabled={!canEditPoints} title={canEditPoints ? 'Edit Points — drag the selected shape\'s points, add one on its outline or delete one' : hasShape ? 'A picture, a chart, a table or a group has no points to edit — select a shape' : needShape} onClick={(e) => menu.open(e, [
               { label: 'Edit Points', icon: 'shape', run: () => act('editPoints') },
             ])} />
           </Group>
