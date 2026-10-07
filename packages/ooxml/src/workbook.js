@@ -1913,8 +1913,11 @@ export class Workbook {
     const v = /<v>([\s\S]*?)<\/v>/.exec(cell.inner);
     if (cell.type === 's' && v) return this.sharedStrings()[Number(v[1])] ?? null;
     if (cell.type === 'inlineStr' || cell.type === 'str') {
-      const t = /<t[^>]*>([\s\S]*?)<\/t>/.exec(cell.inner);
-      if (t) return unesc(t[1]);
+      // Every run's words, as a rich shared string's are read — not just the first run's — leaving out phonetic guides.
+      const is = /<is>([\s\S]*?)<\/is>/.exec(cell.inner);
+      const body = (is ? is[1] : cell.inner).replace(/<rPh\b[\s\S]*?<\/rPh>/g, '');
+      const ts = [...body.matchAll(/<t(?:\s[^>]*)?>([\s\S]*?)<\/t>/g)];
+      if (ts.length) return ts.map((m) => unesc(m[1])).join('');
     }
     if (cell.type === 'b' && v) return v[1] === '1';
     if (cell.type === 'e' && v) return unesc(v[1]);

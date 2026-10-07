@@ -61,7 +61,7 @@ export function xlsModelToXlsx(book) {
   };
   const styles = stylesXml(book, colour);
   pkg.write_('xl/styles.xml', styles.xml);
-  book.sheets.forEach((sheet, i) => pkg.write_(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sheet, i === book.activeSheet, drawings[i].length > 0)));
+  book.sheets.forEach((sheet, i) => pkg.write_(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sheet, i === book.activeSheet, drawings[i].length > 0, styles.runPr)));
   pkg.write_('xl/workbook.xml', workbookXml(book, names));
   // The theme Excel 2007 and later keep, zipped, in the file: the colours a chart's theme colours are.
   const theme = themeXml(book.theme);
@@ -156,7 +156,7 @@ function sheetDrawings(sheet, book) {
     let bytes = p.blip.bytes;
     if (p.blip.deflated) { try { bytes = zlib.inflateSync(Buffer.from(bytes)); } catch { bytes = Buffer.from(bytes); } }
     return {
-      kind: 'picture', name: p.name || `Picture ${i + 1}`, bytes: Buffer.from(bytes), extension: kinds[p.blip.ext],
+      kind: 'picture', name: p.name || `Picture ${i + 1}`, bytes: Buffer.from(bytes), extension: kinds[p.blip.ext], order: p.order ?? i,
       from: { col: p.from.col, row: p.from.row, colOff: Math.round(p.from.dx * colPx(p.from.col) * 9525), rowOff: Math.round(p.from.dy * rowPx(p.from.row) * 9525) },
       widthPx: Math.max(1, span(colPx, { at: p.from.col, f: p.from.dx }, { at: p.to.col, f: p.to.dx })),
       heightPx: Math.max(1, span(rowPx, { at: p.from.row, f: p.from.dy }, { at: p.to.row, f: p.to.dy })),
@@ -169,9 +169,18 @@ function sheetDrawings(sheet, book) {
     try { xml = c.chart ? chartXml(c.chart, (r) => rangeValues(book, r)) : null; } catch { xml = null; }
     if (!xml) return null;
     const at = c.anchor ?? page;
-    return { kind: 'chart', name: c.name || `Chart ${i + 1}`, chartXml: xml, from: marker(at.from), to: marker(at.to) };
+    return { kind: 'chart', name: c.name || `Chart ${i + 1}`, chartXml: xml, from: marker(at.from), to: marker(at.to), order: c.order ?? 1e6 + i };
   }).filter(Boolean);
-  return [...pictures, ...charts];
+  // In the order they were drawn, the later over the earlier.
+  return [...pictures, ...charts].sort((a, b) => a.order - b.order).map(({ order, ...d }) => d);
+}
+
+/** A colour element for an exact colour: its RGB, its theme colour and tint, or its palette index. */
+function colourEl(name, c) {
+  const tint = c.tint ? ` tint="${Math.round(c.tint * 1e6) / 1e6}"` : '';
+  if (c.rgb) return `<${name} rgb="FF${c.rgb}"${tint}/>`;
+  if (c.theme != null) return `<${name} theme="${c.theme}"${tint}/>`;
+  return `<${name} indexed="${c.indexed ?? 64}"${tint}/>`;
 }
 
 /** The styles part: number formats, fonts, fills, borders and one cell format per XF, in the XFs' order. */
@@ -185,48 +194,62 @@ function stylesXml(book, colour) {
   }
   const numFmtOf = (id) => (fmtId.has(id) ? fmtId.get(id) : book.biff >= 5 && id <= 49 ? id : 0);
 
-  const fonts = book.fonts.length ? book.fonts.map((f) => {
+  const fontXml = (f, exact = null) => {
     const c = f.colour != null && f.colour !== 0x7fff ? colour(f.colour) : null;
     return '<font>' + (f.bold ? '<b/>' : '') + (f.italic ? '<i/>' : '') + (f.strike ? '<strike/>' : '')
       + (UNDERLINE[f.underline] ? `<u${f.underline === 1 ? '' : ` val="${UNDERLINE[f.underline]}"`}/>` : '')
       + (f.script === 1 ? '<vertAlign val="superscript"/>' : f.script === 2 ? '<vertAlign val="subscript"/>' : '')
-      + `<sz val="${Math.max(1, f.height / 20)}"/>` + (c ? `<color rgb="FF${c}"/>` : '<color theme="1"/>')
+      + `<sz val="${Math.max(1, f.height / 20)}"/>` + (exact ? colourEl('color', exact) : c ? `<color rgb="FF${c}"/>` : '<color theme="1"/>')
       + `<name val="${esc(f.name || 'Arial')}"/>` + (f.family ? `<family val="${f.family}"/>` : '') + (f.charset ? `<charset val="${f.charset}"/>` : '')
       + '</font>';
-  }) : ['<font><sz val="10"/><name val="Arial"/></font>'];
+  };
+  const fonts = book.fonts.length ? book.fonts.map((f) => fontXml(f)) : ['<font><sz val="10"/><name val="Arial"/></font>'];
   // Font 4 is never written: the fourth and later are one out.
   const fontOf = (i) => Math.min(fonts.length - 1, i < 4 ? i : i === 4 ? 0 : i - 1);
+  // A font in an XF's exact colour: one more font, once for each font and colour.
+  const exactFonts = new Map();
+  const fontWith = (i, exact) => {
+    const base = book.fonts[fontOf(i)];
+    if (!exact || !base) return fontOf(i);
+    const xml = fontXml(base, exact);
+    if (!exactFonts.has(xml)) { exactFonts.set(xml, fonts.length); fonts.push(xml); }
+    return exactFonts.get(xml);
+  };
 
   const fills = ['<fill><patternFill patternType="none"/></fill>', '<fill><patternFill patternType="gray125"/></fill>'];
   const fillIds = new Map();
-  const fillOf = ({ pattern, fg, bg }) => {
+  const fillOf = ({ pattern, fg, bg }, ext = {}) => {
     if (!pattern || !PATTERNS[pattern]) return 0;
     const f = colour(fg);
     const b = colour(bg);
-    const xml = `<fill><patternFill patternType="${PATTERNS[pattern]}">${f ? `<fgColor rgb="FF${f}"/>` : '<fgColor indexed="64"/>'}${b ? `<bgColor rgb="FF${b}"/>` : '<bgColor indexed="65"/>'}</patternFill></fill>`;
+    const fgXml = ext.fillFg ? colourEl('fgColor', ext.fillFg) : f ? `<fgColor rgb="FF${f}"/>` : '<fgColor indexed="64"/>';
+    const bgXml = ext.fillBg ? colourEl('bgColor', ext.fillBg) : b ? `<bgColor rgb="FF${b}"/>` : '<bgColor indexed="65"/>';
+    const xml = `<fill><patternFill patternType="${PATTERNS[pattern]}">${fgXml}${bgXml}</patternFill></fill>`;
     if (!fillIds.has(xml)) { fillIds.set(xml, fills.length); fills.push(xml); }
     return fillIds.get(xml);
   };
 
   const borders = ['<border><left/><right/><top/><bottom/><diagonal/></border>'];
   const borderIds = new Map();
-  const side = (name, l) => {
+  const side = (name, l, exact) => {
     if (!l || !LINES[l.style] || l.style === 0) return `<${name}/>`;
     const c = colour(l.colour);
-    return `<${name} style="${LINES[l.style]}">${c ? `<color rgb="FF${c}"/>` : '<color indexed="64"/>'}</${name}>`;
+    return `<${name} style="${LINES[l.style]}">${exact ? colourEl('color', exact) : c ? `<color rgb="FF${c}"/>` : '<color indexed="64"/>'}</${name}>`;
   };
-  const borderOf = (b) => {
-    const xml = `<border>${side('left', b.left)}${side('right', b.right)}${side('top', b.top)}${side('bottom', b.bottom)}<diagonal/></border>`;
+  const borderOf = (b, ext = {}) => {
+    const xml = `<border>${side('left', b.left, ext.left)}${side('right', b.right, ext.right)}${side('top', b.top, ext.top)}${side('bottom', b.bottom, ext.bottom)}<diagonal/></border>`;
     if (xml === borders[0]) return 0;
     if (!borderIds.has(xml)) { borderIds.set(xml, borders.length); borders.push(xml); }
     return borderIds.get(xml);
   };
 
-  const xfs = (book.xfs.length ? book.xfs : [{ font: 0, format: 0, h: 0, v: 2, border: {}, fill: {} }]).map((x) => {
+  const xfs = (book.xfs.length ? book.xfs : [{ font: 0, format: 0, h: 0, v: 2, border: {}, fill: {} }]).map((x, i) => {
+    // Excel 2007's exact colours where it kept them, over the palette's nearest.
+    const ext = book.xfExt?.get(i) || {};
     const numFmtId = numFmtOf(x.format);
-    const fontId = fontOf(x.font);
-    const fillId = fillOf(x.fill || {});
-    const borderId = borderOf(x.border || {});
+    const fontId = fontWith(x.font, ext.text);
+    const fillId = fillOf(x.fill || {}, ext);
+    const borderId = borderOf(x.border || {}, ext);
     const al = [];
     if (x.h) al.push(`horizontal="${H_ALIGN[x.h] || 'general'}"`);
     if (x.v !== 2 && V_ALIGN[x.v]) al.push(`vertical="${V_ALIGN[x.v]}"`);
@@ -253,11 +276,21 @@ function stylesXml(book, colour) {
     + `<cellXfs count="${xfs.length}">${xfs.join('')}</cellXfs>`
     + '<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>'
     + '</styleSheet>';
-  return { xml };
+  // A rich string's run in its font: rPr in the order the schema wants.
+  const runPr = (i) => {
+    const f = book.fonts[fontOf(i)];
+    if (!f) return '';
+    const c = f.colour != null && f.colour !== 0x7fff ? colour(f.colour) : null;
+    return `<rPr><rFont val="${esc(f.name || 'Arial')}"/>` + (f.charset ? `<charset val="${f.charset}"/>` : '') + (f.family ? `<family val="${f.family}"/>` : '')
+      + (f.bold ? '<b/>' : '') + (f.italic ? '<i/>' : '') + (f.strike ? '<strike/>' : '') + (c ? `<color rgb="FF${c}"/>` : '')
+      + `<sz val="${Math.max(1, f.height / 20)}"/>` + (UNDERLINE[f.underline] ? `<u${f.underline === 1 ? '' : ` val="${UNDERLINE[f.underline]}"`}/>` : '')
+      + (f.script === 1 ? '<vertAlign val="superscript"/>' : f.script === 2 ? '<vertAlign val="subscript"/>' : '') + '</rPr>';
+  };
+  return { xml, runPr };
 }
 
 /** One sheet: its window, column widths, rows of cells, merged areas. */
-function sheetXml(sheet, active, drawing = false) {
+function sheetXml(sheet, active, drawing = false, runPr = () => '') {
   const cells = [...sheet.cells.values()].sort((a, b) => a.row - b.row || a.col - b.col);
   let maxRow = 0;
   let maxCol = 0;
@@ -302,7 +335,7 @@ function sheetXml(sheet, active, drawing = false) {
     if (info.height) attrs.push(`ht="${info.height / 20}"`, 'customHeight="1"');
     if (info.hidden) attrs.push('hidden="1"');
     if (info.level) attrs.push(`outlineLevel="${info.level}"`);
-    return `<row ${attrs.join(' ')}>${byRow.get(r).map(cellXml).join('')}</row>`;
+    return `<row ${attrs.join(' ')}>${byRow.get(r).map((c) => cellXml(c, runPr)).join('')}</row>`;
   });
 
   const merges = sheet.merges.length ? `<mergeCells count="${sheet.merges.length}">${sheet.merges.map((m) => `<mergeCell ref="${rangeRef(m)}"/>`).join('')}</mergeCells>` : '';
@@ -320,7 +353,7 @@ function sheetXml(sheet, active, drawing = false) {
 }
 
 /** A cell: its value, or its formula with the value Excel last calculated. */
-function cellXml(c) {
+function cellXml(c, runPr = () => '') {
   const r = ref(c.row, c.col);
   const s = c.xf ? ` s="${c.xf}"` : '';
   if (c.formula) {
@@ -332,7 +365,14 @@ function cellXml(c) {
   }
   switch (c.t) {
     case 'n': return Number.isFinite(c.v) ? `<c r="${r}"${s}><v>${c.v}</v></c>` : `<c r="${r}"${s}/>`;
-    case 's': case 'str': return `<c r="${r}"${s} t="inlineStr"><is><t xml:space="preserve">${esc(c.v ?? '')}</t></is></c>`;
+    case 's': case 'str': {
+      const text = String(c.v ?? '');
+      if (!c.runs?.length) return `<c r="${r}"${s} t="inlineStr"><is><t xml:space="preserve">${esc(text)}</t></is></c>`;
+      // Rich text: the words before the first run in the cell's own font, then each run in its font.
+      const cuts = [{ at: 0, font: null }, ...c.runs.filter((x) => x.at < text.length)];
+      const runs = cuts.map((x, k) => ({ font: x.font, text: text.slice(x.at, cuts[k + 1]?.at ?? text.length) })).filter((x) => x.text);
+      return `<c r="${r}"${s} t="inlineStr"><is>${runs.map((x) => `<r>${x.font == null ? '' : runPr(x.font)}<t xml:space="preserve">${esc(x.text)}</t></r>`).join('')}</is></c>`;
+    }
     case 'b': return `<c r="${r}"${s} t="b"><v>${c.v ? 1 : 0}</v></c>`;
     case 'e': return `<c r="${r}"${s} t="e"><v>${esc(c.v)}</v></c>`;
     default: return s ? `<c r="${r}"${s}/>` : '';

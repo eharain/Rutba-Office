@@ -277,7 +277,9 @@ function drawingPartXml(drawings, relIdOf) {
         + '<xdr:pic><xdr:nvPicPr><xdr:cNvPr id="' + d.id + '" name="' + esc(d.name ?? 'Picture') + '"/>'
         + '<xdr:cNvPicPr/></xdr:nvPicPr>'
         + '<xdr:blipFill><a:blip r:embed="' + relIdOf(d) + '"/><a:stretch><a:fillRect/></a:stretch></xdr:blipFill>'
-        + '<xdr:spPr/></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>';
+        // Its own box and a rectangle to clip to: Excel draws no picture without them.
+        + '<xdr:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + Math.round((d.widthPx ?? 96) * EMU_PX) + '" cy="' + Math.round((d.heightPx ?? 48) * EMU_PX) + '"/></a:xfrm>'
+        + '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></xdr:spPr></xdr:pic><xdr:clientData/></xdr:oneCellAnchor>';
     }
     const to = '<xdr:to><xdr:col>' + d.to.col + '</xdr:col><xdr:colOff>' + Math.round(d.to.colOff || 0) + '</xdr:colOff>'
       + '<xdr:row>' + d.to.row + '</xdr:row><xdr:rowOff>' + Math.round(d.to.rowOff || 0) + '</xdr:rowOff></xdr:to>';

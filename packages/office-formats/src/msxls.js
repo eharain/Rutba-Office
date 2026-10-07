@@ -72,7 +72,7 @@ const R = {
   ROW2: 0x0008, ROW: 0x0208, COLINFO: 0x007d, COLWIDTH2: 0x0024, DEFCOLWIDTH: 0x0055, STANDARDWIDTH: 0x0099,
   DEFROWHEIGHT2: 0x0025, DEFROWHEIGHT: 0x0225, MERGEDCELLS: 0x00e5, WINDOW2_2: 0x003e, WINDOW2: 0x023e, PANE: 0x0041,
   BUNDLESHEET: 0x008f, MSODRAWINGGROUP: 0x00eb, MSODRAWING: 0x00ec, OBJ: 0x005d, TXO: 0x01b6, NOTE: 0x001c, HLINK: 0x01b8, HLINKTOOLTIP: 0x0800,
-  IMGDATA: 0x007f, THEME: 0x0896, CONTINUEFRT: 0x0812,
+  IMGDATA: 0x007f, THEME: 0x0896, CONTINUEFRT: 0x0812, XFEXT: 0x087d,
 };
 
 /** Which BIFF a BOF record opens: 8, 5, 4, 3, 2 — or 0. */
@@ -214,6 +214,7 @@ export function readXls(bytes) {
   const str = (b, at, countBytes) => (biff === 8 ? uni(b, at, countBytes) : bytestr(b, at, countBytes));
 
   let sst = [];
+  let sstRuns = [];
   let depth = 0;
   let sheet = null;
   // The depth of a substream being passed over — a chart, a macro sheet, a
@@ -327,13 +328,20 @@ export function readXls(bytes) {
         const seg = new Segments(parts);
         const count = u32(data, 4);
         sst = [];
+        sstRuns = [];
         for (let i = 0; i < count && !seg.done; i++) {
           const cch = seg.u16();
           const flags = seg.u8();
           const runs = flags & 8 ? seg.u16() : 0;
           const ext = flags & 4 ? seg.u32() : 0;
           sst.push(seg.chars(cch, (flags & 1) === 1));
-          seg.skip(runs * 4 + ext);
+          // Rich text: where each run starts, and its font.
+          if (runs) {
+            const list = [];
+            for (let r = 0; r < runs; r++) list.push({ at: seg.u16(), font: seg.u16() });
+            sstRuns[i] = list;
+          }
+          seg.skip(ext);
         }
         break;
       }
@@ -411,9 +419,28 @@ export function readXls(bytes) {
         for (let i = 0; i < n; i++) put(row, first + i, { xf: u16(data, 4 + i * 2), t: null });
         break;
       }
-      case R.LABELSST: put(u16(data, 0), u16(data, 2), { xf: u16(data, 4), t: 's', v: sst[u32(data, 6)] ?? '' }); break;
+      case R.LABELSST: {
+        const at = u32(data, 6);
+        put(u16(data, 0), u16(data, 2), { xf: u16(data, 4), t: 's', v: sst[at] ?? '', ...(sstRuns[at] ? { runs: sstRuns[at] } : {}) });
+        break;
+      }
       case R.LABEL2: put(u16(data, 0), u16(data, 2), { xf: xfAt(data), t: 's', v: bytestr(data, 7, 1).text }); break;
-      case R.LABEL: case R.RSTRING: put(u16(data, 0), u16(data, 2), { xf: u16(data, 4), t: 's', v: str(data, 6, 2).text }); break;
+      case R.LABEL: case R.RSTRING: {
+        const read = str(data, 6, 2);
+        const cell = { xf: u16(data, 4), t: 's', v: read.text };
+        // A rich string's runs after its words: BIFF8's four bytes each, before it two.
+        if (id === R.RSTRING && read.end < data.length) {
+          const n = biff === 8 ? u16(data, read.end) : u8(data, read.end);
+          const runs = [];
+          for (let r = 0, p = read.end + (biff === 8 ? 2 : 1); r < n && p < data.length; r++) {
+            runs.push(biff === 8 ? { at: u16(data, p), font: u16(data, p + 2) } : { at: u8(data, p), font: u8(data, p + 1) });
+            p += biff === 8 ? 4 : 2;
+          }
+          if (runs.length) cell.runs = runs;
+        }
+        put(u16(data, 0), u16(data, 2), cell);
+        break;
+      }
       case R.BOOLERR2: case R.BOOLERR: {
         const xf = xfAt(data);
         const v = u8(data, valueStart);
@@ -541,7 +568,7 @@ export function readXls(bytes) {
         if (!sheet || biff === 8 || !obj || obj.type !== 8 || (obj.hidden && obj.name === '__BkgndObj')) break;
         sheet.lastObject = null;
         const blip = imageData(concat(parts), biff);
-        if (blip) sheet.pictures.push({ blip, name: obj.name || null, from: obj.from, to: obj.to });
+        if (blip) sheet.pictures.push({ blip, name: obj.name || null, from: obj.from, to: obj.to, order: obj.id });
         break;
       }
       case R.TXO: {
@@ -565,6 +592,22 @@ export function readXls(bytes) {
         else if (u16(data, 0) === 0xffff && sheet.notes.length) sheet.notes[sheet.notes.length - 1].text += decode(data.subarray(6, 6 + u16(data, 4)));
         else sheet.notes.push({ row: u16(data, 0), col: u16(data, 2), author: '', text: decode(data.subarray(6, 6 + u16(data, 4))) });
         break;
+      case R.XFEXT: {
+        // Excel 2007's exact colours for a cell format, beside the palette's nearest in its XF: fill, borders, text.
+        const ixfe = u16(data, 14);
+        const count = u16(data, 18);
+        const ext = {};
+        let p = 20;
+        for (let i = 0; i < count && p + 4 <= data.length; i++) {
+          const type = u16(data, p);
+          const cb = u16(data, p + 2);
+          const key = { 4: 'fillFg', 5: 'fillBg', 7: 'top', 8: 'bottom', 9: 'left', 10: 'right', 13: 'text' }[type];
+          if (key && cb >= 12) ext[key] = fullColour(data, p + 4);
+          p += Math.max(4, cb);
+        }
+        (book.xfExt ??= new Map()).set(ixfe, ext);
+        break;
+      }
       case R.THEME: {
         // Excel 2007's theme, zipped, after a future record's header and the theme's version.
         const parts = [data.subarray(16)];
@@ -682,6 +725,16 @@ function imageData(d, biff) {
   return { contentType: 'image/bmp', ext: 'bmp', bytes: dibFile(body) };
 }
 
+/** A FullColorExt: automatic, a palette index, an RGB colour or a theme colour with its tint (-1 to 1). */
+function fullColour(d, at) {
+  const type = u16(d, at);
+  const tint = ((u16(d, at + 2) << 16) >> 16) / 32767;
+  if (type === 2) return { rgb: [0, 1, 2].map((c) => u8(d, at + 4 + c).toString(16).padStart(2, '0')).join('').toUpperCase(), tint };
+  if (type === 3) return { theme: u32(d, at + 4), tint };
+  if (type === 1) return { indexed: u32(d, at + 4), tint };
+  return null;
+}
+
 /** Byte arrays as one. */
 function concat(parts) {
   const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
@@ -774,12 +827,14 @@ function groupBlips(book) {
 function finishDrawings(sheet, book) {
   for (const n of sheet.notes) if (n.text == null) n.text = sheet.objectText.get(n.object) ?? '';
   // Before BIFF8 a chart's object gives its corners itself.
-  for (const c of sheet.charts) if (c.object?.from) c.anchor = { from: c.object.from, to: c.object.to };
+  for (const c of sheet.charts) if (c.object?.from) { c.anchor = { from: c.object.from, to: c.object.to }; c.order = c.object.id; }
   if (!sheet.drawing.length) return;
   const dg = concat(sheet.drawing);
   const blips = groupBlips(book);
   // Each shape's place and name, by where its client data ends — where the object record that follows it was met.
+  // Each in the drawing's own order, so what was drawn over what still is.
   const placed = new Map();
+  let order = 0;
   const visit = (h) => {
     for (const c of artChildren(dg, h)) {
       if (c.type === 0xf003) visit(c);
@@ -796,16 +851,17 @@ function finishDrawings(sheet, book) {
           to: { col: u16(dg, a + 10), dx: u16(dg, a + 12) / 1024, row: u16(dg, a + 14), dy: u16(dg, a + 16) / 256 },
         };
         const client = artChild(dg, c, 0xf011);
-        if (client) placed.set(client.end, { ...at, name: label });
+        order += 1;
+        if (client) placed.set(client.end, { ...at, name: label, order });
         const pib = props.get(0x0104)?.op;
-        if (pib && blips[pib - 1]) sheet.pictures.push({ blip: blips[pib - 1], name: label, ...at });
+        if (pib && blips[pib - 1]) sheet.pictures.push({ blip: blips[pib - 1], name: label, ...at, order });
       }
     }
   };
   visit(artHeader(dg, 0));
   for (const c of sheet.charts) {
     const shape = c.object?.at != null ? placed.get(c.object.at) : null;
-    if (shape) { c.anchor = { from: shape.from, to: shape.to }; c.name = shape.name; }
+    if (shape) { c.anchor = { from: shape.from, to: shape.to }; c.name = shape.name; c.order = shape.order; }
   }
 }
 

@@ -125,6 +125,28 @@ test('an Excel 5.0/95 workbook keeps its picture, kept the way Excel 95 kept one
   assert.ok(pkg.partNames().some((n) => /^xl\/media\/image\d+\.bmp$/.test(n)), 'the picture\'s bytes');
 });
 
+test('an Excel 97-2003 workbook keeps its exact colours, its rich text, and what is drawn over what', () => {
+  const pkg = OoxmlPackage.read(Buffer.from(xlsModelToXlsx(readXls(fixture('binary', 'showcase.xls')))));
+  // The header's fill as Excel 2007 kept it (XFEXT), not the palette's nearest (333399).
+  const styles = pkg.text('xl/styles.xml');
+  const xfs = /<cellXfs[^>]*>([\s\S]*?)<\/cellXfs>/.exec(styles)[1].match(/<xf [^>]*?(\/>|>[\s\S]*?<\/xf>)/g);
+  const fills = /<fills[^>]*>([\s\S]*?)<\/fills>/.exec(styles)[1].match(/<fill>[\s\S]*?<\/fill>/g);
+  const a1 = Number(/<c r="A1" s="(\d+)"/.exec(pkg.text('xl/worksheets/sheet1.xml'))[1]);
+  assert.match(fills[Number(/fillId="(\d+)"/.exec(xfs[a1])[1])], /<fgColor rgb="FF1F4E79"\/>/);
+  // Rich text: each run in its own font, and the whole of it read back.
+  const types = pkg.text('xl/worksheets/sheet4.xml');
+  const rich = /<c r="B18"[^>]*>[\s\S]*?<\/c>/.exec(types)[0];
+  assert.equal((rich.match(/<r>/g) || []).length, 4, 'bold, plain, red, plain');
+  assert.match(/<c r="B21"[^>]*>[\s\S]*?<\/c>/.exec(types)[0], /<vertAlign val="superscript"\/><\/rPr><t xml:space="preserve">2<\/t>/, 'the raised 2');
+  const view = open(xlsModelToXlsx(readXls(fixture('binary', 'showcase.xls'))));
+  view.selectSheet('Data types');
+  assert.equal(new Map(view.render().cells.map((c) => [c.ref, c.text])).get('B18'), 'Bold start, red middle, plain end');
+  // The picture added after the pie chart is drawn over it, with the box Excel needs to draw it at all.
+  const summary = pkg.text('xl/drawings/drawing2.xml');
+  assert.ok(summary.indexOf('<xdr:graphicFrame') < summary.indexOf('<xdr:pic>'), 'the chart first, the picture over it');
+  assert.match(summary, /<xdr:pic>[\s\S]*<a:prstGeom prst="rect">/);
+});
+
 /** Each chart part of a package: its XML, and what the suite's chart drawing reads from it. */
 const chartsOf = (bytes) => {
   const pkg = OoxmlPackage.read(Buffer.from(bytes));
