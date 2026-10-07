@@ -32,7 +32,7 @@ import { XLS_FUNCTIONS } from './xls-functions.js';
 import { findBlip, dibFile } from './msdoc.js';
 import { placeableWmf } from './msdoc-old.js';
 import { readChart } from './msxls-chart.js';
-import { header as artHeader, children as artChildren, child as artChild, readFopt } from './officeart.js';
+import { header as artHeader, children as artChildren, child as artChild, readFopt, PRESETS, LINES as ART_LINES, freeformPath, artFill, artLine, artShadow } from './officeart.js';
 
 export class XlsError extends Error {
   constructor(message) {
@@ -228,7 +228,7 @@ export function readXls(bytes) {
   let lastFormula = null;
   let ixfe = null;
   const newSheet = (name, state = 'visible') => {
-    const s = { name, state, cells: new Map(), rows: new Map(), cols: [], merges: [], frozen: null, grid: true, headings: true, formulas: false, selected: false, defaultColWidth: null, defaultRowHeight: null, shared: new Map(), arrays: new Map(), pending: [], drawing: [], objectText: new Map(), notes: [], links: [], pictures: [], charts: [], lastObject: null };
+    const s = { name, state, cells: new Map(), rows: new Map(), cols: [], merges: [], frozen: null, grid: true, headings: true, formulas: false, selected: false, defaultColWidth: null, defaultRowHeight: null, shared: new Map(), arrays: new Map(), pending: [], drawing: [], objectText: new Map(), notes: [], links: [], pictures: [], charts: [], shapes: [], lastObject: null };
     book.sheets.push(s);
     return s;
   };
@@ -547,7 +547,13 @@ export function readXls(bytes) {
       case R.OBJ:
         if (!sheet) break;
         // BIFF8's object follows its shape in the drawing: where the drawing had got to says which shape it is.
-        if (biff === 8) { sheet.lastObject = u16(data, 0) === 0x15 ? { type: u16(data, 4), id: u16(data, 6), at: sheet.drawing.reduce((n, p) => n + p.length, 0) } : null; break; }
+        if (biff === 8) {
+          sheet.lastObject = u16(data, 0) === 0x15 ? { type: u16(data, 4), id: u16(data, 6), at: sheet.drawing.reduce((n, p) => n + p.length, 0) } : null;
+          if (sheet.lastObject) (sheet.objects ??= []).push(sheet.lastObject);
+          // A large drawing goes on in the CONTINUEs after an object.
+          while (recs[k + 1]?.id === R.CONTINUE) sheet.drawing.push(recs[++k].data);
+          break;
+        }
         // Before BIFF8 each object is one record: its type, flags and the cells
         // its corners are in (a picture's bytes in the IMGDATA after it), and from
         // BIFF5 a picture's name — "__BkgndObj", hidden, is the sheet's background.
@@ -572,18 +578,37 @@ export function readXls(bytes) {
         break;
       }
       case R.TXO: {
-        // A text box's or a note's words, in the CONTINUE after it: a flags byte, then the characters.
+        // A text box's or a note's words, in the CONTINUEs after it — each a
+        // flags byte, then characters — and then its formatting runs. Only as
+        // many CONTINUEs as those take are its own: a large drawing goes on in
+        // the CONTINUEs after them.
         if (!sheet) break;
         const cch = u16(data, 10);
+        const cbRuns = biff === 8 ? u16(data, 12) : 0;
         const parts = [];
-        while (recs[k + 1]?.id === R.CONTINUE) parts.push(recs[++k].data);
+        let chars = 0;
+        while (chars < cch && recs[k + 1]?.id === R.CONTINUE) {
+          const part = recs[++k].data;
+          parts.push(part);
+          chars += biff === 8 ? Math.floor((part.length - 1) / (part[0] & 1 ? 2 : 1)) : part.length;
+        }
+        const runParts = [];
+        let runBytes = 0;
+        while (runBytes < cbRuns && recs[k + 1]?.id === R.CONTINUE) { const part = recs[++k].data; runParts.push(part); runBytes += part.length; }
         let text = '';
         if (cch && parts.length) {
-          const seg = new Segments(parts);
-          const high = (seg.u8() & 1) === 1;
-          text = seg.chars(cch, high);
+          if (biff === 8) {
+            const seg = new Segments(parts);
+            const high = (seg.u8() & 1) === 1;
+            text = seg.chars(cch, high);
+          } else text = decode(concat(parts).subarray(0, cch));
         }
-        if (sheet.lastObject) sheet.objectText.set(sheet.lastObject.id, text);
+        const runData = concat(runParts);
+        const runs = [];
+        for (let p = 0; p + 4 <= runData.length; p += 8) if (u16(runData, p) < cch) runs.push({ at: u16(runData, p), font: u16(runData, p + 2) });
+        const grbit = u16(data, 0);
+        if (sheet.lastObject) sheet.objectText.set(sheet.lastObject.id, { text, runs, h: (grbit >> 1) & 7, v: (grbit >> 4) & 7, rotation: u16(data, 2) });
+        if (biff === 8) while (recs[k + 1]?.id === R.CONTINUE) sheet.drawing.push(recs[++k].data);
         break;
       }
       case R.NOTE:
@@ -666,7 +691,7 @@ export function readXls(bytes) {
   // built-in name written out in full (BIFF5 writes them so) is the built-in one.
   for (const n of book.names) if (BUILTIN_NAMES.includes('_xlnm.' + n.name)) n.name = '_xlnm.' + n.name;
   book.names = book.names.filter((n) => n.formula && !n.name.startsWith('_xlfn.') && !/^_xlnm\.(Auto_|Recorder|Data_Form)/.test(n.name));
-  for (const s of book.sheets) { delete s.shared; delete s.pending; delete s.arrays; delete s.drawing; delete s.objectText; delete s.lastObject; }
+  for (const s of book.sheets) { delete s.shared; delete s.pending; delete s.arrays; delete s.drawing; delete s.objectText; delete s.lastObject; delete s.objects; }
   if (!book.sheets.length) book.sheets.push(newSheet('Sheet1'));
   book.activeSheet = Math.max(0, active ? book.sheets.indexOf(active) : book.sheets.findIndex((s) => s.selected));
   delete book.allNames;
@@ -825,45 +850,147 @@ function groupBlips(book) {
  * text object it names.
  */
 function finishDrawings(sheet, book) {
-  for (const n of sheet.notes) if (n.text == null) n.text = sheet.objectText.get(n.object) ?? '';
+  for (const n of sheet.notes) if (n.text == null) n.text = sheet.objectText.get(n.object)?.text ?? '';
   // Before BIFF8 a chart's object gives its corners itself.
   for (const c of sheet.charts) if (c.object?.from) { c.anchor = { from: c.object.from, to: c.object.to }; c.order = c.object.id; }
   if (!sheet.drawing.length) return;
   const dg = concat(sheet.drawing);
   const blips = groupBlips(book);
+  const objectAt = new Map((sheet.objects || []).map((o) => [o.at, o]));
+  const i32 = (b, at) => u32(b, at) | 0;
   // Each shape's place and name, by where its client data ends — where the object record that follows it was met.
   // Each in the drawing's own order, so what was drawn over what still is.
   const placed = new Map();
   let order = 0;
-  const visit = (h) => {
-    for (const c of artChildren(dg, h)) {
-      if (c.type === 0xf003) visit(c);
-      else if (c.type === 0xf004) {
-        const props = readFopt(dg, artChild(dg, c, 0xf00b));
-        const anchor = artChild(dg, c, 0xf010);
-        if (!anchor || anchor.len < 18) continue;
-        const a = anchor.body;
-        const name = props.get(0x0380)?.complex;
-        let label = null;
-        if (name) { label = ''; for (let i = 0; i + 1 < name.length; i += 2) { const ch = u16(name, i); if (!ch) break; label += String.fromCharCode(ch); } }
-        const at = {
+  /**
+   * A container's shapes. A group's own shape comes first: its place (cells,
+   * or a box in the group it is in) and the coordinates its members' boxes
+   * are given in — its frame.
+   */
+  const walk = (container, frame) => {
+    let inner = frame;
+    artChildren(dg, container).forEach((c, index) => {
+      if (c.type === 0xf003) { walk(c, inner); return; }
+      if (c.type !== 0xf004) return;
+      const fsp = artChild(dg, c, 0xf00a);
+      const flags = fsp ? u32(dg, fsp.body + 4) : 0;
+      if (flags & 0x4 || flags & 0x8) return; // the drawing's own top shape, or a deleted one
+      // The group's own shape is placed in the group it is in; its members in it.
+      const place = placeOf(c, index === 0 ? frame : inner);
+      if (!place) return;
+      if (index === 0 && flags & 0x1) {
+        const spgr = artChild(dg, c, 0xf009);
+        if (spgr) {
+          const x = i32(dg, spgr.body);
+          const y = i32(dg, spgr.body + 4);
+          inner = { place, coords: { x, y, w: i32(dg, spgr.body + 8) - x, h: i32(dg, spgr.body + 12) - y } };
+        }
+        return;
+      }
+      const props = readFopt(dg, artChild(dg, c, 0xf00b));
+      const name = props.get(0x0380)?.complex;
+      let label = null;
+      if (name) { label = ''; for (let i = 0; i + 1 < name.length; i += 2) { const ch = u16(name, i); if (!ch) break; label += String.fromCharCode(ch); } }
+      const client = artChild(dg, c, 0xf011);
+      const object = client ? objectAt.get(client.end) : null;
+      order += 1;
+      if (client && place.anchor) placed.set(client.end, { ...place.anchor, name: label, order });
+      const pib = props.get(0x0104)?.op;
+      if (pib && blips[pib - 1]) { sheet.pictures.push({ blip: blips[pib - 1], name: label, ...(place.anchor || { place }), order }); return; }
+      // A drawn shape — not a chart's frame, a note's box or a form control.
+      if (object && ![1, 2, 3, 4, 6, 9, 0x1e].includes(object.type)) return;
+      if (!object && !fsp?.inst) return;
+      const shape = drawnShape(fsp.inst, flags, props, object ? sheet.objectText.get(object.id) : null, book);
+      if (shape) sheet.shapes.push({ ...shape, name: label, ...(place.anchor || { place }), order });
+    });
+  };
+  /** A shape's place: the cells its corners are in (a client anchor), or a box in its group's coordinates. */
+  const placeOf = (c, frame) => {
+    const anchor = artChild(dg, c, 0xf010);
+    if (anchor && anchor.len >= 18) {
+      const a = anchor.body;
+      return {
+        anchor: {
           from: { col: u16(dg, a + 2), dx: u16(dg, a + 4) / 1024, row: u16(dg, a + 6), dy: u16(dg, a + 8) / 256 },
           to: { col: u16(dg, a + 10), dx: u16(dg, a + 12) / 1024, row: u16(dg, a + 14), dy: u16(dg, a + 16) / 256 },
-        };
-        const client = artChild(dg, c, 0xf011);
-        order += 1;
-        if (client) placed.set(client.end, { ...at, name: label, order });
-        const pib = props.get(0x0104)?.op;
-        if (pib && blips[pib - 1]) sheet.pictures.push({ blip: blips[pib - 1], name: label, ...at, order });
-      }
+        },
+      };
     }
+    const ca = artChild(dg, c, 0xf00f);
+    if (ca && frame) {
+      const x = i32(dg, ca.body);
+      const y = i32(dg, ca.body + 4);
+      return { box: { x, y, w: i32(dg, ca.body + 8) - x, h: i32(dg, ca.body + 12) - y }, frame };
+    }
+    return null;
   };
-  visit(artHeader(dg, 0));
+  walk(artHeader(dg, 0), null);
   for (const c of sheet.charts) {
     const shape = c.object?.at != null ? placed.get(c.object.at) : null;
     if (shape) { c.anchor = { from: shape.from, to: shape.to }; c.name = shape.name; c.order = shape.order; }
   }
 }
+
+/**
+ * A shape drawn on a sheet, in the terms the writer needs: its outline (a
+ * preset, a line or connector, or its own points in a 100000-unit box), its
+ * fill, line and shadow (Office Art's own reading, colours direct or from the
+ * palette), turned and flipped as it is, and its words — a text box's or a
+ * shape's, from its TXO — in paragraphs of runs in the workbook's fonts.
+ */
+function drawnShape(type, flags, props, txo, book) {
+  const rotation = props.get(0x0004) ? (props.get(0x0004).op | 0) / 65536 : 0;
+  const out = {
+    kind: 'shape', type, rotation, flipH: Boolean(flags & 0x40), flipV: Boolean(flags & 0x80),
+    textBox: type === 202, line: null, fill: null, shadow: null, preset: null, path: null, connector: false, paragraphs: [],
+  };
+  if (ART_LINES.has(type)) {
+    out.connector = true;
+    out.preset = CONNECTORS[type] || 'line';
+    out.line = artLine(props, book.palette, true);
+  } else {
+    out.path = props.has(0x0145) ? freeformPath(props, { w: 100000, h: 100000 }) : null;
+    out.preset = out.path ? null : type === 202 ? 'rect' : PRESETS[type] || 'rect';
+    out.fill = artFill(props, book.palette);
+    if (out.path && !out.path.filled) out.fill = 'none';
+    out.line = artLine(props, book.palette, true);
+    out.shadow = artShadow(props, book.palette);
+  }
+  // Its words: a paragraph to a line, each run in its font from where it starts.
+  if (txo && txo.text) {
+    const font = (i) => book.fonts[i < 4 ? i : i - 1] || book.fonts[0];
+    const cuts = [...(txo.runs || [])].sort((a, b) => a.at - b.at);
+    const fontAt = (pos) => { let f = cuts.length && cuts[0].at === 0 ? cuts[0].font : 0; for (const c of cuts) if (c.at <= pos) f = c.font; return f; };
+    let pos = 0;
+    for (const line of txo.text.split(/\r\n|\n|\r/)) {
+      const runs = [];
+      for (let i = 0; i < line.length; i++) {
+        const f = fontAt(pos + i);
+        if (!runs.length || runs[runs.length - 1].font !== f) runs.push({ font: f, text: '' });
+        runs[runs.length - 1].text += line[i];
+      }
+      out.paragraphs.push({ runs: runs.map((r) => ({ text: r.text, ...fontLook(font(r.font), book) })) });
+      pos += line.length + 1;
+    }
+    out.align = { 1: 'l', 2: 'ctr', 3: 'r', 4: 'just', 7: 'dist' }[txo.h] || 'l';
+    out.anchor = { 1: 't', 2: 'ctr', 3: 'b', 4: 'just' }[txo.v] || 't';
+  }
+  out.insets = [0x81, 0x82, 0x83, 0x84].map((k, i) => (props.has(k) ? props.get(k).op | 0 : [91440, 45720, 91440, 45720][i]));
+  return out;
+}
+
+/** A workbook font as a run's look. */
+function fontLook(f, book) {
+  if (!f) return {};
+  const colour = f.colour != null && f.colour < 64 && f.colour !== 8 ? book.palette[f.colour] : null;
+  return { font: f.name, size: f.height / 20, bold: f.bold, italic: f.italic, underline: Boolean(f.underline), strike: f.strike, colour, script: f.script };
+}
+
+/** Office Art's connectors, as DrawingML's. */
+const CONNECTORS = {
+  20: 'line', 32: 'straightConnector1', 33: 'bentConnector2', 34: 'bentConnector3', 35: 'bentConnector4', 36: 'bentConnector5',
+  37: 'curvedConnector2', 38: 'curvedConnector3', 39: 'curvedConnector4', 40: 'curvedConnector5',
+};
 
 /** An RK number: a 30-bit integer or the top of a double, perhaps a hundredth of it. */
 function rk(v) {

@@ -147,6 +147,28 @@ test('an Excel 97-2003 workbook keeps its exact colours, its rich text, and what
   assert.match(summary, /<xdr:pic>[\s\S]*<a:prstGeom prst="rect">/);
 });
 
+test('an Excel 97-2003 sheet keeps its shapes: presets, freeforms, gradients, a text box, a group, a turned shape, a connector', () => {
+  const book = readXls(fixture('binary', 'showcase.xls'));
+  const charts = book.sheets.find((s) => s.name === 'Charts');
+  // The drawing Excel carried on in CONTINUE records once it grew: the picture and the shapes past that point.
+  assert.equal(charts.pictures.length, 1);
+  const presets = charts.shapes.map((s) => s.preset ?? 'path');
+  for (const p of ['rect', 'roundRect', 'ellipse', 'chevron', 'hexagon', 'smileyFace', 'wedgeRectCallout', 'bentConnector3']) assert.ok(presets.includes(p), p);
+  assert.equal(presets.filter((p) => p === 'path').length, 2, 'the star and the heart, from their own points');
+  const box = charts.shapes.find((s) => s.textBox);
+  assert.deepEqual(box.paragraphs.map((p) => p.runs.map((r) => r.text).join('')), ['A text box beside the picture.', 'Second line, in colour.', 'Third line, bold.']);
+  assert.equal(box.paragraphs[2].runs[0].bold, true);
+  assert.equal(charts.shapes.filter((s) => s.place).length, 2, 'the group\'s two ellipses, placed in their group');
+  assert.equal(charts.shapes.find((s) => s.rotation).rotation, 30);
+
+  const drawing = OoxmlPackage.read(Buffer.from(xlsModelToXlsx(book))).text('xl/drawings/drawing3.xml');
+  assert.equal((drawing.match(/<xdr:sp /g) || []).length, 16);
+  assert.match(drawing, /<xdr:cxnSp macro="">[\s\S]*?<a:prstGeom prst="bentConnector3">/);
+  assert.match(drawing, /<a:custGeom>[\s\S]*?<a:path w="100000" h="100000">/);
+  assert.match(drawing, /<a:xfrm rot="1800000">/, 'turned thirty degrees');
+  assert.match(drawing, /<xdr:cNvSpPr txBox="1"\/>[\s\S]*?<a:t>Third line, bold.<\/a:t>/);
+});
+
 /** Each chart part of a package: its XML, and what the suite's chart drawing reads from it. */
 const chartsOf = (bytes) => {
   const pkg = OoxmlPackage.read(Buffer.from(bytes));

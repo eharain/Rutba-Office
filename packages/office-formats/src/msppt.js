@@ -25,7 +25,7 @@
 
 import { CompoundFile } from './cfb.js';
 import { findBlip } from './msdoc.js';
-import { header, children, child, artColour, readFopt, PRESETS, LINES, freeformPath } from './officeart.js';
+import { header, children, child, artColour, readFopt, PRESETS, LINES, freeformPath, artFill, artLine, artShadow } from './officeart.js';
 
 export class PptError extends Error {
   constructor(message) {
@@ -639,61 +639,10 @@ function anchorOf(doc, sp, transform) {
   return null;
 }
 
-/**
- * A shape's fill as a colour, or 'none'. What a shape does not say is
- * Office Art's own default — filled, white — not the drawing group's
- * defaults, which are only what PowerPoint gives a new shape.
- */
-function fillOf(props, ctx, background = false) {
-  const get = (id) => props.get(id);
-  const bools = get(0x01bf)?.op;
-  const filled = bools != null && bools & 0x100000 ? Boolean(bools & 0x10) : true;
-  if (!filled) return 'none';
-  const type = get(0x0180)?.op ?? 0;
-  const colour = get(0x0181) ? artColour(get(0x0181).op, ctx.scheme) : background ? ctx.scheme[0] : 'FFFFFF';
-  // A shaded fill is a gradient; a texture is drawn as its colour; a picture fill as nothing this can draw.
-  if (type === 3) return background ? null : 'none';
-  // How opaque each colour is, where it is not wholly.
-  const opacity = (id) => (get(id) ? fraction(get(id).op) : 1);
-  const tint = (hex, a) => (a < 1 ? { color: '#' + hex, alpha: a } : '#' + hex);
-  if (type >= 4 && type <= 8 && colour) {
-    // The second colour, white where it does not say (Office Art's own).
-    const back = get(0x0183) ? artColour(get(0x0183).op, ctx.scheme) : 'FFFFFF';
-    if (back) return gradientOf(props, tint(colour, opacity(0x0182)), tint(back, opacity(0x0184)), type);
-  }
-  return colour ? tint(colour, opacity(0x0182)) : 'none';
-}
-
-/**
- * Office Art's shaded fill as a linear gradient: { gradient: { stops,
- * angle } }, the angle DrawingML's. Which colour comes first follows
- * LibreOffice's reading — the angle's sign, the focus (none, negative or
- * about half, which makes it run out and back) and a centre or shape-shaded
- * fill each turn it round; a centre or shape-shaded fill is drawn linear.
- */
-function gradientOf(props, fore, back, type) {
-  const raw = (props.get(0x018b)?.op ?? 0) | 0;
-  const focus = (props.get(0x018c)?.op ?? 0) | 0;
-  const axial = Math.abs(focus) > 40 && Math.abs(focus) < 60;
-  let swap = raw >= 0;
-  if (!focus || focus < 0) swap = !swap;
-  if (axial) swap = !swap;
-  if (type === 5 || type === 6) swap = !swap;
-  const [start, end] = swap ? [fore, back] : [back, fore];
-  const stop = (pos, c) => (typeof c === 'string' ? { pos, color: c } : { pos, ...c });
-  const stops = axial ? [stop(0, start), stop(0.5, end), stop(1, start)] : [stop(0, start), stop(1, end)];
-  return { gradient: { stops, angle: (((450 - raw / 65536) % 360) + 360) % 360 } };
-}
-
+/** A shape's fill: Office Art's own reading (officeart.js), in the slide's colour scheme. */
+const fillOf = (props, ctx, background = false) => artFill(props, ctx.scheme, background);
 /** A shape's outline, or 'none': black, three quarters of a point, where it does not say. */
-function lineOf(props, ctx, defaultOn) {
-  const get = (id) => props.get(id);
-  const bools = get(0x01ff)?.op;
-  const on = bools != null && bools & 0x80000 ? Boolean(bools & 0x08) : defaultOn;
-  if (!on) return 'none';
-  const colour = get(0x01c0) ? artColour(get(0x01c0).op, ctx.scheme) : '000000';
-  return { color: '#' + (colour || '000000'), width: Math.max(0.25, (get(0x01cb)?.op ?? 9525) / 12700) };
-}
+const lineOf = (props, ctx, defaultOn) => artLine(props, ctx.scheme, defaultOn);
 
 /** One shape: a picture, a line, a shape with or without words, or a text box. */
 function readShape(doc, sp, transform, ctx) {
@@ -715,17 +664,9 @@ function readShape(doc, sp, transform, ctx) {
   const base = { x: box.x, y: box.y, w: box.w, h: box.h, name, rotation, flipH: Boolean(flags & 0x40), flipV: Boolean(flags & 0x80) };
   // Its id, which a later PowerPoint's effects name it by, where its words sit in it when it says, and its PowerPoint 97 build.
   base.spid = u32(doc, fsp.body);
-  // Its shadow: Office Art's offset, colour and opacity; it keeps no blur, so PowerPoint's own five points.
-  const shadowBits = props.get(0x023f)?.op ?? 0;
-  if (shadowBits & 0x20000 && shadowBits & 0x2) {
-    const dx = (props.get(0x0205)?.op ?? 25400) | 0;
-    const dy = (props.get(0x0206)?.op ?? 25400) | 0;
-    const tone = props.get(0x0201) ? artColour(props.get(0x0201).op, ctx.scheme) : '808080';
-    base.shadow = {
-      color: '#' + (tone || '808080'), alpha: props.has(0x0204) ? fraction(props.get(0x0204).op) : 1,
-      dist: Math.hypot(dx, dy) / 12700, dir: ((Math.atan2(dy, dx) * 180) / Math.PI + 360) % 360, blur: 5,
-    };
-  }
+  // Its shadow.
+  const shadow = artShadow(props, ctx.scheme);
+  if (shadow) base.shadow = shadow;
   const anchorText = props.get(0x0087)?.op;
   if (anchorText != null) base.anchor = [1, 4].includes(anchorText) ? 'middle' : [2, 5, 7, 9].includes(anchorText) ? 'bottom' : 'top';
   const animation = animationOf(doc, data);
@@ -770,8 +711,6 @@ function readShape(doc, sp, transform, ctx) {
 
 
 const utf16 = (b) => { let s = ''; for (let i = 0; i + 1 < b.length; i += 2) { const c = u16(b, i); if (!c) break; s += String.fromCharCode(c); } return s; };
-/** An Office Art 16.16 fraction (an opacity) as the thousandths PowerPoint means: 0x9999 is 60%. */
-const fraction = (op) => Math.max(0, Math.min(1, Math.round(((op >>> 0) / 65536) * 1000) / 1000));
 
 /** A placeholder's kind, as the kind of text it holds — what its master style is. */
 const PLACEMENT_TEXT = { 1: 0, 2: 1, 3: 6, 4: 5, 13: 0, 14: 1, 15: 6, 16: 5, 17: 0, 18: 1 };

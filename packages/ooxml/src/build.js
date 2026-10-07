@@ -284,6 +284,8 @@ function drawingPartXml(drawings, relIdOf) {
     const to = '<xdr:to><xdr:col>' + d.to.col + '</xdr:col><xdr:colOff>' + Math.round(d.to.colOff || 0) + '</xdr:colOff>'
       + '<xdr:row>' + d.to.row + '</xdr:row><xdr:rowOff>' + Math.round(d.to.rowOff || 0) + '</xdr:rowOff></xdr:to>';
     if (d.kind === 'equation') return '<xdr:twoCellAnchor>' + from + to + equationContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
+    // A shape already written (a converted workbook's own): its XML, given the id this drawing gives it.
+    if (d.kind === 'raw' && typeof d.contentXml === 'function') return '<xdr:twoCellAnchor>' + from + to + d.contentXml(d.id) + '<xdr:clientData/></xdr:twoCellAnchor>';
     if (d.kind === 'wordart') return '<xdr:twoCellAnchor>' + from + to + wordArtContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     if (d.kind === 'ink') return '<xdr:twoCellAnchor editAs="oneCell">' + from + to + inkContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     if (d.kind === 'diagram') return '<xdr:twoCellAnchor editAs="oneCell">' + from + to + diagramContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';

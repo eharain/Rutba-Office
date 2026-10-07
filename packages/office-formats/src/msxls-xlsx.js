@@ -146,23 +146,47 @@ function sheetDrawings(sheet, book) {
     if (info?.hidden) return 0;
     return (info?.height || sheet.defaultRowHeight || 300) / 15;
   };
-  const span = (size, a, b) => {
-    if (a.at === b.at) return (b.f - a.f) * size(a.at);
-    let total = (1 - a.f) * size(a.at) + b.f * size(b.at);
-    for (let i = a.at + 1; i < b.at; i++) total += size(i);
-    return total;
+  // The sheet in pixels: where a column or row starts, a cell marker's point, and the marker at a point.
+  const lefts = [0];
+  const tops = [0];
+  const left = (c) => { for (let i = lefts.length; i <= c; i++) lefts[i] = lefts[i - 1] + colPx(i - 1); return lefts[c]; };
+  const top = (r) => { for (let i = tops.length; i <= r; i++) tops[i] = tops[i - 1] + rowPx(i - 1); return tops[r]; };
+  const pointOf = (m) => ({ x: left(m.col) + (m.dx || 0) * colPx(m.col), y: top(m.row) + (m.dy || 0) * rowPx(m.row) });
+  const markerAt = (x, y) => {
+    let col = 0;
+    while (col < 16383 && left(col + 1) <= x) col += 1;
+    let row = 0;
+    while (row < 1048575 && top(row + 1) <= y) row += 1;
+    return { col, row, colOff: Math.max(0, Math.round((x - left(col)) * 9525)), rowOff: Math.max(0, Math.round((y - top(row)) * 9525)) };
+  };
+  const marker = (m) => ({ col: m.col, row: m.row, colOff: Math.round((m.dx || 0) * colPx(m.col) * 9525), rowOff: Math.round((m.dy || 0) * rowPx(m.row) * 9525) });
+  /** A drawing's box in pixels: from its cells, or from its group's box through the group's coordinates. */
+  const rectOf = (item) => {
+    if (item.from && item.to) {
+      const a = pointOf(item.from);
+      const b = pointOf(item.to);
+      return { x: a.x, y: a.y, w: Math.max(0, b.x - a.x), h: Math.max(0, b.y - a.y) };
+    }
+    const place = item.place;
+    if (!place) return null;
+    if (place.anchor) return rectOf(place.anchor);
+    const frame = rectOf(place.frame.place.anchor ? place.frame.place.anchor : { place: place.frame.place });
+    if (!frame) return null;
+    const c = place.frame.coords;
+    const sx = frame.w / (c.w || 1);
+    const sy = frame.h / (c.h || 1);
+    return { x: frame.x + (place.box.x - c.x) * sx, y: frame.y + (place.box.y - c.y) * sy, w: place.box.w * sx, h: place.box.h * sy };
   };
   const pictures = (sheet.pictures || []).filter((p) => kinds[p.blip?.ext]).map((p, i) => {
     let bytes = p.blip.bytes;
     if (p.blip.deflated) { try { bytes = zlib.inflateSync(Buffer.from(bytes)); } catch { bytes = Buffer.from(bytes); } }
+    const r = rectOf(p);
+    if (!r) return null;
     return {
       kind: 'picture', name: p.name || `Picture ${i + 1}`, bytes: Buffer.from(bytes), extension: kinds[p.blip.ext], order: p.order ?? i,
-      from: { col: p.from.col, row: p.from.row, colOff: Math.round(p.from.dx * colPx(p.from.col) * 9525), rowOff: Math.round(p.from.dy * rowPx(p.from.row) * 9525) },
-      widthPx: Math.max(1, span(colPx, { at: p.from.col, f: p.from.dx }, { at: p.to.col, f: p.to.dx })),
-      heightPx: Math.max(1, span(rowPx, { at: p.from.row, f: p.from.dy }, { at: p.to.row, f: p.to.dy })),
+      from: p.from ? marker(p.from) : markerAt(r.x, r.y), widthPx: Math.max(1, r.w), heightPx: Math.max(1, r.h),
     };
-  });
-  const marker = (m) => ({ col: m.col, row: m.row, colOff: Math.round((m.dx || 0) * colPx(m.col) * 9525), rowOff: Math.round((m.dy || 0) * rowPx(m.row) * 9525) });
+  }).filter(Boolean);
   const page = { from: { col: 0, row: 0, dx: 0, dy: 0 }, to: { col: 14, row: 32, dx: 0, dy: 0 } };
   const charts = (sheet.charts || []).map((c, i) => {
     let xml = null;
@@ -171,8 +195,63 @@ function sheetDrawings(sheet, book) {
     const at = c.anchor ?? page;
     return { kind: 'chart', name: c.name || `Chart ${i + 1}`, chartXml: xml, from: marker(at.from), to: marker(at.to), order: c.order ?? 1e6 + i };
   }).filter(Boolean);
+  // A shape turned a quarter or so has its box kept turned with it: its own box is the other way round about the same middle.
+  const shapes = (sheet.shapes || []).map((sh, i) => {
+    let r = rectOf(sh);
+    if (!r) return null;
+    const turn = ((sh.rotation % 360) + 360) % 360;
+    if ((turn >= 45 && turn < 135) || (turn >= 225 && turn < 315)) r = { x: r.x + r.w / 2 - r.h / 2, y: r.y + r.h / 2 - r.w / 2, w: r.h, h: r.w };
+    return {
+      kind: 'raw', order: sh.order ?? 2e6 + i, from: markerAt(r.x, r.y), to: markerAt(r.x + r.w, r.y + r.h),
+      contentXml: (id) => drawnShapeXml(sh, id, r),
+    };
+  }).filter(Boolean);
   // In the order they were drawn, the later over the earlier.
-  return [...pictures, ...charts].sort((a, b) => a.order - b.order).map(({ order, ...d }) => d);
+  return [...pictures, ...charts, ...shapes].sort((a, b) => a.order - b.order).map(({ order, ...d }) => d);
+}
+
+/** A drawn shape as DrawingML: a connector, or a shape with its outline, fill, line, shadow and words. */
+function drawnShapeXml(sh, id, r) {
+  const emu = (px) => Math.round(px * 9525);
+  const hex = (c) => String(typeof c === 'object' ? c.color : c).replace('#', '').toUpperCase();
+  const colourXml = (c) => `<a:srgbClr val="${hex(c)}">${typeof c === 'object' && c.alpha != null && c.alpha < 1 ? `<a:alpha val="${Math.round(c.alpha * 100000)}"/>` : ''}</a:srgbClr>`;
+  const fillXml = (fill) => {
+    if (fill == null) return '';
+    if (fill === 'none') return '<a:noFill/>';
+    if (fill.gradient) {
+      const stops = fill.gradient.stops.map((st) => `<a:gs pos="${Math.round(st.pos * 100000)}">${colourXml(st)}</a:gs>`).join('');
+      return `<a:gradFill rotWithShape="1"><a:gsLst>${stops}</a:gsLst><a:lin ang="${Math.round(fill.gradient.angle * 60000)}" scaled="1"/></a:gradFill>`;
+    }
+    return `<a:solidFill>${colourXml(fill)}</a:solidFill>`;
+  };
+  const lineXml = (line) => (line === 'none' ? '<a:ln><a:noFill/></a:ln>' : line ? `<a:ln w="${Math.round(line.width * 12700)}"><a:solidFill>${colourXml(line.color)}</a:solidFill></a:ln>` : '');
+  const turn = sh.rotation ? ` rot="${Math.round(sh.rotation * 60000)}"` : '';
+  const flips = (sh.flipH ? ' flipH="1"' : '') + (sh.flipV ? ' flipV="1"' : '');
+  const xfrm = `<a:xfrm${turn}${flips}><a:off x="${emu(r.x)}" y="${emu(r.y)}"/><a:ext cx="${emu(r.w)}" cy="${emu(r.h)}"/></a:xfrm>`;
+  const name = esc(sh.name || (sh.textBox ? 'TextBox ' : sh.connector ? 'Connector ' : 'Shape ') + id);
+  if (sh.connector) {
+    return `<xdr:cxnSp macro=""><xdr:nvCxnSpPr><xdr:cNvPr id="${id}" name="${name}"/><xdr:cNvCxnSpPr/></xdr:nvCxnSpPr>`
+      + `<xdr:spPr>${xfrm}<a:prstGeom prst="${sh.preset}"><a:avLst/></a:prstGeom>${lineXml(sh.line)}</xdr:spPr></xdr:cxnSp>`;
+  }
+  let geom = `<a:prstGeom prst="${sh.preset || 'rect'}"><a:avLst/></a:prstGeom>`;
+  if (sh.path) {
+    const pt = (p) => `<a:pt x="${Math.round(p[0])}" y="${Math.round(p[1])}"/>`;
+    const cmds = sh.path.commands.map((c) => (c.op === 'M' ? `<a:moveTo>${pt(c.pts[0])}</a:moveTo>` : c.op === 'L' ? `<a:lnTo>${pt(c.pts[0])}</a:lnTo>` : c.op === 'C' ? `<a:cubicBezTo>${c.pts.map(pt).join('')}</a:cubicBezTo>` : '<a:close/>')).join('');
+    geom = `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst><a:path w="100000" h="100000"${sh.path.filled ? '' : ' fill="none"'}>${cmds}</a:path></a:pathLst></a:custGeom>`;
+  }
+  const shadow = sh.shadow ? `<a:effectLst><a:outerShdw blurRad="${Math.round(sh.shadow.blur * 12700)}" dist="${Math.round(sh.shadow.dist * 12700)}" dir="${Math.round(sh.shadow.dir * 60000)}" algn="ctr" rotWithShape="0">${colourXml({ color: sh.shadow.color, alpha: sh.shadow.alpha })}</a:outerShdw></a:effectLst>` : '';
+  const runXml = (run) => {
+    const attrs = ` lang="en-US"${run.size ? ` sz="${Math.round(run.size * 100)}"` : ''}${run.bold ? ' b="1"' : ''}${run.italic ? ' i="1"' : ''}${run.underline ? ' u="sng"' : ''}${run.strike ? ' strike="sngStrike"' : ''}${run.script === 1 ? ' baseline="30000"' : run.script === 2 ? ' baseline="-25000"' : ''}`;
+    const inner = (run.colour ? `<a:solidFill><a:srgbClr val="${run.colour}"/></a:solidFill>` : '') + (run.font ? `<a:latin typeface="${esc(run.font)}"/>` : '');
+    return `<a:r><a:rPr${attrs}${inner ? `>${inner}</a:rPr>` : '/>'}<a:t>${esc(run.text)}</a:t></a:r>`;
+  };
+  const [lIns, tIns, rIns, bIns] = sh.insets || [91440, 45720, 91440, 45720];
+  const paragraphs = sh.paragraphs?.length
+    ? sh.paragraphs.map((p) => `<a:p><a:pPr algn="${sh.align || 'l'}"/>${p.runs.map(runXml).join('')}</a:p>`).join('')
+    : '<a:p><a:endParaRPr lang="en-US"/></a:p>';
+  const body = `<xdr:txBody><a:bodyPr vertOverflow="clip" wrap="square" lIns="${lIns}" tIns="${tIns}" rIns="${rIns}" bIns="${bIns}" rtlCol="0" anchor="${sh.anchor || 't'}"/><a:lstStyle/>${paragraphs}</xdr:txBody>`;
+  return `<xdr:sp macro="" textlink=""><xdr:nvSpPr><xdr:cNvPr id="${id}" name="${name}"/><xdr:cNvSpPr${sh.textBox ? ' txBox="1"' : ''}/></xdr:nvSpPr>`
+    + `<xdr:spPr>${xfrm}${geom}${fillXml(sh.fill)}${lineXml(sh.line)}${shadow}</xdr:spPr>${body}</xdr:sp>`;
 }
 
 /** A colour element for an exact colour: its RGB, its theme colour and tint, or its palette index. */
