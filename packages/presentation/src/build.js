@@ -131,6 +131,7 @@ function paragraphXml(p) {
   const attrs = [];
   if (p.level) attrs.push(`lvl="${p.level}"`);
   if (p.align) attrs.push(`algn="${{ left: 'l', center: 'ctr', right: 'r', justify: 'just' }[p.align] || 'l'}"`);
+  if (p.rtl) attrs.push('rtl="1"');
   const bullet = p.bullet === false ? '<a:buNone/>' : '';
   const pPr = attrs.length || bullet ? `<a:pPr ${attrs.join(' ')}>${bullet}</a:pPr>` : '';
   const runs = (p.runs || []).map(runXml).join('');

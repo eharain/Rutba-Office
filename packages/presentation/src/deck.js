@@ -5049,6 +5049,9 @@ function buildTextBody(paragraphs, shapeXml, bodyStart, bodyEnd) {
     if (p.level) pPrBits.push(`lvl="${p.level}"`);
     if (p.hanging != null) pPrBits.push(`indent="${pxToEmu(p.hanging)}"`);
     if (p.align) pPrBits.push(`algn="${{ left: 'l', center: 'ctr', right: 'r', justify: 'just' }[p.align] || 'l'}"`);
+    // Right to left, or stated left to right over a style that is not.
+    if (p.rtl === true) pPrBits.push('rtl="1"');
+    else if (p.rtl === false) pPrBits.push('rtl="0"');
     // The paragraph's own spacing and bullet, in schema order (lnSpc, spcBef,
     // spcAft, buClr, then one of buNone / buAutoNum / buChar) — the shape the
     // reader gives back, so a format press keeps a bullet the slide already

@@ -302,6 +302,9 @@ function readParagraphProps(pPr, theme) {
   const out = {};
   if (pPr.attrs.lvl) out.level = Number(pPr.attrs.lvl);
   if (pPr.attrs.algn) out.align = { l: 'left', ctr: 'center', r: 'right', just: 'justify', dist: 'justify' }[pPr.attrs.algn] || 'left';
+  // Right to left: an Arabic or Hebrew paragraph, its margin and indent
+  // measured from the right; the alignment stays the side it names.
+  if (pPr.attrs.rtl !== undefined) out.rtl = pPr.attrs.rtl === '1' || pPr.attrs.rtl === 'true';
   if (pPr.attrs.marL) out.indent = emuToPx(pPr.attrs.marL);
   if (pPr.attrs.indent) out.hanging = emuToPx(pPr.attrs.indent);
   const lnSpc = kids(pPr, A('lnSpc'))[0];

@@ -189,6 +189,9 @@ export function layoutText(body, box, { scale = 1, baseSize = 18, levels = null 
     const lv = levels?.[Math.min(8, level)] || {};
     const marL = p.indent ?? lv.indent;
     const hanging = p.hanging ?? lv.hanging;
+    // Right to left: the same margin, indent and bullet, measured from the
+    // right edge when the lines are drawn.
+    const rtl = Boolean(p.rtl ?? lv.rtl);
     const indent = (marL ?? level * 24) * scale;
     const runLook = definedOnly({ size: lv.size, bold: lv.bold, italic: lv.italic, underline: lv.underline, color: lv.color, font: lv.font, caps: lv.caps, spacing: lv.spacing, colorAlpha: lv.colorAlpha });
     // A link without a colour of its own is drawn in the theme's hyperlink
@@ -272,6 +275,7 @@ export function layoutText(body, box, { scale = 1, baseSize = 18, levels = null 
         bulletX: li === 0 ? bulletX : null,
         size,
         align: p.align || lv.align || 'left',
+        rtl,
         level,
         bullet: li === 0 ? bullet : null,
         bulletColor: bulletSpec?.color,
@@ -324,7 +328,8 @@ function htmlTextSvg(body, box, opts = {}) {
       ].filter(Boolean).join(';');
       return `<span${css ? ` style="${css}"` : ''}>${escapeXml(r.text || '')}</span>`;
     }).join('');
-    return `<div style="margin:0;text-align:${align};font-size:${size}px;line-height:1.2">${runs || '&#8203;'}</div>`;
+    const dir = p.rtl ?? lv.rtl ? 'direction:rtl;' : '';
+    return `<div style="margin:0;${dir}text-align:${align};font-size:${size}px;line-height:1.2">${runs || '&#8203;'}</div>`;
   }).join('');
   const colour = base.color || '#1a1a1a';
   const face = base.font ? fontStack(base.font).replace(/"/g, "'") : DEFAULT_FONT;
@@ -390,23 +395,36 @@ function drawLines(body, box, opts, lines, height, insets) {
     let x = originX + line.x;
     if (line.align === 'center') x = originX + Math.max(0, (width - lineWidth) / 2);
     else if (line.align === 'right') x = originX + Math.max(0, width - lineWidth);
+    // Right to left: the line's start is its right end — at the margin and
+    // indent from the right edge when it is aligned to that side (or
+    // justified), else where its alignment puts its far end — and the text
+    // runs leftwards from there.
+    const rtl = Boolean(line.rtl);
+    const start = !rtl ? x
+      : line.align === 'left' ? originX + Math.min(width, lineWidth)
+      : line.align === 'center' ? originX + Math.max(0, (width - lineWidth) / 2) + Math.min(width, lineWidth)
+      : originX + width - line.x;
     const y = originY + line.y;
 
     // A highlighted run: its colour behind the words, as PowerPoint draws it.
-    let runX = x;
+    let runX = rtl ? start : x;
     for (const s of line.segments) {
       const w = measureText(s.text, { size: s.size || line.size, weight: s.bold ? 'bold' : 'normal' }) + spacingPx(s, opts?.scale || 1) * s.text.length;
       if (s.highlight && w > 0) {
         const h = (s.size || line.size) * 1.15;
-        out.push(`<rect x="${runX.toFixed(2)}" y="${(y - h * 0.8).toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="${s.highlight}"/>`);
+        out.push(`<rect x="${(rtl ? runX - w : runX).toFixed(2)}" y="${(y - h * 0.8).toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" fill="${s.highlight}"/>`);
       }
-      runX += w;
+      runX += rtl ? -w : w;
     }
     if (line.bullet) {
-      const bx = line.bulletX != null && line.align !== 'center' && line.align !== 'right' ? originX + line.bulletX : x - line.size * 0.9;
+      // Right to left the bullet stands at the right of its words.
+      const atStart = line.bulletX != null && (rtl ? line.align === 'right' || line.align === 'justify' : line.align !== 'center' && line.align !== 'right');
+      const bx = rtl
+        ? (atStart ? originX + width - line.bulletX : start + line.size * 0.9)
+        : (atStart ? originX + line.bulletX : x - line.size * 0.9);
       out.push(
         `<text x="${bx.toFixed(2)}" y="${y.toFixed(2)}" font-size="${line.size.toFixed(2)}" ` +
-        `fill="${line.bulletColor || line.segments[0]?.color || '#333'}" font-family="${DEFAULT_FONT}">${escapeXml(line.bullet)}</text>`
+        `fill="${line.bulletColor || line.segments[0]?.color || '#333'}" font-family="${DEFAULT_FONT}"${rtl ? ' direction="rtl"' : ''}>${escapeXml(line.bullet)}</text>`
       );
     }
     const spans = line.segments
@@ -434,8 +452,8 @@ function drawLines(body, box, opts, lines, height, insets) {
     const fx = line.segments.find((s) => s.textEffects)?.textEffects;
     const filter = fx && opts?.registerEffects ? opts.registerEffects(fx) : '';
     out.push(
-      `<text x="${x.toFixed(2)}" y="${y.toFixed(2)}" font-size="${line.size.toFixed(2)}" ` +
-      `font-family="${DEFAULT_FONT}" fill="${line.segments[0]?.color || '#1a1a1a'}"${filter} xml:space="preserve">${spans}</text>`
+      `<text x="${(rtl ? start : x).toFixed(2)}" y="${y.toFixed(2)}" font-size="${line.size.toFixed(2)}" ` +
+      `font-family="${DEFAULT_FONT}" fill="${line.segments[0]?.color || '#1a1a1a'}"${filter}${rtl ? ' direction="rtl"' : ''} xml:space="preserve">${spans}</text>`
     );
   }
   return out.join('');

@@ -1120,6 +1120,8 @@ export default function Slides({ app, shell, boot }) {
       anchor: selectedShape?.text?.anchor || 'top', vert: selectedShape?.text?.vert || 'horz', columns: selectedShape?.text?.columns || 1,
       // The first paragraph's own list look: the bullet kind, its level and its line spacing.
       bullet: p?.bullet?.type || null, level: p?.level || 0, lineHeight: p?.lineHeight || null,
+      // Which way the first paragraph reads: its own, or its style's.
+      rtl: Boolean(p?.rtl ?? selectedShape?.textDefaults?.rtl),
     };
   }, [selectedShape]);
 
@@ -2011,7 +2013,12 @@ export default function Slides({ app, shell, boot }) {
             level: level || undefined,
             bullet,
             lineHeight: 'lineHeight' in arg ? arg.lineHeight : p.lineHeight,
-            align: arg.align ?? p.align,
+            // Right to left or left to right, as PowerPoint's buttons: the
+            // paragraph turned and its alignment with it, left for right.
+            rtl: 'rtl' in arg ? Boolean(arg.rtl) : p.rtl,
+            align: arg.align ?? ('rtl' in arg && Boolean(arg.rtl) !== Boolean(p.rtl)
+              ? (arg.rtl ? (!p.align || p.align === 'left' ? 'right' : p.align) : (p.align === 'right' ? 'left' : p.align))
+              : p.align),
             runs: (p.runs || []).map((r, ri) => ({
               ...r,
               text: arg.case && r.text && r.text !== '\n' ? recase(r.text, arg.case, ri === 0) : r.text,
@@ -2711,6 +2718,8 @@ export default function Slides({ app, shell, boot }) {
                       // and saved them there.
                       key={`${editing.id}|${editing.row ?? ''}|${editing.col ?? ''}|${editing.rev ?? 0}`}
                       className="sl-editor"
+                      // A box whose words read right to left is typed that way.
+                      dir={editing.row == null && slide.shapes.find((x) => x.id === editing.id)?.text?.paragraphs?.some((p) => p.rtl) ? 'rtl' : undefined}
                       autoFocus
                       defaultValue={editing.text}
                       ref={(el) => {

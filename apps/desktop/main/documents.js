@@ -1513,7 +1513,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
               // What a run that states nothing is drawn with — the master's,
               // the layout's and the shape's own styles — so the ribbon shows
               // a title's real size rather than the ribbon's own default.
-              textDefaults: s.textStyle?.[0] ? { size: s.textStyle[0].size ?? null, font: s.textStyle[0].font ?? null, color: s.textStyle[0].color ?? null, bold: s.textStyle[0].bold ?? null, italic: s.textStyle[0].italic ?? null, align: s.textStyle[0].align ?? null } : null,
+              textDefaults: s.textStyle?.[0] ? { size: s.textStyle[0].size ?? null, font: s.textStyle[0].font ?? null, color: s.textStyle[0].color ?? null, bold: s.textStyle[0].bold ?? null, italic: s.textStyle[0].italic ?? null, align: s.textStyle[0].align ?? null, rtl: s.textStyle[0].rtl ?? null } : null,
               text: (s.text || s.inheritedText)
                 ? { paragraphs: (s.text || s.inheritedText).paragraphs.map((p) => ({ ...p, plain: p.runs.map((r) => r.text).join('') })), anchor: (s.text || s.inheritedText).anchor || 'top', vert: (s.text || s.inheritedText).vert || 'horz', columns: (s.text || s.inheritedText).columns || 1 }
                 : null,

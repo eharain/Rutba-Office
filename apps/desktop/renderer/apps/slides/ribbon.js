@@ -302,6 +302,8 @@ export default function SlidesRibbon({
                 <Button icon="alignCenter" title={needShape || 'Centre'} pressed={format.align === 'center'} disabled={!hasShape} onClick={() => fmt({ align: 'center' })} />
                 <Button icon="alignRight" title={needShape || 'Align right'} pressed={format.align === 'right'} disabled={!hasShape} onClick={() => fmt({ align: 'right' })} />
                 <Button icon="alignJustify" title={needShape || 'Justify'} pressed={format.align === 'justify'} disabled={!hasShape} onClick={() => fmt({ align: 'justify' })} />
+                <Button icon="textLtr" title={needShape || 'Left-to-right text direction'} pressed={hasShape && !format.rtl} disabled={!hasShape} onClick={() => fmt({ rtl: false })} />
+                <Button icon="textRtl" title={needShape || 'Right-to-left text direction — the words read from the right, as Arabic and Hebrew do'} pressed={Boolean(format.rtl)} disabled={!hasShape} onClick={() => fmt({ rtl: true })} />
                 <Separator />
                 <Button icon="shape" label="SmartArt" title={needShape || 'Convert to SmartArt — this box\'s lines as a diagram: a list, a process, a cycle or a hierarchy'} disabled={!hasShape} onClick={() => act('convertSmartArt')} />
               </>

@@ -77,6 +77,7 @@ import { verifyWordInk } from './verify-word-ink.js';
 import { verifyDeckNarration } from './verify-deck-narration.js';
 import { verifyDeckVideo } from './verify-deck-video.js';
 import { verifyDeckDirection } from './verify-deck-direction.js';
+import { verifyDeckRtl } from './verify-deck-rtl.js';
 import { verifyDeckZoom } from './verify-deck-zoom.js';
 import { verifyWordCompare } from './verify-word-compare.js';
 import { verifyDeckObject } from './verify-deck-object.js';
@@ -4677,6 +4678,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('narration')) await verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('deckvideo')) await verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('viewdirection')) await verifyDeckDirection({ open, check, until, wait }, { dir });
+    if (only.includes('deckrtl')) await verifyDeckRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('deckzoom')) await verifyDeckZoom({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('wordcompare')) await verifyWordCompare({ open, check, until, wait, doc }, { dir });
     if (only.includes('deckobject')) await verifyDeckObject({ open, check, until, wait, doc, sessionFor }, { dir });
@@ -4907,6 +4909,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckNarration({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyDeckVideo({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyDeckDirection({ open, check, until, wait }, { dir }));
+  await block(() => verifyDeckRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckZoom({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyWordCompare({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyDeckObject({ open, check, until, wait, doc, sessionFor }, { dir }));
