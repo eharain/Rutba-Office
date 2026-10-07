@@ -31,7 +31,8 @@ import Reader from './mail/reader.js';
 import Compose from './mail/compose.js';
 import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog, JunkDialog } from './mail/dialogs.js';
 import { RulesDialog } from './mail/rules.js';
-import { withSignature } from '@rutba/mailbox/signature';
+import { withSignature, withSignatureHtml, signatureTextToHtml } from '@rutba/mailbox/signature';
+import { textToHtml } from './mail/richtext.js';
 
 installStyles();
 
@@ -441,6 +442,12 @@ export default function Mail({ app, shell }) {
   // from is the one whose text belongs in it, not whichever account happens
   // to be selected in the sidebar.
   const signatureFor = useCallback((id) => accounts.find((a) => a.id === id)?.signature || '', [accounts]);
+  // The rich one for the rich editor: an account with only a plain
+  // signature gets that, its lines kept.
+  const signatureHtmlFor = useCallback((id) => {
+    const a = accounts.find((x) => x.id === id);
+    return a?.signatureHtml || signatureTextToHtml(a?.signature || '');
+  }, [accounts]);
 
   const quoted = useCallback((m) => {
     const body = m.text || stripTags(m.html || '');
@@ -466,11 +473,12 @@ export default function Mail({ app, shell }) {
         cc: [...new Set(cc)].join(', '),
         subject: /^re:/i.test(message.subject || '') ? message.subject : `Re: ${message.subject || ''}`,
         text: withSignature(quoted(message), signatureFor(fromId), { reply: true }),
+        html: withSignatureHtml(textToHtml(quoted(message)), signatureHtmlFor(fromId), { reply: true }),
         inReplyTo: message.messageId,
         accountId: fromId || undefined,
       });
     },
-    [message, accounts, selected, accountId, signatureFor, quoted]
+    [message, accounts, selected, accountId, signatureFor, signatureHtmlFor, quoted]
   );
 
   const forward = useCallback(() => {
@@ -481,12 +489,13 @@ export default function Mail({ app, shell }) {
       to: '',
       subject: /^fwd:/i.test(message.subject || '') ? message.subject : `Fwd: ${message.subject || ''}`,
       text: withSignature(body, signatureFor(fromId), { reply: true }),
+      html: withSignatureHtml(textToHtml(body), signatureHtmlFor(fromId), { reply: true }),
       accountId: fromId || undefined,
       // Forwarding carries the files. They are already on disk here, so this
       // costs nothing until the message is actually sent.
       attachments: (message.attachments || []).filter((a) => !a.inline && a.stored).map((a) => ({ filename: a.filename, size: a.size, fromMessage: { ...selected, index: message.attachments.indexOf(a) } })),
     });
-  }, [message, selected, accountId, signatureFor]);
+  }, [message, selected, accountId, signatureFor, signatureHtmlFor]);
 
   const doSend = useCallback(
     async (draft, at) => {
@@ -834,7 +843,7 @@ export default function Mail({ app, shell }) {
         key: 'Mod+N',
         run: () => {
           const fromId = accountId && accountId !== EVERYTHING ? accountId : accounts[0]?.id || null;
-          setCompose({ to: '', subject: '', text: withSignature('', signatureFor(fromId)), accountId: fromId || undefined });
+          setCompose({ to: '', subject: '', text: withSignature('', signatureFor(fromId)), html: withSignatureHtml('', signatureHtmlFor(fromId)) || null, accountId: fromId || undefined });
         },
       },
       'mail.reply': { label: 'Reply', icon: 'reply', key: 'Mod+R', run: () => reply(false) },
@@ -851,7 +860,7 @@ export default function Mail({ app, shell }) {
       'mail.account': { label: 'Add account…', icon: 'plus', run: () => setDialog({ kind: 'account' }) },
       'mail.search': { label: 'Search', icon: 'find', key: 'Mod+F', run: () => document.querySelector('.rw-search input')?.focus() },
     }),
-    [sync, reply, forward, act, accountId, accounts, signatureFor]
+    [sync, reply, forward, act, accountId, accounts, signatureFor, signatureHtmlFor]
   );
 
   useCommands(commands, [selected, message, folder, accountId, checked]);

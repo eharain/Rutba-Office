@@ -502,6 +502,15 @@ select.rw-input { appearance: auto; }
 /* an Outbox item's own actions -------------------------------------------- */
 .ml-outbox-actions { display: flex; gap: 6px; flex-wrap: wrap; }
 
+/* the signature editor, and a rich editor's link row ---------------------- */
+.ml-signature-tools { margin-bottom: 6px; flex-wrap: wrap; }
+.ml-signature-colour { width: 18px; height: 18px; border-radius: 50%; border: 1px solid var(--line); cursor: pointer; padding: 0; margin: 0 2px; }
+.ml-signature-editor { min-height: 132px; max-height: 260px; overflow: auto; padding: 8px 10px; line-height: 1.5; white-space: normal; cursor: text; }
+.ml-signature-editor:empty::before { content: attr(data-placeholder); color: var(--ink-3); }
+.ml-signature-editor img { max-width: 100%; }
+.ml-linkrow { display: flex; gap: 6px; align-items: center; margin: 0 0 6px; }
+.ml-linkrow .rw-input { flex: 1; min-width: 0; }
+
 /* junk: the reading pane's note, and Junk Email Options ------------------- */
 .ml-junk-note {
   display: flex; align-items: center; gap: 10px; margin: 10px 0 0; padding: 8px 12px;

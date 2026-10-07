@@ -107,6 +107,10 @@ function defaultTransport() {
         subject: draft.subject || '',
         text: draft.text || '',
         html: draft.html || undefined,
+        // A picture held in the HTML — a signature's logo — goes as an
+        // attachment of the message that the HTML points to, which every
+        // mail reader shows; a data: address in the HTML itself many do not.
+        attachDataUrls: true,
         inReplyTo: draft.inReplyTo ? `<${draft.inReplyTo}>` : undefined,
         references: draft.references?.length ? draft.references.map((r) => `<${r}>`) : undefined,
         headers: draft.headers || undefined,

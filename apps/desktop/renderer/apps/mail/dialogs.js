@@ -8,10 +8,12 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Button, Dialog, Field, Input, Icon, Chip, Empty, Spinner, Search, Progress,
+  Button, Dialog, Field, Input, Icon, Chip, Empty, Spinner, Search, Progress, Separator,
   formatBytes, formatWhen,
 } from '@rutba/office-ui';
 import { avatarFor, displayName } from './parts.js';
+import { cleanHtml, htmlToText, LinkRow, selectionIn } from './richtext.js';
+import { signatureTextToHtml } from '@rutba/mailbox/signature';
 
 /* ── signature ────────────────────────────────────────────────────────────── */
 
@@ -24,21 +26,59 @@ import { avatarFor, displayName } from './parts.js';
  */
 export function SignatureDialog({ shell, accounts, accountId, onClose, onSaved, toast }) {
   const [id, setId] = useState(accountId || accounts[0]?.id || '');
-  const account = accounts.find((a) => a.id === id) || null;
-  const [text, setText] = useState(account?.signature || '');
   const [saving, setSaving] = useState(false);
+  const [linking, setLinking] = useState(null);
+  const editor = useRef(null);
 
-  // Switching the picker loads that account's own text — it does not carry
-  // over unsaved edits from the one before it.
+  // Switching the picker loads that account's own signature — it does not
+  // carry over unsaved edits from the one before it. One with only a plain
+  // signature opens as that, its lines kept. Only the pick does this: a list
+  // refreshed by arriving mail must not wipe what is being typed.
   useEffect(() => {
-    setText((accounts.find((a) => a.id === id) || {}).signature || '');
-  }, [id, accounts]);
+    const a = accounts.find((x) => x.id === id) || {};
+    if (editor.current) editor.current.innerHTML = cleanHtml(a.signatureHtml || signatureTextToHtml(a.signature || ''));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id]);
+
+  const run = (command, value) => {
+    editor.current?.focus();
+    try {
+      document.execCommand(command, false, value);
+    } catch {
+      /* a command this engine does not know; the words are unharmed */
+    }
+  };
+  const keep = (e) => e.preventDefault();
+
+  // A picture — a logo — kept in the signature itself, so it goes with every
+  // message without a fetch from anywhere; small, because it goes with every
+  // message.
+  const picture = useCallback(async () => {
+    const [file] = (await shell.dialog.open({ title: 'Insert a picture', filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }] })) || [];
+    if (!file) return;
+    const { bytes } = await shell.fs.read({ path: file });
+    if (bytes.length > 256 * 1024) {
+      toast('That picture is over 256 KB — a signature goes with every message, so use a smaller one.', { tone: 'bad' });
+      return;
+    }
+    const ext = String(file).split('.').pop().toLowerCase();
+    const type = { jpg: 'jpeg', jpeg: 'jpeg', png: 'png', gif: 'gif', webp: 'webp' }[ext] || 'png';
+    let binary = '';
+    const view = new Uint8Array(bytes);
+    for (let i = 0; i < view.length; i += 0x8000) binary += String.fromCharCode(...view.subarray(i, i + 0x8000));
+    run('insertImage', `data:image/${type};base64,${btoa(binary)}`);
+  }, [shell, toast]);
 
   const save = useCallback(async () => {
     if (!id) return;
     setSaving(true);
     try {
-      await shell.mail.updateAccount({ id, patch: { signature: text } });
+      // What is kept is what a signature can carry, and its plain words go
+      // with it for a message written as plain text.
+      const html = cleanHtml(editor.current?.innerHTML || '');
+      const text = htmlToText(html).replace(/\s+$/, '');
+      const plainOnly = !text || html === signatureTextToHtml(text);
+      await shell.mail.updateAccount({ id, patch: { signature: text, signatureHtml: plainOnly ? null : html } });
       toast('Signature saved', { tone: 'good' });
       onSaved();
     } catch (err) {
@@ -46,12 +86,12 @@ export function SignatureDialog({ shell, accounts, accountId, onClose, onSaved, 
     } finally {
       setSaving(false);
     }
-  }, [shell, id, text, onSaved, toast]);
+  }, [shell, id, onSaved, toast]);
 
   return (
     <Dialog
       title="Signature"
-      width={520}
+      width={560}
       onClose={onClose}
       actions={
         <>
@@ -70,17 +110,41 @@ export function SignatureDialog({ shell, accounts, accountId, onClose, onSaved, 
         </Field>
       ) : null}
       <Field label="Added to the end of new messages, and above the quote when you reply or forward">
-        <textarea
-          className="rw-input ml-compose-body ml-signature-text"
-          rows={7}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder="Left blank, nothing is added."
+        <div className="ml-toolbar ml-signature-tools">
+          <Button icon="bold" title="Bold" onMouseDown={keep} onClick={() => run('bold')} />
+          <Button icon="italic" title="Italic" onMouseDown={keep} onClick={() => run('italic')} />
+          <Button icon="underline" title="Underline" onMouseDown={keep} onClick={() => run('underline')} />
+          <Separator />
+          {SIGNATURE_COLOURS.map(([colour, name]) => (
+            <button key={colour} type="button" className="ml-signature-colour" title={`Colour: ${name}`} aria-label={`Colour: ${name}`} style={{ background: colour }} onMouseDown={keep} onClick={() => run('foreColor', colour)} />
+          ))}
+          <Separator />
+          <Button label="A−" title="Smaller" onMouseDown={keep} onClick={() => run('fontSize', '2')} />
+          <Button label="A+" title="Larger" onMouseDown={keep} onClick={() => run('fontSize', '4')} />
+          <Separator />
+          <Button icon="link" title="Link" onMouseDown={keep} onClick={() => setLinking({ range: selectionIn(editor.current) })} />
+          <Button icon="picture" title="Picture" onMouseDown={keep} onClick={picture} />
+          <Button icon="undo" title="Clear formatting" onMouseDown={keep} onClick={() => run('removeFormat')} />
+        </div>
+        {linking ? <LinkRow editor={editor.current} range={linking.range} onDone={() => setLinking(null)} /> : null}
+        <div
+          ref={editor}
+          className="rw-input ml-signature-editor"
+          contentEditable
+          suppressContentEditableWarning
+          spellCheck
+          role="textbox"
+          aria-multiline="true"
+          aria-label="Signature"
+          data-placeholder="Left blank, nothing is added."
         />
       </Field>
     </Dialog>
   );
 }
+
+/** The colours the signature editor offers: the house blue, and the ones signatures use. */
+const SIGNATURE_COLOURS = [['#1a1c20', 'Black'], ['#5f6368', 'Grey'], ['#2b5fd9', 'Blue'], ['#0f9d58', 'Green'], ['#c00000', 'Red'], ['#7b5cd6', 'Purple']];
 
 /* ── out of office ────────────────────────────────────────────────────────── */
 

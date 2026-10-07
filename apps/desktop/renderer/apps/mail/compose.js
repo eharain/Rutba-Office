@@ -14,8 +14,8 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Button, Dialog, Field, Input, Icon, Select, Separator, formatBytes } from '@rutba/office-ui';
-import { stripTags } from './parts.js';
-import { swapSignature } from '@rutba/mailbox/signature';
+import { textToHtml, htmlToText, LinkRow, selectionIn } from './richtext.js';
+import { swapSignature, signatureBlockHtml, signatureTextToHtml, SIGNATURE_ATTR } from '@rutba/mailbox/signature';
 import { pathOf } from '@rutba/office-shell/client';
 import { scheduleChoices, parseCustomSchedule } from '@rutba/mailbox/schedule';
 
@@ -99,25 +99,35 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
   const [scheduling, setScheduling] = useState(false);
   const [customAt, setCustomAt] = useState('');
   const account = accounts.find((a) => a.id === accountId);
+  const [linking, setLinking] = useState(null);
 
   // Changing the From account swaps its signature in place of the one that
   // was there — but only the block itself, and only when it is still exactly
   // what was inserted. Anything else about the body, including a signature
-  // the person has since edited, is left alone.
-  const prevSignature = useRef(account?.signature || '');
+  // the person has since edited, is left alone. A rich body's block is the
+  // element marked as the signature, compared as it went in; the rest of the
+  // body, and its formatting, is not touched.
+  const signatureOf = (a) => ({ text: a?.signature || '', html: a?.signatureHtml || signatureTextToHtml(a?.signature || '') });
+  const prevSignature = useRef(signatureOf(account));
   useEffect(() => {
-    const nextSignature = accounts.find((a) => a.id === accountId)?.signature || '';
-    const oldSignature = prevSignature.current;
-    prevSignature.current = nextSignature;
-    if (oldSignature === nextSignature) return;
+    const next = signatureOf(accounts.find((a) => a.id === accountId));
+    const old = prevSignature.current;
+    prevSignature.current = next;
+    if (old.text === next.text && old.html === next.html) return;
     const el = bodyRef.current;
     if (rich && el) {
-      const current = el.innerText || '';
-      const swapped = swapSignature(current, oldSignature, nextSignature);
-      if (swapped !== current) el.innerText = swapped;
+      const block = el.querySelector(`[${SIGNATURE_ATTR}]`);
+      // A template's content is inert: the old block is compared without
+      // a picture in it being fetched.
+      const was = document.createElement('template');
+      was.innerHTML = signatureBlockHtml(old.html);
+      if (block && was.content.firstElementChild && block.outerHTML === was.content.firstElementChild.outerHTML) {
+        if (next.html) block.outerHTML = signatureBlockHtml(next.html);
+        else block.remove();
+      }
     } else {
       const current = draft.text || '';
-      const swapped = swapSignature(current, oldSignature, nextSignature);
+      const swapped = swapSignature(current, old.text, next.text);
       if (swapped !== current) onChange({ ...draft, text: swapped });
     }
     // Only the account switch itself should trigger this — not every
@@ -152,10 +162,23 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
       ...draft,
       rich,
       html: rich ? html : null,
-      text: rich ? stripTags(html) : draft.text || '',
+      text: rich ? htmlToText(html) : draft.text || '',
       accountId,
     };
   }, [draft, rich, accountId]);
+
+  // Plain text and back keep what was typed: the editor's words go into the
+  // plain body, and the plain body seeds the editor again.
+  const toPlain = () => {
+    const el = bodyRef.current;
+    if (el) onChange({ ...draft, text: htmlToText(el.innerHTML), html: null });
+    setRich(false);
+  };
+  const toRich = () => {
+    onChange({ ...draft, html: null });
+    setRich(true);
+  };
+  const keepSelection = (e) => e.preventDefault();
 
   const attach = useCallback(async () => {
     const paths = await shell.dialog.open({ title: 'Attach files', multiple: true });
@@ -252,20 +275,14 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
               <Button icon="alignLeft" title="Align left" onClick={() => exec('justifyLeft')} />
               <Button icon="alignCenter" title="Centre" onClick={() => exec('justifyCenter')} />
               <Separator />
-              <Button
-                icon="link"
-                title="Insert link"
-                onClick={() => {
-                  const url = window.prompt('Link address');
-                  if (url) exec('createLink', url);
-                }}
-              />
+              <Button icon="link" title="Insert link" onMouseDown={keepSelection} onClick={() => setLinking({ range: selectionIn(bodyRef.current) })} />
               <Button icon="formula" title="Quote" onClick={() => exec('formatBlock', 'blockquote')} />
               <Button icon="undo" title="Clear formatting" onClick={() => exec('removeFormat')} />
               <Separator />
               <Button icon="attach" label="Attach" onClick={attach} />
-              <Button icon="file" title="Plain text" onClick={() => setRich(false)} />
+              <Button icon="file" title="Plain text" onClick={toPlain} />
             </div>
+            {linking ? <LinkRow editor={bodyRef.current} range={linking.range} onDone={() => setLinking(null)} /> : null}
             <div
               ref={bodyRef}
               className="ml-rich"
@@ -288,7 +305,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
           <Field label="Message">
             <div className="ml-toolbar">
               <Button icon="attach" label="Attach" onClick={attach} />
-              <Button icon="word" label="Rich text" onClick={() => setRich(true)} />
+              <Button icon="word" label="Rich text" onClick={toRich} />
             </div>
             <textarea
               className="rw-input ml-compose-body"
@@ -365,15 +382,4 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
       </div>
     </Dialog>
   );
-}
-
-/** Plain text into the markup the editor expects, quoting preserved. */
-function textToHtml(text) {
-  return String(text)
-    .split('\n')
-    .map((line) => {
-      const safe = line.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
-      return line.startsWith('>') ? `<blockquote>${safe.replace(/^&gt;\s?/, '')}</blockquote>` : `<div>${safe || '<br>'}</div>`;
-    })
-    .join('');
 }

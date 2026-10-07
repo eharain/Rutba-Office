@@ -50,3 +50,24 @@ test('there is nothing to swap when the old account had no signature', () => {
   const body = 'Hello, no signature was ever inserted here.';
   assert.equal(swapSignature(body, '', 'New Signature'), body);
 });
+
+/* ── the rich kind ──────────────────────────────────────────────────────── */
+
+import { withSignatureHtml, signatureBlockHtml, signatureTextToHtml, SIGNATURE_ATTR } from '../packages/mailbox/src/signature.js';
+
+test('a rich signature goes in as one marked block, after a line to type on, or above a quote', () => {
+  const sig = '<b>Jane Doe</b><br><a href="https://northwind.example">Northwind</a>';
+  const fresh = withSignatureHtml('', sig);
+  assert.equal(fresh, `<div><br></div><div><br></div><div ${SIGNATURE_ATTR}="">-- <br>${sig}</div>`);
+  const quote = '<div>On Tuesday, Amina wrote:</div><blockquote>the numbers are in</blockquote>';
+  const reply = withSignatureHtml(quote, sig, { reply: true });
+  assert.ok(reply.indexOf('Jane Doe') < reply.indexOf('the numbers are in'), 'above the quote');
+  assert.ok(reply.endsWith(quote));
+  assert.equal(withSignatureHtml('<div>Hi</div>', ''), '<div>Hi</div>', 'no signature, no change');
+  assert.equal(signatureBlockHtml('   '), '');
+});
+
+test('a plain signature becomes HTML with its lines and nothing it could be mistaken for', () => {
+  assert.equal(signatureTextToHtml('Jane Doe\nNorthwind <Traders> & Co\n\n'), 'Jane Doe<br>Northwind &lt;Traders&gt; &amp; Co');
+  assert.equal(signatureTextToHtml(''), '');
+});

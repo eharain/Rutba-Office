@@ -59,3 +59,41 @@ export function swapSignature(body, oldSignature, newSignature) {
   if (text.endsWith(oldBlock)) return text.slice(0, text.length - oldBlock.length) + newBlock;
   return text;
 }
+
+/* ── the rich kind ──────────────────────────────────────────────────────── */
+
+/**
+ * The attribute an inserted HTML signature carries, so a swap finds that
+ * block and nothing a person wrote.
+ */
+export const SIGNATURE_ATTR = 'data-rutba-signature';
+
+const escapeHtml = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+/** A plain signature as HTML, its lines kept: what an account with no rich one inserts. */
+export function signatureTextToHtml(text) {
+  const t = String(text || '').replace(/\s+$/, '');
+  return t ? t.split('\n').map(escapeHtml).join('<br>') : '';
+}
+
+/**
+ * The block an HTML signature becomes once inserted: the dash line and the
+ * signature, in one element marked as the signature. Empty for none.
+ */
+export function signatureBlockHtml(signatureHtml) {
+  const inner = String(signatureHtml || '').trim();
+  return inner ? `<div ${SIGNATURE_ATTR}="">-- <br>${inner}</div>` : '';
+}
+
+/**
+ * `withSignature` for a rich body: a new message gets a line to type on, a
+ * blank line and the block; a reply or forward gets the line, the blank and
+ * the block above the quoted message. No signature, no change.
+ */
+export function withSignatureHtml(bodyHtml, signatureHtml, { reply = false } = {}) {
+  const block = signatureBlockHtml(signatureHtml);
+  const body = bodyHtml || '';
+  if (!block) return body;
+  const gap = '<div><br></div>';
+  return reply ? `${gap}${gap}${block}${body}` : `${body || gap}${gap}${block}`;
+}

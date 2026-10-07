@@ -91,6 +91,7 @@ import { verifyDeck3d } from './verify-deck-3d.js';
 import { verifyDeckPoints } from './verify-deck-points.js';
 import { verifyWordRtl } from './verify-word-rtl.js';
 import { verifyMailJunk } from './verify-mail-junk.js';
+import { verifyMailRichSignature } from './verify-mail-signature.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -4359,16 +4360,17 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Folder')?.click(), 'tab'`);
       await until(() => js(`Boolean([...document.querySelectorAll('button')].find((b) => /^Signature$/.test(b.textContent.trim()) && !b.disabled))`), 'the account\'s Signature button', 5000);
       await js(`[...document.querySelectorAll('button')].find((b) => /^Signature$/.test(b.textContent.trim()) && !b.disabled)?.click(), 'clicked'`);
-      await until(() => js(`Boolean(document.querySelector('.ml-signature-text'))`), 'the signature editor', 5000);
+      await until(() => js(`Boolean(document.querySelector('.ml-signature-editor'))`), 'the signature editor', 5000);
+      // Typed as a person types it: the words, a line break, the words.
       await js(`(() => {
-        const el = document.querySelector('.ml-signature-text');
-        const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set;
-        setter.call(el, ${JSON.stringify(SIGNATURE)});
-        el.dispatchEvent(new Event('input', { bubbles: true }));
-        return 'set';
+        const el = document.querySelector('.ml-signature-editor');
+        el.focus();
+        const lines = ${JSON.stringify(SIGNATURE.split('\n'))};
+        lines.forEach((line, i) => { if (i) document.execCommand('insertLineBreak'); document.execCommand('insertText', false, line); });
+        return 'typed';
       })()`);
       await js(`[...document.querySelectorAll('.rw-dialog button')].find((b) => /^Save$/.test(b.textContent.trim()))?.click(), 'saved'`);
-      await until(() => js(`!document.querySelector('.ml-signature-text')`), 'the signature editor to close', 5000);
+      await until(() => js(`!document.querySelector('.ml-signature-editor')`), 'the signature editor to close', 5000);
 
       // A new message: the signature at the end, after a blank line and "-- ".
       // The plain-text body is read rather than the rich editor's rendering,
@@ -4415,7 +4417,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // signature on it is not this check's to decide.
       if (win && accountId) {
         await win.webContents
-          .executeJavaScript(`window.rutbaOffice.mail.updateAccount({ id: ${JSON.stringify(accountId)}, patch: { signature: '' } })`)
+          .executeJavaScript(`window.rutbaOffice.mail.updateAccount({ id: ${JSON.stringify(accountId)}, patch: { signature: '', signatureHtml: null } })`)
           .catch(() => {});
       }
     }
@@ -4678,6 +4680,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('points')) await verifyDeckPoints({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('rtl')) await verifyWordRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('junk')) await verifyMailJunk({ open, check, until, wait, errorsIn });
+    if (only.includes('richsignature')) await verifyMailRichSignature({ open, check, until, wait, errorsIn });
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
@@ -4896,6 +4899,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckPoints({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyMailJunk({ open, check, until, wait, errorsIn }));
+  await block(() => verifyMailRichSignature({ open, check, until, wait, errorsIn }));
   await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => wordMailMerge());
