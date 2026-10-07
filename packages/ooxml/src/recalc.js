@@ -20,6 +20,7 @@
 import { Spreadsheet, isError, formatNumber } from '@rutba/formula';
 import { Workbook, parseRef, makeRef } from './workbook.js';
 import { OoxmlPackage } from './package.js';
+import { toFileFormula } from './xlfn.js';
 
 /**
  * Load a workbook's cells and defined names into a calculation model.
@@ -236,9 +237,19 @@ export function writeCachedValue(wb, sheetName, ref, formula, value, { arrayRef 
   // FOLLOWS the spill as edits grow or shrink it; a cell that is not an
   // anchor keeps whatever `<f>` it already had, verbatim.
   const fXml = arrayRef
-    ? '<f t="array" ref="' + arrayRef + '">' + escapeXml(String(formula).replace(/^=/, '')) + '</f>'
-    : (fMatch ? fMatch[0] : '<f>' + escapeXml(String(formula).replace(/^=/, '')) + '</f>');
+    ? '<f t="array" ref="' + arrayRef + '">' + escapeXml(toFileFormula(String(formula).replace(/^=/, ''))) + '</f>'
+    : (fMatch ? fMatch[0] : '<f>' + escapeXml(toFileFormula(String(formula).replace(/^=/, ''))) + '</f>');
 
+  // A spill is a dynamic array to Excel 365 when its cell names the
+  // workbook's dynamic-array metadata (`cm`); an older Excel ignores that
+  // and reads the array formula. A formula written afresh drops a `cm` it
+  // no longer means; one kept verbatim keeps its own.
+  if (arrayRef) {
+    const cm = typeof wb.dynamicArrayMetadata === 'function' ? wb.dynamicArrayMetadata() : null;
+    attrs = attrs.replace(/\s+cm="[^"]*"/, '') + (cm ? ' cm="' + cm + '"' : '');
+  } else if (!fMatch) {
+    attrs = attrs.replace(/\s+cm="[^"]*"/, '');
+  }
   // The cached value's type attribute must agree with what we cached.
   attrs = attrs.replace(/\s+t="[^"]*"/, '');
   let vXml;

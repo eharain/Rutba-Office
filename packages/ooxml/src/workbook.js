@@ -23,6 +23,7 @@
  */
 import { OoxmlPackage, attrs, esc } from './package.js';
 import { passwordAttrs, hasPassword, checkPassword } from './protection.js';
+import { toFileFormula, fromFileFormula } from './xlfn.js';
 
 const REL_HYPERLINK = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink';
 const XMLNS_R = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -31,6 +32,12 @@ const REL_COMMENTS = 'http://schemas.openxmlformats.org/officeDocument/2006/rela
 const REL_VML = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/vmlDrawing';
 const CT_COMMENTS = 'application/vnd.openxmlformats-officedocument.spreadsheetml.comments+xml';
 const CT_VML = 'application/vnd.openxmlformats-officedocument.vmlDrawing';
+/** The cell metadata Excel 365 writes for dynamic arrays: one XLDAPR entry, the first a `cm="1"` names. */
+const DYNAMIC_ARRAY_METADATA = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\r\n'
+  + '<metadata xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:xda="http://schemas.microsoft.com/office/spreadsheetml/2017/dynamicarray">'
+  + '<metadataTypes count="1"><metadataType name="XLDAPR" minSupportedVersion="120000" copy="1" pasteAll="1" pasteValues="1" merge="1" splitFirst="1" rowColShift="1" clearFormats="1" clearComments="1" assign="1" coerce="1" cellMeta="1"/></metadataTypes>'
+  + '<futureMetadata name="XLDAPR" count="1"><bk><extLst><ext uri="{bdbb8cdc-fa1e-496e-a857-3c3f30c029c3}"><xda:dynamicArrayProperties fDynamic="1" fCollapsed="0"/></ext></extLst></bk></futureMetadata>'
+  + '<cellMetadata count="1"><bk><rc t="1" v="0"/></bk></cellMetadata></metadata>';
 /** Where `<legacyDrawing>` goes in a worksheet: after the drawing, before what follows it. */
 const AFTER_LEGACY_DRAWING = /<legacyDrawingHF\b|<picture\b|<oleObjects\b|<controls\b|<webPublishItems\b|<tableParts\b|<extLst\b|<\/worksheet>/;
 const REL_TABLE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/table';
@@ -1303,7 +1310,8 @@ function renderCell(ref, value, style) {
   if (text.startsWith('=')) {
     // Drop any cached <v>: a stale cached result next to a new formula is worse
     // than none, and the consumer recalculates on open.
-    return '<c r="' + ref + '"' + s + '><f>' + esc(text.slice(1)) + '</f></c>';
+    // As Excel writes it: a function newer than 2007 prefixed, or Excel shows #NAME?.
+    return '<c r="' + ref + '"' + s + '><f>' + esc(toFileFormula(text.slice(1))) + '</f></c>';
   }
   return '<c r="' + ref + '"' + s + ' t="inlineStr"><is><t xml:space="preserve">' + esc(text) + '</t></is></c>';
 }
@@ -1881,7 +1889,8 @@ export class Workbook {
     // matched this regex and always fell through to the value — the paired
     // form now does the same.)
     const f = /<f([^>]*)>([\s\S]*?)<\/f>/.exec(cell.inner);
-    if (f && !/\bt="dataTable"/.test(f[1])) return '=' + unesc(f[2]);
+    // As a person reads it: Excel's file prefixes (`_xlfn.`, `_xlpm.`) off.
+    if (f && !/\bt="dataTable"/.test(f[1])) return '=' + fromFileFormula(unesc(f[2]));
     const v = /<v>([\s\S]*?)<\/v>/.exec(cell.inner);
     if (cell.type === 's' && v) return this.sharedStrings()[Number(v[1])] ?? null;
     if (cell.type === 'inlineStr' || cell.type === 'str') {
@@ -2256,6 +2265,34 @@ export class Workbook {
    * and appending it at the end of a workbook that lists a pivot cache would
    * be exactly the kind of violation the Office gate exists to catch.
    */
+  /**
+   * The `cm` a spilling formula's cell carries so Excel 365 reads it as a
+   * dynamic array — an index into the workbook's cell metadata whose entry
+   * points at the XLDAPR dynamic-array properties. The metadata part is
+   * written, as Excel writes it, when the workbook has none; a workbook
+   * whose metadata says nothing of dynamic arrays answers null, and its
+   * spill stays the plain array formula every Excel can read.
+   */
+  dynamicArrayMetadata() {
+    const rel = this.pkg.rels(this.mainPart).find((r) => /\/sheetMetadata$/.test(r.Type));
+    if (!rel) {
+      if (!this.pkg.has('xl/metadata.xml')) {
+        this.pkg.addPart('xl/metadata.xml', Buffer.from(DYNAMIC_ARRAY_METADATA, 'utf8'), 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheetMetadata+xml');
+        this.pkg.addRelationshipTo(this.mainPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/sheetMetadata', 'metadata.xml');
+        return 1;
+      }
+      return null;
+    }
+    const part = OoxmlPackage.resolveTarget(this.mainPart, rel.Target);
+    if (!this.pkg.has(part)) return null;
+    const xml = this.pkg.text(part);
+    const type = [...xml.matchAll(/<metadataType\b[^>]*\bname="([^"]*)"/g)].map((m) => m[1]).indexOf('XLDAPR') + 1;
+    const cells = /<cellMetadata\b[^>]*>([\s\S]*?)<\/cellMetadata>/.exec(xml);
+    if (!type || !cells) return null;
+    const at = [...cells[1].matchAll(/<bk>([\s\S]*?)<\/bk>/g)].findIndex((b) => new RegExp('<rc\\b[^>]*\\bt="' + type + '"').test(b[1]));
+    return at >= 0 ? at + 1 : null;
+  }
+
   setFullCalcOnLoad() {
     const xml = this.pkg.text(this.mainPart);
     if (/fullCalcOnLoad="1"/.test(xml)) return this;
