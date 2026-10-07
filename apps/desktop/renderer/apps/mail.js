@@ -60,6 +60,9 @@ export default function Mail({ app, shell }) {
   const [accounts, setAccounts] = useState([]);
   const [accountId, setAccountId] = useState(null);
   const [folders, setFolders] = useState([]);
+  // Bumped when mail arrives or a message moves: a folder the move made, and
+  // every folder's count, are read again.
+  const [folderTick, setFolderTick] = useState(0);
   const [folder, setFolder] = useState(null);
   const [role, setRole] = useState('inbox');
   const [list, setList] = useState({ rows: [], total: 0 });
@@ -163,7 +166,7 @@ export default function Mail({ app, shell }) {
         );
       })
       .catch(() => setFolders([]));
-  }, [accountId, unified, shell]);
+  }, [accountId, unified, shell, folderTick]);
 
   const refreshList = useCallback(async () => {
     if (view !== 'mail') return;
@@ -237,6 +240,7 @@ export default function Mail({ app, shell }) {
       setProgress(null);
       loadAccounts();
       refreshList();
+      setFolderTick((n) => n + 1);
     });
     const offSent = shell.on('mail:sent', ({ to }) => {
       toast(`Sent to ${to}`, { tone: 'good' });
@@ -382,6 +386,7 @@ export default function Mail({ app, shell }) {
     async (row, event) => {
       event.stopPropagation();
       await shell.mail.flag({ accountId: row.accountId, folder: row.folder, ids: [row.id], patch: { flagged: !row.flagged } });
+        setFolderTick((n) => n + 1);
       setList((current) => ({
         ...current,
         rows: current.rows.map((r) => (r.id === row.id && r.folder === row.folder ? { ...r, flagged: !r.flagged } : r)),
