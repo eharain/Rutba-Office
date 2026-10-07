@@ -20,6 +20,7 @@ import { insightFor } from './mail-insight.js';
 import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
 import { planAutoReplies, buildReply } from './mail-ooo.js';
+import { junkSettings, junkVerdict, learn as learnJunk, listSender as listJunkSender, listEntry, JUNK_LEVELS, JUNK_REASONS, ready as junkReady, MIN_LEARNED } from './mail-junk.js';
 
 // A check run never asks the network where a mail server is, and never opens
 // a real SMTP connection either — see `defaultTransport` below.
@@ -120,7 +121,7 @@ function fakeTransport() {
   return { async send() { return { messageId: `check-${crypto.randomUUID()}` }; } };
 }
 
-/** Is this address one of the cards in Contacts? Used only for "reply to contacts only". */
+/** Is this address one of the cards in Contacts? For "reply to contacts only", and the junk filter's trust in them. */
 function isKnownContact(contacts, address) {
   const target = String(address || '').trim().toLowerCase();
   if (!target || !contacts) return false;
@@ -197,6 +198,19 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
   const folderFor = (accountId, role) =>
     (store.folders(accountId) || []).find((f) => classify(f.name || f.path).role === role)?.path || null;
 
+  /** A folder's role — inbox, junk, trash… — by the name the account gives it. */
+  const roleOf = (accountId, folderPath) =>
+    classify((store.folders(accountId) || []).find((f) => f.path === folderPath)?.name || folderPath).role;
+
+  /** The junk settings and what the filter has learned, as kept in settings. */
+  const junk = () => junkSettings(stores.settings.get('mail.junk', null));
+  const saveJunk = (settings) => stores.settings.set('mail.junk', settings);
+  /** What the window shows of them: everything but the word counts. */
+  const junkView = (s = junk()) => ({
+    level: s.level, safe: s.safe, blocked: s.blocked, trustContacts: s.trustContacts,
+    learned: { junk: s.model.junk, good: s.model.good }, ready: junkReady(s.model), minimum: MIN_LEARNED,
+  });
+
   const find = (id) => {
     const account = accounts().find((a) => a.id === id);
     if (!account) throw new Error('That account is not set up.');
@@ -212,8 +226,32 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
    * nobody an explanation about which folder it landed in.
    */
   async function runArrivalPipeline(accountId, folder, added) {
-    if (!added) return { filed: null, autoReplied: 0 };
-    const { rows } = store.list(accountId, folder, { limit: added });
+    if (!added) return { filed: null, autoReplied: 0, junked: 0 };
+    let { rows } = store.list(accountId, folder, { limit: added });
+
+    // Junk first, and only for what lands in the Inbox: what the filter
+    // files there is not for a rule to sort or an automatic reply to answer.
+    // The message keeps why, for the reading pane to say.
+    let junked = 0;
+    if (roleOf(accountId, folder) === 'inbox') {
+      const settings = junk();
+      const isContact = (address) => isKnownContact(contacts, address);
+      const to = folderFor(accountId, 'junk') || 'Junk';
+      const kept = [];
+      for (const row of rows) {
+        const message = store.get(accountId, folder, row.id);
+        const verdict = message ? junkVerdict(message, settings, { isContact }) : { junk: false };
+        if (!verdict.junk) {
+          kept.push(row);
+          continue;
+        }
+        store.put(accountId, to, { ...message, junk: { why: verdict.why, reason: JUNK_REASONS[verdict.why], score: verdict.score } }, { force: true });
+        store.remove(accountId, folder, row.id);
+        junked++;
+      }
+      if (junked) store.upsertFolder(accountId, { path: to, name: to.split('/').pop(), ...classify(to) });
+      rows = kept;
+    }
     const freshMessages = rows.map((r) => store.get(accountId, folder, r.id)).filter(Boolean);
 
     let filed = null;
@@ -250,7 +288,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       }
     }
 
-    return { filed, autoReplied };
+    return { filed, autoReplied, junked };
   }
 
   /**
@@ -585,10 +623,10 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       // arrived rather than over the whole folder — re-running either across
       // 50,000 old messages every fetch would be a different and much slower
       // feature. See runArrivalPipeline.
-      const { filed, autoReplied } = await runArrivalPipeline(accountId, folder || 'Inbox', added);
+      const { filed, autoReplied, junked } = await runArrivalPipeline(accountId, folder || 'Inbox', added);
 
-      if (added) broadcast?.('mail:new', { accountId, folder, count: added, filed });
-      return { added, filed, autoReplied, total: store.counts(accountId, folder || 'Inbox').total };
+      if (added) broadcast?.('mail:new', { accountId, folder, count: added, filed, junked });
+      return { added, filed, autoReplied, junked, total: store.counts(accountId, folder || 'Inbox').total };
     },
 
     /**
@@ -605,9 +643,9 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       parsed.unread = true;
       const added = store.putMany(accountId, folder, [parsed]);
       store.upsertFolder(accountId, { path: folder, name: folder, ...classify(folder) });
-      return runArrivalPipeline(accountId, folder, added).then(({ filed, autoReplied }) => {
-        if (added) broadcast?.('mail:new', { accountId, folder, count: added, filed });
-        return { added, autoReplied };
+      return runArrivalPipeline(accountId, folder, added).then(({ filed, autoReplied, junked }) => {
+        if (added) broadcast?.('mail:new', { accountId, folder, count: added, filed, junked });
+        return { added, autoReplied, junked };
       });
     },
 
@@ -813,14 +851,85 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     },
 
     move: ({ accountId, folder, ids, to }) => {
+      // Moving teaches the junk filter: a message put in Junk by hand is
+      // junk, one taken out of it to anywhere but the Trash is not — and
+      // leaves its note on why it was there behind.
+      const from = roleOf(accountId, folder);
+      const into = roleOf(accountId, to);
+      const teach = into === 'junk' && from !== 'junk' ? true : from === 'junk' && into !== 'junk' && into !== 'trash' ? false : null;
+      let settings = teach === null ? null : junk();
       for (const id of ids || []) {
         const message = store.get(accountId, folder, id);
         if (!message) continue;
-        store.put(accountId, to, message, { force: true });
+        const { junk: _note, ...clean } = message;
+        if (settings) settings = learnJunk(settings, clean, teach);
+        store.put(accountId, to, into === 'junk' ? message : clean, { force: true });
         store.remove(accountId, folder, id);
       }
+      if (settings) saveJunk(settings);
       store.upsertFolder(accountId, { path: to, name: to.split('/').pop() });
       return { moved: (ids || []).length };
+    },
+
+    /** Junk Email Options as the window shows them, and what the filter has learned. */
+    junk: () => junkView(),
+
+    /**
+     * Change Junk Email Options: the level, the Safe and Blocked Senders
+     * lists, whether contacts are trusted. A list entry that is neither an
+     * address nor a domain is refused by name rather than kept and ignored.
+     */
+    setJunk: ({ patch = {} }) => {
+      const current = junk();
+      const next = { ...current };
+      if ('level' in patch) {
+        if (!JUNK_LEVELS.includes(patch.level)) throw new Error(`"${patch.level}" is not a junk filter level.`);
+        next.level = patch.level;
+      }
+      for (const list of ['safe', 'blocked']) {
+        if (!(list in patch)) continue;
+        const entries = (patch[list] || []).map((v) => String(v).trim()).filter(Boolean);
+        const bad = entries.find((v) => !listEntry(v));
+        if (bad) throw new Error(`"${bad}" is not an address or a domain.`);
+        next[list] = [...new Set(entries.map(listEntry))];
+      }
+      if ('trustContacts' in patch) next.trustContacts = Boolean(patch.trustContacts);
+      saveJunk(next);
+      return junkView(next);
+    },
+
+    /** Block Sender, Never Block Sender, Never Block Sender's Domain: onto one list and off the other. */
+    listSender: ({ address, list }) => {
+      if (list !== 'safe' && list !== 'blocked') throw new Error('A sender goes on the Safe or the Blocked list.');
+      const next = listJunkSender(junk(), address, list);
+      saveJunk(next);
+      return junkView(next);
+    },
+
+    /** Not Junk: back to the Inbox, and the filter learns it was good. */
+    notJunk: ({ accountId, folder, ids }) => {
+      const inbox = folderFor(accountId, 'inbox') || 'INBOX';
+      return service.move({ accountId, folder, ids, to: inbox });
+    },
+
+    /**
+     * Learn from the mail already here — what is in Junk as junk, the
+     * Inbox as good, the newest few hundred of each — so the filter can
+     * start without a person marking a dozen messages first.
+     */
+    learnJunk: ({ accountId, limit = 400 }) => {
+      let settings = junk();
+      const before = { junk: settings.model.junk, good: settings.model.good };
+      for (const [role, isJunk] of [['junk', true], ['inbox', false]]) {
+        const folder = folderFor(accountId, role);
+        if (!folder) continue;
+        for (const row of store.list(accountId, folder, { limit }).rows) {
+          const message = store.get(accountId, folder, row.id);
+          if (message) settings = learnJunk(settings, message, isJunk);
+        }
+      }
+      saveJunk(settings);
+      return { ...junkView(settings), added: { junk: settings.model.junk - before.junk, good: settings.model.good - before.good } };
     },
 
     delete: ({ accountId, folder, ids }) => {

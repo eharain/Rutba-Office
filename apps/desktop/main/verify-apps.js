@@ -90,6 +90,7 @@ import { verifySheetPivotFields } from './verify-sheet-pivot-fields.js';
 import { verifyDeck3d } from './verify-deck-3d.js';
 import { verifyDeckPoints } from './verify-deck-points.js';
 import { verifyWordRtl } from './verify-word-rtl.js';
+import { verifyMailJunk } from './verify-mail-junk.js';
 import { verifyWordMailMerge } from './verify-word-mailmerge.js';
 import { verifyWordLabels } from './verify-word-labels.js';
 import { verifyOutline } from './verify-outline.js';
@@ -4676,6 +4677,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('deck3d')) await verifyDeck3d({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('points')) await verifyDeckPoints({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('rtl')) await verifyWordRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('junk')) await verifyMailJunk({ open, check, until, wait, errorsIn });
     if (only.includes('wordindex')) await verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('figures')) await verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir });
     if (only.includes('mailmerge')) await wordMailMerge();
@@ -4893,6 +4895,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeck3d({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyDeckPoints({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await block(() => verifyMailJunk({ open, check, until, wait, errorsIn }));
   await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => wordMailMerge());

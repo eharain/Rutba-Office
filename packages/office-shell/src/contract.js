@@ -168,7 +168,12 @@ export const METHODS = {
     'deleteRule',   // ({ id }) -> { removed }
     'testRules',    // ({ accountId, folder }) -> { matched, of, sample }  changes nothing
     'runRules',     // ({ accountId, folder }) -> { matched, moved, starred, read, deleted }
-    'deliverTest',  // ({ accountId, folder, raw }) -> { added, autoReplied } — a fake message arriving; refused outside a check run
+    'deliverTest',  // ({ accountId, folder, raw }) -> { added, autoReplied, junked } — a fake message arriving; refused outside a check run
+    'junk',         // () -> { level, safe, blocked, trustContacts, learned, ready, minimum }
+    'setJunk',      // ({ patch }) -> the same, changed
+    'listSender',   // ({ address, list: 'safe'|'blocked' }) -> the same
+    'notJunk',      // ({ accountId, folder, ids }) -> { moved }  back to the Inbox, learned as good
+    'learnJunk',    // ({ accountId }) -> the same, with what was learned now
   ],
   calendar: [
     'calendars',      // () -> [{ id, name, colour, visible, count }]

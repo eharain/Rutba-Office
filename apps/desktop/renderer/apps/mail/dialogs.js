@@ -968,3 +968,110 @@ export function ImportingDialog({ path, progress }) {
     </Dialog>
   );
 }
+
+/* ── junk email options ───────────────────────────────────────────────────── */
+
+const JUNK_CHOICES = [
+  ['off', 'No automatic filtering', 'Only senders on your Blocked Senders list go to Junk.'],
+  ['low', 'Low', 'The most obvious junk goes to Junk.'],
+  ['high', 'High', 'More junk is caught, and now and then a good message with it — look in Junk once in a while.'],
+  ['safeOnly', 'Safe Lists Only', 'Anything not from a Safe Sender or a contact goes to Junk.'],
+];
+
+/**
+ * Junk Email Options, as Outlook lays them out: how hard the filter looks,
+ * the two lists, and — what Outlook does not show — what the filter has
+ * learned so far, with a way to teach it from the mail already here.
+ */
+export function JunkDialog({ shell, accountId, onClose, onSaved, toast }) {
+  const [form, setForm] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [learning, setLearning] = useState(false);
+  const set = (patch) => setForm((f) => ({ ...f, ...patch }));
+  const load = (j) => setForm({ level: j.level, safe: j.safe.join('\n'), blocked: j.blocked.join('\n'), trustContacts: j.trustContacts, learned: j.learned, ready: j.ready, minimum: j.minimum });
+
+  useEffect(() => {
+    shell.mail.junk().then(load).catch((err) => toast(err.message, { tone: 'bad' }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const lines = (text) => String(text || '').split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
+
+  const save = useCallback(async () => {
+    if (!form) return;
+    setSaving(true);
+    try {
+      await shell.mail.setJunk({ patch: { level: form.level, safe: lines(form.safe), blocked: lines(form.blocked), trustContacts: form.trustContacts } });
+      toast('Junk email options saved', { tone: 'good' });
+      onSaved?.();
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    } finally {
+      setSaving(false);
+    }
+  }, [shell, form, onSaved, toast]);
+
+  const learn = useCallback(async () => {
+    if (!accountId) return;
+    setLearning(true);
+    try {
+      const j = await shell.mail.learnJunk({ accountId });
+      setForm((f) => ({ ...f, learned: j.learned, ready: j.ready }));
+      toast(`Learned from ${j.added.junk} junk and ${j.added.good} good message${j.added.good === 1 ? '' : 's'}`, { tone: 'good' });
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    } finally {
+      setLearning(false);
+    }
+  }, [shell, accountId, toast]);
+
+  return (
+    <Dialog
+      title="Junk email options"
+      width={560}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label={saving ? 'Saving…' : 'Save'} disabled={saving || !form} onClick={save} />
+        </>
+      }
+    >
+      {!form ? <Spinner /> : (
+        <>
+          <div className="ml-junk-levels" role="radiogroup" aria-label="How hard the filter looks">
+            {JUNK_CHOICES.map(([value, label, hint]) => (
+              <label key={value} className={`ml-junk-level${form.level === value ? ' on' : ''}`}>
+                <input type="radio" name="ml-junk-level" value={value} checked={form.level === value} onChange={() => set({ level: value })} />
+                <span><strong>{label}</strong><span className="rw-hint">{hint}</span></span>
+              </label>
+            ))}
+          </div>
+
+          <div className="ml-junk-learned">
+            <span>
+              {form.ready
+                ? `The filter has learned from ${form.learned.junk} junk and ${form.learned.good} good messages.`
+                : `The filter has learned from ${form.learned.junk} junk and ${form.learned.good} good messages, and judges nothing until it has seen ${form.minimum} of each. Mark messages Junk and Not junk, or learn from what is already here.`}
+            </span>
+            <Button label={learning ? 'Learning…' : 'Learn from my folders'} title="What is in Junk is learned as junk, the Inbox as good" disabled={learning || !accountId} onClick={learn} />
+          </div>
+
+          <label className="ml-ooo-toggle ml-junk-contacts">
+            <input type="checkbox" checked={form.trustContacts} onChange={(e) => set({ trustContacts: e.target.checked })} />
+            <span>Trust email from my contacts</span>
+          </label>
+
+          <div className="ml-servers3" style={{ gridTemplateColumns: '1fr 1fr' }}>
+            <Field label="Safe Senders" hint="Never junk. One address or domain a line.">
+              <textarea className="rw-input ml-junk-safe" rows={6} value={form.safe} onChange={(e) => set({ safe: e.target.value })} placeholder={'friend@example.com\nexample.org'} />
+            </Field>
+            <Field label="Blocked Senders" hint="Always junk.">
+              <textarea className="rw-input ml-junk-blocked" rows={6} value={form.blocked} onChange={(e) => set({ blocked: e.target.value })} placeholder="@offers.example" />
+            </Field>
+          </div>
+        </>
+      )}
+    </Dialog>
+  );
+}

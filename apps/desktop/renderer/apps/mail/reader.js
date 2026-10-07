@@ -29,6 +29,8 @@ export default function Reader({
   invitation = null,
   onRespond,
   onKeepSender,
+  inJunk = false,
+  onNotJunk,
 }) {
   const frameRef = useRef(null);
   const [height, setHeight] = useState(600);
@@ -89,6 +91,13 @@ export default function Reader({
           <Button icon="forward" title="Forward" onClick={onForward} />
         </div>
 
+        {inJunk ? (
+          <div className="ml-junk-note">
+            <Icon name="spam" size={15} />
+            <span>{message.junk?.reason ? `This message is in Junk because ${message.junk.reason}.` : 'This message is in Junk.'}</span>
+            <Button label="Not junk" onClick={onNotJunk} />
+          </div>
+        ) : null}
         {invitation ? (
           <div className="ml-invite">
             <Icon name="calendar" size={18} />

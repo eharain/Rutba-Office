@@ -501,6 +501,22 @@ select.rw-input { appearance: auto; }
 
 /* an Outbox item's own actions -------------------------------------------- */
 .ml-outbox-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+/* junk: the reading pane's note, and Junk Email Options ------------------- */
+.ml-junk-note {
+  display: flex; align-items: center; gap: 10px; margin: 10px 0 0; padding: 8px 12px;
+  border: 1px solid var(--line); border-radius: var(--r-2); background: var(--surface-2, var(--accent-soft));
+  font-size: 12.5px; color: var(--ink);
+}
+.ml-junk-note > span { flex: 1; min-width: 0; }
+.ml-junk-levels { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.ml-junk-level { display: flex; align-items: flex-start; gap: 10px; padding: 7px 10px; border-radius: var(--r-2); cursor: pointer; font-size: 12.5px; }
+.ml-junk-level.on { background: var(--accent-soft); }
+.ml-junk-level input { margin: 2px 0 0; }
+.ml-junk-level > span { display: flex; flex-direction: column; gap: 1px; }
+.ml-junk-learned { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-2); font-size: 12.5px; color: var(--ink-2); }
+.ml-junk-learned > span { flex: 1; min-width: 0; }
+.ml-junk-safe, .ml-junk-blocked { width: 100%; resize: vertical; font: inherit; font-size: 12.5px; }
 `;
 
 /** Injected once, rather than per render of a large tree. */

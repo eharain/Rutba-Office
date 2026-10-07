@@ -29,7 +29,7 @@ import { DefaultsDialog } from '../defaults.js';
 import { avatarFor, displayName, buildThreads, arrange, FILTERS, SORTS, installStyles, stripTags } from './mail/parts.js';
 import Reader from './mail/reader.js';
 import Compose from './mail/compose.js';
-import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog } from './mail/dialogs.js';
+import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog, JunkDialog } from './mail/dialogs.js';
 import { RulesDialog } from './mail/rules.js';
 import { withSignature } from '@rutba/mailbox/signature';
 
@@ -357,6 +357,18 @@ export default function Mail({ app, shell }) {
           await overRows(chosen, (g) => shell.mail.move({ ...g, to: foldersFor(g.accountId).find((f) => f.role === 'archive')?.path || 'Archive' }));
         } else if (what === 'junk') {
           await overRows(chosen, (g) => shell.mail.move({ ...g, to: foldersFor(g.accountId).find((f) => f.role === 'junk')?.path || 'Junk' }));
+        } else if (what === 'notJunk') {
+          await overRows(chosen, (g) => shell.mail.notJunk(g));
+        } else if (what === 'block' || what === 'safe' || what === 'safeDomain') {
+          // Block Sender, Never Block Sender, Never Block Sender's Domain: the
+          // list changed, then the message put where the list now says.
+          const senders = [...new Set(chosen.map((r) => String(r.from?.address || '').toLowerCase()).filter((a) => a.includes('@')))];
+          const entries = senders.map((a) => (what === 'safeDomain' ? '@' + a.split('@').pop() : a));
+          for (const address of new Set(entries)) await shell.mail.listSender({ address, list: what === 'block' ? 'blocked' : 'safe' });
+          const inJunk = (r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk');
+          if (what === 'block') await overRows(chosen.filter((r) => !inJunk(r)), (g) => shell.mail.move({ ...g, to: foldersFor(g.accountId).find((f) => f.role === 'junk')?.path || 'Junk' }));
+          else await overRows(chosen.filter(inJunk), (g) => shell.mail.notJunk(g));
+          toast(`${entries.length === 1 ? entries[0] : `${entries.length} senders`} added to ${what === 'block' ? 'Blocked' : 'Safe'} Senders`, { tone: 'good' });
         } else if (what === 'move') {
           await overRows(chosen, (g) => shell.mail.move({ ...g, to: extra }));
         } else if (what === 'read') {
@@ -371,14 +383,15 @@ export default function Mail({ app, shell }) {
           await overRows(chosen, (g) => shell.mail.flag({ ...g, patch: { pinned: on } }));
         }
         setChecked(new Set());
-        if (what === 'delete' || what === 'archive' || what === 'junk' || what === 'move') setSelected(null);
+        if (['delete', 'archive', 'junk', 'move', 'notJunk', 'block'].includes(what)) setSelected(null);
         await refreshList();
         await loadAccounts();
+        setFolderTick((n) => n + 1);
       } catch (err) {
         toast(err.message, { tone: 'bad' });
       }
     },
-    [targets, overRows, foldersFor, shell, refreshList, loadAccounts, toast]
+    [targets, overRows, foldersFor, unified, role, shell, refreshList, loadAccounts, toast]
   );
 
   /** Star one message from the list without opening it. */
@@ -386,7 +399,6 @@ export default function Mail({ app, shell }) {
     async (row, event) => {
       event.stopPropagation();
       await shell.mail.flag({ accountId: row.accountId, folder: row.folder, ids: [row.id], patch: { flagged: !row.flagged } });
-        setFolderTick((n) => n + 1);
       setList((current) => ({
         ...current,
         rows: current.rows.map((r) => (r.id === row.id && r.folder === row.folder ? { ...r, flagged: !r.flagged } : r)),
@@ -890,6 +902,22 @@ export default function Mail({ app, shell }) {
     [menu, folders, folder, act]
   );
 
+  // Home → Junk, Outlook's menu: mark, unmark, the two lists and the options.
+  const inJunk = unified ? role === 'junk' : current?.role === 'junk';
+  const junkMenu = (event) => {
+    const none = !selected && !checked.size;
+    menu.open(event, [
+      { label: 'Mark as junk', icon: 'spam', disabled: none || inJunk, run: () => act('junk') },
+      { label: 'Not junk', icon: 'inbox', disabled: none || !inJunk, run: () => act('notJunk') },
+      '-',
+      { label: 'Block sender', disabled: none, run: () => act('block') },
+      { label: 'Never block sender', disabled: none, run: () => act('safe') },
+      { label: "Never block sender's domain", disabled: none, run: () => act('safeDomain') },
+      '-',
+      { label: 'Junk email options…', icon: 'settings', run: () => setDialog({ kind: 'junk' }) },
+    ]);
+  };
+
   return (
     <AppFrame
       app={app}
@@ -924,7 +952,7 @@ export default function Mail({ app, shell }) {
               <Group label="Delete">
                 <Button tall icon="trash" label="Delete" disabled={!selected && !checked.size} onClick={() => act('delete')} />
                 <Button icon="archive" label="Archive" disabled={!selected && !checked.size} onClick={() => act('archive')} />
-                <Button icon="spam" label="Junk" disabled={!selected && !checked.size} onClick={() => act('junk')} />
+                <Button icon="spam" label="Junk" title="Junk — mark, block a sender, or the junk filter's options" onClick={junkMenu} />
               </Group>
               <Group label="Respond">
                 <Button tall icon="reply" label="Reply" disabled={!message} onClick={() => reply(false)} />
@@ -1402,6 +1430,8 @@ export default function Mail({ app, shell }) {
                       onForward={forward}
                       onUnsubscribe={unsubscribe}
                       onSender={(from) => from?.address && setQuery(from.address)}
+                      inJunk={inJunk}
+                      onNotJunk={() => act('notJunk')}
                     />
                   ) : (
                     <Empty icon="mail" title="No message selected">
@@ -1540,6 +1570,16 @@ export default function Mail({ app, shell }) {
             setDialog(null);
             loadAccounts();
           }}
+          toast={toast}
+        />
+      ) : null}
+
+      {dialog?.kind === 'junk' ? (
+        <JunkDialog
+          shell={shell}
+          accountId={accountId && accountId !== EVERYTHING ? accountId : accounts[0]?.id}
+          onClose={() => setDialog(null)}
+          onSaved={() => setDialog(null)}
           toast={toast}
         />
       ) : null}
