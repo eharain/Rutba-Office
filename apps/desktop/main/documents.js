@@ -1780,6 +1780,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     replaceEquation: (v, a) => v.replaceEquation({ block: a.block, offset: a.offset, xml: equationXml(a) }),
     // A paste from within the suite that carries equations, as themselves.
     pasteRuns: (v, a) => v.pasteRuns(a.lines),
+    // Insert → Quick Parts: the selection as a building block keeps it, and a block put in.
+    buildingBlock: (v) => JSON.stringify(v.buildingBlock()),
+    insertBuildingBlock: (v, a) => v.insertBuildingBlock(a.block),
     setPageSetup: (v, a) => v.setPageSetup(a.spec),
     // Design → Page Colour: a colour behind every page, kept as Word keeps it.
     setPageColour: (v, a) => v.setPageColour(a.colour ?? null),
@@ -2076,7 +2079,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
    */
   const PROTECTION_OPS = new Set(['setProtection', 'stopProtection', 'setPermission']);
   /** Operations that change the words at the selection. */
-  const TEXT_OPS = new Set(['insertText', 'deleteBackward', 'deleteForward', 'deleteSelection', 'splitParagraph', 'pasteText', 'pasteRuns', 'tabCell', 'insertEquation', 'replaceEquation', 'insertImage', 'removeImage', 'setImageLayout', 'setImageSize', 'insertPageBreak', 'insertMergeField', 'insertNote', 'setNoteText', 'insertTable', 'insertChart', 'insertShape', 'insertCaption', 'insertCrossReference', 'tableOp', 'setTableColumnWidths', 'setTableRowHeight']);
+  const TEXT_OPS = new Set(['insertText', 'deleteBackward', 'deleteForward', 'deleteSelection', 'splitParagraph', 'pasteText', 'pasteRuns', 'insertBuildingBlock', 'tabCell', 'insertEquation', 'replaceEquation', 'insertImage', 'removeImage', 'setImageLayout', 'setImageSize', 'insertPageBreak', 'insertMergeField', 'insertNote', 'setNoteText', 'insertTable', 'insertChart', 'insertShape', 'insertCaption', 'insertCrossReference', 'tableOp', 'setTableColumnWidths', 'setTableRowHeight']);
   /** Operations that format the selection directly. */
   const FORMAT_OPS = new Set(['toggleFormat', 'setRunFormat', 'clearFormat', 'setParagraphFormat', 'setLink', 'setDropCap']);
 
@@ -2127,7 +2130,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

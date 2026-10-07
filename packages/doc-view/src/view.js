@@ -2443,6 +2443,70 @@ export class DocView {
     });
   }
 
+  /**
+   * Insert → Quick Parts → Save Selection: the selection as a building block
+   * keeps it — its words alone (`inline`) when it lies inside one
+   * paragraph, else the paragraphs it covers, whole. Null with nothing
+   * selected, or a backend that keeps no paragraphs (an email body).
+   */
+  buildingBlock() {
+    if (this.collapsed || typeof this.doc.portableParagraph !== 'function') return null;
+    const { from, to } = this.selection;
+    const lengthOf = (b) => (b?.runs || []).reduce((n, r) => n + (r.text ?? '').length, 0);
+    const first = this.block(from.block);
+    if (from.block === to.block && (from.offset > 0 || to.offset < lengthOf(first))) {
+      const xml = this.doc.portableRuns(sliceRuns(first.runs, from.offset, to.offset));
+      return xml ? { paragraphs: [xml], inline: true } : null;
+    }
+    // A selection that ends at the very start of a paragraph does not take it.
+    const last = to.offset === 0 && to.block > from.block ? to.block - 1 : to.block;
+    const paragraphs = [];
+    for (let i = from.block; i <= last; i++) {
+      if (this.block(i)?.structural) continue;
+      const xml = this.doc.portableParagraph(i);
+      if (xml) paragraphs.push(xml);
+    }
+    return paragraphs.length ? { paragraphs, inline: false } : null;
+  }
+
+  /**
+   * A building block put in at the caret, one undo step. Words alone go into
+   * the caret's paragraph; paragraphs go after it — the paragraph split
+   * first when the caret is inside it, the block put before it when the
+   * caret is at its start. With Track Changes on, what goes in is marked as
+   * put in. The caret ends after what went in.
+   */
+  insertBuildingBlock(block) {
+    const paragraphs = (block?.paragraphs || []).filter((p) => /^<w:p\b/.test(String(p)));
+    if (!paragraphs.length) throw new Error('a building block has words to put in');
+    if (typeof this.doc.insertParagraphsXml !== 'function') throw new Error('this document cannot take a building block');
+    return this._edit('building block', null, () => {
+      if (!this.collapsed) this.deleteSelection();
+      const lengthOf = (b) => (b?.runs || []).reduce((n, r) => n + (r.text ?? '').length, 0);
+      const meta = this.recording ? this._trackMeta(null) : null;
+      if (block.inline) {
+        const { block: at, offset } = this.focus;
+        const b = this._editable(at);
+        const runs = this.doc.runsOfXml(paragraphs[0]).filter((r) => !r.del).map((r) => (meta ? { ...r, ins: meta } : r));
+        const added = runs.reduce((n, r) => n + (r.text ?? '').length, 0);
+        this.doc.setParagraphRuns(at, coalesce([...sliceRuns(b.runs, 0, offset), ...runs, ...sliceRuns(b.runs, offset, Infinity)]));
+        this._invalidate();
+        this.collapseTo({ block: at, offset: offset + added });
+        return this;
+      }
+      let { block: at, offset } = this.focus;
+      this._editable(at);
+      const length = lengthOf(this.block(at));
+      if (offset > 0 && offset < length) this.splitParagraph();
+      const after = offset === 0 && length > 0 ? at - 1 : at;
+      const n = this.doc.insertParagraphsXml(after, meta ? paragraphs.map((p) => this.doc.markInserted(p, meta)) : paragraphs);
+      this._invalidate();
+      const end = after + n;
+      this.collapseTo({ block: end, offset: lengthOf(this.block(end)) });
+      return this;
+    });
+  }
+
   /** Replace a note's words — the number and the reference stay where they are. */
   setNoteText(kind, id, text) {
     if (typeof this.doc.setNoteText !== 'function') throw new Error('this document backend does not support footnotes');

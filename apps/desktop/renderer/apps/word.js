@@ -59,6 +59,7 @@ import { hyphenPoints, breakableWord, hyphenationRules } from '@rutba/doc-view/h
 /** The page's geometry before a section is known — A4-ish, Word's default margins. */
 const GEOM_DEFAULT = geomOf(null);
 import { useReferences, installReferencesStyles } from './word/references.js';
+import { useBuildingBlocks, BLOCKS_CSS } from './word/blocks.js';
 
 installMailingsStyles();
 installEnvelopeStyles();
@@ -1951,6 +1952,8 @@ export default function Word({ app, shell, boot }) {
   const review = useWordReview({ shell, doc, model, apply, toast, pageRef, setPicked, view, patchView, menu });
   // References → Citations & Bibliography (word/references.js).
   const references = useReferences({ shell, doc, model, apply, toast, layout: blockLayout, patchView });
+  // Insert → Quick Parts: the building block galleries, kept by the suite.
+  const blocks = useBuildingBlocks({ shell, apply, toast });
 
   const commands = useMemo(
     () => ({
@@ -2051,6 +2054,7 @@ export default function Word({ app, shell, boot }) {
           mailings={mailings}
           review={review}
           references={references}
+          blocks={blocks}
         />
       }
       status={
@@ -2761,6 +2765,7 @@ export default function Word({ app, shell, boot }) {
       {envelopes.node}
       {review.dialogs}
       {references.node}
+      {blocks.node ? <><style>{BLOCKS_CSS}</style>{blocks.node}</> : null}
 
       {dialog === 'tracked' ? (
         <TrackedDialog

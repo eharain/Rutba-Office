@@ -33,7 +33,8 @@
     "./docfields": "./src/docfields.js",
     "./mailmerge-run": "./src/mailmerge-run.js",
     "./labels": "./src/labels.js",
-    "./protection": "./src/protection.js"
+    "./protection": "./src/protection.js",
+    "./blocks": "./src/blocks.js"
   },
   "dependencies": {
     "@rutba/formula": "*"

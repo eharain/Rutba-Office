@@ -5049,6 +5049,22 @@ export class Document {
   }
 
   /** Insert a new paragraph after `index`, inheriting its paragraph properties. */
+  /**
+   * Whole paragraphs given as their XML — a building block's — put in after
+   * paragraph `index`, or before the first when `index` is -1. Returns how
+   * many went in. They are taken as given: fitting them to this document is
+   * the caller's (see blocks.js).
+   */
+  insertParagraphsXml(index, xmls = []) {
+    const list = xmls.filter((x) => /^<w:p\b[\s\S]*<\/w:p>$/.test(String(x)));
+    if (!list.length) return 0;
+    const p = this.paragraph(Math.max(0, index));
+    if (!p) throw new Error('no paragraph at index ' + index);
+    const at = index < 0 ? p.start : p.end;
+    this._spliceBody(at, at, list.join(''));
+    return list.length;
+  }
+
   insertParagraphAfter(index, runs = [], { inheritStyle = true } = {}) {
     const p = this.paragraph(index);
     if (!p) throw new Error('no paragraph at index ' + index);

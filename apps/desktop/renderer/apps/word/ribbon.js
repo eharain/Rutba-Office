@@ -116,7 +116,7 @@ const Soon = ({ icon, label, tall, why }) => (
 );
 
 export default function WordRibbon({
-  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null,
+  tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null, blocks = null,
 }) {
   const format = model?.format || {};
   const design = model?.design || null;
@@ -469,7 +469,7 @@ export default function WordRibbon({
               '-',
               { label: 'Draw Text Box', icon: 'shape', run: () => act('drawTextBox') },
             ])} />
-            {references ? <Button icon="file" label="Quick Parts" title="Quick Parts — put a field in the text: a page number, the date, the file's name" onClick={(e) => menu.open(e, references.quickParts())} /> : null}
+            {references ? <Button icon="file" label="Quick Parts" title="Quick Parts — words you keep to put in again, AutoText, a field: a page number, the date, the file's name" onClick={(e) => menu.open(e, [...(blocks?.head() || []), ...references.quickParts(), ...(blocks?.tail() || [])])} /> : null}
             <Button icon="wand" label="WordArt" title="WordArt — decorative words in a box of their own that floats on the page" onClick={(e) => menu.open(e, WORDART.map(([label, spec]) => ({ label, icon: 'wand', run: () => act('wordArt', spec) })))} />
             <Button icon="textbox" label="Drop Cap" title="Drop Cap — the first letter, framed to stand tall beside the words that follow it" onClick={(e) => menu.open(e, [
               { label: 'None', icon: !format.dropCap ? 'check' : undefined, run: () => dispatch({ op: 'setDropCap', spec: null }) },

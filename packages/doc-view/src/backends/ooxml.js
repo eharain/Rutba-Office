@@ -8,11 +8,12 @@
  * This is the ONLY file in `@rutba/doc-view` that imports `@rutba/ooxml`. Mail
  * imports the HTML backend instead and never pulls the format layer in.
  */
-import { Document, withToggle, hasToggle, langElement, themeColourHex, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection, splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf, splitParagraphChange, joinParagraphChange, withParagraphChange, attrs as parseAttrs, readBidi } from '@rutba/ooxml';
+import { Document, withToggle, hasToggle, langElement, themeColourHex, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection, splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf, splitParagraphChange, joinParagraphChange, withParagraphChange, attrs as parseAttrs, readBidi, parseRuns, renderRuns } from '@rutba/ooxml';
 import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene } from '@rutba/drawing';
 import { ommlToMathml, ommlToLinear, ommlInfo, asciiLinear } from '@rutba/ooxml/math';
 import { mergeToDocument, mergeMessages } from '@rutba/ooxml/mailmerge-run';
 import { DocView } from '../view.js';
+import { portableParagraph, fitParagraph } from '@rutba/ooxml/blocks';
 
 export class OoxmlBackend {
   constructor(doc) { this.doc = doc; }
@@ -74,6 +75,35 @@ export class OoxmlBackend {
   makeLink(url) { return this.doc.makeLink(url); }
   /** What a link token points at, for the toolbar and the painter. */
   linkTarget(token) { return this.doc.linkTarget(token); }
+
+  // ---- building blocks: Insert → Quick Parts --------------------------------
+  /** Paragraph `index` as a building block keeps it — see blocks.js. */
+  portableParagraph(index) {
+    const p = this.doc.paragraph(index);
+    return p ? portableParagraph(p.xml, { linkTarget: (rId) => this.doc.linkTarget(`r:id="${rId}"`) }) : null;
+  }
+  /** Runs — the selected words of one paragraph — as a paragraph a block keeps. */
+  portableRuns(runs) {
+    return portableParagraph('<w:p>' + renderRuns(runs) + '</w:p>', { linkTarget: (rId) => this.doc.linkTarget(`r:id="${rId}"`) });
+  }
+  /** A kept paragraph's runs, for words put in at the caret. */
+  runsOfXml(xml) { return parseRuns(String(xml)); }
+  /** A kept paragraph with each of its runs marked as put in — what tracking makes of it. */
+  markInserted(xml, meta) {
+    const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(String(xml))?.[0] ?? '';
+    return '<w:p>' + pPr + renderRuns(parseRuns(String(xml)).map((r) => ({ ...r, ins: meta }))) + '</w:p>';
+  }
+  /**
+   * Kept paragraphs put in after paragraph `index` (-1: before the first),
+   * fitted to this document first: a style or a list it has no definition
+   * for is taken off them.
+   */
+  insertParagraphsXml(index, xmls) {
+    const styles = new Set(Object.keys(this.doc.paragraphStyles() || {}));
+    const charStyles = new Set(Object.keys(this.doc.characterStyles() || {}));
+    const numIds = new Set(Object.keys(this.doc.numberingDefs() || {}));
+    return this.doc.insertParagraphsXml(index, xmls.map((x) => fitParagraph(x, { styles, charStyles, numIds })));
+  }
   /** Append a row to the table whose container key starts `t<tableStart>`. */
   appendTableRow(tableStart) { this.doc.appendTableRow(tableStart); return this; }
   /** Restructure an existing table — the contextual Table tab. */
