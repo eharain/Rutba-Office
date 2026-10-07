@@ -4898,8 +4898,6 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeck3d({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyDeckPoints({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyMailJunk({ open, check, until, wait, errorsIn }));
-  await block(() => verifyMailRichSignature({ open, check, until, wait, errorsIn }));
   await block(() => verifyWordIndex({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => verifyWordFigures({ open, check, until, wait, press, errorsIn, capture: shotTo, doc, sessionFor }, { dir }));
   await block(() => wordMailMerge());
@@ -6616,8 +6614,12 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   }
   await mailProviders();
   await mailSignature();
+  await verifyMailRichSignature({ open, check, until, wait, errorsIn });
   await mailSendLater();
   await mailOOO();
+  // Last of all: it leaves an Inbox and a Junk folder on the shared account,
+  // and a window opens on an Inbox before the seeded folder the others read.
+  await verifyMailJunk({ open, check, until, wait, errorsIn });
 
   // The section before is done: its windows go (see closeSince).
   await closeSince(tailMark);
