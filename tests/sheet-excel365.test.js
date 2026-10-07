@@ -171,3 +171,16 @@ test('renaming a sheet keeps what was just typed — it used to be lost to the r
   assert.equal(view.editValue(0, 1), '=Other!A1*2');
   assert.equal(view.calc.getValue('Data', 0, 2), 'typed');
 });
+
+test('adding or moving a sheet keeps what was just typed, and undo keeps it too', () => {
+  for (const step of ['add', 'move']) {
+    const view = SheetView.open(buildXlsx({ sheets: [{ name: 'Data', rows: [[1]] }, { name: 'Other', rows: [[21]] }] }));
+    view.setCell(0, 1, 'typed');
+    if (step === 'add') view.addSheet(); else view.moveSheet('Other', 0);
+    assert.equal(view.calc.getValue('Data', 0, 1), 'typed', step);
+    view.undo();
+    assert.deepEqual(view.sheetNames(), ['Data', 'Other'], step);
+    assert.equal(view.calc.getValue('Data', 0, 1), 'typed', step + ', undone');
+    assert.equal(SheetView.open(view.save()).calc.getValue('Data', 0, 1), 'typed', step + ', saved');
+  }
+});

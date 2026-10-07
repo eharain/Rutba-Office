@@ -991,11 +991,12 @@ export class SheetView {
     const proposed = String(name ?? '').trim() || this._freshSheetName();
     this.workbook._checkSheetName(proposed);
     this._edit('add sheet', null, [], () => {
+      // What was just typed goes into the parts first: the rebuild reads them.
+      this._flushForStructure();
       this.workbook.addSheet(proposed);
       this._rebuildDerivedState();
-      this._structuralDirty = true;
       return this;
-    }, { parts: [this.workbook.mainPart, 'xl/_rels/workbook.xml.rels'], tracksNewParts: true, structural: true, sheetGate: false });
+    }, { parts: [...this.workbook.sheets().map((s) => s.part), this.workbook.mainPart, 'xl/_rels/workbook.xml.rels'], tracksNewParts: true, structural: true, sheetGate: false });
     this.selectSheet(proposed);
     return proposed;
   }
@@ -1012,9 +1013,7 @@ export class SheetView {
     this._edit('rename sheet', null, [], () => {
       // What was just typed goes into the parts first — the rebuild below
       // reads them, and a formula typed a moment ago was lost to it.
-      this._flushPendingEdits();
-      this.dirtyCells.clear();
-      this.styledCells.clear();
+      this._flushForStructure();
       this.workbook.renameSheet(from, clean);
       if (this.activeSheet === from) this.activeSheet = clean;
       for (const map of [this.links, this.notes, this.geometry, this.cellStyles, this.merges, this.validations, this.conditionals]) {
@@ -1045,9 +1044,7 @@ export class SheetView {
     // into the parts first, so the rebuild below keeps what was just typed.
     const parts = [...new Set([...this.workbook.sheets().map((s) => s.part), this.workbook.mainPart, 'xl/_rels/workbook.xml.rels', '[Content_Types].xml', own])];
     this._edit('delete sheet', null, [], () => {
-      this._flushPendingEdits();
-      this.dirtyCells.clear();
-      this.styledCells.clear();
+      this._flushForStructure();
       this.workbook.removeSheet(name);
       if (this.activeSheet === name) this.activeSheet = this.sheetNames().find((n) => !hidden.has(n)) ?? this.sheetNames()[0];
       this.selection = Selection.at(0, 0);
@@ -2036,6 +2033,19 @@ export class SheetView {
       });
     }
     return out;
+  }
+
+  /**
+   * Before an edit that rebuilds everything from the parts — a sheet added,
+   * moved, renamed or deleted — what was typed since the last save goes into
+   * them, or the rebuild loses it. The document still reads as unsaved.
+   */
+  _flushForStructure() {
+    this._flushPendingEdits();
+    this.dirtyCells.clear();
+    this.styledCells.clear();
+    this._structuralDirty = true;
+    return this;
   }
 
   /** Write pending calc-level edits into the workbook parts, as save() would. */
@@ -5551,10 +5561,10 @@ export class SheetView {
     if (!this.sheetNames().includes(name)) throw new Error('no such sheet: ' + name);
     const was = this.activeSheet;
     this._edit('move sheet', null, [], () => {
+      this._flushForStructure();
       this.workbook.moveSheet(name, toIndex);
       this._rebuildDerivedState();
-      this._structuralDirty = true;
-    }, { parts: [this.workbook.mainPart], structural: true, sheetGate: false });
+    }, { parts: [...this.workbook.sheets().map((s) => s.part), this.workbook.mainPart], structural: true, sheetGate: false });
     this.activeSheet = was;
     return this;
   }
@@ -5917,6 +5927,7 @@ export class SheetView {
     if (blocked) throw new Error('Custom Views are ' + blocked + '.');
     const view = this.workbook.customWorkbookViews().find((v) => v.name === name);
     if (!view) throw new Error('No custom view is called "' + name + '".');
+    this._flushForStructure();
     const wb = this.workbook;
     const defined = wb.definedNames();
     const nameFor = (kind, index) => defined.find((d) => d.name === this._wvuName(view.guid, kind) && attrsOfText(d.attrsStr).localSheetId === String(index))?.ref ?? null;
