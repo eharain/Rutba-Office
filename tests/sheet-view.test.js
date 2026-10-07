@@ -1117,6 +1117,26 @@ test('a colour scale and a data bar paint from the file, straight to the frame',
   assert.equal(view.isDirty, false);
 });
 
+test('a data bar runs between its shortest and longest, faded or solid, and Excel 2010\'s half of it says so over the rule\'s', () => {
+  const wb = Workbook.open(simpleBook([[10, 10, 10], [50, 50, 50], [90, 90, 90]]));
+  const later = (id, attrs, body = '') => `<x14:cfRule type="dataBar" id="${id}"><x14:dataBar ${attrs}><x14:cfvo type="min"/><x14:cfvo type="max"/>${body}</x14:dataBar></x14:cfRule>`;
+  const spliced = wb.pkg.text('xl/worksheets/sheet1.xml').replace('</sheetData>', '</sheetData>'
+    + '<conditionalFormatting sqref="A1:A3"><cfRule type="dataBar" priority="1"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FF638EC6"/></dataBar></cfRule></conditionalFormatting>'
+    + '<conditionalFormatting sqref="B1:B3"><cfRule type="dataBar" priority="2"><dataBar minLength="0" maxLength="100" showValue="0"><cfvo type="min"/><cfvo type="max"/><color rgb="FF63BE7B"/></dataBar></cfRule></conditionalFormatting>'
+    + '<conditionalFormatting sqref="C1:C3"><cfRule type="dataBar" priority="3"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FFFF555A"/></dataBar>'
+    + '<extLst><ext uri="{B025F937-C7B1-47D3-B67F-A62EFF666E3E}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:id>{0000000A-0001-0000-0000-000000000000}</x14:id></ext></extLst></cfRule></conditionalFormatting>')
+    .replace('</worksheet>', '<extLst><ext uri="{78C0D931-6437-407d-A8EE-F0AAD7539E65}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:conditionalFormattings><x14:conditionalFormatting xmlns:xm="http://schemas.microsoft.com/office/excel/2006/main">'
+      + later('{0000000A-0001-0000-0000-000000000000}', 'minLength="0" maxLength="100" gradient="0" border="1"', '<x14:borderColor rgb="FFFF555A"/>')
+      + '<xm:sqref>C1:C3</xm:sqref></x14:conditionalFormatting></x14:conditionalFormattings></ext></extLst></worksheet>');
+  wb.pkg.write_('xl/worksheets/sheet1.xml', spliced);
+  const cells = new Map(SheetView.open(wb.save()).render().cells.map((c) => [c.ref, c]));
+  assert.deepEqual(cells.get('A2').bar, { fraction: 0.5, colour: '#638ec6', min: 0.1, max: 0.9, gradient: true, border: null }, 'Excel 2007\'s ten to ninety per cent, faded');
+  assert.equal(cells.get('A2').text, '50');
+  assert.deepEqual([cells.get('B2').bar.min, cells.get('B2').bar.max], [0, 1], 'the rule\'s own lengths');
+  assert.equal(cells.get('B2').text, '', 'the bar alone, its number hidden');
+  assert.deepEqual(cells.get('C2').bar, { fraction: 0.5, colour: '#ff555a', min: 0, max: 1, gradient: false, border: '#ff555a' }, 'Excel 2010\'s: solid, bordered, nothing to the whole cell');
+});
+
 test('cellIs, expression, top10 and duplicates fire through dxf looks', () => {
   const view = SheetView.open(simpleBook([[1, 'x'], [8, 'y'], [12, 'x'], [20, 'z']]));
   view.styles.dxfs = [

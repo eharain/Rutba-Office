@@ -4184,7 +4184,7 @@ export class SheetView {
       const hit = this._cfEvaluate(rule, range, row, col, cache);
       if (!hit) continue;
       any = true;
-      if (hit.bar && !out.bar) out.bar = hit.bar;
+      if (hit.bar && !out.bar) { out.bar = hit.bar; if (hit.hideValue) out.hideValue = true; }
       if (hit.fill && !out.fill) out.fill = hit.fill;
       if (hit.font && !out.font) out.font = hit.font;
       if (hit.icon && !out.icon) { out.icon = hit.icon; out.hideValue = Boolean(hit.hideValue); }
@@ -4364,9 +4364,12 @@ export class SheetView {
         const lo = this._cfStop(rule.cfvos[0] ?? { type: 'min' }, stats, range, row, col);
         const hi = this._cfStop(rule.cfvos[1] ?? { type: 'max' }, stats, range, row, col);
         if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
+        // Its length between its shortest and longest, as fractions of the cell; faded or solid, with its border.
+        const look = rule.bar ?? { min: 10, max: 90, gradient: true, border: null, showValue: true };
         return {
           font: null, fill: null,
-          bar: { fraction: fraction(value, lo, hi), colour: rule.colours[0] ?? '#638ec6' },
+          bar: { fraction: fraction(value, lo, hi), colour: rule.colours[0] ?? '#638ec6', min: look.min / 100, max: look.max / 100, gradient: look.gradient, border: look.border },
+          hideValue: !look.showValue,
         };
       }
 

@@ -31,6 +31,7 @@ import { IconsDialog } from '../icons-insert.js';
 import { InkSurface, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise } from './slides/ink.js';
 import { EquationDialog, EQUATION_CSS } from './word/equations.js';
 import { ShapeWordsDialog, WORDS_CSS } from './sheets/words.js';
+import { CfIcon, barStyle, CF_GLYPHS_CSS } from './sheets/cf-glyphs.js';
 import { SmartArtDialog, SMARTART_CSS } from '../smartart-dialog.js';
 import { layoutSmartArt } from '../smartart.js';
 import { formulaReferences, pointSpan, rangeText, rangeOf, cycleAbsolute, REF_COLOURS } from '@rutba/sheet-view/formula-refs';
@@ -1385,7 +1386,7 @@ export default function Sheets({ app, shell, boot }) {
     return (
       <div
         key={cell.ref}
-        className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}${cell.thread ? (cell.thread.done ? ' threaded resolved' : ' threaded') : ''}`}
+        className={`sh-cell${cell.selected ? ' sel' : ''}${cell.active ? ' active' : ''}${cell.isError ? ' err' : ''}${cell.link ? ' link' : ''}${cell.note ? ' noted' : ''}${cell.thread ? (cell.thread.done ? ' threaded resolved' : ' threaded') : ''}${cell.bar ? ' barred' : ''}${cell.icon ? ' iconed' : ''}`}
         data-ref={cell.ref}
         style={dy || dx ? (() => { const s = spillStyle(cell); return { ...s, top: cell.y - dy, left: s.left - dx }; })() : spillStyle(cell)}
         onMouseDown={(e) => {
@@ -1408,6 +1409,9 @@ export default function Sheets({ app, shell, boot }) {
         data-tip={tipFor(cell)}
       >
         {spark ? sparkSvg(spark, cell.width, cell.height) : null}
+        {/* Its conditional formatting's data bar, under its words, and its icon set's icon. */}
+        {cell.bar ? <span className="sh-cf-bar" style={barStyle(cell.bar, cell.width)} /> : null}
+        {cell.icon ? <CfIcon icon={cell.icon} height={cell.height} /> : null}
         {cell.thread ? (
           <span
             className="sh-thread-mark"
@@ -2917,7 +2921,7 @@ export default function Sheets({ app, shell, boot }) {
         </div>
       ) : (
         <div className={`sh${view.gridlines === false ? ' no-grid' : ''}${view.headings === false ? ' no-heads' : ''}${model.viewMode === 'pageLayout' ? ' pl' : ''}${backdrop && model.viewMode !== 'pageLayout' ? ' has-bg' : ''}`} onKeyDown={onKeyDown} tabIndex={0} ref={(el) => { shRef.current = el; if (el && !editing && document.activeElement === document.body) el.focus(); }}>
-          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS}</style>
+          <style>{CSS + OBJECTS_CSS + DESIGN_CSS + SHEET_DESIGN_CSS + CF_GLYPHS_CSS}</style>
 
           <div className="sh-formula" hidden={view.formulaBar === false}>
             <div className="sh-namebox">{sel?.ref}</div>

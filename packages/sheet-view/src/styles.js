@@ -387,7 +387,8 @@ const unescXml = (s) => String(s)
  * naming: `showDropDown="1"` means SUPPRESS the in-cell dropdown (the
  * attribute predates the UI it now inverts), and `allowBlank` defaults to
  * false in the schema although Excel writes it explicitly almost always.
- * Extended rules living in `<extLst>` (x14) are preserved but not read here.
+ * Extended rules living in `<extLst>` (x14) are preserved but not read here,
+ * but for a data bar's own half, which readConditionalFormatting reads.
  */
 export function readDataValidations(sheetXml) {
   const block = /<dataValidations\b[^>]*>([\s\S]*?)<\/dataValidations>/.exec(String(sheetXml));
@@ -439,9 +440,20 @@ export function readDataValidations(sheetXml) {
  * data bar's bounds and colour, and the text/rank/average attributes the
  * simpler types ride on. Colours resolve through the theme like every other
  * colour in the file.
+ *
+ * A data bar's look: how short and how long its bars run (Excel's 10% and
+ * 90% unless it says), whether it fades or is solid, its border, and whether
+ * the number still shows — Excel 2010 keeps its half of a bar in the sheet's
+ * extLst, by the id the rule names, and draws from that when it is there.
  */
 export function readConditionalFormatting(sheetXml, theme = []) {
   const out = [];
+  const bars2010 = new Map();
+  for (const m of String(sheetXml).matchAll(/<x14:cfRule\b([^>]*)>([\s\S]*?)<\/x14:cfRule>/g)) {
+    const bar = /<x14:dataBar\b([^>]*?)(?:\/>|>([\s\S]*?)<\/x14:dataBar>)/.exec(m[2]);
+    const id = attrsOf(m[1]).id;
+    if (id && bar) bars2010.set(id, { attrs: attrsOf(bar[1]), body: bar[2] ?? '' });
+  }
   for (const block of String(sheetXml).matchAll(/<conditionalFormatting\b([^>]*)>([\s\S]*?)<\/conditionalFormatting>/g)) {
     const sqref = attrsOf(block[1]).sqref ?? '';
     const ranges = [];
@@ -469,6 +481,20 @@ export function readConditionalFormatting(sheetXml, theme = []) {
       // is reversed, whether the number still shows beside the icon.
       const iconEl = /<iconSet\b([^>]*?)>/.exec(body);
       const iconAttrs = iconEl ? attrsOf(iconEl[1]) : null;
+      let bar = null;
+      if (a.type === 'dataBar') {
+        const own = attrsOf(/<dataBar\b([^>]*?)\/?>/.exec(body)?.[1] ?? '');
+        const later = bars2010.get(/<x14:id>([^<]*)<\/x14:id>/.exec(body)?.[1]);
+        const at = later?.attrs ?? {};
+        const colourOf = (name) => readColourElement(later ? children(later.body, name)[0] : null, theme);
+        bar = {
+          min: Number(at.minLength ?? own.minLength ?? 10),
+          max: Number(at.maxLength ?? own.maxLength ?? 90),
+          showValue: own.showValue !== '0',
+          gradient: later ? at.gradient !== '0' : true,
+          border: later && at.border === '1' ? colourOf('x14:borderColor') : null,
+        };
+      }
       out.push({
         type: a.type,
         iconSet: iconAttrs ? (iconAttrs.iconSet ?? '3TrafficLights1') : null,
@@ -488,6 +514,7 @@ export function readConditionalFormatting(sheetXml, theme = []) {
         formulas: [...body.matchAll(/<formula>([\s\S]*?)<\/formula>/g)].map((f) => unescXml(f[1])),
         cfvos,
         colours,
+        bar,
         ranges,
         sqref,
       });
