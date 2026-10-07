@@ -135,3 +135,39 @@ test('a LAMBDA kept in a defined name is called by name, recalculates with what 
   assert.deepEqual(reopened.names().find((n) => n.name === 'TWICE'), { name: 'TWICE', ref: '=LAMBDA(n, n*2)', target: null, formula: true });
   assert.throws(() => view.defineName('BAD', '=SUM('), /not a range or a formula/);
 });
+
+test('deleting a sheet is one step of undo: the sheet comes back with everything on it, and redo takes it again', () => {
+  const view = SheetView.open(buildXlsx({ sheets: [{ name: 'Data', rows: [[1]] }, { name: 'Other', rows: [[21, 'kept']] }] }));
+  view.setCell(0, 1, '=Other!A1*2');
+  assert.equal(view.calc.getValue('Data', 0, 1), 42);
+  view.removeSheet('Other');
+  assert.deepEqual(view.sheetNames(), ['Data']);
+  assert.equal(view.calc.getValue('Data', 0, 1)?.type, '#REF!', 'what read it has nothing to read');
+  view.undo();
+  assert.deepEqual(view.sheetNames(), ['Data', 'Other']);
+  assert.equal(view.calc.getValue('Data', 0, 1), 42, 'and reads it again');
+  assert.equal(view.calc.getValue('Other', 0, 1), 'kept');
+  view.undo();
+  assert.equal(view.calc.getValue('Data', 0, 1), '', 'earlier steps are still there to undo');
+  view.redo();
+  view.redo();
+  assert.deepEqual(view.sheetNames(), ['Data']);
+  view.undo();
+  const reopened = SheetView.open(view.save());
+  assert.deepEqual(reopened.sheetNames(), ['Data', 'Other']);
+  assert.equal(reopened.calc.getValue('Data', 0, 1), 42);
+});
+
+test('renaming a sheet keeps what was just typed — it used to be lost to the rename — and rewrites it to the new name', () => {
+  const view = SheetView.open(buildXlsx({ sheets: [{ name: 'Data', rows: [[1]] }, { name: 'Other', rows: [[21]] }] }));
+  view.setCell(0, 1, '=Other!A1*2');
+  view.setCell(0, 2, 'typed');
+  view.renameSheet('Other', 'Renamed');
+  assert.equal(view.editValue(0, 1), '=Renamed!A1*2');
+  assert.equal(view.calc.getValue('Data', 0, 1), 42);
+  assert.equal(view.calc.getValue('Data', 0, 2), 'typed');
+  view.undo();
+  assert.deepEqual(view.sheetNames(), ['Data', 'Other']);
+  assert.equal(view.editValue(0, 1), '=Other!A1*2');
+  assert.equal(view.calc.getValue('Data', 0, 2), 'typed');
+});

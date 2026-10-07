@@ -731,7 +731,7 @@ export function SheetNameDialog({ current, onClose, onRename }) {
   );
 }
 
-/** Delete a sheet: Excel says it cannot be undone, and so does this. */
+/** Delete a sheet: asked first, as Excel asks — and here Undo puts it back. */
 export function SheetDeleteDialog({ name, onClose, onDelete }) {
   return (
     <Dialog
@@ -746,7 +746,7 @@ export function SheetDeleteDialog({ name, onClose, onDelete }) {
       }
     >
       <div className="ml-form">
-        <p style={{ margin: 0 }}>{`Delete the sheet "${name}" and everything on it? This cannot be undone.`}</p>
+        <p style={{ margin: 0 }}>{`Delete the sheet "${name}" and everything on it? Undo (Ctrl+Z) puts it back.`}</p>
       </div>
     </Dialog>
   );

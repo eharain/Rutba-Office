@@ -1010,6 +1010,11 @@ export class SheetView {
     if (clean === from) return this;
     const parts = [this.workbook.mainPart, ...this.workbook.sheets().map((s) => s.part)];
     this._edit('rename sheet', null, [], () => {
+      // What was just typed goes into the parts first — the rebuild below
+      // reads them, and a formula typed a moment ago was lost to it.
+      this._flushPendingEdits();
+      this.dirtyCells.clear();
+      this.styledCells.clear();
       this.workbook.renameSheet(from, clean);
       if (this.activeSheet === from) this.activeSheet = clean;
       for (const map of [this.links, this.notes, this.geometry, this.cellStyles, this.merges, this.validations, this.conditionals]) {
@@ -1023,8 +1028,10 @@ export class SheetView {
   }
 
   /**
-   * Delete a sheet. Not undoable — the part is gone from the package, as in
-   * Excel, which says so before it does it; the window asks first.
+   * Delete a sheet — one undo step: the workbook part, its relationships,
+   * the content types, the sheet and its own relationships travel in the
+   * entry, so Undo puts the sheet back where it was with everything on it,
+   * and every formula that read it reads it again.
    */
   removeSheet(name) {
     this._structureGate();
@@ -1032,13 +1039,22 @@ export class SheetView {
     if (!hidden.has(name) && this.sheetNames().filter((n) => !hidden.has(n)).length <= 1 && this.sheetNames().length > 1) {
       throw new Error('A workbook must contain at least one visible worksheet.');
     }
-    this.workbook.removeSheet(name);
-    if (this.activeSheet === name) this.activeSheet = this.sheetNames().find((n) => !hidden.has(n)) ?? this.sheetNames()[0];
-    this.selection = Selection.at(0, 0);
-    for (const map of [this.links, this.notes, this.geometry, this.cellStyles, this.merges, this.validations, this.conditionals]) map.delete(name);
-    this._rebuildDerivedState();
-    this.history = new History();
-    this._structuralDirty = true;
+    const part = this.workbook.partNameFor(name);
+    const own = OoxmlPackage.relsPathFor(part);
+    // Every sheet part, as Delete Rows has them: the pending edits are flushed
+    // into the parts first, so the rebuild below keeps what was just typed.
+    const parts = [...new Set([...this.workbook.sheets().map((s) => s.part), this.workbook.mainPart, 'xl/_rels/workbook.xml.rels', '[Content_Types].xml', own])];
+    this._edit('delete sheet', null, [], () => {
+      this._flushPendingEdits();
+      this.dirtyCells.clear();
+      this.styledCells.clear();
+      this.workbook.removeSheet(name);
+      if (this.activeSheet === name) this.activeSheet = this.sheetNames().find((n) => !hidden.has(n)) ?? this.sheetNames()[0];
+      this.selection = Selection.at(0, 0);
+      for (const map of [this.links, this.notes, this.geometry, this.cellStyles, this.merges, this.validations, this.conditionals]) map.delete(name);
+      this._rebuildDerivedState();
+      this._structuralDirty = true;
+    }, { parts, structural: true, sheetGate: false });
     return this;
   }
 

@@ -1778,6 +1778,25 @@ export class Workbook {
     this.pkg.removePart(entry.part);
     this._loaded.delete(entry.part);
     this._sheets = null;
+    // As Excel does: a reference into the sheet that went — a cell, a range,
+    // whole columns or rows — is #REF! now, in every formula and every name.
+    const rx = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const gone = new RegExp("(^|[^A-Za-z0-9_'.])(?:'" + rx(name.replace(/'/g, "''")) + "'|" + rx(name) + ')!'
+      + '(?:\\$?[A-Za-z]{1,3}\\$?\\d+(?::\\$?[A-Za-z]{1,3}\\$?\\d+)?|\\$?[A-Za-z]{1,3}:\\$?[A-Za-z]{1,3}|\\$?\\d+:\\$?\\d+)', 'g');
+    const rewrite = (text) => text.replace(gone, (m, p1) => (p1 ?? '') + '#REF!');
+    const book = this.pkg.text(this.mainPart);
+    const named = book.replace(/<definedName\b([^>]*)>([\s\S]*?)<\/definedName>/g, (m, attrsText, inner) => '<definedName' + attrsText + '>' + esc(rewrite(unesc(inner))) + '</definedName>');
+    if (named !== book) this.pkg.write_(this.mainPart, named);
+    for (const s of this.sheets()) {
+      const loaded = this._loaded.get(s.part);
+      const source = loaded ? loaded.render() : this.pkg.text(s.part);
+      if (!source.includes(name)) continue;
+      const next = source.replace(/<f\b([^>]*)>([^<]*)<\/f>/g, (m, attrsText, f) => '<f' + attrsText + '>' + esc(rewrite(unesc(f))) + '</f>');
+      if (next !== source) {
+        this.pkg.write_(s.part, next);
+        this._loaded.delete(s.part);
+      }
+    }
     return true;
   }
 
