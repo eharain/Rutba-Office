@@ -4,8 +4,9 @@
 // bars on the totals and traffic lights on the growth — the bars drawn under
 // the numbers, each as long as its share of the range (Excel 2010's from
 // nothing to the whole cell, as its half of the rule says), the icons at the
-// cells' left in the light each value earns; the numbers still read. Run
-// alone with RUTBA_VERIFY_ONLY=cfdraw.
+// cells' left in the light each value earns; the numbers still read. And
+// its sparklines beside them, from the sheet's own extLst, not the one the
+// data bar keeps inside its rule. Run alone with RUTBA_VERIFY_ONLY=cfdraw.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -38,6 +39,9 @@ export async function verifySheetCf(h, { dir }) {
     check('sheets: an icon set\'s icons are drawn at their cells\' left, each in the light its value earns',
       seen.h3?.set === '3TrafficLights1' && seen.h3.index === 2 && seen.h11?.index === 0 && seen.h9?.index === 1 && seen.h3.fill !== seen.h11.fill && seen.h3text === '11.4%',
       `H3 ${JSON.stringify(seen.h3)}, H9 ${JSON.stringify(seen.h9)}, H11 ${JSON.stringify(seen.h11)}; H3 reads ${JSON.stringify(seen.h3text)}`);
+    // The sparklines in its sheet's own extLst, read past the one the data bar keeps inside its rule.
+    const sparked = await js(`['G2', 'G7'].map((r) => Boolean(document.querySelector('.sh-cell[data-ref="' + r + '"] .sh-spark polyline')))`);
+    check('sheets: the sheet\'s sparklines are drawn beside its data bars', sparked.every(Boolean), `G2 ${sparked[0]}, G7 ${sparked[1]}`);
     const complaints = await errorsIn(win);
     check('sheets: drawing conditional formatting reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

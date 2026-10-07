@@ -45,6 +45,29 @@ const CT_TABLE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.ta
 /** Where `<hyperlinks>` goes when a sheet has none: after the data validations, before the print options. */
 const AFTER_HYPERLINKS = /<printOptions\b|<pageMargins\b|<pageSetup\b|<headerFooter\b|<rowBreaks\b|<colBreaks\b|<customProperties\b|<cellWatches\b|<ignoredErrors\b|<smartTags\b|<drawing\b|<legacyDrawing\b|<legacyDrawingHF\b|<picture\b|<oleObjects\b|<controls\b|<webPublishItems\b|<tableParts\b|<extLst\b|<\/worksheet>/;
 
+/**
+ * A sheet's tail with everything inside its elements blanked to spaces, the
+ * same length: a search in it for where an element starts finds only the
+ * worksheet's own children — not a like-named one inside another, as the
+ * extLst an Excel 2010 data bar keeps inside its rule is not the sheet's.
+ */
+function topLevel(xml) {
+  const tag = /<!--[\s\S]*?-->|<!\[CDATA\[[\s\S]*?\]\]>|<(\/?)[A-Za-z_][\w.:-]*(?:\s[^>]*?)?(\/?)>/g;
+  let out = '';
+  let depth = 0;
+  let last = 0;
+  let m;
+  while ((m = tag.exec(xml))) {
+    out += depth > 0 ? ' '.repeat(m.index - last) : xml.slice(last, m.index);
+    const opening = m[0][1] !== '!' && m[1] !== '/';
+    if (m[1] === '/') depth = Math.max(0, depth - 1);
+    out += depth > 0 ? ' '.repeat(m[0].length) : m[0];
+    if (opening && m[2] !== '/') depth += 1;
+    last = m.index + m[0].length;
+  }
+  return out + (depth > 0 ? ' '.repeat(xml.length - last) : xml.slice(last));
+}
+
 const SHEET_NS = 'http://schemas.openxmlformats.org/spreadsheetml/2006/main';
 
 export function colToIndex(letters) {
@@ -995,7 +1018,7 @@ class SheetPart {
     // the element outside the root, which is exactly what the Office gate
     // caught on this method's first day. tableParts and extLst are the only
     // schema elements that may follow drawing.
-    const before = /<tableParts\b|<extLst\b|<\/worksheet>/.exec(this.suffix);
+    const before = /<tableParts\b|<extLst\b|<\/worksheet>/.exec(topLevel(this.suffix));
     this.suffix = this.suffix.slice(0, before.index) + el + this.suffix.slice(before.index);
     this.dirty = true;
     return this;
@@ -1037,7 +1060,7 @@ class SheetPart {
       const at = block.index + block[0].length - '</hyperlinks>'.length;
       this.suffix = this.suffix.slice(0, at) + el + this.suffix.slice(at);
     } else {
-      const anchor = AFTER_HYPERLINKS.exec(this.suffix);
+      const anchor = AFTER_HYPERLINKS.exec(topLevel(this.suffix));
       this.suffix = this.suffix.slice(0, anchor.index) + '<hyperlinks>' + el + '</hyperlinks>' + this.suffix.slice(anchor.index);
     }
     if (rId && !/\sxmlns:r=/.test(this.prefix)) {
@@ -1055,7 +1078,7 @@ class SheetPart {
   /** Point the sheet at a VML drawing part, where the notes' boxes are. */
   setLegacyDrawing(rId) {
     if (this.legacyDrawingId()) return this;
-    const anchor = AFTER_LEGACY_DRAWING.exec(this.suffix);
+    const anchor = AFTER_LEGACY_DRAWING.exec(topLevel(this.suffix));
     this.suffix = this.suffix.slice(0, anchor.index) + '<legacyDrawing r:id="' + rId + '"/>' + this.suffix.slice(anchor.index);
     if (!/\sxmlns:r=/.test(this.prefix)) {
       this.prefix = this.prefix.replace(/<worksheet\b/, () => '<worksheet xmlns:r="' + XMLNS_R + '"');
@@ -1095,7 +1118,7 @@ class SheetPart {
         const replacement = '<tableParts count="' + count + '">' + block[1] + entry + '</tableParts>';
         this.suffix = this.suffix.slice(0, block.index) + replacement + this.suffix.slice(block.index + block[0].length);
       } else {
-        const before = /<extLst\b|<\/worksheet>/.exec(this.suffix);
+        const before = /<extLst\b|<\/worksheet>/.exec(topLevel(this.suffix));
         this.suffix = this.suffix.slice(0, before.index) + '<tableParts count="1">' + entry + '</tableParts>' + this.suffix.slice(before.index);
       }
     }
@@ -1113,7 +1136,7 @@ class SheetPart {
       const at = last + close.length;
       this.suffix = this.suffix.slice(0, at) + block + this.suffix.slice(at);
     } else {
-      const anchor = /<dataValidations\b|<hyperlinks\b|<printOptions\b|<pageMargins\b|<pageSetup\b|<drawing\b|<tableParts\b|<extLst\b|<\/worksheet>/.exec(this.suffix);
+      const anchor = /<dataValidations\b|<hyperlinks\b|<printOptions\b|<pageMargins\b|<pageSetup\b|<drawing\b|<tableParts\b|<extLst\b|<\/worksheet>/.exec(topLevel(this.suffix));
       this.suffix = this.suffix.slice(0, anchor.index) + block + this.suffix.slice(anchor.index);
     }
     this.dirty = true;
@@ -1150,7 +1173,7 @@ class SheetPart {
         '<dataValidations' + attrs.replace(/^ +/, ' ') + '>' + block[2] + entryXml + '</dataValidations>');
     } else {
       const el = '<dataValidations count="1">' + entryXml + '</dataValidations>';
-      const anchor = /<hyperlinks\b|<printOptions\b|<pageMargins\b|<pageSetup\b|<drawing\b|<tableParts\b|<extLst\b|<\/worksheet>/.exec(this.suffix);
+      const anchor = /<hyperlinks\b|<printOptions\b|<pageMargins\b|<pageSetup\b|<drawing\b|<tableParts\b|<extLst\b|<\/worksheet>/.exec(topLevel(this.suffix));
       this.suffix = this.suffix.slice(0, anchor.index) + el + this.suffix.slice(anchor.index);
     }
     this.dirty = true;
@@ -1205,15 +1228,16 @@ class SheetPart {
       this.dirty = true;
       return this;
     }
-    const existing = new RegExp('<' + name + '\\b[^>]*(?:/>|>[\\s\\S]*?</' + name + '>)');
-    if (existing.test(this.suffix)) {
-      this.suffix = this.suffix.replace(existing, () => xml ?? '');
+    const existing = this._tailRange(name);
+    if (existing) {
+      this.suffix = this.suffix.slice(0, existing[0]) + (xml ?? '') + this.suffix.slice(existing[1]);
       this.dirty = true;
       return this;
     }
     if (!xml) return this;
     const after = SheetPart.TAIL_ORDER.slice(SheetPart.TAIL_ORDER.indexOf(name) + 1);
-    const anchor = new RegExp('<(?:' + after.join('|') + ')\\b|</worksheet>').exec(this.suffix);
+    // The last of the tail (extLst) has nothing after it but the worksheet's end.
+    const anchor = (after.length ? new RegExp('<(?:' + after.join('|') + ')\\b|</worksheet>') : /<\/worksheet>/).exec(topLevel(this.suffix));
     const at = anchor ? anchor.index : this.suffix.length;
     this.suffix = this.suffix.slice(0, at) + xml + this.suffix.slice(at);
     this.dirty = true;
@@ -1223,7 +1247,18 @@ class SheetPart {
   /** One element of the tail, as it stands. */
   tailElement(name) {
     if (name === 'customSheetViews') return this.customViewsXml;
-    return (new RegExp('<' + name + '\\b[^>]*(?:/>|>[\\s\\S]*?</' + name + '>)').exec(this.suffix) ?? [null])[0];
+    const at = this._tailRange(name);
+    return at ? this.suffix.slice(at[0], at[1]) : null;
+  }
+
+  /** Where the worksheet's own element of a name starts and ends in the tail (the first, if there are more). */
+  _tailRange(name) {
+    const top = topLevel(this.suffix);
+    const open = new RegExp('<' + name + '(?:\\s[^>]*?)?(/?)>').exec(top);
+    if (!open) return null;
+    if (open[1] === '/') return [open.index, open.index + open[0].length];
+    const close = top.indexOf('</' + name + '>', open.index + open[0].length);
+    return close < 0 ? null : [open.index, close + name.length + 3];
   }
 
   autoFilterXml() {
@@ -1289,7 +1324,7 @@ class SheetPart {
   _suffixWithViews() {
     if (!this.customViewsXml) return this.suffix;
     const after = SheetPart.TAIL_ORDER.slice(SheetPart.TAIL_ORDER.indexOf('customSheetViews') + 1);
-    const anchor = new RegExp('<(?:' + after.join('|') + ')\\b|</worksheet>').exec(this.suffix);
+    const anchor = new RegExp('<(?:' + after.join('|') + ')\\b|</worksheet>').exec(topLevel(this.suffix));
     const at = anchor ? anchor.index : this.suffix.length;
     return this.suffix.slice(0, at) + this.customViewsXml + this.suffix.slice(at);
   }

@@ -178,14 +178,33 @@ test('mismatched shapes throw, and nothing is written', () => {
   assert.doesNotMatch(sheetXml(wb), /sparklineGroups/, 'a refused call writes nothing');
 });
 
-test('the showcase fixture: if Excel wrote sparklines into it, they read back as it wrote them', { skip: !existsSync(join(RICH, 'showcase.xlsx')) && 'fixture not generated' }, () => {
+test('the showcase fixture: the sparklines Excel wrote into it read back as it wrote them, beside its data bar\'s own extLst', { skip: !existsSync(join(RICH, 'showcase.xlsx')) && 'fixture not generated' }, () => {
   const wb = Workbook.open(readFileSync(join(RICH, 'showcase.xlsx')));
-  const sheetName = wb.sheetNames().find((n) => wb.sparklineGroups(n).length);
-  if (!sheetName) return; // this build of the fixture carries none — nothing to assert
-  const [group] = wb.sparklineGroups(sheetName);
+  const [group] = wb.sparklineGroups('Sales');
+  assert.ok(group, 'Sales carries them, after a data bar rule with an extLst of its own');
   assert.equal(group.type, 'line');
   assert.equal(group.colour, '376092');
   assert.ok(group.sparklines.length >= 10, 'one sparkline per data row');
   assert.ok(group.sparklines.every((s) => /^[A-Z]+\d+$/.test(s.at)), 'each sparkline sits in one cell');
   assert.ok(group.sparklines.every((s) => /!/.test(s.data)), "each sparkline's data is sheet-qualified, as Excel wrote it");
+});
+
+test('a sheet whose data bar keeps an extLst inside its rule: the sheet\'s own extLst is the one read and written, and what follows the rules goes after them', () => {
+  const wb = Workbook.open(book());
+  const part = wb.partNameFor('Sales');
+  // As Excel 2010 writes a data bar: its rule names its half, kept in the sheet's extLst.
+  const rule = '<conditionalFormatting sqref="B2:B4"><cfRule type="dataBar" priority="1"><dataBar><cfvo type="min"/><cfvo type="max"/><color rgb="FF638EC6"/></dataBar>'
+    + '<extLst><ext uri="{B025F937-C7B1-47D3-B67F-A62EFF666E3E}" xmlns:x14="http://schemas.microsoft.com/office/spreadsheetml/2009/9/main"><x14:id>{00000001-0000-0000-0000-000000000000}</x14:id></ext></extLst></cfRule></conditionalFormatting>';
+  wb.pkg.write_(part, wb.pkg.text(part).replace('</sheetData>', '</sheetData>' + rule));
+  const reopened = Workbook.open(wb.save());
+  reopened.addSparklines('Sales', { type: 'line', data: 'B2:D4', at: 'E2:E4' });
+  reopened.addTable('Sales', 'A1:D4', { name: 'Stock' });
+  reopened.addDataValidation('Sales', '<dataValidation type="whole" sqref="B2:D4"><formula1>0</formula1></dataValidation>');
+  const xml = sheetXml(reopened);
+  const ruleAt = xml.indexOf('<conditionalFormatting');
+  const ruleEnd = xml.indexOf('</conditionalFormatting>');
+  assert.equal(xml.slice(ruleAt, ruleEnd).match(/<extLst>/g).length, 1, 'the rule keeps its own extLst, and only that');
+  for (const el of ['<dataValidations', '<tableParts', '<x14:sparklineGroups']) assert.ok(xml.indexOf(el) > ruleEnd, el + ' after the rules, not in one');
+  assert.ok(xml.lastIndexOf('<extLst>') > xml.indexOf('<tableParts'), 'the sheet\'s extLst last, as the schema has it');
+  assert.equal(Workbook.open(reopened.save()).sparklineGroups('Sales')[0].sparklines.length, 3, 'and its sparklines read back');
 });
