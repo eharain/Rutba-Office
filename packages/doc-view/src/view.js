@@ -39,6 +39,9 @@ import { installReferenceViews } from './references.js';
 const INDENT_STEP = 720;
 // The ruler's absolute paragraph properties, written as given.
 const RULER_KEYS = ['leftTwips', 'firstLineTwips', 'hangingTwips', 'rightTwips', 'tabs'];
+// A right-to-left paragraph's alignment is mirrored in the file: Word's
+// "left" there is where the line starts, the right margin.
+const MIRROR = { left: 'right', right: 'left' };
 
 /**
  * Contextual spacing, resolved against the neighbours.
@@ -1116,7 +1119,7 @@ export class DocView {
     const hasStyle = ('styleId' in delta);
     const hasList = ('list' in delta);
     const hasSpacing = ('lineSpacing' in delta) || ('spaceBefore' in delta) || ('spaceAfter' in delta);
-    const hasLook = ('shading' in delta) || ('borders' in delta) || ('noHyphens' in delta);
+    const hasLook = ('shading' in delta) || ('borders' in delta) || ('noHyphens' in delta) || ('rtl' in delta);
     if ((hasAlignOrIndent || hasStyle || hasSpacing || hasLook) && typeof this.doc.setParagraphProp !== 'function') {
       throw new Error('this document backend does not support paragraph formatting');
     }
@@ -1192,8 +1195,17 @@ export class DocView {
       if ('styleId' in delta) {
         this.doc.setParagraphProp(i, 'style', delta.styleId ?? null);
       }
+      // Right to left or left to right: w:bidi, or nothing where the
+      // paragraph's style already runs that way.
+      if ('rtl' in delta) {
+        const want = Boolean(delta.rtl);
+        this.doc.setParagraphProp(i, 'rtl', want === this._styleRtl(i) ? null : want);
+      }
       if ('align' in delta) {
-        this.doc.setParagraphProp(i, 'align', delta.align ?? null);
+        // The ribbon speaks of the page's left and right; a right-to-left
+        // paragraph keeps them mirrored.
+        const rtl = 'rtl' in delta ? Boolean(delta.rtl) : this._rtlOf(i);
+        this.doc.setParagraphProp(i, 'align', rtl ? MIRROR[delta.align] ?? delta.align ?? null : delta.align ?? null);
       }
       if (delta.indentDelta) {
         const pp = this.doc.getParagraphProps(i);
@@ -1241,6 +1253,20 @@ export class DocView {
     }
     this._invalidate();
     return this;
+  }
+
+  /** Whether paragraph `i`'s style runs right to left — the document default's, for one with none. */
+  _styleRtl(i) {
+    const b = this.block(i);
+    const styles = this.docStyles;
+    if (!b || !styles) return false;
+    return Boolean((styles[b.style] ?? styles['*default*'])?.rtl);
+  }
+
+  /** Whether paragraph `i` runs right to left: its own w:bidi, else its style's. */
+  _rtlOf(i) {
+    const own = this.block(i)?.rtl;
+    return own != null ? own : this._styleRtl(i);
   }
 
   /** Fold every armed format — toggles and values alike — onto an rPr. */
@@ -1304,6 +1330,8 @@ export class DocView {
     // Whether the caret sits in a drop cap's letter or its body — { kind,
     // lines } or null — for the ribbon's Drop Cap menu to tick.
     base.dropCap = null;
+    // Which way the caret's paragraph runs, for the ribbon's direction buttons.
+    base.rtl = false;
     if (b && typeof this.doc.getParagraphProps === 'function') {
       const pp = this.doc.getParagraphProps(block);
       if (pp) {
@@ -1320,6 +1348,10 @@ export class DocView {
         // pair's spec there too rather than only on the letter's paragraph.
         base.dropCap = pp.dropCap ?? (block > 0 ? this.doc.getParagraphProps(block - 1)?.dropCap ?? null : null);
         base.noHyphens = Boolean(pp.suppressAutoHyphens);
+        // Right to left: its alignment read back as the page shows it, and
+        // with none set, it sits at the right margin.
+        base.rtl = this._rtlOf(block);
+        if (base.rtl) base.paragraphAlign = pp.align ? MIRROR[pp.align] ?? pp.align : 'right';
       }
     }
     if (this.pendingFormat) {
@@ -3145,6 +3177,7 @@ export class DocView {
       lineHeightPx: p.spacing?.lineExactPx ?? null,
       spaceBeforePx: p.spacing?.beforePx ?? null,
       spaceAfterPx: p.spacing?.afterPx ?? null,
+      ...(p.rtl != null ? { rtl: p.rtl } : {}),
       text: p.text,
       runs: p.runs.map((r) => this._renderRun(r)),
       images: (p.images || []).filter((img) => img.href),
@@ -3236,6 +3269,7 @@ export class DocView {
         ...(b.keepLines ? { keepLines: true } : {}),
         ...(b.dropCap ? { dropCap: b.dropCap } : {}),
         ...(b.noHyphens ? { noHyphens: true } : {}),
+        ...(b.rtl != null ? { rtl: b.rtl } : {}),
         ...(b.inSdt ? { inSdt: true } : {}),
         // Text boxes anchored here, their paragraphs shaped like blocks so the
         // painter draws them with the same code — read-only, no index.

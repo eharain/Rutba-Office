@@ -1,0 +1,123 @@
+// Word: right to left.
+//
+// A paragraph with w:bidi runs from the right margin, its words drawn
+// right to left; Home → Paragraph's direction buttons turn a paragraph
+// either way and show which way the caret's runs; aligning a right-to-left
+// paragraph puts it where the button says, written mirrored as Word writes
+// it; and the file keeps it all. Run alone with RUTBA_VERIFY_ONLY=rtl.
+import fs from 'node:fs';
+import path from 'node:path';
+import { buildDocx } from '@rutba/ooxml/build';
+import { openDocx } from '@rutba/doc-view/backends/ooxml';
+
+const ARABIC = 'مرحبا بالعالم، هذه فقرة تبدأ من اليمين.';
+
+/**
+ * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
+ * @param {{ dir: string }} args where the fixture is written
+ */
+export async function verifyWordRtl(h, { dir }) {
+  const { open, check, until, wait, press, errorsIn, doc, sessionFor } = h;
+  const capture = async (win, name) => {
+    if (!process.env.RUTBA_VERIFY_CAPTURE) return;
+    fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, name), (await win.webContents.capturePage()).toPNG());
+  };
+  const file = path.join(dir, 'rtl.docx');
+  // The Arabic paragraph made right to left the way the editor writes it.
+  const made = openDocx(buildDocx({ styles: true, paragraphs: [
+    { text: 'Direction', style: 'Heading1' },
+    { text: 'This paragraph runs left to right, as English does.' },
+    { text: ARABIC },
+  ] }));
+  made.setSelection({ block: 2, offset: 0 });
+  made.setParagraphFormat({ rtl: true });
+  fs.writeFileSync(file, made.save());
+  try {
+    const win = await open('word', file);
+    const wc = win.webContents;
+    const js = (code) => wc.executeJavaScript(code);
+    const session = sessionFor('doc');
+    const model = () => doc.model({ id: session.id });
+    // Where a paragraph's words sit against its own box, and which way it runs.
+    const placed = (block) => js(`(() => {
+      const el = document.querySelector('.wd-page > [data-block="${block}"]');
+      if (!el) return null;
+      const box = el.getBoundingClientRect();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      const words = range.getBoundingClientRect();
+      return { dir: getComputedStyle(el).direction, left: Math.round(words.left - box.left), right: Math.round(box.right - words.right) };
+    })()`);
+    const button = (title) => js(`(() => {
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}));
+      return b ? b.getAttribute('aria-pressed') : 'missing';
+    })()`);
+    const pressButton = (title) => js(`(() => {
+      const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith(${JSON.stringify(title)}) && !n.disabled);
+      if (!b) return 'no button';
+      b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+      b.click();
+      return 'clicked';
+    })()`);
+    const clickInto = async (block) => {
+      const at = await js(`(() => { const r = document.querySelector('.wd-page > [data-block="${block}"]').getBoundingClientRect(); return { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + 8) }; })()`);
+      wc.sendInputEvent({ type: 'mouseDown', x: at.x, y: at.y, button: 'left', clickCount: 1 });
+      wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y, button: 'left', clickCount: 1 });
+      return until(() => model().selection?.focus?.block === block, `the caret in paragraph ${block}`, 4000).catch(() => false);
+    };
+    await until(() => js(`Boolean(document.querySelector('.wd-page [data-block="2"]'))`), 'the paragraphs', 8000);
+
+    // The file's right-to-left paragraph, drawn from the right margin.
+    const arabic = await placed(2);
+    const english = await placed(1);
+    check('word: a paragraph the file marks right to left runs from the right margin',
+      arabic?.dir === 'rtl' && arabic.right <= 2 && arabic.left > 40 && english?.dir === 'ltr' && english.left <= 2,
+      `Arabic ${JSON.stringify(arabic)}; English ${JSON.stringify(english)}`);
+
+    // The buttons show which way the caret's paragraph runs.
+    const inArabic = await clickInto(2);
+    await wait(250);
+    const shown = { rtl: await button('Right-to-left text direction'), ltr: await button('Left-to-right text direction') };
+    check('word: Home → Paragraph shows Right-to-left pressed in a right-to-left paragraph',
+      inArabic === true && shown.rtl === 'true' && shown.ltr === 'false', JSON.stringify(shown));
+
+    // Aligning it: the button's side of the page, written mirrored.
+    const aligned = await pressButton('Align left');
+    const moved = await until(async () => { const p = await placed(2); return p && p.left <= 2 && p.right > 40; }, 'the Arabic at the left', 4000).catch(() => false);
+    check('word: Align left puts a right-to-left paragraph at the left margin',
+      aligned === 'clicked' && moved === true && model().format?.paragraphAlign === 'left', `${aligned}; ${JSON.stringify(await placed(2))}; ${model().format?.paragraphAlign}`);
+
+    // The English paragraph turned right to left, and back.
+    await clickInto(1);
+    await wait(200);
+    const turned = await pressButton('Right-to-left text direction');
+    const nowRtl = await until(async () => model().blocks[1].rtl === true && (await placed(1))?.dir === 'rtl', 'paragraph 1 right to left', 4000).catch(() => false);
+    const across = await placed(1);
+    check('word: Right-to-left text direction turns the caret\'s paragraph to run from the right',
+      turned === 'clicked' && nowRtl === true && across.right <= 2, `${turned}; ${JSON.stringify(across)}`);
+    await wait(300);
+    wc.invalidate();
+    await wait(500);
+    await capture(win, 'word-rtl.png');
+    const back = await pressButton('Left-to-right text direction');
+    const nowLtr = await until(async () => (await placed(1))?.dir === 'ltr', 'paragraph 1 left to right', 4000).catch(() => false);
+    check('word: Left-to-right text direction turns it back', back === 'clicked' && nowLtr === true && model().blocks[1].rtl === undefined,
+      `${back}; ${JSON.stringify(await placed(1))}; rtl ${model().blocks[1].rtl}`);
+
+    // Saved as Word writes it.
+    await js(`document.querySelector('.wd-page')?.focus(), 1`);
+    await press(wc, 's', { modifiers: ['control'] });
+    await wait(1400);
+    const saved = openDocx(fs.readFileSync(file));
+    const xml = saved.doc.doc.xml;
+    const blocks = saved.render({ pages: false }).blocks;
+    check('word: the file keeps the right-to-left paragraph as w:bidi, its left alignment written as Word\'s mirrored "right"',
+      blocks[2].rtl === true && blocks[1].rtl === undefined && /<w:bidi\/>[\s\S]*?<w:jc w:val="right"\/>/.test(xml),
+      `rtl ${blocks.map((b) => b.rtl).join(',')}; ${(/<w:pPr>(?:(?!<\/w:pPr>)[\s\S])*<w:bidi[\s\S]*?<\/w:pPr>/.exec(xml) || ['no w:bidi'])[0].slice(0, 160)}`);
+
+    const complaints = await errorsIn(win);
+    check('word: right to left reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the right-to-left checks ran', false, err.message);
+  }
+}

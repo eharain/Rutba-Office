@@ -22,7 +22,7 @@ export {
   Workbook, colToIndex, indexToCol, parseRef, makeRef, unesc,
 } from './workbook.js';
 export {
-  Document, textOf, parseRuns, renderRuns, hasToggle, withToggle, langElement, WORD_NS,
+  Document, textOf, parseRuns, renderRuns, hasToggle, withToggle, langElement, WORD_NS, readBidi,
   splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf,
   splitParagraphChange, joinParagraphChange, withParagraphChange, paragraphChangeOf,
 } from './document.js';

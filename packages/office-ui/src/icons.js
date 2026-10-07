@@ -50,6 +50,9 @@ const PATHS = {
   alignCenter: [P('M4 6h16M7 11h10M5 16h14M8 21h8')],
   alignRight: [P('M4 6h16M10 11h10M6 16h14M12 21h8')],
   alignJustify: [P('M4 6h16M4 11h16M4 16h16M4 21h16')],
+  // A pilcrow over the way its lines run.
+  textLtr: [P('M11 3v11M15 3v11M17 3h-7a3 3 0 0 0 0 6h1'), P('M5 19h14'), P('m16 16 3 3-3 3')],
+  textRtl: [P('M11 3v11M15 3v11M17 3h-7a3 3 0 0 0 0 6h1'), P('M19 19H5'), P('m8 16-3 3 3 3')],
   listBullet: [P('M9 6h11M9 12h11M9 18h11'), P('M5 6h.01M5 12h.01M5 18h.01', { strokeWidth: 2.4 })],
   listNumber: [P('M10 6h10M10 12h10M10 18h10'), P('M4 8V4l-1 .7M3.5 12h2l-2 3h2')],
   link: [P('M10 13a4 4 0 0 0 5.7 0l2.6-2.6a4 4 0 1 0-5.7-5.7L11.4 6'), P('M14 11a4 4 0 0 0-5.7 0l-2.6 2.6a4 4 0 0 0 5.7 5.7L12.6 18')],

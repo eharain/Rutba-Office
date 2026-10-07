@@ -105,6 +105,7 @@ function readProps(styleXml) {
     hangingPx: ind ? (attrs(ind)['w:hanging'] !== undefined ? twipsToPx(attrs(ind)['w:hanging']) : undefined) : undefined,
     firstLinePx: ind ? (attrs(ind)['w:firstLine'] !== undefined ? twipsToPx(attrs(ind)['w:firstLine']) : undefined) : undefined,
     keepNext: toggle(pPr, 'w:keepNext'),
+    rtl: toggle(pPr, 'w:bidi'),
     contextualSpacing: toggle(pPr, 'w:contextualSpacing'),
 
     // A style's borders — the box around a cover title — same shape as the

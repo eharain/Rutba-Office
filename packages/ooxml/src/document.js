@@ -197,6 +197,19 @@ const KEEP_NEXT = /<w:keepNext\b(?![^>]*w:val="(?:0|false)")/;
 const KEEP_LINES = /<w:keepLines\b(?![^>]*w:val="(?:0|false)")/;
 
 /**
+ * Which way a paragraph runs, from its `w:bidi`: true for right to left,
+ * false where w:val="0" turns a right-to-left style back, null where it
+ * says nothing and its style decides. A recorded change's old properties
+ * are not the paragraph's own.
+ */
+export function readBidi(pPr) {
+  const m = /<w:bidi\b([^>]*?)\/?>/.exec(String(pPr || '').split('<w:pPrChange')[0]);
+  if (!m) return null;
+  const val = /\bw:val="([^"]*)"/.exec(m[1])?.[1];
+  return val === undefined || !['0', 'false', 'off'].includes(val.toLowerCase());
+}
+
+/**
  * A drop cap, off `<w:framePr>`. Word makes one by splitting the initial
  * letter into its own paragraph and framing it — `w:dropCap="drop"` (the
  * letter sits in the column) or `"margin"` (it hangs in the margin) — with
@@ -4664,6 +4677,8 @@ export class Document {
       dropCap: readDropCap(now ?? ''),
       // Layout → Hyphenation leaves this paragraph whole.
       ...(/<w:suppressAutoHyphens\b(?![^>]*w:val="(?:0|false)")/.test(now ?? '') ? { noHyphens: true } : {}),
+      // Right to left (w:bidi), or a right-to-left style turned back.
+      ...(readBidi(now) !== null ? { rtl: readBidi(now) } : {}),
       // A frame placed on the page: drawn there, out of the flow.
       ...(p.container == null && readFrame(now ?? '') ? { frame: readFrame(now) } : {}),
       // Direct paragraph spacing, if the paragraph sets any — the paginator

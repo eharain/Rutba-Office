@@ -357,6 +357,9 @@ export default function WordRibbon({
                   { label: 'Z to A', run: () => dispatch({ op: 'sortParagraphs', descending: true }) },
                 ])} />
                 <Button icon="formula" title="Show formatting marks (¶)" pressed={Boolean(view.marks)} onClick={() => act('toggleMarks')} />
+                <Separator />
+                <Button icon="textLtr" title="Left-to-right text direction" pressed={!format.rtl} onClick={() => para({ rtl: false })} />
+                <Button icon="textRtl" title="Right-to-left text direction — the paragraph runs from the right margin, as Arabic, Hebrew, Persian and Urdu do" pressed={Boolean(format.rtl)} onClick={() => para({ rtl: true })} />
               </>
               <>
                 <Button icon="alignLeft" title="Align left (Ctrl+L)" pressed={format.paragraphAlign === 'left'} onClick={() => para({ align: 'left' })} />

@@ -3154,9 +3154,13 @@ function paragraphCss(block, styles) {
   const named = styles ? styles[block.style] ?? styles['*default*'] ?? null : null;
   const heading = Boolean(block.style && /Title|Heading/.test(block.style));
   const align = block.align || named?.align || null;
+  // Right to left (w:bidi): the paragraph runs from the right margin, and
+  // Word reads its alignment and indents mirrored — its "left" is where the
+  // lines start. The paragraph's own direction beats its style's.
+  const rtl = block.rtl ?? named?.rtl ?? false;
   const hanging = block.hangingPx ?? named?.hangingPx ?? null;
   const firstLine = block.firstLinePx ?? named?.firstLinePx ?? null;
-  return {
+  const css = {
     fontFamily: named?.fontName || undefined,
     fontSize: named?.sizePx ? `${Math.round(named.sizePx * 100) / 100}px` : HEADING_SIZES[block.style] ? `${HEADING_SIZES[block.style]}px` : undefined,
     fontWeight: named ? (named.bold ? 700 : undefined) : heading ? 600 : undefined,
@@ -3165,8 +3169,9 @@ function paragraphCss(block, styles) {
     textTransform: named?.caps ? 'uppercase' : undefined,
     fontVariant: named?.smallCaps ? 'small-caps' : undefined,
     color: named?.colour || undefined,
-    // 'both' is OOXML for justified; the other three are CSS already.
-    textAlign: align === 'both' ? 'justify' : align || undefined,
+    // 'both' is OOXML for justified; the others are CSS already, a
+    // right-to-left paragraph's left and right swapped.
+    textAlign: align === 'both' ? 'justify' : (rtl ? MIRRORED_ALIGN[align] : null) || align || undefined,
     marginTop: block.spaceBeforePx != null ? Math.round(block.spaceBeforePx) : named?.spaceBeforePx != null ? Math.round(named.spaceBeforePx) : heading ? '1.1em' : undefined,
     marginBottom: block.spaceAfterPx != null ? Math.round(block.spaceAfterPx) : named?.spaceAfterPx != null ? Math.round(named.spaceAfterPx) : undefined,
     // The paragraph's own left indent, to the pixel — including an explicit
@@ -3195,7 +3200,18 @@ function paragraphCss(block, styles) {
     backgroundColor: block.shading || named?.shading || undefined,
     ...borderStyle(block.borders ?? named?.borders),
   };
+  if (!rtl) return css;
+  // The indents, the hang and the borders' sides change places.
+  const out = { direction: 'rtl' };
+  for (const [key, value] of Object.entries(css)) out[MIRRORED_SIDE[key] || key] = value;
+  return out;
 }
+
+const MIRRORED_ALIGN = { left: 'right', right: 'left' };
+const MIRRORED_SIDE = {
+  marginLeft: 'marginRight', marginRight: 'marginLeft', paddingLeft: 'paddingRight', paddingRight: 'paddingLeft',
+  borderLeft: 'borderRight', borderRight: 'borderLeft',
+};
 
 /** The tab stops that apply: the paragraph's own, else its style's. */
 const tabStops = (block, styles) => block.tabs ?? (styles ? (styles[block.style] ?? styles['*default*'])?.tabs : null) ?? null;
@@ -3625,7 +3641,9 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
   // Word's bullet at a quarter inch with the text at a half — so the text
   // starts at the indent and the bullet sits in the space before it.
   const markerHang = typeof mark === 'object' && mark?.hangingPx ? Math.round(mark.hangingPx) : null;
-  const listStyle = markerIndent ? { ...style, marginLeft: markerIndent, ...(markerHang ? { textIndent: -markerHang } : {}) } : style;
+  // A right-to-left paragraph's marker hangs at the right, where it starts.
+  const rtl = style.direction === 'rtl';
+  const listStyle = markerIndent ? { ...style, [rtl ? 'marginRight' : 'marginLeft']: markerIndent, ...(markerHang ? { textIndent: -markerHang } : {}) } : style;
   // A continuation starts flush, without the space before; a part that goes
   // on ends without the space after, its last line justified like the rest.
   const flowStyle = whole
@@ -3670,6 +3688,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
       data-break={first && block.pageBreakBefore ? '1' : undefined}
       data-keep={block.keepNext || KEEP_WITH_NEXT.test(block.style || '') ? '1' : undefined}
       data-keeplines={block.keepLines ? '1' : undefined}
+      dir={rtl ? 'rtl' : undefined}
       style={partStyle}
     >
       {/* Floats first, so the lines that follow run round them. */}
@@ -3809,6 +3828,8 @@ const CSS = `
    pass, unlike measuring the glyph to write a pixel margin. */
 .wd-block.wd-dropcap { float: left; margin: 0 6px 0 0; padding: 0; line-height: 0.8; }
 .wd-block.wd-dropcap-margin { transform: translateX(-100%); }
+.wd-block.wd-dropcap[dir="rtl"] { float: right; margin: 0 0 0 6px; }
+.wd-block.wd-dropcap-margin[dir="rtl"] { transform: translateX(100%); }
 .wd-tab { display: inline-block; white-space: pre; tab-size: 0; overflow: hidden; vertical-align: baseline; min-width: 2px; }
 .wd-tab[data-leader="dot"] { background: radial-gradient(circle, currentColor 0.6px, transparent 0.9px) 0 calc(100% - 3px) / 4px 2px repeat-x; }
 .wd-tab[data-leader="hyphen"] { background: linear-gradient(currentColor, currentColor) 0 calc(100% - 3px) / 3px 1px repeat-x; }

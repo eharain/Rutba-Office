@@ -8,7 +8,7 @@
  * This is the ONLY file in `@rutba/doc-view` that imports `@rutba/ooxml`. Mail
  * imports the HTML backend instead and never pulls the format layer in.
  */
-import { Document, withToggle, hasToggle, langElement, themeColourHex, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection, splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf, splitParagraphChange, joinParagraphChange, withParagraphChange, attrs as parseAttrs } from '@rutba/ooxml';
+import { Document, withToggle, hasToggle, langElement, themeColourHex, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection, splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf, splitParagraphChange, joinParagraphChange, withParagraphChange, attrs as parseAttrs, readBidi } from '@rutba/ooxml';
 import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene } from '@rutba/drawing';
 import { ommlToMathml, ommlToLinear, ommlInfo, asciiLinear } from '@rutba/ooxml/math';
 import { mergeToDocument, mergeMessages } from '@rutba/ooxml/mailmerge-run';
@@ -786,10 +786,12 @@ function readParagraphProps(pPr) {
     align: null, indentTwips: null, style: null,
     lineSpacing: null, spaceBeforePts: null, spaceAfterPts: null,
     firstLineTwips: null, hangingTwips: null, rightTwips: null, tabs: null,
-    dropCap: null, suppressAutoHyphens: false,
+    dropCap: null, suppressAutoHyphens: false, rtl: null,
   };
   if (!pPr) return out;
   out.suppressAutoHyphens = /<w:suppressAutoHyphens\b(?![^>]*w:val="(?:0|false)")/.test(pPr);
+  // Right to left: true, false (a right-to-left style turned back) or null.
+  out.rtl = readBidi(pPr);
   const framePr = /<w:framePr\b([^>]*)\/?>/.exec(pPr);
   if (framePr) {
     const kind = /\bw:dropCap="([^"]*)"/.exec(framePr[1])?.[1];
@@ -1070,6 +1072,18 @@ function withSuppressAutoHyphens(pPr, on) {
   return joinPPr(open, insertOrdered(without, 'suppressAutoHyphens', '<w:suppressAutoHyphens/>'), close);
 }
 
+/**
+ * `<w:bidi/>`: the paragraph runs right to left. True sets it, false writes
+ * w:val="0" — a right-to-left style turned back — and null takes it off.
+ */
+function withBidi(pPr, value) {
+  const { open, inner, close } = splitPPr(pPr);
+  const existing = pPrChildren(inner).find((c) => c.tag === 'bidi');
+  const without = existing ? inner.slice(0, existing.start) + inner.slice(existing.end) : inner;
+  if (value == null) return joinPPr(open, without, close);
+  return joinPPr(open, insertOrdered(without, 'bidi', value ? '<w:bidi/>' : '<w:bidi w:val="0"/>'), close);
+}
+
 function withPageBreakBefore(pPr, on) {
   const { open, inner, close } = splitPPr(pPr);
   const existing = pPrChildren(inner).find((c) => c.tag === 'pageBreakBefore');
@@ -1166,6 +1180,9 @@ function withParagraphProp(pPr, prop, value) {
   }
   if (prop === 'suppressAutoHyphens') {
     return withSuppressAutoHyphens(pPr, Boolean(value));
+  }
+  if (prop === 'rtl') {
+    return withBidi(pPr, value == null ? null : Boolean(value));
   }
   if (prop === 'dropCap') {
     return withFramePr(pPr, value ? { kind: value.kind, lines: value.lines } : null);
