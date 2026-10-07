@@ -229,9 +229,11 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
    * another folder does not also silence an out-of-office reply that owes
    * nobody an explanation about which folder it landed in.
    */
-  async function runArrivalPipeline(accountId, folder, added) {
-    if (!added) return { filed: null, autoReplied: 0, junked: 0 };
-    let { rows } = store.list(accountId, folder, { limit: added });
+  async function runArrivalPipeline(accountId, folder, ids) {
+    if (!ids?.length) return { filed: null, autoReplied: 0, junked: 0 };
+    // The messages that arrived, by name: the newest dates are not them
+    // when one comes late carrying the date it was written.
+    let rows = store.headers(accountId, folder, ids);
 
     // Junk first, and only for what lands in the Inbox: what the filter
     // files there is not for a rule to sort or an automatic reply to answer.
@@ -589,6 +591,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
 
       const client = await imapFor(account);
       let added = 0;
+      // What each folder took in, for the arrival pipeline to run over.
+      const arrived = [];
       try {
         const list = await client.list();
         const folders = list
@@ -604,6 +608,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
             if (!total) continue;
             const from = Math.max(1, total - limit + 1);
             const batch = [];
+            const ids = [];
+            arrived.push({ folder: target.path, ids });
             for await (const msg of client.fetch(`${from}:*`, { uid: true, flags: true, source: true })) {
               const parsed = parseMessage(msg.source);
               parsed.uid = msg.uid;
@@ -611,11 +617,11 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
               parsed.flagged = Boolean(msg.flags?.has?.('\\Flagged'));
               batch.push(parsed);
               if (batch.length >= 50) {
-                added += store.putMany(accountId, target.path, batch.splice(0));
+                added += store.putMany(accountId, target.path, batch.splice(0), { ids });
                 broadcast?.('mail:progress', { accountId, folder: target.path, done: added, total, phase: 'fetch' });
               }
             }
-            if (batch.length) added += store.putMany(accountId, target.path, batch);
+            if (batch.length) added += store.putMany(accountId, target.path, batch, { ids });
           } finally {
             lock.release();
           }
@@ -627,7 +633,17 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       // arrived rather than over the whole folder — re-running either across
       // 50,000 old messages every fetch would be a different and much slower
       // feature. See runArrivalPipeline.
-      const { filed, autoReplied, junked } = await runArrivalPipeline(accountId, folder || 'Inbox', added);
+      // Each folder under its own name — the server's Inbox is "INBOX" —
+      // and the tallies added up.
+      let filed = null;
+      let autoReplied = 0;
+      let junked = 0;
+      for (const { folder: path, ids } of arrived) {
+        const r = await runArrivalPipeline(accountId, path, ids);
+        if (r.filed) filed = filed ? Object.fromEntries(Object.entries(r.filed).map(([k, v]) => [k, v + (filed[k] || 0)])) : r.filed;
+        autoReplied += r.autoReplied;
+        junked += r.junked;
+      }
 
       if (added) broadcast?.('mail:new', { accountId, folder, count: added, filed, junked });
       return { added, filed, autoReplied, junked, total: store.counts(accountId, folder || 'Inbox').total };
@@ -645,9 +661,10 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       find(accountId); // throws its own message if the account is not set up
       const parsed = parseMessage(raw);
       parsed.unread = true;
-      const added = store.putMany(accountId, folder, [parsed]);
+      const ids = [];
+      const added = store.putMany(accountId, folder, [parsed], { ids });
       store.upsertFolder(accountId, { path: folder, name: folder, ...classify(folder) });
-      return runArrivalPipeline(accountId, folder, added).then(({ filed, autoReplied, junked }) => {
+      return runArrivalPipeline(accountId, folder, ids).then(({ filed, autoReplied, junked }) => {
         if (added) broadcast?.('mail:new', { accountId, folder, count: added, filed, junked });
         return { added, autoReplied, junked };
       });

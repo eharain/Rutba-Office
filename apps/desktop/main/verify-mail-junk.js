@@ -40,8 +40,7 @@ export async function verifyMailJunk(h) {
   let win = null;
   let js = null;
   const stamp = Date.now();
-  // A minute apart, counting on from now: the arrival pipeline reads the
-  // newest messages as the ones just added.
+  // A minute apart, counting on from now, so the list shows them in order.
   const raw = ([from, subject, body], n) => [
     `From: <${from}>`, 'To: You <you@example.com>', `Subject: ${subject}`, `Date: ${new Date(stamp + n * 60000).toUTCString()}`,
     `Message-ID: <junk-${stamp}-${n}@example.org>`, 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', '', body, '',

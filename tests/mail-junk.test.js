@@ -104,7 +104,6 @@ function service() {
   const account = mail.addAccount({ account: { email: 'me@example.com', name: 'Me', imap: { host: 'h', port: 993 }, smtp: { host: 'h', port: 465 } }, password: 'secret' });
   return { mail, accountId: account.id };
 }
-// A minute apart, in the order they arrive: the arrival pipeline reads the newest as the ones just added.
 const raw = ([from, subject, body], n) => [`From: <${from}>`, 'To: <me@example.com>', `Subject: ${subject}`, `Date: ${new Date(Date.UTC(2026, 9, 1) + n * 60000).toUTCString()}`, `Message-ID: <t${n}-${subject.length}@test>`, 'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', '', body, ''].join('\r\n');
 const subjects = (mail, accountId, folder) => mail.messages({ accountId, folder, limit: 100 }).rows.map((r) => r.subject);
 
@@ -142,6 +141,13 @@ test('moving a message into Junk teaches the filter junk, and Not junk teaches i
   const another = mail.messages({ accountId, folder: 'Junk', limit: 100 }).rows[0];
   mail.move({ accountId, folder: 'Junk', ids: [another.id], to: 'Trash' });
   assert.deepEqual(mail.junk().learned, before);
+
+  // A message that comes late, carrying a date months before everything
+  // else here, is still the one that arrived — filed, not passed over for
+  // the newest.
+  const late = await mail.deliverTest({ accountId, raw: raw(['sales@cheap-meds.example', 'Cheap pills, discount offer', 'Buy cheap pills online with a discount offer, click here http://cheap-meds.example/buy'], -200000) });
+  assert.equal(late.junked, 1);
+  assert.ok(subjects(mail, accountId, 'Junk').includes('Cheap pills, discount offer'));
 });
 
 test('a blocked sender goes to Junk at once, whatever the filter knows; options refuse a bad entry by name', async () => {
