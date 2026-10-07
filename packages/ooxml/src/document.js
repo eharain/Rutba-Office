@@ -71,6 +71,7 @@ const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
 export {
   textOf, parseRuns, hasToggle, withToggle, langElement, renderRuns, renderRun, firstRunProps, RPR_RE,
+  splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf,
 } from './runs.js';
 import {
   textOf, parseRuns, renderRuns, renderRun, firstRunProps, RPR_RE, mapComplexFieldResults, mergeFieldsOnly, foldsToRuns, langElement,
@@ -366,7 +367,7 @@ function hslToHex(h, s, l) {
 }
 
 function readParagraphDecor(pPrXml) {
-  const pPr = String(pPrXml || '').replace(/<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>|<w:rPr\b[^>]*\/>/g, '');
+  const pPr = String(pPrXml || '').replace(new RegExp(RPR_RE.source, 'g'), '');
   const out = {};
 
   // <w:tabs><w:tab w:val="left" w:pos="720" w:leader="dot"/></w:tabs>
@@ -980,7 +981,7 @@ export class Document {
     const out = [];
     for (const p of this.editParagraphs()) {
       if (p.container !== null) continue;
-      const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/.exec(p.xml);
+      const pPr = /<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>/.exec(p.xml);
       const brk = paragraphSectionBreak(pPr ? pPr[0] : null);
       if (brk) out.push({ endsAt: p.index, type: brk.type, ...pageOf(brk.sectPr), ...sectionKind(brk.sectPr), sectPrXml: brk.sectPr });
     }
@@ -1116,7 +1117,7 @@ export class Document {
     const set = new Set();
     const list = this.editParagraphs().filter((p) => p.container === null);
     for (let i = 0; i + 1 < list.length; i++) {
-      const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/.exec(list[i].xml);
+      const pPr = /<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>/.exec(list[i].xml);
       const brk = paragraphSectionBreak(pPr ? pPr[0] : null);
       if (brk && brk.type !== 'continuous') set.add(list[i + 1].start);
     }
@@ -2381,7 +2382,7 @@ export class Document {
     const paragraphs = [];
     for (const p of String(fragment).matchAll(/<w:p\b[^>]*\/>|<w:p\b[^>]*>[\s\S]*?<\/w:p>/g)) {
       const px = p[0];
-      const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(px);
+      const pPr = /<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(px);
       const style = /<w:pStyle\b[^>]*w:val="([^"]*)"/.exec(pPr ? pPr[0] : '');
       const jc = /<w:jc\b[^>]*w:val="([^"]*)"/.exec(pPr ? pPr[0] : '');
       const ind = /<w:ind\b([^>]*?)\/?>/.exec(pPr ? pPr[0] : '');
@@ -2482,7 +2483,7 @@ export class Document {
     const m = new RegExp('(<w:' + kind + '\\b[^>]*\\bw:id="' + String(id).replace(/[^-\d]/g, '') + '"[^>]*>)([\\s\\S]*?)(</w:' + kind + '>)').exec(xml);
     if (!m) throw new Error('no ' + kind + ' with id ' + id);
     const firstP = /<w:p\b[^>]*>([\s\S]*?)<\/w:p>/.exec(m[2]);
-    const pPr = (firstP && /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/.exec(firstP[1])?.[0]) || '<w:pPr><w:pStyle w:val="' + spec.textStyle + '"/></w:pPr>';
+    const pPr = (firstP && /<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>/.exec(firstP[1])?.[0]) || '<w:pPr><w:pStyle w:val="' + spec.textStyle + '"/></w:pPr>';
     const mark = (firstP && new RegExp('<w:r\\b[^>]*>(?:(?!</w:r>)[\\s\\S])*?<w:' + kind + 'Ref\\b[^>]*/>[\\s\\S]*?</w:r>').exec(firstP[1])?.[0])
       || '<w:r><w:rPr><w:rStyle w:val="' + spec.refStyle + '"/><w:vertAlign w:val="superscript"/></w:rPr><w:' + kind + 'Ref/></w:r>';
     const rebuilt = m[1] + '<w:p>' + pPr + mark + renderRun(null, ' ' + body) + '</w:p>' + m[3];
@@ -2809,7 +2810,7 @@ export class Document {
     const [cutFrom, cutTo] = run && bare ? [d.runStart, d.runEnd] : [d.unitStart, d.unitEnd];
     const moved = '<w:r>' + unit + '</w:r>';
     const openTag = /<w:p\b[^>]*?>/.exec(target.xml)[0];
-    const pPr = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>)?/.exec(target.xml);
+    const pPr = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?/.exec(target.xml);
     let at = target.start + (pPr ? pPr[0].length : openTag.length);
     let out;
     if (target.xml.endsWith('/>') && /^<w:p\b[^>]*\/>$/.test(target.xml)) {
@@ -2889,7 +2890,7 @@ export class Document {
     if (/^<w:p\b[^>]*\/>$/.test(fresh.xml)) {
       this._spliceBody(fresh.start, fresh.end, fresh.xml.replace(/\/>$/, '>') + run + '</w:p>');
     } else {
-      const lead = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>)?/.exec(fresh.xml);
+      const lead = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?/.exec(fresh.xml);
       const at = fresh.start + (lead ? lead[0].length : openTag.length);
       this._spliceBody(at, at, run);
     }
@@ -3010,7 +3011,7 @@ export class Document {
       return;
     }
     const openTag = /<w:p\b[^>]*?>/.exec(fresh.xml)[0];
-    const lead = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>)?/.exec(fresh.xml);
+    const lead = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?/.exec(fresh.xml);
     const at = fresh.start + (lead ? lead[0].length : openTag.length);
     this._spliceBody(at, at, runs);
   }
@@ -3077,7 +3078,7 @@ export class Document {
     const anchorBlock = first.block;
     for (const d of [...chosen].sort((a, b) => spans.find((s) => s.id === b.id).start - spans.find((s) => s.id === a.id).start)) this.removeDrawing(d.id);
     const target = this.editParagraph(anchorBlock);
-    const lead = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>)?/.exec(target.xml);
+    const lead = /^<w:p\b[^>]*?>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?/.exec(target.xml);
     const run = '<w:r>' + drawing + '</w:r>';
     if (/^<w:p\b[^>]*\/>$/.test(target.xml)) this._spliceBody(target.start, target.end, target.xml.replace(/\/>$/, '>') + run + '</w:p>');
     else this._spliceBody(target.start + lead[0].length, target.start + lead[0].length, run);
@@ -3639,7 +3640,7 @@ export class Document {
       const shape = (i) => {
         const src = olds[Math.min(i, olds.length - 1)] ?? null;
         if (!src) return { pPr: '', rPr: null };
-        const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(src);
+        const pPr = /<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(src);
         return { pPr: pPr ? pPr[0] : '', rPr: firstRunProps(src) };
       };
       const body = texts.map((t, i) => {
@@ -4349,48 +4350,118 @@ export class Document {
    * `_decorate`) — the two are free to evolve apart.
    */
   acceptParagraphChanges(index) {
-    const p = this.editParagraph(index);
-    if (!p) throw new Error('no paragraph at index ' + index);
-    if (!/<w:(?:ins|del)\b/.test(p.xml)) return false;
-    const next = p.xml
-      .replace(/<w:ins\b[^>]*>([\s\S]*?)<\/w:ins>/g, '$1')
-      .replace(/<w:del\b[^>]*>[\s\S]*?<\/w:del>/g, '');
-    this._spliceBody(p.start, p.end, next);
-    this.dirty = true;
-    return true;
+    return this._resolveParagraphChanges(index, true);
   }
 
   /**
    * Reject every tracked change in one paragraph: an insertion and its
    * words are gone outright; a deletion's `w:del` wrapper comes off and its
-   * `w:delText` runs become ordinary `w:t` again — the paragraph as it read
-   * before either change.
+   * `w:delText` runs become ordinary `w:t` again; a change of formatting
+   * puts back the properties it recorded — the paragraph as it read before.
    */
   rejectParagraphChanges(index) {
+    return this._resolveParagraphChanges(index, false);
+  }
+
+  /**
+   * Accept (`keep` true) or reject one paragraph's tracked changes: words put
+   * in or taken out (`w:ins`/`w:del` around runs), formatting changed
+   * (`w:rPrChange`, `w:pPrChange`), and the paragraph mark itself put in or
+   * taken out — a self-closing `w:ins`/`w:del` in the mark's own `w:rPr`,
+   * as Word writes a paragraph added or joined while tracking. A mark that
+   * goes (an inserted one rejected, a deleted one accepted) joins the
+   * paragraph to the next, which keeps the next one's properties, as Word
+   * does. True when anything changed.
+   */
+  _resolveParagraphChanges(index, keep) {
     const p = this.editParagraph(index);
     if (!p) throw new Error('no paragraph at index ' + index);
-    if (!/<w:(?:ins|del)\b/.test(p.xml)) return false;
-    const next = p.xml
-      .replace(/<w:ins\b[^>]*>[\s\S]*?<\/w:ins>/g, '')
-      .replace(/<w:del\b[^>]*>([\s\S]*?)<\/w:del>/g, (whole, inner) => inner
+    if (!/<w:(?:ins|del|rPrChange|pPrChange)\b/.test(p.xml)) return false;
+    const pPrRe = /^(<w:p\b[^>]*>)\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?/;
+    const head = pPrRe.exec(p.xml);
+    let pPr = head?.[2] ?? '';
+    let rest = p.xml.slice(head ? head[0].length : 0);
+    // The paragraph mark: put in or taken out while tracking.
+    const markRe = /<w:(ins|del)\b[^>]*\/>/;
+    const mark = /<w:rPr\b[^>]*>(?:<w:rPrChange\b[\s\S]*?<\/w:rPrChange>|(?!<\/w:rPr>)[\s\S])*?<\/w:rPr>/.exec(pPr)?.[0]?.match(markRe)?.[1] ?? null;
+    if (mark) pPr = pPr.replace(/<w:rPr\b[^>]*>(?:<w:rPrChange\b[\s\S]*?<\/w:rPrChange>|(?!<\/w:rPr>)[\s\S])*?<\/w:rPr>/, (rPr) => rPr.replace(new RegExp(markRe.source, 'g'), ''));
+    // The paragraph's own formatting, changed while tracking.
+    const pChange = /<w:pPrChange\b[^>]*>([\s\S]*?)<\/w:pPrChange>/.exec(pPr);
+    if (pChange && keep) pPr = pPr.replace(pChange[0], '');
+    else if (pChange) {
+      // Rejected: the properties it recorded, with the mark's run properties
+      // and a section break kept — the change never holds those.
+      const before = /<w:pPr\b[^>]*>([\s\S]*)<\/w:pPr>/.exec(pChange[1])?.[1] ?? '';
+      const markProps = /<w:rPr\b[^>]*>(?:<w:rPrChange\b[\s\S]*?<\/w:rPrChange>|(?!<\/w:rPr>)[\s\S])*?<\/w:rPr>/.exec(pPr)?.[0] ?? '';
+      const sect = /<w:sectPr\b[\s\S]*?<\/w:sectPr>/.exec(pPr)?.[0] ?? '';
+      pPr = '<w:pPr>' + before + markProps + sect + '</w:pPr>';
+    }
+    // Words put in and taken out — the wrappers around runs, never a mark.
+    const ins = /<w:ins\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:ins>/g;
+    const del = /<w:del\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:del>/g;
+    rest = keep
+      ? rest.replace(ins, '$1').replace(del, '')
+      : rest.replace(ins, '').replace(del, (whole, inner) => inner
         .replace(/<w:delText\b([^>]*)\/>/g, '<w:t$1/>')
         .replace(/<w:delText\b([^>]*)>/g, '<w:t$1>')
         .replace(/<\/w:delText>/g, '</w:t>'));
-    this._spliceBody(p.start, p.end, next);
+    // Formatting changed: kept as it is now, or put back as it was.
+    const fmt = /<w:rPr\b[^>]*>((?:(?!<\/w:rPr>|<w:rPrChange\b)[\s\S])*)<w:rPrChange\b[^>]*>\s*<w:rPr\b[^>]*>([\s\S]*?)<\/w:rPr>\s*<\/w:rPrChange>\s*<\/w:rPr>|<w:rPr\b[^>]*>((?:(?!<\/w:rPr>|<w:rPrChange\b)[\s\S])*)<w:rPrChange\b[^>]*>\s*<w:rPr\b[^>]*\/>\s*<\/w:rPrChange>\s*<\/w:rPr>/g;
+    const resolve = (xml) => xml.replace(fmt, (whole, nowA, was, nowB) => {
+      const props = keep ? (nowA ?? nowB ?? '') : (was ?? '');
+      return props.trim() ? '<w:rPr>' + props + '</w:rPr>' : '';
+    });
+    rest = resolve(rest);
+    pPr = resolve(pPr).replace(/<w:rPr\b[^>]*>\s*<\/w:rPr>/, '').replace(/^<w:pPr\b[^>]*>\s*<\/w:pPr>$/, '');
+    this._spliceBody(p.start, p.end, head[1] + pPr + rest);
+    this.dirty = true;
+    // A mark that goes joins this paragraph to the next.
+    if ((mark === 'ins' && !keep) || (mark === 'del' && keep)) this._joinParagraphMark(index);
+    return true;
+  }
+
+  /**
+   * The paragraph mark between paragraph `index` and the next taken away:
+   * the two become one, the next one's properties its own — the mark held
+   * them, as in Word. Only paragraphs side by side in the same story join;
+   * otherwise nothing moves.
+   */
+  _joinParagraphMark(index) {
+    const p = this.editParagraph(index);
+    const q = this.editParagraph(index + 1);
+    if (!p || !q || (p.container ?? null) !== (q.container ?? null)) return false;
+    const { body } = this._body();
+    if (body.slice(p.end, q.start).trim()) return false;
+    const pPrRe = /^(<w:p\b[^>]*>)\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?/;
+    const partsOf = (xml) => {
+      if (/^<w:p\b[^>]*\/>$/.test(xml)) return { open: xml.replace(/\/>$/, '>'), pPr: '', runs: '' };
+      const h = pPrRe.exec(xml);
+      return { open: h[1], pPr: h[2] ?? '', runs: xml.slice(h[0].length).replace(/<\/w:p>$/, '') };
+    };
+    const a = partsOf(p.xml);
+    const b = partsOf(q.xml);
+    this._spliceBody(p.start, q.end, b.open + b.pPr + a.runs + b.runs + '</w:p>');
     this.dirty = true;
     return true;
   }
 
   /** Review → Accept All / Reject All. True when anything in the body changed. */
   acceptAllChanges() {
-    let changed = false;
-    for (let i = 0; i < this.editParagraphCount(); i++) if (this.acceptParagraphChanges(i)) changed = true;
-    return changed;
+    return this._resolveAllChanges(true);
   }
 
   rejectAllChanges() {
+    return this._resolveAllChanges(false);
+  }
+
+  _resolveAllChanges(keep) {
     let changed = false;
-    for (let i = 0; i < this.editParagraphCount(); i++) if (this.rejectParagraphChanges(i)) changed = true;
+    // A paragraph that joins the next is looked at again: the joined one may carry changes of its own.
+    for (let i = 0; i < this.editParagraphCount();) {
+      const before = this.editParagraphCount();
+      if (this._resolveParagraphChanges(i, keep)) changed = true;
+      if (this.editParagraphCount() === before) i += 1;
+    }
     return changed;
   }
 
@@ -4463,7 +4534,7 @@ export class Document {
       );
     }
 
-    const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(p.xml);
+    const pPr = /<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(p.xml);
     const open = /<w:p\b[^>]*?>/.exec(p.xml)[0];
     const rebuilt = open + (pPr ? pPr[0] : '') + renderRun(firstRunProps(p.xml), String(value)) + '</w:p>';
 
@@ -4544,7 +4615,7 @@ export class Document {
     // Its properties are its own too: an anchor with no `w:pPr` must not
     // take the first one inside its box for its own.
     const own = ownXml;
-    const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(own);
+    const pPr = /<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(own);
     const style = /<w:pStyle\b[^>]*w:val="([^"]*)"/.exec(pPr ? pPr[0] : '');
     // `open` is normalised to a real opening tag: a self-closing `<w:p/>` (an
     // empty cell, a blank line) must not be used as a prefix and then closed
@@ -4641,12 +4712,14 @@ export class Document {
       // paragraph, how many times, and what a deletion removed — so the
       // review is VISIBLE here even though resolving it belongs to Word.
       tracked: (() => {
-        if (!/<w:(ins|del)\b/.test(p.xml)) return null;
+        if (!/<w:(ins|del|rPrChange|pPrChange)\b/.test(p.xml)) return null;
         const authors = new Set();
         let inserted = 0;
         let deleted = 0;
+        let formatted = 0;
         const removals = [];
-        for (const m of p.xml.matchAll(/<w:(ins|del)\b([^>]*)>([\s\S]*?)<\/w:\1>/g)) {
+        // Words put in and taken out — the wrappers around runs.
+        for (const m of p.xml.matchAll(/<w:(ins|del)\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:\1>/g)) {
           const a = attrs(m[2]);
           if (a['w:author']) authors.add(unesc(a['w:author']));
           if (m[1] === 'ins') inserted += 1;
@@ -4655,9 +4728,20 @@ export class Document {
             for (const t of m[3].matchAll(/<w:delText\b[^>]*>([\s\S]*?)<\/w:delText>/g)) removals.push(unesc(t[1]));
           }
         }
+        // The paragraph mark put in or taken out, and formatting changed.
+        const mark = /<w:(ins|del)\b([^>]*)\/>/.exec(p.xml);
+        if (mark) authors.add(unesc(attrs(mark[2])['w:author'] ?? ''));
+        for (const m of p.xml.matchAll(/<w:(?:rPrChange|pPrChange)\b([^>]*)>/g)) {
+          formatted += 1;
+          const a = attrs(m[1]);
+          if (a['w:author']) authors.add(unesc(a['w:author']));
+        }
+        authors.delete('');
         return {
           inserted,
           deleted,
+          ...(formatted ? { formatted } : {}),
+          ...(mark ? { mark: mark[1] === 'ins' ? 'inserted' : 'deleted' } : {}),
           authors: [...authors],
           deletedText: removals.join('').slice(0, 200) || null,
         };

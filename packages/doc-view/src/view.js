@@ -557,6 +557,22 @@ export class DocView {
     return { id: String(this.doc.nextTrackChangeId()), author, date: new Date().toISOString() };
   }
 
+  /** The tag one change of formatting is recorded under while Track Changes is on — null when it is off. */
+  _formatMeta() {
+    return this.recording && typeof this.doc.withFormatChange === 'function' ? this._trackMeta(null) : null;
+  }
+
+  /**
+   * A run given new properties — while recording, a change of formatting
+   * from what it had, as Word records one (`w:rPrChange`). Words taken out
+   * are not formatted, and words still in one's own pending insertion carry
+   * their look as part of it.
+   */
+  _reformat(run, rPr, meta) {
+    if (!meta || run.del || (run.ins && run.ins.author === meta.author)) return { ...run, rPr };
+    return { ...run, rPr: this.doc.withFormatChange(run.rPr, rPr, meta) };
+  }
+
   /**
    * Insert text at the caret, replacing any selection.
    *
@@ -812,13 +828,14 @@ export class DocView {
     }
     const allOn = spans.every((s) => s.covered.length > 0 && s.covered.every((r) => r[key]));
     const turnOn = !allOn;
+    const meta = this._formatMeta();
 
     // last to first, so earlier paragraph offsets stay valid as we rewrite
     for (const span of [...spans].reverse()) {
       const b = this.block(span.index);
       const next = [
         ...sliceRuns(b.runs, 0, span.start),
-        ...sliceRuns(b.runs, span.start, span.end).map((r) => ({ ...r, rPr: this.doc.toggleRunFormat(r.rPr, tag, turnOn) })),
+        ...sliceRuns(b.runs, span.start, span.end).map((r) => this._reformat(r, this.doc.toggleRunFormat(r.rPr, tag, turnOn), meta)),
         ...sliceRuns(b.runs, span.end, Infinity),
       ];
       this.doc.setParagraphRuns(span.index, coalesce(next));
@@ -872,6 +889,7 @@ export class DocView {
 
     const { from, to } = this.selection;
     for (let i = from.block; i <= to.block; i++) this._editable(i);
+    const meta = this._formatMeta();
 
     const spans = [];
     for (let i = from.block; i <= to.block; i++) {
@@ -887,7 +905,7 @@ export class DocView {
       const b = this.block(span.index);
       const next = [
         ...sliceRuns(b.runs, 0, span.start),
-        ...sliceRuns(b.runs, span.start, span.end).map((r) => ({ ...r, rPr: null })),
+        ...sliceRuns(b.runs, span.start, span.end).map((r) => this._reformat(r, null, meta)),
         ...sliceRuns(b.runs, span.end, Infinity),
       ];
       this.doc.setParagraphRuns(span.index, coalesce(next));
@@ -898,6 +916,7 @@ export class DocView {
 
   _setRunFormat(props) {
     const keys = Object.keys(props);
+    const meta = this._formatMeta();
 
     if (this.collapsed) {
       this.pendingFormat = { ...(this.pendingFormat ?? {}) };
@@ -926,7 +945,7 @@ export class DocView {
         ...sliceRuns(b.runs, span.start, span.end).map((r) => {
           let rPr = r.rPr;
           for (const key of keys) rPr = this.doc.setRunProp(rPr, key, props[key]);
-          return { ...r, rPr };
+          return this._reformat(r, rPr, meta);
         }),
         ...sliceRuns(b.runs, span.end, Infinity),
       ];
@@ -2944,6 +2963,10 @@ export class DocView {
     // change bar; Accept/Reject and the Reviewing Pane read them too.
     if (r.ins) out.ins = r.ins;
     if (r.del) out.del = r.del;
+    // A change of formatting — who, when, and how the words looked before,
+    // which Original markup draws them in.
+    const formatted = r.rPr && typeof this.doc.formatChangeOf === 'function' ? this.doc.formatChangeOf(r.rPr) : null;
+    if (formatted) out.formatChange = formatted;
     // The run's CHARACTER style — Hyperlink, FootnoteReference, Strong —
     // fills in what the run does not set itself. Word paints a hyperlink
     // blue and underlined only because its style says so; a TOC entry that

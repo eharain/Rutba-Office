@@ -22,6 +22,7 @@ export {
 } from './workbook.js';
 export {
   Document, textOf, parseRuns, renderRuns, hasToggle, withToggle, langElement, WORD_NS,
+  splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf,
 } from './document.js';
 export {
   parseTable, parseSection, twipsToPx, eighthPointsToPx, TWIPS_PER_INCH,

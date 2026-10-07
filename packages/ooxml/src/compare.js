@@ -83,7 +83,7 @@ export function compareBodies(original, revised, { author = 'Compare', date = ne
   let changes = 0;
   const mark = (kind) => `w:id="${id++}" w:author="${esc(author)}" w:date="${date}"`;
   const firstRPr = (p) => /<w:r\b[^>]*>\s*(<w:rPr>[\s\S]*?<\/w:rPr>)/.exec(p)?.[1] || '';
-  const pPrOf = (p) => /^<w:p\b[^>]*>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>)?/.exec(p)?.[1] || '';
+  const pPrOf = (p) => /^<w:p\b[^>]*>\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?/.exec(p)?.[1] || '';
   const runText = (text, tag) => text.split(/(\t|\n)/).filter((x) => x !== '').map((x) => (x === '\t' ? '<w:tab/>' : x === '\n' ? '<w:br/>' : `<${tag} xml:space="preserve">${esc(x)}</${tag}>`)).join('');
   /** A paragraph mark marked inserted or deleted, in its pPr. */
   const withMark = (pPr, kind) => {

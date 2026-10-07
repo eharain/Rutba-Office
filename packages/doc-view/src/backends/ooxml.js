@@ -8,7 +8,7 @@
  * This is the ONLY file in `@rutba/doc-view` that imports `@rutba/ooxml`. Mail
  * imports the HTML backend instead and never pulls the format layer in.
  */
-import { Document, withToggle, hasToggle, langElement, themeColourHex, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection } from '@rutba/ooxml';
+import { Document, withToggle, hasToggle, langElement, themeColourHex, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection, splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf } from '@rutba/ooxml';
 import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene } from '@rutba/drawing';
 import { ommlToMathml, ommlToLinear, ommlInfo, asciiLinear } from '@rutba/ooxml/math';
 import { mergeToDocument, mergeMessages } from '@rutba/ooxml/mailmerge-run';
@@ -111,7 +111,30 @@ export class OoxmlBackend {
     // Glow is the one property whose write depends on the FILE, not just the
     // run: it needs its own namespace declared once, either on the element
     // itself or, when the document already carries it, not at all.
-    return withRunProp(rPr, prop, value, prop === 'glow' ? this._declaresW14() : false);
+    // A tracked change's record of before stays as it was, last in the rPr.
+    const { own, change } = splitFormatChange(rPr);
+    return joinFormatChange(withRunProp(own, prop, value, prop === 'glow' ? this._declaresW14() : false), change);
+  }
+
+  /**
+   * Review → Track Changes: `after` recorded as a change of formatting from
+   * `before` (a `w:rPrChange`), and what a run's change says it was.
+   */
+  withFormatChange(before, after, meta) { return withFormatChange(before, after, meta); }
+
+  /** A run's change of formatting: who, when, and how it looked before — the toggles and the values. */
+  formatChangeOf(rPr) {
+    const change = formatChangeOf(rPr);
+    if (!change) return null;
+    const was = change.rPr;
+    const look = this.readRunProps(was);
+    return {
+      id: change.id, author: change.author, date: change.date,
+      was: {
+        bold: hasToggle(was, 'b'), italic: hasToggle(was, 'i'), underline: hasToggle(was, 'u'), strike: hasToggle(was, 'strike'),
+        ...Object.fromEntries(['fontName', 'fontSize', 'fontColour', 'highlight', 'vertAlign'].filter((k) => look[k] != null).map((k) => [k, look[k]])),
+      },
+    };
   }
 
   /** Whether `<w:document>` already declares xmlns:w14 — glow can then ride bare. */
@@ -122,6 +145,8 @@ export class OoxmlBackend {
 
   /** Read family/size/colour back off an rPr — the toolbar's caret state. */
   readRunProps(rPr) {
+    // How the run looks now: a tracked change's record of before is not it.
+    rPr = splitFormatChange(rPr).own;
     if (typeof this.doc.themeFonts !== 'function') return readRunProps(rPr, null);
     return readRunProps(rPr, { ...this.doc.themeFonts(), colours: typeof this.doc.themeColours === 'function' ? this.doc.themeColours() : null });
   }

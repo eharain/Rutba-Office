@@ -144,7 +144,7 @@ function withSectionBreak(paragraphXml, sectPr) {
   let p = paragraphXml;
   if (/^<w:p\b[^>]*\/>$/.test(p)) p = p.replace(/\/>$/, '>') + '</w:p>';
   const open = /^<w:p\b[^>]*>/.exec(p)[0];
-  const pPr = /<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/.exec(p.slice(open.length, open.length + 20000));
+  const pPr = /<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>/.exec(p.slice(open.length, open.length + 20000));
   if (!pPr || pPr.index !== 0) return open + '<w:pPr>' + sectPr + '</w:pPr>' + p.slice(open.length);
   const at = open.length;
   let inner = pPr[0];

@@ -99,11 +99,70 @@ function renderRun(rPrXml, text, run = null) {
 function firstRunProps(fragment) {
   const run = /<w:r\b[^>]*>([\s\S]*?)<\/w:r>/.exec(fragment);
   if (!run) return null;
-  const rPr = /<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>|<w:rPr\b[^>]*\/>/.exec(run[1]);
+  const rPr = RPR_RE.exec(run[1]);
   return rPr ? rPr[0] : null;
 }
 
-const RPR_RE = /<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>|<w:rPr\b[^>]*\/>/;
+/**
+ * A run's `<w:rPr>`, whole. A tracked formatting change sits inside it as a
+ * `<w:rPrChange>` holding the properties before — an `<w:rPr>` of its own —
+ * so the first `</w:rPr>` is not always the end: the change is taken whole.
+ */
+const RPR_RE = /<w:rPr\b[^>]*>(?:<w:rPrChange\b[\s\S]*?<\/w:rPrChange>|(?!<\/w:rPr>)[\s\S])*?<\/w:rPr>|<w:rPr\b[^>]*\/>/;
+
+const RPR_CHANGE_RE = /<w:rPrChange\b[^>]*>[\s\S]*?<\/w:rPrChange>/;
+
+/**
+ * A run's own properties and the tracked formatting change it carries, apart:
+ * `own` the `<w:rPr>` without its `<w:rPrChange>` (null when nothing else is
+ * left), `change` that element (null when there is none). What a run looks
+ * like now is `own`; `change` says what it looked like before.
+ */
+export function splitFormatChange(rPr) {
+  if (!rPr || !rPr.includes('<w:rPrChange')) return { own: rPr ?? null, change: null };
+  const m = RPR_CHANGE_RE.exec(rPr);
+  if (!m) return { own: rPr, change: null };
+  const own = rPr.slice(0, m.index) + rPr.slice(m.index + m[0].length);
+  return { own: /^<w:rPr\b[^>]*>\s*<\/w:rPr>$/.test(own) ? null : own, change: m[0] };
+}
+
+/** `own` with the formatting change `change` put back, last in the `<w:rPr>` as the schema has it. */
+export function joinFormatChange(own, change) {
+  if (!change) return own ?? null;
+  if (!own || /^<w:rPr\b[^>]*\/>$/.test(own)) return '<w:rPr>' + change + '</w:rPr>';
+  return own.replace(/<\/w:rPr>$/, () => change + '</w:rPr>');
+}
+
+/** What is inside an `<w:rPr>` — empty for none, or for one that says nothing. */
+const propsInside = (rPr) => (rPr && !/^<w:rPr\b[^>]*\/>$/.test(rPr) ? rPr.replace(/^<w:rPr\b[^>]*>/, '').replace(/<\/w:rPr>$/, '') : '');
+
+/**
+ * Review → Track Changes, recording a change of formatting as Word does:
+ * `after` carrying a `<w:rPrChange>` (an id, an author, a date) that holds
+ * the properties `before` had. A run that already carried one keeps it —
+ * the change is from how the run first was, however many times it has
+ * been formatted since — and a run formatted back to how it first was
+ * carries none.
+ */
+export function withFormatChange(before, after, meta) {
+  const was = splitFormatChange(before);
+  const now = splitFormatChange(after);
+  const first = was.change ? propsInside(RPR_RE.exec(was.change.replace(/^<w:rPrChange\b[^>]*>/, ''))?.[0] ?? null) : propsInside(was.own);
+  if (propsInside(now.own) === first) return now.own;
+  const change = was.change
+    ?? '<w:rPrChange w:id="' + esc(String(meta?.id ?? '0')) + '" w:author="' + esc(String(meta?.author ?? '')) + '"'
+      + (meta?.date ? ' w:date="' + esc(String(meta.date)) + '"' : '') + '><w:rPr>' + first + '</w:rPr></w:rPrChange>';
+  return joinFormatChange(now.own, change);
+}
+
+/** The tracked formatting change a run carries — who and when, and how it looked before (its `<w:rPr>`) — or null. */
+export function formatChangeOf(rPr) {
+  const { change } = splitFormatChange(rPr);
+  if (!change) return null;
+  const a = attrs(/^<w:rPrChange\b([^>]*)>/.exec(change)[1]);
+  const inner = change.replace(/^<w:rPrChange\b[^>]*>/, '').replace(/<\/w:rPrChange>$/, '');
+  return { id: a['w:id'] ?? '0', author: a['w:author'] ? unesc(a['w:author']) : '', date: a['w:date'] ?? null, rPr: RPR_RE.exec(inner)?.[0] ?? null };
+}
 
 /**
  * Split a paragraph into RUNS.
@@ -168,7 +227,7 @@ function runFromInner(inner, link = null) {
 /** A run's own explicit size, in points, off `<w:sz>` — undefined when it sets none. */
 function sizeOf(rPr) {
   if (!rPr) return undefined;
-  const m = /<w:sz\b[^>]*\bw:val="(\d+)"/.exec(rPr);
+  const m = /<w:sz\b[^>]*\bw:val="(\d+)"/.exec(splitFormatChange(rPr).own || '');
   return m ? Number(m[1]) / 2 : undefined;
 }
 
@@ -587,7 +646,7 @@ export function parseRuns(paragraphXml) {
   // An equation is matched at this level too, whole, so a `w:ins` INSIDE
   // one (a tracked edit to an equation) is never taken for a paragraph-level
   // insertion that would cut the equation in two.
-  const re = /<m:oMathPara\b[^>]*>[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>|<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>|<w:ins\b([^>]*)>([\s\S]*?)<\/w:ins>|<w:del\b([^>]*)>([\s\S]*?)<\/w:del>/g;
+  const re = /<m:oMathPara\b[^>]*>[\s\S]*?<\/m:oMathPara>|<m:oMath\b[^>]*>[\s\S]*?<\/m:oMath>|<w:hyperlink\b([^>]*)>([\s\S]*?)<\/w:hyperlink>|<w:fldSimple\b([^>]*)>([\s\S]*?)<\/w:fldSimple>|<w:ins\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:ins>|<w:del\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:del>/g;
   let cursor = 0;
   let m;
   while ((m = re.exec(xml))) {
@@ -637,7 +696,10 @@ export function langElement(existing, tag) {
 /** `<w:b/>` and `<w:b w:val="1"/>` are on; `<w:b w:val="0"/>` is off. */
 export function hasToggle(rPr, tag) {
   if (!rPr) return false;
-  const m = new RegExp('<w:' + tag + '\\b([^>]*)/?>').exec(rPr);
+  // How the run looks now: a tracked change's record of before is not it.
+  const own = rPr.includes('<w:rPrChange') ? splitFormatChange(rPr).own : rPr;
+  if (!own) return false;
+  const m = new RegExp('<w:' + tag + '\\b([^>]*)/?>').exec(own);
   if (!m) return false;
   const val = /w:val="([^"]*)"/.exec(m[1]);
   if (!val) return true;
@@ -646,6 +708,11 @@ export function hasToggle(rPr, tag) {
 
 /** Add or remove a toggle inside an rPr, preserving everything else in it. */
 export function withToggle(rPr, tag, on) {
+  // A tracked change's record of before stays as it was, last in the rPr.
+  if (rPr && rPr.includes('<w:rPrChange')) {
+    const { own, change } = splitFormatChange(rPr);
+    return joinFormatChange(withToggle(own, tag, on), change);
+  }
   const existing = new RegExp('<w:' + tag + '\\b[^>]*/?>', 'g');
   if (!on) {
     if (!rPr) return null;
