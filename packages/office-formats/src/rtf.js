@@ -12,6 +12,8 @@
 //   - `\*\destination` marks a group whose contents are for a reader that
 //     understands it, and are to be ignored by one that does not.
 
+import { decoderFor } from './codepage.js';
+
 const DESTINATIONS = new Set([
   'fonttbl', 'colortbl', 'stylesheet', 'info', 'pict', 'object', 'header', 'footer',
   'headerl', 'headerr', 'headerf', 'footerl', 'footerr', 'footerf', 'footnote',
@@ -38,14 +40,6 @@ const CODEPAGES = {
   950: 'big5',
   65001: 'utf-8',
 };
-
-function decoderFor(label) {
-  try {
-    return new TextDecoder(label);
-  } catch {
-    return new TextDecoder('windows-1252');
-  }
-}
 
 /**
  * Parse RTF into paragraphs of formatted runs.

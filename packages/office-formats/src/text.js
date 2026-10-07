@@ -1,3 +1,4 @@
+import { decode1252 } from './codepage.js';
 import { parseMarkdown, serializeMarkdown } from './markdown.js';
 
 // The plain formats: delimited data, Markdown, plain text.
@@ -22,7 +23,7 @@ export function decodeText(bytes) {
   const text = utf8.decode(b);
   // U+FFFD everywhere means it was never UTF-8; Windows-1252 is the safe guess.
   const bad = (text.match(/�/g) || []).length;
-  if (bad > text.length * 0.02) return new TextDecoder('windows-1252').decode(b);
+  if (bad > text.length * 0.02) return decode1252(b);
   return text;
 }
 

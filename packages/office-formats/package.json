@@ -11,6 +11,7 @@
     "./registry": "./src/registry.js",
     "./cfb": "./src/cfb.js",
     "./cfb-write": "./src/cfb-write.js",
+    "./codepage": "./src/codepage.js",
     "./crypt": "./src/crypt.js",
     "./odf": "./src/odf.js",
     "./odf-write": "./src/odf-write.js",
