@@ -7,10 +7,12 @@
 // its value and, for a formula, the formula and the value Excel last
 // calculated, each sheet's column widths, row heights, hidden rows and
 // columns, merged areas, frozen panes and window, and the defined names.
-// A sheet's charts and pictures, and its comments, are not carried.
+// A sheet's pictures, hyperlinks and notes come too; its charts do not.
 
+import zlib from 'node:zlib';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
+import { Workbook } from '@rutba/ooxml/workbook';
 
 const NS = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
 const esc = (s) => String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f￾￿]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -43,18 +45,70 @@ function sheetNames(sheets) {
  */
 export function xlsModelToXlsx(book) {
   const names = sheetNames(book.sheets);
-  // The skeleton: one sheet part per sheet and a styles part (a styled cell
-  // asks for one); each is written over below.
-  const pkg = OoxmlPackage.read(buildXlsx({ sheets: names.map((name, i) => ({ name, rows: [], styles: i === 0 ? { A1: { bold: true } } : {} })) }));
+  // The skeleton: one sheet part per sheet, each with its pictures' drawing,
+  // and a styles part (a styled cell asks for one); the sheets and styles
+  // are written over below.
+  const pkg = OoxmlPackage.read(buildXlsx({
+    sheets: names.map((name, i) => ({ name, rows: [], styles: i === 0 ? { A1: { bold: true } } : {}, drawings: pictureDrawings(book.sheets[i]) })),
+  }));
   const colour = (index) => {
     if (index == null || index >= 64 || index < 0) return null;
     return book.palette[index] || null;
   };
   const styles = stylesXml(book, colour);
   pkg.write_('xl/styles.xml', styles.xml);
-  book.sheets.forEach((sheet, i) => pkg.write_(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sheet, i === book.activeSheet)));
+  book.sheets.forEach((sheet, i) => pkg.write_(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sheet, i === book.activeSheet, pictureDrawings(sheet).length > 0)));
   pkg.write_('xl/workbook.xml', workbookXml(book, names));
-  return pkg.write();
+  let bytes = pkg.write();
+  // Links and notes, as the workbook engine writes them: a link's relationship, a note's comments part and the box Excel draws it in.
+  if (book.sheets.some((s) => s.links?.length || s.notes?.length)) {
+    const wb = Workbook.open(Buffer.from(bytes));
+    book.sheets.forEach((s, i) => {
+      for (const l of s.links || []) {
+        try { wb.setHyperlink(names[i], rangeRef(l.range), { href: l.href || null, location: l.location || null, tooltip: l.tooltip || null, display: l.display || null }); } catch { /* a link this cannot write is left out */ }
+      }
+      for (const n of s.notes || []) {
+        try { wb.setComment(names[i], ref(n.row, n.col), { author: n.author || '', text: n.text || '' }); } catch { /* so is a note */ }
+      }
+    });
+    bytes = wb.save();
+  }
+  return bytes;
+}
+
+/**
+ * A sheet's pictures as the workbook builder places them: from the cell its
+ * top-left corner is in, so far into it, at the size its two corners give —
+ * measured in the sheet's own column widths and row heights.
+ */
+function pictureDrawings(sheet) {
+  const kinds = { png: 'png', jpeg: 'jpeg', jpg: 'jpeg', gif: 'gif', bmp: 'bmp', emf: 'emf', wmf: 'wmf' };
+  const colPx = (c) => {
+    const entry = sheet.cols.find((x) => c >= x.first && c <= x.last);
+    if (entry) return entry.hidden ? 0 : (entry.width / 256) * 7;
+    return sheet.standardWidth ? (sheet.standardWidth / 256) * 7 : 64;
+  };
+  const rowPx = (r) => {
+    const info = sheet.rows.get(r);
+    if (info?.hidden) return 0;
+    return (info?.height || sheet.defaultRowHeight || 300) / 15;
+  };
+  const span = (size, a, b) => {
+    if (a.at === b.at) return (b.f - a.f) * size(a.at);
+    let total = (1 - a.f) * size(a.at) + b.f * size(b.at);
+    for (let i = a.at + 1; i < b.at; i++) total += size(i);
+    return total;
+  };
+  return (sheet.pictures || []).filter((p) => kinds[p.blip?.ext]).map((p, i) => {
+    let bytes = p.blip.bytes;
+    if (p.blip.deflated) { try { bytes = zlib.inflateSync(Buffer.from(bytes)); } catch { bytes = Buffer.from(bytes); } }
+    return {
+      kind: 'picture', name: p.name || `Picture ${i + 1}`, bytes: Buffer.from(bytes), extension: kinds[p.blip.ext],
+      from: { col: p.from.col, row: p.from.row, colOff: Math.round(p.from.dx * colPx(p.from.col) * 9525), rowOff: Math.round(p.from.dy * rowPx(p.from.row) * 9525) },
+      widthPx: Math.max(1, span(colPx, { at: p.from.col, f: p.from.dx }, { at: p.to.col, f: p.to.dx })),
+      heightPx: Math.max(1, span(rowPx, { at: p.from.row, f: p.from.dy }, { at: p.to.row, f: p.to.dy })),
+    };
+  });
 }
 
 /** The styles part: number formats, fonts, fills, borders and one cell format per XF, in the XFs' order. */
@@ -140,7 +194,7 @@ function stylesXml(book, colour) {
 }
 
 /** One sheet: its window, column widths, rows of cells, merged areas. */
-function sheetXml(sheet, active) {
+function sheetXml(sheet, active, drawing = false) {
   const cells = [...sheet.cells.values()].sort((a, b) => a.row - b.row || a.col - b.col);
   let maxRow = 0;
   let maxCol = 0;
@@ -197,6 +251,8 @@ function sheetXml(sheet, active) {
     + (cols.length ? `<cols>${cols.join('')}</cols>` : '')
     + `<sheetData>${rowsXml.join('')}</sheetData>`
     + merges
+    // The drawing that holds its pictures: the skeleton's first relationship.
+    + (drawing ? '<drawing r:id="rId1"/>' : '')
     + '</worksheet>';
 }
 

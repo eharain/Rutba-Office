@@ -23,6 +23,8 @@
 import { CompoundFile } from './cfb.js';
 import { decoderFor } from './codepage.js';
 import { XLS_FUNCTIONS } from './xls-functions.js';
+import { findBlip } from './msdoc.js';
+import { header as artHeader, children as artChildren, child as artChild, readFopt } from './officeart.js';
 
 export class XlsError extends Error {
   constructor(message) {
@@ -61,7 +63,7 @@ const R = {
   SHRFMLA: 0x04bc, ARRAY2: 0x0021, ARRAY: 0x0221,
   ROW2: 0x0008, ROW: 0x0208, COLINFO: 0x007d, COLWIDTH2: 0x0024, DEFCOLWIDTH: 0x0055, STANDARDWIDTH: 0x0099,
   DEFROWHEIGHT2: 0x0025, DEFROWHEIGHT: 0x0225, MERGEDCELLS: 0x00e5, WINDOW2_2: 0x003e, WINDOW2: 0x023e, PANE: 0x0041,
-  BUNDLESHEET: 0x008f,
+  BUNDLESHEET: 0x008f, MSODRAWINGGROUP: 0x00eb, MSODRAWING: 0x00ec, OBJ: 0x005d, TXO: 0x01b6, NOTE: 0x001c, HLINK: 0x01b8, HLINKTOOLTIP: 0x0800,
 };
 
 /** Which BIFF a BOF record opens: 8, 5, 4, 3, 2 — or 0. */
@@ -216,7 +218,7 @@ export function readXls(bytes) {
   let lastFormula = null;
   let ixfe = null;
   const newSheet = (name, state = 'visible') => {
-    const s = { name, state, cells: new Map(), rows: new Map(), cols: [], merges: [], frozen: null, grid: true, headings: true, formulas: false, selected: false, defaultColWidth: null, defaultRowHeight: null, shared: new Map(), arrays: new Map(), pending: [] };
+    const s = { name, state, cells: new Map(), rows: new Map(), cols: [], merges: [], frozen: null, grid: true, headings: true, formulas: false, selected: false, defaultColWidth: null, defaultRowHeight: null, shared: new Map(), arrays: new Map(), pending: [], drawing: [], objectText: new Map(), notes: [], links: [], pictures: [], lastObject: null };
     book.sheets.push(s);
     return s;
   };
@@ -463,6 +465,50 @@ export function readXls(bytes) {
           if (rows || cols) sheet.frozen = { rows, cols };
         }
         break;
+
+      // Drawings: the workbook's pictures (its drawing group), each sheet's shapes, and the objects among them.
+      case R.MSODRAWINGGROUP: {
+        const parts = [data];
+        while (recs[k + 1]?.id === R.CONTINUE) parts.push(recs[++k].data);
+        book.drawingGroup = concat(parts);
+        break;
+      }
+      case R.MSODRAWING:
+        if (sheet) {
+          sheet.drawing.push(data);
+          while (recs[k + 1]?.id === R.CONTINUE) sheet.drawing.push(recs[++k].data);
+        }
+        break;
+      case R.OBJ: if (sheet) sheet.lastObject = u16(data, 0) === 0x15 ? { type: u16(data, 4), id: u16(data, 6) } : null; break;
+      case R.TXO: {
+        // A text box's or a note's words, in the CONTINUE after it: a flags byte, then the characters.
+        if (!sheet) break;
+        const cch = u16(data, 10);
+        const parts = [];
+        while (recs[k + 1]?.id === R.CONTINUE) parts.push(recs[++k].data);
+        let text = '';
+        if (cch && parts.length) {
+          const seg = new Segments(parts);
+          const high = (seg.u8() & 1) === 1;
+          text = seg.chars(cch, high);
+        }
+        if (sheet.lastObject) sheet.objectText.set(sheet.lastObject.id, text);
+        break;
+      }
+      case R.NOTE:
+        if (!sheet) break;
+        if (biff === 8) sheet.notes.push({ row: u16(data, 0), col: u16(data, 2), object: u16(data, 6), author: uni(data, 8, 2).text });
+        else if (u16(data, 0) === 0xffff && sheet.notes.length) sheet.notes[sheet.notes.length - 1].text += decode(data.subarray(6, 6 + u16(data, 4)));
+        else sheet.notes.push({ row: u16(data, 0), col: u16(data, 2), author: '', text: decode(data.subarray(6, 6 + u16(data, 4))) });
+        break;
+      case R.HLINK: if (sheet) { const link = readHyperlink(data); if (link) sheet.links.push(link); } break;
+      case R.HLINKTOOLTIP: {
+        if (!sheet || !sheet.links.length) break;
+        let tip = '';
+        for (let p = 10; p + 1 < data.length; p += 2) { const c = u16(data, p); if (!c) break; tip += String.fromCharCode(c); }
+        sheet.links[sheet.links.length - 1].tooltip = tip;
+        break;
+      }
       default: break;
     }
   }
@@ -488,7 +534,7 @@ export function readXls(bytes) {
   // built-in name written out in full (BIFF5 writes them so) is the built-in one.
   for (const n of book.names) if (BUILTIN_NAMES.includes('_xlnm.' + n.name)) n.name = '_xlnm.' + n.name;
   book.names = book.names.filter((n) => n.formula && !n.name.startsWith('_xlfn.') && !/^_xlnm\.(Auto_|Recorder|Data_Form)/.test(n.name));
-  for (const s of book.sheets) { delete s.shared; delete s.pending; delete s.arrays; }
+  for (const s of book.sheets) { delete s.shared; delete s.pending; delete s.arrays; delete s.drawing; delete s.objectText; delete s.lastObject; }
   if (!book.sheets.length) book.sheets.push(newSheet('Sheet1'));
   book.activeSheet = Math.max(0, active ? book.sheets.indexOf(active) : book.sheets.findIndex((s) => s.selected));
   delete book.allNames;
@@ -527,7 +573,125 @@ function finishSheet(sheet, book, biff, decode) {
     }
   }
   sheet.pending = [];
+  try { finishDrawings(sheet, book); } catch { /* a drawing that cannot be read leaves the cells */ }
   sheet.arrays = new Map();
+}
+
+/** Byte arrays as one. */
+function concat(parts) {
+  const out = new Uint8Array(parts.reduce((n, p) => n + p.length, 0));
+  let at = 0;
+  for (const p of parts) { out.set(p, at); at += p.length; }
+  return out;
+}
+
+const URL_MONIKER = 'e0c9ea79f9bace118c8200aa004ba90b';
+const FILE_MONIKER = '0303000000000000c000000000000046';
+
+/**
+ * A hyperlink (HLINK): the cells it is on, and where it goes — a web
+ * address, a file, or a place in the workbook — with the words shown for
+ * it. A link's parts are present as its flags say.
+ */
+function readHyperlink(d) {
+  const range = { top: u16(d, 0), bottom: u16(d, 2), left: u16(d, 4), right: u16(d, 6) };
+  let p = 8 + 16 + 4;
+  const flags = u32(d, p);
+  p += 4;
+  // A length in characters, the terminating zero counted, then the characters.
+  const str = () => {
+    const n = u32(d, p);
+    p += 4;
+    let s = '';
+    for (let i = 0; i < n && p + i * 2 + 1 < d.length; i++) { const c = u16(d, p + i * 2); if (c) s += String.fromCharCode(c); }
+    p += n * 2;
+    return s;
+  };
+  const hex = (at) => Array.from(d.subarray(at, at + 16), (b) => b.toString(16).padStart(2, '0')).join('');
+  let display = null;
+  let href = null;
+  let location = null;
+  if (flags & 0x10) display = str();
+  if (flags & 0x80) str(); // a target frame
+  if (flags & 0x01) {
+    if (flags & 0x100) href = str();
+    else {
+      const clsid = hex(p);
+      p += 16;
+      if (clsid === URL_MONIKER) {
+        const len = u32(d, p);
+        let s = '';
+        for (let i = 0; i + 1 < len && p + 4 + i + 1 < d.length; i += 2) { const c = u16(d, p + 4 + i); if (!c) break; s += String.fromCharCode(c); }
+        href = s;
+        p += 4 + len;
+      } else if (clsid === FILE_MONIKER) {
+        const up = u16(d, p);
+        const ansiLen = u32(d, p + 2);
+        let ansi = '';
+        for (let i = 0; i < ansiLen - 1; i++) ansi += String.fromCharCode(d[p + 6 + i]);
+        let q = p + 6 + ansiLen + 2 + 2 + 16 + 4;
+        const cbUnicode = u32(d, q);
+        let path = ansi;
+        if (cbUnicode) {
+          const bytes = u32(d, q + 4);
+          path = '';
+          for (let i = 0; i + 1 < bytes; i += 2) path += String.fromCharCode(u16(d, q + 10 + i));
+          q += 10 + bytes;
+        } else q += 4;
+        href = '../'.repeat(up) + path;
+        p = q;
+      }
+    }
+  }
+  if (flags & 0x08) location = str();
+  return href || location ? { range, href, location, display } : null;
+}
+
+/** The workbook's pictures: its drawing group's picture store, each picture in its record. */
+function groupBlips(book) {
+  if (book.blips) return book.blips;
+  book.blips = [];
+  const dg = book.drawingGroup;
+  if (!dg) return book.blips;
+  const dgg = artHeader(dg, 0);
+  for (const c of artChildren(dg, artChild(dg, dgg, 0xf001))) {
+    book.blips.push(c.type === 0xf007 ? findBlip(dg, c.body + 36 + u8(dg, c.body + 33), c.end) : null);
+  }
+  return book.blips;
+}
+
+/**
+ * A sheet's pictures, from its drawing (the MSODRAWING records, one Office
+ * Art stream between them): each picture shape and the cells its corners
+ * are in, with how far into them. And its notes, each its words from the
+ * text object it names.
+ */
+function finishDrawings(sheet, book) {
+  for (const n of sheet.notes) if (n.text == null) n.text = sheet.objectText.get(n.object) ?? '';
+  if (!sheet.drawing.length) return;
+  const dg = concat(sheet.drawing);
+  const blips = groupBlips(book);
+  const visit = (h) => {
+    for (const c of artChildren(dg, h)) {
+      if (c.type === 0xf003) visit(c);
+      else if (c.type === 0xf004) {
+        const props = readFopt(dg, artChild(dg, c, 0xf00b));
+        const anchor = artChild(dg, c, 0xf010);
+        const pib = props.get(0x0104)?.op;
+        if (!pib || !blips[pib - 1] || !anchor || anchor.len < 18) continue;
+        const a = anchor.body;
+        const name = props.get(0x0380)?.complex;
+        let label = null;
+        if (name) { label = ''; for (let i = 0; i + 1 < name.length; i += 2) { const ch = u16(name, i); if (!ch) break; label += String.fromCharCode(ch); } }
+        sheet.pictures.push({
+          blip: blips[pib - 1], name: label,
+          from: { col: u16(dg, a + 2), dx: u16(dg, a + 4) / 1024, row: u16(dg, a + 6), dy: u16(dg, a + 8) / 256 },
+          to: { col: u16(dg, a + 10), dx: u16(dg, a + 12) / 1024, row: u16(dg, a + 14), dy: u16(dg, a + 16) / 256 },
+        });
+      }
+    }
+  };
+  visit(artHeader(dg, 0));
 }
 
 /** An RK number: a 30-bit integer or the top of a double, perhaps a hundredth of it. */

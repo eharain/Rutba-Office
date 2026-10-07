@@ -44,6 +44,13 @@ export async function verifySheetBinary(h, { dir }) {
       shown.bold && shown.fill && !/rgba\(0, 0, 0, 0\)|transparent/.test(shown.fill) && shown.pinned > 0,
       `bold ${shown.bold}; fill ${shown.fill}; ${shown.pinned} frozen cells`);
     check('sheets: every sheet of the .xls has its tab', ['Sales', 'Summary', 'Data types', 'Table'].every((t) => shown.tabs.some((x) => x.startsWith(t))), shown.tabs.join(' | '));
+    // The link and the note on Sales, and the picture on Summary.
+    const marks = await js(`(() => ({ link: Boolean(document.querySelector('.sh-cell.link[data-ref="A19"]')), note: Boolean(document.querySelector('.sh-cell.noted[data-ref="A1"]')) }))()`);
+    await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((t) => t.innerText.trim().startsWith('Summary'))?.click(); return 1; })()`);
+    const pictured = await until(() => js(`document.querySelectorAll('.sh-drawing').length > 0`), 'the Summary sheet\'s picture', 6000).catch(() => false);
+    check('sheets: the .xls\'s hyperlink and note are on their cells, and its picture on its sheet',
+      marks.link && marks.note && pictured === true, `link ${marks.link}; note ${marks.note}; picture ${pictured}`);
+
     const complaints = await errorsIn(win);
     check('sheets: opening an .xls reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

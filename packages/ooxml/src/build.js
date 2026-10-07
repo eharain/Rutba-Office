@@ -731,6 +731,7 @@ export function buildXlsx({ sheets, definedNames = [] }) {
   const MEDIA_CONTENT_TYPES = {
     png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
     bmp: 'image/bmp', svg: 'image/svg+xml', webp: 'image/webp',
+    emf: 'image/x-emf', wmf: 'image/x-wmf',
   };
   const contentTypes =
     '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +

@@ -81,6 +81,26 @@ test('an Excel 97-2003 workbook keeps its formulas, names, formats, merged cells
   assert.notEqual(/fillId="(\d+)"/.exec(xf)[1], '0', 'filled');
 });
 
+test('an Excel 97-2003 workbook keeps its hyperlink, its note and its picture', () => {
+  const book = readXls(fixture('binary', 'showcase.xls'));
+  const sales = book.sheets[0];
+  assert.deepEqual(sales.links[0], { range: { top: 18, bottom: 18, left: 0, right: 0 }, href: 'https://office.rutba.io/', location: null, display: 'Rutba Office', tooltip: 'The free suite' });
+  assert.equal(sales.notes[0].author, 'Ejaz Arain');
+  assert.match(sales.notes[0].text, /^Months of the year/);
+  const summary = book.sheets.find((s) => s.name === 'Summary');
+  assert.equal(summary.pictures.length, 1);
+  assert.equal(summary.pictures[0].blip.contentType, 'image/png');
+  assert.equal(summary.pictures[0].from.col, 3);
+
+  const pkg = OoxmlPackage.read(xlsModelToXlsx(book));
+  const salesXml = pkg.text('xl/worksheets/sheet1.xml');
+  assert.match(salesXml, /<hyperlink [^>]*ref="A19"/);
+  assert.ok(pkg.partNames().some((n) => /^xl\/comments\d+\.xml$/.test(n)), 'a comments part');
+  assert.match(pkg.partNames().filter((n) => /^xl\/comments/.test(n)).map((n) => pkg.text(n)).join(''), /Months of the year/);
+  assert.match(pkg.text('xl/worksheets/sheet2.xml'), /<drawing r:id="rId1"\/>/);
+  assert.ok(pkg.partNames().some((n) => /^xl\/media\/image\d+\.png$/.test(n)), 'the picture\'s bytes');
+});
+
 test('an Excel 5.0/95 workbook opens too, as far as that format could hold it', () => {
   const bytes = fixture('binary', 'showcase-95.xls');
   assert.equal(xlsKind(bytes), 'biff5');

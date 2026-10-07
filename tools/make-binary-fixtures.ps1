@@ -68,6 +68,8 @@ if ($run -contains 'excel') { try {
   $xl.DisplayAlerts = $false
   foreach ($f in @(@(56, 'showcase.xls', '97-2003'), @(39, 'showcase-95.xls', '5.0/95'), @(35, 'showcase-4w.xls', '4.0 workbook'), @(33, 'showcase-4.xls', '4.0'), @(29, 'showcase-3.xls', '3.0'), @(16, 'showcase-2.xls', '2.1'))) {
     $wb = $xl.Workbooks.Open((Join-Path $rich 'showcase.xlsx'), 0, $true)
+    # A picture on the Summary sheet, so the binary formats carry one.
+    [void]$wb.Worksheets.Item('Summary').Shapes.AddPicture((Join-Path $rich 'picture.png'), 0, -1, 320, 20, 120, 80)
     $p = Join-Path $outDir $f[1]; Remove-Existing $p
     try { $wb.SaveAs($p, $f[0]); "$($f[1]) written as Excel $($f[2]) ($((Get-Item $p).Length) bytes)" } catch { "warn: Excel $($f[2]) - $($_.Exception.Message)" }
     $wb.Close($false)
