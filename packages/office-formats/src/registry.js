@@ -117,7 +117,7 @@ export const APP_EXTENSIONS = {
   // that claims one and not the other is the default for half your files.
   word: ['docx', 'docm', 'dotx', 'doc', 'dot', 'wri', 'odt', 'rtf', 'txt', 'md', 'markdown', 'html', 'htm'],
   sheets: ['xlsx', 'xlsm', 'xltx', 'xls', 'xlt', 'ods', 'csv', 'tsv'],
-  slides: ['pptx', 'pptm', 'potx', 'ppsx', 'ppt', 'odp'],
+  slides: ['pptx', 'pptm', 'potx', 'ppsx', 'ppt', 'pps', 'pot', 'odp'],
   pictures: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'bmp', 'tif', 'tiff', 'ico', 'svg', 'pdf'],
   image: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'avif'],
   video: ['mp4', 'm4v', 'mov', 'webm', 'mkv', 'ogv', 'mp3', 'm4a', 'wav', 'flac', 'ogg'],

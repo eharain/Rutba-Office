@@ -55,6 +55,8 @@ import { docModelToDocx } from '@rutba/office-formats/msdoc-docx';
 import { decode1252 } from '@rutba/office-formats/codepage';
 import { readXls, xlsKind } from '@rutba/office-formats/msxls';
 import { xlsModelToXlsx } from '@rutba/office-formats/msxls-xlsx';
+import { readPpt } from '@rutba/office-formats/msppt';
+import { pptModelToDeck } from './legacy-deck.js';
 import { isEncryptedPackage, decryptPackage, encryptPackage, EncryptedFileError } from '@rutba/office-formats/crypt';
 import { readZip } from '@rutba/ooxml/zip';
 import { createProofing } from './proofing.js';
@@ -318,6 +320,21 @@ function workbookToXlsx(bytes, shown, locked) {
     throw new Error(`${shown} could not be read: ${err.message}.`);
   }
   return { kind: 'sheet', bytes: Buffer.from(xlsModelToXlsx(book)), source: 'xls', converted: { from: 'xls', format: 'biff' + book.biff } };
+}
+
+/**
+ * A PowerPoint 97-2003 presentation, read in full and written as the .pptx
+ * this suite edits.
+ */
+function presentationToPptx(bytes, shown, locked) {
+  let model;
+  try {
+    model = readPpt(new Uint8Array(bytes));
+  } catch (err) {
+    if (err.encrypted) throw new Error(locked);
+    throw new Error(`${shown} could not be read: ${err.message}.`);
+  }
+  return { kind: 'deck', bytes: Buffer.from(pptModelToDeck(model)), source: 'ppt', converted: { from: 'ppt' } };
 }
 
 /** A .doc/.xls/.ppt: extract what text we can rather than refuse the file. */
@@ -841,6 +858,14 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
           } catch (err) {
             if (err.message === locked) throw err;
             // A document the reader cannot follow still shows the words it can find.
+          }
+        }
+        if (app === 'ppt') {
+          try {
+            return presentationToPptx(bytes, shown, locked);
+          } catch (err) {
+            if (err.message === locked) throw err;
+            // A presentation the reader cannot follow opens as a slide saying so.
           }
         }
         const legacy = legacyText(bytes);

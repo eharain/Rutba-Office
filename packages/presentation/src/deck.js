@@ -93,6 +93,9 @@ const IMAGE_EXTENSIONS = {
   'image/jpg': 'jpeg',
   'image/gif': 'gif',
   'image/bmp': 'bmp',
+  // A PowerPoint 97-2003 file's clip art: kept as it is, for PowerPoint to draw.
+  'image/x-emf': 'emf',
+  'image/x-wmf': 'wmf',
 };
 
 
