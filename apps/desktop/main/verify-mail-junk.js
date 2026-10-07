@@ -5,7 +5,9 @@
 // already there, and keeps a Blocked Senders list; mail that arrives is
 // then filed by it — junk to Junk, with the reading pane saying why, good
 // mail left in the Inbox — and Not junk puts a message back and teaches
-// the filter it was good. Run alone with RUTBA_VERIFY_ONLY=junk.
+// the filter it was good. The options are the account's own, as Outlook
+// keeps them; Never block this group or mailing list keeps a list's mail
+// out of Junk. Run alone with RUTBA_VERIFY_ONLY=junk.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -39,6 +41,7 @@ export async function verifyMailJunk(h) {
   };
   let win = null;
   let js = null;
+  let accountId = null;
   const stamp = Date.now();
   // A minute apart, counting on from now, so the list shows them in order.
   const raw = ([from, subject, body], n) => [
@@ -49,7 +52,7 @@ export async function verifyMailJunk(h) {
     win = await open('mail');
     js = (code) => win.webContents.executeJavaScript(code);
     await until(() => js(`document.querySelectorAll('.ml-accounts button').length > 0`), 'the seeded account in the sidebar', 8000);
-    const accountId = await js(`(async () => (await window.rutbaOffice.mail.accounts())[0]?.id || null)()`);
+    accountId = await js(`(async () => (await window.rutbaOffice.mail.accounts())[0]?.id || null)()`);
     const A = JSON.stringify(accountId);
     const mail = (method, args) => js(`window.rutbaOffice.mail.${method}(${JSON.stringify(args)})`);
     const deliver = (spec, n) => mail('deliverTest', { accountId, folder: 'Inbox', raw: raw(spec, n) });
@@ -80,7 +83,7 @@ export async function verifyMailJunk(h) {
     };
     const marked = await junkMenu('Mark as junk');
     const moved = await until(async () => !(await subjectsIn(inbox)).includes(JUNK[0][1]), 'the message out of the Inbox', 5000).catch(() => false);
-    const afterOne = await mail('junk', {});
+    const afterOne = await mail('junk', { accountId });
     check('mail: Home → Junk → Mark as junk moves the message to Junk and the filter learns from it',
       marked === 'clicked' && moved === true && afterOne.learned.junk === 1, `${marked}; learned ${JSON.stringify(afterOne.learned)}`);
 
@@ -104,8 +107,10 @@ export async function verifyMailJunk(h) {
     await js(`(() => { const el = ${scope}.querySelector('.ml-junk-blocked'); const setter = Object.getOwnPropertyDescriptor(window.HTMLTextAreaElement.prototype, 'value').set; setter.call(el, '@blocked.example'); el.dispatchEvent(new Event('input', { bubbles: true })); return true; })()`);
     await js(`[...${scope}.querySelectorAll('.rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Save')?.click(), 'saved'`);
     await until(() => js(`!document.querySelector('.rw-dialog[aria-label="Junk email options"]')`), 'the dialog to close', 5000);
-    const saved = await mail('junk', {});
-    check('mail: the Blocked Senders list is kept as typed', JSON.stringify(saved.blocked) === '["@blocked.example"]', JSON.stringify(saved.blocked));
+    const saved = await mail('junk', { accountId });
+    const shared = await mail('junk', {});
+    check('mail: the Blocked Senders list is kept as typed, as the account\'s own options', JSON.stringify(saved.blocked) === '["@blocked.example"]' && saved.own === true && shared.blocked.length === 0,
+      `account ${JSON.stringify(saved.blocked)} (own ${saved.own}); shared ${JSON.stringify(shared.blocked)}`);
 
     // Now it files what arrives.
     const NEW_JUNK = ['winner@claims.example', 'Claim your prize today', 'You are a winner, send your bank details to claim the cash prize transfer.'];
@@ -128,17 +133,51 @@ export async function verifyMailJunk(h) {
     await capture('mail-junk-note.png');
     await js(`[...document.querySelectorAll('.ml-junk-note button')].find((b) => b.textContent.trim() === 'Not junk')?.click(), 'not junk'`);
     const back = await until(async () => (await subjectsIn(inbox)).includes(NEW_JUNK[1]), 'the message back in the Inbox', 5000).catch(() => false);
-    const final = await mail('junk', {});
+    const final = await mail('junk', { accountId });
     check('mail: a filed message says why it is in Junk, and Not junk puts it back in the Inbox and teaches the filter',
       /junk filter judged it junk/.test(note) && back === true && final.learned.good > saved.learned.good,
       `${note.trim()}; back ${back}; good ${saved.learned.good} → ${final.learned.good}`);
+
+    // Never block this group or mailing list: with Safe Lists Only, a
+    // list's post goes to Junk; pressed on it, the list is a Safe Recipient,
+    // the post goes back, and the next one stays in the Inbox.
+    await mail('setJunk', { accountId, patch: { level: 'safeOnly' } });
+    const post = (subject, n) => [
+      'From: <someone@example.org>', 'To: <dev@lists.example.org>', `Subject: ${subject}`, `Date: ${new Date(stamp + n * 60000).toUTCString()}`,
+      `Message-ID: <list-${stamp}-${n}@example.org>`, 'List-Id: Developers <dev.lists.example.org>', 'List-Post: <mailto:dev@lists.example.org>',
+      'MIME-Version: 1.0', 'Content-Type: text/plain; charset=utf-8', '', 'A post to the list.', '',
+    ].join('\r\n');
+    await mail('deliverTest', { accountId, folder: 'Inbox', raw: post('Build broken on main', 200) });
+    const listFiled = (await subjectsIn('Junk')).includes('Build broken on main');
+    await until(async () => (await openFolder('Junk')) === 'opened', 'Junk in the sidebar', 5000);
+    await until(async () => (await openRow('Build broken on main')) === 'opened', 'the list post in Junk', 6000);
+    await until(() => js(`(document.querySelector('.ml-head h2')?.textContent || '').includes('Build broken on main')`), 'it in the reading pane', 5000);
+    const kept = await junkMenu('Never block this group or mailing list');
+    const listBack = await until(async () => (await subjectsIn(inbox)).includes('Build broken on main'), 'the post back in the Inbox', 5000).then(() => true, () => false);
+    const afterList = await mail('junk', { accountId });
+    await mail('deliverTest', { accountId, folder: 'Inbox', raw: post('Build fixed on main', 201) });
+    const nextStays = (await subjectsIn(inbox)).includes('Build fixed on main');
+    check('mail: Junk → Never block this group or mailing list keeps the list\'s mail out of Junk',
+      listFiled && kept === 'clicked' && listBack && JSON.stringify(afterList.safeRecipients) === '["dev@lists.example.org"]' && nextStays,
+      `filed ${listFiled}; ${kept}; back ${listBack}; safe recipients ${JSON.stringify(afterList.safeRecipients)}; the next stays ${nextStays}`);
+
+    // The options show it among the Safe Recipients, with the International lists beside.
+    await junkMenu('Junk email options…');
+    await until(() => js(`Boolean(document.querySelector('.rw-dialog[aria-label="Junk email options"] .ml-junk-recipients'))`), 'Junk email options', 5000);
+    const shown = await js(`(() => { const d = document.querySelector('.rw-dialog[aria-label="Junk email options"]'); return { recipients: d.querySelector('.ml-junk-recipients').value, tlds: Boolean(d.querySelector('.ml-junk-tlds')), encodings: d.querySelectorAll('.ml-junk-encoding input').length }; })()`);
+    await capture('mail-junk-options-2.png');
+    await js(`[...document.querySelectorAll('.rw-dialog[aria-label="Junk email options"] .rw-dialog-foot button')].find((b) => b.textContent.trim() === 'Cancel')?.click(), 'closed'`);
+    check('mail: Junk email options lists the Safe Recipients, the blocked top-level domains and the encodings',
+      shown.recipients === 'dev@lists.example.org' && shown.tlds && shown.encodings >= 10, JSON.stringify(shown));
 
     const complaints = await errorsIn(win);
     check('mail: the junk checks report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check('mail: the junk check ran', false, err.message);
   } finally {
-    // The account is a fixture the other mail checks share: no filter left on for them.
-    if (js) await js(`window.rutbaOffice.mail.setJunk({ patch: { level: 'off', safe: [], blocked: [] } })`).catch(() => {});
+    // The account is a fixture the other mail checks share: no filter left on for them, its own options or the shared.
+    const off = { level: 'off', safe: [], blocked: [], safeRecipients: [], blockedTlds: [], blockedEncodings: [] };
+    if (js) await js(`window.rutbaOffice.mail.setJunk(${JSON.stringify({ patch: off })})`).catch(() => {});
+    if (js && accountId) await js(`window.rutbaOffice.mail.setJunk(${JSON.stringify({ accountId, patch: off })})`).catch(() => {});
   }
 }

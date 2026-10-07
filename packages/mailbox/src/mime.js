@@ -402,9 +402,27 @@ export function parseMessage(input) {
     attachments: attachments.filter((a) => !a.inline || a.filename),
     inlineImages: attachments.filter((a) => a.inline && a.contentId),
     headers: h.list,
+    // The character sets it is written in — its text parts' and its
+    // subject's and sender's encoded words — for the junk filter's Blocked
+    // Encodings, since the parse tree itself is not kept.
+    charsets: charsetsIn(root, h),
     structure: root,
     hasAttachments: attachments.some((a) => !a.inline),
   };
+}
+
+/** The character sets a message's text parts and its subject and sender are written in, lower case. */
+function charsetsIn(root, h) {
+  const out = new Set();
+  const walk = (node) => {
+    if (node.charset && node.type.startsWith('text/')) out.add(String(node.charset).toLowerCase().replace(/^["']|["']$/g, ''));
+    for (const c of node.children || []) walk(c);
+  };
+  walk(root);
+  for (const name of ['subject', 'from']) {
+    for (const m of String(h.get(name) || '').matchAll(/=\?([^?*]+)(?:\*[^?]*)?\?[bqBQ]\?/g)) out.add(m[1].toLowerCase());
+  }
+  return [...out];
 }
 
 /** Everything but the bytes — for a message list that must stay light. */

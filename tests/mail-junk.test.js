@@ -164,3 +164,85 @@ test('a blocked sender goes to Junk at once, whatever the filter knows; options 
   const r2 = await mail.deliverTest({ accountId, raw: raw(['news@mail.offers.example', 'Hello again', 'Hello.'], 2) });
   assert.equal(r2.junked, 1, 'Blocked comes first, as in Outlook');
 });
+
+/* ── per account, Safe Recipients, and the International lists ───────────── */
+
+test('Safe Recipients keep mail to a group or a mailing list, and the International lists block by country and encoding', async () => {
+  const { tldEntry, groupAddressOf, charsetsOf, listRecipient } = await import('../apps/desktop/main/mail-junk.js');
+  assert.deepEqual(['ru', '.CN', '*.br', 'xn--p1ai', 'r', 'co.uk', '1x'].map(tldEntry), ['ru', 'cn', 'br', 'xn--p1ai', null, null, null]);
+  const list = { from: [{ address: 'someone@example.org' }], to: [{ address: 'dev@lists.example.org' }], subject: 'Build broken', text: 'x', headers: [{ key: 'list-post', value: '<mailto:dev@lists.example.org>' }] };
+  assert.equal(groupAddressOf(list, ['me@example.com']), 'dev@lists.example.org');
+  const toGroup = { from: [{ address: 'boss@work.example' }], to: [{ address: 'everyone@work.example' }] };
+  assert.equal(groupAddressOf(toGroup, ['me@work.example']), 'everyone@work.example', 'the one address it went to, not mine');
+  assert.equal(groupAddressOf({ from: [{ address: 'a@b.example' }], to: [{ address: 'me@example.com' }] }, ['me@example.com']), null, 'sent to me: no group');
+  assert.deepEqual(charsetsOf({ charsets: ['koi8-r'], headers: [{ key: 'subject', value: '=?windows-1251?B?0eru7Ozl?=' }] }).sort(), ['koi8-r', 'windows-1251']);
+
+  let s = junkSettings({ ...defaultJunk(), level: 'safeOnly' });
+  assert.equal(junkVerdict(list, s).why, 'notSafe', 'Safe Lists Only: a list not yet kept goes to Junk');
+  s = listRecipient(s, 'dev@lists.example.org');
+  assert.deepEqual(junkVerdict(list, s), { junk: false, why: 'safeRecipient', score: null });
+
+  s = junkSettings({ ...defaultJunk(), level: 'off', blockedTlds: ['ru'], blockedEncodings: ['cyrillic', 'nonsense'] });
+  assert.deepEqual(s.blockedEncodings, ['cyrillic'], 'an encoding it does not know is dropped');
+  assert.equal(junkVerdict({ from: [{ address: 'x@mail.ru' }], subject: 'Hi', text: 'hi' }, s).why, 'blockedTld', 'whatever the level, as Blocked Senders');
+  assert.equal(junkVerdict({ from: [{ address: 'x@example.com' }], subject: 'Hi', text: 'hi', charsets: ['koi8-r'] }, s).why, 'blockedEncoding');
+  assert.equal(junkVerdict({ from: [{ address: 'x@example.ru.example' }], subject: 'Hi', text: 'hi', charsets: ['utf-8'] }, s).junk, false, 'only the last part of the domain is its country');
+});
+
+test('each account keeps its own junk options once it has them; what the filter learned is shared', async () => {
+  const { mail, accountId } = service();
+  const other = mail.addAccount({ account: { email: 'me@other.example', name: 'Me', imap: { host: 'h2', port: 993 }, smtp: { host: 'h2', port: 465 } }, password: 'secret' }).id;
+  assert.equal(mail.junk({ accountId }).own, false, 'until it has its own, an account uses the shared ones');
+  mail.setJunk({ accountId, patch: { blocked: ['@noisy.example'] } });
+  assert.deepEqual([mail.junk({ accountId }).blocked, mail.junk({ accountId }).own], [['@noisy.example'], true]);
+  assert.deepEqual([mail.junk({ accountId: other }).blocked, mail.junk().blocked], [[], []], 'the other account, and the shared ones, untouched');
+  const noisy = (n) => raw(['news@noisy.example', `News ${n}`, 'News.'], n).replace('To: <me@example.com>', `To: <${n % 2 ? 'me@other.example' : 'me@example.com'}>`);
+  const a = await mail.deliverTest({ accountId, raw: noisy(2) });
+  const b = await mail.deliverTest({ accountId: other, raw: noisy(3) });
+  assert.deepEqual([a.junked, b.junked], [1, 0], 'blocked for the one account only');
+  // Block Sender on a message of the other account lists it there.
+  mail.listSender({ accountId: other, address: 'pest@pests.example', list: 'blocked' });
+  assert.deepEqual([mail.junk({ accountId: other }).blocked, mail.junk({ accountId }).blocked], [['pest@pests.example'], ['@noisy.example']]);
+  // Learning is one: a message marked junk in either account teaches both.
+  const row = mail.messages({ accountId: other, folder: 'Inbox', limit: 5 }).rows[0];
+  mail.move({ accountId: other, folder: 'Inbox', ids: [row.id], to: 'Junk' });
+  assert.equal(mail.junk({ accountId }).learned.junk, 1);
+  assert.equal(mail.junk({ accountId }).blocked[0], '@noisy.example', 'learning leaves the options as they were');
+});
+
+test('Never block this group or mailing list keeps the list safe for the account; mail sent to a person is refused by saying so', async () => {
+  const { mail, accountId } = service();
+  mail.setJunk({ accountId, patch: { level: 'safeOnly' } });
+  const post = (n, subject) => raw(['someone@example.org', subject, 'A post to the list.'], n)
+    .replace('To: <me@example.com>', 'To: <dev@lists.example.org>\r\nList-Id: Developers <dev.lists.example.org>\r\nList-Post: <mailto:dev@lists.example.org>');
+  const first = await mail.deliverTest({ accountId, raw: post(1, 'Build broken') });
+  assert.equal(first.junked, 1, 'Safe Lists Only files it, until the list is kept');
+  const row = mail.messages({ accountId, folder: 'Junk', limit: 5 }).rows[0];
+  const view = mail.listRecipient({ accountId, folder: 'Junk', ids: [row.id] });
+  assert.deepEqual([view.added, view.safeRecipients], [['dev@lists.example.org'], ['dev@lists.example.org']]);
+  const second = await mail.deliverTest({ accountId, raw: post(2, 'Build fixed') });
+  assert.equal(second.junked, 0, 'mail to the list now stays in the Inbox');
+  const direct = await mail.deliverTest({ accountId, raw: raw(['someone@example.org', 'Just to you', 'Hello.'], 3) });
+  assert.equal(direct.junked, 1);
+  const mine = mail.messages({ accountId, folder: 'Junk', limit: 5 }).rows.find((r) => r.subject === 'Just to you');
+  assert.throws(() => mail.listRecipient({ accountId, folder: 'Junk', ids: [mine.id] }), /sent to you, not to a group or a mailing list/);
+  assert.throws(() => mail.setJunk({ accountId, patch: { blockedTlds: ['ru', 'russia!'] } }), /"russia!" is not a top-level domain/);
+  assert.throws(() => mail.setJunk({ accountId, patch: { blockedEncodings: ['klingon'] } }), /"klingon" is not an encoding/);
+});
+
+test('mail written in a blocked encoding goes to Junk, a multipart one by its text part', async () => {
+  const { mail, accountId } = service();
+  mail.setJunk({ accountId, patch: { level: 'low', blockedEncodings: ['cyrillic'] } });
+  const plain = raw(['x@example.com', 'Privet', 'Privet.'], 1).replace('charset=utf-8', 'charset=koi8-r');
+  const multi = [
+    'From: <y@example.com>', 'To: <me@example.com>', 'Subject: Hello', `Date: ${new Date(Date.UTC(2026, 9, 1)).toUTCString()}`, 'Message-ID: <m2@test>', 'MIME-Version: 1.0',
+    'Content-Type: multipart/alternative; boundary="b1"', '', '--b1', 'Content-Type: text/plain; charset="windows-1251"', '', 'Hello.', '--b1--', '',
+  ].join('\r\n');
+  const ok = raw(['z@example.com', 'Fine', 'Fine.'], 3);
+  const results = [await mail.deliverTest({ accountId, raw: plain }), await mail.deliverTest({ accountId, raw: multi }), await mail.deliverTest({ accountId, raw: ok })];
+  assert.deepEqual(results.map((r) => r.junked), [1, 1, 0]);
+  const filed = mail.messages({ accountId, folder: 'Junk', limit: 5 }).rows[0];
+  const full = mail.message({ accountId, folder: 'Junk', id: filed.id });
+  assert.equal(full.junk.why, 'blockedEncoding');
+  assert.match(full.junk.reason, /Blocked Encodings/);
+});

@@ -365,11 +365,36 @@ export default function Mail({ app, shell }) {
           // list changed, then the message put where the list now says.
           const senders = [...new Set(chosen.map((r) => String(r.from?.address || '').toLowerCase()).filter((a) => a.includes('@')))];
           const entries = senders.map((a) => (what === 'safeDomain' ? '@' + a.split('@').pop() : a));
-          for (const address of new Set(entries)) await shell.mail.listSender({ address, list: what === 'block' ? 'blocked' : 'safe' });
+          // On the list of the account each message came to: each keeps its own.
+          const pairs = new Map();
+          for (const r of chosen) {
+            const a = String(r.from?.address || '').toLowerCase();
+            if (!a.includes('@')) continue;
+            const entry = what === 'safeDomain' ? '@' + a.split('@').pop() : a;
+            pairs.set(`${r.accountId}|${entry}`, { accountId: r.accountId, address: entry });
+          }
+          for (const p of pairs.values()) await shell.mail.listSender({ ...p, list: what === 'block' ? 'blocked' : 'safe' });
           const inJunk = (r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk');
           if (what === 'block') await overRows(chosen.filter((r) => !inJunk(r)), (g) => shell.mail.move({ ...g, to: foldersFor(g.accountId).find((f) => f.role === 'junk')?.path || 'Junk' }));
           else await overRows(chosen.filter(inJunk), (g) => shell.mail.notJunk(g));
           toast(`${entries.length === 1 ? entries[0] : `${entries.length} senders`} added to ${what === 'block' ? 'Blocked' : 'Safe'} Senders`, { tone: 'good' });
+        } else if (what === 'safeGroup') {
+          // Never block this group or mailing list: the address the mail went
+          // to kept as a Safe Recipient, and anything of it in Junk put back.
+          const added = new Set();
+          let refused = null;
+          await overRows(chosen, async (g) => {
+            try {
+              const r = await shell.mail.listRecipient(g);
+              for (const a of r.added || []) added.add(a);
+            } catch (err) {
+              refused = err.message;
+            }
+          });
+          if (!added.size) { toast(refused || 'Nothing to keep', { tone: 'bad' }); return; }
+          const inJunk = (r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk');
+          await overRows(chosen.filter(inJunk), (g) => shell.mail.notJunk(g));
+          toast(`${added.size === 1 ? [...added][0] : `${added.size} groups`} added to Safe Recipients`, { tone: 'good' });
         } else if (what === 'move') {
           await overRows(chosen, (g) => shell.mail.move({ ...g, to: extra }));
         } else if (what === 'read') {
@@ -384,7 +409,7 @@ export default function Mail({ app, shell }) {
           await overRows(chosen, (g) => shell.mail.flag({ ...g, patch: { pinned: on } }));
         }
         setChecked(new Set());
-        if (['delete', 'archive', 'junk', 'move', 'notJunk', 'block'].includes(what)) setSelected(null);
+        if (['delete', 'archive', 'junk', 'move', 'notJunk', 'block'].includes(what) || (what === 'safeGroup' && chosen.some((r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk')))) setSelected(null);
         await refreshList();
         await loadAccounts();
         setFolderTick((n) => n + 1);
@@ -922,6 +947,7 @@ export default function Mail({ app, shell }) {
       { label: 'Block sender', disabled: none, run: () => act('block') },
       { label: 'Never block sender', disabled: none, run: () => act('safe') },
       { label: "Never block sender's domain", disabled: none, run: () => act('safeDomain') },
+      { label: 'Never block this group or mailing list', disabled: none, run: () => act('safeGroup') },
       '-',
       { label: 'Junk email options…', icon: 'settings', run: () => setDialog({ kind: 'junk' }) },
     ]);
@@ -1586,6 +1612,7 @@ export default function Mail({ app, shell }) {
       {dialog?.kind === 'junk' ? (
         <JunkDialog
           shell={shell}
+          accounts={accounts}
           accountId={accountId && accountId !== EVERYTHING ? accountId : accounts[0]?.id}
           onClose={() => setDialog(null)}
           onSaved={() => setDialog(null)}

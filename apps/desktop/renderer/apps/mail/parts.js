@@ -525,7 +525,10 @@ select.rw-input { appearance: auto; }
 .ml-junk-level > span { display: flex; flex-direction: column; gap: 1px; }
 .ml-junk-learned { display: flex; align-items: center; gap: 12px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-2); font-size: 12.5px; color: var(--ink-2); }
 .ml-junk-learned > span { flex: 1; min-width: 0; }
-.ml-junk-safe, .ml-junk-blocked { width: 100%; resize: vertical; font: inherit; font-size: 12.5px; }
+.ml-junk-safe, .ml-junk-blocked, .ml-junk-recipients, .ml-junk-tlds { width: 100%; resize: vertical; font: inherit; font-size: 12.5px; }
+.ml-junk-for { margin-bottom: 8px; }
+.ml-junk-encodings { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px 12px; font-size: 12.5px; }
+.ml-junk-encoding { display: flex; align-items: center; gap: 6px; cursor: pointer; }
 `;
 
 /** Injected once, rather than per render of a large tree. */

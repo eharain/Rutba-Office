@@ -20,7 +20,7 @@ import { insightFor } from './mail-insight.js';
 import { planRules, applyPlan } from './mail-rules.js';
 import { discoverMailServers, providerTiles, knownProvider, KNOWN } from './mail-discover.js';
 import { planAutoReplies, buildReply } from './mail-ooo.js';
-import { junkSettings, junkVerdict, learn as learnJunk, listSender as listJunkSender, listEntry, JUNK_LEVELS, JUNK_REASONS, ready as junkReady, MIN_LEARNED } from './mail-junk.js';
+import { junkSettings, junkVerdict, learn as learnJunk, listSender as listJunkSender, listRecipient as listJunkRecipient, groupAddressOf, listEntry, tldEntry, JUNK_LEVELS, JUNK_REASONS, JUNK_ENCODINGS, ready as junkReady, MIN_LEARNED } from './mail-junk.js';
 
 // A check run never asks the network where a mail server is, and never opens
 // a real SMTP connection either — see `defaultTransport` below.
@@ -206,13 +206,39 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
   const roleOf = (accountId, folderPath) =>
     classify((store.folders(accountId) || []).find((f) => f.path === folderPath)?.name || folderPath).role;
 
-  /** The junk settings and what the filter has learned, as kept in settings. */
-  const junk = () => junkSettings(stores.settings.get('mail.junk', null));
-  const saveJunk = (settings) => stores.settings.set('mail.junk', settings);
-  /** What the window shows of them: everything but the word counts. */
-  const junkView = (s = junk()) => ({
+  /**
+   * The junk settings for an account and what the filter has learned. Outlook
+   * keeps Junk Email Options per account: an account's own options, once it
+   * has them, over the ones every account shares until then — which are what
+   * an older settings file kept for all. What the filter has learned is one,
+   * for every account.
+   */
+  const OWN_JUNK = ['level', 'safe', 'blocked', 'trustContacts', 'safeRecipients', 'blockedTlds', 'blockedEncodings'];
+  const ownJunk = () => stores.settings.get('mail.junkAccounts', null) || {};
+  const junk = (accountId = null) => {
+    const shared = junkSettings(stores.settings.get('mail.junk', null));
+    const own = accountId ? ownJunk()[accountId] : null;
+    return own ? { ...junkSettings(own), model: shared.model } : shared;
+  };
+  /** What the filter has learned, kept; the options left as they are. */
+  const saveModel = (model) => stores.settings.set('mail.junk', { ...junkSettings(stores.settings.get('mail.junk', null)), model });
+  /** Options kept — an account's own from now on, or the shared ones — with what was learned. */
+  const saveJunk = (settings, accountId = null) => {
+    const options = Object.fromEntries(OWN_JUNK.map((k) => [k, settings[k]]));
+    if (!accountId) {
+      stores.settings.set('mail.junk', { ...options, model: settings.model });
+      return;
+    }
+    stores.settings.set('mail.junkAccounts', { ...ownJunk(), [accountId]: options });
+    saveModel(settings.model);
+  };
+  /** What the window shows of them: everything but the word counts, and whose they are. */
+  const junkView = (s = junk(), accountId = null) => ({
     level: s.level, safe: s.safe, blocked: s.blocked, trustContacts: s.trustContacts,
+    safeRecipients: s.safeRecipients, blockedTlds: s.blockedTlds, blockedEncodings: s.blockedEncodings,
+    encodings: Object.entries(JUNK_ENCODINGS).map(([key, e]) => ({ key, label: e.label })),
     learned: { junk: s.model.junk, good: s.model.good }, ready: junkReady(s.model), minimum: MIN_LEARNED,
+    accountId, own: Boolean(accountId && ownJunk()[accountId]),
   });
 
   const find = (id) => {
@@ -240,7 +266,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     // The message keeps why, for the reading pane to say.
     let junked = 0;
     if (roleOf(accountId, folder) === 'inbox') {
-      const settings = junk();
+      const settings = junk(accountId);
       const isContact = (address) => isKnownContact(contacts, address);
       const to = folderFor(accountId, 'junk') || 'Junk';
       const kept = [];
@@ -878,7 +904,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const from = roleOf(accountId, folder);
       const into = roleOf(accountId, to);
       const teach = into === 'junk' && from !== 'junk' ? true : from === 'junk' && into !== 'junk' && into !== 'trash' ? false : null;
-      let settings = teach === null ? null : junk();
+      let settings = teach === null ? null : junk(accountId);
       for (const id of ids || []) {
         const message = store.get(accountId, folder, id);
         if (!message) continue;
@@ -887,27 +913,30 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         store.put(accountId, to, into === 'junk' ? message : clean, { force: true });
         store.remove(accountId, folder, id);
       }
-      if (settings) saveJunk(settings);
+      if (settings) saveModel(settings.model);
       store.upsertFolder(accountId, { path: to, name: to.split('/').pop() });
       return { moved: (ids || []).length };
     },
 
-    /** Junk Email Options as the window shows them, and what the filter has learned. */
-    junk: () => junkView(),
+    /** Junk Email Options as the window shows them — an account's, or the shared ones — and what the filter has learned. */
+    junk: ({ accountId = null } = {}) => junkView(junk(accountId), accountId),
 
     /**
-     * Change Junk Email Options: the level, the Safe and Blocked Senders
-     * lists, whether contacts are trusted. A list entry that is neither an
-     * address nor a domain is refused by name rather than kept and ignored.
+     * Change Junk Email Options: the level, the Safe Senders, Safe Recipients
+     * and Blocked Senders lists, whether contacts are trusted, the blocked
+     * top-level domains and encodings — for an account, which keeps its own
+     * from then on, or the ones shared by every account without its own. An
+     * entry that is not what its list holds is refused by name rather than
+     * kept and ignored.
      */
-    setJunk: ({ patch = {} }) => {
-      const current = junk();
+    setJunk: ({ accountId = null, patch = {} }) => {
+      const current = junk(accountId);
       const next = { ...current };
       if ('level' in patch) {
         if (!JUNK_LEVELS.includes(patch.level)) throw new Error(`"${patch.level}" is not a junk filter level.`);
         next.level = patch.level;
       }
-      for (const list of ['safe', 'blocked']) {
+      for (const list of ['safe', 'blocked', 'safeRecipients']) {
         if (!(list in patch)) continue;
         const entries = (patch[list] || []).map((v) => String(v).trim()).filter(Boolean);
         const bad = entries.find((v) => !listEntry(v));
@@ -915,16 +944,48 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
         next[list] = [...new Set(entries.map(listEntry))];
       }
       if ('trustContacts' in patch) next.trustContacts = Boolean(patch.trustContacts);
-      saveJunk(next);
-      return junkView(next);
+      if ('blockedTlds' in patch) {
+        const entries = (patch.blockedTlds || []).map((v) => String(v).trim()).filter(Boolean);
+        const bad = entries.find((v) => !tldEntry(v));
+        if (bad) throw new Error(`"${bad}" is not a top-level domain, such as ru or cn.`);
+        next.blockedTlds = [...new Set(entries.map(tldEntry))];
+      }
+      if ('blockedEncodings' in patch) {
+        const bad = (patch.blockedEncodings || []).find((k) => !(k in JUNK_ENCODINGS));
+        if (bad) throw new Error(`"${bad}" is not an encoding the filter knows.`);
+        next.blockedEncodings = [...new Set(patch.blockedEncodings || [])];
+      }
+      saveJunk(next, accountId);
+      return junkView(next, accountId);
     },
 
-    /** Block Sender, Never Block Sender, Never Block Sender's Domain: onto one list and off the other. */
-    listSender: ({ address, list }) => {
+    /** Block Sender, Never Block Sender, Never Block Sender's Domain: onto one list and off the other, the account's. */
+    listSender: ({ accountId = null, address, list }) => {
       if (list !== 'safe' && list !== 'blocked') throw new Error('A sender goes on the Safe or the Blocked list.');
-      const next = listJunkSender(junk(), address, list);
-      saveJunk(next);
-      return junkView(next);
+      const next = listJunkSender(junk(accountId), address, list);
+      saveJunk(next, accountId);
+      return junkView(next, accountId);
+    },
+
+    /**
+     * Never Block this Group or Mailing List: the address the messages were
+     * sent to — a list's posting address, or the group's — onto the
+     * account's Safe Recipients list, so mail to it is never junk. Mail sent
+     * to a person rather than a group is refused by saying so.
+     */
+    listRecipient: ({ accountId = null, folder, ids = [], address = null }) => {
+      const own = accounts().map((a) => a.email).filter(Boolean);
+      const found = address ? [address] : [];
+      for (const id of address ? [] : ids) {
+        const message = store.get(accountId, folder, id);
+        const group = message ? groupAddressOf(message, own) : null;
+        if (group) found.push(group);
+      }
+      if (!found.length) throw new Error('That message was sent to you, not to a group or a mailing list — Never block sender keeps its sender instead.');
+      let next = junk(accountId);
+      for (const a of new Set(found)) next = listJunkRecipient(next, a);
+      saveJunk(next, accountId);
+      return { ...junkView(next, accountId), added: [...new Set(found.map((a) => listEntry(a)).filter(Boolean))] };
     },
 
     /** Not Junk: back to the Inbox, and the filter learns it was good. */
@@ -939,7 +1000,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
      * start without a person marking a dozen messages first.
      */
     learnJunk: ({ accountId, limit = 400 }) => {
-      let settings = junk();
+      let settings = junk(accountId);
       const before = { junk: settings.model.junk, good: settings.model.good };
       for (const [role, isJunk] of [['junk', true], ['inbox', false]]) {
         const folder = folderFor(accountId, role);
@@ -949,8 +1010,8 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
           if (message) settings = learnJunk(settings, message, isJunk);
         }
       }
-      saveJunk(settings);
-      return { ...junkView(settings), added: { junk: settings.model.junk - before.junk, good: settings.model.good - before.good } };
+      saveModel(settings.model);
+      return { ...junkView(settings, accountId), added: { junk: settings.model.junk - before.junk, good: settings.model.good - before.good } };
     },
 
     delete: ({ accountId, folder, ids }) => {

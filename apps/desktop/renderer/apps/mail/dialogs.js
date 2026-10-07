@@ -1044,20 +1044,29 @@ const JUNK_CHOICES = [
 
 /**
  * Junk Email Options, as Outlook lays them out: how hard the filter looks,
- * the two lists, and — what Outlook does not show — what the filter has
- * learned so far, with a way to teach it from the mail already here.
+ * the Safe Senders, Safe Recipients and Blocked Senders lists, the
+ * International lists — top-level domains and encodings blocked — and,
+ * what Outlook does not show, what the filter has learned so far, with a
+ * way to teach it from the mail already here. Each account keeps its own,
+ * as in Outlook; the learning is one for all of them.
  */
-export function JunkDialog({ shell, accountId, onClose, onSaved, toast }) {
+export function JunkDialog({ shell, accountId, accounts = [], onClose, onSaved, toast }) {
   const [form, setForm] = useState(null);
+  const [who, setWho] = useState(accountId || accounts[0]?.id || null);
   const [saving, setSaving] = useState(false);
   const [learning, setLearning] = useState(false);
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
-  const load = (j) => setForm({ level: j.level, safe: j.safe.join('\n'), blocked: j.blocked.join('\n'), trustContacts: j.trustContacts, learned: j.learned, ready: j.ready, minimum: j.minimum });
+  const load = (j) => setForm({
+    level: j.level, safe: j.safe.join('\n'), blocked: j.blocked.join('\n'), trustContacts: j.trustContacts,
+    safeRecipients: (j.safeRecipients || []).join('\n'), blockedTlds: (j.blockedTlds || []).join('\n'), blockedEncodings: j.blockedEncodings || [], encodings: j.encodings || [],
+    learned: j.learned, ready: j.ready, minimum: j.minimum,
+  });
 
   useEffect(() => {
-    shell.mail.junk().then(load).catch((err) => toast(err.message, { tone: 'bad' }));
+    setForm(null);
+    shell.mail.junk({ accountId: who }).then(load).catch((err) => toast(err.message, { tone: 'bad' }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [who]);
 
   const lines = (text) => String(text || '').split(/[\n,;]+/).map((s) => s.trim()).filter(Boolean);
 
@@ -1065,7 +1074,13 @@ export function JunkDialog({ shell, accountId, onClose, onSaved, toast }) {
     if (!form) return;
     setSaving(true);
     try {
-      await shell.mail.setJunk({ patch: { level: form.level, safe: lines(form.safe), blocked: lines(form.blocked), trustContacts: form.trustContacts } });
+      await shell.mail.setJunk({
+        accountId: who,
+        patch: {
+          level: form.level, safe: lines(form.safe), blocked: lines(form.blocked), trustContacts: form.trustContacts,
+          safeRecipients: lines(form.safeRecipients), blockedTlds: lines(form.blockedTlds), blockedEncodings: form.blockedEncodings,
+        },
+      });
       toast('Junk email options saved', { tone: 'good' });
       onSaved?.();
     } catch (err) {
@@ -1073,13 +1088,13 @@ export function JunkDialog({ shell, accountId, onClose, onSaved, toast }) {
     } finally {
       setSaving(false);
     }
-  }, [shell, form, onSaved, toast]);
+  }, [shell, form, who, onSaved, toast]);
 
   const learn = useCallback(async () => {
-    if (!accountId) return;
+    if (!who) return;
     setLearning(true);
     try {
-      const j = await shell.mail.learnJunk({ accountId });
+      const j = await shell.mail.learnJunk({ accountId: who });
       setForm((f) => ({ ...f, learned: j.learned, ready: j.ready }));
       toast(`Learned from ${j.added.junk} junk and ${j.added.good} good message${j.added.good === 1 ? '' : 's'}`, { tone: 'good' });
     } catch (err) {
@@ -1087,12 +1102,13 @@ export function JunkDialog({ shell, accountId, onClose, onSaved, toast }) {
     } finally {
       setLearning(false);
     }
-  }, [shell, accountId, toast]);
+  }, [shell, who, toast]);
 
+  const account = accounts.find((a) => a.id === who);
   return (
     <Dialog
       title="Junk email options"
-      width={560}
+      width={600}
       onClose={onClose}
       actions={
         <>
@@ -1101,6 +1117,15 @@ export function JunkDialog({ shell, accountId, onClose, onSaved, toast }) {
         </>
       }
     >
+      {accounts.length > 1 ? (
+        <Field label="Account" hint="Each account keeps its own options, as in Outlook.">
+          <select className="rw-input ml-junk-account" value={who || ''} onChange={(e) => setWho(e.target.value)}>
+            {accounts.map((a) => (
+              <option key={a.id} value={a.id}>{a.name ? `${a.name} <${a.email}>` : a.email}</option>
+            ))}
+          </select>
+        </Field>
+      ) : account ? <div className="rw-hint ml-junk-for">For {account.email}</div> : null}
       {!form ? <Spinner /> : (
         <>
           <div className="ml-junk-levels" role="radiogroup" aria-label="How hard the filter looks">
@@ -1118,7 +1143,7 @@ export function JunkDialog({ shell, accountId, onClose, onSaved, toast }) {
                 ? `The filter has learned from ${form.learned.junk} junk and ${form.learned.good} good messages.`
                 : `The filter has learned from ${form.learned.junk} junk and ${form.learned.good} good messages, and judges nothing until it has seen ${form.minimum} of each. Mark messages Junk and Not junk, or learn from what is already here.`}
             </span>
-            <Button label={learning ? 'Learning…' : 'Learn from my folders'} title="What is in Junk is learned as junk, the Inbox as good" disabled={learning || !accountId} onClick={learn} />
+            <Button label={learning ? 'Learning…' : 'Learn from my folders'} title="What is in Junk is learned as junk, the Inbox as good" disabled={learning || !who} onClick={learn} />
           </div>
 
           <label className="ml-ooo-toggle ml-junk-contacts">
@@ -1133,7 +1158,29 @@ export function JunkDialog({ shell, accountId, onClose, onSaved, toast }) {
             <Field label="Blocked Senders" hint="Always junk.">
               <textarea className="rw-input ml-junk-blocked" rows={6} value={form.blocked} onChange={(e) => set({ blocked: e.target.value })} placeholder="@offers.example" />
             </Field>
+            <Field label="Safe Recipients" hint="Mail sent to these — a group or a mailing list — is never junk.">
+              <textarea className="rw-input ml-junk-recipients" rows={4} value={form.safeRecipients} onChange={(e) => set({ safeRecipients: e.target.value })} placeholder="team@lists.example.org" />
+            </Field>
+            <Field label="Blocked Top-Level Domains" hint="Mail from addresses ending in these is junk, such as ru or cn.">
+              <textarea className="rw-input ml-junk-tlds" rows={4} value={form.blockedTlds} onChange={(e) => set({ blockedTlds: e.target.value })} placeholder={'ru\ncn'} />
+            </Field>
           </div>
+
+          <Field label="Blocked Encodings" hint="Mail written in these languages' character sets is junk.">
+            <div className="ml-junk-encodings">
+              {form.encodings.map((e) => (
+                <label key={e.key} className="ml-junk-encoding">
+                  <input
+                    type="checkbox"
+                    value={e.key}
+                    checked={form.blockedEncodings.includes(e.key)}
+                    onChange={(ev) => set({ blockedEncodings: ev.target.checked ? [...form.blockedEncodings, e.key] : form.blockedEncodings.filter((k) => k !== e.key) })}
+                  />
+                  <span>{e.label}</span>
+                </label>
+              ))}
+            </div>
+          </Field>
         </>
       )}
     </Dialog>
