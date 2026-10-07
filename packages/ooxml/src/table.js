@@ -422,6 +422,8 @@ export function parseSection(bodyXml) {
     pageBorders: parsePageBorders(sectPr),
     lineNumbers: parseLineNumbers(sectPr),
     columns: parseColumns(sectPr),
+    // A section that runs right to left (its own w:bidi): its columns flow from the right.
+    rtl: sectPr ? /<w:bidi\b(?![^>]*\bw:val="(?:0|false|off)")[^>]*\/?>/.test(sectPr) : false,
     margins: {
       top: margin('top', 1440),
       right: margin('right', 1440),
@@ -451,7 +453,8 @@ export function parseSection(bodyXml) {
         const w = Math.max(1, (this.contentWidthPx - spacePx * (n - 1)) / n);
         for (let i = 0; i < n; i++) { boxes.push({ xPx: x, widthPx: w }); x += w + spacePx; }
       }
-      return boxes;
+      // Right to left, the first column is the right-hand one.
+      return this.rtl ? boxes.map((b) => ({ xPx: this.contentWidthPx - b.xPx - b.widthPx, widthPx: b.widthPx })) : boxes;
     },
     // Which header/footer references actually apply. Without titlePg a file can
     // carry a first-page header Word never shows.

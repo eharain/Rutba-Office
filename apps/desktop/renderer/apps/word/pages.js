@@ -103,7 +103,8 @@ export function columnBoxesOf(section) {
     const w = Math.max(1, (contentWidthPx - spacePx * (n - 1)) / n);
     for (let i = 0; i < n; i++) { boxes.push({ xPx: x, widthPx: w }); x += w + spacePx; }
   }
-  return boxes;
+  // A right-to-left section's first column is the right-hand one.
+  return section.rtl ? boxes.map((b) => ({ xPx: contentWidthPx - b.xPx - b.widthPx, widthPx: b.widthPx })) : boxes;
 }
 
 /**

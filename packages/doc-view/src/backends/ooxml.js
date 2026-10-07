@@ -118,6 +118,7 @@ export class OoxmlBackend {
   setTableColumnWidth(tableStart, cellIndex, twips) { this.doc.setTableColumnWidth(tableStart, cellIndex, twips); return this; }
   setTableColumnWidths(tableStart, widths) { this.doc.setTableColumnWidths(tableStart, widths); return this; }
   setTableRowHeight(tableStart, rowIndex, twips) { this.doc.setTableRowHeight(tableStart, rowIndex, twips); return this; }
+  setTableDirection(tableStart, rtl) { this.doc.setTableDirection(tableStart, rtl); return this; }
 
   /**
    * Formatting is a verbatim `<w:rPr>` edit — fonts and colours ride along.

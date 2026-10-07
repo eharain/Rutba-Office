@@ -2166,6 +2166,7 @@ export class DocView {
       mergeCells: 'mergeTableCells',
       splitCell: 'splitTableCell',
       columnWidth: 'setTableColumnWidth',
+      direction: 'setTableDirection',
     };
     const method = PORT[op];
     if (!method) throw new Error('unknown table operation: ' + op);
@@ -2213,6 +2214,9 @@ export class DocView {
         return this;
       } else if (op === 'splitCell') {
         this.doc.splitTableCell(tableStart, rowIndex, cellIndex);
+      } else if (op === 'direction') {
+        // Right to left: the columns run from the right, as Word's Table Properties → Right-to-left.
+        this.doc.setTableDirection(tableStart, Boolean(arg.rtl));
       } else if (op === 'columnWidth') {
         // The UI speaks centimetres; the file speaks twips. 1cm = 567.
         const cm = Number(arg.cm);

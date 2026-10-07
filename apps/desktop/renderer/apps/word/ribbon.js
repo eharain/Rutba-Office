@@ -615,6 +615,8 @@ export default function WordRibbon({
               { label: 'Left', icon: isColumnPreset('left') ? 'check' : undefined, run: () => setColumns(unevenSpec(true)) },
               { label: 'Right', icon: isColumnPreset('right') ? 'check' : undefined, run: () => setColumns(unevenSpec(false)) },
               '-',
+              // The section right to left: its columns run from the right, as an Arabic or Hebrew page's do.
+              { label: 'Right to left', icon: section?.rtl ? 'check' : undefined, run: () => dispatch({ op: 'setPageSetup', spec: { rtl: !section?.rtl } }) },
               {
                 label: 'Line between', icon: columns.separator ? 'check' : undefined, disabled: colCount <= 1,
                 run: () => setColumns({

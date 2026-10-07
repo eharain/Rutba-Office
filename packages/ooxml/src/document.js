@@ -460,9 +460,11 @@ function tableHead(body, at) {
   const sides = borders ? [...borders[1].matchAll(/<w:(top|left|bottom|right|insideH|insideV|start|end)\b[^>]*\bw:val="([^"]*)"/g)] : [];
   const bare = sides.length >= 4 && sides.every((s) => s[2] === 'nil' || s[2] === 'none');
   const fixed = /<w:tblLayout\b[^>]*\bw:type="fixed"/.test(head);
+  // A table whose columns run from the right (w:bidiVisual), as an Arabic or Hebrew table does.
+  const rtl = /<w:bidiVisual\b(?![^>]*\bw:val="(?:0|false|off)")[^>]*\/?>/.test(head);
   const mar = /<w:tblCellMar\b[^>]*>([\s\S]*?)<\/w:tblCellMar>/.exec(head);
   const side = (name) => { const m = mar ? new RegExp('<w:' + name + '\\b[^>]*\\bw:w="(\\d+)"').exec(mar[1]) : null; return m ? twipsToPx(Number(m[1])) : null; };
-  const look = bare || fixed ? { bare, fixed, ...(mar ? { cellMarginPx: { left: side('left') ?? side('start') ?? 0, right: side('right') ?? side('end') ?? 0, top: side('top') ?? 0, bottom: side('bottom') ?? 0 } } : {}) } : null;
+  const look = bare || fixed || rtl ? { bare, fixed, ...(rtl ? { rtl } : {}), ...(mar ? { cellMarginPx: { left: side('left') ?? side('start') ?? 0, right: side('right') ?? side('end') ?? 0, top: side('top') ?? 0, bottom: side('bottom') ?? 0 } } : {}) } : null;
   return { gridPx: gridPx.length ? gridPx : null, tableWidth, ...(look ? { look } : {}) };
 }
 
@@ -2175,8 +2177,10 @@ export class Document {
    * different widths (`w:equalWidth="0"` plus a `w:col` each); leaving it
    * out shares the content width equally, the ordinary case. `count` 1, or
    * null, takes the element off — Word never writes `w:cols` for one column.
+   * `rtl` turns the section right to left (`w:bidi`), its columns flowing
+   * from the right, or back.
    */
-  setPageSetup({ orientation, size, margins, columns } = {}) {
+  setPageSetup({ orientation, size, margins, columns, rtl } = {}) {
     const PAPER = { A4: [11906, 16838], Letter: [12240, 15840], Legal: [12240, 20160] };
     const MARGIN_PRESETS = {
       normal: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
@@ -2233,6 +2237,15 @@ export class Document {
         if (preset[side] !== undefined) changes['w:' + side] = String(Math.max(0, Math.round(preset[side])));
       }
       setChildAttrs('pgMar', changes);
+    }
+
+    if (rtl !== undefined) {
+      sectPr = sectPr.replace(/<w:bidi\b[^>]*\/>|<w:bidi\b[^>]*>\s*<\/w:bidi>/g, '');
+      if (rtl) {
+        // Before what the schema puts after it: rtlGutter, docGrid, printerSettings, a recorded change.
+        const after = /<w:(?:rtlGutter|docGrid|printerSettings|sectPrChange)\b/.exec(sectPr);
+        sectPr = after ? sectPr.slice(0, after.index) + '<w:bidi/>' + sectPr.slice(after.index) : sectPr.replace('</w:sectPr>', () => '<w:bidi/></w:sectPr>');
+      }
     }
 
     if (columns !== undefined) {
@@ -5805,6 +5818,29 @@ export class Document {
     }
     const rest = rowXml.slice(pre.length + (trPr ? trPr[0].length : 0));
     this._spliceBody(row.start, row.end, pre + (inner ? '<w:trPr>' + inner + '</w:trPr>' : '') + rest);
+    return this;
+  }
+
+  /**
+   * Which way a table's columns run: from the right (`w:bidiVisual`, Word's
+   * right-to-left table) or from the left, in the table's own properties at
+   * the schema's place for it.
+   */
+  setTableDirection(tableStart, rtl) {
+    const parts = this._tableParts(tableStart);
+    const { body } = this._body();
+    const at = parts.innerStart;
+    const pr = /^<w:tblPr\b[^>]*>([\s\S]*?)<\/w:tblPr>|^<w:tblPr\b[^>]*\/>/.exec(body.slice(at));
+    let inner = pr && pr[1] != null ? pr[1] : '';
+    inner = inner.replace(/<w:bidiVisual\b[^>]*\/>|<w:bidiVisual\b[^>]*>\s*<\/w:bidiVisual>/g, '');
+    if (rtl) {
+      // After tblStyle, tblpPr and tblOverlap; before the rest.
+      const lead = /^(?:<w:tblStyle\b[^>]*\/>|<w:tblpPr\b[^>]*\/>|<w:tblOverlap\b[^>]*\/>)*/.exec(inner)[0];
+      inner = lead + '<w:bidiVisual/>' + inner.slice(lead.length);
+    }
+    const replacement = '<w:tblPr>' + inner + '</w:tblPr>';
+    if (pr) this._spliceBody(at, at + pr[0].length, replacement);
+    else this._spliceBody(at, at, replacement);
     return this;
   }
 

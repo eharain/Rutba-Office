@@ -1,7 +1,9 @@
 // Right to left in Documents: a paragraph that runs from the right margin,
 // as Arabic, Hebrew, Persian and Urdu do — w:bidi read from the file and
 // from its style, written by the ribbon's direction buttons, and the
-// paragraph's alignment kept mirrored as Word keeps it.
+// paragraph's alignment kept mirrored as Word keeps it; a table whose
+// columns run from the right (w:bidiVisual) and a section whose columns do
+// (w:bidi in the section), read and written.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
@@ -96,4 +98,41 @@ test('a paragraph whose style runs right to left follows it, and is turned back 
   view.setParagraphFormat({ rtl: true });
   assert.doesNotMatch(pPrOf(view, 0), /bidi/, 'and back to its style\'s way: nothing of its own');
   assert.equal(view.formatAtCaret().rtl, true);
+});
+
+test('a right-to-left table is read from w:bidiVisual, and the caret\'s table turned either way writes it in its place', () => {
+  const view = docWith([['', 'Before the table.']]);
+  view.setSelection({ block: 0, offset: 0 });
+  view.insertTable({ rows: 2, cols: 3 });
+  const blocks = () => view.render({ pages: false }).blocks;
+  const cell = blocks().findIndex((b) => /^t\d+:r0:c0$/.test(b.container || ''));
+  assert.ok(cell >= 0, 'a cell to put the caret in');
+  view.setSelection({ block: cell, offset: 0 });
+  view.tableOp('direction', { rtl: true });
+  const xml = view.doc.doc.xml;
+  assert.match(xml, /<w:tblPr>(?:<w:tblStyle\b[^>]*\/>)?<w:bidiVisual\/>/, 'after the style, before the rest of the table\'s properties');
+  const look = blocks().find((b) => b.tableLook)?.tableLook;
+  assert.equal(look?.rtl, true);
+  view.tableOp('direction', { rtl: false });
+  assert.doesNotMatch(view.doc.doc.xml, /<w:bidiVisual/);
+  view.undo();
+  assert.match(view.doc.doc.xml, /<w:bidiVisual\/>/, 'one undo step each way');
+});
+
+test('a right-to-left section lays its columns from the right, and Layout writes w:bidi where the schema has it', () => {
+  const view = docWith([['', ARABIC]]);
+  view.setPageSetup({ columns: { count: 2, spaceTwips: 720 } });
+  const ltr = view.section.columnBoxes;
+  assert.ok(ltr[0].xPx < ltr[1].xPx, 'left to right, the first column at the left');
+  view.setPageSetup({ rtl: true });
+  assert.equal(view.section.rtl, true);
+  const rtl = view.section.columnBoxes;
+  assert.ok(rtl[0].xPx > rtl[1].xPx, 'right to left, the first column at the right');
+  assert.equal(Math.round(rtl[0].xPx + rtl[0].widthPx), Math.round(view.section.contentWidthPx), 'flush with the right margin');
+  const sectPr = /<w:sectPr\b[\s\S]*<\/w:sectPr>/.exec(view.doc.doc.xml)[0];
+  assert.match(sectPr, /<w:cols\b[\s\S]*<w:bidi\/>/, 'after the columns');
+  assert.ok(!/<w:docGrid\b/.test(sectPr) || sectPr.indexOf('<w:bidi/>') < sectPr.indexOf('<w:docGrid'), 'and before the grid');
+  view.setPageSetup({ rtl: false });
+  assert.equal(view.section.rtl, false);
+  assert.doesNotMatch(view.doc.doc.xml, /<w:bidi\/>/);
 });

@@ -2895,7 +2895,7 @@ function TableGroup({ table, labels, styles, tsplit }) {
   return (
     <>
       {bounds.slice(0, -1).map((from, j) => (
-        <table key={j} className={`wd-table${table.look?.bare ? ' wd-table-bare' : ''}`} data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined} style={width || table.look?.fixed ? { width, ...(table.look?.fixed ? { tableLayout: 'fixed' } : {}) } : undefined}>
+        <table key={j} className={`wd-table${table.look?.bare ? ' wd-table-bare' : ''}`} dir={table.look?.rtl ? 'rtl' : undefined} data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined} style={width || table.look?.fixed ? { width, ...(table.look?.fixed ? { tableLayout: 'fixed' } : {}) } : undefined}>
           {grid && sum > 0 ? <colgroup>{grid.map((w, i) => <col key={i} style={{ width: `${(w / sum) * 100}%` }} />)}</colgroup> : null}
           <tbody>
             {rows.slice(from, bounds[j + 1]).map(([r, cells]) => (
@@ -3053,7 +3053,12 @@ function planTabs(p, stops) {
   // put that stop 29 px past the edge, and its page number on the next line.
   const host = p.closest('.wd-textbox, .wd-notes, .wd-band, .wd-page') || p;
   const edge = host.classList.contains('wd-band') ? p : host;
-  const left = rectOf(host).left + (parseFloat(getComputedStyle(edge).paddingLeft) || 0);
+  // A right-to-left paragraph's stops are measured from the right margin, and
+  // each tab starts where the words before it end — at its right.
+  const rtl = getComputedStyle(p).direction === 'rtl';
+  const left = rtl
+    ? rectOf(host).right - (parseFloat(getComputedStyle(edge).paddingRight) || 0)
+    : rectOf(host).left + (parseFloat(getComputedStyle(edge).paddingLeft) || 0);
   const custom = (stops || []).filter((s) => s && s.posPx > 0);
   const image = p.querySelector('.wd-image');
   const plan = [];
@@ -3071,7 +3076,7 @@ function planTabs(p, stops) {
       carried = 0;
       lineTop = rect.top;
     }
-    const x = rect.left - left + carried;
+    const x = (rtl ? left - rect.right : rect.left - left) + carried;
 
     const stop = custom.find((s) => s.posPx > x + 1) || { posPx: (Math.floor(x / DEFAULT_TAB_PX) + 1) * DEFAULT_TAB_PX, align: 'left' };
     let width = stop.posPx - x;

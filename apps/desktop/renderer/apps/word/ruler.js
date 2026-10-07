@@ -35,8 +35,26 @@ function measureParagraph(page, index) {
   const cs = getComputedStyle(el);
   const r = rectOf(el);
   const p = rectOf(page);
-  const paddingLeft = num(cs.paddingLeft);
   const textIndent = num(cs.textIndent);
+  // A right-to-left paragraph starts at the right: its numbers are measured
+  // from the page's right edge, so the markers work as they do the other way
+  // round and are drawn mirrored.
+  if (cs.direction === 'rtl') {
+    const width = p.width;
+    const paddingRight = num(cs.paddingRight);
+    const left = width - (r.right - p.left) + paddingRight;
+    return {
+      rtl: true,
+      left,
+      first: left + textIndent,
+      right: width - (r.left - p.left),
+      edge: width - (r.right - p.left) - num(cs.marginRight),
+      leftPx: num(cs.marginRight) + paddingRight,
+      indentPx: textIndent,
+      rightPx: num(cs.marginLeft),
+    };
+  }
+  const paddingLeft = num(cs.paddingLeft);
   const left = r.left - p.left + paddingLeft;
   return {
     left,
@@ -66,16 +84,33 @@ function measureTable(page, tableId, gridPx) {
     const scale = sum > 0 ? t.width / sum : 1;
     const rows = [...table.querySelectorAll(':scope > tbody > tr')];
     const plain = rows.find((tr) => tr.children.length === gridPx.length && ![...tr.children].some((td) => td.colSpan > 1));
+    // A right-to-left table's first column is at the right: each column ends at its left edge.
+    const rtl = getComputedStyle(table).direction === 'rtl';
     const xs = plain
-      ? [...plain.children].map((td, i) => ({ k: i + 1, x: rectOf(td).right - p.left }))
-      : gridPx.map((_, i) => ({ k: i + 1, x: t.left - p.left + gridPx.slice(0, i + 1).reduce((a, b) => a + b, 0) * scale }));
+      ? [...plain.children].map((td, i) => ({ k: i + 1, x: (rtl ? rectOf(td).left : rectOf(td).right) - p.left }))
+      : gridPx.map((_, i) => {
+        const run = gridPx.slice(0, i + 1).reduce((a, b) => a + b, 0) * scale;
+        return { k: i + 1, x: rtl ? t.right - p.left - run : t.left - p.left + run };
+      });
     const from = Number(table.dataset.rowFrom || 0);
     const ys = rows.map((tr, i) => {
       const r = rectOf(tr);
       return { r: from + i, y: r.bottom - p.top, top: r.top - p.top };
     });
-    return { left: t.left - p.left, top: t.top - p.top, width: t.width, height: t.height, scale, xs, ys };
+    return { left: t.left - p.left, top: t.top - p.top, width: t.width, height: t.height, scale, xs, ys, rtl };
   });
+}
+
+/**
+ * How far a table's column edge can be dragged: no nearer than a column's
+ * floor to the edges either side — the one before it on the table's
+ * starting side and the one after it, or open-ended past the last.
+ */
+function columnBounds(part, i, far = null) {
+  const prev = i === 0 ? (part.rtl ? part.left + part.width : part.left) : part.xs[i - 1].x;
+  const next = part.xs[i + 1]?.x ?? null;
+  if (part.rtl) return [next != null ? next + MIN_COLUMN : part.xs[i].x - 600, prev - MIN_COLUMN];
+  return [prev + MIN_COLUMN, next != null ? next - MIN_COLUMN : far ?? part.xs[i].x + 600];
 }
 
 /** Re-measure whenever the page changes size (a zoom, a repagination). */
@@ -97,6 +132,11 @@ function useResize(page, measure) {
  * the ruler adds (the box at the far left picks the type), a drag moves and
  * a drag off the ruler removes; and, with the caret in a table, the
  * column edges. Everything writes through the callbacks, once, on release.
+ *
+ * In a right-to-left paragraph the ruler counts from the right margin, as
+ * Word's does: the indents and tab stops are measured from it and drawn
+ * mirrored, and dragging towards the left moves a marker further in. The
+ * page margins and a table's column edges stay where they are on the page.
  */
 export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, onMargin, onColumn, zoom = 1 }) {
   const W = section ? Math.round(section.widthPx) : 794;
@@ -127,6 +167,11 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
   const block = model?.blocks?.[at];
   const inherited = styleStops(block, model?.resolvedStyles);
   const stops = block ? block.tabs ?? inherited : [];
+  // Right to left: the paragraph's own direction, else its style's; its markers live in coordinates from the right edge.
+  const rtl = Boolean(block && (block.rtl ?? (model?.resolvedStyles?.[block.style] ?? model?.resolvedStyles?.['*default*'])?.rtl));
+  const START = rtl ? MR : ML;
+  const END = rtl ? ML : MR;
+  const at_ = (x) => (rtl ? W - x : x); // a paragraph coordinate as a place on the ruler
 
   // What the paragraph's stops become: its own list, or — none left — a
   // clear for each of the style's, so they do not come back.
@@ -150,7 +195,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
     setDrag({ kind: spec.kind, index: spec.index, x, off });
     const move = (ev) => {
       // Pointer travel is in screen pixels; the ruler's are the page's, zoomed.
-      x = clamp(spec.x + (ev.clientX - x0) / (zoom || 1), spec.min, spec.max);
+      x = clamp(spec.x + ((ev.clientX - x0) / (zoom || 1)) * (spec.mirrored ? -1 : 1), spec.min, spec.max);
       off = spec.kind === 'tab' && (ev.clientY > bar.bottom + 24 || ev.clientY < bar.top - 24);
       setDrag({ kind: spec.kind, index: spec.index, x, off });
     };
@@ -170,30 +215,32 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
   // A click on the bare ruler, between the margins, adds a stop of the chosen type.
   const addStop = (e) => {
     if (e.button !== 0 || !block || !onParagraph) return;
-    const x = (e.clientX - ref.current.getBoundingClientRect().left) / (zoom || 1);
-    if (x <= ML || x >= W - MR) return;
+    const x = at_((e.clientX - ref.current.getBoundingClientRect().left) / (zoom || 1));
+    if (x <= START || x >= W - END) return;
     e.preventDefault();
-    writeStops([...stops, { align: tabType, posPx: Math.round(x - ML) }]);
+    writeStops([...stops, { align: tabType, posPx: Math.round(x - START) }]);
   };
 
   const ticks = [];
-  for (let i = -Math.floor(ML / PX_PER_CM); i <= Math.floor((W - ML) / PX_PER_CM); i++) {
-    const x = ML + i * PX_PER_CM;
-    if (i !== 0 && x > 8 && x < W - 8) ticks.push(<span key={`n${i}`} className="wd-ruler-tick major" style={{ left: x }}>{Math.abs(i)}</span>);
-    if (x + PX_PER_CM / 2 < W) ticks.push(<span key={`h${i}`} className="wd-ruler-tick half" style={{ left: x + PX_PER_CM / 2 }} />);
-    for (const q of [0.25, 0.75]) if (x + q * PX_PER_CM < W) ticks.push(<span key={`q${i}${q}`} className="wd-ruler-tick" style={{ left: x + q * PX_PER_CM }} />);
+  for (let i = -Math.floor(START / PX_PER_CM); i <= Math.floor((W - START) / PX_PER_CM); i++) {
+    const x = START + i * PX_PER_CM;
+    if (i !== 0 && x > 8 && x < W - 8) ticks.push(<span key={`n${i}`} className="wd-ruler-tick major" style={{ left: at_(x) }}>{Math.abs(i)}</span>);
+    if (x + PX_PER_CM / 2 < W) ticks.push(<span key={`h${i}`} className="wd-ruler-tick half" style={{ left: at_(x + PX_PER_CM / 2) }} />);
+    for (const q of [0.25, 0.75]) if (x + q * PX_PER_CM < W) ticks.push(<span key={`q${i}${q}`} className="wd-ruler-tick" style={{ left: at_(x + q * PX_PER_CM) }} />);
   }
 
   const leftBound = pos('margin', 0, ML);
   const rightBound = pos('margin', 1, W - MR);
-  const first = para ? para.first : ML;
-  const left = para ? para.left : ML;
-  const right = para ? para.right : W - MR;
-  const edge = para ? para.edge : ML;
+  const first = para ? para.first : START;
+  const left = para ? para.left : START;
+  const right = para ? para.right : W - END;
+  const edge = para ? para.edge : START;
+  const mirrored = rtl && Boolean(para?.rtl);
+  const place = (x) => (mirrored ? W - x : x);
   const bar = drag && ref.current ? ref.current.getBoundingClientRect() : null;
 
   return (
-    <div className="wd-ruler" ref={ref} style={{ width: W, zoom: zoom !== 1 ? zoom : undefined }} aria-hidden="true" data-tab-type={tabType}>
+    <div className="wd-ruler" ref={ref} style={{ width: W, zoom: zoom !== 1 ? zoom : undefined }} aria-hidden="true" data-tab-type={tabType} data-dir={mirrored ? 'rtl' : undefined}>
       <div className="wd-ruler-margin" style={{ left: 0, width: leftBound }} />
       <div className="wd-ruler-margin" style={{ left: rightBound, width: W - rightBound }} />
       <div className="wd-ruler-band" style={{ left: ML, width: Math.max(0, W - ML - MR) }} onMouseDown={addStop} />
@@ -229,9 +276,9 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
             className="wd-ruler-first"
             data-marker="first"
             data-tip="First line indent"
-            style={{ left: pos('first', 0, first) - 5 }}
+            style={{ left: place(pos('first', 0, first)) - 5 }}
             onMouseDown={(e) => hold(e, {
-              kind: 'first', index: 0, x: first, min: edge, max: right - 8,
+              kind: 'first', index: 0, x: first, min: edge, max: right - 8, mirrored,
               release: (x, dx) => {
                 const ti = para.indentPx + dx;
                 onParagraph(ti >= 0 ? { firstLineTwips: tw(ti) } : { hangingTwips: tw(-ti) });
@@ -242,9 +289,9 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
             className="wd-ruler-hang"
             data-marker="hanging"
             data-tip="Hanging indent"
-            style={{ left: pos('hang', 0, left) - 5 }}
+            style={{ left: place(pos('hang', 0, left)) - 5 }}
             onMouseDown={(e) => hold(e, {
-              kind: 'hang', index: 0, x: left, min: edge, max: right - 8,
+              kind: 'hang', index: 0, x: left, min: edge, max: right - 8, mirrored,
               release: (x, dx) => {
                 // The lines after the first move; the first line stays.
                 const ti = para.indentPx - dx;
@@ -256,9 +303,9 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
             className="wd-ruler-left"
             data-marker="left"
             data-tip="Left indent"
-            style={{ left: pos('left', 0, left) - 5 }}
+            style={{ left: place(pos('left', 0, left)) - 5 }}
             onMouseDown={(e) => hold(e, {
-              kind: 'left', index: 0, x: left, min: edge + Math.max(0, -para.indentPx), max: right - 8,
+              kind: 'left', index: 0, x: left, min: edge + Math.max(0, -para.indentPx), max: right - 8, mirrored,
               release: (x, dx) => onParagraph({
                 leftTwips: tw(Math.max(0, para.leftPx + dx)),
                 ...(para.indentPx > 0 ? { firstLineTwips: tw(para.indentPx) } : para.indentPx < 0 ? { hangingTwips: tw(-para.indentPx) } : {}),
@@ -269,14 +316,14 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
             className="wd-ruler-right"
             data-marker="right"
             data-tip="Right indent"
-            style={{ left: pos('right', 0, right) - 5 }}
+            style={{ left: place(pos('right', 0, right)) - 5 }}
             onMouseDown={(e) => hold(e, {
-              kind: 'right', index: 0, x: right, min: Math.max(first, left) + 8, max: W - MR,
+              kind: 'right', index: 0, x: right, min: Math.max(first, left) + 8, max: W - END, mirrored,
               release: (x, dx) => onParagraph({ rightTwips: tw(Math.max(0, para.rightPx - dx)) }),
             })}
           />
           {stops.map((s, i) => {
-            const x = ML + s.posPx;
+            const x = START + s.posPx;
             return (
               <div
                 key={i}
@@ -284,9 +331,9 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
                 data-align={s.align || 'left'}
                 data-pos={Math.round(s.posPx)}
                 data-tip={`${s.align || 'left'} tab at ${(s.posPx / PX_PER_CM).toFixed(2)} cm — drag to move, drag off to remove`}
-                style={{ left: pos('tab', i, x) - 4 }}
+                style={{ left: place(pos('tab', i, x)) - 4 }}
                 onMouseDown={(e) => hold(e, {
-                  kind: 'tab', index: i, x, min: ML + 1, max: W - MR,
+                  kind: 'tab', index: i, x, min: START + 1, max: W - END, mirrored,
                   release: (nx, dx) => {
                     if (nx == null) writeStops(stops.filter((_, j) => j !== i));
                     else writeStops(stops.map((t, j) => (j === i ? { ...t, posPx: t.posPx + dx } : t)));
@@ -298,8 +345,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
         </>
       ) : null}
       {table && onColumn ? table.xs.map((c, i) => {
-        const prev = i === 0 ? table.left : table.xs[i - 1].x;
-        const next = table.xs[i + 1]?.x ?? null;
+        const [min, max] = columnBounds(table, i, W);
         return (
           <div
             key={c.k}
@@ -308,17 +354,17 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
             data-tip="Table column — drag to resize"
             style={{ left: pos('col', c.k, c.x) - 4 }}
             onMouseDown={(e) => hold(e, {
-              kind: 'col', index: c.k, x: c.x, min: prev + MIN_COLUMN, max: next != null ? next - MIN_COLUMN : W,
-              release: (x, dx) => onColumn(tableId, c.k, dx / table.scale),
+              kind: 'col', index: c.k, x: c.x, min, max,
+              release: (x, dx) => onColumn(tableId, c.k, (table.rtl ? -dx : dx) / table.scale),
             })}
           />
         );
       }) : null}
       {drag && bar ? (
         <>
-          <div className="wd-ruler-guide" style={{ left: bar.left + drag.x, top: bar.bottom }} />
-          <div className="wd-ruler-readout" style={{ left: drag.x }}>
-            {drag.off ? 'Remove' : `${((drag.x - ML) / PX_PER_CM).toFixed(2)} cm`}
+          <div className="wd-ruler-guide" style={{ left: bar.left + (drag.kind === 'margin' || drag.kind === 'col' ? drag.x : place(drag.x)), top: bar.bottom }} />
+          <div className="wd-ruler-readout" style={{ left: drag.kind === 'margin' || drag.kind === 'col' ? drag.x : place(drag.x) }}>
+            {drag.off ? 'Remove' : `${((drag.x - (drag.kind === 'margin' || drag.kind === 'col' ? ML : START)) / PX_PER_CM).toFixed(2)} cm`}
           </div>
         </>
       ) : null}
@@ -374,8 +420,7 @@ export function TableGrips({ page, model, pages, tableId, gridPx, onColumn, onRo
       {parts.map((part, p) => (
         <React.Fragment key={p}>
           {part.xs.map((c, i) => {
-            const prev = i === 0 ? part.left : part.xs[i - 1].x;
-            const next = part.xs[i + 1]?.x ?? null;
+            const [min, max] = columnBounds(part, i);
             return (
               <div
                 key={`c${c.k}`}
@@ -383,8 +428,8 @@ export function TableGrips({ page, model, pages, tableId, gridPx, onColumn, onRo
                 data-k={c.k}
                 style={{ left: c.x - 3, top: part.top, height: part.height }}
                 onMouseDown={(e) => hold(e, {
-                  axis: 'x', at: c.x, part, min: prev + MIN_COLUMN, max: next != null ? next - MIN_COLUMN : c.x + 600,
-                  release: (d) => onColumn(tableId, c.k, d / part.scale),
+                  axis: 'x', at: c.x, part, min, max,
+                  release: (d) => onColumn(tableId, c.k, (part.rtl ? -d : d) / part.scale),
                 })}
               />
             );
