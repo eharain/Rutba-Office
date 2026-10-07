@@ -8,6 +8,11 @@
  * WordArt, notes. The reader is judged by whether the slides come back
  * with the words, shapes, pictures and notes the original had. tables.ppt
  * is a table with merged cells PowerPoint made and saved the same way.
+ *
+ * PowerPoint 2007 and later keep the deck as they made it beside the older
+ * records, and a .ppt they saved is rebuilt from that; the older records'
+ * own reading, which a .ppt from PowerPoint 97 to 2003 gets, is tested on the
+ * model with what they kept taken away.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -24,6 +29,8 @@ import { createDocumentService } from '../apps/desktop/main/documents.js';
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const fixture = (...p) => new Uint8Array(fs.readFileSync(path.join(HERE, 'fixtures', ...p)));
 const textOf = (shape) => (shape.paragraphs || []).map((p) => p.runs.map((r) => r.text).join('')).join('\n');
+/** The model as an older PowerPoint would have written it: the older records alone. */
+const older = (model) => ({ ...model, kept: null });
 
 test('a PowerPoint 97-2003 presentation reads as its slides: size, backgrounds, titles and notes', () => {
   const model = readPpt(fixture('binary', 'showcase.ppt'));
@@ -80,9 +87,9 @@ test('pictures and charts come with their bytes', () => {
   }
 });
 
-test('written as a .pptx: eight slides, each shape where it stood, the notes kept', () => {
+test('written as a .pptx from the older records: eight slides, each shape where it stood, the notes kept', () => {
   const model = readPpt(fixture('binary', 'showcase.ppt'));
-  const bytes = pptModelToDeck(model);
+  const bytes = pptModelToDeck(older(model));
   const pkg = OoxmlPackage.read(bytes);
   const slides = pkg.partNames().filter((n) => /^ppt\/slides\/slide\d+\.xml$/.test(n));
   assert.equal(slides.length, 8);
@@ -110,7 +117,7 @@ test('a table comes back a table: its columns and rows, each cell its words, fil
   assert.equal(header.borders.bottom.width, 3, 'the line under the header, thicker');
   assert.equal(table.cells[4][3].fill, '#FFE699', 'the one cell picked out');
 
-  const xml = OoxmlPackage.read(pptModelToDeck(model)).text('ppt/slides/slide4.xml');
+  const xml = OoxmlPackage.read(pptModelToDeck(older(model))).text('ppt/slides/slide4.xml');
   const tbl = /<a:tbl>[\s\S]*<\/a:tbl>/.exec(xml)?.[0] ?? '';
   assert.equal((tbl.match(/<a:tr /g) || []).length, 5);
   assert.equal((tbl.match(/<a:gridCol /g) || []).length, 4);
@@ -131,7 +138,7 @@ test('a table\'s merged cells, a cell set in the middle and one with no fill com
   assert.equal(south.fill, 'none');
   assert.equal(across.borders.right.color, '#FFFFFF', 'a merged cell\'s far edge from the last cell it covers');
 
-  const tbl = /<a:tbl>[\s\S]*<\/a:tbl>/.exec(OoxmlPackage.read(pptModelToDeck(model)).text('ppt/slides/slide1.xml'))?.[0] ?? '';
+  const tbl = /<a:tbl>[\s\S]*<\/a:tbl>/.exec(OoxmlPackage.read(pptModelToDeck(older(model))).text('ppt/slides/slide1.xml'))?.[0] ?? '';
   assert.match(tbl, /<a:tc gridSpan="2">[\s\S]*?<a:t[^>]*>Across two<\/a:t>/);
   assert.match(tbl, /<a:tc hMerge="1">/);
   assert.match(tbl, /<a:tc rowSpan="3">[\s\S]*?<a:tcPr anchor="ctr">/);
@@ -151,7 +158,7 @@ test('gradients, transparency, shadows and where words sit come as the original 
   assert.equal(shapes.Triangle.shadow.dir, 45);
   assert.equal(shapes.Rectangle.shadow, undefined);
 
-  const pkg = OoxmlPackage.read(pptModelToDeck(model));
+  const pkg = OoxmlPackage.read(pptModelToDeck(older(model)));
   assert.match(pkg.text('ppt/slides/slide1.xml'), /<p:bg><p:bgPr><a:gradFill[^>]*><a:gsLst><a:gs pos="0"><a:srgbClr val="1F4E79"\/><\/a:gs><a:gs pos="100000"><a:srgbClr val="C00000"\/><\/a:gs><\/a:gsLst><a:lin ang="8100000"/);
   const slide3 = pkg.text('ppt/slides/slide3.xml');
   assert.equal((slide3.match(/<a:outerShdw /g) || []).length, 4);
@@ -181,6 +188,48 @@ test('a slide\'s effects come as a later PowerPoint kept them, the PowerPoint 97
   ]);
   const deck = Deck.open(Buffer.from(pptModelToDeck(model)));
   assert.deepEqual(deck.animations(6).map((a) => [a.effect, a.direction, a.trigger]), [['fly', 'bottom', 'onClick'], ['fade', null, 'onClick'], ['zoom', null, 'withPrevious']]);
+});
+
+test('a .ppt PowerPoint 2007 or later saved is rebuilt as they kept it: its theme, master and layouts, each slide on its layout', () => {
+  const model = readPpt(fixture('binary', 'showcase.ppt'));
+  assert.equal(model.kept.masters.filter((m) => m.layout).length, 11, 'eleven layouts, each kept whole');
+  const pkg = OoxmlPackage.read(pptModelToDeck(model));
+  const original = OoxmlPackage.read(Buffer.from(fixture('rich', 'showcase.pptx')));
+  assert.equal(pkg.partNames().filter((n) => /^ppt\/slideLayouts\/slideLayout\d+\.xml$/.test(n)).length, 11);
+  const accents = (p) => /<a:accent1>[\s\S]*?<\/a:accent6>/.exec(p.text('ppt/theme/theme1.xml'))[0];
+  assert.equal(accents(pkg), accents(original), 'the deck\'s own theme');
+  const layoutOf = (p, n) => /<p:cSld name="([^"]*)"/.exec(p.text(p.partNames().find((x) => x === 'ppt/slideLayouts/' + /slideLayout\d+\.xml/.exec(p.text(`ppt/slides/_rels/slide${n}.xml.rels`))[0])))[1];
+  for (let n = 1; n <= 8; n++) assert.equal(layoutOf(pkg, n), layoutOf(original, n), `slide ${n} on its layout`);
+  // Placeholders of their layouts, in only their own looks; the master's styles as kept.
+  const last = pkg.text('ppt/slides/slide8.xml');
+  assert.match(last, /<p:ph type="title"\/>[\s\S]*<a:t>Thank you<\/a:t>/);
+  assert.match(last, /<p:ph idx="1"\/>[\s\S]*?<a:p><a:r><a:rPr lang="en-GB"\/><a:t>Eight slides/);
+  assert.match(last, /<a:rPr lang="ja-JP" altLang="en-US"\/><a:t>日本語 <\/a:t>[\s\S]*?<a:rPr lang="ar-SA"\/><a:t>العربية/, 'each run in its language, which orders the Arabic among the rest');
+  assert.match(pkg.text('ppt/slideMasters/slideMaster1.xml'), /<p:txStyles><p:titleStyle>/);
+  // Drawings as kept, their masked words put back: the heart its preset and link, the connector a connector, the slide number its own.
+  const shapes = pkg.text('ppt/slides/slide3.xml');
+  assert.match(shapes, /name="Shape Heart">[\s\S]*?<a:hlinkClick [^>]*r:id="(rId\d+)"[\s\S]*?prst="heart"[\s\S]*?<a:t>Heart<\/a:t>/);
+  assert.match(pkg.text('ppt/slides/_rels/slide3.xml.rels'), /Target="https:\/\/office.rutba.io\/" TargetMode="External"/);
+  assert.match(shapes, /<p:cxnSp\b[\s\S]*?prst="bentConnector3"/);
+  assert.match(shapes, /type="slidenum">[\s\S]*?<a:t>3<\/a:t>/);
+  assert.match(pkg.text('ppt/slides/slide4.xml'), /<p:graphicFrame\b[\s\S]*<a:tableStyleId>[\s\S]*<a:t>Region<\/a:t>/, 'the table as kept, in its style');
+  assert.ok(pkg.partNames().includes('ppt/tableStyles.xml'));
+});
+
+test('a drawing an older PowerPoint changed after it was kept comes from the older records it changed', () => {
+  const model = readPpt(fixture('binary', 'showcase.ppt'));
+  const items = model.slides[2].kept.items;
+  const rectangle = items.find((it) => textOf(it.shapes[0] || {}) === 'Rectangle').shapes[0];
+  rectangle.words = 'Square';
+  rectangle.paragraphs = [{ runs: [{ text: 'Square' }] }];
+  const oval = items.find((it) => textOf(it.shapes[0] || {}) === 'Oval').shapes[0];
+  oval.x += 40;
+  const shapes = OoxmlPackage.read(pptModelToDeck(model)).text('ppt/slides/slide3.xml');
+  const rect = /<p:sp\b[^>]*><p:nvSpPr><p:cNvPr id="\d+" name="Shape Rectangle"[\s\S]*?<\/p:sp>/.exec(shapes)[0];
+  assert.match(rect, /<a:t[^>]*>Square<\/a:t>/, 'its words changed: drawn from the older records');
+  assert.doesNotMatch(rect, /<p:style>/, 'not the kept rectangle');
+  assert.doesNotMatch(shapes, /name="Shape Oval">[\s\S]*?<a:off x="3302000"/, 'moved: not where it was kept');
+  assert.match(shapes, /name="Shape Star"/, 'the rest as kept');
 });
 
 test('the suite opens a .ppt as a presentation, read in full, and says it saves a .pptx', () => {

@@ -25,6 +25,7 @@
 
 import { CompoundFile } from './cfb.js';
 import { findBlip } from './msdoc.js';
+import { languageTag } from './lcid.js';
 import { header, children, child, artColour, readFopt, PRESETS, LINES, freeformPath, artFill, artLine, artShadow } from './officeart.js';
 
 export class PptError extends Error {
@@ -51,6 +52,8 @@ const T = {
   TertiaryFOPT: 0xf122, SlideShowSlideInfo: 0x03f9, AnimationInfo: 0x1014, AnimationInfoAtom: 0x0ff1,
   ProgTags: 0x1388, ProgBinaryTag: 0x138a, BinaryTagData: 0x138b, CString: 0x0fba, AnimGroup: 0xf144, AnimSubGroup: 0xf145,
   AnimPropertySet: 0xf13d, AnimAttributeValue: 0xf142, AnimReference: 0x2afb,
+  RoundTripTheme: 0x040e, RoundTripColorMapping: 0x040f, RoundTripCompositeMasterId: 0x041d, RoundTripContentMasterInfo: 0x041e,
+  RoundTripTextStyles: 0x0423, RoundTripTableStyles: 0x0428,
 };
 
 
@@ -157,8 +160,27 @@ export function readPpt(bytes) {
   }
   const firstMaster = masters.values().next().value || { scheme: DEFAULT_SCHEME, styles: envStyles };
 
+  // What PowerPoint 2007 and later keep beside all this: each master's theme, colour map and text
+  // styles, each layout (a master of its own here) whole, and the table styles — the deck as they made it.
+  const bytesOf = (h, type) => { const r = child(doc, h, type); return r && r.len ? doc.slice(r.body, r.end) : null; };
+  const keptMasters = [...masters.entries()].map(([id, m]) => {
+    const composite = child(doc, m.h, T.RoundTripCompositeMasterId);
+    return {
+      id, theme: bytesOf(m.h, T.RoundTripTheme), colourMap: bytesOf(m.h, T.RoundTripColorMapping), textStyles: bytesOf(m.h, T.RoundTripTextStyles),
+      layout: bytesOf(m.h, T.RoundTripContentMasterInfo), composite: composite ? u32(doc, composite.body) : null,
+    };
+  });
+
   const ctx = { doc, fonts, imageOf };
   const slides = [];
+  // A main master's own drawing, every object on it with what PowerPoint later kept of it.
+  for (const k of keptMasters) {
+    if (k.layout || !k.theme) continue;
+    const m = masters.get(k.id);
+    const drawn = readDrawing(doc, child(doc, m.h, T.Drawing), { ...ctx, scheme: m.scheme, styles: m.styles, texts: m.entry?.texts || [], allObjects: true });
+    k.items = drawn.items;
+    k.backgroundML = drawn.backgroundML;
+  }
   for (const s of lists[0]) {
     const h = at(s.ref);
     if (!h || h.type !== T.Slide) continue;
@@ -175,9 +197,15 @@ export function readPpt(bytes) {
     const notesEntry = notesId ? lists[2].find((n) => n.id === notesId) : null;
     const notesH = notesEntry ? at(notesEntry.ref) : null;
     const notes = notesH && notesH.type === T.Notes ? readNotes(doc, notesH, { ...look, texts: notesEntry.texts }) : '';
-    slides.push({ background, shapes: [...behind.shapes, ...own.shapes], notes, ...showOf(doc, child(doc, h, T.SlideShowSlideInfo)), timing: timingOf(doc, h) });
+    slides.push({
+      background, shapes: [...behind.shapes, ...own.shapes], notes, ...showOf(doc, child(doc, h, T.SlideShowSlideInfo)), timing: timingOf(doc, h),
+      // For a deck rebuilt as PowerPoint 2007 kept it: its layout, its own drawings, its own background.
+      kept: { layout: atom ? u32(doc, atom.body + 12) : null, items: own.items, backgroundML: flags & 0x04 ? null : own.backgroundML, masterObjects: Boolean(flags & 0x01), masterShapes: behind.shapes.length, ownBackground: !(flags & 0x04) },
+    });
   }
-  return { size, slides, images, fonts };
+  const keptTables = bytesOf(docH, T.RoundTripTableStyles) ?? bytesOf(child(doc, docH, T.Environment), T.RoundTripTableStyles);
+  const kept = keptMasters.some((k) => k.theme && !k.layout) ? { masters: keptMasters, tableStyles: keptTables } : null;
+  return { size, slides, images, fonts, kept };
 }
 
 /**
@@ -387,22 +415,30 @@ function colourOf(value, scheme) {
  * from the group's own coordinates to the slide's.
  */
 function readDrawing(doc, drawing, ctx) {
-  const out = { shapes: [], background: null };
+  const out = { shapes: [], background: null, items: [], backgroundML: null };
   const dg = child(doc, drawing, T.DgContainer);
   if (!dg) return out;
   const identity = (r) => r;
   for (const c of children(doc, dg)) {
-    if (c.type === T.SpgrContainer) walkGroup(doc, c, identity, ctx, out.shapes, true);
+    if (c.type === T.SpgrContainer) walkGroup(doc, c, identity, ctx, out.shapes, true, out.items);
     else if (c.type === T.SpContainer) {
       const props = readFopt(doc, child(doc, c, T.FOPT));
       const fsp = child(doc, c, T.FSP);
-      if (fsp && u32(doc, fsp.body + 4) & 0x400) out.background = fillOf(props, ctx, true) || null;
+      if (fsp && u32(doc, fsp.body + 4) & 0x400) { out.background = fillOf(props, ctx, true) || null; out.backgroundML = keptOf(doc, c); }
     }
   }
   return out;
 }
 
-function walkGroup(doc, group, transform, ctx, shapes, top) {
+/** The DrawingML a later PowerPoint kept for a shape (or a group, its own shape's), beside the older description: a package, or null. */
+function keptOf(doc, sp) {
+  const own = sp.type === T.SpgrContainer ? children(doc, sp)[0] : sp;
+  if (!own || own.type !== T.SpContainer) return null;
+  const blob = readFopt(doc, child(doc, own, T.TertiaryFOPT)).get(0x03a9)?.complex;
+  return blob && blob[0] === 0x50 && blob[1] === 0x4b ? blob.slice() : null;
+}
+
+function walkGroup(doc, group, transform, ctx, shapes, top, items = null) {
   const kids = children(doc, group);
   if (!kids.length) return;
   // The group's own shape comes first: its box on the page and the coordinates its children use.
@@ -425,10 +461,18 @@ function walkGroup(doc, group, transform, ctx, shapes, top) {
     if (table) { shapes.push(table); return; }
   }
   for (const k of kids.slice(1)) {
+    const before = shapes.length;
     if (k.type === T.SpgrContainer) walkGroup(doc, k, inner, ctx, shapes, false);
     else if (k.type === T.SpContainer) {
       const shape = readShape(doc, k, inner, ctx);
       if (shape) shapes.push(shape);
+    }
+    // At the top, each drawing in order: what a later PowerPoint kept of it, and what was read of it.
+    if (items) {
+      const own = k.type === T.SpgrContainer ? children(doc, k)[0] : k;
+      const fsp = own?.type === T.SpContainer ? child(doc, own, T.FSP) : null;
+      if (fsp && u32(doc, fsp.body + 4) & 0x408) continue; // deleted, or the background
+      items.push({ spid: fsp ? u32(doc, fsp.body) : null, group: k.type === T.SpgrContainer, drawingML: keptOf(doc, k), shapes: shapes.slice(before) });
     }
   }
 }
@@ -664,6 +708,7 @@ function readShape(doc, sp, transform, ctx) {
   const base = { x: box.x, y: box.y, w: box.w, h: box.h, name, rotation, flipH: Boolean(flags & 0x40), flipV: Boolean(flags & 0x80) };
   // Its id, which a later PowerPoint's effects name it by, where its words sit in it when it says, and its PowerPoint 97 build.
   base.spid = u32(doc, fsp.body);
+  if (ph) { base.placeholder = placement; base.placeholderIdx = i32(doc, ph.body); }
   // Its shadow.
   const shadow = artShadow(props, ctx.scheme);
   if (shadow) base.shadow = shadow;
@@ -692,6 +737,9 @@ function readShape(doc, sp, transform, ctx) {
   }
 
   const paragraphs = shapeText(doc, child(doc, sp, T.ClientTextbox), ctx, placement);
+  // A placeholder's words with only their own looks, for a deck whose layouts give it the rest.
+  if (ph && paragraphs) base.ownParagraphs = shapeText(doc, child(doc, sp, T.ClientTextbox), { ...ctx, styles: {} }, placement);
+  if (paragraphs?.words != null) base.words = paragraphs.words;
   const isText = type === 202 || ph;
   if (isText) {
     if (!paragraphs || !paragraphs.some((p) => p.runs.some((r) => r.text && r.text.trim()))) return null;
@@ -768,6 +816,27 @@ function paragraphsOf(doc, records, textType, ctx) {
       if (!count) break;
     }
   }
+  // Each run's language (TextSpecialInfoAtom), and its alternate: a bidirectional text's order turns on them.
+  const siRuns = [];
+  const special = records.find((r) => r.type === 0x0faa);
+  if (special) {
+    let p = special.body;
+    let covered = 0;
+    while (covered <= text.length && p + 8 <= special.end) {
+      const count = u32(doc, p);
+      const m = u32(doc, p + 4);
+      p += 8;
+      if (m & 0x1) p += 2;
+      const lang = m & 0x2 ? languageTag(u16(doc, (p += 2) - 2)) : null;
+      const altLang = m & 0x4 ? languageTag(u16(doc, (p += 2) - 2)) : null;
+      if (m & 0x40) p += 2;
+      if (m & 0x20) p += 4;
+      if (m & 0x200) p += 4 + u32(doc, p) * 4;
+      siRuns.push({ count, lang, altLang });
+      covered += count;
+      if (!count) break;
+    }
+  }
   const at = (runs, i) => {
     let sum = 0;
     for (const r of runs) { sum += r.count; if (i < sum) return r; }
@@ -775,6 +844,9 @@ function paragraphsOf(doc, records, textType, ctx) {
   };
 
   const master = styleFor(ctx.styles, textType);
+  // The words without their fields (a slide number, a date, a header or footer), whose values move.
+  const fields = new Set(records.filter((r) => FIELDS.has(r.type)).map((r) => i32(doc, r.body)));
+  const words = [...text].filter((_, i) => !fields.has(i)).join('');
   // A slide number field: a "*" in the text, shown as the slide's number.
   const numberAt = records.find((r) => r.type === 0x0fd8);
   const slidePos = numberAt && ctx.slideNumber != null ? i32(doc, numberAt.body) : -1;
@@ -787,7 +859,7 @@ function paragraphsOf(doc, records, textType, ctx) {
     const level = pr?.level ?? 0;
     const lv = master[level] || master[0] || { pf: {}, cf: {} };
     const pf = { ...lv.pf, ...(pr?.pf || {}) };
-    const para = { level, runs: [] };
+    const para = { level, runs: [], own: pr?.pf || {} };
     if (pf.align != null) para.align = ['left', 'center', 'right', 'justify'][pf.align] || 'left';
     if (pf.bulletOn) {
       const ch = pf.bulletChar;
@@ -813,6 +885,9 @@ function paragraphsOf(doc, records, textType, ctx) {
       if (cf.underline) look.underline = true;
       if (cf.color != null) { const c = colourOf(cf.color, ctx.scheme); if (c) look.color = '#' + c; }
       if (cf.font != null && ctx.fonts[cf.font]) look.font = ctx.fonts[cf.font];
+      const si = siRuns.length ? at(siRuns, start + k) : null;
+      if (si?.lang) look.lang = si.lang;
+      if (si?.altLang && si.altLang !== si.lang) look.altLang = si.altLang;
       if (cf.position > 0) look.baseline = 'super';
       else if (cf.position < 0) look.baseline = 'sub';
       if (ch === '\u000b') { para.runs.push({ ...look, text: '\n' }); run = null; key = ''; continue; }
@@ -827,8 +902,12 @@ function paragraphsOf(doc, records, textType, ctx) {
     paragraphs.push(para);
     start += part.length + 1;
   });
+  paragraphs.words = words;
   return paragraphs;
 }
+
+/** The records that mark a field in a text: a slide number, dates, a header, a footer. */
+const FIELDS = new Set([0x0fd8, 0x0ff7, 0x0ff8, 0x0ff9, 0x0ffa, 0x1015]);
 
 /** A notes page's words: its body placeholder's, as plain text. */
 function readNotes(doc, h, ctx) {

@@ -1672,8 +1672,9 @@ export class Deck {
 
   /**
    * Move a shape in the drawing order — bring forward, send backward, to the
-   * front, to the back. The spTree draws its children in order, so the order
-   * IS the layering: the shape's XML moves among its siblings, nothing else.
+   * front, to the back, or to a place by number. The spTree draws its
+   * children in order, so the order IS the layering: the shape's XML moves
+   * among its siblings, nothing else.
    */
   reorderShape(slideIndex, shapeId, to) {
     const part = this.#partOf(slideIndex);
@@ -1686,7 +1687,9 @@ export class Deck {
       : to === 'back' ? 0
         : to === 'forward' ? Math.min(shapes.length - 1, i + 1)
           : to === 'backward' ? Math.max(0, i - 1)
-            : i;
+            // Or a place in the order by number, the back being 0.
+            : typeof to === 'number' ? Math.max(0, Math.min(shapes.length - 1, Math.round(to)))
+              : i;
     if (j === i) return false;
     const order = shapes.slice();
     const [moved] = order.splice(i, 1);
