@@ -623,6 +623,7 @@ export function trackedKinds(t) {
     t.inserted ? n(t.inserted, 'an insertion', 'insertions') : null,
     t.deleted ? n(t.deleted, 'a deletion', 'deletions') : null,
     t.formatted ? 'formatting' : null,
+    t.moved ? 'words moved' : null,
     t.mark === 'inserted' ? 'a new paragraph' : t.mark === 'deleted' ? 'paragraphs joined' : null,
   ].filter(Boolean).join(', ') || 'changed';
 }

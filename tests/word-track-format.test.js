@@ -165,3 +165,51 @@ test('a change to a paragraph\'s own formatting is kept by Accept and put back b
   accepted.acceptChanges({ all: true });
   assert.match(bodyOf(accepted), /^<w:p><w:pPr><w:jc w:val="center"\/><\/w:pPr><w:r><w:t>Moved<\/w:t><\/w:r><\/w:p>/);
 });
+
+const deletions = (view) => (OoxmlPackage.read(view.save()).text('word/document.xml').match(/<w:del\b(?![^>]*\/>)/g) || []).length;
+const shape = (view, i = 0) => view.blocks[i].runs.map((r) => (r.del ? '-' + r.del.text : r.text)).filter(Boolean);
+
+test('typing beside a tracked deletion writes it once, where it stands — it used to come back at the end with every keystroke', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Keep these words safe' }] }));
+  view.setTrackChanges(true, 'Ann');
+  view.setSelection({ block: 0, offset: 5 }, { block: 0, offset: 11 });
+  view.deleteSelection();
+  view.setTrackChanges(false);
+  view.setSelection({ block: 0, offset: 0 });
+  view.insertText('X');
+  view.insertText('Y');
+  assert.equal(deletions(view), 1);
+  assert.deepEqual(shape(view), ['XYKeep ', '-these ', 'words safe']);
+  const again = openDocx(view.save());
+  again.setSelection({ block: 0, offset: 0 });
+  again.insertText('Z');
+  assert.equal(deletions(again), 1, 'and once again after reopening');
+});
+
+test('formatting across somebody\'s tracked deletion leaves it where it was', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Keep these words safe' }] }));
+  view.setTrackChanges(true, 'Ann');
+  view.setSelection({ block: 0, offset: 5 }, { block: 0, offset: 11 });
+  view.deleteSelection();
+  view.setTrackChanges(false);
+  view.setSelection({ block: 0, offset: 0 }, { block: 0, offset: view.blocks[0].text.length });
+  view.toggleFormat('b');
+  view.setSelection({ block: 0, offset: 0 }, { block: 0, offset: 4 });
+  view.setRunFormat({ fontSize: 14 });
+  assert.deepEqual(shape(view), ['Keep', ' ', '-these ', 'words safe']);
+  assert.equal(deletions(view), 1);
+});
+
+test('a paragraph holding a tracked move stays as Word wrote it, and Accept or Reject resolves the move', () => {
+  const para = `<w:p><w:moveFromRangeStart w:id="5" w:author="Ann" ${DATE} w:name="move1"/><w:moveFrom w:id="6" w:author="Ann" ${DATE}><w:r><w:t xml:space="preserve">Moved words. </w:t></w:r></w:moveFrom><w:moveFromRangeEnd w:id="5"/><w:r><w:t>Staying words.</w:t></w:r></w:p>`;
+  const view = withParagraph(para);
+  assert.equal(view.blocks[0].structural, true, 'read-only until the move is resolved');
+  const accepted = withParagraph(para);
+  accepted.acceptChanges({ all: true });
+  assert.equal(accepted.blocks[0].text, 'Staying words.');
+  assert.ok(wellFormed(bodyOf(accepted)) && !/w:move/.test(bodyOf(accepted)));
+  const rejected = withParagraph(para);
+  rejected.rejectChanges({ all: true });
+  assert.equal(rejected.blocks[0].text, 'Moved words. Staying words.');
+  assert.equal(rejected.blocks[0].structural, false);
+});

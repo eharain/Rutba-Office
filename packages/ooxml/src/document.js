@@ -4376,7 +4376,7 @@ export class Document {
   _resolveParagraphChanges(index, keep) {
     const p = this.editParagraph(index);
     if (!p) throw new Error('no paragraph at index ' + index);
-    if (!/<w:(?:ins|del|rPrChange|pPrChange)\b/.test(p.xml)) return false;
+    if (!/<w:(?:ins|del|rPrChange|pPrChange|moveFrom|moveTo)\b/.test(p.xml)) return false;
     const pPrRe = /^(<w:p\b[^>]*>)\s*(<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>(?:<w:pPrChange\b[\s\S]*?<\/w:pPrChange>|(?!<\/w:pPr>)[\s\S])*?<\/w:pPr>)?/;
     const head = pPrRe.exec(p.xml);
     let pPr = head?.[2] ?? '';
@@ -4405,6 +4405,11 @@ export class Document {
         .replace(/<w:delText\b([^>]*)\/>/g, '<w:t$1/>')
         .replace(/<w:delText\b([^>]*)>/g, '<w:t$1>')
         .replace(/<\/w:delText>/g, '</w:t>'));
+    // Words moved: kept where they went, or put back where they were.
+    const movedFrom = /<w:moveFrom\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:moveFrom>/g;
+    const movedTo = /<w:moveTo\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:moveTo>/g;
+    rest = (keep ? rest.replace(movedFrom, '').replace(movedTo, '$1') : rest.replace(movedFrom, '$1').replace(movedTo, ''))
+      .replace(/<w:move(?:From|To)Range(?:Start|End)\b[^>]*\/>/g, '');
     // Formatting changed: kept as it is now, or put back as it was.
     const fmt = /<w:rPr\b[^>]*>((?:(?!<\/w:rPr>|<w:rPrChange\b)[\s\S])*)<w:rPrChange\b[^>]*>\s*<w:rPr\b[^>]*>([\s\S]*?)<\/w:rPr>\s*<\/w:rPrChange>\s*<\/w:rPr>|<w:rPr\b[^>]*>((?:(?!<\/w:rPr>|<w:rPrChange\b)[\s\S])*)<w:rPrChange\b[^>]*>\s*<w:rPr\b[^>]*\/>\s*<\/w:rPrChange>\s*<\/w:rPr>/g;
     const resolve = (xml) => xml.replace(fmt, (whole, nowA, was, nowB) => {
@@ -4597,7 +4602,11 @@ export class Document {
     // longer has to wait for it to be resolved first. Its tracked state is
     // still summarised below for the margin and the Reviewing Pane.
     const ownXml = p.xml.includes('<w:txbxContent') ? stripTextBoxes(p.xml) : p.xml;
-    const structural = ['w:fldChar', 'w:commentRangeStart', 'w:sdt']
+    // A tracked move (`w:moveFrom`/`w:moveTo`) is not in the run model: its
+    // moved-away words would read as words still there, and a rebuild would
+    // put them back — so the paragraph stays as Word wrote it until the move
+    // is accepted or rejected.
+    const structural = ['w:fldChar', 'w:commentRangeStart', 'w:sdt', 'w:moveFrom', 'w:moveTo']
       .filter((tag) => new RegExp('<' + tag + '\\b').test(ownXml))
       // Mail merge fields are complex fields too, and a letter is made of
       // them — "Dear «FirstName»," must stay a line a person can type in.
@@ -4712,11 +4721,17 @@ export class Document {
       // paragraph, how many times, and what a deletion removed — so the
       // review is VISIBLE here even though resolving it belongs to Word.
       tracked: (() => {
-        if (!/<w:(ins|del|rPrChange|pPrChange)\b/.test(p.xml)) return null;
+        if (!/<w:(ins|del|rPrChange|pPrChange|moveFrom|moveTo)\b/.test(p.xml)) return null;
         const authors = new Set();
         let inserted = 0;
         let deleted = 0;
         let formatted = 0;
+        let moved = 0;
+        for (const m of p.xml.matchAll(/<w:move(?:From|To)\b(?![^>]*\/>)([^>]*)>/g)) {
+          moved += 1;
+          const a = attrs(m[1]);
+          if (a['w:author']) authors.add(unesc(a['w:author']));
+        }
         const removals = [];
         // Words put in and taken out — the wrappers around runs.
         for (const m of p.xml.matchAll(/<w:(ins|del)\b(?![^>]*\/>)([^>]*)>([\s\S]*?)<\/w:\1>/g)) {
@@ -4741,6 +4756,7 @@ export class Document {
           inserted,
           deleted,
           ...(formatted ? { formatted } : {}),
+          ...(moved ? { moved } : {}),
           ...(mark ? { mark: mark[1] === 'ins' ? 'inserted' : 'deleted' } : {}),
           authors: [...authors],
           deletedText: removals.join('').slice(0, 200) || null,
@@ -4851,6 +4867,17 @@ export class Document {
       // kept whole: the drawing, its VML twin and the box's paragraphs.
       if (/<w:txbxContent\b/.test(chunk)) { kept.push(chunk); return; }
       if (/<w:(?:fldChar|instrText)\b/.test(chunk)) return;
+      // A tracked insertion or deletion is the model's own — parseRuns reads
+      // each of its runs with its `ins` or `del`, renderRuns writes the
+      // wrapper back — so keeping it here too wrote it twice: a deletion,
+      // whose words are `w:delText` rather than `w:t`, came back once more at
+      // the paragraph's end with every keystroke. Only a picture inside one,
+      // which a run of words cannot hold, is lifted out, still wrapped.
+      if (childTag === 'w:ins' || childTag === 'w:del') {
+        const pictures = [...chunk.matchAll(/<w:(drawing|object|pict)\b[^>]*(?:\/>|>[\s\S]*?<\/w:\1>)/g)].map((sub) => '<w:r>' + sub[0] + '</w:r>');
+        if (pictures.length) kept.push(/^<w:(?:ins|del)\b[^>]*>/.exec(chunk)[0] + pictures.join('') + '</' + childTag + '>');
+        return;
+      }
       // The rule is about CONTENT, not tag names: a chunk carrying `<w:t>`
       // anywhere is text the model owns — parseRuns read it and the rebuild
       // rewrites it — so keeping the chunk whole would DOUBLE the text (a

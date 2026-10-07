@@ -88,7 +88,10 @@ export function sliceRuns(runs, from, to) {
     seen = end;
     // A field with no words of its own — an index entry — is kept by where
     // it stands: in [from, to), so each slice of a paragraph holds it once.
-    if (run.field && start === end) { if (start >= from && start < to) out.push({ ...run }); continue; }
+    // A tracked deletion has no words in the text either (they ride on
+    // `del.text`): kept the same way, by where it stands, so formatting or
+    // replacing around somebody's deletion leaves it where it was.
+    if ((run.field || run.del) && start === end) { if (start >= from && start < to) out.push({ ...run }); continue; }
     if (end <= from || start >= to) continue;
     if (run.field && !(from <= start && to >= end)) continue;
     const text = run.text.slice(Math.max(0, from - start), Math.min(run.text.length, to - start));
