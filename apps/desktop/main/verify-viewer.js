@@ -172,7 +172,10 @@ export async function verifyViewer(h, { dir, wav }) {
     await until(() => js(`document.querySelectorAll('.pv-tile').length > 10`), 'the tiles', 5000);
     const grid = await js(`(() => {
       const s = document.querySelector('.pv-grid-scroll');
-      const imgs = [...document.querySelectorAll('.pv-tile img')];
+      // A clip the platform has no thumbnail for (the .ogv twin) gets a frame
+      // the window drew, which may already be in place: that tile is checked
+      // below with the other clips.
+      const imgs = [...document.querySelectorAll('.pv-tile img')].filter((i) => !(i.src.startsWith('blob:') && i.closest('.pv-tile')?.dataset.kind === 'video'));
       return { drawn: Number(s.dataset.drawn), count: Number(s.dataset.count), tiles: document.querySelectorAll('.pv-tile').length,
         scrollHeight: s.scrollHeight, clientHeight: s.clientHeight, videos: document.querySelectorAll('.pv-grid video').length,
         fromThumbHost: imgs.length > 0 && imgs.every((i) => i.src.startsWith('rutba://thumb/')), folders: document.querySelectorAll('.pv-tile.folder').length,
