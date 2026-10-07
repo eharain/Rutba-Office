@@ -755,6 +755,7 @@ function blipBytes(b, body, end, type, inst) {
 
 /** A DIB is a BMP without its 14-byte file header: given one, a browser draws it. */
 export function dibFile(bytes) {
+  if (u32(bytes, 0) === 12) bytes = windowsDib(bytes);
   const headerSize = u32(bytes, 0);
   const bitCount = u16(bytes, 14);
   const colors = u32(bytes, 32) || (bitCount <= 8 ? 1 << bitCount : 0);
@@ -766,6 +767,28 @@ export function dibFile(bytes) {
   dv.setUint32(10, off, true);
   file.set(bytes, 14);
   return file;
+}
+
+/**
+ * An OS/2 DIB — a 12-byte header, three bytes to a palette colour — as the
+ * Windows one every reader of a .bmp knows: Excel 95 and older keep their
+ * pictures so.
+ */
+function windowsDib(core) {
+  const bitCount = u16(core, 10);
+  const colors = bitCount <= 8 ? 1 << bitCount : 0;
+  const pixels = core.subarray(12 + colors * 3);
+  const out = new Uint8Array(40 + colors * 4 + pixels.length);
+  const dv = new DataView(out.buffer);
+  dv.setUint32(0, 40, true);
+  dv.setInt32(4, u16(core, 4), true);
+  dv.setInt32(8, u16(core, 6), true);
+  dv.setUint16(12, 1, true);
+  dv.setUint16(14, bitCount, true);
+  dv.setUint32(32, colors, true);
+  for (let i = 0; i < colors; i++) out.set(core.subarray(12 + i * 3, 15 + i * 3), 40 + i * 4);
+  out.set(pixels, 40 + colors * 4);
+  return out;
 }
 
 /**

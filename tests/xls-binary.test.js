@@ -110,6 +110,36 @@ test('an Excel 5.0/95 workbook opens too, as far as that format could hold it', 
   assert.ok(differ.every((ref) => /^Sales!H\d+$/.test(ref) || ref === 'Data types!B22'), differ.join(', '));
 });
 
+test('an Excel 5.0/95 workbook keeps its picture, kept the way Excel 95 kept one', () => {
+  const book = readXls(fixture('binary', 'showcase-95.xls'));
+  const [picture] = book.sheets.find((s) => s.name === 'Summary').pictures;
+  assert.equal(picture.blip.contentType, 'image/bmp');
+  assert.equal(String.fromCharCode(...picture.blip.bytes.subarray(0, 2)), 'BM', 'a .bmp any reader opens');
+  assert.equal(new DataView(picture.blip.bytes.buffer, picture.blip.bytes.byteOffset).getInt32(18, true), 240, 'its own width');
+  assert.deepEqual([picture.from.col, picture.from.row, picture.to.col, picture.to.row], [3, 0, 6, 6], 'over the cells it covered');
+  const pkg = OoxmlPackage.read(xlsModelToXlsx(book));
+  assert.match(pkg.text('xl/worksheets/sheet2.xml'), /<drawing r:id="rId1"\/>/);
+  assert.ok(pkg.partNames().some((n) => /^xl\/media\/image\d+\.bmp$/.test(n)), 'the picture\'s bytes');
+});
+
+test('an Excel 3.0 or 4.0 picture opens, though they wrote it oddly', () => {
+  for (const biff of [3, 4]) {
+    const bytes = buildOldExcel(biff, {
+      fonts: [{ name: 'Arial', height: 200 }, { name: 'Arial', height: 200 }], formats: ['General', '0'],
+      cells: [{ row: 0, col: 0, text: 'Logo' }],
+      picture: { from: { col: 1, row: 1 }, to: { col: 3, row: 4 }, width: 4, height: 3, colour: [200, 30, 60] },
+    });
+    const [picture] = readXls(bytes).sheets[0].pictures;
+    assert.ok(picture, `Excel ${biff}.0`);
+    const bmp = picture.blip.bytes;
+    const dv = new DataView(bmp.buffer, bmp.byteOffset, bmp.byteLength);
+    assert.deepEqual([dv.getUint32(14, true), dv.getInt32(18, true), dv.getInt32(22, true), dv.getUint16(28, true)], [40, 4, 3, 32], 'a Windows DIB header');
+    const first = dv.getUint32(10, true);
+    assert.deepEqual([...bmp.subarray(first, first + 3)], [60, 30, 200], 'its first pixel, the three stray bytes left out');
+    assert.deepEqual([picture.from.col, picture.from.row, picture.to.col, picture.to.row], [1, 1, 3, 4]);
+  }
+});
+
 for (const biff of [2, 3, 4]) {
   test(`an Excel ${biff === 2 ? '2.1' : biff + '.0'} worksheet opens: numbers, text, a truth value, formulas, fonts, formats, a width, a height, a frozen row`, () => {
     const bytes = buildOldExcel(biff, {

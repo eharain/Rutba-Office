@@ -17,13 +17,18 @@
 // its formula with a block of others is given the formula as it reads in
 // that cell. Each formula keeps the value Excel last calculated.
 //
+// A sheet's pictures are Office Art in BIFF8 (the workbook's drawing group
+// holds their bytes); before it each is an object record with its bytes in
+// the IMGDATA record after it. Notes and hyperlinks come with their cells.
+//
 // The layouts follow LibreOffice's Excel import (sc/source/filter/excel).
 // Pure: bytes in, a model out.
 
 import { CompoundFile } from './cfb.js';
 import { decoderFor } from './codepage.js';
 import { XLS_FUNCTIONS } from './xls-functions.js';
-import { findBlip } from './msdoc.js';
+import { findBlip, dibFile } from './msdoc.js';
+import { placeableWmf } from './msdoc-old.js';
 import { header as artHeader, children as artChildren, child as artChild, readFopt } from './officeart.js';
 
 export class XlsError extends Error {
@@ -64,6 +69,7 @@ const R = {
   ROW2: 0x0008, ROW: 0x0208, COLINFO: 0x007d, COLWIDTH2: 0x0024, DEFCOLWIDTH: 0x0055, STANDARDWIDTH: 0x0099,
   DEFROWHEIGHT2: 0x0025, DEFROWHEIGHT: 0x0225, MERGEDCELLS: 0x00e5, WINDOW2_2: 0x003e, WINDOW2: 0x023e, PANE: 0x0041,
   BUNDLESHEET: 0x008f, MSODRAWINGGROUP: 0x00eb, MSODRAWING: 0x00ec, OBJ: 0x005d, TXO: 0x01b6, NOTE: 0x001c, HLINK: 0x01b8, HLINKTOOLTIP: 0x0800,
+  IMGDATA: 0x007f,
 };
 
 /** Which BIFF a BOF record opens: 8, 5, 4, 3, 2 — or 0. */
@@ -479,7 +485,32 @@ export function readXls(bytes) {
           while (recs[k + 1]?.id === R.CONTINUE) sheet.drawing.push(recs[++k].data);
         }
         break;
-      case R.OBJ: if (sheet) sheet.lastObject = u16(data, 0) === 0x15 ? { type: u16(data, 4), id: u16(data, 6) } : null; break;
+      case R.OBJ:
+        if (!sheet) break;
+        if (biff === 8) { sheet.lastObject = u16(data, 0) === 0x15 ? { type: u16(data, 4), id: u16(data, 6) } : null; break; }
+        // Before BIFF8 each object is one record: its type, flags and the cells
+        // its corners are in (a picture's bytes in the IMGDATA after it), and from
+        // BIFF5 a picture's name — "__BkgndObj", hidden, is the sheet's background.
+        {
+          let name = '';
+          if (biff === 5 && u16(data, 4) === 8 && u16(data, 30) && data.length > 60) name = decode(data.subarray(61, 61 + u8(data, 60)));
+          sheet.lastObject = {
+            type: u16(data, 4), id: u16(data, 6), hidden: Boolean(u16(data, 8) & 0x0100), name,
+            from: { col: u16(data, 10), dx: u16(data, 12) / 1024, row: u16(data, 14), dy: u16(data, 16) / 256 },
+            to: { col: u16(data, 18), dx: u16(data, 20) / 1024, row: u16(data, 22), dy: u16(data, 24) / 256 },
+          };
+        }
+        break;
+      case R.IMGDATA: {
+        const parts = [data];
+        while (recs[k + 1]?.id === R.CONTINUE) parts.push(recs[++k].data);
+        const obj = sheet?.lastObject;
+        if (!sheet || biff === 8 || !obj || obj.type !== 8 || (obj.hidden && obj.name === '__BkgndObj')) break;
+        sheet.lastObject = null;
+        const blip = imageData(concat(parts), biff);
+        if (blip) sheet.pictures.push({ blip, name: obj.name || null, from: obj.from, to: obj.to });
+        break;
+      }
       case R.TXO: {
         // A text box's or a note's words, in the CONTINUE after it: a flags byte, then the characters.
         if (!sheet) break;
@@ -575,6 +606,22 @@ function finishSheet(sheet, book, biff, decode) {
   sheet.pending = [];
   try { finishDrawings(sheet, book); } catch { /* a drawing that cannot be read leaves the cells */ }
   sheet.arrays = new Map();
+}
+
+/**
+ * A picture in an IMGDATA record, as Excel 3 to 95 kept one: a format
+ * (2 a Windows metafile after an 8-byte header, 9 a DIB), an environment and
+ * a length, then the bytes. Excel 3 and 4 write a 32-bit DIB with three
+ * stray bytes after its header; Excel 5 cannot read those either.
+ */
+function imageData(d, biff) {
+  const format = u16(d, 0);
+  const size = u32(d, 4);
+  let body = d.subarray(8, 8 + size);
+  if (format === 2 && body.length > 8) return { contentType: 'image/x-wmf', ext: 'wmf', bytes: placeableWmf(body.subarray(8)) };
+  if (format !== 9 || body.length < 12) return null;
+  if (biff <= 4 && u32(body, 0) === 12 && u16(body, 8) === 1 && u16(body, 10) === 32) body = concat([body.subarray(0, 12), body.subarray(15)]);
+  return { contentType: 'image/bmp', ext: 'bmp', bytes: dibFile(body) };
 }
 
 /** Byte arrays as one. */

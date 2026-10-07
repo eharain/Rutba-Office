@@ -637,7 +637,7 @@ function readOldPicture(stream, at) {
  * the metafile's own window origin and extent, and units per inch that
  * make those bounds the size the document gives the picture.
  */
-function placeableWmf(wmf, widthTwips, heightTwips) {
+export function placeableWmf(wmf, widthTwips, heightTwips) {
   if (u32(wmf, 0) === 0x9ac6cdd7) return wmf;
   let org = [0, 0];
   let ext = null;

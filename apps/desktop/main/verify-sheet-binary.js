@@ -56,4 +56,27 @@ export async function verifySheetBinary(h, { dir }) {
   } catch (err) {
     check('sheets: the .xls checks ran', false, err.message);
   }
+
+  // Excel 95 kept its pictures another way (a DIB after the object, not Office Art): drawn all the same.
+  const file95 = path.join(dir, 'showcase-95.xls');
+  try {
+    fs.copyFileSync(FIXTURE.replace(/showcase\.xls$/, 'showcase-95.xls'), file95);
+    const win = await open('sheets', file95);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`document.querySelectorAll('.sh-tab').length > 1`), 'the sheet tabs', 8000).catch(() => {});
+    await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((t) => t.innerText.trim().startsWith('Summary'))?.click(); return 1; })()`);
+    await until(() => js(`Boolean(document.querySelector('.sh-drawing image'))`), 'the picture', 6000).catch(() => {});
+    const width = await js(`new Promise((done) => {
+      const node = document.querySelector('.sh-drawing image');
+      const href = node?.getAttribute('href') || node?.getAttribute('xlink:href');
+      if (!href) return done(0);
+      const img = new Image();
+      img.onload = () => done(img.naturalWidth);
+      img.onerror = () => done(-1);
+      img.src = href;
+    })`);
+    check('sheets: an Excel 95 workbook\'s picture is drawn on its sheet', width === 240, `the picture decodes ${width} pixels wide`);
+  } catch (err) {
+    check('sheets: the Excel 95 check ran', false, err.message);
+  }
 }
