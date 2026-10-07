@@ -8,7 +8,7 @@
  * This is the ONLY file in `@rutba/doc-view` that imports `@rutba/ooxml`. Mail
  * imports the HTML backend instead and never pulls the format layer in.
  */
-import { Document, withToggle, hasToggle, langElement, themeColourHex, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection, splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf, splitParagraphChange, joinParagraphChange, withParagraphChange } from '@rutba/ooxml';
+import { Document, withToggle, hasToggle, langElement, themeColourHex, esc, unesc, STANDARD_PARAGRAPH_STYLES, parseSection, splitFormatChange, joinFormatChange, withFormatChange, formatChangeOf, splitParagraphChange, joinParagraphChange, withParagraphChange, attrs as parseAttrs } from '@rutba/ooxml';
 import { parseChartXml, parseShapeXml, buildChart, buildShape, svgDataUri, scene } from '@rutba/drawing';
 import { ommlToMathml, ommlToLinear, ommlInfo, asciiLinear } from '@rutba/ooxml/math';
 import { mergeToDocument, mergeMessages } from '@rutba/ooxml/mailmerge-run';
@@ -30,6 +30,8 @@ export class OoxmlBackend {
   setParagraphRuns(index, runs) { this.doc.setEditParagraphRuns(index, runs); return this; }
   splitParagraph(index, runIndex, offset) { this.doc.splitEditParagraph(index, runIndex, offset); return this; }
   mergeWithNext(index) { this.doc.mergeEditWithNext(index); return this; }
+  /** The mark between paragraph `index` and the next taken away: one paragraph, with the next one's properties — the mark that is left held them. */
+  joinParagraphMark(index) { if (!this.doc.joinParagraphMark(index)) this.doc.mergeEditWithNext(index); return this; }
   removeParagraph(index) { this.doc.removeEditParagraph(index); return this; }
   insertParagraphAfter(index, runs, opts) { this.doc.insertEditParagraphAfter(index, runs, opts); return this; }
 
@@ -311,6 +313,33 @@ export class OoxmlBackend {
   _replaceOwnPPr(p, edit) {
     const { own, change } = splitParagraphChange(p.pPr ?? null);
     return this._replacePPr(p, joinParagraphChange(edit(own), change));
+  }
+
+  /**
+   * Review → Track Changes: whether paragraph `index`'s mark was put in or
+   * taken out while tracking — `{ ins, del }`, each `{ id, author, date }`
+   * or null — read off the self-closing `w:ins`/`w:del` Word writes first in
+   * the mark's own `w:rPr`.
+   */
+  paragraphMark(index) {
+    const p = this.doc.editParagraph(index);
+    const own = splitParagraphChange(p?.pPr ?? null).own || '';
+    const rPr = MARK_RPR_RE.exec(own)?.[0] ?? '';
+    const read = (tag) => {
+      const m = new RegExp('<w:' + tag + '\\b([^>]*)\\/>').exec(rPr);
+      if (!m) return null;
+      const a = parseAttrs(m[1]);
+      return { id: a['w:id'] ?? '0', author: a['w:author'] ? unesc(a['w:author']) : '', date: a['w:date'] ?? null };
+    };
+    return { ins: read('ins'), del: read('del') };
+  }
+
+  /** Paragraph `index`'s mark recorded as put in or taken out (`kind` 'ins' or 'del') under `meta` — or, with no meta, that record taken off. */
+  setParagraphMark(index, kind, meta) {
+    const p = this.doc.editParagraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    if (kind !== 'ins' && kind !== 'del') throw new Error('a paragraph mark is put in (ins) or taken out (del)');
+    return this._replaceOwnPPr(p, (own) => withMarkRecord(own, kind, meta));
   }
 
   /** A paragraph's properties as the file has them — what Track Changes records a change from. */
@@ -702,6 +731,35 @@ function readRunProps(rPr, themeFonts = null) {
   if (lang) out.lang = unesc(lang[1]);
   out.noProof = hasToggle(rPr, 'noProof');
   return out;
+}
+
+// ---- the paragraph mark, put in or taken out while tracking ----------------
+//
+// Word records it as a self-closing `<w:ins>`/`<w:del>` first in the mark's
+// own `<w:rPr>` — the `<w:rPr>` a `<w:pPr>` carries — insertion before
+// deletion, ahead of the mark's formatting.
+
+const MARK_RPR_RE = /<w:rPr\b[^>]*>(?:<w:rPrChange\b[\s\S]*?<\/w:rPrChange>|(?!<\/w:rPr>)[\s\S])*?<\/w:rPr>|<w:rPr\b[^>]*\/>/;
+
+/** `pPr` with its mark's `kind` record set from `meta`, or taken off when there is none. */
+function withMarkRecord(pPr, kind, meta) {
+  const record = (tag, m) => '<w:' + tag + ' w:id="' + esc(String(m.id ?? '0')) + '" w:author="' + esc(String(m.author ?? '')) + '"' + (m.date ? ' w:date="' + esc(String(m.date)) + '"' : '') + '/>';
+  const body = pPr && !/^<w:pPr\b[^>]*\/>$/.test(pPr) ? pPr.replace(/^<w:pPr\b[^>]*>/, '').replace(/<\/w:pPr>$/, '') : '';
+  const rPrMatch = MARK_RPR_RE.exec(body);
+  const rPrInner = rPrMatch && !/\/>$/.test(rPrMatch[0]) ? rPrMatch[0].replace(/^<w:rPr\b[^>]*>/, '').replace(/<\/w:rPr>$/, '') : '';
+  const kept = { ins: /<w:ins\b[^>]*\/>/.exec(rPrInner)?.[0] ?? null, del: /<w:del\b[^>]*\/>/.exec(rPrInner)?.[0] ?? null };
+  kept[kind] = meta ? record(kind, meta) : null;
+  const rest = rPrInner.replace(/<w:(?:ins|del)\b[^>]*\/>/g, '');
+  const inner = (kept.ins ?? '') + (kept.del ?? '') + rest;
+  const rPr = inner ? '<w:rPr>' + inner + '</w:rPr>' : '';
+  let next;
+  if (rPrMatch) next = body.slice(0, rPrMatch.index) + rPr + body.slice(rPrMatch.index + rPrMatch[0].length);
+  else {
+    // The mark's rPr goes after every other property, before a section break.
+    const sect = body.search(/<w:sectPr\b/);
+    next = sect >= 0 ? body.slice(0, sect) + rPr + body.slice(sect) : body + rPr;
+  }
+  return next ? '<w:pPr>' + next + '</w:pPr>' : null;
 }
 
 // ---- paragraph properties: alignment and indentation -----------------------

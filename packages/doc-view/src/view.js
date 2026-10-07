@@ -707,11 +707,25 @@ export class DocView {
       return this;
     }
 
-    // Keep the head of the first paragraph and the tail of the last, mark
-    // (or drop) what is between, then merge the two survivors into one. The
-    // paragraph mark itself is not tracked — joining two paragraphs across a
-    // tracked delete happens for real, a stated simplification (see the
-    // module doc on paragraph marks).
+    // While recording, as Word records it: the words in each paragraph
+    // struck through and every paragraph mark between them recorded as taken
+    // out — the paragraphs stay apart until Accept joins them. A mark that is
+    // one's own still-pending new paragraph simply goes.
+    if (recording && this._tracksMarks()) {
+      for (let i = to.block; i >= from.block; i--) {
+        const b = this.block(i);
+        const start = i === from.block ? from.offset : 0;
+        const end = i === to.block ? to.offset : b.text.length;
+        this.doc.setParagraphRuns(i, coalesce(trackedRemoveRange(b.runs, start, end, true, meta)));
+        this._invalidate();
+      }
+      for (let i = to.block - 1; i >= from.block; i--) this._takeOutMark(i, meta);
+      this.collapseTo(from);
+      return this;
+    }
+
+    // Keep the head of the first paragraph and the tail of the last, drop
+    // what is between, then merge the two survivors into one.
     const first = this.block(from.block);
     const last = this.block(to.block);
     const head = trackedRemoveRange(first.runs, from.offset, first.text.length, recording, meta);
@@ -747,6 +761,12 @@ export class DocView {
     const previous = this._editable(block - 1);
     this._editable(block);
     const joinAt = previous.text.length;
+    if (this.recording && this._tracksMarks()) {
+      // The mark between them recorded as taken out; the caret goes before it.
+      this._takeOutMark(block - 1, this._trackMeta(null));
+      this.collapseTo({ block: block - 1, offset: joinAt });
+      return this;
+    }
     this.doc.mergeWithNext(block - 1);
     this._invalidate();
     this.collapseTo({ block: block - 1, offset: joinAt });
@@ -772,10 +792,42 @@ export class DocView {
     if (this._containerOf(block + 1) !== this._containerOf(block)) return this;
     this._editable(block);
     this._editable(block + 1);
+    if (this.recording && this._tracksMarks()) {
+      // The mark recorded as taken out; the caret goes past it.
+      const joined = this._takeOutMark(block, this._trackMeta(null));
+      this.collapseTo(joined ? { block, offset } : { block: block + 1, offset: 0 });
+      return this;
+    }
     this.doc.mergeWithNext(block);
     this._invalidate();
     this.collapseTo({ block, offset });
     return this;
+  }
+
+  /** Whether this backend records a paragraph mark put in or taken out. */
+  _tracksMarks() {
+    return typeof this.doc.setParagraphMark === 'function' && typeof this.doc.paragraphMark === 'function';
+  }
+
+  /**
+   * Paragraph `index`'s mark taken out while recording: recorded as taken out
+   * — or, when it is one's own still-pending new paragraph, gone outright,
+   * the two paragraphs joined. True when they were joined.
+   */
+  _takeOutMark(index, meta) {
+    const mark = this.doc.paragraphMark(index);
+    if (mark.ins && mark.ins.author === meta.author) {
+      this.doc.setParagraphMark(index, 'ins', null);
+      if (typeof this.doc.joinParagraphMark === 'function') this.doc.joinParagraphMark(index);
+      else this.doc.mergeWithNext(index);
+      this._invalidate();
+      return true;
+    }
+    if (!mark.del) {
+      this.doc.setParagraphMark(index, 'del', meta);
+      this._invalidate();
+    }
+    return false;
   }
 
   /** Enter. Splits at the caret; the new paragraph inherits the style. */
@@ -793,6 +845,14 @@ export class DocView {
     const { runIndex, runOffset } = locate(runs, offset, 'left');
     this.doc.splitParagraph(block, runIndex, runOffset);
     this._invalidate();
+    if (this.recording && this._tracksMarks()) {
+      // The new mark is the first half's, recorded as put in, as Word does;
+      // the paragraph's own mark, and whatever was recorded of it, goes on
+      // with the second half.
+      this.doc.setParagraphMark(block, 'del', null);
+      this.doc.setParagraphMark(block, 'ins', this._trackMeta(null));
+      this._invalidate();
+    }
     this.collapseTo({ block: block + 1, offset: 0 });
     return this;
   }

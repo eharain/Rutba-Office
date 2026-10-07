@@ -4422,7 +4422,7 @@ export class Document {
     this._spliceBody(p.start, p.end, head[1] + pPr + rest);
     this.dirty = true;
     // A mark that goes joins this paragraph to the next.
-    if ((mark === 'ins' && !keep) || (mark === 'del' && keep)) this._joinParagraphMark(index);
+    if ((mark === 'ins' && !keep) || (mark === 'del' && keep)) this.joinParagraphMark(index);
     return true;
   }
 
@@ -4432,7 +4432,7 @@ export class Document {
    * them, as in Word. Only paragraphs side by side in the same story join;
    * otherwise nothing moves.
    */
-  _joinParagraphMark(index) {
+  joinParagraphMark(index) {
     const p = this.editParagraph(index);
     const q = this.editParagraph(index + 1);
     if (!p || !q || (p.container ?? null) !== (q.container ?? null)) return false;

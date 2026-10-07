@@ -3660,7 +3660,7 @@ function Part({ block, labels, styles, from, to, first, last, pickedImage = null
   return (
     <p
       ref={ref}
-      className={`wd-block${place?.kind === 'frame' ? ' wd-frame' : ''}${block.dropCap ? ' wd-dropcap' : ''}${block.dropCap?.kind === 'margin' ? ' wd-dropcap-margin' : ''}${block.tracked && markupMode !== 'final' && markupMode !== 'original' ? ' wd-changebar' : ''}`}
+      className={`wd-block${place?.kind === 'frame' ? ' wd-frame' : ''}${block.dropCap ? ' wd-dropcap' : ''}${block.dropCap?.kind === 'margin' ? ' wd-dropcap-margin' : ''}${block.tracked && markupMode !== 'final' && markupMode !== 'original' ? ' wd-changebar' : ''}${block.tracked?.mark && markupMode === 'all' ? (block.tracked.mark === 'deleted' ? ' wd-mark-del' : ' wd-mark-ins') : ''}`}
       data-block={block.index}
       data-style={block.style || 'Normal'}
       data-from={from > 0 ? from : undefined}
@@ -3778,6 +3778,10 @@ const CSS = `
 .wd-block.wd-changebar { position: relative; }
 .wd-block.wd-changebar::before { content: ""; position: absolute; left: -14px; top: 0; bottom: 0; width: 2px; background: #2b5fd9; pointer-events: none; }
 :root[data-theme='dark'] .wd-block.wd-changebar::before { background: #6f9bff; }
+/* All Markup: a paragraph mark put in or taken out while tracking, as Word draws it — a ¶ underlined or struck through, taking no room. */
+.wd-block.wd-mark-ins::after, .wd-block.wd-mark-del::after { content: '¶'; color: #2b5fd9; display: inline-block; width: 0; text-indent: 0; transform: translateX(2px); font-weight: 400; }
+.wd-block.wd-mark-ins::after { text-decoration: underline; }
+.wd-block.wd-mark-del::after { text-decoration: line-through; }
 .wd-del { cursor: default; }
 .wd-sheet {
   position: absolute; left: 0; right: 0; z-index: 0; background: #fff; border-radius: 2px; pointer-events: none;

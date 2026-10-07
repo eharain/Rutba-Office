@@ -274,3 +274,80 @@ test('Sort while recording moves each paragraph\'s words as a deletion and an in
   assert.deepEqual(accepted.blocks.map((b) => [b.text, b.style ?? null]), [['apple', 'Heading1'], ['Banana', null], ['Cherry', null]]);
   assert.ok(wellFormed(bodyOf(accepted)) && !/<w:(?:ins|del|pPrChange)\b/.test(bodyOf(accepted)));
 });
+
+const texts = (view) => view.blocks.map((b) => b.text);
+
+test('Enter while recording records the new paragraph mark as put in; Reject joins the halves again', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'One two' }, { text: 'Three' }] }));
+  view.setTrackChanges(true, 'Kim');
+  view.setSelection({ block: 0, offset: 3 });
+  view.splitParagraph();
+  assert.deepEqual(texts(view), ['One', ' two', 'Three']);
+  assert.equal(view.doc.paragraphMark(0).ins.author, 'Kim');
+  assert.equal(view.doc.paragraphMark(1).ins, null, 'the paragraph\'s own mark goes on with the second half');
+  assert.equal(view.render({ pages: false }).blocks[0].tracked.mark, 'inserted');
+  assert.match(bodyOf(view), /^<w:p><w:pPr><w:rPr><w:ins w:id="\d+" w:author="Kim" w:date="[^"]+"\/><\/w:rPr><\/w:pPr>/);
+  view.rejectChanges({ all: true });
+  assert.deepEqual(texts(view), ['One two', 'Three']);
+});
+
+test('Backspace and Delete across a paragraph mark while recording record it as taken out; Accept joins, Reject keeps apart', () => {
+  const make = (how) => {
+    const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'First' }, { text: 'Second' }, { text: 'Third' }] }));
+    view.setTrackChanges(true, 'Kim');
+    if (how === 'back') { view.setSelection({ block: 1, offset: 0 }); view.deleteBackward(); }
+    else { view.setSelection({ block: 0, offset: 5 }); view.deleteForward(); }
+    return view;
+  };
+  for (const how of ['back', 'forward']) {
+    const view = make(how);
+    assert.deepEqual(texts(view), ['First', 'Second', 'Third'], how + ': still apart');
+    assert.equal(view.doc.paragraphMark(0).del.author, 'Kim', how);
+    assert.equal(view.render({ pages: false }).blocks[0].tracked.mark, 'deleted');
+    const accepted = make(how);
+    accepted.acceptChanges({ all: true });
+    assert.deepEqual(texts(accepted), ['FirstSecond', 'Third'], how + ': joined by Accept');
+    const rejected = make(how);
+    rejected.rejectChanges({ all: true });
+    assert.deepEqual(texts(rejected), ['First', 'Second', 'Third'], how + ': kept apart by Reject');
+    assert.ok(!/<w:del\b/.test(bodyOf(rejected)));
+  }
+  // Backspace leaves the caret before the mark, so a second press takes a letter.
+  const view = make('back');
+  assert.deepEqual(view.selection.focus ?? view.focus, { block: 0, offset: 5 });
+});
+
+test('deleting across paragraphs while recording strikes the words through and records each mark between as taken out', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Alpha beta' }, { text: 'Gamma' }, { text: 'Delta epsilon' }] }));
+  view.setTrackChanges(true, 'Kim');
+  view.setSelection({ block: 0, offset: 6 }, { block: 2, offset: 6 });
+  view.deleteSelection();
+  assert.deepEqual(texts(view), ['Alpha ', '', 'epsilon'], 'apart, their words struck through');
+  assert.deepEqual(shape(view, 0), ['Alpha ', '-beta']);
+  assert.ok(view.doc.paragraphMark(0).del && view.doc.paragraphMark(1).del && !view.doc.paragraphMark(2).del);
+  view.acceptChanges({ all: true });
+  assert.deepEqual(texts(view), ['Alpha epsilon']);
+  const again = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Alpha beta' }, { text: 'Gamma' }, { text: 'Delta epsilon' }] }));
+  again.setTrackChanges(true, 'Kim');
+  again.setSelection({ block: 0, offset: 6 }, { block: 2, offset: 6 });
+  again.deleteSelection();
+  again.rejectChanges({ all: true });
+  assert.deepEqual(texts(again), ['Alpha beta', 'Gamma', 'Delta epsilon']);
+});
+
+test('one\'s own new paragraph taken out again simply goes, and a paste of several lines records each new mark', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'One two' }, { text: 'Three' }] }));
+  view.setTrackChanges(true, 'Kim');
+  view.setSelection({ block: 0, offset: 3 });
+  view.splitParagraph();
+  view.setSelection({ block: 1, offset: 0 });
+  view.deleteBackward();
+  assert.deepEqual(texts(view), ['One two', 'Three']);
+  assert.ok(!view.render({ pages: false }).blocks[0].tracked, 'nothing left to review');
+  view.setSelection({ block: 1, offset: 5 });
+  view.pasteText(' and\nfour\nfive');
+  assert.deepEqual(texts(view), ['One two', 'Three and', 'four', 'five']);
+  assert.ok(view.doc.paragraphMark(1).ins && view.doc.paragraphMark(2).ins && !view.doc.paragraphMark(3).ins);
+  view.rejectChanges({ all: true });
+  assert.deepEqual(texts(view), ['One two', 'Three']);
+});
