@@ -18,14 +18,16 @@
 import { group, rect, ellipse, line, polygon, path, text as textNode, roundedBarPath } from './scene.js';
 import { theme, seriesColour } from './palette.js';
 import { measureText, wrapText, lineHeight } from './measure.js';
+import { presetPath, PRESET_PATHS } from './presets.js';
 
 /** Presets we draw properly. Everything else becomes a rectangle. */
-export const SUPPORTED_GEOMETRY = [
+export const SUPPORTED_GEOMETRY = [...new Set([
   'rect', 'roundRect', 'ellipse', 'line', 'straightConnector1', 'bentConnector2', 'bentConnector3', 'curvedConnector3',
   'triangle', 'diamond', 'rightArrow', 'leftArrow', 'upArrow', 'downArrow',
   'pentagon', 'hexagon', 'star5', 'plus', 'chevron', 'parallelogram', 'trapezoid',
   'leftBrace', 'rightBrace', 'leftBracket', 'rightBracket',
-];
+  ...PRESET_PATHS,
+])];
 
 const LINE_GEOMETRY = /^(line|straightConnector\d*|bentConnector\d*|curvedConnector\d*)$/;
 const BRACE_GEOMETRY = /^(left|right)(Brace|Bracket)$/;
@@ -206,7 +208,10 @@ export function buildShape(descriptor, box, { mode = 'light', palette = null } =
     children.push(path({ d: roundedRectPath(x, y, width, height, radius), ...paint }));
   } else {
     const points = polygonPoints(geometry, x, y, width, height);
+    // The rest as their preset definitions draw them, or a box of the shape's size.
+    const outline = points ? null : presetPath(geometry, x, y, width, height);
     if (points) children.push(polygon({ points, ...paint }));
+    else if (outline) children.push(path({ d: outline, ...paint }));
     else children.push(rect({ x, y, width, height, ...paint }));
   }
 

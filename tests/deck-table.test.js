@@ -69,8 +69,10 @@ test('the reader lists a table shape with its rows, columns, cell text and each 
   assert.ok(Math.abs(r0[0].box.y + shape.table.rows[0].height - shape.table.rows[1].cells[0].box.y) < 0.5);
 
   const svg = renderSlide(slide);
-  const cellRects = svg.match(/<rect x="[\d.]+" y="[\d.]+" width="[\d.]+" height="[\d.]+" fill="#ffffff" stroke="#c9ccd1" stroke-width="1"\/>/g) || [];
-  assert.equal(cellRects.length, 6, 'six cell rectangles drawn');
+  // Each cell in its table style's fill: the header row in one, the banded rows in others.
+  const cellRects = svg.match(/<rect x="[\d.]+" y="[\d.]+" width="[\d.]+" height="[\d.]+" fill="#[0-9a-f]{6}"\/>/g) || [];
+  assert.ok(cellRects.length >= 6, 'six cell rectangles drawn');
+  assert.notEqual(/fill="(#[0-9a-f]{6})"/.exec(cellRects[0])[1], /fill="(#[0-9a-f]{6})"/.exec(cellRects[3])[1], 'the header in its own fill');
   assert.match(svg, />A<\/tspan>/);
   assert.match(svg, />C<\/tspan>/);
 });

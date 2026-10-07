@@ -110,6 +110,7 @@ import { verifySlicers } from './verify-slicers.js';
 import { verifySheetArrange } from './verify-sheetarrange.js';
 import { verifySheetThemes } from './verify-sheetthemes.js';
 import { verifySheetCf } from './verify-sheet-cf.js';
+import { verifyDeckDraw } from './verify-deck-draw.js';
 import { verifyAnalysis } from './verify-analysis.js';
 import { verifyDataTools } from './verify-datatools.js';
 import { verifyWordEquations, makeEquationFixture } from './verify-word-equations.js';
@@ -4605,7 +4606,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     }
   };
 
-  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw: those blocks alone, for working on them.
+  // RUTBA_VERIFY_ONLY=pages,grips,panes,float,polish,shapes,fill,pics,ruler,columns,update,viewer,slideshow,links,home,recent,freeze,errors,watch,sparklines,fit,sections,hidden,background,effects,bookmarks,xref,captions,providers,signature,deckfind,sendlater,ooo,arrange,deckfx,toc,track,outline,datatools,equations,transitions,animations,evaluate,comments,views,mailmerge,labels,themes,master,deckcomments,deckmath,protect,layoutviews,analysis,a11y,spelling,textbox,wordarrange,slicers,encrypted,sheetarrange,hyphen,citations,restrict,wordindex,figures,sheetthemes,cfdraw,deckdraw: those blocks alone, for working on them.
   const only = (process.env.RUTBA_VERIFY_ONLY || '').split(',').map((s) => s.trim()).filter(Boolean);
   if (only.length) {
     if (only.includes('pages')) await wordPages();
@@ -4731,6 +4732,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('sheetarrange')) await sheetArrange();
     if (only.includes('sheetthemes')) await sheetThemes();
     if (only.includes('cfdraw')) await verifySheetCf({ open, check, until, errorsIn }, { dir });
+    if (only.includes('deckdraw')) await verifyDeckDraw({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('arrange')) await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('deckfx')) await verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('transitions')) await verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
@@ -4955,6 +4957,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => sheetArrange());
   await block(() => sheetThemes());
   await block(() => verifySheetCf({ open, check, until, errorsIn }, { dir }));
+  await block(() => verifyDeckDraw({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => polish());
 
   // The sections below are written inline rather than as blocks; each one's

@@ -531,28 +531,160 @@ function placeInContainer(container, local) {
  * editor exactly over the cell that was double-clicked, the way it puts one
  * over a text box.
  */
-function readTable(graphicFrame, theme, geom) {
+/** The parts of a table a table style gives a look, in the order a later one lays its look over an earlier. */
+const TABLE_PARTS = ['wholeTbl', 'band1V', 'band2V', 'band1H', 'band2H', 'firstCol', 'lastCol', 'firstRow', 'lastRow', 'nwCell', 'neCell', 'swCell', 'seCell'];
+const EDGES = ['left', 'right', 'top', 'bottom', 'insideH', 'insideV'];
+
+/**
+ * A presentation's table styles (tableStyles.xml), by id: for each part of a
+ * table — the whole, the bands, the first and last row and column, the
+ * corners — the look its cells take: a fill, borders by edge, and the
+ * words' bold, italic and colour. The style PowerPoint and the deck's own
+ * tables use by default is known without being written out.
+ */
+export function readTableStyles(xml, theme) {
+  const out = new Map();
+  for (const source of [BUILT_IN_TABLE_STYLES, xml || '']) {
+    for (const st of all(parse(source), A('tblStyle'))) out.set(st.attrs.styleId, readTableStyle(st, theme));
+  }
+  return out;
+}
+
+function readTableStyle(st, theme) {
+  const parts = {};
+  for (const name of TABLE_PARTS) {
+    const node = kids(st, A(name))[0];
+    if (!node) continue;
+    const look = { edges: {} };
+    const tx = kids(node, A('tcTxStyle'))[0];
+    if (tx) {
+      if (tx.attrs.b) look.bold = tx.attrs.b === 'on';
+      if (tx.attrs.i) look.italic = tx.attrs.i === 'on';
+      const c = colorChildOf(tx, theme);
+      if (c) look.color = c.hex;
+    }
+    const tc = kids(node, A('tcStyle'))[0];
+    const fill = tc && kids(tc, A('fill'))[0];
+    if (fill) look.fill = readFill(fill, theme);
+    const bdr = tc && kids(tc, A('tcBdr'))[0];
+    for (const edge of EDGES) {
+      const side = bdr && kids(bdr, A(edge))[0];
+      if (side) look.edges[edge] = readLine(side, theme);
+    }
+    parts[name] = look;
+  }
+  return parts;
+}
+
+/**
+ * A cell's look from its table's style: each part its place takes, the later
+ * over the earlier — the whole table, the bands (not the first and last rows
+ * and columns, when those are set apart), the first and last column and row,
+ * a corner — each part's outer edges where the cell lies on them and its
+ * inside ones elsewhere.
+ */
+function styledCell(style, flags, r, c, rows, cols) {
+  const out = { edges: {} };
+  if (!style) return out;
+  const firstRow = flags.firstRow && r === 0;
+  const lastRow = flags.lastRow && r === rows - 1;
+  const firstCol = flags.firstCol && c === 0;
+  const lastCol = flags.lastCol && c === cols - 1;
+  const bandRow = r - (flags.firstRow ? 1 : 0);
+  const bandCol = c - (flags.firstCol ? 1 : 0);
+  // Each part with the rows and columns it covers.
+  const whole = { top: 0, bottom: rows - 1, left: 0, right: cols - 1 };
+  const applying = [['wholeTbl', whole]];
+  if (flags.bandCol && !firstCol && !lastCol) applying.push([bandCol % 2 === 0 ? 'band1V' : 'band2V', { ...whole, left: c, right: c }]);
+  if (flags.bandRow && !firstRow && !lastRow) applying.push([bandRow % 2 === 0 ? 'band1H' : 'band2H', { ...whole, top: r, bottom: r }]);
+  if (firstCol) applying.push(['firstCol', { ...whole, left: 0, right: 0 }]);
+  if (lastCol) applying.push(['lastCol', { ...whole, left: cols - 1, right: cols - 1 }]);
+  if (firstRow) applying.push(['firstRow', { ...whole, top: 0, bottom: 0 }]);
+  if (lastRow) applying.push(['lastRow', { ...whole, top: rows - 1, bottom: rows - 1 }]);
+  if (firstRow && firstCol) applying.push(['nwCell', { top: 0, bottom: 0, left: 0, right: 0 }]);
+  if (firstRow && lastCol) applying.push(['neCell', { top: 0, bottom: 0, left: c, right: c }]);
+  if (lastRow && firstCol) applying.push(['swCell', { top: r, bottom: r, left: 0, right: 0 }]);
+  if (lastRow && lastCol) applying.push(['seCell', { top: r, bottom: r, left: c, right: c }]);
+  for (const [name, area] of applying) {
+    const look = style[name];
+    if (!look) continue;
+    if (look.fill) out.fill = look.fill;
+    if (look.bold != null) out.bold = look.bold;
+    if (look.italic != null) out.italic = look.italic;
+    if (look.color) out.color = look.color;
+    const e = look.edges;
+    const at = {
+      left: c === area.left ? e.left : e.insideV,
+      right: c === area.right ? e.right : e.insideV,
+      top: r === area.top ? e.top : e.insideH,
+      bottom: r === area.bottom ? e.bottom : e.insideH,
+    };
+    for (const [side, line] of Object.entries(at)) if (line) out.edges[side] = line;
+  }
+  return out;
+}
+
+/** A cell's own border on one side (tcPr's lnL, lnR, lnT or lnB), as a line. */
+const cellEdge = (tcPr, name, theme) => {
+  const ln = tcPr && kids(tcPr, A(name))[0];
+  return ln ? readLine({ name: '#holder', attrs: {}, children: [{ ...ln, name: A('ln') }] }, theme) : null;
+};
+
+function readTable(graphicFrame, theme, geom, styles = null) {
   const tbl = first(graphicFrame, A('tbl'));
   if (!tbl) return null;
+  // Which of its style's parts the table takes, and its style.
+  const tblPr = kids(tbl, A('tblPr'))[0];
+  const on = (k) => tblPr?.attrs[k] === '1' || tblPr?.attrs[k] === 'true';
+  const flags = { firstRow: on('firstRow'), lastRow: on('lastRow'), firstCol: on('firstCol'), lastCol: on('lastCol'), bandRow: on('bandRow'), bandCol: on('bandCol') };
+  const styleId = textOf(kids(tblPr, A('tableStyleId'))[0]).trim();
+  const style = styleId ? styles?.get(styleId) ?? null : null;
+  const rowCount = kids(tbl, A('tr')).length;
   const grid = kids(first(tbl, A('tblGrid')) || { children: [] }, A('gridCol')).map((g) => emuToPx(g.attrs.w));
   const totalW = grid.reduce((a, b) => a + b, 0) || geom?.w || 0;
   const scaleX = geom && totalW ? geom.w / totalW : 1;
   let top = geom?.y || 0;
-  const rows = kids(tbl, A('tr')).map((tr) => {
+  const colCount = grid.length || Math.max(1, ...kids(tbl, A('tr')).map((tr) => kids(tr, A('tc')).length));
+  const rows = kids(tbl, A('tr')).map((tr, ri) => {
     const h = emuToPx(tr.attrs.h);
     const tcs = kids(tr, A('tc'));
     let left = geom?.x || 0;
     const cells = tcs.map((tc, ci) => {
       const span = Number(tc.attrs.gridSpan || 1);
+      const rowspan = Number(tc.attrs.rowSpan || 1);
       const ownW = (grid[ci] || totalW / tcs.length) * scaleX;
       const w = grid.length ? grid.slice(ci, ci + span).reduce((a, b) => a + b, 0) * scaleX || ownW : ownW * span;
       const box = { x: left, y: top, w, h };
       left += ownW;
+      // Its look: its own, over its table style's for where it is (a merged cell's far edges those of the last cell it covers).
+      const tcPr = kids(tc, A('tcPr'))[0];
+      const styled = styledCell(style, flags, ri, ci, rowCount, colCount);
+      const far = styledCell(style, flags, ri + rowspan - 1, ci + span - 1, rowCount, colCount);
+      const edges = {
+        left: cellEdge(tcPr, 'lnL', theme) ?? styled.edges.left ?? null,
+        right: cellEdge(tcPr, 'lnR', theme) ?? far.edges.right ?? null,
+        top: cellEdge(tcPr, 'lnT', theme) ?? styled.edges.top ?? null,
+        bottom: cellEdge(tcPr, 'lnB', theme) ?? far.edges.bottom ?? null,
+      };
+      const text = readTextBody(kids(tc, A('txBody'))[0], theme);
+      // The style's bold, italic and colour for words that say none of their own.
+      if (text && (styled.bold != null || styled.italic != null || styled.color)) {
+        for (const p of text.paragraphs || []) {
+          for (const run of p.runs || []) {
+            if (run.bold == null && styled.bold != null) run.bold = styled.bold;
+            if (run.italic == null && styled.italic != null) run.italic = styled.italic;
+            if (run.color == null && styled.color) run.color = styled.color;
+          }
+        }
+      }
+      if (text && tcPr?.attrs.anchor) text.anchor = { t: 'top', ctr: 'middle', b: 'bottom' }[tcPr.attrs.anchor] || text.anchor;
       return {
-        text: readTextBody(kids(tc, A('txBody'))[0], theme),
-        fill: readFill(kids(tc, A('tcPr'))[0], theme),
+        text,
+        fill: readFill(tcPr, theme) ?? styled.fill ?? null,
+        edges,
+        styled: Boolean(style) || EDGE_NAMES.some((n) => kids(tcPr, A(n))[0]),
         colspan: span,
-        rowspan: Number(tc.attrs.rowSpan || 1),
+        rowspan,
         merged: tc.attrs.hMerge === '1' || tc.attrs.vMerge === '1',
         box,
       };
@@ -560,8 +692,31 @@ function readTable(graphicFrame, theme, geom) {
     top += h;
     return { height: h, cells };
   });
-  return { columns: grid, rows };
+  return { columns: grid, rows, styleId: styleId || null };
 }
+const EDGE_NAMES = ['lnL', 'lnR', 'lnT', 'lnB'];
+
+/**
+ * The table style PowerPoint, and the deck's own tables, use where a file
+ * names it without writing it out: Medium Style 2 in the first accent — a
+ * fifth-tint body, two-fifths-tint bands, the first and last rows and columns
+ * in the accent itself with bold light words, light borders between the
+ * cells and thicker ones under the header and over the totals.
+ */
+const BUILT_IN_TABLE_STYLES = (() => {
+  const ln = (w) => `<a:ln w="${w}" cmpd="sng"><a:solidFill><a:schemeClr val="lt1"/></a:solidFill></a:ln>`;
+  const tint = (v) => `<a:fill><a:solidFill><a:schemeClr val="accent1">${v ? `<a:tint val="${v}"/>` : ''}</a:schemeClr></a:solidFill></a:fill>`;
+  const strong = '<a:tcTxStyle b="on"><a:schemeClr val="lt1"/></a:tcTxStyle>';
+  const edges = ['left', 'right', 'top', 'bottom', 'insideH', 'insideV'].map((e) => `<a:${e}>${ln(12700)}</a:${e}>`).join('');
+  return '<a:tblStyleLst xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">'
+    + '<a:tblStyle styleId="{5C22544A-7EE6-4342-B048-85BDC9FD1C3A}" styleName="Medium Style 2 - Accent 1">'
+    + `<a:wholeTbl><a:tcTxStyle><a:schemeClr val="dk1"/></a:tcTxStyle><a:tcStyle><a:tcBdr>${edges}</a:tcBdr>${tint(20000)}</a:tcStyle></a:wholeTbl>`
+    + `<a:band1H><a:tcStyle><a:tcBdr/>${tint(40000)}</a:tcStyle></a:band1H><a:band1V><a:tcStyle><a:tcBdr/>${tint(40000)}</a:tcStyle></a:band1V>`
+    + `<a:lastCol>${strong}<a:tcStyle><a:tcBdr/>${tint(0)}</a:tcStyle></a:lastCol><a:firstCol>${strong}<a:tcStyle><a:tcBdr/>${tint(0)}</a:tcStyle></a:firstCol>`
+    + `<a:lastRow>${strong}<a:tcStyle><a:tcBdr><a:top>${ln(38100)}</a:top></a:tcBdr>${tint(0)}</a:tcStyle></a:lastRow>`
+    + `<a:firstRow>${strong}<a:tcStyle><a:tcBdr><a:bottom>${ln(38100)}</a:bottom></a:tcBdr>${tint(0)}</a:tcStyle></a:firstRow>`
+    + '</a:tblStyle></a:tblStyleLst>';
+})();
 
 /**
  * Read one slide part into a scene.
@@ -606,7 +761,7 @@ export function readSlideScene(xml, ctx = {}) {
             }
           : null;
         const geom = placeInContainer(container, local);
-        const table = readTable(node, ctx.theme, geom);
+        const table = readTable(node, ctx.theme, geom, ctx.tableStyles);
         const meta = nameOf(node);
         // Insert → Object: an embedded document, drawn as its picture (its
         // icon, or its first page), what it is and where it is kept beside.

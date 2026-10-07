@@ -14,6 +14,7 @@
 
 import { wrapText, measureText, lineHeight } from '@rutba/drawing/measure';
 import { buildChart, renderSvg } from '@rutba/drawing';
+import { presetPath } from '@rutba/drawing/presets';
 import { escapeXml } from '@rutba/office-formats/xml';
 import { patternDef } from './patterns.js';
 import { cameraLook } from './shape3d.js';
@@ -125,8 +126,11 @@ function shapePath(preset, { x, y, w, h }, custom = null, { simplify = false } =
       return `<polygon points="${x},${y + h * 0.3} ${x + w * 0.6},${y + h * 0.3} ${x + w * 0.6},${y} ${x + w},${y + h / 2} ${x + w * 0.6},${y + h} ${x + w * 0.6},${y + h * 0.7} ${x},${y + h * 0.7}"`;
     case 'chevron':
       return `<polygon points="${x},${y} ${x + w * 0.75},${y} ${x + w},${y + h / 2} ${x + w * 0.75},${y + h} ${x},${y + h} ${x + w * 0.25},${y + h / 2}"`;
-    default:
-      return `<rect x="${x}" y="${y}" width="${w}" height="${h}"`;
+    default: {
+      // The rest as their preset definitions draw them, or a box of the shape's size.
+      const d = preset && preset !== 'rect' ? presetPath(preset, x, y, w, h) : null;
+      return d ? `<path d="${d}"` : `<rect x="${x}" y="${y}" width="${w}" height="${h}"`;
+    }
   }
 }
 
@@ -443,24 +447,37 @@ function tableSvg(shape, opts) {
   const out = [];
   const totalW = table.columns.reduce((a, b) => a + b, 0) || g.w;
   const scaleX = g.w / totalW;
+  // Each cell's fill and words, then every border over them all: a cell's fill never covers its neighbour's edge.
+  const borders = [];
+  const heights = table.rows.map((row) => row.height || g.h / table.rows.length);
   let y = g.y;
-  for (const row of table.rows) {
+  table.rows.forEach((row, ri) => {
     let x = g.x;
-    const h = row.height || g.h / table.rows.length;
+    const h = heights[ri];
     row.cells.forEach((cell, ci) => {
       const w = (table.columns[ci] || totalW / row.cells.length) * scaleX * (cell.colspan || 1);
+      const tall = heights.slice(ri, ri + (cell.rowspan || 1)).reduce((a, b) => a + b, 0) || h;
       if (!cell.merged) {
-        out.push(
-          `<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" ` +
-          `fill="${fillAttr(cell.fill, '#ffffff')}" stroke="#c9ccd1" stroke-width="1"/>`
-        );
-        if (cell.text) out.push(textSvg(cell.text, { x: x + 4, y: y + 2, w: w - 8, h: h - 4 }, opts));
+        // A table with no style and no borders of its own: a light grid, so its cells can be found.
+        const plain = !cell.styled && !table.styleId;
+        const fill = cell.fill?.type === 'none' ? 'none' : fillAttr(cell.fill, plain ? '#ffffff' : 'none');
+        out.push(`<rect x="${x.toFixed(2)}" y="${y.toFixed(2)}" width="${w.toFixed(2)}" height="${tall.toFixed(2)}" fill="${fill}"${plain ? ' stroke="#c9ccd1" stroke-width="1"' : ''}/>`);
+        if (cell.text) out.push(textSvg(cell.text, { x: x + 4, y: y + 2, w: w - 8, h: tall - 4 }, opts));
+        const edge = (line, x1, y1, x2, y2) => {
+          if (!line || line.type === 'none' || !line.color || !(line.width > 0)) return;
+          borders.push(`<line x1="${x1.toFixed(2)}" y1="${y1.toFixed(2)}" x2="${x2.toFixed(2)}" y2="${y2.toFixed(2)}" stroke="${line.color}" stroke-width="${(line.width * 96 / 72).toFixed(2)}"${line.alpha != null && line.alpha < 1 ? ` stroke-opacity="${line.alpha}"` : ''}/>`);
+        };
+        const e = cell.edges || {};
+        edge(e.top, x, y, x + w, y);
+        edge(e.bottom, x, y + tall, x + w, y + tall);
+        edge(e.left, x, y, x, y + tall);
+        edge(e.right, x + w, y, x + w, y + tall);
       }
-      x += w;
+      x += (table.columns[ci] || totalW / row.cells.length) * scaleX;
     });
     y += h;
-  }
-  return out.join('');
+  });
+  return out.join('') + borders.join('');
 }
 
 /**

@@ -14,7 +14,7 @@ import { custGeomXml } from './points.js';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parse, kids, first, all, escapeXml } from '@rutba/office-formats/xml';
 import { emuToPx, pxToEmu, ptToSz } from './units.js';
-import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText, composeGroupChild, REFLECTION_PRESETS, readLevels, mergeLevels, readFill } from './slide.js';
+import { readSlideScene, readXfrm, readTextBody, placeholderOf, sceneText, composeGroupChild, REFLECTION_PRESETS, readLevels, mergeLevels, readFill, readTableStyles } from './slide.js';
 import { COMMENT_REL, COMMENT_CT, COMMENT_REL_EXT, CREATION_ID_EXT, NS as CM_NS, guid as commentGuid, stamp, initialsOf, readAuthors, authorsXml, readModernComments, readLegacyAuthors, readLegacyComments, commentXml, commentListXml, threadRange } from './comments.js';
 import { equationShapeXml, ommlForSlide } from './equations.js';
 import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS, COLOUR_SLOTS, themePartXml, clrSchemeXml, fontSchemeXml, fmtSchemeXml, masterBackgroundXml, clrMapAttrs, variantsOf, themeById } from './themes.js';
@@ -328,6 +328,13 @@ export class Deck {
     this._scenes.clear();
     this.#load();
     this.designStamp++;
+  }
+
+  /** The deck's table styles (tableStyles.xml, and the default one known without it) in a theme's colours, read once for each. */
+  #tableStyles(theme) {
+    const xml = this.pkg.has('ppt/tableStyles.xml') ? this.pkg.text('ppt/tableStyles.xml') : '';
+    if (!this._tableStyles || this._tableStyles.theme !== theme || this._tableStyles.xml !== xml) this._tableStyles = { theme, xml, styles: readTableStyles(xml, theme) };
+    return this._tableStyles.styles;
   }
 
   /** A slide index to its part; a master's or a layout's part name to itself, so Slide Master view edits them with the same verbs. */
@@ -927,7 +934,7 @@ export class Deck {
     // `readPart` lets a chart frame read its chart part; only a slide gets
     // it, since a layout or master never carries a chart of its own.
     const readPart = (part) => (part && this.pkg.has(part) ? this.pkg.text(part) : null);
-    const scene = readSlideScene(slideXml, { theme, inherit, rel, readPart });
+    const scene = readSlideScene(slideXml, { theme, inherit, rel, readPart, tableStyles: this.#tableStyles(theme) });
     if (!scene.background) {
       const layoutBg = design?.dropLayoutBackground ? null : layoutPh.get('#background');
       const masterBg = design && 'masterBackground' in design ? design.masterBackground : masterPh.get('#background');
