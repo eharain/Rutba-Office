@@ -17,7 +17,8 @@
     "./timing": "./src/timing.js",
     "./narration": "./src/narration.js",
     "./patterns": "./src/patterns.js",
-    "./shape3d": "./src/shape3d.js"
+    "./shape3d": "./src/shape3d.js",
+    "./points": "./src/points.js"
   },
   "dependencies": {
     "@rutba/ooxml": "*",

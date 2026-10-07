@@ -47,6 +47,8 @@ import { BEVELS, CAMERAS, DEPTHS } from '@rutba/presentation/shape3d';
 import { InkSurface, RulerOverlay, INK_CSS, DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, recognise, replayInk } from './slides/ink.js';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog, iconPng } from '../icons-insert.js';
+import { PointsOverlay, POINTS_CSS } from './slides/points.js';
+import { presetCommands, parsePath, fit as fitPath } from '@rutba/presentation/points';
 
 // The splits Move Split moves, marked while it is on — in shadows, so
 // turning it on moves nothing by itself.
@@ -103,6 +105,9 @@ export default function Slides({ app, shell, boot }) {
   /** Slide Master → Rename: the part and the name it has now. */
   const [partRename, setPartRename] = useState(null);
   const [editing, setEditing] = useState(null);
+  // Edit Points: the shape whose outline is being edited, the outline as it
+  // stands (in the shape's box), whether it is filled, the point last moved.
+  const [points, setPoints] = useState(null);
   // Where the caret last stood in a box's words. A ribbon press takes the
   // focus, which commits the edit and closes the editor before the press
   // lands; Insert → Symbol puts its character here and reopens the editor
@@ -1059,6 +1064,37 @@ export default function Slides({ app, shell, boot }) {
   })();
   const scale = view.zoom ?? fit;
   dragRef.current = { scale };
+
+  /** Edit Points on a shape: its own path, or its preset's outline, as points. */
+  const canEditPoints = (s) => Boolean(s && s.kind === 'shape' && s.geometry && !s.hidden && (s.path || s.preset !== 'custom'));
+  const editPoints = (s) => {
+    if (!canEditPoints(s)) return;
+    const { w, h } = s.geometry;
+    const commands = s.path ? parsePath(s.path.d, { w: s.path.w, h: s.path.h, width: w, height: h }) : presetCommands(s.preset, w, h);
+    setSelected(s.id);
+    setPoints({ id: s.id, commands, filled: s.path ? s.path.filled !== false : !['line', 'straightConnector1'].includes(s.preset), picked: null });
+  };
+  // Edit Points ends with Escape, or when another shape or slide is chosen.
+  useEffect(() => {
+    if (!points) return undefined;
+    if (selected !== points.id) {
+      setPoints(null);
+      return undefined;
+    }
+    const onKey = (e) => { if (e.key === 'Escape') setPoints(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [points, selected]);
+  useEffect(() => setPoints(null), [index]);
+  /** A change of points, kept: the box fitted to the outline, one undo step. */
+  const commitPoints = async (commands) => {
+    const s = slide?.shapes?.find((x) => x.id === points?.id);
+    if (!s) return;
+    const f = fitPath(commands);
+    const g = s.geometry;
+    setPoints((p) => (p ? { ...p, commands: f.commands } : p));
+    await apply({ op: 'setShapePath', slide: index, shape: s.id, commands: f.commands, w: f.w, h: f.h, filled: points.filled, geometry: { x: g.x + f.dx, y: g.y + f.dy, w: f.w, h: f.h } });
+  };
   // What the ribbon shows for the selected shape: its first run's look and
   // its first paragraph's alignment — the granularity the writer edits at.
   const format = useMemo(() => {
@@ -1124,6 +1160,7 @@ export default function Slides({ app, shell, boot }) {
       case 'pane': patchView((v) => ({ pane: v.pane === arg ? null : arg })); return;
       // The Format pane opens (and stays open) from Shape Fill and Shape Outline.
       case 'formatPane': patchView({ pane: 'format' }); return;
+      case 'editPoints': editPoints(selectedShape); return;
       case 'dragEnd':
         // The box the pointer left the shape at.
         await apply({ op: 'setGeometry', slide: index, shape: arg.id, x: Math.round(arg.g.x), y: Math.round(arg.g.y), w: Math.round(arg.g.w), h: Math.round(arg.g.h) });
@@ -2470,6 +2507,7 @@ export default function Slides({ app, shell, boot }) {
                             ...(s.text ? [{ label: 'Edit text', icon: 'textbox', run: () => setEditing({ id: s.id, text: s.text.paragraphs.map((p) => p.plain).join('\n') }) }] : []),
                             ...(s.kind === 'chart' ? [{ label: 'Edit Data…', icon: 'table', run: () => { setSelected(s.id); setChartDataOpen(s.id); } }] : []),
                             { label: 'Format shape…', icon: 'wand', run: () => { setSelected(s.id); act('formatPane'); } },
+                            { label: 'Edit Points', icon: 'shape', disabled: !canEditPoints(s), run: () => editPoints(s) },
                             { label: 'Edit Alt Text…', icon: 'textbox', run: () => { setSelected(s.id); review.openAltText({ slide: index, shape: s.id }); } },
                             { label: 'Bring to front', icon: 'chevronUp', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'front' }); } },
                             { label: 'Send to back', icon: 'chevronDown', run: () => { setSelected(s.id); apply({ op: 'reorderShape', slide: index, shape: s.id, to: 'back' }); } },
@@ -2534,7 +2572,7 @@ export default function Slides({ app, shell, boot }) {
                         return <div className="sl-selection-frame" style={{ left: x, top: y, width: r - x, height: b2 - y, borderWidth: 1.5 / scale }} />;
                       })()
                     : null}
-                  {selectedIds.length === 1 && selectedShape?.geometry && !selectedShape.hidden && !editing
+                  {selectedIds.length === 1 && selectedShape?.geometry && !selectedShape.hidden && !editing && points?.id !== selectedShape.id
                     ? HANDLES.map(([name, fx, fy, cursor]) => {
                         const g = drag?.id === selectedShape.id ? drag.g : selectedShape.geometry;
                         const size = 9 / scale;
@@ -2550,7 +2588,7 @@ export default function Slides({ app, shell, boot }) {
                       })
                     : null}
                   {/* The rotation handle: floats above the selection, orbiting with it as it turns. */}
-                  {selectedIds.length === 1 && selectedShape?.geometry && !selectedShape.hidden && !editing
+                  {selectedIds.length === 1 && selectedShape?.geometry && !selectedShape.hidden && !editing && points?.id !== selectedShape.id
                     ? (() => {
                         const g = drag?.id === selectedShape.id ? drag.g : selectedShape.geometry;
                         const cx = g.x + g.w / 2;
@@ -2580,6 +2618,22 @@ export default function Slides({ app, shell, boot }) {
                         );
                       })()
                     : null}
+                  {/* Edit Points: the outline and its points, over the shape. */}
+                  {points && selectedShape?.id === points.id && selectedShape.geometry ? (
+                    <>
+                      <style>{POINTS_CSS}</style>
+                      <PointsOverlay
+                        shape={selectedShape}
+                        commands={points.commands}
+                        picked={points.picked}
+                        scale={scale}
+                        menu={menu}
+                        onChange={(commands, picked) => setPoints((p) => (p ? { ...p, commands, picked } : p))}
+                        onCommit={commitPoints}
+                        onExit={() => setPoints(null)}
+                      />
+                    </>
+                  ) : null}
                   {/*
                     The Animations tab's numbers beside each animated shape,
                     PowerPoint's own little tags: the click that starts the

@@ -10,6 +10,7 @@
 // the only honest way to ship a presentation editor without twenty years of
 // feature work behind it.
 
+import { custGeomXml } from './points.js';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parse, kids, first, all, escapeXml } from '@rutba/office-formats/xml';
 import { emuToPx, pxToEmu, ptToSz } from './units.js';
@@ -1840,6 +1841,31 @@ export class Deck {
     const ext = inner.search(/<a:extLst\b/);
     inner = ext >= 0 ? inner.slice(0, ext) + three + inner.slice(ext) : inner + three;
     shapeXml = shapeXml.slice(0, m.index) + open + inner + '</p:spPr>' + shapeXml.slice(m.index + m[0].length);
+    this.#writeSlide(part, xml.slice(0, range.start) + shapeXml + xml.slice(range.end));
+    return true;
+  }
+
+  /**
+   * Edit Points: the shape's outline as a path of its own — `<a:custGeom>`
+   * in place of its preset or of the path it had, as PowerPoint makes a
+   * shape a freeform once its points are edited. `commands` are the points
+   * module's, in a box `w × h` pixels; `filled` false draws the outline
+   * only, a line's.
+   */
+  setShapePath(slideIndex, shapeId, { commands, w, h, filled = true }) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found`);
+    if (range.tag !== '<p:sp>') throw new Error('Only a shape has points to edit.');
+    if (!Array.isArray(commands) || !commands.some((c) => c.op === 'M')) throw new Error('A path starts with a point.');
+    let shapeXml = xml.slice(range.start, range.end);
+    const geom = custGeomXml(commands, w, h, { filled });
+    const existing = /<a:(prstGeom|custGeom)\b[^>]*\/>|<a:(prstGeom|custGeom)\b[^>]*>[\s\S]*?<\/a:\2>/;
+    if (existing.test(shapeXml)) shapeXml = shapeXml.replace(existing, () => geom);
+    else if (/<p:spPr\b[^>]*\/>/.test(shapeXml)) shapeXml = shapeXml.replace(/<p:spPr\b[^>]*\/>/, () => `<p:spPr>${geom}</p:spPr>`);
+    else shapeXml = shapeXml.replace(/<p:spPr\b[^>]*>(?:<a:xfrm\b[^>]*\/>|<a:xfrm\b[^>]*>[\s\S]*?<\/a:xfrm>)?/, (m) => m + geom);
     this.#writeSlide(part, xml.slice(0, range.start) + shapeXml + xml.slice(range.end));
     return true;
   }

@@ -135,6 +135,8 @@ export default function SlidesRibbon({
   const [alignTo, setAlignTo] = React.useState('selection');
   const selectedShapeObj = (model?.slide?.shapes || []).find((s) => s.id === selected) || null;
   const isGroup = selectedShapeObj?.kind === 'group';
+  // A shape with an outline to edit point by point: not a picture, a table or a group.
+  const canEditPoints = Boolean(selectedShapeObj?.kind === 'shape' && selectedShapeObj.geometry && (selectedShapeObj.path || selectedShapeObj.preset !== 'custom'));
   const multiCount = selectedIds.length;
   const size = Number(format.size || 18);
   const nearer = (dir) => {
@@ -353,6 +355,11 @@ export default function SlidesRibbon({
               ...SOFTEDGE_MENU.map(([pt, label]) => ({ label, icon: pt === null ? 'close' : undefined, run: () => act('shapeEffects', { softEdge: pt === null ? null : { radius: pt } }) })),
               '-',
               ...REFLECTION_MENU.map(([key, label]) => ({ label, icon: key === null ? 'close' : undefined, run: () => act('shapeEffects', { reflection: key }) })),
+            ])} />
+          </Group>
+          <Group label="Edit Shape">
+            <Button tall icon="shape" label="Edit Shape" disabled={!canEditPoints} title={canEditPoints ? 'Edit Points — drag the selected shape\'s points, add one on its outline or delete one' : 'Select a shape to edit its points'} onClick={(e) => menu.open(e, [
+              { label: 'Edit Points', icon: 'shape', run: () => act('editPoints') },
             ])} />
           </Group>
           <Group label="Editing">

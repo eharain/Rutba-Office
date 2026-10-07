@@ -1346,6 +1346,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
               // Format Shape → 3-D Format and 3-D Rotation: the bevel, the depth and the camera.
               shape3d: s.shape3d ?? null,
               geometry: s.geometry,
+              // Its outline, for Edit Points: the preset, or the path of its
+              // own — left out past a size no one edits point by point (a map).
+              preset: s.preset ?? null,
+              path: s.path && s.path.d.length <= 60000 ? s.path : null,
               placeholder: s.placeholder,
               // Slide Master view: the words shown are the placeholder's prompt, not its own.
               prompt: Boolean(s.prompt),
@@ -1811,6 +1815,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   const DECK_OPS = {
     setText: (d, a) => d.setText(a.slide, a.shape, a.paragraphs),
     setGeometry: (d, a) => d.setGeometry(a.slide, a.shape, a),
+    // Edit Points: the box fitted to the path first, then the path in it.
+    setShapePath: (d, a) => {
+      if (a.geometry) d.setGeometry(a.slide, a.shape, a.geometry);
+      return d.setShapePath(a.slide, a.shape, a);
+    },
     removeShape: (d, a) => d.removeShape(a.slide, a.shape),
     // Draw → Pen, Pencil, Highlighter: strokes as ink shapes; the last one's id answers.
     addInk: (d, a) => d.addInk(a.slide, a.strokes || []).pop() ?? null,
