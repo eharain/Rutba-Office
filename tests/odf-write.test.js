@@ -126,7 +126,7 @@ test('a deck keeps its text boxes, notes and a picture', () => {
   const texts = first.shapes.filter((s) => s.type === 'text');
   assert.deepEqual(texts[0].paragraphs, ['Welcome']);
   assert.deepEqual(texts[1].paragraphs, ['One', 'Two']);
-  assert.equal(texts[0].x, '2.540cm', 'ninety-six pixels is an inch');
+  assert.equal(Math.round(texts[0].x), 96, 'ninety-six pixels is an inch, read back in pixels');
   const image = first.shapes.find((s) => s.type === 'image');
   assert.equal(image.href, 'Pictures/image1.png');
   assert.equal(first.notes, 'Say hello.\nThen begin.');

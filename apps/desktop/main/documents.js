@@ -30,7 +30,7 @@ const commentAuthor = () => safeUserName() || 'Rutba Office user';
 
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { compareDocx } from '@rutba/ooxml/compare';
-import { parseRef } from '@rutba/ooxml/workbook';
+import { parseRef, Workbook } from '@rutba/ooxml/workbook';
 import { Deck, buildPptx, photoAlbum, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES, THEMES as DECK_THEMES, PALETTES as DECK_PALETTES, FONT_PAIRS as DECK_FONT_PAIRS, EFFECT_PRESETS as DECK_EFFECTS } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';
 import { linearToOmml } from '@rutba/ooxml/math-linear';
@@ -164,6 +164,11 @@ function rowsToWorkbook(rows, name = 'Sheet1') {
  * and the named ranges the formulas refer to. Dates and times arrive as
  * serials, booleans as booleans.
  */
+/**
+ * An .ods as a workbook: the values, formulas, merges and number formats,
+ * then what the sheet's layout said — its column widths, the rows and
+ * columns it hides, the panes it keeps frozen.
+ */
 function odfSheetsToWorkbook(odf) {
   const sheets = odf.sheets || [];
   const EPOCH = Date.UTC(1899, 11, 30);
@@ -175,7 +180,7 @@ function odfSheetsToWorkbook(odf) {
     const m = /^PT(?:(\d+)H)?(?:(\d+)M)?(?:([\d.]+)S)?$/.exec(dur || '');
     return m ? (Number(m[1] || 0) * 3600 + Number(m[2] || 0) * 60 + Number(m[3] || 0)) / 86400 : null;
   };
-  return buildXlsx({
+  const built = buildXlsx({
     definedNames: odf.names || [],
     sheets: (sheets.length ? sheets : [{ name: 'Sheet1', rows: [] }]).map((s, i) => ({
       name: (s.name || `Sheet${i + 1}`).slice(0, 31),
@@ -194,21 +199,85 @@ function odfSheetsToWorkbook(odf) {
       ),
     })),
   });
+  const layouts = sheets.filter((s) => s.hiddenRows?.length || s.hiddenCols?.length || s.frozen || Object.keys(s.widths || {}).length);
+  if (!layouts.length) return built;
+  const wb = Workbook.open(built);
+  const names = wb.sheetNames();
+  sheets.forEach((s, i) => {
+    const name = names[i];
+    if (!name) return;
+    // Excel measures a column in characters of the default font: 7 px each, plus 5 px of padding.
+    for (const [col, px] of Object.entries(s.widths || {})) wb.setColWidthChars(name, Number(col), Math.max(0.5, Math.round(((px - 5) / 7) * 100) / 100));
+    const { part } = wb._sheetPart(name);
+    for (const col of s.hiddenCols || []) part.setColOutline(col, { hidden: true });
+    if (s.hiddenRows?.length) wb.setRowsHidden(name, Math.min(...s.hiddenRows), Math.max(...s.hiddenRows), new Set(s.hiddenRows));
+    if (s.frozen) wb.setFrozenPane(name, s.frozen.rows, s.frozen.cols);
+  });
+  return wb.save();
 }
 
-function odpSlidesToDeck(slides, title) {
-  return buildPptx({
-    title: title || 'Presentation',
-    slides: (slides.length ? slides : [{ shapes: [] }]).map((s) => {
-      const texts = s.shapes.filter((sh) => sh.type === 'text');
-      const [first, ...rest] = texts;
-      return {
-        layout: 'obj',
-        title: first ? first.paragraphs.join(' ') : s.name || '',
-        body: rest.flatMap((t) => t.paragraphs).filter(Boolean),
-      };
-    }),
+/** An ODF custom shape's type as the DrawingML preset nearest it; LibreOffice's "ooxml-" names are the preset already. */
+const ODF_SHAPES = {
+  rectangle: 'rect', 'round-rectangle': 'roundRect', ellipse: 'ellipse', circle: 'ellipse', diamond: 'diamond',
+  'isosceles-triangle': 'triangle', 'right-triangle': 'rtTriangle', trapezoid: 'trapezoid', parallelogram: 'parallelogram',
+  pentagon: 'pentagon', hexagon: 'hexagon', octagon: 'octagon', cross: 'plus', star5: 'star5', star4: 'star4', star8: 'star8',
+  'right-arrow': 'rightArrow', 'left-arrow': 'leftArrow', 'up-arrow': 'upArrow', 'down-arrow': 'downArrow', chevron: 'chevron',
+  heart: 'heart', smiley: 'smileyFace', cloud: 'cloud', cube: 'cube', can: 'can', ring: 'donut', frame: 'frame',
+};
+const ODF_PICTURE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', svg: 'image/svg+xml', webp: 'image/webp' };
+
+/**
+ * An .odp as a deck: blank slides at the presentation's own page size, and
+ * on each the drawings where they stood, in their order — text boxes (a
+ * title larger), pictures, shapes in their fill and outline with their
+ * words, lines and tables — and the speaker's notes. A drawing that will
+ * not convert is left out and the rest kept.
+ */
+function odpSlidesToDeck(odf) {
+  const slides = odf.slides?.length ? odf.slides : [{ shapes: [], notes: '' }];
+  const size = odf.size || { width: 1280, height: 720 };
+  const deck = Deck.open(buildPptx({
+    title: odf.meta?.title || 'Presentation',
+    size: { cx: Math.round(size.width * 9525), cy: Math.round(size.height * 9525) },
+    slides: slides.map(() => ({ layout: 'blank' })),
+  }));
+  const textSize = (role) => (role === 'title' ? 36 : role === 'subtitle' ? 24 : 18);
+  slides.forEach((slide, i) => {
+    for (const sh of slide.shapes || []) {
+      try {
+        const box = { x: Math.round(sh.x), y: Math.round(sh.y), w: Math.max(1, Math.round(sh.w)), h: Math.max(1, Math.round(sh.h)) };
+        if (sh.type === 'text') {
+          deck.addTextBox(i, { ...box, name: sh.name || 'TextBox', paragraphs: (sh.paragraphs.length ? sh.paragraphs : ['']).map((t) => ({ runs: [{ text: t, size: textSize(sh.role) }] })) });
+        } else if (sh.type === 'image') {
+          const data = odf.images.get(String(sh.href).replace(/^\.\//, ''));
+          const contentType = ODF_PICTURE_TYPES[String(sh.href).split('.').pop().toLowerCase()];
+          if (data && contentType) deck.addPicture(i, { ...box, name: sh.name || 'Picture', data: Buffer.from(data), contentType });
+        } else if (sh.type === 'shape') {
+          const preset = ODF_SHAPES[sh.geometry] || (/^ooxml-/.test(sh.geometry) ? sh.geometry.slice(6) : 'rect');
+          // LibreOffice's own default look where the style says nothing.
+          deck.addShape(i, {
+            ...box, preset, name: sh.name || null,
+            fill: sh.fill === 'none' ? 'none' : sh.fill || '#729FCF',
+            line: sh.line === 'none' ? 'none' : { color: sh.line || '#3465A4', width: sh.lineWidth ? sh.lineWidth * 0.75 : 1 },
+            text: sh.paragraphs?.some(Boolean) ? sh.paragraphs.map((t) => ({ align: 'center', runs: [{ text: t }] })) : null,
+          });
+        } else if (sh.type === 'line') {
+          deck.addShape(i, {
+            preset: 'line', name: sh.name || null,
+            x: Math.round(Math.min(sh.x1, sh.x2)), y: Math.round(Math.min(sh.y1, sh.y2)), w: Math.round(Math.abs(sh.x2 - sh.x1)), h: Math.round(Math.abs(sh.y2 - sh.y1)),
+            fill: 'none', line: sh.line === 'none' ? 'none' : { color: sh.line || '#3465A4', width: sh.lineWidth ? sh.lineWidth * 0.75 : 1 },
+          });
+        } else if (sh.type === 'table' && sh.rows.length) {
+          const cols = Math.max(1, ...sh.rows.map((r) => r.length));
+          deck.addTable(i, { ...box, rows: sh.rows.length, cols, cells: sh.rows.map((r) => Array.from({ length: cols }, (_, c) => r[c] ?? '')) });
+        }
+      } catch {
+        // A drawing this cannot express is left out; the slide keeps the rest.
+      }
+    }
+    if (slide.notes) deck.setNotes(i, slide.notes);
   });
+  return deck.save();
 }
 
 // Word 97 separates paragraphs with CR, and litters the stream with field
@@ -687,7 +756,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       }
       case 'odp': {
         const odf = readOdf(bytes);
-        return { kind: 'deck', bytes: odpSlidesToDeck(odf.slides || [], odf.meta?.title), source: 'odp', converted: { from: 'odp' } };
+        return { kind: 'deck', bytes: odpSlidesToDeck(odf), source: 'odp', converted: { from: 'odp' } };
       }
       case 'rtf': {
         const rtf = readRtf(bytes);

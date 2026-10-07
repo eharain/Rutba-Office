@@ -114,8 +114,11 @@ function readTextBody(body) {
 
 function readTable(table) {
   const rows = [];
+  const hiddenRows = [];
   for (const r of all(table, 'table:table-row')) {
     const rowRepeat = repeatOf(r.attrs, 'table:number-rows-repeated');
+    // A row collapsed or filtered out is hidden; so is each it repeats.
+    const rowHidden = r.attrs['table:visibility'] === 'collapse' || r.attrs['table:visibility'] === 'filter';
     const cells = [];
     for (const c of kids(r).filter((k) => k.name === 'table:table-cell' || k.name === 'table:covered-table-cell')) {
       const repeat = repeatOf(c.attrs, 'table:number-columns-repeated');
@@ -136,11 +139,14 @@ function readTable(table) {
     }
     // Trim the trailing run of empty cells ODF writes to pad the row.
     while (cells.length && !cells[cells.length - 1].text && cells[cells.length - 1].value == null) cells.pop();
-    for (let i = 0; i < rowRepeat; i++) rows.push(cells.map((c) => ({ ...c })));
+    for (let i = 0; i < rowRepeat; i++) {
+      if (rowHidden && rows.length < 200000) hiddenRows.push(rows.length);
+      rows.push(cells.map((c) => ({ ...c })));
+    }
     if (rows.length > 200000) break;
   }
   while (rows.length && rows[rows.length - 1].length === 0) rows.pop();
-  return { type: 'table', name: table.attrs['table:name'] || '', rows };
+  return { type: 'table', name: table.attrs['table:name'] || '', rows, hiddenRows: hiddenRows.filter((r) => r < rows.length) };
 }
 
 const colName = (i) => {
@@ -154,9 +160,21 @@ const colName = (i) => {
  * format each styled cell wears — `formats` maps an automatic cell style's
  * name to a format code, see readDataStyles.
  */
-function readSheets(body, formats = new Map()) {
+function readSheets(body, formats = new Map(), columnWidths = new Map()) {
   return all(body, 'table:table').map((t) => {
     const table = readTable(t);
+    // The columns, in order: which are hidden, and each one's width (px) from its style.
+    const hiddenCols = [];
+    const widths = {};
+    let col = 0;
+    for (const c of all(t, 'table:table-column')) {
+      const repeat = repeatOf(c.attrs, 'table:number-columns-repeated');
+      const width = columnWidths.get(c.attrs['table:style-name']);
+      for (let i = 0; i < repeat && col < 16384; i++, col++) {
+        if (c.attrs['table:visibility'] === 'collapse' || c.attrs['table:visibility'] === 'filter') hiddenCols.push(col);
+        if (width && col < 1024) widths[col] = width;
+      }
+    }
     const merges = [];
     const cellFormats = {};
     table.rows.forEach((row, r) => {
@@ -167,7 +185,7 @@ function readSheets(body, formats = new Map()) {
         if (fmt) cellFormats[`${colName(c)}${r + 1}`] = fmt;
       });
     });
-    return { name: table.name, rows: table.rows, merges, formats: cellFormats };
+    return { name: table.name, rows: table.rows, merges, formats: cellFormats, hiddenRows: table.hiddenRows, hiddenCols: hiddenCols.filter((c) => c < 1024), widths };
   });
 }
 
@@ -267,24 +285,175 @@ function readDataStyles(roots) {
   return byCell;
 }
 
-function readSlides(body) {
-  return all(body, 'draw:page').map((page, i) => {
-    const shapes = [];
-    for (const frame of all(page, 'draw:frame')) {
-      const img = first(frame, 'draw:image');
-      const box = first(frame, 'draw:text-box');
-      if (img) {
-        shapes.push({ type: 'image', href: img.attrs['xlink:href'] || '', x: frame.attrs['svg:x'], y: frame.attrs['svg:y'], w: frame.attrs['svg:width'], h: frame.attrs['svg:height'] });
-      } else if (box) {
-        const paras = kids(box, 'text:p').map(inlineText).concat(kids(box, 'text:list').flatMap((l) => all(l, 'text:p').map(inlineText)));
-        shapes.push({ type: 'text', paragraphs: paras.filter(Boolean), x: frame.attrs['svg:x'], y: frame.attrs['svg:y'], w: frame.attrs['svg:width'], h: frame.attrs['svg:height'] });
+/** An ODF length — "2.5cm", "12mm", "1in", "72pt", "96px" — in CSS pixels; null for none. */
+export function lengthPx(value) {
+  const m = /^(-?[\d.]+)\s*(cm|mm|in|pt|pc|px)?$/.exec(String(value ?? '').trim());
+  if (!m) return null;
+  return Number(m[1]) * ({ cm: 96 / 2.54, mm: 96 / 25.4, in: 96, pt: 96 / 72, pc: 16, px: 1 }[m[2] || 'px']);
+}
+
+/**
+ * The graphic styles a drawing names — its fill, its outline — from the
+ * automatic styles and the named ones, a style's parent filling in what it
+ * does not say.
+ */
+function readGraphicStyles(roots) {
+  const raw = new Map();
+  for (const root of roots.filter(Boolean)) {
+    for (const st of all(root, 'style:style')) {
+      const family = st.attrs['style:family'];
+      if (family !== 'graphic' && family !== 'presentation') continue;
+      const g = first(st, 'style:graphic-properties');
+      const a = g ? g.attrs : {};
+      raw.set(st.attrs['style:name'], {
+        parent: st.attrs['style:parent-style-name'] || null,
+        fill: a['draw:fill'] ?? null,
+        fillColor: a['draw:fill-color'] ?? null,
+        stroke: a['draw:stroke'] ?? null,
+        strokeColor: a['svg:stroke-color'] ?? null,
+        strokeWidth: a['svg:stroke-width'] ?? null,
+      });
+    }
+  }
+  const resolve = (name, depth = 0) => {
+    const own = raw.get(name);
+    if (!own) return {};
+    const up = own.parent && depth < 8 ? resolve(own.parent, depth + 1) : {};
+    const out = { ...up };
+    for (const k of ['fill', 'fillColor', 'stroke', 'strokeColor', 'strokeWidth']) if (own[k] !== null) out[k] = own[k];
+    return out;
+  };
+  return (name) => resolve(name);
+}
+
+/** The page size a presentation is laid out on, from its page layout — null when it says none. */
+function readPageSize(stylesRoot) {
+  if (!stylesRoot) return null;
+  for (const props of all(stylesRoot, 'style:page-layout-properties')) {
+    const width = lengthPx(props.attrs['fo:page-width']);
+    const height = lengthPx(props.attrs['fo:page-height']);
+    if (width && height) return { width, height };
+  }
+  return null;
+}
+
+/** A drawing's box, in pixels, from its own svg:x, svg:y, svg:width and svg:height. */
+const boxOf = (node) => ({
+  x: lengthPx(node.attrs['svg:x']) ?? 0,
+  y: lengthPx(node.attrs['svg:y']) ?? 0,
+  w: lengthPx(node.attrs['svg:width']) ?? 0,
+  h: lengthPx(node.attrs['svg:height']) ?? 0,
+});
+
+/** The paragraphs a text box or shape holds, lists' items among them. */
+const paragraphsOf = (node) => {
+  const out = [];
+  const walk = (n) => {
+    for (const c of n.children || []) {
+      if (typeof c === 'string') continue;
+      if (c.name === 'text:p' || c.name === 'text:h') out.push(inlineText(c));
+      else if (c.name === 'text:list' || c.name === 'text:list-item' || c.name === 'text:list-header') walk(c);
+    }
+  };
+  walk(node);
+  return out;
+};
+
+/** A shape's fill and outline, as the style it names says: a hex, 'none', or null for the default. */
+const lookOf = (node, styles) => {
+  const st = styles(node.attrs['draw:style-name'] || node.attrs['presentation:style-name']);
+  return {
+    fill: st.fill === 'none' ? 'none' : st.fillColor || null,
+    line: st.stroke === 'none' ? 'none' : st.strokeColor || null,
+    lineWidth: lengthPx(st.strokeWidth),
+  };
+};
+
+/**
+ * One page's drawings, in drawing order: frames holding a picture, words
+ * or a table; custom shapes, rectangles and ellipses with their fill,
+ * outline and words; lines; a group's members in its place.
+ */
+function readDrawings(page, styles) {
+  const shapes = [];
+  const visit = (parent) => {
+    for (const c of parent.children || []) {
+      if (typeof c === 'string') continue;
+      if (c.name === 'draw:g') { visit(c); continue; }
+      if (c.name === 'draw:frame') {
+        const img = first(c, 'draw:image');
+        const box = first(c, 'draw:text-box');
+        const table = first(c, 'table:table');
+        const name = c.attrs['draw:name'] || null;
+        if (table) {
+          const rows = all(table, 'table:table-row').map((row) => kids(row, 'table:table-cell').map((cell) => paragraphsOf(cell).join('\n')));
+          shapes.push({ type: 'table', name, rows, ...boxOf(c) });
+        } else if (img) {
+          shapes.push({ type: 'image', name, href: img.attrs['xlink:href'] || '', ...boxOf(c) });
+        } else if (box) {
+          shapes.push({ type: 'text', name, role: c.attrs['presentation:class'] || null, paragraphs: paragraphsOf(box).filter((p, i, list) => p || list.length === 1), ...boxOf(c) });
+        }
+        continue;
+      }
+      if (c.name === 'draw:custom-shape' || c.name === 'draw:rect' || c.name === 'draw:ellipse' || c.name === 'draw:circle') {
+        const geometry = c.name === 'draw:custom-shape' ? (first(c, 'draw:enhanced-geometry')?.attrs['draw:type'] || 'rectangle') : c.name === 'draw:rect' ? 'rectangle' : 'ellipse';
+        shapes.push({ type: 'shape', name: c.attrs['draw:name'] || null, geometry, ...boxOf(c), ...lookOf(c, styles), paragraphs: paragraphsOf(c) });
+        continue;
+      }
+      if (c.name === 'draw:line') {
+        const x1 = lengthPx(c.attrs['svg:x1']) ?? 0;
+        const y1 = lengthPx(c.attrs['svg:y1']) ?? 0;
+        const x2 = lengthPx(c.attrs['svg:x2']) ?? 0;
+        const y2 = lengthPx(c.attrs['svg:y2']) ?? 0;
+        shapes.push({ type: 'line', name: c.attrs['draw:name'] || null, x1, y1, x2, y2, ...lookOf(c, styles) });
       }
     }
+  };
+  visit(page);
+  return shapes;
+}
+
+/** Each column style's width, in pixels. */
+function readColumnWidths(roots) {
+  const out = new Map();
+  for (const root of roots.filter(Boolean)) {
+    for (const st of all(root, 'style:style')) {
+      if (st.attrs['style:family'] !== 'table-column') continue;
+      const width = lengthPx(first(st, 'style:table-column-properties')?.attrs['style:column-width']);
+      if (width) out.set(st.attrs['style:name'], width);
+    }
+  }
+  return out;
+}
+
+/**
+ * The panes each sheet keeps frozen, from settings.xml: a split mode of 2
+ * is a freeze, its position the columns (horizontally) or rows
+ * (vertically) held. `{ rows, cols }` by sheet name.
+ */
+function readFrozenPanes(xml) {
+  const out = new Map();
+  if (!xml) return out;
+  const root = parse(xml);
+  for (const map of all(root, 'config:config-item-map-named')) {
+    if (map.attrs['config:name'] !== 'Tables') continue;
+    for (const entry of kids(map, 'config:config-item-map-entry')) {
+      const items = new Map(kids(entry, 'config:config-item').map((i) => [i.attrs['config:name'], textOf(i)]));
+      const cols = items.get('HorizontalSplitMode') === '2' ? Number(items.get('HorizontalSplitPosition') || 0) : 0;
+      const rows = items.get('VerticalSplitMode') === '2' ? Number(items.get('VerticalSplitPosition') || 0) : 0;
+      if (rows > 0 || cols > 0) out.set(entry.attrs['config:name'], { rows, cols });
+    }
+  }
+  return out;
+}
+
+function readSlides(body, styles = () => ({})) {
+  return all(body, 'draw:page').map((page, i) => {
     const notes = first(page, 'presentation:notes');
     return {
       index: i,
       name: page.attrs['draw:name'] || `Slide ${i + 1}`,
-      shapes,
+      shapes: readDrawings(page, styles),
       notes: notes ? all(notes, 'text:p').map(textOf).join('\n') : '',
     };
   });
@@ -334,9 +503,19 @@ export function readOdf(bytes) {
     // both are read, and a cell's style name resolves through either.
     const stylesXml = textPart(map, 'styles.xml');
     const formats = readDataStyles([root, stylesXml ? parse(stylesXml) : null]);
-    out.sheets = readSheets(body, formats);
+    out.sheets = readSheets(body, formats, readColumnWidths([root, stylesXml ? parse(stylesXml) : null]));
     out.names = readNames(body);
-  } else out.slides = readSlides(body);
+    // Frozen panes live in settings.xml, by sheet.
+    const frozen = readFrozenPanes(textPart(map, 'settings.xml'));
+    for (const sheet of out.sheets) if (frozen.has(sheet.name)) sheet.frozen = frozen.get(sheet.name);
+  } else {
+    // The drawings' styles, from content.xml's own and styles.xml's named
+    // ones, and the page every position is measured on.
+    const stylesXml = textPart(map, 'styles.xml');
+    const stylesRoot = stylesXml ? parse(stylesXml) : null;
+    out.slides = readSlides(body, readGraphicStyles([stylesRoot, root]));
+    out.size = readPageSize(stylesRoot);
+  }
   return out;
 }
 
