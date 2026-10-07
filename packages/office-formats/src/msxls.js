@@ -20,6 +20,8 @@
 // A sheet's pictures are Office Art in BIFF8 (the workbook's drawing group
 // holds their bytes); before it each is an object record with its bytes in
 // the IMGDATA record after it. Notes and hyperlinks come with their cells.
+// A chart is a substream of its own after the object that places it, or a
+// chart sheet; msxls-chart.js reads it once every sheet is known.
 //
 // The layouts follow LibreOffice's Excel import (sc/source/filter/excel).
 // Pure: bytes in, a model out.
@@ -29,6 +31,7 @@ import { decoderFor } from './codepage.js';
 import { XLS_FUNCTIONS } from './xls-functions.js';
 import { findBlip, dibFile } from './msdoc.js';
 import { placeableWmf } from './msdoc-old.js';
+import { readChart } from './msxls-chart.js';
 import { header as artHeader, children as artChildren, child as artChild, readFopt } from './officeart.js';
 
 export class XlsError extends Error {
@@ -69,7 +72,7 @@ const R = {
   ROW2: 0x0008, ROW: 0x0208, COLINFO: 0x007d, COLWIDTH2: 0x0024, DEFCOLWIDTH: 0x0055, STANDARDWIDTH: 0x0099,
   DEFROWHEIGHT2: 0x0025, DEFROWHEIGHT: 0x0225, MERGEDCELLS: 0x00e5, WINDOW2_2: 0x003e, WINDOW2: 0x023e, PANE: 0x0041,
   BUNDLESHEET: 0x008f, MSODRAWINGGROUP: 0x00eb, MSODRAWING: 0x00ec, OBJ: 0x005d, TXO: 0x01b6, NOTE: 0x001c, HLINK: 0x01b8, HLINKTOOLTIP: 0x0800,
-  IMGDATA: 0x007f,
+  IMGDATA: 0x007f, THEME: 0x0896, CONTINUEFRT: 0x0812,
 };
 
 /** Which BIFF a BOF record opens: 8, 5, 4, 3, 2 — or 0. */
@@ -224,7 +227,7 @@ export function readXls(bytes) {
   let lastFormula = null;
   let ixfe = null;
   const newSheet = (name, state = 'visible') => {
-    const s = { name, state, cells: new Map(), rows: new Map(), cols: [], merges: [], frozen: null, grid: true, headings: true, formulas: false, selected: false, defaultColWidth: null, defaultRowHeight: null, shared: new Map(), arrays: new Map(), pending: [], drawing: [], objectText: new Map(), notes: [], links: [], pictures: [], lastObject: null };
+    const s = { name, state, cells: new Map(), rows: new Map(), cols: [], merges: [], frozen: null, grid: true, headings: true, formulas: false, selected: false, defaultColWidth: null, defaultRowHeight: null, shared: new Map(), arrays: new Map(), pending: [], drawing: [], objectText: new Map(), notes: [], links: [], pictures: [], charts: [], lastObject: null };
     book.sheets.push(s);
     return s;
   };
@@ -234,18 +237,46 @@ export function readXls(bytes) {
   const xfAt = (data) => { const xf = cellXf(data, 4); ixfe = null; return xf; };
   const valueStart = biff === 2 ? 7 : 6;
 
+  // A chart's records, kept as they come — a chart inside a sheet, after the
+  // object that places it, or a chart sheet — and read once every sheet is known.
+  let chartFrom = 0;
+  let chartRecs = null;
   for (let k = 0; k < recs.length; k++) {
     const { id, data, pos } = recs[k];
+    if (chartRecs) {
+      chartRecs.push(recs[k]);
+      if (BOF.has(id)) depth += 1;
+      if (id !== R.EOF) continue;
+      if (depth === chartFrom) {
+        sheet.charts.push({ records: chartRecs, object: chartFrom > 1 ? sheet.lastObject : null });
+        if (chartFrom > 1) sheet.lastObject = null;
+        chartRecs = null;
+        chartFrom = 0;
+      }
+      depth = Math.max(0, depth - 1);
+      if (depth === 0 && sheet) { finishSheet(sheet, book, biff, decode); sheet = null; }
+      continue;
+    }
     if (BOF.has(id)) {
       depth += 1;
       if (skipFrom) continue;
-      if (depth > 1) { skipFrom = depth; continue; } // a chart inside a sheet
       const dt = u16(data, 2);
+      if (depth > 1) {
+        // A chart inside a sheet; anything else nested is passed over.
+        if (sheet && dt === 0x0020 && biff >= 5) { chartFrom = depth; chartRecs = [recs[k]]; } else skipFrom = depth;
+        continue;
+      }
       if (k === 0 && (dt === 0x0005 || dt === 0x0100)) { sheet = null; continue; } // the workbook's own records
       if (dt === 0x0010 || (biff <= 4 && k === 0)) {
         sheet = sheetAt.get(pos) || bundle.shift() || newSheet('Sheet' + (book.sheets.length + 1));
+      } else if (dt === 0x0020 && biff >= 5 && sheetAt.get(pos)) {
+        // A chart sheet: a sheet holding its chart.
+        sheet = sheetAt.get(pos);
+        sheet.chartSheet = true;
+        chartFrom = depth;
+        chartRecs = [recs[k]];
       } else {
-        // A chart, a macro sheet or a module: not a grid this suite draws.
+        // A macro sheet or a module: not a grid this suite draws.
         sheet = null;
         skipFrom = depth;
         const s = sheetAt.get(pos);
@@ -282,8 +313,9 @@ export function readXls(bytes) {
         const state = ['visible', 'hidden', 'veryHidden'][u8(data, 4) & 3] || 'visible';
         const name = biff === 8 ? uni(data, 6, 1).text : bytestr(data, 6, 1).text;
         const s = { name, state };
-        // A chart sheet or a module keeps its place but holds no grid.
-        if ((u8(data, 5) & 0x0f) !== 0) s.skip = true;
+        // A macro sheet or a module keeps its place but holds no grid; a chart sheet holds its chart.
+        const kind = u8(data, 5) & 0x0f;
+        if (kind !== 0 && kind !== 2) s.skip = true;
         sheetAt.set(at, Object.assign(newSheet(name, state), s));
         break;
       }
@@ -487,7 +519,8 @@ export function readXls(bytes) {
         break;
       case R.OBJ:
         if (!sheet) break;
-        if (biff === 8) { sheet.lastObject = u16(data, 0) === 0x15 ? { type: u16(data, 4), id: u16(data, 6) } : null; break; }
+        // BIFF8's object follows its shape in the drawing: where the drawing had got to says which shape it is.
+        if (biff === 8) { sheet.lastObject = u16(data, 0) === 0x15 ? { type: u16(data, 4), id: u16(data, 6), at: sheet.drawing.reduce((n, p) => n + p.length, 0) } : null; break; }
         // Before BIFF8 each object is one record: its type, flags and the cells
         // its corners are in (a picture's bytes in the IMGDATA after it), and from
         // BIFF5 a picture's name — "__BkgndObj", hidden, is the sheet's background.
@@ -532,6 +565,13 @@ export function readXls(bytes) {
         else if (u16(data, 0) === 0xffff && sheet.notes.length) sheet.notes[sheet.notes.length - 1].text += decode(data.subarray(6, 6 + u16(data, 4)));
         else sheet.notes.push({ row: u16(data, 0), col: u16(data, 2), author: '', text: decode(data.subarray(6, 6 + u16(data, 4))) });
         break;
+      case R.THEME: {
+        // Excel 2007's theme, zipped, after a future record's header and the theme's version.
+        const parts = [data.subarray(16)];
+        while (recs[k + 1]?.id === R.CONTINUEFRT) parts.push(recs[++k].data.subarray(12));
+        book.theme = concat(parts);
+        break;
+      }
       case R.HLINK: if (sheet) { const link = readHyperlink(data); if (link) sheet.links.push(link); } break;
       case R.HLINKTOOLTIP: {
         if (!sheet || !sheet.links.length) break;
@@ -556,7 +596,25 @@ export function readXls(bytes) {
     delete n.rgce;
     delete n.extra;
   }
-  // Charts and modules leave; what pointed at sheets by number follows them.
+  // The charts, now that every sheet is known by its number: each read from its records.
+  const chartCtx = {
+    biff, palette: book.palette,
+    text: (b, at, countBytes) => str(b, at, countBytes).text,
+    formula: (rgce) => decompile(rgce, new Uint8Array(0), { book, biff, row: 0, col: 0, decode, sheetNames: book.allNames }),
+    font: (index) => {
+      const f = book.fonts[index < 4 ? index : index - 1];
+      return f ? { height: f.height, bold: f.bold, italic: f.italic, name: f.name, colour: f.colour != null && f.colour < 64 && f.colour !== 8 ? book.palette[f.colour] : null } : null;
+    },
+  };
+  for (const s of book.sheets) {
+    for (const c of s.charts) {
+      try { c.chart = readChart(c.records, chartCtx); } catch { c.chart = null; }
+      delete c.records;
+      delete c.object;
+    }
+    s.charts = s.charts.filter((c) => c.chart);
+  }
+  // Modules and macro sheets leave; what pointed at sheets by number follows them.
   const all = book.sheets;
   const active = all[book.activeSheet] && !all[book.activeSheet].skip ? all[book.activeSheet] : null;
   book.sheets = all.filter((s) => !s.skip);
@@ -715,30 +773,40 @@ function groupBlips(book) {
  */
 function finishDrawings(sheet, book) {
   for (const n of sheet.notes) if (n.text == null) n.text = sheet.objectText.get(n.object) ?? '';
+  // Before BIFF8 a chart's object gives its corners itself.
+  for (const c of sheet.charts) if (c.object?.from) c.anchor = { from: c.object.from, to: c.object.to };
   if (!sheet.drawing.length) return;
   const dg = concat(sheet.drawing);
   const blips = groupBlips(book);
+  // Each shape's place and name, by where its client data ends — where the object record that follows it was met.
+  const placed = new Map();
   const visit = (h) => {
     for (const c of artChildren(dg, h)) {
       if (c.type === 0xf003) visit(c);
       else if (c.type === 0xf004) {
         const props = readFopt(dg, artChild(dg, c, 0xf00b));
         const anchor = artChild(dg, c, 0xf010);
-        const pib = props.get(0x0104)?.op;
-        if (!pib || !blips[pib - 1] || !anchor || anchor.len < 18) continue;
+        if (!anchor || anchor.len < 18) continue;
         const a = anchor.body;
         const name = props.get(0x0380)?.complex;
         let label = null;
         if (name) { label = ''; for (let i = 0; i + 1 < name.length; i += 2) { const ch = u16(name, i); if (!ch) break; label += String.fromCharCode(ch); } }
-        sheet.pictures.push({
-          blip: blips[pib - 1], name: label,
+        const at = {
           from: { col: u16(dg, a + 2), dx: u16(dg, a + 4) / 1024, row: u16(dg, a + 6), dy: u16(dg, a + 8) / 256 },
           to: { col: u16(dg, a + 10), dx: u16(dg, a + 12) / 1024, row: u16(dg, a + 14), dy: u16(dg, a + 16) / 256 },
-        });
+        };
+        const client = artChild(dg, c, 0xf011);
+        if (client) placed.set(client.end, { ...at, name: label });
+        const pib = props.get(0x0104)?.op;
+        if (pib && blips[pib - 1]) sheet.pictures.push({ blip: blips[pib - 1], name: label, ...at });
       }
     }
   };
   visit(artHeader(dg, 0));
+  for (const c of sheet.charts) {
+    const shape = c.object?.at != null ? placed.get(c.object.at) : null;
+    if (shape) { c.anchor = { from: shape.from, to: shape.to }; c.name = shape.name; }
+  }
 }
 
 /** An RK number: a 30-bit integer or the top of a double, perhaps a hundredth of it. */

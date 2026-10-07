@@ -6,7 +6,9 @@
  * (tools/make-binary-fixtures.ps1); the reader is judged by whether what
  * the cells show after the round trip is what they showed before. Excel
  * 2.1, 3.0 and 4.0 files, which no Excel on hand writes, are laid out from
- * their published layouts in fixtures/old-excel.js.
+ * their published layouts in fixtures/old-excel.js. charts.xls and
+ * charts-95.xls are the charts the showcase has not got, made by Excel the
+ * same way.
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -19,6 +21,7 @@ import { xlsModelToXlsx } from '@rutba/office-formats/msxls-xlsx';
 import { sniff } from '@rutba/office-formats/sniff';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { SheetView } from '@rutba/sheet-view';
+import { parseChartXml } from '@rutba/drawing/ooxml';
 import { createDocumentService } from '../apps/desktop/main/documents.js';
 import { buildOldExcel, refTok, areaTok, funcVar } from './fixtures/old-excel.js';
 
@@ -120,6 +123,58 @@ test('an Excel 5.0/95 workbook keeps its picture, kept the way Excel 95 kept one
   const pkg = OoxmlPackage.read(xlsModelToXlsx(book));
   assert.match(pkg.text('xl/worksheets/sheet2.xml'), /<drawing r:id="rId1"\/>/);
   assert.ok(pkg.partNames().some((n) => /^xl\/media\/image\d+\.bmp$/.test(n)), 'the picture\'s bytes');
+});
+
+/** Each chart part of a package: its XML, and what the suite's chart drawing reads from it. */
+const chartsOf = (bytes) => {
+  const pkg = OoxmlPackage.read(Buffer.from(bytes));
+  return pkg.partNames().filter((n) => /^xl\/charts\/chart\d+\.xml$/.test(n)).map((n) => ({ xml: pkg.text(n), spec: parseChartXml(pkg.text(n)) }));
+};
+const plotted = (s) => ({ type: s.type, stacked: s.stacked, categories: s.categories, series: s.series.map((x) => [x.name, x.values]) });
+
+for (const [file, label] of [['showcase.xls', '97-2003'], ['showcase-95.xls', '5.0/95']]) {
+  test(`an Excel ${label} workbook's charts are drawn as the workbook it was saved from draws them`, () => {
+    const before = chartsOf(fixture('rich', 'showcase.xlsx'));
+    const after = chartsOf(xlsModelToXlsx(readXls(fixture('binary', file))));
+    assert.equal(after.length, before.length, 'every chart');
+    for (const b of before) {
+      const a = after.find((x) => x.spec.title === b.spec.title);
+      assert.ok(a, `"${b.spec.title}"`);
+      assert.deepEqual(plotted(a.spec), plotted(b.spec), `"${b.spec.title}": its kind, stacking, categories and series`);
+    }
+  });
+}
+
+test('an Excel 97-2003 chart keeps its place, its theme colours, its legend and its labels', () => {
+  const book = readXls(fixture('binary', 'showcase.xls'));
+  const pie = book.sheets.find((s) => s.name === 'Summary').charts[0];
+  assert.deepEqual([pie.anchor.from.col, pie.anchor.from.row, pie.anchor.to.col, pie.anchor.to.row], [3, 1, 10, 17], 'over the cells it covered');
+  const bytes = xlsModelToXlsx(book);
+  assert.match(OoxmlPackage.read(bytes).text('xl/theme/theme1.xml'), /<a:accent1><a:srgbClr val="156082"\/>/, 'the workbook\'s theme, which its colours are');
+  const xml = chartsOf(bytes).find((c) => c.spec.title === 'Share by region').xml;
+  assert.match(xml, /<c:dPt><c:idx val="1"\/>[\s\S]*?<a:schemeClr val="accent2"\/>/, 'each slice in its theme colour, as Excel 2007 kept it');
+  assert.match(xml, /<c:legendPos val="b"\/>/);
+  assert.match(xml, /<c:showVal val="1"\/>[\s\S]*<c:showPercent val="1"\/>/, 'value and percentage on each slice');
+  assert.match(xml, /<c:f>Summary!\$A\$20:\$D\$20<\/c:f>/, 'still plotting its cells');
+});
+
+test('the charts the showcase has not got: a doughnut, a scatter with its axes\' titles, a line on a second axis, a radar, 100% stacks, a 3-D chart sheet', () => {
+  for (const file of ['charts.xls', 'charts-95.xls']) {
+    const book = readXls(fixture('binary', file));
+    assert.deepEqual(book.sheets.map((s) => s.name), ['Data', 'Chart3D'], `${file}: the chart sheet a sheet holding its chart`);
+    const xmls = chartsOf(xlsModelToXlsx(book)).map((c) => c.xml);
+    const titled = (t) => xmls.find((x) => x.includes('<a:t>' + t + '</a:t>')) ?? '';
+    assert.match(titled('North, by month'), /<c:doughnutChart>[\s\S]*<c:holeSize val="50"\/>/, file);
+    assert.match(titled('North, by month'), /<c:legendPos val="r"\/>/);
+    assert.match(titled('Y against X'), /<c:scatterChart>[\s\S]*<c:valAx>[\s\S]*<a:t>Week<\/a:t>[\s\S]*<c:valAx>[\s\S]*<a:t>Orders<\/a:t>/, 'its axes\' titles');
+    const combo = titled('North in columns, South as a line');
+    assert.match(combo, /<c:barChart>[\s\S]*<c:lineChart>/);
+    assert.match(combo, /<c:axPos val="r"\/>/, 'the line on a second value axis');
+    assert.match(combo, /<c:catAx><c:axId val="50020"\/>[\s\S]*?<c:delete val="1"\/>/, 'the second axes set\'s categories hidden, as they were');
+    assert.match(titled('Three regions round'), /<c:radarChart><c:radarStyle val="marker"\/>/);
+    assert.match(titled('Each month, as shares'), /<c:grouping val="percentStacked"\/>/);
+    assert.match(titled('In three dimensions'), /<c:view3D>[\s\S]*<c:bar3DChart>/);
+  }
 });
 
 test('an Excel 3.0 or 4.0 picture opens, though they wrote it oddly', () => {

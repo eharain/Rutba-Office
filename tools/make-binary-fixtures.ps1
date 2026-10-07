@@ -4,7 +4,7 @@
 # writes. The readers in packages/office-formats are judged against these,
 # files Office wrote, not files written from what we think the formats say.
 #
-#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\make-binary-fixtures.ps1 [-Out tests\fixtures\binary] [-Only word,excel,powerpoint]
+#   powershell -NoProfile -ExecutionPolicy Bypass -File tools\make-binary-fixtures.ps1 [-Out tests\fixtures\binary] [-Only word,excel,charts,powerpoint]
 #
 # Office is driven invisibly; each application is quit and the processes this
 # run started are reaped at the end of its section, even when a step fails.
@@ -22,7 +22,7 @@
 # This Excel no longer writes the 2.1, 3.0 and 4.0 formats; those, and the
 # Word 2.0, 6.0/95, DOS and Write formats no Office here writes, are built
 # from their published layouts in the tests that read them.
-param([string]$Out = 'tests\fixtures\binary', [string]$Only = 'word,excel,powerpoint')
+param([string]$Out = 'tests\fixtures\binary', [string]$Only = 'word,excel,charts,powerpoint')
 $run = $Only.Split(',')
 
 $ErrorActionPreference = 'Stop'
@@ -74,6 +74,65 @@ if ($run -contains 'excel') { try {
     try { $wb.SaveAs($p, $f[0]); "$($f[1]) written as Excel $($f[2]) ($((Get-Item $p).Length) bytes)" } catch { "warn: Excel $($f[2]) - $($_.Exception.Message)" }
     $wb.Close($false)
   }
+} finally {
+  if ($xl) { try { $xl.Quit() } catch {}; Release $xl }
+  Reap
+} }
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Excel: the charts the showcase has not got
+# ═══════════════════════════════════════════════════════════════════════════
+$xl = $null
+if ($run -contains 'charts') { try {
+  $xl = New-Object -ComObject Excel.Application
+  $xl.Visible = $false
+  $xl.DisplayAlerts = $false
+  # A workbook of its own, saved as 97-2003 and as 5.0/95: a doughnut, a
+  # scatter with its axes' titles, columns with a line on a second axis, a
+  # radar, columns stacked to 100%, and a 3-D chart on a chart sheet.
+  $wb = $xl.Workbooks.Add()
+  while ($wb.Worksheets.Count -gt 1) { $wb.Worksheets.Item($wb.Worksheets.Count).Delete() }
+  $ws = $wb.Worksheets.Item(1)
+  $ws.Name = 'Data'
+  function Put($range, $rows) {
+    $block = New-Object 'object[,]' $rows.Count, $rows[0].Count
+    for ($r = 0; $r -lt $rows.Count; $r++) { for ($k = 0; $k -lt $rows[0].Count; $k++) { $block[$r, $k] = $rows[$r][$k] } }
+    $ws.Range($range).Value2 = $block
+  }
+  Put 'A1:D7' @(@('Month', 'North', 'South', 'East'), @('Jan', 120, 80, 60), @('Feb', 135, 90, 75), @('Mar', 150, 70, 95), @('Apr', 160, 110, 85), @('May', 175, 95, 120), @('Jun', 190, 130, 105))
+  Put 'F1:G7' @(@('X', 'Y'), @(1, 2.5), @(2, 3.9), @(3, 5.1), @(4, 8.2), @(5, 9.8), @(6, 13.1))
+  function Add-Chart($left, $top, $type, $range, $title) {
+    # The data first: Excel will not make a chart with none a doughnut.
+    $chart = $ws.ChartObjects().Add($left, $top, 300, 200).Chart
+    $chart.SetSourceData($ws.Range($range))
+    $chart.ChartType = [int]$type
+    $chart.HasTitle = $true
+    $chart.ChartTitle.Text = $title
+    return $chart
+  }
+  $c = Add-Chart 10 120 -4120 'A1:B7' 'North, by month'
+  $c.HasLegend = $true; $c.Legend.Position = -4152
+  $c = Add-Chart 320 120 74 'F1:G7' 'Y against X'
+  $c.HasLegend = $false
+  $c.Axes(1).HasTitle = $true; $c.Axes(1).AxisTitle.Text = 'Week'
+  $c.Axes(2).HasTitle = $true; $c.Axes(2).AxisTitle.Text = 'Orders'
+  $c = Add-Chart 10 330 51 'A1:C7' 'North in columns, South as a line'
+  $s = $c.SeriesCollection(2); $s.ChartType = 4; $s.AxisGroup = 2
+  $c.HasLegend = $true; $c.Legend.Position = -4107
+  $c = Add-Chart 320 330 -4151 'A1:D7' 'Three regions round'
+  $c = Add-Chart 10 540 53 'A1:D7' 'Each month, as shares'
+  $sheet = $wb.Charts.Add()
+  $sheet.SetSourceData($ws.Range('A1:D7'))
+  $sheet.ChartType = 54
+  $sheet.HasTitle = $true
+  $sheet.ChartTitle.Text = 'In three dimensions'
+  $sheet.Name = 'Chart3D'
+  $sheet.Move([Type]::Missing, $ws)
+  foreach ($f in @(@(56, 'charts.xls', '97-2003'), @(39, 'charts-95.xls', '5.0/95'))) {
+    $p = Join-Path $outDir $f[1]; Remove-Existing $p
+    try { $wb.SaveAs($p, $f[0]); "$($f[1]) written as Excel $($f[2]) ($((Get-Item $p).Length) bytes)" } catch { "warn: charts as Excel $($f[2]) - $($_.Exception.Message)" }
+  }
+  $wb.Close($false)
 } finally {
   if ($xl) { try { $xl.Quit() } catch {}; Release $xl }
   Reap

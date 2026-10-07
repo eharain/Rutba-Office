@@ -51,6 +51,17 @@ export async function verifySheetBinary(h, { dir }) {
     check('sheets: the .xls\'s hyperlink and note are on their cells, and its picture on its sheet',
       marks.link && marks.note && pictured === true, `link ${marks.link}; note ${marks.note}; picture ${pictured}`);
 
+    // Its charts: the pie beside the picture, and the four on the Charts sheet, each drawn with its title.
+    const titlesHere = () => js(`[...document.querySelectorAll('.sh-drawing svg')].map((s) => s.textContent).join(' | ')`);
+    const pie = await until(async () => (await titlesHere()).includes('Share by region'), 'the pie chart', 6000).then(() => true, () => false);
+    await js(`(() => { [...document.querySelectorAll('.sh-tab')].find((t) => t.innerText.trim().startsWith('Charts'))?.click(); return 1; })()`);
+    const want = ['Sales by region, by month', 'The year, as lines', 'Monthly totals', 'Stacked, as areas'];
+    await until(async () => { const t = await titlesHere(); return want.every((w) => t.includes(w)); }, 'the four charts', 6000).catch(() => {});
+    const drawn = await titlesHere();
+    if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'sheet-binary-charts.png'), (await win.webContents.capturePage()).toPNG());
+    check('sheets: the .xls\'s charts are drawn where they were, each with its title',
+      pie && want.every((w) => drawn.includes(w)), `pie ${pie}; Charts sheet: ${want.filter((w) => drawn.includes(w)).length}/4 titles drawn`);
+
     const complaints = await errorsIn(win);
     check('sheets: opening an .xls reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

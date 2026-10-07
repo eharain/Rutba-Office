@@ -258,8 +258,8 @@ function drawingPartXml(drawings, relIdOf) {
     const from = '<xdr:from><xdr:col>' + d.from.col + '</xdr:col><xdr:colOff>' + Math.round(d.from.colOff || 0) + '</xdr:colOff>'
       + '<xdr:row>' + d.from.row + '</xdr:row><xdr:rowOff>' + Math.round(d.from.rowOff || 0) + '</xdr:rowOff></xdr:from>';
     if (d.kind === 'chart') {
-      const to = '<xdr:to><xdr:col>' + d.to.col + '</xdr:col><xdr:colOff>0</xdr:colOff>'
-        + '<xdr:row>' + d.to.row + '</xdr:row><xdr:rowOff>0</xdr:rowOff></xdr:to>';
+      const to = '<xdr:to><xdr:col>' + d.to.col + '</xdr:col><xdr:colOff>' + Math.round(d.to.colOff || 0) + '</xdr:colOff>'
+        + '<xdr:row>' + d.to.row + '</xdr:row><xdr:rowOff>' + Math.round(d.to.rowOff || 0) + '</xdr:rowOff></xdr:to>';
       return '<xdr:twoCellAnchor>' + from + to
         + '<xdr:graphicFrame macro=""><xdr:nvGraphicFramePr>'
         + '<xdr:cNvPr id="' + d.id + '" name="' + esc(d.name ?? 'Chart') + '"/>'
@@ -692,10 +692,11 @@ export function buildXlsx({ sheets, definedNames = [] }) {
         // for a sheet-anchored chart the drawing wins - which quietly made
         // every kind but `column` unreachable from `buildXlsx`, even though
         // chartPartXml has drawn six since it was written. `chartKind` is the
-        // plot type, and omitting it keeps the previous bytes exactly.
+        // plot type, and omitting it keeps the previous bytes exactly. A chart
+        // part already written (a converted workbook's own) goes in as it is.
         chartEntries.push({
           name: 'xl/charts/chart' + chartIndex + '.xml',
-          data: chartPartXml({ ...d, kind: d.chartKind ?? 'column' }),
+          data: d.chartXml ?? chartPartXml({ ...d, kind: d.chartKind ?? 'column' }),
         });
         item.relId = 'rId' + (rels.length + 1);
         rels.push('<Relationship Id="' + item.relId + '" Type="http://schemas.openxmlformats.org/'

@@ -7,12 +7,15 @@
 // its value and, for a formula, the formula and the value Excel last
 // calculated, each sheet's column widths, row heights, hidden rows and
 // columns, merged areas, frozen panes and window, and the defined names.
-// A sheet's pictures, hyperlinks and notes come too; its charts do not.
+// A sheet's pictures, charts, hyperlinks and notes come too, and the
+// workbook's theme when Excel 2007 or later kept it in the file.
 
 import zlib from 'node:zlib';
 import { buildXlsx } from '@rutba/ooxml/build';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { Workbook } from '@rutba/ooxml/workbook';
+import { readZip } from '@rutba/ooxml/zip';
+import { chartXml } from './msxls-chart.js';
 
 const NS = 'xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"';
 const esc = (s) => String(s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f￾￿]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -45,11 +48,12 @@ function sheetNames(sheets) {
  */
 export function xlsModelToXlsx(book) {
   const names = sheetNames(book.sheets);
-  // The skeleton: one sheet part per sheet, each with its pictures' drawing,
-  // and a styles part (a styled cell asks for one); the sheets and styles
-  // are written over below.
+  // The skeleton: one sheet part per sheet, each with its pictures' and
+  // charts' drawing, and a styles part (a styled cell asks for one); the
+  // sheets and styles are written over below.
+  const drawings = book.sheets.map((s) => sheetDrawings(s, book));
   const pkg = OoxmlPackage.read(buildXlsx({
-    sheets: names.map((name, i) => ({ name, rows: [], styles: i === 0 ? { A1: { bold: true } } : {}, drawings: pictureDrawings(book.sheets[i]) })),
+    sheets: names.map((name, i) => ({ name, rows: [], styles: i === 0 ? { A1: { bold: true } } : {}, drawings: drawings[i] })),
   }));
   const colour = (index) => {
     if (index == null || index >= 64 || index < 0) return null;
@@ -57,8 +61,14 @@ export function xlsModelToXlsx(book) {
   };
   const styles = stylesXml(book, colour);
   pkg.write_('xl/styles.xml', styles.xml);
-  book.sheets.forEach((sheet, i) => pkg.write_(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sheet, i === book.activeSheet, pictureDrawings(sheet).length > 0)));
+  book.sheets.forEach((sheet, i) => pkg.write_(`xl/worksheets/sheet${i + 1}.xml`, sheetXml(sheet, i === book.activeSheet, drawings[i].length > 0)));
   pkg.write_('xl/workbook.xml', workbookXml(book, names));
+  // The theme Excel 2007 and later keep, zipped, in the file: the colours a chart's theme colours are.
+  const theme = themeXml(book.theme);
+  if (theme) {
+    pkg.addPart('xl/theme/theme1.xml', theme, 'application/vnd.openxmlformats-officedocument.theme+xml');
+    pkg.addRelationshipTo('xl/workbook.xml', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/theme', 'theme/theme1.xml');
+  }
   let bytes = pkg.write();
   // Links and notes, as the workbook engine writes them: a link's relationship, a note's comments part and the box Excel draws it in.
   if (book.sheets.some((s) => s.links?.length || s.notes?.length)) {
@@ -76,12 +86,55 @@ export function xlsModelToXlsx(book) {
   return bytes;
 }
 
+/** The theme part inside the zip a THEME record holds, or null. */
+function themeXml(zip) {
+  if (!zip || zip[0] !== 0x50 || zip[1] !== 0x4b) return null;
+  try {
+    const entry = readZip(Buffer.from(zip)).entries.find((e) => /(^|\/)theme\d*\.xml$/.test(e.name) && !/_rels/.test(e.name));
+    const xml = entry ? entry.data.toString('utf8') : null;
+    return xml && /<a:theme\b/.test(xml) ? xml : null;
+  } catch {
+    return null;
+  }
+}
+
 /**
- * A sheet's pictures as the workbook builder places them: from the cell its
- * top-left corner is in, so far into it, at the size its two corners give —
- * measured in the sheet's own column widths and row heights.
+ * A chart's range, as its cells' values: "Sales!$B$2:$B$13", a sheet's name
+ * quoted when it has to be, several areas in brackets. Null for a range on
+ * no sheet of this workbook.
  */
-function pictureDrawings(sheet) {
+function rangeValues(book, text) {
+  const colNumber = (letters) => [...letters].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+  const out = [];
+  const areas = String(text).replace(/^\((.*)\)$/, '$1').split(/,(?=(?:[^']*'[^']*')*[^']*$)/);
+  for (const area of areas) {
+    const m = /^(?:'((?:[^']|'')+)'|([^!]+))!\$?([A-Z]{1,3})\$?(\d+)(?::\$?([A-Z]{1,3})\$?(\d+))?$/.exec(area.trim());
+    if (!m) return null;
+    const name = m[1] != null ? m[1].replace(/''/g, "'") : m[2];
+    const sheet = book.sheets.find((x) => x.name === name);
+    if (!sheet) return null;
+    const c1 = colNumber(m[3]);
+    const r1 = Number(m[4]) - 1;
+    const c2 = m[5] ? colNumber(m[5]) : c1;
+    const r2 = m[6] ? Number(m[6]) - 1 : r1;
+    for (let r = Math.min(r1, r2); r <= Math.max(r1, r2); r++) {
+      for (let c = Math.min(c1, c2); c <= Math.max(c1, c2); c++) {
+        const cell = sheet.cells.get(r * 0x4000 + c);
+        out.push(!cell || cell.t === 'e' || cell.v == null ? null : cell.t === 'b' ? Boolean(cell.v) : cell.v);
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * A sheet's pictures and charts as the workbook builder places them: from
+ * the cell a drawing's top-left corner is in, so far into it — a picture at
+ * the size its two corners give, a chart to the cell its other corner is
+ * in — measured in the sheet's own column widths and row heights. A chart
+ * sheet's chart fills a page's worth of cells.
+ */
+function sheetDrawings(sheet, book) {
   const kinds = { png: 'png', jpeg: 'jpeg', jpg: 'jpeg', gif: 'gif', bmp: 'bmp', emf: 'emf', wmf: 'wmf' };
   const colPx = (c) => {
     const entry = sheet.cols.find((x) => c >= x.first && c <= x.last);
@@ -99,7 +152,7 @@ function pictureDrawings(sheet) {
     for (let i = a.at + 1; i < b.at; i++) total += size(i);
     return total;
   };
-  return (sheet.pictures || []).filter((p) => kinds[p.blip?.ext]).map((p, i) => {
+  const pictures = (sheet.pictures || []).filter((p) => kinds[p.blip?.ext]).map((p, i) => {
     let bytes = p.blip.bytes;
     if (p.blip.deflated) { try { bytes = zlib.inflateSync(Buffer.from(bytes)); } catch { bytes = Buffer.from(bytes); } }
     return {
@@ -109,6 +162,16 @@ function pictureDrawings(sheet) {
       heightPx: Math.max(1, span(rowPx, { at: p.from.row, f: p.from.dy }, { at: p.to.row, f: p.to.dy })),
     };
   });
+  const marker = (m) => ({ col: m.col, row: m.row, colOff: Math.round((m.dx || 0) * colPx(m.col) * 9525), rowOff: Math.round((m.dy || 0) * rowPx(m.row) * 9525) });
+  const page = { from: { col: 0, row: 0, dx: 0, dy: 0 }, to: { col: 14, row: 32, dx: 0, dy: 0 } };
+  const charts = (sheet.charts || []).map((c, i) => {
+    let xml = null;
+    try { xml = c.chart ? chartXml(c.chart, (r) => rangeValues(book, r)) : null; } catch { xml = null; }
+    if (!xml) return null;
+    const at = c.anchor ?? page;
+    return { kind: 'chart', name: c.name || `Chart ${i + 1}`, chartXml: xml, from: marker(at.from), to: marker(at.to) };
+  }).filter(Boolean);
+  return [...pictures, ...charts];
 }
 
 /** The styles part: number formats, fonts, fills, borders and one cell format per XF, in the XFs' order. */
