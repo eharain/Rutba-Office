@@ -10,11 +10,11 @@
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Dialog, Button, Icon, Spinner } from '@rutba/office-ui';
+import { Dialog, Button, Icon, Spinner, t, msg } from '@rutba/office-ui';
 
-/** What each app calls the thing it edits. */
-export const NOUN = { word: 'document', sheets: 'workbook', slides: 'presentation' };
-const PROTECT_LABEL = { word: 'Protect Document', sheets: 'Protect Workbook', slides: 'Protect Presentation' };
+/** What each app calls the thing it edits — in English; shown through `t`. */
+export const NOUN = { word: msg('document'), sheets: msg('workbook'), slides: msg('presentation') };
+const PROTECT_LABEL = { word: msg('Protect Document'), sheets: msg('Protect Workbook'), slides: msg('Protect Presentation') };
 
 /* ── a password box with a show/hide toggle ──────────────────────────────── */
 
@@ -50,8 +50,8 @@ export function SecretInput({ value, onChange, className = '', invalid = false, 
         <button
           type="button"
           className="pw-reveal"
-          data-tip={shown ? 'Hide password' : 'Show password'}
-          aria-label={shown ? 'Hide password' : 'Show password'}
+          data-tip={shown ? t('Hide password') : t('Show password')}
+          aria-label={shown ? t('Hide password') : t('Show password')}
           aria-pressed={shown}
           tabIndex={-1}
           onMouseDown={(e) => e.preventDefault()}
@@ -63,7 +63,7 @@ export function SecretInput({ value, onChange, className = '', invalid = false, 
           <Icon name={shown ? 'eyeOff' : 'eye'} size={15} />
         </button>
       </div>
-      {caps ? <div className="pw-caps">Caps Lock is on</div> : null}
+      {caps ? <div className="pw-caps">{t('Caps Lock is on')}</div> : null}
     </div>
   );
 }
@@ -91,13 +91,13 @@ export function PasswordPrompt({ name, wrong = false, attempt = 0, checking = fa
   };
   return (
     <Dialog
-      title="Password"
+      title={t('Password')}
       width={440}
       onClose={checking ? undefined : onCancel}
       actions={
         <>
-          <Button label="Cancel" className="pw-open-cancel" disabled={checking} onClick={onCancel} />
-          <Button primary className="pw-open-ok" disabled={checking || !password} onClick={submit} label={checking ? 'Opening…' : 'OK'}>
+          <Button label={t('Cancel')} className="pw-open-cancel" disabled={checking} onClick={onCancel} />
+          <Button primary className="pw-open-ok" disabled={checking || !password} onClick={submit} label={checking ? t('Opening…') : t('OK')}>
             {checking ? <Spinner style={{ width: 13, height: 13, borderWidth: 2 }} /> : null}
           </Button>
         </>
@@ -109,14 +109,14 @@ export function PasswordPrompt({ name, wrong = false, attempt = 0, checking = fa
           <span className="pw-badge"><Icon name="lock" size={18} /></span>
           <div className="pw-prompt-words">
             <div className="pw-file" data-tip={name}>{name}</div>
-            <div className="pw-sub">is protected. Enter the password to open it.</div>
+            <div className="pw-sub">{t('is protected. Enter the password to open it.')}</div>
           </div>
         </div>
-        <label className="pw-label" htmlFor="pw-open-password">Password</label>
+        <label className="pw-label" htmlFor="pw-open-password">{t('Password')}</label>
         <SecretInput
           inputRef={input}
           className="pw-open-password"
-          label="Password"
+          label={t('Password')}
           value={password}
           invalid={wrong && !password}
           autoFocus
@@ -128,7 +128,7 @@ export function PasswordPrompt({ name, wrong = false, attempt = 0, checking = fa
         {wrong ? (
           <div className="pw-error" role="alert">
             <Icon name="info" size={14} />
-            <span>That password is not right — passwords are case-sensitive.</span>
+            <span>{t('That password is not right — passwords are case-sensitive.')}</span>
           </div>
         ) : null}
       </div>
@@ -188,7 +188,7 @@ export async function openProtected(call, gate) {
     while (result?.locked) {
       const password = await gate.ask({ name: result.name, wrong: result.wrong });
       if (password == null) {
-        const err = new Error(`${result.name} is protected with a password, and it stays closed until the password is given.`);
+        const err = new Error(t('{name} is protected with a password, and it stays closed until the password is given.', { name: result.name }));
         err.locked = result.name;
         throw err;
       }
@@ -202,14 +202,14 @@ export async function openProtected(call, gate) {
 
 /** The error screen's way back to the Password dialog. */
 export function LockedAction() {
-  return <Button primary icon="lock" label="Enter password…" className="pw-retry" onClick={() => window.location.reload()} />;
+  return <Button primary icon="lock" label={t('Enter password…')} className="pw-retry" onClick={() => window.location.reload()} />;
 }
 
 /* ── File → Info ────────────────────────────────────────────────────────── */
 
 function formatSize(n) {
   if (!(n > 0)) return '—';
-  if (n < 1024) return `${n} bytes`;
+  if (n < 1024) return t('{count} bytes', { count: n });
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(n < 10240 ? 1 : 0)} KB`;
   return `${(n / 1024 / 1024).toFixed(1)} MB`;
 }
@@ -255,18 +255,19 @@ export function InfoDialog({ app, doc, size = null, items = [], notes = [], prop
       window.removeEventListener('keydown', key, true);
     };
   }, [open]);
-  const said = [...(doc?.encrypted ? [`A password is required to open this ${noun}.`] : []), ...notes];
-  const label = PROTECT_LABEL[app] || 'Protect Document';
+  // What protects it: the password (its lock) first, then what the app says.
+  const said = [...(doc?.encrypted ? [{ text: t('A password is required to open this {noun}.', { noun: t(noun) }), lock: true }] : []), ...notes.map((text) => ({ text, lock: false }))];
+  const label = t(PROTECT_LABEL[app] || 'Protect Document');
   const folder = doc?.path ? doc.path.replace(/[\\/][^\\/]*$/, '') : null;
   return (
-    <Dialog title="Info" width={700} onClose={onClose} actions={<Button primary label="Close" className="pw-info-close" onClick={onClose} />}>
+    <Dialog title={t('Info')} width={700} onClose={onClose} actions={<Button primary label={t('Close')} className="pw-info-close" onClick={onClose} />}>
       <style>{PROTECT_CSS}</style>
       <div className="pw-info">
         <div className="pw-info-file">
           <Icon name={app === 'sheets' ? 'sheets' : app === 'slides' ? 'slides' : 'word'} size={22} />
           <div>
             <div className="pw-info-name">{doc?.name || '—'}</div>
-            <div className="pw-info-path" data-tip={doc?.path || ''}>{folder || 'Not saved yet'}</div>
+            <div className="pw-info-path" data-tip={doc?.path || ''}>{folder || t('Not saved yet')}</div>
           </div>
         </div>
         <div className="pw-info-cols">
@@ -276,7 +277,7 @@ export function InfoDialog({ app, doc, size = null, items = [], notes = [], prop
                 <button
                   type="button"
                   className={`pw-card-tile${open ? ' open' : ''}`}
-                  data-tip={`${label} — choose how this ${noun} is protected`}
+                  data-tip={t('{label} — choose how this {noun} is protected', { label, noun: t(noun) })}
                   aria-haspopup="menu"
                   aria-expanded={open}
                   onClick={() => setOpen((o) => !o)}
@@ -317,24 +318,24 @@ export function InfoDialog({ app, doc, size = null, items = [], notes = [], prop
                 {said.length ? (
                   <ul className="pw-card-notes">
                     {said.map((line) => (
-                      <li key={line}>
-                        <Icon name={line.startsWith('A password') ? 'lock' : 'shield'} size={13} />
-                        <span>{line}</span>
+                      <li key={line.text}>
+                        <Icon name={line.lock ? 'lock' : 'shield'} size={13} />
+                        <span>{line.text}</span>
                       </li>
                     ))}
                   </ul>
                 ) : (
-                  <p>Control what types of changes people can make to this {noun}.</p>
+                  <p>{t('Control what types of changes people can make to this {noun}.', { noun: t(noun) })}</p>
                 )}
               </div>
             </div>
           </div>
           <aside className="pw-info-props">
-            <h5>Properties</h5>
+            <h5>{t('Properties')}</h5>
             <dl>
-              <dt>Size</dt>
+              <dt>{t('Size')}</dt>
               <dd>{formatSize(size)}</dd>
-              <dt>Type</dt>
+              <dt>{t('Type')}</dt>
               <dd>{(doc?.path || doc?.name || '').split('.').pop().toUpperCase() || '—'}</dd>
               {properties.map(([k, v]) => (
                 <React.Fragment key={k}>
@@ -342,10 +343,10 @@ export function InfoDialog({ app, doc, size = null, items = [], notes = [], prop
                   <dd>{v}</dd>
                 </React.Fragment>
               ))}
-              <dt>Encryption</dt>
-              <dd className="pw-info-encryption" data-tip={doc?.encrypted ? 'Agile Encryption: AES-256 with SHA-512, as Office 2013 onwards writes it' : undefined}>{doc?.encrypted ? 'AES-256' : 'None'}</dd>
-              <dt>Unsaved changes</dt>
-              <dd>{doc?.dirty ? 'Yes' : 'No'}</dd>
+              <dt>{t('Encryption')}</dt>
+              <dd className="pw-info-encryption" data-tip={doc?.encrypted ? t('Agile Encryption: AES-256 with SHA-512, as Office 2013 onwards writes it') : undefined}>{doc?.encrypted ? 'AES-256' : t('None')}</dd>
+              <dt>{t('Unsaved changes')}</dt>
+              <dd>{doc?.dirty ? t('Yes') : t('No')}</dd>
             </dl>
           </aside>
         </div>
@@ -383,39 +384,39 @@ export function EncryptDialog({ app, encrypted = false, onClose, onSet }) {
   };
   return (
     <Dialog
-      title="Encrypt Document"
+      title={t('Encrypt Document')}
       width={460}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" className="pw-set-cancel" onClick={onClose} />
-          <Button primary label={clearing ? 'Remove password' : 'OK'} className="pw-set-ok" disabled={!ok} onClick={submit} />
+          <Button label={t('Cancel')} className="pw-set-cancel" onClick={onClose} />
+          <Button primary label={clearing ? t('Remove password') : t('OK')} className="pw-set-ok" disabled={!ok} onClick={submit} />
         </>
       }
     >
       <style>{PROTECT_CSS}</style>
       <div className="pw-set">
-        <p className="pw-set-lead">Encrypt the contents of this file. It will open only with the password.</p>
+        <p className="pw-set-lead">{t('Encrypt the contents of this file. It will open only with the password.')}</p>
         {encrypted ? (
           <p className="pw-set-current">
             <Icon name="lock" size={13} />
-            <span>This {noun} already needs a password to open. Type a new one to change it, or leave both boxes empty to remove it.</span>
+            <span>{t('This {noun} already needs a password to open. Type a new one to change it, or leave both boxes empty to remove it.', { noun: t(noun) })}</span>
           </p>
         ) : null}
-        <label className="pw-label">Password</label>
-        <SecretInput className="pw-set-password" label="Password" value={password} onChange={setPassword} onKeyDown={enter} autoFocus />
-        <label className="pw-label">Reenter password</label>
-        <SecretInput className="pw-set-again" label="Reenter password" value={again} onChange={setAgain} onKeyDown={enter} invalid={mismatch} />
+        <label className="pw-label">{t('Password')}</label>
+        <SecretInput className="pw-set-password" label={t('Password')} value={password} onChange={setPassword} onKeyDown={enter} autoFocus />
+        <label className="pw-label">{t('Reenter password')}</label>
+        <SecretInput className="pw-set-again" label={t('Reenter password')} value={again} onChange={setAgain} onKeyDown={enter} invalid={mismatch} />
         {mismatch ? (
           <div className="pw-error pw-set-mismatch" role="alert">
             <Icon name="info" size={14} />
-            <span>The two passwords are not the same.</span>
+            <span>{t('The two passwords are not the same.')}</span>
           </div>
         ) : null}
         <div className="pw-caution">
           <Icon name="shield" size={16} />
           <span>
-            <b>Caution:</b> if you lose or forget the password, it cannot be recovered — nobody can open the {noun} without it. Keep a list of passwords and the files they open somewhere safe. Passwords are case-sensitive.
+            <b>{t('Caution:')}</b> {t('if you lose or forget the password, it cannot be recovered — nobody can open the {noun} without it. Keep a list of passwords and the files they open somewhere safe. Passwords are case-sensitive.', { noun: t(noun) })}
           </span>
         </div>
       </div>
@@ -442,8 +443,8 @@ export function useProtection({ app, shell, doc, setDoc, toast, items = [], note
   const encrypt = {
     id: 'encrypt',
     icon: 'lock',
-    label: 'Encrypt with Password',
-    detail: `Require a password to open this ${noun}.`,
+    label: t('Encrypt with Password'),
+    detail: t('Require a password to open this {noun}.', { noun: t(noun) }),
     run: () => setView('encrypt'),
   };
   const menu = [
@@ -461,7 +462,7 @@ export function useProtection({ app, shell, doc, setDoc, toast, items = [], note
     try {
       const meta = await shell.doc.setPassword({ id: doc.id, password });
       setDoc((d) => ({ ...d, ...meta }));
-      toast(password ? `Encrypted with a password. Save to protect the file on disk.` : `Password removed. Save to write the ${noun} without it.`, { tone: 'good', ms: 5200 });
+      toast(password ? t('Encrypted with a password. Save to protect the file on disk.') : t('Password removed. Save to write the {noun} without it.', { noun: t(noun) }), { tone: 'good', ms: 5200 });
       setView('info');
     } catch (err) {
       toast(err.message, { tone: 'bad' });
@@ -473,7 +474,7 @@ export function useProtection({ app, shell, doc, setDoc, toast, items = [], note
     ) : view === 'encrypt' ? (
       <EncryptDialog app={app} encrypted={Boolean(doc?.encrypted)} onClose={() => setView('info')} onSet={setPassword} />
     ) : null;
-  return { openInfo, node, menuItem: { label: 'Info', icon: 'info', run: openInfo } };
+  return { openInfo, node, menuItem: { label: t('Info'), icon: 'info', run: openInfo } };
 }
 
 export const PROTECT_CSS = `

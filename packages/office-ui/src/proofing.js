@@ -13,11 +13,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './icons.js';
 import { Button, Dialog } from './index.js';
+import { t, tn, msg, language } from './messages.js';
 
 const TIERS = [
-  { id: 'error', label: 'Errors' },
-  { id: 'warning', label: 'Warnings' },
-  { id: 'tip', label: 'Tips' },
+  { id: 'error', label: msg('Errors') },
+  { id: 'warning', label: msg('Warnings') },
+  { id: 'tip', label: msg('Tips') },
 ];
 
 /** Findings grouped the way the pane lists them: tier → rule → items. */
@@ -31,7 +32,7 @@ export function groupFindings(issues = [], rules = {}) {
       g.items.push(issue);
     }
     return { ...tier, count: inTier.length, groups };
-  }).filter((t) => t.count);
+  }).filter((tier) => tier.count);
 }
 
 /* ── the Accessibility pane ──────────────────────────────────────────── */
@@ -56,29 +57,29 @@ export function AccessibilityPane({ result, loading, selectedKey, onSelect, onFi
     <div className="pf-pane pf-a11y">
       <div className="pf-scroll" ref={listRef}>
         <div className="pf-heading">
-          <span>Inspection Results</span>
-          <button type="button" className="pf-link" onClick={onRecheck} disabled={loading} data-tip="Check again — read the document afresh">
-            <Icon name="refresh" size={13} /> Check again
+          <span>{t('Inspection Results')}</span>
+          <button type="button" className="pf-link" onClick={onRecheck} disabled={loading} data-tip={t('Check again — read the document afresh')}>
+            <Icon name="refresh" size={13} /> {t('Check again')}
           </button>
         </div>
-        {!result && loading ? <div className="pf-note">Checking…</div> : null}
+        {!result && loading ? <div className="pf-note">{t('Checking…')}</div> : null}
         {result && !result.issues.length ? (
           <div className="pf-clean">
             <span className="pf-clean-mark"><Icon name="check" size={18} /></span>
-            <b>No accessibility issues found</b>
-            <p>People with disabilities should not have difficulty reading this document.</p>
+            <b>{t('No accessibility issues found')}</b>
+            <p>{t('People with disabilities should not have difficulty reading this document.')}</p>
           </div>
         ) : null}
-        {tiers.map((t) => (
-          <div key={t.id} className={`pf-tier tier-${t.id}`}>
-            <button type="button" className="pf-tier-head" aria-expanded={!closed.has(t.id)} onClick={() => toggle(t.id)}>
-              <Icon name={closed.has(t.id) ? 'chevronRight' : 'chevronDown'} size={13} />
+        {tiers.map((tier) => (
+          <div key={tier.id} className={`pf-tier tier-${tier.id}`}>
+            <button type="button" className="pf-tier-head" aria-expanded={!closed.has(tier.id)} onClick={() => toggle(tier.id)}>
+              <Icon name={closed.has(tier.id) ? 'chevronRight' : 'chevronDown'} size={13} />
               <span className="pf-tier-mark" aria-hidden="true" />
-              <span className="pf-tier-label">{t.label}</span>
-              <span className="pf-count">{t.count}</span>
+              <span className="pf-tier-label">{t(tier.label)}</span>
+              <span className="pf-count">{tier.count}</span>
             </button>
-            {closed.has(t.id) ? null : t.groups.map((g) => {
-              const gid = `${t.id}:${g.rule}`;
+            {closed.has(tier.id) ? null : tier.groups.map((g) => {
+              const gid = `${tier.id}:${g.rule}`;
               const open = !closed.has(gid);
               return (
                 <div key={gid} className="pf-rule" data-rule={g.rule}>
@@ -97,7 +98,7 @@ export function AccessibilityPane({ result, loading, selectedKey, onSelect, onFi
                         </button>
                         {on && item.fixes?.length ? (
                           <div className="pf-actions">
-                            <div className="pf-actions-title">Recommended actions</div>
+                            <div className="pf-actions-title">{t('Recommended actions')}</div>
                             {item.fixes.map((f) => (
                               <button key={f.kind + (f.label || '')} type="button" className="pf-action" data-fix={f.kind} disabled={Boolean(busyFix)} onClick={() => onFix?.(item, f)}>
                                 {f.label}
@@ -116,16 +117,16 @@ export function AccessibilityPane({ result, loading, selectedKey, onSelect, onFi
       </div>
       {rule ? (
         <div className="pf-info">
-          <div className="pf-info-title">Additional information</div>
-          <div className="pf-info-h">Why fix:</div>
+          <div className="pf-info-title">{t('Additional information')}</div>
+          <div className="pf-info-h">{t('Why fix:')}</div>
           <p>{rule.why}</p>
-          <div className="pf-info-h">How to fix:</div>
+          <div className="pf-info-h">{t('How to fix:')}</div>
           <p>{rule.how}</p>
         </div>
       ) : null}
       <label className="pf-keep">
         <input type="checkbox" checked={Boolean(keepRunning)} onChange={(e) => onKeepRunning?.(e.target.checked)} />
-        <span>Keep accessibility checker running while I work</span>
+        <span>{t('Keep accessibility checker running while I work')}</span>
       </label>
     </div>
   );
@@ -136,9 +137,9 @@ export function A11yStatus({ verdict, onClick }) {
   if (!verdict) return null;
   const good = verdict === 'good';
   return (
-    <button type="button" className={`pf-status${good ? ' good' : ' investigate'}`} onClick={onClick} data-tip={good ? 'Accessibility: Good to go — no issues found' : 'Accessibility: Investigate — open the Accessibility pane'}>
+    <button type="button" className={`pf-status${good ? ' good' : ' investigate'}`} onClick={onClick} data-tip={good ? t('Accessibility: Good to go — no issues found') : t('Accessibility: Investigate — open the Accessibility pane')}>
       <Icon name={good ? 'check' : 'shield'} size={13} />
-      <span>{good ? 'Accessibility: Good to go' : 'Accessibility: Investigate'}</span>
+      <span>{good ? t('Accessibility: Good to go') : t('Accessibility: Investigate')}</span>
     </button>
   );
 }
@@ -171,12 +172,12 @@ export function EditorPane({ state, options, onChange, onChangeAll, onIgnoreOnce
     <div className="pf-pane pf-editor">
       <div className="pf-scroll">
         <div className="pf-heading">
-          <span>Spelling</span>
-          {state?.language ? <span className="pf-lang" data-tip={`Checking in ${state.language}`}>{state.language}</span> : null}
+          <span>{t('Spelling')}</span>
+          {state?.language ? <span className="pf-lang" data-tip={t('Checking in {language}', { language: state.language })}>{state.language}</span> : null}
         </div>
 
         {state?.phase === 'loading' ? (
-          <div className="pf-note"><span className="rw-spinner pf-spin" /> {state.message || 'Reading the dictionary…'}</div>
+          <div className="pf-note"><span className="rw-spinner pf-spin" /> {state.message || t('Reading the dictionary…')}</div>
         ) : null}
 
         {state?.phase === 'error' ? <div className="pf-note bad">{state.message}</div> : null}
@@ -189,12 +190,12 @@ export function EditorPane({ state, options, onChange, onChangeAll, onIgnoreOnce
               <mark className="pf-miss">{found.context?.word || found.word}</mark>
               <span>{found.context?.after}</span>
             </div>
-            <div className="pf-label">Not in dictionary</div>
-            <div className="pf-suggest-title">Suggestions</div>
+            <div className="pf-label">{t('Not in dictionary')}</div>
+            <div className="pf-suggest-title">{t('Suggestions')}</div>
             {found.suggestions == null ? (
-              <div className="pf-note small"><span className="rw-spinner pf-spin" /> Finding suggestions…</div>
+              <div className="pf-note small"><span className="rw-spinner pf-spin" /> {t('Finding suggestions…')}</div>
             ) : found.suggestions.length ? (
-              <div className="pf-suggest" role="listbox" aria-label="Suggestions">
+              <div className="pf-suggest" role="listbox" aria-label={t('Suggestions')}>
                 {found.suggestions.map((s, i) => (
                   <button
                     key={s}
@@ -210,21 +211,21 @@ export function EditorPane({ state, options, onChange, onChangeAll, onIgnoreOnce
                   </button>
                 ))}
               </div>
-            ) : <div className="pf-note small">No suggestions — type the word as it should be.</div>}
+            ) : <div className="pf-note small">{t('No suggestions — type the word as it should be.')}</div>}
             <label className="pf-changeto">
-              <span>Change to</span>
+              <span>{t('Change to')}</span>
               <input className="rw-input" value={typed} onChange={(e) => setTyped(e.target.value)} spellCheck={false} onKeyDown={(e) => { if (e.key === 'Enter' && replacement) onChange?.(replacement); }} />
             </label>
             <div className="pf-buttons">
-              <Button primary label="Change" title="Change — this one" disabled={!replacement || busy} onClick={() => onChange?.(replacement)} />
-              <Button label="Change All" title="Change All — every one in this document" disabled={!replacement || busy} onClick={() => onChangeAll?.(replacement)} />
+              <Button primary label={t('Change')} title={t('Change — this one')} disabled={!replacement || busy} onClick={() => onChange?.(replacement)} />
+              <Button label={t('Change All')} title={t('Change All — every one in this document')} disabled={!replacement || busy} onClick={() => onChangeAll?.(replacement)} />
             </div>
             <div className="pf-buttons">
-              <Button label="Ignore Once" title="Ignore Once — leave this one and go on" disabled={busy} onClick={onIgnoreOnce} />
-              <Button label="Ignore All" title="Ignore All — this word, everywhere in this document" disabled={busy} onClick={onIgnoreAll} />
+              <Button label={t('Ignore Once')} title={t('Ignore Once — leave this one and go on')} disabled={busy} onClick={onIgnoreOnce} />
+              <Button label={t('Ignore All')} title={t('Ignore All — this word, everywhere in this document')} disabled={busy} onClick={onIgnoreAll} />
             </div>
             <div className="pf-buttons">
-              <Button icon="plus" label="Add to Dictionary" title="Add to Dictionary — your own list, shared by Documents, Worksheets and Presentations" disabled={busy} onClick={onAdd} />
+              <Button icon="plus" label={t('Add to Dictionary')} title={t('Add to Dictionary — your own list, shared by Documents, Worksheets and Presentations')} disabled={busy} onClick={onAdd} />
             </div>
           </>
         ) : null}
@@ -232,11 +233,11 @@ export function EditorPane({ state, options, onChange, onChangeAll, onIgnoreOnce
         {state?.phase === 'done' ? (
           <div className="pf-clean pf-done">
             <span className="pf-clean-mark"><Icon name="check" size={18} /></span>
-            <b>Spelling check complete</b>
-            <p>{state.message || 'You\'re good to go.'}</p>
+            <b>{t('Spelling check complete')}</b>
+            <p>{state.message || t('You\'re good to go.')}</p>
             <div className="pf-buttons center">
-              <Button primary label="OK" title="OK — close the pane" onClick={onClose} />
-              {onRestart ? <Button label={restartLabel || 'Check again'} className="pf-more" onClick={onRestart} /> : null}
+              <Button primary label={t('OK')} title={t('OK — close the pane')} onClick={onClose} />
+              {onRestart ? <Button label={restartLabel || t('Check again')} className="pf-more" onClick={onRestart} /> : null}
             </div>
           </div>
         ) : null}
@@ -244,17 +245,17 @@ export function EditorPane({ state, options, onChange, onChangeAll, onIgnoreOnce
 
       <div className="pf-options">
         <button type="button" className="pf-link" aria-expanded={showOptions} onClick={() => setShowOptions((v) => !v)}>
-          <Icon name={showOptions ? 'chevronDown' : 'chevronRight'} size={12} /> Options
+          <Icon name={showOptions ? 'chevronDown' : 'chevronRight'} size={12} /> {t('Options')}
         </button>
         {showOptions ? (
           <div className="pf-options-body">
             {asYouType ? (
-              <label><input type="checkbox" checked={asYouType.on} onChange={(e) => asYouType.set(e.target.checked)} /> Check spelling as you type</label>
+              <label><input type="checkbox" checked={asYouType.on} onChange={(e) => asYouType.set(e.target.checked)} /> {t('Check spelling as you type')}</label>
             ) : null}
-            <label><input type="checkbox" checked={options?.ignoreUppercase !== false} onChange={(e) => onOption?.({ ignoreUppercase: e.target.checked })} /> Ignore words in UPPERCASE</label>
-            <label><input type="checkbox" checked={options?.ignoreNumbers !== false} onChange={(e) => onOption?.({ ignoreNumbers: e.target.checked })} /> Ignore words that contain numbers</label>
-            <label><input type="checkbox" checked={options?.ignoreAddresses !== false} onChange={(e) => onOption?.({ ignoreAddresses: e.target.checked })} /> Ignore Internet and file addresses</label>
-            <button type="button" className="pf-link" onClick={onDictionary}><Icon name="list" size={12} /> Custom Dictionary…</button>
+            <label><input type="checkbox" checked={options?.ignoreUppercase !== false} onChange={(e) => onOption?.({ ignoreUppercase: e.target.checked })} /> {t('Ignore words in UPPERCASE')}</label>
+            <label><input type="checkbox" checked={options?.ignoreNumbers !== false} onChange={(e) => onOption?.({ ignoreNumbers: e.target.checked })} /> {t('Ignore words that contain numbers')}</label>
+            <label><input type="checkbox" checked={options?.ignoreAddresses !== false} onChange={(e) => onOption?.({ ignoreAddresses: e.target.checked })} /> {t('Ignore Internet and file addresses')}</label>
+            <button type="button" className="pf-link" onClick={onDictionary}><Icon name="list" size={12} /> {t('Custom Dictionary…')}</button>
           </div>
         ) : null}
       </div>
@@ -269,42 +270,42 @@ export function AltTextDialog({ name, initial = '', decorative: initialDecorativ
   const [decorative, setDecorative] = useState(Boolean(initialDecorative));
   return (
     <Dialog
-      title="Alt Text"
+      title={t('Alt Text')}
       width={440}
       onClose={onClose}
       actions={(
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="OK" className="pf-alt-ok" disabled={!decorative && !text.trim()} onClick={() => onApply?.({ descr: decorative ? '' : text.trim(), decorative })} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('OK')} className="pf-alt-ok" disabled={!decorative && !text.trim()} onClick={() => onApply?.({ descr: decorative ? '' : text.trim(), decorative })} />
         </>
       )}
     >
       {name ? <div className="pf-alt-name">{name}</div> : null}
-      <label className="pf-alt-label" htmlFor="pf-alt-text">How would you describe this object and its context to someone who is blind or has low vision?</label>
+      <label className="pf-alt-label" htmlFor="pf-alt-text">{t('How would you describe this object and its context to someone who is blind or has low vision?')}</label>
       <textarea
         id="pf-alt-text"
         className="rw-input pf-alt-text"
         rows={4}
         value={decorative ? '' : text}
         disabled={decorative}
-        placeholder={decorative ? 'Decorative objects are skipped by screen readers.' : 'For example: a bar chart of orders by month, rising from 120 in January to 310 in June.'}
+        placeholder={decorative ? t('Decorative objects are skipped by screen readers.') : t('For example: a bar chart of orders by month, rising from 120 in January to 310 in June.')}
         onChange={(e) => setText(e.target.value)}
         autoFocus
       />
-      <div className="pf-hint">A sentence or two is usually right.</div>
+      <div className="pf-hint">{t('A sentence or two is usually right.')}</div>
       <label className="pf-check">
         <input type="checkbox" className="pf-alt-decorative" checked={decorative} onChange={(e) => setDecorative(e.target.checked)} />
-        <span>Mark as decorative <em>— for borders, dividers and pictures that add nothing to the words</em></span>
+        <span>{t('Mark as decorative')} <em>{t('— for borders, dividers and pictures that add nothing to the words')}</em></span>
       </label>
     </Dialog>
   );
 }
 
-export function PromptDialog({ title, label, initial = '', placeholder = '', okLabel = 'OK', className = '', onApply, onClose }) {
+export function PromptDialog({ title, label, initial = '', placeholder = '', okLabel, className = '', onApply, onClose }) {
   const [value, setValue] = useState(initial || '');
   const ok = () => { if (value.trim()) onApply?.(value.trim()); };
   return (
-    <Dialog title={title} width={400} onClose={onClose} actions={(<><Button label="Cancel" onClick={onClose} /><Button primary label={okLabel} className={`pf-prompt-ok ${className}`} disabled={!value.trim()} onClick={ok} /></>)}>
+    <Dialog title={title} width={400} onClose={onClose} actions={(<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={okLabel ?? t('OK')} className={`pf-prompt-ok ${className}`} disabled={!value.trim()} onClick={ok} /></>)}>
       <label className="pf-alt-label">{label}</label>
       <input className={`rw-input pf-prompt ${className}`} value={value} placeholder={placeholder} autoFocus onFocus={(e) => e.target.select()} onChange={(e) => setValue(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') ok(); }} spellCheck={false} />
     </Dialog>
@@ -325,36 +326,36 @@ export function DictionaryDialog({ words = [], onSave, onImport, onExport, onClo
   const shown = list.filter((w) => !filter || w.toLowerCase().includes(filter.toLowerCase()));
   return (
     <Dialog
-      title="Custom Dictionary"
+      title={t('Custom Dictionary')}
       width={420}
       onClose={onClose}
       actions={(
         <>
-          <Button icon="import" label="Import…" title="Import — add the words of a .dic word list" onClick={async () => { const more = await onImport?.(); if (more?.length) setList((l) => [...new Set([...l, ...more])].sort((a, b) => a.localeCompare(b))); }} />
-          <Button icon="export" label="Export…" title="Export — save these words as a .dic word list" onClick={() => onExport?.(list)} />
+          <Button icon="import" label={t('Import…')} title={t('Import — add the words of a .dic word list')} onClick={async () => { const more = await onImport?.(); if (more?.length) setList((l) => [...new Set([...l, ...more])].sort((a, b) => a.localeCompare(b))); }} />
+          <Button icon="export" label={t('Export…')} title={t('Export — save these words as a .dic word list')} onClick={() => onExport?.(list)} />
           <span style={{ flex: 1 }} />
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="OK" className="pf-dict-ok" onClick={() => onSave?.(list)} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('OK')} className="pf-dict-ok" onClick={() => onSave?.(list)} />
         </>
       )}
     >
-      <p className="pf-dict-lead">Words you have added are never marked as misspelt — in Documents, Worksheets and Presentations alike.</p>
+      <p className="pf-dict-lead">{t('Words you have added are never marked as misspelt — in Documents, Worksheets and Presentations alike.')}</p>
       <div className="pf-dict-add">
-        <input className="rw-input pf-dict-word" value={draft} placeholder="Add a word" spellCheck={false} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
-        <Button label="Add" title="Add — put the word in the dictionary" disabled={!draft.trim() || /\s/.test(draft.trim())} onClick={add} />
+        <input className="rw-input pf-dict-word" value={draft} placeholder={t('Add a word')} spellCheck={false} onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') add(); }} />
+        <Button label={t('Add')} title={t('Add — put the word in the dictionary')} disabled={!draft.trim() || /\s/.test(draft.trim())} onClick={add} />
       </div>
-      {list.length > 8 ? <input className="rw-input pf-dict-filter" value={filter} placeholder="Find a word" onChange={(e) => setFilter(e.target.value)} spellCheck={false} /> : null}
+      {list.length > 8 ? <input className="rw-input pf-dict-filter" value={filter} placeholder={t('Find a word')} onChange={(e) => setFilter(e.target.value)} spellCheck={false} /> : null}
       <div className="pf-dict-list" role="list">
         {shown.length ? shown.map((w) => (
           <div key={w} className="pf-dict-row" role="listitem" data-word={w}>
             <span>{w}</span>
-            <button type="button" className="pf-dict-remove" aria-label={`Remove ${w}`} data-tip={`Remove "${w}"`} onClick={() => setList((l) => l.filter((x) => x !== w))}>
+            <button type="button" className="pf-dict-remove" aria-label={t('Remove {word}', { word: w })} data-tip={t('Remove “{word}”', { word: w })} onClick={() => setList((l) => l.filter((x) => x !== w))}>
               <Icon name="close" size={12} />
             </button>
           </div>
-        )) : <div className="pf-note small">{list.length ? 'No word matches.' : 'No words yet. Add to Dictionary in the Editor pane puts them here.'}</div>}
+        )) : <div className="pf-note small">{list.length ? t('No word matches.') : t('No words yet. Add to Dictionary in the Editor pane puts them here.')}</div>}
       </div>
-      <div className="pf-hint">{list.length} {list.length === 1 ? 'word' : 'words'}</div>
+      <div className="pf-hint">{tn(list.length, '{count} word', '{count} words')}</div>
     </Dialog>
   );
 }
@@ -387,15 +388,21 @@ export const LANGUAGES = [
 
 const spelt = (tag) => /^en(?:-|$)/i.test(String(tag || ''));
 
-/** A language's name: Office's, from the list, or the system's for a tag the list does not have. */
+/**
+ * A language's name: Office's, from the list, or the system's for a tag the
+ * list does not have — in the language the windows are shown in, when that
+ * is not English.
+ */
 export function languageName(tag) {
   if (!tag) return '';
-  const known = LANGUAGES.find(([t]) => t.toLowerCase() === String(tag).toLowerCase());
-  if (known) return known[1];
+  const known = LANGUAGES.find(([code]) => code.toLowerCase() === String(tag).toLowerCase());
+  const ui = language();
+  if (known && ui === 'en') return known[1];
   try {
-    return `${new Intl.DisplayNames(['en'], { type: 'language' }).of(tag)} (${tag})`;
+    const name = new Intl.DisplayNames([ui], { type: 'language' }).of(tag);
+    return known ? name : `${name} (${tag})`;
   } catch {
-    return tag;
+    return known ? known[1] : tag;
   }
 }
 
@@ -423,29 +430,29 @@ export function LanguageDialog({ current, noProof: initialNoProof = false, defau
   }, []);
   return (
     <Dialog
-      title="Language"
+      title={t('Language')}
       width={440}
       onClose={onClose}
       actions={(
         <>
           {onSetDefault ? (
             <Button
-              label="Set As Default"
+              label={t('Set As Default')}
               className="pf-lang-default"
-              title={`Set As Default — words in this document with no language of their own are proofed in ${languageName(picked)}`}
+              title={t('Set As Default — words in this document with no language of their own are proofed in {language}', { language: languageName(picked) })}
               disabled={byDefault === picked}
               onClick={async () => { await onSetDefault(picked); setByDefault(picked); }}
             />
           ) : null}
           <span style={{ flex: 1 }} />
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="OK" className="pf-lang-ok" onClick={() => onApply?.({ lang: picked, noProof })} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('OK')} className="pf-lang-ok" onClick={() => onApply?.({ lang: picked, noProof })} />
         </>
       )}
     >
-      <label className="pf-alt-label" htmlFor="pf-lang-find">Mark selected text as:</label>
-      <input id="pf-lang-find" className="rw-input pf-dict-filter pf-lang-find" value={filter} placeholder="Find a language" spellCheck={false} onChange={(e) => setFilter(e.target.value)} autoFocus />
-      <div className="pf-dict-list pf-lang-list" role="listbox" aria-label="Languages" ref={listRef}>
+      <label className="pf-alt-label" htmlFor="pf-lang-find">{t('Mark selected text as:')}</label>
+      <input id="pf-lang-find" className="rw-input pf-dict-filter pf-lang-find" value={filter} placeholder={t('Find a language')} spellCheck={false} onChange={(e) => setFilter(e.target.value)} autoFocus />
+      <div className="pf-dict-list pf-lang-list" role="listbox" aria-label={t('Languages')} ref={listRef}>
         {rows.length ? rows.map(([tag, name]) => (
           <button
             key={tag}
@@ -457,22 +464,22 @@ export function LanguageDialog({ current, noProof: initialNoProof = false, defau
             onClick={() => setPicked(tag)}
             onDoubleClick={() => onApply?.({ lang: tag, noProof })}
           >
-            <span className="pf-lang-mark" title={spelt(tag) ? 'Spelling is checked in this language' : undefined}>{spelt(tag) ? <Icon name="check" size={12} /> : null}</span>
-            <span>{name}</span>
+            <span className="pf-lang-mark" title={spelt(tag) ? t('Spelling is checked in this language') : undefined}>{spelt(tag) ? <Icon name="check" size={12} /> : null}</span>
+            <span>{languageName(tag) || name}</span>
           </button>
-        )) : <div className="pf-note small">No language matches.</div>}
+        )) : <div className="pf-note small">{t('No language matches.')}</div>}
       </div>
       <label className="pf-check pf-lang-check">
         <input type="checkbox" className="pf-lang-noproof" checked={noProof} onChange={(e) => setNoProof(e.target.checked)} />
-        <span>Do not check spelling or grammar</span>
+        <span>{t('Do not check spelling or grammar')}</span>
       </label>
       <div className="pf-hint">
         {noProof
-          ? 'Spelling reads past the selected words, and so does Office.'
+          ? t('Spelling reads past the selected words, and so does Office.')
           : spelt(picked)
-            ? `Spelling checks ${languageName(picked)} words with its English dictionary.`
-            : `The suite has English dictionaries only, so Spelling reads past words in ${languageName(picked)} rather than marking them wrong; Office proofs them in ${languageName(picked)}.`}
-        {byDefault ? <> Default: <b className="pf-lang-current">{languageName(byDefault)}</b>.</> : null}
+            ? t('Spelling checks {language} words with its English dictionary.', { language: languageName(picked) })
+            : t('The suite has English dictionaries only, so Spelling reads past words in {language} rather than marking them wrong; Office proofs them in {language}.', { language: languageName(picked) })}
+        {byDefault ? <> {t('Default:')} <b className="pf-lang-current">{languageName(byDefault)}</b>.</> : null}
       </div>
     </Dialog>
   );

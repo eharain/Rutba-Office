@@ -1,0 +1,1128 @@
+{
+  "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
+  "count": 186,
+  "messages": [
+    {
+      "message": "A password is required to open this {noun}.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "A sentence or two is usually right.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "About Rutba Office",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Accessibility: Good to go",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Accessibility: Good to go — no issues found",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Accessibility: Investigate",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Accessibility: Investigate — open the Accessibility pane",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Add",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Add a word",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Add to Dictionary",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Add to Dictionary — your own list, shared by Documents, Worksheets and Presentations",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Add — put the word in the dictionary",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Additional information",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Agile Encryption: AES-256 with SHA-512, as Office 2013 onwards writes it",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "All apps",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Alt",
+      "where": [
+        "packages/office-ui/src/commands.js"
+      ]
+    },
+    {
+      "message": "Alt Text",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Back to 100%",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Cancel",
+      "where": [
+        "apps/desktop/renderer/protect.js",
+        "apps/desktop/renderer/shell.js",
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Caps Lock is on",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Caution:",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Change",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Change All",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Change All — every one in this document",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Change to",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Change — this one",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Check again",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Check again — read the document afresh",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Check spelling as you type",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Checking in {language}",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Checking…",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Clear",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Close",
+      "where": [
+        "apps/desktop/renderer/protect.js",
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Collapse the ribbon",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Collapse the ribbon (Ctrl+F1)",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Control what types of changes people can make to this {noun}.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Ctrl",
+      "where": [
+        "packages/office-ui/src/commands.js"
+      ]
+    },
+    {
+      "message": "Custom Dictionary",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Custom Dictionary…",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Dark theme",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Decorative objects are skipped by screen readers.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Default:",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Del",
+      "where": [
+        "packages/office-ui/src/commands.js"
+      ]
+    },
+    {
+      "message": "Do not check spelling or grammar",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Don't save",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Downloading Rutba Office {version} in the background",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Downloading in the background — {percent}%. You will be asked to restart when it is ready.",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Encrypt Document",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Encrypt the contents of this file. It will open only with the password.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Encrypt with Password",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Encrypted with a password. Save to protect the file on disk.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Encryption",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Enter password…",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Errors",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Esc",
+      "where": [
+        "packages/office-ui/src/commands.js"
+      ]
+    },
+    {
+      "message": "Expand the ribbon",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Expand the ribbon (Ctrl+F1)",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Export — save these words as a .dic word list",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Export…",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Find a language",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Find a word",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Finding suggestions…",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Follow system",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "For example: a bar chart of orders by month, rising from 120 in January to 310 in June.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Full screen",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Full screen (F11)",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Full screen (⌃⌘F)",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Hide password",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "How to fix:",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "How would you describe this object and its context to someone who is blind or has low vision?",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Ignore All",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Ignore All — this word, everywhere in this document",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Ignore Internet and file addresses",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Ignore Once",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Ignore Once — leave this one and go on",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Ignore words in UPPERCASE",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Ignore words that contain numbers",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Import — add the words of a .dic word list",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Import…",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Info",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Inspection Results",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Keep accessibility checker running while I work",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Language",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Languages",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Leave full screen",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Leave full screen (Escape)",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Leave full screen (F11)",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Light theme",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Mark as decorative",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Mark selected text as:",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Maximise",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Minimise",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "More, to the left",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "More, to the right",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "New",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "No",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "No accessibility issues found",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "No language matches.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "No suggestions — type the word as it should be.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "No window of this app is hidden.",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "No word matches.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "No words yet. Add to Dictionary in the Editor pane puts them here.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "None",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Not in dictionary",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Not now",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Not saved yet",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "OK",
+      "where": [
+        "apps/desktop/renderer/protect.js",
+        "apps/desktop/renderer/shell.js",
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "OK — close the pane",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Open",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Open a second window first — Side by Side lays two of this app's windows next to each other.",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Opening…",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Open…",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Options",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Password",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Password removed. Save to write the {noun} without it.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "People with disabilities should not have difficulty reading this document.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Properties",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Protect Document",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Protect Presentation",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Protect Workbook",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Reading the dictionary…",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Recommended actions",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Reenter password",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Released {date}.",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Remove password",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Remove {word}",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Remove “{word}”",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Require a password to open this {noun}.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Restart and update",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Restart to update now. If you carry on working, it installs when you quit.",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Restore",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Rutba Office is now {version}",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Rutba Office {version} is available",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Rutba Office {version} is downloaded — restart to update, or it installs when you quit",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Rutba Office {version} is ready to install",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Save",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Save as",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Save changes to {name}?",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Scroll the ribbon left",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Scroll the ribbon right",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Search",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Set As Default",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Set As Default — words in this document with no language of their own are proofed in {language}",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Shift",
+      "where": [
+        "packages/office-ui/src/commands.js"
+      ]
+    },
+    {
+      "message": "Show password",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Size",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Spelling",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Spelling check complete",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Spelling checks {language} words with its English dictionary.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Spelling is checked in this language",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Spelling reads past the selected words, and so does Office.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Suggestions",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "That password is not right — passwords are case-sensitive.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "The suite has English dictionaries only, so Spelling reads past words in {language} rather than marking them wrong; Office proofs them in {language}.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "The two passwords are not the same.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "There are no other windows.",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "This is the only window to arrange.",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "This {noun} already needs a password to open. Type a new one to change it, or leave both boxes empty to remove it.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Tips",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Type",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Unsaved changes",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Untitled",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Update ready",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Updated from {version}. What changed is a click away.",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Updating {percent}%",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Warnings",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "What’s new",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Why fix:",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Words you have added are never marked as misspelt — in Documents, Worksheets and Presentations alike.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Yes",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "You're good to go.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Your changes will be lost if you don’t save them.",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Zoom",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Zoom in (Ctrl++)",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Zoom level",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Zoom out (Ctrl+-)",
+      "where": [
+        "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "document",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "if you lose or forget the password, it cannot be recovered — nobody can open the {noun} without it. Keep a list of passwords and the files they open somewhere safe. Passwords are case-sensitive.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "is protected. Enter the password to open it.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "presentation",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "workbook",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "{count} bytes",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "{count} word",
+      "plural": "{count} words",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "{label} — choose how this {noun} is protected",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "{name} is protected with a password, and it stays closed until the password is given.",
+      "where": [
+        "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "— for borders, dividers and pictures that add nothing to the words",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    }
+  ]
+}

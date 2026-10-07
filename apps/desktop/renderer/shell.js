@@ -6,7 +6,7 @@
 // the same place, and files dropped on a window open in the right app.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Window, TitleBar, Body, StatusBar, Menu, Icon, useToast, useTheme, Button, Progress } from '@rutba/office-ui';
+import { Window, TitleBar, Body, StatusBar, Menu, Icon, useToast, useTheme, Button, Progress, t } from '@rutba/office-ui';
 import { APPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { pathOf } from '@rutba/office-shell/client';
@@ -26,8 +26,8 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
     (e) => {
       const rect = e.currentTarget.getBoundingClientRect();
       const items = [];
-      if (onNew) items.push({ label: 'New', icon: 'new', key: 'Ctrl+N', run: onNew });
-      if (onOpen) items.push({ label: 'Open…', icon: 'open', key: 'Ctrl+O', run: onOpen });
+      if (onNew) items.push({ label: t('New'), icon: 'new', key: 'Ctrl+N', run: onNew });
+      if (onOpen) items.push({ label: t('Open…'), icon: 'open', key: 'Ctrl+O', run: onOpen });
       if (extra.length) items.push('-', ...extra);
 
       if (recent.length) {
@@ -43,14 +43,14 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
 
       items.push('-');
       items.push({
-        label: mode === 'dark' ? 'Light theme' : mode === 'light' ? 'Follow system' : 'Dark theme',
+        label: mode === 'dark' ? t('Light theme') : mode === 'light' ? t('Follow system') : t('Dark theme'),
         icon: mode === 'dark' ? 'sun' : 'moon',
         run: () => setTheme(mode === 'dark' ? 'light' : mode === 'light' ? 'system' : 'dark'),
       });
-      items.push({ label: 'All apps', icon: 'grid', run: () => shell.win.create({ app: 'home' }) });
+      items.push({ label: t('All apps'), icon: 'grid', run: () => shell.win.create({ app: 'home' }) });
       items.push('-');
-      items.push({ label: 'What’s new', icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) });
-      items.push({ label: 'About Rutba Office', icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) });
+      items.push({ label: t('What’s new'), icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) });
+      items.push({ label: t('About Rutba Office'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) });
 
       setMenu({ x: rect.left, y: rect.bottom + 4, items });
     },
@@ -93,9 +93,9 @@ export function useDirtyGuard({ shell, dirty, name, onSave }) {
 export async function confirmDiscard(shell, name) {
   const { response } = await shell.dialog.message({
     type: 'warning',
-    message: `Save changes to ${name}?`,
-    detail: 'Your changes will be lost if you don’t save them.',
-    buttons: ['Save', "Don't save", 'Cancel'],
+    message: t('Save changes to {name}?', { name }),
+    detail: t('Your changes will be lost if you don’t save them.'),
+    buttons: [t('Save'), t("Don't save"), t('Cancel')],
     defaultId: 0,
     cancelId: 2,
   });
@@ -104,7 +104,7 @@ export async function confirmDiscard(shell, name) {
 
 export async function pickOpen(shell, appKey, { multiple = false } = {}) {
   const paths = await shell.dialog.open({
-    title: 'Open',
+    title: t('Open'),
     filters: openFilters(appKey),
     multiple,
   });
@@ -120,8 +120,8 @@ export async function arrangeWindows(shell, toast, mode) {
   const { count } = await shell.win.arrange({ mode });
   if (count < 2) {
     toast(mode === 'sideBySide'
-      ? 'Open a second window first — Side by Side lays two of this app\'s windows next to each other.'
-      : 'This is the only window to arrange.', { ms: 4000 });
+      ? t('Open a second window first — Side by Side lays two of this app\'s windows next to each other.')
+      : t('This is the only window to arrange.'), { ms: 4000 });
   }
   return count;
 }
@@ -136,18 +136,18 @@ export async function openWindowMenu(e, menu, shell, { hiddenOnly = false, toast
   e.preventDefault?.();
   const list = (await shell.win.list()).filter((w) => !hiddenOnly || w.hidden);
   if (!list.length) {
-    toast?.(hiddenOnly ? 'No window of this app is hidden.' : 'There are no other windows.', { ms: 3500 });
+    toast?.(hiddenOnly ? t('No window of this app is hidden.') : t('There are no other windows.'), { ms: 3500 });
     return;
   }
   menu.open(at, list.map((w) => ({
-    label: w.name || 'Untitled',
+    label: w.name || t('Untitled'),
     icon: w.current ? 'check' : undefined,
     run: () => (hiddenOnly ? shell.win.unhide({ id: w.id }) : shell.win.focus({ id: w.id })),
   })));
 }
 
 export async function pickSave(shell, appKey, defaultPath) {
-  return shell.dialog.save({ title: 'Save as', filters: saveFilters(appKey), defaultPath });
+  return shell.dialog.save({ title: t('Save as'), filters: saveFilters(appKey), defaultPath });
 }
 
 /**
@@ -276,11 +276,11 @@ export function UpdatePrompt({ shell, update, away, insist, onAway }) {
         <div className="rw-update" role="status" aria-live="polite" data-state="arrived">
           <div className="rw-update-mark"><Icon name="star" size={18} /></div>
           <div className="rw-update-body">
-            <div className="rw-update-title">Rutba Office is now {arrived.to}</div>
-            <div className="rw-update-text">Updated from {arrived.from}. What changed is a click away.</div>
+            <div className="rw-update-title">{t('Rutba Office is now {version}', { version: arrived.to })}</div>
+            <div className="rw-update-text">{t('Updated from {version}. What changed is a click away.', { version: arrived.from })}</div>
             <div className="rw-update-actions">
-              <Button primary className="rw-update-whatsnew" label="What’s new" onClick={() => setNotes(true)} />
-              <Button ghost className="rw-update-ok" label="OK" onClick={seen} />
+              <Button primary className="rw-update-whatsnew" label={t('What’s new')} onClick={() => setNotes(true)} />
+              <Button ghost className="rw-update-ok" label={t('OK')} onClick={seen} />
             </div>
           </div>
         </div>
@@ -309,18 +309,18 @@ export function UpdatePrompt({ shell, update, away, insist, onAway }) {
       <div className="rw-update-mark"><Icon name="download" size={18} /></div>
       <div className="rw-update-body">
         <div className="rw-update-title">
-          {ready ? `Rutba Office ${update.available} is ready to install` : `Rutba Office ${update.available} is available`}
+          {ready ? t('Rutba Office {version} is ready to install', { version: update.available }) : t('Rutba Office {version} is available', { version: update.available })}
         </div>
         <div className="rw-update-text">
           {ready
-            ? 'Restart to update now. If you carry on working, it installs when you quit.'
-            : `Downloading in the background — ${percent}%. You will be asked to restart when it is ready.`}
-          {when ? ` Released ${when}.` : ''}
+            ? t('Restart to update now. If you carry on working, it installs when you quit.')
+            : t('Downloading in the background — {percent}%. You will be asked to restart when it is ready.', { percent })}
+          {when ? ` ${t('Released {date}.', { date: when })}` : ''}
         </div>
         {!ready ? <Progress value={percent} max={100} /> : null}
         <div className="rw-update-actions">
-          {ready ? <Button primary className="rw-update-restart" label="Restart and update" onClick={() => shell.update.install().catch(() => {})} /> : null}
-          <Button ghost className="rw-update-later" label="Not now" onClick={() => { onAway(update.available); shell.update.snooze?.({ version: update.available }).catch(() => {}); }} />
+          {ready ? <Button primary className="rw-update-restart" label={t('Restart and update')} onClick={() => shell.update.install().catch(() => {})} /> : null}
+          <Button ghost className="rw-update-later" label={t('Not now')} onClick={() => { onAway(update.available); shell.update.snooze?.({ version: update.available }).catch(() => {}); }} />
         </div>
       </div>
       </div>
@@ -336,8 +336,8 @@ function UpdateChip({ update, onShow }) {
   if (!update) return null;
   if (update.state === 'downloading') {
     return (
-      <span className="chip rw-update-chip" data-state="downloading" data-tip={`Downloading Rutba Office ${update.available} in the background`}>
-        <Icon name="download" size={11} /> Updating {Math.round(update.percent || 0)}%
+      <span className="chip rw-update-chip" data-state="downloading" data-tip={t('Downloading Rutba Office {version} in the background', { version: update.available })}>
+        <Icon name="download" size={11} /> {t('Updating {percent}%', { percent: Math.round(update.percent || 0) })}
       </span>
     );
   }
@@ -347,10 +347,10 @@ function UpdateChip({ update, onShow }) {
         type="button"
         className="chip rw-update-chip"
         data-state="ready"
-        data-tip={`Rutba Office ${update.available} is downloaded — restart to update, or it installs when you quit`}
+        data-tip={t('Rutba Office {version} is downloaded — restart to update, or it installs when you quit', { version: update.available })}
         onClick={onShow}
       >
-        <Icon name="download" size={11} /> Update ready
+        <Icon name="download" size={11} /> {t('Update ready')}
       </button>
     );
   }

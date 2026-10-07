@@ -7,6 +7,7 @@
 // and three ways to reach it.
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { t } from './messages.js';
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent || '');
 
@@ -17,13 +18,14 @@ export function prettyKey(combo) {
     .split('+')
     .map((part) => {
       const p = part.trim().toLowerCase();
-      if (p === 'mod') return IS_MAC ? '⌘' : 'Ctrl';
-      if (p === 'shift') return IS_MAC ? '⇧' : 'Shift';
-      if (p === 'alt') return IS_MAC ? '⌥' : 'Alt';
-      if (p === 'ctrl') return IS_MAC ? '⌃' : 'Ctrl';
+      // The keys' names as the keyboard of the language reads them (Strg in German).
+      if (p === 'mod') return IS_MAC ? '⌘' : t('Ctrl');
+      if (p === 'shift') return IS_MAC ? '⇧' : t('Shift');
+      if (p === 'alt') return IS_MAC ? '⌥' : t('Alt');
+      if (p === 'ctrl') return IS_MAC ? '⌃' : t('Ctrl');
       if (p === 'enter') return '↵';
-      if (p === 'escape') return 'Esc';
-      if (p === 'delete') return 'Del';
+      if (p === 'escape') return t('Esc');
+      if (p === 'delete') return t('Del');
       if (p === 'arrowup') return '↑';
       if (p === 'arrowdown') return '↓';
       if (p === 'arrowleft') return '←';

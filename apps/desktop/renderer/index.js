@@ -8,7 +8,8 @@
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import shell, { boot } from '@rutba/office-shell/client';
-import { ThemeProvider, ToastProvider } from '@rutba/office-ui';
+import { ThemeProvider, ToastProvider, registerCatalogue, setLanguage } from '@rutba/office-ui';
+import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { APPS } from '@rutba/office-formats/registry';
 import '@rutba/office-ui/theme.css';
 
@@ -55,13 +56,19 @@ function Root() {
   );
 }
 
+// The windows' words in the language chosen in settings, else the system's,
+// from the catalogues there are — English where there is none.
+for (const [tag, messages] of Object.entries(CATALOGUES)) registerCatalogue(tag, messages);
+const chooseLanguage = (chosen) => {
+  document.documentElement.lang = setLanguage(chosen || navigator.language || 'en');
+};
+
 // The stored theme is read before the first paint so a dark-mode window never
-// flashes white on the way up.
-shell.store
-  .get({ key: 'theme', fallback: 'system' })
-  .then((mode) => {
-    window.__rutbaTheme = mode || 'system';
-  })
+// flashes white on the way up; the language with it, so no word changes after.
+Promise.all([
+  shell.store.get({ key: 'theme', fallback: 'system' }).then((mode) => { window.__rutbaTheme = mode || 'system'; }),
+  shell.store.get({ key: 'language', fallback: null }).then(chooseLanguage, () => chooseLanguage(null)),
+])
   .catch(() => {})
   .finally(() => {
     createRoot(document.getElementById('root')).render(<Root />);

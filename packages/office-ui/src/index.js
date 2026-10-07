@@ -4,9 +4,11 @@
 
 import React, { createContext, useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './icons.js';
+import { t } from './messages.js';
 
 export { Icon };
 export * from './commands.js';
+export { t, tn, msg, setLanguage, language, languages, registerCatalogue, untranslated } from './messages.js';
 
 /* ── theme ──────────────────────────────────────────────────────────────── */
 
@@ -192,8 +194,8 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
             type="button"
             className="rw-btn ghost"
             onClick={toggleFullscreen}
-            title={fullscreen ? 'Leave full screen (Escape)' : 'Full screen (⌃⌘F)'}
-            aria-label={fullscreen ? 'Leave full screen' : 'Full screen'}
+            title={fullscreen ? t('Leave full screen (Escape)') : t('Full screen (⌃⌘F)')}
+            aria-label={fullscreen ? t('Leave full screen') : t('Full screen')}
           >
             <Icon name={fullscreen ? 'restore' : 'maximize'} size={13} />
           </button>
@@ -205,24 +207,24 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
           <button
             type="button"
             onClick={toggleFullscreen}
-            title={fullscreen ? 'Leave full screen (F11)' : 'Full screen (F11)'}
-            aria-label={fullscreen ? 'Leave full screen' : 'Full screen'}
+            title={fullscreen ? t('Leave full screen (F11)') : t('Full screen (F11)')}
+            aria-label={fullscreen ? t('Leave full screen') : t('Full screen')}
             className={fullscreen ? 'on' : undefined}
           >
             <Icon name={fullscreen ? 'zoomOut' : 'zoomIn'} size={13} />
           </button>
-          <button type="button" onClick={() => shell?.win.minimize()} title="Minimise" aria-label="Minimise">
+          <button type="button" onClick={() => shell?.win.minimize()} title={t('Minimise')} aria-label={t('Minimise')}>
             <Icon name="minimize" size={14} />
           </button>
           <button
             type="button"
             onClick={async () => setMaximized((await shell?.win.toggleMaximize())?.maximized ?? false)}
-            title={maximized ? 'Restore' : 'Maximise'}
-            aria-label={maximized ? 'Restore' : 'Maximise'}
+            title={maximized ? t('Restore') : t('Maximise')}
+            aria-label={maximized ? t('Restore') : t('Maximise')}
           >
             <Icon name={maximized ? 'restore' : 'maximize'} size={13} />
           </button>
-          <button type="button" className="close" onClick={() => shell?.win.close()} title="Close" aria-label="Close">
+          <button type="button" className="close" onClick={() => shell?.win.close()} title={t('Close')} aria-label={t('Close')}>
             <Icon name="close" size={14} />
           </button>
         </div>
@@ -352,8 +354,8 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
             <button
               type="button"
               className="rw-collapse"
-              title={collapsed ? 'Expand the ribbon (Ctrl+F1)' : 'Collapse the ribbon (Ctrl+F1)'}
-              aria-label={collapsed ? 'Expand the ribbon' : 'Collapse the ribbon'}
+              title={collapsed ? t('Expand the ribbon (Ctrl+F1)') : t('Collapse the ribbon (Ctrl+F1)')}
+              aria-label={collapsed ? t('Expand the ribbon') : t('Collapse the ribbon')}
               aria-expanded={!collapsed}
               onClick={() => setCollapsed(!collapsed)}
             >
@@ -365,7 +367,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
       {showGroups ? (
         <div className="rw-groups-wrap">
           {more.left ? (
-            <button type="button" className="rw-more left" title="More, to the left" aria-label="Scroll the ribbon left" onClick={() => scrollGroups(-1)}>
+            <button type="button" className="rw-more left" title={t('More, to the left')} aria-label={t('Scroll the ribbon left')} onClick={() => scrollGroups(-1)}>
               <Icon name="chevronLeft" size={14} />
             </button>
           ) : null}
@@ -383,7 +385,7 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
             {children}
           </div>
           {more.right ? (
-            <button type="button" className="rw-more right" title="More, to the right" aria-label="Scroll the ribbon right" onClick={() => scrollGroups(1)}>
+            <button type="button" className="rw-more right" title={t('More, to the right')} aria-label={t('Scroll the ribbon right')} onClick={() => scrollGroups(1)}>
               <Icon name="chevronRight" size={14} />
             </button>
           ) : null}
@@ -536,19 +538,19 @@ export function ZoomSlider({ value = 1, min = 0.5, max = 2, step = 0.05, onChang
   const pct = Math.round((value || 1) * 100);
   const clamp = (v) => Math.max(min, Math.min(max, Math.round(v * 100) / 100));
   return (
-    <div className="rw-zoom" role="group" aria-label="Zoom">
-      <button type="button" className="rw-zoom-step" data-tip="Zoom out (Ctrl+-)" onClick={() => onChange?.(clamp(value - 0.1))}>−</button>
+    <div className="rw-zoom" role="group" aria-label={t('Zoom')}>
+      <button type="button" className="rw-zoom-step" data-tip={t('Zoom out (Ctrl+-)')} onClick={() => onChange?.(clamp(value - 0.1))}>−</button>
       <input
         type="range"
         min={min}
         max={max}
         step={step}
         value={Math.max(min, Math.min(max, value || 1))}
-        aria-label="Zoom level"
+        aria-label={t('Zoom level')}
         onChange={(e) => onChange?.(clamp(Number(e.target.value)))}
       />
-      <button type="button" className="rw-zoom-step" data-tip="Zoom in (Ctrl++)" onClick={() => onChange?.(clamp(value + 0.1))}>+</button>
-      <button type="button" className="rw-zoom-pct" data-tip={resetLabel || 'Back to 100%'} onClick={() => onReset?.()}>{pct}%</button>
+      <button type="button" className="rw-zoom-step" data-tip={t('Zoom in (Ctrl++)')} onClick={() => onChange?.(clamp(value + 0.1))}>+</button>
+      <button type="button" className="rw-zoom-pct" data-tip={resetLabel || t('Back to 100%')} onClick={() => onReset?.()}>{pct}%</button>
     </div>
   );
 }
@@ -656,20 +658,20 @@ export function Item({ icon, label, count, current, selected, indent = 0, onClic
 
 /* ── inputs ─────────────────────────────────────────────────────────────── */
 
-export function Search({ value, onChange, placeholder = 'Search', style, onKeyDown, autoFocus }) {
+export function Search({ value, onChange, placeholder, style, onKeyDown, autoFocus }) {
   return (
     <div className="rw-search" style={style}>
       <Icon name="find" />
       <input
         value={value}
         onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
+        placeholder={placeholder ?? t('Search')}
         onKeyDown={onKeyDown}
         autoFocus={autoFocus}
         spellCheck={false}
       />
       {value ? (
-        <button type="button" className="rw-btn icon ghost" onClick={() => onChange('')} title="Clear">
+        <button type="button" className="rw-btn icon ghost" onClick={() => onChange('')} title={t('Clear')}>
           <Icon name="close" size={13} />
         </button>
       ) : null}
