@@ -12,6 +12,8 @@
     "./cfb": "./src/cfb.js",
     "./cfb-write": "./src/cfb-write.js",
     "./codepage": "./src/codepage.js",
+    "./msword": "./src/msword.js",
+    "./msdoc-docx": "./src/msdoc-docx.js",
     "./crypt": "./src/crypt.js",
     "./odf": "./src/odf.js",
     "./odf-write": "./src/odf-write.js",

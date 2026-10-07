@@ -115,8 +115,8 @@ export const APPS = {
 export const APP_EXTENSIONS = {
   // `markdown` alongside `md`: GitHub accepts both for a README, and an editor
   // that claims one and not the other is the default for half your files.
-  word: ['docx', 'docm', 'dotx', 'doc', 'odt', 'rtf', 'txt', 'md', 'markdown', 'html', 'htm'],
-  sheets: ['xlsx', 'xlsm', 'xltx', 'xls', 'ods', 'csv', 'tsv'],
+  word: ['docx', 'docm', 'dotx', 'doc', 'dot', 'wri', 'odt', 'rtf', 'txt', 'md', 'markdown', 'html', 'htm'],
+  sheets: ['xlsx', 'xlsm', 'xltx', 'xls', 'xlt', 'ods', 'csv', 'tsv'],
   slides: ['pptx', 'pptm', 'potx', 'ppsx', 'ppt', 'odp'],
   pictures: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'avif', 'heic', 'bmp', 'tif', 'tiff', 'ico', 'svg', 'pdf'],
   image: ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif', 'avif'],

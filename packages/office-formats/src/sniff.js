@@ -128,6 +128,12 @@ const BY_EXT = (() => {
   add('.m4v', 'mp4');
   add('.emlx', 'eml');
   add('.mbx', 'mbox');
+  // The 97-2003 templates, and Windows Write: read by the same readers.
+  add('.dot', 'doc');
+  add('.wri', 'doc');
+  add('.xlt', 'xls');
+  add('.pot', 'ppt');
+  add('.pps', 'ppt');
   return m;
 })();
 
@@ -315,6 +321,17 @@ export function sniff(input, name = '') {
     // prefix get the extension's opinion, marked as such.
     const guess = byExt && ['doc', 'xls', 'ppt', 'msg'].includes(byExt) ? byExt : 'doc';
     return answer(guess, byExt ? 'container' : 'magic', { container: 'cfb' });
+  }
+
+  // Before Word 97 and Excel 5, no compound file. Word 2.0 and 1.x open with
+  // their FIB's own mark; Windows Write and Word for DOS with six bytes they
+  // share; Excel 2.1, 3.0 and 4.0 with a BOF record — its number says the
+  // version, and its length and sheet type are fixed.
+  if ((b[0] === 0xdb || b[0] === 0x9b || b[0] === 0x9c) && b[1] === 0xa5 && b.length >= 128) return answer('doc', 'magic', { container: 'word2' });
+  if ((b[0] === 0x31 || b[0] === 0x32) && b[1] === 0xbe && b[2] === 0 && b[3] === 0 && b[4] === 0 && b[5] === 0xab) return answer('doc', 'magic', { container: 'write' });
+  if (b[0] === 0x09 && (b[1] === 0x00 || b[1] === 0x02 || b[1] === 0x04) && b[3] === 0x00) {
+    const dt = b[6] | (b[7] << 8);
+    if (b[2] === (b[1] === 0x00 ? 4 : 6) && [0x10, 0x20, 0x40, 0x100].includes(dt)) return answer('xls', 'magic', { container: 'biff' });
   }
 
   if (starts(b, ZIP)) {

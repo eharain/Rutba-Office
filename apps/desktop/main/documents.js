@@ -50,6 +50,9 @@ import { markdownToParagraphs, paragraphsToMarkdown } from './markdown-bridge.js
 import { readMergeSource, writeMergeList } from './mailmerge-source.js';
 import { contactsToSource, findDuplicates, MAIN_DOCUMENT_TYPES } from '@rutba/ooxml/mailmerge';
 import { CompoundFile } from '@rutba/office-formats/cfb';
+import { readWordDocument, wordKind } from '@rutba/office-formats/msword';
+import { docModelToDocx } from '@rutba/office-formats/msdoc-docx';
+import { decode1252 } from '@rutba/office-formats/codepage';
 import { isEncryptedPackage, decryptPackage, encryptPackage, EncryptedFileError } from '@rutba/office-formats/crypt';
 import { readZip } from '@rutba/ooxml/zip';
 import { createProofing } from './proofing.js';
@@ -284,6 +287,22 @@ function odpSlidesToDeck(odf) {
 // and bookmark control codes. Splitting on all of them gives readable lines.
 const PARAGRAPH_MARKS = new RegExp('[\\u0000-\\u0008\\u000b\\u000c\\u000d\\u000e-\\u001f]', 'g');
 
+/**
+ * A Word binary document of any age — 97-2003, 6.0/95, 2.0 and 1.x, Windows
+ * Write, Word for DOS — read in full and written as the .docx this suite
+ * edits. A password-protected one is refused with `locked`.
+ */
+function wordDocumentToDocx(bytes, shown, locked) {
+  let model;
+  try {
+    model = readWordDocument(new Uint8Array(bytes));
+  } catch (err) {
+    if (err.encrypted) throw new Error(locked);
+    throw new Error(`${shown} could not be read: ${err.message}.`);
+  }
+  return { kind: 'doc', bytes: Buffer.from(docModelToDocx(model)), source: 'doc', converted: { from: model.format === 'write' ? 'wri' : 'doc', format: model.format } };
+}
+
 /** A .doc/.xls/.ppt: extract what text we can rather than refuse the file. */
 function legacyText(bytes) {
   const cfb = new CompoundFile(bytes);
@@ -293,7 +312,7 @@ function legacyText(bytes) {
     const raw = stream ? cfb.read(stream) : new Uint8Array(0);
     // Word 97 stores the text run at fcMin; without the piece table the
     // readable approximation is the printable Latin/Unicode runs in order.
-    const text = new TextDecoder('windows-1252', { fatal: false }).decode(raw);
+    const text = decode1252(raw);
     const cleaned = text
       .replace(PARAGRAPH_MARKS, String.fromCharCode(10))
       .split('\n')
@@ -782,33 +801,47 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       case 'doc':
       case 'xls':
       case 'ppt': {
-        const legacy = legacyText(bytes);
+        const shown = filePath ? path.basename(filePath) : 'This file';
+        const locked = `${shown} is password-protected. This suite cannot open an encrypted file yet — open it in the program that set the password, remove the password, and save it again.`;
+        // Word 2.0 and 1.x, Windows Write and Word for DOS are no compound file.
+        if (!CompoundFile.is(bytes)) {
+          if (kind !== 'doc' || !wordKind(bytes)) throw new Error(`Rutba Office cannot open ${detected.label || kind} files yet.`);
+          return wordDocumentToDocx(bytes, shown, locked);
+        }
         // A password-protected .docx, .xlsx or .pptx is a compound file
         // whatever its name says. The corpus found one opening as an empty
         // document and another refused as "a document, not a presentation".
-        const shown = filePath ? path.basename(filePath) : 'This file';
-        if (legacy.app === 'encrypted') {
-          throw new Error(`${shown} is password-protected. This suite cannot open an encrypted file yet — open it in the program that set the password, remove the password, and save it again.`);
-        }
-        if (!legacy.app) {
+        const app = new CompoundFile(bytes).application();
+        if (app === 'encrypted') throw new Error(locked);
+        if (!app || app === 'msg') {
           throw new Error(`${shown} is a compound file this suite does not read — not a Word, Excel or PowerPoint 97-2003 document.`);
         }
-        if (kind === 'xls') {
+        // What is inside decides, not the name: a Word document called .xls is a Word document.
+        if (app === 'doc') {
+          try {
+            return wordDocumentToDocx(bytes, shown, locked);
+          } catch (err) {
+            if (err.message === locked) throw err;
+            // A document the reader cannot follow still shows the words it can find.
+          }
+        }
+        const legacy = legacyText(bytes);
+        if (app === 'xls') {
           return {
             kind: 'sheet',
             bytes: rowsToWorkbook([['This 97-2003 workbook could not be converted in full.']]),
-            source: kind,
-            converted: { from: kind, partial: true },
+            source: app,
+            converted: { from: app, partial: true },
           };
         }
         return {
-          kind: kind === 'ppt' ? 'deck' : 'doc',
+          kind: app === 'ppt' ? 'deck' : 'doc',
           bytes:
-            kind === 'ppt'
+            app === 'ppt'
               ? buildPptx({ title: 'Imported presentation', slides: [{ layout: 'title', title: 'Imported presentation', body: 'The original slides could not be converted in full.' }] })
               : buildDocx({ paragraphs: blocksToParagraphs(legacy.blocks), styles: true }),
-          source: kind,
-          converted: { from: kind, partial: true },
+          source: app,
+          converted: { from: app, partial: true },
         };
       }
       default:
