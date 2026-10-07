@@ -222,6 +222,31 @@ test('stacked columns leave a surface gap between segments', () => {
   assert.match(renderSvg(built), /class="marks"/);
 });
 
+test('stacked lines and areas stand on the series before them', () => {
+  for (const type of ['line', 'area']) {
+    const svg = renderSvg(buildChart({
+      ...STOCK, type, stacked: true, categories: ['a', 'b'],
+      series: [{ name: 'A', values: [10, 10] }, { name: 'B', values: [10, 10] }],
+    }));
+    // Each line's height on the chart: B's at the total, 20, above A's at 10 — not on top of it.
+    const heights = [...svg.matchAll(/<polyline[^>]*points="([^"]+)"/g)].map((m) => Number(m[1].split(/[ ,]+/)[1]));
+    assert.equal(heights.length, 2, type);
+    assert.ok(heights[1] < heights[0] - 10, `${type}: B (${heights[1]}) above A (${heights[0]})`);
+    if (type === 'area') {
+      // B's area is the band between the two lines, not down to the axis.
+      const bands = [...svg.matchAll(/<polygon[^>]*points="([^"]+)"/g)].map((m) => m[1].split(/[ ,]+/).map(Number).filter((_, i) => i % 2 === 1));
+      assert.ok(Math.max(...bands[1]) <= heights[0] + 0.5, 'B\'s band ends at A\'s line');
+    }
+  }
+});
+
+test('an axis\'s title is not taken for the chart\'s', () => {
+  const xml = '<c:chartSpace xmlns:c="c" xmlns:a="a"><c:chart><c:autoTitleDeleted val="1"/><c:plotArea><c:barChart><c:barDir val="col"/>'
+    + '<c:ser><c:idx val="0"/><c:order val="0"/><c:val><c:numRef><c:numCache><c:ptCount val="1"/><c:pt idx="0"><c:v>3</c:v></c:pt></c:numCache></c:numRef></c:val></c:ser></c:barChart>'
+    + '<c:valAx><c:title><c:tx><c:rich><a:p><a:r><a:t>Orders</a:t></a:r></a:p></c:rich></c:tx></c:title></c:valAx></c:plotArea></c:chart></c:chartSpace>';
+  assert.equal(parseChartXml(xml).title, null);
+});
+
 test('a chart carries alt text and a table for relief', () => {
   const spec = { ...STOCK, series: Array.from({ length: 6 }, (_, i) => ({ name: 's' + i, values: [1, 2, 3, 4] })) };
   assert.match(describe(spec), /6 series/);

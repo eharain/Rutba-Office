@@ -376,20 +376,29 @@ export function buildChart(rawSpec) {
       }
     }
     const ends = [];
+    // Stacked, each series stands on the ones before it: its line at the running
+    // total, its area the band between that total before and after it.
+    const running = spec.stacked ? spec.categories.map(() => 0) : null;
     spec.series.forEach((s, si) => {
       const colour = colourOf(si);
       const edge = band && (si === band.lower || si === band.upper);
       const points = [];
+      const floor = [];
       s.values.forEach((value, ci) => {
         if (value === null || !Number.isFinite(value)) return;
-        points.push([bandCentre(ci), valueAt(value)]);
+        const below = running ? running[ci] : 0;
+        if (running) running[ci] = below + value;
+        points.push([bandCentre(ci), valueAt(below + value)]);
+        floor.push([bandCentre(ci), valueAt(below)]);
       });
       if (!points.length) return;
 
       if (spec.type === 'area') {
         marks.push(polygon({
-          points: [[points[0][0], zeroAt], ...points, [points[points.length - 1][0], zeroAt]],
-          fill: colour, opacity: 0.16,
+          points: running
+            ? [...points, ...floor.reverse()]
+            : [[points[0][0], zeroAt], ...points, [points[points.length - 1][0], zeroAt]],
+          fill: colour, opacity: running ? 0.6 : 0.16,
         }));
       }
       marks.push(polyline({
@@ -399,7 +408,7 @@ export function buildChart(rawSpec) {
       }));
       // Markers where the points are few enough to tell apart, and the file
       // has not switched them off.
-      if (s.markers !== false && !edge && points.length <= 40) {
+      if (s.markers !== false && !edge && !(running && spec.type === 'area') && points.length <= 40) {
         for (const [px, py] of points) {
           // A surface ring keeps overlapping markers legible where lines cross.
           marks.push(ellipse({

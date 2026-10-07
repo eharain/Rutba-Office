@@ -154,7 +154,8 @@ export function parseChartXml(chartXml, { mode = 'light', width = 480, height = 
     for (const s of series) { delete s.line; delete s.smooth; }
   }
 
-  const titleXml = firstElement(xml, 'title');
+  // The chart's own title, not an axis's: those live inside the plot area.
+  const titleXml = firstElement(xml.replace(/<([\w]+:)?plotArea\b[\s\S]*?<\/([\w]+:)?plotArea>/, ''), 'title');
   const title = titleXml
     ? [...titleXml.matchAll(/<([\w]+:)?t>([\s\S]*?)<\/([\w]+:)?t>/g)].map((m) => unesc(m[2])).join('') || null
     : null;
