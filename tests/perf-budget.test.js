@@ -18,13 +18,22 @@ import { MailStore } from '@rutba/mailbox';
 
 const BUDGET_MS = 15000;
 
-/** Run one named step, print how long it took, and fail if it blew the budget. */
+/**
+ * Run one named step, print how long it took, and fail if it blew the budget.
+ * The budget is held against the step's own CPU time, not the clock: the rest
+ * of the suite runs beside this file, each file in a process of its own, and
+ * on a busy machine a three-second recalculation took sixteen by the clock. A
+ * step gone quadratic costs minutes of its own CPU however quiet the machine.
+ */
 function timed(label, steps, fn) {
   const t0 = performance.now();
+  const c0 = process.cpuUsage();
   const out = fn();
   const ms = Math.round(performance.now() - t0);
-  steps.push(`${label}=${ms}ms`);
-  assert.ok(ms < BUDGET_MS, `${label} took ${ms}ms, budget ${BUDGET_MS}ms`);
+  const used = process.cpuUsage(c0);
+  const cpu = Math.round((used.user + used.system) / 1000);
+  steps.push(`${label}=${ms}ms (cpu ${cpu}ms)`);
+  assert.ok(cpu < BUDGET_MS, `${label} took ${cpu}ms of its own CPU (${ms}ms by the clock), budget ${BUDGET_MS}ms`);
   return out;
 }
 
