@@ -59,6 +59,7 @@ import { odtToDocx } from '@rutba/office-formats/odt-docx';
 import { readDocxDocument } from '@rutba/office-formats/docx-read';
 import { writeOdtDocument } from '@rutba/office-formats/odt-write';
 import { writeHtmlDocument, writePlainDocument, writeRtfDocument } from '@rutba/office-formats/doc-export';
+import { readHtmlDocument } from '@rutba/office-formats/html-read';
 import { writeOds, writeOdp } from '@rutba/office-formats/odf-write';
 import { readRtf } from '@rutba/office-formats/rtf';
 import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, decodeText } from '@rutba/office-formats/text';
@@ -94,45 +95,6 @@ const KIND_APP = { doc: APPS.word.short, sheet: APPS.sheets.short, deck: APPS.sl
  * a .docx, and neither got one.
  */
 const EXPORTS = { doc: ['pdf', 'rtf', 'odt', 'txt', 'md', 'html'], sheet: ['csv', 'tsv', 'ods'], deck: ['odp'] };
-
-/**
- * Text as HTML text.
- *
- * The HTML export wrote the document's own characters straight into the
- * file: a paragraph reading "5 < 6 & 7 > 4" came back "5   4", and a
- * document that happened to contain a script tag produced a page that ran
- * it. What a document says is never markup.
- */
-/** The characters an HTML entity stands for. */
-const HTML_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
-
-function decodeEntities(text) {
-  return String(text ?? '')
-    .replace(/&#x([0-9a-fA-F]+);/g, (_, h) => String.fromCodePoint(parseInt(h, 16)))
-    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
-    .replace(/&([a-zA-Z]+);/g, (whole, name) => HTML_ENTITIES[name.toLowerCase()] ?? whole);
-}
-
-/**
- * A web page as paragraphs.
- *
- * The reader was one replace of every tag with a space: a whole page arrived
- * as a single paragraph, its entities as the letters "&lt;", and the contents
- * of its <style> and <script> blocks as text in the document. A block-level
- * tag ends a paragraph, and what is inside script, style and head is not
- * text.
- */
-function htmlBlocks(html) {
-  const body = String(html)
-    .replace(/<!--[\s\S]*?-->/g, ' ')
-    .replace(/<(script|style|head|title)\b[^>]*>[\s\S]*?<\/\1>/gi, ' ');
-  const blocks = [];
-  for (const piece of body.split(/<\/?(?:p|div|br|li|tr|section|article|h[1-6]|blockquote|pre|table)\b[^>]*>/i)) {
-    const text = decodeEntities(piece.replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
-    if (text) blocks.push({ type: 'paragraph', text });
-  }
-  return blocks.length ? blocks : [{ type: 'paragraph', text: '' }];
-}
 
 /** Blocks in the neutral reader shape → paragraphs `buildDocx` understands. */
 function blocksToParagraphs(blocks) {
@@ -1008,10 +970,14 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
           converted: { from: 'md', markdown: md.meta },
         };
       }
-      case 'txt':
-      case 'html': {
-        const parsed = kind === 'txt' ? readPlain(bytes) : { blocks: htmlBlocks(decodeText(bytes)) };
+      case 'txt': {
+        const parsed = readPlain(bytes);
         return { kind: 'doc', bytes: buildDocx({ paragraphs: blocksToParagraphs(parsed.blocks), styles: true }), source: kind, converted: { from: kind } };
+      }
+      case 'html': {
+        // A web page as a document — headings, looks, links, lists at their levels, tables with their spans,
+        // embedded pictures — where it came in as its words alone, one paragraph a block.
+        return { kind: 'doc', bytes: Buffer.from(odtToDocx(readHtmlDocument(decodeText(bytes)))), source: kind, converted: { from: kind } };
       }
       case 'doc':
       case 'xls':

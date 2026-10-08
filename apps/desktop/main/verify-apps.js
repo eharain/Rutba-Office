@@ -98,6 +98,7 @@ import { verifyWordBlocks } from './verify-word-blocks.js';
 import { verifyWordBinary } from './verify-word-binary.js';
 import { verifyWordTableTools } from './verify-word-table-tools.js';
 import { verifyWordOdt } from './verify-word-odt.js';
+import { verifyWordHtml } from './verify-word-html.js';
 import { verifySheetBinary } from './verify-sheet-binary.js';
 import { verifyBinaryLocked } from './verify-binary-locked.js';
 import { verifyDeckBinary } from './verify-deck-binary.js';
@@ -4702,6 +4703,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('binary')) await verifyWordBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('tabletools')) await verifyWordTableTools({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('odt')) await verifyWordOdt({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('html')) await verifyWordHtml({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('xls')) await verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('lockedbinary')) await verifyBinaryLocked({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('ppt')) await verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -4934,6 +4936,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyWordBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordTableTools({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordOdt({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await block(() => verifyWordHtml({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyBinaryLocked({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
