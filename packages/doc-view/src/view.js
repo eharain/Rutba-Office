@@ -3368,6 +3368,8 @@ export class DocView {
         // columns from these and the ruler moves them.
         ...(b.gridPx ? { gridPx: b.gridPx, tableWidth: b.tableWidth ?? null } : {}),
         ...(b.cellSpan ? { cellSpan: b.cellSpan } : {}),
+        // A cell a merge from above continues: drawn as part of that cell.
+        ...(b.hiddenCell ? { hiddenCell: true } : {}),
         ...(b.rowHeightPx ? { rowHeightPx: b.rowHeightPx, rowRule: b.rowRule ?? null } : {}),
         ...(b.tableLook ? { tableLook: b.tableLook } : {}),
         ...(b.cellVAlign ? { cellVAlign: b.cellVAlign } : {}),

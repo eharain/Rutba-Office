@@ -95,6 +95,7 @@ import { verifyMailJunk } from './verify-mail-junk.js';
 import { verifyMailRichSignature } from './verify-mail-signature.js';
 import { verifyWordBlocks } from './verify-word-blocks.js';
 import { verifyWordBinary } from './verify-word-binary.js';
+import { verifyWordTableTools } from './verify-word-table-tools.js';
 import { verifySheetBinary } from './verify-sheet-binary.js';
 import { verifyDeckBinary } from './verify-deck-binary.js';
 import { verifyDrawingDelete } from './verify-drawing-delete.js';
@@ -4693,6 +4694,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('richsignature')) await verifyMailRichSignature({ open, check, until, wait, errorsIn });
     if (only.includes('blocks')) await verifyWordBlocks({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('binary')) await verifyWordBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('tabletools')) await verifyWordTableTools({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('xls')) await verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('ppt')) await verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('delete')) await verifyDrawingDelete({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -4919,6 +4921,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyWordTable({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordBlocks({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await block(() => verifyWordTableTools({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDrawingDelete({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
