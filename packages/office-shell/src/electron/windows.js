@@ -154,7 +154,10 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     meta.set(win.id, { app: appKey, file, dirty: false, name: '', closing: false, presenter: query?.presenter != null, usedAt: 0 });
     // When it was last in front, so Side by Side can pair a window with the one used before it.
     win.on('focus', () => { const m = meta.get(win.id); if (m) m.usedAt = ++focusTick; });
-    if (!away && saved?.maximized) win.maximize();
+    // A window a check run keeps off the desktop is never maximised: Windows
+    // maximises a window onto the nearest display, which pulled the run's
+    // windows onto the screen of whoever was working at it.
+    if (!away && !hidden && saved?.maximized) win.maximize();
 
 
 
@@ -482,7 +485,15 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
    * is worked out and kept on the window but the window is not moved.
    */
   function fullscreen(win, { on, display, presenter = false } = {}) {
-    const going = on ?? !win.isFullScreen();
+    const going = on ?? !(win.isFullScreen() || win.rutbaCheckFull);
+    // A check run keeps its windows off every screen, and Windows puts a
+    // window going full screen on the display nearest it — somebody's own.
+    // There the show's full screen is noted on the window, not done.
+    if (process.env.RUTBA_WINDOW_DISPLAY === 'offscreen') {
+      if (going && display != null) win.rutbaShowDisplay = String(showDisplayFor(win, display, presenter).id);
+      win.rutbaCheckFull = going;
+      return { fullscreen: going, display: win.rutbaShowDisplay ?? null };
+    }
     // Asked again while the show is already up, the screen it is on stands.
     if (going && display != null && !win.isFullScreen()) {
       const target = showDisplayFor(win, display, presenter);
