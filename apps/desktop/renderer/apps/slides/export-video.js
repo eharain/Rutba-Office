@@ -13,15 +13,21 @@ import { recordingType } from './screen-record.js';
 
 export const QUALITIES = [['1920', 'Full HD (1080p)'], ['1280', 'HD (720p)'], ['852', 'Standard (480p)']];
 
-/** A slide's drawing with its pictures carried inside it, and nothing a canvas may not hold. */
-async function standalone(svg) {
+/**
+ * A slide's drawing with its pictures carried inside it, and nothing a canvas
+ * may not hold. `cache` keeps each picture's data once for the whole video, so
+ * a logo on every slide is fetched and encoded once, not once a slide.
+ */
+async function standalone(svg, cache = new Map()) {
   const urls = [...new Set([...svg.matchAll(/(?:href|xlink:href)="(rutba:[^"]+|blob:[^"]+)"/g)].map((m) => m[1]))];
   let out = svg.replace(/<foreignObject\b[\s\S]*?<\/foreignObject>/g, '');
   for (const url of urls) {
     try {
-      const blob = await (await fetch(url)).blob();
-      const data = await new Promise((resolve) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsDataURL(blob); });
-      out = out.split(url).join(String(data));
+      if (!cache.has(url)) {
+        const blob = await (await fetch(url)).blob();
+        cache.set(url, String(await new Promise((resolve) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsDataURL(blob); })));
+      }
+      out = out.split(url).join(cache.get(url));
     } catch { /* a picture that will not load is left out of the frame */ }
   }
   return out;
@@ -53,43 +59,61 @@ export async function renderVideo(slides, { width, height, onProgress = () => {}
   const sink = audio.createMediaStreamDestination();
   const tracks = [track, ...sink.stream.getAudioTracks()];
   const type = recordingType();
-  const rec = new MediaRecorder(new MediaStream(tracks), { mimeType: type });
-  const parts = [];
-  rec.ondataavailable = (e) => { if (e.data?.size) parts.push(e.data); };
-  const done = new Promise((resolve) => { rec.onstop = resolve; });
-  const images = [];
-  for (const s of slides) images.push(await imageOf(await standalone(s.svg)));
-  const draw = (img, alpha = 1) => { g.globalAlpha = alpha; g.drawImage(img, 0, 0, width, height); g.globalAlpha = 1; track.requestFrame?.(); };
-  draw(images[0]);
-  rec.start(500);
-  const frame = () => new Promise((r) => setTimeout(r, 1000 / 30));
-  for (let i = 0; i < slides.length && !cancelled(); i++) {
-    onProgress(i);
-    const s = slides[i];
-    if (s.narration) {
-      try {
-        const buf = await audio.decodeAudioData(await (await fetch(s.narration)).arrayBuffer());
-        const src = audio.createBufferSource();
-        src.buffer = buf;
-        src.connect(sink);
-        src.start();
-      } catch { /* a narration that will not play is left out */ }
+  let rec = null;
+  // Whatever stops the video — the end, Cancel, a slide that will not draw
+  // — the recorder, the canvas's track and the sound are all let go.
+  try {
+    rec = new MediaRecorder(new MediaStream(tracks), { mimeType: type });
+    const parts = [];
+    rec.ondataavailable = (e) => { if (e.data?.size) parts.push(e.data); };
+    const done = new Promise((resolve) => { rec.onstop = resolve; });
+    // A slide's picture is made while the one before it plays: three at most
+    // at once, not every slide of a long deck decoded before the first frame.
+    const pictures = new Map();
+    const imageAt = (i) => {
+      if (i >= slides.length || (i > 0 && cancelled())) return null;
+      const made = standalone(slides[i].svg, pictures).then(imageOf);
+      made.catch(() => {}); // waited on below; one left behind by Cancel is not an error
+      return made;
+    };
+    let previous = null;
+    let current = await imageAt(0);
+    let next = imageAt(1);
+    const draw = (img, alpha = 1) => { g.globalAlpha = alpha; g.drawImage(img, 0, 0, width, height); g.globalAlpha = 1; track.requestFrame?.(); };
+    draw(current);
+    rec.start(500);
+    const frame = () => new Promise((r) => setTimeout(r, 1000 / 30));
+    for (let i = 0; i < slides.length && !cancelled(); i++) {
+      if (i > 0) { previous = current; current = await next; next = imageAt(i + 1); }
+      onProgress(i);
+      const s = slides[i];
+      if (s.narration) {
+        try {
+          const buf = await audio.decodeAudioData(await (await fetch(s.narration)).arrayBuffer());
+          const src = audio.createBufferSource();
+          src.buffer = buf;
+          src.connect(sink);
+          src.start();
+        } catch { /* a narration that will not play is left out */ }
+      }
+      const start = performance.now();
+      const fadeMs = previous && s.fade ? 500 : 0;
+      while (!cancelled()) {
+        const t = performance.now() - start;
+        if (t >= s.seconds * 1000) break;
+        if (t < fadeMs) { draw(previous); draw(current, t / fadeMs); } else draw(current);
+        await frame();
+      }
     }
-    const start = performance.now();
-    const fadeMs = i > 0 && s.fade ? 500 : 0;
-    while (!cancelled()) {
-      const t = performance.now() - start;
-      if (t >= s.seconds * 1000) break;
-      if (t < fadeMs) { draw(images[i - 1]); draw(images[i], t / fadeMs); } else draw(images[i]);
-      await frame();
-    }
+    rec.stop();
+    await done;
+    const contentType = type.split(';')[0];
+    return { bytes: new Uint8Array(await new Blob(parts, { type: contentType }).arrayBuffer()), contentType };
+  } finally {
+    if (rec && rec.state !== 'inactive') { try { rec.stop(); } catch { /* stopped already */ } }
+    tracks.forEach((t) => t.stop());
+    await audio.close().catch(() => {});
   }
-  rec.stop();
-  await done;
-  tracks.forEach((t) => t.stop());
-  await audio.close().catch(() => {});
-  const contentType = type.split(';')[0];
-  return { bytes: new Uint8Array(await new Blob(parts, { type: contentType }).arrayBuffer()), contentType };
 }
 
 /** The Export to Video box: quality, timings and narrations or seconds per slide, then the file, with progress. */

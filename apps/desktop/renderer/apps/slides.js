@@ -137,6 +137,15 @@ export default function Slides({ app, shell, boot }) {
   }, [ink.tool]);
   // Record: the narration being recorded (the microphone, and the bar's clock), and Record Sound's box.
   const narrator = useRef(null);
+  // Record pressed while the microphone is still opening is not a second
+  // recording; and a window closed mid-recording turns the microphone off.
+  const recordOpening = useRef(false);
+  const slidesOpen = useRef(true);
+  useEffect(() => () => {
+    slidesOpen.current = false;
+    narrator.current?.stop().catch(() => {});
+    narrator.current = null;
+  }, []);
   const [recording, setRecording] = useState(null);
   const [recordAudioOpen, setRecordAudioOpen] = useState(false);
   const [videoOpen, setVideoOpen] = useState(false);
@@ -1680,8 +1689,11 @@ export default function Slides({ app, shell, boot }) {
       case 'screenRecording': setRecPick(true); return;
       // Record → From Beginning / From Current Slide: the show, with the microphone on; each slide's voice and time kept.
       case 'recordShow': {
+        if (narrator.current || recordOpening.current) return;
+        recordOpening.current = true;
         let rec;
-        try { rec = await NarrationRecorder.open(); } catch (err) { toast(`The microphone could not be opened: ${err.message || err}`, { ms: 4500 }); return; }
+        try { rec = await NarrationRecorder.open(); } catch (err) { toast(`The microphone could not be opened: ${err.message || err}`, { ms: 4500 }); return; } finally { recordOpening.current = false; }
+        if (!slidesOpen.current) { rec.stop().catch(() => {}); return; }
         const first = nextShown(model, (showSet.range?.from ?? 1) - 2, 1);
         const start = arg === 'here' ? index : inShow(first) ? first : nextShown(model, -1, 1);
         narrator.current = rec;

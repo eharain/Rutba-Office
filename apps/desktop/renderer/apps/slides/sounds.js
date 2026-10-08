@@ -16,7 +16,17 @@ function noise(seed = 7) {
 
 /** Samples in -1…1 as a mono 16-bit PCM WAV. */
 export function wavOf(samples, rate = RATE) {
-  const n = samples.length;
+  const pcm = new Int16Array(samples.length);
+  for (let i = 0; i < samples.length; i++) pcm[i] = toPcm(samples[i]);
+  return wavOfPcm(pcm, rate);
+}
+
+/** A sample from -1 to 1 as the 16-bit value a WAV holds, with a little headroom. */
+export const toPcm = (s) => Math.round(Math.max(-1, Math.min(1, s)) * 30000);
+
+/** A mono WAV of 16-bit samples already made. */
+export function wavOfPcm(pcm, rate = RATE) {
+  const n = pcm.length;
   const buf = new Uint8Array(44 + n * 2);
   const v = new DataView(buf.buffer);
   const text = (at, s) => { for (let i = 0; i < s.length; i++) buf[at + i] = s.charCodeAt(i); };
@@ -24,7 +34,7 @@ export function wavOf(samples, rate = RATE) {
   text(12, 'fmt '); v.setUint32(16, 16, true); v.setUint16(20, 1, true); v.setUint16(22, 1, true);
   v.setUint32(24, rate, true); v.setUint32(28, rate * 2, true); v.setUint16(32, 2, true); v.setUint16(34, 16, true);
   text(36, 'data'); v.setUint32(40, n * 2, true);
-  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, Math.round(Math.max(-1, Math.min(1, samples[i])) * 30000), true);
+  for (let i = 0; i < n; i++) v.setInt16(44 + i * 2, pcm[i], true);
   return buf;
 }
 

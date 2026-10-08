@@ -5,30 +5,11 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Button, Dialog } from '@rutba/office-ui';
-import { wavOf } from './sounds.js';
+import { wavOfPcm } from './sounds.js';
+import { Downsampler } from './downsample.js';
 
 const RATE = 22050;
 
-/** Samples at one rate as samples at another, by straight lines between them. */
-function resample(samples, from, to = RATE) {
-  if (from === to) return samples;
-  const out = new Float32Array(Math.max(1, Math.floor((samples.length * to) / from)));
-  const step = from / to;
-  for (let i = 0; i < out.length; i++) {
-    const at = i * step;
-    const a = Math.floor(at);
-    const t = at - a;
-    out[i] = (samples[a] || 0) * (1 - t) + (samples[a + 1] ?? samples[a] ?? 0) * t;
-  }
-  return out;
-}
-
-const join = (chunks) => {
-  const out = new Float32Array(chunks.reduce((n, c) => n + c.length, 0));
-  let at = 0;
-  for (const c of chunks) { out.set(c, at); at += c.length; }
-  return out;
-};
 
 /**
  * The microphone, recording: `mark(slide)` closes the stretch so far (for
@@ -47,13 +28,13 @@ export class NarrationRecorder {
     this.ctx = new AudioContext();
     this.source = this.ctx.createMediaStreamSource(stream);
     this.node = this.ctx.createScriptProcessor(4096, 1, 1);
-    this.chunks = [];
+    this.voice = new Downsampler(this.ctx.sampleRate, RATE);
     this.paused = false;
     this.parts = [];
     this.current = null;
     this.node.onaudioprocess = (e) => {
       if (this.paused || !this.current) return;
-      this.chunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+      this.voice.push(e.inputBuffer.getChannelData(0));
     };
     this.source.connect(this.node);
     // A processor runs only while connected onward; nothing reaches the speakers.
@@ -77,9 +58,7 @@ export class NarrationRecorder {
     if (!this.current) return;
     const held = this.heldMs + (this.heldAt != null ? now - this.heldAt : 0);
     const ms = Math.max(0, now - this.current.at - held);
-    const samples = resample(join(this.chunks), this.ctx.sampleRate);
-    this.parts.push({ slide: this.current.slide, samples, ms });
-    this.chunks = [];
+    this.parts.push({ slide: this.current.slide, samples: this.voice.take(), ms });
     this.current = null;
   }
 
@@ -101,7 +80,7 @@ export class NarrationRecorder {
     // A slide shown twice keeps its last stretch, as PowerPoint records over it.
     const last = new Map();
     for (const p of this.parts) last.set(p.slide, p);
-    return [...last.values()].map((p) => ({ slide: p.slide, ms: Math.round(p.ms), wav: wavOf(p.samples, RATE) }));
+    return [...last.values()].map((p) => ({ slide: p.slide, ms: Math.round(p.ms), wav: wavOfPcm(p.samples, RATE) }));
   }
 }
 
@@ -136,7 +115,10 @@ export function RecordAudioDialog({ onInsert, onClose }) {
   const [now, setNow] = useState(0);
   const rec = useRef(null);
   const url = useRef(null);
+  const alive = useRef(true);
+  const opening = useRef(false);
   useEffect(() => () => {
+    alive.current = false;
     rec.current?.stop().catch(() => {});
     if (url.current) URL.revokeObjectURL(url.current);
   }, []);
@@ -146,15 +128,22 @@ export function RecordAudioDialog({ onInsert, onClose }) {
     return () => clearInterval(t);
   }, [state]);
   const start = async () => {
+    if (opening.current || rec.current) return;
+    opening.current = true;
     try {
       setError(null);
-      rec.current = await NarrationRecorder.open();
+      const opened = await NarrationRecorder.open();
+      // Closed while the microphone was opening: it is turned off again.
+      if (!alive.current) { opened.stop().catch(() => {}); return; }
+      rec.current = opened;
       rec.current.mark(0);
       setStarted(Date.now());
       setNow(Date.now());
       setState('recording');
     } catch (err) {
       setError(`The microphone could not be opened: ${err.message || err}`);
+    } finally {
+      opening.current = false;
     }
   };
   const stop = async () => {
