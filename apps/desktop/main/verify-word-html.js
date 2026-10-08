@@ -4,10 +4,11 @@
 // a level inside it, a lettered list starting at c, a table with a cell
 // spanning two rows and one spanning two columns, and an embedded picture
 // opens as its pages — the lists labelled, the table a table, the picture
-// drawn — where it came in as its words alone. Run alone with
-// RUTBA_VERIFY_ONLY=html.
+// drawn — where it came in as its words alone; and Word's own Rich Text of
+// the same page opens the same way. Run alone with RUTBA_VERIFY_ONLY=html.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const PNG = 'iVBORw0KGgoAAAANSUhEUgAAABAAAAAICAIAAAB/FOjAAAAAE0lEQVR4nGOQizpBEmIY1UALDQAzrqABidudowAAAABJRU5ErkJggg==';
 const PAGE = `<!DOCTYPE html><html><head><title>A page</title><style>body { font-family: serif }</style></head><body>
@@ -59,5 +60,23 @@ export async function verifyWordHtml(h, { dir }) {
     check('word: opening a web page reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check('word: the web page checks ran', false, err.message);
+  }
+
+  // Microsoft Word's own Rich Text of the same page (tests/fixtures/rtf/word-made.rtf), opened the same way.
+  const rtf = path.join(dir, 'word-made.rtf');
+  try {
+    fs.copyFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'tests', 'fixtures', 'rtf', 'word-made.rtf'), rtf);
+    const win = await open('word', rtf);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`document.querySelectorAll('.wd-page table.wd-table').length > 0`), 'the table to be drawn', 8000).catch(() => {});
+    const shown = await js(`(() => { const page = document.querySelector('.wd-page'); return { text: page ? page.innerText : '', tables: page ? page.querySelectorAll('table.wd-table').length : 0, pictures: page ? [...page.querySelectorAll('img')].filter((i) => i.naturalWidth > 0).length : 0 }; })()`);
+    const labels = /•\s*First bullet/.test(shown.text) && /◦\s*Inside it/.test(shown.text) && /c\.\s*Third/.test(shown.text);
+    check('word: Word\'s own Rich Text opens as its pages, the lists labelled, the table and the picture drawn',
+      sessionFor('doc').converted?.from === 'rtf' && labels && shown.tables === 1 && shown.pictures === 1 && /Figures for the quarter/.test(shown.text),
+      `labels ${labels}; ${shown.tables} table(s), ${shown.pictures} picture(s); ${shown.text.replace(/\s+/g, ' ').slice(0, 120)}`);
+    const complaints = await errorsIn(win);
+    check('word: opening an .rtf reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the Rich Text checks ran', false, err.message);
   }
 }

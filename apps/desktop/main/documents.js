@@ -60,8 +60,8 @@ import { readDocxDocument } from '@rutba/office-formats/docx-read';
 import { writeOdtDocument } from '@rutba/office-formats/odt-write';
 import { writeHtmlDocument, writePlainDocument, writeRtfDocument } from '@rutba/office-formats/doc-export';
 import { readHtmlDocument } from '@rutba/office-formats/html-read';
+import { readRtfDocument } from '@rutba/office-formats/rtf-read';
 import { writeOds, writeOdp } from '@rutba/office-formats/odf-write';
-import { readRtf } from '@rutba/office-formats/rtf';
 import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, decodeText } from '@rutba/office-formats/text';
 import { markdownToParagraphs, paragraphsToMarkdown } from './markdown-bridge.js';
 import { readMergeSource, writeMergeList } from './mailmerge-source.js';
@@ -955,8 +955,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         return { kind: 'deck', bytes: odpSlidesToDeck(odf), source: 'odp', converted: { from: 'odp' } };
       }
       case 'rtf': {
-        const rtf = readRtf(bytes);
-        return { kind: 'doc', bytes: buildDocx({ paragraphs: blocksToParagraphs(rtf.blocks), styles: true }), source: 'rtf', converted: { from: 'rtf' } };
+        // Read whole — headings, lists at their levels, tables with their widths and merges, links, pictures,
+        // the page — where it came in as paragraphs of runs and tables of plain cells.
+        return { kind: 'doc', bytes: Buffer.from(odtToDocx(readRtfDocument(bytes))), source: 'rtf', converted: { from: 'rtf' } };
       }
       case 'md': {
         const md = readMarkdown(bytes);

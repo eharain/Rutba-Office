@@ -375,7 +375,50 @@ function colourEntry(colour) {
   return m ? '\\red' + parseInt(m[1], 16) + '\\green' + parseInt(m[2], 16) + '\\blue' + parseInt(m[3], 16) + ';' : null;
 }
 
-export function writeRtf({ blocks = [], title = '' } = {}) {
+/** RTF's \levelnfc for ODF's number formats. */
+const LEVEL_NFC = { 1: 0, I: 1, i: 2, A: 3, a: 4 };
+
+/**
+ * Word's list tables: a definition per list style, its nine levels each a
+ * bullet or a number (format, start, the text round its number and the
+ * levels above it shown), placed at its indent and hang; an override per
+ * list, so each list counts on its own.
+ */
+function listTablesRtf(lists) {
+  if (!lists?.definitions?.length) return '';
+  const hex = (n) => "\\'" + n.toString(16).padStart(2, '0');
+  const levelRtf = (lv, k) => {
+    const indent = Math.round(((lv?.indent ?? 48 + 24 * k) || 48) * 15);
+    const hang = Math.round((lv?.hanging ?? 24) * 15);
+    const place = '\\fi-' + hang + '\\li' + indent + '\\lin' + indent + ' ';
+    if (!lv || lv.kind !== 'number') {
+      const ch = (lv?.char || '\u2022').codePointAt(0);
+      return '{\\listlevel\\levelnfc23\\levelnfcn23\\leveljc0\\leveljcn0\\levelfollow0\\levelstartat1\\levelspace0\\levelindent0{\\leveltext' + hex(1) + '\\u' + (ch > 32767 ? ch - 65536 : ch) + ' ?;}{\\levelnumbers;}' + place + '}';
+    }
+    // The text round the number: the prefix, the levels shown (a byte below ten for each), the suffix.
+    const shown = Math.max(1, Math.min(lv.display || 1, k + 1));
+    const parts = [];
+    const numbers = [];
+    let text = rtfText(lv.prefix || '');
+    let length = [...String(lv.prefix || '')].length;
+    for (let s = k - shown + 1; s <= k; s++) {
+      if (s > k - shown + 1) { text += '.'; length += 1; }
+      text += hex(s);
+      length += 1;
+      numbers.push(length);
+      parts.push(s);
+    }
+    text += rtfText(lv.suffix ?? '.');
+    length += [...String(lv.suffix ?? '.')].length;
+    const nfc = LEVEL_NFC[lv.format] ?? 0;
+    return '{\\listlevel\\levelnfc' + nfc + '\\levelnfcn' + nfc + '\\leveljc0\\leveljcn0\\levelfollow0\\levelstartat' + (lv.start || 1) + '\\levelspace0\\levelindent0{\\leveltext' + hex(length) + text + ';}{\\levelnumbers' + numbers.map(hex).join('') + ';}' + place + '}';
+  };
+  const defs = lists.definitions.map((d) => '{\\list\\listtemplateid' + d.listid + '\\listhybrid' + Array.from({ length: 9 }, (_, k) => levelRtf(d.levels[k] || d.levels[d.levels.length - 1] && { ...d.levels[d.levels.length - 1], indent: 48 + 24 * k }, k)).join('') + '{\\listname ;}\\listid' + d.listid + '}').join('');
+  const overrides = lists.overrides.map((o) => '{\\listoverride\\listid' + o.listid + '\\listoverridecount0\\ls' + o.ls + '}').join('');
+  return '{\\*\\listtable' + defs + '}\n{\\*\\listoverridetable' + overrides + '}\n';
+}
+
+export function writeRtf({ blocks = [], title = '', lists = null } = {}) {
   // Both tables are built while the body is written and emitted before it,
   // because a run refers to a font and a colour by index and neither is known
   // until the run that wants it turns up.
@@ -449,10 +492,12 @@ export function writeRtf({ blocks = [], title = '' } = {}) {
       ? '\\li' + block.indentTwips + (block.hangTwips ? '\\fi-' + block.hangTwips : block.firstTwips ? '\\fi' + block.firstTwips : '')
       : block.level && !heading ? '\\li' + block.level * 360 : '';
     const size = heading ? Math.max(20, 36 - (block.level || 1) * 4) : 0;
-    const flags = (heading ? '\\outlinelevel' + Math.max(0, Math.min(8, (block.level || 1) - 1)) : '') + (block.pageBreakBefore ? '\\pagebb' : '') + (block.rtl ? '\\rtlpar' : '');
+    const flags = (heading ? '\\outlinelevel' + Math.max(0, Math.min(8, (block.level || 1) - 1)) : '') + (block.pageBreakBefore ? '\\pagebb' : '') + (block.rtl ? '\\rtlpar' : '') +
+      // A list item names its list and level; its label rides in \listtext for a reader without lists.
+      (block.list ? '\\ls' + block.list.ls + '\\ilvl' + block.list.level : '');
     return '{\\pard' + align + indent + flags + '\\sa120 ' +
       (heading ? '\\b\\fs' + size + ' ' : '') +
-      (block.label ? rtfText(block.label) + '\\tab ' : '') +
+      (block.label ? (block.list ? '{\\listtext ' + rtfText(block.label) + '\\tab}' : rtfText(block.label) + '\\tab ') : '') +
       runsOut(runsOf(block)) +
       (heading ? '\\b0' : '') +
       '\\par}';
@@ -509,7 +554,8 @@ export function writeRtf({ blocks = [], title = '' } = {}) {
   const fontTable = fonts.map((name, i) => '{\\f' + i + '\\fnil\\fcharset0 ' + rtfText(name) + ';}').join('');
   const colourTable = '{\\colortbl;' + colours.slice(1).join('') + '}';
   const info = title ? '{\\info{\\title ' + rtfText(title) + '}}' : '';
-  return '{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1{\\fonttbl' + fontTable + '}' + colourTable + info +
+  const listTables = listTablesRtf(lists);
+  return '{\\rtf1\\ansi\\ansicpg1252\\deff0\\uc1{\\fonttbl' + fontTable + '}' + colourTable + listTables + info +
     '\n\\viewkind4\\fs22\n' + body + '\n}';
 }
 

@@ -87,7 +87,12 @@ test('as Rich Text: outline level, labels hung at their indents, a HYPERLINK fie
   assert.match(rtf, /\{\\info\{\\title Every kind\}\}/);
   assert.match(rtf, /\{\\pard\\outlinelevel0\\sa120 \\b\\fs32 Every kind\\b0\\par\}/);
   assert.match(rtf, /\{\\pard\\qc\\sa120 Plain, \{\\b bold\}, \{\\cf1 red\} and a \{\\field\{\\\*\\fldinst\{HYPERLINK "https:\/\/example\.org\/"\}\}\{\\fldrslt\{link\}\}\}\\tab tabbed\\par\}/);
-  assert.match(rtf, /\{\\pard\\li720\\fi-360\\sa120 1\.\\tab One\\par\}\n\{\\pard\\li1080\\fi-360\\sa120 a\)\\tab One a\\par\}\n\{\\pard\\li1440\\fi-360\\sa120 \(i\)\\tab One a i\\par\}/);
+  // Real lists, as Word writes them: the list's levels in the list table, each item naming its list and level,
+  // its label in \listtext for a reader without lists.
+  assert.match(rtf, /\{\\pard\\li720\\fi-360\\ls1\\ilvl0\\sa120 \{\\listtext 1\.\\tab\}One\\par\}\n\{\\pard\\li1080\\fi-360\\ls1\\ilvl1\\sa120 \{\\listtext a\)\\tab\}One a\\par\}\n\{\\pard\\li1440\\fi-360\\ls1\\ilvl2\\sa120 \{\\listtext \(i\)\\tab\}One a i\\par\}/);
+  assert.match(rtf, /\{\\\*\\listtable\{\\list\\listtemplateid1000\\listhybrid\{\\listlevel\\levelnfc0\\levelnfcn0[^{]*\\levelstartat1[^{]*\{\\leveltext\\'02\\'00\.;\}\{\\levelnumbers\\'01;\}\\fi-360\\li720\\lin720 \}\{\\listlevel\\levelnfc4\\levelnfcn4[^{]*\{\\leveltext\\'02\\'01\);\}/);
+  assert.match(rtf, /\{\\listlevel\\levelnfc2\\levelnfcn2[^{]*\{\\leveltext\\'03\(\\'02\);\}\{\\levelnumbers\\'02;\}/, 'a roman level with its prefix');
+  assert.match(rtf, /\{\\\*\\listoverridetable\{\\listoverride\\listid1000\\listoverridecount0\\ls1\}/);
   assert.match(rtf, /\\trowd\\trgaph108\\clcbpat\d\\clbrdrt\\brdrs\\clbrdrl\\brdrs\\clbrdrb\\brdrs\\clbrdrr\\brdrs\\cellx2880\\clbrdrt[^\n]*\\cellx4320\\clbrdrt[^\n]*\\cellx5760\n/);
   assert.match(rtf, /\\trowd\\trgaph108\\clvmgf\\clbrdrt[^\n]*\\cellx2880\\clbrdrt[^\n]*\\cellx5760\n\\intbl North and South\\cell\n\\intbl both\\cell\n\\row/, 'down two rows, and across two columns to the grid\'s edge');
   assert.match(rtf, /\\trowd\\trgaph108\\clvmrg\\clbrdrt[^\n]*\\cellx2880[^\n]*\\cellx4320[^\n]*\\cellx5760\n\\intbl \\cell\n\\intbl 140\\cell/);
@@ -121,7 +126,7 @@ test('a Word document saved as .rtf, .html and .txt keeps its heading, its list 
   assert.match(html, /<table[\s\S]*<td[^>]*><p>Region<\/p><\/td><td[^>]*><p>Q1<\/p><\/td>[\s\S]*<td[^>]*><p>North<\/p><\/td>/);
   const rtf = read('rtf');
   assert.match(rtf, /\\outlinelevel0[^\n]*Quarterly figures/);
-  assert.match(rtf, /1\.\\tab First step\\par\}\n\{\\pard[^ ]* 2\.\\tab Second step/);
+  assert.match(rtf, /\{\\listtext 1\.\\tab\}First step\\par\}\n\{\\pard[^ ]* \{\\listtext 2\.\\tab\}Second step/);
   assert.match(rtf, /\\intbl Region\\cell\n\\intbl Q1\\cell\n\\row/);
   const txt = read('txt');
   assert.match(txt, /^Quarterly figures\n\n1\. First step\n2\. Second step\n\nRegion\tQ1\nNorth\t120\n$/);

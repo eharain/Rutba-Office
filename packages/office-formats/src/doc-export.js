@@ -231,7 +231,20 @@ export function writePlainDocument(doc = {}) {
 
 /** The blocks writeRtf takes, from the model: labels and indents, links, pictures, widths and spans. */
 export function toRtfBlocks(doc = {}) {
+  return toRtf(doc).blocks;
+}
+
+/** The blocks, and the lists as Word's list tables have them: a definition per list style, an override per list. */
+function toRtf(doc = {}) {
   const labels = listLabels(doc);
+  const definitions = new Map(); // list style → { listid, levels }
+  const overrides = new Map(); // list → { ls, listid }
+  const listOf = (b) => {
+    if (!b.list || !doc.lists?.get?.(b.list.style)) return null;
+    if (!definitions.has(b.list.style)) definitions.set(b.list.style, { listid: 1000 + definitions.size, levels: doc.lists.get(b.list.style) });
+    if (!overrides.has(b.list.id)) overrides.set(b.list.id, { ls: overrides.size + 1, listid: definitions.get(b.list.style).listid });
+    return { ls: overrides.get(b.list.id).ls, level: Math.max(0, Math.min(8, b.list.level || 0)) };
+  };
   const runs = (rs) => (rs || []).flatMap((r) => {
     if (r.image) {
       const data = doc.images?.get?.(r.image.href);
@@ -266,16 +279,18 @@ export function toRtfBlocks(doc = {}) {
       type: b.heading ? 'heading' : 'paragraph',
       ...(b.heading ? { level: b.heading } : {}),
       align: b.align || null,
-      ...(info ? { label: info.label, indentTwips: Math.round(info.indent * 15), hangTwips: Math.round(info.hanging * 15) } : b.indentLeft || b.indentFirst ? { indentTwips: Math.round((b.indentLeft || 0) * 15), firstTwips: Math.round((b.indentFirst || 0) * 15) } : {}),
+      ...(info ? { label: info.label, list: listOf(b), indentTwips: Math.round(info.indent * 15), hangTwips: Math.round(info.hanging * 15) } : b.indentLeft || b.indentFirst ? { indentTwips: Math.round((b.indentLeft || 0) * 15), firstTwips: Math.round((b.indentFirst || 0) * 15) } : {}),
       ...(b.pageBreakBefore ? { pageBreakBefore: true } : {}),
       ...(b.rtl ? { rtl: true } : {}),
       runs: runs(b.runs),
     };
   };
-  return (doc.blocks || []).map(block);
+  const blocks = (doc.blocks || []).map(block);
+  return { blocks, lists: { definitions: [...definitions.values()], overrides: [...overrides.values()] } };
 }
 
 /** The document as Rich Text. */
 export function writeRtfDocument(doc = {}) {
-  return writeRtf({ blocks: toRtfBlocks(doc), title: doc.title || '' });
+  const { blocks, lists } = toRtf(doc);
+  return writeRtf({ blocks, title: doc.title || '', lists });
 }
