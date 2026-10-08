@@ -381,6 +381,43 @@ export async function verifyWordTableTools(h, { dir }) {
     check('word: the table-data checks ran', false, err.message);
   }
 
+  // Table Layout → Text Direction, Cell Margins and Align Table, drawn.
+  const props = path.join(dir, 'table-props.docx');
+  try {
+    fs.writeFileSync(props, buildDocx({ styles: true, paragraphs: [{ text: 'Before' }, { table: { rows: [['Region', 'Q1'], ['North', '120']] } }, { text: 'After' }] }));
+    const win = await open('word', props);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const model = () => h.doc.model({ id: h.sessionFor('doc').id });
+    await until(() => js(`document.querySelectorAll('.wd-page table.wd-table').length === 1`), 'the table to be drawn', 8000);
+    const at = model().blocks.findIndex((b) => b.text === 'North');
+    await js(`(() => { const a = document.querySelector('.wd-page [data-block="${at}"]'); a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); const r = document.createRange(); r.setStart(a.firstChild || a, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return true; })()`);
+    await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Table Layout')`), 'Table Layout', 3000);
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Table Layout').click(), 'tab'`);
+    const pick = async (label, item) => {
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}))`), label, 3000);
+      await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}))`), `"${item}" in ${label}`, 3000);
+      return js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}).click(), 'picked'`);
+    };
+    const cell = (text) => `[...document.querySelectorAll('.wd-page table.wd-table td')].find((d) => d.innerText.trim() === ${JSON.stringify(text)})`;
+    await pick('Text Direction', 'Rotate all text 270°');
+    await until(() => js(`Boolean(${cell('North')}?.querySelector('.wd-cell-turned'))`), 'the words turned', 5000).catch(() => {});
+    const turned = await js(`(() => { const t = ${cell('North')}?.querySelector('.wd-cell-turned'); return t ? getComputedStyle(t).writingMode + ' ' + t.style.transform : null; })()`);
+    check('word: Table Layout → Text Direction turns the cell\'s words to read upwards', turned === 'vertical-rl rotate(180deg)', turned);
+    await pick('Cell Margins', 'Wide');
+    await until(() => js(`getComputedStyle(${cell('Q1')}).paddingTop === '4.8px'`), 'the wide margins', 5000).catch(() => {});
+    const padded = await js(`(() => { const s = getComputedStyle(${cell('Q1')}); return s.paddingTop + ' ' + s.paddingLeft; })()`);
+    check('word: Cell Margins → Wide gives every cell its room', padded === '4.8px 14.4px', padded);
+    await pick('Align Table', 'Centre');
+    await until(() => js(`document.querySelector('.wd-page table.wd-table').style.marginLeft === 'auto'`), 'the table centred', 5000).catch(() => {});
+    const centred = await js(`(() => { const t = document.querySelector('.wd-page table.wd-table'); return t.style.marginLeft + ' ' + t.style.marginRight; })()`);
+    check('word: Align Table → Centre sets the table between the margins', centred === 'auto auto', centred);
+    const complaints = await errorsIn(win);
+    check('word: a cell\'s direction, margins and the table\'s alignment report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the table-properties checks ran', false, err.message);
+  }
+
   // A header row repeated: a table too long for its page, its top row made
   // the header, draws that row again at the head of the next page's piece.
   const long = path.join(dir, 'header-rows.docx');

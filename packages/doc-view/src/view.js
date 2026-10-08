@@ -2171,8 +2171,9 @@ export class DocView {
    * (`{ rtl }`), `columnWidth` (`{ cm }`), `headerRows` (`{ on }`),
    * `cellVAlign` (`{ v }`), `distributeColumns`, `style` (`{ id }`), `styleOptions`
    * (`{ look }`), `shading` (`{ fill }`), `borders` (`{ kind, pen }`), `sort`
-   * (`{ descending, header }`), `toText` (`{ separator }`), `splitTable` or `autoFit`
-   * (`{ mode }`). Each is one undo step; deleting the last
+   * (`{ descending, header }`), `toText` (`{ separator }`), `splitTable`, `autoFit`
+   * (`{ mode }`), `align` (`{ align }`), `cellMargins` (`{ margins }`) or `textDirection`
+   * (`{ dir }`). Each is one undo step; deleting the last
    * row or column deletes the table, as Word does. A merged table refuses —
    * the engine says why.
    */
@@ -2201,6 +2202,9 @@ export class DocView {
       toText: 'tableToText',
       splitTable: 'splitTable',
       autoFit: 'setTableAutoFit',
+      align: 'setTableAlign',
+      cellMargins: 'setTableCellMargins',
+      textDirection: 'setTableCellDirection',
     };
     const method = PORT[op];
     if (!method) throw new Error('unknown table operation: ' + op);
@@ -2316,6 +2320,19 @@ export class DocView {
       } else if (op === 'splitTable') {
         // Table Layout → Split Table: the caret's row starts a table of its own.
         this.doc.splitTable(tableStart, rowIndex);
+      } else if (op === 'align') {
+        this.doc.setTableAlign(tableStart, arg.align);
+      } else if (op === 'cellMargins') {
+        this.doc.setTableCellMargins(tableStart, arg.margins || {});
+      } else if (op === 'textDirection') {
+        // Every selected cell, or the caret's.
+        const rect = this._selectedCells(tableStart, rowIndex, cellIndex);
+        for (let r = rect.top; r <= rect.bottom; r++) {
+          for (let c = rect.left; c <= rect.right; c++) {
+            const key = 't' + tableStart + ':r' + r + ':c' + c;
+            if (this.blocks.some((b) => b.container === key || (b.container ?? '').startsWith(key + ':'))) this.doc.setTableCellDirection(tableStart, r, c, arg.dir || null);
+          }
+        }
       } else if (op === 'autoFit') {
         this.doc.setTableAutoFit(tableStart, arg.mode);
       } else if (op === 'toText') {
@@ -3501,6 +3518,7 @@ export class DocView {
         ...(b.tableBorders ? { tableBorders: b.tableBorders } : {}),
         ...(b.cellBorders ? { cellBorders: b.cellBorders } : {}),
         ...(b.cellFill ? { cellFill: b.cellFill } : {}),
+        ...(b.cellDirection ? { cellDirection: b.cellDirection } : {}),
         ...(b.tableStyle ? { tableStyle: b.tableStyle } : {}),
         // A paragraph in a frame placed on the page — drawn there.
         ...(b.frame ? { frame: b.frame } : {}),

@@ -281,6 +281,30 @@ test('Table Layout → Split Table and AutoFit: two tables of the same make, and
   assert.equal((/<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(xmlOf(view))[0].match(/<w:tblW\b/g) || []).length, 1, 'one width, rewritten');
 });
 
+test('Table Layout → Cell Margins, Text Direction and Align Table: written in their schema places and read back for the page', () => {
+  const view = doc();
+  view.setSelection({ block: at(view, 'North'), offset: 0 });
+  view.tableOp('cellMargins', { margins: { top: 72, left: 216, bottom: 72, right: 216 } });
+  const tblPr = () => /<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(xmlOf(view))[0];
+  assert.match(tblPr(), /<w:tblCellMar><w:top w:w="72" w:type="dxa"\/><w:left w:w="216" w:type="dxa"\/><w:bottom w:w="72" w:type="dxa"\/><w:right w:w="216" w:type="dxa"\/><\/w:tblCellMar>/);
+  assert.deepEqual(blocks(view)[at(view, 'North')].tableLook.cellMarginPx, { left: 14.4, right: 14.4, top: 4.8, bottom: 4.8 }, 'the page pads every cell by them');
+  view.tableOp('align', { align: 'center' });
+  assert.match(tblPr(), /<w:tblW\b[^>]*\/><w:jc w:val="center"\/>/, 'after the width, as the schema has it');
+  assert.equal(blocks(view)[at(view, 'North')].tableLook.align, 'center');
+  view.tableOp('align', { align: 'left' });
+  assert.doesNotMatch(tblPr(), /<w:jc\b/);
+  view.setSelection({ block: at(view, 'North'), offset: 0 }, { block: at(view, 'South'), offset: 0 });
+  view.tableOp('textDirection', { dir: 'up' });
+  assert.equal((xmlOf(view).match(/<w:textDirection w:val="btLr"\/>/g) || []).length, 2, 'both selected cells turned to read upwards');
+  assert.deepEqual(['North', 'South', 'Region'].map((t) => blocks(view)[at(view, t)].cellDirection ?? null), ['up', 'up', null]);
+  view.setSelection({ block: at(view, 'North'), offset: 0 });
+  view.tableOp('textDirection', { dir: 'down' });
+  assert.equal(blocks(view)[at(view, 'North')].cellDirection, 'down');
+  view.tableOp('textDirection', { dir: null });
+  assert.equal(blocks(view)[at(view, 'North')].cellDirection, undefined);
+  assert.throws(() => view.tableOp('align', { align: 'middle' }), /left, the centre or the right/);
+});
+
 test('through the document service, Convert Text to Table is an operation of its own', () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-text-table-')), 'lines.docx');
   fs.writeFileSync(file, buildDocx({ styles: true, paragraphs: [{ text: 'a\tb' }, { text: 'c\td' }] }));

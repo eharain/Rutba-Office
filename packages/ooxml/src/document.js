@@ -486,7 +486,10 @@ function tableHead(body, at) {
   const rtl = /<w:bidiVisual\b(?![^>]*\bw:val="(?:0|false|off)")[^>]*\/?>/.test(head);
   const mar = /<w:tblCellMar\b[^>]*>([\s\S]*?)<\/w:tblCellMar>/.exec(head);
   const side = (name) => { const m = mar ? new RegExp('<w:' + name + '\\b[^>]*\\bw:w="(\\d+)"').exec(mar[1]) : null; return m ? twipsToPx(Number(m[1])) : null; };
-  const look = bare || fixed || rtl ? { bare, fixed, ...(rtl ? { rtl } : {}), ...(mar ? { cellMarginPx: { left: side('left') ?? side('start') ?? 0, right: side('right') ?? side('end') ?? 0, top: side('top') ?? 0, bottom: side('bottom') ?? 0 } } : {}) } : null;
+  // Where the table sits between the margins (its own w:jc, not a paragraph's).
+  const jc = /<w:jc\b[^>]*\bw:val="(center|right|end)"/.exec(head)?.[1];
+  const align = jc === 'center' ? 'center' : jc ? 'right' : null;
+  const look = bare || fixed || rtl || mar || align ? { bare, fixed, ...(rtl ? { rtl } : {}), ...(align ? { align } : {}), ...(mar ? { cellMarginPx: { left: side('left') ?? side('start') ?? 0, right: side('right') ?? side('end') ?? 0, top: side('top') ?? 0, bottom: side('bottom') ?? 0 } } : {}) } : null;
   // Its own borders, and the table style it names (whose borders are under its own).
   const styleId = /<w:tblStyle\b[^>]*\bw:val="([^"]*)"/.exec(head)?.[1] ?? null;
   // Which of the style's parts the table turns on: tblLook's switches, or the bits of its w:val —
@@ -852,6 +855,7 @@ export class Document {
         ...(tbl.borders ? { tableBorders: tbl.borders } : {}),
         ...(tc.cellBorders ? { cellBorders: tc.cellBorders } : {}),
         ...(tc.fill ? { cellFill: tc.fill } : {}),
+        ...(tc.turn ? { cellDirection: tc.turn } : {}),
         ...(tbl.tableStyle ? { tableStyle: tbl.tableStyle } : {}),
       };
     };
@@ -920,7 +924,9 @@ export class Document {
             // The cell's own lines and shading, over the table's.
             const cellBorders = bordersOf(/<w:tcBorders\b[^>]*>([\s\S]*?)<\/w:tcBorders>/.exec(head)?.[0] ?? null);
             const fill = /<w:shd\b[^>]*\bw:fill="([0-9a-fA-F]{6})"/.exec(head)?.[1];
-            stack.push({ tag: 'tc', index: top?.tag === 'tr' ? top.nextCell++ : 0, hidden, span: span ? Number(span[1]) : 1, ...(vAlign ? { vAlign: vAlign[1] } : {}), ...(cellBorders ? { cellBorders } : {}), ...(fill ? { fill: '#' + fill.toLowerCase() } : {}) });
+            // Words turned to read upwards (btLr) or downwards (tbRl).
+            const turn = /<w:textDirection\b[^>]*\bw:val="(btLr|tbRl|tbRlV|tbLrV)"/.exec(head)?.[1];
+            stack.push({ tag: 'tc', index: top?.tag === 'tr' ? top.nextCell++ : 0, hidden, span: span ? Number(span[1]) : 1, ...(vAlign ? { vAlign: vAlign[1] } : {}), ...(cellBorders ? { cellBorders } : {}), ...(fill ? { fill: '#' + fill.toLowerCase() } : {}), ...(turn ? { turn: turn === 'btLr' ? 'up' : 'down' } : {}) });
           }
         } else {
           for (let i = stack.length - 1; i >= 0; i--) {
@@ -4806,6 +4812,7 @@ export class Document {
       ...(p.cellBorders ? { cellBorders: p.cellBorders } : {}),
       ...(p.cellFill ? { cellFill: p.cellFill } : {}),
       ...(p.tableStyle ? { tableStyle: p.tableStyle } : {}),
+      ...(p.cellDirection ? { cellDirection: p.cellDirection } : {}),
       xml: p.xml,
       start: p.start,
       end: p.end,
@@ -6268,6 +6275,41 @@ export class Document {
       if (!layout) return inner;
       const after = /<w:(tblCellMar|tblLook|tblCaption|tblDescription|tblPrChange)\b/.exec(inner);
       return after ? inner.slice(0, after.index) + layout + inner.slice(after.index) : inner + layout;
+    });
+  }
+
+  /** Table Properties → Alignment: the table at the left margin, centred or at the right (w:jc after its width). */
+  setTableAlign(tableStart, align) {
+    if (!['left', 'center', 'right'].includes(align)) throw new Error('a table sits at the left, the centre or the right');
+    return this._editTableProps(tableStart, (inner) => {
+      inner = inner.replace(/<w:jc\b[^>]*\/>/g, '');
+      if (align === 'left') return inner;
+      const el = '<w:jc w:val="' + align + '"/>';
+      const after = /<w:(tblCellSpacing|tblInd|tblBorders|shd|tblLayout|tblCellMar|tblLook|tblCaption|tblDescription|tblPrChange)\b/.exec(inner);
+      return after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
+    });
+  }
+
+  /** Table Layout → Cell Margins: the room inside every cell, in twips, as the table's default (w:tblCellMar). */
+  setTableCellMargins(tableStart, { top = 0, left = 108, bottom = 0, right = 108 } = {}) {
+    const tw = (v) => Math.max(0, Math.min(1440, Math.round(Number(v) || 0)));
+    return this._editTableProps(tableStart, (inner) => {
+      inner = inner.replace(/<w:tblCellMar\b[^>]*>[\s\S]*?<\/w:tblCellMar>|<w:tblCellMar\b[^>]*\/>/g, '');
+      const el = '<w:tblCellMar><w:top w:w="' + tw(top) + '" w:type="dxa"/><w:left w:w="' + tw(left) + '" w:type="dxa"/><w:bottom w:w="' + tw(bottom) + '" w:type="dxa"/><w:right w:w="' + tw(right) + '" w:type="dxa"/></w:tblCellMar>';
+      const after = /<w:(tblLook|tblCaption|tblDescription|tblPrChange)\b/.exec(inner);
+      return after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
+    });
+  }
+
+  /** Table Layout → Text Direction: one cell's words across, or turned to read upwards or downwards (w:textDirection). */
+  setTableCellDirection(tableStart, rowIndex, cellIndex, dir) {
+    if (dir != null && !['up', 'down'].includes(dir)) throw new Error('a cell\'s words run across, up or down');
+    return this._editCellProps(tableStart, rowIndex, cellIndex, (inner) => {
+      inner = inner.replace(/<w:textDirection\b[^>]*\/>/g, '');
+      if (!dir) return inner;
+      const el = '<w:textDirection w:val="' + (dir === 'up' ? 'btLr' : 'tbRl') + '"/>';
+      const after = /<w:(tcFitText|vAlign|hideMark|headers|cellIns|cellDel|cellMerge)\b/.exec(inner);
+      return after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
     });
   }
 

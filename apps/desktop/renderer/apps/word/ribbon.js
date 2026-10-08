@@ -791,6 +791,11 @@ export default function WordRibbon({
       {tab === 'tableLayout' && table ? (
         <>
           <Group label="Table">
+            <Button tall icon="alignCenter" label="Align Table" title="Align Table — the table at the left margin, centred or at the right" onClick={(e) => menu.open(e, [
+              { label: 'Left', run: () => tableOp('align', { align: 'left' }) },
+              { label: 'Centre', run: () => tableOp('align', { align: 'center' }) },
+              { label: 'Right', run: () => tableOp('align', { align: 'right' }) },
+            ])} />
             <Button tall icon="grid" label="View Gridlines" pressed={!view.noTableGridlines} title="View Gridlines — a table's faint dashes where it has no lines of its own; on screen only, never printed" onClick={() => act('toggleTableGridlines')} />
           </Group>
           <Group label="Rows & Columns">
@@ -837,6 +842,16 @@ export default function WordRibbon({
             <Button tall icon="sliders" label="Distribute Columns" title="Distribute Columns — every column the same width, the table as wide as before" onClick={() => tableOp('distributeColumns')} />
           </Group>
           <Group label="Alignment">
+            <Button tall icon="rotate" label="Text Direction" title="Text Direction — the selected cells' words across, or turned to read down or up" onClick={(e) => menu.open(e, [
+              { label: 'Horizontal', run: () => tableOp('textDirection', { dir: null }) },
+              { label: 'Rotate all text 90°', run: () => tableOp('textDirection', { dir: 'down' }) },
+              { label: 'Rotate all text 270°', run: () => tableOp('textDirection', { dir: 'up' }) },
+            ])} />
+            <Button tall icon="crop" label="Cell Margins" title="Cell Margins — the room inside every cell of the table" onClick={(e) => menu.open(e, [
+              { label: 'Narrow', run: () => tableOp('cellMargins', { margins: { top: 0, left: 57, bottom: 0, right: 57 } }) },
+              { label: 'Normal', run: () => tableOp('cellMargins', { margins: { top: 0, left: 108, bottom: 0, right: 108 } }) },
+              { label: 'Wide', run: () => tableOp('cellMargins', { margins: { top: 72, left: 216, bottom: 72, right: 216 } }) },
+            ])} />
             <Button tall icon="alignCenter" label="Cell Alignment" title={`Cell Alignment — the words at the top, centre or bottom of the selected cells; now ${cellAlign === 'center' ? 'centre' : cellAlign}`} onClick={(e) => menu.open(e, [
               { label: 'Top', icon: cellAlign === 'top' ? 'check' : undefined, run: () => tableOp('cellVAlign', { v: 'top' }) },
               { label: 'Centre', icon: cellAlign === 'center' ? 'check' : undefined, run: () => tableOp('cellVAlign', { v: 'center' }) },

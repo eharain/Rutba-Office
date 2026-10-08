@@ -2892,6 +2892,7 @@ function groupTables(blocks) {
     if (block.rowHeightPx && !current.rowHeights.has(row)) current.rowHeights.set(row, block.rowHeightPx);
     if (block.rowRule && !current.rowRules.has(row)) current.rowRules.set(row, block.rowRule);
     if (block.cellVAlign) current.vAligns.set(`${row}:${cell}`, block.cellVAlign);
+    if (block.cellDirection) (current.turns ||= new Map()).set(`${row}:${cell}`, block.cellDirection);
     if (block.cellSpan > 1) current.spans.set(`${row}:${cell}`, block.cellSpan);
     if (block.hiddenCell) current.merged.add(`${row}:${cell}`);
     if (block.rowHeader) current.headers.add(row);
@@ -2989,7 +2990,10 @@ function TableGroup({ table, labels, styles, tsplit }) {
         const v = table.vAligns?.get(`${r}:${c}`);
         const m = table.look?.cellMarginPx;
         const { sides, fill, text } = lookOf(drawn);
-        const blocks = paragraphs.map((block) => <Block key={block.index} block={block} labels={labels} styles={styles} />);
+        // Words turned to read upwards or downwards (w:textDirection) stand in a box written down the cell.
+        const turn = table.turns?.get(`${r}:${c}`);
+        const words = paragraphs.map((block) => <Block key={block.index} block={block} labels={labels} styles={styles} />);
+        const blocks = turn ? <div className="wd-cell-turned" style={{ writingMode: 'vertical-rl', transform: turn === 'up' ? 'rotate(180deg)' : undefined }}>{words}</div> : words;
         return (
           <td key={c} colSpan={table.spans?.get(`${r}:${c}`) || undefined} rowSpan={rowSpan > 1 ? rowSpan : undefined} style={m || v || sides || fill || Object.keys(text).length ? { ...(m ? { padding: `${m.top}px ${m.right}px ${m.bottom}px ${m.left}px` } : {}), ...(v ? { verticalAlign: v === 'center' ? 'middle' : v } : {}), ...(sides || {}), ...(fill ? { background: fill } : {}), ...text } : undefined}>
             {exact ? (
@@ -3003,7 +3007,7 @@ function TableGroup({ table, labels, styles, tsplit }) {
   return (
     <>
       {bounds.slice(0, -1).map((from, j) => (
-        <table key={j} className={`wd-table${table.look?.bare || !ruled ? ' wd-table-bare' : ''}`} dir={table.look?.rtl ? 'rtl' : undefined} data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined} style={width || table.look?.fixed ? { width, ...(table.look?.fixed ? { tableLayout: 'fixed' } : {}) } : undefined}>
+        <table key={j} className={`wd-table${table.look?.bare || !ruled ? ' wd-table-bare' : ''}`} dir={table.look?.rtl ? 'rtl' : undefined} data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined} style={width || table.look?.fixed || table.look?.align ? { width, ...(table.look?.fixed ? { tableLayout: 'fixed' } : {}), ...(table.look?.align === 'center' ? { marginLeft: 'auto', marginRight: 'auto' } : table.look?.align === 'right' ? { marginLeft: 'auto', marginRight: 0 } : {}) } : undefined}>
           {grid && sum > 0 ? <colgroup>{grid.map((w, i) => <col key={i} style={{ width: `${(w / sum) * 100}%` }} />)}</colgroup> : null}
           <tbody>
             {from > 0 && from >= headerCount ? mergedRows(rows.slice(0, headerCount), table).map((row) => drawRow(row, true)) : null}
