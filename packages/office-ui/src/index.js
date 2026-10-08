@@ -698,18 +698,60 @@ export const Select = ({ children, ...rest }) => (
 
 /* ── dialogs and menus ──────────────────────────────────────────────────── */
 
+/** The dialogs open now, the last on top: Escape closes the top one only. */
+const openDialogs = [];
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
+
+/** What Tab can reach inside `root`, in order, leaving out what is not drawn. */
+export function focusablesIn(root) {
+  return [...root.querySelectorAll(FOCUSABLE)].filter((el) => el.getClientRects().length > 0);
+}
+
+/**
+ * A modal dialog. Focus goes into it when it opens — to what its author
+ * marked `autoFocus`, or else the first thing in it that takes focus — and
+ * Tab and Shift+Tab go round inside it rather than into the page behind;
+ * when it closes, focus goes back to where it was. Escape closes the top
+ * dialog only, so a dialog opened from another leaves the first open.
+ */
 export function Dialog({ title, children, actions, onClose, width }) {
+  const ref = useRef(null);
+  const close = useRef(onClose);
+  close.current = onClose;
+  // Where focus was, read as the dialog is first drawn: by the time its
+  // effects run, a field marked autoFocus has already taken it.
+  const [before] = useState(() => (typeof document === 'undefined' ? null : document.activeElement));
   useEffect(() => {
+    const self = {};
+    openDialogs.push(self);
+    const box = ref.current;
+    if (box && !box.contains(document.activeElement)) (focusablesIn(box)[0] || box).focus({ preventScroll: true });
     const onKey = (e) => {
-      if (e.key === 'Escape') onClose?.();
+      if (e.key === 'Escape' && openDialogs[openDialogs.length - 1] === self) close.current?.();
     };
     window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      openDialogs.splice(openDialogs.indexOf(self), 1);
+      const focus = document.activeElement;
+      if (before?.isConnected && (!focus || focus === document.body || box?.contains(focus))) before.focus?.({ preventScroll: true });
+    };
+  }, []);
+  const trap = (e) => {
+    if (e.key !== 'Tab' || !ref.current) return;
+    const all = focusablesIn(ref.current);
+    if (!all.length) { e.preventDefault(); return; }
+    const first = all[0];
+    const last = all[all.length - 1];
+    const at = document.activeElement;
+    if (e.shiftKey && (at === first || !ref.current.contains(at) || at === ref.current)) { e.preventDefault(); last.focus(); }
+    else if (!e.shiftKey && (at === last || !ref.current.contains(at))) { e.preventDefault(); first.focus(); }
+  };
 
   return (
     <div className="rw-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
-      <div className="rw-dialog" style={width ? { width } : undefined} role="dialog" aria-modal="true" aria-label={title}>
+      <div ref={ref} className="rw-dialog" style={width ? { width } : undefined} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onKeyDown={trap}>
         {title ? <div className="rw-dialog-head">{title}</div> : null}
         <div className="rw-dialog-body">{children}</div>
         {actions ? <div className="rw-dialog-foot">{actions}</div> : null}

@@ -637,6 +637,8 @@ textarea,
   overflow: hidden;
   animation: rw-pop var(--slow);
 }
+/* Focus rests on the dialog itself only when nothing in it takes focus. */
+.rw-dialog:focus { outline: none; }
 .rw-dialog-head {
   padding: 18px 20px 10px;
   font-family: var(--font-display);
