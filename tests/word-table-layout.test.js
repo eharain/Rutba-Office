@@ -124,7 +124,10 @@ test('a table\'s lines are its style\'s along basedOn, its own sides over them; 
   assert.deepEqual(engine._tableStyleLook('Child'), {
     borders: { top: { style: 'single', widthPx: 4 / 3, colour: '#000000' }, insideH: { style: 'double', widthPx: 2 / 3, colour: '#0000ff' } },
     fill: '#eeeeee',
-  }, 'the child\'s inside line over its base\'s, the base\'s top and shading, a conditional part left out');
+    parts: { firstRow: { fill: '#ff0000' } },
+    rowBand: 1,
+    colBand: 1,
+  }, 'the child\'s inside line over its base\'s, the base\'s top and shading, the header row\'s part on its own');
   // The table names the style, sets its own bottom, and one cell its own border and shading.
   engine.xml = engine.xml
     .replace(/<w:tblPr>/, '<w:tblPr><w:tblStyle w:val="Child"/>')
@@ -136,7 +139,10 @@ test('a table\'s lines are its style\'s along basedOn, its own sides over them; 
   assert.equal(region.tableBorders.insideH.style, 'double', 'the style\'s inside line');
   assert.equal(region.tableBorders.top.colour, '#000000', 'the base style\'s top');
   assert.ok(region.tableBorders.bottom, 'the table\'s own bottom');
-  assert.equal(region.cellFill, '#eeeeee', 'the style\'s shading where the cell gives none');
+  assert.equal(region.cellFill, undefined, 'a cell\'s fill is its own');
+  assert.equal(region.tableStyle.fill, '#eeeeee', 'the style\'s shading, for the page to lay under the cell');
+  assert.deepEqual(region.tableStyle.parts.firstRow, { fill: '#ff0000' });
+  assert.deepEqual(region.tableStyle.look, { firstRow: true, lastRow: false, firstColumn: true, lastColumn: false, noHBand: false, noVBand: true }, 'tblLook\'s switches');
   assert.deepEqual(q1.cellBorders, { left: { style: 'dotted', widthPx: 4 / 3, colour: '#123456' } });
   assert.equal(q1.cellFill, '#abcdef');
   // And the view passes them on to the page.

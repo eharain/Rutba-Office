@@ -9,6 +9,7 @@
 // verify-word-table.js). Run alone with RUTBA_VERIFY_ONLY=tabletools.
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { buildDocx } from '@rutba/ooxml/build';
 import { readZip, writeZip } from '@rutba/ooxml/zip';
 
@@ -115,6 +116,33 @@ export async function verifyWordTableTools(h, { dir }) {
     check('word: drawing a table\'s lines reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check('word: the table-lines checks ran', false, err.message);
+  }
+
+  // A table in one of Word's own styles (tests/fixtures/rich/showcase.docx, Grid Table 4 – Accent 1,
+  // made by Word): its header row filled and its words white and bold, its rows banded, its first column bold.
+  const styled = path.join(dir, 'styled-table.docx');
+  try {
+    fs.copyFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'tests', 'fixtures', 'rich', 'showcase.docx'), styled);
+    const win = await open('word', styled);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`[...document.querySelectorAll('.wd-page table.wd-table td')].some((c) => c.innerText.trim() === 'Region')`), 'the styled table', 10000).catch(() => {});
+    if (process.env.RUTBA_VERIFY_CAPTURE) {
+      await js(`[...document.querySelectorAll('.wd-page table.wd-table')].find((t) => t.innerText.includes('Region'))?.scrollIntoView({ block: 'center' }), 'shown'`);
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-table-style.png'), (await win.webContents.capturePage()).toPNG());
+    }
+    const cells = await js(`(() => {
+      const of = (text) => { const c = [...document.querySelectorAll('.wd-page table.wd-table td')].find((d) => d.innerText.trim() === text); if (!c) return null; const s = getComputedStyle(c); const words = getComputedStyle(c.querySelector('.wd-block') || c); return [s.backgroundColor, words.color, words.fontWeight].join(' / '); };
+      return { header: of('Region'), north: of('North'), n1200: of('1200'), south: of('South'), s980: of('980') };
+    })()`);
+    check('word: a table in Word\'s Grid Table 4 has its header row filled with white bold words, its rows banded and its first column bold',
+      cells.header === 'rgb(21, 96, 130) / rgb(255, 255, 255) / 700'
+      && cells.north?.startsWith('rgb(193, 228, 245) /') && cells.north.endsWith('/ 700') && cells.n1200?.startsWith('rgb(193, 228, 245) /') && cells.n1200.endsWith('/ 400')
+      && cells.south?.startsWith('rgba(0, 0, 0, 0) /') && cells.south.endsWith('/ 700') && cells.s980?.endsWith('/ 400'),
+      JSON.stringify(cells));
+    const complaints = await errorsIn(win);
+    check('word: drawing a table style reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the table-style checks ran', false, err.message);
   }
 
   // Table Layout: there while the caret is in a table, and each of its

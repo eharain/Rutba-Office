@@ -488,7 +488,14 @@ function tableHead(body, at) {
   const look = bare || fixed || rtl ? { bare, fixed, ...(rtl ? { rtl } : {}), ...(mar ? { cellMarginPx: { left: side('left') ?? side('start') ?? 0, right: side('right') ?? side('end') ?? 0, top: side('top') ?? 0, bottom: side('bottom') ?? 0 } } : {}) } : null;
   // Its own borders, and the table style it names (whose borders are under its own).
   const styleId = /<w:tblStyle\b[^>]*\bw:val="([^"]*)"/.exec(head)?.[1] ?? null;
-  return { gridPx: gridPx.length ? gridPx : null, tableWidth, ...(look ? { look } : {}), borders: bordersOf(borders?.[0] ?? null), styleId };
+  // Which of the style's parts the table turns on: tblLook's switches, or the bits of its w:val —
+  // absent, Word's own default for a new table (header row, first column, banded rows).
+  const lookEl = /<w:tblLook\b([^>]*)\/>/.exec(head);
+  const la = lookEl ? attrs(lookEl[1]) : {};
+  const bits = la['w:val'] != null ? parseInt(la['w:val'], 16) : lookEl ? 0 : 0x04a0;
+  const flag = (name, bit) => (la['w:' + name] != null ? la['w:' + name] === '1' || la['w:' + name] === 'true' : Boolean(bits & bit));
+  const styleLook = { firstRow: flag('firstRow', 0x20), lastRow: flag('lastRow', 0x40), firstColumn: flag('firstColumn', 0x80), lastColumn: flag('lastColumn', 0x100), noHBand: flag('noHBand', 0x200), noVBand: flag('noVBand', 0x400) };
+  return { gridPx: gridPx.length ? gridPx : null, tableWidth, ...(look ? { look } : {}), borders: bordersOf(borders?.[0] ?? null), styleId, styleLook };
 }
 
 /** A row's own height, if the file sets one, and whether it is exact or a floor. */
@@ -721,12 +728,14 @@ export class Document {
    */
   /**
    * A table style's own look, along its basedOn chain: its borders (tblPr's
-   * tblBorders) and its cells' shading (tcPr's shd) — Table Grid's lines, a
-   * shaded style's fill. Its conditional parts (header row, bands) are not
-   * read here. Cached against the styles part it was read from.
+   * tblBorders), its cells' shading (tcPr's shd) — Table Grid's lines, a
+   * shaded style's fill — and its conditional parts (header and total rows,
+   * first and last columns, bands of rows and columns, corner cells) with the
+   * band sizes, which the page lays over each cell by where it stands.
+   * Cached against the styles part it was read from.
    */
   _tableStyleLook(id) {
-    if (!id) return { borders: null, fill: null };
+    if (!id) return { borders: null, fill: null, parts: {}, rowBand: 1, colBand: 1 };
     const xml = this.pkg.has('word/styles.xml') ? this.pkg.text('word/styles.xml') : '';
     if (this._tableStylesFor !== xml) {
       this._tableStylesFor = xml;
@@ -736,21 +745,46 @@ export class Document {
         if (!sid) continue;
         // Its own tblPr and tcPr, not a conditional part's.
         const own = m[1].replace(/<w:tblStylePr\b[\s\S]*?<\/w:tblStylePr>/g, '');
+        // Its conditional parts — header and total rows, first and last columns, bands, corners — each
+        // its shading, its lines and its words' weight, slant and colour.
+        const parts = {};
+        for (const p of m[1].matchAll(/<w:tblStylePr\b[^>]*\bw:type="([^"]+)"[^>]*>([\s\S]*?)<\/w:tblStylePr>/g)) {
+          const fill = /<w:shd\b[^>]*\bw:fill="([0-9a-fA-F]{6})"/.exec(p[2])?.[1];
+          const rPr = /<w:rPr\b[^>]*>([\s\S]*?)<\/w:rPr>/.exec(p[2])?.[1] ?? '';
+          const on = (tag) => { const e = new RegExp('<w:' + tag + '\\b([^>]*)\\/>').exec(rPr); return e ? !/w:val="(0|false|off)"/.test(e[1]) : undefined; };
+          const colour = /<w:color\b[^>]*\bw:val="([0-9a-fA-F]{6})"/.exec(rPr)?.[1];
+          parts[p[1]] = {
+            ...(fill ? { fill: '#' + fill.toLowerCase() } : {}),
+            ...(bordersOf(/<w:tcBorders\b[^>]*>[\s\S]*?<\/w:tcBorders>/.exec(p[2])?.[0] ?? null) ? { borders: bordersOf(/<w:tcBorders\b[^>]*>[\s\S]*?<\/w:tcBorders>/.exec(p[2])[0]) } : {}),
+            ...(on('b') !== undefined ? { bold: on('b') } : {}),
+            ...(on('i') !== undefined ? { italic: on('i') } : {}),
+            ...(colour ? { colour: '#' + colour.toLowerCase() } : {}),
+          };
+        }
         this._tableStyles.set(sid, {
+          parts,
+          rowBand: Number(/<w:tblStyleRowBandSize\b[^>]*\bw:val="(\d+)"/.exec(own)?.[1]) || null,
+          colBand: Number(/<w:tblStyleColBandSize\b[^>]*\bw:val="(\d+)"/.exec(own)?.[1]) || null,
           basedOn: /<w:basedOn\b[^>]*\bw:val="([^"]*)"/.exec(own)?.[1] ?? null,
           borders: bordersOf(/<w:tblBorders\b[^>]*>[\s\S]*?<\/w:tblBorders>/.exec(own)?.[0] ?? null),
           fill: (() => { const f = /<w:tcPr\b[^>]*>[\s\S]*?<w:shd\b[^>]*\bw:fill="([0-9a-fA-F]{6})"/.exec(own)?.[1]; return f ? '#' + f.toLowerCase() : null; })(),
         });
       }
     }
-    const look = { borders: null, fill: null };
+    const look = { borders: null, fill: null, parts: {}, rowBand: null, colBand: null };
     for (let sid = id, depth = 0; sid && depth < 12; depth++) {
       const st = this._tableStyles.get(sid);
       if (!st) break;
       if (st.borders) look.borders = { ...st.borders, ...(look.borders || {}) };
       if (!look.fill && st.fill) look.fill = st.fill;
+      // A part the style itself gives is the style's; one only its base gives is the base's.
+      for (const [type, part] of Object.entries(st.parts || {})) look.parts[type] = { ...part, ...(look.parts[type] || {}), ...(part.borders || look.parts[type]?.borders ? { borders: { ...(part.borders || {}), ...(look.parts[type]?.borders || {}) } } : {}) };
+      look.rowBand = look.rowBand || st.rowBand;
+      look.colBand = look.colBand || st.colBand;
       sid = st.basedOn;
     }
+    look.rowBand = look.rowBand || 1;
+    look.colBand = look.colBand || 1;
     return look;
   }
 
@@ -816,7 +850,8 @@ export class Document {
         // The table's lines ride every paragraph in it, a cell's own lines and shading its paragraphs.
         ...(tbl.borders ? { tableBorders: tbl.borders } : {}),
         ...(tc.cellBorders ? { cellBorders: tc.cellBorders } : {}),
-        ...(tc.fill || tbl.styleFill ? { cellFill: tc.fill || tbl.styleFill } : {}),
+        ...(tc.fill ? { cellFill: tc.fill } : {}),
+        ...(tbl.tableStyle ? { tableStyle: tbl.tableStyle } : {}),
       };
     };
 
@@ -862,7 +897,8 @@ export class Document {
             // The table's lines: its style's, each side its own where it gives one.
             const styled = this._tableStyleLook(head.styleId);
             const borders = styled.borders || head.borders ? { ...(styled.borders || {}), ...(head.borders || {}) } : null;
-            stack.push({ tag: 'tbl', id: m.index, nextRow: 0, ...head, borders, styleFill: styled.fill });
+            const tableStyle = styled.fill || Object.keys(styled.parts).length ? { fill: styled.fill, parts: styled.parts, rowBand: styled.rowBand, colBand: styled.colBand, look: head.styleLook } : null;
+            stack.push({ tag: 'tbl', id: m.index, nextRow: 0, ...head, borders, tableStyle });
           }
           else if (name === 'tr') {
             const top = stack[stack.length - 1];
@@ -4762,6 +4798,7 @@ export class Document {
       ...(p.tableBorders ? { tableBorders: p.tableBorders } : {}),
       ...(p.cellBorders ? { cellBorders: p.cellBorders } : {}),
       ...(p.cellFill ? { cellFill: p.cellFill } : {}),
+      ...(p.tableStyle ? { tableStyle: p.tableStyle } : {}),
       xml: p.xml,
       start: p.start,
       end: p.end,

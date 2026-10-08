@@ -3424,6 +3424,7 @@ export class DocView {
         ...(b.tableBorders ? { tableBorders: b.tableBorders } : {}),
         ...(b.cellBorders ? { cellBorders: b.cellBorders } : {}),
         ...(b.cellFill ? { cellFill: b.cellFill } : {}),
+        ...(b.tableStyle ? { tableStyle: b.tableStyle } : {}),
         // A paragraph in a frame placed on the page — drawn there.
         ...(b.frame ? { frame: b.frame } : {}),
         ...(() => {
