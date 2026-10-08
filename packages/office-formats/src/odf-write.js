@@ -754,4 +754,7 @@ function archive(kind, { content, styles, title, pictures = [], objects = [] }) 
   return writeZip(entries);
 }
 
+/** For odt-write.js, which writes a whole document model with the same archive. */
+export { NS as ODF_NAMESPACES, archive as odfArchive, textXml as odfTextXml };
+
 export default { writeOdt, writeOds, writeOdp, formulaToOdf, formulaFromOdf };

@@ -56,6 +56,8 @@ import { readOdf } from '@rutba/office-formats/odf';
 import { figuresGeometryXml } from '@rutba/office-formats/odf-geometry';
 import { readOdt } from '@rutba/office-formats/odt';
 import { odtToDocx } from '@rutba/office-formats/odt-docx';
+import { readDocxDocument } from '@rutba/office-formats/docx-read';
+import { writeOdtDocument } from '@rutba/office-formats/odt-write';
 import { writeOdt, writeOds, writeOdp } from '@rutba/office-formats/odf-write';
 import { readRtf, writeRtf } from '@rutba/office-formats/rtf';
 import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, writePlain, decodeText } from '@rutba/office-formats/text';
@@ -3261,7 +3263,10 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       const frame = session.engine.render();
 
       if (ext === 'odt') {
-        writeWhole(target, writeOdt({ blocks: frame.blocks || [], title: session.name }));
+        // The document as the engine holds it — headings, lists at their levels, tables with their spans,
+        // pictures, the page — not the frame's plain paragraphs, which wrote every one of them as a line.
+        const docx = Buffer.from(session.engine.serialize ? session.engine.serialize() : session.engine.save());
+        writeWhole(target, writeOdtDocument({ ...readDocxDocument(docx), title: session.name }));
         return { path: target, format: 'odt' };
       }
 

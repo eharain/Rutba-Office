@@ -175,6 +175,7 @@ export function readOdtDocument(contentXml, stylesXml) {
   const lists = readListStyles([named, stylesAuto, automatic]);
   const body = first(first(content, 'office:body') || content, 'office:text') || content;
   let listCount = 0;
+  const lastList = new Map(); // a list style → the list last written in it
 
   /** A paragraph's runs, its spans' looks over its own, its frames and breaks among them. */
   const runsOf = (node, base, extra) => {
@@ -285,7 +286,14 @@ export function readOdtDocument(contentXml, stylesXml) {
     for (const c of kids(node)) {
       if (typeof c === 'string') continue;
       if (c.name === 'text:p' || c.name === 'text:h') out.push(...paragraphOf(c, inherited));
-      else if (c.name === 'text:list') out.push(...listOf(c, null, 0, ++listCount));
+      else if (c.name === 'text:list') {
+        // A list that carries on numbering after something else is the list it carries on.
+        const name = c.attrs['text:style-name'] || null;
+        const carries = c.attrs['text:continue-numbering'] === 'true' || c.attrs['text:continue-list'];
+        const id = carries && lastList.has(name) ? lastList.get(name) : ++listCount;
+        lastList.set(name, id);
+        out.push(...listOf(c, null, 0, id));
+      }
       else if (c.name === 'table:table') out.push(tableOf(c));
       else if (c.name === 'text:section' || c.name === 'text:index-body' || c.name === 'text:table-of-content' || c.name === 'text:illustration-index' || c.name === 'text:alphabetical-index') out.push(...blocksOf(c, inherited));
       else if (c.name === 'draw:frame') {

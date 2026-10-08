@@ -24,6 +24,8 @@
     "./odf-geometry": "./src/odf-geometry.js",
     "./odt": "./src/odt.js",
     "./odt-docx": "./src/odt-docx.js",
+    "./docx-read": "./src/docx-read.js",
+    "./odt-write": "./src/odt-write.js",
     "./rtf": "./src/rtf.js",
     "./text": "./src/text.js",
     "./markdown": "./src/markdown.js",

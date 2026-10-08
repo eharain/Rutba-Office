@@ -17,6 +17,10 @@ import { readZip, writeZip, ZipEntry } from '@rutba/ooxml/zip';
 import { writeOdt } from '../packages/office-formats/src/odf-write.js';
 import { readOdt } from '../packages/office-formats/src/odt.js';
 import { odtToDocx } from '../packages/office-formats/src/odt-docx.js';
+import { readDocxDocument } from '../packages/office-formats/src/docx-read.js';
+import { writeOdtDocument } from '../packages/office-formats/src/odt-write.js';
+import { openDocx } from '@rutba/doc-view/backends/ooxml';
+import { buildDocx } from '@rutba/ooxml/build';
 import { createDocumentService } from '../apps/desktop/main/documents.js';
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -134,4 +138,67 @@ test('opened in the suite, the .odt is a document with its lists numbered, its t
 test('saved to .odt a heading is not indented by its level', () => {
   const content = readZip(Buffer.from(writeOdt({ blocks: [{ type: 'heading', level: 2, runs: [{ text: 'Two' }] }] }))).entries.find((e) => e.name === 'content.xml').data.toString('utf8');
   assert.doesNotMatch(content, /fo:margin-left/);
+});
+
+/** What a reader of either file sees: each block's kind, words, looks, list, spans and pictures. */
+const outline = (doc) => {
+  const list = (b) => (b.list ? (() => { const lv = doc.lists.get(b.list.style)?.[b.list.level] || {}; return [b.list.level, lv.kind, lv.format ?? lv.char, lv.suffix ?? ''].join(' '); })() : null);
+  const runs = (b) => b.runs.map((r) => (r.image ? `[${Math.round(r.image.width)}x${Math.round(r.image.height)}]` : r.tab ? '\\t' : r.br ? '\\n' : [r.text, r.bold && 'b', r.italic && 'i', r.color, r.size, r.font, r.link].filter(Boolean).join('|')));
+  const block = (b) => (b.type === 'table'
+    ? { table: b.columns.map((w) => Math.round(w || 0)), rows: b.rows.map((row) => row.map((c) => (c.covered ? '-' : `${c.blocks.map((x) => x.runs?.map((r) => r.text).join('')).join('/')}${c.rowspan > 1 ? '^' + c.rowspan : ''}${c.colspan > 1 ? '<' + c.colspan : ''}${c.fill ? ' ' + c.fill : ''}`)).join('|')) }
+    : { h: b.heading || 0, align: b.align || null, list: list(b), brk: Boolean(b.pageBreakBefore), runs: runs(b) });
+  return doc.blocks.map(block);
+};
+
+test('saved to .odt from the suite, an .odt keeps what it was made of: headings, run looks, lists and their labels, the table and its spans, the picture, the page', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-odt-save-'));
+  const file = path.join(dir, 'showcase.odt');
+  fs.writeFileSync(file, odt());
+  const docs = createDocumentService({ holdBlob: () => ({ url: 'blob:x' }) });
+  const s = docs.open({ path: file });
+  const out = path.join(dir, 'saved.odt');
+  assert.equal(docs.save({ id: s.id, path: out }).format, 'odt');
+  const before = readOdt(fs.readFileSync(file));
+  const after = readOdt(fs.readFileSync(out));
+  assert.deepEqual(outline(after), outline(before));
+  const href = after.blocks.flatMap((b) => b.runs || []).find((r) => r.image)?.image.href;
+  assert.deepEqual(Buffer.from(after.images.get(href)), PNG, 'the picture itself, in the archive the frame names');
+  assert.deepEqual(['width', 'height', 'top', 'left'].map((k) => Math.round(after.page[k])), ['width', 'height', 'top', 'left'].map((k) => Math.round(before.page[k])));
+  // Opened again, its lists count as they did.
+  const again = docs.open({ path: out });
+  const m = docs.model({ id: again.id });
+  const text = (b) => (b.runs || []).map((r) => r.text || '').join('');
+  const label = (t) => m.listLabels?.[m.blocks.findIndex((b) => text(b) === t)]?.label;
+  assert.deepEqual(['First bullet', 'Step one', 'Inside', 'Step two'].map(label), ['•', '1.', 'a)', '2.']);
+});
+
+test('a Word document saved as .odt keeps its heading, its run looks and a merge down a column', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [
+    { text: 'Quarterly figures', style: 'Heading1' },
+    { runs: [{ text: 'Totals in ' }, { text: 'bold', bold: true }, { text: ' and ' }, { text: 'red', colour: 'C00000' }] },
+    { table: { rows: [['Region', 'Q1'], ['North', '1'], ['', '2']] } },
+    { text: 'After the table' },
+  ] }));
+  const blocks = view.render({ pages: false }).blocks;
+  view.setSelection({ block: blocks.findIndex((b) => b.text === 'North'), offset: 0 }, { block: blocks.findIndex((b) => /:r2:c0$/.test(b.container || '')), offset: 0 });
+  view.tableOp('mergeCells');
+  const doc = readOdt(writeOdtDocument(readDocxDocument(view.save())));
+  const [heading, para, table] = doc.blocks;
+  assert.equal(heading.heading, 1);
+  assert.deepEqual(heading.runs.map((r) => r.text), ['Quarterly figures']);
+  assert.deepEqual(para.runs.map((r) => [r.text, Boolean(r.bold), r.color || null]), [['Totals in ', false, null], ['bold', true, null], [' and ', false, null], ['red', false, '#C00000']]);
+  assert.equal(table.type, 'table');
+  assert.deepEqual(table.rows.map((row) => row.map((c) => (c.covered ? '-' : c.blocks.map((b) => b.runs.map((r) => r.text).join('')).filter(Boolean).join('/') + (c.rowspan > 1 ? '^' + c.rowspan : ''))).join('|')), ['Region|Q1', 'North^2|1', '-|2']);
+  assert.equal(doc.blocks.at(-1).runs[0].text, 'After the table');
+});
+
+test('a list that carries on after a paragraph is written to carry on its numbering, and read back as the same list', () => {
+  const lists = new Map([['WWNum1', [{ kind: 'number', format: '1', prefix: '', suffix: '.', start: 1, display: 1, indent: 48, hanging: 24 }]]]);
+  const item = (text) => ({ type: 'paragraph', heading: null, list: { id: 'n1', style: 'WWNum1', level: 0 }, runs: [{ text }] });
+  const bytes = writeOdtDocument({ blocks: [item('One'), item('Two'), { type: 'paragraph', heading: null, runs: [{ text: 'Between' }] }, item('Three')], lists });
+  const content = readZip(Buffer.from(bytes)).entries.find((e) => e.name === 'content.xml').data.toString('utf8');
+  assert.match(content, /<text:list text:style-name="L_WWNum1" text:continue-numbering="true">/);
+  const doc = readOdt(bytes);
+  const ids = doc.blocks.filter((b) => b.list).map((b) => b.list.id);
+  assert.equal(new Set(ids).size, 1, 'one list, its third item numbered on');
 });

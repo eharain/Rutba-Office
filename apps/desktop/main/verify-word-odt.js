@@ -98,6 +98,18 @@ export async function verifyWordOdt(h, { dir }) {
 
     const complaints = await errorsIn(win);
     check('word: opening an .odt reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+
+    // Saved, it is written back as an .odt whole, and opens again as it was.
+    const saved = path.join(dir, 'showcase-saved.odt');
+    const wrote = doc.save({ id: session.id, path: saved });
+    const again = await open('word', saved);
+    const jsAgain = (code) => again.webContents.executeJavaScript(code);
+    await until(() => jsAgain(`document.querySelectorAll('.wd-page table.wd-table').length > 0`), 'the saved file\'s table', 8000).catch(() => {});
+    const back = await jsAgain(`(() => { const page = document.querySelector('.wd-page'); return { text: page ? page.innerText : '', pictures: page ? [...page.querySelectorAll('img')].filter((i) => i.naturalWidth > 0).length : 0, tables: page ? page.querySelectorAll('table.wd-table').length : 0 }; })()`);
+    const labelsBack = /•\s*First bullet/.test(back.text) && /1\.\s*Step one/.test(back.text) && /a\)\s*Inside/.test(back.text) && /2\.\s*Step two/.test(back.text);
+    check('word: an .odt saved from the suite opens again with its lists labelled, its table and its picture',
+      wrote?.format === 'odt' && labelsBack && back.tables === 1 && back.pictures === 1 && /The OpenDocument showcase/.test(back.text),
+      `${wrote?.format}; labels ${labelsBack}; ${back.tables} table(s), ${back.pictures} picture(s)`);
   } catch (err) {
     check('word: the .odt checks ran', false, err.message);
   }
