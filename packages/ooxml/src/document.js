@@ -561,7 +561,13 @@ function formatFormulaResult(value, format) {
   if (!Number.isFinite(value)) return '!Zero Divide';
   if (format === '0%') return Math.round(value * 100) + '%';
   if (format === '0') return value.toFixed(0);
-  const places = format === '#,##0.00' ? 2 : format === '#,##0' ? 0 : (Number.isInteger(value) ? 0 : 2);
+  // Any other picture: as many places as it has digits after its point,
+  // grouped in thousands where it has a comma — 0.00, #,##0, #,##0.000.
+  if (format && /[0#]/.test(format)) {
+    const places = ((format.split('.')[1] || '').match(/[0#]/g) || []).length;
+    return value.toLocaleString('en-GB', { minimumFractionDigits: places, maximumFractionDigits: places, useGrouping: format.includes(',') });
+  }
+  const places = Number.isInteger(value) ? 0 : 2;
   return value.toLocaleString('en-GB', { minimumFractionDigits: places, maximumFractionDigits: places });
 }
 
@@ -6925,13 +6931,31 @@ export class Document {
           const cellXml = blankNestedTables(rowXml.slice(cell.start, cell.end));
           for (const f of cellXml.matchAll(/<w:fldSimple\b[^>]*\bw:instr="\s*(=[^"]*?)\s*"[^>]*>([\s\S]*?)<\/w:fldSimple>/g)) {
             const instr = unesc(f[1]);
-            const format = /\\#\s*"([^"]+)"/.exec(instr)?.[1] ?? null;
-            const formula = instr.replace(/\\#\s*"[^"]*"/, '').trim();
+            const picture = /\\#\s*(?:"([^"]+)"|(\S+))/.exec(instr);
+            const format = picture ? picture[1] ?? picture[2] : null;
+            const formula = instr.replace(/\\#\s*(?:"[^"]*"|\S+)/, '').trim();
             let shown;
             try { shown = formatFormulaResult(tableFormulaValue(formula, texts, r, c), format); } catch { continue; }
             const rPr = /<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>/.exec(f[2])?.[0] ?? '';
             const resultStart = row.start + cell.start + f.index + f[0].indexOf('>') + 1;
             edits.push({ start: resultStart, end: resultStart + f[2].length, xml: '<w:r>' + rPr + '<w:t xml:space="preserve">' + esc(shown) + '</w:t></w:r>' });
+          }
+          // Word's own = fields are complex ones: a begin, the instruction in
+          // instrText runs, a separate, the result's runs and an end. The
+          // result's runs are worked out again the same way; a field with
+          // another inside it is left as it is.
+          for (const f of cellXml.matchAll(COMPLEX_FIELD)) {
+            if (/fldCharType="begin"/.test(f[1] + f[2])) continue;
+            const instr = unesc([...f[1].matchAll(/<w:instrText\b[^>]*>([^<]*)<\/w:instrText>/g)].map((t) => t[1]).join('')).trim();
+            if (!instr.startsWith('=')) continue;
+            const picture = /\\#\s*(?:"([^"]+)"|(\S+))/.exec(instr);
+            const format = picture ? picture[1] ?? picture[2] : null;
+            const formula = instr.replace(/\\#\s*(?:"[^"]*"|\S+)/, '').trim();
+            let shown;
+            try { shown = formatFormulaResult(tableFormulaValue(formula, texts, r, c), format); } catch { continue; }
+            const rPr = /<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>/.exec(f[2])?.[0] ?? '';
+            const [from, to] = f.indices[2];
+            edits.push({ start: row.start + cell.start + from, end: row.start + cell.start + to, xml: '<w:r>' + rPr + '<w:t xml:space="preserve">' + esc(shown) + '</w:t></w:r>' });
           }
         });
       });
@@ -7029,6 +7053,14 @@ export class Document {
     return this.pkg.modifiedParts();
   }
 }
+
+/**
+ * A complex field, begin to end: (1) the runs between the begin and the
+ * separate, holding its instruction, and (2) its result's runs, between the
+ * separate and the end. Indices are kept, to put a new result in place.
+ */
+const RUN_WITH = (type) => `<w:r\\b[^>]*>(?:(?!<\\/w:r>)[\\s\\S])*?<w:fldChar\\b[^>]*w:fldCharType="${type}"[^>]*\\/>(?:(?!<\\/w:r>)[\\s\\S])*?<\\/w:r>`;
+const COMPLEX_FIELD = new RegExp(`${RUN_WITH('begin')}([\\s\\S]*?)${RUN_WITH('separate')}([\\s\\S]*?)(?=${RUN_WITH('end')})`, 'gd');
 
 /**
  * One story's tracked changes resolved in place — accepted (`keep`) or
