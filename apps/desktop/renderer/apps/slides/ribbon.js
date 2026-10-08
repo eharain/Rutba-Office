@@ -1007,7 +1007,7 @@ export default function SlidesRibbon({
       {/* ── Table Design (contextual) ─────────────────────────────────────── */}
       {tab === 'tableDesign' && selectedShapeObj?.kind === 'table' ? (() => {
         const flags = selectedShapeObj.table?.flags || {};
-        const toggle = (name, label, why) => <Button icon={flags[name] ? 'check' : undefined} label={label} pressed={Boolean(flags[name])} title={why} onClick={() => act('tableLook', { ...flags, [name]: !flags[name] })} />;
+        const toggle = (name, label, why) => <Button icon={flags[name] ? 'check' : undefined} label={label} pressed={Boolean(flags[name])} title={why} onClick={() => act('tableLook', { [name]: !flags[name] })} />;
         return (
           <>
             <Group label="Table Style Options">

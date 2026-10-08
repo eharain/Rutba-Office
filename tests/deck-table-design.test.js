@@ -59,3 +59,12 @@ test('through the document service, the options and the shading are operations o
   docs.apply({ id: s.id, ops: [{ op: 'setTableCellFill', slide: 0, shape: id, cells: [{ row: 1, col: 0 }], fill: 'FF0000' }] });
   assert.equal(shapeOf().table.cells[1][0].fill.toLowerCase(), '#ff0000');
 });
+
+test('Table Style Options: an option changed on its own leaves the others as the table has them', () => {
+  const deck = Deck.open(buildPptx({ slides: [{ layout: 'blank' }] }));
+  deck.addTable(0, { rows: 3, cols: 3, x: 40, y: 40, w: 400, h: 120 });
+  const shape = tableOf(deck);
+  deck.setTableLook(0, shape.id, { bandCol: true });
+  deck.setTableLook(0, shape.id, { firstRow: false });
+  assert.deepEqual(tableOf(Deck.open(deck.pkg.write())).table.flags, { firstRow: false, lastRow: false, firstCol: false, lastCol: false, bandRow: true, bandCol: true });
+});

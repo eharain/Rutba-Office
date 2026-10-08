@@ -3939,8 +3939,11 @@ export class Deck {
    */
   setTableLook(slideIndex, shapeId, flags = {}) {
     const { part, xml, range, frameXml, tbl } = this.#tableRange(slideIndex, shapeId);
-    const on = ['firstRow', 'lastRow', 'firstCol', 'lastCol', 'bandRow', 'bandCol'].filter((n) => flags[n]).map((n) => ` ${n}="1"`).join('');
     const pr = /<a:tblPr\b[^>]*?(\/>|>)/.exec(tbl[0]);
+    // The options named change; the rest stay as the table has them, so two
+    // quick presses each change their own and neither undoes the other.
+    const had = (n) => new RegExp('\\s' + n + '="(1|true)"').test(pr?.[0] ?? '');
+    const on = ['firstRow', 'lastRow', 'firstCol', 'lastCol', 'bandRow', 'bandCol'].filter((n) => (n in flags ? flags[n] : had(n))).map((n) => ` ${n}="1"`).join('');
     const newTbl = pr
       ? tbl[0].slice(0, pr.index) + pr[0].replace(/\s(?:firstRow|lastRow|firstCol|lastCol|bandRow|bandCol)="[^"]*"/g, '').replace(/^<a:tblPr/, () => '<a:tblPr' + on) + tbl[0].slice(pr.index + pr[0].length)
       : tbl[0].replace(/^<a:tbl>/, () => '<a:tbl><a:tblPr' + on + '/>');
