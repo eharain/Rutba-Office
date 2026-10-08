@@ -44,6 +44,13 @@ function gradientDef(fill, id) {
   const stops = (fill.stops || [])
     .map((s) => `<stop offset="${Math.round(s.offset * 10000) / 100}%" stop-color="${s.color}"${s.alpha < 1 ? ` stop-opacity="${s.alpha}"` : ''}/>`)
     .join('');
+  // Out from a centre: a circle reaching the box's farthest corner.
+  if (fill.path) {
+    const cx = fill.center?.x ?? 0.5;
+    const cy = fill.center?.y ?? 0.5;
+    const r = Math.max(...[[0, 0], [1, 0], [0, 1], [1, 1]].map(([x, y]) => Math.hypot(x - cx, y - cy)));
+    return `<radialGradient id="${id}" cx="${cx.toFixed(4)}" cy="${cy.toFixed(4)}" r="${r.toFixed(4)}" fx="${cx.toFixed(4)}" fy="${cy.toFixed(4)}">${stops}</radialGradient>`;
+  }
   const angle = ((fill.angle || 0) * Math.PI) / 180;
   const x2 = (Math.cos(angle) * 0.5 + 0.5).toFixed(4);
   const y2 = (Math.sin(angle) * 0.5 + 0.5).toFixed(4);

@@ -297,14 +297,24 @@ function drawingPartXml(drawings, relIdOf) {
     if (d.kind === 'diagram') return '<xdr:twoCellAnchor editAs="oneCell">' + from + to + diagramContentXml(d) + '<xdr:clientData/></xdr:twoCellAnchor>';
     // Ink to Shape: a shape with no fill and a line in the pen's colour.
     const line = d.line?.color ? '<a:ln w="' + Math.round((Number(d.line.width) || 1) * 12700) + '"><a:solidFill>' + srgbXml(d.line.color) + '</a:solidFill></a:ln>' : '';
-    const fill = d.fill === 'none' ? '<a:noFill/>' + line : (d.fill
+    // A gradient (a converted drawing's): its stops, at an angle or out from a centre.
+    const gradient = d.gradient?.stops?.length
+      ? '<a:gradFill rotWithShape="1"><a:gsLst>' + d.gradient.stops.map((st) => '<a:gs pos="' + Math.round(Math.max(0, Math.min(1, st.pos)) * 100000) + '">' + srgbXml(st.color) + '</a:gs>').join('') + '</a:gsLst>'
+        + (d.gradient.path
+          ? '<a:path path="' + esc(d.gradient.path) + '"><a:fillToRect l="' + Math.round((d.gradient.center?.x ?? 0.5) * 100000) + '" t="' + Math.round((d.gradient.center?.y ?? 0.5) * 100000) + '" r="' + Math.round((1 - (d.gradient.center?.x ?? 0.5)) * 100000) + '" b="' + Math.round((1 - (d.gradient.center?.y ?? 0.5)) * 100000) + '"/></a:path>'
+          : '<a:lin ang="' + Math.round((((d.gradient.angle ?? 90) % 360) + 360) % 360 * 60000) + '" scaled="1"/>')
+        + '</a:gradFill>'
+      : null;
+    const fill = d.fill === 'none' ? '<a:noFill/>' + line : (gradient || (d.fill
       ? '<a:solidFill>' + (/^[0-9A-Fa-f]{6}$/.test(d.fill)
         ? '<a:srgbClr val="' + d.fill.toUpperCase() + '"/>'
         : '<a:schemeClr val="' + esc(d.fill) + '"/>') + '</a:solidFill>'
-      : '') + (d.fill === 'none' ? '' : line);
+      : '')) + (d.fill === 'none' ? '' : line);
+    // Its words, in a colour when one is given (a text box's are dark where a filled shape's are light).
+    const textFill = d.textColor ? '<a:solidFill>' + srgbXml(d.textColor) + '</a:solidFill>' : '';
     const body = d.text
       ? '<xdr:txBody><a:bodyPr/><a:p><a:r>'
-        + '<a:rPr lang="en-GB"' + (d.bold ? ' b="1"' : '') + (d.textSize ? ' sz="' + Math.round(d.textSize * 100) + '"' : '') + '/>'
+        + '<a:rPr lang="en-GB"' + (d.bold ? ' b="1"' : '') + (d.textSize ? ' sz="' + Math.round(d.textSize * 100) + '"' : '') + (textFill ? '>' + textFill + '</a:rPr>' : '/>')
         + '<a:t>' + esc(d.text) + '</a:t></a:r></a:p></xdr:txBody>'
       : '<xdr:txBody><a:bodyPr/><a:p/></xdr:txBody>';
     return '<xdr:twoCellAnchor>' + from + to

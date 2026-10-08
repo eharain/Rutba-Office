@@ -100,6 +100,7 @@ import { verifyWordTableTools } from './verify-word-table-tools.js';
 import { verifySheetBinary } from './verify-sheet-binary.js';
 import { verifyBinaryLocked } from './verify-binary-locked.js';
 import { verifyDeckBinary } from './verify-deck-binary.js';
+import { verifyOdfCharts } from './verify-odf-charts.js';
 import { verifyDrawingDelete } from './verify-drawing-delete.js';
 import { verifySheetPointing } from './verify-sheet-pointing.js';
 import { verifySheetRtl } from './verify-sheet-rtl.js';
@@ -4702,6 +4703,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('xls')) await verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('lockedbinary')) await verifyBinaryLocked({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('ppt')) await verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('odfcharts')) await verifyOdfCharts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('delete')) await verifyDrawingDelete({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('pointing')) await verifySheetPointing({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('sheetrtl')) await verifySheetRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -4932,6 +4934,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifySheetBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyBinaryLocked({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckBinary({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await block(() => verifyOdfCharts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDrawingDelete({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetPointing({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetRtl({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));

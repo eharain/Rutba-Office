@@ -88,7 +88,11 @@ function readFill(spPr, theme) {
       })
       .filter(Boolean);
     const lin = first(grad, A('lin'));
-    return stops.length ? { type: 'gradient', stops, angle: rotToDeg(lin?.attrs.ang) } : null;
+    // A path gradient runs out from its fillToRect's centre, the first stop there.
+    const path = first(grad, A('path'));
+    const to = path ? first(path, A('fillToRect')) : null;
+    const center = to ? { x: (pctOf(to.attrs.l, 0) + 1 - pctOf(to.attrs.r, 0)) / 2, y: (pctOf(to.attrs.t, 0) + 1 - pctOf(to.attrs.b, 0)) / 2 } : null;
+    return stops.length ? { type: 'gradient', stops, angle: rotToDeg(lin?.attrs.ang), ...(path ? { path: path.attrs.path || 'circle', center: center || { x: 0.5, y: 0.5 } } : {}) } : null;
   }
   const blip = kids(spPr, A('blipFill'))[0];
   if (blip) {

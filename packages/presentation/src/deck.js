@@ -4812,8 +4812,24 @@ function patternFillXml({ preset = 'pct50', fg = { scheme: 'accent1' }, bg = '#F
 function gradientFillXml(g) {
   const stops = g.stops && g.stops.length ? g.stops : gradientPresetStops(g.preset === 'dark' ? 'dark' : 'light', g.color ?? { scheme: 'accent1' });
   const gsLst = stops.map((s) => `<a:gs pos="${Math.round(Math.max(0, Math.min(1, s.pos)) * 100000)}">${colourXml(s)}</a:gs>`).join('');
+  return `<a:gradFill rotWithShape="1"><a:gsLst>${gsLst}</a:gsLst>${gradientShadeXml(g)}</a:gradFill>`;
+}
+
+/**
+ * How a gradient runs: `<a:lin>` at `angle` degrees (90, top to bottom,
+ * unless stated), or — with `path` ('circle', 'rect' or 'shape') — out
+ * from `center` ({ x, y }, 0–1 of the box, its middle unless stated), the
+ * first stop at the centre.
+ */
+function gradientShadeXml(g) {
+  if (g.path === 'circle' || g.path === 'rect' || g.path === 'shape') {
+    const cx = Math.max(0, Math.min(1, g.center?.x ?? 0.5));
+    const cy = Math.max(0, Math.min(1, g.center?.y ?? 0.5));
+    const at = (v) => Math.round(v * 100000);
+    return `<a:path path="${g.path}"><a:fillToRect l="${at(cx)}" t="${at(cy)}" r="${at(1 - cx)}" b="${at(1 - cy)}"/></a:path>`;
+  }
   const angle = g.angle != null ? g.angle : 90;
-  return `<a:gradFill rotWithShape="1"><a:gsLst>${gsLst}</a:gsLst><a:lin ang="${Math.round(((angle % 360) + 360) % 360 * 60000)}" scaled="1"/></a:gradFill>`;
+  return `<a:lin ang="${Math.round(((angle % 360) + 360) % 360 * 60000)}" scaled="1"/>`;
 }
 
 /** An outer shadow's own element — points and degrees in, DrawingML's EMU and 60,000ths out. */
@@ -4858,7 +4874,10 @@ function bgColourXml(c) {
 
 /** A background spec, as `setBackground` writes the fill inside `<p:bgPr>`. */
 function backgroundXml(spec) {
-  const fillXml = spec.gradient
+  // Several stops, or a gradient out from a centre: `stops` of { pos, ...colour }, `path` and `center` as a shape's.
+  const fillXml = spec.gradient?.stops?.length
+    ? `<a:gradFill><a:gsLst>${spec.gradient.stops.map((s) => `<a:gs pos="${Math.round(Math.max(0, Math.min(1, s.pos)) * 100000)}">${bgColourXml(s)}</a:gs>`).join('')}</a:gsLst>${gradientShadeXml(spec.gradient)}</a:gradFill>`
+    : spec.gradient
     ? `<a:gradFill><a:gsLst><a:gs pos="0">${bgColourXml(spec.gradient.from)}</a:gs>` +
       `<a:gs pos="100000">${bgColourXml(spec.gradient.to)}</a:gs></a:gsLst>` +
       `<a:lin ang="${Math.round((spec.gradient.angle != null ? spec.gradient.angle : 90) * 60000)}"/></a:gradFill>`

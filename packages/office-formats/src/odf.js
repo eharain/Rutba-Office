@@ -112,16 +112,26 @@ function readTextBody(body) {
   return blocks;
 }
 
-function readTable(table) {
+/** What a sheet draws: frames (charts, pictures, words), shapes, lines, groups. */
+const DRAWN = new Set(['draw:frame', 'draw:custom-shape', 'draw:rect', 'draw:ellipse', 'draw:circle', 'draw:line', 'draw:g']);
+
+function readTable(table, rowHeights = new Map()) {
   const rows = [];
   const hiddenRows = [];
+  // The drawings anchored in its cells, with the cell, and those on the sheet's page itself.
+  const drawings = [];
+  for (const shapes of kids(table, 'table:shapes')) for (const node of kids(shapes).filter((k) => DRAWN.has(k.name))) drawings.push({ row: null, col: null, node });
+  const heights = {};
   for (const r of all(table, 'table:table-row')) {
     const rowRepeat = repeatOf(r.attrs, 'table:number-rows-repeated');
+    const height = rowHeights.get(r.attrs['table:style-name']);
+    if (height) for (let i = 0; i < rowRepeat && rows.length + i < 4096; i++) heights[rows.length + i] = height;
     // A row collapsed or filtered out is hidden; so is each it repeats.
     const rowHidden = r.attrs['table:visibility'] === 'collapse' || r.attrs['table:visibility'] === 'filter';
     const cells = [];
     for (const c of kids(r).filter((k) => k.name === 'table:table-cell' || k.name === 'table:covered-table-cell')) {
       const repeat = repeatOf(c.attrs, 'table:number-columns-repeated');
+      for (const node of kids(c).filter((k) => DRAWN.has(k.name))) drawings.push({ row: rows.length, col: cells.length, node });
       const text = kids(c, 'text:p').map(inlineText).join('\n');
       const cell = {
         text,
@@ -146,7 +156,7 @@ function readTable(table) {
     if (rows.length > 200000) break;
   }
   while (rows.length && rows[rows.length - 1].length === 0) rows.pop();
-  return { type: 'table', name: table.attrs['table:name'] || '', rows, hiddenRows: hiddenRows.filter((r) => r < rows.length) };
+  return { type: 'table', name: table.attrs['table:name'] || '', rows, hiddenRows: hiddenRows.filter((r) => r < rows.length), drawings, heights };
 }
 
 const colName = (i) => {
@@ -160,9 +170,9 @@ const colName = (i) => {
  * format each styled cell wears — `formats` maps an automatic cell style's
  * name to a format code, see readDataStyles.
  */
-function readSheets(body, formats = new Map(), columnWidths = new Map()) {
+function readSheets(body, formats = new Map(), columnWidths = new Map(), { rowHeights = new Map(), styles = () => ({}) } = {}) {
   return all(body, 'table:table').map((t) => {
-    const table = readTable(t);
+    const table = readTable(t, rowHeights);
     // The columns, in order: which are hidden, and each one's width (px) from its style.
     const hiddenCols = [];
     const widths = {};
@@ -185,7 +195,12 @@ function readSheets(body, formats = new Map(), columnWidths = new Map()) {
         if (fmt) cellFormats[`${colName(c)}${r + 1}`] = fmt;
       });
     });
-    return { name: table.name, rows: table.rows, merges, formats: cellFormats, hiddenRows: table.hiddenRows, hiddenCols: hiddenCols.filter((c) => c < 1024), widths };
+    // Its drawings, each with the cell it is anchored in (null on the page) and its offset from there.
+    const drawings = [];
+    for (const { row, col, node } of table.drawings) {
+      for (const d of readDrawings({ children: [node] }, styles)) drawings.push({ ...d, anchor: row == null ? null : { row, col } });
+    }
+    return { name: table.name, rows: table.rows, merges, formats: cellFormats, hiddenRows: table.hiddenRows, hiddenCols: hiddenCols.filter((c) => c < 1024), widths, heights: table.heights, drawings };
   });
 }
 
@@ -292,23 +307,74 @@ export function lengthPx(value) {
   return Number(m[1]) * ({ cm: 96 / 2.54, mm: 96 / 25.4, in: 96, pt: 96 / 72, pc: 16, px: 1 }[m[2] || 'px']);
 }
 
+/** An ODF angle as degrees: a bare number is tenths of a degree (ODF 1.2), else its unit says. */
+export function angleDeg(value) {
+  const m = /^\s*(-?[\d.]+)\s*(deg|rad|grad)?\s*$/.exec(String(value ?? ''));
+  if (!m) return 0;
+  const n = Number(m[1]);
+  return m[2] === 'deg' ? n : m[2] === 'rad' ? (n * 180) / Math.PI : m[2] === 'grad' ? n * 0.9 : n / 10;
+}
+
+const pct = (v, fallback) => {
+  const m = /^\s*(-?[\d.]+)%\s*$/.exec(String(v ?? ''));
+  return m ? Number(m[1]) / 100 : fallback;
+};
+
+/** A colour made darker by an intensity (0–1), as ODF's start- and end-intensity scale a gradient's colours. */
+function intensify(hex, by) {
+  const m = /^#?([0-9a-f]{6})$/i.exec(String(hex || ''));
+  if (!m || by >= 1) return m ? '#' + m[1].toUpperCase() : '#000000';
+  const n = parseInt(m[1], 16);
+  const ch = (shift) => Math.round(((n >> shift) & 255) * Math.max(0, by)).toString(16).padStart(2, '0');
+  return ('#' + ch(16) + ch(8) + ch(0)).toUpperCase();
+}
+
+/**
+ * The named gradients (`<draw:gradient>` in the styles), as a drawing
+ * fills with one: its style — linear, axial, radial, ellipsoid, square,
+ * rectangular — its two colours at their intensities, its angle in degrees
+ * (ODF's: 0 runs top to bottom, counter-clockwise from there), how much of
+ * it is border, and the centre a radial one runs out from.
+ */
+function readGradients(roots) {
+  const out = new Map();
+  for (const root of roots.filter(Boolean)) {
+    for (const g of all(root, 'draw:gradient')) {
+      const a = g.attrs;
+      out.set(a['draw:name'], {
+        style: a['draw:style'] || 'linear',
+        start: intensify(a['draw:start-color'] || '#000000', pct(a['draw:start-intensity'], 1)),
+        end: intensify(a['draw:end-color'] || '#FFFFFF', pct(a['draw:end-intensity'], 1)),
+        angle: angleDeg(a['draw:angle']),
+        border: Math.max(0, Math.min(0.99, pct(a['draw:border'], 0))),
+        cx: pct(a['draw:cx'], 0.5),
+        cy: pct(a['draw:cy'], 0.5),
+      });
+    }
+  }
+  return out;
+}
+
 /**
  * The graphic styles a drawing names — its fill, its outline — from the
  * automatic styles and the named ones, a style's parent filling in what it
- * does not say.
+ * does not say; a drawing page's background with them, and the gradient a
+ * fill names, read whole.
  */
 function readGraphicStyles(roots) {
   const raw = new Map();
+  const gradients = readGradients(roots);
   for (const root of roots.filter(Boolean)) {
     for (const st of all(root, 'style:style')) {
       const family = st.attrs['style:family'];
-      if (family !== 'graphic' && family !== 'presentation') continue;
-      const g = first(st, 'style:graphic-properties');
+      if (family !== 'graphic' && family !== 'presentation' && family !== 'drawing-page') continue;
+      const g = first(st, family === 'drawing-page' ? 'style:drawing-page-properties' : 'style:graphic-properties');
       const a = g ? g.attrs : {};
       raw.set(st.attrs['style:name'], {
         parent: st.attrs['style:parent-style-name'] || null,
         fill: a['draw:fill'] ?? null,
         fillColor: a['draw:fill-color'] ?? null,
+        gradient: a['draw:fill-gradient-name'] ? gradients.get(a['draw:fill-gradient-name']) || null : null,
         stroke: a['draw:stroke'] ?? null,
         strokeColor: a['svg:stroke-color'] ?? null,
         strokeWidth: a['svg:stroke-width'] ?? null,
@@ -320,7 +386,7 @@ function readGraphicStyles(roots) {
     if (!own) return {};
     const up = own.parent && depth < 8 ? resolve(own.parent, depth + 1) : {};
     const out = { ...up };
-    for (const k of ['fill', 'fillColor', 'stroke', 'strokeColor', 'strokeWidth']) if (own[k] !== null) out[k] = own[k];
+    for (const k of ['fill', 'fillColor', 'gradient', 'stroke', 'strokeColor', 'strokeWidth']) if (own[k] !== null) out[k] = own[k];
     return out;
   };
   return (name) => resolve(name);
@@ -359,11 +425,17 @@ const paragraphsOf = (node) => {
   return out;
 };
 
-/** A shape's fill and outline, as the style it names says: a hex, 'none', or null for the default. */
+/**
+ * A fill as the style says it: 'none', a gradient ({ gradient }), a hex,
+ * or null for the default.
+ */
+const fillOf = (st) => (st.fill === 'none' ? 'none' : st.fill === 'gradient' && st.gradient ? { gradient: st.gradient } : st.fillColor || null);
+
+/** A shape's fill and outline, as the style it names says: a hex, a gradient, 'none', or null for the default. */
 const lookOf = (node, styles) => {
   const st = styles(node.attrs['draw:style-name'] || node.attrs['presentation:style-name']);
   return {
-    fill: st.fill === 'none' ? 'none' : st.fillColor || null,
+    fill: fillOf(st),
     line: st.stroke === 'none' ? 'none' : st.strokeColor || null,
     lineWidth: lengthPx(st.strokeWidth),
   };
@@ -385,7 +457,10 @@ function readDrawings(page, styles) {
         const box = first(c, 'draw:text-box');
         const table = first(c, 'table:table');
         const name = c.attrs['draw:name'] || null;
-        if (table) {
+        const object = first(c, 'draw:object');
+        if (object) {
+          shapes.push({ type: 'object', name, href: object.attrs['xlink:href'] || '', ...boxOf(c) });
+        } else if (table) {
           const rows = all(table, 'table:table-row').map((row) => kids(row, 'table:table-cell').map((cell) => paragraphsOf(cell).join('\n')));
           shapes.push({ type: 'table', name, rows, ...boxOf(c) });
         } else if (img) {
@@ -411,6 +486,107 @@ function readDrawings(page, styles) {
   };
   visit(page);
   return shapes;
+}
+
+/** Each row style's height, in pixels. */
+function readRowHeights(roots) {
+  const out = new Map();
+  for (const root of roots.filter(Boolean)) {
+    for (const st of all(root, 'style:style')) {
+      if (st.attrs['style:family'] !== 'table-row') continue;
+      const height = lengthPx(first(st, 'style:table-row-properties')?.attrs['style:row-height']);
+      if (height) out.set(st.attrs['style:name'], height);
+    }
+  }
+  return out;
+}
+
+/**
+ * A cell range as ODF writes one — "Sales.$B$2:.$B$13", "'My data'.A1" —
+ * as { sheet, top, left, bottom, right } (0-based); null when it is not one.
+ */
+export function odfRange(text) {
+  // The first of a list of ranges, a quoted sheet name's spaces and colons its own.
+  const head = /^(?:'(?:[^']|'')*'|[^\s'])+/.exec(String(text || '').trim())?.[0] || '';
+  const parts = head.split(/:(?=(?:[^']*'[^']*')*[^']*$)/);
+  const one = (p, sheet) => {
+    const m = /^\$?(?:'((?:[^']|'')*)'|([^.']*))\.\$?([A-Za-z]+)\$?(\d+)$/.exec(p);
+    if (!m) return null;
+    const name = m[1] != null ? m[1].replace(/''/g, "'") : m[2];
+    const col = m[3].toUpperCase().split('').reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+    return { sheet: name || sheet, row: Number(m[4]) - 1, col };
+  };
+  const a = one(parts[0], null);
+  if (!a) return null;
+  const b = parts[1] ? one(parts[1], a.sheet) : a;
+  if (!b) return null;
+  return { sheet: a.sheet, top: Math.min(a.row, b.row), left: Math.min(a.col, b.col), bottom: Math.max(a.row, b.row), right: Math.max(a.col, b.col) };
+}
+
+/** The A1 reference a range is in a workbook: Sales!$B$2:$B$13, the sheet quoted when it must be. */
+export function rangeRef(r) {
+  const name = /^[A-Za-z_][A-Za-z0-9_.]*$/.test(r.sheet || '') ? r.sheet : `'${String(r.sheet || '').replace(/'/g, "''")}'`;
+  const cell = (row, col) => `$${colName(col)}$${row + 1}`;
+  return r.top === r.bottom && r.left === r.right ? `${name}!${cell(r.top, r.left)}` : `${name}!${cell(r.top, r.left)}:${cell(r.bottom, r.right)}`;
+}
+
+/** The cells of a range, row by row then column by column, from `cellAt(sheet, row, col)`. */
+const cellsOf = (r, cellAt) => {
+  const out = [];
+  for (let row = r.top; row <= r.bottom && out.length < 4096; row++) for (let col = r.left; col <= r.right && out.length < 4096; col++) out.push(cellAt(r.sheet, row, col));
+  return out;
+};
+
+/**
+ * An embedded chart — "Object 1/content.xml" — as a chart a workbook or a
+ * deck writes: its kind (bar charts upright are columns), its title, its
+ * categories and each series' name and values, with the ranges they come
+ * from. `cellAt(sheet, row, col)` answers a cell, from the sheets the chart
+ * plots or from the chart's own local table; null when the part is no chart.
+ */
+function readChartObject(map, href, cellAt) {
+  const dir = String(href || '').replace(/^\.\//, '').replace(/\/$/, '');
+  const xml = textPart(map, `${dir}/content.xml`);
+  if (!xml) return null;
+  const root = parse(xml);
+  const chart = first(root, 'chart:chart');
+  if (!chart) return null;
+  const props = new Map(all(root, 'style:style').map((s) => [s.attrs['style:name'], first(s, 'style:chart-properties')?.attrs || {}]));
+  const plot = first(chart, 'chart:plot-area');
+  const plotProps = props.get(plot?.attrs['chart:style-name']) || {};
+  const cls = String(chart.attrs['chart:class'] || '').replace(/^chart:/, '');
+  const kind = cls === 'bar' ? (plotProps['chart:vertical'] === 'true' ? 'bar' : 'column')
+    : cls === 'line' || cls === 'radar' || cls === 'filled-radar' ? 'line'
+      : cls === 'area' ? 'area' : cls === 'circle' ? 'pie' : cls === 'ring' ? 'doughnut' : cls === 'scatter' ? 'scatter' : 'column';
+  const title = first(chart, 'chart:title');
+  // The chart's own table of data, for a chart with no sheet behind it.
+  const local = first(root, 'table:table');
+  const localRows = local ? readTable(local).rows : [];
+  const localName = local?.attrs['table:name'] || 'local-table';
+  const lookup = (sheet, row, col) => (sheet === localName || !cellAt ? localRows[row]?.[col] ?? null : cellAt(sheet, row, col));
+  const numberOf = (cell) => {
+    const n = Number(cell?.value ?? cell?.text);
+    return cell && (cell.value != null || /^-?[\d.]+$/.test(String(cell.text || '').trim())) && Number.isFinite(n) ? n : null;
+  };
+  const textOfCell = (cell) => (cell ? String(cell.text ?? cell.value ?? '') : '');
+  const catRange = odfRange(first(plot, 'chart:categories')?.attrs['table:cell-range-address']);
+  const series = all(plot || chart, 'chart:series').map((s, i) => {
+    const values = odfRange(s.attrs['chart:values-cell-range-address']);
+    const label = odfRange(s.attrs['chart:label-cell-address']);
+    return {
+      name: label ? textOfCell(lookup(label.sheet, label.top, label.left)) : `Series ${i + 1}`,
+      nameRef: label && label.sheet !== localName ? rangeRef(label) : null,
+      ref: values && values.sheet !== localName ? rangeRef(values) : null,
+      values: values ? cellsOf(values, lookup).map(numberOf) : [],
+    };
+  }).filter((s) => s.values.length);
+  if (!series.length) return null;
+  return {
+    kind,
+    title: title ? all(title, 'text:p').map(textOf).join(' ').trim() || null : null,
+    categories: catRange ? { ref: catRange.sheet !== localName ? rangeRef(catRange) : null, values: cellsOf(catRange, lookup).map(textOfCell) } : null,
+    series,
+  };
 }
 
 /** Each column style's width, in pixels. */
@@ -447,16 +623,37 @@ function readFrozenPanes(xml) {
   return out;
 }
 
-function readSlides(body, styles = () => ({})) {
+/**
+ * The slides: each page's drawings and notes, and its background — its own
+ * page style's fill, else its master page's — as a colour or a gradient.
+ */
+function readSlides(body, styles = () => ({}), masters = new Map()) {
+  const backgroundOf = (styleName) => {
+    if (!styleName) return null;
+    const st = styles(styleName);
+    if (st.fill === 'solid' && st.fillColor) return { colour: st.fillColor };
+    if (st.fill === 'gradient' && st.gradient) return { gradient: st.gradient };
+    return null;
+  };
   return all(body, 'draw:page').map((page, i) => {
     const notes = first(page, 'presentation:notes');
+    const background = backgroundOf(page.attrs['draw:style-name']) || backgroundOf(masters.get(page.attrs['draw:master-page-name']));
     return {
       index: i,
       name: page.attrs['draw:name'] || `Slide ${i + 1}`,
       shapes: readDrawings(page, styles),
       notes: notes ? all(notes, 'text:p').map(textOf).join('\n') : '',
+      ...(background ? { background } : {}),
     };
   });
+}
+
+/** Each master page's drawing-page style, by the master's name. */
+function readMasterPages(stylesRoot) {
+  const out = new Map();
+  if (!stylesRoot) return out;
+  for (const m of all(stylesRoot, 'style:master-page')) if (m.attrs['draw:style-name']) out.set(m.attrs['style:name'], m.attrs['draw:style-name']);
+  return out;
 }
 
 function readMeta(map) {
@@ -503,8 +700,19 @@ export function readOdf(bytes) {
     // both are read, and a cell's style name resolves through either.
     const stylesXml = textPart(map, 'styles.xml');
     const formats = readDataStyles([root, stylesXml ? parse(stylesXml) : null]);
-    out.sheets = readSheets(body, formats, readColumnWidths([root, stylesXml ? parse(stylesXml) : null]));
+    const stylesRoot = stylesXml ? parse(stylesXml) : null;
+    out.sheets = readSheets(body, formats, readColumnWidths([root, stylesRoot]), { rowHeights: readRowHeights([root, stylesRoot]), styles: readGraphicStyles([stylesRoot, root]) });
     out.names = readNames(body);
+    // Each sheet's charts, read from their own parts with the cells they plot.
+    const byName = new Map(out.sheets.map((s) => [s.name, s]));
+    const cellAt = (sheet, row, col) => byName.get(sheet)?.rows[row]?.[col] ?? null;
+    for (const sheet of out.sheets) {
+      sheet.drawings = sheet.drawings.flatMap((d) => {
+        if (d.type !== 'object') return [d];
+        const chart = readChartObject(map, d.href, cellAt);
+        return chart ? [{ ...d, type: 'chart', chart }] : [];
+      });
+    }
     // Frozen panes live in settings.xml, by sheet.
     const frozen = readFrozenPanes(textPart(map, 'settings.xml'));
     for (const sheet of out.sheets) if (frozen.has(sheet.name)) sheet.frozen = frozen.get(sheet.name);
@@ -513,7 +721,15 @@ export function readOdf(bytes) {
     // ones, and the page every position is measured on.
     const stylesXml = textPart(map, 'styles.xml');
     const stylesRoot = stylesXml ? parse(stylesXml) : null;
-    out.slides = readSlides(body, readGraphicStyles([stylesRoot, root]));
+    out.slides = readSlides(body, readGraphicStyles([stylesRoot, root]), readMasterPages(stylesRoot));
+    // A slide's charts, each from its own part and its own table of data.
+    for (const slide of out.slides) {
+      slide.shapes = slide.shapes.flatMap((d) => {
+        if (d.type !== 'object') return [d];
+        const chart = readChartObject(map, d.href, null);
+        return chart ? [{ ...d, type: 'chart', chart }] : [];
+      });
+    }
     out.size = readPageSize(stylesRoot);
   }
   return out;

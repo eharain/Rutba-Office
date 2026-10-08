@@ -37,6 +37,7 @@ import { linearToOmml } from '@rutba/ooxml/math-linear';
 import { ommlToMathml } from '@rutba/ooxml/math';
 import { probeImage } from '@rutba/imaging/probe';
 import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
+import { pixelsToCharWidth } from '@rutba/sheet-view/geometry';
 import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
 
 import { sniff, refineOoxml, kindFromExtension } from '@rutba/office-formats/sniff';
@@ -173,9 +174,71 @@ function rowsToWorkbook(rows, name = 'Sheet1') {
  * serials, booleans as booleans.
  */
 /**
+ * Where a drawing on a sheet stands, as an xlsx marker: from a cell (its
+ * anchor, or the sheet's corner) and an offset in pixels, walked across the
+ * columns' and rows' sizes to the cell it lands in and the offset into it.
+ */
+function sheetMarker(sheet, row0, col0, xPx, yPx) {
+  const colPx = (c) => sheet.widths?.[c] ?? 64;
+  const rowPx = (r) => sheet.heights?.[r] ?? 20;
+  let col = col0;
+  let x = Math.max(0, xPx);
+  while (x >= colPx(col) && col < 16383) { x -= colPx(col); col++; }
+  let row = row0;
+  let y = Math.max(0, yPx);
+  while (y >= rowPx(row) && row < 1048575) { y -= rowPx(row); row++; }
+  return { col, row, colOff: Math.round(x * 9525), rowOff: Math.round(y * 9525) };
+}
+
+/**
+ * An .ods sheet's drawings as the workbook writes them: a chart plotting
+ * the cells it named, a shape in its fill and outline with its words, a
+ * picture, a text box, a line — each from its cell, or the sheet's corner,
+ * to where its size takes it. A drawing that cannot be written is left out.
+ */
+function odsDrawings(sheet, images) {
+  const out = [];
+  const hex = (c) => (typeof c === 'string' && /^#?[0-9a-f]{6}$/i.test(c) ? c.replace('#', '').toUpperCase() : null);
+  for (const d of sheet.drawings || []) {
+    const base = d.anchor || { row: 0, col: 0 };
+    const box = d.type === 'line'
+      ? { x: Math.min(d.x1, d.x2), y: Math.min(d.y1, d.y2), w: Math.abs(d.x2 - d.x1), h: Math.abs(d.y2 - d.y1) }
+      : { x: d.x, y: d.y, w: d.w, h: d.h };
+    const from = sheetMarker(sheet, base.row, base.col, box.x, box.y);
+    const to = sheetMarker(sheet, base.row, base.col, box.x + Math.max(1, box.w), box.y + Math.max(1, box.h));
+    const name = d.name || undefined;
+    if (d.type === 'chart') {
+      const c = d.chart;
+      out.push({
+        kind: 'chart', chartKind: c.kind, name, title: c.title || undefined, from, to,
+        categories: c.categories ? { ref: c.categories.ref || undefined, values: c.categories.values } : undefined,
+        series: c.series.map((s) => ({ name: s.name, nameRef: s.nameRef || undefined, ref: s.ref || undefined, values: s.values })),
+      });
+    } else if (d.type === 'image') {
+      const bytes = images.get(String(d.href).replace(/^\.\//, ''));
+      const extension = String(d.href).split('.').pop().toLowerCase();
+      if (bytes && ODF_PICTURE_TYPES[extension]) out.push({ kind: 'picture', name, bytes: Buffer.from(bytes), extension: extension === 'jpg' ? 'jpeg' : extension, from, to, widthPx: Math.round(box.w), heightPx: Math.round(box.h) });
+    } else if (d.type === 'shape' || d.type === 'text' || d.type === 'line') {
+      const fill = d.type === 'line' || d.type === 'text' ? 'none' : d.fill === 'none' ? 'none' : hex(d.fill) || hex(d.fill?.gradient?.start) || '729FCF';
+      const lineColour = d.line === 'none' ? null : hex(d.line) || (d.type === 'shape' || d.type === 'line' ? '3465A4' : null);
+      out.push({
+        kind: 'shape', name, from, to,
+        geometry: d.type === 'line' ? 'line' : d.type === 'text' ? 'rect' : ODF_SHAPES[d.geometry] || (/^ooxml-/.test(d.geometry || '') ? d.geometry.slice(6) : 'rect'),
+        fill,
+        ...(d.fill?.gradient && d.type === 'shape' ? { gradient: odfGradient(d.fill.gradient) } : {}),
+        ...(lineColour ? { line: { color: lineColour, width: d.lineWidth ? d.lineWidth * 0.75 : 0.75 } } : {}),
+        text: (d.paragraphs || []).filter(Boolean).join(' ') || undefined,
+        ...(d.type === 'text' ? { textColor: '000000' } : {}),
+      });
+    }
+  }
+  return out;
+}
+
+/**
  * An .ods as a workbook: the values, formulas, merges and number formats,
- * then what the sheet's layout said — its column widths, the rows and
- * columns it hides, the panes it keeps frozen.
+ * then what the sheet's layout said — its column widths, row heights, the
+ * rows and columns it hides, the panes it keeps frozen — and its drawings.
  */
 function odfSheetsToWorkbook(odf) {
   const sheets = odf.sheets || [];
@@ -193,6 +256,7 @@ function odfSheetsToWorkbook(odf) {
     sheets: (sheets.length ? sheets : [{ name: 'Sheet1', rows: [] }]).map((s, i) => ({
       name: (s.name || `Sheet${i + 1}`).slice(0, 31),
       merges: s.merges || [],
+      ...(s.drawings?.length ? { drawings: odsDrawings(s, odf.images || new Map()) } : {}),
       styles: Object.fromEntries(Object.entries(s.formats || {}).map(([ref, numFmt]) => [ref, { numFmt }])),
       rows: (s.rows || []).map((row) =>
         row.map((cell) => {
@@ -207,15 +271,18 @@ function odfSheetsToWorkbook(odf) {
       ),
     })),
   });
-  const layouts = sheets.filter((s) => s.hiddenRows?.length || s.hiddenCols?.length || s.frozen || Object.keys(s.widths || {}).length);
+  // A row height the default (20 px) does not give, kept.
+  const tall = (s) => Object.entries(s.heights || {}).filter(([, px]) => Math.abs(px - 20) > 1);
+  const layouts = sheets.filter((s) => s.hiddenRows?.length || s.hiddenCols?.length || s.frozen || Object.keys(s.widths || {}).length || tall(s).length);
   if (!layouts.length) return built;
   const wb = Workbook.open(built);
   const names = wb.sheetNames();
   sheets.forEach((s, i) => {
     const name = names[i];
     if (!name) return;
-    // Excel measures a column in characters of the default font: 7 px each, plus 5 px of padding.
-    for (const [col, px] of Object.entries(s.widths || {})) wb.setColWidthChars(name, Number(col), Math.max(0.5, Math.round(((px - 5) / 7) * 100) / 100));
+    // The width the file keeps for a column that many pixels wide, by the format's own formula, its padding in it.
+    for (const [col, px] of Object.entries(s.widths || {})) wb.setColWidthChars(name, Number(col), Math.max(0.5, pixelsToCharWidth(Math.round(px))));
+    for (const [row, px] of tall(s)) wb.setRowHeightPoints(name, Number(row), Math.round(px * 0.75 * 100) / 100);
     const { part } = wb._sheetPart(name);
     for (const col of s.hiddenCols || []) part.setColOutline(col, { hidden: true });
     if (s.hiddenRows?.length) wb.setRowsHidden(name, Math.min(...s.hiddenRows), Math.max(...s.hiddenRows), new Set(s.hiddenRows));
@@ -233,6 +300,25 @@ const ODF_SHAPES = {
   heart: 'heart', smiley: 'smileyFace', cloud: 'cloud', cube: 'cube', can: 'can', ring: 'donut', frame: 'frame',
 };
 const ODF_PICTURE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', svg: 'image/svg+xml', webp: 'image/webp' };
+
+/**
+ * An ODF gradient as DrawingML's: linear at its angle turned to
+ * DrawingML's (ODF counts counter-clockwise from top-to-bottom, DrawingML
+ * clockwise from left-to-right), its border held in the start colour;
+ * axial as start, end, start; radial, ellipsoid, square and rectangular
+ * out from their centre, the end colour there.
+ */
+function odfGradient(g) {
+  const hex = (c) => '#' + String(c).replace('#', '').toUpperCase();
+  const b = g.border || 0;
+  if (g.style === 'axial') {
+    return { angle: (((90 - g.angle) % 360) + 360) % 360, stops: [{ pos: 0, color: hex(g.start) }, ...(b ? [{ pos: b / 2, color: hex(g.start) }] : []), { pos: 0.5, color: hex(g.end) }, ...(b ? [{ pos: 1 - b / 2, color: hex(g.start) }] : []), { pos: 1, color: hex(g.start) }] };
+  }
+  if (g.style === 'radial' || g.style === 'ellipsoid' || g.style === 'square' || g.style === 'rectangular') {
+    return { path: g.style === 'square' || g.style === 'rectangular' ? 'rect' : 'circle', center: { x: g.cx, y: g.cy }, stops: [{ pos: 0, color: hex(g.end) }, ...(b ? [{ pos: 1 - b, color: hex(g.start) }] : []), { pos: 1, color: hex(g.start) }] };
+  }
+  return { angle: (((90 - g.angle) % 360) + 360) % 360, stops: [{ pos: 0, color: hex(g.start) }, ...(b ? [{ pos: b, color: hex(g.start) }] : []), { pos: 1, color: hex(g.end) }] };
+}
 
 /**
  * An .odp as a deck: blank slides at the presentation's own page size, and
@@ -263,17 +349,26 @@ function odpSlidesToDeck(odf) {
         } else if (sh.type === 'shape') {
           const preset = ODF_SHAPES[sh.geometry] || (/^ooxml-/.test(sh.geometry) ? sh.geometry.slice(6) : 'rect');
           // LibreOffice's own default look where the style says nothing.
-          deck.addShape(i, {
+          const id = deck.addShape(i, {
             ...box, preset, name: sh.name || null,
-            fill: sh.fill === 'none' ? 'none' : sh.fill || '#729FCF',
+            fill: sh.fill === 'none' ? 'none' : typeof sh.fill === 'string' ? sh.fill : sh.fill?.gradient ? sh.fill.gradient.start : '#729FCF',
             line: sh.line === 'none' ? 'none' : { color: sh.line || '#3465A4', width: sh.lineWidth ? sh.lineWidth * 0.75 : 1 },
             text: sh.paragraphs?.some(Boolean) ? sh.paragraphs.map((t) => ({ align: 'center', runs: [{ text: t }] })) : null,
           });
+          // A gradient, as its style made it.
+          if (sh.fill?.gradient) deck.setShapeStyle(i, id, { fill: { gradient: odfGradient(sh.fill.gradient) } });
         } else if (sh.type === 'line') {
           deck.addShape(i, {
             preset: 'line', name: sh.name || null,
             x: Math.round(Math.min(sh.x1, sh.x2)), y: Math.round(Math.min(sh.y1, sh.y2)), w: Math.round(Math.abs(sh.x2 - sh.x1)), h: Math.round(Math.abs(sh.y2 - sh.y1)),
             fill: 'none', line: sh.line === 'none' ? 'none' : { color: sh.line || '#3465A4', width: sh.lineWidth ? sh.lineWidth * 0.75 : 1 },
+          });
+        } else if (sh.type === 'chart') {
+          // A chart, with the data its own table held.
+          deck.addChart(i, {
+            ...box, type: sh.chart.kind, title: sh.chart.title || null,
+            categories: sh.chart.categories?.values || sh.chart.series[0].values.map((_, k) => String(k + 1)),
+            series: sh.chart.series.map((s) => ({ name: s.name, values: s.values.map((v) => v ?? 0) })),
           });
         } else if (sh.type === 'table' && sh.rows.length) {
           const cols = Math.max(1, ...sh.rows.map((r) => r.length));
@@ -284,6 +379,16 @@ function odpSlidesToDeck(odf) {
       }
     }
     if (slide.notes) deck.setNotes(i, slide.notes);
+    // Its background, a colour or a gradient.
+    try {
+      if (slide.background?.colour) deck.setBackground(i, { colour: String(slide.background.colour).replace('#', '').toUpperCase() });
+      else if (slide.background?.gradient) {
+        const g = odfGradient(slide.background.gradient);
+        deck.setBackground(i, { gradient: { ...g, stops: g.stops.map((s) => ({ pos: s.pos, colour: s.color.replace('#', '') })) } });
+      }
+    } catch {
+      // A background this cannot write leaves the slide's master's.
+    }
   });
   return deck.save();
 }
