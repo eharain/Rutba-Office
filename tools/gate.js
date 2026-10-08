@@ -65,7 +65,23 @@ export function gateSection(counts, { version, date, platform = process.platform
     counts.smoke ? `${n(counts.smoke.passed)} of ${n(counts.smoke.of)} windows painted clean` : null,
   ].filter(Boolean);
   const list = parts.length > 1 ? `${parts.slice(0, -1).join('; ')}; and ${parts.at(-1)}` : parts[0];
-  return `## Gate\n\nRun on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.\n`;
+  return `## Gate\n\n${wrap(`Run on ${PLATFORM[platform] || platform} (${arch}) on ${date}, before ${version} was released: ${list}.`)}\n`;
+}
+
+/** A paragraph wrapped at about 75 characters, as the notes are. */
+export function wrap(text, width = 75) {
+  const lines = [];
+  let line = '';
+  for (const word of String(text).split(/\s+/).filter(Boolean)) {
+    if (line && line.length + 1 + word.length > width) { lines.push(line); line = word; } else line = line ? `${line} ${word}` : word;
+  }
+  if (line) lines.push(line);
+  return lines.join('\n');
+}
+
+/** Today as this computer's calendar has it, not the UTC one: a gate run after midnight is that day's. */
+export function localDate(d = new Date()) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 /** The note with its Gate section put in, or put in again. */
@@ -153,7 +169,7 @@ async function main() {
       console.log('Nothing recorded: only a full run that passed is put on the record.');
     } else {
       const version = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version;
-      const date = new Date().toISOString().slice(0, 10);
+      const date = localDate();
       const notePath = path.join(ROOT, 'docs', 'releases', `v${version}.md`);
       if (fs.existsSync(notePath)) {
         fs.writeFileSync(notePath, withGateSection(fs.readFileSync(notePath, 'utf8'), gateSection(counts, { version, date })));

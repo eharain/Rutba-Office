@@ -3,7 +3,7 @@
 // the note's plain style, and brought into the README's counts.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { countsOf, gateSection, withGateSection, withReadmeCounts } from '../tools/gate.js';
+import { countsOf, gateSection, withGateSection, withReadmeCounts, localDate, wrap } from '../tools/gate.js';
 
 const counts = {
   test: countsOf('test', 'ℹ tests 1800\nℹ pass 1794\nℹ fail 0\nℹ skipped 6\n...\nℹ tests 70\nℹ pass 70\nℹ fail 0\nℹ skipped 0\n'),
@@ -22,7 +22,9 @@ test('each pass\'s counts are read from its last lines, the two test runs added 
 
 test('the Gate section is written into the note, or written again in its place, with no dashes', () => {
   const section = gateSection(counts, { version: '1.30.0', date: '2026-10-09', platform: 'win32', arch: 'x64' });
-  assert.equal(section, '## Gate\n\nRun on Windows (x64) on 2026-10-09, before 1.30.0 was released: 1,870 engine tests, 1,864 passing and 6 skipped where a package they need is not installed; 12 of 12 editing checks; 1,190 of 1,190 application checks; and 10 of 10 windows painted clean.\n');
+  assert.equal(section, `## Gate\n\n${wrap('Run on Windows (x64) on 2026-10-09, before 1.30.0 was released: 1,870 engine tests, 1,864 passing and 6 skipped where a package they need is not installed; 12 of 12 editing checks; 1,190 of 1,190 application checks; and 10 of 10 windows painted clean.')}\n`);
+  assert.ok(section.split('\n').every((l) => l.length <= 75), 'wrapped as the notes are');
+  assert.equal(localDate(new Date(2026, 9, 9, 0, 30)), '2026-10-09', 'the day as this computer has it, past midnight');
   assert.doesNotMatch(section, /[–—]/);
   const note = 'Lead.\n\n## Fixed\n\n- A thing.\n';
   const once = withGateSection(note, section);
