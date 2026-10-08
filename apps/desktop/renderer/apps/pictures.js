@@ -27,12 +27,13 @@ import { megapixels, aspectName } from '@rutba/imaging/probe';
 import { timecode } from '@rutba/media/timeline';
 import { AppFrame, useAppMenu, pickOpen, useFileDrop } from '../shell.js';
 import {
-  VIEWABLE, FAMILIES, SORTS, TILE_SIZES, kindOf, arrange, countByFamily, foldersOf,
+  VIEWABLE, FAMILIES, SORTS, RATED, TILE_SIZES, kindOf, arrange, countByFamily, foldersOf, searchTree,
   fitColumns, gridWindow, stripWindow, stripCentre, neighbours, fileUrl, thumbUrl,
 } from './pictures/library.js';
 import { frameOf } from './pictures/frames.js';
 import { durationOf, peekLength } from './pictures/durations.js';
 import { nextIndex, formatLength, advanceAfter } from './pictures/show.js';
+import { useMarks, useFolderCount } from './pictures/marks.js';
 
 const INTERVALS = [
   { label: '2s', value: 2000 },
@@ -72,6 +73,11 @@ export default function Pictures({ app, shell, boot }) {
   const [details, setDetails] = useState(null);
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState('all');
+  // Ratings and tags, kept on this computer; the rating filter; and the search through the folders inside.
+  const { marks, rate, tag } = useMarks(shell);
+  const [rated, setRated] = useState(0);
+  const [deep, setDeep] = useState(false);
+  const [found, setFound] = useState(null);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('home');
 
@@ -180,8 +186,17 @@ export default function Pictures({ app, shell, boot }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const files = useMemo(() => arrange(entries, { query, family, sort }), [entries, query, family, sort]);
-  const folders = useMemo(() => (query.trim() ? [] : foldersOf(entries)), [entries, query]);
+  // Include subfolders: the folders inside searched for the name or the tag, a moment after typing stops.
+  useEffect(() => {
+    if (!deep || !folder || !query.trim()) { setFound(null); return undefined; }
+    let live = true;
+    const timer = setTimeout(() => {
+      searchTree((dir) => shell.fs.list({ path: dir, filter: VIEWABLE }), folder, { query, marks }).then((rows) => { if (live) setFound(rows); });
+    }, 250);
+    return () => { live = false; clearTimeout(timer); };
+  }, [deep, folder, query, marks, shell]);
+  const files = useMemo(() => arrange(deep && found ? found : entries, { query: deep && found ? '' : query, family, sort, marks, rated }), [entries, found, deep, query, family, sort, marks, rated]);
+  const folders = useMemo(() => (query.trim() || rated ? [] : foldersOf(entries)), [entries, query, rated]);
   const counts = useMemo(() => countByFamily(entries), [entries]);
 
   const at = files.findIndex((f) => f.path === current);
@@ -550,6 +565,8 @@ export default function Pictures({ app, shell, boot }) {
       'view.in': { label: 'Zoom in', icon: 'zoomIn', key: 'Mod+Plus', run: () => setZoom((z) => Math.min(12, (z || 1) * 1.25)) },
       'view.out': { label: 'Zoom out', icon: 'zoomOut', key: 'Mod+-', run: () => setZoom((z) => Math.max(0.05, (z || 1) / 1.25)) },
       'view.rotate': { label: 'Rotate view', icon: 'rotate', key: 'r', run: () => setSpin((s) => (s + 1) % 4) },
+      // Rate the picture on the stage: 1 to 5 stars, 0 to clear, as Windows Photos and Lightroom take them.
+      ...Object.fromEntries([0, 1, 2, 3, 4, 5].map((n) => [`file.rate${n}`, { label: n ? `Rate ${'★'.repeat(n)}` : 'Clear the rating', icon: 'star', key: String(n), when: () => Boolean(current) && !showOpen, run: () => current && rate(current, n) }])),
       'view.details': { label: 'Details panel', icon: 'info', run: () => setView({ details: !showDetails }) },
       'view.grid': { label: 'Folder grid beside the picture', icon: 'grid', run: () => setView({ grid: !showGrid }) },
       'view.filmstrip': { label: 'Filmstrip', icon: 'list', run: () => setView({ filmstrip: !filmstrip }) },
@@ -580,7 +597,7 @@ export default function Pictures({ app, shell, boot }) {
         },
       },
     }),
-    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip, showOpen, startShow]
+    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip, showOpen, startShow, rate]
   );
 
   useCommands(commands, [files, at, current, folder, playing, frozen]);
@@ -601,6 +618,11 @@ export default function Pictures({ app, shell, boot }) {
       tileSize={tileSize}
       onTileSize={(s) => setView({ tileSize: s })}
       stacked={Boolean(current)}
+      rated={rated}
+      onRated={setRated}
+      deep={deep}
+      onDeep={setDeep}
+      searching={Boolean(deep && query.trim() && found === null)}
     />
   );
 
@@ -772,7 +794,7 @@ export default function Pictures({ app, shell, boot }) {
         <Panel width={276} resizable>
           <div className="pv-library">
             {tools}
-            <Grid files={files} folders={[]} current={current} tileSize={tileSize} busy={busy} onOpen={openAt} onMenu={tileMenu} shell={shell} />
+            <Grid files={files} folders={[]} current={current} tileSize={tileSize} busy={busy} onOpen={openAt} onMenu={tileMenu} shell={shell} marks={marks} />
           </div>
         </Panel>
       ) : null}
@@ -793,7 +815,7 @@ export default function Pictures({ app, shell, boot }) {
                   : 'Open a folder, or drop pictures, video or animations onto this window.'}
               </Empty>
             ) : (
-              <Grid files={files} folders={folders} current={null} tileSize={tileSize} browse busy={busy} onOpen={openAt} onFolder={enterFolder} onMenu={tileMenu} shell={shell} />
+              <Grid files={files} folders={folders} current={null} tileSize={tileSize} browse busy={busy} onOpen={openAt} onFolder={enterFolder} onMenu={tileMenu} shell={shell} marks={marks} />
             )}
           </div>
         ) : (
@@ -863,6 +885,12 @@ export default function Pictures({ app, shell, boot }) {
         <Panel right width={230} title="Details" resizable>
           <div className="pv-details">
             <div className="pv-detail-name">{basename(current)}</div>
+            <div className="pv-stars" role="group" aria-label="Rating">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <button key={n} type="button" className={`pv-star${(marks[current]?.rating || 0) >= n ? ' on' : ''}`} data-star={n} data-tip={`${n} star${n === 1 ? '' : 's'} (${n})`} onClick={() => rate(current, (marks[current]?.rating || 0) === n ? 0 : n)}>★</button>
+              ))}
+            </div>
+            <Tags tags={marks[current]?.tags || []} onChange={(tags) => tag(current, tags)} />
             {details ? (
               <dl>
                 {details.probe?.format ? (
@@ -908,12 +936,31 @@ export default function Pictures({ app, shell, boot }) {
   );
 }
 
+/* ── tags, kept on this computer ───────────────────────────────────────── */
+
+function Tags({ tags, onChange }) {
+  const [draft, setDraft] = useState('');
+  const add = () => { const t = draft.trim(); if (t) onChange([...tags, t]); setDraft(''); };
+  return (
+    <div className="pv-tags">
+      {tags.map((t) => (
+        <span key={t} className="pv-tag" data-tag={t}>{t}<button type="button" aria-label={`Remove ${t}`} onClick={() => onChange(tags.filter((x) => x !== t))}>×</button></span>
+      ))}
+      <input className="rw-input pv-tag-input" value={draft} placeholder="Add a tag" onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } e.stopPropagation(); }} onBlur={add} />
+    </div>
+  );
+}
+
 /* ── the tools: filter, kind, order, tile size ───────────────────────────── */
 
-function Tools({ query, onQuery, family, onFamily, counts, sort, onSort, tileSize, onTileSize, stacked }) {
+function Tools({ query, onQuery, family, onFamily, counts, sort, onSort, tileSize, onTileSize, stacked, rated = 0, onRated, deep = false, onDeep, searching = false }) {
   return (
     <div className={`pv-tools${stacked ? ' stacked' : ''}`}>
-      <Search value={query} onChange={onQuery} placeholder="Filter by name" style={{ minWidth: 0 }} />
+      <Search value={query} onChange={onQuery} placeholder={deep ? 'Search the folders inside by name or tag' : 'Filter by name or tag'} style={{ minWidth: 0 }} />
+      <button type="button" className="pv-deep" aria-pressed={deep} data-tip="Include subfolders — the folders inside this one searched too" onClick={() => onDeep?.(!deep)}>{searching ? 'Searching…' : 'Subfolders'}</button>
+      <Select data-role="rated" value={rated} onChange={(e) => onRated?.(Number(e.target.value))} style={{ padding: '3px 8px', fontSize: 11.5 }} title="Only pictures rated so many stars or more" aria-label="Rating">
+        {RATED.map(([n, label]) => <option key={n} value={n}>{label}</option>)}
+      </Select>
       <div className="pv-kinds" role="group" aria-label="Kind">
         {FAMILIES.filter((f) => f.id === 'all' || counts[f.id] > 0).map((f) => (
           <button
@@ -980,7 +1027,13 @@ function useScrollBox(ref) {
   return box;
 }
 
-function Grid({ files, folders, current, tileSize, browse = false, busy, onOpen, onFolder, onMenu, shell }) {
+/** A folder tile's count of what is in it, read when the tile is drawn. */
+function FolderCount({ shell, path }) {
+  const n = useFolderCount(shell, path, VIEWABLE);
+  return n === null ? null : <span className="pv-folder-count" data-count={n}>{n === 0 ? 'empty' : `${n} item${n === 1 ? '' : 's'}`}</span>;
+}
+
+function Grid({ files, folders, current, tileSize, browse = false, busy, onOpen, onFolder, onMenu, shell, marks = null }) {
   const ref = useRef(null);
   const box = useScrollBox(ref);
   const padding = browse ? 12 : 8;
@@ -1010,12 +1063,13 @@ function Grid({ files, folders, current, tileSize, browse = false, busy, onOpen,
       items.push(
         <button key={d.path} type="button" className="pv-tile folder" data-kind="folder" style={{ width: tile, height: tile }} title={d.name} onClick={() => onFolder?.(d.path)}>
           <span className="pv-tile-icon"><Icon name="folder" size={Math.max(22, Math.round(tile * 0.28))} /></span>
+          <FolderCount shell={shell} path={d.path} />
           <span className="pv-tile-name">{d.name}</span>
         </button>
       );
     } else {
       const f = files[i - folders.length];
-      items.push(<Tile key={f.path} file={f} active={f.path === current} size={tile} onOpen={() => onOpen(f)} onMenu={onMenu} shell={shell} />);
+      items.push(<Tile key={f.path} file={f} active={f.path === current} size={tile} rating={marks?.[f.path]?.rating || 0} onOpen={() => onOpen(f)} onMenu={onMenu} shell={shell} />);
     }
   }
 
@@ -1103,7 +1157,7 @@ function LengthBadge({ file }) {
   return <span className="pv-length">{formatLength(seconds)}</span>;
 }
 
-const Tile = React.memo(function Tile({ file, active, size, onOpen, onMenu, shell }) {
+const Tile = React.memo(function Tile({ file, active, size, rating = 0, onOpen, onMenu, shell }) {
   const kind = kindOf(file.path);
   return (
     <button type="button" className={`pv-tile${active ? ' active' : ''}`} data-kind={kind} data-name={file.name} style={{ width: size, height: size }} onClick={onOpen} onContextMenu={onMenu} title={file.name}>
@@ -1114,6 +1168,7 @@ const Tile = React.memo(function Tile({ file, active, size, onOpen, onMenu, shel
         <span className="pv-tile-badge text">PDF</span>
       ) : null}
       <LengthBadge file={file} />
+      {rating ? <span className="pv-tile-stars" data-rating={rating}>{'★'.repeat(rating)}</span> : null}
       <span className="pv-tile-name">{file.name}</span>
     </button>
   );
@@ -1369,6 +1424,18 @@ const CSS = `
 
 /* ── the details ── */
 .pv-details { padding: 4px 12px 14px; display: flex; flex-direction: column; gap: 12px; }
+.pv-stars { display: flex; gap: 2px; }
+.pv-star { background: none; border: 0; padding: 0 2px; font-size: 18px; line-height: 1; color: var(--ink-3); cursor: pointer; }
+.pv-star.on { color: #e3a008; }
+.pv-tags { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
+.pv-tag { display: inline-flex; align-items: center; gap: 2px; font-size: 11.5px; padding: 1px 4px 1px 8px; border-radius: 10px; background: var(--surface-2, rgba(127,127,127,.15)); }
+.pv-tag button { background: none; border: 0; color: inherit; cursor: pointer; opacity: .7; padding: 0 2px; }
+.pv-tag-input { flex: 1; min-width: 80px; font-size: 11.5px; padding: 2px 6px; }
+.pv-tile-stars { position: absolute; left: 6px; bottom: 24px; font-size: 12px; color: #e3a008; text-shadow: 0 1px 2px rgba(0,0,0,.6); pointer-events: none; }
+.pv-folder-count { position: absolute; left: 0; right: 0; bottom: 7px; text-align: center; font-size: 10.5px; color: var(--ink-3); pointer-events: none; }
+.pv-tile.folder:has(.pv-folder-count) .pv-tile-name { padding-bottom: 22px; }
+.pv-deep { font: inherit; font-size: 11.5px; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--line); background: none; color: inherit; cursor: pointer; }
+.pv-deep[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); }
 .pv-detail-name { font-weight: 600; font-size: 12.5px; word-break: break-all; }
 .pv-detail-wait { font-size: 11.5px; color: var(--ink-3); }
 .pv-details dl { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; margin: 0; font-size: 11.5px; }

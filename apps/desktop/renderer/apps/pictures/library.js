@@ -61,7 +61,11 @@ export const SORTS = [
   { id: 'oldest', label: 'Oldest first' },
   { id: 'largest', label: 'Largest first' },
   { id: 'kind', label: 'Kind' },
+  { id: 'rating', label: 'Highest rated' },
 ];
+
+/** The rating filter: any, or at least so many stars. */
+export const RATED = [[0, 'Any rating'], [1, '★ and up'], [2, '★★ and up'], [3, '★★★ and up'], [4, '★★★★ and up'], [5, '★★★★★']];
 
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
 const KIND_ORDER = ['still', 'maybe-animated', 'video', 'audio', 'pdf'];
@@ -71,19 +75,52 @@ const KIND_ORDER = ['still', 'maybe-animated', 'video', 'audio', 'pdf'];
  * asked for, the name filter, in the order chosen. Ties fall back to the
  * name, so an order is the same order on every visit.
  */
-export function arrange(entries, { query = '', family = 'all', sort = 'name' } = {}) {
+export function arrange(entries, { query = '', family = 'all', sort = 'name', marks = null, rated = 0 } = {}) {
   const q = query.trim().toLowerCase();
   const fam = FAMILIES.find((f) => f.id === family);
+  const markOf = (e) => (marks && marks[e.path]) || null;
   let rows = entries.filter((e) => !e.dir);
   if (fam?.kinds) rows = rows.filter((e) => fam.kinds.includes(kindOf(e.path)));
-  if (q) rows = rows.filter((e) => e.name.toLowerCase().includes(q));
+  // The filter finds a name, or a tag given to the file here.
+  if (q) rows = rows.filter((e) => e.name.toLowerCase().includes(q) || (markOf(e)?.tags || []).some((t) => t.toLowerCase().includes(q)));
+  if (rated > 0) rows = rows.filter((e) => (markOf(e)?.rating || 0) >= rated);
   const cmp =
     sort === 'newest' ? (a, b) => (b.mtime || 0) - (a.mtime || 0) || byName(a, b)
     : sort === 'oldest' ? (a, b) => (a.mtime || 0) - (b.mtime || 0) || byName(a, b)
     : sort === 'largest' ? (a, b) => (b.size || 0) - (a.size || 0) || byName(a, b)
     : sort === 'kind' ? (a, b) => KIND_ORDER.indexOf(kindOf(a.path)) - KIND_ORDER.indexOf(kindOf(b.path)) || byName(a, b)
+    : sort === 'rating' ? (a, b) => (markOf(b)?.rating || 0) - (markOf(a)?.rating || 0) || byName(a, b)
     : byName;
   return rows.slice().sort(cmp);
+}
+
+/**
+ * Search the folders inside one: every file under `root` — through
+ * `list(dir)`, a folder's entries — whose name or tag holds `query`, as
+ * far down as `depth` and no more than `limit` of them, nearest first.
+ */
+export async function searchTree(list, root, { query = '', marks = null, depth = 6, limit = 2000, filter = null } = {}) {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  const out = [];
+  let level = [root];
+  for (let d = 0; d <= depth && level.length && out.length < limit; d++) {
+    const next = [];
+    for (const dir of level) {
+      let rows = [];
+      try { rows = await list(dir); } catch { rows = []; }
+      for (const e of rows) {
+        if (e.dir) { next.push(e.path); continue; }
+        if (filter && !filter(e)) continue;
+        const tags = (marks && marks[e.path]?.tags) || [];
+        if (e.name.toLowerCase().includes(q) || tags.some((t) => t.toLowerCase().includes(q))) out.push(e);
+        if (out.length >= limit) break;
+      }
+      if (out.length >= limit) break;
+    }
+    level = next;
+  }
+  return out;
 }
 
 /** The folders inside a folder, by name, for the tiles that lead into them. */
