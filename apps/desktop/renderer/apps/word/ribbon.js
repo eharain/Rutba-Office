@@ -32,6 +32,7 @@ import { PEN_COLOURS, PEN_WIDTHS } from '../slides/ink-geometry.js';
 import { ToaGroup } from './references-toa.js';
 import { captionsExtra } from './references-figures.js';
 import { MODEL_VIEWS } from '@rutba/imaging/model3d';
+import { untrackedOk } from './untracked.js';
 
 /* ── vocabularies ────────────────────────────────────────────────────────── */
 
@@ -125,7 +126,8 @@ export default function WordRibbon({
   tab, setTab, doc, model, dispatch, commands, shell, menu, save, openFile, exportAs, openDialog, insertPicture, act, view = {}, picked = null, mailings = null, review = null, drawing = null, references = null, ink = null, blocks = null, table = null,
 }) {
   // Table Layout: an operation on the caret's table, and whether the selection runs across its cells.
-  const tableOp = (kind, arg) => dispatch({ op: 'tableOp', kind, ...(arg ? { arg } : {}) });
+  // A merge or a split while recording is asked about first, as Word asks (see untracked.js).
+  const tableOp = async (kind, arg) => { if (await untrackedOk(shell, model, kind)) dispatch({ op: 'tableOp', kind, ...(arg ? { arg } : {}) }); };
   const innermost = (block) => /(t\d+):r(\d+):c(\d+)(?!.*:t\d+:)/.exec(String(model?.blocks?.[block]?.container || ''));
   const anchorCell = innermost(model?.selection?.anchor?.block ?? -1);
   const focusCell = innermost(model?.selection?.focus?.block ?? -1);

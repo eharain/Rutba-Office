@@ -61,6 +61,7 @@ import { verifyIcons } from './verify-icons.js';
 import { verifyWordImmersive } from './verify-word-immersive.js';
 import { verifyWordTheme } from './verify-word-theme.js';
 import { verifyDeckTrigger } from './verify-deck-trigger.js';
+import { verifyWordMergeTracked } from './verify-word-merge-tracked.js';
 import { verifyLostMouseup } from './verify-lost-mouseup.js';
 import { verifyDialogFocus } from './verify-dialog-focus.js';
 import { verifyOpenProgram } from './verify-open-program.js';
@@ -4684,6 +4685,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('immersive')) await verifyWordImmersive({ open, check, until, wait }, { dir });
     if (only.includes('doctheme')) await verifyWordTheme({ open, check, until, wait, doc }, { dir });
     if (only.includes('trigger')) await verifyDeckTrigger({ open, check, until, wait, doc }, { dir });
+    if (only.includes('mergetracked')) await verifyWordMergeTracked({ open, check, until, doc, sessionFor }, { dir });
     if (only.includes('lostmouseup')) await verifyLostMouseup({ open, check, until }, { dir });
     if (only.includes('dialogfocus')) await verifyDialogFocus({ open, check, until, wait, press }, { dir });
     if (only.includes('openprogram')) await verifyOpenProgram({ open, check, until }, { dir });
@@ -4939,6 +4941,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyWordImmersive({ open, check, until, wait }, { dir }));
   await block(() => verifyWordTheme({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyDeckTrigger({ open, check, until, wait, doc }, { dir }));
+  await block(() => verifyWordMergeTracked({ open, check, until, doc, sessionFor }, { dir }));
   await block(() => verifyLostMouseup({ open, check, until }, { dir }));
   await block(() => verifyDialogFocus({ open, check, until, wait, press }, { dir }));
   await block(() => verifyOpenProgram({ open, check, until }, { dir }));

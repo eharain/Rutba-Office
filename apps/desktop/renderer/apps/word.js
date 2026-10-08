@@ -61,6 +61,7 @@ import { cellLook, tableRuled } from '@rutba/doc-view/table-look';
 const GEOM_DEFAULT = geomOf(null);
 import { useReferences, installReferencesStyles } from './word/references.js';
 import { useBuildingBlocks, BLOCKS_CSS } from './word/blocks.js';
+import { untrackedOk } from './word/untracked.js';
 import { loadModelFile, modelDrawer, pngOf, MODEL_PICTURE, DEFAULT_MODEL_VIEW } from '../model3d.js';
 
 installMailingsStyles();
@@ -2400,8 +2401,8 @@ export default function Word({ app, shell, boot }) {
                   { label: 'Insert column right', icon: 'colRight', run: () => apply({ op: 'tableOp', kind: 'insertColumnRight' }) },
                   { label: 'Delete row', icon: 'minus', run: () => apply({ op: 'tableOp', kind: 'deleteRow' }) },
                   { label: 'Delete column', icon: 'minus', run: () => apply({ op: 'tableOp', kind: 'deleteColumn' }) },
-                  { label: 'Merge cells', icon: 'mergeCells', run: () => apply({ op: 'tableOp', kind: 'mergeCells' }) },
-                  { label: 'Split cells', icon: 'splitCells', run: () => apply({ op: 'tableOp', kind: 'splitCell' }) },
+                  { label: 'Merge cells', icon: 'mergeCells', run: async () => { if (await untrackedOk(shell, model, 'mergeCells')) apply({ op: 'tableOp', kind: 'mergeCells' }); } },
+                  { label: 'Split cells', icon: 'splitCells', run: async () => { if (await untrackedOk(shell, model, 'splitCell')) apply({ op: 'tableOp', kind: 'splitCell' }); } },
                 ] : []),
               ])}
               style={{
