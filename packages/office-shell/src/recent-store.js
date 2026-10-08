@@ -28,7 +28,14 @@ export function renameEntry(list, p, to) {
  * file that does not answer in time is listed; opening it says if it is gone.
  */
 export async function presentEntries(list, { exists, limit = 30, timeoutMs = 1500 }) {
-  const wait = (ms) => new Promise((resolve) => { const t = setTimeout(() => resolve(true), ms); t.unref?.(); });
-  const there = await Promise.all(list.map((r) => Promise.race([Promise.resolve(exists(r.path)).catch(() => false), wait(timeoutMs)])));
+  // Each file's wait ends when it answers or when its time is up, whichever
+  // comes first, and its timer goes with it.
+  const look = (p) => new Promise((resolve) => {
+    const timer = setTimeout(() => resolve(true), timeoutMs);
+    Promise.resolve()
+      .then(() => exists(p))
+      .then((there) => { clearTimeout(timer); resolve(Boolean(there)); }, () => { clearTimeout(timer); resolve(false); });
+  });
+  const there = await Promise.all(list.map((r) => look(r.path)));
   return list.filter((_, i) => there[i]).slice(0, limit);
 }
