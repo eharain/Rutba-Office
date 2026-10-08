@@ -715,7 +715,7 @@ export function focusablesIn(root) {
  * when it closes, focus goes back to where it was. Escape closes the top
  * dialog only, so a dialog opened from another leaves the first open.
  */
-export function Dialog({ title, children, actions, onClose, width }) {
+export function Dialog({ title, children, actions, onClose, width, className = null }) {
   const ref = useRef(null);
   const close = useRef(onClose);
   close.current = onClose;
@@ -751,7 +751,7 @@ export function Dialog({ title, children, actions, onClose, width }) {
 
   return (
     <div className="rw-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose?.()}>
-      <div ref={ref} className="rw-dialog" style={width ? { width } : undefined} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onKeyDown={trap}>
+      <div ref={ref} className={`rw-dialog${className ? ` ${className}` : ''}`} style={width ? { width } : undefined} role="dialog" aria-modal="true" aria-label={title} tabIndex={-1} onKeyDown={trap}>
         {title ? <div className="rw-dialog-head">{title}</div> : null}
         <div className="rw-dialog-body">{children}</div>
         {actions ? <div className="rw-dialog-foot">{actions}</div> : null}

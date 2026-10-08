@@ -164,7 +164,7 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
         : <><Button label="Cancel" onClick={onClose} /><Button primary label="Create Video" className="sl-video-go" onClick={go} /></>}
     >
       {busy ? (
-        <div className="sl-video-busy">Making the video: slide {busy.at} of {busy.of}. It plays the deck through, so it takes as long as the show.</div>
+        <div className="sl-video-busy" role="status" aria-live="polite">Making the video: slide {busy.at} of {busy.of}. It plays the deck through, so it takes as long as the show.</div>
       ) : (
         <div className="sl-video">
           <label>Quality <Select className="rw-select sl-video-quality" value={quality} onChange={(e) => setQuality(e.target.value)}>{QUALITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></label>

@@ -8,7 +8,7 @@
 // page does.
 
 import React, { useEffect, useState } from 'react';
-import { Button } from '@rutba/office-ui';
+import { Button, Dialog } from '@rutba/office-ui';
 import { SITE } from '@rutba/office-formats/registry';
 import { parseNotes } from './whatsnew/notes.js';
 
@@ -53,26 +53,30 @@ export function WhatsNew({ shell, version, onClose }) {
     };
   }, [version]);
   const open = (url) => shell.shell.openExternal({ url }).catch(() => {});
+  // The shared dialog: a dialog to a screen reader, focus taken in and given
+  // back, and Escape to close it, as every other dialog has.
   return (
-    <div className="rw-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <Dialog
+      title={`What’s new in Rutba Office ${version || notes?.version || ''}`.trim()}
+      width={580}
+      className="rw-whatsnew"
+      onClose={onClose}
+      actions={<>
+        <Button label="All releases" onClick={() => open(SITE.releases)} />
+        <Button label="Close" primary className="rw-whatsnew-close" onClick={onClose} />
+      </>}
+    >
       <style>{CSS}</style>
-      <div className="rw-dialog rw-whatsnew" style={{ width: 580 }}>
-        <div className="rw-dialog-head">What’s new in Rutba Office {version || notes?.version || ''}</div>
-        <div className="rw-dialog-body rw-whatsnew-body">
-          {notes === undefined ? (
-            <p className="rw-hint">Reading the notes…</p>
-          ) : notes === null ? (
-            <p>The notes for this version are on the releases page.</p>
-          ) : (
-            <Notes blocks={notes.blocks} />
-          )}
-        </div>
-        <div className="rw-dialog-foot">
-          <Button label="All releases" onClick={() => open(SITE.releases)} />
-          <Button label="Close" primary className="rw-whatsnew-close" onClick={onClose} />
-        </div>
+      <div className="rw-whatsnew-body">
+        {notes === undefined ? (
+          <p className="rw-hint">Reading the notes…</p>
+        ) : notes === null ? (
+          <p>The notes for this version are on the releases page.</p>
+        ) : (
+          <Notes blocks={notes.blocks} />
+        )}
       </div>
-    </div>
+    </Dialog>
   );
 }
 

@@ -248,8 +248,8 @@ export function SelectionPane({ objects = [], picked = [], onPick, onHidden, onR
         <button type="button" className="sh-selpane-all" onClick={() => onAll(false)} disabled={!objects.length}>Show All</button>
         <button type="button" className="sh-selpane-all" onClick={() => onAll(true)} disabled={!objects.length}>Hide All</button>
         <span className="grow" />
-        <button type="button" className="sh-selpane-order" data-tip="Bring Forward — the picked object one step to the front" disabled={!picked.length} onClick={() => onOrder('forward')}><Icon name="chevronUp" size={14} /></button>
-        <button type="button" className="sh-selpane-order" data-tip="Send Backward — the picked object one step to the back" disabled={!picked.length} onClick={() => onOrder('backward')}><Icon name="chevronDown" size={14} /></button>
+        <button type="button" className="sh-selpane-order" data-tip="Bring Forward — the picked object one step to the front" aria-label="Bring Forward" disabled={!picked.length} onClick={() => onOrder('forward')}><Icon name="chevronUp" size={14} /></button>
+        <button type="button" className="sh-selpane-order" data-tip="Send Backward — the picked object one step to the back" aria-label="Send Backward" disabled={!picked.length} onClick={() => onOrder('backward')}><Icon name="chevronDown" size={14} /></button>
       </div>
       <div className="sh-selpane-list">
         {list.length ? list.map((o) => (

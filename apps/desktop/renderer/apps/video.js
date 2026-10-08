@@ -315,7 +315,7 @@ export default function VideoTool({ app, shell, boot }) {
         <>
           <span>{path || 'No media open'}</span>
           <Spacer />
-          {exporting ? <Chip>Exporting {timecode(exporting.done)} of {timecode(exporting.total)}</Chip> : null}
+          {exporting ? <span role="status" aria-live="polite"><Chip>Exporting {timecode(exporting.done)} of {timecode(exporting.total)}</Chip></span> : null}
           {timeline ? <Chip>{layout.length} clips</Chip> : null}
           <Chip>{timecode(time)} / {timecode(timeline ? timeline.duration : duration)}</Chip>
           {stat ? <Chip>{formatBytes(stat.size)}</Chip> : null}

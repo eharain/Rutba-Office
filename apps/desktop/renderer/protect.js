@@ -53,11 +53,12 @@ export function SecretInput({ value, onChange, className = '', invalid = false, 
           data-tip={shown ? t('Hide password') : t('Show password')}
           aria-label={shown ? t('Hide password') : t('Show password')}
           aria-pressed={shown}
-          tabIndex={-1}
           onMouseDown={(e) => e.preventDefault()}
-          onClick={() => {
+          onClick={(e) => {
             setShown((s) => !s);
-            ref.current?.focus();
+            // A click goes back to typing; a key press (detail 0) stays on the
+            // button, so the keyboard can reach it and press it again.
+            if (e.detail) ref.current?.focus();
           }}
         >
           <Icon name={shown ? 'eyeOff' : 'eye'} size={15} />

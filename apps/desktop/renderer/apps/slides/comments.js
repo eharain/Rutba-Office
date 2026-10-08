@@ -113,11 +113,11 @@ export function CommentsPane({ threads, draft, selected, shapes, me, onSelect, o
               </div>
               <div className="sl-cm-actions">
                 {!t.legacy ? (
-                  <button type="button" className="sl-cm-act sl-cm-resolve" data-tip={t.status === 'resolved' ? 'Reopen this thread' : 'Resolve this thread'} onClick={(e) => { e.stopPropagation(); onResolve(t, t.status !== 'resolved'); }}>
+                  <button type="button" className="sl-cm-act sl-cm-resolve" data-tip={t.status === 'resolved' ? 'Reopen this thread' : 'Resolve this thread'} aria-label={t.status === 'resolved' ? 'Reopen this thread' : 'Resolve this thread'} onClick={(e) => { e.stopPropagation(); onResolve(t, t.status !== 'resolved'); }}>
                     <Icon name={t.status === 'resolved' ? 'refresh' : 'check'} size={14} />
                   </button>
                 ) : null}
-                <button type="button" className="sl-cm-act sl-cm-delete" data-tip="Delete this thread" onClick={(e) => { e.stopPropagation(); onDelete(t); }}>
+                <button type="button" className="sl-cm-act sl-cm-delete" data-tip="Delete this thread" aria-label="Delete this thread" onClick={(e) => { e.stopPropagation(); onDelete(t); }}>
                   <Icon name="trash" size={14} />
                 </button>
               </div>
@@ -133,7 +133,7 @@ export function CommentsPane({ threads, draft, selected, shapes, me, onSelect, o
                       <div className="sl-cm-who"><span className="sl-cm-name">{r.author}</span><span className="sl-cm-anchor">{whenOf(r.created)}</span></div>
                       {!t.legacy ? (
                         <div className="sl-cm-actions">
-                          <button type="button" className="sl-cm-act sl-cm-delete-reply" data-tip="Delete this reply" onClick={(e) => { e.stopPropagation(); onDeleteReply(t, r); }}><Icon name="trash" size={13} /></button>
+                          <button type="button" className="sl-cm-act sl-cm-delete-reply" data-tip="Delete this reply" aria-label="Delete this reply" onClick={(e) => { e.stopPropagation(); onDeleteReply(t, r); }}><Icon name="trash" size={13} /></button>
                         </div>
                       ) : null}
                     </div>

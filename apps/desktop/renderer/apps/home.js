@@ -6,7 +6,7 @@
 // suite is that you did not have to go and find seven separate downloads.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Icon, Search, Empty, Button, Chip, Spacer, useMenu, useToast, formatBytes, formatWhen, basename, t, tn } from '@rutba/office-ui';
+import { Icon, Search, Empty, Button, Chip, Spacer, Dialog, useMenu, useToast, formatBytes, formatWhen, basename, t, tn } from '@rutba/office-ui';
 import { APPS, NEW_DOCUMENTS, SITE } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension, KINDS } from '@rutba/office-formats/sniff';
 import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop } from '../shell.js';
@@ -501,10 +501,22 @@ function AnnouncementSetting({ shell }) {
 function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClose }) {
   const open = (url) => shell.shell.openExternal({ url });
   return (
-    <div className="rw-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="rw-dialog" style={{ width: 460 }}>
-        <div className="rw-dialog-head">{t('About Rutba Office')}</div>
-        <div className="rw-dialog-body">
+    <Dialog
+      title={t('About Rutba Office')}
+      width={460}
+      className="about-dialog"
+      onClose={onClose}
+      actions={<>
+        <Button label={t('Source code')} onClick={() => open(SITE.source)} />
+        {update?.state === 'ready' ? (
+          <Button label={t('Restart and install')} onClick={onInstall} />
+        ) : (
+          <Button label={t('Check for updates')} onClick={onCheck} />
+        )}
+        <Button label={t('Close')} primary onClick={onClose} />
+      </>}
+    >
+        <div>
           <p style={{ marginTop: 0 }}>
             {t('A free office suite: mail, documents, worksheets, presentations, pictures, images and video, on an engine we own.')}
           </p>
@@ -563,17 +575,7 @@ function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClo
             {t('Copyright © 2026 Tech Style Ltd. The source is published, and you are free to study, modify and share it under the terms of the AGPL.')}
           </p>
         </div>
-        <div className="rw-dialog-foot">
-          <Button label={t('Source code')} onClick={() => open(SITE.source)} />
-          {update?.state === 'ready' ? (
-            <Button label={t('Restart and install')} onClick={onInstall} />
-          ) : (
-            <Button label={t('Check for updates')} onClick={onCheck} />
-          )}
-          <Button label={t('Close')} primary onClick={onClose} />
-        </div>
-      </div>
-    </div>
+    </Dialog>
   );
 }
 
