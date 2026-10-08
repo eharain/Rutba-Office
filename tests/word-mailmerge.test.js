@@ -317,23 +317,51 @@ test('a merge letter saved and opened again finds its list where it left it, on 
   service.save({ id: first.id });
   service.close({ id: first.id });
 
+  // Opened again, the letter names its list and waits to be told to attach it.
   const again = service.open({ path: docPath, kind: 'doc' });
-  const mm = again.model.mailMerge;
+  assert.equal(again.model.mailMerge.source, null, 'not opened by itself');
+  assert.deepEqual(again.model.mailMerge.pending, { path: listPath, sheet: null, network: false, found: true });
+  service.mailMerge({ id: again.id, action: 'reattach' });
+  const mm = service.model({ id: again.id }).mailMerge;
   assert.equal(mm.type, 'formLetters');
   assert.equal(mm.source?.name, 'reopen.csv');
   assert.equal(mm.source.count, 3);
   assert.equal(mm.record, 2);
   assert.equal(mm.preview, true);
-  assert.equal(again.model.blocks[0].text, 'Dear Cynthia');
-  assert.equal(again.dirty, false, 'reopening is not an edit');
+  assert.equal(service.model({ id: again.id }).blocks[0].text, 'Dear Cynthia');
+  assert.equal(service.sessions().find((s) => s.id === again.id)?.dirty ?? false, false, 'attaching it again is not an edit');
 
   // The list moved: the letter still opens, and says where it looked.
   service.close({ id: again.id });
   fs.renameSync(listPath, listPath + '.moved');
   const lost = service.open({ path: docPath, kind: 'doc' });
   assert.equal(lost.model.mailMerge.source, null);
-  assert.deepEqual(lost.model.mailMerge.pending, { path: listPath, sheet: null });
+  assert.deepEqual(lost.model.mailMerge.pending, { path: listPath, sheet: null, network: false, found: false });
+  assert.throws(() => service.mailMerge({ id: lost.id, action: 'reattach' }), /was not found/);
   service.close({ id: lost.id });
+});
+
+test('a letter whose list is on a network share never opens it, and says how to choose it', () => {
+  const service = createDocumentService({ holdBlob: () => ({ url: 'blob://held' }) });
+  const listPath = path.join(dir, 'share.csv');
+  fs.writeFileSync(listPath, CSV);
+  const docPath = path.join(dir, 'share-letter.docx');
+  fs.writeFileSync(docPath, buildDocx({ paragraphs: [{ text: 'Dear ' }] }));
+  const first = service.open({ path: docPath, kind: 'doc' });
+  service.apply({ id: first.id, ops: [{ op: 'startMailMerge', type: 'formLetters' }] });
+  service.mailMerge({ id: first.id, action: 'attach', path: listPath });
+  service.save({ id: first.id });
+  service.close({ id: first.id });
+  // The saved link pointed at a share, as a hostile letter's would.
+  const bytes = fs.readFileSync(docPath);
+  const view = openDocx(bytes);
+  view.merge.saved = { ...view.merge.saved, path: '\\\\evil.example\\share\\list.csv' };
+  view._writeMerge();
+  fs.writeFileSync(docPath, view.save());
+  const again = service.open({ path: docPath, kind: 'doc' });
+  assert.equal(again.model.mailMerge.pending.network, true);
+  assert.equal(again.model.mailMerge.pending.found, null, 'not even looked at');
+  assert.throws(() => service.mailMerge({ id: again.id, action: 'reattach' }), /network share/);
 });
 
 test('Finish & Merge through the service makes an unsaved Letters1 a window can take over', () => {

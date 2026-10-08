@@ -618,6 +618,27 @@ function readQuerySource(file) {
   return fs.readFileSync(file, 'utf8');
 }
 
+/** Query sources on a network share that were chosen in this run, from Get Data or Edit — not merely named by a workbook. */
+const chosenShareSources = new Set();
+
+/** A source the person chose: a share is noted as theirs, so Refresh may read it. */
+function readChosenQuerySource(file) {
+  if (/^(\\\\|\/\/)/.test(String(file || ''))) chosenShareSources.add(String(file).toLowerCase());
+  return readQuerySource(file);
+}
+
+/**
+ * A source Refresh reads, named by the workbook. One on a network share is
+ * read only if it was chosen in this run: reading a share hands it this
+ * computer's Windows sign-in, and the path came from the file.
+ */
+function readSavedQuerySource(file) {
+  if (/^(\\\\|\/\/)/.test(String(file || '')) && !chosenShareSources.has(String(file).toLowerCase())) {
+    throw new Error(`${file} is on a network share, so Refresh does not read it because a workbook names it. Choose it again from the query's Source to refresh from it.`);
+  }
+  return readQuerySource(file);
+}
+
 export function createDocumentService({ holdBlob, recoveryDir = null, measureMath = null, proofing = null }) {
   // Review → Check Accessibility and Spelling (main/proofing.js): ops for the
   // tables below, and `proof` for what reads.
@@ -1073,6 +1094,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     d.dirty = false;
   }
 
+  /** A path on another computer — `\\server\share` or `//server/share` — which Windows answers by sending its sign-in. */
+  const isNetworkPath = (p) => /^(\\\\|\/\/)/.test(String(p || ''));
+
   function engineFor(kind, bytes) {
     if (kind === 'sheet') return SheetView.open(Buffer.from(bytes), { viewportWidth: 1100, viewportHeight: 620 });
     if (kind === 'doc') return openDocx(Buffer.from(bytes));
@@ -1164,7 +1188,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // Opened with a password, saved with it, until Info clears it.
     if (unlocked.password) session.setPassword(unlocked.password);
     sessions.set(session.id, session);
-    if (loaded.kind === 'doc') reattachMergeSource(session);
+    // A letter's recipient list is not opened by itself: the window asks
+    // first (see the mail merge's `reattach`), as Word does.
 
     // `slide` matters for a deck: opening a presentation at slide 4 should
     // answer with slide 4, not with slide 1 and a second round trip.
@@ -1381,16 +1406,30 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
    * file says it is, as Word reattaches one. A list that has gone is not an
    * error — the document opens, and the window says where it looked.
    */
+  /**
+   * The recipient list a letter names, attached again — only when the person
+   * says so, since the path came from the file, not from them. A path on a
+   * network share is refused outright: opening it would hand the share this
+   * computer's Windows sign-in, so it is chosen afresh from Select
+   * Recipients or not at all.
+   */
   function reattachMergeSource(session) {
     const view = session.engine;
     const saved = view?.merge?.saved;
-    if (!saved?.path) return;
-    try {
-      if (!fs.existsSync(saved.path)) return;
-      view.attachMergeSource(readMergeSource(saved.path, { sheet: saved.sheet }), { restore: true });
-    } catch {
-      // Unreadable now: the summary's `pending` names the file for the window.
-    }
+    if (!saved?.path) return view.mergeSummary();
+    if (isNetworkPath(saved.path)) throw new Error(`The recipient list ${saved.path} is on a network share, so it is not opened from the letter. Choose it with Select Recipients → Use an Existing List.`);
+    if (!fs.existsSync(saved.path)) throw new Error(`The recipient list ${saved.path} was not found. Select Recipients to choose it again.`);
+    view.attachMergeSource(readMergeSource(saved.path, { sheet: saved.sheet }), { restore: true });
+    return view.mergeSummary();
+  }
+
+  /** The list a letter is waiting for, with what the window needs to ask about it: whether it is there, and whether it is on a share. */
+  function mergeFacts(summary) {
+    const path = summary?.pending?.path;
+    if (!path) return summary;
+    const network = isNetworkPath(path);
+    // A share is not even looked at: a look is enough to send the sign-in.
+    return { ...summary, pending: { ...summary.pending, network, found: network ? null : fs.existsSync(path) } };
   }
 
   /** How many merged documents of each kind this run has made: Letters1, Letters2… */
@@ -1417,6 +1456,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         changed();
         return view.mergeSummary();
       }
+      // The list the letter names, attached when the person says so.
+      case 'reattach': return reattachMergeSource(session);
       case 'attachContacts': {
         view.attachMergeSource(contactsToSource(a.contacts || []), { restore: Boolean(a.restore) });
         if (!a.restore) changed();
@@ -1482,6 +1523,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     session.lastBlocks = frame.blocks.map((b) => JSON.stringify(b));
     return {
       ...frame,
+      mailMerge: mergeFacts(frame.mailMerge),
       canUndo: view.canUndo,
       canRedo: view.canRedo,
       canEdit: view.canEdit,
@@ -1571,7 +1613,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       protection: frame.protection,
       // Mailings: the merge's kind, list and preview — Start Mail Merge,
       // Select Recipients and the record box change no block at all.
-      mailMerge: frame.mailMerge,
+      mailMerge: mergeFacts(frame.mailMerge),
       sectionCount: frame.sectionCount,
       // An envelope added in front: a section of its own, which no block
       // change alone tells the page to draw at the envelope's size.
@@ -2047,11 +2089,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     }).name,
     refreshPivot: (v, a) => { v.refreshPivot(a.name); },
     // Get & Transform: a CSV source is read here, and only a delimited text file.
-    addQuery: (v, a) => JSON.stringify(v.addQuery({ name: a.name, source: a.source, steps: a.steps || [], read: readQuerySource })),
-    editQuery: (v, a) => JSON.stringify(v.editQuery({ id: a.id, name: a.name, source: a.source, steps: a.steps, read: readQuerySource })),
-    refreshQueries: (v, a) => v.refreshQueries({ id: a.id ?? null, read: readQuerySource }),
+    addQuery: (v, a) => JSON.stringify(v.addQuery({ name: a.name, source: a.source, steps: a.steps || [], read: readChosenQuerySource })),
+    editQuery: (v, a) => JSON.stringify(v.editQuery({ id: a.id, name: a.name, source: a.source, steps: a.steps, read: readChosenQuerySource })),
+    refreshQueries: (v, a) => v.refreshQueries({ id: a.id ?? null, read: readSavedQuerySource }),
     removeQuery: (v, a) => v.removeQuery({ id: a.id }),
-    previewQuery: (v, a) => JSON.stringify(v.previewQuery({ source: a.source, steps: a.steps || [], upTo: a.upTo ?? null, read: readQuerySource, limit: a.limit || 100 })),
+    previewQuery: (v, a) => JSON.stringify(v.previewQuery({ source: a.source, steps: a.steps || [], upTo: a.upTo ?? null, read: readChosenQuerySource, limit: a.limit || 100 })),
     // From Table/Range: the table at the active cell, or the block of data round it.
     querySourceHere: (v) => JSON.stringify(v.querySourceHere()),
     // Append and Merge: the workbook's tables and queries, another of which a query may read.

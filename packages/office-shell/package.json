@@ -10,7 +10,8 @@
     "./contract": "./src/contract.js",
     "./electron/main": "./src/electron/main.js",
     "./electron/preload": "./src/electron/preload.cjs",
-    "./client": "./src/client.js"
+    "./client": "./src/client.js",
+    "./runs": "./src/runs.js"
   },
   "sideEffects": false
 }

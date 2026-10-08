@@ -282,8 +282,18 @@ export function useMailings({ shell, doc, model, apply, toast, extra = null }) {
     reattached.current = true;
     if (state.pending.contacts) {
       shell.contacts.list({}).then((contacts) => call('attachContacts', { contacts, restore: true })).then(refresh).catch(() => {});
-    } else if (state.pending.path) {
+    } else if (state.pending.path && state.pending.network) {
+      toast(`This letter's recipient list is on a network share (${state.pending.path}), so it is not opened from the letter. Select Recipients → Use an Existing List to choose it.`, { ms: 9000 });
+    } else if (state.pending.path && !state.pending.found) {
       toast(`The recipient list ${state.pending.path} was not found. Select Recipients to choose it again.`, { ms: 8000 });
+    } else if (state.pending.path) {
+      // Asked, not done: the path came from the file, as Word asks before
+      // it opens a letter's data source.
+      const name = state.pending.path.split(/[\\/]/).pop();
+      toast(`This letter takes its recipients from ${name}. Attach the list?`, {
+        ms: 15000,
+        action: { label: 'Attach', run: () => call('reattach').then(refresh).catch((err) => toast(err?.message || String(err), { ms: 8000 })) },
+      });
     }
   }, [doc, state, shell, call, refresh, toast]);
 

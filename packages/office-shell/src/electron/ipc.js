@@ -16,6 +16,7 @@ import os from 'node:os';
 import { ipcMain } from 'electron';
 import { METHODS, CHANNEL_PREFIX } from '../contract.js';
 import { blobOwner } from './blobs.js';
+import { runsWhenOpened } from '../runs.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -274,7 +275,26 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       return shell.openExternal(url);
     },
     showInFolder: ({ path: p }) => void shell.showItemInFolder(p),
-    openPath: ({ path: p }) => shell.openPath(p),
+    // A program is opened only after a warning shown from here, not from
+    // the window: a window that asked to open one cannot also have answered
+    // for the person. It is still their file and their choice, so it is
+    // asked, not refused.
+    openPath: async ({ path: p }, win) => {
+      if (runsWhenOpened(p)) {
+        const { response } = await impl.dialog.message({
+          type: 'warning',
+          message: `${path.basename(String(p))} is a program. Opening it runs it on this computer.`,
+          detail: 'Rutba Office cannot tell whether a program is safe. Open it only if you were expecting it from someone you know; a message that presses you to open an attachment is the commonest way a computer is taken over.',
+          buttons: ['Open', 'Cancel'],
+          defaultId: 1,
+          cancelId: 1,
+        }, win);
+        if (response !== 0) return false;
+      }
+      const failed = await shell.openPath(p);
+      if (failed) throw new Error(failed);
+      return true;
+    },
     beep: () => void shell.beep(),
   };
 
