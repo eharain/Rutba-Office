@@ -123,7 +123,9 @@ createShell({
     const calendar = createCalendarService({ stores, broadcast, mail: { accounts: () => services?.mail?.accounts?.() || [] } });
 
     return (services = {
-      doc,
+      // A window's Open waits on the file and its unzipping rather than
+      // holding the main process (documents.js, `openAsync`).
+      doc: { ...doc, open: doc.openAsync },
       // Paper and PDFs, for every kind of document. It asks the document
       // service where the pages fall and hands the result to a hidden window.
       print: createPrintService({ docs: doc }),

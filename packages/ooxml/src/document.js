@@ -783,7 +783,8 @@ export class Document {
     this._undoParts = new Set();
   }
 
-  static open(buf) { return new Document(OoxmlPackage.read(buf)); }
+  /** A document from its bytes, or from a package already read (see `OoxmlPackage.readAsync`). */
+  static open(buf) { return new Document(buf instanceof OoxmlPackage ? buf : OoxmlPackage.read(buf)); }
 
   /** Body content, with the surrounding document element held verbatim. */
   _body() {

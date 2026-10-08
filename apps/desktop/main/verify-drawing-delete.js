@@ -127,7 +127,7 @@ export async function verifyDrawingDelete(h, { dir }) {
   try {
     const file = path.join(dir, 'delete-shape.xlsx');
     fs.writeFileSync(file, buildXlsx({ sheets: [{ name: 'Sheet1', rows: [['Shapes', 1], ['here', 2]] }] }));
-    const made = doc.open({ path: file });
+    const made = await doc.open({ path: file });
     doc.apply({ id: made.id, ops: [{ op: 'insertShape', geometry: 'rect' }, { op: 'select', row: 1, col: 5 }, { op: 'insertShape', geometry: 'ellipse' }] });
     doc.save({ id: made.id, path: file });
     doc.close({ id: made.id });

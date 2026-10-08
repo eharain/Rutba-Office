@@ -1080,6 +1080,127 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     throw new Error(`unknown document kind: ${kind}`);
   }
 
+  /**
+   * The same, for a file being opened: its parts are inflated off the main
+   * process first (zlib's own threads), so a large workbook no longer holds
+   * every window still while it unzips; only the reading of its XML is left
+   * on this process.
+   */
+  async function engineForAsync(kind, bytes) {
+    if (kind !== 'sheet' && kind !== 'doc' && kind !== 'deck') throw new Error(`unknown document kind: ${kind}`);
+    const pkg = await OoxmlPackage.readAsync(Buffer.from(bytes));
+    if (kind === 'sheet') return SheetView.open(pkg, { viewportWidth: 1100, viewportHeight: 620 });
+    if (kind === 'doc') return openDocx(pkg);
+    return new Deck(pkg);
+  }
+
+  /**
+   * Opening a file, written once as steps that may wait — reading the file
+   * and building its engine. `open` runs them at once; `openAsync`, which
+   * the windows call, waits on both, so the main process is free while a
+   * file comes off a slow drive and while its parts are unzipped.
+   */
+  function* openSteps({ path: filePath, kind: expected, width, slide, password = null }, win) {
+    let bytes;
+    try {
+      bytes = yield { read: filePath };
+    } catch (err) {
+      throw new Error(plainFsError(err, filePath) || plainRefusal(err, filePath));
+    }
+    // A password-protected file: the window asks for the password and
+    // opens it again with it. No session exists until it has opened.
+    const unlocked = unlock(bytes, filePath, password);
+    if (unlocked.locked) return { locked: true, ...unlocked.locked, path: filePath };
+    bytes = unlocked.bytes;
+    let loaded;
+    let engine;
+    try {
+      loaded = load(bytes, filePath);
+    } catch (err) {
+      throw new Error(plainRefusal(err, filePath));
+    }
+
+    // The window says which kind it edits, and a file that turns out to be
+    // another kind is refused with a sentence naming the app that does open
+    // it. The extension decides which window a double-click opens, so a
+    // document saved under an .xlsx name opened the Worksheets window, which
+    // drew a document model and threw on the geometry it does not have: a
+    // blank window, for as long as the person waited. Outside the catch
+    // below, because this refusal is already the sentence — it must not be
+    // wrapped in one about a file that could not be read.
+    if (expected && loaded.kind !== expected) {
+      const is = KIND_LABEL[loaded.kind] || 'another kind of file';
+      const wanted = KIND_LABEL[expected] || 'what this window opens';
+      const where = KIND_APP[loaded.kind];
+      throw new Error(`${path.basename(filePath)} is ${is}, not ${wanted}.${where ? ` Open it in ${where}.` : ''}`);
+    }
+
+    try {
+      engine = yield { build: [loaded.kind, loaded.bytes] };
+    } catch (err) {
+      throw new Error(plainRefusal(err, filePath));
+    }
+
+    // Whether Ctrl+S will write this file back in the format it came in.
+    if (loaded.converted?.from) {
+      loaded.converted = { ...loaded.converted, writesBack: EXPORTS[loaded.kind]?.includes(loaded.converted.from) ?? false };
+    }
+
+    const session = new Session({
+      id: nextId(),
+      kind: loaded.kind,
+      filePath,
+      engine,
+
+      source: loaded.source,
+      converted: loaded.converted,
+    });
+    // The window that opened it: when that window closes, the session goes
+    // with it. Nothing closed a session before this, so every document
+    // ever opened stayed in memory for the life of the application — a
+    // hundred and forty files into a run, the main process stalled for two
+    // minutes.
+    session.windowId = win?.id ?? null;
+    // Opened with a password, saved with it, until Info clears it.
+    if (unlocked.password) session.setPassword(unlocked.password);
+    sessions.set(session.id, session);
+    if (loaded.kind === 'doc') reattachMergeSource(session);
+
+    // `slide` matters for a deck: opening a presentation at slide 4 should
+    // answer with slide 4, not with slide 1 and a second round trip.
+    return { ...session.meta(), model: modelOf(session, { width, slide }) };
+  }
+
+  function openNow(steps) {
+    let step = steps.next();
+    while (!step.done) {
+      let value;
+      try {
+        value = step.value.read ? fs.readFileSync(step.value.read) : engineFor(...step.value.build);
+      } catch (err) {
+        step = steps.throw(err);
+        continue;
+      }
+      step = steps.next(value);
+    }
+    return step.value;
+  }
+
+  async function openWaiting(steps) {
+    let step = steps.next();
+    while (!step.done) {
+      let value;
+      try {
+        value = step.value.read ? await fs.promises.readFile(step.value.read) : await engineForAsync(...step.value.build);
+      } catch (err) {
+        step = steps.throw(err);
+        continue;
+      }
+      step = steps.next(value);
+    }
+    return step.value;
+  }
+
   const TEMPLATES = {
     sheet: () => buildXlsx({ sheets: [{ name: 'Sheet1', rows: [] }] }),
     budget: () =>
@@ -2451,76 +2572,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       return { ...session.meta(), model: modelOf(session) };
     },
 
-    open: ({ path: filePath, kind: expected, width, slide, password = null }, win) => {
-      let bytes;
-      try {
-        bytes = fs.readFileSync(filePath);
-      } catch (err) {
-        throw new Error(plainFsError(err, filePath) || plainRefusal(err, filePath));
-      }
-      // A password-protected file: the window asks for the password and
-      // opens it again with it. No session exists until it has opened.
-      const unlocked = unlock(bytes, filePath, password);
-      if (unlocked.locked) return { locked: true, ...unlocked.locked, path: filePath };
-      bytes = unlocked.bytes;
-      let loaded;
-      let engine;
-      try {
-        loaded = load(bytes, filePath);
-      } catch (err) {
-        throw new Error(plainRefusal(err, filePath));
-      }
-
-      // The window says which kind it edits, and a file that turns out to be
-      // another kind is refused with a sentence naming the app that does open
-      // it. The extension decides which window a double-click opens, so a
-      // document saved under an .xlsx name opened the Worksheets window, which
-      // drew a document model and threw on the geometry it does not have: a
-      // blank window, for as long as the person waited. Outside the catch
-      // below, because this refusal is already the sentence — it must not be
-      // wrapped in one about a file that could not be read.
-      if (expected && loaded.kind !== expected) {
-        const is = KIND_LABEL[loaded.kind] || 'another kind of file';
-        const wanted = KIND_LABEL[expected] || 'what this window opens';
-        const where = KIND_APP[loaded.kind];
-        throw new Error(`${path.basename(filePath)} is ${is}, not ${wanted}.${where ? ` Open it in ${where}.` : ''}`);
-      }
-
-      try {
-        engine = engineFor(loaded.kind, loaded.bytes);
-      } catch (err) {
-        throw new Error(plainRefusal(err, filePath));
-      }
-
-      // Whether Ctrl+S will write this file back in the format it came in.
-      if (loaded.converted?.from) {
-        loaded.converted = { ...loaded.converted, writesBack: EXPORTS[loaded.kind]?.includes(loaded.converted.from) ?? false };
-      }
-
-      const session = new Session({
-        id: nextId(),
-        kind: loaded.kind,
-        filePath,
-        engine,
-
-        source: loaded.source,
-        converted: loaded.converted,
-      });
-      // The window that opened it: when that window closes, the session goes
-      // with it. Nothing closed a session before this, so every document
-      // ever opened stayed in memory for the life of the application — a
-      // hundred and forty files into a run, the main process stalled for two
-      // minutes.
-      session.windowId = win?.id ?? null;
-      // Opened with a password, saved with it, until Info clears it.
-      if (unlocked.password) session.setPassword(unlocked.password);
-      sessions.set(session.id, session);
-      if (loaded.kind === 'doc') reattachMergeSource(session);
-
-      // `slide` matters for a deck: opening a presentation at slide 4 should
-      // answer with slide 4, not with slide 1 and a second round trip.
-      return { ...session.meta(), model: modelOf(session, { width, slide }) };
-    },
+    open: (args, win) => openNow(openSteps(args, win)),
+    // The windows open through this one (see main.js): the same steps, waited on.
+    openAsync: (args, win) => openWaiting(openSteps(args, win)),
 
     close: ({ id }) => {
       forgetRecovery(sessions.get(id));

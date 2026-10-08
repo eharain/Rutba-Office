@@ -4864,7 +4864,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await wait(1400);
 
     const bytes = fs.readFileSync(files.docx);
-    const reopened = doc.open({ path: files.docx });
+    const reopened = await doc.open({ path: files.docx });
     const text = reopened.model.blocks.map((b) => (b.runs || []).map((r) => r.text).join('')).join('\n');
     doc.close({ id: reopened.id });
     check('word: an edit survives save and reopen', text.includes('EDITED'), `file is ${(bytes.length / 1024).toFixed(1)} KB`);
@@ -5084,7 +5084,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     await press(win.webContents, 's', { modifiers: ['control'] });
     await until(() => fs.statSync(files.xlsx).mtimeMs !== wasSaved, 'the file to be written');
 
-    const reopened = doc.open({ path: files.xlsx });
+    const reopened = await doc.open({ path: files.xlsx });
     const model = doc.model({ id: reopened.id });
     const found = (model.cells || []).some((c) => String(c.text) === '99');
     doc.close({ id: reopened.id });
@@ -5223,7 +5223,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   try {
     const win = await open('slides', files.pptx);
     const js = (code) => win.webContents.executeJavaScript(code);
-    const session = doc.open({ path: files.pptx });
+    const session = await doc.open({ path: files.pptx });
     const run = async (...ops) => {
       await doc.apply({ id: session.id, ops });
       return doc.model({ id: session.id });
@@ -5241,7 +5241,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // refuses is worse than no notes at all.
     const target = path.join(dir, 'deck-out.pptx');
     doc.save({ id: session.id, path: target });
-    const again = doc.open({ path: target, slide: 1 });
+    const again = await doc.open({ path: target, slide: 1 });
     check('slides: the new slide survives the file', again.model.count === after, `${again.model.count} slides read back`);
     check('slides: the notes survive the file', /tracker report/.test(again.model.slide?.notes || ''), JSON.stringify(again.model.slide?.notes || ''));
     doc.close({ id: again.id });
@@ -5256,7 +5256,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
 
     // Presenter view: a second window on the same open document, showing the
     // speaker's side. It has to find the notes that were just written.
-    const deck = doc.open({ path: files.pptx });
+    const deck = await doc.open({ path: files.pptx });
     doc.apply({ id: deck.id, ops: [{ op: 'setNotes', slide: 0, text: 'Open with the tracker report.' }] });
 
     const presenter = windows.create({ app: 'slides', query: { presenter: deck.id } });
@@ -5427,7 +5427,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // finds whichever window happened to open most recently, which is a
     // different document every time a check is added above this one — and the
     // checks then quietly measure the wrong file.
-    const session = doc.open({ path: files.docx });
+    const session = await doc.open({ path: files.docx });
     // `apply` may answer with a patch rather than a whole model, so the model
     // is read back explicitly instead of being fished out of the reply.
     const run = async (...ops) => {
@@ -5459,7 +5459,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     // And all three have to survive being written to disk and read again.
     const target = path.join(dir, 'ribbon.docx');
     doc.save({ id: session.id, path: target });
-    const again = doc.open({ path: target });
+    const again = await doc.open({ path: target });
     const back = again.model;
     const keptLink = (back.blocks || []).some((b) => (b.runs || []).some((r) => r.link));
     check('word: a link survives the file', keptLink, keptLink ? 'read back from the .docx' : 'the hyperlink relationship was lost');
@@ -5483,7 +5483,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   try {
     const win = await open('word', files.docx);
     const js = (code) => win.webContents.executeJavaScript(code);
-    const session = doc.open({ path: files.docx });
+    const session = await doc.open({ path: files.docx });
     doc.close({ id: session.id }); // only needed the path to resolve; the window has its own
     const state = () => js(`(async () => {
       const all = await window.rutbaOffice.doc.sessions({});
@@ -6723,10 +6723,10 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   /* ── OpenDocument goes out as OpenDocument ───────────────────────────── */
   try {
     const odt = path.join(path.dirname(files.docx), 'report.odt');
-    const s = doc.open({ path: files.docx });
+    const s = await doc.open({ path: files.docx });
     const saved = doc.save({ id: s.id, path: odt });
     doc.close({ id: s.id });
-    const back = doc.open({ path: odt });
+    const back = await doc.open({ path: odt });
     check('a document saved as .odt is an OpenDocument the suite opens as one, and writes back', saved.format === 'odt' && back.converted?.from === 'odt' && back.converted.writesBack === true && (back.model?.blocks?.length ?? 0) > 0, `${saved.format}; opened from ${back.converted?.from}, writesBack ${back.converted?.writesBack}, ${back.model?.blocks?.length ?? 0} blocks`);
     doc.close({ id: back.id });
   } catch (err) {

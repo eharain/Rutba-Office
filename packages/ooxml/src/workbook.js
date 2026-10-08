@@ -1716,7 +1716,8 @@ export class Workbook {
     this._sharedStrings = null;
   }
 
-  static open(buf) { return new Workbook(OoxmlPackage.read(buf)); }
+  /** A workbook from its bytes, or from a package already read (see `OoxmlPackage.readAsync`). */
+  static open(buf) { return new Workbook(buf instanceof OoxmlPackage ? buf : OoxmlPackage.read(buf)); }
 
   /** @returns {Array<{name: string, sheetId: string, rId: string, part: string}>} */
   sheets() {
