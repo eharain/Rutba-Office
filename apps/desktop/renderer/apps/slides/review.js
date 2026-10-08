@@ -5,9 +5,9 @@
 // Selection Pane. The panes, the pass and the dialogs are renderer/review.js.
 
 import { useMemo, useRef } from 'react';
-import { useReview } from '../../review.js';
+import { useReview, wordAround } from '../../review.js';
 
-export function useSlidesReview({ shell, doc, model, apply, toast, index, setIndex, setSelected, patchView }) {
+export function useSlidesReview({ shell, doc, model, apply, toast, index, setIndex, setSelected, patchView, caret = null, commitText = null }) {
   const indexRef = useRef(index);
   indexRef.current = index;
 
@@ -39,6 +39,20 @@ export function useSlidesReview({ shell, doc, model, apply, toast, index, setInd
     spellArgs: () => ({ slide: indexRef.current }),
     showWord: (found) => turnTo(found.where?.notes ? { slide: found.where.slide } : found.where),
     whereLabel: (found) => (found.where ? `Slide ${found.where.slide + 1}${found.where.notes ? ' notes' : ''}` : ''),
+    // The word where the caret was in a shape's text last edited on this slide.
+    thesaurus: caret ? {
+      word() {
+        const at = caret.current;
+        if (!at || at.row != null || at.slide !== indexRef.current) return null;
+        const found = wordAround(at.text, at.start, at.end);
+        return found ? { ...found, id: at.id, text: at.text } : null;
+      },
+      async replace(found, word) {
+        const text = found.text.slice(0, found.start) + word + found.text.slice(found.end);
+        await commitText?.(found.id, text);
+        if (caret.current && caret.current.id === found.id) caret.current = { ...caret.current, text, start: found.start, end: found.start + word.length };
+      },
+    } : null,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [apply, setIndex, setSelected, patchView]);
 

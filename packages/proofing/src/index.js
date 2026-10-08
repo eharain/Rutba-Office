@@ -24,4 +24,5 @@ export {
 export { tokenize, matchCase, DEFAULT_OPTIONS } from './tokenize.js';
 export { dictionaryFor, chooseLanguage, loadDictionary, checkWords, suggestWords, LANGUAGE_NAMES } from './speller.js';
 export { createSpellerHost } from './speller-host.js';
+export { lookUp as thesaurusLookUp, thesaurusSize } from './thesaurus.js';
 export { nextMisspelling, changeAllEdits, contextOf, acceptedBy, toDic, fromDic } from './spelling.js';

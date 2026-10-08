@@ -961,7 +961,7 @@ export default function WordRibbon({
         <>
           <Group label="Proofing">
             <Button tall icon="check" label="Spelling" pressed={review?.pane === 'editor'} title="Spelling (F7) — check the whole document from the caret in the Editor pane: body, tables, text boxes, notes, headers and footers" onClick={() => review?.startSpelling()} />
-            <Soon tall icon="word" label="Thesaurus" why="A thesaurus is a data file the suite does not ship yet." />
+            <Button tall icon="word" label="Thesaurus" pressed={review?.pane === 'thesaurus'} title="Thesaurus (Shift+F7) — words of like meaning for the word at the caret, one of them put in its place" onClick={() => review?.openThesaurus()} />
             <Button tall icon="listNumber" label="Word Count" onClick={() => openDialog('wordCount')} />
           </Group>
           <Group label="Speech">

@@ -14,16 +14,28 @@
 //   showWord(found)           select the misspelt word where it is
 //   whereLabel(found)         "Footnote 2", "Sales!B4", "Slide 3 notes"
 //   asYouType                 (Word) Chromium's own underline, on or off
+//   thesaurus                 { word() -> { word, ... } | null, replace(found, word) } the word at the caret, and putting another in its place
 //
 // The panes and dialogs are office-ui's (proofing.js); the engines' side is
 // main/proofing.js, behind `doc.proof` and the document's own ops.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AccessibilityPane, EditorPane, AltTextDialog, DictionaryDialog, PromptDialog, A11yStatus, installProofingStyles } from '@rutba/office-ui/proofing';
+import { wordAround } from './word-around.js';
+import { AccessibilityPane, EditorPane, ThesaurusPane, AltTextDialog, DictionaryDialog, PromptDialog, A11yStatus, installProofingStyles } from '@rutba/office-ui/proofing';
 
 installProofingStyles();
 
 const KEEP_KEY = 'proofing.keepChecking';
+
+/** A word in the capitals of the one it replaces: Capitalised, CAPITALS or as it is. */
+function caseLike(original, word) {
+  const o = String(original || '');
+  if (o.length > 1 && o === o.toUpperCase() && o !== o.toLowerCase()) return word.toUpperCase();
+  if (o[0] && o[0] === o[0].toUpperCase() && o[0] !== o[0].toLowerCase()) return word[0].toUpperCase() + word.slice(1);
+  return word;
+}
+
+export { wordAround };
 
 export function useReview({ shell, doc, model, apply, toast, adapter }) {
   const [pane, setPane] = useState(null);
@@ -244,6 +256,47 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
   /** A right-click on a word: is it misspelt, and what might it be? */
   const checkWord = useCallback((word) => proof('spellCheckWord', { word }), [proof]);
 
+  /* ── thesaurus ───────────────────────────────────────────────────── */
+
+  // { query, result, loading, found (the word in the document), trail (words looked up before) }
+  const [thes, setThes] = useState(null);
+  const lookUp = useCallback(async (word, { found, back = false } = {}) => {
+    setThes((s) => ({
+      query: word,
+      result: null,
+      loading: true,
+      found: found !== undefined ? found : s?.found ?? null,
+      trail: back ? (s?.trail || []).slice(0, -1) : found !== undefined ? [] : [...(s?.trail || []), ...(s?.query ? [s.query] : [])],
+    }));
+    const result = word ? await proof('thesaurus', { word }) : { word: '', meanings: [] };
+    setThes((s) => (s && s.query === word ? { ...s, result: result || { word, meanings: [] }, loading: false } : s));
+  }, [proof]);
+  const openThesaurus = useCallback(() => {
+    const found = adapterRef.current?.thesaurus?.word?.() || null;
+    setPane('thesaurus');
+    lookUp(found?.word || '', { found });
+  }, [lookUp]);
+  const insertWord = useCallback(async (word) => {
+    const t = thes;
+    const a = adapterRef.current?.thesaurus;
+    if (!a || !t?.found) { toast?.('Select a word in the document to put this one in its place.', { ms: 3500 }); return; }
+    const put = caseLike(t.found.word, word);
+    await a.replace(t.found, put);
+    // What is in the document now is the word just put there.
+    setThes((s) => (s ? { ...s, found: { ...s.found, word: put, end: (s.found.start ?? 0) + put.length } } : s));
+  }, [thes, toast]);
+
+  // Shift+F7 — Word's key for the thesaurus, on the word at the caret.
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key !== 'F7' || !e.shiftKey || e.ctrlKey || e.altKey || e.metaKey) return;
+      e.preventDefault();
+      openThesaurus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [openThesaurus]);
+
   /* ── what the window draws ───────────────────────────────────────── */
 
   const close = useCallback(() => setPane(null), []);
@@ -259,6 +312,13 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
       keepRunning={keepRunning}
       onKeepRunning={setKeep}
       onRecheck={check}
+    />
+  ) : pane === 'thesaurus' ? (
+    <ThesaurusPane
+      state={thes ? { ...thes, back: thes.trail?.length ? thes.trail[thes.trail.length - 1] : null } : null}
+      onSearch={(w) => lookUp(w)}
+      onBack={() => thes?.trail?.length && lookUp(thes.trail[thes.trail.length - 1], { back: true })}
+      onInsert={adapter?.thesaurus ? insertWord : null}
     />
   ) : pane === 'editor' ? (
     <EditorPane
@@ -330,11 +390,11 @@ export function useReview({ shell, doc, model, apply, toast, adapter }) {
     <A11yStatus verdict={a11y.result.verdict} onClick={() => setPane('accessibility')} />
   ) : null;
 
-  const paneTitle = pane === 'accessibility' ? 'Accessibility' : pane === 'editor' ? 'Editor' : null;
+  const paneTitle = pane === 'accessibility' ? 'Accessibility' : pane === 'editor' ? 'Editor' : pane === 'thesaurus' ? 'Thesaurus' : null;
 
   return {
     pane, paneTitle, paneNode, dialogs, status, close,
-    openAccessibility, startSpelling, openAltText, openDictionary, checkWord, addWord, check,
+    openAccessibility, startSpelling, openAltText, openDictionary, checkWord, addWord, check, openThesaurus,
     ignoreWord: (word) => proof('ignoreAll', { word }),
   };
 }

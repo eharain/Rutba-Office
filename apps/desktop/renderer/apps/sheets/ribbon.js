@@ -664,7 +664,7 @@ export default function SheetsRibbon({
         <>
           <Group label="Proofing">
             <Button tall icon="check" label="Spelling" pressed={review?.pane === 'editor'} title="Spelling (F7) — check the text in this sheet's cells from the active cell, then the other sheets" onClick={() => review?.startSpelling()} />
-            <Soon icon="find" label="Thesaurus" why="A thesaurus is a dictionary this suite does not ship." />
+            <Button icon="find" label="Thesaurus" title="Thesaurus (Shift+F7) — words of like meaning for the word in the active cell" onClick={() => review?.openThesaurus()} />
             <Button icon="info" label="Workbook Statistics" onClick={() => openDialog('statistics')} />
           </Group>
           <Group label="Accessibility">

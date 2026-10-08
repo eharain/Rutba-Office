@@ -2172,7 +2172,7 @@ export default function Slides({ app, shell, boot }) {
 
   actRef.current = act;
   // Review → Check Accessibility and Spelling (slides/review.js).
-  const review = useSlidesReview({ shell, doc, model, apply, toast, index, setIndex, setSelected, patchView });
+  const review = useSlidesReview({ shell, doc, model, apply, toast, index, setIndex, setSelected, patchView, caret: lastCaret, commitText });
 
   // Every hook above, every early return below. This return sat above the
   // formatting memo, so a file the engine refused made React throw

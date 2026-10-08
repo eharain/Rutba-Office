@@ -892,7 +892,7 @@ export default function SlidesRibbon({
         <>
           <Group label="Proofing">
             <Button tall icon="check" label="Spelling" pressed={review?.pane === 'editor'} title="Spelling (F7) — check every slide's words and notes, from this slide" onClick={() => review?.startSpelling()} />
-            <Soon tall icon="find" label="Thesaurus" why="A thesaurus is a dictionary this suite does not ship." />
+            <Button tall icon="find" label="Thesaurus" pressed={review?.pane === 'thesaurus'} title="Thesaurus (Shift+F7) — words of like meaning for the word where the caret was in a shape's text" onClick={() => review?.openThesaurus()} />
           </Group>
           <Group label="Accessibility">
             <Button tall icon="shield" label="Check Accessibility" pressed={review?.pane === 'accessibility'} title="Check Accessibility — alt text, slide titles, reading order, contrast and table headers, with a fix for each" onClick={() => review?.openAccessibility()} />

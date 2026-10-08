@@ -151,6 +151,49 @@ export function A11yStatus({ verdict, onClick }) {
  *   { phase: 'loading' | 'word' | 'done' | 'error', language, found, message, checking }
  * `found` is `{ word, context: { before, word, after }, suggestions, where }`.
  */
+/**
+ * Review → Thesaurus (Shift+F7): a word's meanings, each a group of words of
+ * like meaning under its part of speech, as Word's pane shows them. A word
+ * clicked is looked up in turn, Back goes to the one before; Insert puts a
+ * word in place of the one in the document, in its capitals.
+ */
+export function ThesaurusPane({ state, onSearch, onBack, onInsert }) {
+  const [typed, setTyped] = useState(state?.query || '');
+  useEffect(() => { setTyped(state?.query || ''); }, [state?.query]);
+  const result = state?.result || null;
+  return (
+    <div className="pf-pane pf-thesaurus">
+      <div className="pf-scroll">
+        <div className="pf-heading"><span>{t('Thesaurus')}</span></div>
+        <div className="pf-th-search">
+          <input className="rw-input pf-th-input" value={typed} placeholder={t('A word to look up')} spellCheck={false} onChange={(e) => setTyped(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && typed.trim()) onSearch(typed.trim()); }} />
+          <Button icon="find" className="pf-th-go" title={t('Look up')} disabled={!typed.trim()} onClick={() => onSearch(typed.trim())} />
+        </div>
+        {state?.back ? <Button icon="chevronLeft" className="pf-th-back" label={t('Back to {word}', { word: state.back })} onClick={onBack} /> : null}
+        {state?.loading ? <div className="pf-note"><span className="rw-spinner pf-spin" /> {t('Looking up…')}</div> : null}
+        {result && !state.loading && !result.word ? <div className="pf-note">{t('Select a word, or type one above.')}</div> : null}
+        {result && !state.loading && result.word && !result.meanings.length ? <div className="pf-note">{t('No words found for “{word}”.', { word: result.word })}</div> : null}
+        {result && !state.loading && result.meanings.length ? (
+          <>
+            {result.how && result.base ? <div className="pf-note pf-th-base">{t('Words for “{word}”', { word: result.base })}</div> : null}
+            {result.meanings.map((m, i) => (
+              <div key={i} className="pf-th-meaning">
+                <div className="pf-th-part">{t(m.part)}</div>
+                {m.words.map((w) => (
+                  <div key={w} className="pf-th-row">
+                    <button type="button" className="pf-th-word" data-tip={t('Look up {word}', { word: w })} onClick={() => onSearch(w)}>{w}</button>
+                    {onInsert ? <button type="button" className="pf-th-insert" data-tip={t('Put {word} in place of the selected word', { word: w })} onClick={() => onInsert(w)}>{t('Insert')}</button> : null}
+                  </div>
+                ))}
+              </div>
+            ))}
+          </>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 export function EditorPane({ state, options, onChange, onChangeAll, onIgnoreOnce, onIgnoreAll, onAdd, onOption, onDictionary, onClose, onRestart, restartLabel, asYouType }) {
   const found = state?.found || null;
   const [pick, setPick] = useState(0);
@@ -488,6 +531,16 @@ export function LanguageDialog({ current, noProof: initialNoProof = false, defau
 /* ── the look ────────────────────────────────────────────────────────── */
 
 const CSS = `
+.pf-th-search { display: flex; gap: 4px; align-items: center; margin: 6px 0 8px; }
+.pf-th-search .pf-th-input { flex: 1; min-width: 0; }
+.pf-th-back { margin-bottom: 6px; }
+.pf-th-meaning { margin: 8px 0 10px; }
+.pf-th-part { font-weight: 600; font-size: 12px; text-transform: capitalize; opacity: 0.75; margin-bottom: 2px; }
+.pf-th-row { display: flex; align-items: center; gap: 6px; }
+.pf-th-word { flex: 1; text-align: start; background: none; border: 0; padding: 3px 6px; border-radius: 4px; color: inherit; font: inherit; cursor: pointer; }
+.pf-th-word:hover { background: var(--hover, rgba(0,0,0,0.06)); }
+.pf-th-insert { visibility: hidden; background: none; border: 1px solid var(--line); border-radius: 4px; padding: 1px 6px; font-size: 11px; color: inherit; cursor: pointer; }
+.pf-th-row:hover .pf-th-insert, .pf-th-insert:focus { visibility: visible; }
 .pf-pane { display: flex; flex-direction: column; height: 100%; min-height: 0; font-size: 12.5px; color: var(--ink); background: var(--chrome); }
 .pf-scroll { flex: 1; min-height: 0; overflow: auto; padding: 4px 0 10px; }
 .pf-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px 8px; font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-3); font-weight: 600; }

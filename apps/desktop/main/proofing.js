@@ -24,6 +24,7 @@ import {
   sheetSegments, sheetStart, replaceSheetText,
   deckSegments, deckLanguage, replaceDeckText,
   createSpellerHost, chooseLanguage, LANGUAGE_NAMES, nextMisspelling, changeAllEdits, acceptedBy, DEFAULT_OPTIONS,
+  thesaurusLookUp,
 } from '@rutba/proofing';
 
 const DICTIONARY_KEY = 'proofing.dictionary';
@@ -214,6 +215,9 @@ export function createProofing({ stores = null, locale = systemLocale, worker = 
         return { lang };
       }
 
+      // Review → Thesaurus: a word's meanings and their words.
+      case 'thesaurus':
+        return thesaurusLookUp(a.word);
       case 'spellSuggest': {
         const { lang } = languageOf(session);
         const word = String(a.word || '').trim();

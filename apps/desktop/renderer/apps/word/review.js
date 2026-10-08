@@ -3,8 +3,8 @@
 // edits (a style, a colour), and the right-click menu's suggestions.
 // The panes, the pass and the dialogs are renderer/review.js.
 
-import { useCallback, useMemo } from 'react';
-import { useReview } from '../../review.js';
+import { useCallback, useMemo, useRef } from 'react';
+import { useReview, wordAround } from '../../review.js';
 
 // The page and a pane side by side: the window is a column (ruler over the
 // page) until a pane stands at its right.
@@ -81,6 +81,8 @@ function offsetOf(text, word, near) {
 }
 
 export function useWordReview({ shell, doc, model, apply, toast, pageRef, setPicked, view, patchView, menu }) {
+  const modelRef = useRef(model);
+  modelRef.current = model;
   const scrollTo = useCallback((block) => {
     requestAnimationFrame(() => pageRef.current?.querySelector(`[data-block="${block}"]`)?.scrollIntoView({ block: 'center', behavior: 'smooth' }));
   }, [pageRef]);
@@ -130,6 +132,19 @@ export function useWordReview({ shell, doc, model, apply, toast, pageRef, setPic
       return w.story && w.story !== 'body' ? STORY_LABEL[w.story] || '' : '';
     },
     asYouType: { on: view?.spell !== false, set: (on) => patchView?.({ spell: on }) },
+    thesaurus: {
+      word() {
+        const sel = modelRef.current?.selection;
+        const a = sel?.from;
+        const b = sel?.to;
+        if (!a || !b || a.block !== b.block) return null;
+        const found = wordAround(modelRef.current?.blocks?.[a.block]?.text ?? '', a.offset, b.offset);
+        return found ? { ...found, block: a.block } : null;
+      },
+      async replace(found, word) {
+        await apply({ op: 'setSelection', anchor: { block: found.block, offset: found.start }, focus: { block: found.block, offset: found.end } }, { op: 'insertText', text: word });
+      },
+    },
   }), [apply, setPicked, scrollTo, view?.spell, patchView]);
 
   const review = useReview({ shell, doc, model, apply, toast, adapter });

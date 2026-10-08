@@ -5,7 +5,7 @@
 // as Excel asks. The panes, the pass and the dialogs are renderer/review.js.
 
 import { useMemo, useRef } from 'react';
-import { useReview } from '../../review.js';
+import { useReview, wordAround } from '../../review.js';
 
 export function useSheetsReview({ shell, doc, model, dispatch, toast }) {
   const modelRef = useRef(model);
@@ -52,6 +52,21 @@ export function useSheetsReview({ shell, doc, model, dispatch, toast }) {
       if (ops.length) await dispatch(...ops);
     },
     whereLabel: (found) => (found.where ? `${found.where.sheet}!${found.where.ref}` : ''),
+    // The active cell's words, as Excel's thesaurus reads them; a formula's answer is not a word to replace.
+    thesaurus: {
+      word() {
+        const m = modelRef.current;
+        const cell = (m?.cells || []).find((c) => c.active);
+        if (!cell || cell.isFormula || typeof cell.text !== 'string') return null;
+        const text = cell.text;
+        const found = /\s/.test(text.trim()) ? wordAround(text, 0) : wordAround(text, 0, text.length);
+        return found ? { ...found, row: cell.row, col: cell.col, text } : null;
+      },
+      async replace(found, word) {
+        const text = found.text.slice(0, found.start) + word + found.text.slice(found.end);
+        await dispatch({ op: 'setCell', row: found.row, col: found.col, value: text });
+      },
+    },
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), [dispatch]);
 

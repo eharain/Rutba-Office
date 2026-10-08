@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 281,
+  "count": 292,
   "messages": [
     {
       "message": "(default)",
@@ -22,6 +22,12 @@
     },
     {
       "message": "A sentence or two is usually right.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "A word to look up",
       "where": [
         "packages/office-ui/src/proofing.js"
       ]
@@ -139,6 +145,12 @@
       "message": "Back to 100%",
       "where": [
         "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Back to {word}",
+      "where": [
+        "packages/office-ui/src/proofing.js"
       ]
     },
     {
@@ -670,6 +682,12 @@
       ]
     },
     {
+      "message": "Insert",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
       "message": "Inspection Results",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -742,9 +760,27 @@
       ]
     },
     {
+      "message": "Look up",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Look up {word}",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
       "message": "Looking for a newer release…",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Looking up…",
+      "where": [
+        "packages/office-ui/src/proofing.js"
       ]
     },
     {
@@ -863,6 +899,12 @@
     },
     {
       "message": "No word matches.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "No words found for “{word}”.",
       "where": [
         "packages/office-ui/src/proofing.js"
       ]
@@ -1060,6 +1102,12 @@
       "message": "Protect Workbook",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Put {word} in place of the selected word",
+      "where": [
+        "packages/office-ui/src/proofing.js"
       ]
     },
     {
@@ -1267,6 +1315,12 @@
       ]
     },
     {
+      "message": "Select a word, or type one above.",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
       "message": "Sent {count} page to the printer.",
       "plural": "Sent {count} pages to the printer.",
       "where": [
@@ -1413,6 +1467,12 @@
       ]
     },
     {
+      "message": "Thesaurus",
+      "where": [
+        "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
       "message": "This is the latest release.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -1548,6 +1608,12 @@
       "message": "Wide",
       "where": [
         "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Words for “{word}”",
+      "where": [
+        "packages/office-ui/src/proofing.js"
       ]
     },
     {
