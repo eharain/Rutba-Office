@@ -349,7 +349,9 @@ function offsetAtLine(it, lineTop) {
 
 /** The row at which a table that crosses the page's bottom should break, if any. */
 function splitTable(it, placedTop, lim) {
-  const rows = [...(it.el.tBodies[0]?.rows || [])];
+  // Header rows drawn again at a later piece's head are not its rows: they
+  // count in its height, not in its row numbers.
+  const rows = [...(it.el.tBodies[0]?.rows || [])].filter((row) => !row.dataset.repeat);
   if (rows.length < 2) return null;
   const tableTop = rectOf(it.el).top;
   const boxes = rows.map((row) => rectOf(row));
@@ -383,8 +385,9 @@ function pullBack(it, next, room, noteCost = () => 0) {
     if (offset === null || offset <= next.from) return null;
     return offset;
   }
-  const rows = [...(next.el.tBodies[0]?.rows || [])];
-  const tableTop = rectOf(next.el).top;
+  // Rows that come back leave the repeated header behind: measured from the first of their own.
+  const rows = [...(next.el.tBodies[0]?.rows || [])].filter((row) => !row.dataset.repeat);
+  const tableTop = rows.length ? rectOf(rows[0]).top : rectOf(next.el).top;
   let c = 0;
   while (c < rows.length && rectOf(rows[c]).bottom - tableTop <= room - 1) c += 1;
   if (c === 0) return null;

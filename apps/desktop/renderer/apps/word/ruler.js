@@ -82,7 +82,8 @@ function measureTable(page, tableId, gridPx) {
   return parts.map((table) => {
     const t = rectOf(table);
     const scale = sum > 0 ? t.width / sum : 1;
-    const rows = [...table.querySelectorAll(':scope > tbody > tr')];
+    // A header row drawn again at a piece's head is not one of its rows.
+    const rows = [...table.querySelectorAll(':scope > tbody > tr:not([data-repeat])')];
     const plain = rows.find((tr) => tr.children.length === gridPx.length && ![...tr.children].some((td) => td.colSpan > 1));
     // A right-to-left table's first column is at the right: each column ends at its left edge.
     const rtl = getComputedStyle(table).direction === 'rtl';

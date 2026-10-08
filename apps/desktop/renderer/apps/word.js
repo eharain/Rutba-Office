@@ -2876,7 +2876,7 @@ function groupTables(blocks) {
       flush();
       // The file's grid and width ride every paragraph in the table; a sized
       // row and a merged cell say so on their own paragraphs.
-      current = { id: at[1], rows: new Map(), gridPx: block.gridPx || null, width: block.tableWidth || null, rowHeights: new Map(), rowRules: new Map(), spans: new Map(), vAligns: new Map(), merged: new Set(), look: block.tableLook || null };
+      current = { id: at[1], rows: new Map(), gridPx: block.gridPx || null, width: block.tableWidth || null, rowHeights: new Map(), rowRules: new Map(), spans: new Map(), vAligns: new Map(), merged: new Set(), headers: new Set(), look: block.tableLook || null };
     }
     const row = Number(at[2]);
     const cell = Number(at[3]);
@@ -2889,6 +2889,7 @@ function groupTables(blocks) {
     if (block.cellVAlign) current.vAligns.set(`${row}:${cell}`, block.cellVAlign);
     if (block.cellSpan > 1) current.spans.set(`${row}:${cell}`, block.cellSpan);
     if (block.hiddenCell) current.merged.add(`${row}:${cell}`);
+    if (block.rowHeader) current.headers.add(row);
   }
   flush();
   return out;
@@ -2939,31 +2940,38 @@ function TableGroup({ table, labels, styles, tsplit }) {
       : table.width?.type === 'dxa' ? Math.round(table.width.value / 15)
       : Math.round(sum)
     : undefined;
+  // The header rows (w:tblHeader) — the run of them from the top — are drawn
+  // again at the head of each later piece, as Word repeats them, and are not
+  // typed in there: the caret stays in the first.
+  let headerCount = 0;
+  while (headerCount < rows.length && table.headers?.has(rows[headerCount][0])) headerCount += 1;
+  const drawRow = ([r, cells], repeat) => (
+    <tr key={repeat ? `h${r}` : r} className={repeat ? 'wd-repeat' : undefined} data-repeat={repeat ? 1 : undefined} contentEditable={repeat ? false : undefined} style={table.rowHeights?.has(r) ? { height: table.rowHeights.get(r) } : undefined}>
+      {cells.map(({ c, paragraphs, rowSpan }) => {
+        // A row held to its height (a label's) is exactly that tall: its
+        // words sit in a box of that height, centred if the cell says so.
+        const exact = table.rowRules?.get(r) === 'exact' && table.rowHeights?.get(r);
+        const v = table.vAligns?.get(`${r}:${c}`);
+        const m = table.look?.cellMarginPx;
+        const blocks = paragraphs.map((block) => <Block key={block.index} block={block} labels={labels} styles={styles} />);
+        return (
+          <td key={c} colSpan={table.spans?.get(`${r}:${c}`) || undefined} rowSpan={rowSpan > 1 ? rowSpan : undefined} style={m || v ? { ...(m ? { padding: `${m.top}px ${m.right}px ${m.bottom}px ${m.left}px` } : {}), ...(v ? { verticalAlign: v === 'center' ? 'middle' : v } : {}) } : undefined}>
+            {exact ? (
+              <div className="wd-cell-exact" style={{ height: table.rowHeights.get(r) - (m ? m.top + m.bottom : 0), justifyContent: v === 'center' ? 'center' : v === 'bottom' ? 'flex-end' : 'flex-start' }}>{blocks}</div>
+            ) : blocks}
+          </td>
+        );
+      })}
+    </tr>
+  );
   return (
     <>
       {bounds.slice(0, -1).map((from, j) => (
         <table key={j} className={`wd-table${table.look?.bare ? ' wd-table-bare' : ''}`} dir={table.look?.rtl ? 'rtl' : undefined} data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined} style={width || table.look?.fixed ? { width, ...(table.look?.fixed ? { tableLayout: 'fixed' } : {}) } : undefined}>
           {grid && sum > 0 ? <colgroup>{grid.map((w, i) => <col key={i} style={{ width: `${(w / sum) * 100}%` }} />)}</colgroup> : null}
           <tbody>
-            {mergedRows(rows.slice(from, bounds[j + 1]), table).map(([r, cells]) => (
-              <tr key={r} style={table.rowHeights?.has(r) ? { height: table.rowHeights.get(r) } : undefined}>
-                {cells.map(({ c, paragraphs, rowSpan }) => {
-                  // A row held to its height (a label's) is exactly that tall: its
-                  // words sit in a box of that height, centred if the cell says so.
-                  const exact = table.rowRules?.get(r) === 'exact' && table.rowHeights?.get(r);
-                  const v = table.vAligns?.get(`${r}:${c}`);
-                  const m = table.look?.cellMarginPx;
-                  const blocks = paragraphs.map((block) => <Block key={block.index} block={block} labels={labels} styles={styles} />);
-                  return (
-                    <td key={c} colSpan={table.spans?.get(`${r}:${c}`) || undefined} rowSpan={rowSpan > 1 ? rowSpan : undefined} style={m || v ? { ...(m ? { padding: `${m.top}px ${m.right}px ${m.bottom}px ${m.left}px` } : {}), ...(v ? { verticalAlign: v === 'center' ? 'middle' : v } : {}) } : undefined}>
-                      {exact ? (
-                        <div className="wd-cell-exact" style={{ height: table.rowHeights.get(r) - (m ? m.top + m.bottom : 0), justifyContent: v === 'center' ? 'center' : v === 'bottom' ? 'flex-end' : 'flex-start' }}>{blocks}</div>
-                      ) : blocks}
-                    </td>
-                  );
-                })}
-              </tr>
-            ))}
+            {from > 0 && from >= headerCount ? mergedRows(rows.slice(0, headerCount), table).map((row) => drawRow(row, true)) : null}
+            {mergedRows(rows.slice(from, bounds[j + 1]), table).map((row) => drawRow(row, false))}
           </tbody>
         </table>
       ))}

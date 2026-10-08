@@ -147,4 +147,52 @@ export async function verifyWordTableTools(h, { dir }) {
   } catch (err) {
     check('word: the Table Layout checks ran', false, err.message);
   }
+
+  // A header row repeated: a table too long for its page, its top row made
+  // the header, draws that row again at the head of the next page's piece.
+  const long = path.join(dir, 'header-rows.docx');
+  try {
+    const body = Array.from({ length: 45 }, (_, i) => [`Row ${i + 1}`, String(100 + i), String(200 + i)]);
+    fs.writeFileSync(long, buildDocx({ styles: true, paragraphs: [{ text: 'A long table' }, { table: { rows: [['Region', 'Q1', 'Q2'], ...body] } }, { text: 'After the long table' }] }));
+    const win = await open('word', long);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const model = () => h.doc.model({ id: h.sessionFor('doc').id });
+    const index = (text) => model().blocks.findIndex((b) => b.text === text);
+    await until(() => js(`document.querySelectorAll('.wd-page table.wd-table[data-table]').length >= 2`), 'the table split across pages', 10000);
+    await js(`(() => {
+      const a = document.querySelector('.wd-page [data-block="${index('Region')}"]');
+      a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+      const r = document.createRange(); r.setStart(a.firstChild || a, 0); r.collapse(true);
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return true;
+    })()`);
+    await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Table Layout')`), 'Table Layout', 3000);
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Table Layout').click(), 'tab'`);
+    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Repeat Header Rows'))`), 'Repeat Header Rows', 3000);
+    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Repeat Header Rows'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+    await until(() => js(`Boolean(document.querySelector('.wd-page table.wd-table[data-part="1"] tr[data-repeat]'))`), 'the header drawn again', 6000).catch(() => {});
+    if (process.env.RUTBA_VERIFY_CAPTURE) {
+      await js(`document.querySelector('.wd-page table.wd-table[data-part="1"]')?.scrollIntoView({ block: 'start' }), 'scrolled'`);
+      fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-header-rows.png'), (await win.webContents.capturePage()).toPNG());
+    }
+    const pieces = await js(`[...document.querySelectorAll('.wd-page table.wd-table[data-table]')].map((t) => {
+      const rows = [...t.tBodies[0].rows];
+      return {
+        from: Number(t.dataset.rowFrom || 0),
+        first: rows[0] ? [...rows[0].cells].map((c) => c.innerText.trim()).join('|') : '',
+        repeat: rows.filter((r) => r.dataset.repeat).length,
+        locked: rows[0]?.dataset.repeat ? rows[0].isContentEditable === false : null,
+        second: rows.find((r) => !r.dataset.repeat) ? [...rows.find((r) => !r.dataset.repeat).cells].map((c) => c.innerText.trim())[0] : '',
+      };
+    })`);
+    const [top, next] = pieces;
+    check('word: a header row is drawn again at the head of the table\'s next page, not typed in there, and the rows carry on after it',
+      model().blocks[index('Region')].rowHeader === true && top?.repeat === 0 && next?.repeat === 1 && next.first === 'Region|Q1|Q2' && next.locked === true && next.second === `Row ${next.from}`,
+      JSON.stringify(pieces));
+    const complaints = await errorsIn(win);
+    check('word: repeating a header row reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the header-row checks ran', false, err.message);
+  }
 }
