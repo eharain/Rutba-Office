@@ -32,7 +32,7 @@ Excel, PowerPoint, Outlook, OneNote, OneDrive, Teams, and for pictures and
 film the Photos app (generative erase, blur and replace background,
 Designer's selective edits) and Clipchamp (multi-track timeline, auto
 captions, green screen, screen and webcam recording, 1080p free, 4K paid).
-Everything new is Copilot, on a subscription.
+Everything new is its assistant, on a subscription.
 
 **Google Workspace.** Docs, Sheets, Slides, Gmail, Calendar, Meet, Drive,
 Vids; browser-first, co-editing as the norm, Gemini throughout from the
@@ -50,7 +50,7 @@ provider key or a local model. Free desktop; no image or video editor.
 
 **SoftMaker Office 2024 / NX.** TextMaker, PlanMaker, Presentations; QR and
 barcodes, embedded fonts, EPUB export, SQLite import; DeepL translation and
-ChatGPT in the NX subscription.
+an assistant in the NX subscription.
 
 **Zoho Workplace.** Writer, Sheet, Show, Mail, Notebook, Zia AI; a free tier,
 paid from about $3 a user a month; Writer turns a document into a fillable
