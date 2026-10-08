@@ -24,15 +24,15 @@ a suite.
 | **Autosave and recovery** | **Built, 2026-09-09** | A dirty document is copied into the profile every half minute and the copy is deleted when it is saved or closed, so what is left at start-up is what a crash took. The launcher offers each one back by name, with where it belonged and when it was taken. |
 | **Calendar** | **Built, 2026-09-09** | Month, week, day and agenda; calendars with a colour each; events with repeats, exceptions and zones; `.ics` opened, offered, imported and exported. An invitation in a message is shown in Mail's reading pane, kept as an event, and answered with the reply attached to a message to the organizer. |
 | **Contacts** | **Built, 2026-09-09** | A book in the profile: list, card, editor, search. `.vcf` and CSV opened, offered and merged by address; vCards exported. Compose completes from the book and then from the people mail has seen; a sender is kept from the reading pane in one click. |
-| **OpenDocument drawings** | **Built for decks, 1.29.4** | An `.odp` opens as it was made: slides at its own page size holding each drawing where it stood — text boxes, pictures, shapes in their fill and outline with their words, lines and tables — and its notes. An `.ods` keeps its column widths, hidden rows and columns and frozen panes. Still not read: an `.ods`'s charts (embedded objects) and shapes, so the Charts sheet of the showcase workbook opens empty from `.ods` and full from `.xlsx`, and an `.odp`'s gradients. Found 2026-09-10 by tools/make-rich-fixtures.ps1. |
+| **OpenDocument drawings** | **Built, 2026-10-08** | An `.odp` opens as it was made: slides at its own page size holding each drawing where it stood — text boxes, pictures, shapes in their fill and outline with their words, lines and tables — and its notes; since 2026-10-08 its gradients, backgrounds and charts too, and its shapes as their own outlines, all written back on save. An `.ods` keeps its column widths, hidden rows and columns and frozen panes, and since 2026-10-08 its charts (embedded objects, plotting their cells), shapes, pictures and text boxes, read and written back. An `.odt` opens whole since 2026-10-08 — headings, run looks, links, lists at their levels, tables with their spans and shading, pictures, the page — where it came in as plain lines. Found 2026-09-10 by tools/make-rich-fixtures.ps1. |
 | **Equations** | **Built, 2026-09-25** | Office Math is read, drawn through the browser's own MathML, edited in Word's linear format, written as Word writes it and printed. A deck's equations are read, drawn and inserted the same way since the same day. |
 | **Tracked changes, shown** | **Built for documents, 2026-09-25** | Insertions and deletions are kept with their author and date, shown as All Markup, Simple Markup, No Markup or Original, walked with Previous and Next, and accepted or rejected one at a time or all at once; recording them arrived the same day (below). A deck's and a workbook's tracked changes are not read. |
 | **Page setup as a document property** | **Built for workbooks, 2026-09-09** | Paper, orientation, margins, scaling, gridlines, headings, centring, the print area and the repeated rows are read from and written to the file where Excel keeps them. A document and a deck still choose theirs in the dialog each time. |
-| **Password-protected files** | **Built, 2026-09-25** | An encrypted `.docx`, `.xlsx` or `.pptx` opens through a Password dialog, reading Agile and Standard Encryption and checking the file's HMAC. Info → Encrypt with Password saves Agile AES-256/SHA-512 inside a compound file as Office writes one, and the autosave copy is encrypted too. The older RC4 encryption of Office 97–2003 binary files is not read. |
+| **Password-protected files** | **Built, 2026-09-25** | An encrypted `.docx`, `.xlsx` or `.pptx` opens through a Password dialog, reading Agile and Standard Encryption and checking the file's HMAC. Info → Encrypt with Password saves Agile AES-256/SHA-512 inside a compound file as Office writes one, and the autosave copy is encrypted too. Since 2026-10-08 a password-protected Office 97–2003 file opens too — RC4 CryptoAPI and Office 97/2000 RC4 in `.doc`, `.xls` and `.ppt`, and Excel 95's XOR; Word's own older XOR obfuscation is refused with a message saying so. |
 | **A spell-check pass** | **Built, 2026-09-25** | Review → Spelling (F7) runs an Editor pane over a document, a workbook or a deck with Change, Change All, Ignore and Add to Dictionary. It uses English (UK) and English (US) Hunspell dictionaries on the machine and a personal dictionary shared by the three apps. Suggestions are not ranked by how common a word is ("brwn" offers bran before brown). The language is chosen once per document, not per paragraph; words marked as another language or not to be checked (Review → Language, 1.29.1) are read past rather than checked in their own. The grid and the slides have no spelling right-click. No other languages ship yet. |
 | **Accessibility check** | **Built, 2026-09-25** | Review → Check Accessibility lists Errors, Warnings and Tips under Office's rule names in all three apps, with one-click fixes, Alt Text, Mark as decorative and a status-bar indicator that follows edits. Table-cell shading is not read for contrast. Merged cells and unclear links have no one-click fix. |
-| **Right-to-left layout** | **Built for documents, 1.29.4** | A paragraph Word marks right to left, or whose style does, runs from the right margin with its indents, hang, borders and drop cap mirrored; Home → Paragraph turns one either way, and its alignment is written mirrored as Word writes it. Not yet: Arabic and Hebrew in the PDF (no font for them), the ruler and tab stops in a right-to-left paragraph, right-to-left tables and sections, decks, sheets and the ribbons. |
-| **Localisation** | **Missing** | Every string in the interface is English, written inline. There is no message catalogue and no way to add one. |
+| **Right-to-left layout** | **Built, 2026-10-08** | A paragraph Word marks right to left, or whose style does, runs from the right margin with its indents, hang, borders and drop cap mirrored; Home → Paragraph turns one either way, and its alignment is written mirrored as Word writes it. Since 2026-10-08 the ruler and tab stops count from the right margin in such a paragraph, a table runs from the right (`w:bidiVisual`, Table Layout → Right to Left), a section lays its columns from the right, Page Layout → Sheet Right-to-Left mirrors a worksheet, and a slide's paragraphs run right to left from Home → Paragraph. Not yet: Arabic and Hebrew in the PDF (no font for them) and the ribbons themselves. |
+| **Localisation** | **Started, 2026-10-08** | A message catalogue: each string looked up by its English words (`t`, and `tn` for counts under each language's plural rules), the language taken from the setting or the system, `messages.json` made from the sources by tools/extract-messages.mjs and checked current. The shell, the ribbon's own controls, the Password, Restrict, proofing and Print dialogs and the home window go through it; most of the apps' own words do not yet, and no other language is translated. |
 
 ---
 
@@ -74,6 +74,19 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   the page margins and a table's columns by hand, and grips on a table's
   borders move its columns and rows, and the print paginator lays a
   table on the same grid.)
+- **Tables.** Since 2026-10-08 a table is drawn and printed in its own
+  lines and shading and in its table style — the header row, total row,
+  first and last columns and bands its `w:tblLook` turns on — a merged cell
+  as one cell over the rows it covers, and its header rows again at the head
+  of each page it runs onto. Table Design picks a style (Table Grid, Plain
+  Table 1, Grid Table 1 Light, Grid Table 4 and List Table 4 in each accent,
+  written in the document's theme colours when it has none), its options,
+  shading and borders with a pen; Table Layout puts rows and columns in and
+  takes them out, merges and splits cells, splits the table, sets a column's
+  width, AutoFit and Distribute Columns, aligns a cell's words, repeats
+  header rows, sorts the rows by a column, converts the table to text and
+  back, turns it right to left and shows or hides its gridlines. Not yet:
+  Table Properties, cell margins and text direction, formulas in cells.
 - **Fields.** Bookmarks arrived 2026-09-24, Insert → Bookmark naming a span
   of paragraphs (`w:bookmarkStart`/`w:bookmarkEnd`) that Go To finds again
   and a bookmarked paragraph stays editable through it. Cross-references
@@ -293,7 +306,7 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
   permission the suite does not ask for yet.
 - ~~adding an account asked for the servers and guessed them from the domain~~ — built 2026-09-09: an address and a password; the server is found from the provider table, MX, SRV, autoconfig, Microsoft autodiscover and a knock on the conventional names, with Advanced always a click away.
 - ~~signatures~~ — built 2026-09-24: plain text, per account, edited from that account's own settings; a new message carries it after the "-- " line, a reply or forward puts it above the quote, and switching the From account swaps the block for the one it replaces, but only while it is still exactly what was inserted. Rich text since 1.29.4: bold, italic, underline, colour, size, a link and a picture, which goes as an attachment of the message.
-- ~~a junk filter~~ — built in 1.29.4: Home → Junk marks a message junk or not junk and blocks or trusts a sender or a domain; Junk Email Options sets off, low, high or safe lists only, the Safe and Blocked Senders lists, and trust in contacts. Arriving mail is filed by the lists, the server's own spam headers and a filter that learns from what is marked, on this computer. Its settings are for the whole mailbox, not per account.
+- ~~a junk filter~~ — built in 1.29.4: Home → Junk marks a message junk or not junk and blocks or trusts a sender or a domain; Junk Email Options sets off, low, high or safe lists only, the Safe and Blocked Senders lists, and trust in contacts. Arriving mail is filed by the lists, the server's own spam headers and a filter that learns from what is marked, on this computer. Since 2026-10-08 its options are set per account (what it learns is shared), with Safe Recipients and "Never block this group or mailing list", and blocked top-level domains and encodings.
 
 ## 5. The formats, read against written
 
@@ -301,9 +314,10 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
 | :-- | :-- | :-- |
 | `.docx` `.xlsx` `.pptx` | yes, preserving | yes, preserving |
 | `.doc` `.xls` `.ppt` | **yes**, 1.29.5 — Word 97–2003, 6.0/95, 2.0, 1.0, Write and DOS Word; Excel 2.1 to 97–2003 with charts, shapes, tables and conditional formats; PowerPoint 97–2003; one Office 2007 or later saved is opened from the newer description it keeps inside | no — saved as `.docx`, `.xlsx` or `.pptx` |
-| `.odt` `.ods` `.odp` | yes — an `.ods` reads its named ranges, merged cells and number formats since 2026-09-10, and its column widths, hidden rows and columns and frozen panes since 1.29.4; an `.odp` its pictures, shapes, lines and tables where they stood since 1.29.4; an `.ods`'s charts and shapes are not read | **yes**, 2026-09-09 — what the suite models: text, structure, tables and run formatting; values, formulas and value types; text boxes, pictures and notes |
-| `.rtf` | yes | **yes**, 2026-09-09 |
-| `.csv` `.tsv` `.txt` `.md` `.html` | yes | yes |
+| `.odt` `.ods` `.odp` | yes — an `.ods` reads its named ranges, merged cells and number formats since 2026-09-10, and its column widths, hidden rows and columns and frozen panes since 1.29.4, its charts and shapes since 2026-10-08; an `.odp` its pictures, shapes, lines and tables where they stood since 1.29.4, its gradients, backgrounds and charts since 2026-10-08; an `.odt` whole since 2026-10-08 | **yes**, 2026-09-09 — what the suite models: values, formulas and value types; text boxes, pictures and notes; since 2026-10-08 an `.odt` written whole from the document (it had written each heading, list, table and picture as a plain paragraph), an `.ods`'s charts and shapes and an `.odp`'s shapes, tables, charts and backgrounds |
+| `.rtf` | yes — whole since 2026-10-08: headings, lists at their levels, tables with their widths and merges, links, pictures, the page | **yes**, 2026-09-09 — since 2026-10-08 with headings' outline levels, real lists, tables' widths and merges, links and pictures |
+| `.html` | yes — a page opens as a document since 2026-10-08: headings, looks, links, lists, tables with their spans, embedded pictures | yes — since 2026-10-08 with lists, tables and pictures |
+| `.csv` `.tsv` `.txt` `.md` | yes | yes — a document's own numbered list kept as one in `.md` and `.txt` since 2026-10-08 |
 | `.pdf` | viewed | written, for all three kinds since printing landed |
 | `.eml` `.msg` `.mbox` `.pst` `.ost` `.olm` | yes | mbox only |
 | `.ics` `.vcf` | yes | **yes**, 2026-09-09 — events and cards, read and written; a reply to an invitation written as `.ics` |
@@ -312,8 +326,8 @@ blocking and unsubscribe are built. What it is missing is not inside mail:
 RTF and OpenDocument were the trap — the installer told Windows this suite
 was the **editor** of `.odt`, `.ods` and `.odp` while Ctrl+S on one refused —
 and both are written now. The binary Office formats are read in full since
-1.29.5 and saved as their newer counterparts, never written back; the old RC4
-encryption of those binary files is still not read.
+1.29.5 and saved as their newer counterparts, never written back; since
+2026-10-08 their older RC4 and XOR encryption is read too.
 
 ## 6. Pictures — the viewer
 
