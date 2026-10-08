@@ -428,7 +428,8 @@ stage keeps a picture until the next has decoded. What is still missing:
     `TEXT()` through the formatter the suite already owns.~~ Built 2026-09-09,
     with the phantom day; `LAMBDA` in 1.29.4.
 
-Everything above this line is work somebody can start on Monday. Below it
+This order is complete; [ROADMAP.md](ROADMAP.md) reviews how it was met
+and sets the order from here. Everything above this line is work somebody can start on Monday. Below it
 sit the things that are deliberately not built — macros that run, cloud
 services (translation, dictation, co-authoring), and anything
 that would make a request this suite has not declared.
