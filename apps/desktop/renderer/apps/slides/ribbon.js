@@ -201,6 +201,8 @@ export default function SlidesRibbon({
         { id: 'view', label: 'View' },
         { id: 'help', label: 'Help' },
         { id: 'pdf', label: 'PDF' },
+        // Table Design, as PowerPoint's: there while a table is selected.
+        ...(selectedShapeObj?.kind === 'table' ? [{ id: 'tableDesign', label: 'Table Design' }] : []),
       ]}
       active={tab}
       onTab={setTab}
@@ -1001,6 +1003,35 @@ export default function SlidesRibbon({
           </Group>
         </>
       ) : null}
+
+      {/* ── Table Design (contextual) ─────────────────────────────────────── */}
+      {tab === 'tableDesign' && selectedShapeObj?.kind === 'table' ? (() => {
+        const flags = selectedShapeObj.table?.flags || {};
+        const toggle = (name, label, why) => <Button icon={flags[name] ? 'check' : undefined} label={label} pressed={Boolean(flags[name])} title={why} onClick={() => act('tableLook', { ...flags, [name]: !flags[name] })} />;
+        return (
+          <>
+            <Group label="Table Style Options">
+              <Rows>
+                {toggle('firstRow', 'Header Row', 'Header Row — the first row in its style\'s header look')}
+                {toggle('lastRow', 'Total Row', 'Total Row — the last row in its style\'s total look')}
+                {toggle('bandRow', 'Banded Rows', 'Banded Rows — every other row shaded, as the style bands them')}
+              </Rows>
+              <Rows>
+                {toggle('firstCol', 'First Column', 'First Column — the first column in its style\'s look')}
+                {toggle('lastCol', 'Last Column', 'Last Column — the last column in its style\'s look')}
+                {toggle('bandCol', 'Banded Columns', 'Banded Columns — every other column shaded, as the style bands them')}
+              </Rows>
+            </Group>
+            <Group label="Shading">
+              <Button tall icon="wand" label="Shading" title="Shading — the cell last typed in, or every cell of the table" onClick={(e) => menu.open(e, [
+                { label: 'No Fill', icon: 'close', run: () => act('tableShading', { fill: null }) },
+                '-',
+                ...COLOURS.map(([hex, label]) => ({ label, run: () => act('tableShading', { fill: hex }) })),
+              ])} />
+            </Group>
+          </>
+        );
+      })() : null}
     </Ribbon>
   );
 }

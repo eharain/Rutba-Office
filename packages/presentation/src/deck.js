@@ -3932,6 +3932,58 @@ export class Deck {
     return true;
   }
 
+  /**
+   * Table Design → Table Style Options: which of its style's parts a table
+   * takes — a:tblPr's firstRow, lastRow, firstCol, lastCol, bandRow and
+   * bandCol, each written only when on; its direction and style kept.
+   */
+  setTableLook(slideIndex, shapeId, flags = {}) {
+    const { part, xml, range, frameXml, tbl } = this.#tableRange(slideIndex, shapeId);
+    const on = ['firstRow', 'lastRow', 'firstCol', 'lastCol', 'bandRow', 'bandCol'].filter((n) => flags[n]).map((n) => ` ${n}="1"`).join('');
+    const pr = /<a:tblPr\b[^>]*?(\/>|>)/.exec(tbl[0]);
+    const newTbl = pr
+      ? tbl[0].slice(0, pr.index) + pr[0].replace(/\s(?:firstRow|lastRow|firstCol|lastCol|bandRow|bandCol)="[^"]*"/g, '').replace(/^<a:tblPr/, () => '<a:tblPr' + on) + tbl[0].slice(pr.index + pr[0].length)
+      : tbl[0].replace(/^<a:tbl>/, () => '<a:tbl><a:tblPr' + on + '/>');
+    const newFrame = frameXml.slice(0, tbl.index) + newTbl + frameXml.slice(tbl.index + tbl[0].length);
+    this.#writeSlide(part, xml.slice(0, range.start) + newFrame + xml.slice(range.end));
+    return true;
+  }
+
+  /**
+   * Table Design → Shading: some cells' fill (`cells` as { row, col }, or
+   * null for every cell) — a colour, or none of their own so the table
+   * style's shows — written in a:tcPr after its lines, before its headers.
+   */
+  setTableCellFill(slideIndex, shapeId, cells, fill) {
+    const { part, xml, range, frameXml, tbl } = this.#tableRange(slideIndex, shapeId);
+    const hex = fill == null ? null : String(fill).replace('#', '').toUpperCase();
+    if (hex != null && !/^[0-9A-F]{6}$/.test(hex)) throw new Error('a cell is shaded in a colour like #D9E2F3');
+    const wanted = cells ? new Set(cells.map((c) => `${c.row}:${c.col}`)) : null;
+    const fillXml = hex ? `<a:solidFill><a:srgbClr val="${hex}"/></a:solidFill>` : '';
+    let r = -1;
+    const newTbl = tbl[0].replace(TR_RE, (rowXml) => {
+      r += 1;
+      let c = -1;
+      return rowXml.replace(TC_RE, (tc) => {
+        c += 1;
+        if (wanted && !wanted.has(`${r}:${c}`)) return tc;
+        const pr = /<a:tcPr\b[^>]*\/>|<a:tcPr\b[^>]*>[\s\S]*?<\/a:tcPr>/.exec(tc);
+        if (!pr) return fillXml ? tc.replace(/(<a:extLst\b[\s\S]*?<\/a:extLst>)?<\/a:tc>$/, (end) => `<a:tcPr>${fillXml}</a:tcPr>${end}`) : tc;
+        const open = /^<a:tcPr\b[^>]*?(\/?)>/.exec(pr[0]);
+        let inner = open[1] === '/' ? '' : pr[0].slice(open[0].length, -'</a:tcPr>'.length);
+        // Its own fill only — a line's fill inside an a:lnB is the line's.
+        inner = topChildren(inner).filter((c) => !/^(noFill|grpFill|solidFill|gradFill|blipFill|pattFill)$/.test(c.name)).map((c) => c.xml).join('');
+        const after = /<a:(headers|extLst)\b/.exec(inner);
+        inner = after ? inner.slice(0, after.index) + fillXml + inner.slice(after.index) : inner + fillXml;
+        const rebuilt = open[0].replace(/\/>$/, '>') + inner + '</a:tcPr>';
+        return tc.slice(0, pr.index) + rebuilt + tc.slice(pr.index + pr[0].length);
+      });
+    });
+    const newFrame = frameXml.slice(0, tbl.index) + newTbl + frameXml.slice(tbl.index + tbl[0].length);
+    this.#writeSlide(part, xml.slice(0, range.start) + newFrame + xml.slice(range.end));
+    return true;
+  }
+
   /** A column taken out of a table — its `gridCol` and the cell it gave every row. */
   removeTableColumn(slideIndex, shapeId, at) {
     const { part, xml, range, frameXml, tbl } = this.#tableRange(slideIndex, shapeId);
@@ -5156,6 +5208,26 @@ const GRIDCOL_RE = /<a:gridCol\b[^>]*\/>|<a:gridCol\b[^>]*>[\s\S]*?<\/a:gridCol>
  * line's height; or, given as an object, a cell with its own paragraphs,
  * fill, borders, vertical alignment and merging.
  */
+/** An element's own children, each { name, xml }, a child's children left inside it. */
+function topChildren(xml) {
+  const out = [];
+  const re = /<a:([A-Za-z0-9]+)\b[^>]*?(\/?)>|<\/a:([A-Za-z0-9]+)>/g;
+  let depth = 0;
+  let start = -1;
+  let name = null;
+  let m;
+  while ((m = re.exec(xml))) {
+    if (m[3]) {
+      depth -= 1;
+      if (depth === 0) { out.push({ name, xml: xml.slice(start, m.index + m[0].length) }); start = -1; }
+      continue;
+    }
+    if (depth === 0) { start = m.index; name = m[1]; }
+    if (m[2] === '/') { if (depth === 0) { out.push({ name, xml: m[0] }); start = -1; } } else depth += 1;
+  }
+  return out;
+}
+
 function tableCellXml(text) {
   if (text && typeof text === 'object') return richTableCellXml(text);
   const body = text

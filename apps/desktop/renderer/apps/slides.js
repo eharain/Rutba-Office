@@ -235,6 +235,9 @@ export default function Slides({ app, shell, boot }) {
   // "selected" shape keeps working unchanged for a single selection.
   const [selectedIds, setSelectedIds] = useState([]);
   const selected = selectedIds[0] ?? null;
+  // Table Design goes when the table it formats is no longer selected.
+  const tableSelected = Boolean(model?.slide?.shapes?.find((s) => s.id === selected)?.kind === 'table');
+  useEffect(() => { if (tab === 'tableDesign' && !tableSelected) setTab('home'); }, [tab, tableSelected]);
   const setSelected = useCallback((id) => setSelectedIds(id == null ? [] : [id]), []);
   const toggleSelected = useCallback(
     (id) => setSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id])),
@@ -1870,6 +1873,17 @@ export default function Slides({ app, shell, boot }) {
       case 'tableRow':
         await apply({ op: arg.remove ? 'removeTableRow' : 'insertTableRow', slide: index, shape: arg.shape, at: arg.at });
         return;
+      // Table Design: the selected table's style options, and the shading of the cell last typed in (or every cell).
+      case 'tableLook':
+        if (selected) await apply({ op: 'setTableLook', slide: index, shape: selected, flags: arg });
+        return;
+      case 'tableShading': {
+        if (!selected) return;
+        const caret = lastCaret.current;
+        const cells = caret && caret.id === selected && caret.slide === index && caret.row != null ? [{ row: caret.row, col: caret.col }] : null;
+        await apply({ op: 'setTableCellFill', slide: index, shape: selected, cells, fill: arg?.fill ?? null });
+        return;
+      }
       case 'tableColumn':
         await apply({ op: arg.remove ? 'removeTableColumn' : 'insertTableColumn', slide: index, shape: arg.shape, at: arg.at });
         return;
@@ -3970,7 +3984,7 @@ function PartNameDialog({ name: current, kind, onClose, onApply }) {
 }
 
 /** What only a slide can take: refused while Slide Master view is on the stage. */
-const MASTER_REFUSED = new Set(['addComment', 'replyComment', 'resolveComment', 'removeComment', 'removeAllComments', 'insertSlide', 'duplicateSlide', 'removeSlide', 'moveSlide', 'setNotes', 'setTransition', 'applyTransitionToAll', 'addAnimation', 'setAnimation', 'removeAnimation', 'moveAnimation', 'removeShapeAnimations', 'setSlideHidden', 'addSection', 'renameSection', 'removeSection', 'removeAllSections', 'applyLayout', 'resetSlide', 'setFooter', 'replaceText', 'replaceHit', 'replaceAllHits', 'addTable', 'addChart', 'setChartData', 'setTableCell', 'insertTableRow', 'removeTableRow', 'insertTableColumn', 'removeTableColumn']);
+const MASTER_REFUSED = new Set(['addComment', 'replyComment', 'resolveComment', 'removeComment', 'removeAllComments', 'insertSlide', 'duplicateSlide', 'removeSlide', 'moveSlide', 'setNotes', 'setTransition', 'applyTransitionToAll', 'addAnimation', 'setAnimation', 'removeAnimation', 'moveAnimation', 'removeShapeAnimations', 'setSlideHidden', 'addSection', 'renameSection', 'removeSection', 'removeAllSections', 'applyLayout', 'resetSlide', 'setFooter', 'replaceText', 'replaceHit', 'replaceAllHits', 'addTable', 'addChart', 'setChartData', 'setTableCell', 'insertTableRow', 'removeTableRow', 'insertTableColumn', 'removeTableColumn', 'setTableLook', 'setTableCellFill']);
 
 function SectionNameDialog({ name: current, onClose, onApply }) {
   const [name, setName] = useState(current || '');

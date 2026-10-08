@@ -1672,9 +1672,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
                 ? {
                     rows: s.table.rows.length,
                     cols: s.table.columns.length,
+                    // Which of its style's parts it takes — Table Design's options.
+                    flags: s.table.flags || null,
                     cells: s.table.rows.map((row) => row.cells.map((cell) => ({
                       paragraphs: (cell.text?.paragraphs || []).map((p) => ({ ...p, plain: p.runs.map((r) => r.text).join('') })),
                       box: cell.box || null,
+                      fill: cell.fill?.color || null,
                     }))),
                   }
                 : null,
@@ -2240,6 +2243,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     insertTableRow: (d, a) => d.insertTableRow(a.slide, a.shape, a.at),
     removeTableRow: (d, a) => d.removeTableRow(a.slide, a.shape, a.at),
     insertTableColumn: (d, a) => d.insertTableColumn(a.slide, a.shape, a.at),
+    setTableLook: (d, a) => d.setTableLook(a.slide, a.shape, a.flags || {}),
+    setTableCellFill: (d, a) => d.setTableCellFill(a.slide, a.shape, a.cells ?? null, a.fill ?? null),
     removeTableColumn: (d, a) => d.removeTableColumn(a.slide, a.shape, a.at),
     // Insert → Chart: a chart part written with the writer Documents and Worksheets
     // already use, framed the way PowerPoint frames one.

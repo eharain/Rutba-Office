@@ -25,6 +25,7 @@ import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { verifyViewer } from './verify-viewer.js';
 import { verifySheetLinks } from './verify-sheet-links.js';
 import { verifyDeckArrange } from './verify-deck-arrange.js';
+import { verifyDeckTableDesign } from './verify-deck-table-design.js';
 import { verifyDeckFx } from './verify-deck-fx.js';
 import { verifyDeckTransitions } from './verify-deck-transitions.js';
 import { verifyDeckAnimations } from './verify-deck-animations.js';
@@ -4750,6 +4751,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('cfdraw')) await verifySheetCf({ open, check, until, errorsIn }, { dir });
     if (only.includes('deckdraw')) await verifyDeckDraw({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('arrange')) await verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
+    if (only.includes('decktabledesign')) await verifyDeckTableDesign({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('deckfx')) await verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('transitions')) await verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
     if (only.includes('animations')) await verifyDeckAnimations({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx });
@@ -4859,6 +4861,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => slideTable());
   await block(() => slideChart());
   await block(() => verifyDeckArrange({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
+  await block(() => verifyDeckTableDesign({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckFx({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
   await block(() => verifyDeckTransitions({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));
   await block(() => verifyDeckAnimations({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { file: files.pptx }));

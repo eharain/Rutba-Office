@@ -699,7 +699,7 @@ function readTable(graphicFrame, theme, geom, styles = null) {
     top += h;
     return { height: h, cells };
   });
-  return { columns: grid, rows, styleId: styleId || null };
+  return { columns: grid, rows, styleId: styleId || null, flags };
 }
 const EDGE_NAMES = ['lnL', 'lnR', 'lnT', 'lnB'];
 
