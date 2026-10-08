@@ -2147,9 +2147,29 @@ export class DocView {
   }
 
   /**
+   * The cells selected in the caret's table, from the anchor's cell to the
+   * focus's, as a rectangle of rows and cell indices — the caret's own cell
+   * when the selection stays in one or leaves the table.
+   */
+  _selectedCells(tableStart, rowIndex, cellIndex) {
+    const parse = (key) => {
+      const segments = String(key ?? '').split(':');
+      let ti = -1;
+      for (let i = segments.length - 1; i >= 0; i--) if (segments[i][0] === 't') { ti = i; break; }
+      return ti < 0 ? null : { t: Number(segments[ti].slice(1)), r: Number(segments[ti + 1]?.slice(1) ?? 0), c: Number(segments[ti + 2]?.slice(1) ?? 0) };
+    };
+    const a = parse(this._containerOf(this.anchor.block));
+    const f = parse(this._containerOf(this.focus.block));
+    if (!a || !f || a.t !== tableStart || f.t !== tableStart) return { top: rowIndex, bottom: rowIndex, left: cellIndex, right: cellIndex };
+    return { top: Math.min(a.r, f.r), bottom: Math.max(a.r, f.r), left: Math.min(a.c, f.c), right: Math.max(a.c, f.c) };
+  }
+
+  /**
    * Restructure the table under the caret. `op` is one of `insertRowAbove`,
    * `insertRowBelow`, `deleteRow`, `insertColumnLeft`, `insertColumnRight`,
-   * `deleteColumn`, `deleteTable`. Each is one undo step; deleting the last
+   * `deleteColumn`, `deleteTable`, `mergeCells`, `splitCell`, `direction`
+   * (`{ rtl }`), `columnWidth` (`{ cm }`), `headerRows` (`{ on }`),
+   * `cellVAlign` (`{ v }`) or `distributeColumns`. Each is one undo step; deleting the last
    * row or column deletes the table, as Word does. A merged table refuses —
    * the engine says why.
    */
@@ -2167,6 +2187,9 @@ export class DocView {
       splitCell: 'splitTableCell',
       columnWidth: 'setTableColumnWidth',
       direction: 'setTableDirection',
+      headerRows: 'setTableHeaderRows',
+      cellVAlign: 'setTableCellVAlign',
+      distributeColumns: 'setTableColumnWidths',
     };
     const method = PORT[op];
     if (!method) throw new Error('unknown table operation: ' + op);
@@ -2222,6 +2245,29 @@ export class DocView {
         const cm = Number(arg.cm);
         if (!Number.isFinite(cm)) throw new Error('a column width needs a number of centimetres');
         this.doc.setTableColumnWidth(tableStart, cellIndex, Math.round(cm * 567));
+      } else if (op === 'headerRows') {
+        // Repeat Header Rows: on, the rows from the top through the
+        // selection's lowest are the header; off, the header ends above it.
+        const rect = this._selectedCells(tableStart, rowIndex, cellIndex);
+        this.doc.setTableHeaderRows(tableStart, arg.on === false ? rect.top : rect.bottom + 1);
+      } else if (op === 'cellVAlign') {
+        // Every selected cell, or the caret's: a row shorter than the
+        // rectangle (a span across) simply has fewer cells to set.
+        const rect = this._selectedCells(tableStart, rowIndex, cellIndex);
+        for (let r = rect.top; r <= rect.bottom; r++) {
+          for (let c = rect.left; c <= rect.right; c++) {
+            const key = 't' + tableStart + ':r' + r + ':c' + c;
+            if (this.blocks.some((b) => b.container === key || (b.container ?? '').startsWith(key + ':'))) this.doc.setTableCellVAlign(tableStart, r, c, arg.v);
+          }
+        }
+      } else if (op === 'distributeColumns') {
+        // Every column the same width, the table as wide as it was.
+        const prefix = 't' + tableStart + ':';
+        const grid = this.blocks.find((b) => (b.container ?? '').startsWith(prefix) && b.gridPx)?.gridPx;
+        if (!grid?.length) throw new Error('This table has no column widths of its own to share out.');
+        const total = grid.reduce((a, b) => a + b, 0) * 15;
+        const each = Math.round(total / grid.length);
+        this.doc.setTableColumnWidths(tableStart, Object.fromEntries(grid.map((_, i) => [i, each])));
       } else {
         this.doc.deleteTable(tableStart);
       }
@@ -3373,6 +3419,7 @@ export class DocView {
         ...(b.rowHeightPx ? { rowHeightPx: b.rowHeightPx, rowRule: b.rowRule ?? null } : {}),
         ...(b.tableLook ? { tableLook: b.tableLook } : {}),
         ...(b.cellVAlign ? { cellVAlign: b.cellVAlign } : {}),
+        ...(b.rowHeader ? { rowHeader: true } : {}),
         // A paragraph in a frame placed on the page — drawn there.
         ...(b.frame ? { frame: b.frame } : {}),
         ...(() => {

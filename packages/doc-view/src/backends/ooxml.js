@@ -119,6 +119,8 @@ export class OoxmlBackend {
   setTableColumnWidths(tableStart, widths) { this.doc.setTableColumnWidths(tableStart, widths); return this; }
   setTableRowHeight(tableStart, rowIndex, twips) { this.doc.setTableRowHeight(tableStart, rowIndex, twips); return this; }
   setTableDirection(tableStart, rtl) { this.doc.setTableDirection(tableStart, rtl); return this; }
+  setTableHeaderRows(tableStart, count) { this.doc.setTableHeaderRows(tableStart, count); return this; }
+  setTableCellVAlign(tableStart, rowIndex, cellIndex, v) { this.doc.setTableCellVAlign(tableStart, rowIndex, cellIndex, v); return this; }
 
   /**
    * Formatting is a verbatim `<w:rPr>` edit — fonts and colours ride along.

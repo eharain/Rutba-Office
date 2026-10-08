@@ -472,11 +472,13 @@ function tableHead(body, at) {
 function rowHead(body, at) {
   const firstCell = body.indexOf('<w:tc', at);
   const head = body.slice(at, firstCell === -1 ? at + 1000 : firstCell);
+  // A header row (w:tblHeader) repeats at the top of each page the table runs onto.
+  const header = /<w:tblHeader\b(?![^>]*w:val="(?:0|false|off)")/.test(head) ? { header: true } : {};
   const h = /<w:trHeight\b([^>]*)\/>/.exec(head);
-  if (!h) return {};
+  if (!h) return header;
   const a = attrs(h[1]);
   const val = Number(a['w:val']);
-  return val > 0 ? { heightPx: twipsToPx(val), rule: a['w:hRule'] || 'atLeast' } : {};
+  return val > 0 ? { heightPx: twipsToPx(val), rule: a['w:hRule'] || 'atLeast', ...header } : header;
 }
 
 // The two numbering definitions the editor's list button can create. Each is a
@@ -752,6 +754,7 @@ export class Document {
         ...(tc.vAlign ? { cellVAlign: tc.vAlign } : {}),
         ...(tc.span > 1 ? { cellSpan: tc.span } : {}),
         ...(tr.heightPx ? { rowHeightPx: tr.heightPx, rowRule: tr.rule } : {}),
+        ...(tr.header ? { rowHeader: true } : {}),
       };
     };
 
@@ -4684,6 +4687,7 @@ export class Document {
       ...(p.rowHeightPx ? { rowHeightPx: p.rowHeightPx, rowRule: p.rowRule } : {}),
       ...(p.tableLook ? { tableLook: p.tableLook } : {}),
       ...(p.cellVAlign ? { cellVAlign: p.cellVAlign } : {}),
+      ...(p.rowHeader ? { rowHeader: true } : {}),
       xml: p.xml,
       start: p.start,
       end: p.end,
@@ -5799,6 +5803,24 @@ export class Document {
     const parts = this._tableParts(tableStart);
     const row = parts.rows[rowIndex];
     if (!row) throw new Error('no row ' + rowIndex + ' in this table');
+    let el = null;
+    if (twips != null) {
+      const height = Math.round(Number(twips));
+      if (!(height >= 20 && height <= 31680)) throw new Error('a row height must be between 1pt and 22 inches');
+      el = '<w:trHeight w:val="' + height + '" w:hRule="atLeast"/>';
+    }
+    this._editRowProps(row, (inner) => {
+      inner = inner.replace(/<w:trHeight\b[^>]*\/>/g, '');
+      if (!el) return inner;
+      // In the schema's order trHeight precedes tblHeader, tblCellSpacing, jc and hidden.
+      const after = /<w:(tblHeader|tblCellSpacing|jc|hidden)\b/.exec(inner);
+      return after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
+    });
+    return this;
+  }
+
+  /** One row's `w:trPr` contents rewritten by `edit`; an empty result leaves the row without one. */
+  _editRowProps(row, edit) {
     const { body } = this._body();
     const rowXml = body.slice(row.start, row.end);
     const open = /^<w:tr\b[^>]*>/.exec(rowXml)[0];
@@ -5806,18 +5828,59 @@ export class Document {
     const lead = /^<w:tblPrEx\b[^>]*>[\s\S]*?<\/w:tblPrEx>|^<w:tblPrEx\b[^>]*\/>/.exec(rowXml.slice(open.length));
     const pre = open + (lead ? lead[0] : '');
     const trPr = /^<w:trPr\b[^>]*>[\s\S]*?<\/w:trPr>|^<w:trPr\b[^>]*\/>/.exec(rowXml.slice(pre.length));
-    let inner = trPr && !trPr[0].endsWith('/>') ? trPr[0].replace(/^<w:trPr\b[^>]*>/, '').replace(/<\/w:trPr>$/, '') : '';
-    inner = inner.replace(/<w:trHeight\b[^>]*\/>/g, '');
-    if (twips != null) {
-      const height = Math.round(Number(twips));
-      if (!(height >= 20 && height <= 31680)) throw new Error('a row height must be between 1pt and 22 inches');
-      const el = '<w:trHeight w:val="' + height + '" w:hRule="atLeast"/>';
-      // In the schema's order trHeight precedes tblHeader, tblCellSpacing, jc and hidden.
-      const after = /<w:(tblHeader|tblCellSpacing|jc|hidden)\b/.exec(inner);
-      inner = after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
-    }
+    const inner = edit(trPr && !trPr[0].endsWith('/>') ? trPr[0].replace(/^<w:trPr\b[^>]*>/, '').replace(/<\/w:trPr>$/, '') : '');
     const rest = rowXml.slice(pre.length + (trPr ? trPr[0].length : 0));
     this._spliceBody(row.start, row.end, pre + (inner ? '<w:trPr>' + inner + '</w:trPr>' : '') + rest);
+  }
+
+  /**
+   * Table Layout → Repeat Header Rows: the table's first `count` rows are its
+   * header (w:tblHeader), drawn again at the top of every page the table
+   * runs onto; the rows after them are not. 0 clears it.
+   */
+  setTableHeaderRows(tableStart, count) {
+    const parts = this._tableParts(tableStart);
+    const n = Math.max(0, Math.min(parts.rows.length, Math.round(Number(count) || 0)));
+    // Back to front, so each splice leaves the rows before it where they were.
+    for (let i = parts.rows.length - 1; i >= 0; i--) {
+      this._editRowProps(parts.rows[i], (inner) => {
+        inner = inner.replace(/<w:tblHeader\b[^>]*\/>/g, '');
+        if (i >= n) return inner;
+        const after = /<w:(tblCellSpacing|jc|hidden)\b/.exec(inner);
+        return after ? inner.slice(0, after.index) + '<w:tblHeader/>' + inner.slice(after.index) : inner + '<w:tblHeader/>';
+      });
+    }
+    return this;
+  }
+
+  /**
+   * Table Layout → Alignment: one cell's words at its top, centre or bottom
+   * (w:vAlign, in its schema place among the cell's properties); top is the
+   * default and writes nothing.
+   */
+  setTableCellVAlign(tableStart, rowIndex, cellIndex, v) {
+    if (!['top', 'center', 'bottom'].includes(v)) throw new Error('a cell aligns its words at the top, center or bottom');
+    const parts = this._tableParts(tableStart);
+    const row = parts.rows[rowIndex];
+    if (!row) throw new Error('no row ' + rowIndex + ' in this table');
+    const { body } = this._body();
+    const rowXml = body.slice(row.start, row.end);
+    const cell = this._rowCellSpans(rowXml)[cellIndex];
+    if (!cell) throw new Error('no cell ' + cellIndex + ' in that row');
+    const cellXml = rowXml.slice(cell.start, cell.end);
+    const open = /^<w:tc\b[^>]*>/.exec(cellXml)[0];
+    // A tracked change's record of the old properties holds a tcPr of its own.
+    const tcPr = /^<w:tcPr\b[^>]*>(?:<w:tcPrChange\b[\s\S]*?<\/w:tcPrChange>|(?!<\/w:tcPr>)[\s\S])*?<\/w:tcPr>|^<w:tcPr\b[^>]*\/>/.exec(cellXml.slice(open.length));
+    let inner = tcPr && !tcPr[0].endsWith('/>') ? tcPr[0].replace(/^<w:tcPr\b[^>]*>/, '').replace(/<\/w:tcPr>$/, '') : '';
+    const change = /<w:tcPrChange\b[\s\S]*?<\/w:tcPrChange>/.exec(inner);
+    inner = change ? inner.slice(0, change.index).replace(/<w:vAlign\b[^>]*\/>/g, '') + change[0] + inner.slice(change.index + change[0].length) : inner.replace(/<w:vAlign\b[^>]*\/>/g, '');
+    if (v !== 'top') {
+      const el = '<w:vAlign w:val="' + v + '"/>';
+      const after = /<w:(hideMark|headers|cellIns|cellDel|cellMerge|tcPrChange)\b/.exec(inner);
+      inner = after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
+    }
+    const rest = cellXml.slice(open.length + (tcPr ? tcPr[0].length : 0));
+    this._spliceBody(row.start + cell.start, row.start + cell.end, open + (inner ? '<w:tcPr>' + inner + '</w:tcPr>' : '') + rest);
     return this;
   }
 

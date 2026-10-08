@@ -124,6 +124,9 @@ export default function WordRibbon({
   const anchorCell = innermost(model?.selection?.anchor?.block ?? -1);
   const focusCell = innermost(model?.selection?.focus?.block ?? -1);
   const acrossCells = Boolean(anchorCell && focusCell && anchorCell[1] === focusCell[1] && (anchorCell[2] !== focusCell[2] || anchorCell[3] !== focusCell[3]));
+  // The caret's cell: where its words sit, and whether its row is a header row.
+  const caretCell = model?.blocks?.[model?.selection?.focus?.block ?? -1] || null;
+  const cellAlign = caretCell?.cellVAlign || 'top';
   const format = model?.format || {};
   const design = model?.design || null;
   const styles = Array.isArray(model?.styles) ? model.styles : [];
@@ -754,9 +757,20 @@ export default function WordRibbon({
                 <span className="wd-field-value" style={{ minWidth: 0 }}>cm</span>
               </div>
             </Rows>
+            <Button tall icon="sliders" label="Distribute Columns" title="Distribute Columns — every column the same width, the table as wide as before" onClick={() => tableOp('distributeColumns')} />
+          </Group>
+          <Group label="Alignment">
+            <Button tall icon="alignCenter" label="Cell Alignment" title={`Cell Alignment — the words at the top, centre or bottom of the selected cells; now ${cellAlign === 'center' ? 'centre' : cellAlign}`} onClick={(e) => menu.open(e, [
+              { label: 'Top', icon: cellAlign === 'top' ? 'check' : undefined, run: () => tableOp('cellVAlign', { v: 'top' }) },
+              { label: 'Centre', icon: cellAlign === 'center' ? 'check' : undefined, run: () => tableOp('cellVAlign', { v: 'center' }) },
+              { label: 'Bottom', icon: cellAlign === 'bottom' ? 'check' : undefined, run: () => tableOp('cellVAlign', { v: 'bottom' }) },
+            ])} />
           </Group>
           <Group label="Direction">
             <Button tall icon="textRtl" label="Right to Left" title="Right to left — the table's columns run from the right, as an Arabic or Hebrew table's do" pressed={table.rtl} onClick={() => tableOp('direction', { rtl: !table.rtl })} />
+          </Group>
+          <Group label="Data">
+            <Button tall icon="refresh" label="Repeat Header Rows" pressed={Boolean(caretCell?.rowHeader)} title="Repeat Header Rows — the rows from the top through this one drawn again at the top of every page the table runs onto" onClick={() => tableOp('headerRows', { on: !caretCell?.rowHeader })} />
           </Group>
         </>
       ) : null}
