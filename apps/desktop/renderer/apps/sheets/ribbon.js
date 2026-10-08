@@ -637,6 +637,7 @@ export default function SheetsRibbon({
             <Rows>
               <Button icon="plus" label="Show Detail" title="Show Detail — open the folded group at the active cell" onClick={() => act('showDetail')} />
               <Button icon="minus" label="Hide Detail" title="Hide Detail — fold the group the active cell is in" onClick={() => act('hideDetail')} />
+              <Button icon="grid" label="Auto Outline" title="Auto Outline — group the rows each total adds up above it and the columns each row total adds up to its left, nested as deep as the totals go" onClick={() => act('autoOutline')} />
             </Rows>
           </Group>
           <Group label="Export">

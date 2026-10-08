@@ -255,6 +255,56 @@ export function detail(view, show) {
 }
 
 /**
+ * Data → Group → Auto Outline: the outline worked out from the formulas, as
+ * Excel works it out. A formula totalling a run of cells directly above it
+ * in its own column makes those rows its detail, and one totalling a run
+ * directly to its left in its own row makes those columns its detail; a row
+ * or column is a level deeper for every total that takes it in, so a Grand
+ * Total over subtotals nests them. Whatever outline the sheet had is
+ * replaced, and what it had folded away comes back into view.
+ */
+export function autoOutline(view) {
+  const sheet = view.activeSheet;
+  const same = (s) => s == null || String(s).toLowerCase() === String(sheet).toLowerCase();
+  const runs = { row: new Map(), col: new Map() };
+  for (const c of view.calc.sheets.get(sheet)?.values() ?? []) {
+    if (!c.ast) continue;
+    for (const dep of c.deps ?? []) {
+      if (dep.type !== 'range' || !same(dep.sheet ?? dep.start?.sheet)) continue;
+      const r0 = Math.min(dep.start.row, dep.end.row);
+      const r1 = Math.max(dep.start.row, dep.end.row);
+      const c0 = Math.min(dep.start.col, dep.end.col);
+      const c1 = Math.max(dep.start.col, dep.end.col);
+      if (c0 === c.col && c1 === c.col && r1 === c.row - 1) runs.row.set(r0 + ':' + r1, [r0, r1]);
+      else if (r0 === c.row && r1 === c.row && c1 === c.col - 1) runs.col.set(c0 + ':' + c1, [c0, c1]);
+    }
+  }
+  if (!runs.row.size && !runs.col.size) {
+    throw new Error('Auto Outline found no formula totalling the rows above it or the columns to its left, so there is nothing to outline.');
+  }
+  const rows = axisOf(view, 'row');
+  const cols = axisOf(view, 'col');
+  return outlineEdit(view, 'auto outline', () => {
+    for (const a of [rows, cols]) {
+      for (const g of a.groups()) {
+        for (let i = g.start; i <= g.end; i++) if (a.hidden.has(i)) a.write(i, { hidden: false });
+      }
+      for (const i of [...a.collapsed]) a.write(i, { collapsed: false });
+      for (const i of [...a.levels.keys()]) a.write(i, { level: 0 });
+    }
+    const levels = {};
+    for (const [axis, a] of [['row', rows], ['col', cols]]) {
+      const depth = new Map();
+      for (const [lo, hi] of runs[axis].values()) for (let i = lo; i <= hi; i++) depth.set(i, (depth.get(i) ?? 0) + 1);
+      for (const [i, n] of depth) a.write(i, { level: Math.min(n, MAX_OUTLINE_LEVEL) });
+      a.settleDepth();
+      levels[axis] = a.geo.outlineDepth(axis);
+    }
+    return levels;
+  });
+}
+
+/**
  * Data → Ungroup → Clear Outline: every level on the sheet goes, and the
  * rows and columns folded away by it come back. (Excel leaves those hidden
  * and tells you to unhide them by hand; showing them is the kinder reading

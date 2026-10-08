@@ -45,7 +45,7 @@ import {
 import { Selection, ref, colName } from './selection.js';
 import {
   group as outlineGroup, ungroup as outlineUngroup, toggleGroup, showLevel, detail as outlineDetail,
-  clearOutline, outlineFrame, selectionAxis, subtotal, removeSubtotals, listFields,
+  clearOutline, autoOutline, outlineFrame, selectionAxis, subtotal, removeSubtotals, listFields,
 } from './outline.js';
 import { advancedFilter, clearAdvancedFilter, filterNames } from './advanced-filter.js';
 import { paginate, planBands, pageSetup, readPageSetup, parseArea, PAPER, PX_PER_MM } from './print.js';
@@ -2530,6 +2530,9 @@ export class SheetView {
 
   /** Data → Ungroup → Clear Outline. */
   clearOutline() { return clearOutline(this); }
+
+  /** Data → Group → Auto Outline: the outline the formulas imply. */
+  autoOutline() { return autoOutline(this); }
 
   /** Data → Subtotal, as the dialog specifies it. */
   subtotal(spec) { return subtotal(this, spec); }

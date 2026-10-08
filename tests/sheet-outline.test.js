@@ -217,3 +217,29 @@ test('An outline Excel wrote reads as groups: levels, a folded group, grouped co
   assert.match(rowTag(out, 5), /^<row r="5" outlineLevel="1">$/);
   assert.match(out, /x14ac:dyDescent="0.25"/, 'the rest of sheetFormatPr is left as it was');
 });
+
+test('Auto Outline groups the rows each total adds up above it and the columns a row total adds up to its left, a Grand Total nesting the subtotals', () => {
+  const sheetRows = [
+    ['Region', 'Q1', 'Q2', 'Year'],
+    ['Kim', 3, 4, '=SUM(B2:C2)'],
+    ['Lee', 2, 5, '=SUM(B3:C3)'],
+    ['East', '=SUM(B2:B3)', '=SUM(C2:C3)', '=SUM(B4:C4)'],
+    ['Ann', 5, 1, '=SUM(B5:C5)'],
+    ['Bo', 1, 2, '=SUM(B6:C6)'],
+    ['Cy', 4, 4, '=SUM(B7:C7)'],
+    ['West', '=SUM(B5:B7)', '=SUM(C5:C7)', '=SUM(B8:C8)'],
+    ['Total', '=SUBTOTAL(9,B2:B8)', '=SUBTOTAL(9,C2:C8)', '=SUM(B9:C9)'],
+  ];
+  const view = new SheetView(buildXlsx({ sheets: [{ name: 'S', rows: sheetRows }] }));
+  view.group({ axis: 'row', from: 0, to: 0 });
+  const levels = view.autoOutline();
+  assert.deepEqual(levels, { row: 2, col: 1 });
+  assert.deepEqual([0, 1, 2, 3, 4, 5, 6, 7, 8].map((r) => view.geo.rowLevels.get(r) ?? 0), [0, 2, 2, 1, 2, 2, 2, 1, 0], 'the rows under each subtotal, and the subtotals under the Grand Total');
+  assert.deepEqual([0, 1, 2, 3].map((c) => view.geo.colLevels.get(c) ?? 0), [0, 1, 1, 0], 'the quarters under the year');
+  assert.match(partXml(view), /<sheetFormatPr\b[^>]*outlineLevelRow="2"/);
+  view.undo();
+  assert.equal(view.geo.rowLevels.get(0), 1, 'one undo step puts the old outline back');
+  assert.equal(view.geo.rowLevels.get(1) ?? 0, 0);
+  const plain = new SheetView(buildXlsx({ sheets: [{ name: 'S', rows: [['a', 1], ['b', 2]] }] }));
+  assert.throws(() => plain.autoOutline(), /nothing to outline/);
+});

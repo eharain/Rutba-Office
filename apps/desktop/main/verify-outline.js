@@ -221,6 +221,16 @@ export async function verifyOutline(h, { dir }) {
     await js(`(() => { document.querySelector('.sh-ol-level[data-axis="row"][data-level="3"]').click(); return 1; })()`);
     await until(async () => (await heads()).includes('2'), 'level 3', 5000).catch(() => {});
 
+    // Clear Outline, then Auto Outline: the outline worked out again from the SUBTOTAL formulas.
+    await clickIn('Ungroup');
+    await menuItem(/Clear Outline/);
+    const cleared = await until(() => js(`!document.querySelector('.sh-ol-level[data-axis="row"]')`), 'the outline cleared', 5000).catch(() => false);
+    await clickIn('Auto Outline');
+    const rebuilt = await until(() => js(`[...document.querySelectorAll('.sh-ol-level[data-axis="row"]')].map((b) => b.textContent.trim()).join(',') === '1,2,3'`), 'the outline rebuilt', 5000).catch(() => false);
+    const boxes = await js(`document.querySelectorAll('.sh-rowheads > .sh-gutter.rows .sh-ol-box').length`);
+    check('sheets: Data → Auto Outline builds the subtotals\' outline again from their formulas — levels 1 2 3, a box by every total',
+      cleared === true && rebuilt === true && boxes === 4, `cleared ${cleared}, rebuilt ${rebuilt}, boxes ${boxes}`);
+
     // Remove All puts the list back.
     await clickIn('Subtotal');
     await until(() => js(`Boolean(document.querySelector('.sh-sub-remove:not(:disabled)'))`), 'Remove All', 5000).catch(() => {});

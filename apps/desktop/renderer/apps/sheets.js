@@ -2475,6 +2475,7 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'clearOutline': await dispatch({ op: 'clearOutline' }); return;
+      case 'autoOutline': await dispatch({ op: 'autoOutline' }); return;
       // Data → Flash Fill (Ctrl+E), Advanced and Clear: what the engine says
       // when it will not is a note, not an alarm — a toast that says why.
       case 'flashFill':

@@ -1767,6 +1767,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     showDetail: (v) => { v.showDetail(); },
     hideDetail: (v) => { v.hideDetail(); },
     clearOutline: (v) => { v.clearOutline(); },
+    autoOutline: (v) => { v.autoOutline(); },
     // Data → Subtotal and its Remove All; the count of groups rides back.
     subtotal: (v, a) => v.subtotal({
       groupBy: a.groupBy, fn: a.fn, columns: a.columns || [], replace: a.replace !== false, pageBreaks: Boolean(a.pageBreaks), summaryBelow: a.summaryBelow !== false,
