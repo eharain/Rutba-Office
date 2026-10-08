@@ -32,6 +32,9 @@ import {
 } from './positions.js';
 import { installReferenceViews } from './references.js';
 
+/** A mail merge record known by its values: a hash, so a ticked-off record is found again after the list moves its rows. */
+const recordKey = (record) => { let h = 0x811c9dc5; const s = JSON.stringify(record ?? null); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; } return h.toString(36); };
+
 /**
  * One indent step, in twips (1/20 point) — half an inch, what Tab-to-indent and
  * the ribbon's indent buttons move by. A plain unit constant, not format
@@ -3049,6 +3052,10 @@ export class DocView {
       viewMergedData: Boolean(m.preview && m.source),
       activeRecord: m.source ? this.mergeSummary().record : null,
     });
+    // Edit Recipient List's ticks and sort, kept in the document with the list's link.
+    if (typeof this.doc.setMergeRecipientsPart === 'function' && m.source) {
+      this.doc.setMergeRecipientsPart({ excluded: m.excluded.map((index) => ({ index, key: recordKey(m.source.records[index]) })), sort: m.sort });
+    }
     this.touched = true;
   }
 
@@ -3081,6 +3088,13 @@ export class DocView {
       // file says, the record and the preview as the file left them, and
       // nothing written — reopening is not an edit.
       m.source = source;
+      // Edit Recipient List's ticks and sort as the document kept them: each left-out record found again by its values.
+      const kept = typeof this.doc.mergeRecipients === 'function' ? this.doc.mergeRecipients() : null;
+      if (kept) {
+        const keys = source.records.map(recordKey);
+        m.excluded = [...new Set(kept.excluded.map((e) => (keys[e.index] === e.key ? e.index : keys.indexOf(e.key))).filter((i) => i >= 0))];
+        m.sort = kept.sort && source.fields.includes(kept.sort.field) ? kept.sort : null;
+      }
       m.record = Math.max(1, Math.min(source.records.length || 1, m.saved?.activeRecord || 1));
       m.preview = Boolean(m.saved?.viewMergedData);
       if (!m.type) m.type = m.saved?.type || 'formLetters';

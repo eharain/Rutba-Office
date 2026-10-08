@@ -1492,6 +1492,45 @@ export class Document {
   }
 
   /**
+   * Edit Recipient List's ticks and sort, as this suite keeps them: Word
+   * keeps its own in a part keyed by its data source's record ids, which a
+   * list read here has not got, so they live in a part of the suite's own
+   * (customXml/rutbaMergeRecipients.xml, related from the document), which
+   * Word passes over. `{ excluded: [{ index, key }], sort }` — each left-out
+   * record by its place and a hash of its values, so a list that has moved
+   * its rows about still finds them — or null when there is none.
+   */
+  mergeRecipients() {
+    const part = 'customXml/rutbaMergeRecipients.xml';
+    if (!this.pkg.has(part)) return null;
+    try {
+      const m = /<!\[CDATA\[([\s\S]*)\]\]>/.exec(this.pkg.text(part));
+      const got = JSON.parse(m ? m[1] : 'null');
+      return got && Array.isArray(got.excluded) ? got : null;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Keep (or, with nothing left out and no sort, drop) the recipient list's ticks and sort. */
+  setMergeRecipientsPart(spec) {
+    const part = 'customXml/rutbaMergeRecipients.xml';
+    const keep = spec && ((spec.excluded || []).length || spec.sort);
+    if (!keep) {
+      if (this.pkg.has(part)) this.pkg.write_(part, Buffer.from('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><recipients xmlns="urn:rutba:merge-recipients"><![CDATA[null]]></recipients>', 'utf8'));
+      return this;
+    }
+    const json = JSON.stringify({ excluded: spec.excluded || [], sort: spec.sort || null }).replace(/\]\]>/g, ']]]]><![CDATA[>');
+    const xml = Buffer.from('<?xml version="1.0" encoding="UTF-8" standalone="yes"?><recipients xmlns="urn:rutba:merge-recipients"><![CDATA[' + json + ']]></recipients>', 'utf8');
+    if (this.pkg.has(part)) this.pkg.write_(part, xml);
+    else {
+      this.pkg.addPart(part, xml, 'application/xml');
+      this.pkg.addRelationshipTo(this.mainPart, 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml', '../' + part);
+    }
+    return this;
+  }
+
+  /**
    * Write `w:mailMerge` as Word writes it — or, with null (Start Mail Merge
    * → Normal Word Document), take it away with its data source link.
    *

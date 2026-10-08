@@ -466,6 +466,9 @@ export class OoxmlBackend {
   /** Mailings: the merge settings.xml keeps, read and written as Word keeps them. */
   mailMerge() { return this.doc.mailMerge(); }
   setMailMerge(spec) { this.doc.setMailMerge(spec); return this; }
+  /** Edit Recipient List's ticks and sort, kept in a part of the suite's own — see document.js. */
+  mergeRecipients() { return this.doc.mergeRecipients(); }
+  setMergeRecipientsPart(spec) { this.doc.setMergeRecipientsPart(spec); return this; }
   /** Finish & Merge: a merged document, or a message per record. */
   mergeToDocument(source, order, opts) { return mergeToDocument(this.doc, source, order, opts); }
   mergeMessages(source, order, opts) { return mergeMessages(this.doc, source, order, opts); }
