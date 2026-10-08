@@ -55,6 +55,7 @@ import {
 } from './word/drawings.js';
 
 import { hyphenPoints, breakableWord, hyphenationRules } from '@rutba/doc-view/hyphenate';
+import { cellLook, tableRuled } from '@rutba/doc-view/table-look';
 
 /** The page's geometry before a section is known — A4-ish, Word's default margins. */
 const GEOM_DEFAULT = geomOf(null);
@@ -2955,81 +2956,24 @@ function TableGroup({ table, labels, styles, tsplit }) {
   // typed in there: the caret stays in the first.
   let headerCount = 0;
   while (headerCount < rows.length && table.headers?.has(rows[headerCount][0])) headerCount += 1;
-  // The table's lines as the file gives them: each cell's own side, else the
-  // table's outer side at its edge and its inside line between cells. A table
-  // that gives none has none — only View Gridlines' faint dashes.
+  // The table's lines, shading and words as the file gives them — the cell's
+  // own, its table style's parts by where it stands, the table's sides (see
+  // @rutba/doc-view/table-look, which the PDF draws from too). A table that
+  // gives no lines has none — only View Gridlines' faint dashes.
   const columnCount = grid?.length || Math.max(1, ...rows.map(([, cells]) => [...cells.keys()].reduce((n, c) => n + (table.spans?.get(`${rows[0][0]}:${c}`) || 1), 0)));
-  const lastRow = rows.length ? rows[rows.length - 1][0] : 0;
-  // The table style's parts that reach a cell, in Word's order — banded
-  // columns, banded rows, first and last column, header and total row, the
-  // corners — each laid over the one before; the cell's own over them all.
-  const ts = table.style;
-  const ruled = Boolean(table.borders || table.anyCellBorders || (ts && Object.values(ts.parts || {}).some((p) => p.borders)));
-  const where = ({ row, column, span, rowSpan }) => {
-    const rowAt = rows.findIndex(([r]) => r === row);
-    const bottomRow = rows[Math.min(rows.length - 1, rowAt + rowSpan - 1)]?.[0];
-    return { rowAt, first: rowAt === 0, last: bottomRow === lastRow, start: column === 0, end: column + span >= columnCount };
-  };
-  const partsOf = (drawn) => {
-    if (!ts?.parts) return [];
-    const { look = {}, parts, rowBand = 1, colBand = 1 } = ts;
-    const at = where(drawn);
-    const out = [];
-    const add = (type, rowScope, colScope) => { if (parts[type]) out.push({ ...parts[type], rowScope, colScope }); };
-    const header = look.firstRow && at.first;
-    const total = look.lastRow && at.last;
-    const firstCol = look.firstColumn && at.start;
-    const lastCol = look.lastColumn && at.end;
-    const kc = drawn.column - (look.firstColumn ? 1 : 0);
-    if (!look.noVBand && kc >= 0 && !lastCol) add(Math.floor(kc / colBand) % 2 ? 'band2Vert' : 'band1Vert', false, true);
-    const kr = at.rowAt - (look.firstRow ? 1 : 0);
-    if (!look.noHBand && kr >= 0 && !total) add(Math.floor(kr / rowBand) % 2 ? 'band2Horz' : 'band1Horz', true, false);
-    if (firstCol) add('firstCol', false, true);
-    if (lastCol) add('lastCol', false, true);
-    if (header) add('firstRow', true, false);
-    if (total) add('lastRow', true, false);
-    if (header && firstCol) add('nwCell', true, true);
-    if (header && lastCol) add('neCell', true, true);
-    if (total && firstCol) add('swCell', true, true);
-    if (total && lastCol) add('seCell', true, true);
-    return out;
-  };
-  const sidesOf = (drawn) => {
-    if (!ruled) return null;
-    const { c, row, column, span } = drawn;
-    const own = table.cellLooks?.get(`${row}:${c}`)?.borders || {};
-    const t = table.borders || {};
-    const at = where(drawn);
-    // Each side from the table, then from each part that says it: a row's part
-    // gives its top and bottom, and its inside line between the cells across it.
-    const side = { top: at.first ? t.top : t.insideH, bottom: at.last ? t.bottom : t.insideH, left: at.start ? t.left : t.insideV, right: at.end ? t.right : t.insideV };
-    for (const p of partsOf(drawn)) {
-      const b = p.borders;
-      if (!b) continue;
-      const set = (name, v) => { if (v !== undefined) side[name] = v; };
-      set('top', p.rowScope || at.first ? b.top : b.insideH);
-      set('bottom', p.rowScope || at.last ? b.bottom : b.insideH);
-      set('left', p.colScope || at.start ? b.left : b.insideV);
-      set('right', p.colScope || at.end ? b.right : b.insideV);
-    }
-    const pick = (name) => borderCss(own[name] ?? side[name]);
+  const ruled = tableRuled({ borders: table.borders, style: table.style, anyCellBorders: table.anyCellBorders });
+  const lookOf = (drawn) => {
+    const look = cellLook({
+      style: table.style, borders: table.borders, own: table.cellLooks?.get(`${drawn.row}:${drawn.c}`) || null, ruled,
+      at: { row: rows.findIndex(([r]) => r === drawn.row), column: drawn.column, span: drawn.span, rowSpan: drawn.rowSpan, rows: rows.length, columns: columnCount },
+    });
+    const { bold, italic, colour } = look.text;
     return {
-      borderTop: pick('top'),
-      borderBottom: pick('bottom'),
       // Left and right as the table runs: a right-to-left table's first column is at the right.
-      borderInlineStart: pick('left'),
-      borderInlineEnd: pick('right'),
+      sides: look.sides ? { borderTop: borderCss(look.sides.top), borderBottom: borderCss(look.sides.bottom), borderInlineStart: borderCss(look.sides.left), borderInlineEnd: borderCss(look.sides.right) } : null,
+      fill: look.fill,
+      text: { ...(bold !== undefined ? { fontWeight: bold ? 700 : 400 } : {}), ...(italic !== undefined ? { fontStyle: italic ? 'italic' : 'normal' } : {}), ...(colour ? { color: colour } : {}) },
     };
-  };
-  /** A cell's shading and its words' look: its own, else the last part that gives one, else the style's. */
-  const looksOf = (drawn) => {
-    const parts = partsOf(drawn);
-    const last = (key) => { for (let k = parts.length - 1; k >= 0; k--) if (parts[k][key] !== undefined) return parts[k][key]; return undefined; };
-    const fill = table.cellLooks?.get(`${drawn.row}:${drawn.c}`)?.fill ?? last('fill') ?? ts?.fill ?? null;
-    const bold = last('bold');
-    const italic = last('italic');
-    const colour = last('colour');
-    return { fill, text: { ...(bold !== undefined ? { fontWeight: bold ? 700 : 400 } : {}), ...(italic !== undefined ? { fontStyle: italic ? 'italic' : 'normal' } : {}), ...(colour ? { color: colour } : {}) } };
   };
   const drawRow = ([r, cells], repeat) => (
     <tr key={repeat ? `h${r}` : r} className={repeat ? 'wd-repeat' : undefined} data-repeat={repeat ? 1 : undefined} contentEditable={repeat ? false : undefined} style={table.rowHeights?.has(r) ? { height: table.rowHeights.get(r) } : undefined}>
@@ -3040,8 +2984,7 @@ function TableGroup({ table, labels, styles, tsplit }) {
         const exact = table.rowRules?.get(r) === 'exact' && table.rowHeights?.get(r);
         const v = table.vAligns?.get(`${r}:${c}`);
         const m = table.look?.cellMarginPx;
-        const sides = sidesOf(drawn);
-        const { fill, text } = looksOf(drawn);
+        const { sides, fill, text } = lookOf(drawn);
         const blocks = paragraphs.map((block) => <Block key={block.index} block={block} labels={labels} styles={styles} />);
         return (
           <td key={c} colSpan={table.spans?.get(`${r}:${c}`) || undefined} rowSpan={rowSpan > 1 ? rowSpan : undefined} style={m || v || sides || fill || Object.keys(text).length ? { ...(m ? { padding: `${m.top}px ${m.right}px ${m.bottom}px ${m.left}px` } : {}), ...(v ? { verticalAlign: v === 'center' ? 'middle' : v } : {}), ...(sides || {}), ...(fill ? { background: fill } : {}), ...text } : undefined}>

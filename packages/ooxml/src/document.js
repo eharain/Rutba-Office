@@ -1037,6 +1037,11 @@ export class Document {
         depth -= 1;
         if (depth === 0 && sdtDepth === 0 && tblStart >= 0) {
           const table = parseTable(body.slice(tblStart, m.index + tag.length));
+          // Its style's lines under its own, and the style's parts — printed as the page draws them.
+          const head = tableHead(body, tblStart);
+          const styled = this._tableStyleLook(head.styleId);
+          if (styled.borders) table.borders = { ...styled.borders, ...(table.borders || {}) };
+          if (styled.fill || Object.keys(styled.parts).length) table.tableStyle = { fill: styled.fill, parts: styled.parts, rowBand: styled.rowBand, colBand: styled.colBand, look: head.styleLook };
           this._assignBlockIndices(table, tblStart, m.index + tag.length);
           out.push({ kind: 'table', table });
           tblStart = -1;

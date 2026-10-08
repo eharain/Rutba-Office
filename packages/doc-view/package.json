@@ -22,6 +22,7 @@
     "./hyphenate": "./src/hyphenate.js",
     "./bands": "./src/bands.js",
     "./lists": "./src/lists.js",
+    "./table-look": "./src/table-look.js",
     "./export/pdf": "./src/export/pdf.js"
   },
   "files": [

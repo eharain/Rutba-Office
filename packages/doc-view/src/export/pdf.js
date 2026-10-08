@@ -32,6 +32,7 @@ import { computeListLabels } from '../lists.js';
 import { bandForPage, resolveFields } from '../bands.js';
 import { hyphenationRules } from '../hyphenate.js';
 import { lineHeight as lineHeightOf } from '@rutba/drawing';
+import { cellLook, tableRuled, drawnSide } from '../table-look.js';
 
 /** CSS pixels (96dpi, the paginator's unit) to points (72dpi, the page's). */
 const PT = 0.75;
@@ -323,12 +324,6 @@ function dataUriBytes(href) {
   }
 }
 
-/** A cell's or table's border on one side, as the shell resolves it. */
-function borderOf(borders, side) {
-  if (!borders) return undefined;
-  return borders[side] ?? (side === 'top' || side === 'bottom' ? borders.insideH : borders.insideV);
-}
-
 /**
  * Draw the rows of a table fragment from (xPx, yPx); returns the height used
  * in px. Breaks between rows are the paginator's business — this draws what
@@ -363,10 +358,17 @@ function drawTable(page, doc, table, rows, { xPx, yPx, widthPx, labelOf, depth =
     for (let k = ri + 1; k < rows.length && cellAt(rows[k], at)?.vMerge === 'continue'; k++) total += heights[k];
     return total;
   };
+  // Each cell's lines, shading and words: its own, its table style's parts by
+  // where it stands in the whole table, the table's sides (table-look.js, as
+  // the page draws them). A table that gives no lines prints none.
+  const ruled = !table.bordersNone && tableRuled({ borders: table.borders, style: table.tableStyle, anyCellBorders: (table.rows || []).some((r) => r.cells.some((c) => c.borders)) });
+  const allRows = table.rows || rows;
+  const totalColumns = table.columnCount || columns.length;
   let y = yPx;
   for (let ri = 0; ri < rows.length; ri++) {
     const row = rows[ri];
     const rowH = heights[ri];
+    const rowAt = Math.max(0, allRows.indexOf(row));
     let cx = xPx;
     let column = 0;
     for (const cell of row.cells) {
@@ -377,22 +379,25 @@ function drawTable(page, doc, table, rows, { xPx, yPx, widthPx, labelOf, depth =
       const above = ri > 0 ? cellAt(rows[ri - 1], at)?.vMerge : null;
       if (cell.vMerge === 'continue' && (above === 'restart' || above === 'continue')) { cx += cellWidth; continue; }
       const h = cell.vMerge === 'restart' || cell.vMerge === 'continue' ? reach(ri, at) : rowH;
-      if (cell.shading && /^#?[0-9a-fA-F]{6}$/.test(String(cell.shading))) {
-        page.rect(cx * PT, y * PT, cellWidth * PT, h * PT, { fill: `#${String(cell.shading).replace('#', '')}` });
+      let rowSpan = 1;
+      while (ri + rowSpan < rows.length && cellAt(rows[ri + rowSpan], at)?.vMerge === 'continue') rowSpan += 1;
+      const look = cellLook({
+        style: table.tableStyle || null, borders: table.borders || null, own: { borders: cell.borders || null, fill: cell.shading || null }, ruled,
+        at: { row: rowAt, column: at, span, rowSpan, rows: allRows.length, columns: totalColumns },
+      });
+      if (look.fill && /^#?[0-9a-fA-F]{6}$/.test(String(look.fill))) {
+        page.rect(cx * PT, y * PT, cellWidth * PT, h * PT, { fill: `#${String(look.fill).replace('#', '')}` });
       }
-      const borders = cell.borders ?? table.borders ?? null;
-      // Every border off: no lines at all — the grey default is for a table
-      // that simply says nothing about its borders.
-      if (!(table.bordersNone && !cell.borders)) {
+      if (look.sides) {
         const sides = [
           ['top', cx, y, cx + cellWidth, y], ['bottom', cx, y + h, cx + cellWidth, y + h],
           ['left', cx, y, cx, y + h], ['right', cx + cellWidth, y, cx + cellWidth, y + h],
         ];
         for (const [side, x1, y1, x2, y2] of sides) {
-          const b = borderOf(borders, side);
-          if (b && b.widthPx === 0) continue;
-          const colour = b && b.colour && /^#?[0-9a-fA-F]{6}$/.test(String(b.colour)) ? `#${String(b.colour).replace('#', '')}` : '#9a9a9a';
-          page.line(x1 * PT, y1 * PT, x2 * PT, y2 * PT, { width: b && b.widthPx ? Math.max(0.4, b.widthPx * PT) : 0.5, colour });
+          const b = look.sides[side];
+          if (!drawnSide(b)) continue;
+          const colour = b.colour && /^#?[0-9a-fA-F]{6}$/.test(String(b.colour)) ? `#${String(b.colour).replace('#', '')}` : '#000000';
+          page.line(x1 * PT, y1 * PT, x2 * PT, y2 * PT, { width: Math.max(0.4, (b.widthPx || 0.67) * PT), colour });
         }
       }
       let cy = y + padT;
@@ -410,9 +415,10 @@ function drawTable(page, doc, table, rows, { xPx, yPx, widthPx, labelOf, depth =
         }
         const laid = layoutParagraph(b, cellWidth - padL - padR, { cache: null });
         const label = labelOf(b.blockIndex);
+        // The table style's word look for this cell, where a run says nothing of its own.
         const fragment = {
-          sizePx: laid.style.sizePx, lineHeightPx: laid.lineHeightPx, weight: laid.style.weight,
-          italic: laid.style.italic, colour: laid.style.colour, align: b.align || laid.style.align || null,
+          sizePx: laid.style.sizePx, lineHeightPx: laid.lineHeightPx, weight: look.text.bold === undefined ? laid.style.weight : look.text.bold ? 'bold' : 'normal',
+          italic: look.text.italic ?? laid.style.italic, colour: look.text.colour || laid.style.colour, align: b.align || laid.style.align || null,
         };
         const runs = label ? [{ text: `${label.label} ` }, ...(b.runs || [])] : (b.runs || []);
         const lines = label
