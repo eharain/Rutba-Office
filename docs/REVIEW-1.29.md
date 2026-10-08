@@ -56,6 +56,33 @@ Correctness, each with a test in `tests/review-*.test.js`:
   no macro part and no macro-enabled content type (test only; the reader
   already went through a model and never copied the storage).
 
+Hostile input, each held by `tests/binary-hostile.test.js`:
+
+- A compound file whose directory entry named itself as its sibling
+  recursed until the stack went; a looping sector chain with a 2 GB stream
+  size allocated the lot; a DIFAT pointing at itself used 1.4 GB; a name
+  over 64 characters and a DIFAT sector past a cut file's end each threw
+  from a DataView. The tree keeps a visited set, chains and the DIFAT are
+  bounded by the table and the file, a stream never allocates past the
+  source, the name is clamped and a short sector ends the walk (`cfb.js`).
+- Old Word's piece and PLC counts came from a 32-bit field and ran billions
+  of times before "Invalid array length"; `entriesIn` clamps them to what
+  the stream holds (`msdoc.js`, `msdoc-old.js`).
+- A message that was nothing but unclosed tags took the preview's and the
+  junk filter's tag patterns to the end of the text at every angle bracket,
+  40 s for 200 KB with no click from the reader; a single pass replaces
+  them (`mime.js`, `mail-junk.js`, `mail/parts.js`).
+- An agile-encrypted file's spin count ran as many hashing rounds as it
+  named, hours on the main process; refused above Office's own ten million
+  (`crypt.js`).
+- On Windows an attachment named `update.exe ` with a trailing space, or
+  with an alternate data stream, missed the "this is a program" warning
+  and ran; the extension is now taken as Windows takes it (`mail.js`,
+  `attachmentExtension` in `mime.js`).
+- A script could write cells past Excel's last row and column, which Excel
+  then calls damaged, and a whole-sheet clear walked every address there
+  is; both keep to the cells that exist (`script-apply.js`, `scripts.js`).
+
 Performance, held by `tests/perf-budget.test.js`:
 
 - A formula cell's row was found by searching the part's rows: 100,000
@@ -98,6 +125,14 @@ saves in 5.2 s; a 200-slide deck renders every slide in about 0.1 s; a
 
 ### Medium
 
+- **A mail-merge source path stored in the document is opened on open**
+  (`documents.js`, `reattachMergeSource`), with no prompt; a document
+  naming a UNC share leaks Windows credentials to it and merges its rows.
+  Refuse UNC paths and ask before attaching any path a document supplies.
+- **`shell.openPath` and `fs.write` from the renderer check no extension
+  or place**, and `rutba://file` serves any path; mitigated by the sandbox,
+  context isolation and `script-src 'self'`, but `openPath` in main should
+  refuse the extensions that run when opened.
 - Tracked table rows (`w:ins`/`w:del` in `trPr`): Accept All leaves the
   marker, Reject All empties the row but keeps it; the resolver works
   paragraph by paragraph and needs a row level.
@@ -129,6 +164,20 @@ saves in 5.2 s; a 200-slide deck renders every slide in about 0.1 s; a
 
 ### Low
 
+- A Power Query source path stored in the workbook is read on Refresh with
+  UNC paths accepted; limited to text files and to a click, but main never
+  checks the path came from a dialog.
+- The junk verdict trusts Safe Senders, contacts and Safe Recipients before
+  the server's spam flag, on unauthenticated From and To.
+- `msppt.js` `walkGroup` recurses on nested groups without a depth bound;
+  ten thousand give a stack-overflow refusal, not a hang. Bound it at 64.
+- Control characters in a cell string reach the sheet XML unfiltered; the
+  writer has no XML 1.0 character filter.
+- `tools/fuzz-open.js` holds only `.docx`, `.xlsx` and `.pptx`, so no binary
+  reader is in its corpus, and its judge tests the message for a pattern
+  that never matches, so a DataView range error or a stack overflow counts
+  as a clean refusal. Judge on the error's name, add a two-second limit,
+  and add `tests/fixtures/binary` to the corpus.
 - One multi-piece tracked delete shares a `w:id` across its `w:del`
   elements; Word tolerates it, the schema does not.
 - Accept All and Reject All resolve body paragraphs only, not headers,
@@ -164,7 +213,18 @@ should budget for.
 
 ## Sound
 
-Checked and found right: Word's own revisions keep ids and authors through
+Checked and found right: the scripts worker's policy of `default-src 'none'`
+blocks fetch, XHR, WebSocket, EventSource and beacons, `importScripts` and
+nested workers reach only the app's own origin, a fresh worker runs each
+script and is ended at fifteen seconds, prototype pollution stays inside
+it and `applyScriptEdits` reads fixed fields; the IPC contract has lost
+`fs.rename`, `fs.copy` and the secrets group, `openExternal` allows only
+http, https, mailto and tel, and no `eval` or `new Function` exists outside
+the worker; the mail frame is sandboxed under `default-src 'none'` with
+remote pictures rewritten and off by default; the binary readers' byte
+accessors return zero past the end and their record loops always advance;
+the one new dependency group (`@rutba/proofing` with its dictionaries) is
+pure JavaScript with no network. Also: Word's own revisions keep ids and authors through
 an edit and a save; a Word table with `gridSpan`, `vMerge` and a nested
 table saves byte for byte untouched; `transposeFormula` across ranges,
 mixed anchors and sheets; cut-paste re-pointing and undoing whole; Power
