@@ -785,6 +785,8 @@ export function renderSlide(slide, opts = {}) {
     } else {
       body.push(face);
     }
+    // A cameo, where there is no camera to fill it: a camera drawn in its middle.
+    if (shape.cameo) body.push(cameraGlyph(g));
     // Slide Master view: each placeholder's box, dashed, the way PowerPoint marks them.
     if (placeholderFrames && shape.placeholder) {
       body.push(`<rect x="${g.x.toFixed(2)}" y="${g.y.toFixed(2)}" width="${g.w.toFixed(2)}" height="${g.h.toFixed(2)}" fill="none" stroke="#8a94a6" stroke-width="1.2" stroke-dasharray="6 4"${transform}/>`);
@@ -800,6 +802,19 @@ export function renderSlide(slide, opts = {}) {
     `<svg xmlns="http://www.w3.org/2000/svg" width="${w.toFixed(0)}" height="${h.toFixed(0)}" ` +
     `viewBox="0 0 ${W.toFixed(0)} ${H.toFixed(0)}" role="img">${inner}</svg>`
   );
+}
+
+/** Insert → Cameo's mark: a camera, a third of the shape's smaller side, in its middle. */
+function cameraGlyph(g) {
+  const s = Math.min(g.w, g.h) * 0.34;
+  const x = g.x + g.w / 2 - s / 2;
+  const y = g.y + g.h / 2 - s * 0.32;
+  const bw = s * 0.72;
+  const bh = s * 0.64;
+  const n = (v) => v.toFixed(2);
+  return `<g fill="#8c8c8c"><rect x="${n(x)}" y="${n(y)}" width="${n(bw)}" height="${n(bh)}" rx="${n(s * 0.1)}"/>` +
+    `<path d="M${n(x + bw + s * 0.04)} ${n(y + bh * 0.38)} L${n(x + s)} ${n(y + bh * 0.12)} L${n(x + s)} ${n(y + bh * 0.88)} L${n(x + bw + s * 0.04)} ${n(y + bh * 0.62)} Z"/>` +
+    `<circle cx="${n(x + bw / 2)}" cy="${n(y + bh / 2)}" r="${n(bh * 0.24)}" fill="#d9d9d9"/></g>`;
 }
 
 /** A thumbnail: the same drawing, smaller, with a border the sorter can show. */

@@ -907,9 +907,14 @@ function readShape(sp, ctx, container, groupId) {
     if (text && !text.anchorStated && inherited.anchor) text.anchor = inherited.anchor;
   }
 
+  // Insert → Cameo: a shape the show fills with the camera.
+  const nvPr = first(kids(sp, P('nvSpPr'))[0] || sp, P('nvPr'));
+  const cameo = Boolean(nvPr && first(nvPr, 'rcam:cameo'));
+
   return {
     kind: 'shape',
     ...meta,
+    ...(cameo ? { cameo: true } : {}),
     groupId,
     placeholder: ph,
     geometry,

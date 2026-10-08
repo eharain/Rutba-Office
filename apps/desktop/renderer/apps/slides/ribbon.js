@@ -215,6 +215,8 @@ export default function SlidesRibbon({
         { id: 'pdf', label: 'PDF' },
         // Table Design, as PowerPoint's: there while a table is selected.
         ...(selectedShapeObj?.kind === 'table' ? [{ id: 'tableDesign', label: 'Table Design' }] : []),
+        // Camera Format, as PowerPoint's: there while a cameo is selected.
+        ...(selectedShapeObj?.cameo ? [{ id: 'cameraFormat', label: 'Camera Format' }] : []),
         // 3D Model, as PowerPoint's: there while a 3D model is selected.
         ...(selectedShapeObj?.model3d ? [{ id: 'model3d', label: '3D Model' }] : []),
       ]}
@@ -475,7 +477,7 @@ export default function SlidesRibbon({
             <Button tall icon="picture" label="Photo Album" title="Photo Album — a new presentation of your pictures, one, two or four to a slide, captioned if you like" onClick={() => act('photoAlbum')} />
           </Group>
           <Group label="Camera">
-            <Soon tall icon="video" label="Cameo" why="A live camera feed on a slide is a PowerPoint-only feature." />
+            <Button tall icon="video" label="Cameo" className="sl-cameo-insert" title="Cameo — your camera, live, in a shape on the slide; the show fills it, and Camera Format → Preview shows it here" onClick={() => act('cameo')} />
           </Group>
           <Group label="Illustrations">
             <Button tall icon="shape" label="Shapes" title="Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
@@ -893,7 +895,7 @@ export default function SlidesRibbon({
             <Button tall icon="play" label="Preview" title="Preview — this slide's narration, heard" onClick={() => act('previewNarration')} />
           </Group>
           <Group label="Camera">
-            <Soon tall icon="video" label="Cameo" why="A live camera feed on a slide is a PowerPoint-only feature." />
+            <Button tall icon="video" label="Cameo" title="Cameo — your camera, live, in a shape on this slide" onClick={() => act('cameo')} />
           </Group>
           <Group label="Record">
             <Button tall icon="video" label="From Beginning" title="Record From Beginning — the show from its first slide with the microphone on" onClick={() => act('recordShow', 'start')} />
@@ -1062,6 +1064,20 @@ export default function SlidesRibbon({
           </>
         );
       })() : null}
+
+      {/* ── Camera Format (contextual) ─────────────────────────────────────── */}
+      {tab === 'cameraFormat' && selectedShapeObj?.cameo ? (
+        <>
+          <Group label="Camera">
+            <Button tall icon="eye" label="Preview" className="sl-cameo-preview" pressed={Boolean(view.cameoPreview)} title={view.cameoPreview ? 'Preview — the camera is on here; press to turn it off' : 'Preview — the camera, live, in the cameo here on the slide'} onClick={() => act('cameoPreview')} />
+          </Group>
+          <Group label="Camera Styles">
+            {[['rect', 'Rectangle'], ['ellipse', 'Oval'], ['roundRect', 'Rounded Rectangle']].map(([preset, label]) => (
+              <Button key={preset} tall icon="shape" label={label} className="sl-cameo-shape" data-preset={preset} pressed={selectedShapeObj.preset === preset} title={`Camera Shape — the cameo as a ${label.toLowerCase()}`} onClick={() => act('cameoShape', preset)} />
+            ))}
+          </Group>
+        </>
+      ) : null}
 
       {/* ── Table Design (contextual) ─────────────────────────────────────── */}
       {tab === 'tableDesign' && selectedShapeObj?.kind === 'table' ? (() => {

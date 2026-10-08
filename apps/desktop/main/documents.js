@@ -1665,6 +1665,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
               action: s.action ?? null,
               // Insert → Video and Audio: what it plays, and where the bytes are.
               media: s.media ? { kind: s.media.kind, url: resolveMedia(s.media) } : null,
+              // Insert → Cameo: a shape the show fills with the camera.
+              cameo: Boolean(s.cameo),
               // Insert → 3D Models: the view the model is drawn at.
               model3d: s.model3d ?? null,
               // Insert → Object: the embedded document's program and name, for a double-click to open it.
@@ -2181,6 +2183,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // middle of it. The engine does not decode pictures; this reads the size
     // out of the first bytes the way the photo viewer does.
     addPicture: (d, a) => d.addPicture(a.slide, picturePlacement(d, a)),
+    // Insert → Cameo, and Camera Format → Camera Shape.
+    addCameo: (d, a) => d.addCameo(a.slide, { shape: a.shape || 'rect' }),
+    setCameoShape: (d, a) => d.setCameoShape(a.slide, a.shape, a.preset),
     // Insert → 3D Models: the model and the picture the window drew of it, placed as a picture is.
     addModel3d: (d, a) => {
       const placed = picturePlacement(d, { ...a, data: a.png });

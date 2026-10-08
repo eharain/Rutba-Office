@@ -50,6 +50,7 @@ import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog, iconPng } from '../icons-insert.js';
 import { PointsOverlay, POINTS_CSS } from './slides/points.js';
 import { presetCommands, parsePath, fit as fitPath } from '@rutba/presentation/points';
+import { CameoLayer, CAMEO_CSS } from './slides/cameo.js';
 import { loadModelFile, modelDrawer, pngOf, urlOf, MODEL_PICTURE, DEFAULT_MODEL_VIEW } from '../model3d.js';
 
 // The splits Move Split moves, marked while it is on — in shadows, so
@@ -2214,6 +2215,21 @@ export default function Slides({ app, shell, boot }) {
         }
         return;
       }
+      // Insert → Cameo: a shape the show fills with the camera, picked, on Camera Format.
+      case 'cameo': {
+        const next = await apply({ op: 'addCameo', slide: index });
+        const added = next?.model?.slide?.shapes?.find((s) => String(s.id) === String(next.opResult));
+        if (added) { setSelected(added.id); setTab('cameraFormat'); }
+        return;
+      }
+      // Camera Format → Preview: the camera, live, in the slide's cameos here.
+      case 'cameoPreview': patchView((v) => ({ cameoPreview: !v.cameoPreview })); return;
+      // Camera Format → Camera Styles: the picked cameo's outline.
+      case 'cameoShape': {
+        const shape = slide?.shapes?.find((s) => String(s.id) === String(selected));
+        if (shape?.cameo) await apply({ op: 'setCameoShape', slide: index, shape: shape.id, preset: arg });
+        return;
+      }
       // Effect Options, Start, Duration and Delay: the current effect changed.
       case 'animPatch': {
         if (!currentAnim) return;
@@ -2597,6 +2613,8 @@ export default function Slides({ app, shell, boot }) {
                 {view.ruler ? <><div className="sl-ruler-h" /><div className="sl-ruler-v" /></> : null}
                 <div className="sl-slide" style={{ width: model.size.width, height: model.size.height, transform: `scale(${view.zoom ?? fit})`, transformOrigin: 'top left' }}>
                   <Markup className="sl-svg" html={slide.svg} />
+                  {/* Camera Format → Preview: the camera, live, in each cameo on the stage. */}
+                  {view.cameoPreview && !preview ? <><style>{CAMEO_CSS}</style><CameoLayer shapes={slide.shapes} /></> : null}
                   {/* Videos and sounds: a play bar under each, as PowerPoint draws one. */}
                   {!model.masterView ? <StageMedia shapes={slide.shapes} /> : null}
                   {/* Draw: the pen surface while a pen, the Eraser or the Lasso is in hand; the Ruler on its own otherwise. */}

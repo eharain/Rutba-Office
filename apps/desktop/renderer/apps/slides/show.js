@@ -16,6 +16,7 @@ import { playTransition } from './motion.js';
 import { sequence, applyState, playGroup, triggered } from './animate.js';
 import { Markup, FILL } from './markup.js';
 import { ShowMedia } from './media.js';
+import { CameoLayer, CAMEO_CSS } from './cameo.js';
 import { isNarration } from '@rutba/presentation/narration';
 
 const plays = (t) => Boolean(t && t.type && t.type !== 'none' && Number(t.duration) > 0);
@@ -227,6 +228,8 @@ export function ShowStage({ slide, size = null, step = null, hidden = false, onS
           <Markup html={l.svg} style={FILL} />
         </div>
       ))}
+      {/* Insert → Cameo: the camera, live, in each cameo on the slide. */}
+      {slide?.shapes?.some((s) => s.cameo) ? <><style>{CAMEO_CSS}</style><CameoLayer key={`cameo-${slide.index}`} shapes={slide.shapes} size={size} percent /></> : null}
       {/* Videos and sounds: a click on one plays it, and does not move the show on. */}
       {slide?.shapes?.some((s) => s.media) ? <ShowMedia key={`media-${slide.index}`} shapes={slide.shapes} size={size} controls={mediaControls} narration={narration} /> : null}
       {/* A narration's speaker is not seen in the show, as PowerPoint hides it. */}

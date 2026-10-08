@@ -57,6 +57,10 @@ function picStartOf(xml, id) {
   return start >= 0 && xml.indexOf('</p:pic>', start) > at ? start : -1;
 }
 
+/** Insert → Cameo: the suite's own extension and namespace for a shape the show fills with the camera. */
+export const CAMEO = { uri: '{8B1F3C27-5D64-4E0A-A9C2-71E4F0D35B19}', ns: 'http://schemas.rutba.io/office/2026/cameo' };
+const CAMEO_SHAPES = new Set(['rect', 'ellipse', 'roundRect']);
+
 const REL = {
   slide: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide',
   layout: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout',
@@ -3724,6 +3728,52 @@ export class Deck {
     pic = pic.replace(/<r3d:model\b[^>]*\/>/, (tag) => tag.replace(/\s(yaw|pitch|roll)="[^"]*"/g, '').replace(/\/>$/, () => ` yaw="${v.yaw}" pitch="${v.pitch}" roll="${v.roll}"/>`));
     const xml = this.pkg.text(at.part);
     this.#writeSlide(at.part, xml.slice(0, at.start) + pic + xml.slice(at.end));
+    return true;
+  }
+
+  /**
+   * Insert → Cameo: a shape the show fills with the computer's camera, live
+   * — a rectangle, an oval or a rounded rectangle in a light grey, marked
+   * by an extension of the suite's own. Every other reader shows the grey
+   * shape. Put at the slide's lower right unless a box is given.
+   * @returns {number} the shape id
+   */
+  addCameo(slideIndex, { x = null, y = null, w = null, h = null, shape = 'rect', name = 'Cameo' } = {}) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (!CAMEO_SHAPES.has(shape)) throw new Error(`a cameo is a rectangle, an oval or a rounded rectangle, not ${shape}`);
+    const W = this.size.width;
+    const H = this.size.height;
+    const width = w ?? Math.round(W * 0.3);
+    const height = h ?? Math.round((width * 9) / 16);
+    const left = x ?? Math.round(W - width - W * 0.04);
+    const top = y ?? Math.round(H - height - H * 0.04);
+    const xml = this.pkg.text(part);
+    const id = nextShapeId(xml);
+    const sp =
+      `<p:sp><p:nvSpPr><p:cNvPr id="${id}" name="${escapeXml(name)} ${id}" descr="A live camera picture in the show"/><p:cNvSpPr/>` +
+      `<p:nvPr><p:extLst><p:ext uri="${CAMEO.uri}"><rcam:cameo xmlns:rcam="${CAMEO.ns}"/></p:ext></p:extLst></p:nvPr></p:nvSpPr>` +
+      `<p:spPr><a:xfrm><a:off x="${pxToEmu(left)}" y="${pxToEmu(top)}"/><a:ext cx="${Math.max(1, pxToEmu(width))}" cy="${Math.max(1, pxToEmu(height))}"/></a:xfrm>` +
+      `<a:prstGeom prst="${shape}"><a:avLst/></a:prstGeom><a:solidFill><a:srgbClr val="D9D9D9"/></a:solidFill><a:ln><a:noFill/></a:ln></p:spPr></p:sp>`;
+    const at = xml.lastIndexOf('</p:spTree>');
+    if (at < 0) throw new Error('slide has no shape tree');
+    this.#writeSlide(part, xml.slice(0, at) + sp + xml.slice(at));
+    return id;
+  }
+
+  /** Camera Format → Camera Shape: a cameo as a rectangle, an oval or a rounded rectangle. */
+  setCameoShape(slideIndex, shapeId, shape) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    if (!CAMEO_SHAPES.has(shape)) throw new Error(`a cameo is a rectangle, an oval or a rounded rectangle, not ${shape}`);
+    const xml = this.pkg.text(part);
+    const at = xml.search(new RegExp(`<p:cNvPr\\b[^>]*\\bid="${String(shapeId).replace(/\D/g, '')}"`));
+    const start = at < 0 ? -1 : xml.lastIndexOf('<p:sp>', at);
+    const end = start < 0 ? -1 : xml.indexOf('</p:sp>', start);
+    const sp = start < 0 || end < at ? null : xml.slice(start, end);
+    if (!sp || !/<rcam:cameo\b/.test(sp)) throw new Error('That is not a cameo');
+    const next = sp.replace(/(<a:prstGeom\b[^>]*\bprst=")[^"]*(")/, (m, a, b) => `${a}${shape}${b}`);
+    this.#writeSlide(part, xml.slice(0, start) + next + xml.slice(end));
     return true;
   }
 
