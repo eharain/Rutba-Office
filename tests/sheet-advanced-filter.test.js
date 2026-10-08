@@ -124,3 +124,32 @@ test('Clear shows the rows again; a blank criteria row lets every row through; a
   const wrong = open([['Territory'], ['East']]);
   assert.throws(() => wrong.advancedFilter({ list: 'A1:D7', criteria: 'F1:F2' }), /names no field/);
 });
+
+test('Advanced Filter copies a list on another sheet to this one, started from the sheet the rows go to, as Excel does', () => {
+  const rows = LIST.map((r) => [...r]);
+  const view = new SheetView(buildXlsx({ sheets: [{ name: 'Data', rows }, { name: 'My report', rows: [['Region', 'Sales'], ['West']] }] }));
+  view.selectSheet('My report');
+  // Criteria on this sheet (A1:A2: Region West), the list on Data, the rows under headings typed at D1:E1.
+  view.select(0, 3);
+  view._setCell(0, 3, 'Rep');
+  view._setCell(0, 4, 'Sales');
+  const done = view.advancedFilter({ list: 'Data!$A$1:$D$7', criteria: 'A1:A2', action: 'copy', copyTo: 'D1:E1' });
+  assert.equal(done.matched, 3, 'West, Western and West again: text matches what begins with it');
+  assert.deepEqual([1, 2, 3].map((r) => text(view, r, 3) + ':' + text(view, r, 4)), ['Bo:90', 'Cy:210', 'Bo:90']);
+  assert.equal(view.activeSheet, 'My report', 'still on the sheet the rows went to');
+  assert.match(workbookXml(view), /<definedName name="_xlnm._FilterDatabase" localSheetId="0" hidden="1">Data!\$A\$1:\$D\$7<\/definedName>/);
+  assert.match(workbookXml(view), /<definedName name="_xlnm.Extract" localSheetId="1">'My report'!\$D\$1:\$E\$1<\/definedName>/);
+  view.undo();
+  assert.equal(text(view, 1, 3), '', 'one undo step');
+  // A list on a sheet with a quoted name, and its criteria there too.
+  view.selectSheet('Data');
+  view._setCell(0, 6, 'Units');
+  view._setCell(1, 6, '>3');
+  view.selectSheet('My report');
+  const copied = view.advancedFilter({ list: "'Data'!A1:D7", criteria: 'Data!G1:G2', action: 'copy', copyTo: 'H1', unique: true });
+  assert.equal(copied.matched, 2, 'Ann and Cy');
+  assert.equal(text(view, 0, 7), 'Region');
+  assert.deepEqual([1, 2].map((r) => text(view, r, 8)), ['Ann', 'Cy']);
+  assert.throws(() => view.advancedFilter({ list: 'Data!A1:D7', criteria: 'A1:A2' }), /filtered in place on its own sheet/);
+  assert.throws(() => view.advancedFilter({ list: 'Nowhere!A1:D7', criteria: 'A1:A2', action: 'copy', copyTo: 'H1' }), /no sheet called "Nowhere"/);
+});

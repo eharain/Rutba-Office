@@ -18,6 +18,10 @@
  * under the headings at the destination. Either way the workbook keeps
  * the names Excel keeps: `_xlnm._FilterDatabase` (the list, hidden),
  * `_xlnm.Criteria`, and `_xlnm.Extract` for a copy.
+ *
+ * A copy can take its list, and its criteria, from another sheet, named in
+ * front of the range (`Data!A1:D20`): as in Excel it is started from the
+ * sheet the rows go to, and filtering in place stays on the active sheet.
  */
 import { calculate, shiftFormula, isError } from '@rutba/formula';
 import { ref, colName } from './selection.js';
@@ -99,17 +103,41 @@ const valueAt = (view, row, col) => {
   return isError(v) ? null : v;
 };
 
+/** Run `fn` reading another sheet as though it were the active one. */
+function onSheet(view, sheet, fn) {
+  if (sheet === view.activeSheet) return fn();
+  const was = view.activeSheet;
+  view.activeSheet = sheet;
+  try {
+    return fn();
+  } finally {
+    view.activeSheet = was;
+  }
+}
+
+/** The sheet named in front of a range (`Data!A1`, `'My data'!A1`), or null for none. */
+function sheetOf(view, text) {
+  const m = /^\s*(?:'((?:[^']|'')+)'|([^'!]+))!/.exec(String(text ?? ''));
+  if (!m) return null;
+  const name = m[1] != null ? m[1].replace(/''/g, "'") : m[2].trim();
+  const found = view.workbook.sheetNames().find((n) => n.toLowerCase() === name.toLowerCase());
+  if (!found) throw new Error('There is no sheet called "' + name + '" in this workbook');
+  return found;
+}
+
 /**
  * Read a criteria range against a list: per criteria row, the tests of
  * that row, each a field test (`col`, `test`) or a formula test.
  */
-function readCriteria(view, list, criteria) {
+function readCriteria(view, list, criteria, listSheet = view.activeSheet) {
   const sheet = view.activeSheet;
   const heads = new Map();
-  for (let c = list.left; c <= list.right; c++) {
-    const name = String(view.displayValue(list.top, c).text ?? '').trim().toLowerCase();
-    if (name && !heads.has(name)) heads.set(name, c);
-  }
+  onSheet(view, listSheet, () => {
+    for (let c = list.left; c <= list.right; c++) {
+      const name = String(view.displayValue(list.top, c).text ?? '').trim().toLowerCase();
+      if (name && !heads.has(name)) heads.set(name, c);
+    }
+  });
   const rows = [];
   for (let r = criteria.top + 1; r <= criteria.bottom; r++) {
     const tests = [];
@@ -176,18 +204,23 @@ const overlaps = (a, b) => a.left <= b.right && b.left <= a.right && a.top <= b.
 export function advancedFilter(view, { list: listText, criteria: criteriaText, action = 'filter', copyTo = null, unique: onlyUnique = false } = {}) {
   const sheet = view.activeSheet;
   const active = view.selection.active;
+  const listSheet = sheetOf(view, listText) ?? sheet;
+  const criteriaSheet = sheetOf(view, criteriaText) ?? sheet;
+  if (action !== 'copy' && listSheet !== sheet) {
+    throw new Error('A list is filtered in place on its own sheet — to take rows from "' + listSheet + '", copy them to this one');
+  }
   const list = listText ? parseRange(listText) : view._currentRegion(active.row, active.col);
   if (!list || list.bottom <= list.top) throw new Error('The list range needs a header row and at least one row under it');
   const criteria = parseRange(criteriaText);
   if (!criteria || criteria.bottom <= criteria.top) throw new Error('The criteria range needs its headings and at least one row of conditions — e.g. F1:G3');
-  if (overlaps(list, criteria)) throw new Error('The criteria range cannot sit inside the list');
-  const criteriaRows = readCriteria(view, list, criteria);
-  let rows = matchingRows(view, list, criteriaRows);
+  if (listSheet === criteriaSheet && overlaps(list, criteria)) throw new Error('The criteria range cannot sit inside the list');
+  const criteriaRows = onSheet(view, criteriaSheet, () => readCriteria(view, list, criteria, listSheet));
+  let rows = onSheet(view, listSheet, () => matchingRows(view, list, criteriaRows));
   const total = list.bottom - list.top;
   const index = view.workbook.sheetNames().indexOf(sheet);
   const names = (extra) => {
-    view.workbook.setDefinedName('_xlnm._FilterDatabase', absRef(sheet, list), { localSheetId: index, hidden: 1 });
-    view.workbook.setDefinedName('_xlnm.Criteria', absRef(sheet, criteria), { localSheetId: index });
+    view.workbook.setDefinedName('_xlnm._FilterDatabase', absRef(listSheet, list), { localSheetId: view.workbook.sheetNames().indexOf(listSheet), hidden: 1 });
+    view.workbook.setDefinedName('_xlnm.Criteria', absRef(criteriaSheet, criteria), { localSheetId: index });
     if (extra) view.workbook.setDefinedName('_xlnm.Extract', absRef(sheet, extra), { localSheetId: index });
     view._syncNames();
   };
@@ -220,10 +253,12 @@ export function advancedFilter(view, { list: listText, criteria: criteriaText, a
   const to = parseRange(copyTo);
   if (!to) throw new Error('Say where to copy the rows — a cell such as I1');
   const heads = new Map();
-  for (let c = list.left; c <= list.right; c++) {
-    const name = String(view.displayValue(list.top, c).text ?? '').trim().toLowerCase();
-    if (name && !heads.has(name)) heads.set(name, c);
-  }
+  onSheet(view, listSheet, () => {
+    for (let c = list.left; c <= list.right; c++) {
+      const name = String(view.displayValue(list.top, c).text ?? '').trim().toLowerCase();
+      if (name && !heads.has(name)) heads.set(name, c);
+    }
+  });
   const named = [];
   for (let c = to.left; c <= to.right; c++) {
     const col = heads.get(String(view.displayValue(to.top, c).text ?? '').trim().toLowerCase());
@@ -232,26 +267,26 @@ export function advancedFilter(view, { list: listText, criteria: criteriaText, a
   // A row of headings picks the columns; one cell is where every column starts.
   const byName = to.right > to.left && named.length === to.right - to.left + 1;
   const cols = byName ? named : Array.from({ length: list.right - list.left + 1 }, (_, i) => list.left + i);
-  if (onlyUnique) rows = unique(view, rows, cols);
+  if (onlyUnique) rows = onSheet(view, listSheet, () => unique(view, rows, cols));
   // What is written: the headings (unless they are there already) and the
   // rows; and, as Excel does, the columns below are cleared to the bottom of
   // what the sheet uses, so an earlier, longer extract leaves nothing behind.
   const width = cols.length;
   const bottom = Math.max(to.top + rows.length, view.bounds.maxRow);
   const area = { top: to.top, left: to.left, bottom, right: to.left + width - 1 };
-  if (overlaps(area, list) || overlaps(area, criteria)) throw new Error('The rows copied would land on the list or the criteria — choose a place beside or below them');
+  if ((listSheet === sheet && overlaps(area, list)) || (criteriaSheet === sheet && overlaps(area, criteria))) throw new Error('The rows copied would land on the list or the criteria — choose a place beside or below them');
   const cells = [];
   for (let r = area.top; r <= area.bottom; r++) for (let c = area.left; c <= area.right; c++) cells.push({ row: r, col: c });
   // Headings typed at the destination stay as typed; otherwise the list's go there.
   const header = byName
     ? cols.map((_, k) => view.calc.getInput(sheet, to.top, to.left + k) ?? '')
-    : cols.map((c) => view.calc.getInput(sheet, list.top, c) ?? '');
+    : cols.map((c) => view.calc.getInput(listSheet, list.top, c) ?? '');
   const lines = rows.map((row) => cols.map((c) => {
-    const input = view.calc.getInput(sheet, row, c) ?? '';
+    const input = view.calc.getInput(listSheet, row, c) ?? '';
     // A formula is copied as the value it shows, as Excel's extract is.
     if (String(input).startsWith('=')) {
-      const v = view.calc.getValue(sheet, row, c);
-      return isError(v) ? view.displayValue(row, c).text : v;
+      const v = view.calc.getValue(listSheet, row, c);
+      return isError(v) ? onSheet(view, listSheet, () => view.displayValue(row, c).text) : v;
     }
     return input;
   }));

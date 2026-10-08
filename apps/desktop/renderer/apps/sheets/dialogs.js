@@ -1010,7 +1010,7 @@ export function AdvancedFilterDialog({ list, onClose, onApply }) {
           <label style={CHECK_ROW}><input type="radio" name="sh-adv-action" className="sh-adv-copy" checked={action === 'copy'} onChange={() => setAction('copy')} /> Copy to another location</label>
         </div>
         <Field label="List range">
-          <Input className="sh-adv-list" value={range} onChange={(e) => setRange(e.target.value)} onKeyDown={enter} placeholder="A1:D20" />
+          <Input className="sh-adv-list" value={range} onChange={(e) => setRange(e.target.value)} onKeyDown={enter} placeholder="A1:D20, or Data!A1:D20 to copy from another sheet" />
         </Field>
         <Field label="Criteria range" hint="Headings from the list over rows of conditions: a row's conditions all hold, any one row is enough. East, >250, <>West, =B*.">
           <Input className="sh-adv-criteria" value={criteria} onChange={(e) => setCriteria(e.target.value)} onKeyDown={enter} placeholder="F1:G3" autoFocus />
