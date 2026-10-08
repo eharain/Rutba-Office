@@ -345,16 +345,38 @@ function drawTable(page, doc, table, rows, { xPx, yPx, widthPx, labelOf, depth =
   const columns = table.columns && table.columns.length
     ? table.columns
     : Array(Math.max(1, table.columnCount || 1)).fill(widthPx / Math.max(1, table.columnCount || 1));
+  // A merge down a column (w:vMerge) is one cell: its first reaches over
+  // the rows its continuations fill in this piece of the table, and a
+  // continuation at the top of a piece — its merge began on the page
+  // before — is drawn there as the merge's top, empty.
+  const heights = rows.map((row) => rowHeight(row, table, widthPx, null));
+  const cellAt = (row, at) => {
+    let column = 0;
+    for (const cell of row?.cells || []) {
+      if (column === at) return cell;
+      column += Math.max(1, cell.gridSpan || 1);
+    }
+    return null;
+  };
+  const reach = (ri, at) => {
+    let total = heights[ri];
+    for (let k = ri + 1; k < rows.length && cellAt(rows[k], at)?.vMerge === 'continue'; k++) total += heights[k];
+    return total;
+  };
   let y = yPx;
-  for (const row of rows) {
-    const h = rowHeight(row, table, widthPx, null);
+  for (let ri = 0; ri < rows.length; ri++) {
+    const row = rows[ri];
+    const rowH = heights[ri];
     let cx = xPx;
     let column = 0;
     for (const cell of row.cells) {
       const span = Math.max(1, cell.gridSpan || 1);
       const cellWidth = columns.slice(column, column + span).reduce((a, b) => a + b, 0) || widthPx;
+      const at = column;
       column += span;
-      if (cell.vMerge === 'continue') { cx += cellWidth; continue; }
+      const above = ri > 0 ? cellAt(rows[ri - 1], at)?.vMerge : null;
+      if (cell.vMerge === 'continue' && (above === 'restart' || above === 'continue')) { cx += cellWidth; continue; }
+      const h = cell.vMerge === 'restart' || cell.vMerge === 'continue' ? reach(ri, at) : rowH;
       if (cell.shading && /^#?[0-9a-fA-F]{6}$/.test(String(cell.shading))) {
         page.rect(cx * PT, y * PT, cellWidth * PT, h * PT, { fill: `#${String(cell.shading).replace('#', '')}` });
       }
@@ -402,7 +424,7 @@ function drawTable(page, doc, table, rows, { xPx, yPx, widthPx, labelOf, depth =
       }
       cx += cellWidth;
     }
-    y += h;
+    y += rowH;
   }
   return y - yPx;
 }

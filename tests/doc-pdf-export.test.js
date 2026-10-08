@@ -125,3 +125,23 @@ test('a paragraph whose footnote will not fit beside it starts on the next page,
   // No notes in this file: every page carries none, and nothing is reserved.
   assert.ok(view.pages.pages.every((p) => p.notes.length === 0 && p.notesHeightPx === 0));
 });
+
+test('a cell merged down a column prints as one cell: no rule across it, one under it', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ table: { rows: [['Region', 'Q1'], ['North', '1'], ['', '2'], ['', '3']] } }] }));
+  const blocks = view.render({ pages: false }).blocks;
+  const north = blocks.findIndex((b) => b.text === 'North');
+  const last = blocks.findIndex((b) => /:r3:c0$/.test(b.container || ''));
+  view.setSelection({ block: north, offset: 0 }, { block: last, offset: 0 });
+  view.tableOp('mergeCells');
+  const { buffer } = renderPdf(view, { created: '2026-09-03T00:00:00Z' });
+  // Every rule drawn across: the first column's, and the second's beside it.
+  const across = [...text(buffer).matchAll(/(-?[\d.]+) (-?[\d.]+) m\n(-?[\d.]+) (-?[\d.]+) l/g)]
+    .map((m) => m.slice(1).map(Number))
+    .filter(([, y1, , y2]) => y1 === y2);
+  const starts = [...new Set(across.map(([x1, , x2]) => Math.min(x1, x2)))].sort((a, b) => a - b);
+  const ys = (from) => [...new Set(across.filter(([x1, , x2]) => Math.min(x1, x2) === from).map(([, y]) => y))].sort((a, b) => b - a);
+  const first = ys(starts[0]);
+  const second = ys(starts[1]);
+  assert.equal(second.length, 5, 'the second column ruled at every row');
+  assert.deepEqual(first, [second[0], second[1], second[4]], 'the first column ruled above and under its merge, not across it');
+});
