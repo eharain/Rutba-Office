@@ -74,7 +74,10 @@ Depth before more breadth. The surface is wide now; what a person meets
 next is a file that opens slowly, a count that is wrong, or a page that is
 behind.
 
-1. **1.30.0 as a consolidation release.** The gate run on Windows and its
+1. **1.30.0 as a consolidation release.** [REVIEW-1.29.md](REVIEW-1.29.md)
+   holds what a reading of the code found, fixed and left open — the
+   500-page pagination cap, the document service on the main process and
+   the shared Dialog's focus are its three high items, and belong here. The gate run on Windows and its
    counts written into the release note and the README by the gate script
    itself; `tools/fuzz-open.js` run over the binary readers (Word 1.0 to
    2003, Write, `.xls`, `.ppt`, encrypted CFB) with its iteration count
