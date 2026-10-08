@@ -158,7 +158,9 @@ function Narration({ shape }) {
 
 function ShowClip({ shape, size, controls }) {
   const el = useRef(null);
-  const [started, setStarted] = useState(false);
+  // A cameo's recording plays with its slide, as the live camera would have been there.
+  const [started, setStarted] = useState(Boolean(shape.cameoRecording));
+  useEffect(() => { if (shape.cameoRecording) el.current?.play?.().catch(() => {}); }, [shape.cameoRecording]);
   const g = shape.geometry;
   const box = { left: `${(100 * g.x) / size.width}%`, top: `${(100 * g.y) / size.height}%`, width: `${(100 * g.w) / size.width}%`, height: `${(100 * g.h) / size.height}%` };
   useEffect(() => () => el.current?.pause?.(), []);

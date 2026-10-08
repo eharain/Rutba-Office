@@ -8,6 +8,7 @@
 // no, the cameo's own drawing (a camera in a grey shape) is all there is.
 
 import React, { useEffect, useRef, useState } from 'react';
+import { recordingType } from './screen-record.js';
 
 let shared = null; // { stream, users } once opened
 let opening = null;
@@ -131,9 +132,127 @@ export function CameoVideo({ shape, stream, size = null, percent = false }) {
   );
 }
 
-/** Every cameo on a slide, live, for as long as this is shown. */
+/**
+ * Record with the camera: the camera recorded one slide at a time —
+ * `mark(slide)` closes the slide that was up and starts on `slide`, if it
+ * has a cameo; `stop()` answers each slide's `{ slide, data, type, ms }`.
+ * A camera that stops part way through a slide keeps what it took, and is
+ * asked for again (three times) to go on with the slide; a slide shown
+ * twice keeps its last showing, as PowerPoint records over it.
+ */
+export class CameraRecorder {
+  static async open(slides) {
+    const rec = new CameraRecorder(new Set(slides));
+    await rec._take();
+    return rec;
+  }
+  constructor(slides) {
+    this.slides = slides;
+    this.stream = null;
+    this.parts = [];
+    this.pending = [];
+    this.current = null;
+    this.paused = false;
+    this.closed = false;
+    this.showing = 0;
+    this.at = null;
+    this.tries = 0;
+  }
+  async _take() {
+    const stream = await openCamera();
+    if (this.closed) { closeCamera(stream); return; }
+    this.stream = stream;
+    const track = stream.getVideoTracks()[0];
+    if (alive(stream)) track?.addEventListener('ended', () => this._lost(stream), { once: true });
+    else this._lost(stream);
+  }
+  /** The camera stopped: the slide's recording so far is kept, and the camera asked for again to go on with it. */
+  _lost(stream) {
+    if (this.closed || this.stream !== stream) return;
+    closeCamera(stream);
+    this.stream = null;
+    this._close();
+    if (++this.tries > 3) return;
+    setTimeout(() => {
+      this._take().then(() => {
+        if (!this.closed && this.stream && !this.current && this.slides.has(this.at)) this._begin(this.at);
+      }).catch(() => {});
+    }, 300 * this.tries);
+  }
+  _begin(slide) {
+    const chunks = [];
+    // MP4 where the computer can make it, as PowerPoint plays it; WebM where not.
+    const type = recordingType();
+    const recorder = new MediaRecorder(this.stream, { mimeType: type });
+    const c = { slide, showing: this.showing, recorder, at: Date.now(), held: 0, heldAt: null };
+    recorder.ondataavailable = (e) => { if (e.data?.size) chunks.push(e.data); };
+    // However it stops — closed here, or by the camera stopping — what it took is kept.
+    c.done = new Promise((resolve) => {
+      recorder.addEventListener('stop', async () => {
+        try {
+          const now = Date.now();
+          const ms = now - c.at - c.held - (c.heldAt != null ? now - c.heldAt : 0);
+          const kind = type.split(';')[0];
+          const data = new Uint8Array(await new Blob(chunks, { type: kind }).arrayBuffer());
+          if (data.length) this.parts.push({ slide, showing: c.showing, data, type: kind, ms });
+        } finally {
+          resolve();
+        }
+      }, { once: true });
+    });
+    this.pending.push(c.done);
+    recorder.start(500);
+    if (this.paused) { recorder.pause(); c.heldAt = Date.now(); }
+    this.current = c;
+  }
+  _close() {
+    const c = this.current;
+    this.current = null;
+    if (c && c.recorder.state !== 'inactive') {
+      try { c.recorder.stop(); } catch { /* it has stopped already */ }
+    }
+  }
+  mark(slide) {
+    this._close();
+    this.showing += 1;
+    this.at = slide;
+    if (this.slides.has(slide) && this.stream) this._begin(slide);
+  }
+  /** Record → Pause and back: the camera waits with the voice. */
+  pause() {
+    this.paused = true;
+    const c = this.current;
+    if (c?.recorder.state === 'recording') { c.recorder.pause(); c.heldAt = Date.now(); }
+  }
+  resume() {
+    this.paused = false;
+    const c = this.current;
+    if (c?.recorder.state === 'paused') {
+      c.recorder.resume();
+      if (c.heldAt != null) c.held += Date.now() - c.heldAt;
+      c.heldAt = null;
+    }
+  }
+  async stop() {
+    this.closed = true;
+    this._close();
+    await Promise.all(this.pending);
+    if (this.stream) closeCamera(this.stream);
+    this.stream = null;
+    // Each slide's last showing, and of that the longest stretch the camera kept going.
+    const best = new Map();
+    for (const p of this.parts) {
+      const b = best.get(p.slide);
+      if (!b || p.showing > b.showing || (p.showing === b.showing && p.ms > b.ms)) best.set(p.slide, p);
+    }
+    return [...best.values()].map(({ slide, data, type, ms }) => ({ slide, data, type, ms }));
+  }
+}
+
+/** Every cameo on a slide, live, for as long as this is shown — but where Record put the camera's recording in its place. */
 export function CameoLayer({ shapes = [], size = null, percent = false, on = true }) {
-  const cameos = shapes.filter((s) => s.cameo && !s.hidden);
+  const recorded = shapes.some((s) => s.cameoRecording);
+  const cameos = recorded ? [] : shapes.filter((s) => s.cameo && !s.hidden);
   const { stream } = useCamera(on && cameos.length > 0);
   if (!stream) return null;
   return cameos.map((s) => <CameoVideo key={s.id} shape={s} stream={stream} size={size} percent={percent} />);

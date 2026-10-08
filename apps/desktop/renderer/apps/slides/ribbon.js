@@ -908,7 +908,7 @@ export default function SlidesRibbon({
           </Group>
           <Group label="Edit">
             <Button tall icon="close" label="Clear Recording" title="Clear — narration or timings, on this slide or every slide" onClick={(e) => menu.open(e, [{ label: 'Clear Narration on Current Slide', run: () => act('clearRecording', 'narrationHere') }, { label: 'Clear Narration on All Slides', run: () => act('clearRecording', 'narrationAll') }, '-', { label: 'Clear Timings on Current Slide', run: () => act('clearRecording', 'timingsHere') }, { label: 'Clear Timings on All Slides', run: () => act('clearRecording', 'timingsAll') }])} />
-            <Soon tall icon="undo" label="Reset to Cameo" why="Comes with recording." />
+            <Button tall icon="undo" label="Reset to Cameo" className="sl-reset-cameo" title="Reset to Cameo — the camera's recording taken off this slide, its live cameo back" onClick={() => act('resetCameo')} />
           </Group>
           <Group label="Export">
             <Button tall icon="export" label="Save as Show" title="Save as Show — a copy as a .ppsx, which PowerPoint opens straight into the show" onClick={() => act('saveAsShow')} />

@@ -50,7 +50,7 @@ import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog, iconPng } from '../icons-insert.js';
 import { PointsOverlay, POINTS_CSS } from './slides/points.js';
 import { presetCommands, parsePath, fit as fitPath } from '@rutba/presentation/points';
-import { CameoLayer, CAMEO_CSS } from './slides/cameo.js';
+import { CameoLayer, CameraRecorder, CAMEO_CSS } from './slides/cameo.js';
 import { ChangesPane, CHANGES_CSS } from './slides/changes.js';
 import { compareFingerprints } from '@rutba/presentation/changes';
 import { loadModelFile, modelDrawer, pngOf, urlOf, MODEL_PICTURE, DEFAULT_MODEL_VIEW } from '../model3d.js';
@@ -208,6 +208,8 @@ export default function Slides({ app, shell, boot }) {
   const showControl = useRef(null);
   /** The Animations tab's current effect (its index in the slide's list), when one was picked from the pane or a badge. */
   const [animSel, setAnimSel] = useState(null);
+  // Record with the camera: the camera's recorder while a recording with a cameo runs.
+  const cameraRec = useRef(null);
   // Review → Show Changes: what is different since the deck was last open here (`{ first }` the first time).
   const [deckChanges, setDeckChanges] = useState(null);
   // Insert → 3D Models: each model read and its pictures decoded once (by its slide and shape), and the turn under way by the handle.
@@ -1106,6 +1108,7 @@ export default function Slides({ app, shell, boot }) {
     const rec = narrator.current;
     if (!present || !recording || !rec || rec.current?.slide === index) return;
     rec.mark(index);
+    cameraRec.current?.mark(index);
     setRecording((r) => (r ? { ...r, slideAt: Date.now() } : r));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, present]);
@@ -1117,6 +1120,15 @@ export default function Slides({ app, shell, boot }) {
     setRecording(null);
     (async () => {
       const parts = (await rec.stop()).filter((p) => p.ms >= 300);
+      // The camera's recordings, each in its slide's cameo.
+      const cam = cameraRec.current;
+      cameraRec.current = null;
+      const clips = cam ? (await cam.stop()).filter((c) => c.ms >= 300 && c.data.length) : [];
+      if (clips.length) {
+        const shots = await Promise.all(clips.map((c) => posterFrame(c.data, c.type).catch(() => null)));
+        const fallback = shots.every(Boolean) ? null : await iconPng('video', '#3b3f46', 192);
+        await apply(...clips.map((c, i) => ({ op: 'addCameoRecording', slide: c.slide, data: c.data, contentType: c.type, poster: shots[i] || fallback })));
+      }
       if (!parts.length) return;
       const poster = await iconPng('volume', '#3b3f46', 192);
       const ops = parts.flatMap((p) => [
@@ -1698,6 +1710,15 @@ export default function Slides({ app, shell, boot }) {
         const start = arg === 'here' ? index : inShow(first) ? first : nextShown(model, -1, 1);
         narrator.current = rec;
         rec.mark(start);
+        // The camera too, for the slides that have a cameo: each slide's recording goes in its cameo's place.
+        try {
+          const got = await shell.doc.apply({ id: doc.id, ops: [{ op: 'cameoSlides' }], slide: index, width: 1280 });
+          const withCameo = JSON.parse(got.opResult || '[]');
+          if (withCameo.length) { cameraRec.current = await CameraRecorder.open(withCameo); cameraRec.current.mark(start); }
+        } catch (err) {
+          cameraRec.current = null;
+          toast(`The camera could not be opened, so only your voice is recorded: ${err.message || err}`, { ms: 4500 });
+        }
         const now = Date.now();
         setRecording({ startedAt: now, slideAt: now, paused: false });
         setIndex(start);
@@ -1709,12 +1730,19 @@ export default function Slides({ app, shell, boot }) {
         const rec = narrator.current;
         if (!rec) return;
         if (rec.paused) rec.resume(); else rec.pause();
+        if (rec.paused) cameraRec.current?.pause(); else cameraRec.current?.resume();
         setRecording((r) => (r ? { ...r, paused: rec.paused } : r));
         return;
       }
       case 'recordAudio': setRecordAudioOpen(true); return;
       // Shape Format → Transform: the selected shape's words along a preset's path.
       case 'textWarp': if (selected != null) await apply({ op: 'setTextWarp', slide: index, shape: selected, preset: arg === 'textNoShape' ? null : arg }); return;
+      // Record → Reset to Cameo: the camera's recording off this slide, the live cameo back.
+      case 'resetCameo': {
+        const next = await apply({ op: 'resetCameo', slide: index });
+        toast(Number(next?.opResult) ? 'The cameo is live again on this slide' : 'There is no recording in a cameo on this slide', { ms: 3000 });
+        return;
+      }
       case 'exportVideo': setVideoOpen(true); return;
       case 'insertZoom': setZoomOpen(arg); return;
       case 'insertObject': setObjectOpen(true); return;

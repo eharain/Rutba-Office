@@ -58,7 +58,7 @@ function picStartOf(xml, id) {
 }
 
 /** Insert → Cameo: the suite's own extension and namespace for a shape the show fills with the camera. */
-export const CAMEO = { uri: '{8B1F3C27-5D64-4E0A-A9C2-71E4F0D35B19}', ns: 'http://schemas.rutba.io/office/2026/cameo' };
+export const CAMEO = { uri: '{8B1F3C27-5D64-4E0A-A9C2-71E4F0D35B19}', recUri: '{3F6D2B8E-91C4-4A57-B0E2-6C1D8A4F7E35}', ns: 'http://schemas.rutba.io/office/2026/cameo' };
 const CAMEO_SHAPES = new Set(['rect', 'ellipse', 'roundRect']);
 
 const REL = {
@@ -3843,6 +3843,42 @@ export class Deck {
     if (at < 0) throw new Error('slide has no shape tree');
     this.#writeSlide(part, xml.slice(0, at) + sp + xml.slice(at));
     return id;
+  }
+
+  /**
+   * Record with the camera: what the camera took while a slide was up, put
+   * in the cameo's place on it as a video that plays with the slide, cut to
+   * the cameo's shape, and marked as the cameo's recording so Reset to Cameo
+   * can take it off again. A recording already there is replaced.
+   * @returns {number} the video's shape id
+   */
+  addCameoRecording(slideIndex, { data, contentType = 'video/webm', poster }) {
+    const cameo = (this.slide(slideIndex).shapes || []).find((s) => s.cameo && s.geometry);
+    if (!cameo) throw new Error('That slide has no cameo to record into');
+    this.resetCameo(slideIndex);
+    const g = cameo.geometry;
+    const { id } = this.addMedia(slideIndex, { kind: 'video', data, contentType, poster: { data: poster, contentType: 'image/png' }, name: 'Cameo recording', x: g.x, y: g.y, w: g.w, h: g.h });
+    const part = this.#partOf(slideIndex);
+    const xml = this.pkg.text(part);
+    const start = xml.lastIndexOf('<p:pic>', xml.search(new RegExp(`<p:cNvPr\\b[^>]*\\bid="${id}"`)));
+    const end = xml.indexOf('</p:pic>', start) + '</p:pic>'.length;
+    let pic = xml.slice(start, end);
+    pic = pic.replace('</p:extLst></p:nvPr>', () => `<p:ext uri="${CAMEO.recUri}"><rcam:recording xmlns:rcam="${CAMEO.ns}" cameo="${cameo.id}"/></p:ext></p:extLst></p:nvPr>`);
+    pic = pic.replace(/(<a:prstGeom\b[^>]*\bprst=")[^"]*(")/, (m, a, b) => `${a}${cameo.preset || 'rect'}${b}`);
+    this.#writeSlide(part, xml.slice(0, start) + pic + xml.slice(end));
+    return id;
+  }
+
+  /** Record → Reset to Cameo: the camera's recordings taken off the slide, its live cameo back. Answers how many went. */
+  resetCameo(slideIndex) {
+    const ids = (this.slide(slideIndex).shapes || []).filter((s) => s.cameoRecording).map((s) => s.id);
+    for (const id of ids) this.removeShape(slideIndex, id);
+    return ids.length;
+  }
+
+  /** The slides that have a cameo, for Record to turn the camera on for. */
+  cameoSlides() {
+    return this.slideParts.map((_, i) => i).filter((i) => (this.slide(i).shapes || []).some((s) => s.cameo));
   }
 
   /** Camera Format → Camera Shape: a cameo as a rectangle, an oval or a rounded rectangle. */

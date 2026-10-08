@@ -72,6 +72,7 @@ import { verifyLostMouseup } from './verify-lost-mouseup.js';
 import { verifyDialogFocus } from './verify-dialog-focus.js';
 import { verifyOpenProgram } from './verify-open-program.js';
 import { verifyPicturesMarks } from './verify-pictures-marks.js';
+import { verifyDeckCameoRecord } from './verify-deck-cameo-record.js';
 import { verifyDeckChanges } from './verify-deck-changes.js';
 import { verifySheetQueriesMerge } from './verify-sheet-queries-merge.js';
 import { verifySheetScripts } from './verify-sheet-scripts.js';
@@ -4702,6 +4703,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('dialogfocus')) await verifyDialogFocus({ open, check, until, wait, press }, { dir });
     if (only.includes('openprogram')) await verifyOpenProgram({ open, check, until }, { dir });
     if (only.includes('picturemarks')) await verifyPicturesMarks({ open, check, until, wait, press, errorsIn }, { dir });
+    if (only.includes('cameorecord')) await verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('deckchanges')) await verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('querymerge')) await verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('scripts')) await verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -4964,6 +4966,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDialogFocus({ open, check, until, wait, press }, { dir }));
   await block(() => verifyOpenProgram({ open, check, until }, { dir }));
   await block(() => verifyPicturesMarks({ open, check, until, wait, press, errorsIn }, { dir }));
+  await block(() => verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));

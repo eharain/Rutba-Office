@@ -1026,11 +1026,14 @@ function readPicture(pic, ctx, container, groupId) {
   // Insert → 3D Models: the model kept beside its picture, and the view it is drawn at.
   const m3d = nvPr && first(nvPr, 'r3d:model');
   const model3d = m3d ? { view: { yaw: Number(m3d.attrs.yaw) || 0, pitch: Number(m3d.attrs.pitch) || 0, roll: Number(m3d.attrs.roll) || 0 } } : null;
+  // Record with the camera: a video that is a cameo's recording.
+  const cameoRecording = Boolean(nvPr && first(nvPr, 'rcam:recording'));
   return {
     kind: 'picture',
     ...meta,
     ...(media ? { media } : {}),
     ...(model3d ? { model3d } : {}),
+    ...(cameoRecording ? { cameoRecording: true } : {}),
     groupId,
     placeholder: placeholderOf(pic),
     geometry: placeInContainer(container, readXfrm(spPr)),

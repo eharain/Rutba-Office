@@ -1894,8 +1894,9 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
               action: s.action ?? null,
               // Insert → Video and Audio: what it plays, and where the bytes are.
               media: s.media ? { kind: s.media.kind, url: resolveMedia(s.media) } : null,
-              // Insert → Cameo: a shape the show fills with the camera.
+              // Insert → Cameo: a shape the show fills with the camera, and the video Record took of it.
               cameo: Boolean(s.cameo),
+              cameoRecording: Boolean(s.cameoRecording),
               // Insert → 3D Models: the view the model is drawn at.
               model3d: s.model3d ?? null,
               // Insert → Object: the embedded document's program and name, for a double-click to open it.
@@ -2429,6 +2430,10 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     addCameo: (d, a) => d.addCameo(a.slide, { shape: a.shape || 'rect' }),
     // Shape Format → Text Effects → Transform: the words along a preset's path, or straight again.
     setTextWarp: (d, a) => d.setTextWarp(a.slide, a.shape, a.preset ?? null),
+    // Record with the camera: each slide's recording put in its cameo's place; Reset to Cameo; the slides that have one.
+    addCameoRecording: (d, a) => d.addCameoRecording(a.slide, { data: Buffer.from(a.data instanceof Uint8Array ? a.data : String(a.data ?? ''), a.data instanceof Uint8Array ? undefined : 'base64'), contentType: a.contentType || 'video/webm', poster: a.poster instanceof Uint8Array ? Buffer.from(a.poster) : Buffer.from(String(a.poster ?? ''), 'base64') }),
+    resetCameo: (d, a) => d.resetCameo(a.slide),
+    cameoSlides: (d) => JSON.stringify(d.cameoSlides()),
     setCameoShape: (d, a) => d.setCameoShape(a.slide, a.shape, a.preset),
     // Insert → 3D Models: the model and the picture the window drew of it, placed as a picture is.
     addModel3d: (d, a) => {
@@ -2683,7 +2688,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'model3dSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'cameoSlides', 'model3dSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources', 'scriptSnapshot']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 
