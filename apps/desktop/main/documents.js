@@ -639,7 +639,7 @@ function readSavedQuerySource(file) {
   return readQuerySource(file);
 }
 
-export function createDocumentService({ holdBlob, recoveryDir = null, measureMath = null, proofing = null }) {
+export function createDocumentService({ holdBlob, releaseBlob = () => {}, recoveryDir = null, measureMath = null, proofing = null }) {
   // Review → Check Accessibility and Spelling (main/proofing.js): ops for the
   // tables below, and `proof` for what reads.
   const proof = proofing || createProofing({ worker: false });
@@ -1697,10 +1697,12 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       if (!bytes) return null;
       const known = pictures.get(source.part);
       if (known && known.bytes === bytes) return known.url;
+      // The picture's old bytes are let go when it has new ones.
+      if (known?.id) releaseBlob(known.id);
       const type = source.part.endsWith('.png') ? 'image/png' : source.part.endsWith('.gif') ? 'image/gif' : source.part.endsWith('.bmp') ? 'image/bmp' : 'image/jpeg';
-      const url = holdBlob(bytes, type, path.basename(source.part)).url;
-      pictures.set(source.part, { bytes, url });
-      return url;
+      const held = holdBlob(bytes, type, path.basename(source.part));
+      pictures.set(source.part, { bytes, url: held.url, id: held.id });
+      return held.url;
     };
     // Thumbnails, cached per slide against the slide part's own XML: a deck
     // of nineteen slides must not be drawn nineteen times per keystroke, and

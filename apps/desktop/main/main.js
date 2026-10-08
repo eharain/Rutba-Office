@@ -85,7 +85,7 @@ createShell({
    */
   appForFile: (file) => appFor(kindFromExtension(file)) || 'home',
 
-  namespaces: ({ stores, holdBlob: hold }) => {
+  namespaces: ({ stores, holdBlob: hold, releaseBlob }) => {
     // Built before the mail service, which needs it to fetch an access token
     // for an account that was added by signing in rather than by typing a
     // password.
@@ -95,7 +95,7 @@ createShell({
     // Unsaved work is written to a copy in the profile every half minute,
     // and the copy is deleted the moment the document is saved or closed. What
     // is left in that folder at start-up is what a crash took.
-    const doc = createDocumentService({ holdBlob: hold, recoveryDir: path.join(stores.dir, 'recovery'), measureMath: (list) => math.measure(list), proofing: createProofing({ stores, locale: () => electron.getLocale?.() || 'en-GB' }) });
+    const doc = createDocumentService({ holdBlob: hold, releaseBlob, recoveryDir: path.join(stores.dir, 'recovery'), measureMath: (list) => math.measure(list), proofing: createProofing({ stores, locale: () => electron.getLocale?.() || 'en-GB' }) });
 
     // The address book, with the people mail has seen behind it for Compose
     // to complete from. Built before the mail service, which needs it too —

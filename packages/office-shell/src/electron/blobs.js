@@ -37,7 +37,9 @@ export function hold(bytes, type = 'application/octet-stream', name = '', { grou
     for (const [id, b] of blobs) if (b.owner === owner && b.group === group && b.generation !== generation) blobs.delete(id);
   }
   const id = `b${++blobSeq}`;
-  const buf = Buffer.from(bytes);
+  // Bytes already in memory are kept as they are, not copied: a deck's
+  // pictures were each held twice, once by the deck and once here.
+  const buf = Buffer.isBuffer(bytes) ? bytes : bytes instanceof Uint8Array ? Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength) : Buffer.from(bytes);
   blobs.set(id, { bytes: buf, type, name, owner, group, generation });
   return { id, size: buf.length };
 }
