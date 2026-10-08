@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { unwrapNotes } from './release-notes.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const releaseDir = path.join(root, 'apps', 'desktop', 'release');
@@ -91,7 +92,9 @@ function notesFor(forTag) {
   );
 }
 
-const NOTES = notesFor(tag);
+// The file is wrapped for editors; the release page breaks a line wherever
+// the body does, so each paragraph goes up as one line (release-notes.js).
+const NOTES = unwrapNotes(notesFor(tag));
 
 async function main() {
   if (!fs.existsSync(releaseDir)) throw new Error(`nothing built: ${releaseDir} does not exist`);
