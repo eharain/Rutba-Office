@@ -121,3 +121,40 @@ test('radial and axial gradients come through as DrawingML draws them, and a rad
   const svg = renderSlide(Deck.open(fs.readFileSync(out)).slide(0), { width: 960 });
   assert.match(svg, /<radialGradient\b[^>]*cx="0\.3000" cy="0\.4000"/);
 });
+
+test('saved back as .ods, a workbook keeps its charts plotting the same cells, its shapes in their outlines and its picture', () => {
+  const { docs, id, out } = converted(fixture('showcase.ods'), 'showcase.ods');
+  const back = out.replace(/\.xlsx$/, '-again.ods');
+  docs.save({ id, path: back });
+  const odf = readOdf(fs.readFileSync(back));
+  const charts = odf.sheets.flatMap((s) => s.drawings.filter((d) => d.type === 'chart').map((d) => d.chart));
+  assert.deepEqual(charts.map((c) => c.kind).sort(), ['area', 'bar', 'column', 'line', 'pie']);
+  assert.ok(charts.some((c) => c.series[0].ref === 'Sales!$B$2:$B$13' && c.categories.ref === 'Sales!$A$2:$A$13'), 'its ranges, as ODF writes them and reads them back');
+  const drawn = odf.sheets.find((s) => s.name === 'Charts').drawings;
+  assert.ok(drawn.filter((d) => d.type === 'shape' && d.figures).length >= 14, 'the shapes as their own outlines');
+  assert.equal(drawn.find((d) => d.name === 'Shape Smile').figures.length, 4, "the smile's eyes and mouth");
+  assert.ok(drawn.some((d) => d.type === 'image'), 'the picture');
+  assert.equal(drawn.find((d) => d.name === 'Rectangle 23').rotation, 30, 'turned as it was');
+});
+
+test('a chart with no cells behind it is written with a table of its own data, and a preset shape by its ODF name', async () => {
+  const { writeOds } = await import('../packages/office-formats/src/odf-write.js');
+  const bytes = writeOds({
+    sheets: [{
+      name: 'Data', rows: [[{ value: 1, text: '1' }]],
+      drawings: [
+        { kind: 'chart', name: 'Pie', x: 10, y: 10, w: 300, h: 200, chart: { kind: 'pie', title: 'Shares', categories: { values: ['A', 'B'] }, series: [{ name: 'Share', values: [3, 7] }] } },
+        { kind: 'shape', name: 'Disc', geometry: 'ellipse', fill: '#FF0000', stroke: '#000000', x: 400, y: 10, w: 100, h: 100, text: 'Hi' },
+      ],
+    }],
+  });
+  const odf = readOdf(bytes);
+  const [pie, disc] = odf.sheets[0].drawings;
+  assert.equal(pie.chart.kind, 'pie');
+  assert.deepEqual(pie.chart.categories.values, ['A', 'B']);
+  assert.deepEqual(pie.chart.series[0].values, [3, 7]);
+  assert.equal(pie.chart.series[0].name, 'Share');
+  assert.equal(disc.geometry, 'ellipse');
+  assert.equal(disc.fill, '#FF0000');
+  assert.deepEqual(disc.paragraphs, ['Hi']);
+});

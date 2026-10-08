@@ -30,6 +30,8 @@ const NS =
   'xmlns:dc="http://purl.org/dc/elements/1.1/" ' +
   'xmlns:meta="urn:oasis:names:tc:opendocument:xmlns:meta:1.0" ' +
   'xmlns:of="urn:oasis:names:tc:opendocument:xmlns:of:1.2" ' +
+  'xmlns:chart="urn:oasis:names:tc:opendocument:xmlns:chart:1.0" ' +
+  'xmlns:dr3d="urn:oasis:names:tc:opendocument:xmlns:dr3d:1.0" ' +
   'office:version="1.3"';
 
 const MIME = {
@@ -374,7 +376,123 @@ function valueAttrs(cell) {
  * `{ value, text, formula, format }` — the calculated value, what the grid
  * shows, the formula as typed (with its `=`) and the number format code.
  */
+/** A preset as the custom shape type an ODF reader draws by name; the rest by their DrawingML names, as LibreOffice reads "ooxml-" ones. */
+const ODF_TYPES = {
+  rect: 'rectangle', roundRect: 'round-rectangle', ellipse: 'ellipse', diamond: 'diamond', triangle: 'isosceles-triangle', rtTriangle: 'right-triangle',
+  trapezoid: 'trapezoid', parallelogram: 'parallelogram', pentagon: 'pentagon', hexagon: 'hexagon', octagon: 'octagon', plus: 'cross', star5: 'star5',
+  star4: 'star4', star8: 'star8', rightArrow: 'right-arrow', leftArrow: 'left-arrow', upArrow: 'up-arrow', downArrow: 'down-arrow', chevron: 'chevron',
+  heart: 'heart', smileyFace: 'smiley', cloud: 'cloud', cube: 'cube', can: 'can', donut: 'ring', frame: 'frame',
+};
+
+/** An A1 range — Sales!$B$2:$B$13, 'My data'!A1 — as ODF writes one: Sales.$B$2:.$B$13. */
+export function odfRangeOf(a1) {
+  const m = /^(?:'((?:[^']|'')*)'|([^!]+))!(.+)$/.exec(String(a1 || '').trim());
+  if (!m) return null;
+  const sheet = m[1] != null ? m[1].replace(/''/g, "'") : m[2];
+  const quoted = /^[A-Za-z_][A-Za-z0-9_]*$/.test(sheet) ? sheet : `'${sheet.replace(/'/g, "''")}'`;
+  const [a, b] = m[3].split(':');
+  return b ? `${quoted}.${a}:.${b}` : `${quoted}.${a}`;
+}
+
+/**
+ * An embedded chart's own document: its kind, title, legend, and series
+ * plotting the cells they named — or, for a chart with no cells behind it,
+ * a table of its own data, as ODF keeps one.
+ */
+function chartObjectXml(chart, { width, height }) {
+  const cls = { column: 'chart:bar', bar: 'chart:bar', line: 'chart:line', area: 'chart:area', pie: 'chart:circle', doughnut: 'chart:ring', scatter: 'chart:scatter' }[chart.kind] || 'chart:bar';
+  const series = chart.series || [];
+  const local = !series.every((s) => odfRangeOf(s.ref));
+  const cats = chart.categories?.values || [];
+  const rowsN = Math.max(cats.length, ...series.map((s) => (s.values || []).length));
+  const col = (i) => String.fromCharCode(66 + i);
+  const localRef = (c, r0, r1) => `local-table.$${c}$${r0}:.$${c}$${r1}`;
+  const catRef = local ? (cats.length ? localRef('A', 2, rowsN + 1) : null) : odfRangeOf(chart.categories?.ref);
+  const seriesXml = series.map((s, i) => {
+    const values = local ? localRef(col(i), 2, rowsN + 1) : odfRangeOf(s.ref);
+    const label = local ? `local-table.$${col(i)}$1` : odfRangeOf(s.nameRef);
+    return `<chart:series chart:class="${cls}" chart:values-cell-range-address="${esc(values)}"${label ? ` chart:label-cell-address="${esc(label)}"` : ''}/>`;
+  }).join('');
+  const table = local
+    ? `<table:table table:name="local-table"><table:table-header-columns><table:table-column/></table:table-header-columns><table:table-columns><table:table-column table:number-columns-repeated="${Math.max(1, series.length)}"/></table:table-columns>`
+      + `<table:table-header-rows><table:table-row><table:table-cell/>${series.map((s) => `<table:table-cell office:value-type="string"><text:p>${textXml(s.name || '')}</text:p></table:table-cell>`).join('')}</table:table-row></table:table-header-rows>`
+      + `<table:table-rows>${Array.from({ length: rowsN }, (_, r) => `<table:table-row><table:table-cell office:value-type="string"><text:p>${textXml(String(cats[r] ?? ''))}</text:p></table:table-cell>${series.map((s) => { const v = s.values?.[r]; return typeof v === 'number' && Number.isFinite(v) ? `<table:table-cell office:value-type="float" office:value="${v}"><text:p>${v}</text:p></table:table-cell>` : '<table:table-cell/>'; }).join('')}</table:table-row>`).join('')}</table:table-rows></table:table>`
+    : '';
+  const axes = cls === 'chart:circle' || cls === 'chart:ring' ? (catRef ? `<chart:axis chart:dimension="x" chart:name="primary-x"><chart:categories table:cell-range-address="${esc(catRef)}"/></chart:axis>` : '')
+    : `<chart:axis chart:dimension="x" chart:name="primary-x">${catRef ? `<chart:categories table:cell-range-address="${esc(catRef)}"/>` : ''}</chart:axis><chart:axis chart:dimension="y" chart:name="primary-y"><chart:grid chart:class="major"/></chart:axis>`;
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-content ${NS}>`
+    + `<office:automatic-styles><style:style style:name="pa1" style:family="chart"><style:chart-properties chart:vertical="${chart.kind === 'bar' ? 'true' : 'false'}"/></style:style></office:automatic-styles>`
+    + `<office:body><office:chart><chart:chart svg:width="${cm(width)}" svg:height="${cm(height)}" chart:class="${cls}">`
+    + (chart.title ? `<chart:title><text:p>${textXml(chart.title)}</text:p></chart:title>` : '')
+    + '<chart:legend chart:legend-position="end"/>'
+    + `<chart:plot-area chart:style-name="pa1">${axes}${seriesXml}</chart:plot-area>${table}</chart:chart></office:chart></office:body></office:document-content>`;
+}
+
+/**
+ * A sheet's drawings as ODF draws them, on the sheet's page: each with its
+ * graphic style, a chart as a frame naming its object, a picture as a
+ * frame naming its file, a shape as a custom shape of a named type or of
+ * its own enhanced path, a line as a line. Turned ones say so.
+ */
+function sheetDrawingsXml(drawings, ctx) {
+  const out = [];
+  for (const d of drawings || []) {
+    const n = ++ctx.count;
+    const name = esc(d.name || `Drawing ${n}`);
+    const at = d.rotation
+      ? `svg:width="${cm(d.w)}" svg:height="${cm(d.h)}" draw:transform="translate(${cm(-d.w / 2)} ${cm(-d.h / 2)}) rotate(${(-(d.rotation * Math.PI) / 180).toFixed(5)}) translate(${cm(d.x + d.w / 2)} ${cm(d.y + d.h / 2)})"`
+      : `svg:x="${cm(d.x)}" svg:y="${cm(d.y)}" svg:width="${cm(d.w)}" svg:height="${cm(d.h)}"`;
+    if (d.kind === 'chart' && d.chart?.series?.length) {
+      const dir = `Object ${ctx.objects.length + 1}`;
+      ctx.objects.push({ dir, content: chartObjectXml(d.chart, d) });
+      const ranges = [d.chart.categories?.ref, ...d.chart.series.flatMap((s) => [s.nameRef, s.ref])].map(odfRangeOf).filter(Boolean);
+      out.push(`<draw:frame draw:name="${name}" draw:z-index="${n}" ${at}><draw:object${ranges.length ? ` draw:notify-on-update-of-ranges="${esc(ranges.join(' '))}"` : ''} xlink:href="./${dir}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>`);
+      continue;
+    }
+    if (d.kind === 'image' && d.data) {
+      const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/bmp': 'bmp', 'image/svg+xml': 'svg', 'image/webp': 'webp' }[d.contentType] || 'png';
+      const file = `Pictures/s${ctx.pictures.length + 1}.${ext}`;
+      ctx.pictures.push({ name: file, data: d.data, contentType: d.contentType || 'image/png' });
+      out.push(`<draw:frame draw:name="${name}" draw:z-index="${n}" ${at}><draw:image xlink:href="${file}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>`);
+      continue;
+    }
+    if (d.kind !== 'shape') continue;
+    // The shape's look, a style of its own.
+    const style = `gr${++ctx.styles}`;
+    const fill = d.fill && d.fill !== 'none' ? `draw:fill="solid" draw:fill-color="${esc(d.fill)}"` : 'draw:fill="none"';
+    const stroke = d.stroke && d.stroke !== 'none' ? `draw:stroke="solid" svg:stroke-color="${esc(d.stroke)}" svg:stroke-width="${cm(d.strokeWidth || 1)}"` : 'draw:stroke="none"';
+    ctx.styleXml.push(`<style:style style:name="${style}" style:family="graphic"><style:graphic-properties ${fill} ${stroke} draw:textarea-horizontal-align="center" draw:textarea-vertical-align="middle"/></style:style>`);
+    if (d.geometry === 'line' || d.geometry === 'straightConnector1') {
+      const [x1, x2] = d.flipH ? [d.x + d.w, d.x] : [d.x, d.x + d.w];
+      const [y1, y2] = d.flipV ? [d.y + d.h, d.y] : [d.y, d.y + d.h];
+      out.push(`<draw:line draw:name="${name}" draw:style-name="${style}" draw:z-index="${n}" svg:x1="${cm(x1)}" svg:y1="${cm(y1)}" svg:x2="${cm(x2)}" svg:y2="${cm(y2)}"/>`);
+      continue;
+    }
+    const text = String(d.text || '').split('\n').filter((t) => t !== '').map((t) => `<text:p>${textXml(t)}</text:p>`).join('');
+    let geometry;
+    const paths = d.geometry === 'custom' ? (d.path?.paths || (d.path ? [d.path] : [])) : [];
+    if (paths.length) {
+      // Its own outline as an enhanced path, in the units of its first path.
+      const { w, h } = paths[0];
+      const num = (v) => String(Math.round(v));
+      const pathText = paths.map((p) => {
+        const sx = w / (p.w || w);
+        const sy = h / (p.h || h);
+        const cmds = p.cmds.map((c) => (c.c === 'Z' ? 'Z' : `${c.c} ${c.pts.map(([x, y]) => `${num(x * sx)} ${num(y * sy)}`).join(' ')}`)).join(' ');
+        return `${p.filled === false ? 'F ' : ''}${p.stroked === false ? 'S ' : ''}${cmds} N`;
+      }).join(' ');
+      geometry = `<draw:enhanced-geometry svg:viewBox="0 0 ${num(w)} ${num(h)}" draw:type="non-primitive" draw:enhanced-path="${esc(pathText)}"/>`;
+    } else {
+      geometry = `<draw:enhanced-geometry svg:viewBox="0 0 21600 21600" draw:type="${esc(ODF_TYPES[d.geometry] || `ooxml-${d.geometry || 'rect'}`)}"/>`;
+    }
+    out.push(`<draw:custom-shape draw:name="${name}" draw:style-name="${style}" draw:z-index="${n}" ${at}>${text}${geometry}</draw:custom-shape>`);
+  }
+  return out.length ? `<table:shapes>${out.join('')}</table:shapes>` : '';
+}
+
 export function writeOds({ sheets = [], title = '' } = {}) {
+  // The drawings' styles, charts and pictures, gathered across the sheets.
+  const ctx = { count: 0, styles: 0, styleXml: [], objects: [], pictures: [] };
   const tables = sheets
     .map((sheet, si) => {
       const rows = sheet.rows || [];
@@ -401,15 +519,16 @@ export function writeOds({ sheets = [], title = '' } = {}) {
           return `<table:table-row>${xml || '<table:table-cell/>'}</table:table-row>`;
         })
         .join('');
-      return `<table:table table:name="${esc(sheet.name || `Sheet${si + 1}`)}"><table:table-column table:number-columns-repeated="${cols}"/>${rowXml || '<table:table-row><table:table-cell/></table:table-row>'}</table:table>`;
+      // Its drawings first, as the schema orders a table's parts.
+      return `<table:table table:name="${esc(sheet.name || `Sheet${si + 1}`)}">${sheetDrawingsXml(sheet.drawings, ctx)}<table:table-column table:number-columns-repeated="${cols}"/>${rowXml || '<table:table-row><table:table-cell/></table:table-row>'}</table:table>`;
     })
     .join('');
 
   const content =
-    `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-content ${NS}><office:automatic-styles/>` +
+    `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-content ${NS}>${ctx.styleXml.length ? `<office:automatic-styles>${ctx.styleXml.join('')}</office:automatic-styles>` : '<office:automatic-styles/>'}` +
     `<office:body><office:spreadsheet>${tables}</office:spreadsheet></office:body></office:document-content>`;
   const styles = `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-styles ${NS}><office:styles><style:default-style style:family="table-cell"><style:text-properties style:font-name="Calibri" fo:font-size="11pt"/></style:default-style></office:styles><office:font-face-decls><style:font-face style:name="Calibri" svg:font-family="Calibri"/></office:font-face-decls></office:document-styles>`;
-  return archive('ods', { content, styles, title });
+  return archive('ods', { content, styles, title, pictures: ctx.pictures, objects: ctx.objects });
 }
 
 /* ── a deck ────────────────────────────────────────────────────────────── */
@@ -492,7 +611,7 @@ function entry(name, data, { stored = false } = {}) {
   return e;
 }
 
-function archive(kind, { content, styles, title, pictures = [] }) {
+function archive(kind, { content, styles, title, pictures = [], objects = [] }) {
   const mime = MIME[kind];
   const manifest =
     '<?xml version="1.0" encoding="UTF-8"?>\n<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0" manifest:version="1.3">' +
@@ -501,6 +620,8 @@ function archive(kind, { content, styles, title, pictures = [] }) {
     '<manifest:file-entry manifest:full-path="styles.xml" manifest:media-type="text/xml"/>' +
     '<manifest:file-entry manifest:full-path="meta.xml" manifest:media-type="text/xml"/>' +
     pictures.map((p) => `<manifest:file-entry manifest:full-path="${esc(p.name)}" manifest:media-type="${esc(p.contentType)}"/>`).join('') +
+    // Each embedded chart: its directory, a chart document, and its content.
+    objects.map((o) => `<manifest:file-entry manifest:full-path="${esc(o.dir)}/" manifest:version="1.3" manifest:media-type="application/vnd.oasis.opendocument.chart"/><manifest:file-entry manifest:full-path="${esc(o.dir)}/content.xml" manifest:media-type="text/xml"/>`).join('') +
     '</manifest:manifest>';
   const entries = [
     entry('mimetype', mime, { stored: true }),
@@ -509,6 +630,7 @@ function archive(kind, { content, styles, title, pictures = [] }) {
     entry('styles.xml', styles),
     entry('meta.xml', metaXml(title)),
     ...pictures.map((p) => entry(p.name, p.data)),
+    ...objects.map((o) => entry(`${o.dir}/content.xml`, o.content)),
   ];
   return writeZip(entries);
 }

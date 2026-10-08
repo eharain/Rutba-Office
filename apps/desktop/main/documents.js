@@ -38,6 +38,7 @@ import { ommlToMathml } from '@rutba/ooxml/math';
 import { probeImage } from '@rutba/imaging/probe';
 import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
 import { pixelsToCharWidth } from '@rutba/sheet-view/geometry';
+import { parseChartXml } from '@rutba/drawing/ooxml';
 import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
 
 import { sniff, refineOoxml, kindFromExtension } from '@rutba/office-formats/sniff';
@@ -189,6 +190,58 @@ function sheetMarker(sheet, row0, col0, xPx, yPx) {
   let y = Math.max(0, yPx);
   while (y >= rowPx(row) && row < 1048575) { y -= rowPx(row); row++; }
   return { col, row, colOff: Math.round(x * 9525), rowOff: Math.round(y * 9525) };
+}
+
+/**
+ * A sheet's drawings as the ODS writer takes them, from the workbook: each
+ * at its place and size in pixels; a chart with its kind, title and the
+ * ranges and values its series plot; a shape's geometry, fill, outline,
+ * words, turn and own path; a picture's bytes. Groups, equations, ink and
+ * the like are left out.
+ */
+function odsDrawingsOf(view, sheet) {
+  const geo = view.geometry.get(sheet);
+  const list = view.drawings.get(sheet) || [];
+  if (!geo || !list.length) return [];
+  const at = (m) => ({ x: geo.colOffset(m.col) + (m.colOffsetEmu || 0) / 9525, y: geo.rowOffset(m.row) + (m.rowOffsetEmu || 0) / 9525 });
+  const hex = (c) => (c && c.type === 'srgb' && /^[0-9a-f]{6}$/i.test(c.value) ? '#' + c.value.toUpperCase() : null);
+  const out = [];
+  for (const d of list) {
+    if (d.hidden || !d.from) continue;
+    const a = at(d.from);
+    const b = d.to ? at(d.to) : { x: a.x + (d.widthPx || 96), y: a.y + (d.heightPx || 48) };
+    const box = { name: d.name || null, x: a.x, y: a.y, w: Math.max(1, b.x - a.x), h: Math.max(1, b.y - a.y) };
+    try {
+      if (d.kind === 'chart' && d.part && view.pkg.has(d.part)) {
+        const xml = view.pkg.text(d.part);
+        const spec = d.spec || parseChartXml(xml);
+        // The ranges each series plots, from the chart part's own references.
+        const sers = [...xml.matchAll(/<c:ser>([\s\S]*?)<\/c:ser>/g)].map((m) => m[1]);
+        const refIn = (s, tag) => new RegExp(`<c:${tag}>[\\s\\S]*?<c:f>([^<]*)</c:f>`).exec(s)?.[1] || null;
+        const kind = spec.type === 'pie' || spec.type === 'doughnut' || spec.type === 'line' || spec.type === 'area' || spec.type === 'scatter' ? spec.type : spec.type === 'bar' ? 'bar' : 'column';
+        out.push({
+          ...box, kind: 'chart',
+          chart: {
+            kind, title: spec.title || null,
+            categories: { ref: sers[0] ? refIn(sers[0], 'cat') || refIn(sers[0], 'xVal') : null, values: spec.categories || [] },
+            series: (spec.series || []).map((s, i) => ({ name: s.name || `Series ${i + 1}`, nameRef: sers[i] ? refIn(sers[i], 'tx') : null, ref: sers[i] ? refIn(sers[i], 'val') || refIn(sers[i], 'yVal') : null, values: s.values || [] })),
+          },
+        });
+      } else if (d.kind === 'image' && d.descriptor?.part && view.pkg.has(d.descriptor.part)) {
+        const ext = d.descriptor.part.split('.').pop().toLowerCase();
+        out.push({ ...box, kind: 'image', data: view.pkg.read(d.descriptor.part), contentType: ODF_PICTURE_TYPES[ext] || 'image/png' });
+      } else if (d.kind === 'shape' && d.descriptor) {
+        const s = d.descriptor;
+        out.push({
+          ...box, kind: 'shape', geometry: s.geometry || 'rect', fill: hex(s.fill) || (s.fill ? '#4472C4' : 'none'), stroke: hex(s.stroke), strokeWidth: s.strokeWidth || 1,
+          text: s.text || '', rotation: s.rotation || 0, flipH: s.flipH, flipV: s.flipV, path: s.path || null,
+        });
+      }
+    } catch {
+      // A drawing that cannot be read for the file is left out; the rest are written.
+    }
+  }
+  return out;
 }
 
 /**
@@ -3129,7 +3182,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
             }
             rows.push(row);
           }
-          sheets.push({ name, rows });
+          sheets.push({ name, rows, drawings: odsDrawingsOf(view, name) });
         }
       } finally {
         if (current) view.selectSheet(current);
