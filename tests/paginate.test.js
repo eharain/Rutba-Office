@@ -12,7 +12,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { paginate, layoutParagraph, PARAGRAPH_STYLES, WRAP_SAFETY } from '@rutba/doc-view/paginate';
+import { paginate, pageGuard, layoutParagraph, PARAGRAPH_STYLES, WRAP_SAFETY } from '@rutba/doc-view/paginate';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { parseBand } from '@rutba/ooxml';
 import { resolveFields, bandForPage } from '@rutba/doc-view/bands';
@@ -145,10 +145,24 @@ test('a single line taller than the page does not loop forever', () => {
   assert.ok(laid.pages.every((p) => p.fragments.length > 0), 'no empty sheets');
 });
 
-test('a runaway layout is bounded rather than left to hang the browser', () => {
+test('a runaway layout is bounded rather than left to hang the browser, and says it was cut short', () => {
   const blocks = Array.from({ length: 4000 }, (_, i) => para(i, 'x'.repeat(300)));
+  const laid = paginate({ flow: flowOf(blocks), blocks, section: { ...A4, heightPx: 200 }, maxPages: 300 });
+  assert.ok(laid.count <= 301);
+  assert.equal(laid.truncated, true);
+});
+
+test('a document longer than five hundred pages lays out whole — the guard grows with the content', () => {
+  // 2,400 paragraphs on a small page, about one page each: the old fixed
+  // guard stopped at 501 pages and left the rest out of print and the PDF.
+  const blocks = Array.from({ length: 2400 }, (_, i) => para(i, `Paragraph ${i} `.repeat(12)));
   const laid = paginate({ flow: flowOf(blocks), blocks, section: { ...A4, heightPx: 200 } });
-  assert.ok(laid.count <= 501);
+  assert.ok(laid.count > 600, `laid out ${laid.count} pages`);
+  assert.equal(laid.truncated, undefined);
+  const last = laid.pages.at(-1).fragments.at(-1);
+  assert.equal(last.paragraphIndex, 2399, 'the last paragraph is on the last page');
+  assert.equal(pageGuard([], []), 500, 'never under five hundred');
+  assert.equal(pageGuard(flowOf(blocks), blocks), 2 * 2400 + Math.ceil(blocks.reduce((s, b) => s + b.text.length, 0) / 200));
 });
 
 test('no page geometry means no pages', () => {

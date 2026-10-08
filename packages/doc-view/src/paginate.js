@@ -447,6 +447,20 @@ const heightOfLaid = (laidParagraphs) => laidParagraphs.reduce((s, p) => s + p.s
 const TABLE_SPACE_AFTER = 12;
 
 /**
+ * How many pages a flow could honestly need, past which its layout is a
+ * runaway: twice its entries and table rows, and a page for every two
+ * hundred characters, never fewer than five hundred. A fixed five hundred
+ * cut a long document short in print and in its PDF, with nothing to say so.
+ */
+export function pageGuard(flow, blocks) {
+  let entries = 0;
+  let chars = 0;
+  for (const entry of flow || []) entries += 1 + (entry?.kind === 'table' ? (entry.table?.rows?.length || entry.rows?.length || 0) : 0);
+  for (const b of blocks || []) chars += b?.text?.length || 0;
+  return Math.max(500, 2 * entries + Math.ceil(chars / 200));
+}
+
+/**
  * Lay the whole flow out onto pages.
  *
  * @param {object}   input
@@ -454,9 +468,11 @@ const TABLE_SPACE_AFTER = 12;
  * @param {Array}    input.blocks    the paragraphs, indexed as the caret sees them
  * @param {object}   input.section   page geometry, or null for continuous flow
  * @param {number}   [input.maxPages] a runaway guard; a measurement bug must not
- *   produce a million empty sheets and take the browser with it
+ *   produce a million empty sheets and take the browser with it. Left out, it
+ *   is worked out from the content (see `pageGuard`), so a long document lays
+ *   out whole; a layout the guard stops says so as `truncated`.
  */
-export function paginate({ flow, blocks, section: mainSection, sections = null, maxPages = 500, cache = null, styles = null, listLabels = null, notes = null, watermark = null, math = null, hyphenation = null }) {
+export function paginate({ flow, blocks, section: mainSection, sections = null, maxPages = null, cache = null, styles = null, listLabels = null, notes = null, watermark = null, math = null, hyphenation = null }) {
   // No page geometry means no pages — an email body is a continuous flow, and
   // saying so is better than inventing A4 for it.
   if (!mainSection) return null;
@@ -740,9 +756,11 @@ export function paginate({ flow, blocks, section: mainSection, sections = null, 
   };
 
   const flowList = flow ?? [];
+  const guard = maxPages ?? pageGuard(flowList, blocks);
+  let truncated = false;
   for (let flowIdx = 0; flowIdx < flowList.length; flowIdx++) {
     const entry = flowList[flowIdx];
-    if (pages.length > maxPages) break;
+    if (pages.length > guard) { truncated = true; break; }
 
     // A section of other paper starts a page of its own paper.
     if (geoms) {
@@ -1108,7 +1126,7 @@ export function paginate({ flow, blocks, section: mainSection, sections = null, 
   // section's — the section's own is what a reader means by "how wide is the
   // page", so that is what is reported, not whatever column happened to be
   // laid out last.
-  return { pages, count, contentWidthPx: mainSection.contentWidthPx, contentHeightPx: Math.max(120, mainSection.heightPx - mainSection.margins.top - mainSection.margins.bottom) };
+  return { pages, count, ...(truncated ? { truncated: true } : {}), contentWidthPx: mainSection.contentWidthPx, contentHeightPx: Math.max(120, mainSection.heightPx - mainSection.margins.top - mainSection.margins.bottom) };
 }
 
 /** Do the sections lie on more than one kind of paper? */
