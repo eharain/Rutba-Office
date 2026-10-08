@@ -158,6 +158,17 @@ export default function SlidesRibbon({
   const animationList = model?.slide?.animations || [];
   const shapeAnimated = selected != null && animationList.some((a) => String(a.shapeId) === String(selected));
   const animationOptions = animation?.known ? ANIMATION_OPTIONS[animation.effect] || null : null;
+  // Effect Options → Sequence: a text shape's entrance, emphasis or exit as one object or paragraph by paragraph.
+  const animShape = animation ? (model?.slide?.shapes || []).find((s) => String(s.id) === String(animation.shapeId)) : null;
+  const animWords = (animShape?.text?.paragraphs || []).filter((p) => String(p.plain || '').trim()).length;
+  const sequenceItems = animation && animation.kind !== 'path' && (animation.known || animation.paragraph != null) && animWords > 1
+    ? [
+        { heading: true, label: 'Sequence' },
+        { label: 'As One Object', icon: animation.paragraph == null ? 'check' : undefined, run: () => act('animSequence', 'object') },
+        { label: 'All at Once', run: () => act('animSequence', 'together') },
+        { label: 'By Paragraph', icon: animation.paragraph != null ? 'check' : undefined, run: () => act('animSequence', 'paragraph') },
+      ]
+    : [];
   /** More Effects and Add Animation: every effect under its heading, each a verb on the selected shape. */
   const effectMenu = (verb) => EFFECT_MENU.flatMap(([kind, heading, effects]) => [
     { heading: true, label: heading },
@@ -725,6 +736,16 @@ export default function SlidesRibbon({
             ))}
             <Button
               tall
+              icon="redo"
+              label="Motion Paths"
+              className="sl-an-paths"
+              pressed={animation?.kind === 'path'}
+              disabled={!hasShape}
+              title={hasShape ? 'Motion Paths — the shape moves along a line, an arc, a turn, a circle, a square or a loop from where it stands' : 'Motion Paths — select a shape first'}
+              onClick={(e) => menu.open(e, EFFECT_MENU.find(([kind]) => kind === 'path')[2].map(([effect, label]) => ({ label, icon: 'redo', run: () => act('animate', { kind: 'path', effect }) })))}
+            />
+            <Button
+              tall
               icon="more"
               label="More Effects"
               disabled={!hasShape}
@@ -735,9 +756,13 @@ export default function SlidesRibbon({
               tall
               icon="settings"
               label="Effect Options"
-              disabled={!animationOptions}
-              title={animationOptions ? `Effect Options — which way the ${animation?.name || 'effect'} goes` : 'Effect Options — pick an effect with a direction first (Fly In, Float In, Split, Wipe, Spin)'}
-              onClick={(e) => menu.open(e, animationOptions.map(([value, label]) => ({ label, icon: animation?.direction === value ? 'check' : undefined, run: () => act('animPatch', { direction: value }) })))}
+              disabled={!animationOptions && !sequenceItems.length}
+              title={animationOptions || sequenceItems.length ? `Effect Options — ${animationOptions ? `which way the ${animation?.name || 'effect'} goes` : ''}${animationOptions && sequenceItems.length ? ', and ' : ''}${sequenceItems.length ? 'the words as one object or paragraph by paragraph' : ''}` : 'Effect Options — pick an effect with a direction (Fly In, Float In, Split, Wipe, Spin), or one on words of more than one paragraph'}
+              onClick={(e) => menu.open(e, [
+                ...(animationOptions || []).map(([value, label]) => ({ label, icon: animation?.direction === value ? 'check' : undefined, run: () => act('animPatch', { direction: value }) })),
+                ...(animationOptions && sequenceItems.length ? ['-'] : []),
+                ...sequenceItems,
+              ])}
             />
           </Group>
           <Group label="Advanced Animation">

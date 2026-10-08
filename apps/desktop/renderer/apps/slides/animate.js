@@ -7,7 +7,12 @@
 // groups with start times, and plays one group at a time with the Web
 // Animations API on those wrappers: transform, opacity, clip-path and
 // visibility, each effect holding its end state, so a shape that has come
-// in stays in and one that has gone out stays out.
+// in stays in and one that has gone out stays out. An effect on one
+// paragraph plays on that paragraph's lines (`data-para`), and a motion
+// path moves the shape along its path, sampled into keyframes, and leaves
+// it where the path ends.
+
+import { MOTION_PATHS } from '@rutba/presentation/timing';
 
 /** The Animation gallery's entrances, in PowerPoint's order, and what each does. */
 export const ANIMATION_GALLERY = [
@@ -24,6 +29,8 @@ export const EFFECT_MENU = [
   ['entr', 'Entrance', ANIMATION_GALLERY.map(([effect, label]) => [effect, label])],
   ['emph', 'Emphasis', [['pulse', 'Pulse'], ['spin', 'Spin'], ['grow', 'Grow/Shrink']]],
   ['exit', 'Exit', [['appear', 'Disappear'], ['fade', 'Fade'], ['fly', 'Fly Out'], ['float', 'Float Out'], ['split', 'Split'], ['wipe', 'Wipe'], ['zoom', 'Zoom']]],
+  // Motion Paths: each a path from the shape's centre (`motionPath`).
+  ['path', 'Motion Paths', MOTION_PATHS],
 ];
 /** Effect Options for each effect that has a direction, as `[value, label]` — the engine's own values. */
 export const ANIMATION_OPTIONS = {
@@ -34,11 +41,75 @@ export const ANIMATION_OPTIONS = {
   spin: [['clockwise', 'Clockwise'], ['counterclockwise', 'Counterclockwise']],
 };
 
-/** Every element drawing a shape, or the members of a group. */
-export function shapeNodes(root, id) {
+/** Every element drawing a shape, or the members of a group — or, given a paragraph, that paragraph's lines in the shape. */
+export function shapeNodes(root, id, paragraph = null) {
   if (!root || id == null) return [];
   const safe = String(id).replace(/"/g, '');
-  return [...root.querySelectorAll(`[data-shape="${safe}"], [data-groups~="${safe}"]`)];
+  const nodes = [...root.querySelectorAll(`[data-shape="${safe}"], [data-groups~="${safe}"]`)];
+  if (paragraph == null) return nodes;
+  return nodes.flatMap((el) => [...el.querySelectorAll(`[data-para="${Number(paragraph)}"]`)]);
+}
+
+/** What an effect acts on, as the show keeps it: the shape, or one paragraph of it. */
+const targetKey = (e) => (e.paragraph != null ? `${e.shapeId}#${e.paragraph}` : String(e.shapeId));
+const targetNodes = (root, key) => {
+  const [id, para] = String(key).split('#');
+  return shapeNodes(root, id, para === undefined ? null : para);
+};
+
+/**
+ * A motion path (PowerPoint's form: M, L, C, Z in fractions of the slide,
+ * ending in E) as points along it in pixels, each with how far along the
+ * whole path it lies — the keyframes' offsets.
+ */
+export function pathPoints(path, size) {
+  const W = size?.width || 960;
+  const H = size?.height || 540;
+  const tokens = String(path || '').replace(/([MmLlCcZzEe])/g, ' $1 ').trim().split(/[\s,]+/).filter(Boolean);
+  const pts = [];
+  let i = 0;
+  let cmd = null;
+  let x = 0, y = 0, sx = 0, sy = 0;
+  const num = () => Number(tokens[i++]);
+  while (i < tokens.length) {
+    if (/^[A-Za-z]$/.test(tokens[i])) cmd = tokens[i++];
+    if (!cmd || cmd === 'E' || cmd === 'e') break;
+    const rel = cmd === cmd.toLowerCase();
+    const C = cmd.toUpperCase();
+    if (C === 'Z') { pts.push([sx, sy]); x = sx; y = sy; cmd = null; continue; }
+    if (C === 'M' || C === 'L') {
+      const nx = num(), ny = num();
+      if (!Number.isFinite(nx) || !Number.isFinite(ny)) break;
+      x = rel ? x + nx : nx; y = rel ? y + ny : ny;
+      if (C === 'M') { sx = x; sy = y; }
+      pts.push([x, y]);
+      if (C === 'M') cmd = rel ? 'l' : 'L';
+    } else if (C === 'C') {
+      const v = [num(), num(), num(), num(), num(), num()];
+      if (v.some((n) => !Number.isFinite(n))) break;
+      const [x1, y1, x2, y2, x3, y3] = rel ? [x + v[0], y + v[1], x + v[2], y + v[3], x + v[4], y + v[5]] : v;
+      for (let k = 1; k <= 16; k++) {
+        const t = k / 16, u = 1 - t;
+        pts.push([u * u * u * x + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3, u * u * u * y + 3 * u * u * t * y1 + 3 * u * t * t * y2 + t * t * t * y3]);
+      }
+      x = x3; y = y3;
+    } else {
+      break;
+    }
+  }
+  if (!pts.length) return [];
+  const px = pts.map(([a, b]) => [a * W, b * H]);
+  let total = 0;
+  const along = [0];
+  for (let k = 1; k < px.length; k++) { total += Math.hypot(px[k][0] - px[k - 1][0], px[k][1] - px[k - 1][1]); along.push(total); }
+  return px.map(([a, b], k) => ({ x: a, y: b, offset: total ? along[k] / total : k / Math.max(1, px.length - 1) }));
+}
+
+/** Where a shape stands after its motion paths so far: the sum of each path's end, in pixels. */
+function pathEnd(path, size) {
+  const pts = pathPoints(path, size);
+  const end = pts[pts.length - 1];
+  return end ? { x: end.x - pts[0].x, y: end.y - pts[0].y } : { x: 0, y: 0 };
 }
 
 /**
@@ -98,17 +169,33 @@ export function triggered(animations = []) {
 export function visibilityAt(animations = [], step = 0, auto = true, fired = null) {
   const seq = sequence(animations);
   const shown = new Map();
-  for (const e of animations) if (e.shapeId != null && !shown.has(e.shapeId)) shown.set(e.shapeId, e.kind !== 'entr');
+  for (const e of animations) if (e.shapeId != null && e.kind !== 'path' && !shown.has(targetKey(e))) shown.set(targetKey(e), e.kind !== 'entr');
   const byTrigger = fired?.size ? triggered(animations) : null;
   const firedGroups = byTrigger ? [...fired].flatMap(([id, n]) => (byTrigger.get(id) || []).slice(0, n)) : [];
   const played = [...(auto && seq.auto ? [seq.auto] : []), ...seq.clicks.slice(0, Math.max(0, step)), ...firedGroups];
   for (const g of played) {
     for (const e of g.effects) {
-      if (e.kind === 'entr') shown.set(e.shapeId, true);
-      else if (e.kind === 'exit') shown.set(e.shapeId, false);
+      if (e.kind === 'entr') shown.set(targetKey(e), true);
+      else if (e.kind === 'exit') shown.set(targetKey(e), false);
     }
   }
   return shown;
+}
+
+/** How far each shape has travelled by its motion paths once `step` clicks have played: `Map(shapeId → { x, y })`. */
+export function travelAt(animations = [], step = 0, auto = true, size = null) {
+  const seq = sequence(animations);
+  const moved = new Map();
+  const played = [...(auto && seq.auto ? [seq.auto] : []), ...seq.clicks.slice(0, Math.max(0, step))];
+  for (const g of played) {
+    for (const e of g.effects) {
+      if (e.kind !== 'path' || !e.path) continue;
+      const d = pathEnd(e.path, size);
+      const was = moved.get(String(e.shapeId)) || { x: 0, y: 0 };
+      moved.set(String(e.shapeId), { x: was.x + d.x, y: was.y + d.y });
+    }
+  }
+  return moved;
 }
 
 /**
@@ -116,12 +203,24 @@ export function visibilityAt(animations = [], step = 0, auto = true, fired = nul
  * once — no animation: entering a slide, stepping back, or the presenter's
  * picture of where the show is.
  */
-export function applyState(root, animations = [], step = 0, auto = true, fired = null) {
+export function applyState(root, animations = [], step = 0, auto = true, fired = null, size = null) {
   const shown = visibilityAt(animations, step, auto, fired);
-  for (const [id, visible] of shown) {
-    for (const el of shapeNodes(root, id)) {
+  for (const [key, visible] of shown) {
+    for (const el of targetNodes(root, key)) {
       for (const a of el.getAnimations?.() || []) a.cancel();
       el.style.visibility = visible ? '' : 'hidden';
+    }
+  }
+  // A shape a motion path has moved stands where the path left it.
+  if (animations.some((e) => e.kind === 'path')) {
+    const moved = travelAt(animations, step, auto, size || (root?.querySelector?.('svg')?.viewBox?.baseVal?.width ? { width: root.querySelector('svg').viewBox.baseVal.width, height: root.querySelector('svg').viewBox.baseVal.height } : null));
+    for (const e of animations) {
+      if (e.kind !== 'path') continue;
+      const d = moved.get(String(e.shapeId));
+      for (const el of shapeNodes(root, e.shapeId)) {
+        for (const a of el.getAnimations?.() || []) a.cancel();
+        el.style.transform = d && (d.x || d.y) ? `translate(${d.x}px, ${d.y}px)` : '';
+      }
     }
   }
 }
@@ -175,7 +274,18 @@ function entranceFrames(effect, direction, g, size) {
 }
 
 /** One effect's keyframes and easing, visibility included: an entrance shows its shape, an exit hides it at the end. */
-function effectFrames(e, g, size) {
+function effectFrames(e, g, size, from = { x: 0, y: 0 }) {
+  if (e.kind === 'path') {
+    // Along the path from where the shape stands, smooth at the start and the end.
+    const pts = pathPoints(e.path, size);
+    if (!pts.length) return { frames: [{}, {}], easing: 'linear' };
+    const x0 = pts[0].x, y0 = pts[0].y;
+    const frames = pts.map((p) => ({ transform: `translate(${from.x + p.x - x0}px, ${from.y + p.y - y0}px)`, offset: p.offset }));
+    frames[0].offset = 0;
+    frames[frames.length - 1].offset = 1;
+    for (let k = 1; k < frames.length; k++) if (frames[k].offset < frames[k - 1].offset) frames[k].offset = frames[k - 1].offset;
+    return { frames, easing: EASE };
+  }
   if (e.kind === 'emph') {
     switch (e.effect) {
       case 'spin':
@@ -211,9 +321,11 @@ export function playGroup(root, group, { shapes = [], size = null } = {}) {
   const animations = [];
   for (const e of group?.effects || []) {
     const g = geometry.get(String(e.shapeId)) || { x: 0, y: 0, w: 0, h: 0 };
-    const { frames, easing } = effectFrames(e, g, size);
+    // A path starts where the paths before it left the shape.
+    const at = e.kind === 'path' ? (shapeNodes(root, e.shapeId)[0]?.style.transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)/) || null) : null;
+    const { frames, easing } = effectFrames(e, g, size, at ? { x: Number(at[1]), y: Number(at[2]) } : { x: 0, y: 0 });
     const duration = Math.max(1, Math.round((Number(e.duration) || 0) * 1000));
-    for (const el of shapeNodes(root, e.shapeId)) {
+    for (const el of shapeNodes(root, e.shapeId, e.kind === 'path' ? null : e.paragraph)) {
       // An emphasis starts from where the shape is; an entrance or an exit
       // replaces what the shape held, from the state it had: hidden until
       // an entrance's own start (its delay included), shown until an exit's.
@@ -221,7 +333,10 @@ export function playGroup(root, group, { shapes = [], size = null } = {}) {
         for (const a of el.getAnimations()) a.cancel();
         el.style.visibility = e.kind === 'entr' ? 'hidden' : '';
       }
-      animations.push(el.animate(frames, { duration, delay: Math.round(e.start * 1000), easing, fill: 'forwards' }));
+      const anim = el.animate(frames, { duration, delay: Math.round(e.start * 1000), easing, fill: 'forwards' });
+      // A path's end is kept in the element's own style, so the next path starts there and stepping back can undo it.
+      if (e.kind === 'path') anim.finished.then(() => { const last = frames[frames.length - 1]; el.style.transform = last.transform || ''; }).catch(() => {});
+      animations.push(anim);
     }
   }
   const finished = Promise.all(animations.map((a) => a.finished.catch(() => null))).then(() => undefined);

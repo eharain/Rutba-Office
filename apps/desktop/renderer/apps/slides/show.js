@@ -136,11 +136,11 @@ export function ShowStage({ slide, size = null, step = null, hidden = false, onS
       const seq = seqOf();
       const at = step && step.index === top.index ? Math.min(Math.max(0, step.value), seq.clicks.length) : 0;
       phase.current = { key: top.key, index: top.index, step: at, entering: true, autoDone: at > 0 || !seq.auto, svg: top.svg, fired: new Map() };
-      applyState(el, slideRef.current?.animations || [], at, at > 0);
+      applyState(el, slideRef.current?.animations || [], at, at > 0, null, size);
     } else if (p.svg !== top.svg) {
       // The same slide drawn again: the shapes put back where the show has them.
       p.svg = top.svg;
-      applyState(el, slideRef.current?.animations || [], p.step, p.autoDone, p.fired);
+      applyState(el, slideRef.current?.animations || [], p.step, p.autoDone, p.fired, size);
     }
     if (!top.transition) {
       if (phase.current.entering) entered();
@@ -183,7 +183,7 @@ export function ShowStage({ slide, size = null, step = null, hidden = false, onS
       // click before — ends where it was going, then the next click's plays.
       groupRef.current?.finish();
       if (!p.autoDone) {
-        applyState(topEl(), slideRef.current?.animations || [], p.step, true, p.fired);
+        applyState(topEl(), slideRef.current?.animations || [], p.step, true, p.fired, size);
         p.autoDone = true;
       }
       p.step = target;
@@ -193,7 +193,7 @@ export function ShowStage({ slide, size = null, step = null, hidden = false, onS
       groupRef.current = null;
       p.step = target;
       p.autoDone = true;
-      applyState(topEl(), slideRef.current?.animations || [], target, true, p.fired);
+      applyState(topEl(), slideRef.current?.animations || [], target, true, p.fired, size);
       settle();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -286,7 +286,7 @@ export function AnimationPreview({ slide, size, only = null, onDone }) {
     const seq = sequence(list);
     // The triggers' effects play after the slide's own, each trigger's in turn.
     const groups = [...(seq.auto ? [seq.auto] : []), ...seq.clicks, ...[...triggered(list).values()].flat()];
-    applyState(el, list, 0, false);
+    applyState(el, list, 0, false, null, size);
     let live = true;
     let player = null;
     let timer = null;

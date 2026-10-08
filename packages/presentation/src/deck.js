@@ -21,7 +21,7 @@ import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS, COLOUR_SLOTS, themePartXm
 import { slideXml } from './build.js';
 import { chartPartXml } from '@rutba/ooxml/build';
 import { readTransition, withTransition, transitionBlock, insertTransition, transitionRange, transitionXml } from './motion.js';
-import { readAnimations, addAnimation, setAnimation, removeAnimation, moveAnimation, removeShapeAnimations, pruneAnimations } from './timing.js';
+import { readAnimations, addAnimation, setAnimation, removeAnimation, moveAnimation, removeShapeAnimations, pruneAnimations, setSequence } from './timing.js';
 import { parseChartXml } from '@rutba/drawing';
 import { isPattern } from './patterns.js';
 import { BEVELS, CAMERAS, shape3dXml } from './shape3d.js';
@@ -4592,6 +4592,15 @@ export class Deck {
   setAnimation(index, at, patch = {}) {
     this.#editTiming(index, (xml) => setAnimation(xml, at, patch));
     return true;
+  }
+
+  /**
+   * Effect Options → Sequence: the effect at `at` as one object, or one
+   * effect per paragraph of its shape's words, each on a click or all at once.
+   * @returns {number} where the first of them is now
+   */
+  setAnimationSequence(index, at, how) {
+    return this.#editTiming(index, (xml) => setSequence(xml, at, how)).index;
   }
 
   /** The effect at `at` taken out of the sequence. */

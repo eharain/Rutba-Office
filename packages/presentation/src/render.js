@@ -188,7 +188,7 @@ export function layoutText(body, box, { scale = 1, baseSize = 18, levels = null 
   const lines = [];
   let y = 0;
 
-  for (const p of body.paragraphs || []) {
+  for (const [para, p] of (body.paragraphs || []).entries()) {
     const level = p.level || 0;
     // The level's inherited style — the master's text styles, the layout's
     // and the shape's list styles — under whatever the paragraph and its
@@ -288,6 +288,8 @@ export function layoutText(body, box, { scale = 1, baseSize = 18, levels = null 
         bulletColor: bulletSpec?.color,
         numbered: p.bullet?.type === 'number',
         segments: segments.length ? segments : [{ text: lineText }],
+        // Which paragraph of the body the line belongs to, for an effect played by paragraph.
+        para,
       });
       y += lh;
     });
@@ -312,7 +314,7 @@ function htmlTextSvg(body, box, opts = {}) {
   const ins = body.insets || { l: 7.2, t: 3.6, r: 7.2, b: 3.6 };
   const justify = { top: 'flex-start', middle: 'center', bottom: 'flex-end' }[body.anchor || 'top'] || 'flex-start';
   const base = levels?.[0] || {};
-  const paras = (body.paragraphs || []).map((p) => {
+  const paras = (body.paragraphs || []).map((p, para) => {
     const lv = levels?.[Math.min(8, p.level || 0)] || {};
     const hasDisplay = p.runs.some((r) => r.math?.display);
     const align = p.align || lv.align || (hasDisplay ? 'center' : 'left');
@@ -336,7 +338,7 @@ function htmlTextSvg(body, box, opts = {}) {
       return `<span${css ? ` style="${css}"` : ''}>${escapeXml(r.text || '')}</span>`;
     }).join('');
     const dir = p.rtl ?? lv.rtl ? 'direction:rtl;' : '';
-    return `<div style="margin:0;${dir}text-align:${align};font-size:${size}px;line-height:1.2">${runs || '&#8203;'}</div>`;
+    return `<div data-para="${para}" style="margin:0;${dir}text-align:${align};font-size:${size}px;line-height:1.2">${runs || '&#8203;'}</div>`;
   }).join('');
   const colour = base.color || '#1a1a1a';
   const face = base.font ? fontStack(base.font).replace(/"/g, "'") : DEFAULT_FONT;
@@ -396,6 +398,7 @@ function drawLines(body, box, opts, lines, height, insets) {
 
   const out = [];
   for (const line of lines) {
+    const mark = out.length;
     const width = box.w - (insets?.l || 0) - (insets?.r || 0);
     const lineWidth = line.segments.reduce((n, s) => n + measureText(s.text, { size: s.size || line.size, weight: s.bold ? 'bold' : 'normal' }) + spacingPx(s, opts?.scale || 1) * s.text.length, 0);
 
@@ -462,6 +465,8 @@ function drawLines(body, box, opts, lines, height, insets) {
       `<text x="${(rtl ? start : x).toFixed(2)}" y="${y.toFixed(2)}" font-size="${line.size.toFixed(2)}" ` +
       `font-family="${DEFAULT_FONT}" fill="${line.segments[0]?.color || '#1a1a1a'}"${filter}${rtl ? ' direction="rtl"' : ''} xml:space="preserve">${spans}</text>`
     );
+    // The line's drawing marked with its paragraph, which an effect by paragraph moves alone.
+    if (line.para != null) out.push(`<g data-para="${line.para}">${out.splice(mark).join('')}</g>`);
   }
   return out.join('');
 }

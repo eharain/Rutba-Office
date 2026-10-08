@@ -19,7 +19,8 @@ import Presenter, { nextShown } from './slides/presenter.js';
 import SlidesRibbon from './slides/ribbon.js';
 import { ShowStage, TransitionPreview, AnimationPreview } from './slides/show.js';
 import { describeTransition } from './slides/motion.js';
-import { clickCount } from './slides/animate.js';
+import { clickCount, pathPoints } from './slides/animate.js';
+import { motionPath } from '@rutba/presentation/timing';
 import { Markup } from './slides/markup.js';
 import { DesignGallery, CustomColoursDialog, CustomFontsDialog, DESIGN_CSS } from './slides/design.js';
 import { CommentsPane, markerSpots, personColour, COMMENTS_CSS } from './slides/comments.js';
@@ -2085,11 +2086,15 @@ export default function Slides({ app, shell, boot }) {
           setAnimSel(null);
           return;
         }
+        // A motion path from the gallery, drawn for this slide's shape (a circle round on it).
+        const look = arg.kind === 'path'
+          ? { kind: 'path', path: motionPath(arg.effect, (model?.size?.height || 720) / (model?.size?.width || 1280)) }
+          : { kind: arg.kind, effect: arg.effect };
         const ops = ids.map((id) => {
           const own = name === 'animate' ? (String(id) === String(selected) && currentAnim ? currentAnim : animations.find((a) => String(a.shapeId) === String(id))) : null;
           return own
-            ? { op: 'setAnimation', slide: index, index: own.index, patch: { kind: arg.kind, effect: arg.effect } }
-            : { op: 'addAnimation', slide: index, shape: id, spec: { kind: arg.kind, effect: arg.effect } };
+            ? { op: 'setAnimation', slide: index, index: own.index, patch: look }
+            : { op: 'addAnimation', slide: index, shape: id, spec: look };
         });
         const next = await apply(...ops);
         if (!next) return;
@@ -2106,6 +2111,16 @@ export default function Slides({ app, shell, boot }) {
         if (!currentAnim) return;
         await apply({ op: 'setAnimation', slide: index, index: currentAnim.index, patch: arg });
         if (arg.direction !== undefined) setPreview({ kind: 'animation', key: Date.now(), only: currentAnim.index });
+        return;
+      }
+      // Effect Options → Sequence: the words as one object, all at once, or paragraph by paragraph.
+      case 'animSequence': {
+        if (!currentAnim) return;
+        const next = await apply({ op: 'setAnimationSequence', slide: index, index: currentAnim.index, how: arg });
+        if (typeof next?.opResult === 'number') {
+          setAnimSel(next.opResult);
+          setPreview({ kind: 'animation', key: Date.now() });
+        }
         return;
       }
       // Move Earlier / Move Later, or a row dropped elsewhere in the pane.
@@ -2678,6 +2693,36 @@ export default function Slides({ app, shell, boot }) {
                     down the shape's left edge when it has several. A click
                     on one picks that effect.
                   */}
+                  {/* Motion paths: the picked shape's paths drawn from its centre, green where each starts and red where it ends. */}
+                  {tab === 'animations' && !preview && selectedShape?.geometry && animations.some((e) => e.kind === 'path' && String(e.shapeId) === String(selectedShape.id))
+                    ? (() => {
+                        const g = selectedShape.geometry;
+                        let x0 = g.x + g.w / 2;
+                        let y0 = g.y + g.h / 2;
+                        const size = { width: model?.size?.width || 1280, height: model?.size?.height || 720 };
+                        return (
+                          <svg className="sl-motion-paths" width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`}>
+                            {animations.filter((e) => e.kind === 'path' && e.path && String(e.shapeId) === String(selectedShape.id)).map((e) => {
+                              const pts = pathPoints(e.path, size);
+                              if (!pts.length) return null;
+                              const ox = x0 - pts[0].x, oy = y0 - pts[0].y;
+                              const d = pts.map((p, i) => `${i ? 'L' : 'M'}${(p.x + ox).toFixed(1)} ${(p.y + oy).toFixed(1)}`).join(' ');
+                              const end = pts[pts.length - 1];
+                              const start = { x: x0, y: y0 };
+                              x0 = end.x + ox;
+                              y0 = end.y + oy;
+                              return (
+                                <g key={`path-${e.index}`} className={currentAnim?.index === e.index ? 'current' : ''}>
+                                  <path d={d} fill="none" strokeWidth={1.5 / scale} strokeDasharray={`${4 / scale} ${3 / scale}`} />
+                                  <circle cx={start.x} cy={start.y} r={4 / scale} className="start" />
+                                  <circle cx={x0} cy={y0} r={4 / scale} className="end" />
+                                </g>
+                              );
+                            })}
+                          </svg>
+                        );
+                      })()
+                    : null}
                   {tab === 'animations' && animations.length && !preview
                     ? (() => {
                         const byShape = new Map();
@@ -3465,6 +3510,13 @@ const KIND_WORDS = { entr: 'Entrance', emph: 'Emphasis', exit: 'Exit', path: 'Mo
  * right-click for its start; the bin takes it out; Play All plays the lot
  * on the stage.
  */
+/** The first words of the paragraph an effect plays, for the Animation Pane. */
+function paragraphWords(slide, e) {
+  const shape = (slide?.shapes || []).find((s) => String(s.id) === String(e.shapeId));
+  const words = String(shape?.text?.paragraphs?.[e.paragraph]?.plain || '').trim();
+  return words.length > 24 ? `${words.slice(0, 23)}…` : words;
+}
+
 function AnimationPane({ slide, current, act, playing }) {
   const list = slide?.animations || [];
   const names = new Map((slide?.shapes || []).map((s) => [String(s.id), s.name || `Shape ${s.id}`]));
@@ -3503,7 +3555,7 @@ function AnimationPane({ slide, current, act, playing }) {
               <span className="sl-animrow-trigger">{e.trigger === 'onClick' ? <Icon name="mouse" size={13} /> : e.trigger === 'afterPrevious' ? <Icon name="clock" size={13} /> : null}</span>
               <Icon name="star" size={14} className="sl-animrow-star" />
               <span className="sl-layer-text">
-                <span className="sl-layer-title">{names.get(String(e.shapeId)) || `Shape ${e.shapeId}`}</span>
+                <span className="sl-layer-title">{names.get(String(e.shapeId)) || `Shape ${e.shapeId}`}{e.paragraph != null ? `: ${paragraphWords(slide, e) || `paragraph ${e.paragraph + 1}`}` : ''}</span>
                 <span className="sl-layer-words">{e.name}{e.kind === 'exit' ? ' (exit)' : ''}{e.duration ? ` · ${e.duration.toFixed(2)} s` : ''}{e.delay ? ` · after ${e.delay.toFixed(2)} s` : ''}</span>
               </span>
             </div>
@@ -3864,6 +3916,12 @@ const CSS = `
 .sl-show-layer svg { display: block; width: 100%; height: 100%; }
 /* Animations: a shape turns and grows about its own middle. */
 .sl-show-layer g[data-shape], .sl-preview g[data-shape], .pv-stage g[data-shape], .pv-thumb g[data-shape] { transform-box: fill-box; transform-origin: 50% 50%; }
+.sl-show-layer g[data-para], .sl-preview g[data-para], .pv-stage g[data-para], .pv-thumb g[data-para] { transform-box: fill-box; transform-origin: 50% 50%; }
+.sl-motion-paths { position: absolute; left: 0; top: 0; overflow: visible; pointer-events: none; z-index: 4; }
+.sl-motion-paths path { stroke: #7f7f7f; }
+.sl-motion-paths g.current path { stroke: var(--accent); }
+.sl-motion-paths circle.start { fill: #2e9d4a; }
+.sl-motion-paths circle.end { fill: #d13438; }
 /* The numbers beside animated shapes on the stage (Animations tab): PowerPoint's grey tags, the picked one in the accent. */
 .sl-anim-badge { position: absolute; z-index: 7; display: grid; place-items: center; padding: 0; border: 1px solid #8a8f98; background: #f3f4f6; color: #30343b; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1; cursor: pointer; box-sizing: border-box; box-shadow: 0 1px 2px rgba(0,0,0,.12); }
 .sl-anim-badge:hover { border-color: var(--accent); color: var(--accent); }

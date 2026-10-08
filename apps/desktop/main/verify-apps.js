@@ -61,6 +61,7 @@ import { verifyIcons } from './verify-icons.js';
 import { verifyWordImmersive } from './verify-word-immersive.js';
 import { verifyWordTheme } from './verify-word-theme.js';
 import { verifyDeckTrigger } from './verify-deck-trigger.js';
+import { verifyDeckMotion } from './verify-deck-motion.js';
 import { verifySheetEquation } from './verify-sheet-equation.js';
 import { verifyWordSignature } from './verify-word-signature.js';
 import { verifyDeckInsertMaster } from './verify-deck-insert-master.js';
@@ -4671,6 +4672,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('immersive')) await verifyWordImmersive({ open, check, until, wait }, { dir });
     if (only.includes('doctheme')) await verifyWordTheme({ open, check, until, wait, doc }, { dir });
     if (only.includes('trigger')) await verifyDeckTrigger({ open, check, until, wait, doc }, { dir });
+    if (only.includes('motion')) await verifyDeckMotion({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('sheetequation')) await verifySheetEquation({ open, check, until, wait }, { dir });
     if (only.includes('signature')) await verifyWordSignature({ open, check, until, wait }, { dir });
     if (only.includes('insertmaster')) await verifyDeckInsertMaster({ open, check, until, wait }, { dir });
@@ -4913,6 +4915,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyWordImmersive({ open, check, until, wait }, { dir }));
   await block(() => verifyWordTheme({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyDeckTrigger({ open, check, until, wait, doc }, { dir }));
+  await block(() => verifyDeckMotion({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetEquation({ open, check, until, wait }, { dir }));
   await block(() => verifyWordSignature({ open, check, until, wait }, { dir }));
   await block(() => verifyDeckInsertMaster({ open, check, until, wait }, { dir }));

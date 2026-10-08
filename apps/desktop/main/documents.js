@@ -2215,6 +2215,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // and every effect on a shape taken out — the gallery's None.
     addAnimation: (d, a) => d.addAnimation(a.slide, a.shape, a.spec || {}, a.at ?? null),
     setAnimation: (d, a) => d.setAnimation(a.slide, a.index, a.patch || {}),
+    // Effect Options → Sequence: as one object, all at once, or by paragraph.
+    setAnimationSequence: (d, a) => d.setAnimationSequence(a.slide, a.index, a.how),
     removeAnimation: (d, a) => d.removeAnimation(a.slide, a.index),
     moveAnimation: (d, a) => d.moveAnimation(a.slide, a.index, a.to),
     removeShapeAnimations: (d, a) => d.removeShapeAnimations(a.slide, a.shape),

@@ -17,8 +17,14 @@
 // Animation Pane shows is the tree read in order, and writing a changed
 // list back is rebuilding the three levels from it.
 //
+// A motion path is written as PowerPoint writes one drawn by hand — a
+// custom path, `p:animMotion` moving the shape from where it stands along
+// a path in fractions of the slide — and a text shape's effect can be
+// split into one per paragraph (Effect Options → By Paragraph), each
+// aimed at its paragraph (`p:txEl/p:pRg`) with the build list saying so.
+//
 // Everything this does not model is kept: an effect it does not know (a
-// motion path, a media call, anything from a newer PowerPoint) stays byte
+// media call, anything from a newer PowerPoint) stays byte
 // for byte and moves with the list; interactive sequences (triggers), media
 // nodes and the rest of the tree are never touched; and the ids every time
 // node carries are renumbered once, at the end, with the references to them
@@ -108,7 +114,45 @@ export const EFFECTS = {
     wipe: { id: 22, duration: 0.5, direction: 'bottom', name: 'Wipe' },
     zoom: { id: 53, duration: 0.5, name: 'Zoom' },
   },
+  // Animations → Motion Paths: every path is written as a custom one, its
+  // shape in `path` (motionPath below gives the gallery's).
+  path: {
+    custom: { id: 0, duration: 2, name: 'Custom Path' },
+  },
 };
+
+/**
+ * The Motion Paths gallery: each path from the shape's centre, in PowerPoint's
+ * own form — `M`, `L`, `C` and `Z` in fractions of the slide's width (x)
+ * and height (y), y downwards, ending in `E` — `aspect` being the slide's
+ * height over its width, so a circle is round on the slide.
+ */
+export const MOTION_PATHS = [
+  ['down', 'Down'], ['up', 'Up'], ['left', 'Left'], ['right', 'Right'],
+  ['arcDown', 'Arc Down'], ['arcUp', 'Arc Up'], ['turnDown', 'Turn Down'], ['turnUp', 'Turn Up'],
+  ['circle', 'Circle'], ['square', 'Square'], ['loop', 'Loop de Loop'],
+];
+export function motionPath(name, aspect = 9 / 16) {
+  const n = (v) => String(Math.round(v * 100000) / 100000);
+  // Points given in heights; x scaled to the width.
+  const pt = (x, y) => `${n(x * aspect)} ${n(y)}`;
+  const k = 0.5523;
+  const r = 0.125;
+  switch (name) {
+    case 'down': return `M 0 0 L ${pt(0, 0.25)} E`;
+    case 'up': return `M 0 0 L ${pt(0, -0.25)} E`;
+    case 'left': return `M 0 0 L ${pt(-0.3, 0)} E`;
+    case 'right': return `M 0 0 L ${pt(0.3, 0)} E`;
+    case 'arcDown': return `M 0 0 C ${pt(0, 0.16)} ${pt(0.3, 0.16)} ${pt(0.3, 0)} E`;
+    case 'arcUp': return `M 0 0 C ${pt(0, -0.16)} ${pt(0.3, -0.16)} ${pt(0.3, 0)} E`;
+    case 'turnDown': return `M 0 0 L ${pt(0.15, 0)} C ${pt(0.205, 0)} ${pt(0.25, 0.045)} ${pt(0.25, 0.1)} L ${pt(0.25, 0.25)} E`;
+    case 'turnUp': return `M 0 0 L ${pt(0.15, 0)} C ${pt(0.205, 0)} ${pt(0.25, -0.045)} ${pt(0.25, -0.1)} L ${pt(0.25, -0.25)} E`;
+    case 'circle': return `M 0 0 C ${pt(k * r, 0)} ${pt(r, r - k * r)} ${pt(r, r)} C ${pt(r, r + k * r)} ${pt(k * r, 2 * r)} ${pt(0, 2 * r)} C ${pt(-k * r, 2 * r)} ${pt(-r, r + k * r)} ${pt(-r, r)} C ${pt(-r, r - k * r)} ${pt(-k * r, 0)} ${pt(0, 0)} Z E`;
+    case 'square': return `M 0 0 L ${pt(0.2, 0)} L ${pt(0.2, 0.2)} L ${pt(0, 0.2)} Z E`;
+    case 'loop': return `M 0 0 C ${pt(0.15, 0)} ${pt(0.25, -0.05)} ${pt(0.25, -0.15)} C ${pt(0.25, -0.25)} ${pt(0.1, -0.25)} ${pt(0.1, -0.15)} C ${pt(0.1, -0.05)} ${pt(0.2, 0)} ${pt(0.35, 0)} E`;
+    default: throw new Error(`"${name}" is not a motion path in the gallery`);
+  }
+}
 
 /** Fly and Wipe: presetSubtype bits — 1 top, 2 right, 4 bottom, 8 left. */
 const SIDE_BITS = { top: 1, right: 2, bottom: 4, left: 8, 'top-right': 3, 'bottom-right': 6, 'top-left': 9, 'bottom-left': 12 };
@@ -150,6 +194,9 @@ function identify(ctnAttrs, xml) {
       out.direction = Object.entries(SPLIT).find(([, v]) => v.filter === filter || v.subtype === sub)?.[0] || 'vertical-out';
     } else if (id === 22) { out.effect = 'wipe'; out.direction = BITS_SIDE[sub] || 'bottom'; }
     else if (id === 53 || id === 23) out.effect = 'zoom';
+  } else if (kind === 'path') {
+    out.effect = 'custom';
+    out.path = /<p:animMotion\b[^>]*\spath="([^"]*)"/.exec(xml)?.[1] ?? null;
   } else if (kind === 'emph') {
     if (id === 26) out.effect = 'pulse';
     else if (id === 8) {
@@ -292,7 +339,8 @@ function publicEntry(e, index) {
     shapeId: e.shapeId,
     kind: e.kind,
     effect: e.effect,
-    name: e.effect ? EFFECTS[e.kind]?.[e.effect]?.name || e.effect : e.kind === 'media' ? 'Play' : e.kind === 'path' ? 'Motion Path' : 'Custom',
+    name: e.kind === 'path' ? 'Motion Path' : e.effect ? EFFECTS[e.kind]?.[e.effect]?.name || e.effect : e.kind === 'media' ? 'Play' : 'Custom',
+    path: e.path ?? null,
     direction: e.direction,
     trigger: e.trigger,
     duration: Math.round(e.duration) / 1000,
@@ -311,6 +359,7 @@ function publicEntry(e, index) {
  * Zoom, 23) it reads and plays but would turn into its modern cousin.
  */
 function writes(e) {
+  if (e.kind === 'path') return false;
   const spec = e.effect ? EFFECTS[e.kind]?.[e.effect] : null;
   if (!spec || e.presetId == null) return false;
   return e.effect === 'float' ? e.presetId === 42 || e.presetId === 47 : spec.id === e.presetId;
@@ -352,12 +401,23 @@ function offSlide(side) {
  * behaviours — a visibility set, an animEffect filter, ppt_x/ppt_y/ppt_w/
  * ppt_h animations, a rotation or a scale.
  */
-export function effectXml({ kind, effect, direction = null, duration, delay = 0, spid, paragraph = null, grpId = 0, nodeType = 'clickEffect' }) {
+export function effectXml({ kind, effect, direction = null, duration, delay = 0, spid, paragraph = null, grpId = 0, nodeType = 'clickEffect', path = null }) {
   const spec = EFFECTS[kind]?.[effect];
   if (!spec) throw new Error(`"${kind} ${effect}" is not an animation this writes`);
   const dir = direction ?? spec.direction ?? null;
   const dur = Math.max(1, Math.round((duration ?? spec.duration) * 1000));
   const tgt = target(spid, paragraph);
+  if (kind === 'path') {
+    // A custom path, smooth at its start and end, the shape held where it ends.
+    const d = String(path || '').trim();
+    if (!/^[Mm]\s/.test(d)) throw new Error('A motion path needs a path to follow');
+    return (
+      `<p:par><p:cTn id="${token()}" presetID="0" presetClass="path" presetSubtype="0" accel="50000" decel="50000" fill="hold" grpId="${grpId}" nodeType="${nodeType}">` +
+      `<p:stCondLst><p:cond delay="${Math.max(0, Math.round(delay))}"/></p:stCondLst><p:childTnLst>` +
+      `<p:animMotion origin="layout" path="${d.replace(/"/g, '')}" pathEditMode="relative"><p:cBhvr><p:cTn id="${token()}" dur="${dur}" fill="hold"/>${tgt}<p:attrNameLst><p:attrName>ppt_x</p:attrName><p:attrName>ppt_y</p:attrName></p:attrNameLst></p:cBhvr></p:animMotion>` +
+      `</p:childTnLst></p:cTn></p:par>`
+    );
+  }
   const entering = kind === 'entr';
   let subtype = 0;
   let presetId = spec.id;
@@ -548,6 +608,13 @@ function shapeInfo(slideXml) {
  * Anything else in the list (a chart's or a diagram's build) stays.
  */
 function buildList(oldList, allEffectRefs, fresh, slideXml) {
+  // build="p" on a shape whose effects go paragraph by paragraph, and off one whose do not.
+  const byPara = (tag, key) => {
+    const want = allEffectRefs.get(key) === true;
+    const has = /\sbuild="p"/.test(tag);
+    if (want === has) return tag;
+    return want ? tag.replace(/^<p:bldP\b/, '<p:bldP build="p"') : tag.replace(/\sbuild="p"/, '');
+  };
   const info = shapeInfo(slideXml);
   const keep = [];
   const have = new Set();
@@ -558,7 +625,7 @@ function buildList(oldList, allEffectRefs, fresh, slideXml) {
         const spid = /\sspid="([^"]*)"/.exec(m[0])?.[1];
         const grp = /\sgrpId="([^"]*)"/.exec(m[0])?.[1] ?? '0';
         const key = `${spid}:${grp}`;
-        if (allEffectRefs.has(key) && !have.has(key)) { keep.push(m[0]); have.add(key); }
+        if (allEffectRefs.has(key) && !have.has(key)) { keep.push(byPara(m[0], key)); have.add(key); }
       } else {
         others.push(m[0]);
       }
@@ -569,21 +636,24 @@ function buildList(oldList, allEffectRefs, fresh, slideXml) {
     if (have.has(key)) continue;
     const s = info.get(String(f.spid));
     if (!s || s.tag !== 'sp') continue;
-    keep.push(`<p:bldP spid="${f.spid}" grpId="${f.grpId}"${s.placeholder && s.text ? '' : ' animBg="1"'}/>`);
+    keep.push(byPara(`<p:bldP spid="${f.spid}" grpId="${f.grpId}"${s.placeholder && s.text ? '' : ' animBg="1"'}/>`, key));
     have.add(key);
   }
   const all = [...keep, ...others];
   return all.length ? `<p:bldLst>${all.join('')}</p:bldLst>` : '';
 }
 
-/** Every (spid, grpId) pair an effect anywhere in the tree refers to. */
+/** Every (spid, grpId) pair an effect anywhere in the tree refers to, each with whether it aims at a paragraph. */
 function effectRefs(timingXml) {
-  const refs = new Set();
+  const refs = new Map();
   const tree = rangeTree(timingXml);
   for (const n of walk(tree)) {
     if (n.name !== 'p:cTn' || n.attrs.grpId == null) continue;
     const tgt = [...walk(n)].find((c) => c.name === 'p:spTgt');
-    if (tgt) refs.add(`${tgt.attrs.spid}:${n.attrs.grpId}`);
+    if (!tgt) continue;
+    const key = `${tgt.attrs.spid}:${n.attrs.grpId}`;
+    const para = tgt.children.some((c) => c.name === 'p:txEl');
+    refs.set(key, Boolean(refs.get(key)) || para);
   }
   return refs;
 }
@@ -719,7 +789,7 @@ function nextGrpId(slideXml, spid) {
   const range = timingRange(slideXml);
   if (!range) return 0;
   let max = -1;
-  for (const key of effectRefs(slideXml.slice(range.start, range.end))) {
+  for (const key of effectRefs(slideXml.slice(range.start, range.end)).keys()) {
     const [s, g] = key.split(':');
     if (s === String(spid)) max = Math.max(max, Number(g));
   }
@@ -734,13 +804,14 @@ function nextGrpId(slideXml, spid) {
  */
 export function addAnimation(slideXml, shapeId, spec = {}, at = null) {
   const kind = spec.kind || 'entr';
-  const effect = spec.effect || 'fade';
+  const effect = spec.effect || (kind === 'path' ? 'custom' : 'fade');
   if (!EFFECTS[kind]?.[effect]) throw new Error(`"${kind} ${effect}" is not an animation this writes`);
+  if (kind === 'path' && !/^[Mm]\s/.test(String(spec.path || '').trim())) throw new Error('A motion path needs a path to follow');
   if (!new RegExp(`<p:cNvPr\\b[^>]*\\bid="${shapeId}"`).test(slideXml)) throw new Error(`shape ${shapeId} is not on this slide`);
   const list = currentList(slideXml);
   const entry = {
     fresh: true,
-    spec: { kind, effect, direction: spec.direction ?? EFFECTS[kind][effect].direction ?? null, duration: spec.duration ?? EFFECTS[kind][effect].duration },
+    spec: { kind, effect, direction: spec.direction ?? EFFECTS[kind][effect].direction ?? null, duration: spec.duration ?? EFFECTS[kind][effect].duration, path: kind === 'path' ? spec.path : null },
     shapeId: String(shapeId),
     grpId: nextGrpId(slideXml, shapeId),
     trigger: spec.trigger || 'onClick',
@@ -773,16 +844,18 @@ export function setAnimation(slideXml, index, patch = {}) {
     if (spid && !patch.trigger) next.trigger = 'onClick';
   }
   if (patch.delay != null) next.delay = Math.max(0, Math.round(Number(patch.delay) * 1000));
-  const rebuild = patch.effect !== undefined || patch.kind !== undefined || patch.direction !== undefined;
+  const rebuild = patch.effect !== undefined || patch.kind !== undefined || patch.direction !== undefined || patch.path !== undefined;
   if (rebuild) {
     const kind = patch.kind ?? e.kind;
-    const effect = patch.effect ?? e.effect;
+    const effect = patch.effect ?? (patch.kind === 'path' ? 'custom' : e.effect);
     const spec = EFFECTS[kind]?.[effect];
     if (!spec) throw new Error(`"${kind} ${effect}" is not an animation this writes`);
     const sameEffect = kind === e.kind && effect === e.effect;
     const duration = patch.duration != null ? Number(patch.duration) : sameEffect && e.duration ? e.duration / 1000 : spec.duration;
     const direction = patch.direction !== undefined ? patch.direction : sameEffect ? e.direction : spec.direction ?? null;
-    list[index] = { ...next, fresh: true, spec: { kind, effect, direction, duration }, grpId: e.grpId ?? nextGrpId(slideXml, e.shapeId), duration: Math.round(duration * 1000) };
+    const path = kind === 'path' ? patch.path ?? e.path ?? null : null;
+    if (kind === 'path' && !path) throw new Error('A motion path needs a path to follow');
+    list[index] = { ...next, fresh: true, spec: { kind, effect, direction, duration, path }, grpId: e.grpId ?? nextGrpId(slideXml, e.shapeId), duration: Math.round(duration * 1000) };
   } else {
     if (patch.duration != null) {
       const ms = Math.max(1, Math.round(Number(patch.duration) * 1000));
@@ -799,6 +872,57 @@ export function setAnimation(slideXml, index, patch = {}) {
   // A fresh entry carries what writeList needs.
   if (list[index].fresh) list[index].paragraph = e.paragraph;
   return writeList(slideXml, list);
+}
+
+/** The paragraphs of a shape's text that have words, by their place among the shape's paragraphs. */
+export function shapeParagraphs(slideXml, shapeId) {
+  const re = new RegExp(`<p:sp>(?:(?!</p:sp>)[\\s\\S])*?<p:cNvPr\\b[^>]*\\bid="${String(shapeId).replace(/\D/g, '')}"[\\s\\S]*?</p:sp>`);
+  const sp = re.exec(slideXml)?.[0];
+  const body = sp ? /<p:txBody>([\s\S]*?)<\/p:txBody>/.exec(sp)?.[1] : null;
+  if (!body) return [];
+  const out = [];
+  [...body.matchAll(/<a:p\b(?:\/>|>([\s\S]*?)<\/a:p>)/g)].forEach((m, i) => {
+    const words = [...String(m[1] || '').matchAll(/<a:t(?:\s[^>]*)?>([^<]*)<\/a:t>/g)].map((t) => t[1]).join('');
+    if (words.trim()) out.push(i);
+  });
+  return out;
+}
+
+/**
+ * Effect Options → Sequence: the effect at `index` played as one object
+ * (`object`), or split into one per paragraph of its shape's words — each
+ * on a click of its own (`paragraph`), or all together (`together`). A
+ * split effect is gathered back into one from any of its paragraphs.
+ * @returns {{ xml: string, index: number }}
+ */
+export function setSequence(slideXml, index, how = 'paragraph') {
+  const list = currentList(slideXml);
+  const e = list[index];
+  if (!e) throw new RangeError(`no animation at ${index}`);
+  // The run of this shape's effects that one split made: same shape, same build group, a paragraph each.
+  let first = index;
+  let last = index;
+  if (e.paragraph != null) {
+    const same = (x) => x && x.paragraph != null && String(x.shapeId) === String(e.shapeId) && x.grpId === e.grpId && !x.triggerShape === !e.triggerShape;
+    while (same(list[first - 1])) first -= 1;
+    while (same(list[last + 1])) last += 1;
+  }
+  const head = list[first];
+  const kind = head.kind;
+  const effect = head.effect;
+  if (!EFFECTS[kind]?.[effect] || kind === 'path' || (!writes(head) && !head.fresh)) throw new Error('Only an entrance, emphasis or exit this writes can be played by paragraph');
+  const spec = { kind, effect, direction: head.direction ?? null, duration: (head.duration || 0) / 1000 || EFFECTS[kind][effect].duration };
+  const base = { fresh: true, spec, shapeId: String(head.shapeId), grpId: head.grpId ?? nextGrpId(slideXml, head.shapeId), delay: head.delay || 0, duration: Math.round(spec.duration * 1000), triggerShape: head.triggerShape ?? null };
+  let entries;
+  if (how === 'object') {
+    entries = [{ ...base, trigger: head.trigger, paragraph: null }];
+  } else {
+    const paras = shapeParagraphs(slideXml, head.shapeId);
+    if (!paras.length) throw new Error('The shape has no words to play paragraph by paragraph');
+    entries = paras.map((para, i) => ({ ...base, delay: i ? 0 : base.delay, trigger: i === 0 ? head.trigger : how === 'together' ? 'withPrevious' : 'onClick', paragraph: para }));
+  }
+  list.splice(first, last - first + 1, ...entries);
+  return { xml: writeList(slideXml, list), index: first };
 }
 
 /** Take one effect out; an emptied click group goes with it. */
