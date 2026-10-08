@@ -32,6 +32,7 @@ import { unesc } from './workbook.js';
 import { chartPartXml } from './build.js';
 import { parseTable, parseSection, childElements, firstElement, headBefore } from './table.js';
 import { readHeadersAndFooters } from './headers.js';
+import { tableStyleXml } from './table-styles.js';
 import { ENVELOPE_SIZES, ENVELOPE_STYLES_XML, envelopeXml, envelopeDocumentXml, labelSheetXml, labelParagraph, nextRecordParagraph, labelProduct, NEXT_FIELD_RUNS } from './labels.js';
 import { readParagraphStyles, readCharacterStyles, readNumberingDefs, readThemeFonts, readThemeColours, STANDARD_STYLES_XML } from './docstyles.js';
 import {
@@ -897,7 +898,8 @@ export class Document {
             // The table's lines: its style's, each side its own where it gives one.
             const styled = this._tableStyleLook(head.styleId);
             const borders = styled.borders || head.borders ? { ...(styled.borders || {}), ...(head.borders || {}) } : null;
-            const tableStyle = styled.fill || Object.keys(styled.parts).length ? { fill: styled.fill, parts: styled.parts, rowBand: styled.rowBand, colBand: styled.colBand, look: head.styleLook } : null;
+            // The style it names and its switches ride along even with no parts to draw: Table Design shows them.
+            const tableStyle = { id: head.styleId, fill: styled.fill, parts: styled.parts, rowBand: styled.rowBand, colBand: styled.colBand, look: head.styleLook };
             stack.push({ tag: 'tbl', id: m.index, nextRow: 0, ...head, borders, tableStyle });
           }
           else if (name === 'tr') {
@@ -5976,6 +5978,93 @@ export class Document {
    */
   setTableCellVAlign(tableStart, rowIndex, cellIndex, v) {
     if (!['top', 'center', 'bottom'].includes(v)) throw new Error('a cell aligns its words at the top, center or bottom');
+    return this._editCellProps(tableStart, rowIndex, cellIndex, (inner) => {
+      inner = inner.replace(/<w:vAlign\b[^>]*\/>/g, '');
+      if (v === 'top') return inner;
+      const el = '<w:vAlign w:val="' + v + '"/>';
+      const after = /<w:(hideMark|headers|cellIns|cellDel|cellMerge|tcPrChange)\b/.exec(inner);
+      return after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
+    });
+  }
+
+  /**
+   * Table Design → Shading: one cell's background (w:shd, in its schema
+   * place among the cell's properties), or none.
+   */
+  setTableCellShading(tableStart, rowIndex, cellIndex, fill) {
+    const hex = fill == null ? null : String(fill).replace('#', '').toUpperCase();
+    if (hex != null && !/^[0-9A-F]{6}$/.test(hex)) throw new Error('a cell is shaded in a colour like #D9E2F3');
+    return this._editCellProps(tableStart, rowIndex, cellIndex, (inner) => {
+      inner = inner.replace(/<w:shd\b[^>]*\/>/g, '');
+      if (!hex) return inner;
+      const el = '<w:shd w:val="clear" w:color="auto" w:fill="' + hex + '"/>';
+      const after = /<w:(noWrap|tcMar|textDirection|tcFitText|vAlign|hideMark|headers|cellIns|cellDel|cellMerge|tcPrChange)\b/.exec(inner);
+      return after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
+    });
+  }
+
+  /**
+   * Table Design → Table Styles: the table takes a style (Word's built-in
+   * ones written into the styles part when the document has no definition,
+   * in its theme's colours) and loses its own table-wide lines, which would
+   * hide the style's; its options are Word's for a new table if it had none.
+   * Null takes the style away.
+   */
+  setTableStyle(tableStart, styleId) {
+    if (styleId) this._ensureTableStyle(styleId);
+    return this._editTableProps(tableStart, (inner) => {
+      inner = inner.replace(/<w:tblStyle\b[^>]*\/>/g, '');
+      if (!styleId) return inner;
+      inner = inner.replace(/<w:tblBorders\b[^>]*>[\s\S]*?<\/w:tblBorders>|<w:tblBorders\b[^>]*\/>/g, '');
+      if (!/<w:tblLook\b/.test(inner)) inner = this._withTableLook(inner, { firstRow: true, lastRow: false, firstColumn: true, lastColumn: false, noHBand: false, noVBand: true });
+      return '<w:tblStyle w:val="' + esc(styleId) + '"/>' + inner;
+    });
+  }
+
+  /** Table Design → Table Style Options: which of its style's parts the table shows (w:tblLook). */
+  setTableLook(tableStart, flags) {
+    return this._editTableProps(tableStart, (inner) => this._withTableLook(inner, flags));
+  }
+
+  /** tblPr's contents with its tblLook written for these switches, in both of Word's forms. */
+  _withTableLook(inner, flags) {
+    const f = { firstRow: false, lastRow: false, firstColumn: false, lastColumn: false, noHBand: false, noVBand: false, ...flags };
+    const bits = (f.firstRow ? 0x20 : 0) | (f.lastRow ? 0x40 : 0) | (f.firstColumn ? 0x80 : 0) | (f.lastColumn ? 0x100 : 0) | (f.noHBand ? 0x200 : 0) | (f.noVBand ? 0x400 : 0);
+    const el = '<w:tblLook w:val="' + bits.toString(16).toUpperCase().padStart(4, '0') + '" w:firstRow="' + (f.firstRow ? 1 : 0) + '" w:lastRow="' + (f.lastRow ? 1 : 0)
+      + '" w:firstColumn="' + (f.firstColumn ? 1 : 0) + '" w:lastColumn="' + (f.lastColumn ? 1 : 0) + '" w:noHBand="' + (f.noHBand ? 1 : 0) + '" w:noVBand="' + (f.noVBand ? 1 : 0) + '"/>';
+    inner = inner.replace(/<w:tblLook\b[^>]*\/>/g, '');
+    // tblLook comes last but for a caption, a description and a tracked change's record.
+    const after = /<w:(tblCaption|tblDescription|tblPrChange)\b/.exec(inner);
+    return after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
+  }
+
+  /** A built-in table style's definition in the styles part, if it is not there already — and Normal Table, which it is based on. */
+  _ensureTableStyle(styleId) {
+    const part = 'word/styles.xml';
+    let xml = this.pkg.has(part) ? this.pkg.text(part) : '';
+    if (!xml || new RegExp('<w:style\\b[^>]*\\bw:styleId="' + styleId.replace(/[^A-Za-z0-9-]/g, '') + '"').test(xml)) return;
+    const def = tableStyleXml(styleId, this.themeColours());
+    if (!def) throw new Error('There is no table style called ' + styleId + '.');
+    const normal = /<w:style\b[^>]*\bw:styleId="TableNormal"/.test(xml) ? '' : '<w:style w:type="table" w:default="1" w:styleId="TableNormal"><w:name w:val="Normal Table"/><w:uiPriority w:val="99"/><w:semiHidden/><w:unhideWhenUsed/><w:tblPr><w:tblInd w:w="0" w:type="dxa"/><w:tblCellMar><w:top w:w="0" w:type="dxa"/><w:left w:w="108" w:type="dxa"/><w:bottom w:w="0" w:type="dxa"/><w:right w:w="108" w:type="dxa"/></w:tblCellMar></w:tblPr></w:style>';
+    xml = xml.replace('</w:styles>', () => normal + def + '</w:styles>');
+    this.pkg.write_(part, xml);
+  }
+
+  /** The table's tblPr contents rewritten by `edit` (a tracked change's record of the old properties kept whole). */
+  _editTableProps(tableStart, edit) {
+    const parts = this._tableParts(tableStart);
+    const { body } = this._body();
+    const at = parts.innerStart;
+    const pr = /^<w:tblPr\b[^>]*>((?:<w:tblPrChange\b[\s\S]*?<\/w:tblPrChange>|(?!<\/w:tblPr>)[\s\S])*?)<\/w:tblPr>|^<w:tblPr\b[^>]*\/>/.exec(body.slice(at));
+    const inner = edit(pr && pr[1] != null ? pr[1] : '');
+    const replacement = '<w:tblPr>' + inner + '</w:tblPr>';
+    if (pr) this._spliceBody(at, at + pr[0].length, replacement);
+    else this._spliceBody(at, at, replacement);
+    return this;
+  }
+
+  /** One cell's tcPr contents rewritten by `edit`, outside a tracked change's record of the old properties. */
+  _editCellProps(tableStart, rowIndex, cellIndex, edit) {
     const parts = this._tableParts(tableStart);
     const row = parts.rows[rowIndex];
     if (!row) throw new Error('no row ' + rowIndex + ' in this table');
@@ -5988,13 +6077,9 @@ export class Document {
     // A tracked change's record of the old properties holds a tcPr of its own.
     const tcPr = /^<w:tcPr\b[^>]*>(?:<w:tcPrChange\b[\s\S]*?<\/w:tcPrChange>|(?!<\/w:tcPr>)[\s\S])*?<\/w:tcPr>|^<w:tcPr\b[^>]*\/>/.exec(cellXml.slice(open.length));
     let inner = tcPr && !tcPr[0].endsWith('/>') ? tcPr[0].replace(/^<w:tcPr\b[^>]*>/, '').replace(/<\/w:tcPr>$/, '') : '';
+    // The edit sees the current properties; a tracked change's record goes back last, its schema place.
     const change = /<w:tcPrChange\b[\s\S]*?<\/w:tcPrChange>/.exec(inner);
-    inner = change ? inner.slice(0, change.index).replace(/<w:vAlign\b[^>]*\/>/g, '') + change[0] + inner.slice(change.index + change[0].length) : inner.replace(/<w:vAlign\b[^>]*\/>/g, '');
-    if (v !== 'top') {
-      const el = '<w:vAlign w:val="' + v + '"/>';
-      const after = /<w:(hideMark|headers|cellIns|cellDel|cellMerge|tcPrChange)\b/.exec(inner);
-      inner = after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
-    }
+    inner = change ? edit(inner.slice(0, change.index) + inner.slice(change.index + change[0].length)) + change[0] : edit(inner);
     const rest = cellXml.slice(open.length + (tcPr ? tcPr[0].length : 0));
     this._spliceBody(row.start + cell.start, row.start + cell.end, open + (inner ? '<w:tcPr>' + inner + '</w:tcPr>' : '') + rest);
     return this;

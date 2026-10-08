@@ -14,6 +14,7 @@ import path from 'node:path';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { buildDocx } from '@rutba/ooxml';
 import { createDocumentService } from '../apps/desktop/main/documents.js';
+import { tint, tableStyleXml } from '@rutba/ooxml/table-styles';
 
 const grid = [['Region', 'Q1', 'Q2'], ['North', '120', '135'], ['South', '140', '150'], ['East', '160', '170']];
 const doc = () => openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Before' }, { table: { rows: grid } }, { text: 'After' }] }));
@@ -149,4 +150,35 @@ test('a table\'s lines are its style\'s along basedOn, its own sides over them; 
   const shown = view.render({ pages: false }).blocks.find((b) => b.text === 'Q1');
   assert.equal(shown.cellFill, '#abcdef');
   assert.ok(shown.tableBorders && shown.cellBorders);
+});
+
+test('Table Design: a built-in style written in the theme\'s colours, its options as tblLook, a cell shaded, the style taken away', () => {
+  // Word tints a theme colour in HSL: Office 2013's accent 1 and Office 2023's give Word's own values.
+  assert.deepEqual([tint('4472C4', 0.6), tint('4472C4', 0.2), tint('156082', 0.6), tint('156082', 0.2)], ['8EAADB', 'D9E2F3', '45B0E1', 'C1E4F5']);
+  assert.equal(tableStyleXml('NoSuchStyle'), null);
+  const view = doc();
+  view.setSelection({ block: at(view, 'North'), offset: 0 });
+  view.tableOp('style', { id: 'GridTable4-Accent1' });
+  const engine = view.doc.doc;
+  const styles = engine.pkg.text('word/styles.xml');
+  assert.match(styles, /<w:style w:type="table" w:styleId="GridTable4-Accent1">[\s\S]*?<w:tblStylePr w:type="firstRow"><w:rPr><w:b\/><w:bCs\/><w:color w:val="FFFFFF"\/><\/w:rPr><w:tblPr\/><w:tcPr><w:tcBorders>[\s\S]*?<w:shd w:val="clear" w:color="auto" w:fill="4472C4"\/>/);
+  assert.match(styles, /w:styleId="TableNormal"/, 'Normal Table, which it is based on');
+  assert.match(xmlOf(view), /<w:tblPr><w:tblStyle w:val="GridTable4-Accent1"\/>/);
+  assert.doesNotMatch(/<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(xmlOf(view))[0], /tblBorders/, 'its own lines give way to the style\'s');
+  assert.match(xmlOf(view), /<w:tblLook w:val="04A0" w:firstRow="1" w:lastRow="0" w:firstColumn="1" w:lastColumn="0" w:noHBand="0" w:noVBand="1"\/>/);
+  const north = blocks(view)[at(view, 'North')];
+  assert.deepEqual([north.tableStyle.id, north.tableStyle.parts.firstRow.fill, north.tableStyle.parts.band1Horz.fill], ['GridTable4-Accent1', '#4472c4', '#d9e2f3']);
+  // Applied twice, the definition is written once.
+  view.tableOp('style', { id: 'GridTable4-Accent1' });
+  assert.equal((engine.pkg.text('word/styles.xml').match(/w:styleId="GridTable4-Accent1"/g) || []).length, 1);
+  view.tableOp('styleOptions', { look: { firstRow: true, lastRow: true, firstColumn: false, lastColumn: false, noHBand: true, noVBand: true } });
+  assert.match(xmlOf(view), /<w:tblLook w:val="0660" w:firstRow="1" w:lastRow="1" w:firstColumn="0" w:lastColumn="0" w:noHBand="1" w:noVBand="1"\/>/);
+  view.setSelection({ block: at(view, '120'), offset: 0 }, { block: at(view, '150'), offset: 0 });
+  view.tableOp('shading', { fill: 'FFF2CC' });
+  assert.equal((xmlOf(view).match(/<w:shd w:val="clear" w:color="auto" w:fill="FFF2CC"\/>/g) || []).length, 4, 'every selected cell');
+  view.tableOp('shading', { fill: null });
+  assert.doesNotMatch(xmlOf(view), /FFF2CC/);
+  assert.throws(() => view.tableOp('shading', { fill: 'blue' }), /colour like/);
+  view.tableOp('style', { id: null });
+  assert.doesNotMatch(xmlOf(view), /<w:tblStyle\b/);
 });

@@ -121,6 +121,9 @@ export class OoxmlBackend {
   setTableDirection(tableStart, rtl) { this.doc.setTableDirection(tableStart, rtl); return this; }
   setTableHeaderRows(tableStart, count) { this.doc.setTableHeaderRows(tableStart, count); return this; }
   setTableCellVAlign(tableStart, rowIndex, cellIndex, v) { this.doc.setTableCellVAlign(tableStart, rowIndex, cellIndex, v); return this; }
+  setTableCellShading(tableStart, rowIndex, cellIndex, fill) { this.doc.setTableCellShading(tableStart, rowIndex, cellIndex, fill); return this; }
+  setTableStyle(tableStart, styleId) { this.doc.setTableStyle(tableStart, styleId); return this; }
+  setTableLook(tableStart, flags) { this.doc.setTableLook(tableStart, flags); return this; }
 
   /**
    * Formatting is a verbatim `<w:rPr>` edit — fonts and colours ride along.

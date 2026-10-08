@@ -1906,7 +1906,7 @@ export default function Word({ app, shell, boot }) {
   // A contextual tab goes when what it formats is no longer selected.
   useEffect(() => {
     if ((tab === 'shapeFormat' || tab === 'pictureFormat') && !selectedDrawing && !picked?.ids?.length) setTab('home');
-    if (tab === 'tableLayout' && !tableAt) setTab('home');
+    if ((tab === 'tableLayout' || tab === 'tableDesign') && !tableAt) setTab('home');
   }, [tab, selectedDrawing, picked, tableAt]);
 
   /** Stop Protection: the whole model back, or the dialog told the password was wrong. */

@@ -222,6 +222,73 @@ export async function verifyWordTableTools(h, { dir }) {
     check('word: the Table Layout checks ran', false, err.message);
   }
 
+  // Table Design: a style from the gallery, written into the document in its
+  // theme's colours and drawn; its options turning its parts off; shading.
+  const design = path.join(dir, 'table-design.docx');
+  try {
+    fs.writeFileSync(design, buildDocx({ styles: true, paragraphs: [
+      { text: 'Before the table' },
+      { table: { rows: [['Region', 'Q1', 'Q2'], ['North', '120', '135'], ['South', '140', '150'], ['East', '160', '170']] } },
+      { text: 'After the table' },
+    ] }));
+    const win = await open('word', design);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const session = h.sessionFor('doc');
+    const model = () => h.doc.model({ id: session.id });
+    const index = (text) => model().blocks.findIndex((b) => b.text === text);
+    await until(() => js(`document.querySelectorAll('.wd-page table.wd-table').length === 1`), 'the table to be drawn', 8000);
+    const caretIn = (text) => js(`(() => {
+      const a = document.querySelector('.wd-page [data-block="${index(text)}"]');
+      a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+      const r = document.createRange(); r.setStart(a.firstChild || a, 0); r.collapse(true);
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return true;
+    })()`);
+    const button = (label) => `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)})`;
+    const press = (label) => js(`(() => { const b = ${button(label)}; if (!b) return 'missing'; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+    const pick = async (label, item) => {
+      await press(label);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}))`), `"${item}" in ${label}`, 3000);
+      return js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}).click(), 'picked'`);
+    };
+    const look = (text) => js(`(() => { const c = [...document.querySelectorAll('.wd-page table.wd-table td')].find((d) => d.innerText.trim() === ${JSON.stringify(text)}); if (!c) return null; const s = getComputedStyle(c); const w = getComputedStyle(c.querySelector('.wd-block') || c); return [s.backgroundColor, w.color, w.fontWeight].join(' / '); })()`);
+
+    await caretIn('North');
+    await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Table Design')`), 'Table Design', 3000);
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Table Design').click(), 'tab'`);
+    await until(() => js(`Boolean(${button('Table Styles')})`), 'the Table Design controls', 3000);
+    await pick('Table Styles', 'Grid Table 4 – Accent 1');
+    await until(async () => (await look('Region'))?.startsWith('rgb(68, 114, 196)'), 'the header row in accent blue', 5000).catch(() => {});
+    const styled = { header: await look('Region'), north: await look('North'), q1: await look('120'), south: await look('140') };
+    check('word: Table Design → Table Styles puts the table in Grid Table 4, its header blue with white bold words, its rows banded',
+      styled.header === 'rgb(68, 114, 196) / rgb(255, 255, 255) / 700' && styled.north?.startsWith('rgb(217, 226, 243) /') && styled.north.endsWith('/ 700')
+      && styled.q1?.startsWith('rgb(217, 226, 243) /') && styled.south?.startsWith('rgba(0, 0, 0, 0) /'),
+      JSON.stringify(styled));
+
+    await press('Banded Rows');
+    await until(async () => (await look('120'))?.startsWith('rgba(0, 0, 0, 0)'), 'the bands gone', 5000).catch(() => {});
+    const unbanded = await look('120');
+    check('word: Table Style Options → Banded Rows off takes the bands away', unbanded?.startsWith('rgba(0, 0, 0, 0) /'), unbanded);
+
+    await caretIn('150');
+    await pick('Shading', 'Light yellow');
+    await until(async () => (await look('150'))?.startsWith('rgb(255, 242, 204)'), 'the cell shaded', 5000).catch(() => {});
+    const shaded = await look('150');
+    check('word: Table Design → Shading colours the caret\'s cell', shaded?.startsWith('rgb(255, 242, 204) /'), shaded);
+
+    const saved = path.join(dir, 'table-design-saved.docx');
+    h.doc.save({ id: session.id, path: saved });
+    const xml = readZip(fs.readFileSync(saved)).entries.find((e) => e.name === 'word/document.xml').data.toString('utf8');
+    const styles = readZip(fs.readFileSync(saved)).entries.find((e) => e.name === 'word/styles.xml').data.toString('utf8');
+    const kept = /<w:tblStyle w:val="GridTable4-Accent1"\/>/.test(xml) && /w:noHBand="1"/.test(xml) && /w:fill="FFF2CC"/.test(xml) && /w:styleId="GridTable4-Accent1"/.test(styles);
+    check('word: the style, its options, the shading and the style\'s definition are saved as Word keeps them', kept, kept ? 'kept' : xml.slice(xml.indexOf('<w:tbl>'), xml.indexOf('<w:tbl>') + 400));
+    const complaints = await errorsIn(win);
+    check('word: Table Design reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the Table Design checks ran', false, err.message);
+  }
+
   // A header row repeated: a table too long for its page, its top row made
   // the header, draws that row again at the head of the next page's piece.
   const long = path.join(dir, 'header-rows.docx');

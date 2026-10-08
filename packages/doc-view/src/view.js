@@ -2169,7 +2169,8 @@ export class DocView {
    * `insertRowBelow`, `deleteRow`, `insertColumnLeft`, `insertColumnRight`,
    * `deleteColumn`, `deleteTable`, `mergeCells`, `splitCell`, `direction`
    * (`{ rtl }`), `columnWidth` (`{ cm }`), `headerRows` (`{ on }`),
-   * `cellVAlign` (`{ v }`) or `distributeColumns`. Each is one undo step; deleting the last
+   * `cellVAlign` (`{ v }`), `distributeColumns`, `style` (`{ id }`), `styleOptions`
+   * (`{ look }`) or `shading` (`{ fill }`). Each is one undo step; deleting the last
    * row or column deletes the table, as Word does. A merged table refuses —
    * the engine says why.
    */
@@ -2190,6 +2191,9 @@ export class DocView {
       headerRows: 'setTableHeaderRows',
       cellVAlign: 'setTableCellVAlign',
       distributeColumns: 'setTableColumnWidths',
+      style: 'setTableStyle',
+      styleOptions: 'setTableLook',
+      shading: 'setTableCellShading',
     };
     const method = PORT[op];
     if (!method) throw new Error('unknown table operation: ' + op);
@@ -2258,6 +2262,21 @@ export class DocView {
           for (let c = rect.left; c <= rect.right; c++) {
             const key = 't' + tableStart + ':r' + r + ':c' + c;
             if (this.blocks.some((b) => b.container === key || (b.container ?? '').startsWith(key + ':'))) this.doc.setTableCellVAlign(tableStart, r, c, arg.v);
+          }
+        }
+      } else if (op === 'style') {
+        // Table Design → Table Styles: the table in a style, or in none.
+        this.doc.setTableStyle(tableStart, arg.id || null);
+      } else if (op === 'styleOptions') {
+        // Table Design → Table Style Options: which of its style's parts it shows.
+        this.doc.setTableLook(tableStart, arg.look || {});
+      } else if (op === 'shading') {
+        // Table Design → Shading: every selected cell, or the caret's.
+        const rect = this._selectedCells(tableStart, rowIndex, cellIndex);
+        for (let r = rect.top; r <= rect.bottom; r++) {
+          for (let c = rect.left; c <= rect.right; c++) {
+            const key = 't' + tableStart + ':r' + r + ':c' + c;
+            if (this.blocks.some((b) => b.container === key || (b.container ?? '').startsWith(key + ':'))) this.doc.setTableCellShading(tableStart, r, c, arg.fill || null);
           }
         }
       } else if (op === 'distributeColumns') {

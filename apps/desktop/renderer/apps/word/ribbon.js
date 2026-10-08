@@ -21,6 +21,7 @@
 // from the `view` the page keeps (mode, panes, marks).
 
 import React from 'react';
+import { TABLE_STYLES } from '@rutba/ooxml/table-styles';
 import { Ribbon, Group, Rows, Button, Separator, Select, Input } from '@rutba/office-ui';
 import { EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
 import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS } from '@rutba/office-formats/themes';
@@ -126,6 +127,10 @@ export default function WordRibbon({
   const acrossCells = Boolean(anchorCell && focusCell && anchorCell[1] === focusCell[1] && (anchorCell[2] !== focusCell[2] || anchorCell[3] !== focusCell[3]));
   // The caret's cell: where its words sit, and whether its row is a header row.
   const caretCell = model?.blocks?.[model?.selection?.focus?.block ?? -1] || null;
+  // Table Design: the caret's table's style and which of its parts it shows (Word's for a new table when it says nothing).
+  const tableStyleId = caretCell?.tableStyle?.id || null;
+  const styleLook = caretCell?.tableStyle?.look || { firstRow: true, lastRow: false, firstColumn: true, lastColumn: false, noHBand: false, noVBand: true };
+  const setLook = (change) => tableOp('styleOptions', { look: { ...styleLook, ...change } });
   const cellAlign = caretCell?.cellVAlign || 'top';
   const format = model?.format || {};
   const design = model?.design || null;
@@ -285,8 +290,8 @@ export default function WordRibbon({
         // The contextual tab, as Word's: there while a drawing is selected.
         ...(formatTab === 'shapeFormat' ? [{ id: 'shapeFormat', label: 'Shape Format' }] : []),
         ...(formatTab === 'pictureFormat' ? [{ id: 'pictureFormat', label: 'Picture Format' }] : []),
-        // Table Layout, as Word's: there while the caret is in a table.
-        ...(table ? [{ id: 'tableLayout', label: 'Table Layout' }] : []),
+        // Table Design and Table Layout, as Word's: there while the caret is in a table.
+        ...(table ? [{ id: 'tableDesign', label: 'Table Design' }, { id: 'tableLayout', label: 'Table Layout' }] : []),
         // View → Immersive Reader's own tab, there while the reader is open.
         ...(view.immersive ? [{ id: 'immersive', label: 'Immersive Reader' }] : []),
       ]}
@@ -715,6 +720,43 @@ export default function WordRibbon({
               {sizeBox('Height', 'h')}
               {sizeBox('Width', 'w')}
             </Rows>
+          </Group>
+        </>
+      ) : null}
+
+      {/* ── Table Design (contextual) ─────────────────────────────────────── */}
+      {tab === 'tableDesign' && table ? (
+        <>
+          <Group label="Table Style Options">
+            <Rows>
+              <Button icon={styleLook.firstRow ? 'check' : undefined} label="Header Row" pressed={styleLook.firstRow} title="Header Row — the first row in its style's header look" onClick={() => setLook({ firstRow: !styleLook.firstRow })} />
+              <Button icon={styleLook.lastRow ? 'check' : undefined} label="Total Row" pressed={styleLook.lastRow} title="Total Row — the last row in its style's total look" onClick={() => setLook({ lastRow: !styleLook.lastRow })} />
+              <Button icon={!styleLook.noHBand ? 'check' : undefined} label="Banded Rows" pressed={!styleLook.noHBand} title="Banded Rows — every other row shaded, as the style bands them" onClick={() => setLook({ noHBand: !styleLook.noHBand })} />
+            </Rows>
+            <Rows>
+              <Button icon={styleLook.firstColumn ? 'check' : undefined} label="First Column" pressed={styleLook.firstColumn} title="First Column — the first column in its style's look" onClick={() => setLook({ firstColumn: !styleLook.firstColumn })} />
+              <Button icon={styleLook.lastColumn ? 'check' : undefined} label="Last Column" pressed={styleLook.lastColumn} title="Last Column — the last column in its style's look" onClick={() => setLook({ lastColumn: !styleLook.lastColumn })} />
+              <Button icon={!styleLook.noVBand ? 'check' : undefined} label="Banded Columns" pressed={!styleLook.noVBand} title="Banded Columns — every other column shaded, as the style bands them" onClick={() => setLook({ noVBand: !styleLook.noVBand })} />
+            </Rows>
+          </Group>
+          <Group label="Table Styles">
+            <Button tall icon="table" label="Table Styles" title={`Table Styles — Word's own, in this document's theme colours; now ${TABLE_STYLES.find((st) => st.id === tableStyleId)?.name || (tableStyleId ? tableStyleId : 'none')}`} onClick={(e) => menu.open(e, [
+              { heading: true, label: 'Plain Tables' },
+              ...TABLE_STYLES.filter((st) => st.family === 'plain').map((st) => ({ label: st.name, icon: st.id === tableStyleId ? 'check' : undefined, run: () => tableOp('style', { id: st.id }) })),
+              { heading: true, label: 'Grid Tables' },
+              ...TABLE_STYLES.filter((st) => st.family === 'grid4').map((st) => ({ label: st.name, icon: st.id === tableStyleId ? 'check' : undefined, run: () => tableOp('style', { id: st.id }) })),
+              { heading: true, label: 'List Tables' },
+              ...TABLE_STYLES.filter((st) => st.family === 'list4').map((st) => ({ label: st.name, icon: st.id === tableStyleId ? 'check' : undefined, run: () => tableOp('style', { id: st.id }) })),
+              '-',
+              { label: 'Clear', icon: 'close', disabled: !tableStyleId, run: () => tableOp('style', { id: null }) },
+            ])} />
+          </Group>
+          <Group label="Shading">
+            <Button tall icon="wand" label="Shading" title="Shading — the selected cells' background" onClick={(e) => menu.open(e, [
+              { label: 'No Colour', icon: 'close', run: () => tableOp('shading', { fill: null }) },
+              '-',
+              ...SHAPE_COLOURS.map(([hex, label]) => ({ label, run: () => tableOp('shading', { fill: hex }) })),
+            ])} />
           </Group>
         </>
       ) : null}
