@@ -3240,7 +3240,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // what each paragraph style meant and still holds the parts of the file
       // a document cannot carry.
       if (ext === 'md') {
-        writeWhole(target, paragraphsToMarkdown(session.engine.render().blocks || [], session.converted?.markdown || {}), 'utf8');
+        const frame = session.engine.render();
+        writeWhole(target, paragraphsToMarkdown(frame.blocks || [], session.converted?.markdown || {}, frame.listLabels || null), 'utf8');
         return { path: target, format: 'md' };
       }
 

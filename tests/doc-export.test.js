@@ -11,6 +11,7 @@ import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { listLabels, writeHtmlDocument, writePlainDocument, writeRtfDocument } from '../packages/office-formats/src/doc-export.js';
+import { parseMarkdown, serializeMarkdown } from '../packages/office-formats/src/markdown.js';
 import { createDocumentService } from '../apps/desktop/main/documents.js';
 
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
@@ -124,4 +125,19 @@ test('a Word document saved as .rtf, .html and .txt keeps its heading, its list 
   assert.match(rtf, /\\intbl Region\\cell\n\\intbl Q1\\cell\n\\row/);
   const txt = read('txt');
   assert.match(txt, /^Quarterly figures\n\n1\. First step\n2\. Second step\n\nRegion\tQ1\nNorth\t120\n$/);
+  // Markdown: the list the editor numbers is a Markdown list.
+  const md = read('md');
+  assert.match(md, /^# Quarterly figures\n\n1\. First step\n2\. Second step\n\n\| Region/);
+});
+
+test('Markdown lists nest by the item they sit inside, each level counted and indented to its parent\'s words', () => {
+  const round = (src) => { const p = parseMarkdown(src); return serializeMarkdown(p.blocks, p.meta); };
+  // Four spaces in under a number is one level in, not two; the nested list counts from one.
+  assert.equal(round('1. Step one\n    1. Inside\n    2. Also\n2. Step two\n'), '1. Step one\n   1. Inside\n   2. Also\n2. Step two\n');
+  // A bullet under a number keeps being a bullet, three spaces in as GitHub needs.
+  assert.equal(round('1. Step one\n  - bullet in\n2. Step two\n'), '1. Step one\n   - bullet in\n2. Step two\n');
+  assert.equal(round('- a\n  - b\n    - c\n- d\n'), '- a\n  - b\n    - c\n- d\n');
+  assert.equal(round('3. three\n4. four\n'), '3. three\n4. four\n');
+  const levels = parseMarkdown('1. a\n   1. b\n      1. c\n   2. d\n2. e\n').blocks[0].items.map((i) => i.level);
+  assert.deepEqual(levels, [0, 1, 2, 1, 0]);
 });

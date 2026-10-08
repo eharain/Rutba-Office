@@ -122,16 +122,27 @@ function runsFor(runs, fallback = '') {
  * careful to use one. Anything unrecognised is a paragraph, which is both the
  * right answer and the safe one.
  *
+ * A list the document numbers itself (made in the editor, or in Word) is
+ * known by its labels — `render().listLabels` — and written as a Markdown
+ * list: a bullet as "-", a number as the count it has reached, each level
+ * in by its indent.
+ *
  * @param {object[]} blocks `render().blocks` from the document engine
  * @param {object} [meta] what parseMarkdown returned on the way in
+ * @param {object} [labels] `render().listLabels`: each list item's label by its block's index
  */
-export function paragraphsToMarkdown(blocks, meta = {}) {
+export function paragraphsToMarkdown(blocks, meta = {}, labels = null) {
   const pieces = [];
   let run = null; // a group of adjacent lines that belong together
+  // A run of numbered items: the indents open above this one, and each level's count.
+  let indents = [];
+  let counts = [];
 
   const closeRun = () => {
     if (run) pieces.push(run.lines.join('\n'));
     run = null;
+    indents = [];
+    counts = [];
   };
   const inRun = (kind, line) => {
     if (!run || run.kind !== kind) {
@@ -244,6 +255,22 @@ export function paragraphsToMarkdown(blocks, meta = {}) {
       // back to being the two characters Markdown uses — a tick in the file
       // would render as a tick on GitHub, not as a checked box.
       inRun('list', text.replace(/☑\s*/, '[x] ').replace(/☐\s*/, '[ ] '));
+      continue;
+    }
+
+    const label = labels?.[block.index];
+    if (label?.label) {
+      // Deeper than the item above it is a level in; shallower closes levels back to its own.
+      const indent = Number(label.indentPx) || 0;
+      if (run?.kind !== 'numbered') { closeRun(); run = { kind: 'numbered', lines: [] }; }
+      while (indents.length && indent < indents[indents.length - 1] - 0.5) { indents.pop(); counts.pop(); }
+      if (!indents.length || indent > indents[indents.length - 1] + 0.5) { indents.push(indent); counts.push(0); }
+      const level = indents.length - 1;
+      // This level's own count is the last number its label shows ("3.1." is the first under three).
+      const shown = /(\d+)\D*$/.exec(label.label);
+      counts[level] = shown ? Number(shown[1]) : counts[level] + 1;
+      const marker = label.bullet ? '-' : `${counts[level]}.`;
+      run.lines.push(`${'    '.repeat(level)}${marker} ${text}`);
       continue;
     }
 

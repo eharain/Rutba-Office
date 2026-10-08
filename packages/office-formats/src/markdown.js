@@ -417,6 +417,10 @@ export function parseMarkdown(text) {
       const baseIndent = indentOf(line);
       const items = [];
       let loose = false;
+      // The indents of the items this one may sit inside: an item indented past
+      // one is a level in under it, however far — three spaces under "1.", two
+      // under "-", four from an editor that indents by tabs' worth.
+      const open = [];
 
       while (i < lines.length) {
         const item = LIST_ITEM.exec(lines[i]);
@@ -439,10 +443,13 @@ export function parseMarkdown(text) {
           }
           if (more.length) body = `${body} ${more.join(' ')}`;
 
+          while (open.length && indent <= open[open.length - 1]) open.pop();
+          const level = open.length;
+          open.push(indent);
           items.push({
             text: body,
             runs: runs(body),
-            level: Math.floor(Math.max(0, indent - baseIndent) / 2),
+            level,
             marker: item[2],
             ordered: /\d/.test(item[2]),
             task: task ? task[1].toLowerCase() === 'x' : null,
@@ -642,14 +649,24 @@ ${(block.level === 1 ? '=' : '-').repeat(Math.max(3, heading.length))}`);
       }
 
       case 'list': {
-        let n = block.start || 1;
+        // Each level counts on its own, starting again under each item above
+        // it, and is indented to where its parent's words begin — three spaces
+        // under "1.", two under "-" — which is what GitHub needs to nest it.
+        const counts = [];
+        const pads = [''];
         out.push(
           (block.items || [])
             .map((item) => {
-              const pad = '  '.repeat(item.level || 0);
-              const marker = block.ordered ? `${n++}.` : item.marker && !/\d/.test(item.marker) ? item.marker : '-';
+              const level = Math.min(item.level || 0, pads.length - 1);
+              counts.length = level + 1;
+              const ordered = level ? item.ordered ?? block.ordered : block.ordered;
+              if (counts[level] == null) counts[level] = level ? Number(String(item.marker || '').replace(/\D/g, '')) || 1 : block.start || 1;
+              else counts[level] += 1;
+              const marker = ordered ? `${counts[level]}.` : item.marker && !/\d/.test(item.marker) ? item.marker : '-';
+              pads.length = level + 1;
+              pads.push(pads[level] + ' '.repeat(marker.length + 1));
               const box = item.task === true ? '[x] ' : item.task === false ? '[ ] ' : '';
-              return `${pad}${marker} ${box}${runsToMarkdown(item.runs) || item.text || ''}`.trimEnd();
+              return `${pads[level]}${marker} ${box}${runsToMarkdown(item.runs) || item.text || ''}`.trimEnd();
             })
             .join(block.loose ? '\n\n' : '\n')
         );
