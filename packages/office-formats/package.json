@@ -22,6 +22,8 @@
     "./odf": "./src/odf.js",
     "./odf-write": "./src/odf-write.js",
     "./odf-geometry": "./src/odf-geometry.js",
+    "./odt": "./src/odt.js",
+    "./odt-docx": "./src/odt-docx.js",
     "./rtf": "./src/rtf.js",
     "./text": "./src/text.js",
     "./markdown": "./src/markdown.js",

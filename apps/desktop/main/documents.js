@@ -54,6 +54,8 @@ import { APPS } from '@rutba/office-formats/registry';
 import { designedThemePart, readThemeDesign } from '@rutba/office-formats/themes';
 import { readOdf } from '@rutba/office-formats/odf';
 import { figuresGeometryXml } from '@rutba/office-formats/odf-geometry';
+import { readOdt } from '@rutba/office-formats/odt';
+import { odtToDocx } from '@rutba/office-formats/odt-docx';
 import { writeOdt, writeOds, writeOdp } from '@rutba/office-formats/odf-write';
 import { readRtf, writeRtf } from '@rutba/office-formats/rtf';
 import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, writePlain, decodeText } from '@rutba/office-formats/text';
@@ -989,8 +991,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         return { kind: 'sheet', bytes: odfSheetsToWorkbook(odf), source: 'ods', converted: { from: 'ods' } };
       }
       case 'odt': {
-        const odf = readOdf(bytes);
-        return { kind: 'doc', bytes: buildDocx({ paragraphs: blocksToParagraphs(odf.blocks), styles: true }), source: 'odt', converted: { from: 'odt' } };
+        // Read whole — styles, lists, tables, pictures, the page — and written as the .docx it is.
+        return { kind: 'doc', bytes: Buffer.from(odtToDocx(readOdt(bytes))), source: 'odt', converted: { from: 'odt' } };
       }
       case 'odp': {
         const odf = readOdf(bytes);

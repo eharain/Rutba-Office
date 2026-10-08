@@ -123,7 +123,8 @@ function paragraphStyle(block, paras) {
   const props = [];
   const align = { center: 'center', right: 'end', justify: 'justify', left: 'start' }[block.align];
   if (align && align !== 'start') props.push(`fo:text-align="${align}"`);
-  if (block.level && !block.list) props.push(`fo:margin-left="${(Number(block.level) * 0.635).toFixed(3)}cm"`);
+  // A heading's level is its outline level, not an indent.
+  if (block.level && !block.list && block.type !== 'heading') props.push(`fo:margin-left="${(Number(block.level) * 0.635).toFixed(3)}cm"`);
   if (!props.length) return null;
   const key = props.join(' ');
   return paras.name(key, (name) => `<style:style style:name="${name}" style:family="paragraph"><style:paragraph-properties ${key}/></style:style>`);
