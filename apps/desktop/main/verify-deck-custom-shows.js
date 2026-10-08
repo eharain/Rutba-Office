@@ -54,9 +54,16 @@ export async function verifyDeckCustomShows(h, { dir }) {
     // Played from the dialog's Show: 4, then 2, then it stops there.
     await click('.sl-cs-play');
     const started = await until(async () => (await bar()) === '4', 'the show on slide 4', 5000).then(() => true).catch(() => false);
-    win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Right' });
-    win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
-    const second = await until(async () => (await bar()) === '2', 'slide 2', 4000).then(() => true).catch(() => false);
+    // The show takes its keys a moment after its bar is drawn; a key that
+    // reaches it before then is pressed again (the show ends on its last
+    // slide, so a second press cannot carry it past 2).
+    await wait(300);
+    let second = false;
+    for (let i = 0; i < 2 && !second; i++) {
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Right' });
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
+      second = await until(async () => (await bar()) === '2', 'slide 2', i ? 4000 : 1500).then(() => true).catch(() => false);
+    }
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Right' });
     win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Right' });
     await wait(600);
