@@ -188,8 +188,9 @@ it is where the gaps are.
 - **Data tools**: consolidate and forecast sheets arrived 2026-09-25. (Text to columns,
   remove duplicates and a sort by up to three keys are built, 2026-09-21;
   group and outline, subtotals, advanced filter with a criteria range and
-  flash fill, 2026-09-25 — Auto Outline, SUBTOTAL 101–111 and an advanced
-  filter copied to another sheet are not.)
+  flash fill, 2026-09-25; SUBTOTAL leaves out the rows a filter hides,
+  and 101–111 every hidden row, since 2026-10-08 — Auto Outline and an
+  advanced filter copied to another sheet are not.)
 - **Auditing**: Evaluate Formula steps a formula part by part since
   2026-09-25, into the cells it reads and back. Error checking and the watch window
   both arrived 2026-09-24: Formulas → Error Checking opens a pane listing
