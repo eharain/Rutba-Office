@@ -33,6 +33,7 @@ import { compareDocx } from '@rutba/ooxml/compare';
 import { parseRef, Workbook } from '@rutba/ooxml/workbook';
 import { Deck, buildPptx, photoAlbum, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES, THEMES as DECK_THEMES, PALETTES as DECK_PALETTES, FONT_PAIRS as DECK_FONT_PAIRS, EFFECT_PRESETS as DECK_EFFECTS } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';
+import { unicodeFont } from './system-fonts.js';
 import { linearToOmml } from '@rutba/ooxml/math-linear';
 import { ommlToMathml } from '@rutba/ooxml/math';
 import { probeImage } from '@rutba/imaging/probe';
@@ -2922,7 +2923,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       const session = get(id);
       if (session.kind === 'sheet') return { kind: 'sheet', name: session.name, ...sheetPrintSummary(session.engine, options) };
       if (session.kind === 'deck') return { kind: 'deck', name: session.name, ...deckPrintSummary(session.engine, options) };
-      const rendered = renderPdf(session.engine, { title: session.name }) || {};
+      const rendered = renderPdf(session.engine, { title: session.name, unicodeFont: unicodeFont() }) || {};
       return { kind: 'doc', name: session.name, pages: rendered.pages ?? 0, setup: { paper: 'A4', orientation: 'portrait' } };
     },
 
@@ -2943,7 +2944,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       if (session.kind === 'deck') {
         return { kind: 'deck', name: session.name, html: deckPrintHtml(session.engine, { ...options, title: session.name }) };
       }
-      const { buffer } = renderPdf(session.engine, { title: session.name }) || {};
+      const { buffer } = renderPdf(session.engine, { title: session.name, unicodeFont: unicodeFont() }) || {};
       if (!buffer) throw new Error(`${session.name} could not be laid out for printing.`);
       return { kind: 'doc', name: session.name, pdf: new Uint8Array(buffer) };
     },
@@ -3131,7 +3132,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         // Buffer.from it threw "The first argument must be of type string or
         // an instance of Buffer" — which is what Export as PDF put in front of
         // anyone who pressed it, every time.
-        const { buffer, pages } = renderPdf(session.engine, { title: session.name }) || {};
+        const { buffer, pages } = renderPdf(session.engine, { title: session.name, unicodeFont: unicodeFont() }) || {};
         if (buffer) {
           writeWhole(target, Buffer.from(buffer));
           return { path: target, format: 'pdf', pages };

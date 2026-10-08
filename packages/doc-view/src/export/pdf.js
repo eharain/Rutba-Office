@@ -26,7 +26,7 @@
  * Workspace seam test allows it by name: `@rutba/pdf` is a shared package
  * with no Workspace dependency, so nothing here ties the editor to a product.
  */
-import { PdfDocument, decodePng, isPng } from '@rutba/pdf';
+import { PdfDocument, decodePng, isPng, shapeArabic, hasArabic, visualPieces, hasRtl } from '@rutba/pdf';
 import { layoutParagraph, paginate, rowHeight, cellPadding } from '../paginate.js';
 import { computeListLabels } from '../lists.js';
 import { bandForPage, resolveFields } from '../bands.js';
@@ -146,10 +146,40 @@ function widthOfSegments(doc, segments, fragment) {
   for (const seg of segments) {
     if (seg.math && MATH) { total += MATH(seg, fragment.sizePx || BAND_SIZE_PX).widthPx * PT; continue; }
     const s = styleOfRun(seg, fragment);
-    total += doc.widthOf(seg.text, { font: s.font, size: s.size });
+    total += doc.widthOf(seg.text, { font: s.font, size: s.size, visual: Boolean(seg.visual) });
   }
   return total;
 }
+
+/**
+ * A line's runs in the order they are drawn, left to right. Arabic is
+ * joined across the whole line first — a word whose middle letter is bold
+ * still joins — and the line is then put in visual order by the bidi
+ * algorithm, at the paragraph's direction; each piece comes back marked
+ * `visual`, so the writer draws it as it is. A line with nothing right to
+ * left in it, or with an equation in it, goes as it came.
+ */
+function visualLine(segments, fragment) {
+  if (segments.some((seg) => seg.math)) return segments;
+  const full = segments.map((seg) => seg.text).join('');
+  if (!fragment.rtl && !hasRtl(full)) return segments;
+  let pieces = segments;
+  if (hasArabic(full)) {
+    // Shaping can merge two letters into one (lam-alef); each shaped letter
+    // goes to the run its first letter came from.
+    const { text, from } = shapeArabic(full);
+    const owner = [];
+    segments.forEach((seg, k) => { for (let i = 0; i < seg.text.length; i++) owner.push(k); });
+    const texts = segments.map(() => '');
+    let at = 0;
+    for (const ch of text) { texts[owner[from[at]] ?? segments.length - 1] += ch; at += 1; }
+    pieces = segments.map((seg, k) => ({ ...seg, text: texts[k] })).filter((seg) => seg.text !== '');
+  }
+  return visualPieces(pieces, { rtl: fragment.rtl ? true : null }).map((p) => ({ ...p, visual: true }));
+}
+
+/** A right-to-left paragraph's alignment as drawn: the file's left is its start, the right margin. */
+const DRAWN_ALIGN = { left: 'right', right: 'left', start: 'right', end: 'left' };
 
 /**
  * Draw one laid-out line. `x` and `baseline` are in points. Justification
@@ -169,19 +199,19 @@ function drawSegments(page, doc, segments, x, baseline, fragment, { extraPerSpac
     const parts = extraPerSpace > 0 ? seg.text.split(/( )/).filter((p) => p !== '') : [seg.text];
     const startX = cursor;
     for (const part of parts) {
-      const w = doc.widthOf(part, { font: s.font, size: s.size });
+      const w = doc.widthOf(part, { font: s.font, size: s.size, visual: Boolean(seg.visual) });
       if (part === ' ') { cursor += w + extraPerSpace; continue; }
       if (s.highlight) page.rect(cursor, baseline - s.size * 0.8, w, s.size * 1.05, { fill: s.highlight });
       // A shadow is the same word drawn once more first, a shade back and
       // down, so the real glyph paints over its own offset copy.
-      if (s.shadow) page.text(part, cursor + 0.7, baseline + 0.7, { font: s.font, size: s.size, colour: '#808080' });
+      if (s.shadow) page.text(part, cursor + 0.7, baseline + 0.7, { font: s.font, size: s.size, colour: '#808080', visual: Boolean(seg.visual) });
       // Outline hollows the letters the way Word draws them: stroked, not
       // filled — the writer's stroke render mode, no fill colour at all.
       // Glow is not drawn here: a soft blur outward from the glyphs is not
       // something this vector writer can fake with a stroke or a fill, so
       // print leaves it off rather than drawing something misleading.
-      if (s.outline) page.text(part, cursor, baseline, { font: s.font, size: s.size, stroke: s.colour || '#000000', strokeWidth: 0.5 });
-      else page.text(part, cursor, baseline, { font: s.font, size: s.size, colour: s.colour });
+      if (s.outline) page.text(part, cursor, baseline, { font: s.font, size: s.size, stroke: s.colour || '#000000', strokeWidth: 0.5, visual: Boolean(seg.visual) });
+      else page.text(part, cursor, baseline, { font: s.font, size: s.size, colour: s.colour, visual: Boolean(seg.visual) });
       cursor += w;
     }
     if (s.underline) page.line(startX, baseline + s.size * 0.12, cursor, baseline + s.size * 0.12, { width: Math.max(0.4, s.size * 0.06), colour: s.colour || '#000000' });
@@ -239,13 +269,14 @@ function drawPageBorders(page, borders, section) {
 
 function drawParagraphLines(page, doc, { lines, fragment, runs, xPx, yPx, widthPx, listLabel = null, lastIsFinal = true }) {
   const lineHeightPx = fragment.lineHeightPx;
-  const align = fragment.align || null;
+  // A right-to-left paragraph starts at the right margin: its alignment drawn mirrored, as the page draws it.
+  const align = fragment.rtl ? (DRAWN_ALIGN[fragment.align] ?? (fragment.align || 'right')) : fragment.align || null;
   lines.forEach((line, i) => {
     const top = yPx + i * lineHeightPx;
     const baseline = (top + lineHeightPx * BASELINE) * PT;
     // An optional hyphen is drawn only where the line breaks at it — as the
     // hyphen the paginator says the line ends in — and nowhere else.
-    const segments = (line.text === ''
+    let segments = (line.text === ''
       ? []
       : (runs && runs.length ? sliceRunSegments(runs, line.start, line.end) : [{ text: line.text }]))
       .map((seg) => (seg.text && seg.text.includes('­') ? { ...seg, text: seg.text.split('­').join('') } : seg))
@@ -255,6 +286,7 @@ function drawParagraphLines(page, doc, { lines, fragment, runs, xPx, yPx, widthP
       segments[segments.length - 1] = { ...last, text: last.text + '-' };
     }
     if (!segments.length) return;
+    segments = visualLine(segments, fragment);
     const lineWidth = widthOfSegments(doc, segments, fragment);
     // A line beside a floating picture is narrower than its column, and one
     // beside a left float starts further in; the paginator says by how much.
@@ -267,7 +299,11 @@ function drawParagraphLines(page, doc, { lines, fragment, runs, xPx, yPx, widthP
       const spaces = segments.reduce((n, seg) => n + (seg.text.match(/ /g) || []).length, 0);
       if (spaces > 0 && room > lineWidth) extraPerSpace = (room - lineWidth) / spaces;
     }
-    if (i === 0 && listLabel) {
+    if (i === 0 && listLabel && fragment.rtl) {
+      // Right to left, the label hangs in the gutter at the right.
+      const s = styleOfRun({}, fragment);
+      page.text(listLabel, (xPx + widthPx) * PT + 6 * PT, baseline, { font: s.font, size: s.size, colour: s.colour, rtl: true });
+    } else if (i === 0 && listLabel) {
       // The label hangs in the gutter, the way Word draws it: its right edge a
       // little short of the text edge.
       const s = styleOfRun({}, fragment);
@@ -453,7 +489,7 @@ export function renderFramePdf(frame, options = {}) {
   }
 }
 
-function drawFrame(frame, { title = '', author = '', created = null } = {}) {
+function drawFrame(frame, { title = '', author = '', created = null, unicodeFont = null } = {}) {
   if (!frame || !frame.pages || !frame.pages.pages) throw new Error('renderFramePdf needs a paginated frame (frame.pages)');
   const mainSection = frame.section || DEFAULT_SECTION;
   let section = mainSection;
@@ -462,7 +498,8 @@ function drawFrame(frame, { title = '', author = '', created = null } = {}) {
   const labels = frame.listLabels || null;
   const labelOf = (i) => (labels instanceof Map ? labels.get(i) : (labels ? labels[i] : null)) || null;
 
-  const doc = new PdfDocument({ size: [section.widthPx * PT, section.heightPx * PT], title, author, created });
+  // `unicodeFont`: a TrueType font the system has, for the text the PDF's own fonts cannot draw.
+  const doc = new PdfDocument({ size: [section.widthPx * PT, section.heightPx * PT], title, author, created, unicodeFont });
   let xPx = m.left + (m.gutter || 0);
   let widthPx = section.contentWidthPx;
 
@@ -798,7 +835,7 @@ function drawWatermark(page, doc, watermark, section) {
  * Render a DocView — paginating it first if its backend has no pages (Mail's
  * HTML body), on the default A4 sheet or the one given.
  */
-export function renderPdf(view, { title = '', author = '', created = null, section = null } = {}) {
+export function renderPdf(view, { title = '', author = '', created = null, section = null, unicodeFont = null } = {}) {
   const numbering = typeof view.doc.numberingDefs === 'function' ? view.doc.numberingDefs() : null;
   const listLabels = computeListLabels(view.flow, view.blocks, numbering);
   // Equations measured (and pictured) by the view — see DocView#mathPrint.
@@ -818,5 +855,5 @@ export function renderPdf(view, { title = '', author = '', created = null, secti
       page.footer = footer ? resolveFields(footer.paragraphs, { page: page.number, of: pages.count }) : null;
     }
   }
-  return renderFramePdf({ blocks: view.blocks, section: sheet, pages, listLabels, math }, { title, author, created });
+  return renderFramePdf({ blocks: view.blocks, section: sheet, pages, listLabels, math }, { title, author, created, unicodeFont });
 }

@@ -2,7 +2,7 @@
   "name": "@rutba/pdf",
   "version": "1.0.0",
   "license": "AGPL-3.0-or-later",
-  "description": "A PDF writer with no dependencies: base-14 fonts, exact widths, and a page layout for business documents.",
+  "description": "A PDF writer with no dependencies: base-14 fonts, exact widths, an embedded TrueType font for the scripts they lack, and a page layout for business documents.",
   "homepage": "https://rutba.io/office",
   "repository": {
     "type": "git",
@@ -15,7 +15,10 @@
     "./metrics": "./src/metrics.js",
     "./encoding": "./src/encoding.js",
     "./document": "./src/document.js",
-    "./sheet": "./src/sheet.js"
+    "./sheet": "./src/sheet.js",
+    "./truetype": "./src/truetype.js",
+    "./shaping": "./src/shaping.js",
+    "./bidi": "./src/bidi.js"
   },
   "files": [
     "src",

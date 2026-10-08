@@ -145,3 +145,22 @@ test('a cell merged down a column prints as one cell: no rule across it, one und
   assert.equal(second.length, 5, 'the second column ruled at every row');
   assert.deepEqual(first, [second[0], second[1], second[4]], 'the first column ruled above and under its merge, not across it');
 });
+
+test('A right-to-left paragraph prints from the right margin in a font this computer has, its Arabic joined; English beside it stays in Helvetica', async (t) => {
+  const { unicodeFont } = await import('../apps/desktop/main/system-fonts.js');
+  const font = unicodeFont();
+  if (!font) return t.skip('no font with Arabic and Hebrew on this computer');
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Left to right.' }, { text: 'مرحبا بالعالم' }] }));
+  view.setSelection({ block: 1, offset: 0 });
+  view.setParagraphFormat({ rtl: true });
+  const { buffer } = renderPdf(view, { created: '2026-09-03T00:00:00Z', unicodeFont: font });
+  const body = text(buffer);
+  assert.match(body, /\/Subtype \/Type0 .*\/Encoding \/Identity-H/);
+  // Each line's x from its text matrix: the Arabic one starts well right of the English.
+  const xs = [...body.matchAll(/ ([\d.]+) [\d.]+ Tm\n(\(|<)/g)].map((m) => [Number(m[1]), m[2]]);
+  const latin = xs.find(([, k]) => k === '(');
+  const arabic = xs.find(([, k]) => k === '<');
+  assert.ok(latin && arabic && arabic[0] > latin[0] + 100, JSON.stringify(xs));
+  const none = renderPdf(view, { created: '2026-09-03T00:00:00Z' });
+  assert.doesNotMatch(text(none.buffer), /Type0/, 'with no font given, the writer embeds nothing');
+});

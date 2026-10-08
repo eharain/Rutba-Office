@@ -960,6 +960,8 @@ export function paginate({ flow, blocks, section: mainSection, sections = null, 
           colour: style.colour ?? null,
           // The paragraph's own alignment beats the style's, as everywhere else.
           align: block.align ?? style.align ?? null,
+          // Right to left (w:bidi): the PDF draws its lines from the right.
+          ...(block.rtl ?? style.rtl ? { rtl: true } : {}),
           // The label only appears on the FIRST fragment; a continuation on the
           // next sheet is mid-item, and "3." repeated there would read as item 3
           // appearing twice.

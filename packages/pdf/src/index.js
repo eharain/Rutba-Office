@@ -22,8 +22,12 @@ const { decodePng, isPng } = require('./images');
 const { appendExecutionPage, overlayPages, describePages, Unsupported: PdfUnsupportedError } = require('./incremental');
 const metrics = require('./metrics');
 const encoding = require('./encoding');
+const { shapeArabic, hasArabic } = require('./shaping');
+const { visualPieces, visualText, hasRtl } = require('./bidi');
+const { readTrueType } = require('./truetype');
 
 module.exports = {
+  shapeArabic, hasArabic, visualPieces, visualText, hasRtl, readTrueType,
   PdfDocument, Page, SIZES, colour, fingerprint,
   Sheet, INK, DEFAULT_MARGINS,
   drawPaper, renderPaper,

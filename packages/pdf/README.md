@@ -63,10 +63,14 @@ paper.
 - **No Times, no Symbol.** Adding a font means adding its width table. A
   font whose widths are wrong fails silently, in the reader's viewer and
   nowhere else.
-- **No Greek, Cyrillic or CJK.** WinAnsi has no glyphs for them, so they
-  become `?` — visibly a substitution, rather than a name quietly shortened.
-  Real Unicode means an embedded font with a CMap: a much bigger machine,
-  worth building when somebody needs it and not before.
+- **Other scripts only with a font handed over.** WinAnsi has no glyphs for
+  Arabic, Hebrew, Greek or Cyrillic. Given a TrueType font (`unicodeFont`,
+  bytes the caller reads — the desktop app finds one the system has), text
+  WinAnsi cannot say is drawn in it, subset to the glyphs used, with a
+  ToUnicode map; Arabic is joined (`shaping.js`) and right-to-left text put
+  in drawing order (`bidi.js`). Without one, such text becomes `?` — visibly
+  a substitution, rather than a name quietly shortened. CJK needs a font
+  that covers it, and is drawn without vertical writing.
 - **No compression** — except image pixel streams. An invoice is a few
   kilobytes and stays greppable; raw RGB would triple a file for nothing, so
   images alone are deflated at assembly.

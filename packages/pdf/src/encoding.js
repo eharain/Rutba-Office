@@ -113,4 +113,20 @@ function literal(bytes) {
 /** Encode and escape in one step - what a content stream actually wants. */
 const pdfString = (value) => literal(encode(value));
 
-module.exports = { encode, literal, pdfString, HIGH_BLOCK, TRANSLITERATE };
+/**
+ * Whether WinAnsi can say every character of `value` — or whether some of
+ * them would print as '?', which is when a document with an embedded font
+ * draws the text in that instead.
+ */
+function fitsWinAnsi(value) {
+  const text = value === null || value === undefined ? '' : String(value);
+  for (const ch of text) {
+    if (TRANSLITERATE[ch] !== undefined || ch === '\t' || ch === '\n' || ch === '\r') continue;
+    const code = ch.codePointAt(0);
+    if ((code >= 32 && code <= 126) || (code >= 0xA0 && code <= 0xFF) || HIGH_BLOCK[ch] !== undefined) continue;
+    return false;
+  }
+  return true;
+}
+
+module.exports = { encode, literal, pdfString, fitsWinAnsi, HIGH_BLOCK, TRANSLITERATE };
