@@ -111,6 +111,10 @@ const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 /** 1 cm in CSS px, for the Size boxes. */
 const CM = 96 / 2.54;
 
+/** Table Design's pen: Word's line styles, and its weights in eighths of a point. */
+const PEN_STYLES = [['single', 'Single'], ['double', 'Double'], ['dotted', 'Dotted'], ['dashed', 'Dashed'], ['thick', 'Thick']];
+const PEN_WEIGHTS = [[2, '¼ pt'], [4, '½ pt'], [6, '¾ pt'], [8, '1 pt'], [12, '1½ pt'], [18, '2¼ pt'], [24, '3 pt'], [36, '4½ pt'], [48, '6 pt']];
+
 /** A control that is drawn where Word draws it, and says why it is not live. */
 const Soon = ({ icon, label, tall, why }) => (
   <Button tall={tall} icon={icon} label={label} disabled title={`${label} — not built yet. ${why}`} />
@@ -131,6 +135,8 @@ export default function WordRibbon({
   const tableStyleId = caretCell?.tableStyle?.id || null;
   const styleLook = caretCell?.tableStyle?.look || { firstRow: true, lastRow: false, firstColumn: true, lastColumn: false, noHBand: false, noVBand: true };
   const setLook = (change) => tableOp('styleOptions', { look: { ...styleLook, ...change } });
+  // Table Design → Borders: the pen the borders are drawn in — Word's single half-point automatic line to begin with.
+  const [pen, setPen] = React.useState({ val: 'single', sz: 4, color: 'auto' });
   const cellAlign = caretCell?.cellVAlign || 'top';
   const format = model?.format || {};
   const design = model?.design || null;
@@ -750,6 +756,22 @@ export default function WordRibbon({
               '-',
               { label: 'Clear', icon: 'close', disabled: !tableStyleId, run: () => tableOp('style', { id: null }) },
             ])} />
+          </Group>
+          <Group label="Borders">
+            <Rows>
+              <Button icon="minus" label={`Line: ${PEN_STYLES.find(([v]) => v === pen.val)?.[1] || 'Single'}`} title="Line Style — the pen's line for the borders it draws" onClick={(e) => menu.open(e, PEN_STYLES.map(([val, label]) => ({ label, icon: pen.val === val ? 'check' : undefined, run: () => setPen({ ...pen, val }) })))} />
+              <Button icon="sliders" label={`Weight: ${PEN_WEIGHTS.find(([sz]) => sz === pen.sz)?.[1] || '½ pt'}`} title="Pen Weight — how thick a line the pen draws" onClick={(e) => menu.open(e, PEN_WEIGHTS.map(([sz, label]) => ({ label, icon: pen.sz === sz ? 'check' : undefined, run: () => setPen({ ...pen, sz }) })))} />
+              <Button icon="wand" label="Pen Colour" title={`Pen Colour — now ${SHAPE_COLOURS.find(([hex]) => hex === pen.color)?.[1] || 'Automatic'}`} onClick={(e) => menu.open(e, [
+                { label: 'Automatic', icon: pen.color === 'auto' ? 'check' : undefined, run: () => setPen({ ...pen, color: 'auto' }) },
+                '-',
+                ...SHAPE_COLOURS.map(([hex, label]) => ({ label, icon: pen.color === hex ? 'check' : undefined, run: () => setPen({ ...pen, color: hex }) })),
+              ])} />
+            </Rows>
+            <Button tall icon="grid" label="Borders" title="Borders — lines round, between or through the selected cells, in the pen's line" onClick={(e) => menu.open(e, [
+              ['bottom', 'Bottom Border'], ['top', 'Top Border'], ['left', 'Left Border'], ['right', 'Right Border'], '-',
+              ['none', 'No Border'], ['all', 'All Borders'], ['outside', 'Outside Borders'], ['inside', 'Inside Borders'], '-',
+              ['insideH', 'Inside Horizontal Border'], ['insideV', 'Inside Vertical Border'],
+            ].map((item) => (item === '-' ? '-' : { label: item[1], run: () => tableOp('borders', { kind: item[0], pen }) })))} />
           </Group>
           <Group label="Shading">
             <Button tall icon="wand" label="Shading" title="Shading — the selected cells' background" onClick={(e) => menu.open(e, [

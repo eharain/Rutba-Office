@@ -277,11 +277,24 @@ export async function verifyWordTableTools(h, { dir }) {
     const shaded = await look('150');
     check('word: Table Design → Shading colours the caret\'s cell', shaded?.startsWith('rgb(255, 242, 204) /'), shaded);
 
+    // Borders: a heavier dark red pen, then All Borders round the caret's cell.
+    await caretIn('135');
+    await pick('Weight: ½ pt', '1½ pt');
+    await until(() => js(`Boolean(${button('Weight: 1½ pt')})`), 'the pen heavier', 3000).catch(() => {});
+    await pick('Pen Colour', 'Dark red');
+    await pick('Borders', 'All Borders');
+    const ruled = () => js(`(() => { const c = [...document.querySelectorAll('.wd-page table.wd-table td')].find((d) => d.innerText.trim() === '135'); if (!c) return null; const s = getComputedStyle(c); return [s.borderTopWidth, s.borderTopStyle, s.borderTopColor, s.borderLeftWidth, s.borderBottomColor].join(' '); })()`);
+    await until(async () => (await ruled())?.startsWith('2px solid rgb(192, 0, 0)'), 'the cell ruled in the pen', 5000).catch(() => {});
+    const bordered = await ruled();
+    check('word: Table Design → Borders draws All Borders round the cell in the pen\'s weight and colour',
+      bordered === '2px solid rgb(192, 0, 0) 2px rgb(192, 0, 0)', bordered);
+
     const saved = path.join(dir, 'table-design-saved.docx');
     h.doc.save({ id: session.id, path: saved });
     const xml = readZip(fs.readFileSync(saved)).entries.find((e) => e.name === 'word/document.xml').data.toString('utf8');
     const styles = readZip(fs.readFileSync(saved)).entries.find((e) => e.name === 'word/styles.xml').data.toString('utf8');
-    const kept = /<w:tblStyle w:val="GridTable4-Accent1"\/>/.test(xml) && /w:noHBand="1"/.test(xml) && /w:fill="FFF2CC"/.test(xml) && /w:styleId="GridTable4-Accent1"/.test(styles);
+    const kept = /<w:tblStyle w:val="GridTable4-Accent1"\/>/.test(xml) && /w:noHBand="1"/.test(xml) && /w:fill="FFF2CC"/.test(xml) && /w:styleId="GridTable4-Accent1"/.test(styles)
+      && /<w:tcBorders><w:top w:val="single" w:sz="12" w:space="0" w:color="C00000"\/>/.test(xml);
     check('word: the style, its options, the shading and the style\'s definition are saved as Word keeps them', kept, kept ? 'kept' : xml.slice(xml.indexOf('<w:tbl>'), xml.indexOf('<w:tbl>') + 400));
     const complaints = await errorsIn(win);
     check('word: Table Design reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

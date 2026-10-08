@@ -182,3 +182,28 @@ test('Table Design: a built-in style written in the theme\'s colours, its option
   view.tableOp('style', { id: null });
   assert.doesNotMatch(xmlOf(view), /<w:tblStyle\b/);
 });
+
+test('Table Design → Borders: outside, inside, all and none over the selected cells, in the pen\'s line, the other sides left alone', () => {
+  const view = doc();
+  const engine = view.doc.doc;
+  const sides = (text) => {
+    const cell = new RegExp(`<w:tc>((?:(?!<w:tc>)[\\s\\S])*?)<w:t[^>]*>${text}<`).exec(engine.xml)?.[1] || '';
+    return Object.fromEntries([...(/<w:tcBorders>([\s\S]*?)<\/w:tcBorders>/.exec(cell)?.[1] || '').matchAll(/<w:(\w+) w:val="(\w+)"(?: w:sz="(\d+)")?/g)].map((m) => [m[1], m[3] ? `${m[2]} ${m[3]}` : m[2]]));
+  };
+  const pen = { val: 'double', sz: 12, color: 'C00000' };
+  view.setSelection({ block: at(view, '120'), offset: 0 }, { block: at(view, '150'), offset: 0 });
+  view.tableOp('borders', { kind: 'outside', pen });
+  assert.deepEqual([sides('120'), sides('135'), sides('140'), sides('150')], [
+    { top: 'double 12', left: 'double 12' }, { top: 'double 12', right: 'double 12' }, { left: 'double 12', bottom: 'double 12' }, { bottom: 'double 12', right: 'double 12' },
+  ]);
+  view.tableOp('borders', { kind: 'inside', pen: { val: 'dotted', sz: 4 } });
+  assert.deepEqual(sides('120'), { top: 'double 12', left: 'double 12', bottom: 'dotted 4', right: 'dotted 4' }, 'the outside kept, the inside added');
+  view.setSelection({ block: at(view, 'North'), offset: 0 });
+  view.tableOp('borders', { kind: 'none' });
+  assert.deepEqual(sides('North'), { top: 'nil', left: 'nil', bottom: 'nil', right: 'nil' }, 'none is written so the table\'s own lines do not show through');
+  view.tableOp('borders', { kind: 'bottom', pen });
+  assert.deepEqual(sides('North'), { top: 'nil', left: 'nil', bottom: 'double 12', right: 'nil' });
+  assert.throws(() => view.tableOp('borders', { kind: 'diagonal', pen }), /unknown border choice/);
+  // The page draws them as the cell's own lines.
+  assert.equal(blocks(view)[at(view, '120')].cellBorders.top.style, 'double');
+});

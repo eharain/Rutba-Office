@@ -6004,6 +6004,32 @@ export class Document {
   }
 
   /**
+   * Table Design → Borders: some of one cell's own sides (w:tcBorders, in its
+   * schema place), each { val, sz, color } — a line in Word's style, eighths
+   * of a point and hex — or null for none, written as nil so the table's own
+   * line does not show through. The sides not named are left as they were.
+   */
+  setTableCellBorders(tableStart, rowIndex, cellIndex, sides) {
+    const order = ['top', 'left', 'bottom', 'right'];
+    return this._editCellProps(tableStart, rowIndex, cellIndex, (inner) => {
+      const old = /<w:tcBorders\b[^>]*>([\s\S]*?)<\/w:tcBorders>/.exec(inner);
+      const have = {};
+      if (old) for (const m of old[1].matchAll(/<w:(top|left|bottom|right|start|end|insideH|insideV|tl2br|tr2bl)\b[^>]*\/>/g)) have[m[1] === 'start' ? 'left' : m[1] === 'end' ? 'right' : m[1]] = m[0].replace(/^<w:(start|end)\b/, (t, n) => (n === 'start' ? '<w:left' : '<w:right'));
+      for (const name of order) {
+        if (!(name in sides)) continue;
+        const b = sides[name];
+        have[name] = b ? '<w:' + name + ' w:val="' + esc(b.val || 'single') + '" w:sz="' + Math.max(2, Math.min(96, Math.round(Number(b.sz) || 4))) + '" w:space="0" w:color="' + (/^[0-9A-Fa-f]{6}$/.test(String(b.color || '').replace('#', '')) ? String(b.color).replace('#', '').toUpperCase() : 'auto') + '"/>' : '<w:' + name + ' w:val="nil"/>';
+      }
+      const el = ['top', 'left', 'bottom', 'right', 'insideH', 'insideV', 'tl2br', 'tr2bl'].filter((n) => have[n]).map((n) => have[n]).join('');
+      inner = old ? inner.slice(0, old.index) + inner.slice(old.index + old[0].length) : inner;
+      if (!el) return inner;
+      const after = /<w:(shd|noWrap|tcMar|textDirection|tcFitText|vAlign|hideMark|headers|cellIns|cellDel|cellMerge)\b/.exec(inner);
+      const block = '<w:tcBorders>' + el + '</w:tcBorders>';
+      return after ? inner.slice(0, after.index) + block + inner.slice(after.index) : inner + block;
+    });
+  }
+
+  /**
    * Table Design → Table Styles: the table takes a style (Word's built-in
    * ones written into the styles part when the document has no definition,
    * in its theme's colours) and loses its own table-wide lines, which would

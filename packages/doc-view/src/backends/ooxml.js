@@ -123,6 +123,7 @@ export class OoxmlBackend {
   setTableCellVAlign(tableStart, rowIndex, cellIndex, v) { this.doc.setTableCellVAlign(tableStart, rowIndex, cellIndex, v); return this; }
   setTableCellShading(tableStart, rowIndex, cellIndex, fill) { this.doc.setTableCellShading(tableStart, rowIndex, cellIndex, fill); return this; }
   setTableStyle(tableStart, styleId) { this.doc.setTableStyle(tableStart, styleId); return this; }
+  setTableCellBorders(tableStart, rowIndex, cellIndex, sides) { this.doc.setTableCellBorders(tableStart, rowIndex, cellIndex, sides); return this; }
   setTableLook(tableStart, flags) { this.doc.setTableLook(tableStart, flags); return this; }
 
   /**

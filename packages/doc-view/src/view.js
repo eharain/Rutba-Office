@@ -2170,7 +2170,7 @@ export class DocView {
    * `deleteColumn`, `deleteTable`, `mergeCells`, `splitCell`, `direction`
    * (`{ rtl }`), `columnWidth` (`{ cm }`), `headerRows` (`{ on }`),
    * `cellVAlign` (`{ v }`), `distributeColumns`, `style` (`{ id }`), `styleOptions`
-   * (`{ look }`) or `shading` (`{ fill }`). Each is one undo step; deleting the last
+   * (`{ look }`), `shading` (`{ fill }`) or `borders` (`{ kind, pen }`). Each is one undo step; deleting the last
    * row or column deletes the table, as Word does. A merged table refuses —
    * the engine says why.
    */
@@ -2194,6 +2194,7 @@ export class DocView {
       style: 'setTableStyle',
       styleOptions: 'setTableLook',
       shading: 'setTableCellShading',
+      borders: 'setTableCellBorders',
     };
     const method = PORT[op];
     if (!method) throw new Error('unknown table operation: ' + op);
@@ -2277,6 +2278,30 @@ export class DocView {
           for (let c = rect.left; c <= rect.right; c++) {
             const key = 't' + tableStart + ':r' + r + ':c' + c;
             if (this.blocks.some((b) => b.container === key || (b.container ?? '').startsWith(key + ':'))) this.doc.setTableCellShading(tableStart, r, c, arg.fill || null);
+          }
+        }
+      } else if (op === 'borders') {
+        // Table Design → Borders: the menu's choice over the selected cells, in the pen's line —
+        // the rectangle's edges for Outside, the lines between its cells for Inside, every side for All.
+        const rect = this._selectedCells(tableStart, rowIndex, cellIndex);
+        const pen = arg.kind === 'none' ? null : { val: arg.pen?.val || 'single', sz: arg.pen?.sz || 4, color: arg.pen?.color || 'auto' };
+        const KINDS = ['all', 'outside', 'inside', 'insideH', 'insideV', 'top', 'bottom', 'left', 'right', 'none'];
+        if (!KINDS.includes(arg.kind)) throw new Error('unknown border choice: ' + arg.kind);
+        for (let r = rect.top; r <= rect.bottom; r++) {
+          for (let c = rect.left; c <= rect.right; c++) {
+            const key = 't' + tableStart + ':r' + r + ':c' + c;
+            if (!this.blocks.some((b) => b.container === key || (b.container ?? '').startsWith(key + ':'))) continue;
+            const edge = { top: r === rect.top, bottom: r === rect.bottom, left: c === rect.left, right: c === rect.right };
+            const want = {
+              all: ['top', 'bottom', 'left', 'right'],
+              none: ['top', 'bottom', 'left', 'right'],
+              outside: ['top', 'bottom', 'left', 'right'].filter((s) => edge[s]),
+              inside: ['top', 'bottom', 'left', 'right'].filter((s) => !edge[s]),
+              insideH: ['top', 'bottom'].filter((s) => !edge[s]),
+              insideV: ['left', 'right'].filter((s) => !edge[s]),
+              top: edge.top ? ['top'] : [], bottom: edge.bottom ? ['bottom'] : [], left: edge.left ? ['left'] : [], right: edge.right ? ['right'] : [],
+            }[arg.kind];
+            if (want.length) this.doc.setTableCellBorders(tableStart, r, c, Object.fromEntries(want.map((s) => [s, pen])));
           }
         }
       } else if (op === 'distributeColumns') {
