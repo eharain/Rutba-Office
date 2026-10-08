@@ -120,3 +120,12 @@ test('find, replace and replaceAll all survive a save', () => {
   const hit = saved.find('suite')[0];
   assert.equal(saved.replace(hit, 'Suite'), true);
 });
+
+test('findText counts what replaceText replaces: a match split across two runs is neither', () => {
+  const deck = Deck.open(buildPptx({ title: 'Split', slides: [{ layout: 'title', title: 'Placeholder' }] }));
+  const title = deck.slide(0).shapes.find((s) => s.text?.paragraphs?.length);
+  deck.setText(0, title.id, [{ runs: [{ text: 'The Off', bold: true }, { text: 'ice and the office' }] }]);
+  const found = deck.findText('office').reduce((n, h) => n + h.count, 0);
+  assert.equal(found, 1, 'the one inside a run');
+  assert.equal(deck.replaceText('office', 'suite'), found, 'replace agrees');
+});

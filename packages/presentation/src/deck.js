@@ -3261,24 +3261,24 @@ export class Deck {
    * Every place the words appear across the deck — per slide and shape, how
    * many times, with the shape's words to show. Case-insensitive unless
    * asked. Only shapes with a text body are searched: a picture has none,
-   * a table's cells are the table's.
+   * a table's cells are the table's. What is counted is what `replaceText`
+   * replaces — a match inside one run, not in a field — so the two agree:
+   * the count found was once matched across runs, which replace left alone.
    */
   findText(query, { matchCase = false } = {}) {
     const needle = String(query ?? '');
     if (!needle) return [];
-    const target = matchCase ? needle : needle.toLowerCase();
+    const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi');
     const hits = [];
     for (let i = 0; i < this.slideCount; i++) {
       for (const s of this.slide(i).shapes) {
         const paragraphs = s.text?.paragraphs;
-        if (!paragraphs) continue;
+        if (!paragraphs || s.kind !== 'shape') continue;
         let count = 0;
         const words = [];
         for (const p of paragraphs) {
-          const text = (p.runs || []).map((r) => r.text).join('');
-          words.push(text);
-          const hay = matchCase ? text : text.toLowerCase();
-          for (let at = hay.indexOf(target); at !== -1; at = hay.indexOf(target, at + target.length)) count += 1;
+          words.push((p.runs || []).map((r) => r.text).join(''));
+          for (const r of p.runs || []) if (r.text && !r.field && !r.break) count += (r.text.match(re) || []).length;
         }
         if (count) hits.push({ slide: i, shape: s.id, name: s.name || s.kind, count, text: words.join(' ').replace(/\s+/g, ' ').trim().slice(0, 80) });
       }
