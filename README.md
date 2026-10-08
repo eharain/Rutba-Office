@@ -16,7 +16,7 @@ with the network switched off.
 | **Worksheets** | Real formulas, real recalculation | `.xlsx` with a full calculation engine, reading `.xls` of every age, `.ods` and `.csv` |
 | **Presentations** | Slides that survive the round trip, shapes you move and recolour by hand | `.pptx` — read, edit, render, present — pictures and shapes on a slide, speaker notes, and a presenter view for the other screen; reading `.ppt` and `.odp` |
 
-| **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn |
+| **Pictures** | A viewer that opens before you blink, and stays quick on a folder of thousands | Every common format, EXIF, orientation, PDFs, clips and sound in the same folder; thumbnails made once by the platform and kept; only what is in view is drawn; star ratings and tags kept on this computer, and a search through the folders inside |
 | **Image** | Crop, correct, annotate, export | Non-destructive: your original is never touched |
 | **Video** | Trim and export without a render farm | No ffmpeg, no native binaries, nothing to install |
 

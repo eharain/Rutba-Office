@@ -26,7 +26,7 @@ a suite.
 | **Contacts** | **Built, 2026-09-09** | A book in the profile: list, card, editor, search. `.vcf` and CSV opened, offered and merged by address; vCards exported. Compose completes from the book and then from the people mail has seen; a sender is kept from the reading pane in one click. |
 | **OpenDocument drawings** | **Built, 2026-10-08** | An `.odp` opens as it was made: slides at its own page size holding each drawing where it stood — text boxes, pictures, shapes in their fill and outline with their words, lines and tables — and its notes; since 2026-10-08 its gradients, backgrounds and charts too, and its shapes as their own outlines, all written back on save. An `.ods` keeps its column widths, hidden rows and columns and frozen panes, and since 2026-10-08 its charts (embedded objects, plotting their cells), shapes, pictures and text boxes, read and written back. An `.odt` opens whole since 2026-10-08 — headings, run looks, links, lists at their levels, tables with their spans and shading, pictures, the page — where it came in as plain lines. Found 2026-09-10 by tools/make-rich-fixtures.ps1. |
 | **Equations** | **Built, 2026-09-25** | Office Math is read, drawn through the browser's own MathML, edited in Word's linear format, written as Word writes it and printed. A deck's equations are read, drawn and inserted the same way since the same day. |
-| **Tracked changes, shown** | **Built for documents, 2026-09-25** | Insertions and deletions are kept with their author and date, shown as All Markup, Simple Markup, No Markup or Original, walked with Previous and Next, and accepted or rejected one at a time or all at once; recording them arrived the same day (below). A deck's and a workbook's tracked changes are not read. |
+| **Tracked changes, shown** | **Built for documents, 2026-09-25** | Insertions and deletions are kept with their author and date, shown as All Markup, Simple Markup, No Markup or Original, walked with Previous and Next, and accepted or rejected one at a time or all at once (since 1.30.0 all at once reaches inserted and deleted table rows, and the headers, footers and notes); recording them arrived the same day (below). A deck's and a workbook's tracked changes are not read. |
 | **Page setup as a document property** | **Built for workbooks, 2026-09-09** | Paper, orientation, margins, scaling, gridlines, headings, centring, the print area and the repeated rows are read from and written to the file where Excel keeps them. A document and a deck still choose theirs in the dialog each time. |
 | **Password-protected files** | **Built, 2026-09-25** | An encrypted `.docx`, `.xlsx` or `.pptx` opens through a Password dialog, reading Agile and Standard Encryption and checking the file's HMAC. Info → Encrypt with Password saves Agile AES-256/SHA-512 inside a compound file as Office writes one, and the autosave copy is encrypted too. Since 2026-10-08 a password-protected Office 97–2003 file opens too — RC4 CryptoAPI and Office 97/2000 RC4 in `.doc`, `.xls` and `.ppt`, and Excel 95's XOR; Word's own older XOR obfuscation is refused with a message saying so. |
 | **A spell-check pass** | **Built, 2026-09-25** | Review → Spelling (F7) runs an Editor pane over a document, a workbook or a deck with Change, Change All, Ignore and Add to Dictionary. It uses English (UK) and English (US) Hunspell dictionaries on the machine and a personal dictionary shared by the three apps. Since 1.29.8 Review → Thesaurus (Shift+F7) opens a pane of words of like meaning from a thesaurus of the suite's own, some six thousand words in British spelling, in all three apps. Suggestions are not ranked by how common a word is ("brwn" offers bran before brown). The language is chosen once per document, not per paragraph; words marked as another language or not to be checked (Review → Language, 1.29.1) are read past rather than checked in their own. The grid and the slides have no spelling right-click. No other languages ship yet. |
@@ -127,7 +127,8 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   each line of a paste, Replace All, a sort, and changes of formatting to
   words and to paragraphs (`w:rPrChange`, `w:pPrChange`) are recorded too.
   Restrict Editing arrived 2026-09-25 and is enforced in the window; Compare
-  arrived in 1.29.3.
+  arrived in 1.29.3. Since 1.30.0 a change made over several runs or
+  paragraphs is saved with an id for each piece, as the schema asks.
 - **Text effects and equations.** Outline, shadow and glow arrived
   2026-09-24 from Home → Text Effects, drawn on the page and, outline and
   shadow, in print; a glow is not printed. Drop caps arrived the same day:
@@ -406,8 +407,13 @@ stage keeps a picture until the next has decoded. What is still missing:
   clip's own metadata and kept for the window's life, as the frames are.
 - **A slideshow with transitions** arrived 2026-09-24: View → Slideshow
   (F5) crossfades through the folder's pictures at an interval you choose.
-  A folder's counts before it is entered, ratings, tags and a search across
-  folders are still to come.
+- **Ratings, tags, folder counts and Subfolders** arrived in 1.30.0: a
+  picture is rated one to five stars (the keys 0 to 5) and tagged from the
+  details, kept on this computer by its path and never written into the
+  file; the grid filters by name or tag, by stars, and sorts Highest rated;
+  a folder's tile says how much it holds; and Subfolders searches the
+  folders inside for a name or a tag. XMP ratings written into the file, as
+  Windows Photos and Lightroom write them, are not read or written.
 - **Edits from the viewer** — rotate the file, not only the view — belong to
   the Image tool, which the viewer opens in one click.
 

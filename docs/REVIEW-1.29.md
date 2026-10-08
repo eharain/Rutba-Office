@@ -235,3 +235,88 @@ and floating drawings; the cameo stream's reference counting; every
 ResizeObserver disconnected; the scripts worker terminated on every path;
 blob release on window close; autosave back-off; the paginate line cache
 bounded; the deck undo stack capped.
+
+## Taken up in 1.30.0
+
+What of the open findings above went into 1.30.0, each with a test or a
+window check, and what is still open. Done on Windows, 2026-10-09.
+
+**The six window checks that wanted a run on Windows** all passed there:
+the 1.29.10 release gate on Windows counted 1,173 of 1,174, and the one it
+missed was a custom show's key press reaching the show before it listened,
+a timing fault of the check, since fixed. Each of the six is a check that
+needs the time or the fonts the container lacks.
+
+High:
+
+- **Pagination's cap**: done. The guard is worked out from the content
+  (twice the entries and table rows, a page per two hundred characters,
+  never under 500), and a layout it stops says so as `truncated`.
+- **The document service on the main process**: the interim done. A
+  window's Open reads the file and inflates its parts off the main process
+  (`openAsync`, through `OoxmlPackage.readAsync`, as decks did); the
+  service's own `open` still runs at once for what calls it directly. The
+  move into a `utilityProcess` is still open.
+- **The shared Dialog's focus**: done. Focus in (to `autoFocus`, or the
+  first thing that takes it), Tab kept inside, focus given back, Escape for
+  the top dialog only.
+
+Medium:
+
+- Mail-merge source opened on open: done. The window asks first, and a UNC
+  path is refused outright, never stat'd.
+- `openPath`: a program is warned about from the main process whatever the
+  window did (`office-shell/src/runs.js`, the extension as Windows takes
+  it). `fs.write` writes beside and renames over. `rutba://file` serving
+  any path is still open.
+- Tracked table rows: done, with headers, footers and notes resolved too.
+- Mail `move`, the junk sweep and rules: done, one `removeMany` a folder.
+- `export-video.js`: done; a `finally`, each slide drawn while the one
+  before plays, a picture fetched once for the whole video.
+- `record.js` and `recordShow`: done; a second press ignored, the
+  microphone turned off on a close while it opens, the samples kept as
+  16-bit at the WAV's rate as they come.
+- `screen-record.js` holding the recording whole: still open.
+- A deck picture's old blob, and `hold` copying: done.
+- The mail store's index cache: done (sixty-four folders). The Recent
+  list: done (looked for at once, a 1.5 s limit each). Calendar and
+  contacts: one write for a burst of changes. Photos as base64 on every
+  list: still open.
+- Folder listing and thumbnails: listed sixty-four at a time off the main
+  process; the queue keeps the newest two hundred; the cache is trimmed to
+  400 MB. The 40 MP JPEG decoded synchronously on Linux: still open.
+- `whatsnew.js`, About, the password reveal: done.
+
+Low:
+
+- A Power Query source on a share: refused on Refresh unless it was chosen
+  in this run.
+- The junk verdict: a server's junk flag stands against a Safe Sender, a
+  Safe Recipient or a contact unless the server recorded the checks passing.
+- `walkGroup`: bounded at 64.
+- Control characters: left out by the package's escaper and the blocks'.
+- `tools/fuzz-open.js`: judges on the error's name through its causes,
+  stops a file at two seconds in a worker, and holds the binary fixtures:
+  5,400 damaged files at seed 4242, none faulted, after the ZIP reader it
+  caught was given bounds checks.
+- A multi-piece delete's shared `w:id`: given fresh ids at save.
+- Accept All and Reject All in headers, footers and notes: done.
+- `updateTableFormulas`: complex fields too, and number pictures quoted or
+  not.
+- `fillSeries`: a step that never reaches its stop refused; a merge's
+  hidden cells passed over. `w:cellMerge` while recording, and the fill
+  handle copying a merge: still open.
+- `splitColumn` and `parseDelimited`: leading zeros kept. The `types` side
+  table: nothing reads it yet, so dropping it changes nothing; still open.
+- `findText` and `replaceText`: they agree.
+- Drag handlers: a window-wide guard sends the mouseup a drag lost (the
+  window left, or the pointer out and back with no button held). Frame
+  URLs: three hundred kept, the rest revoked. `posterFrame`'s timers:
+  cleared. `split.js` cloning the page: still open.
+- Unadopted `compare` and `photoAlbum` sessions: let go after ten minutes.
+  `fs.write`: done. `capture.grab`: still open.
+- Icon-only buttons and the export progress: done.
+
+The gate now writes its own counts: `npm run gate -- --record` puts them in
+the release note's Gate section and the README, and docs/RELEASING.md holds
+the version policy.
