@@ -13,7 +13,10 @@
  */
 
 import React, { useEffect, useMemo, useState } from 'react';
-import { Dialog, Field, Input, Select, Button, Chip, useToast } from '@rutba/office-ui';
+import { Dialog, Field, Input, Select, Button, Chip, useToast, t, tn, msg } from '@rutba/office-ui';
+
+/** The margin presets' names, for the catalogue: the keys are the file's, the words shown are these. */
+const MARGIN_NAMES = { Normal: msg('Normal'), Narrow: msg('Narrow'), Wide: msg('Wide') };
 
 const PAPERS = ['A4', 'Letter', 'Legal', 'A3', 'A5'];
 export const MARGIN_PRESETS = {
@@ -96,10 +99,11 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
   const pages = summary?.error ? null : summary?.pages ?? null;
   const detail = useMemo(() => {
     if (summary?.error) return summary.error;
-    if (pages == null) return 'Working out the pages…';
+    if (pages == null) return t('Working out the pages…');
     const scale = summary?.sheets?.[0]?.scale;
-    const shrunk = scale && scale < 0.999 ? `, shrunk to ${Math.round(scale * 100)}%` : '';
-    return `${pages} page${pages === 1 ? '' : 's'}${shrunk}`;
+    return scale && scale < 0.999
+      ? tn(pages, '{count} page, shrunk to {percent}%', '{count} pages, shrunk to {percent}%', { percent: Math.round(scale * 100) })
+      : tn(pages, '{count} page', '{count} pages');
   }, [summary, pages]);
 
   /** Keep the choices in the workbook, where the next person will find them. */
@@ -117,7 +121,7 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
     try {
       await remember();
       const answer = await shell.print.document({ id: doc.id, options, printer, copies: Number(copies) || 1 });
-      if (answer?.ok) toast(`Sent ${pages ?? ''} page${pages === 1 ? '' : 's'} to ${printer || 'the printer'}.`, { tone: 'good' });
+      if (answer?.ok) toast(printer ? tn(pages ?? 0, 'Sent {count} page to {printer}.', 'Sent {count} pages to {printer}.', { printer }) : tn(pages ?? 0, 'Sent {count} page to the printer.', 'Sent {count} pages to the printer.'), { tone: 'good' });
       else if (answer?.reason && answer.reason !== 'cancelled') toast(answer.reason, { tone: 'bad' });
       onClose();
     } catch (err) {
@@ -129,48 +133,48 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
 
   return (
     <Dialog
-      title="Print"
+      title={t('Print')}
       width={520}
       onClose={onClose}
       actions={
         <>
-          <Button label="Save as PDF…" icon="pdf" disabled={busy} onClick={async () => { await remember(); onClose(); onSaveAs?.(options); }} />
+          <Button label={t('Save as PDF…')} icon="pdf" disabled={busy} onClick={async () => { await remember(); onClose(); onSaveAs?.(options); }} />
           <span style={{ flex: 1 }} />
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label={busy ? 'Printing…' : 'Print'} icon="print" disabled={busy || !printers.length} onClick={run} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={busy ? t('Printing…') : t('Print')} icon="print" disabled={busy || !printers.length} onClick={run} />
         </>
       }
     >
-      <Field label="Printer">
+      <Field label={t('Printer')}>
         <Select value={printer} onChange={(e) => setPrinter(e.target.value)} style={{ width: '100%' }}>
-          {printers.length ? null : <option value="">No printer is installed</option>}
+          {printers.length ? null : <option value="">{t('No printer is installed')}</option>}
           {printers.map((p) => (
             <option key={p.name} value={p.name}>
               {p.name}
-              {p.default ? ' (default)' : ''}
+              {p.default ? ` ${t('(default)')}` : ''}
             </option>
           ))}
         </Select>
       </Field>
 
       <div style={{ display: 'flex', gap: 12 }}>
-        <Field label="Copies">
+        <Field label={t('Copies')}>
           <Input type="number" min="1" max="99" value={copies} onChange={(e) => setCopies(e.target.value)} style={{ width: 80 }} />
         </Field>
-        <Field label="Paper">
+        <Field label={t('Paper')}>
           <Select value={options.paper} onChange={(e) => set({ paper: e.target.value })} style={{ width: 110 }}>
             {PAPERS.map((p) => (
               <option key={p} value={p}>{p}</option>
             ))}
           </Select>
         </Field>
-        <Field label="Orientation">
+        <Field label={t('Orientation')}>
           <Select value={options.orientation} onChange={(e) => set({ orientation: e.target.value })} style={{ width: 130 }}>
-            <option value="portrait">Portrait</option>
-            <option value="landscape">Landscape</option>
+            <option value="portrait">{t('Portrait')}</option>
+            <option value="landscape">{t('Landscape')}</option>
           </Select>
         </Field>
-        <Field label="Margins">
+        <Field label={t('Margins')}>
           <Select
             value={margins}
             onChange={(e) => {
@@ -180,7 +184,7 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
             style={{ width: 110 }}
           >
             {Object.keys(MARGIN_PRESETS).map((m) => (
-              <option key={m} value={m}>{m}</option>
+              <option key={m} value={m}>{t(MARGIN_NAMES[m] || m)}</option>
             ))}
           </Select>
         </Field>
@@ -189,31 +193,31 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
       {kind === 'sheet' ? (
         <>
           <div style={{ display: 'flex', gap: 12 }}>
-            <Field label="Print">
+            <Field label={t('Print')}>
               <Select value={options.sheets === 'all' ? 'all' : 'active'} onChange={(e) => set({ sheets: e.target.value === 'all' ? 'all' : null })} style={{ width: 170 }}>
-                <option value="active">This sheet</option>
-                <option value="all">Every sheet ({sheets.length})</option>
+                <option value="active">{t('This sheet')}</option>
+                <option value="all">{t('Every sheet ({count})', { count: sheets.length })}</option>
               </Select>
             </Field>
-            <Field label="Scaling">
+            <Field label={t('Scaling')}>
               <Select value={options.fit} onChange={(e) => set({ fit: e.target.value })} style={{ width: 190 }}>
-                <option value="none">No scaling</option>
-                <option value="width">Fit all columns on one page</option>
-                <option value="page">Fit the sheet on one page</option>
+                <option value="none">{t('No scaling')}</option>
+                <option value="width">{t('Fit all columns on one page')}</option>
+                <option value="page">{t('Fit the sheet on one page')}</option>
               </Select>
             </Field>
-            <Field label="Repeat rows">
-              <Input type="number" min="0" max="10" value={options.repeatRows} onChange={(e) => set({ repeatRows: Number(e.target.value) || 0 })} style={{ width: 80 }} title="Rows from the top of the sheet, drawn again at the top of every page" />
+            <Field label={t('Repeat rows')}>
+              <Input type="number" min="0" max="10" value={options.repeatRows} onChange={(e) => set({ repeatRows: Number(e.target.value) || 0 })} style={{ width: 80 }} title={t('Rows from the top of the sheet, drawn again at the top of every page')} />
             </Field>
           </div>
-          <Field label="Print area" hint="Empty prints everything with anything in it.">
+          <Field label={t('Print area')} hint={t('Empty prints everything with anything in it.')}>
             <Input value={options.area || ''} placeholder="A1:H60" onChange={(e) => set({ area: e.target.value.trim() || null })} style={{ width: '100%' }} />
           </Field>
           <div style={{ display: 'flex', gap: 16, marginTop: 4, flexWrap: 'wrap' }}>
-            <label><input type="checkbox" checked={options.gridlines} onChange={(e) => set({ gridlines: e.target.checked })} /> Gridlines</label>
-            <label><input type="checkbox" checked={options.headings} onChange={(e) => set({ headings: e.target.checked })} /> Row and column headings</label>
-            <label title="Excel keeps the page setup in the file; so does this, so the next person to open it gets the same pages">
-              <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} /> Keep these settings in the workbook
+            <label><input type="checkbox" checked={options.gridlines} onChange={(e) => set({ gridlines: e.target.checked })} /> {t('Gridlines')}</label>
+            <label><input type="checkbox" checked={options.headings} onChange={(e) => set({ headings: e.target.checked })} /> {t('Row and column headings')}</label>
+            <label title={t('Excel keeps the page setup in the file; so does this, so the next person to open it gets the same pages')}>
+              <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} /> {t('Keep these settings in the workbook')}
             </label>
           </div>
         </>
@@ -221,19 +225,19 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
 
       {kind === 'deck' ? (
         <div style={{ display: 'flex', gap: 12 }}>
-          <Field label="Print">
+          <Field label={t('Print')}>
             <Select
               value={options.layout}
               onChange={(e) => set({ layout: e.target.value, orientation: e.target.value === 'slides' ? 'landscape' : 'portrait' })}
               style={{ width: 190 }}
             >
-              <option value="slides">Full page slides</option>
-              <option value="notes">Notes pages</option>
-              <option value="handout">Handout</option>
+              <option value="slides">{t('Full page slides')}</option>
+              <option value="notes">{t('Notes pages')}</option>
+              <option value="handout">{t('Handout')}</option>
             </Select>
           </Field>
           {options.layout === 'handout' ? (
-            <Field label="Slides to a page">
+            <Field label={t('Slides to a page')}>
               <Select value={options.perPage} onChange={(e) => set({ perPage: Number(e.target.value) })} style={{ width: 100 }}>
                 {[1, 2, 3, 4, 6, 9].map((n) => (
                   <option key={n} value={n}>{n}</option>
@@ -241,9 +245,9 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
               </Select>
             </Field>
           ) : null}
-          <Field label="Frame">
+          <Field label={t('Frame')}>
             <label style={{ display: 'block', paddingTop: 6 }}>
-              <input type="checkbox" checked={options.frame} onChange={(e) => set({ frame: e.target.checked })} /> Draw a border round each slide
+              <input type="checkbox" checked={options.frame} onChange={(e) => set({ frame: e.target.checked })} /> {t('Draw a border round each slide')}
             </label>
           </Field>
         </div>

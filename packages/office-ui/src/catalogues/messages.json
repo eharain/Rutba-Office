@@ -1,7 +1,13 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 241,
+  "count": 281,
   "messages": [
+    {
+      "message": "(default)",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
     {
       "message": "A free office suite: mail, documents, worksheets, presentations, pictures, images and video, on an engine we own.",
       "where": [
@@ -138,6 +144,7 @@
     {
       "message": "Cancel",
       "where": [
+        "apps/desktop/renderer/print.js",
         "apps/desktop/renderer/protect.js",
         "apps/desktop/renderer/shell.js",
         "packages/office-ui/src/proofing.js"
@@ -279,6 +286,12 @@
       ]
     },
     {
+      "message": "Copies",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Copyright © 2026 Tech Style Ltd. The source is published, and you are free to study, modify and share it under the terms of the AGPL.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -375,6 +388,18 @@
       ]
     },
     {
+      "message": "Draw a border round each slide",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Empty prints everything with anything in it.",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Encrypt Document",
       "where": [
         "apps/desktop/renderer/protect.js"
@@ -420,6 +445,18 @@
       "message": "Esc",
       "where": [
         "packages/office-ui/src/commands.js"
+      ]
+    },
+    {
+      "message": "Every sheet ({count})",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Excel keeps the page setup in the file; so does this, so the next person to open it gets the same pages",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -477,6 +514,18 @@
       ]
     },
     {
+      "message": "Fit all columns on one page",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Fit the sheet on one page",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Follow system",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -486,6 +535,18 @@
       "message": "For example: a bar chart of orders by month, rising from 120 in January to 310 in June.",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Frame",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Full page slides",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -510,6 +571,18 @@
       "message": "GNU AGPL v3.0, or a commercial licence",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Gridlines",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Handout",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -609,6 +682,18 @@
       ]
     },
     {
+      "message": "Keep these settings in the workbook",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Landscape",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Language",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -669,6 +754,12 @@
       ]
     },
     {
+      "message": "Margins",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Mark as decorative",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -705,6 +796,12 @@
       ]
     },
     {
+      "message": "Narrow",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "New",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -735,9 +832,21 @@
       ]
     },
     {
+      "message": "No printer is installed",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "No recent files yet",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "No scaling",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -771,6 +880,12 @@
       ]
     },
     {
+      "message": "Normal",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Not asked yet.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -792,6 +907,12 @@
       "message": "Not saved yet",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Notes pages",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -852,6 +973,18 @@
       ]
     },
     {
+      "message": "Orientation",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Paper",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Password",
       "where": [
         "apps/desktop/renderer/protect.js"
@@ -873,6 +1006,36 @@
       "message": "Platform",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Portrait",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Print",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Print area",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Printer",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Printing…",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -972,6 +1135,12 @@
       ]
     },
     {
+      "message": "Repeat rows",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Require a password to open this {noun}.",
       "where": [
         "apps/desktop/renderer/protect.js"
@@ -999,6 +1168,18 @@
       "message": "Restore",
       "where": [
         "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Row and column headings",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Rows from the top of the sheet, drawn again at the top of every page",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -1044,9 +1225,21 @@
       ]
     },
     {
+      "message": "Save as PDF…",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Save changes to {name}?",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Scaling",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -1071,6 +1264,20 @@
       "message": "Search recent files",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Sent {count} page to the printer.",
+      "plural": "Sent {count} pages to the printer.",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "Sent {count} page to {printer}.",
+      "plural": "Sent {count} pages to {printer}.",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -1113,6 +1320,12 @@
       "message": "Size",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Slides to a page",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -1209,6 +1422,12 @@
       "message": "This is the only window to arrange.",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "This sheet",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -1326,9 +1545,21 @@
       ]
     },
     {
+      "message": "Wide",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Words you have added are never marked as misspelt — in Documents, Worksheets and Presentations alike.",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Working out the pages…",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -1425,6 +1656,20 @@
       "message": "{count} bytes",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "{count} page",
+      "plural": "{count} pages",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "{count} page, shrunk to {percent}%",
+      "plural": "{count} pages, shrunk to {percent}%",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
