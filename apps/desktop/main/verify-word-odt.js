@@ -82,8 +82,9 @@ export async function verifyWordOdt(h, { dir }) {
     check('word: an .odt opens as its pages, the heading and the words in their looks',
       session.converted?.from === 'odt' && /The OpenDocument showcase/.test(shown.text) && /After the picture\./.test(shown.text),
       `from ${session.converted?.from}; ${shown.text.replace(/\s+/g, ' ').slice(0, 160)}`);
-    // The place under the span is the span's continuation: empty, the words not written twice.
-    const spanned = shown.rows[1]?.startsWith('North and South|') && shown.rows[2] === '|140|150';
+    // The place under the span is the span's continuation, the words not written twice: the merged cell
+    // drawn over both rows, or — where the window draws a continuation as its own place — an empty cell.
+    const spanned = shown.rows[1]?.startsWith('North and South|') && /^\|?140\|150$/.test(shown.rows[2] || '');
     const labels = ['First bullet', 'Step one', 'Inside', 'Step two'].map(label);
     const drawnLabels = /•\s*First bullet/.test(shown.text) && /1\.\s*Step one/.test(shown.text) && /a\)\s*Inside/.test(shown.text) && /2\.\s*Step two/.test(shown.text);
     check('word: the .odt\'s lists are labelled as its list styles say, a level inside counted on its own',
