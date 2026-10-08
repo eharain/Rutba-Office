@@ -2013,6 +2013,9 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // Wrap Text and Position: a picture in the line, or floating with the text round it.
     setImageLayout: (v, a) => v.setImageLayout(a),
     setImageSize: (v, a) => v.setImageSize(a),
+    // Insert → 3D Models: the model's .glb for the window to draw again, and its picture at a new view.
+    model3dSource: (v, a) => { const src = v.model3dSource(a.block, a.image ?? 0); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), view: src.view }); },
+    setModel3dView: (v, a) => v.setModel3dView(a.block, a.image ?? 0, { png: a.png instanceof Uint8Array ? Buffer.from(a.png) : Buffer.from(String(a.png ?? ''), 'base64'), view: a.view || {} }),
     // Insert → Text Box, and Arrange on the page's drawings: each change
     // names drawings by the id Word gave them.
     insertTextBox: (v, a) => { v.insertTextBox(a.spec || {}); return v.lastDrawing; },

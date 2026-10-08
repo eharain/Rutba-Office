@@ -1692,7 +1692,29 @@ export class DocView {
     });
   }
 
-  insertImage({ name, contentType, data, widthPx, heightPx } = {}) {
+  /**
+   * 3D Model Views, a turn, Reset: the picked model's picture drawn again at
+   * `view`. One undo step that brings the old picture back with the old view.
+   */
+  setModel3dView(block, image, { png, view } = {}) {
+    if (typeof this.doc.setModel3dView !== 'function') throw new Error('this document backend does not support 3D models');
+    if (!this.block(block)) throw new Error('no paragraph at index ' + block);
+    // The picture's part joins the undo step before it is taken.
+    this.doc.prepareModel3d(block, image);
+    return this._edit('3D model view', null, () => {
+      this.doc.setModel3dView(block, image, { png, view });
+      this._invalidate();
+      return this;
+    });
+  }
+
+  /** A 3D model's .glb, for the window to draw it again. */
+  model3dSource(block, image) {
+    if (typeof this.doc.model3dSource !== 'function') throw new Error('this document backend does not support 3D models');
+    return this.doc.model3dSource(block, image);
+  }
+
+  insertImage({ name, contentType, data, widthPx, heightPx, model3d = null } = {}) {
     if (typeof this.doc.insertImage !== 'function') {
       throw new Error('this document backend does not support pictures');
     }
@@ -1702,7 +1724,7 @@ export class DocView {
     return this._edit('insert picture', null, () => {
       const { block } = this.focus;
       if (!this.block(block)) throw new Error('no paragraph at index ' + block);
-      this.doc.insertImage(block, { name, contentType, data, widthPx, heightPx });
+      this.doc.insertImage(block, { name, contentType, data, widthPx, heightPx, model3d });
       this._invalidate();
       this.collapseTo({ block: block + 1, offset: 0 });
       return this;

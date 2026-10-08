@@ -31,6 +31,7 @@ import { IndexGroup } from './references-index.js';
 import { PEN_COLOURS, PEN_WIDTHS } from '../slides/ink-geometry.js';
 import { ToaGroup } from './references-toa.js';
 import { captionsExtra } from './references-figures.js';
+import { MODEL_VIEWS } from '@rutba/imaging/model3d';
 
 /* ── vocabularies ────────────────────────────────────────────────────────── */
 
@@ -184,6 +185,8 @@ export default function WordRibbon({
   const alignMode = alignTo || (floatingSel.length > 1 ? 'selected' : 'margin');
   const isGroup = drawing?.kind === 'group';
   const formatTab = drawing ? (drawing.kind === 'picture' ? 'pictureFormat' : 'shapeFormat') : pickedIds.length ? (drawings.find((d) => d.id === pickedIds[0])?.kind === 'picture' ? 'pictureFormat' : 'shapeFormat') : null;
+  // Insert → 3D Models: the picked picture, when it is a model, and the view it is drawn at.
+  const pickedModel = picked?.image != null && !pickedIds.length ? (model?.blocks?.[picked.block]?.images?.[picked.image]?.model3d || null) : null;
   const look = drawing?.look || {};
   const shapeLike = drawing && (drawing.kind === 'textbox' || drawing.kind === 'shape');
   const sizeBox = (label, key) => {
@@ -299,6 +302,8 @@ export default function WordRibbon({
         // The contextual tab, as Word's: there while a drawing is selected.
         ...(formatTab === 'shapeFormat' ? [{ id: 'shapeFormat', label: 'Shape Format' }] : []),
         ...(formatTab === 'pictureFormat' ? [{ id: 'pictureFormat', label: 'Picture Format' }] : []),
+        // 3D Model, as Word's: there while a 3D model is picked.
+        ...(pickedModel ? [{ id: 'model3d', label: '3D Model' }] : []),
         // Table Design and Table Layout, as Word's: there while the caret is in a table.
         ...(table ? [{ id: 'tableDesign', label: 'Table Design' }, { id: 'tableLayout', label: 'Table Layout' }] : []),
         // View → Immersive Reader's own tab, there while the reader is open.
@@ -468,7 +473,7 @@ export default function WordRibbon({
             <Button tall icon="picture" label="Pictures" onClick={insertPicture} />
             <Button tall icon="shape" label="Shapes" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => dispatch({ op: 'insertShape', preset, widthPx: 200, heightPx: 120 }) })))} />
             <Button tall icon="star" label="Icons" title="Icons — one of the suite's own icons, in the colour you choose, as a picture at the caret" onClick={() => act('icons')} />
-            <Soon tall icon="shape" label="3D Models" why="3D models need a renderer the suite does not have." />
+            <Button tall icon="shape" label="3D Models" className="wd-model3d-insert" title="3D Models — a model from a .glb or .gltf file on this computer, drawn as a picture at the caret; turn it from the 3D Model tab" onClick={() => act('model3d')} />
             <Button tall icon="grid" label="SmartArt" title="SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes after this paragraph" onClick={() => act('insertSmartArt')} />
             <Button tall icon="chart" label="Chart" title="A chart drawn from the table the caret is in — put the caret in a table first" onClick={(e) => menu.open(e, CHARTS.map(([k, l]) => ({ label: l, icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: k }) })))} />
             <Button tall icon="picture" label="Screenshot" title="Screenshot — a picture of another open window, or of a whole screen, put in at the caret" onClick={() => act('screenshot')} />
@@ -902,6 +907,37 @@ export default function WordRibbon({
           </Group>
         </>
       ) : null}
+
+      {/* ── 3D Model (contextual) ─────────────────────────────────────────── */}
+      {tab === 'model3d' && pickedModel ? (() => {
+        const v = pickedModel.view || {};
+        const at = (view) => Math.abs((v.yaw || 0) - view.yaw) < 0.5 && Math.abs((v.pitch || 0) - view.pitch) < 0.5;
+        const rows = [MODEL_VIEWS.slice(0, 4), MODEL_VIEWS.slice(4, 7), MODEL_VIEWS.slice(7)];
+        return (
+          <>
+            <Group label="3D Model Views">
+              {rows.map((row, i) => (
+                <Rows key={i}>
+                  {row.map(([key, label, view]) => <Button key={key} icon={at(view) ? 'check' : 'shape'} label={label} className="wd-model3d-view" data-view={key} pressed={at(view)} title={`${label} — the model turned to show it from there`} onClick={() => act('model3dView', view)} />)}
+                </Rows>
+              ))}
+            </Group>
+            <Group label="Turn">
+              <Rows>
+                <Button icon="chevronLeft" label="Turn Left" className="wd-model3d-turn-left" title="Turn Left — fifteen degrees about its upright" onClick={() => act('model3dView', { turn: { yaw: -15, pitch: 0 } })} />
+                <Button icon="chevronRight" label="Turn Right" title="Turn Right — fifteen degrees about its upright" onClick={() => act('model3dView', { turn: { yaw: 15, pitch: 0 } })} />
+              </Rows>
+              <Rows>
+                <Button icon="chevronUp" label="Tip Back" title="Tip Back — fifteen degrees, the top towards you" onClick={() => act('model3dView', { turn: { yaw: 0, pitch: 15 } })} />
+                <Button icon="chevronDown" label="Tip Forward" title="Tip Forward — fifteen degrees, the bottom towards you" onClick={() => act('model3dView', { turn: { yaw: 0, pitch: -15 } })} />
+              </Rows>
+            </Group>
+            <Group label="Adjust">
+              <Button tall icon="undo" label="Reset 3D Model" className="wd-model3d-reset" title="Reset 3D Model — back to the view it was put in at" onClick={() => act('model3dView', 'reset')} />
+            </Group>
+          </>
+        );
+      })() : null}
 
       {/* ── Picture Format (contextual) ───────────────────────────────────── */}
       {tab === 'pictureFormat' ? (

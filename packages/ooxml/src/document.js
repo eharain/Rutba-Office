@@ -733,6 +733,21 @@ const outlineAbstract = (id) => {
 const numDef = (numId, abstractId) =>
   '<w:num w:numId="' + numId + '"><w:abstractNumId w:val="' + abstractId + '"/></w:num>';
 
+/** Insert → 3D Models: the suite's own extension, namespace and relationship for a model kept beside its picture. */
+const MODEL3D_URI = '{5E2C9A41-7B3D-4F6A-9C18-3D0A6E1B2F77}';
+const MODEL3D_NS = 'http://schemas.rutba.io/office/2026/model3d';
+const MODEL3D_REL = 'http://schemas.rutba.io/office/2026/relationships/model3d';
+const round1 = (v) => Math.round((Number(v) || 0) * 10) / 10;
+function model3dTag(rId, view = {}) {
+  return '<r3d:model xmlns:r3d="' + MODEL3D_NS + '" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" r:embed="' + rId + '" yaw="' + round1(view.yaw) + '" pitch="' + round1(view.pitch) + '" roll="' + round1(view.roll) + '"/>';
+}
+/** The view a 3D model's picture is drawn at, from its drawing. */
+function model3dView(drawingXml) {
+  const tag = /<r3d:model\b([^>]*)\/>/.exec(drawingXml)?.[1] ?? '';
+  const a = attrs(tag);
+  return { yaw: Number(a.yaw) || 0, pitch: Number(a.pitch) || 0, roll: Number(a.roll) || 0 };
+}
+
 export class Document {
   constructor(pkg) {
     this.pkg = pkg;
@@ -1872,6 +1887,8 @@ export class Document {
         href: bytes ? toDataUri(bytes, part) : null,
         ...anchorLayout(inner),
         ...arrangeOf(m[0]),
+        // Insert → 3D Models: the model kept beside the picture, and the view it is drawn at.
+        ...(/<r3d:model\b/.test(inner) ? { model3d: { view: model3dView(inner) } } : {}),
       });
     }
     // VML pictures come after the DrawingML ones, whose places the picture
@@ -1947,6 +1964,68 @@ export class Document {
     // The picture's own transform: the first a:ext inside pic:spPr.
     drawing = drawing.replace(/(<pic:spPr\b[\s\S]*?<a:ext\b)[^>]*(\/>)/, (m, p1, p2) => (p1 ?? '') + ' cx="' + cx + '" cy="' + cy + '"' + (p2 ?? ''));
     const xml = p.xml.slice(0, d.index) + drawing + p.xml.slice(d.index + d[0].length);
+    this._spliceBody(p.start, p.end, xml);
+    return this;
+  }
+
+  /** A picture that is a 3D model: its drawing, the model's part, the picture's part and the view. */
+  _model3dAt(index, imageIndex) {
+    const p = this.paragraph(index);
+    if (!p) throw new Error('no paragraph at index ' + index);
+    const drawings = [...p.xml.matchAll(/<w:drawing\b[^>]*>[\s\S]*?<\/w:drawing>/g)].filter((m) => /<a:blip\b/.test(m[0]));
+    const d = drawings[imageIndex];
+    const tag = d ? /<r3d:model\b[^>]*\/>/.exec(d[0])?.[0] : null;
+    if (!tag) throw new Error('That is not a 3D model');
+    const rels = new Map(this.pkg.rels(this.mainPart).map((r) => [r.Id, r.Target]));
+    const partOf = (id) => { const t = id ? rels.get(id) : null; return t ? OoxmlPackage.resolveTarget(this.mainPart, t) : null; };
+    return { p, d, tag, model: partOf(attrs(tag.slice(10))['r:embed']), picture: partOf(attrs(/<a:blip\b([^>]*)\/?>/.exec(d[0])[1])['r:embed']), view: model3dView(d[0]) };
+  }
+
+  /** A 3D model's .glb, for drawing it again. */
+  model3dSource(index, imageIndex) {
+    const at = this._model3dAt(index, imageIndex);
+    if (!at.model || !this.pkg.has(at.model)) throw new Error('That 3D model\'s file is missing');
+    return { data: this.pkg.read(at.model), view: at.view };
+  }
+
+  /**
+   * Before a 3D model is drawn again: its picture's part joins what an undo
+   * step keeps, so Undo brings the old picture back with the old view.
+   */
+  prepareModel3d(index, imageIndex) {
+    const at = this._model3dAt(index, imageIndex);
+    if (at.picture) this._undoParts.add(at.picture);
+    return this;
+  }
+
+  /**
+   * 3D Model Views, a turn, Reset: the model's picture replaced by the one
+   * drawn at `view` — in its own part when nothing else points at it, in a
+   * new one when something does — and the view kept.
+   */
+  setModel3dView(index, imageIndex, { png, view = {} }) {
+    const at = this._model3dAt(index, imageIndex);
+    const bytes = Buffer.isBuffer(png) ? png : png instanceof Uint8Array ? Buffer.from(png) : Buffer.from(String(png ?? ''), 'base64');
+    if (!bytes.length) throw new Error('the 3D model\'s picture has no bytes');
+    let uses = 0;
+    for (const r of this.pkg.partNames().filter((n) => /(^|\/)_rels\/[^/]*\.rels$/.test(n))) {
+      const from = r.replace(/(^|\/)_rels\/([^/]*)\.rels$/, '$1$2');
+      for (const x of this.pkg.rels(from)) if (x.TargetMode !== 'External' && x.Target && OoxmlPackage.resolveTarget(from, x.Target) === at.picture) uses += 1;
+    }
+    let drawing = at.d[0];
+    if (at.picture && uses === 1 && /\.png$/i.test(at.picture)) {
+      this._undoParts.add(at.picture);
+      this.pkg.write_(at.picture, bytes);
+    } else {
+      let n = 1;
+      while (this.pkg.has('word/media/rutba' + n + '.png')) n += 1;
+      this.pkg.addPart('word/media/rutba' + n + '.png', bytes, 'image/png');
+      const rId = this._addRel(IMAGE_REL_TYPE, 'media/rutba' + n + '.png');
+      drawing = drawing.replace(/(<a:blip\b[^>]*\br:embed=")[^"]*(")/, (m, a, b) => a + rId + b);
+    }
+    drawing = drawing.replace(/<r3d:model\b[^>]*\/>/, (tag) => model3dTag(attrs(tag.slice(10))['r:embed'], view));
+    const p = this.editParagraph(index);
+    const xml = p.xml.slice(0, at.d.index) + drawing + p.xml.slice(at.d.index + at.d[0].length);
     this._spliceBody(p.start, p.end, xml);
     return this;
   }
@@ -3478,7 +3557,7 @@ export class Document {
    * its namespaces declared inline, so it lands correctly even in a minimal
    * document whose root declares only `xmlns:w`.
    */
-  insertImageParagraph(index, { name = 'Picture', contentType, data, widthPx, heightPx }) {
+  insertImageParagraph(index, { name = 'Picture', contentType, data, widthPx, heightPx, model3d = null }) {
     const ext = IMAGE_EXTENSIONS[contentType];
     if (!ext) {
       throw new Error('unsupported image type: ' + contentType + ' (png, jpeg, gif, bmp or webp)');
@@ -3503,6 +3582,17 @@ export class Document {
     const cy = h * PX_TO_EMU;
     const id = this._nextDrawingId();
     const label = esc(String(name));
+    // Insert → 3D Models: the .glb kept beside the picture, named from the picture's cNvPr with its view.
+    let modelExt = '';
+    if (model3d) {
+      const glb = Buffer.isBuffer(model3d.data) ? model3d.data : model3d.data instanceof Uint8Array ? Buffer.from(model3d.data) : Buffer.from(String(model3d.data ?? ''), 'base64');
+      if (glb.length < 12 || glb.toString('latin1', 0, 4) !== 'glTF') throw new Error('a 3D model is kept as a binary glTF (.glb)');
+      let m = 1;
+      while (this.pkg.has('word/media/model' + m + '.glb')) m += 1;
+      this.pkg.addPart('word/media/model' + m + '.glb', glb, 'model/gltf-binary');
+      const modelRel = this._addRel(MODEL3D_REL, 'media/model' + m + '.glb');
+      modelExt = '<a:extLst><a:ext uri="' + MODEL3D_URI + '">' + model3dTag(modelRel, model3d.view) + '</a:ext></a:extLst>';
+    }
     const drawing =
       '<w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing">' +
       '<wp:extent cx="' + cx + '" cy="' + cy + '"/>' +
@@ -3510,7 +3600,7 @@ export class Document {
       '<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">' +
       '<a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
       '<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture">' +
-      '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="' + label + '"/><pic:cNvPicPr/></pic:nvPicPr>' +
+      '<pic:nvPicPr><pic:cNvPr id="' + id + '" name="' + label + '"' + (modelExt ? '>' + modelExt + '</pic:cNvPr>' : '/>') + '<pic:cNvPicPr/></pic:nvPicPr>' +
       '<pic:blipFill><a:blip r:embed="' + rId + '" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"/>' +
       '<a:stretch><a:fillRect/></a:stretch></pic:blipFill>' +
       '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="' + cx + '" cy="' + cy + '"/></a:xfrm>' +
@@ -3977,7 +4067,8 @@ export class Document {
     if (this._undoParts.size) {
       snap.bands = {};
       for (const name of this._undoParts) {
-        if (this.pkg.has(name)) snap.bands[name] = this.pkg.text(name);
+        // A picture is kept as its bytes: the buffer the part holds, which a write replaces rather than changes.
+        if (this.pkg.has(name)) snap.bands[name] = /\.(xml|rels)$/i.test(name) ? this.pkg.text(name) : this.pkg.read(name);
       }
     }
     return snap;
@@ -4003,7 +4094,9 @@ export class Document {
     // numbering and media parts take.
     if (snapshot.bands) {
       for (const [name, xml] of Object.entries(snapshot.bands)) {
-        if (this.pkg.has(name) && this.pkg.text(name) !== xml) this.pkg.write_(name, xml);
+        if (!this.pkg.has(name)) continue;
+        if (Buffer.isBuffer(xml)) { if (this.pkg.read(name) !== xml) this.pkg.write_(name, xml); }
+        else if (this.pkg.text(name) !== xml) this.pkg.write_(name, xml);
       }
     }
     // A theme part put back is read afresh.

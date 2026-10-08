@@ -48,6 +48,10 @@ export class OoxmlBackend {
   removeImage(index, image) { this.doc.removeImage(index, image); return this; }
   setImageLayout(index, image, spec) { this.doc.setImageLayout(index, image, spec); return this; }
   setImageSize(index, image, spec) { this.doc.setImageSize(index, image, spec); return this; }
+  /** Insert → 3D Models: the model's .glb, and its picture drawn again at a view — see document.js. */
+  model3dSource(index, image) { return this.doc.model3dSource(index, image); }
+  prepareModel3d(index, image) { this.doc.prepareModel3d(index, image); return this; }
+  setModel3dView(index, image, spec) { this.doc.setModel3dView(index, image, spec); return this; }
   /** Layout → Hyphenation: the document's settings — see document.js. */
   hyphenation() { return this.doc.hyphenation(); }
   /** Before a settings edit: its undo is to put settings.xml back too. */

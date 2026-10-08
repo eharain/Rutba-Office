@@ -61,6 +61,7 @@ import { cellLook, tableRuled } from '@rutba/doc-view/table-look';
 const GEOM_DEFAULT = geomOf(null);
 import { useReferences, installReferencesStyles } from './word/references.js';
 import { useBuildingBlocks, BLOCKS_CSS } from './word/blocks.js';
+import { loadModelFile, modelDrawer, pngOf, MODEL_PICTURE, DEFAULT_MODEL_VIEW } from '../model3d.js';
 
 installMailingsStyles();
 installEnvelopeStyles();
@@ -293,6 +294,8 @@ export default function Word({ app, shell, boot }) {
   // A click on a picture says so through a DOM event from the memoised
   // paragraph; a caret move takes the pick away, as in Word.
   const [picked, setPicked] = useState(null);
+  // Insert → 3D Models: each model read and its pictures decoded once, by its paragraph and place.
+  const model3dDrawers = useRef(new Map());
   // Draw: the tool in hand (null for Select), a document's pens (a pen and a highlighter), the Ruler, Ink to Shape, Draw with Touch.
   const [ink, setInk] = useState({ tool: null, penId: 'pen', pens: DEFAULT_PENS.filter((p) => p.tool !== 'pencil'), ruler: null, toShape: false, touch: true });
   useEffect(() => {
@@ -1409,6 +1412,60 @@ export default function Word({ app, shell, boot }) {
         case 'signatureLine':
           setSignatureOpen(true);
           return;
+        // Insert → 3D Models: a model from a file, drawn by the suite's own renderer, as a picture at the caret.
+        case 'model3d': {
+          const [file] = await shell.dialog.open({ title: 'Insert 3D Model', filters: [{ name: '3D models (glTF)', extensions: ['glb', 'gltf'] }] });
+          if (!file) return;
+          try {
+            const glb = await loadModelFile(shell, file);
+            const drawer = await modelDrawer(glb);
+            const look = DEFAULT_MODEL_VIEW;
+            const size = drawer.size(look, MODEL_PICTURE);
+            const png = await pngOf(drawer.draw({ view: look, ...size }));
+            const page = model?.section;
+            const room = page ? Math.round(page.widthPx - page.margins.left - page.margins.right) : 600;
+            const k = Math.min(1, Math.min(room, 360) / Math.max(size.width, size.height));
+            const name = String(file).split(/[\\/]/).pop().replace(/\.[^.]+$/, '') || '3D Model';
+            await apply({ op: 'insertImage', name, contentType: 'image/png', data: png, widthPx: Math.round(size.width * k), heightPx: Math.round(size.height * k), model3d: { data: glb, view: look } });
+            const block = (model?.selection?.focus?.block ?? 0) + 1;
+            model3dDrawers.current.set(`${block}:0`, drawer);
+            setPicked({ block, image: 0 });
+            setTab('model3d');
+          } catch (err) {
+            toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
+          }
+          return;
+        }
+        // 3D Model Views, Turn and Reset: the picked model drawn again at the new view, at its own size.
+        case 'model3dView': {
+          if (picked?.image == null) return;
+          const img = blocks[picked.block]?.images?.[picked.image];
+          if (!img?.model3d) return;
+          const was = img.model3d.view || {};
+          const wrap = (deg) => Math.round((((deg % 360) + 540) % 360 - 180) * 10) / 10;
+          const look = arg === 'reset' ? DEFAULT_MODEL_VIEW
+            : arg?.turn ? { yaw: wrap((was.yaw || 0) + arg.turn.yaw), pitch: Math.max(-90, Math.min(90, (was.pitch || 0) + arg.turn.pitch)), roll: was.roll || 0 }
+            : { yaw: wrap(arg.yaw || 0), pitch: Math.max(-90, Math.min(90, arg.pitch || 0)), roll: arg.roll || 0 };
+          try {
+            const key = `${picked.block}:${picked.image}`;
+            let drawer = model3dDrawers.current.get(key);
+            if (!drawer) {
+              const got = await shell.doc.apply({ id: doc.id, ops: [{ op: 'model3dSource', block: picked.block, image: picked.image }] });
+              const src = JSON.parse(got.opResult || 'null');
+              const bin = atob(src.data);
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              drawer = await modelDrawer(bytes);
+              model3dDrawers.current.set(key, drawer);
+            }
+            const k = Math.min(2, 1400 / Math.max(img.widthPx, img.heightPx));
+            const png = await pngOf(drawer.draw({ view: look, width: Math.max(1, Math.round(img.widthPx * k)), height: Math.max(1, Math.round(img.heightPx * k)) }));
+            await apply({ op: 'setModel3dView', block: picked.block, image: picked.image, png, view: look });
+          } catch (err) {
+            toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
+          }
+          return;
+        }
         // Insert → Icons: one of the suite's own icons, as a picture at the caret.
         case 'icons':
           setIconsOpen(true);
