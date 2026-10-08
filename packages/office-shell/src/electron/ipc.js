@@ -17,6 +17,7 @@ import { ipcMain } from 'electron';
 import { METHODS, CHANNEL_PREFIX } from '../contract.js';
 import { blobOwner } from './blobs.js';
 import { runsWhenOpened } from '../runs.js';
+import { writeWhole } from '../write-whole.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -179,12 +180,12 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     }),
     write: async ({ path: p, bytes }) => {
       await fsp.mkdir(path.dirname(p), { recursive: true });
-      await fsp.writeFile(p, Buffer.from(bytes));
+      await writeWhole(p, Buffer.from(bytes));
       return { stat: statOf(p) };
     },
     writeText: async ({ path: p, text }) => {
       await fsp.mkdir(path.dirname(p), { recursive: true });
-      await fsp.writeFile(p, text, 'utf8');
+      await writeWhole(p, text, 'utf8');
       return { stat: statOf(p) };
     },
     stat: ({ path: p }) => statOf(p),

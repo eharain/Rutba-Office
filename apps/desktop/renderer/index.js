@@ -12,6 +12,7 @@ import { ThemeProvider, ToastProvider, registerCatalogue, setLanguage } from '@r
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { APPS } from '@rutba/office-formats/registry';
 import '@rutba/office-ui/theme.css';
+import { installLostMouseupGuard } from './lost-mouseup.js';
 
 import Home from './apps/home.js';
 import Word from './apps/word.js';
@@ -59,6 +60,8 @@ function Root() {
 // The windows' words in the language chosen in settings, else the system's,
 // from the catalogues there are — English where there is none.
 for (const [tag, messages] of Object.entries(CATALOGUES)) registerCatalogue(tag, messages);
+// A drag whose mouseup is lost — let go outside the window, or the window left mid-drag — still ends.
+installLostMouseupGuard(window);
 const chooseLanguage = (chosen) => {
   document.documentElement.lang = setLanguage(chosen || navigator.language || 'en');
 };

@@ -648,6 +648,23 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   const nextId = () => `d${++seq}`;
 
   /**
+   * A session made for a window to take over — merged letters, labels, a
+   * comparison, a photo album — that no window takes within ten minutes is
+   * let go: such a session was held for the life of the app when its window
+   * never opened.
+   */
+  const ADOPT_MS = 10 * 60 * 1000;
+  const orphan = (made) => {
+    const t = setTimeout(() => {
+      if (sessions.get(made.id) === made && made.windowId == null) {
+        forgetRecovery(made);
+        sessions.delete(made.id);
+      }
+    }, ADOPT_MS);
+    t.unref?.();
+  };
+
+  /**
    * Equations measured and pictured for paper (see main/math-raster.js), by
    * their XML, across every open document — the same equation is laid out
    * once. Bounded: each holds a picture.
@@ -1486,6 +1503,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         // Unsaved work from the start: closing it asks, as Word's Letters1 does.
         made.dirty = true;
         made.windowId = null;
+        orphan(made);
         sessions.set(made.id, made);
         return { id: made.id, name: made.name, copies: merged.copies, records: merged.records, type, typeLabel: (MAIN_DOCUMENT_TYPES.find((t) => t.id === type) || {}).label || 'Letters' };
       }
@@ -1505,6 +1523,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         made.untitled = `${base}${n}`;
         made.dirty = true;
         made.windowId = null;
+        orphan(made);
         sessions.set(made.id, made);
         return { id: made.id, name: made.name };
       }
@@ -2808,6 +2827,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       made.untitled = `Compare Result ${n}`;
       made.dirty = true;
       made.windowId = null;
+      orphan(made);
       sessions.set(made.id, made);
       return { id: made.id, name: made.name, changes };
     },
@@ -2833,6 +2853,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       made.untitled = `Photo Album${n}`;
       made.dirty = true;
       made.windowId = null;
+      orphan(made);
       sessions.set(made.id, made);
       return { id: made.id, name: made.name, slides: engine.slideCount };
     },

@@ -43,6 +43,8 @@ export async function placeholderPoster(width = 1280, height = 720) {
 export async function posterFrame(bytes, type) {
   const url = URL.createObjectURL(new Blob([bytes], { type }));
   const video = document.createElement('video');
+  // The waits' timers are cleared once the frame is taken, so neither holds the video for seconds after.
+  const timers = [];
   try {
     video.muted = true;
     video.preload = 'auto';
@@ -50,10 +52,10 @@ export async function posterFrame(bytes, type) {
     await new Promise((resolve, reject) => {
       video.onloadeddata = resolve;
       video.onerror = () => reject(new Error('undecodable'));
-      setTimeout(() => reject(new Error('timeout')), 15000);
+      timers.push(setTimeout(() => reject(new Error('timeout')), 15000));
     });
     const at = Math.min(1, (Number.isFinite(video.duration) ? video.duration : 0) / 10);
-    if (at > 0) await new Promise((resolve) => { video.onseeked = resolve; video.currentTime = at; setTimeout(resolve, 3000); });
+    if (at > 0) await new Promise((resolve) => { video.onseeked = resolve; video.currentTime = at; timers.push(setTimeout(resolve, 3000)); });
     const width = video.videoWidth || 1280;
     const height = video.videoHeight || 720;
     const canvas = document.createElement('canvas');
@@ -64,7 +66,10 @@ export async function posterFrame(bytes, type) {
   } catch {
     return placeholderPoster();
   } finally {
+    timers.forEach(clearTimeout);
+    video.onloadeddata = video.onerror = video.onseeked = null;
     video.removeAttribute('src');
+    video.load();
     URL.revokeObjectURL(url);
   }
 }

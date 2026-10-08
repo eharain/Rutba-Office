@@ -13,6 +13,8 @@ const SIZE = 256;
 const TIMEOUT = 8000;
 
 const results = new Map(); // path -> Promise<string|null> (an object URL, or nothing)
+/** How many clips' frames are kept; past it the least lately asked for is let go, its object URL with it. */
+const KEPT = 300;
 let chain = Promise.resolve();
 
 function grab(path) {
@@ -65,7 +67,18 @@ function grab(path) {
  * clip will not play here either. `store` is given the JPEG bytes to keep.
  */
 export function frameOf(path, store) {
-  if (results.has(path)) return results.get(path);
+  if (results.has(path)) {
+    // Asked for again: the most lately used, so the last to go.
+    const kept = results.get(path);
+    results.delete(path);
+    results.set(path, kept);
+    return kept;
+  }
+  while (results.size >= KEPT) {
+    const [oldest, job] = results.entries().next().value;
+    results.delete(oldest);
+    job.then((url) => { if (url) URL.revokeObjectURL(url); }).catch(() => {});
+  }
   const job = chain.then(() => grab(path)).then(async (blob) => {
     if (!blob) return null;
     if (store) {
