@@ -404,6 +404,13 @@ export function writeRtf({ blocks = [], title = '' } = {}) {
    * writes.
    */
   const runOut = (run) => {
+    // A picture: PNG or JPEG bytes as hex, at the size it is shown (twips), as Word writes one.
+    if (run.picture) {
+      const p = run.picture;
+      const px = (v) => Math.max(1, Math.round(Number(v) || 96));
+      return '{\\pict' + (p.kind === 'png' ? '\\pngblip' : '\\jpegblip') + '\\picw' + px(p.width) + '\\pich' + px(p.height) +
+        '\\picwgoal' + px(p.width) * 15 + '\\pichgoal' + px(p.height) * 15 + ' ' + Buffer.from(p.data).toString('hex') + '}';
+    }
     const on = [];
     const font = fontIndex(run.font || run.fontName);
     if (font) on.push('\\f' + font);
@@ -421,14 +428,32 @@ export function writeRtf({ blocks = [], title = '' } = {}) {
 
   const runsOf = (holder) => ((holder.runs || []).length ? holder.runs : [{ text: holder.text ?? '' }]);
 
+  /** Runs, a link round the runs that share one: a HYPERLINK field, its result the runs. */
+  const runsOut = (runs) => {
+    let out = '';
+    for (let i = 0; i < runs.length;) {
+      const link = runs[i].link;
+      if (!link) { out += runOut(runs[i]); i += 1; continue; }
+      let inner = '';
+      while (i < runs.length && runs[i].link === link) { inner += runOut(runs[i]); i += 1; }
+      out += '{\\field{\\*\\fldinst{HYPERLINK "' + rtfText(String(link).replace(/"/g, '%22')) + '"}}{\\fldrslt{' + inner + '}}}';
+    }
+    return out;
+  };
+
   const paragraph = (block) => {
     const align = ALIGN_WORD[block.align] || '';
-    const indent = block.level ? '\\li' + block.level * 360 : '';
     const heading = block.type === 'heading';
+    // A list item hangs its label at its level's indent; a heading's level is its outline level, not an indent.
+    const indent = block.indentTwips != null
+      ? '\\li' + block.indentTwips + (block.hangTwips ? '\\fi-' + block.hangTwips : block.firstTwips ? '\\fi' + block.firstTwips : '')
+      : block.level && !heading ? '\\li' + block.level * 360 : '';
     const size = heading ? Math.max(20, 36 - (block.level || 1) * 4) : 0;
-    return '{\\pard' + align + indent + '\\sa120 ' +
+    const flags = (heading ? '\\outlinelevel' + Math.max(0, Math.min(8, (block.level || 1) - 1)) : '') + (block.pageBreakBefore ? '\\pagebb' : '') + (block.rtl ? '\\rtlpar' : '');
+    return '{\\pard' + align + indent + flags + '\\sa120 ' +
       (heading ? '\\b\\fs' + size + ' ' : '') +
-      runsOf(block).map(runOut).join('') +
+      (block.label ? rtfText(block.label) + '\\tab ' : '') +
+      runsOut(runsOf(block)) +
       (heading ? '\\b0' : '') +
       '\\par}';
   };
@@ -445,18 +470,33 @@ export function writeRtf({ blocks = [], title = '' } = {}) {
   const table = (block) => {
     const rows = block.rows || [];
     const out = [];
+    // The grid: the table's own column widths when it gives them, else the row shared out evenly.
+    const grid = (block.columns || []).length && block.columns.every((w) => w > 0) ? block.columns : null;
     for (const row of rows) {
-      const width = Math.floor(9000 / Math.max(1, row.length));
-      out.push(
-        '\\trowd\\trgaph108' +
-          row.map((_, i) => '\\clbrdrt\\brdrs\\clbrdrl\\brdrs\\clbrdrb\\brdrs\\clbrdrr\\brdrs\\cellx' + width * (i + 1)).join('')
-      );
+      const even = Math.floor(9000 / Math.max(1, row.length));
+      const edge = (col, span) => (grid ? grid.slice(0, col + span).reduce((a, b) => a + b, 0) : even * (col + span));
+      const defs = [];
+      const cells = [];
+      let col = 0;
+      for (const cell of row) {
+        // A place a span from the left covers has no cell of its own: the span's cell reaches over it.
+        if (cell.covered) continue;
+        const span = Math.max(1, cell.colspan || 1);
+        const merge = cell.continues ? '\\clvmrg' : (cell.rowspan || 1) > 1 ? '\\clvmgf' : '';
+        const fill = cell.fill ? colourIndex(cell.fill) : 0;
+        // Ruled unless the table says it has no borders (a writer that does not say gets them, as before).
+        const rules = block.bordered === false ? '' : '\\clbrdrt\\brdrs\\clbrdrl\\brdrs\\clbrdrb\\brdrs\\clbrdrr\\brdrs';
+        defs.push(merge + (fill ? '\\clcbpat' + fill : '') + rules + '\\cellx' + edge(col, span));
+        cells.push(cell);
+        col += span;
+      }
+      out.push('\\trowd\\trgaph108' + defs.join(''));
       // `\intbl` alone, not `\pard\intbl`. A reader ends a table when a
       // paragraph resets outside a row, and this one — ours, and it is not
       // alone in this — reads the `\pard` that opens the second row's first
       // cell as that reset: a table of four rows came back as four tables of
       // one. The row's properties come from `\trowd` either way.
-      for (const cell of row) out.push('\\intbl ' + runsOf(cell).map(runOut).join('') + '\\cell');
+      for (const cell of cells) out.push('\\intbl' + (ALIGN_WORD[cell.align] || '') + ' ' + (cell.continues ? '' : runsOut(runsOf(cell))) + '\\cell');
       out.push('\\row');
     }
     return out.join('\n') + '\n\\pard';

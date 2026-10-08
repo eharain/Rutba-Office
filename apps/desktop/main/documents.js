@@ -58,9 +58,10 @@ import { readOdt } from '@rutba/office-formats/odt';
 import { odtToDocx } from '@rutba/office-formats/odt-docx';
 import { readDocxDocument } from '@rutba/office-formats/docx-read';
 import { writeOdtDocument } from '@rutba/office-formats/odt-write';
-import { writeOdt, writeOds, writeOdp } from '@rutba/office-formats/odf-write';
-import { readRtf, writeRtf } from '@rutba/office-formats/rtf';
-import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, writePlain, decodeText } from '@rutba/office-formats/text';
+import { writeHtmlDocument, writePlainDocument, writeRtfDocument } from '@rutba/office-formats/doc-export';
+import { writeOds, writeOdp } from '@rutba/office-formats/odf-write';
+import { readRtf } from '@rutba/office-formats/rtf';
+import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, decodeText } from '@rutba/office-formats/text';
 import { markdownToParagraphs, paragraphsToMarkdown } from './markdown-bridge.js';
 import { readMergeSource, writeMergeList } from './mailmerge-source.js';
 import { contactsToSource, findDuplicates, MAIN_DOCUMENT_TYPES } from '@rutba/ooxml/mailmerge';
@@ -102,7 +103,7 @@ const EXPORTS = { doc: ['pdf', 'rtf', 'odt', 'txt', 'md', 'html'], sheet: ['csv'
  * document that happened to contain a script tag produced a page that ran
  * it. What a document says is never markup.
  */
-/** The characters an HTML entity stands for — the reverse of escapeHtml. */
+/** The characters an HTML entity stands for. */
 const HTML_ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
 
 function decodeEntities(text) {
@@ -131,15 +132,6 @@ function htmlBlocks(html) {
     if (text) blocks.push({ type: 'paragraph', text });
   }
   return blocks.length ? blocks : [{ type: 'paragraph', text: '' }];
-}
-
-function escapeHtml(text) {
-  return String(text ?? '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;');
 }
 
 /** Blocks in the neutral reader shape → paragraphs `buildDocx` understands. */
@@ -3260,21 +3252,21 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     }
 
     if (session.kind === 'doc' && (ext === 'txt' || ext === 'md' || ext === 'html' || ext === 'rtf' || ext === 'odt')) {
-      const frame = session.engine.render();
+      // The document as the engine holds it — headings, lists at their levels with their numbers, tables
+      // with their spans, pictures, the page — not the frame's plain paragraphs, from which every one of
+      // them was written as a line.
+      const whole = () => ({ ...readDocxDocument(Buffer.from(session.engine.serialize ? session.engine.serialize() : session.engine.save())), title: session.name });
 
       if (ext === 'odt') {
-        // The document as the engine holds it — headings, lists at their levels, tables with their spans,
-        // pictures, the page — not the frame's plain paragraphs, which wrote every one of them as a line.
-        const docx = Buffer.from(session.engine.serialize ? session.engine.serialize() : session.engine.save());
-        writeWhole(target, writeOdtDocument({ ...readDocxDocument(docx), title: session.name }));
+        writeWhole(target, writeOdtDocument(whole()));
         return { path: target, format: 'odt' };
       }
 
-      // Rich Text, which the installer has been claiming this suite edits.
-      // The runs carry their own weight, slant, size, font and colour, so the
-      // writer is given the frame's blocks rather than their text.
+      // Rich Text, which the installer has been claiming this suite edits:
+      // runs in their weight, slant, size, font and colour, links, pictures,
+      // list labels at their indents, and tables with their widths and spans.
       if (ext === 'rtf') {
-        writeWhole(target, writeRtf({ blocks: frame.blocks || [], title: session.name }), 'utf8');
+        writeWhole(target, writeRtfDocument(whole()), 'utf8');
         return { path: target, format: 'rtf' };
       }
 
@@ -3282,20 +3274,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       // what each paragraph style meant and still holds the parts of the file
       // a document cannot carry.
       if (ext === 'md') {
-        writeWhole(target, paragraphsToMarkdown(frame.blocks || [], session.converted?.markdown || {}), 'utf8');
+        writeWhole(target, paragraphsToMarkdown(session.engine.render().blocks || [], session.converted?.markdown || {}), 'utf8');
         return { path: target, format: 'md' };
       }
 
-      const blocks = (frame.blocks || []).map((b) => ({
-        type: b.style && /heading/i.test(b.style) ? 'heading' : 'paragraph',
-        level: Number(String(b.style || '').replace(/\D/g, '')) || 1,
-        text: (b.runs || []).map((r) => r.text).join('') || b.text || '',
-        runs: b.runs,
-      }));
-      const text = ext === 'txt'
-        ? writePlain(blocks)
-        : `<!doctype html>\n<meta charset="utf-8">\n<title>${escapeHtml(session.name)}</title>\n${blocks.map((b) => (b.type === 'heading' ? `<h${b.level}>${escapeHtml(b.text)}</h${b.level}>` : `<p>${escapeHtml(b.text)}</p>`)).join('\n')}\n`;
-      writeWhole(target, text, 'utf8');
+      writeWhole(target, ext === 'txt' ? writePlainDocument(whole()) : writeHtmlDocument(whole()), 'utf8');
       return { path: target, format: ext };
     }
 

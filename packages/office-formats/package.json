@@ -26,6 +26,7 @@
     "./odt-docx": "./src/odt-docx.js",
     "./docx-read": "./src/docx-read.js",
     "./odt-write": "./src/odt-write.js",
+    "./doc-export": "./src/doc-export.js",
     "./rtf": "./src/rtf.js",
     "./text": "./src/text.js",
     "./markdown": "./src/markdown.js",
