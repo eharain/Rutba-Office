@@ -95,7 +95,11 @@ behind.
 4. **The remainders.** Page setup kept in the file for a document and a deck
    (order item 2 was built for workbooks only); a real watermark and
    multilevel list definitions; a default template; edits from the Pictures
-   viewer that change the file; thumbnails on Linux.
+   viewer that change the file; thumbnails on Linux; **WordArt's Transform
+   presets** — words drawn along an arc, a circle, a button and the waves,
+   on screen and in print, offered from Text Effects → Transform and written
+   as `a:prstTxWarp` in all three apps (asked for 2026-10-08; the arc and the
+   circle first, since those are what people reach for).
 5. **Deepen what 1.29 opened** before widening it: Power Query's remaining
    transforms and a refresh that re-reads its source; scripts' API to cover
    what Record Actions can record; the old-format readers against a corpus

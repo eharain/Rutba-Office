@@ -134,6 +134,18 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   Insert → Drop Cap, dropped, two lines, or in margin, the letter framed
   with `w:framePr` and laid as a float on screen and in print. WordArt,
   SmartArt, OMML equations: read past, not written.
+- **WordArt's shapes.** A run's WordArt look (outline, glow, shadow, no
+  fill) is written; the words themselves are only ever drawn straight.
+  Word's Text Effects → Transform — the arcs (Arch Up, Arch Down), Circle,
+  Button, the waves, inflate, deflate, slant and the rest — is the
+  `a:prstTxWarp` preset on the text body with its adjust handles, and is
+  read past, not drawn, not written. To build: read the preset and its
+  handles; draw the words glyph by glyph along the preset's path on screen,
+  in the thumbnail and in PDF (an arc and a circle first, then the waves
+  and the warps); offer the gallery from Text Effects → Transform in
+  Documents and from Shape Format → Text Effects in Presentations and
+  Worksheets; write the preset back as Word writes it, with the handles
+  the person dragged. Asked for 2026-10-08.
 - **A real watermark** (the header holds text only), multilevel list
   definitions. (Paragraph shading and borders, and the page colour, are
   written from the ribbon since 2026-09-21, and printed.)
@@ -263,7 +275,10 @@ document and workbook writers.
   a highlight are written from the Home tab, and a slide's own bullets,
   spacing and run looks survive an edit (until then a format press or an
   edited line dropped them), and the box's own anchor, text direction
-  and columns are written from the same tab. WordArt is still read past.
+  and columns are written from the same tab. WordArt's run look is written;
+  its Transform presets — arcs, circle, button, waves — are read past, not
+  drawn (see Documents, "WordArt's shapes"; the same work serves all three
+  apps, since the preset lives on the shared text body).
 - **What can be put on a slide**: a table and a chart are read and drawn —
   a table in its table style since 1.29.5 (its header, bands, borders and
   first and last rows and columns, which Table Design turns on and off since
