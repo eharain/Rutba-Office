@@ -57,8 +57,16 @@ function writeQueries(view, list) {
 }
 
 /** A query's source read now: { columns, rows }. A CSV is read with `read(path)`. */
-export function sourceTable(view, source, read = null) {
+export function sourceTable(view, source, read = null, seen = new Set()) {
   if (!source) throw new Error('A query needs a source');
+  // Another query of the workbook: its result as it would load now.
+  if (source.kind === 'query') {
+    const q = readQueries(view).find((x) => x.id === source.id || x.name === source.name);
+    if (!q) throw new Error(`There is no query called "${source.name || source.id}"`);
+    if (seen.has(q.id)) throw new Error(`Query "${q.name}" reads itself`);
+    const next = new Set(seen).add(q.id);
+    return runSteps(sourceTable(view, q.source, read, next), q.steps, { table: (s) => sourceTable(view, s, read, next) });
+  }
   if (source.kind === 'csv') {
     if (typeof read !== 'function') throw new Error('A file source is read on the main process');
     const rows = parseDelimited(read(source.path));
@@ -102,6 +110,7 @@ export function sourceTable(view, source, read = null) {
 /** What a source is, in words: "Table Sales", "Data!A1:D7", "stock.csv". */
 export function describeSource(source) {
   if (!source) return '';
+  if (source.kind === 'query') return `Query ${source.name || source.id}`;
   if (source.kind === 'table') return `Table ${source.table}`;
   if (source.kind === 'range') return `${source.sheet}!${source.ref}`;
   if (source.kind === 'csv') return String(source.path || '').split(/[\\/]/).pop();
@@ -110,7 +119,7 @@ export function describeSource(source) {
 
 /** The first rows of what a query would load, for the editor: nothing changes. */
 export function previewQuery(view, { source, steps = [], upTo = null, read = null, limit = 100 } = {}) {
-  const t = runSteps(sourceTable(view, source, read), steps, { upTo });
+  const t = runSteps(sourceTable(view, source, read), steps, { upTo, table: (s) => sourceTable(view, s, read) });
   return { columns: t.columns, rows: t.rows.slice(0, limit), total: t.rows.length, steps: steps.map(describeStep) };
 }
 
@@ -197,7 +206,7 @@ export function addQuery(view, { name = 'Query', source, steps = [], read = null
   const taken = new Set(list.map((q) => q.name.toLowerCase()));
   let clean = String(name || 'Query').trim() || 'Query';
   for (let k = 2; taken.has(clean.toLowerCase()); k++) clean = `${String(name).trim() || 'Query'} (${k})`;
-  const table = runSteps(sourceTable(view, source, read), steps);
+  const table = runSteps(sourceTable(view, source, read), steps, { table: (s) => sourceTable(view, s, read) });
   const sheet = sheetNameFor(view, clean);
   const q = { id: `q${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`, name: clean, source, steps, load: { sheet, table: tableNameFor(view, clean) }, loaded: table.rows.length, refreshed: Date.now() };
   queryEdit(view, 'load query', () => {
@@ -215,7 +224,7 @@ export function refreshQueries(view, { id = null, read = null } = {}) {
   const list = readQueries(view);
   const chosen = list.filter((q) => !id || q.id === id);
   if (!chosen.length) return 0;
-  const results = chosen.map((q) => ({ q, table: runSteps(sourceTable(view, q.source, read), q.steps) }));
+  const results = chosen.map((q) => ({ q, table: runSteps(sourceTable(view, q.source, read, new Set([q.id])), q.steps, { table: (s) => sourceTable(view, s, read, new Set([q.id])) }) }));
   queryEdit(view, 'refresh', () => {
     for (const { q, table } of results) {
       if (!view.sheetNames().includes(q.load.sheet)) { view.workbook.addSheet(q.load.sheet); view._rebuildDerivedState(); }
@@ -236,7 +245,7 @@ export function editQuery(view, { id, name, source, steps, read = null } = {}) {
   if (name !== undefined) q.name = String(name).trim() || q.name;
   if (source !== undefined) q.source = source;
   if (steps !== undefined) q.steps = steps;
-  const table = runSteps(sourceTable(view, q.source, read), q.steps);
+  const table = runSteps(sourceTable(view, q.source, read, new Set([q.id])), q.steps, { table: (s) => sourceTable(view, s, read, new Set([q.id])) });
   queryEdit(view, 'edit query', () => {
     if (!view.sheetNames().includes(q.load.sheet)) { view.workbook.addSheet(q.load.sheet); view._rebuildDerivedState(); }
     writeResult(view, q, table);

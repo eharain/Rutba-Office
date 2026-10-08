@@ -10,6 +10,7 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { Button, Dialog, Input, Select, useMenu } from '@rutba/office-ui';
+import { JOIN_KINDS } from '@rutba/sheet-view/queries';
 
 const TYPES = [['text', 'Text'], ['integer', 'Whole number'], ['number', 'Decimal number'], ['date', 'Date'], ['boolean', 'True/False']];
 const FILTERS = [['equals', 'equals'], ['notEquals', 'does not equal'], ['contains', 'contains'], ['notContains', 'does not contain'], ['beginsWith', 'begins with'], ['endsWith', 'ends with'], ['greater', 'is more than'], ['greaterOrEqual', 'is at least'], ['less', 'is less than'], ['lessOrEqual', 'is at most'], ['blank', 'is blank'], ['notBlank', 'is not blank']];
@@ -41,8 +42,23 @@ const shown = (v) => (v === null || v === undefined ? '' : typeof v === 'number'
  * The editor. `query` is `{ id?, name, source, steps }`: an id when it is a
  * query already loaded, whose Close & Load changes it.
  */
-export function QueryEditor({ query, preview, onClose, onLoad }) {
+export function QueryEditor({ query, preview, listSources = null, onClose, onLoad }) {
   const menu = useMenu();
+  // Append and Merge: the workbook's tables and queries, but this query and the table it loads.
+  const [sources, setSources] = useState([]);
+  useEffect(() => {
+    let live = true;
+    Promise.resolve(listSources?.()).then((got) => {
+      if (!live || !got) return;
+      const own = (got.queries || []).find((q) => q.id === query.id);
+      setSources([
+        ...(got.queries || []).filter((q) => q.id !== query.id).map((q) => ({ label: `Query: ${q.name}`, source: { kind: 'query', id: q.id, name: q.name } })),
+        ...(got.tables || []).filter((t) => t.name !== own?.table && !(query.source?.kind === 'table' && query.source.table === t.name)).map((t) => ({ label: `Table: ${t.name} (${t.sheet})`, source: { kind: 'table', table: t.name } })),
+      ]);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [listSources, query.id, query.source]);
+  const sourceOptions = sources.map((s, i) => [String(i), s.label]);
   const [name, setName] = useState(query.name || 'Query');
   const [steps, setSteps] = useState(query.steps || []);
   const [upTo, setUpTo] = useState(null);
@@ -79,6 +95,20 @@ export function QueryEditor({ query, preview, onClose, onLoad }) {
     ['Split Column', (e) => need() && menu.open(e, [['Comma', 'comma'], ['Tab', 'tab'], ['Space', 'space'], ['Semicolon', 'semicolon']].map(([label, delimiter]) => ({ label: `At each ${label.toLowerCase()}`, run: () => add({ kind: 'splitColumn', column, delimiter }) })).concat([{ label: 'At another character…', run: () => askFor(`Split "${column}" at`, [{ key: 'delimiter', label: 'Character' }], (v) => add({ kind: 'splitColumn', column, delimiter: v.delimiter })) }]))],
     ['Format', (e) => need() && menu.open(e, [['Trim', 'trim'], ['UPPERCASE', 'upper'], ['lowercase', 'lower'], ['Capitalise Each Word', 'proper']].map(([label, how]) => ({ label, run: () => add({ kind: 'transformText', column, how }) })))],
     ['Group By', () => need() && askFor(`Group by "${column}"`, [{ key: 'fn', label: 'Operation', options: AGGREGATES, value: 'count' }, { key: 'of', label: 'Of column', options: (table?.columns || []).map((c) => [c, c]), value: (table?.columns || []).find((c) => c !== column) || column }, { key: 'as', label: 'New column name', value: 'Count' }], (v) => add({ kind: 'groupBy', columns: [column], aggregations: [{ fn: v.fn, column: v.fn === 'count' ? null : v.of, name: v.as || undefined }] }))],
+    ['Append Queries', () => (sources.length
+      ? askFor('Append the rows of', [{ key: 'with', label: 'Table or query', options: sourceOptions, value: '0' }], (v) => add({ kind: 'appendQuery', with: sources[Number(v.with)].source }))
+      : setError('There is no other table or query in this workbook to append.'))],
+    ['Merge Queries', () => {
+      if (!need()) return;
+      if (!sources.length) { setError('There is no other table or query in this workbook to merge with.'); return; }
+      askFor(`Merge on "${column}" with`, [{ key: 'with', label: 'Table or query', options: sourceOptions, value: '0' }, { key: 'how', label: 'Join kind', options: JOIN_KINDS, value: 'left' }], async (v) => {
+        const other = sources[Number(v.with)].source;
+        try {
+          const cols = (await preview({ source: other, steps: [] }))?.columns || [];
+          askFor(`Match "${column}" with a column of ${sources[Number(v.with)].label.replace(/^\w+: /, '')}`, [{ key: 'withOn', label: 'Its column', options: cols.map((c) => [c, c]), value: cols.find((c) => c.toLowerCase() === String(column).toLowerCase()) || cols[0] }], (w) => add({ kind: 'mergeQueries', with: other, on: column, withOn: w.withOn, how: v.how }));
+        } catch (err) { setError(cleanError(err)); }
+      });
+    }],
     ['Keep Top Rows', () => askFor('Keep the first rows', [{ key: 'count', label: 'Number of rows', value: '10' }], (v) => add({ kind: 'keepTopRows', count: Number(v.count) || 0 }))],
     ['Remove Duplicates', () => add({ kind: 'removeDuplicates', ...(column ? { columns: [column] } : {}) })],
     ['Remove Blank Rows', () => add({ kind: 'removeBlankRows' })],

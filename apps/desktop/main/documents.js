@@ -1933,6 +1933,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     previewQuery: (v, a) => JSON.stringify(v.previewQuery({ source: a.source, steps: a.steps || [], upTo: a.upTo ?? null, read: readQuerySource, limit: a.limit || 100 })),
     // From Table/Range: the table at the active cell, or the block of data round it.
     querySourceHere: (v) => JSON.stringify(v.querySourceHere()),
+    // Append and Merge: the workbook's tables and queries, another of which a query may read.
+    querySources: (v) => JSON.stringify({ tables: v.workbook.tables().map((t) => ({ name: t.name, sheet: t.sheet })), queries: v.queries().map((q) => ({ id: q.id, name: q.name, table: q.load?.table || null })) }),
     // Queries & Connections → Edit: the query whole, steps and all.
     queryInfo: (v, a) => JSON.stringify(v.queries().find((q) => q.id === a.id) || null),
     // PivotTable Fields: the rows, columns and values of a pivot changed, and the pivot laid out again.
@@ -2425,7 +2427,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'model3dSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'model3dSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo', 'querySources']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

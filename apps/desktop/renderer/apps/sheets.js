@@ -255,6 +255,12 @@ export default function Sheets({ app, shell, boot }) {
     }
   }, [dispatch, shell, toast]);
 
+  /** Append and Merge: the workbook's tables and queries. */
+  const listQuerySources = useCallback(async () => {
+    const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'querySources' }] });
+    return JSON.parse(next.opResult || 'null');
+  }, [doc?.id, shell]);
+
   /** The Power Query Editor's preview: what a query would load, the first hundred rows, nothing changed. */
   const previewQuery = useCallback(async (spec) => {
     const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'previewQuery', ...spec }] });
@@ -3992,6 +3998,7 @@ export default function Sheets({ app, shell, boot }) {
         <QueryEditor
           query={queryEdit}
           preview={previewQuery}
+          listSources={listQuerySources}
           onClose={() => setQueryEdit(null)}
           onLoad={async (q) => {
             const op = q.id ? { op: 'editQuery', id: q.id, name: q.name, source: q.source, steps: q.steps } : { op: 'addQuery', name: q.name, source: q.source, steps: q.steps };

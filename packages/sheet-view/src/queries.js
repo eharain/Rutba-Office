@@ -18,7 +18,11 @@
 export const STEP_KINDS = [
   'removeColumns', 'keepColumns', 'renameColumn', 'changeType', 'filterRows', 'sort', 'removeDuplicates',
   'removeBlankRows', 'keepTopRows', 'replaceValues', 'splitColumn', 'groupBy', 'addIndex', 'transformText', 'promoteHeaders',
+  'appendQuery', 'mergeQueries',
 ];
+
+/** Merge Queries' kinds of join, as Power Query names them. */
+export const JOIN_KINDS = [['left', 'Left Outer (all from the first, matching from the second)'], ['inner', 'Inner (only matching rows)'], ['leftAnti', 'Left Anti (rows only in the first)'], ['full', 'Full Outer (all rows from both)']];
 
 const blank = (v) => v === null || v === undefined || v === '';
 const indexOf = (t, name) => {
@@ -54,10 +58,63 @@ function uniqueNames(names) {
   });
 }
 
-/** One step applied to a table: a new table. */
-export function applyStep(t, step) {
+/**
+ * One step applied to a table: a new table. Append and Merge read another
+ * table with `ctx.table(source)` — a table or range of the workbook, a file,
+ * or another query.
+ */
+export function applyStep(t, step, ctx = {}) {
   const s = step || {};
   switch (s.kind) {
+    // Append Queries: the other table's rows after these, its columns matched by name, any new ones added.
+    case 'appendQuery': {
+      if (typeof ctx.table !== 'function') throw new Error('Append needs the other table');
+      const other = ctx.table(s.with);
+      const columns = [...t.columns, ...other.columns.filter((c) => !t.columns.includes(c))];
+      const at = other.columns.map((c) => columns.indexOf(c));
+      const rows = t.rows.map((r) => columns.map((_, i) => (i < r.length ? r[i] : null)));
+      for (const r of other.rows) {
+        const row = columns.map(() => null);
+        at.forEach((to, from) => { row[to] = r[from] === undefined ? null : r[from]; });
+        rows.push(row);
+      }
+      return { columns, rows };
+    }
+    // Merge Queries: each row joined to the other table's rows whose key matches, their other columns brought in.
+    case 'mergeQueries': {
+      if (typeof ctx.table !== 'function') throw new Error('Merge needs the other table');
+      const other = ctx.table(s.with);
+      const mine = indexOf(t, s.on);
+      const theirs = other.columns.indexOf(s.withOn);
+      if (theirs < 0) throw new Error(`The other table has no column "${s.withOn}"`);
+      const how = s.how || 'left';
+      const key = (v) => (blank(v) ? null : asText(v).trim().toLowerCase());
+      const index = new Map();
+      other.rows.forEach((r, i) => { const k = key(r[theirs]); if (k === null) return; if (!index.has(k)) index.set(k, []); index.get(k).push(i); });
+      if (how === 'leftAnti') return { columns: t.columns.slice(), rows: t.rows.filter((r) => !index.has(key(r[mine]))) };
+      // The other table's columns but its key, named apart from these where they clash.
+      const brought = other.columns.map((c, i) => [c, i]).filter(([, i]) => i !== theirs);
+      const prefix = s.prefix || 'Merged';
+      const names = brought.map(([c]) => (t.columns.includes(c) ? `${prefix}.${c}` : c));
+      const columns = uniqueNames([...t.columns, ...names]);
+      const rows = [];
+      const used = new Set();
+      for (const r of t.rows) {
+        const hits = index.get(key(r[mine])) || [];
+        if (!hits.length) { if (how !== 'inner') rows.push([...r, ...brought.map(() => null)]); continue; }
+        for (const h of hits) { used.add(h); rows.push([...r, ...brought.map(([, i]) => (other.rows[h][i] === undefined ? null : other.rows[h][i]))]); }
+      }
+      // Full outer: the other table's rows nothing matched, its key in this key's column.
+      if (how === 'full') {
+        other.rows.forEach((r, h) => {
+          if (used.has(h)) return;
+          const row = t.columns.map(() => null);
+          row[mine] = r[theirs] === undefined ? null : r[theirs];
+          rows.push([...row, ...brought.map(([, i]) => (r[i] === undefined ? null : r[i]))]);
+        });
+      }
+      return { columns, rows };
+    }
     case 'removeColumns': {
       const drop = new Set((s.columns || []).map((c) => indexOf(t, c)));
       return { columns: t.columns.filter((_, i) => !drop.has(i)), rows: t.rows.map((r) => r.filter((_, i) => !drop.has(i))) };
@@ -192,12 +249,15 @@ export function applyStep(t, step) {
 }
 
 /** A query run on its source table: the table after each step, or after `upTo` of them. */
-export function runSteps(source, steps = [], { upTo = null } = {}) {
+export function runSteps(source, steps = [], { upTo = null, table = null } = {}) {
   let t = { columns: uniqueNames(source.columns), rows: source.rows.map((r) => source.columns.map((_, i) => (r[i] === undefined ? null : r[i]))) };
   const last = upTo === null ? steps.length : Math.min(upTo, steps.length);
-  for (let i = 0; i < last; i++) t = applyStep(t, steps[i]);
+  for (let i = 0; i < last; i++) t = applyStep(t, steps[i], { table });
   return t;
 }
+
+/** Another table a step reads, in words. */
+const sourceWords = (src) => (!src ? 'a table' : src.kind === 'query' ? `query ${src.name || src.id}` : src.kind === 'table' ? `table ${src.table}` : src.kind === 'range' ? `${src.sheet}!${src.ref}` : src.kind === 'csv' ? String(src.path || '').split(/[\\/]/).pop() : src.kind);
 
 /** What a step says it does, for the Applied Steps list. */
 export function describeStep(s) {
@@ -218,6 +278,8 @@ export function describeStep(s) {
     case 'addIndex': return `Index column "${s.name || 'Index'}" added`;
     case 'transformText': return `"${s.column}" ${({ trim: 'trimmed', upper: 'in capitals', lower: 'in small letters', proper: 'in title case' })[s.how]}`;
     case 'promoteHeaders': return 'First row used as headers';
+    case 'appendQuery': return `Appended ${sourceWords(s.with)}`;
+    case 'mergeQueries': return `Merged with ${sourceWords(s.with)} on "${s.on}" = "${s.withOn}"${s.how && s.how !== 'left' ? ` (${({ inner: 'inner', leftAnti: 'left anti', full: 'full outer' })[s.how] || s.how})` : ''}`;
     default: return s.kind;
   }
 }
