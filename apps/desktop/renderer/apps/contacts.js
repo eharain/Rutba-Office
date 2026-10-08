@@ -14,6 +14,7 @@ import {
   useToast, useCommands, menuItems, useMenu,
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
+import { AccountsDialog } from '../dav-accounts.js';
 
 const EMPTY_CONTACT = () => ({
   id: null,
@@ -42,6 +43,17 @@ const letterOf = (c) => {
 
 export default function Contacts({ app, shell, boot }) {
   const toast = useToast();
+  // Home → Sync: every account now, and what moved said.
+  const [accountsOpen, setAccountsOpen] = useState(false);
+  const syncAll = useCallback(async () => {
+    const results = (await shell.dav.sync({})) || [];
+    if (!results.length) { setAccountsOpen(true); return; }
+    const failed = results.find((r) => r.error);
+    if (failed) toast(failed.error, { tone: 'warn', ms: 5500 });
+    else toast(`Synced: ${results.reduce((n, r) => n + (r.received || 0), 0)} in, ${results.reduce((n, r) => n + (r.sent || 0), 0)} out`, { tone: 'good' });
+    
+  }, [shell, toast]);
+
   const menu = useMenu();
   const [contacts, setContacts] = useState([]);
   const [query, setQuery] = useState('');
@@ -381,6 +393,10 @@ export default function Contacts({ app, shell, boot }) {
                 <Button tall icon="import" label="Import" title="A .vcf or .csv from another program" onClick={() => importFile()} />
                 <Button tall icon="export" label="Export" title="All cards as a .vcf" onClick={exportAll} disabled={!contacts.length} />
               </Group>
+              <Group label="Accounts">
+                <Button tall icon="globe" label="Accounts" title="Accounts — a CalDAV or CardDAV server (iCloud, Fastmail, Nextcloud and the like) kept in step with this computer" onClick={() => setAccountsOpen(true)} />
+                <Button tall icon="refresh" label="Sync" title="Sync every account now" onClick={syncAll} />
+              </Group>
             </>
           ) : (
             <Group label="Find">
@@ -391,6 +407,7 @@ export default function Contacts({ app, shell, boot }) {
       }
     >
       <style>{CSS}</style>
+      {accountsOpen ? <AccountsDialog shell={shell} kind="contacts" toast={toast} onClose={() => setAccountsOpen(false)} /> : null}
       <Panel width={280} resizable>
         <div className="ct-search">
           <Search value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search contacts" autoFocus={false} />

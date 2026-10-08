@@ -52,9 +52,18 @@ export function createContactsService({ stores, broadcast, people = null }) {
   const state = readJson(file, { contacts: [] });
   if (!Array.isArray(state.contacts)) state.contacts = [];
 
+  const hooks = { local: null };
   const save = () => {
     writeJson(file, state);
     broadcast?.('contacts:changed', { count: state.contacts.length });
+  };
+  // A card an account brings (dav-sync.js) names its address book in `book`;
+  // a change made here to one is queued — the card's id in `dirty`, a removed
+  // one's address in `deleted` — for the next sync to send.
+  const touch = (c) => {
+    if (!c?.book) return;
+    state.dirty = [...new Set([...(state.dirty || []), c.id])];
+    hooks.local?.();
   };
   const byId = (id) => state.contacts.find((c) => c.id === id) || null;
   const emailsOf = (c) => (c.emails || []).map((e) => norm(e.value)).filter(Boolean);
@@ -105,7 +114,7 @@ export function createContactsService({ stores, broadcast, people = null }) {
         changed = true;
       }
     }
-    if (changed) existing.updatedAt = now;
+    if (changed) { existing.updatedAt = now; touch(existing); }
     return changed ? 'updated' : 'same';
   }
 
@@ -140,12 +149,16 @@ export function createContactsService({ stores, broadcast, people = null }) {
       if (contact.id && byId(contact.id)) {
         const kept = byId(contact.id);
         const photo = contact.photoUrl && !contact.photo ? kept.photo : storable(contact).photo;
-        Object.assign(kept, { ...contact, photo, photoUrl: undefined, display: undefined, updatedAt: now });
+        Object.assign(kept, { ...contact, photo, photoUrl: undefined, display: undefined, updatedAt: now, book: kept.book, remote: kept.remote });
+        touch(kept);
         save();
         return present(kept);
       }
-      const fresh = { ...storable(contact), id: crypto.randomUUID(), createdAt: now, updatedAt: now, photoUrl: undefined, display: undefined };
+      // A new card goes to the address book chosen for new cards, when an account set one.
+      const book = state.defaultBook && (state.books || []).some((b) => b.id === state.defaultBook) ? state.defaultBook : undefined;
+      const fresh = { ...storable(contact), id: crypto.randomUUID(), createdAt: now, updatedAt: now, photoUrl: undefined, display: undefined, book, remote: undefined };
       state.contacts.push(fresh);
+      touch(fresh);
       save();
       return present(fresh);
     },
@@ -153,6 +166,12 @@ export function createContactsService({ stores, broadcast, people = null }) {
     remove: ({ ids = [], id = null }) => {
       const gone = new Set([...ids, ...(id ? [id] : [])]);
       const before = state.contacts.length;
+      for (const c of state.contacts) {
+        if (!gone.has(c.id) || !c.book) continue;
+        if (c.remote?.href) state.deleted = [...(state.deleted || []), { book: c.book, href: c.remote.href, etag: c.remote.etag || null }];
+        state.dirty = (state.dirty || []).filter((x) => x !== c.id);
+        hooks.local?.();
+      }
       state.contacts = state.contacts.filter((c) => !gone.has(c.id));
       if (state.contacts.length !== before) save();
       return { removed: before - state.contacts.length };
@@ -243,5 +262,8 @@ export function createContactsService({ stores, broadcast, people = null }) {
     },
 
     count: () => state.contacts.length,
+
+    // The sync's own way in (dav-sync.js): not a window's, so not in the shell's contract.
+    _dav: { state: () => state, save, hooks, storable, forWriting },
   };
 }

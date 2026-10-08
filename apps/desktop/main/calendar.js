@@ -2,7 +2,10 @@
 //
 // One JSON file in the profile, calendar.json: calendars, each with a name,
 // a colour and its events as the iCalendar reader gives them. Nothing here
-// reaches a server. A window asks for the occurrences in the range it shows
+// reaches a server: a calendar an account brings (dav-sync.js) is marked
+// with where it lives, and every change made here to one of its events is
+// queued — the event's UID in `dirty`, a removed one's address in
+// `deleted` — for the next sync to send. A window asks for the occurrences in the range it shows
 // and gets every calendar's, expanded, with the recurring ones' exceptions
 // applied; a file opened from disk is shown without being kept until the
 // person says so; an invitation gets its answer written as the reply the
@@ -35,10 +38,26 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
   if (!Array.isArray(state.calendars)) state.calendars = [];
   if (!state.calendars.length) state.calendars.push({ id: crypto.randomUUID(), name: 'My calendar', colour: COLOURS[0], visible: true, events: [] });
 
+  const hooks = { local: null };
   const save = () => {
     writeJson(file, state);
     broadcast?.('calendar:changed', {});
   };
+  /** An event of a server's calendar changed here: queued for the server. */
+  const touch = (cal, uid) => {
+    if (!cal?.remote || !uid) return;
+    cal.dirty = [...new Set([...(cal.dirty || []), uid])];
+    hooks.local?.();
+  };
+  /** An event of a server's calendar gone from here: its address queued for removal, or what is left of its series queued. */
+  const forget = (cal, event) => {
+    if (!cal?.remote || !event) return;
+    if (cal.events.some((e) => e.uid && e.uid === event.uid)) return touch(cal, event.uid);
+    if (event.remote?.href) cal.deleted = [...(cal.deleted || []), { href: event.remote.href, etag: event.remote.etag || null }];
+    cal.dirty = (cal.dirty || []).filter((u) => u !== event.uid);
+    hooks.local?.();
+  };
+  const listed = () => state.calendars.map((c) => ({ id: c.id, name: c.name, colour: c.colour, visible: c.visible !== false, count: c.events.length, account: c.remote?.account || null }));
   const calendarOf = (id) => state.calendars.find((c) => c.id === id) || null;
   const find = (eventId) => {
     for (const cal of state.calendars) {
@@ -96,18 +115,19 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
   }
 
   return {
-    calendars: () => state.calendars.map((c) => ({ id: c.id, name: c.name, colour: c.colour, visible: c.visible !== false, count: c.events.length })),
+    calendars: () => listed(),
 
     saveCalendar: ({ calendar }) => {
       const kept = calendar.id ? calendarOf(calendar.id) : null;
       if (kept) Object.assign(kept, { name: calendar.name ?? kept.name, colour: calendar.colour ?? kept.colour, visible: calendar.visible ?? kept.visible });
       else state.calendars.push({ id: crypto.randomUUID(), name: calendar.name || 'Calendar', colour: calendar.colour || COLOURS[state.calendars.length % COLOURS.length], visible: true, events: [] });
       save();
-      return state.calendars.map((c) => ({ id: c.id, name: c.name, colour: c.colour, visible: c.visible !== false, count: c.events.length }));
+      return listed();
     },
 
     removeCalendar: ({ id }) => {
       if (state.calendars.length <= 1) throw new Error('The last calendar stays; delete its events instead.');
+      if (calendarOf(id)?.remote) throw new Error('This calendar comes from an account — remove the account to remove its calendars.');
       state.calendars = state.calendars.filter((c) => c.id !== id);
       save();
       return { removed: 1 };
@@ -158,6 +178,7 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
           const exception = { ...clean, id: crypto.randomUUID(), rrule: null, recurrenceId: dateTimeAt(original, parent.event.start.tzid || zone, parent.event.allDay), updatedAt: now };
           cal.events = cal.events.filter((e) => !(e.uid === exception.uid && e.recurrenceId && Math.abs(e.recurrenceId.at - original) < 1000));
           cal.events.push(exception);
+          touch(cal, exception.uid);
           save();
           return present(cal, exception);
         }
@@ -165,16 +186,19 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
       const hit = event.id ? find(event.id) : null;
       if (hit) {
         // Moved to another calendar, or changed in place.
-        if (hit.cal !== cal) hit.cal.events = hit.cal.events.filter((e) => e !== hit.event);
-        const kept = { ...hit.event, ...clean, id: hit.event.id, sequence: (hit.event.sequence || 0) + 1, updatedAt: now };
+        const moved = hit.cal !== cal;
+        if (moved) { hit.cal.events = hit.cal.events.filter((e) => e !== hit.event); forget(hit.cal, hit.event); }
+        const kept = { ...hit.event, ...clean, id: hit.event.id, sequence: (hit.event.sequence || 0) + 1, updatedAt: now, ...(moved ? { remote: undefined } : {}) };
         const at = cal.events.indexOf(hit.event);
         if (at >= 0) cal.events[at] = kept;
         else cal.events.push(kept);
+        touch(cal, kept.uid);
         save();
         return present(cal, kept);
       }
-      const fresh = { ...clean, id: crypto.randomUUID(), createdAt: now, updatedAt: now };
+      const fresh = { ...clean, id: crypto.randomUUID(), createdAt: now, updatedAt: now, remote: undefined };
       cal.events.push(fresh);
+      touch(cal, fresh.uid);
       save();
       return present(cal, fresh);
     },
@@ -186,10 +210,12 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
       if (scope === 'this' && hit.event.rrule && original != null) {
         hit.event.exdates = [...(hit.event.exdates || []), dateTimeAt(original, hit.event.start.tzid || null, hit.event.allDay)];
         hit.cal.events = hit.cal.events.filter((e) => !(e.uid === hit.event.uid && e.recurrenceId && Math.abs(e.recurrenceId.at - original) < 1000));
+        touch(hit.cal, hit.event.uid);
         save();
         return { removed: 1, scope: 'this' };
       }
       hit.cal.events = hit.cal.events.filter((e) => e !== hit.event && !(e.uid && e.uid === hit.event.uid && e.recurrenceId));
+      forget(hit.cal, hit.event);
       save();
       return { removed: 1, scope: 'all' };
     },
@@ -227,11 +253,13 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
         const existing = e.uid ? cal.events.find((x) => x.uid === e.uid && Boolean(x.recurrenceId) === Boolean(e.recurrenceId) && (!e.recurrenceId || Math.abs((x.recurrenceId?.at ?? 0) - e.recurrenceId.at) < 1000)) : null;
         if (existing) {
           if ((e.sequence || 0) >= (existing.sequence || 0)) {
-            Object.assign(existing, e, { id: existing.id, updatedAt: now });
+            Object.assign(existing, e, { id: existing.id, updatedAt: now, remote: existing.remote });
+            touch(cal, existing.uid);
             updated += 1;
           }
         } else {
           cal.events.push({ ...e, id: crypto.randomUUID(), createdAt: now, updatedAt: now });
+          touch(cal, e.uid);
           added += 1;
         }
       }
@@ -268,9 +296,9 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
       const existing = cal.events.find((x) => x.uid === kept.uid && !x.recurrenceId);
       const now = Date.now();
       if (answer === 'DECLINED') {
-        if (existing) cal.events = cal.events.filter((x) => x !== existing);
-      } else if (existing) Object.assign(existing, kept, { id: existing.id, updatedAt: now });
-      else cal.events.push({ ...kept, id: crypto.randomUUID(), createdAt: now, updatedAt: now });
+        if (existing) { cal.events = cal.events.filter((x) => x !== existing); forget(cal, existing); }
+      } else if (existing) { Object.assign(existing, kept, { id: existing.id, updatedAt: now, remote: existing.remote }); touch(cal, existing.uid); }
+      else { cal.events.push({ ...kept, id: crypto.randomUUID(), createdAt: now, updatedAt: now }); touch(cal, kept.uid); }
       save();
       const reply = me ? writeReply(kept, { email: me.email, name: me.name, partstat: answer }) : null;
       let replyPath = null;
@@ -301,5 +329,8 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
       fs.writeFileSync(file, text, 'utf8');
       return { path: file, to: event.attendees.map((a) => a.email).filter(Boolean), subject: `Invitation: ${event.summary || 'Event'}` };
     },
+
+    // The sync's own way in (dav-sync.js): not a window's, so not in the shell's contract.
+    _dav: { state: () => state, save, hooks, colours: COLOURS },
   };
 }

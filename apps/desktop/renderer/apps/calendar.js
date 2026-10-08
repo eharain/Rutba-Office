@@ -14,6 +14,7 @@ import {
   useToast, useCommands, useMenu, menuItems,
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
+import { AccountsDialog } from '../dav-accounts.js';
 
 const DAY = 86400000;
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -307,6 +308,16 @@ export default function Calendar({ app, shell, boot }) {
     },
     [shell, refresh]
   );
+  // Home → Sync: every account now, and what moved said.
+  const [accountsOpen, setAccountsOpen] = useState(false);
+  const syncAll = useCallback(async () => {
+    const results = (await shell.dav.sync({})) || [];
+    if (!results.length) { setAccountsOpen(true); return; }
+    const failed = results.find((r) => r.error);
+    if (failed) toast(failed.error, { tone: 'warn', ms: 5500 });
+    else toast(`Synced: ${results.reduce((n, r) => n + (r.received || 0), 0)} in, ${results.reduce((n, r) => n + (r.sent || 0), 0)} out`, { tone: 'good' });
+    await refresh();
+  }, [shell, toast, refresh]);
   const addCalendar = useCallback(async () => {
     const name = `Calendar ${calendars.length + 1}`;
     await shell.calendar.saveCalendar({ calendar: { name } });
@@ -619,6 +630,10 @@ export default function Calendar({ app, shell, boot }) {
                 <Button tall icon="import" label="Import" title="Events from a .ics" onClick={() => importFile()} />
                 <Button tall icon="export" label="Export" title="Your calendars as a .ics" onClick={exportFile} />
               </Group>
+              <Group label="Accounts">
+                <Button tall icon="globe" label="Accounts" title="Accounts — a CalDAV or CardDAV server (iCloud, Fastmail, Nextcloud and the like) kept in step with this computer" onClick={() => setAccountsOpen(true)} />
+                <Button tall icon="refresh" label="Sync" title="Sync every account now" onClick={syncAll} />
+              </Group>
             </>
           ) : (
             <Group label="Calendars">
@@ -629,13 +644,14 @@ export default function Calendar({ app, shell, boot }) {
       }
     >
       <style>{CSS}</style>
+      {accountsOpen ? <AccountsDialog shell={shell} kind="calendar" toast={toast} onClose={() => setAccountsOpen(false)} /> : null}
       <Panel width={220} resizable>
         <div className="cal-side">
           <MiniMonth cursor={cursor} today={today} onPick={(d) => { setCursor(d); if (view === 'month') setView('day'); }} />
           <div className="cal-cals">
             <div className="cal-cals-head">My calendars</div>
             {calendars.map((c) => (
-              <label key={c.id} className="cal-cal">
+              <label key={c.id} className="cal-cal" title={c.account ? 'Kept in step with an account' : undefined}>
                 <input type="checkbox" checked={c.visible} onChange={() => toggleCalendar(c)} />
                 <span className="dot" style={{ background: c.colour }} />
                 <span className="n">{c.name}</span>

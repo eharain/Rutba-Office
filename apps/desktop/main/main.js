@@ -24,6 +24,7 @@ import { createDefaultsService } from './defaults.js';
 import { createDiscoveryService } from './discover.js';
 import { createContactsService } from './contacts.js';
 import { createCalendarService } from './calendar.js';
+import { createDavService } from './dav-sync.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const app = path.resolve(here, '..');
@@ -119,6 +120,8 @@ createShell({
       },
     });
 
+    const calendar = createCalendarService({ stores, broadcast, mail: { accounts: () => services?.mail?.accounts?.() || [] } });
+
     return (services = {
       doc,
       // Paper and PDFs, for every kind of document. It asks the document
@@ -153,7 +156,9 @@ createShell({
       }),
       // The calendar answers an invitation through a message mail sends.
       contacts,
-      calendar: createCalendarService({ stores, broadcast, mail: { accounts: () => services?.mail?.accounts?.() || [] } }),
+      calendar,
+      // Calendar and contacts accounts: CalDAV and CardDAV servers, kept in step with both.
+      dav: createDavService({ stores, calendar, contacts, broadcast }),
       // Renaming touches the file system and the document service both,
       // which the shell's own `app` namespace knows about neither — so this
       // adds just the one method, on top of recent(), addRecent() and

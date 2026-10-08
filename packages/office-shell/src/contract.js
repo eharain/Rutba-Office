@@ -203,6 +203,15 @@ export const METHODS = {
     'fromMail',   // ({ name, email }) -> contact
     'count',      // () -> number
   ],
+  // Calendar and contacts accounts: CalDAV and CardDAV servers kept in step.
+  dav: [
+    'accounts',       // () -> [{ id, url, user, name, lastSync, lastError, calendars, books }]
+    'add',            // ({ url, user, password, name }) -> account, its calendars and cards brought in
+    'remove',         // ({ id }) -> { removed }   its calendars and cards with it
+    'sync',           // ({ id }) -> [{ id, sent, received, removed, conflicts } | { id, error }]
+    'books',          // () -> { books, defaultBook }
+    'setDefaultBook', // ({ id }) -> id   where a new card goes; null for this computer only
+  ],
   update: [
     'state',        // () -> { state, version, available, percent, automatic }
     'check',        // ({ manual }) -> state
@@ -275,6 +284,7 @@ export const EVENTS = [
   'announce:new',     // { id, title, body, link, kind }
   'contacts:changed', // { count }           the address book was written
   'calendar:changed', // {}                  a calendar or an event was written
+  'dav:changed',      // {}                  an account synced, was added or was removed
   'mail:sent',        // { id, to }
   'mail:sendFailed',  // { id, message, attempts, gaveUp }         // { accountId, folder, count }
   'theme:changed',    // { dark }
