@@ -6,7 +6,7 @@
 // suite is that you did not have to go and find seven separate downloads.
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Icon, Search, Empty, Button, Chip, Spacer, useMenu, useToast, formatBytes, formatWhen, basename } from '@rutba/office-ui';
+import { Icon, Search, Empty, Button, Chip, Spacer, useMenu, useToast, formatBytes, formatWhen, basename, t, tn } from '@rutba/office-ui';
 import { APPS, NEW_DOCUMENTS, SITE } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension, KINDS } from '@rutba/office-formats/sniff';
 import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop } from '../shell.js';
@@ -111,7 +111,7 @@ export default function Home({ app, shell }) {
       try {
         setRecent(await shell.app.renameRecent({ path: p, name: name.trim() }));
       } catch (err) {
-        toast(err?.message || 'That name did not work.', { tone: 'bad' });
+        toast(err?.message || t('That name did not work.'), { tone: 'bad' });
       }
     },
     [shell, toast]
@@ -131,15 +131,14 @@ export default function Home({ app, shell }) {
           <div>
             <h1>Rutba Office</h1>
             <p>
-              Mail, documents, worksheets, presentations and media — free, open source, and working with the
-              network switched off.
+              {t('Mail, documents, worksheets, presentations and media — free, open source, and working with the network switched off.')}
             </p>
           </div>
           <div className="home-hero-actions">
-            <Button icon="open" label="Open a file" primary onClick={openFile} />
+            <Button icon="open" label={t('Open a file')} primary onClick={openFile} />
             <Button
               icon="import"
-              label="Import mail"
+              label={t('Import mail')}
               onClick={() => shell.win.create({ app: 'mail', query: { import: 1 } })}
             />
           </div>
@@ -149,7 +148,7 @@ export default function Home({ app, shell }) {
 
         {recovered.length ? (
           <section className="home-section">
-            <h2>Recovered</h2>
+            <h2>{t('Recovered')}</h2>
             <div className="home-recovered">
               {recovered.map((r) => (
                 <div key={r.file} className="home-recovered-row">
@@ -159,15 +158,16 @@ export default function Home({ app, shell }) {
                   <span className="home-recovered-text">
                     <strong>{r.name}</strong>
                     <small>
-                      unsaved work from {new Date(r.at).toLocaleString()}
-                      {r.from ? ` — ${r.from}` : ' — never saved anywhere'}
+                      {r.from
+                        ? t('unsaved work from {when} — {file}', { when: new Date(r.at).toLocaleString(), file: r.from })
+                        : t('unsaved work from {when} — never saved anywhere', { when: new Date(r.at).toLocaleString() })}
                     </small>
                   </span>
                   <Spacer />
                   <Button
                     primary
                     icon="open"
-                    label="Recover"
+                    label={t('Recover')}
                     onClick={async () => {
                       // The window opens on the recovered copy, dirty, so the
                       // person decides what it replaces.
@@ -177,8 +177,8 @@ export default function Home({ app, shell }) {
                   />
                   <Button
                     icon="trash"
-                    label="Discard"
-                    title="Throw this copy away"
+                    label={t('Discard')}
+                    title={t('Throw this copy away')}
                     onClick={async () => {
                       await shell.doc.discardRecovery({ file: r.file });
                       setRecovered((list) => list.filter((e) => e.file !== r.file));
@@ -191,7 +191,7 @@ export default function Home({ app, shell }) {
         ) : null}
 
         <section className="home-section">
-          <h2>Apps</h2>
+          <h2>{t('Apps')}</h2>
           <div className="home-grid">
             {ORDER.map((key) => (
               <AppCard
@@ -205,14 +205,14 @@ export default function Home({ app, shell }) {
         </section>
 
         <section className="home-section">
-          <h2>Start something</h2>
+          <h2>{t('Start something')}</h2>
           <div className="home-templates">
-            {NEW_DOCUMENTS.map((t) => (
-              <button key={`${t.app}-${t.template}`} type="button" className="home-template" onClick={() => newDocument(t)}>
-                <span className="tpl-glyph" data-app={t.app}>
-                  <Icon name={APPS[t.app].icon} size={16} />
+            {NEW_DOCUMENTS.map((tpl) => (
+              <button key={`${tpl.app}-${tpl.template}`} type="button" className="home-template" onClick={() => newDocument(tpl)}>
+                <span className="tpl-glyph" data-app={tpl.app}>
+                  <Icon name={APPS[tpl.app].icon} size={16} />
                 </span>
-                <span>{t.label}</span>
+                <span>{tpl.label}</span>
               </button>
             ))}
           </div>
@@ -220,12 +220,12 @@ export default function Home({ app, shell }) {
 
         <section className="home-section grow">
           <div className="home-section-head">
-            <h2>Recent</h2>
+            <h2>{t('Recent')}</h2>
             <Spacer />
             <Search
               value={query}
               onChange={setQuery}
-              placeholder="Search recent files"
+              placeholder={t('Search recent files')}
               style={{ width: 240 }}
               onKeyDown={(e) => {
                 // Enter opens the first match: type a few letters, press Enter.
@@ -263,12 +263,12 @@ export default function Home({ app, shell }) {
                     }}
                     onContextMenu={(e) =>
                       rowMenu.open(e, [
-                        { label: 'Open', icon: 'open', run: () => openInApp(shell, r.path) },
-                        { label: 'Show in folder', icon: 'folder', run: () => shell.shell.showInFolder({ path: r.path }) },
+                        { label: t('Open'), icon: 'open', run: () => openInApp(shell, r.path) },
+                        { label: t('Show in folder'), icon: 'folder', run: () => shell.shell.showInFolder({ path: r.path }) },
                         '-',
-                        { label: 'Rename…', icon: 'textbox', run: () => startRename(r) },
-                        { label: 'Remove from the list', icon: 'close', run: () => removeRecent(r.path) },
-                        { label: 'Clear the list', icon: 'trash', run: () => shell.app.clearRecent().then(() => setRecent([])).catch(() => {}) },
+                        { label: t('Rename…'), icon: 'textbox', run: () => startRename(r) },
+                        { label: t('Remove from the list'), icon: 'close', run: () => removeRecent(r.path) },
+                        { label: t('Clear the list'), icon: 'trash', run: () => shell.app.clearRecent().then(() => setRecent([])).catch(() => {}) },
                       ])
                     }
                     title={r.path}
@@ -302,8 +302,8 @@ export default function Home({ app, shell }) {
                     <button
                       type="button"
                       className="home-recent-remove"
-                      title="Remove from the list"
-                      aria-label="Remove from the list"
+                      title={t('Remove from the list')}
+                      aria-label={t('Remove from the list')}
                       tabIndex={-1}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -317,10 +317,10 @@ export default function Home({ app, shell }) {
               })}
             </div>
           ) : (
-            <Empty icon="clock" title={query ? 'Nothing matches' : 'No recent files yet'}>
+            <Empty icon="clock" title={query ? t('Nothing matches') : t('No recent files yet')}>
               {query
-                ? 'Try a different search.'
-                : 'Files you open will be listed here. Drop one onto this window to begin.'}
+                ? t('Try a different search.')
+                : t('Files you open will be listed here. Drop one onto this window to begin.')}
             </Empty>
           )}
         </section>
@@ -399,7 +399,7 @@ function Announcement({ shell }) {
           {notice.linkLabel}
         </button>
       ) : null}
-      <button type="button" className="home-notice-close" onClick={close} title="Dismiss" aria-label="Dismiss">
+      <button type="button" className="home-notice-close" onClick={close} title={t('Dismiss')} aria-label={t('Dismiss')}>
         <Icon name="close" size={12} />
       </button>
     </div>
@@ -417,37 +417,37 @@ function HomeStatus({ version, recent, shell }) {
         office.rutba.io
       </a>
       <a className="home-link" href={SITE.contact} onClick={(e) => { e.preventDefault(); open(SITE.contact); }}>
-        Contact us
+        {t('Contact us')}
       </a>
       <Spacer />
-      <Chip title="Files you have opened">{recent} recent</Chip>
-      <Chip title="Documents, mail and media all work with no network connection">Works offline</Chip>
+      <Chip title={t('Files you have opened')}>{tn(recent, '{count} recent', '{count} recent')}</Chip>
+      <Chip title={t('Documents, mail and media all work with no network connection')}>{t('Works offline')}</Chip>
     </>
   );
 }
 
 /** What the update service is doing, in words rather than a state name. */
 function updateSentence(update) {
-  if (!update) return 'Checking…';
+  if (!update) return t('Checking…');
   switch (update.state) {
     case 'unpackaged':
-      return 'Updates apply to an installed copy; this one is running from source.';
+      return t('Updates apply to an installed copy; this one is running from source.');
     case 'off':
-      return 'Automatic updates are off, so nothing is contacted. You can check whenever you like.';
+      return t('Automatic updates are off, so nothing is contacted. You can check whenever you like.');
     case 'checking':
-      return 'Looking for a newer release…';
+      return t('Looking for a newer release…');
     case 'available':
-      return `Version ${update.available} is available and downloading; you will be asked to restart when it is ready.`;
+      return t('Version {version} is available and downloading; you will be asked to restart when it is ready.', { version: update.available });
     case 'downloading':
-      return `Downloading version ${update.available} — ${Math.round(update.percent || 0)}%.`;
+      return t('Downloading version {version} — {percent}%.', { version: update.available, percent: Math.round(update.percent || 0) });
     case 'ready':
-      return `Version ${update.available} is ready — restart to update, or it installs when you quit.`;
+      return t('Version {version} is ready — restart to update, or it installs when you quit.', { version: update.available });
     case 'current':
-      return 'This is the latest release.';
+      return t('This is the latest release.');
     case 'error':
-      return `The last check did not complete: ${update.error}`;
+      return t('The last check did not complete: {error}', { error: update.error });
     default:
-      return 'No check has run yet. This build contacts nothing on its own.';
+      return t('No check has run yet. This build contacts nothing on its own.');
   }
 }
 
@@ -479,9 +479,9 @@ function AnnouncementSetting({ shell }) {
         <span>
           {status.enabled
             ? status.checkedAt
-              ? `Last asked ${formatWhen(new Date(status.checkedAt).toISOString())}.`
-              : 'Not asked yet.'
-            : 'Announcements are off, so this is never contacted.'}
+              ? t('Last asked {when}.', { when: formatWhen(new Date(status.checkedAt).toISOString()) })
+              : t('Not asked yet.')
+            : t('Announcements are off, so this is never contacted.')}
         </span>
       </div>
       <label className="about-auto">
@@ -491,9 +491,7 @@ function AnnouncementSetting({ shell }) {
           onChange={async (e) => setStatus({ ...status, ...(await shell.announce.setEnabled({ on: e.target.checked })) })}
         />
         <span>
-          Show announcements from office.rutba.io — once a day at most. It sends the version and the operating
-          system, and no identifier of any kind, so what is counted at the other end is "a copy opened somewhere",
-          never you. It is also the only way we know the suite is being used at all.
+          {t('Show announcements from office.rutba.io — once a day at most. It sends the version and the operating system, and no identifier of any kind, so what is counted at the other end is "a copy opened somewhere", never you. It is also the only way we know the suite is being used at all.')}
         </span>
       </label>
     </div>
@@ -505,37 +503,36 @@ function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClo
   return (
     <div className="rw-scrim" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="rw-dialog" style={{ width: 460 }}>
-        <div className="rw-dialog-head">About Rutba Office</div>
+        <div className="rw-dialog-head">{t('About Rutba Office')}</div>
         <div className="rw-dialog-body">
           <p style={{ marginTop: 0 }}>
-            A free office suite: mail, documents, worksheets, presentations, pictures, images and video, on an
-            engine we own.
+            {t('A free office suite: mail, documents, worksheets, presentations, pictures, images and video, on an engine we own.')}
           </p>
           <dl className="about-list">
-            <dt>Version</dt>
+            <dt>{t('Version')}</dt>
             <dd>{version?.version || '—'}</dd>
-            <dt>Platform</dt>
+            <dt>{t('Platform')}</dt>
             <dd>
               {version?.platform} {version?.arch}
             </dd>
-            <dt>Runtime</dt>
+            <dt>{t('Runtime')}</dt>
             <dd>
               Electron {version?.electron} · Chromium {version?.chrome} · Node {version?.node}
             </dd>
-            <dt>Website</dt>
+            <dt>{t('Website')}</dt>
             <dd>
               <a className="home-link inline" href={SITE.home} onClick={(e) => { e.preventDefault(); open(SITE.home); }}>
                 office.rutba.io
               </a>
             </dd>
-            <dt>Contact</dt>
+            <dt>{t('Contact')}</dt>
             <dd>
               <a className="home-link inline" href={SITE.contact} onClick={(e) => { e.preventDefault(); open(SITE.contact); }}>
                 office.rutba.io/contact
               </a>
             </dd>
-            <dt>Licence</dt>
-            <dd>GNU AGPL v3.0, or a commercial licence</dd>
+            <dt>{t('Licence')}</dt>
+            <dd>{t('GNU AGPL v3.0, or a commercial licence')}</dd>
           </dl>
 
           <div className="about-update">
@@ -546,8 +543,7 @@ function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClo
             <label className="about-auto">
               <input type="checkbox" checked={update?.automatic !== false} onChange={(e) => onToggleAuto(e.target.checked)} />
               <span>
-                Check for updates automatically — one request to GitHub for the release list, and nothing about
-                you or your files.
+                {t('Check for updates automatically — one request to GitHub for the release list, and nothing about you or your files.')}
               </span>
             </label>
           </div>
@@ -560,23 +556,21 @@ function About({ version, shell, update, onCheck, onInstall, onToggleAuto, onClo
             about it.
           */}
           <p className="rw-hint">
-            Those two requests, and the mail and calendar servers you set up yourself, are everything Rutba Office
-            ever contacts. Your documents, your mail and what you do with them never leave this computer.
+            {t('Those two requests, and the mail and calendar servers you set up yourself, are everything Rutba Office ever contacts. Your documents, your mail and what you do with them never leave this computer.')}
           </p>
 
           <p className="rw-hint">
-            Copyright © 2026 Tech Style Ltd. The source is published, and you are free to study, modify and
-            share it under the terms of the AGPL.
+            {t('Copyright © 2026 Tech Style Ltd. The source is published, and you are free to study, modify and share it under the terms of the AGPL.')}
           </p>
         </div>
         <div className="rw-dialog-foot">
-          <Button label="Source code" onClick={() => open(SITE.source)} />
+          <Button label={t('Source code')} onClick={() => open(SITE.source)} />
           {update?.state === 'ready' ? (
-            <Button label="Restart and install" onClick={onInstall} />
+            <Button label={t('Restart and install')} onClick={onInstall} />
           ) : (
-            <Button label="Check for updates" onClick={onCheck} />
+            <Button label={t('Check for updates')} onClick={onCheck} />
           )}
-          <Button label="Close" primary onClick={onClose} />
+          <Button label={t('Close')} primary onClick={onClose} />
         </div>
       </div>
     </div>

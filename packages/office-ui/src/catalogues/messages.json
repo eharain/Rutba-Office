@@ -1,7 +1,13 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 186,
+  "count": 241,
   "messages": [
+    {
+      "message": "A free office suite: mail, documents, worksheets, presentations, pictures, images and video, on an engine we own.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
     {
       "message": "A password is required to open this {noun}.",
       "where": [
@@ -17,6 +23,7 @@
     {
       "message": "About Rutba Office",
       "where": [
+        "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/shell.js"
       ]
     },
@@ -105,6 +112,24 @@
       ]
     },
     {
+      "message": "Announcements are off, so this is never contacted.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Apps",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Automatic updates are off, so nothing is contacted. You can check whenever you like.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Back to 100%",
       "where": [
         "packages/office-ui/src/index.js"
@@ -173,6 +198,18 @@
       ]
     },
     {
+      "message": "Check for updates",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Check for updates automatically — one request to GitHub for the release list, and nothing about you or your files.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Check spelling as you type",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -187,6 +224,7 @@
     {
       "message": "Checking…",
       "where": [
+        "apps/desktop/renderer/apps/home.js",
         "packages/office-ui/src/proofing.js"
       ]
     },
@@ -197,8 +235,15 @@
       ]
     },
     {
+      "message": "Clear the list",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Close",
       "where": [
+        "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/protect.js",
         "packages/office-ui/src/index.js"
       ]
@@ -216,9 +261,27 @@
       ]
     },
     {
+      "message": "Contact",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Contact us",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Control what types of changes people can make to this {noun}.",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Copyright © 2026 Tech Style Ltd. The source is published, and you are free to study, modify and share it under the terms of the AGPL.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -264,9 +327,27 @@
       ]
     },
     {
+      "message": "Discard",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Dismiss",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Do not check spelling or grammar",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Documents, mail and media all work with no network connection",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -285,6 +366,12 @@
       "message": "Downloading in the background — {percent}%. You will be asked to restart when it is ready.",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Downloading version {version} — {percent}%.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -360,6 +447,18 @@
       ]
     },
     {
+      "message": "Files you have opened",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Files you open will be listed here. Drop one onto this window to begin.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Find a language",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -405,6 +504,12 @@
       "message": "Full screen (⌃⌘F)",
       "where": [
         "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "GNU AGPL v3.0, or a commercial licence",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -468,6 +573,12 @@
       ]
     },
     {
+      "message": "Import mail",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Import — add the words of a .dic word list",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -510,6 +621,12 @@
       ]
     },
     {
+      "message": "Last asked {when}.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Leave full screen",
       "where": [
         "packages/office-ui/src/index.js"
@@ -528,9 +645,27 @@
       ]
     },
     {
+      "message": "Licence",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Light theme",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Looking for a newer release…",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Mail, documents, worksheets, presentations and media — free, open source, and working with the network switched off.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -588,9 +723,21 @@
       ]
     },
     {
+      "message": "No check has run yet. This build contacts nothing on its own.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "No language matches.",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "No recent files yet",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -624,6 +771,12 @@
       ]
     },
     {
+      "message": "Not asked yet.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Not in dictionary",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -639,6 +792,12 @@
       "message": "Not saved yet",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Nothing matches",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -658,7 +817,14 @@
     {
       "message": "Open",
       "where": [
+        "apps/desktop/renderer/apps/home.js",
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Open a file",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -704,6 +870,12 @@
       ]
     },
     {
+      "message": "Platform",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Properties",
       "where": [
         "apps/desktop/renderer/protect.js"
@@ -734,9 +906,27 @@
       ]
     },
     {
+      "message": "Recent",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Recommended actions",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Recover",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Recovered",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -749,6 +939,12 @@
       "message": "Released {date}.",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Remove from the list",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -770,9 +966,21 @@
       ]
     },
     {
+      "message": "Rename…",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Require a password to open this {noun}.",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Restart and install",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -791,6 +999,12 @@
       "message": "Restore",
       "where": [
         "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Runtime",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -854,6 +1068,12 @@
       ]
     },
     {
+      "message": "Search recent files",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Set As Default",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -872,6 +1092,18 @@
       ]
     },
     {
+      "message": "Show announcements from office.rutba.io — once a day at most. It sends the version and the operating system, and no identifier of any kind, so what is counted at the other end is \"a copy opened somewhere\", never you. It is also the only way we know the suite is being used at all.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Show in folder",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Show password",
       "where": [
         "apps/desktop/renderer/protect.js"
@@ -881,6 +1113,12 @@
       "message": "Size",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Source code",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -914,15 +1152,33 @@
       ]
     },
     {
+      "message": "Start something",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Suggestions",
       "where": [
         "packages/office-ui/src/proofing.js"
       ]
     },
     {
+      "message": "That name did not work.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "That password is not right — passwords are case-sensitive.",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "The last check did not complete: {error}",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -944,6 +1200,12 @@
       ]
     },
     {
+      "message": "This is the latest release.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "This is the only window to arrange.",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -956,9 +1218,27 @@
       ]
     },
     {
+      "message": "Those two requests, and the mail and calendar servers you set up yourself, are everything Rutba Office ever contacts. Your documents, your mail and what you do with them never leave this computer.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Throw this copy away",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Tips",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Try a different search.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -992,15 +1272,45 @@
       ]
     },
     {
+      "message": "Updates apply to an installed copy; this one is running from source.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Updating {percent}%",
       "where": [
         "apps/desktop/renderer/shell.js"
       ]
     },
     {
+      "message": "Version",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Version {version} is available and downloading; you will be asked to restart when it is ready.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Version {version} is ready — restart to update, or it installs when you quit.",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Warnings",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Website",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -1019,6 +1329,12 @@
       "message": "Words you have added are never marked as misspelt — in Documents, Worksheets and Presentations alike.",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "Works offline",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
@@ -1088,6 +1404,18 @@
       ]
     },
     {
+      "message": "unsaved work from {when} — never saved anywhere",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "unsaved work from {when} — {file}",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "workbook",
       "where": [
         "apps/desktop/renderer/protect.js"
@@ -1097,6 +1425,13 @@
       "message": "{count} bytes",
       "where": [
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "{count} recent",
+      "plural": "{count} recent",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {
