@@ -423,3 +423,17 @@ test('Eraser: the line on a side of the caret\'s cell rubbed out joins the cells
   view.setSelection({ block: at(view, 'Region'), offset: 0 });
   assert.throws(() => view.tableOp('erase', { side: 'left' }), /the table's own edge/);
 });
+
+test('The Draw Table pen dragged out on the page: a table of one cell the size of the box, after the paragraph it starts at', () => {
+  const view = doc();
+  view.setSelection({ block: at(view, 'After'), offset: 0 });
+  view.drawTable({ widthTwips: 3000, heightTwips: 600 });
+  const tables = xmlOf(view).match(/<w:tbl>[\s\S]*?<\/w:tbl>/g);
+  assert.equal(tables.length, 2);
+  assert.match(tables[1], /<w:gridCol w:w="3000"\/>/);
+  assert.match(tables[1], /<w:trHeight w:val="600"/);
+  assert.match(blocks(view)[view.focus.block].container, /:r0:c0$/, 'the caret in its cell');
+  view.undo();
+  assert.equal(xmlOf(view).match(/<w:tbl>/g).length, 1, 'one undo step');
+  assert.throws(() => view.drawTable({ widthTwips: 100 }), /a fifth of an inch/);
+});

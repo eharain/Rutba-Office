@@ -1873,6 +1873,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     sortParagraphs: (v, a) => v.sortParagraphs({ descending: Boolean(a.descending) }),
     textToTable: (v, a) => v.textToTable({ separator: a.separator || 'tab' }),
     updateTableFormulas: (v) => v.updateTableFormulas(),
+    drawTable: (v, a) => v.drawTable({ widthTwips: a.widthTwips, heightTwips: a.heightTwips }),
     // Table Layout: the operation by its kind (the action's own `op` names this one), on the caret's table.
     tableOp: (v, a) => v.tableOp(a.kind, a.arg ?? {}),
     // A border dragged on the page: the columns either side of it, or a row's height.
@@ -2164,7 +2165,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
    */
   const PROTECTION_OPS = new Set(['setProtection', 'stopProtection', 'setPermission']);
   /** Operations that change the words at the selection. */
-  const TEXT_OPS = new Set(['insertText', 'deleteBackward', 'deleteForward', 'deleteSelection', 'splitParagraph', 'pasteText', 'pasteRuns', 'insertBuildingBlock', 'tabCell', 'insertEquation', 'replaceEquation', 'insertImage', 'removeImage', 'setImageLayout', 'setImageSize', 'insertPageBreak', 'insertMergeField', 'insertNote', 'setNoteText', 'insertTable', 'insertChart', 'insertShape', 'insertCaption', 'insertCrossReference', 'tableOp', 'setTableColumnWidths', 'setTableRowHeight', 'textToTable', 'updateTableFormulas']);
+  const TEXT_OPS = new Set(['insertText', 'deleteBackward', 'deleteForward', 'deleteSelection', 'splitParagraph', 'pasteText', 'pasteRuns', 'insertBuildingBlock', 'tabCell', 'insertEquation', 'replaceEquation', 'insertImage', 'removeImage', 'setImageLayout', 'setImageSize', 'insertPageBreak', 'insertMergeField', 'insertNote', 'setNoteText', 'insertTable', 'insertChart', 'insertShape', 'insertCaption', 'insertCrossReference', 'tableOp', 'setTableColumnWidths', 'setTableRowHeight', 'textToTable', 'updateTableFormulas', 'drawTable']);
   /** Operations that format the selection directly. */
   const FORMAT_OPS = new Set(['toggleFormat', 'setRunFormat', 'clearFormat', 'setParagraphFormat', 'setLink', 'setDropCap']);
 

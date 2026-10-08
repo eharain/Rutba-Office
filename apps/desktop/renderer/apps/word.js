@@ -1167,54 +1167,6 @@ export default function Word({ app, shell, boot }) {
     setManual((m) => (m ? { ...m, candidate: next || false } : m));
   }, [manual, hyphenCandidates]);
 
-  // Table Layout → Draw Table and Eraser: the pen's line down a cell splits it
-  // into two columns where it was drawn, across one into two rows; the
-  // eraser's click on a cell's line joins the cells either side of it.
-  useEffect(() => {
-    const page = pageRef.current;
-    const mode = view.tableDraw;
-    if (!page || !mode) return undefined;
-    const down = (e) => {
-      if (e.button !== 0) return;
-      const td = e.target.closest?.('table.wd-table td');
-      if (!td || !page.contains(td) || td.closest('tr[data-repeat]')) return;
-      e.preventDefault();
-      e.stopPropagation();
-      pictureDrag.current = true;
-      const x0 = e.clientX;
-      const y0 = e.clientY;
-      const up = (ev) => {
-        window.removeEventListener('mouseup', up, true);
-        setTimeout(() => { pictureDrag.current = false; }, 0);
-        const block = Number(td.querySelector('[data-block]')?.dataset.block);
-        if (!Number.isFinite(block)) return;
-        const r = td.getBoundingClientRect();
-        const caret = { op: 'setSelection', anchor: { block, offset: 0 }, focus: { block, offset: 0 } };
-        if (mode === 'eraser') {
-          const near = { left: x0 - r.left, right: r.right - x0, top: y0 - r.top, bottom: r.bottom - y0 };
-          let side = Object.keys(near).reduce((a, b) => (near[b] < near[a] ? b : a));
-          // A table that runs from the right counts its cells from the right.
-          if (getComputedStyle(td).direction === 'rtl' && (side === 'left' || side === 'right')) side = side === 'left' ? 'right' : 'left';
-          apply(caret, { op: 'tableOp', kind: 'erase', arg: { side } });
-          return;
-        }
-        const dx = ev.clientX - x0;
-        const dy = ev.clientY - y0;
-        if (Math.max(Math.abs(dx), Math.abs(dy)) < 6) return;
-        if (Math.abs(dy) >= Math.abs(dx)) {
-          let at = ((x0 + ev.clientX) / 2 - r.left) / r.width;
-          if (getComputedStyle(td).direction === 'rtl') at = 1 - at;
-          apply(caret, { op: 'tableOp', kind: 'splitInto', arg: { columns: 2, at } });
-        } else {
-          apply(caret, { op: 'tableOp', kind: 'splitInto', arg: { rows: 2 } });
-        }
-      };
-      window.addEventListener('mouseup', up, true);
-    };
-    page.addEventListener('mousedown', down, true);
-    return () => page.removeEventListener('mousedown', down, true);
-  }, [view.tableDraw, apply]);
-
   // Insert → Text Box → Draw Text Box: the next drag on the page is the box.
   const [drawBox, setDrawBox] = useState(null);
   useEffect(() => {
@@ -1261,6 +1213,87 @@ export default function Word({ app, shell, boot }) {
     page.addEventListener('mousedown', down, true);
     return () => page.removeEventListener('mousedown', down, true);
   }, [view.drawBox, view.zoom, geom, paragraphAt, apply, patchView]);
+
+  // Table Layout → Draw Table and Eraser: the pen's line down a cell splits it
+  // into two columns where it was drawn, across one into two rows; the
+  // eraser's click on a cell's line joins the cells either side of it.
+  // Outside a table the pen draws a new one, the box it is dragged out to.
+  useEffect(() => {
+    const page = pageRef.current;
+    const mode = view.tableDraw;
+    if (!page || !mode) return undefined;
+    const down = (e) => {
+      if (e.button !== 0) return;
+      const td = e.target.closest?.('table.wd-table td');
+      if (td?.closest('tr[data-repeat]')) return;
+      if (!td || !page.contains(td)) {
+        if (mode !== 'pen') return;
+        e.preventDefault();
+        e.stopPropagation();
+        pictureDrag.current = true;
+        const p = rectOf(page);
+        const z = view.zoom ?? 1;
+        const x0 = e.clientX / z - p.left;
+        const y0 = e.clientY / z - p.top;
+        let box = { left: x0, top: y0, width: 0, height: 0 };
+        setDrawBox(box);
+        const move = (ev) => {
+          const x = ev.clientX / z - p.left;
+          const y = ev.clientY / z - p.top;
+          box = { left: Math.min(x, x0), top: Math.min(y, y0), width: Math.abs(x - x0), height: Math.abs(y - y0) };
+          setDrawBox(box);
+        };
+        const done = () => {
+          window.removeEventListener('mousemove', move, true);
+          window.removeEventListener('mouseup', done, true);
+          setDrawBox(null);
+          setTimeout(() => { pictureDrag.current = false; }, 0);
+          if (box.width < 20 || box.height < 10) return;
+          const para = paragraphAt(box.top);
+          if (!para) return;
+          // 15 twips to a pixel.
+          apply({ op: 'setSelection', anchor: { block: para.block, offset: 0 }, focus: { block: para.block, offset: 0 } }, { op: 'drawTable', widthTwips: Math.round(box.width * 15), heightTwips: Math.round(box.height * 15) });
+        };
+        window.addEventListener('mousemove', move, true);
+        window.addEventListener('mouseup', done, true);
+        return;
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      pictureDrag.current = true;
+      const x0 = e.clientX;
+      const y0 = e.clientY;
+      const up = (ev) => {
+        window.removeEventListener('mouseup', up, true);
+        setTimeout(() => { pictureDrag.current = false; }, 0);
+        const block = Number(td.querySelector('[data-block]')?.dataset.block);
+        if (!Number.isFinite(block)) return;
+        const r = td.getBoundingClientRect();
+        const caret = { op: 'setSelection', anchor: { block, offset: 0 }, focus: { block, offset: 0 } };
+        if (mode === 'eraser') {
+          const near = { left: x0 - r.left, right: r.right - x0, top: y0 - r.top, bottom: r.bottom - y0 };
+          let side = Object.keys(near).reduce((a, b) => (near[b] < near[a] ? b : a));
+          // A table that runs from the right counts its cells from the right.
+          if (getComputedStyle(td).direction === 'rtl' && (side === 'left' || side === 'right')) side = side === 'left' ? 'right' : 'left';
+          apply(caret, { op: 'tableOp', kind: 'erase', arg: { side } });
+          return;
+        }
+        const dx = ev.clientX - x0;
+        const dy = ev.clientY - y0;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < 6) return;
+        if (Math.abs(dy) >= Math.abs(dx)) {
+          let at = ((x0 + ev.clientX) / 2 - r.left) / r.width;
+          if (getComputedStyle(td).direction === 'rtl') at = 1 - at;
+          apply(caret, { op: 'tableOp', kind: 'splitInto', arg: { columns: 2, at } });
+        } else {
+          apply(caret, { op: 'tableOp', kind: 'splitInto', arg: { rows: 2 } });
+        }
+      };
+      window.addEventListener('mouseup', up, true);
+    };
+    page.addEventListener('mousedown', down, true);
+    return () => page.removeEventListener('mousedown', down, true);
+  }, [view.tableDraw, view.zoom, paragraphAt, apply]);
 
   /**
    * The on-screen page (1-based) of each heading, in the order given — what

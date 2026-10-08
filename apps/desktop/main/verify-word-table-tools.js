@@ -516,6 +516,22 @@ export async function verifyWordTableTools(h, { dir }) {
     await until(async () => (await cellCount()) === before, 'the cells joined', 5000).catch(() => {});
     const joined = await cellCount();
     check('word: Table Layout → Eraser joins the two cells either side of the line it rubs out', joined === before, `${split} → ${joined} cells`);
+    // The pen dragged out over the paragraph after the table: a new table of one cell.
+    await press('Draw Table');
+    await until(() => js(`document.querySelector('.wd-page').classList.contains('wd-table-pen')`), 'the pen picked up again', 3000);
+    const after = model().blocks.findIndex((b) => b.text === 'After');
+    await js(`(() => {
+      const p = document.querySelector('.wd-page [data-block="${after}"]');
+      const r = p.getBoundingClientRect();
+      p.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: r.left + 10, clientY: r.top + 2 }));
+      window.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, clientX: r.left + 250, clientY: r.top + 42 }));
+      window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, clientX: r.left + 250, clientY: r.top + 42 }));
+      return 'dragged';
+    })()`);
+    await until(() => js(`document.querySelectorAll('.wd-page table.wd-table').length === 2`), 'the drawn table', 5000).catch(() => {});
+    const tables = await js(`document.querySelectorAll('.wd-page table.wd-table').length`);
+    const caretIn = model().blocks[model().selection?.focus?.block ?? -1]?.container || '';
+    check('word: the Draw Table pen dragged out on the page draws a table of one cell there, the caret in it', tables === 2 && /:r0:c0$/.test(caretIn), `${tables} tables; caret in ${caretIn || 'prose'}`);
     await js(`document.querySelector('.wd-page').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 'escape'`);
     await until(() => js(`!document.querySelector('.wd-page').classList.contains('wd-table-eraser')`), 'the eraser put down', 3000).catch(() => {});
     const down = await js(`!document.querySelector('.wd-page').className.includes('wd-table-')`);

@@ -2382,6 +2382,26 @@ export class DocView {
   }
 
   /**
+   * The Draw Table pen dragged out on the page: a table of one cell the size
+   * of the box drawn, after the caret's paragraph, as Word's pen starts
+   * one. One undo step; the caret lands in the new cell.
+   */
+  drawTable({ widthTwips, heightTwips = null } = {}) {
+    if (typeof this.doc.insertTable !== 'function') throw new Error('this document backend does not support tables');
+    const w = Math.round(Number(widthTwips));
+    if (!(w >= 288)) throw new Error('Draw the table at least a fifth of an inch wide.');
+    return this._edit('insert table', null, () => {
+      this._insertTable(1, 1);
+      const { tableStart } = this._caretTable();
+      this.doc.setTableColumnWidth(tableStart, 0, w);
+      const h = Math.round(Number(heightTwips));
+      if (h >= 144) this.doc.setTableRowHeight(tableStart, 0, h);
+      this._invalidate();
+      return this;
+    });
+  }
+
+  /**
    * Update Field over the tables: every = field in a table worked out again
    * from the numbers it reads now. One undo step; answers how many it
    * updated.
