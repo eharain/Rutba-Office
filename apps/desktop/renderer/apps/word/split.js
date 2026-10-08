@@ -7,21 +7,64 @@
 
 import React, { useEffect, useRef } from 'react';
 
+/** A node made safe to show as a copy: nothing in it editable, no id twice in the window. */
+function inert(node) {
+  if (node.nodeType !== 1) return node;
+  node.removeAttribute('contenteditable');
+  node.removeAttribute('id');
+  for (const n of node.querySelectorAll('[contenteditable], [id]')) { n.removeAttribute('contenteditable'); n.removeAttribute('id'); }
+  return node;
+}
+
 export function SplitPane({ pageRef, version, onGo, onResize }) {
   const host = useRef(null);
-  // The page as it stands, again: copied a moment after each change, read-only.
+  // What changed on the page since the copy was made: the paragraphs typed
+  // in, by their block, or `all` when the pages themselves moved. A long
+  // document was copied whole a moment after every change.
+  const dirty = useRef({ all: true, blocks: new Set() });
+  useEffect(() => {
+    const page = pageRef.current;
+    if (!page) return undefined;
+    const seen = new MutationObserver((records) => {
+      const d = dirty.current;
+      if (d.all) return;
+      for (const r of records) {
+        const at = r.target.nodeType === 1 ? r.target : r.target.parentElement;
+        const block = at?.closest?.('[data-block]');
+        // Inside one paragraph: that paragraph. Anything else — a paragraph
+        // added or taken away, a page laid out again — the whole copy.
+        if (block) d.blocks.add(block.dataset.block);
+        else { d.all = true; return; }
+      }
+    });
+    seen.observe(page, { subtree: true, childList: true, characterData: true, attributes: true });
+    return () => seen.disconnect();
+  }, [pageRef]);
+  // The page as it stands, again: brought up to date a moment after each change, read-only.
   useEffect(() => {
     const t = setTimeout(() => {
       const page = pageRef.current;
       const el = host.current;
       if (!page || !el) return;
-      const copy = page.cloneNode(true);
-      copy.removeAttribute('contenteditable');
-      copy.setAttribute('contenteditable', 'false');
-      copy.removeAttribute('id');
-      copy.classList.add('wd-split-copy');
-      for (const n of copy.querySelectorAll('[contenteditable], [id]')) { n.removeAttribute('contenteditable'); n.removeAttribute('id'); }
-      el.replaceChildren(copy);
+      const d = dirty.current;
+      const copy = el.firstElementChild;
+      let whole = d.all || !copy;
+      if (!whole) {
+        for (const i of d.blocks) {
+          const now = page.querySelectorAll(`[data-block="${i}"]`);
+          const was = copy.querySelectorAll(`[data-block="${i}"]`);
+          // A paragraph now laid over a different number of pages: copy it all.
+          if (now.length !== was.length) { whole = true; break; }
+          now.forEach((n, k) => was[k].replaceWith(inert(n.cloneNode(true))));
+        }
+      }
+      if (whole) {
+        const fresh = inert(page.cloneNode(true));
+        fresh.setAttribute('contenteditable', 'false');
+        fresh.classList.add('wd-split-copy');
+        el.replaceChildren(fresh);
+      }
+      dirty.current = { all: false, blocks: new Set() };
     }, 180);
     return () => clearTimeout(t);
   }, [pageRef, version]);
