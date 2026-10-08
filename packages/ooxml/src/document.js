@@ -748,6 +748,23 @@ function model3dView(drawingXml) {
   return { yaw: Number(a.yaw) || 0, pitch: Number(a.pitch) || 0, roll: Number(a.roll) || 0 };
 }
 
+/** `xml` with every table inside it overwritten by spaces, so offsets into it stay true. */
+function blankNestedTables(xml) {
+  let out = xml;
+  let depth = 0;
+  let from = 0;
+  for (const m of xml.matchAll(/<w:tbl\b[^>]*?(\/?)>|<\/w:tbl>/g)) {
+    if (m[0] === '</w:tbl>') {
+      depth -= 1;
+      if (depth === 0) out = out.slice(0, from) + ' '.repeat(m.index + m[0].length - from) + out.slice(m.index + m[0].length);
+    } else if (m[1] !== '/') {
+      if (depth === 0) from = m.index;
+      depth += 1;
+    }
+  }
+  return out;
+}
+
 export class Document {
   constructor(pkg) {
     this.pkg = pkg;
@@ -1625,7 +1642,14 @@ export class Document {
   /** A fresh `w:id` for the next tracked change — one past the highest any tracked change already carries. */
   nextTrackChangeId() {
     let maxId = -1;
-    for (const m of this.xml.matchAll(/<w:(?:ins|del|rPrChange|pPrChange|moveFrom|moveTo)\b[^>]*\bw:id="(\d+)"/g)) maxId = Math.max(maxId, Number(m[1]));
+    // Every kind of revision shares one id space in Word, and so do the parts
+    // that hold them (notes, headers, footers), so all of them are counted.
+    const kinds = /<w:(?:ins|del|rPrChange|pPrChange|sectPrChange|tblPrChange|tblPrExChange|trPrChange|tcPrChange|tblGridChange|numberingChange|cellIns|cellDel|cellMerge|moveFrom|moveTo)\b[^>]*\bw:id="(\d+)"/g;
+    const texts = [this.xml];
+    for (const name of this.pkg.partNames()) {
+      if (/^word\/(?:header|footer|footnotes|endnotes)\d*\.xml$/.test(name)) texts.push(this.pkg.text(name));
+    }
+    for (const text of texts) for (const m of text.matchAll(kinds)) maxId = Math.max(maxId, Number(m[1]));
     return maxId + 1;
   }
 
@@ -4812,7 +4836,10 @@ export class Document {
       : rest.replace(ins, '').replace(del, (whole, inner) => inner
         .replace(/<w:delText\b([^>]*)\/>/g, '<w:t$1/>')
         .replace(/<w:delText\b([^>]*)>/g, '<w:t$1>')
-        .replace(/<\/w:delText>/g, '</w:t>'));
+        .replace(/<\/w:delText>/g, '</w:t>')
+        // A field taken out keeps its code in delInstrText; put back as a
+        // plain instrText or the field comes back with no instruction.
+        .replace(/<(\/?)w:delInstrText\b/g, '<$1w:instrText'));
     // Words moved: kept where they went, or put back where they were.
     const movedFrom = /<w:moveFrom\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:moveFrom>/g;
     const movedTo = /<w:moveTo\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:moveTo>/g;
@@ -6514,7 +6541,12 @@ export class Document {
     const { body } = this._body();
     const at = parts.innerStart;
     const pr = /^<w:tblPr\b[^>]*>((?:<w:tblPrChange\b[\s\S]*?<\/w:tblPrChange>|(?!<\/w:tblPr>)[\s\S])*?)<\/w:tblPr>|^<w:tblPr\b[^>]*\/>/.exec(body.slice(at));
-    const inner = edit(pr && pr[1] != null ? pr[1] : '');
+    // A tracked change's record of the old properties is not edited: an edit
+    // that strips a style or a width would otherwise empty the record, and
+    // Reject would then have nothing to put back. It closes tblPr, as it must.
+    const raw = pr && pr[1] != null ? pr[1] : '';
+    const record = /<w:tblPrChange\b[\s\S]*?<\/w:tblPrChange>/.exec(raw)?.[0] ?? '';
+    const inner = edit(raw.replace(record, '')) + record;
     const replacement = '<w:tblPr>' + inner + '</w:tblPr>';
     if (pr) this._spliceBody(at, at + pr[0].length, replacement);
     else this._spliceBody(at, at, replacement);
@@ -6786,7 +6818,8 @@ export class Document {
     while ((m = scan.exec(body))) {
       if (m[0] === '</w:tbl>') { depth -= 1; continue; }
       if (m[1] === '/') continue;
-      if (depth === 0) tables.push(m.index);
+      // Every table, nested ones too: each is worked out from its own cells.
+      tables.push(m.index);
       depth += 1;
     }
     const edits = [];
@@ -6796,7 +6829,9 @@ export class Document {
       parts.rows.forEach((row, r) => {
         const rowXml = body.slice(row.start, row.end);
         this._rowCellSpans(rowXml).forEach((cell, c) => {
-          const cellXml = rowXml.slice(cell.start, cell.end);
+          // A table nested in this cell is blanked (same length, so offsets
+          // hold): its formulas belong to it, not to the cell around it.
+          const cellXml = blankNestedTables(rowXml.slice(cell.start, cell.end));
           for (const f of cellXml.matchAll(/<w:fldSimple\b[^>]*\bw:instr="\s*(=[^"]*?)\s*"[^>]*>([\s\S]*?)<\/w:fldSimple>/g)) {
             const instr = unesc(f[1]);
             const format = /\\#\s*"([^"]+)"/.exec(instr)?.[1] ?? null;

@@ -173,6 +173,17 @@ function writeResult(view, q, table) {
   view.pkg.write_(old.part, xml);
 }
 
+/**
+ * The sheet a query's table is on now. The sheet can be renamed after the
+ * query loaded, so the table, which keeps its name, says where the result
+ * lives; going by the old sheet name would build a second sheet and a
+ * second table beside the renamed one.
+ */
+function syncLoadSheet(view, q) {
+  const t = view.workbook.tables().find((x) => x.name === q.load.table);
+  if (t && t.sheet !== q.load.sheet) q.load.sheet = t.sheet;
+}
+
 /** Every part a query edit may change, for its one undo step. */
 function partsOf(view) {
   const out = [...view.workbook.sheets().map((s) => s.part), view.workbook.mainPart, 'xl/_rels/workbook.xml.rels', '[Content_Types].xml'];
@@ -224,6 +235,7 @@ export function refreshQueries(view, { id = null, read = null } = {}) {
   const list = readQueries(view);
   const chosen = list.filter((q) => !id || q.id === id);
   if (!chosen.length) return 0;
+  for (const q of chosen) syncLoadSheet(view, q);
   const results = chosen.map((q) => ({ q, table: runSteps(sourceTable(view, q.source, read, new Set([q.id])), q.steps, { table: (s) => sourceTable(view, s, read, new Set([q.id])) }) }));
   queryEdit(view, 'refresh', () => {
     for (const { q, table } of results) {
@@ -242,6 +254,7 @@ export function editQuery(view, { id, name, source, steps, read = null } = {}) {
   const list = readQueries(view);
   const q = list.find((x) => x.id === id);
   if (!q) throw new Error('That query is no longer in this workbook');
+  syncLoadSheet(view, q);
   if (name !== undefined) q.name = String(name).trim() || q.name;
   if (source !== undefined) q.source = source;
   if (steps !== undefined) q.steps = steps;

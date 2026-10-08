@@ -69,7 +69,10 @@ export function applyStep(t, step, ctx = {}) {
     // Append Queries: the other table's rows after these, its columns matched by name, any new ones added.
     case 'appendQuery': {
       if (typeof ctx.table !== 'function') throw new Error('Append needs the other table');
-      const other = ctx.table(s.with);
+      // Headings made unique first: two columns of one name would both be
+      // written into the first, and the second's values lost.
+      const raw = ctx.table(s.with);
+      const other = { ...raw, columns: uniqueNames(raw.columns) };
       const columns = [...t.columns, ...other.columns.filter((c) => !t.columns.includes(c))];
       const at = other.columns.map((c) => columns.indexOf(c));
       const rows = t.rows.map((r) => columns.map((_, i) => (i < r.length ? r[i] : null)));

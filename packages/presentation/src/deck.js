@@ -3342,15 +3342,17 @@ export class Deck {
   find(text, { matchCase = false } = {}) {
     const needle = String(text ?? '');
     if (!needle) return [];
-    const target = matchCase ? needle : needle.toLowerCase();
+    // Matched on the run's own text, not on a lower-cased copy: a capital
+    // like the dotted I lowers to two characters, which would shift every
+    // offset after it and make `replace` cut the wrong slice.
+    const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi');
     const hits = [];
     const walk = (paragraphs, extra) => {
       paragraphs.forEach((p, pi) => {
         (p.runs || []).forEach((r, ri) => {
           if (!r.text || r.field || r.break) return;
-          const hay = matchCase ? r.text : r.text.toLowerCase();
-          for (let at = hay.indexOf(target); at !== -1; at = hay.indexOf(target, at + target.length)) {
-            hits.push({ ...extra, paragraph: pi, run: ri, offset: at, length: needle.length, text: r.text.slice(at, at + needle.length) });
+          for (const m of r.text.matchAll(re)) {
+            hits.push({ ...extra, paragraph: pi, run: ri, offset: m.index, length: m[0].length, text: m[0] });
           }
         });
       });
