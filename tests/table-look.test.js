@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { cellLook, partsAt, tableRuled } from '@rutba/doc-view/table-look';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { renderPdf } from '@rutba/doc-view/export/pdf';
+import { buildDocx } from '@rutba/ooxml/build';
 
 const line = (colour, style = 'single') => ({ style, widthPx: 1, colour });
 const GRID4 = {
@@ -51,6 +52,31 @@ test('a cell\'s sides, shading and words: a header row without its inside lines,
   assert.equal(cellLook({ borders: null, at: at(1, 1), ruled: false }).sides, null, 'a table with no lines draws none');
   assert.equal(tableRuled({ borders: null, style: GRID4 }), true, 'a style\'s part with lines rules the table');
   assert.equal(tableRuled({ borders: null, style: { parts: { band1Horz: { fill: '#eeeeee' } } } }), false);
+});
+
+test('printed, a narrow table sits where its alignment says and its words keep its cell margins', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ table: { rows: [['Region', 'Q1'], ['North', '120']] } }] }));
+  const at = (text) => view.render({ pages: false }).blocks.findIndex((b) => b.text === text);
+  const table = Number(/^t(\d+)/.exec(view.render({ pages: false }).blocks[at('Region')].container)[1]);
+  view.setTableColumnWidths({ table, widths: { 0: 1440, 1: 1440 } }); // two inches wide in all
+  view.setSelection({ block: at('Region'), offset: 0 });
+  view.tableOp('autoFit', { mode: 'fixed' });
+  const leftEdge = () => {
+    const text = renderPdf(view, { created: '2026-09-03T00:00:00Z' }).buffer.toString('latin1');
+    const xs = [...text.matchAll(/(-?[\d.]+) (-?[\d.]+) m\n(-?[\d.]+) (-?[\d.]+) l/g)].map((m) => Math.min(Number(m[1]), Number(m[3])));
+    return Math.min(...xs);
+  };
+  const left = leftEdge();
+  view.tableOp('align', { align: 'center' });
+  const centred = leftEdge();
+  // A 144pt table centred moves in by half the room beside it; at the right, by all of it.
+  view.tableOp('align', { align: 'right' });
+  const right = leftEdge();
+  assert.ok(centred - left > 100 && Math.abs((right - left) - 2 * (centred - left)) < 2, `${left} → ${centred} → ${right}`);
+  const wordsAt = () => Number(/1 0 0 1 (-?[\d.]+) (-?[\d.]+) Tm\s+\(Region\)/.exec(renderPdf(view, { created: '2026-09-03T00:00:00Z' }).buffer.toString('latin1'))?.[1]);
+  const before = wordsAt();
+  view.tableOp('cellMargins', { margins: { top: 72, left: 216, bottom: 72, right: 216 } });
+  assert.ok(wordsAt() > before, 'wide margins move the words in');
 });
 
 test('printed, a table in Word\'s Grid Table 4 has its header row filled and its rows banded, as the page shows it', () => {

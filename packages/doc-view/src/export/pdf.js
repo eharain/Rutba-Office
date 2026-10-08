@@ -27,7 +27,7 @@
  * with no Workspace dependency, so nothing here ties the editor to a product.
  */
 import { PdfDocument, decodePng, isPng } from '@rutba/pdf';
-import { layoutParagraph, paginate, rowHeight } from '../paginate.js';
+import { layoutParagraph, paginate, rowHeight, cellPadding } from '../paginate.js';
 import { computeListLabels } from '../lists.js';
 import { bandForPage, resolveFields } from '../bands.js';
 import { hyphenationRules } from '../hyphenate.js';
@@ -90,7 +90,6 @@ function drawMath(page, doc, box, x, top, fragment) {
   return w;
 }
 
-const CELL_PADDING = 8;
 const IMAGE_GAP = 8;
 const TABLE_SPACE_AFTER = 12;
 const BAND_SIZE_PX = 14;
@@ -330,16 +329,18 @@ function dataUriBytes(href) {
  * landed on the sheet, header repeats included.
  */
 function drawTable(page, doc, table, rows, { xPx, yPx, widthPx, labelOf, depth = 0 }) {
-  // A table laid out to fixed widths keeps the file's own cell margins —
-  // a label's words sit where the sheet expects them; any other table the
-  // padding it always had.
-  const fixed = table.layoutFixed && table.cellMarginPx ? table.cellMarginPx : null;
-  const padL = fixed ? fixed.left : CELL_PADDING;
-  const padR = fixed ? fixed.right : CELL_PADDING;
-  const padT = fixed ? fixed.top : CELL_PADDING;
+  // The file's own cell margins when it gives them — a label's words sit
+  // where the sheet expects them — else the padding the paginator measured.
+  const pad = cellPadding(table);
+  const padL = pad.left;
+  const padR = pad.right;
+  const padT = pad.top;
   const columns = table.columns && table.columns.length
     ? table.columns
     : Array(Math.max(1, table.columnCount || 1)).fill(widthPx / Math.max(1, table.columnCount || 1));
+  // Where a table narrower than the text sits: its own w:jc, centred or at the right.
+  const total = columns.reduce((a, b) => a + b, 0);
+  if (!depth && total < widthPx - 0.5 && /^(center|right|end)$/.test(table.align || '')) xPx += table.align === 'center' ? (widthPx - total) / 2 : widthPx - total;
   // A merge down a column (w:vMerge) is one cell: its first reaches over
   // the rows its continuations fill in this piece of the table, and a
   // continuation at the top of a piece — its merge began on the page
@@ -405,7 +406,7 @@ function drawTable(page, doc, table, rows, { xPx, yPx, widthPx, labelOf, depth =
       // own height first, then where they start.
       if (cell.vAlign === 'center' || cell.vAlign === 'bottom') {
         const inner = (cell.blocks || []).reduce((s, b) => s + (b.kind === 'table' ? 0 : (() => { const l = layoutParagraph(b, cellWidth - padL - padR, { cache: null }); return l.lines.length * l.lineHeightPx; })()), 0);
-        const room = h - padT - (fixed ? fixed.bottom : CELL_PADDING) - inner;
+        const room = h - padT - pad.bottom - inner;
         if (room > 0) cy += cell.vAlign === 'center' ? room / 2 : room;
       }
       for (const b of cell.blocks || []) {

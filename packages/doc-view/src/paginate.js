@@ -345,7 +345,8 @@ function rowHeight(row, table, width, cache) {
  * it always was.
  */
 export function cellPadding(table) {
-  if (table?.layoutFixed && table.cellMarginPx) return table.cellMarginPx;
+  // The file's own cell margins whenever it gives them (Table Layout → Cell Margins, a sheet of labels).
+  if (table?.cellMarginPx) return table.cellMarginPx;
   return { top: CELL_PADDING / 2, bottom: CELL_PADDING / 2, left: CELL_PADDING, right: CELL_PADDING };
 }
 
