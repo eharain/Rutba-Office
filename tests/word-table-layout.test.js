@@ -317,7 +317,35 @@ test('Table Layout → Formula: an = field worked out from the numbers above or 
   assert.equal(into(4, 2, '=COUNT(ABOVE)'), '3', '175, £40 and 135');
   assert.match(xmlOf(view), /<w:fldSimple w:instr=" =SUM\(ABOVE\) "><w:r><w:t xml:space="preserve">1,295<\/w:t><\/w:r><\/w:fldSimple>/);
   assert.match(xmlOf(view), /<w:fldSimple w:instr=" =AVERAGE\(ABOVE\) \\# &quot;#,##0.00&quot; ">/, 'the number format kept as Word\'s \\# switch');
-  assert.throws(() => into(4, 3, '=SUM(A1:B2)'), /A formula here is one of/);
+  assert.equal(into(4, 3, '=B2*C2'), '162,000', 'cells named as Word names them, the column a letter and the row a number');
+  assert.equal(into(4, 3, '=SUM(B2:C3)'), '1,470', 'a range of cells');
+  assert.equal(into(4, 3, '=(B2-B3)/2'), '552.50', 'brackets and arithmetic');
+  assert.equal(into(4, 3, '=MAX(B2,C2,10)+ABS(-1)'), '1,201');
+  assert.equal(into(4, 3, '=B2/0'), '!Zero Divide', 'as Word says it');
+  assert.match(xmlOf(view), /w:instr=" =B2\/0 "/);
+  assert.throws(() => into(4, 3, '=SUM(B2'), /A formula here is numbers, cells like B2/);
+  assert.throws(() => into(4, 3, '=B2;C2'), /A formula here is numbers/, 'nothing but a formula is worked out');
+});
+
+test('Update all formulas: every = field in a table worked out again from the numbers it reads now, its format kept', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ table: { rows: [['Region', 'Q1', 'Q2', 'Total'], ['North', '1,200', '135', ''], ['East', '95', '40', ''], ['Sum', '', '', '']] } }] }));
+  const cell = (r, c) => blocks(view).find((b) => new RegExp(`:r${r}:c${c}$`).test(b.container || ''));
+  const into = (r, c, formula, format) => { view.setSelection({ block: cell(r, c).index, offset: 0 }); view.tableOp('formula', { formula, format }); };
+  into(3, 1, '=SUM(ABOVE)');
+  into(1, 3, '=SUM(LEFT)', '#,##0.00');
+  into(3, 3, '=D2*2');
+  const b2 = cell(1, 1);
+  view.setSelection({ block: b2.index, offset: 0 }, { block: b2.index, offset: b2.text.length });
+  view.insertText('2,000');
+  assert.equal(cell(3, 1).text, '1,295', 'a field keeps its last result until it is updated, as in Word');
+  assert.equal(view.updateTableFormulas(), 3);
+  assert.equal(cell(3, 1).text, '2,095');
+  assert.equal(cell(1, 3).text, '2,135.00', 'in its \\# format');
+  assert.equal(cell(3, 3).text, '2,670', 'reading the total as it was before this update, as Word reads a cell\'s shown words');
+  assert.equal(view.updateTableFormulas(), 3);
+  assert.equal(cell(3, 3).text, '4,270', 'and the total as it is now on the next');
+  view.undo();
+  assert.equal(cell(3, 3).text, '2,670', 'one undo step');
 });
 
 test('Table Properties: the table\'s alt text and preferred width, a row kept on one page, each read back for the dialog', () => {

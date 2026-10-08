@@ -429,6 +429,25 @@ export async function verifyWordTableTools(h, { dir }) {
     check('word: Table Layout → Properties writes the table\'s alt text and keeps the caret\'s row on one page',
       caretRow()?.tableAlt?.title === 'Sales by region' && caretRow()?.rowCantSplit === true, JSON.stringify({ alt: caretRow()?.tableAlt, cantSplit: caretRow()?.rowCantSplit }));
 
+    // Formula → Your own formula…: a cell reference typed in, worked out in the caret's cell.
+    await pick('Formula', 'Your own formula…');
+    await until(() => js(`Boolean(document.querySelector('input.wd-formula-input'))`), 'the Formula box', 3000);
+    await js(`(() => {
+      const input = document.querySelector('input.wd-formula-input');
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(input, '=B2*2');
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+      return 'typed';
+    })()`);
+    await until(() => js(`!document.querySelector('.pf-prompt-ok.wd-formula-input')?.disabled`), 'OK enabled', 3000).catch(() => {});
+    await js(`document.querySelector('.pf-prompt-ok.wd-formula-input').click(), 'ok'`);
+    const formulaCell = () => model().blocks.find((b) => /:r1:c0$/.test(b.container || ''));
+    await until(() => formulaCell()?.text === '240', 'the formula worked out', 5000).catch(() => {});
+    const drawn = await js(`Boolean(${cell('240')})`);
+    check('word: Formula → Your own formula… works out =B2*2 in the caret\'s cell and draws it', formulaCell()?.text === '240' && drawn, `${formulaCell()?.text} drawn ${drawn}`);
+    await pick('Formula', 'Update all formulas');
+    await until(() => js(`!document.querySelector('.rw-menu')`), 'the menu closed', 3000).catch(() => {});
+    check('word: Formula → Update all formulas works them out again', formulaCell()?.text === '240', formulaCell()?.text);
+
     // Insert → Table with its header box ticked: the new table's first row repeats as a header.
     const end = model().blocks.findIndex((b) => b.text === 'After');
     await js(`(() => { const a = document.querySelector('.wd-page [data-block="${end}"]'); a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); const r = document.createRange(); r.setStart(a.firstChild || a, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return true; })()`);

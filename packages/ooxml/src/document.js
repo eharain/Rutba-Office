@@ -464,6 +464,107 @@ function bordersOf(xml) {
   return Object.keys(out).length ? out : null;
 }
 
+/** A cell's words as a number Word would read: thousands separators, currency signs and a percent read past, brackets a negative. */
+function formulaNumber(t) {
+  const s = String(t ?? '').replace(/[\s,£$€¥]/g, '').replace(/^\((.*)\)$/, '-$1');
+  return /^[-+]?\d*\.?\d+%?$/.test(s) ? Number(s.replace('%', '')) / (s.endsWith('%') ? 100 : 1) : null;
+}
+
+/**
+ * A table formula's value: `=` then numbers, cell references (B2) and ranges
+ * (B2:B4), + - * / and brackets, and SUM, AVERAGE, COUNT, MAX, MIN, PRODUCT
+ * or ABS of any of them or of ABOVE, LEFT, BELOW or RIGHT. `textAt(r, c)`
+ * gives a cell's words, null past the table. Throws on anything else.
+ */
+function tableFormulaValue(formula, textAt, row, col) {
+  const src = String(formula || '').trim();
+  const bad = () => new Error('A formula here is numbers, cells like B2 or B2:B4, + - * / and brackets, and SUM, AVERAGE, COUNT, MAX, MIN, PRODUCT or ABS of them or of ABOVE, LEFT, BELOW or RIGHT — =SUM(ABOVE), say.');
+  if (!src.startsWith('=')) throw bad();
+  const tokens = src.slice(1).toUpperCase().match(/\d*\.?\d+%?|[A-Z]+\d+:[A-Z]+\d+|[A-Z]+\d+|[A-Z]+|[-+*/(),]|\S/g) || [];
+  let i = 0;
+  const peek = () => tokens[i];
+  const take = (t) => { if (tokens[i] !== t) throw bad(); i += 1; };
+  const cellOf = (ref) => {
+    const m = /^([A-Z]+)(\d+)$/.exec(ref);
+    const c = [...m[1]].reduce((n, ch) => n * 26 + (ch.charCodeAt(0) - 64), 0) - 1;
+    return [Number(m[2]) - 1, c];
+  };
+  const direction = (dir) => {
+    const step = { ABOVE: [-1, 0], BELOW: [1, 0], LEFT: [0, -1], RIGHT: [0, 1] }[dir];
+    const out = [];
+    for (let r = row + step[0], c = col + step[1]; ; r += step[0], c += step[1]) {
+      const t = textAt(r, c);
+      if (t == null) break;
+      const n = formulaNumber(t);
+      if (n == null) { if (out.length) break; continue; }
+      out.push(n);
+    }
+    return out;
+  };
+  const range = (ref) => {
+    const [a, b] = ref.split(':').map(cellOf);
+    const out = [];
+    for (let r = Math.min(a[0], b[0]); r <= Math.max(a[0], b[0]); r++) for (let c = Math.min(a[1], b[1]); c <= Math.max(a[1], b[1]); c++) { const n = formulaNumber(textAt(r, c)); if (n != null) out.push(n); }
+    return out;
+  };
+  const FUNCS = {
+    SUM: (v) => v.reduce((a, b) => a + b, 0),
+    AVERAGE: (v) => (v.length ? v.reduce((a, b) => a + b, 0) / v.length : 0),
+    COUNT: (v) => v.length,
+    MAX: (v) => (v.length ? Math.max(...v) : 0),
+    MIN: (v) => (v.length ? Math.min(...v) : 0),
+    PRODUCT: (v) => (v.length ? v.reduce((a, b) => a * b, 1) : 0),
+    ABS: (v) => Math.abs(v[0] ?? 0),
+  };
+  function factor() {
+    const t = peek();
+    if (t === '-') { i += 1; return -factor(); }
+    if (t === '+') { i += 1; return factor(); }
+    if (t === '(') { i += 1; const v = expr(); take(')'); return v; }
+    if (t == null) throw bad();
+    if (/^\d*\.?\d+%?$/.test(t)) { i += 1; return formulaNumber(t); }
+    if (/^[A-Z]+\d+$/.test(t)) { i += 1; const [r, c] = cellOf(t); return formulaNumber(textAt(r, c)) ?? 0; }
+    if (FUNCS[t]) {
+      i += 1;
+      take('(');
+      const values = [];
+      for (;;) {
+        const a = peek();
+        if (['ABOVE', 'LEFT', 'BELOW', 'RIGHT'].includes(a)) { i += 1; values.push(...direction(a)); }
+        else if (/^[A-Z]+\d+:[A-Z]+\d+$/.test(a || '')) { i += 1; values.push(...range(a)); }
+        else values.push(expr());
+        if (peek() === ',') { i += 1; continue; }
+        break;
+      }
+      take(')');
+      return FUNCS[t](values);
+    }
+    throw bad();
+  }
+  function term() {
+    let v = factor();
+    while (peek() === '*' || peek() === '/') { const op = tokens[i++]; const w = factor(); v = op === '*' ? v * w : (w === 0 ? NaN : v / w); }
+    return v;
+  }
+  function expr() {
+    let v = term();
+    while (peek() === '+' || peek() === '-') { const op = tokens[i++]; const w = term(); v = op === '+' ? v + w : v - w; }
+    return v;
+  }
+  const value = expr();
+  if (i !== tokens.length) throw bad();
+  return value;
+}
+
+/** A formula's result as Word shows it in a number format, or as plainly as it can be. */
+function formatFormulaResult(value, format) {
+  if (!Number.isFinite(value)) return '!Zero Divide';
+  if (format === '0%') return Math.round(value * 100) + '%';
+  if (format === '0') return value.toFixed(0);
+  const places = format === '#,##0.00' ? 2 : format === '#,##0' ? 0 : (Number.isInteger(value) ? 0 : 2);
+  return value.toLocaleString('en-GB', { minimumFractionDigits: places, maximumFractionDigits: places });
+}
+
 function tableHead(body, at) {
   const firstRow = body.indexOf('<w:tr', at);
   const head = body.slice(at, firstRow === -1 ? at + 4000 : firstRow);
@@ -6326,55 +6427,21 @@ export class Document {
   }
 
   /**
-   * Table Layout → Formula: an = field in a cell — SUM, AVERAGE, COUNT, MAX,
-   * MIN or PRODUCT of the cells ABOVE, LEFT, BELOW or RIGHT of it, as Word
-   * reads them: the numbers next to the cell, up to the first that is not one
-   * (a heading, an empty cell). Its result is worked out and shown, in the
-   * cell's first paragraph, as Word shows a field's last result; a number
-   * format (`#,##0`, `#,##0.00`, `0`, `0%`) shapes it.
+   * Table Layout → Formula: an = field in a cell, worked out as Word works
+   * one out — numbers, cell references (B2, a range B2:B4, the column a
+   * letter and the row a number), + - * / and brackets, and SUM, AVERAGE,
+   * COUNT, MAX, MIN, PRODUCT or ABS of them or of the cells ABOVE, LEFT,
+   * BELOW or RIGHT (the numbers next to the cell, up to the first that is
+   * not one). Its result is shown in the cell's first paragraph, as Word
+   * shows a field's last result; a number format (`#,##0`, `#,##0.00`, `0`,
+   * `0%`) shapes it and is kept as the field's \\# switch.
    */
   insertTableFormula(tableStart, rowIndex, cellIndex, formula, format = null) {
-    const m = /^=\s*(SUM|AVERAGE|COUNT|MAX|MIN|PRODUCT)\s*\(\s*(ABOVE|LEFT|BELOW|RIGHT)\s*\)\s*$/i.exec(String(formula || '').trim());
-    if (!m) throw new Error('A formula here is one of SUM, AVERAGE, COUNT, MAX, MIN or PRODUCT of ABOVE, LEFT, BELOW or RIGHT — =SUM(ABOVE), say.');
-    const fn = m[1].toUpperCase();
-    const dir = m[2].toUpperCase();
     const parts = this._tableParts(tableStart);
     const { body } = this._body();
-    const textAt = (r, c) => {
-      const row = parts.rows[r];
-      if (!row) return null;
-      const rowXml = body.slice(row.start, row.end);
-      const cell = this._rowCellSpans(rowXml)[c];
-      return cell ? [...rowXml.slice(cell.start, cell.end).matchAll(/<w:t\b[^>]*>([^<]*)<\/w:t>/g)].map((t) => unesc(t[1])).join('').trim() : null;
-    };
-    const numberOf = (t) => {
-      const s = String(t ?? '').replace(/[\s,£$€¥]/g, '').replace(/^\((.*)\)$/, '-$1');
-      return /^[-+]?\d*\.?\d+%?$/.test(s) ? Number(s.replace('%', '')) / (s.endsWith('%') ? 100 : 1) : null;
-    };
-    // The numbers next to the cell, nearest first, up to the first cell that is not one.
-    const step = { ABOVE: [-1, 0], BELOW: [1, 0], LEFT: [0, -1], RIGHT: [0, 1] }[dir];
-    const values = [];
-    for (let r = rowIndex + step[0], c = cellIndex + step[1]; ; r += step[0], c += step[1]) {
-      const t = textAt(r, c);
-      if (t == null) break;
-      const n = numberOf(t);
-      if (n == null) { if (values.length) break; continue; }
-      values.push(n);
-    }
-    const result = {
-      SUM: () => values.reduce((a, b) => a + b, 0),
-      AVERAGE: () => (values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0),
-      COUNT: () => values.length,
-      MAX: () => (values.length ? Math.max(...values) : 0),
-      MIN: () => (values.length ? Math.min(...values) : 0),
-      PRODUCT: () => (values.length ? values.reduce((a, b) => a * b, 1) : 0),
-    }[fn]();
-    const shown = (() => {
-      if (format === '0%') return Math.round(result * 100) + '%';
-      const places = format === '#,##0.00' ? 2 : format === '#,##0' || format === '0' ? 0 : (Number.isInteger(result) ? 0 : 2);
-      return format === '0' ? result.toFixed(0) : result.toLocaleString('en-GB', { minimumFractionDigits: places, maximumFractionDigits: places });
-    })();
-    const instr = ' =' + fn + '(' + dir + ')' + (format ? ' \\# "' + format + '"' : '') + ' ';
+    const text = String(formula || '').trim();
+    const shown = formatFormulaResult(tableFormulaValue(text, this._cellTexts(parts, body), rowIndex, cellIndex), format);
+    const instr = ' ' + text.replace(/\s+/g, '') + (format ? ' \\# "' + format + '"' : '') + ' ';
     const field = '<w:fldSimple w:instr="' + esc(instr) + '"><w:r><w:t xml:space="preserve">' + esc(shown) + '</w:t></w:r></w:fldSimple>';
     // In the cell's first paragraph, in place of what was there.
     const row = parts.rows[rowIndex];
@@ -6391,6 +6458,58 @@ export class Document {
     const at = row.start + cell.start + p.index;
     this._spliceBody(at, at + old.length, replaced);
     return this;
+  }
+
+  /**
+   * Update Field over the tables: every = field in a table cell worked out
+   * again from the numbers it reads now, its result shown in its format.
+   * Answers how many it updated.
+   */
+  updateTableFormulas() {
+    const { body } = this._body();
+    const tables = [];
+    const scan = /<w:tbl\b[^>]*?(\/?)>|<\/w:tbl>/g;
+    let depth = 0;
+    let m;
+    while ((m = scan.exec(body))) {
+      if (m[0] === '</w:tbl>') { depth -= 1; continue; }
+      if (m[1] === '/') continue;
+      if (depth === 0) tables.push(m.index);
+      depth += 1;
+    }
+    const edits = [];
+    for (const tableStart of tables) {
+      const parts = this._tableParts(tableStart);
+      const texts = this._cellTexts(parts, body);
+      parts.rows.forEach((row, r) => {
+        const rowXml = body.slice(row.start, row.end);
+        this._rowCellSpans(rowXml).forEach((cell, c) => {
+          const cellXml = rowXml.slice(cell.start, cell.end);
+          for (const f of cellXml.matchAll(/<w:fldSimple\b[^>]*\bw:instr="\s*(=[^"]*?)\s*"[^>]*>([\s\S]*?)<\/w:fldSimple>/g)) {
+            const instr = unesc(f[1]);
+            const format = /\\#\s*"([^"]+)"/.exec(instr)?.[1] ?? null;
+            const formula = instr.replace(/\\#\s*"[^"]*"/, '').trim();
+            let shown;
+            try { shown = formatFormulaResult(tableFormulaValue(formula, texts, r, c), format); } catch { continue; }
+            const rPr = /<w:rPr\b[^>]*>[\s\S]*?<\/w:rPr>/.exec(f[2])?.[0] ?? '';
+            const resultStart = row.start + cell.start + f.index + f[0].indexOf('>') + 1;
+            edits.push({ start: resultStart, end: resultStart + f[2].length, xml: '<w:r>' + rPr + '<w:t xml:space="preserve">' + esc(shown) + '</w:t></w:r>' });
+          }
+        });
+      });
+    }
+    // Back to front, so each leaves the offsets before it where they were.
+    for (const e of edits.sort((a, b) => b.start - a.start)) this._spliceBody(e.start, e.end, e.xml);
+    return edits.length;
+  }
+
+  /** A table's cells' words, as (row, cell) → text, for a formula to read. */
+  _cellTexts(parts, body) {
+    const rows = parts.rows.map((row) => {
+      const rowXml = body.slice(row.start, row.end);
+      return this._rowCellSpans(rowXml).map((c) => [...rowXml.slice(c.start, c.end).matchAll(/<w:t\b[^>]*>([^<]*)<\/w:t>/g)].map((t) => unesc(t[1])).join('').trim());
+    });
+    return (r, c) => (rows[r] && c >= 0 && c < rows[r].length ? rows[r][c] : null);
   }
 
   /** Table Properties → Alt Text: the table's title and description (w:tblCaption, w:tblDescription), or none. */

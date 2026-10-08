@@ -39,7 +39,7 @@ import { useMailings, installMailingsStyles } from './word/mailings.js';
 import { useEnvelopesLabels, installEnvelopeStyles } from './word/envelopes.js';
 import { MERGE_KINDS } from '@rutba/ooxml/mailmerge';
 import { useWordReview } from './word/review.js';
-import { LanguageDialog } from '@rutba/office-ui/proofing';
+import { LanguageDialog, PromptDialog } from '@rutba/office-ui/proofing';
 import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog } from '../icons-insert.js';
 import { CompareDialog, COMPARE_CSS } from './word/compare.js';
@@ -2682,6 +2682,20 @@ export default function Word({ app, shell, boot }) {
           onDelete={(name) => apply({ op: 'removeBookmark', name })}
           onGoto={async (name) => {
             await apply({ op: 'gotoBookmark', name });
+            setDialog(null);
+          }}
+        />
+      ) : null}
+
+      {dialog === 'tableFormula' ? (
+        <PromptDialog
+          title="Formula"
+          label="Numbers, cells like B2 or B2:B4, + - * / and brackets, and SUM, AVERAGE, COUNT, MAX, MIN, PRODUCT or ABS of them or of ABOVE, LEFT, BELOW or RIGHT"
+          initial="=SUM(ABOVE)"
+          className="wd-formula-input"
+          onClose={() => setDialog(null)}
+          onApply={async (text) => {
+            await apply({ op: 'tableOp', kind: 'formula', arg: { formula: text.startsWith('=') ? text : '=' + text } });
             setDialog(null);
           }}
         />

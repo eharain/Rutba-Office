@@ -2373,6 +2373,20 @@ export class DocView {
   }
 
   /**
+   * Update Field over the tables: every = field in a table worked out again
+   * from the numbers it reads now. One undo step; answers how many it
+   * updated.
+   */
+  updateTableFormulas() {
+    if (typeof this.doc.updateTableFormulas !== 'function') throw new Error('this document backend does not support tables');
+    return this._edit('table', null, () => {
+      const n = this.doc.updateTableFormulas();
+      this._invalidate();
+      return n;
+    });
+  }
+
+  /**
    * Insert → Table → Convert Text to Table: the selected paragraphs (or the
    * caret's) as the rows of a table, split at their tabs or commas. One undo
    * step; the caret lands in the table's first cell.
