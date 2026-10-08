@@ -87,9 +87,10 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   words, turns a cell's words to read up or down, sets the cells' margins,
   repeats header rows, sorts the rows by a column, works out a formula
   (=SUM(ABOVE) and the like), converts the table to text and back, turns
-  it right to left and shows or hides its gridlines. Not yet: a Table
-  Properties dialog, a formula's result kept up to date as its numbers
-  change, and formulas over cell references.
+  it right to left and shows or hides its gridlines; Properties sets its
+  width, alignment and alt text and the caret's row and column. Not yet: a
+  formula's result kept up to date as its numbers change, formulas over
+  cell references, and drawing a table by hand.
 - **Fields.** Bookmarks arrived 2026-09-24, Insert → Bookmark naming a span
   of paragraphs (`w:bookmarkStart`/`w:bookmarkEnd`) that Go To finds again
   and a bookmarked paragraph stays editable through it. Cross-references
@@ -239,7 +240,8 @@ document and workbook writers.
   and columns are written from the same tab. WordArt is still read past.
 - **What can be put on a slide**: a table and a chart are read and drawn —
   a table in its table style since 1.29.5 (its header, bands, borders and
-  first and last rows and columns), and a chart since 2026-09-10, through the same chart kit a worksheet uses,
+  first and last rows and columns, which Table Design turns on and off since
+  2026-10-08, with its cells' shading), and a chart since 2026-09-10, through the same chart kit a worksheet uses,
   found by the corpus deck whose six chart slides showed an empty frame
   each. Both arrived to insert 2026-09-24: Insert → Table puts one on the
   slide with its cells edited in place, and rows and columns added and
