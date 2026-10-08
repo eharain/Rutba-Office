@@ -5875,6 +5875,186 @@ export class Document {
   }
 
   /**
+   * Table Layout → Split Cells, and the Draw Table pen: one cell split into
+   * `columns` cells side by side and `rows` down, as Word splits one. The
+   * cell's width is shared equally, or for two columns at `at`, the share
+   * of the way across where the pen drew. A line that is not already in the
+   * table's grid is a new grid column, which the other rows' cells across
+   * it span (w:gridSpan); a new row is one the row's other cells run down
+   * into (w:vMerge). The words stay in the first of the new cells. A cell
+   * merged down a column is refused: unmerge it first.
+   */
+  splitTableCellInto(tableStart, rowIndex, cellIndex, { columns = 1, rows = 1, at = null } = {}) {
+    const n = Math.round(Number(columns));
+    const m = Math.round(Number(rows));
+    if (!(n >= 1 && n <= 20 && m >= 1 && m <= 20) || (n === 1 && m === 1)) throw new Error('A cell splits into 1 to 20 columns and 1 to 20 rows, more than one cell in all.');
+    if (n > 1) this._splitCellColumns(tableStart, rowIndex, cellIndex, n, at);
+    if (m > 1) this._splitCellRows(tableStart, rowIndex, cellIndex, n, m);
+    return this;
+  }
+
+  /** A cell's `w:tcPr` contents edited by `fn`, the cell rebuilt round them. */
+  _withCellPr(cellXml, fn) {
+    const { open, tcPr, content } = this._cellParts(cellXml);
+    const inner = fn(tcPr && !tcPr.endsWith('/>') ? tcPr.replace(/^<w:tcPr\b[^>]*>/, '').replace(/<\/w:tcPr>$/, '') : '');
+    return open + (inner ? '<w:tcPr>' + inner + '</w:tcPr>' : '') + content + '</w:tc>';
+  }
+
+  _splitCellColumns(tableStart, rowIndex, cellIndex, n, at) {
+    const parts = this._tableParts(tableStart);
+    const { body } = this._body();
+    if (!parts.grid) throw new Error('This table has no grid to split a cell in.');
+    const gridXml = body.slice(parts.grid.start, parts.grid.end);
+    let widths = [...gridXml.matchAll(/<w:gridCol\b[^>]*\/>/g)].map((g) => Number(/\bw:w="(\d+)"/.exec(g[0])?.[1] ?? 0));
+    if (!widths.length) throw new Error('This table has no grid to split a cell in.');
+    if (widths.some((w) => !(w > 0))) widths = widths.map(() => 1440);
+    const B = [0];
+    for (const w of widths) B.push(B[B.length - 1] + w);
+    const G = widths.length;
+    const rowsInfo = parts.rows.map((row) => {
+      const xml = body.slice(row.start, row.end);
+      const cells = this._rowCellSpans(xml);
+      const head = xml.slice(0, cells.length ? cells[0].start : xml.length - '</w:tr>'.length);
+      const gb = Number(/<w:gridBefore\b[^>]*\bw:val="(\d+)"/.exec(head)?.[1] ?? 0);
+      let g = gb;
+      const spans = cells.map((c) => { const cx = xml.slice(c.start, c.end); const a = g; g += this._cellSpan(cx); return { ...c, xml: cx, a, s: g - a }; });
+      return { row, xml, cells: spans, head, gb };
+    });
+    const target = rowsInfo[rowIndex]?.cells[cellIndex];
+    if (!target) throw new Error('no cell ' + cellIndex + ' in that row');
+    if (/<w:vMerge\b/.test(target.xml)) throw new Error('This cell is merged down its column — unmerge it before splitting it.');
+    if (target.a + target.s > G) throw new Error('This cell runs past the table\'s grid, so it cannot be split.');
+    const left = B[target.a];
+    const right = B[target.a + target.s];
+    const W = right - left;
+    const share = n === 2 && Number(at) > 0.05 && Number(at) < 0.95 ? [Number(at)] : Array.from({ length: n - 1 }, (_, k) => (k + 1) / n);
+    // A line within a hair of one the grid has already is that line.
+    const tol = Math.max(30, W * 0.03);
+    const lines = share.map((t) => {
+      const x = Math.round(left + W * t);
+      const near = B.slice(target.a + 1, target.a + target.s).find((b) => Math.abs(b - x) <= tol);
+      return near ?? x;
+    }).filter((x, i, all) => x > left && x < right && all.indexOf(x) === i);
+    if (lines.length !== n - 1) throw new Error('This cell is too narrow to split into ' + n + ' columns.');
+    const NB = [...new Set([...B, ...lines])].sort((a, b) => a - b);
+    const idx = (x) => NB.indexOf(x);
+    const spanned = (inner, span) => {
+      inner = inner.replace(/<w:gridSpan\b[^>]*\/>/g, '');
+      if (span <= 1) return inner;
+      const el = '<w:gridSpan w:val="' + span + '"/>';
+      const w = /<w:tcW\b[^>]*\/>/.exec(inner) ?? /<w:cnfStyle\b[^>]*\/>/.exec(inner);
+      return w ? inner.slice(0, w.index + w[0].length) + el + inner.slice(w.index + w[0].length) : el + inner;
+    };
+    const widthed = (inner, twips) => {
+      const el = '<w:tcW w:w="' + twips + '" w:type="dxa"/>';
+      if (/<w:tcW\b[^>]*\/>/.test(inner)) return inner.replace(/<w:tcW\b[^>]*\/>/, () => el);
+      const c = /<w:cnfStyle\b[^>]*\/>/.exec(inner);
+      return c ? inner.slice(0, c.index + c[0].length) + el + inner.slice(c.index + c[0].length) : el + inner;
+    };
+    // The rows from the bottom, so the offsets above stay where they were; then the grid.
+    for (let r = rowsInfo.length - 1; r >= 0; r--) {
+      const info = rowsInfo[r];
+      let head = info.head;
+      if (info.gb) head = head.replace(/(<w:gridBefore\b[^>]*\bw:val=")\d+/, (x, p) => p + idx(B[info.gb]));
+      const ga = /<w:gridAfter\b[^>]*\bw:val="(\d+)"/.exec(head);
+      if (ga && Number(ga[1]) <= G) head = head.replace(/(<w:gridAfter\b[^>]*\bw:val=")\d+/, (x, p) => p + (NB.length - 1 - idx(B[G - Number(ga[1])])));
+      const cells = info.cells.map((c, i) => {
+        if (r === rowIndex && i === cellIndex) {
+          const edges = [left, ...lines, right];
+          return edges.slice(0, -1).map((x, k) => {
+            const from = k === 0 ? c.xml : this._templateCell(c.xml);
+            return this._withCellPr(from, (inner) => spanned(widthed(inner, edges[k + 1] - x), idx(edges[k + 1]) - idx(x)));
+          }).join('');
+        }
+        if (c.a + c.s > G) return c.xml;
+        const span = idx(B[c.a + c.s]) - idx(B[c.a]);
+        return span === c.s ? c.xml : this._withCellPr(c.xml, (inner) => spanned(inner, span));
+      });
+      const tail = info.cells.length ? info.xml.slice(info.cells[info.cells.length - 1].end) : info.xml.slice(info.head.length);
+      this._spliceBody(info.row.start, info.row.end, head + cells.join('') + tail);
+    }
+    const gridOpen = /^<w:tblGrid\b[^>]*>/.exec(gridXml)?.[0] ?? '<w:tblGrid>';
+    this._spliceBody(parts.grid.start, parts.grid.end, gridOpen + NB.slice(1).map((x, i) => '<w:gridCol w:w="' + (x - NB[i]) + '"/>').join('') + '</w:tblGrid>');
+  }
+
+  _splitCellRows(tableStart, rowIndex, cellIndex, n, m) {
+    const parts = this._tableParts(tableStart);
+    const { body } = this._body();
+    const row = parts.rows[rowIndex];
+    if (!row) throw new Error('no row ' + rowIndex + ' in this table');
+    const xml = body.slice(row.start, row.end);
+    const cells = this._rowCellSpans(xml).map((c) => xml.slice(c.start, c.end));
+    const group = (i) => i >= cellIndex && i < cellIndex + n;
+    if (!cells[cellIndex]) throw new Error('no cell ' + cellIndex + ' in that row');
+    if (cells.some((c, i) => group(i) && /<w:vMerge\b/.test(c))) throw new Error('This cell is merged down its column — unmerge it before splitting it.');
+    const merged = (inner, restart) => {
+      inner = inner.replace(/<w:vMerge\b[^>]*\/>/g, '');
+      const el = restart ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>';
+      const before = [...inner.matchAll(/<w:(cnfStyle|tcW|gridSpan|hMerge)\b[^>]*\/>/g)].pop();
+      const at = before ? before.index + before[0].length : 0;
+      return inner.slice(0, at) + el + inner.slice(at);
+    };
+    const rowCells = this._rowCellSpans(xml);
+    const head = xml.slice(0, rowCells[0].start);
+    const tail = xml.slice(rowCells[rowCells.length - 1].end);
+    // The row's other cells run down through the new rows.
+    const top = cells.map((c, i) => (group(i) || /<w:vMerge\b/.test(c) ? c : this._withCellPr(c, (inner) => merged(inner, true))));
+    const freshHead = head.replace(/\s+w14:(paraId|textId)="[^"]*"/g, '').replace(/<w:tblHeader\b[^>]*\/>/g, '');
+    const below = freshHead + cells.map((c, i) => (group(i) ? this._templateCell(c) : this._withCellPr(this._templateCell(c), (inner) => merged(inner, false)))).join('') + tail;
+    this._spliceBody(row.start, row.end, head + top.join('') + tail + below.repeat(m - 1));
+  }
+
+  /**
+   * Table Layout → Eraser: the line on one side of a cell rubbed out, the
+   * cells either side of it one cell, as Word's eraser leaves them.
+   */
+  eraseTableLine(tableStart, rowIndex, cellIndex, side) {
+    if (side === 'right') return this.mergeTableCellRight(tableStart, rowIndex, cellIndex);
+    if (side === 'left') {
+      if (cellIndex < 1) throw new Error('That is the table\'s own edge — there is no cell beyond it to join.');
+      return this.mergeTableCellRight(tableStart, rowIndex, cellIndex - 1);
+    }
+    if (side === 'bottom' || side === 'top') {
+      const parts = this._tableParts(tableStart);
+      const { body } = this._body();
+      // Each row's cells by their place in the grid.
+      const placed = (r) => {
+        const row = parts.rows[r];
+        if (!row) return null;
+        const xml = body.slice(row.start, row.end);
+        const cells = this._rowCellSpans(xml);
+        let g = Number(/<w:gridBefore\b[^>]*\bw:val="(\d+)"/.exec(xml.slice(0, cells[0]?.start ?? 0))?.[1] ?? 0);
+        return cells.map((c) => { const cx = xml.slice(c.start, c.end); const a = g; g += this._cellSpan(cx); return { row, xml: cx, start: row.start + c.start, end: row.start + c.end, a, s: g - a }; });
+      };
+      const upperRow = side === 'bottom' ? rowIndex : rowIndex - 1;
+      const mine = placed(rowIndex)?.[cellIndex];
+      if (!mine) throw new Error('no cell ' + cellIndex + ' in that row');
+      const find = (r) => placed(r)?.find((c) => c.a === mine.a && c.s === mine.s);
+      if (!parts.rows[upperRow] || !parts.rows[upperRow + 1]) throw new Error('That is the table\'s own edge — there is no cell beyond it to join.');
+      const upper = side === 'bottom' ? mine : find(upperRow);
+      const lower = side === 'bottom' ? find(upperRow + 1) : mine;
+      if (!upper || !lower) throw new Error('The cells either side of that line are not the same width — make them match before rubbing it out.');
+      // The merge's first cell takes the lower cell's words; the lower cell carries the merge on.
+      let head = upper;
+      for (let r = upperRow; /<w:vMerge\b(?![^>]*w:val="restart")[^>]*\/>/.test(head.xml) && r > 0; ) { r -= 1; const up = find(r); if (!up) break; head = up; }
+      const merged = (inner, restart) => {
+        inner = inner.replace(/<w:vMerge\b[^>]*\/>/g, '');
+        const el = restart ? '<w:vMerge w:val="restart"/>' : '<w:vMerge/>';
+        const before = [...inner.matchAll(/<w:(cnfStyle|tcW|gridSpan|hMerge)\b[^>]*\/>/g)].pop();
+        const at = before ? before.index + before[0].length : 0;
+        return inner.slice(0, at) + el + inner.slice(at);
+      };
+      const words = /<w:t\b[^>]*>[^<]+<\/w:t>/.test(lower.xml) ? this._cellParts(lower.xml).content : '';
+      this._spliceBody(lower.start, lower.end, this._withCellPr(this._templateCell(lower.xml), (inner) => merged(inner, false)));
+      let top = /<w:vMerge\b/.test(upper.xml) ? head.xml : this._withCellPr(head.xml, (inner) => merged(inner, true));
+      if (words) top = top.replace(/<\/w:tc>$/, () => words + '</w:tc>');
+      this._spliceBody(head.start, head.end, top);
+      return this;
+    }
+    throw new Error('A cell\'s line is its top, bottom, left or right.');
+  }
+
+  /**
    * Merge a RECTANGLE of cells — Word's Merge Cells over a selection. Every
    * row in the range keeps one cell spanning its columns; the top one shows
    * the whole range's contents in reading order and the lower ones continue

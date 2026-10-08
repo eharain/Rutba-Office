@@ -1167,6 +1167,54 @@ export default function Word({ app, shell, boot }) {
     setManual((m) => (m ? { ...m, candidate: next || false } : m));
   }, [manual, hyphenCandidates]);
 
+  // Table Layout → Draw Table and Eraser: the pen's line down a cell splits it
+  // into two columns where it was drawn, across one into two rows; the
+  // eraser's click on a cell's line joins the cells either side of it.
+  useEffect(() => {
+    const page = pageRef.current;
+    const mode = view.tableDraw;
+    if (!page || !mode) return undefined;
+    const down = (e) => {
+      if (e.button !== 0) return;
+      const td = e.target.closest?.('table.wd-table td');
+      if (!td || !page.contains(td) || td.closest('tr[data-repeat]')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      pictureDrag.current = true;
+      const x0 = e.clientX;
+      const y0 = e.clientY;
+      const up = (ev) => {
+        window.removeEventListener('mouseup', up, true);
+        setTimeout(() => { pictureDrag.current = false; }, 0);
+        const block = Number(td.querySelector('[data-block]')?.dataset.block);
+        if (!Number.isFinite(block)) return;
+        const r = td.getBoundingClientRect();
+        const caret = { op: 'setSelection', anchor: { block, offset: 0 }, focus: { block, offset: 0 } };
+        if (mode === 'eraser') {
+          const near = { left: x0 - r.left, right: r.right - x0, top: y0 - r.top, bottom: r.bottom - y0 };
+          let side = Object.keys(near).reduce((a, b) => (near[b] < near[a] ? b : a));
+          // A table that runs from the right counts its cells from the right.
+          if (getComputedStyle(td).direction === 'rtl' && (side === 'left' || side === 'right')) side = side === 'left' ? 'right' : 'left';
+          apply(caret, { op: 'tableOp', kind: 'erase', arg: { side } });
+          return;
+        }
+        const dx = ev.clientX - x0;
+        const dy = ev.clientY - y0;
+        if (Math.max(Math.abs(dx), Math.abs(dy)) < 6) return;
+        if (Math.abs(dy) >= Math.abs(dx)) {
+          let at = ((x0 + ev.clientX) / 2 - r.left) / r.width;
+          if (getComputedStyle(td).direction === 'rtl') at = 1 - at;
+          apply(caret, { op: 'tableOp', kind: 'splitInto', arg: { columns: 2, at } });
+        } else {
+          apply(caret, { op: 'tableOp', kind: 'splitInto', arg: { rows: 2 } });
+        }
+      };
+      window.addEventListener('mouseup', up, true);
+    };
+    page.addEventListener('mousedown', down, true);
+    return () => page.removeEventListener('mousedown', down, true);
+  }, [view.tableDraw, apply]);
+
   // Insert → Text Box → Draw Text Box: the next drag on the page is the box.
   const [drawBox, setDrawBox] = useState(null);
   useEffect(() => {
@@ -1278,6 +1326,11 @@ export default function Word({ app, shell, boot }) {
         // Table Layout → View Gridlines: a table's faint dashes where it has no lines, on screen only — on unless turned off.
         case 'toggleTableGridlines':
           patchView((v) => ({ noTableGridlines: !v.noTableGridlines }));
+          return;
+        // Table Layout → Draw Table and Eraser: picked up, or put down when picked again.
+        case 'tableDraw':
+          patchView((v) => ({ tableDraw: v.tableDraw === arg ? null : arg }));
+          if (view.tableDraw !== arg) toast(arg === 'pen' ? 'Draw a line down or across a cell to split it there.' : 'Click a line between two cells to join them.', { ms: 3500 });
           return;
         // View → Immersive Reader: open with Word's defaults on its own tab,
         // change one of its settings, or close it back to the View tab.
@@ -2123,7 +2176,7 @@ export default function Word({ app, shell, boot }) {
               />
             ) : null}
             <div
-              className={`wd-page${view.drawBox ? ' drawing-box' : ''}${view.gridlines ? ' gridlines' : ''}${view.noTableGridlines ? ' wd-no-table-gridlines' : ''}${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}${mailings.highlight ? ' wd-mm-hl' : ''}${model.mailMerge?.preview ? ' wd-mm-preview' : ''}`}
+              className={`wd-page${view.drawBox ? ' drawing-box' : ''}${view.gridlines ? ' gridlines' : ''}${view.noTableGridlines ? ' wd-no-table-gridlines' : ''}${view.tableDraw ? ' wd-table-' + view.tableDraw : ''}${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}${mailings.highlight ? ' wd-mm-hl' : ''}${model.mailMerge?.preview ? ' wd-mm-preview' : ''}`}
               ref={pageRef}
               // Immersive Reader is for reading: the words are not edited there, as in Word.
               contentEditable={!view.immersive}
@@ -2189,9 +2242,10 @@ export default function Word({ app, shell, boot }) {
                   else if (target.image != null) apply({ op: 'removeImage', block: target.block, image: target.image });
                   return;
                 }
-                if (e.key === 'Escape' && (picked || view.drawBox)) {
+                if (e.key === 'Escape' && (picked || view.drawBox || view.tableDraw)) {
                   setPicked(null);
                   if (view.drawBox) patchView({ drawBox: false });
+                  if (view.tableDraw) patchView({ tableDraw: null });
                   return;
                 }
                 // The arrow keys nudge a selected floating drawing, as in Word:
@@ -4051,6 +4105,9 @@ const CSS = `
 .wd-table.wd-table-bare { margin: 0; }
 .wd-table.wd-table-bare td { border: 0; outline: 1px dashed rgba(70, 120, 200, 0.35); outline-offset: -1px; }
 .wd-page.wd-no-table-gridlines .wd-table.wd-table-bare td { outline: none; }
+/* Table Layout → Draw Table and Eraser: the pen and the eraser over a table's cells. */
+.wd-page.wd-table-pen table.wd-table td { cursor: crosshair; }
+.wd-page.wd-table-eraser table.wd-table td { cursor: cell; }
 .wd-cell-exact { display: flex; flex-direction: column; overflow: hidden; }
 .wd-cell-exact > .wd-block { margin-top: 0; margin-bottom: 0; }
 /* An envelope in front of the letter: its sheet at the envelope's size. */

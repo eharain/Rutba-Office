@@ -63,6 +63,8 @@ const PATHS = {
   colRight: [P('M4 4h9v16H4z'), P('M8.5 4v16M4 12h9'), P('M16 12h6M19 9v6')],
   mergeCells: [P('M3 5h18v14H3z'), P('M12 5v3M12 16v3'), P('m6 10 2 2-2 2M18 10l-2 2 2 2')],
   splitCells: [P('M3 5h18v14H3z'), P('M12 5v14'), P('m8 10-2 2 2 2M16 10l2 2-2 2')],
+  pen: [P('M4 20h4L19 9l-4-4L4 16z'), P('m13 7 4 4')],
+  eraser: [P('M7 20h13'), P('m4 15 9-9a2 2 0 0 1 3 0l3 3a2 2 0 0 1 0 3l-8 8H8z'), P('m9 10 5 5')],
   picture: [P('M4 5h16v14H4z'), P('m5 16 4-4 3 3 3.5-3.5L20 16')],
   shape: [P('M12 3 3 20h18z')],
   textbox: [P('M4 6h16v12H4z'), P('M9 9h6M12 9v6')],

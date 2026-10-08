@@ -2174,7 +2174,8 @@ export class DocView {
    * (`{ descending, header }`), `toText` (`{ separator }`), `splitTable`, `autoFit`
    * (`{ mode }`), `align` (`{ align }`), `cellMargins` (`{ margins }`) or `textDirection`
    * (`{ dir }`), `formula` (`{ formula, format }`), `altText` (`{ title, description }`),
-   * `tableWidth` (`{ type, value }`) or `rowCantSplit` (`{ on }`). Each is one undo step; deleting the last
+   * `tableWidth` (`{ type, value }`), `rowCantSplit` (`{ on }`), `splitInto` (`{ columns, rows, at }`)
+   * or `erase` (`{ side }`). Each is one undo step; deleting the last
    * row or column deletes the table, as Word does. A merged table refuses —
    * the engine says why.
    */
@@ -2210,6 +2211,8 @@ export class DocView {
       altText: 'setTableAltText',
       tableWidth: 'setTableWidth',
       rowCantSplit: 'setTableRowCantSplit',
+      splitInto: 'splitTableCellInto',
+      erase: 'eraseTableLine',
     };
     const method = PORT[op];
     if (!method) throw new Error('unknown table operation: ' + op);
@@ -2331,6 +2334,12 @@ export class DocView {
         this.doc.setTableWidth(tableStart, { type: arg.type, value: arg.value });
       } else if (op === 'rowCantSplit') {
         this.doc.setTableRowCantSplit(tableStart, rowIndex, Boolean(arg.on));
+      } else if (op === 'splitInto') {
+        // Split Cells, or the Draw Table pen's line through the caret's cell.
+        this.doc.splitTableCellInto(tableStart, rowIndex, cellIndex, { columns: arg.columns ?? 1, rows: arg.rows ?? 1, at: arg.at ?? null });
+      } else if (op === 'erase') {
+        // The Eraser over one of the caret's cell's lines.
+        this.doc.eraseTableLine(tableStart, rowIndex, cellIndex, arg.side);
       } else if (op === 'formula') {
         // Table Layout → Formula: the caret's cell shows the formula's result.
         this.doc.insertTableFormula(tableStart, rowIndex, cellIndex, arg.formula, arg.format || null);

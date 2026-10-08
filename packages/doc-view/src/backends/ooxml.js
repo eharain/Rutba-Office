@@ -132,6 +132,8 @@ export class OoxmlBackend {
   setTableRowCantSplit(tableStart, rowIndex, on) { this.doc.setTableRowCantSplit(tableStart, rowIndex, on); return this; }
   insertTableFormula(tableStart, rowIndex, cellIndex, formula, format) { this.doc.insertTableFormula(tableStart, rowIndex, cellIndex, formula, format); return this; }
   updateTableFormulas() { return this.doc.updateTableFormulas(); }
+  splitTableCellInto(tableStart, rowIndex, cellIndex, options) { this.doc.splitTableCellInto(tableStart, rowIndex, cellIndex, options); return this; }
+  eraseTableLine(tableStart, rowIndex, cellIndex, side) { this.doc.eraseTableLine(tableStart, rowIndex, cellIndex, side); return this; }
   setTableCellMargins(tableStart, margins) { this.doc.setTableCellMargins(tableStart, margins); return this; }
   setTableCellDirection(tableStart, rowIndex, cellIndex, dir) { this.doc.setTableCellDirection(tableStart, rowIndex, cellIndex, dir); return this; }
   setTableAutoFit(tableStart, mode) { this.doc.setTableAutoFit(tableStart, mode); return this; }

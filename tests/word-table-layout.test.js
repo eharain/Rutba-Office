@@ -380,3 +380,46 @@ test('through the document service, Convert Text to Table is an operation of its
   docs.apply({ id: s.id, ops: [{ op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 1, offset: 1 } }, { op: 'textToTable', separator: 'tab' }] });
   assert.deepEqual(docs.model({ id: s.id }).blocks.filter((b) => b.container).map((b) => b.text), ['a', 'b', 'c', 'd']);
 });
+
+test('Split Cells and the Draw Table pen: a cell split into columns, the other rows spanning the new grid line, and into rows the others run down', () => {
+  const view = doc();
+  const widths = () => [.../<w:tblGrid>[\s\S]*?<\/w:tblGrid>/.exec(xmlOf(view))[0].matchAll(/w:w="(\d+)"/g)].map((m) => Number(m[1]));
+  const cellsPerRow = () => [...xmlOf(view).matchAll(/<w:tr\b[\s\S]*?<\/w:tr>/g)].map((r) => (r[0].match(/<w:tc[ >]/g) || []).length);
+  const before = widths();
+  view.setSelection({ block: at(view, '120'), offset: 0 });
+  view.tableOp('splitInto', { columns: 2 });
+  const after = widths();
+  assert.equal(after.length, before.length + 1, 'a new line in the grid');
+  assert.equal(after[1] + after[2], before[1], 'the cell\'s column shared between the two');
+  assert.deepEqual(cellsPerRow(), [3, 4, 3, 3]);
+  assert.equal((xmlOf(view).match(/<w:gridSpan w:val="2"\/>/g) || []).length, 3, 'the cells above and below it span the two');
+  assert.equal(blocks(view).find((b) => /:r1:c1$/.test(b.container || '')).text, '120', 'the words stay in the first');
+  assert.equal(blocks(view).find((b) => /:r1:c2$/.test(b.container || '')).text, '');
+  view.setSelection({ block: at(view, 'South'), offset: 0 });
+  view.tableOp('splitInto', { rows: 2 });
+  assert.deepEqual(cellsPerRow(), [3, 4, 3, 3, 3], 'a new row under South');
+  assert.equal((xmlOf(view).match(/<w:vMerge w:val="restart"\/>/g) || []).length, 2, 'the row\'s other cells run down through it');
+  assert.equal((xmlOf(view).match(/<w:vMerge\/>/g) || []).length, 2);
+  view.setSelection({ block: at(view, 'Q2'), offset: 0 });
+  const q2 = widths().at(-1);
+  view.tableOp('splitInto', { columns: 2, at: 0.25 });
+  assert.equal(widths().at(-2), Math.round(q2 * 0.25), 'the pen\'s line where it was drawn');
+  view.setSelection({ block: at(view, 'East'), offset: 0 });
+  view.tableOp('splitInto', { columns: 2, rows: 2 });
+  assert.equal(cellsPerRow().length, 6);
+  assert.throws(() => view.tableOp('splitInto', { columns: 1, rows: 1 }), /more than one cell/);
+  assert.ok(blocks(view).length > 0, 'the page still lays the table out');
+});
+
+test('Eraser: the line on a side of the caret\'s cell rubbed out joins the cells either side of it', () => {
+  const view = doc();
+  view.setSelection({ block: at(view, 'North'), offset: 0 });
+  view.tableOp('erase', { side: 'right' });
+  assert.match(xmlOf(view), /<w:gridSpan w:val="2"\/>/);
+  view.setSelection({ block: at(view, 'Q2'), offset: 0 });
+  view.tableOp('erase', { side: 'bottom' });
+  assert.equal((xmlOf(view).match(/<w:vMerge w:val="restart"\/>/g) || []).length, 1, 'Q2 over 135');
+  assert.match(blocks(view)[at(view, '135')].container, /:r0:c2$/, 'the lower cell\'s words moved up into the one cell');
+  view.setSelection({ block: at(view, 'Region'), offset: 0 });
+  assert.throws(() => view.tableOp('erase', { side: 'left' }), /the table's own edge/);
+});

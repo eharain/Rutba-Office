@@ -131,6 +131,9 @@ export default function WordRibbon({
   const acrossCells = Boolean(anchorCell && focusCell && anchorCell[1] === focusCell[1] && (anchorCell[2] !== focusCell[2] || anchorCell[3] !== focusCell[3]));
   // The caret's cell: where its words sit, and whether its row is a header row.
   const caretCell = model?.blocks?.[model?.selection?.focus?.block ?? -1] || null;
+  // A merged caret cell: across columns, or carried on in the row below it.
+  const cellBelow = caretCell?.container ? caretCell.container.replace(/:r(\d+):c(\d+)$/, (m, r, c) => `:r${Number(r) + 1}:c${c}`) : null;
+  const mergedCaret = Boolean(caretCell?.cellSpan > 1 || (cellBelow && model?.blocks?.some((b) => b.hiddenCell && b.container === cellBelow)));
   // Table Design: the caret's table's style and which of its parts it shows (Word's for a new table when it says nothing).
   const tableStyleId = caretCell?.tableStyle?.id || null;
   const styleLook = caretCell?.tableStyle?.look || { firstRow: true, lastRow: false, firstColumn: true, lastColumn: false, noHBand: false, noVBand: true };
@@ -790,6 +793,10 @@ export default function WordRibbon({
       {/* ── Table Layout (contextual) ─────────────────────────────────────── */}
       {tab === 'tableLayout' && table ? (
         <>
+          <Group label="Draw">
+            <Button tall icon="pen" label="Draw Table" pressed={view.tableDraw === 'pen'} title="Draw Table — draw a line down a cell to split it into two columns there, or across it to split it into two rows; Escape puts the pen down" onClick={() => act('tableDraw', 'pen')} />
+            <Button tall icon="eraser" label="Eraser" pressed={view.tableDraw === 'eraser'} title="Eraser — click a line between two cells to join them into one; Escape puts the eraser down" onClick={() => act('tableDraw', 'eraser')} />
+          </Group>
           <Group label="Table">
             <Button tall icon="settings" label="Properties" title="Table Properties — the table's width, alignment and alt text, the caret's row and column" onClick={() => openDialog('tableProperties')} />
             <Button tall icon="alignCenter" label="Align Table" title="Align Table — the table at the left margin, centred or at the right" onClick={(e) => menu.open(e, [
@@ -814,7 +821,13 @@ export default function WordRibbon({
           </Group>
           <Group label="Merge">
             <Button tall icon="mergeCells" label="Merge Cells" title={acrossCells ? 'Merge the selected cells into one' : 'Merge Cells — select from one cell to another first'} disabled={!acrossCells} onClick={() => tableOp('mergeCells')} />
-            <Button tall icon="splitCells" label="Split Cells" title="Split a merged cell back into the cells it covers" onClick={() => tableOp('splitCell')} />
+            <Button tall icon="splitCells" label="Split Cells" title="Split Cells — a merged cell back into the cells it covers, or the caret's cell into columns or rows" onClick={(e) => mergedCaret ? tableOp('splitCell') : menu.open(e, [
+              { label: 'Into 2 columns', run: () => tableOp('splitInto', { columns: 2 }) },
+              { label: 'Into 3 columns', run: () => tableOp('splitInto', { columns: 3 }) },
+              { label: 'Into 2 rows', run: () => tableOp('splitInto', { rows: 2 }) },
+              { label: 'Into 2 columns and 2 rows', run: () => tableOp('splitInto', { columns: 2, rows: 2 }) },
+              { label: 'A merged cell back into its cells', run: () => tableOp('splitCell') },
+            ])} />
             <Button tall icon="splitCells" label="Split Table" title="Split Table — the caret's row starts a table of its own, an empty paragraph between" onClick={() => tableOp('splitTable')} />
           </Group>
           <Group label="Cell Size">

@@ -468,6 +468,64 @@ export async function verifyWordTableTools(h, { dir }) {
     check('word: the table-properties checks ran', false, err.message);
   }
 
+  // Table Layout → Draw Table: a line drawn down a cell splits it there; the
+  // Eraser's click on the line between two cells joins them.
+  const drawn = path.join(dir, 'table-draw.docx');
+  try {
+    fs.writeFileSync(drawn, buildDocx({ styles: true, paragraphs: [{ text: 'Before' }, { table: { rows: [['Region', 'Q1'], ['North', '120']] } }, { text: 'After' }] }));
+    const win = await open('word', drawn);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const model = () => h.doc.model({ id: h.sessionFor('doc').id });
+    await until(() => js(`document.querySelectorAll('.wd-page table.wd-table').length === 1`), 'the table to be drawn', 8000);
+    const at = model().blocks.findIndex((b) => b.text === 'North');
+    await js(`(() => { const a = document.querySelector('.wd-page [data-block="${at}"]'); a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); const r = document.createRange(); r.setStart(a.firstChild || a, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return true; })()`);
+    await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Table Layout')`), 'Table Layout', 3000);
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Table Layout').click(), 'tab'`);
+    const press = async (label) => {
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}))`), label, 3000);
+      return js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)}); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+    };
+    const cellCount = () => js(`document.querySelectorAll('.wd-page table.wd-table td').length`);
+    const before = await cellCount();
+    await press('Draw Table');
+    await until(() => js(`document.querySelector('.wd-page').classList.contains('wd-table-pen')`), 'the pen picked up', 3000);
+    // A line down the North cell, a third of the way across it.
+    await js(`(() => {
+      const td = [...document.querySelectorAll('.wd-page table.wd-table td')].find((d) => d.innerText.trim() === 'North');
+      const r = td.getBoundingClientRect();
+      const x = r.left + r.width / 3;
+      td.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: x, clientY: r.top + 2 }));
+      window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, clientX: x, clientY: r.bottom - 2 }));
+      return 'drawn';
+    })()`);
+    await until(async () => (await cellCount()) === before + 1, 'the cell split', 5000).catch(() => {});
+    const split = await cellCount();
+    const spans = (model().blocks.find((b) => b.text === 'Region') || {}).container;
+    check('word: Table Layout → Draw Table splits a cell where the pen draws down it', split === before + 1, `${before} → ${split} cells (${spans})`);
+    await press('Eraser');
+    await until(() => js(`document.querySelector('.wd-page').classList.contains('wd-table-eraser')`), 'the eraser picked up', 3000);
+    // A click on the North cell's right-hand line joins it to the new cell beside it.
+    await js(`(() => {
+      const td = [...document.querySelectorAll('.wd-page table.wd-table td')].find((d) => d.innerText.trim() === 'North');
+      const r = td.getBoundingClientRect();
+      const x = getComputedStyle(td).direction === 'rtl' ? r.left + 1 : r.right - 1;
+      td.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0, clientX: x, clientY: r.top + r.height / 2 }));
+      window.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, button: 0, clientX: x, clientY: r.top + r.height / 2 }));
+      return 'erased';
+    })()`);
+    await until(async () => (await cellCount()) === before, 'the cells joined', 5000).catch(() => {});
+    const joined = await cellCount();
+    check('word: Table Layout → Eraser joins the two cells either side of the line it rubs out', joined === before, `${split} → ${joined} cells`);
+    await js(`document.querySelector('.wd-page').dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 'escape'`);
+    await until(() => js(`!document.querySelector('.wd-page').classList.contains('wd-table-eraser')`), 'the eraser put down', 3000).catch(() => {});
+    const down = await js(`!document.querySelector('.wd-page').className.includes('wd-table-')`);
+    check('word: Escape puts the pen or the eraser down', down, down ? 'put down' : 'still held');
+    const complaints = await errorsIn(win);
+    check('word: drawing and rubbing out a table\'s lines reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the Draw Table checks ran', false, err.message);
+  }
+
   // A header row repeated: a table too long for its page, its top row made
   // the header, draws that row again at the head of the next page's piece.
   const long = path.join(dir, 'header-rows.docx');
