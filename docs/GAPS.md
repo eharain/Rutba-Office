@@ -2,7 +2,7 @@
 
 Written 2026-09-09, from the code rather than from memory. Three sources: the
 suite's own register of unbuilt controls (257 of them then, 36 in
-1.29.5, 28 in 1.29.8 — 5 in Documents, 8 in Worksheets, 15 in Presentations — each a
+1.29.5, 28 in 1.29.8, 24 in 1.29.9 — 4 in Documents, 8 in Worksheets, 12 in Presentations — each a
 `<Soon>` in a ribbon with a sentence saying what it needs), a reading of what the engines
 write as against what they read, and the things a person expects that are not
 in either list because nothing in the interface offers them at all.
@@ -116,8 +116,9 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   from a workbook, a .csv, Contacts or a typed list; Word's merge fields,
   Address Block, Greeting Line and rules; preview; a merge to a new
   document, to the printer or to e-mail through Mail; envelopes and Avery
-  label sheets. The Fill-in rule is built; Ask and Set Bookmark, and the
-  recipient list's ticks kept in the file, are not.
+  label sheets. The Ask, Fill-in and Set Bookmark rules arrived in 1.29.9,
+  their questions answered before the merge runs; the recipient list's
+  ticks kept in the file are not.
 - **Recording tracked changes.** Recorded since 2026-09-25: Review → Track
   Changes writes `w:trackRevisions`, typing and deleting are kept as
   `w:ins`/`w:del` with author and date, four markup views, Accept and Reject
@@ -264,7 +265,11 @@ document and workbook writers.
   removed from a right-click; Insert → Chart puts a cached chart part on
   the slide, no embedded workbook, its data edited from a dialog. Video,
   audio, SmartArt and hyperlinks are insertable too, video and audio from a
-  file or recorded. 3D models and a live camera (Cameo) are not.
+  file or recorded. 3D models arrived in 1.29.9, in Documents too: a glTF
+  file drawn as a picture by the suite's own renderer, the model kept beside
+  it and turned from the 3D Model tab; PowerPoint's own 3D model element is
+  not written, so PowerPoint shows the picture and cannot turn it. Cameo
+  arrived the same release: the camera, live, in a shape on the slide.
 - **Design Ideas** arrived in 1.29.8, worked out on this computer rather
   than asked of a service: a pane of layouts the slide's own title, words
   and pictures suit, each drawn by the deck's renderer, one applied in a
@@ -296,8 +301,9 @@ document and workbook writers.
 - **The show**: transitions and animations are written and played since
   2026-09-25 (eleven transitions; entrance, emphasis and exit effects with
   the Animation Pane). Recorded narration and timings, triggers and
-  export to video arrived 2026-10-06 and 2026-10-07; motion paths and
-  effects by paragraph are still to come.
+  export to video arrived 2026-10-06 and 2026-10-07; motion paths (written
+  as PowerPoint writes a path drawn by hand) and effects by paragraph in
+  1.29.9.
 - **Review**: comments on a slide arrived 2026-09-25, written as
   PowerPoint 365's modern comments; tracked changes on a deck are not. Find and replace across
   a deck arrived 2026-09-24: Home → Find (Ctrl+F) and Replace (Ctrl+H) open
