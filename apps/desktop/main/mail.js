@@ -781,14 +781,14 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     /** Mark a whole folder read — the button every list needs and few have. */
     markAllRead: ({ accountId, folder }) => {
       const { rows } = store.list(accountId, folder, { limit: 100000, unreadOnly: true });
-      for (const row of rows) store.setFlags(accountId, folder, row.id, { unread: false });
+      store.setFlagsMany(accountId, folder, rows.map((row) => row.id), { unread: false });
       return { changed: rows.length };
     },
 
     /** Empty a folder. Only ever offered for Trash and Junk. */
     emptyFolder: ({ accountId, folder }) => {
       const { rows } = store.list(accountId, folder, { limit: 100000 });
-      for (const row of rows) store.remove(accountId, folder, row.id);
+      store.removeMany(accountId, folder, rows.map((row) => row.id));
       return { removed: rows.length };
     },
 
@@ -893,7 +893,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     },
 
     flag: ({ accountId, folder, ids, patch }) => {
-      for (const id of ids || []) store.setFlags(accountId, folder, id, patch);
+      store.setFlagsMany(accountId, folder, ids || [], patch);
       return store.counts(accountId, folder);
     },
 
@@ -1015,7 +1015,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
     },
 
     delete: ({ accountId, folder, ids }) => {
-      for (const id of ids || []) store.remove(accountId, folder, id);
+      store.removeMany(accountId, folder, ids || []);
       return { deleted: (ids || []).length };
     },
 

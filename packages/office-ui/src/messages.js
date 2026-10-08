@@ -22,10 +22,18 @@ let current = 'en';
 let table = null;
 const asked = new Set();
 
+/**
+ * A language tag as BCP 47 writes it, lower-cased. A system locale such as
+ * pt_BR carries an underscore, which Intl refuses with a RangeError, so the
+ * first counted message would have thrown in a window set to it.
+ */
+const tagOf = (locale) => String(locale).toLowerCase().replace(/_/g, '-');
+
 /** Register a language's catalogue: { 'English message': 'translation' | { one, other, … } }. */
 export function registerCatalogue(locale, messages) {
-  catalogues.set(String(locale).toLowerCase(), messages || {});
-  if (String(locale).toLowerCase() === current) table = messages || {};
+  const tag = tagOf(locale);
+  catalogues.set(tag, messages || {});
+  if (tag === current) table = messages || {};
 }
 
 /**
@@ -34,7 +42,7 @@ export function registerCatalogue(locale, messages) {
  * the language chosen.
  */
 export function setLanguage(locale) {
-  const tag = String(locale || 'en').toLowerCase();
+  const tag = tagOf(locale || 'en');
   const base = tag.split('-')[0];
   current = catalogues.has(tag) ? tag : catalogues.has(base) ? base : 'en';
   table = current === 'en' ? null : catalogues.get(current);

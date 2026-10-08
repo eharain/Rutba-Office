@@ -96,7 +96,10 @@ export class ZipEntry {
     if (this.method === 0) {
       return { method: 0, payload: this._raw, crc: this.crc, uncompressedSize: this._raw.length };
     }
-    const deflated = zlib.deflateRawSync(this._raw, { level: 9 });
+    // Level 6, zlib's default: level 9 took 7.8 s for a 34 MB sheet part where
+    // 6 takes 0.8 s, for a file about 8% larger. Saving runs on the main
+    // thread, so the slower level froze every window for the difference.
+    const deflated = zlib.deflateRawSync(this._raw, { level: 6 });
     return { method: 8, payload: deflated, crc: this.crc, uncompressedSize: this._raw.length };
   }
 }

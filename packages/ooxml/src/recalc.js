@@ -238,7 +238,9 @@ export function recalculateWorkbook(buf, { now } = {}) {
 export function writeCachedValue(wb, sheetName, ref, formula, value, { arrayRef = null } = {}) {
   const { part } = wb._sheetPart(sheetName);
   const { row, col } = parseRef(ref);
-  const rowRec = part.rows.find((r) => r.index === row);
+  // Looked up through the part's row index: a scan here made write-back
+  // quadratic, 20 s for a 100,000-row sheet.
+  const rowRec = part._rowAt(row);
   if (!rowRec) return false;
 
   const cellRe = new RegExp('<c\\b[^>]*?\\br="' + ref + '"[^>]*?(?:\\/>|>[\\s\\S]*?<\\/c>)');

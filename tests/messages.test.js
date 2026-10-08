@@ -78,3 +78,16 @@ test('the list of messages is current, every catalogue keys only messages on it,
     }
   }
 });
+
+test('a system locale written with an underscore is the same language as its hyphenated tag', () => {
+  // Linux hands out pt_BR; Intl.PluralRules and toLocaleString refuse that
+  // spelling, so a counted message in such a window used to throw.
+  registerCatalogue('pt_BR', { '{count} word': { one: '{count} palavra', other: '{count} palavras' } });
+  try {
+    assert.equal(setLanguage('pt_BR'), 'pt-br');
+    assert.equal(tn(1, '{count} word', '{count} words'), '1 palavra');
+    assert.equal(tn(3, '{count} word', '{count} words'), '3 palavras');
+  } finally {
+    setLanguage('en');
+  }
+});
