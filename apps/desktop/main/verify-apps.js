@@ -61,6 +61,7 @@ import { verifyIcons } from './verify-icons.js';
 import { verifyWordImmersive } from './verify-word-immersive.js';
 import { verifyWordTheme } from './verify-word-theme.js';
 import { verifyDeckTrigger } from './verify-deck-trigger.js';
+import { verifyDeckChanges } from './verify-deck-changes.js';
 import { verifyDeckMotion } from './verify-deck-motion.js';
 import { verifyDeckModel3d } from './verify-deck-model3d.js';
 import { verifyWordModel3d } from './verify-word-model3d.js';
@@ -4676,6 +4677,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('immersive')) await verifyWordImmersive({ open, check, until, wait }, { dir });
     if (only.includes('doctheme')) await verifyWordTheme({ open, check, until, wait, doc }, { dir });
     if (only.includes('trigger')) await verifyDeckTrigger({ open, check, until, wait, doc }, { dir });
+    if (only.includes('deckchanges')) await verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('motion')) await verifyDeckMotion({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('model3d')) await verifyDeckModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('wordmodel3d')) await verifyWordModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
@@ -4923,6 +4925,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyWordImmersive({ open, check, until, wait }, { dir }));
   await block(() => verifyWordTheme({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyDeckTrigger({ open, check, until, wait, doc }, { dir }));
+  await block(() => verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckMotion({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));

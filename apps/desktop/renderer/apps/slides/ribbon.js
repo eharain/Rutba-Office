@@ -934,7 +934,7 @@ export default function SlidesRibbon({
           </Group>
           <Group label="Activity">
             <Soon icon="check" label="Mark All as Read" why="A deck keeps its comments and whether each is resolved, but not who has read them, so there is nothing in the file to mark." />
-            <Soon icon="eye" label="Show Changes" why="Change tracking on a deck is not built." />
+            <Button icon="eye" label="Show Changes" className="sl-show-changes" pressed={view.pane === 'changes'} title={view.changes ? `Show Changes — ${view.changes} slide${view.changes === 1 ? '' : 's'} different since this deck was last open here` : 'Show Changes — what is different about this deck since it was last open on this computer'} onClick={() => act('pane', 'changes')} />
           </Group>
           <Group label="Comments">
             <Button tall icon="reply" label="New Comment" title="New Comment — on the selected shape, or on this slide; it is signed with your name" onClick={() => act('newComment')} />

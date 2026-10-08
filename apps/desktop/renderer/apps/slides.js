@@ -51,6 +51,8 @@ import { IconsDialog, iconPng } from '../icons-insert.js';
 import { PointsOverlay, POINTS_CSS } from './slides/points.js';
 import { presetCommands, parsePath, fit as fitPath } from '@rutba/presentation/points';
 import { CameoLayer, CAMEO_CSS } from './slides/cameo.js';
+import { ChangesPane, CHANGES_CSS } from './slides/changes.js';
+import { compareFingerprints } from '@rutba/presentation/changes';
 import { loadModelFile, modelDrawer, pngOf, urlOf, MODEL_PICTURE, DEFAULT_MODEL_VIEW } from '../model3d.js';
 
 // The splits Move Split moves, marked while it is on — in shadows, so
@@ -197,6 +199,8 @@ export default function Slides({ app, shell, boot }) {
   const showControl = useRef(null);
   /** The Animations tab's current effect (its index in the slide's list), when one was picked from the pane or a badge. */
   const [animSel, setAnimSel] = useState(null);
+  // Review → Show Changes: what is different since the deck was last open here (`{ first }` the first time).
+  const [deckChanges, setDeckChanges] = useState(null);
   // Insert → 3D Models: each model read and its pictures decoded once (by its slide and shape), and the turn under way by the handle.
   const drawersRef = useRef(new Map());
   const [turn, setTurn] = useState(null);
@@ -648,6 +652,8 @@ export default function Slides({ app, shell, boot }) {
         setDoc(opened);
         setModel(opened.model);
         if (opened.path) shell.app.addRecent({ path: opened.path, app: 'slides' }).catch(() => {});
+        // Review → Show Changes: compared with how this computer last saw the file.
+        if (opened.path) noteSeen(opened, opened.path, { compare: true }).catch(() => {});
         // What saving will actually do, which is not one answer: a .md
         // opened here saves as .md, and an .rtf cannot be saved at all
         // until it is given a new name. Both used to be promised a .pptx.
@@ -710,6 +716,32 @@ export default function Slides({ app, shell, boot }) {
     return () => off?.();
   }, [shell]);
 
+  /**
+   * Review → Show Changes: the deck's fingerprint kept on this computer, by
+   * its path — on opening, compared with the one kept last time first.
+   */
+  const noteSeen = useCallback(async (session, path, { compare = false } = {}) => {
+    if (!session?.id || !path) return;
+    const next = await shell.doc.apply({ id: session.id, ops: [{ op: 'deckFingerprint' }], slide: 0, width: 1280 });
+    const fp = JSON.parse(next.opResult || 'null');
+    if (!fp) return;
+    const all = (await shell.store.get({ key: 'slides.seen', fallback: {} }).catch(() => ({}))) || {};
+    const key = String(path).toLowerCase();
+    if (compare) {
+      const before = all[key]?.fp || null;
+      if (!before) setDeckChanges({ first: true });
+      else {
+        const list = compareFingerprints(before, fp);
+        setDeckChanges({ list, savedBy: fp.savedBy, saved: fp.saved });
+        if (list.length) toast(`${list.length} slide${list.length === 1 ? ' is' : 's are'} different since this deck was last open here${fp.savedBy ? ` (last saved by ${fp.savedBy})` : ''} — Review → Show Changes lists them.`, { ms: 7000 });
+      }
+    }
+    // The hundred decks seen most lately are remembered.
+    all[key] = { fp, at: Date.now() };
+    const kept = Object.entries(all).sort((a, b) => (b[1]?.at || 0) - (a[1]?.at || 0)).slice(0, 100);
+    await shell.store.set({ key: 'slides.seen', value: Object.fromEntries(kept) }).catch(() => {});
+  }, [shell, toast]);
+
   const save = useCallback(
     async (as = false) => {
       if (!doc) return false;
@@ -723,6 +755,8 @@ export default function Slides({ app, shell, boot }) {
         const saved = await shell.doc.save({ id: doc.id, path: target });
         setDoc((d) => ({ ...d, ...saved, dirty: false }));
         shell.app.addRecent({ path: saved.path, app: 'slides' }).catch(() => {});
+        // What was saved is what this computer has now seen.
+        noteSeen(doc, saved.path).catch(() => {});
         toast(`Saved ${saved.path.split(/[\\/]/).pop()}`, { tone: 'good' });
         return true;
       } catch (err) {
@@ -730,7 +764,7 @@ export default function Slides({ app, shell, boot }) {
         return false;
       }
     },
-    [doc, shell, toast]
+    [doc, shell, toast, noteSeen]
   );
 
   // Closing a window with unsaved work must ask, not discard.
@@ -2427,7 +2461,7 @@ export default function Slides({ app, shell, boot }) {
           openFile={openFile}
           exportAs={exportAs}
           act={act}
-          view={view}
+          view={deckChanges?.list?.length ? { ...view, changes: deckChanges.list.length } : view}
           index={index}
           selected={selected}
           selectedIds={selectedIds}
@@ -2517,6 +2551,8 @@ export default function Slides({ app, shell, boot }) {
                     <span className="sl-thumb-n">
                       {i + 1}
                       {/* PowerPoint's little star under the number: this slide has a transition. */}
+                      {/* Review → Show Changes: this slide is different since the deck was last open here. */}
+                      {deckChanges?.list?.some((c) => c.index === i) ? <><style>{CHANGES_CSS}</style><span className="sl-thumb-chg" data-changed="1" title="Different since this deck was last open here" /></> : null}
                       {commentCount.get(i) ? <span className="sl-thumb-cm" data-comments={commentCount.get(i)} title={`${commentCount.get(i)} comment${commentCount.get(i) === 1 ? '' : 's'}`}><Icon name="reply" size={10} /></span> : null}
                       {o.transition || o.animated ? <span className="sl-thumb-fx" data-fx={[o.transition ? 'transition' : null, o.animated ? 'animations' : null].filter(Boolean).join(' ')} title={[o.transition ? `Transition: ${describeTransition({ type: o.transition })}` : null, o.animated ? 'Has animations' : null].filter(Boolean).join(' · ')}><Icon name="star" size={10} /></span> : null}
                     </span>
@@ -3004,7 +3040,7 @@ export default function Slides({ app, shell, boot }) {
               right
               width={252}
               resizable
-              title={view.pane === 'layers' ? 'Layers' : view.pane === 'designs' ? 'Designs' : view.pane === 'ideas' ? 'Design Ideas' : view.pane === 'animations' ? 'Animation Pane' : view.pane === 'comments' ? 'Comments' : 'Format'}
+              title={view.pane === 'layers' ? 'Layers' : view.pane === 'designs' ? 'Designs' : view.pane === 'ideas' ? 'Design Ideas' : view.pane === 'animations' ? 'Animation Pane' : view.pane === 'comments' ? 'Comments' : view.pane === 'changes' ? 'Changes' : 'Format'}
               actions={<Button icon="close" title="Close the pane" onClick={() => act('pane', view.pane)} />}
             >
               {view.pane === 'comments' ? (
@@ -3029,6 +3065,11 @@ export default function Slides({ app, shell, boot }) {
                 <AnimationPane slide={slide} current={currentAnim} act={act} playing={preview?.kind === 'animation'} />
               ) : view.pane === 'designs' ? (
                 <DesignsPane layouts={model.layouts} current={slide?.layout || null} size={model.size} act={act} />
+              ) : view.pane === 'changes' ? (
+                <>
+                  <style>{CHANGES_CSS}</style>
+                  <ChangesPane changes={deckChanges} onGo={(i) => setIndex(i)} onDismiss={() => setDeckChanges((c) => ({ ...c, list: [] }))} />
+                </>
               ) : view.pane === 'ideas' ? (
                 <IdeasPane shell={shell} doc={doc} index={index} act={act} />
               ) : (

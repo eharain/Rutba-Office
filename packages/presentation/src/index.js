@@ -7,5 +7,6 @@ export { photoAlbum, albumBoxes } from './album.js';
 export * as units from './units.js';
 export { TRANSITIONS, readTransition, transitionXml } from './motion.js';
 export { EFFECTS, EFFECT_DIRECTIONS, readAnimations, effectXml, MOTION_PATHS, motionPath, shapeParagraphs } from './timing.js';
+export { deckFingerprint, compareFingerprints } from './changes.js';
 export { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS, COLOUR_SLOTS, COLOUR_SLOT_NAMES, themePartXml, variantsOf } from './themes.js';
 export { ommlForSlide, equationShapeXml } from './equations.js';

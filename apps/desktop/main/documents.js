@@ -33,6 +33,7 @@ import { compareDocx } from '@rutba/ooxml/compare';
 import { parseRef, Workbook } from '@rutba/ooxml/workbook';
 import { Deck, buildPptx, photoAlbum, renderSlide, renderThumbnail, previewIdea, TEMPLATES as DECK_TEMPLATES, THEMES as DECK_THEMES, PALETTES as DECK_PALETTES, FONT_PAIRS as DECK_FONT_PAIRS, EFFECT_PRESETS as DECK_EFFECTS } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';
+import { deckFingerprint } from '@rutba/presentation/changes';
 import { unicodeFont } from './system-fonts.js';
 import { linearToOmml } from '@rutba/ooxml/math-linear';
 import { ommlToMathml } from '@rutba/ooxml/math';
@@ -2240,6 +2241,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // and every effect on a shape taken out — the gallery's None.
     addAnimation: (d, a) => d.addAnimation(a.slide, a.shape, a.spec || {}, a.at ?? null),
     setAnimation: (d, a) => d.setAnimation(a.slide, a.index, a.patch || {}),
+    // Review → Show Changes: the deck's fingerprint, kept on this computer to compare with next time.
+    deckFingerprint: (d) => JSON.stringify(deckFingerprint(d)),
     // Effect Options → Sequence: as one object, all at once, or by paragraph.
     setAnimationSequence: (d, a) => d.setAnimationSequence(a.slide, a.index, a.how),
     removeAnimation: (d, a) => d.removeAnimation(a.slide, a.index),
@@ -2422,7 +2425,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'model3dSource', 'previewQuery', 'querySourceHere', 'queryInfo']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'model3dSource', 'deckFingerprint', 'previewQuery', 'querySourceHere', 'queryInfo']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 
