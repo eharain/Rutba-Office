@@ -3310,6 +3310,10 @@ export class SheetView {
       return this.fill(s);
     }
     if (single && until === null) throw new Error('Select the cells to fill, or give a stop value');
+    // A step that never moves never reaches the stop: it filled ten thousand
+    // cells with the first one's value.
+    const still = (type === 'linear' || type === 'date') ? by === 0 : type === 'growth' ? by === 1 || by === 0 : false;
+    if (single && still) throw new Error('That step never reaches the stop value: give another step, or select the cells to fill');
     const sheet = this.activeSheet;
     const lanes = down ? Array.from({ length: s.right - s.left + 1 }, (_, i) => s.left + i) : Array.from({ length: s.bottom - s.top + 1 }, (_, i) => s.top + i);
     const room = single ? 10000 : (down ? s.bottom - s.top : s.right - s.left);
@@ -3348,7 +3352,11 @@ export class SheetView {
         if (!Number.isFinite(value)) break;
         if (rising === null) rising = value >= start;
         if (until !== null && (rising ? value > until : value < until)) break;
-        writes.push({ row: down ? r0 + k : r0, col: down ? c0 : c0 + k, input: value, styleIndex });
+        const at = { row: down ? r0 + k : r0, col: down ? c0 : c0 + k };
+        // A cell a merge hides is passed over, as Excel does: only the merge's own cell is written.
+        const merge = this.mergeAt(at.row, at.col);
+        if (merge && (merge.top !== at.row || merge.left !== at.col)) continue;
+        writes.push({ ...at, input: value, styleIndex });
         reach = Math.max(reach, k);
       }
     }

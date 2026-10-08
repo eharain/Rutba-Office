@@ -180,6 +180,17 @@ function findEocd(buf) {
 }
 
 /**
+ * A record a damaged archive points at, checked before it is read: one that
+ * runs past the end of the file is refused in a sentence rather than read
+ * into a RangeError from deep in Buffer.
+ */
+function within(buf, at, length, what) {
+  if (!Number.isSafeInteger(at) || !Number.isSafeInteger(length) || at < 0 || length < 0 || at + length > buf.length) {
+    throw new Error(`not a complete zip archive: ${what} points past the end of the file`);
+  }
+}
+
+/**
  * @param {Buffer} buf
  * @returns {{entries: ZipEntry[], comment: Buffer}}
  */
@@ -194,7 +205,9 @@ export function readZip(buf) {
   if (count === 0xffff || cdOffset === 0xffffffff) {
     for (let i = eocd - 20; i >= 0; i--) {
       if (buf.readUInt32LE(i) === EOCD64_LOCATOR_SIG) {
+        within(buf, i, 20, 'the zip64 locator');
         const z64 = Number(buf.readBigUInt64LE(i + 8));
+        within(buf, z64, 56, 'the zip64 directory');
         if (buf.readUInt32LE(z64) !== EOCD64_SIG) throw new Error('malformed zip64 end-of-central-directory');
         count = Number(buf.readBigUInt64LE(z64 + 32));
         cdOffset = Number(buf.readBigUInt64LE(z64 + 48));
@@ -206,6 +219,7 @@ export function readZip(buf) {
   const entries = [];
   let p = cdOffset;
   for (let i = 0; i < count; i++) {
+    within(buf, p, 46, `the directory's entry ${i + 1}`);
     if (buf.readUInt32LE(p) !== CENTRAL_SIG) throw new Error('malformed central directory at entry ' + i);
     const flags = buf.readUInt16LE(p + 8);
     const method = buf.readUInt16LE(p + 10);
@@ -219,6 +233,7 @@ export function readZip(buf) {
     const commentLength = buf.readUInt16LE(p + 32);
     const externalAttrs = buf.readUInt32LE(p + 38);
     let localOffset = buf.readUInt32LE(p + 42);
+    within(buf, p + 46, nameLen + extraLen + commentLength, `the directory's entry ${i + 1}`);
     const name = buf.toString('utf8', p + 46, p + 46 + nameLen);
     const extra = buf.subarray(p + 46 + nameLen, p + 46 + nameLen + extraLen);
 
@@ -230,6 +245,7 @@ export function readZip(buf) {
         const size = extra.readUInt16LE(e + 2);
         if (headerId === 0x0001) {
           let o = e + 4;
+          within(extra, o, ((uncompressedSize === 0xffffffff) + (compressedSize === 0xffffffff) + (localOffset === 0xffffffff)) * 8, `the zip64 sizes of ${name}`);
           if (uncompressedSize === 0xffffffff) { uncompressedSize = Number(extra.readBigUInt64LE(o)); o += 8; }
           if (compressedSize === 0xffffffff) { compressedSize = Number(extra.readBigUInt64LE(o)); o += 8; }
           if (localOffset === 0xffffffff) { localOffset = Number(extra.readBigUInt64LE(o)); o += 8; }
@@ -240,10 +256,12 @@ export function readZip(buf) {
     }
 
     // The local header's name/extra lengths can differ from the central ones.
+    within(buf, localOffset, 30, `the entry ${name}`);
     if (buf.readUInt32LE(localOffset) !== LOCAL_SIG) throw new Error('malformed local header for ' + name);
     const lNameLen = buf.readUInt16LE(localOffset + 26);
     const lExtraLen = buf.readUInt16LE(localOffset + 28);
     const dataStart = localOffset + 30 + lNameLen + lExtraLen;
+    within(buf, dataStart, compressedSize, `the entry ${name}`);
 
     entries.push(new ZipEntry({
       name, method, crc, compressedSize, uncompressedSize, flags, dosTime, dosDate, externalAttrs,

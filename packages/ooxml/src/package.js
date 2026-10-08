@@ -34,8 +34,17 @@ export class OoxmlError extends Error {
   }
 }
 
+/**
+ * Text as XML holds it. The characters XML 1.0 has no place for — the
+ * control characters other than tab, line feed and return, and U+FFFE and
+ * U+FFFF — are left out: a cell or a paragraph holding one (pasted from a
+ * terminal, say) was written as it was, and Excel and Word then called the
+ * whole file damaged.
+ */
 const esc = (s) =>
-  String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  String(s)
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /**
  * Normalise browser-shaped input (Uint8Array, ArrayBuffer) to a Buffer view,

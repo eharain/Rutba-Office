@@ -205,7 +205,10 @@ export function applyStep(t, step, ctx = {}) {
       const parts = t.rows.map((r) => asText(r[i]).split(d).map((p) => p.trim()));
       const width = Math.max(1, ...parts.map((p) => p.length));
       const names = uniqueNames([...t.columns.slice(0, i), ...Array.from({ length: width }, (_, k) => `${t.columns[i]}.${k + 1}`), ...t.columns.slice(i + 1)]);
-      return { columns: names, rows: t.rows.map((r, n) => [...r.slice(0, i), ...Array.from({ length: width }, (_, k) => (parts[n][k] === undefined || parts[n][k] === '' ? null : asNumber(parts[n][k]) ?? parts[n][k])), ...r.slice(i + 1)]) };
+      // A part that is a number becomes one, but not one whose leading zeros
+      // would go: "A-007" splits into A and 007, a code, not 7.
+      const part = (p) => (p === undefined || p === '' ? null : /^[-+]?0\d/.test(p) ? p : asNumber(p) ?? p);
+      return { columns: names, rows: t.rows.map((r, n) => [...r.slice(0, i), ...Array.from({ length: width }, (_, k) => part(parts[n][k])), ...r.slice(i + 1)]) };
     }
     case 'groupBy': {
       const keys = (s.columns || [s.column]).filter(Boolean).map((c) => indexOf(t, c));
@@ -287,7 +290,11 @@ export function describeStep(s) {
   }
 }
 
-/** Rows of a CSV or TSV text, quotes and doubled quotes honoured, each value a number where it reads as one. */
+/**
+ * Rows of a CSV or TSV text, quotes and doubled quotes honoured, each value a
+ * number where it reads as one — but a quoted one only where nothing is lost:
+ * "1" is 1, and "007", a code the quotes were there to keep, stays 007.
+ */
 export function parseDelimited(text, delimiter = null) {
   const src = String(text || '').replace(/^﻿/, '');
   const first = src.split(/\r?\n/, 1)[0] || '';
@@ -296,22 +303,36 @@ export function parseDelimited(text, delimiter = null) {
   let row = [];
   let cell = '';
   let quoted = false;
+  let wasQuoted = false;
+  // A quoted cell is marked, for `value` below.
+  const end = () => { row.push(wasQuoted ? { text: cell } : cell); cell = ''; wasQuoted = false; };
   for (let i = 0; i < src.length; i++) {
     const ch = src[i];
     if (quoted) {
       if (ch === '"' && src[i + 1] === '"') { cell += '"'; i += 1; } else if (ch === '"') quoted = false; else cell += ch;
       continue;
     }
-    if (ch === '"' && cell === '') { quoted = true; continue; }
-    if (ch === d) { row.push(cell); cell = ''; continue; }
+    if (ch === '"' && cell === '') { quoted = true; wasQuoted = true; continue; }
+    if (ch === d) { end(); continue; }
     if (ch === '\n' || ch === '\r') {
       if (ch === '\r' && src[i + 1] === '\n') i += 1;
-      row.push(cell); rows.push(row); row = []; cell = '';
+      end(); rows.push(row); row = [];
       continue;
     }
     cell += ch;
   }
-  if (cell !== '' || row.length) { row.push(cell); rows.push(row); }
-  const value = (v) => { const t = v.trim(); if (t === '') return null; const n = Number(t); return /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(t) && Number.isFinite(n) ? n : v; };
+  if (cell !== '' || row.length || wasQuoted) { end(); rows.push(row); }
+  const value = (v) => {
+    // Quoted, it is a number only if nothing is lost: "1" is 1, "007" stays 007.
+    if (typeof v === 'object') {
+      if (v.text.trim() === '') return null;
+      if (/^[-+]?0\d/.test(v.text.trim())) return v.text;
+      v = v.text;
+    }
+    const t = v.trim();
+    if (t === '') return null;
+    const n = Number(t);
+    return /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(t) && Number.isFinite(n) ? n : v;
+  };
   return rows.map((r) => r.map(value));
 }

@@ -1129,7 +1129,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     try {
       bytes = yield { read: filePath };
     } catch (err) {
-      throw new Error(plainFsError(err, filePath) || plainRefusal(err, filePath));
+      throw new Error(plainFsError(err, filePath) || plainRefusal(err, filePath), { cause: err });
     }
     // A password-protected file: the window asks for the password and
     // opens it again with it. No session exists until it has opened.
@@ -1141,7 +1141,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     try {
       loaded = load(bytes, filePath);
     } catch (err) {
-      throw new Error(plainRefusal(err, filePath));
+      throw new Error(plainRefusal(err, filePath), { cause: err });
     }
 
     // The window says which kind it edits, and a file that turns out to be
@@ -1162,7 +1162,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     try {
       engine = yield { build: [loaded.kind, loaded.bytes] };
     } catch (err) {
-      throw new Error(plainRefusal(err, filePath));
+      throw new Error(plainRefusal(err, filePath), { cause: err });
     }
 
     // Whether Ctrl+S will write this file back in the format it came in.

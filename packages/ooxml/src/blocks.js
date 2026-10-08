@@ -11,7 +11,10 @@
 //
 // Pure: XML in, XML out.
 
-const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+// Text as XML holds it, leaving out what XML 1.0 has no place for, as the
+// package's own escaper does (this file is drawn in the window too, so it
+// keeps its own rather than import the package's Node side).
+const esc = (s) => String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
 /**
  * A paragraph as a building block keeps it. Tracked changes are taken as

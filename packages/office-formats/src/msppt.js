@@ -438,7 +438,11 @@ function keptOf(doc, sp) {
   return blob && blob[0] === 0x50 && blob[1] === 0x4b ? blob.slice() : null;
 }
 
-function walkGroup(doc, group, transform, ctx, shapes, top, items = null) {
+/** Groups inside groups deeper than any slide has: a file nesting past this is refused its inner shapes rather than the stack. */
+const GROUP_DEPTH = 64;
+
+function walkGroup(doc, group, transform, ctx, shapes, top, items = null, depth = 0) {
+  if (depth > GROUP_DEPTH) return;
   const kids = children(doc, group);
   if (!kids.length) return;
   // The group's own shape comes first: its box on the page and the coordinates its children use.
@@ -462,7 +466,7 @@ function walkGroup(doc, group, transform, ctx, shapes, top, items = null) {
   }
   for (const k of kids.slice(1)) {
     const before = shapes.length;
-    if (k.type === T.SpgrContainer) walkGroup(doc, k, inner, ctx, shapes, false);
+    if (k.type === T.SpgrContainer) walkGroup(doc, k, inner, ctx, shapes, false, null, depth + 1);
     else if (k.type === T.SpContainer) {
       const shape = readShape(doc, k, inner, ctx);
       if (shape) shapes.push(shape);

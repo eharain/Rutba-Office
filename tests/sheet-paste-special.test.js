@@ -167,3 +167,16 @@ test('Home → Fill → Series: linear, growth and dates by weekday and month do
   stop.select(0, 0);
   assert.throws(() => stop.fillSeries({}), /give a stop value/);
 });
+
+test('Fill Series refuses a step that never reaches its stop, and passes over the cells a merge hides', () => {
+  const still = open([[10]]);
+  still.select(0, 0);
+  assert.throws(() => still.fillSeries({ step: 0, stop: 50 }), /never reaches the stop/);
+  assert.equal(input(still, 1, 0), '', 'nothing written');
+  const merged = open([[1], [], [], [], []]);
+  pick(merged, 2, 0, 3, 0);
+  merged.mergeSelection();
+  pick(merged, 0, 0, 4, 0);
+  merged.fillSeries({ step: 1 });
+  assert.deepEqual([1, 2, 3, 4].map((r) => input(merged, r, 0)), ['2', '3', '', '5'], 'the hidden cell of the merge is left alone');
+});
