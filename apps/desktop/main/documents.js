@@ -1498,6 +1498,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   function deckThumbnailer(session) {
     const deck = session.engine;
     const blobs = session.blobs || (session.blobs = new Map());
+    const pictures = session.pictureBlobs || (session.pictureBlobs = new Map());
 
     // A picture's own source, or — for a shape filled *with* a picture
     // rather than drawn *as* one — its fill's, so the same resolver draws
@@ -1505,13 +1506,14 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     const resolveImage = (shape) => {
       const source = shape.source?.part ? shape.source : shape.fill?.type === 'picture' ? shape.fill.source : null;
       if (!source?.part) return null;
-      const known = blobs.get(source.part);
-      if (known) return known;
+      // Held again when the part's bytes are new: a 3D model turned rewrites its picture in place.
       const bytes = deck.media(source.part);
       if (!bytes) return null;
+      const known = pictures.get(source.part);
+      if (known && known.bytes === bytes) return known.url;
       const type = source.part.endsWith('.png') ? 'image/png' : source.part.endsWith('.gif') ? 'image/gif' : source.part.endsWith('.bmp') ? 'image/bmp' : 'image/jpeg';
       const url = holdBlob(bytes, type, path.basename(source.part)).url;
-      blobs.set(source.part, url);
+      pictures.set(source.part, { bytes, url });
       return url;
     };
     // Thumbnails, cached per slide against the slide part's own XML: a deck
@@ -1663,6 +1665,8 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
               action: s.action ?? null,
               // Insert → Video and Audio: what it plays, and where the bytes are.
               media: s.media ? { kind: s.media.kind, url: resolveMedia(s.media) } : null,
+              // Insert → 3D Models: the view the model is drawn at.
+              model3d: s.model3d ?? null,
               // Insert → Object: the embedded document's program and name, for a double-click to open it.
               object: s.object ? { progId: s.object.progId, name: s.object.name, part: s.object.source?.part || null } : null,
               // What a run that states nothing is drawn with — the master's,
@@ -2174,6 +2178,16 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     // middle of it. The engine does not decode pictures; this reads the size
     // out of the first bytes the way the photo viewer does.
     addPicture: (d, a) => d.addPicture(a.slide, picturePlacement(d, a)),
+    // Insert → 3D Models: the model and the picture the window drew of it, placed as a picture is.
+    addModel3d: (d, a) => {
+      const placed = picturePlacement(d, { ...a, data: a.png });
+      const model = Buffer.isBuffer(a.model) ? a.model : a.model instanceof Uint8Array ? Buffer.from(a.model) : Buffer.from(String(a.model ?? ''), 'base64');
+      return d.addModel3d(a.slide, { model, png: placed.data, view: a.view || {}, name: a.name || '3D Model', x: placed.x, y: placed.y, w: placed.w, h: placed.h }).id;
+    },
+    // The model's .glb, for the window to draw it again at another view.
+    model3dSource: (d, a) => { const src = d.model3dSource(a.slide, a.shape); return JSON.stringify({ data: Buffer.from(src.data).toString('base64'), view: src.view }); },
+    // 3D Model Views, a turn, Reset: the picture drawn again at the new view.
+    setModel3dView: (d, a) => d.setModel3dView(a.slide, a.shape, { png: a.png instanceof Uint8Array ? Buffer.from(a.png) : Buffer.from(String(a.png ?? ''), 'base64'), view: a.view || {} }),
     setTransitionSound: (d, a) => d.setTransitionSound(a.slide, a.sound == null ? null : { ...a.sound, data: a.sound.data ? (Buffer.isBuffer(a.sound.data) ? a.sound.data : Buffer.from(a.sound.data)) : undefined }),
     // Record: a slide's narration (its WAV and length), and taking narration or timings off.
     addNarration: (d, a) => d.addNarration(a.slide, { data: Buffer.from(a.data), contentType: a.contentType || 'audio/wav', durationMs: Number(a.durationMs) || 0, poster: { data: Buffer.from(a.poster), contentType: 'image/png' } }),
@@ -2397,7 +2411,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'previewQuery', 'querySourceHere', 'queryInfo']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'model3dSource', 'previewQuery', 'querySourceHere', 'queryInfo']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

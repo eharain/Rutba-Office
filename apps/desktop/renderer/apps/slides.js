@@ -50,6 +50,7 @@ import { ScreenshotDialog } from '../screenshot.js';
 import { IconsDialog, iconPng } from '../icons-insert.js';
 import { PointsOverlay, POINTS_CSS } from './slides/points.js';
 import { presetCommands, parsePath, fit as fitPath } from '@rutba/presentation/points';
+import { loadModelFile, modelDrawer, pngOf, urlOf, MODEL_PICTURE, DEFAULT_MODEL_VIEW } from '../model3d.js';
 
 // The splits Move Split moves, marked while it is on — in shadows, so
 // turning it on moves nothing by itself.
@@ -195,6 +196,9 @@ export default function Slides({ app, shell, boot }) {
   const showControl = useRef(null);
   /** The Animations tab's current effect (its index in the slide's list), when one was picked from the pane or a badge. */
   const [animSel, setAnimSel] = useState(null);
+  // Insert → 3D Models: each model read and its pictures decoded once (by its slide and shape), and the turn under way by the handle.
+  const drawersRef = useRef(new Map());
+  const [turn, setTurn] = useState(null);
   /** The Animation Painter, armed with a shape's effects to put on the next shape clicked. */
   const [animPainter, setAnimPainter] = useState(null);
   // Set when a presenter window is driving, so this one follows rather than leads.
@@ -551,6 +555,60 @@ export default function Slides({ app, shell, boot }) {
    * size out of the picture's own header and fits it to the slide; what comes
    * back is selected, so Arrange and Delete act on it at once.
    */
+
+  /** A 3D model's drawer: its .glb fetched from the document once, read and its pictures decoded. */
+  const drawerFor = useCallback(async (shape) => {
+    const key = `${index}:${shape.id}`;
+    if (drawersRef.current.has(key)) return drawersRef.current.get(key);
+    const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'model3dSource', slide: index, shape: shape.id }], slide: index, width: 1280 });
+    const src = JSON.parse(next.opResult || 'null');
+    if (!src?.data) throw new Error('That is not a 3D model');
+    const bin = atob(src.data);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    const drawer = await modelDrawer(bytes);
+    drawersRef.current.set(key, drawer);
+    return drawer;
+  }, [doc?.id, index, shell]);
+
+  /**
+   * The 3D model's turn handle: a drag across it turns the model about its
+   * upright, a drag up or down tips it, drawn small while the pointer moves
+   * and drawn properly where it is let go.
+   */
+  const startTurn = useCallback(async (e, shape) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const x0 = e.clientX;
+    const y0 = e.clientY;
+    const was = shape.model3d?.view || {};
+    let view = { yaw: was.yaw || 0, pitch: was.pitch || 0, roll: was.roll || 0 };
+    let drawer = null;
+    try { drawer = await drawerFor(shape); } catch (err) { toast(String(err?.message || err), { tone: 'warn' }); return; }
+    const g = shape.geometry;
+    const k = Math.min(1, 360 / Math.max(g.w, g.h));
+    let frame = 0;
+    const paint = () => {
+      frame = 0;
+      setTurn({ id: shape.id, view, url: urlOf(drawer.draw({ view, width: Math.max(1, Math.round(g.w * k)), height: Math.max(1, Math.round(g.h * k)), samples: 1 })) });
+    };
+    const move = (ev) => {
+      const yaw = (was.yaw || 0) + (ev.clientX - x0) * 0.5;
+      const pitch = Math.max(-90, Math.min(90, (was.pitch || 0) + (ev.clientY - y0) * 0.5));
+      view = { yaw: Math.round((((yaw % 360) + 540) % 360 - 180) * 10) / 10, pitch: Math.round(pitch * 10) / 10, roll: was.roll || 0 };
+      if (!frame) frame = requestAnimationFrame(paint);
+    };
+    const up = async () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      if (frame) cancelAnimationFrame(frame);
+      if (view.yaw !== (was.yaw || 0) || view.pitch !== (was.pitch || 0)) await actRef.current?.('model3dView', { shape: shape.id, view });
+      setTurn(null);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+    paint();
+  }, [drawerFor, toast]);
 
   const insertPicture = useCallback(async () => {
     const [file] = await shell.dialog.open({
@@ -2106,6 +2164,56 @@ export default function Slides({ app, shell, boot }) {
         }
         return;
       }
+      // Insert → 3D Models: a model from a file, drawn by the suite's own renderer, put on the slide as its picture.
+      case 'model3d': {
+        const [file] = await shell.dialog.open({ title: 'Insert 3D Model', filters: [{ name: '3D models (glTF)', extensions: ['glb', 'gltf'] }] });
+        if (!file) return;
+        try {
+          const glb = await loadModelFile(shell, file);
+          const drawer = await modelDrawer(glb);
+          const view = DEFAULT_MODEL_VIEW;
+          const size = drawer.size(view, MODEL_PICTURE);
+          const png = await pngOf(drawer.draw({ view, ...size }));
+          const W = model?.size?.width || 1280;
+          const H = model?.size?.height || 720;
+          const k = Math.min((W * 0.5) / size.width, (H * 0.6) / size.height);
+          const w = Math.round(size.width * k);
+          const h = Math.round(size.height * k);
+          const name = String(file).split(/[\\/]/).pop().replace(/\.[^.]+$/, '') || '3D Model';
+          const next = await apply({ op: 'addModel3d', slide: index, model: glb, png, view, name, w, h, x: Math.round((W - w) / 2), y: Math.round((H - h) / 2) });
+          if (typeof next?.opResult === 'number') {
+            // Picked by the id the slide gives it, which is a string where the engine answers a number.
+            const added = next.model?.slide?.shapes?.find((s) => String(s.id) === String(next.opResult));
+            drawersRef.current.set(`${index}:${added?.id ?? next.opResult}`, drawer);
+            setSelected(added?.id ?? next.opResult);
+            setTab('model3d');
+          }
+        } catch (err) {
+          toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
+        }
+        return;
+      }
+      // 3D Model Views, Turn and Reset: the picked model drawn again at the new view, at its frame's size.
+      case 'model3dView': {
+        const shape = slide?.shapes?.find((s) => String(s.id) === String(arg?.shape ?? selected));
+        if (!shape?.model3d) return;
+        const was = shape.model3d.view || {};
+        const spec = arg?.view ?? arg;
+        const wrap = (deg) => Math.round((((deg % 360) + 540) % 360 - 180) * 10) / 10;
+        const view = spec === 'reset' ? DEFAULT_MODEL_VIEW
+          : spec?.turn ? { yaw: wrap((was.yaw || 0) + spec.turn.yaw), pitch: Math.max(-90, Math.min(90, (was.pitch || 0) + spec.turn.pitch)), roll: was.roll || 0 }
+          : { yaw: wrap(spec.yaw || 0), pitch: Math.max(-90, Math.min(90, spec.pitch || 0)), roll: spec.roll || 0 };
+        try {
+          const drawer = await drawerFor(shape);
+          const g = shape.geometry;
+          const k = Math.min(2, 1400 / Math.max(g.w, g.h));
+          const png = await pngOf(drawer.draw({ view, width: Math.max(1, Math.round(g.w * k)), height: Math.max(1, Math.round(g.h * k)) }));
+          await apply({ op: 'setModel3dView', slide: index, shape: shape.id, png, view });
+        } catch (err) {
+          toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
+        }
+        return;
+      }
       // Effect Options, Start, Duration and Delay: the current effect changed.
       case 'animPatch': {
         if (!currentAnim) return;
@@ -2638,6 +2746,31 @@ export default function Slides({ app, shell, boot }) {
                           />
                         );
                       })
+                    : null}
+                  {/* A 3D model's turn handle, in its middle; while it is dragged, the model drawn small at the view so far over its picture. */}
+                  {selectedIds.length === 1 && selectedShape?.model3d && selectedShape.geometry && !selectedShape.hidden && !drag
+                    ? (() => {
+                        const g = selectedShape.geometry;
+                        const size = 30 / scale;
+                        return (
+                          <React.Fragment>
+                            {turn?.id === selectedShape.id && turn.url ? (
+                              <>
+                                <style>{`.sl-svg g[data-shape="${String(selectedShape.id).replace(/[^\w-]/g, '')}"] { visibility: hidden; }`}</style>
+                                <img className="sl-model3d-preview" alt="" src={turn.url} style={{ left: g.x, top: g.y, width: g.w, height: g.h }} />
+                              </>
+                            ) : null}
+                            <div
+                              className="sl-model3d-handle"
+                              style={{ left: g.x + g.w / 2 - size / 2, top: g.y + g.h / 2 - size / 2, width: size, height: size, borderWidth: 1.5 / scale }}
+                              title="Drag to turn the 3D model — across to turn it, up or down to tip it"
+                              onMouseDown={(e) => startTurn(e, selectedShape)}
+                            >
+                              <Icon name="rotate" size={Math.round(16 / scale)} />
+                            </div>
+                          </React.Fragment>
+                        );
+                      })()
                     : null}
                   {/* The rotation handle: floats above the selection, orbiting with it as it turns. */}
                   {selectedIds.length === 1 && selectedShape?.geometry && !selectedShape.hidden && !editing && points?.id !== selectedShape.id
@@ -3881,6 +4014,9 @@ const CSS = `
 /* The rotation handle: a small circle above the selection, joined to it by
    a thin line that orbits with the shape as it turns. */
 .sl-rotate-line { position: absolute; z-index: 5; background: var(--accent); pointer-events: none; }
+.sl-model3d-handle { position: absolute; z-index: 6; display: grid; place-items: center; border-radius: 50%; border: 1.5px solid var(--accent); background: rgba(255, 255, 255, 0.85); color: var(--accent); cursor: grab; box-sizing: border-box; }
+.sl-model3d-handle:active { cursor: grabbing; }
+.sl-model3d-preview { position: absolute; z-index: 3; pointer-events: none; }
 .sl-rotate-handle {
   position: absolute; z-index: 6; background: #fff; border: 1.5px solid var(--accent); border-radius: 50%;
   box-sizing: border-box; cursor: grab;

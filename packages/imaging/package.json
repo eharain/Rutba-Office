@@ -2,14 +2,15 @@
   "name": "@rutba/imaging",
   "version": "1.0.0",
   "license": "AGPL-3.0-or-later",
-  "description": "Pictures: container sniffing and dimensions without decoding, EXIF/orientation/GPS metadata, and the format-neutral edit pipeline (crop, rotate, resize, adjust, annotate) the image tool applies.",
+  "description": "Pictures: container sniffing and dimensions without decoding, EXIF/orientation/GPS metadata, and the format-neutral edit pipeline (crop, rotate, resize, adjust, annotate) the image tool applies; and 3D models, a glTF read and drawn into a picture.",
   "type": "module",
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js",
     "./probe": "./src/probe.js",
     "./exif": "./src/exif.js",
-    "./pipeline": "./src/pipeline.js"
+    "./pipeline": "./src/pipeline.js",
+    "./model3d": "./src/model3d.js"
   },
   "sideEffects": false
 }

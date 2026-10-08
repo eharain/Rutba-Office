@@ -12,6 +12,7 @@ import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select, Icon } from '@rutba/office-ui';
 import { TRANSITION_GALLERY, TRANSITION_OPTIONS, galleryKeyOf, optionOf, describeTransition } from './motion.js';
 import { ANIMATION_GALLERY, EFFECT_MENU, ANIMATION_OPTIONS } from './animate.js';
+import { MODEL_VIEWS } from '@rutba/imaging/model3d';
 import { RibbonStrip } from './design.js';
 import { wordArtMenu } from '../../wordart.js';
 import { SOUNDS, soundFile } from './sounds.js';
@@ -214,6 +215,8 @@ export default function SlidesRibbon({
         { id: 'pdf', label: 'PDF' },
         // Table Design, as PowerPoint's: there while a table is selected.
         ...(selectedShapeObj?.kind === 'table' ? [{ id: 'tableDesign', label: 'Table Design' }] : []),
+        // 3D Model, as PowerPoint's: there while a 3D model is selected.
+        ...(selectedShapeObj?.model3d ? [{ id: 'model3d', label: '3D Model' }] : []),
       ]}
       active={tab}
       onTab={setTab}
@@ -478,7 +481,7 @@ export default function SlidesRibbon({
             <Button tall icon="shape" label="Shapes" title="Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
 
             <Button tall icon="star" label="Icons" title="Icons — one of the suite's own icons, in the colour you choose, as a picture on this slide" onClick={() => act('icons')} />
-            <Soon tall icon="shape" label="3D Models" why="3D models are an online library." />
+            <Button tall icon="shape" label="3D Models" className="sl-model3d-insert" title="3D Models — a model from a .glb or .gltf file on this computer, drawn on the slide; turn it from the 3D Model tab or by its handle" onClick={() => act('model3d')} />
             <Button tall icon="shape" label="SmartArt" title="SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes" onClick={() => act('insertSmartArt')} />
             <Button tall icon="chart" label="Chart" title="Chart — a sample chart, drawn from the writer Documents and Worksheets already use; double-click it to edit its data" onClick={(e) => menu.open(e, CHART_TYPES.map(([type, label]) => ({ label, icon: 'chart', run: () => act('addChart', { type }) })))} />
           </Group>
@@ -1028,6 +1031,37 @@ export default function SlidesRibbon({
           </Group>
         </>
       ) : null}
+
+      {/* ── 3D Model (contextual) ─────────────────────────────────────────── */}
+      {tab === 'model3d' && selectedShapeObj?.model3d ? (() => {
+        const v = selectedShapeObj.model3d.view || {};
+        const at = (view) => Math.abs((v.yaw || 0) - view.yaw) < 0.5 && Math.abs((v.pitch || 0) - view.pitch) < 0.5;
+        const rows = [MODEL_VIEWS.slice(0, 4), MODEL_VIEWS.slice(4, 7), MODEL_VIEWS.slice(7)];
+        return (
+          <>
+            <Group label="3D Model Views">
+              {rows.map((row, i) => (
+                <Rows key={i}>
+                  {row.map(([key, label, view]) => <Button key={key} icon={at(view) ? 'check' : 'shape'} label={label} className="sl-model3d-view" data-view={key} pressed={at(view)} title={`${label} — the model turned to show it from there`} onClick={() => act('model3dView', view)} />)}
+                </Rows>
+              ))}
+            </Group>
+            <Group label="Turn">
+              <Rows>
+                <Button icon="chevronLeft" label="Turn Left" className="sl-model3d-turn-left" title="Turn Left — fifteen degrees about its upright" onClick={() => act('model3dView', { turn: { yaw: -15, pitch: 0 } })} />
+                <Button icon="chevronRight" label="Turn Right" title="Turn Right — fifteen degrees about its upright" onClick={() => act('model3dView', { turn: { yaw: 15, pitch: 0 } })} />
+              </Rows>
+              <Rows>
+                <Button icon="chevronUp" label="Tip Back" title="Tip Back — fifteen degrees, the top towards you" onClick={() => act('model3dView', { turn: { yaw: 0, pitch: 15 } })} />
+                <Button icon="chevronDown" label="Tip Forward" title="Tip Forward — fifteen degrees, the bottom towards you" onClick={() => act('model3dView', { turn: { yaw: 0, pitch: -15 } })} />
+              </Rows>
+            </Group>
+            <Group label="Adjust">
+              <Button tall icon="undo" label="Reset 3D Model" className="sl-model3d-reset" title="Reset 3D Model — back to the view it was put in at" onClick={() => act('model3dView', 'reset')} />
+            </Group>
+          </>
+        );
+      })() : null}
 
       {/* ── Table Design (contextual) ─────────────────────────────────────── */}
       {tab === 'tableDesign' && selectedShapeObj?.kind === 'table' ? (() => {

@@ -1012,10 +1012,14 @@ function readPicture(pic, ctx, container, groupId) {
   const media = file
     ? { kind: file.name === A('videoFile') ? 'video' : 'audio', id: mediaId, source: mediaId && ctx.rel ? ctx.rel(mediaId) : null }
     : null;
+  // Insert → 3D Models: the model kept beside its picture, and the view it is drawn at.
+  const m3d = nvPr && first(nvPr, 'r3d:model');
+  const model3d = m3d ? { view: { yaw: Number(m3d.attrs.yaw) || 0, pitch: Number(m3d.attrs.pitch) || 0, roll: Number(m3d.attrs.roll) || 0 } } : null;
   return {
     kind: 'picture',
     ...meta,
     ...(media ? { media } : {}),
+    ...(model3d ? { model3d } : {}),
     groupId,
     placeholder: placeholderOf(pic),
     geometry: placeInContainer(container, readXfrm(spPr)),

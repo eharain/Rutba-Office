@@ -39,6 +39,24 @@ const CT = {
   notes: 'application/vnd.openxmlformats-officedocument.presentationml.notesSlide+xml',
   chart: 'application/vnd.openxmlformats-officedocument.drawingml.chart+xml',
 };
+/** A 3D model kept beside its picture: the suite's own extension, namespace and relationship. */
+export const MODEL3D = {
+  uri: '{5E2C9A41-7B3D-4F6A-9C18-3D0A6E1B2F77}',
+  ns: 'http://schemas.rutba.io/office/2026/model3d',
+  rel: 'http://schemas.rutba.io/office/2026/relationships/model3d',
+};
+const round1 = (v) => Math.round((Number(v) || 0) * 10) / 10;
+function model3dExt(rId, view = {}) {
+  return `<p:extLst><p:ext uri="${MODEL3D.uri}"><r3d:model xmlns:r3d="${MODEL3D.ns}" r:embed="${rId}" yaw="${round1(view.yaw)}" pitch="${round1(view.pitch)}" roll="${round1(view.roll)}"/></p:ext></p:extLst>`;
+}
+/** Where the `p:pic` holding shape `id` starts in a slide's XML, or -1. */
+function picStartOf(xml, id) {
+  const at = xml.search(new RegExp(`<p:cNvPr\\b[^>]*\\bid="${String(id).replace(/\D/g, '')}"`));
+  if (at < 0) return -1;
+  const start = xml.lastIndexOf('<p:pic>', at);
+  return start >= 0 && xml.indexOf('</p:pic>', start) > at ? start : -1;
+}
+
 const REL = {
   slide: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slide',
   layout: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/slideLayout',
@@ -3621,6 +3639,92 @@ export class Deck {
     if (end < 0) throw new Error('slide has no shape tree');
     this.#writeSlide(part, xml.slice(0, end) + shapes + xml.slice(end));
     return ids;
+  }
+
+  /**
+   * Insert → 3D Models: a model drawn as a picture, which PowerPoint and
+   * every other reader show, with the model itself kept beside it — the
+   * .glb in `ppt/media/modelN.glb`, named from the picture's `p:nvPr` in an
+   * extension of the suite's own (MODEL3D), with the view it is drawn at —
+   * so it can be turned and drawn again. PowerPoint's own 3D model element
+   * is not written: a reader that does not know this extension passes over
+   * it and shows the picture.
+   * @returns {{ id: number, part: string, model: string }}
+   */
+  addModel3d(slideIndex, { model, png, view = {}, name = '3D Model', x = 0, y = 0, w, h }) {
+    const bytes = Buffer.isBuffer(model) ? model : model instanceof Uint8Array ? Buffer.from(model) : Buffer.from(String(model ?? ''), 'base64');
+    if (bytes.length < 12 || bytes.toString('latin1', 0, 4) !== 'glTF') throw new Error('a 3D model is kept as a binary glTF (.glb)');
+    const placed = this.addPicture(slideIndex, { data: png, contentType: 'image/png', name, x, y, w, h });
+    const part = this.#partOf(slideIndex);
+    const names = this.pkg.partNames() || [];
+    let n = 1;
+    while (names.includes(`ppt/media/model${n}.glb`)) n += 1;
+    const modelPart = `ppt/media/model${n}.glb`;
+    this.pkg.ensureDefault('glb', 'model/gltf-binary');
+    this.pkg.addPart(modelPart, bytes);
+    const rId = this.pkg.addRelationshipTo(part, MODEL3D.rel, `../media/model${n}.glb`);
+    const xml = this.pkg.text(part);
+    const at = xml.indexOf(`<p:cNvPr id="${placed.id}"`);
+    const nv = xml.indexOf('<p:nvPr/>', at);
+    if (at < 0 || nv < 0) throw new Error('the 3D model\'s picture was not written');
+    this.#writeSlide(part, xml.slice(0, nv) + `<p:nvPr>${model3dExt(rId, view)}</p:nvPr>` + xml.slice(nv + '<p:nvPr/>'.length));
+    return { ...placed, model: modelPart };
+  }
+
+  /** The picture of a 3D model on a slide, its model's part and the view it is drawn at; null for any other shape. */
+  #model3dAt(slideIndex, shapeId) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const start = picStartOf(xml, shapeId);
+    if (start < 0) return null;
+    const end = xml.indexOf('</p:pic>', start) + '</p:pic>'.length;
+    const pic = xml.slice(start, end);
+    const tag = /<r3d:model\b[^>]*\/>/.exec(pic)?.[0];
+    if (!tag) return null;
+    const attr = (k) => new RegExp(`\\s${k}="([^"]*)"`).exec(tag)?.[1];
+    const rels = this.#relMap(part);
+    const model = rels.get(attr('r:embed'))?.resolved || null;
+    const picture = rels.get(/<a:blip\b[^>]*\br:embed="([^"]*)"/.exec(pic)?.[1])?.resolved || null;
+    return { part, xml, start, end, pic, model, picture, view: { yaw: Number(attr('yaw')) || 0, pitch: Number(attr('pitch')) || 0, roll: Number(attr('roll')) || 0 } };
+  }
+
+  /** A 3D model's .glb, for drawing it again. */
+  model3dSource(slideIndex, shapeId) {
+    const at = this.#model3dAt(slideIndex, shapeId);
+    if (!at?.model || !this.pkg.has(at.model)) throw new Error('That is not a 3D model');
+    return { data: this.pkg.read(at.model), view: at.view };
+  }
+
+  /**
+   * 3D Model Views, a turn of the model, Reset: the model drawn again at
+   * `view`, its picture replaced and the view kept. The picture's own part
+   * is rewritten when nothing else uses it; a copy shares nothing.
+   */
+  setModel3dView(slideIndex, shapeId, { png, view = {} }) {
+    const at = this.#model3dAt(slideIndex, shapeId);
+    if (!at) throw new Error('That is not a 3D model');
+    const bytes = Buffer.isBuffer(png) ? png : png instanceof Uint8Array ? Buffer.from(png) : Buffer.from(String(png ?? ''), 'base64');
+    if (!bytes.length) throw new Error('the 3D model\'s picture has no bytes');
+    let pic = at.pic;
+    // How many relationships in the package point at the picture: one, and it is this model's alone.
+    let uses = 0;
+    for (const r of this.pkg.partNames().filter((p) => /(^|\/)_rels\/[^/]*\.rels$/.test(p))) {
+      const from = r.replace(/(^|\/)_rels\/([^/]*)\.rels$/, '$1$2');
+      for (const x of this.pkg.rels(from)) if (x.TargetMode !== 'External' && x.Target && OoxmlPackage.resolveTarget(from, x.Target) === at.picture) uses += 1;
+    }
+    const shared = uses > 1;
+    if (at.picture && !shared && /\.png$/i.test(at.picture)) {
+      this.pkg.write_(at.picture, bytes);
+    } else {
+      const { rId } = this.#embedImage(at.part, { data: bytes, contentType: 'image/png' });
+      pic = pic.replace(/(<a:blip\b[^>]*\br:embed=")[^"]*(")/, (m, a, b) => `${a}${rId}${b}`);
+    }
+    const v = { yaw: round1(view.yaw), pitch: round1(view.pitch), roll: round1(view.roll) };
+    pic = pic.replace(/<r3d:model\b[^>]*\/>/, (tag) => tag.replace(/\s(yaw|pitch|roll)="[^"]*"/g, '').replace(/\/>$/, () => ` yaw="${v.yaw}" pitch="${v.pitch}" roll="${v.roll}"/>`));
+    const xml = this.pkg.text(at.part);
+    this.#writeSlide(at.part, xml.slice(0, at.start) + pic + xml.slice(at.end));
+    return true;
   }
 
   addPicture(slideIndex, { data, contentType, name = 'Picture', x = 0, y = 0, w, h }) {
