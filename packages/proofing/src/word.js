@@ -13,6 +13,7 @@ import { findElements, readAltProps, writeAltProps } from './alt-text.js';
 import { normaliseColour, HIGHLIGHT_HEX } from './colour.js';
 import { readTitle, writeTitle, corePart } from './core-props.js';
 import { paragraphsIn, paragraphText, replaceInParagraph, textBoxesIn } from './wordml.js';
+import { cellLook } from '@rutba/drawing/table-look';
 
 const docOf = (view) => view?.doc?.doc || null;
 
@@ -172,6 +173,7 @@ export function describeWord(view, { frame = null } = {}) {
         where: { block: first ? first.index : null, table: i },
         target: { table: i },
         headerFix: 'Repeat the first row as a header',
+        unmergeFix: 'Unmerge the cells',
       });
     });
   }
@@ -181,13 +183,31 @@ export function describeWord(view, { frame = null } = {}) {
   // stated colour — the run's, its character style's or the paragraph
   // style's — can fall short.
   const page = normaliseColour(safely(() => doc?.pageColour?.())) || '#FFFFFF';
+  // A table cell's own shading and its table style's — the header row's fill
+  // and white words, a band's tint — as the page draws them.
+  const tableSize = new Map();
+  for (const b of blocks) {
+    const at = /^(t\d+):r(\d+):c(\d+)$/.exec(b.container || '');
+    if (!at) continue;
+    const size = tableSize.get(at[1]) || { rows: 0, columns: 0 };
+    size.rows = Math.max(size.rows, Number(at[2]) + 1);
+    size.columns = Math.max(size.columns, Number(at[3]) + (b.cellSpan || 1));
+    tableSize.set(at[1], size);
+  }
+  const cellOf = (b) => {
+    const at = /^(t\d+):r(\d+):c(\d+)$/.exec(b.container || '');
+    if (!at || (!b.cellFill && !b.tableStyle)) return null;
+    const size = tableSize.get(at[1]);
+    return cellLook({ style: b.tableStyle || null, own: { fill: b.cellFill || null }, ruled: false, at: { row: Number(at[2]), column: Number(at[3]), span: b.cellSpan || 1, rowSpan: 1, rows: size.rows, columns: size.columns } });
+  };
   for (const b of blocks) {
     const style = styles[b.style || ''] || styles['*default*'] || {};
+    const cell = cellOf(b);
     for (const r of b.runs || []) {
       if (!String(r.text || '').trim() || r.del) continue;
-      const fg = normaliseColour(r.fontColour) || normaliseColour(style.colour);
+      const fg = normaliseColour(r.fontColour) || normaliseColour(style.colour) || normaliseColour(cell?.text.colour);
       if (!fg) continue;
-      const bg = normaliseColour(r.highlight ? HIGHLIGHT_HEX[r.highlight] || r.highlight : null) || normaliseColour(b.shading) || page;
+      const bg = normaliseColour(r.highlight ? HIGHLIGHT_HEX[r.highlight] || r.highlight : null) || normaliseColour(b.shading) || normaliseColour(cell?.fill) || page;
       const sizePt = Number(r.fontSize) || (style.sizePx ? (style.sizePx * 72) / 96 : 11);
       model.texts.push({ key: `b${b.index}`, label: shortText(b.text) || `Paragraph ${b.index + 1}`, where: { block: b.index }, fg, bg, sizePt, bold: Boolean(r.bold ?? style.bold), target: { block: b.index, length: String(b.text || '').length } });
     }
@@ -287,6 +307,50 @@ export function setWordAltText(view, { drawing, descr = '', decorative = false }
 }
 
 /** Repeat the first row of the `table`-th top-level table as a header row (`w:tblHeader`). */
+/**
+ * Merged cells → Unmerge the cells: every merge in one table undone — a cell
+ * spanning columns becomes its columns (its words in the first, its width
+ * shared out), and the places a merge down a column covered become cells of
+ * their own, empty.
+ */
+export function unmergeWordTable(view, { table }) {
+  return editXml(view, 'unmerge cells', (xml) => {
+    const open = /<w:body(\s[^>]*)?>/.exec(xml);
+    const at = open.index + open[0].length;
+    const t = topTables(xml.slice(at))[Number(table)];
+    if (!t) throw new Error('that table is no longer in the document');
+    // The table's own cells, a nested table's left inside them.
+    const out = [];
+    let depth = 0;
+    let last = 0;
+    const re = /<w:tbl\b[^>]*?(\/?)>|<\/w:tbl>|<w:tc\b[^>]*>|<\/w:tc>/g;
+    let cellStart = -1;
+    let m;
+    while ((m = re.exec(t.xml))) {
+      if (m[0].startsWith('<w:tbl')) { if (m[1] !== '/') depth += 1; continue; }
+      if (m[0] === '</w:tbl>') { depth -= 1; continue; }
+      if (depth !== 1) continue;
+      if (m[0].startsWith('<w:tc')) { cellStart = m.index; continue; }
+      const cell = t.xml.slice(cellStart, m.index + m[0].length);
+      out.push(t.xml.slice(last, cellStart));
+      last = m.index + m[0].length;
+      const tcPr = /^<w:tc\b[^>]*>\s*(<w:tcPr\b[^>]*>[\s\S]*?<\/w:tcPr>|<w:tcPr\b[^>]*\/>)?/.exec(cell);
+      const props = tcPr?.[1] || '';
+      const span = Math.max(1, Number(/<w:gridSpan\b[^>]*\bw:val="(\d+)"/.exec(props)?.[1] || 1));
+      const continues = /<w:vMerge\b(?![^>]*w:val="restart")/.test(props) || /<w:hMerge\b(?![^>]*w:val="restart")/.test(props);
+      const plain = props.replace(/<w:gridSpan\b[^>]*\/>|<w:vMerge\b[^>]*\/>|<w:hMerge\b[^>]*\/>/g, '');
+      const width = /<w:tcW\b[^>]*\bw:w="(\d+)"[^>]*\/>/.exec(plain);
+      const share = width ? plain.replace(width[0], () => width[0].replace(/w:w="\d+"/, () => 'w:w="' + Math.round(Number(width[1]) / span) + '"')) : plain;
+      const empty = '<w:tc>' + share + '<w:p/></w:tc>';
+      // A covered place keeps none of the merge's words: they live in the merge's first cell.
+      const first = continues ? empty : '<w:tc>' + share + cell.slice(tcPr ? tcPr[0].length : /^<w:tc\b[^>]*>/.exec(cell)[0].length);
+      out.push(first + empty.repeat(span - 1));
+    }
+    out.push(t.xml.slice(last));
+    return xml.slice(0, at + t.start) + out.join('') + xml.slice(at + t.end);
+  });
+}
+
 export function setWordTableHeader(view, { table }) {
   return editXml(view, 'table header', (xml) => {
     const open = /<w:body(\s[^>]*)?>/.exec(xml);

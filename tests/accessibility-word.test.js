@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { openDocx } from '@rutba/doc-view/backends/ooxml';
 import { buildDocx } from '@rutba/ooxml';
 import { OoxmlPackage } from '@rutba/ooxml';
-import { checkAccessibility, describeWord, setWordAltText, setWordTableHeader, removeWordParagraphs, setWordTitle, readTitle } from '@rutba/proofing';
+import { checkAccessibility, describeWord, setWordAltText, setWordTableHeader, unmergeWordTable, removeWordParagraphs, setWordTitle, readTitle } from '@rutba/proofing';
 import { gradientPng } from '../apps/desktop/main/sample-picture.js';
 
 function fixture() {
@@ -102,4 +102,37 @@ test('heading and colour fixes are ordinary edits: a style, then an automatic co
   view.setRunFormat({ fontColour: pale.fixes[0].colour.slice(1) });
   const after = rulesOf(view);
   assert.ok(!after.includes('headingOrder') && !after.includes('contrast'), after.join(', '));
+});
+
+test('a table cell\'s words are read against its shading and its table style\'s, and merged cells are unmerged in one click', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [
+    { text: 'Figures', style: 'Heading1' },
+    { table: { rows: [['Region', 'Q1', 'Q2'], ['North', '120', '135'], ['South', '140', '150']] } },
+  ] }));
+  const contrast = () => checkAccessibility(describeWord(view)).issues.filter((i) => i.rule === 'contrast');
+  assert.equal(contrast().length, 0);
+  // Grey words on a dark grey cell of their own: too faint to read.
+  const engine = view.doc.doc;
+  engine.xml = engine.xml.replace(/(<w:tc><w:tcPr>(?:(?!<\/w:tcPr>)[\s\S])*?)(<\/w:tcPr>(?:(?!<\/w:tc>)[\s\S])*?)<w:r>(<w:t[^>]*>120<\/w:t>)/, '$1<w:shd w:val="clear" w:color="auto" w:fill="595959"/>$2<w:r><w:rPr><w:color w:val="7F7F7F"/></w:rPr>$3');
+  view._invalidate();
+  assert.equal(contrast().length, 1, '7F7F7F on 595959');
+  assert.match(contrast()[0].detail, /^1\.\d:1/);
+  // A table style's white header words on its accent fill pass; on a pale band they would not.
+  view.setSelection({ block: view.render({ pages: false }).blocks.findIndex((b) => b.text === 'Region'), offset: 0 });
+  view.tableOp('style', { id: 'GridTable4-Accent1' });
+  assert.equal(contrast().length, 1, 'only the grey on grey still');
+  // Merged cells: the table offers Unmerge, and it takes every merge away.
+  view.setSelection({ block: view.render({ pages: false }).blocks.findIndex((b) => b.text === 'North'), offset: 0 }, { block: view.render({ pages: false }).blocks.findIndex((b) => b.text === 'South'), offset: 0 });
+  view.tableOp('mergeCells');
+  view.setSelection({ block: view.render({ pages: false }).blocks.findIndex((b) => b.text === 'Q1'), offset: 0 }, { block: view.render({ pages: false }).blocks.findIndex((b) => b.text === 'Q2'), offset: 0 });
+  view.tableOp('mergeCells');
+  const merged = checkAccessibility(describeWord(view)).issues.find((i) => i.rule === 'mergedCells');
+  assert.deepEqual(merged.fixes.map((x) => [x.kind, x.label]), [['unmergeTable', 'Unmerge the cells']]);
+  unmergeWordTable(view, merged.fixes[0].target);
+  assert.ok(!checkAccessibility(describeWord(view)).issues.some((i) => i.rule === 'mergedCells'), 'no merge left');
+  assert.doesNotMatch(engine.xml, /<w:gridSpan\b|<w:vMerge\b/);
+  const cells = view.render({ pages: false }).blocks.filter((b) => b.container).map((b) => `${/r(\d+):c(\d+)$/.exec(b.container).slice(1).join('.')}=${b.text}`);
+  assert.equal(new Set(cells.filter((c) => c.startsWith('0.')).map((c) => c.split('=')[0])).size, 3, 'the header row three cells again');
+  assert.ok(cells.includes('2.0='), 'the place South covered a cell of its own, empty');
+  assert.ok(cells.includes('1.0=North') && cells.includes('0.1=Q1') && cells.includes('0.1=Q2') && cells.includes('0.2='), `the merges' words in their first cells: ${cells.join(' ')}`);
 });

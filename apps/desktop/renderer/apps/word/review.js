@@ -100,6 +100,8 @@ export function useWordReview({ shell, doc, model, apply, toast, pageRef, setPic
       switch (f.kind) {
         case 'tableHeader':
           return apply({ op: 'setHeaderRow', table: f.target.table });
+        case 'unmergeTable':
+          return apply({ op: 'unmergeTable', table: f.target.table });
         case 'removeBlanks':
           return apply({ op: 'removeEmptyParagraphs', blocks: f.target.blocks });
         case 'headingLevel':

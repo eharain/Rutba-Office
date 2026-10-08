@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import {
   RULES, wordDrawings, sheetDrawings, readAltProps, findElements, toDic, fromDic, checkAccessibility,
   describeWord, describeSheet, describeDeck,
-  setWordAltText, setWordTableHeader, removeWordParagraphs, setWordTitle, setWordDefaultLanguage,
+  setWordAltText, setWordTableHeader, unmergeWordTable, removeWordParagraphs, setWordTitle, setWordDefaultLanguage,
   setSheetAltText, setSheetTableHeader,
   setDeckAltText, setDeckTableHeader, setDeckTextColour, setDeckSlideTitle,
   wordSegments, wordStart, wordLanguage, wordDefaultLanguage, replaceWordText,
@@ -105,6 +105,7 @@ export function createProofing({ stores = null, locale = systemLocale, worker = 
       // page — by its paragraph and its place among that paragraph's pictures.
       setAltText: (v, a) => setWordAltText(v, { drawing: a.drawing ?? wordDrawingAt(v, a)?.ordinal, descr: a.descr, decorative: Boolean(a.decorative) }),
       setHeaderRow: (v, a) => setWordTableHeader(v, { table: a.table }),
+      unmergeTable: (v, a) => unmergeWordTable(v, { table: a.table }),
       removeEmptyParagraphs: (v, a) => removeWordParagraphs(v, { blocks: a.blocks }),
       setDocTitle: (v, a) => setWordTitle(v, { title: a.title }),
       setDefaultLanguage: (v, a) => setWordDefaultLanguage(v, { lang: a.lang }),

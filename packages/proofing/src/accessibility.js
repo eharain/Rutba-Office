@@ -159,7 +159,7 @@ export function checkAccessibility(model = {}) {
   // Tables: a header row, and no merged cells.
   for (const t of model.tables || []) {
     if (!t.hasHeader) add('tableHeader', { key: `th:${t.key}`, label: t.label, where: t.where, fixes: t.headerFix ? [{ kind: 'tableHeader', label: t.headerFix, target: t.target }] : [] });
-    if (t.merged) add('mergedCells', { key: `tm:${t.key}`, label: t.label, where: t.where, fixes: [] });
+    if (t.merged) add('mergedCells', { key: `tm:${t.key}`, label: t.label, where: t.where, fixes: t.unmergeFix ? [{ kind: 'unmergeTable', label: t.unmergeFix, target: t.target }] : [] });
   }
   for (const m of model.merges || []) {
     add('mergedCells', { key: `mc:${m.key}`, label: m.label, where: m.where, fixes: [{ kind: 'unmerge', label: 'Unmerge', target: m.target }] });

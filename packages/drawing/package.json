@@ -21,7 +21,8 @@
     "./shapes": "./src/shapes.js",
     "./measure": "./src/measure.js",
     "./glyphs": "./src/glyphs.js",
-    "./presets": "./src/presets.js"
+    "./presets": "./src/presets.js",
+    "./table-look": "./src/table-look.js"
   },
   "files": [
     "src",

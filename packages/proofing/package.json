@@ -11,6 +11,7 @@
   },
   "sideEffects": false,
   "dependencies": {
+    "@rutba/drawing": "*",
     "@rutba/ooxml": "*",
     "dictionary-en": "^4.0.0",
     "dictionary-en-gb": "^3.0.0",
