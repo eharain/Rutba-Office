@@ -221,6 +221,7 @@ export default function VideoTool({ app, shell, boot }) {
       startClip();
       raf = requestAnimationFrame(tick);
     });
+    stream.getTracks().forEach((t) => t.stop());
 
     const blob = new Blob(chunks, { type: 'video/webm' });
     const bytes = new Uint8Array(await blob.arrayBuffer());
