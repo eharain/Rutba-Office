@@ -83,10 +83,13 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   written in the document's theme colours when it has none), its options,
   shading and borders with a pen; Table Layout puts rows and columns in and
   takes them out, merges and splits cells, splits the table, sets a column's
-  width, AutoFit and Distribute Columns, aligns a cell's words, repeats
-  header rows, sorts the rows by a column, converts the table to text and
-  back, turns it right to left and shows or hides its gridlines. Not yet:
-  Table Properties, cell margins and text direction, formulas in cells.
+  width, AutoFit and Distribute Columns, aligns the table and a cell's
+  words, turns a cell's words to read up or down, sets the cells' margins,
+  repeats header rows, sorts the rows by a column, works out a formula
+  (=SUM(ABOVE) and the like), converts the table to text and back, turns
+  it right to left and shows or hides its gridlines. Not yet: a Table
+  Properties dialog, a formula's result kept up to date as its numbers
+  change, and formulas over cell references.
 - **Fields.** Bookmarks arrived 2026-09-24, Insert → Bookmark naming a span
   of paragraphs (`w:bookmarkStart`/`w:bookmarkEnd`) that Go To finds again
   and a bookmarked paragraph stays editable through it. Cross-references
