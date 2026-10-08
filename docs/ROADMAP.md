@@ -100,7 +100,14 @@ behind.
    transforms and a refresh that re-reads its source; scripts' API to cover
    what Record Actions can record; the old-format readers against a corpus
    (`npm run verify:corpus` over a folder of real files of each age).
-6. **Then new breadth**, each item added to GAPS.md first, built second.
+6. **The field's gaps and the two editors.** [COMPETITORS.md](COMPETITORS.md)
+   reviews the suite against WPS Office, Microsoft 365, Google Workspace,
+   LibreOffice, ONLYOFFICE, SoftMaker and Zoho, and sets out what to add:
+   a PDF app, OCR and a recorder on this computer, templates, forms, and
+   Image and Video taken in three tiers each from crop-and-trim to layers,
+   tracks, captions and MP4. Its release-by-release order (1.31 to 1.33)
+   follows items 1 to 5 above and runs beside localisation.
+7. **Then new breadth**, each item added to GAPS.md first, built second.
 
 Everything below the line in GAPS.md stays there: macros that run, cloud
 services, anything that would make a request this suite has not declared.

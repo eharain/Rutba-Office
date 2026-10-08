@@ -1,209 +1,224 @@
-# Where Rutba Office stands
+# The roadmap against the field — and what Image and Video should become
 
-An honest audit, app by app, against what people would otherwise install. It is
-written to be useful rather than flattering: the gaps are listed with the same
-care as the leads, because a gap nobody has written down is a gap nobody fixes.
+A review of Rutba Office 1.29.10 against the suites a person would weigh it
+against, WPS Office first since that is the one asked about, then a plan for
+the Image and Video apps so that someone who opens them is not left without
+a tool. [ROADMAP.md](ROADMAP.md) sets the order of work; this file says
+what the field has, where the suite stands apart, and what to add.
 
-Everything marked ✅ is built and covered by a check in `npm run verify:apps` or
-`npm test`. Everything marked ⬜ is not built.
+## How this was gathered
 
----
+WPS's own home page (explore.wps.com) could not be fetched from the machine
+this was written on, so WPS's claims come from its premium, Academy and
+blog pages and from app-store listings, and should be read once against the
+home page before anything is quoted from them. The other suites' facts come
+from their release notes and documentation; prices are approximate and
+change. Rutba's side comes from the code, GAPS.md and the release notes.
 
-## The suite
+## The field
 
-| | Rutba Office | Microsoft 365 | LibreOffice | OnlyOffice | WPS | Google Docs |
-| :-- | :--: | :--: | :--: | :--: | :--: | :--: |
-| Price | Free | Subscription | Free | Free | Free tier + ads | Free with account |
-| Source published | ✅ AGPL | ⬜ | ✅ MPL | ✅ AGPL | ⬜ | ⬜ |
-| Works with no network | ✅ | Partly | ✅ | ✅ | ✅ | ⬜ |
-| Works with no account | ✅ | ⬜ | ✅ | ✅ | Nags | ⬜ |
-| Telemetry | **None** | Yes | Opt-in | Yes | Yes | Yes |
-| Mail client included | ✅ | Outlook | ⬜ | ⬜ | ⬜ | ⬜ |
-| Reads Outlook .pst/.ost | ✅ | ✅ | ⬜ | ⬜ | ⬜ | ⬜ |
-| Picture, image and video tools | ✅ | ⬜ | ⬜ | ⬜ | ⬜ | ⬜ |
-| One download for all of it | ✅ | ✅ | ✅ | ✅ | ✅ | n/a |
+**WPS Office** (Kingsoft). Writer, Spreadsheet, Presentation and a PDF
+editor in one window with tabs; a free tier with ads, limited templates and
+1 GB of cloud; Pro and Pro+ (about $6 a month, or a lifetime licence) for
+full PDF editing, OCR, no ads and 20 GB; an AI bundle on top (AI Writer, AI
+Slides, Chat with PDF, document and picture translation, AI spell check,
+AI photo tools). Also a screen recorder under Tools (region, window, webcam,
+audio), screenshot-to-PDF with OCR, a scanner with handwriting extraction,
+and background and watermark removal pitched as free. Its headline is
+breadth in one download and PDF as a first-class document.
 
-**The one request outward.** An update check against GitHub, and one announcement
-check a day against office.rutba.io that carries the version and the platform and
-no identifier. Both are listed in About and both switch off. See
-[ANNOUNCEMENT.md](ANNOUNCEMENT.md).
+**Microsoft 365.** The reference the others are measured against: Word,
+Excel, PowerPoint, Outlook, OneNote, OneDrive, Teams, and for pictures and
+film the Photos app (generative erase, blur and replace background,
+Designer's selective edits) and Clipchamp (multi-track timeline, auto
+captions, green screen, screen and webcam recording, 1080p free, 4K paid).
+Everything new is Copilot, on a subscription.
 
----
+**Google Workspace.** Docs, Sheets, Slides, Gmail, Calendar, Meet, Drive,
+Vids; browser-first, co-editing as the norm, Gemini throughout from the
+Standard plan up (about $7 to $8 a user a month at the bottom).
 
-## Mail
+**LibreOffice 25.8.** Writer, Calc, Impress, Draw, Base, Math; free and
+offline; 25.8 brought faster loading, PDF 2.0 export, a viewer mode, Calc's
+dynamic-array functions, redaction of images. Draw is its graphics tool; no
+video, no mail.
 
-Against **Outlook**, **Thunderbird**, **eM Client**, **Mailbird**, **Apple Mail**,
-**Spark**, **Superhuman**.
+**ONLYOFFICE Desktop Editors 9.x.** Document, spreadsheet, presentation and
+PDF editors with a form builder; 9.0 added OCR of scanned PDFs through AI,
+9.2 an AI agent that fills forms and drafts documents with the user's own
+provider key or a local model. Free desktop; no image or video editor.
 
-### Where we are ahead
+**SoftMaker Office 2024 / NX.** TextMaker, PlanMaker, Presentations; QR and
+barcodes, embedded fonts, EPUB export, SQLite import; DeepL translation and
+ChatGPT in the NX subscription.
 
-| | Rutba | Outlook | Thunderbird | eM Client |
-| :-- | :--: | :--: | :--: | :--: |
-| Opens a .pst | ✅ free | ✅ | ⬜ **cannot** | Paid tier |
-| Opens a .ost | ✅ free | Own profile only | ⬜ | ⬜ |
-| Opens .olm (Outlook for Mac) | ✅ | ⬜ | ⬜ | ⬜ |
-| Finds your other clients' mail for you | ✅ | ⬜ | ⬜ | ⬜ |
-| Names the tracking networks in a message | ✅ | ⬜ | ⬜ | ⬜ |
-| Counts blocked pixels, tells sender's own logo apart | ✅ | ⬜ | ⬜ | ⬜ |
-| Shows SPF / DKIM / DMARC per message | ✅ | Add-in | Add-on | ⬜ |
-| One-click unsubscribe (RFC 8058) | ✅ | ✅ | ✅ | ✅ |
-| Undo send | ✅ | Paid/365 | ⬜ | ⬜ |
-| Scheduled send | ✅ | ✅ | ⬜ | ✅ |
-| Unified inbox | ✅ | ✅ | ✅ | ✅ |
-| Attachment view across the mailbox | ✅ | ⬜ | ⬜ | ✅ |
-| People view derived from your mail | ✅ | ⬜ | ⬜ | ⬜ |
-| Account limit | None | None | None | **2 on free** |
+**Zoho Workplace.** Writer, Sheet, Show, Mail, Notebook, Zia AI; a free tier,
+paid from about $3 a user a month; Writer turns a document into a fillable
+form, Sheet turns a picture of a table into cells.
 
-The `.pst`/`.ost` reader is the headline. Thunderbird cannot open one at all,
-eM Client puts it behind the paid tier, and Microsoft's new Outlook dropped PST
-support. Verified against 906 MB of real mail: 467 folders, 12,172 messages.
+## Where Rutba stands apart
 
-The privacy report is the thing no client does. Everyone blocks remote images;
-nobody says *"Mailchimp and Google Analytics tried to record that you opened
-this, and the 180-pixel image is the sender's own logo"*. See
-`apps/desktop/main/mail-insight.js`.
+These are the suite's own ground and should stay so:
 
-### Where we are behind — the real list
+- **Offline, no account, no ads, no telemetry, AGPL.** Every suite above but
+  LibreOffice wants an account for its best features; WPS's free tier
+  carries ads. Rutba's declared boundary — it makes no request it has not
+  declared — is a feature, and the one the others cannot copy.
+- **Nine apps on one shell**, with Mail, Calendar and Contacts in the same
+  download as the editors. WPS, LibreOffice, ONLYOFFICE and SoftMaker have
+  no mail client; Microsoft and Google have one in a separate app or tab.
+- **Every age of file, in full.** Word 1.0 to 2003, Write and DOS Word,
+  binary `.xls` and `.ppt`, encrypted CFB, OpenDocument and RTF, all read
+  and most written. LibreOffice is the only other suite that comes close.
+- **"Proven, not promised."** A button either works or is not there, and
+  each release note names the tests that prove it. No competitor publishes
+  this, and it is the suite's answer to "does it really open my file".
 
-| Missing | Who has it | Why it matters |
-| :--- | :--- | :--- |
-| ✅ ~~OAuth for Gmail and Outlook.com~~ | All of them | **Built.** RFC 8252 flow in the system browser with PKCE and a loopback redirect. Needs a registered client id per build — see [OAUTH.md](OAUTH.md). |
-| ✅ ~~Message rules and filters~~ | Outlook, Thunderbird, eM | **Built**, and unlike theirs it shows what a rule *would* do to the folder in front of you, live, before it does anything. |
-| ✅ ~~A search index~~ | Outlook, Thunderbird | **Built.** Inverted index with `from:`, `subject:`, `has:attachment`, `is:unread` and quoted phrases. 20,000 messages: 494 ms to build, under 10 ms per search. |
-| ⬜ Calendar and contacts (CalDAV / CardDAV) | Outlook, Thunderbird, eM | A mail client without a calendar is half a client to many people |
-| ⬜ OpenPGP / S/MIME | Thunderbird (built in) | Encryption is why some people choose Thunderbird |
-| ⬜ Junk filtering | All of them | We show that a message is bulk; we do not sort it |
-| ⬜ RSS feeds | Thunderbird | Small, but Thunderbird users expect it |
+## What the field has that the roadmap did not mention
 
----
+The review of GAPS.md against the suites above found these absent from the
+register altogether. Each gets a decision here, inside the suite's boundary
+— nothing leaves the computer unless the person asks it to.
 
-## Documents
+1. **A PDF editor as a first-class app.** WPS, ONLYOFFICE and Microsoft all
+   headline PDF: edit text and pictures in place, reorder and rotate pages,
+   merge and split, fill and sign forms, redact, convert to and from Word,
+   OCR a scan. Rutba reads and writes PDF (packages/pdf, export from every
+   app) but has no PDF app. **Build it**, as the tenth app, on the existing
+   package: pages first (view, reorder, rotate, merge, split, extract),
+   then forms and signatures, then text editing in place, then redaction.
+   This is the largest competitive gap in the suite.
+2. **OCR, on this computer.** WPS and ONLYOFFICE sell it as a cloud or AI
+   feature; a local engine of the Tesseract kind, shipped or downloaded once
+   with the person's consent, gives scanned PDFs a text layer, a picture
+   of a table its cells in Worksheets (Zoho's trick), and a screenshot its
+   words. **Build it** after the PDF app's pages, since it serves PDF, Image
+   and Worksheets at once.
+3. **A screen and camera recorder.** WPS, Clipchamp and the OS tools have
+   one; Electron's own capture gives region, window and screen with the
+   microphone and the camera. **Build it** inside Video (below), where the
+   recording lands on the timeline, and offer it from Presentations for
+   narration.
+4. **Templates.** Every suite opens with a gallery. Rutba's New menu offers
+   blank documents. **Build** a local gallery (letter, CV, invoice, budget,
+   schedule, pitch deck) written as real `.docx`, `.xlsx` and `.pptx` in the
+   repository, so they are proven like everything else.
+5. **Forms and content controls.** Fillable PDF forms (above), and Word's
+   content controls and legacy form fields in Documents — read, drawn,
+   filled, written. **Build** with the PDF app.
+6. **Redaction, QR and barcodes, embedded fonts.** Small, well understood,
+   each in a release of its own: redaction in Documents and PDF; Insert → QR
+   code in all three apps; fonts embedded in `.docx` and `.pptx` as Word
+   and PowerPoint write them.
+7. **Assistance.** WPS, Microsoft, Google, Zoho, SoftMaker and ONLYOFFICE
+   all now sell writing, summarising, translating and "chat with the file".
+   The boundary says cloud services are not built, and that holds. What
+   fits the boundary is what ONLYOFFICE 9.2 did: a door the person opens
+   themselves to a model on this computer or to an endpoint they name, with
+   nothing sent until they press the button, and the request shown. **Not
+   before 1.31**, and only as that door; the owner decides whether the door
+   exists at all.
+8. **Cloud sync and co-editing.** Out of scope by the suite's declaration:
+   there is no Rutba server. A file kept in a synced folder already syncs;
+   CalDAV and CardDAV already keep calendars and contacts in step. Say so on
+   the download page rather than build a half of it.
 
-Against **Microsoft Word**, **LibreOffice Writer**, **OnlyOffice**, **Google Docs**.
+## Image: from a viewer's companion to an editor
 
-### Where we are ahead
+Today Rutba Image has rotate, one flip, crop to a ratio, seven sliders
+(brightness, contrast, saturation, hue, blur, sepia, greyscale) and export
+to PNG, JPEG or WebP, on a non-destructive pipeline over the untouched
+source. The pipeline already knows flip vertical, resize, invert and
+annotations (rectangle, ellipse, arrow, text, pen) that no button offers.
+Against Paint.NET, GIMP and Photopea, all free, which have layers,
+selections, masks, healing and curves, and against WPS and Windows Photos,
+which have one-click background removal, the app is a crop tool. The way
+up, in three tiers, each shippable on its own:
 
-- ✅ **A Markdown editor that will not rewrite your README.** 264 of 268 real
-  `.md` files in this estate round-trip byte for byte — front matter, task
-  lists, table alignment, reference links and footnotes all preserved. Word
-  cannot open Markdown at all; LibreOffice converts it and loses the structure;
-  Google Docs has no Markdown file support. See `packages/office-formats/src/markdown.js`.
-- ✅ **Preserving OOXML.** An edit rewrites only the parts it touches, so
-  macros, content controls, custom XML, revisions and signatures survive a round
-  trip untouched. LibreOffice rewrites the whole document through its own model.
-- ✅ Opens `.docx`, `.odt`, `.rtf`, `.txt`, `.md`, `.html`, and extracts what it
-  can from `.doc`.
+**Tier 1 — what the engine already does, and the obvious next adjustments.**
+Buttons for flip vertical, resize (by pixels or percent, keep ratio), invert
+and the five annotation tools with colour and width; straighten by angle
+with the crop following; auto-enhance; levels and curves; white balance
+(temperature and tint); sharpen and noise reduction; vignette; red-eye;
+exposure, highlights and shadows. Export gains quality, a size cap, strip
+metadata, and copy to clipboard. From Pictures, a batch over the folder:
+resize, convert, rename by pattern, rotate by EXIF, strip metadata — the one
+thing office users do with pictures more than any other. HEIC, AVIF, TIFF
+and SVG decoded in the app's own code, so the Linux thumbnail gap closes
+too.
 
-### Where we are behind
+**Tier 2 — selections and layers.** Rectangle, ellipse, lasso and
+magic-wand selections with feather, and every adjustment applied inside the
+selection; a layers panel with opacity, blend modes, masks, text layers
+(through the same text engine the deck uses) and shape layers; a healing
+brush and a clone stamp; perspective correction. A project format of its
+own, `.rimg`, a zip holding the source, the op list and the layers, with
+PSD read (layers, masks, text where possible) and flattened PSD write.
+Edit-in-place from Documents, Worksheets and Presentations: Picture Format →
+Edit in Image opens the picture, Save puts it back where it was.
 
-| Missing | Who has it |
-| :--- | :--- |
-| ⬜ Track changes | Word, Writer, OnlyOffice, Docs |
-| ◐ Table of contents — built from the headings as text; not a live field that updates itself | all |
-| ⬜ Mail merge | Word, Writer |
-| ⬜ Citations and bibliography | Word, Writer |
-| ⬜ Equations | Word, Writer |
-| ⬜ Columns and section breaks | all |
-| ⬜ Editing a style's definition | all |
+**Tier 3 — the advanced work, still on this computer.** Background removal
+with a small segmentation model that ships with the app or is downloaded
+once with consent and then runs offline; content-aware fill by patch
+matching, which needs no model; RAW decoding (CR2, NEF, ARW, DNG) with
+exposure and white-balance recovery; HDR merge and panorama stitch; a
+recorded batch action, as Worksheets' Record Actions, run over a folder.
+Each of these is a declared request at most once, and never a service.
 
----
+## Video: from trim to a cutting room
 
-## Worksheets
+Today Rutba Video opens one file, plays it, splits it, trims the ends,
+removes a clip, previews at four speeds, and exports WebM at the speed the
+film plays, by recording a canvas. Clipchamp, CapCut, Shotcut, OpenShot and
+iMovie all give, free, a multi-track timeline, titles, transitions, green
+screen and MP4 out; Clipchamp and CapCut give automatic captions. The way
+up, again in three tiers:
 
-Against **Excel**, **LibreOffice Calc**, **OnlyOffice**, **Google Sheets**.
+**Tier 1 — a single-track editor that finishes a job.** Join several files
+on one timeline; a still picture as a clip with a duration; per-clip speed
+from the ribbon (the model already honours it); volume, mute, fade in and
+out; crop and rotate; titles and lower thirds through the deck's text
+engine; crossfade, wipe and slide transitions; a project file, `.rvid`,
+that references its sources and autosaves as the documents do. Export to
+MP4 (H.264 and AAC) through the browser's own encoder with a muxer of the
+suite's own, faster than real time, with presets for 720p, 1080p and 4K
+and a bitrate choice; WebM stays as the free-codec option. Pictures' "In
+Video" and Presentations' Export to Video land on this timeline.
 
-### Where we are ahead
+**Tier 2 — tracks, sound and words.** Two or more video tracks for
+picture-in-picture and overlays, audio tracks for music and voice-over
+recorded in the app; keyframes for position, scale, opacity and volume;
+ducking of music under speech; noise reduction; captions imported and
+exported as SRT and WebVTT, edited in a list, burnt in or kept as a track;
+chroma key; colour correction (lift, gamma, gain, temperature) and `.cube`
+LUTs; stabilisation by feature tracking. Automatic captions by a speech
+model that runs on this computer after a one-time consented download, in
+the languages the suite is localised to.
 
-- ✅ **Opens a 100,000-row workbook without loading it into a window.** The grid
-  asks for the viewport it is about to paint; the model stays in the backend.
-- ✅ Real recalculation with a dependency graph, not a formula cache.
-- ✅ Goal seek and what-if tables in the free product — Google Sheets has neither.
+**Tier 3 — recording and the rest.** The screen and camera recorder from
+the list above, recording straight onto the timeline; motion tracking for a
+title that follows; proxies so a 4K film cuts smoothly on a laptop;
+hardware encoding where the platform offers it; GIF and audio-only export;
+export of a clip's frame as a picture into Image.
 
-### Where we are behind
+## Proof, for pictures and film
 
-| Missing | Who has it |
-| :--- | :--- |
-| ⬜ Macros | Excel (VBA), Calc (Basic), OnlyOffice (JS) |
-| ⬜ Sparklines, slicers, timelines | Excel |
-| ⬜ Power Query / external data | Excel |
-| ⬜ Array formulas and dynamic spill | Excel, Sheets |
-| ⬜ Chart editing after insertion | all |
-| ✅ ~~Drawings on a sheet~~ — shapes, connectors, braces, pictures and charts drawn over the cells at their own size, theme-filled and rotated as the file says | all |
+The same contract as the rest of the suite. Engine tests for each pipeline
+operation against golden images with a tolerance, and for the timeline
+model; window checks that press the ribbon and read the canvas and the
+exported file (its size, duration, codec, a frame's pixels); a fixture set
+of small pictures and clips of each format checked into the repository. A
+release note for Image or Video names them as the others do.
 
-| ⬜ Solver | Excel, Calc |
-| ⬜ Cell comments and notes, cell hyperlinks | all |
-| ⬜ Text to Columns, Remove Duplicates, outline groups and subtotals | Excel, Calc |
-| ⬜ Page setup that prints: print area, titles, breaks, scaling | all |
+## Where this sits in the order
 
-Every one of these is on the ribbon where Excel puts it, disabled, with a
-title that says why — so the gap is visible in the product, not only here.
+The order in ROADMAP.md stands: the consolidation release first, then the
+performance budget. After those, in parallel with localisation:
 
----
-
-## Presentations
-
-Against **PowerPoint**, **Impress**, **Keynote**, **Google Slides**.
-
-### Where we are ahead
-
-- ✅ **One renderer for the editor, the sorter and the print.** A slide cannot
-  look one way while you edit it and another way when it is shown.
-- ✅ Preserving package: animations and transitions we do not model survive a
-  round trip rather than being dropped.
-
-### Where we are behind
-
-| Missing | Who has it |
-| :--- | :--- |
-| ⬜ Transitions and animations (authoring) | all |
-| ✅ ~~Presenter view with notes, timer and next slide~~ | all |
-| ⬜ Master and layout editing | all |
-| ⬜ Themes to choose from | all |
-| ✅ ~~Pictures and shapes on a slide~~ — a picture from disk (sized from its own header), fifteen preset shapes in the theme's colours | all |
-| ⬜ Tables and charts on a slide | all |
-
-| ⬜ Legacy `.ppt` (the binary format) — Documents reads `.doc`, Presentations does not read `.ppt` yet | PowerPoint, Impress |
-
----
-
-## Pictures, Image and Video
-
-Against **Windows Photos**, **IrfanView**, **XnView**, **Paint.NET**, **GIMP**,
-**Photos (macOS)**, **VLC**, **Shotcut**.
-
-### Where we are ahead
-
-- ✅ **One viewer for stills, animations, video and audio**, with an auto-advance
-  navigator, a filmstrip, and a slideshow that waits for a video to finish
-  before moving on. Windows Photos does not play video in the same surface;
-  IrfanView needs a plug-in.
-- ✅ Opens PDFs in the same viewer.
-- ✅ Ships in the same download as the office apps, which no other free suite does
-  at all.
-
-### Where we are behind
-
-| Missing | Who has it |
-| :--- | :--- |
-| ⬜ Layers | Paint.NET, GIMP, Photoshop |
-| ⬜ RAW decoding | IrfanView, XnView, Photos |
-| ⬜ Batch conversion | IrfanView, XnView |
-| ⬜ Video effects, transitions, multi-track | Shotcut, DaVinci |
-
----
-
-## What to build next, in order
-
-Ranked by how many people it stops from using this at all.
-
-1. ~~OAuth for Gmail and Outlook.com.~~ **Built** — see [OAUTH.md](OAUTH.md).
-   A build still needs its own registered client id before it works.
-2. ~~Message rules.~~ **Built.**
-3. ~~A search index.~~ **Built.**
-4. ~~Presenter view.~~ **Built** — a second window for the other screen.
-5. ~~Footnotes~~ **Built** — inserted at the caret, reworded by double-click,
-   deleted with Backspace, numbered by where the reference falls, undone with
-   the part restored. Endnotes the same. A table of contents can be built from
-   the headings; a self-updating contents field is not built.
-6. **Calendar.** The largest single piece of work on this list, and the one that
-   turns a mail client into a replacement for Outlook rather than for Thunderbird.
+- **1.31**: Image Tier 1 and Video Tier 1, and the PDF app's pages.
+- **1.32**: Image Tier 2, Video Tier 2, PDF forms and signatures, templates.
+- **1.33**: OCR on this computer, the recorder, PDF text editing and
+  redaction, QR codes and embedded fonts.
+- **Then** Tier 3 of each, item by item, each a declared request at most
+  once and never a service; and the assistance door only if the owner
+  wants it.

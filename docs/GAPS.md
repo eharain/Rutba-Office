@@ -398,6 +398,28 @@ stage keeps a picture until the next has decoded. What is still missing:
 
 ---
 
+## 7. Image and Video — the editors
+
+Both are real but small, and until now unregistered here. What each does,
+and what it does not, is set out with the plan in
+[COMPETITORS.md](COMPETITORS.md).
+
+- **Image** has rotate, flip horizontal, crop to a ratio, seven sliders
+  (brightness, contrast, saturation, hue, blur, sepia, greyscale), undo and
+  export to PNG, JPEG or WebP, over a non-destructive pipeline. The pipeline
+  also knows flip vertical, resize, invert and annotations (rectangle,
+  ellipse, arrow, text, pen) that no button offers yet. No selections,
+  layers, masks, retouching, background removal, RAW, batch or project file.
+- **Video** opens one file, splits, trims the ends, removes a clip, previews
+  at four speeds (the model's per-clip speed has no button), and exports
+  WebM by recording a canvas at the speed the film plays. One track; no
+  joining of files, transitions, titles, captions, audio mixing, keyframes,
+  colour, chroma key, stabilisation or MP4.
+- **Pictures** opens either in one click; "edits from the viewer" belong to
+  Image, and a batch over a folder belongs there too.
+
+---
+
 ## The order this should be built in
 
 1. ~~**Autosave and recovery.**~~ Built 2026-09-09.
