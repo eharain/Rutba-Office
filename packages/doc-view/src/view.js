@@ -3420,6 +3420,10 @@ export class DocView {
         ...(b.tableLook ? { tableLook: b.tableLook } : {}),
         ...(b.cellVAlign ? { cellVAlign: b.cellVAlign } : {}),
         ...(b.rowHeader ? { rowHeader: true } : {}),
+        // The table's lines, and a cell's own lines and shading — what the page draws them in.
+        ...(b.tableBorders ? { tableBorders: b.tableBorders } : {}),
+        ...(b.cellBorders ? { cellBorders: b.cellBorders } : {}),
+        ...(b.cellFill ? { cellFill: b.cellFill } : {}),
         // A paragraph in a frame placed on the page — drawn there.
         ...(b.frame ? { frame: b.frame } : {}),
         ...(() => {

@@ -112,3 +112,35 @@ test('through the document service, each table operation is named by kind: rows,
   assert.equal(model().blocks[index('Region')].rowHeader, true);
   assert.throws(() => docs.apply({ id: s.id, ops: [caret('Before'), { op: 'tableOp', kind: 'insertRowBelow' }] }), /not in a table/);
 });
+
+test('a table\'s lines are its style\'s along basedOn, its own sides over them; a cell\'s own border and shading ride its paragraphs', () => {
+  const view = doc();
+  const engine = view.doc.doc;
+  const stylesXml = engine.pkg.text('word/styles.xml').replace('</w:styles>',
+    '<w:style w:type="table" w:styleId="Base"><w:name w:val="Base"/><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="8" w:color="000000"/><w:insideH w:val="single" w:sz="4" w:color="808080"/></w:tblBorders></w:tblPr><w:tcPr><w:shd w:val="clear" w:fill="EEEEEE"/></w:tcPr></w:style>'
+    + '<w:style w:type="table" w:styleId="Child"><w:name w:val="Child"/><w:basedOn w:val="Base"/><w:tblPr><w:tblBorders><w:insideH w:val="double" w:sz="4" w:color="0000FF"/></w:tblBorders></w:tblPr>'
+    + '<w:tblStylePr w:type="firstRow"><w:tcPr><w:shd w:val="clear" w:fill="FF0000"/></w:tcPr></w:tblStylePr></w:style></w:styles>');
+  engine.pkg.write_('word/styles.xml', stylesXml);
+  assert.deepEqual(engine._tableStyleLook('Child'), {
+    borders: { top: { style: 'single', widthPx: 4 / 3, colour: '#000000' }, insideH: { style: 'double', widthPx: 2 / 3, colour: '#0000ff' } },
+    fill: '#eeeeee',
+  }, 'the child\'s inside line over its base\'s, the base\'s top and shading, a conditional part left out');
+  // The table names the style, sets its own bottom, and one cell its own border and shading.
+  engine.xml = engine.xml
+    .replace(/<w:tblPr>/, '<w:tblPr><w:tblStyle w:val="Child"/>')
+    .replace(/<w:tblBorders>[\s\S]*?<\/w:tblBorders>/, '<w:tblBorders><w:bottom w:val="single" w:sz="16" w:color="00FF00"/></w:tblBorders>')
+    .replace(/(<w:tc><w:tcPr>)((?:(?!<\/w:tcPr>)[\s\S])*?)(<\/w:tcPr>(?:(?!<\/w:tc>)[\s\S])*?Q1)/, '$1$2<w:tcBorders><w:left w:val="dotted" w:sz="8" w:color="123456"/></w:tcBorders><w:shd w:val="clear" w:fill="ABCDEF"/>$3');
+  const blocks = engine.editParagraphs();
+  const region = blocks.find((p) => p.text === 'Region');
+  const q1 = blocks.find((p) => p.text === 'Q1');
+  assert.equal(region.tableBorders.insideH.style, 'double', 'the style\'s inside line');
+  assert.equal(region.tableBorders.top.colour, '#000000', 'the base style\'s top');
+  assert.ok(region.tableBorders.bottom, 'the table\'s own bottom');
+  assert.equal(region.cellFill, '#eeeeee', 'the style\'s shading where the cell gives none');
+  assert.deepEqual(q1.cellBorders, { left: { style: 'dotted', widthPx: 4 / 3, colour: '#123456' } });
+  assert.equal(q1.cellFill, '#abcdef');
+  // And the view passes them on to the page.
+  const shown = view.render({ pages: false }).blocks.find((b) => b.text === 'Q1');
+  assert.equal(shown.cellFill, '#abcdef');
+  assert.ok(shown.tableBorders && shown.cellBorders);
+});

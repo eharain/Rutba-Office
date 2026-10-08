@@ -2876,7 +2876,7 @@ function groupTables(blocks) {
       flush();
       // The file's grid and width ride every paragraph in the table; a sized
       // row and a merged cell say so on their own paragraphs.
-      current = { id: at[1], rows: new Map(), gridPx: block.gridPx || null, width: block.tableWidth || null, rowHeights: new Map(), rowRules: new Map(), spans: new Map(), vAligns: new Map(), merged: new Set(), headers: new Set(), look: block.tableLook || null };
+      current = { id: at[1], rows: new Map(), gridPx: block.gridPx || null, width: block.tableWidth || null, rowHeights: new Map(), rowRules: new Map(), spans: new Map(), vAligns: new Map(), merged: new Set(), headers: new Set(), borders: block.tableBorders || null, cellLooks: new Map(), look: block.tableLook || null };
     }
     const row = Number(at[2]);
     const cell = Number(at[3]);
@@ -2890,6 +2890,8 @@ function groupTables(blocks) {
     if (block.cellSpan > 1) current.spans.set(`${row}:${cell}`, block.cellSpan);
     if (block.hiddenCell) current.merged.add(`${row}:${cell}`);
     if (block.rowHeader) current.headers.add(row);
+    if ((block.cellBorders || block.cellFill) && !current.cellLooks.has(`${row}:${cell}`)) current.cellLooks.set(`${row}:${cell}`, { borders: block.cellBorders || null, fill: block.cellFill || null });
+    if (block.cellBorders) current.anyCellBorders = true;
   }
   flush();
   return out;
@@ -2902,6 +2904,14 @@ function groupTables(blocks) {
  * top of a page's piece — its merge began on the page before — is drawn
  * there as the merge's empty top, so the piece's grid stays whole.
  */
+/** One side of a cell's border as CSS: Word's style, weight and colour; none for a side set to none. */
+function borderCss(b) {
+  if (!b || b.widthPx === 0 || b.style === 'none' || b.style === 'nil') return 'none';
+  const style = b.style === 'double' ? 'double' : /dot/.test(b.style) ? 'dotted' : /dash/.test(b.style) ? 'dashed' : 'solid';
+  const width = style === 'double' ? Math.max(3, Math.round(b.widthPx * 3)) : Math.max(1, Math.round(b.widthPx));
+  return `${width}px ${style} ${b.colour || '#000000'}`;
+}
+
 function mergedRows(slice, table) {
   const open = new Map(); // grid column → the drawn cell a continuation below joins
   return slice.map(([r, cells]) => {
@@ -2913,7 +2923,7 @@ function mergedRows(slice, table) {
       if (table.merged?.has(`${r}:${c}`) && above) {
         above.rowSpan += 1;
       } else {
-        const cell = { c, paragraphs, rowSpan: 1 };
+        const cell = { c, paragraphs, rowSpan: 1, column, span, row: r };
         drawn.push(cell);
         open.set(column, cell);
         for (let k = 1; k < span; k++) open.delete(column + k);
@@ -2945,17 +2955,41 @@ function TableGroup({ table, labels, styles, tsplit }) {
   // typed in there: the caret stays in the first.
   let headerCount = 0;
   while (headerCount < rows.length && table.headers?.has(rows[headerCount][0])) headerCount += 1;
+  // The table's lines as the file gives them: each cell's own side, else the
+  // table's outer side at its edge and its inside line between cells. A table
+  // that gives none has none — only View Gridlines' faint dashes.
+  const columnCount = grid?.length || Math.max(1, ...rows.map(([, cells]) => [...cells.keys()].reduce((n, c) => n + (table.spans?.get(`${rows[0][0]}:${c}`) || 1), 0)));
+  const lastRow = rows.length ? rows[rows.length - 1][0] : 0;
+  const ruled = Boolean(table.borders || table.anyCellBorders);
+  const sidesOf = ({ c, row, column, span, rowSpan }) => {
+    if (!ruled) return null;
+    const own = table.cellLooks?.get(`${row}:${c}`)?.borders || {};
+    const t = table.borders || {};
+    const rowAt = rows.findIndex(([r]) => r === row);
+    const bottomRow = rows[Math.min(rows.length - 1, rowAt + rowSpan - 1)]?.[0];
+    const pick = (side, edge, inside) => borderCss(own[side] ?? (edge ? t[side] : t[inside]));
+    return {
+      borderTop: pick('top', rowAt === 0, 'insideH'),
+      borderBottom: pick('bottom', bottomRow === lastRow, 'insideH'),
+      // Left and right as the table runs: a right-to-left table's first column is at the right.
+      borderInlineStart: pick('left', column === 0, 'insideV'),
+      borderInlineEnd: pick('right', column + span >= columnCount, 'insideV'),
+    };
+  };
   const drawRow = ([r, cells], repeat) => (
     <tr key={repeat ? `h${r}` : r} className={repeat ? 'wd-repeat' : undefined} data-repeat={repeat ? 1 : undefined} contentEditable={repeat ? false : undefined} style={table.rowHeights?.has(r) ? { height: table.rowHeights.get(r) } : undefined}>
-      {cells.map(({ c, paragraphs, rowSpan }) => {
+      {cells.map((drawn) => {
+        const { c, paragraphs, rowSpan } = drawn;
         // A row held to its height (a label's) is exactly that tall: its
         // words sit in a box of that height, centred if the cell says so.
         const exact = table.rowRules?.get(r) === 'exact' && table.rowHeights?.get(r);
         const v = table.vAligns?.get(`${r}:${c}`);
         const m = table.look?.cellMarginPx;
+        const sides = sidesOf(drawn);
+        const fill = table.cellLooks?.get(`${r}:${c}`)?.fill;
         const blocks = paragraphs.map((block) => <Block key={block.index} block={block} labels={labels} styles={styles} />);
         return (
-          <td key={c} colSpan={table.spans?.get(`${r}:${c}`) || undefined} rowSpan={rowSpan > 1 ? rowSpan : undefined} style={m || v ? { ...(m ? { padding: `${m.top}px ${m.right}px ${m.bottom}px ${m.left}px` } : {}), ...(v ? { verticalAlign: v === 'center' ? 'middle' : v } : {}) } : undefined}>
+          <td key={c} colSpan={table.spans?.get(`${r}:${c}`) || undefined} rowSpan={rowSpan > 1 ? rowSpan : undefined} style={m || v || sides || fill ? { ...(m ? { padding: `${m.top}px ${m.right}px ${m.bottom}px ${m.left}px` } : {}), ...(v ? { verticalAlign: v === 'center' ? 'middle' : v } : {}), ...(sides || {}), ...(fill ? { background: fill } : {}) } : undefined}>
             {exact ? (
               <div className="wd-cell-exact" style={{ height: table.rowHeights.get(r) - (m ? m.top + m.bottom : 0), justifyContent: v === 'center' ? 'center' : v === 'bottom' ? 'flex-end' : 'flex-start' }}>{blocks}</div>
             ) : blocks}
@@ -2967,7 +3001,7 @@ function TableGroup({ table, labels, styles, tsplit }) {
   return (
     <>
       {bounds.slice(0, -1).map((from, j) => (
-        <table key={j} className={`wd-table${table.look?.bare ? ' wd-table-bare' : ''}`} dir={table.look?.rtl ? 'rtl' : undefined} data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined} style={width || table.look?.fixed ? { width, ...(table.look?.fixed ? { tableLayout: 'fixed' } : {}) } : undefined}>
+        <table key={j} className={`wd-table${table.look?.bare || !ruled ? ' wd-table-bare' : ''}`} dir={table.look?.rtl ? 'rtl' : undefined} data-table={table.id} data-part={cuts.length ? j : undefined} data-row-from={from > 0 ? from : undefined} style={width || table.look?.fixed ? { width, ...(table.look?.fixed ? { tableLayout: 'fixed' } : {}) } : undefined}>
           {grid && sum > 0 ? <colgroup>{grid.map((w, i) => <col key={i} style={{ width: `${(w / sum) * 100}%` }} />)}</colgroup> : null}
           <tbody>
             {from > 0 && from >= headerCount ? mergedRows(rows.slice(0, headerCount), table).map((row) => drawRow(row, true)) : null}

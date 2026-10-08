@@ -41,6 +41,25 @@ function mergedDocx() {
   return writeZip(entries);
 }
 
+/** A document of two tables: one in a Table Grid style the styles part defines, a cell with its own red border and shading; one with no lines at all. */
+function linesDocx() {
+  const base = buildDocx({ styles: true, paragraphs: [{ text: 'Lines' }, { text: 'Between' }, { text: 'After' }] });
+  const { entries } = readZip(Buffer.from(base));
+  const part = entries.find((e) => e.name === 'word/document.xml');
+  const styles = entries.find((e) => e.name === 'word/styles.xml');
+  styles.data = Buffer.from(styles.data.toString('utf8').replace('</w:styles>', '<w:style w:type="table" w:styleId="GridStyle"><w:name w:val="Grid Style"/><w:tblPr><w:tblBorders><w:top w:val="single" w:sz="8" w:color="000000"/><w:left w:val="single" w:sz="8" w:color="000000"/><w:bottom w:val="single" w:sz="8" w:color="000000"/><w:right w:val="single" w:sz="8" w:color="000000"/><w:insideH w:val="single" w:sz="8" w:color="000000"/><w:insideV w:val="single" w:sz="8" w:color="000000"/></w:tblBorders></w:tblPr></w:style></w:styles>'), 'utf8');
+  const tc = (text, pr = '') => `<w:tc><w:tcPr><w:tcW w:w="2000" w:type="dxa"/>${pr}</w:tcPr><w:p><w:r><w:t>${text}</w:t></w:r></w:p></w:tc>`;
+  const styled = `<w:tbl><w:tblPr><w:tblStyle w:val="GridStyle"/><w:tblW w:w="0" w:type="auto"/></w:tblPr><w:tblGrid><w:gridCol w:w="2000"/><w:gridCol w:w="2000"/></w:tblGrid>`
+    + `<w:tr>${tc('Styled')}${tc('Red', '<w:tcBorders><w:top w:val="single" w:sz="24" w:color="FF0000"/></w:tcBorders><w:shd w:val="clear" w:color="auto" w:fill="FFFF00"/>')}</w:tr><w:tr>${tc('Grid')}${tc('Lines')}</w:tr></w:tbl>`;
+  const bare = `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/></w:tblPr><w:tblGrid><w:gridCol w:w="2000"/><w:gridCol w:w="2000"/></w:tblGrid><w:tr>${tc('No')}${tc('lines')}</w:tr></w:tbl>`;
+  const xml = part.data.toString('utf8');
+  const at = (text) => xml.indexOf('</w:p>', xml.indexOf(text)) + '</w:p>'.length;
+  const first = at('>Lines<');
+  const second = at('>Between<');
+  part.data = Buffer.from(xml.slice(0, first) + styled + xml.slice(first, second) + bare + xml.slice(second), 'utf8');
+  return writeZip(entries);
+}
+
 /**
  * @param {object} h the harness: open, check, until, wait, press, errorsIn, doc, sessionFor
  * @param {{ dir: string }} args where the fixture is written
@@ -69,6 +88,33 @@ export async function verifyWordTableTools(h, { dir }) {
     check('word: drawing merged cells reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check('word: the merged-cell checks ran', false, err.message);
+  }
+
+  // A table's lines as the file gives them: its style's, a cell's own over
+  // them, a cell's shading; a table that gives none drawn with none.
+  const lines = path.join(dir, 'table-lines.docx');
+  try {
+    fs.writeFileSync(lines, linesDocx());
+    const win = await open('word', lines);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    await until(() => js(`document.querySelectorAll('.wd-page table.wd-table').length >= 2`), 'the tables to be drawn', 8000).catch(() => {});
+    if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-table-lines.png'), (await win.webContents.capturePage()).toPNG());
+    const looks = await js(`(() => {
+      const td = (text) => [...document.querySelectorAll('.wd-page table.wd-table td')].find((c) => c.innerText.trim() === text);
+      const of = (text) => { const c = td(text); if (!c) return null; const s = getComputedStyle(c); return { top: s.borderTopWidth + ' ' + s.borderTopStyle + ' ' + s.borderTopColor, left: s.borderLeftWidth + ' ' + s.borderLeftStyle, bg: s.backgroundColor, outline: s.outlineStyle }; };
+      return { styled: of('Grid'), red: of('Red'), bare: of('No') };
+    })()`);
+    check('word: a table in a style that rules it is drawn with the style\'s lines',
+      looks.styled?.top === '1px solid rgb(0, 0, 0)' && looks.styled?.left === '1px solid', JSON.stringify(looks.styled));
+    check('word: a cell\'s own border and shading are drawn over the table\'s',
+      // w:sz="24" is 3pt, four pixels.
+      /^4px solid rgb\(255, 0, 0\)$/.test(looks.red?.top || '') && looks.red?.bg === 'rgb(255, 255, 0)', JSON.stringify(looks.red));
+    check('word: a table that gives no lines is drawn with none, only the faint gridlines',
+      looks.bare?.top.startsWith('0px') && looks.bare?.outline === 'dashed', JSON.stringify(looks.bare));
+    const complaints = await errorsIn(win);
+    check('word: drawing a table\'s lines reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the table-lines checks ran', false, err.message);
   }
 
   // Table Layout: there while the caret is in a table, and each of its

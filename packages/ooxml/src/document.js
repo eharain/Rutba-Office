@@ -442,6 +442,27 @@ function readParagraphDecor(pPrXml) {
  * fiftieths of a percent), a fixed one (`dxa`), or nothing. The page draws
  * the columns from these; the ruler and the grips on the page move them.
  */
+/**
+ * A tblBorders or tcBorders element's sides, each { style, widthPx, colour }
+ * (a colour of null is the text's own; a side set to none or nil is 0 wide);
+ * start and end are left and right. Null when it says nothing.
+ */
+function bordersOf(xml) {
+  if (!xml) return null;
+  const out = {};
+  for (const m of xml.matchAll(/<w:(top|left|bottom|right|insideH|insideV|start|end)\b([^>]*)\/>/g)) {
+    const a = attrs(m[2]);
+    const style = a['w:val'] || 'single';
+    const side = m[1] === 'start' ? 'left' : m[1] === 'end' ? 'right' : m[1];
+    out[side] = {
+      style,
+      widthPx: style === 'none' || style === 'nil' ? 0 : Math.max(0.5, (Number(a['w:sz']) || 4) / 8 * 96 / 72),
+      colour: a['w:color'] && a['w:color'] !== 'auto' && /^[0-9a-f]{6}$/i.test(a['w:color']) ? '#' + a['w:color'].toLowerCase() : null,
+    };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 function tableHead(body, at) {
   const firstRow = body.indexOf('<w:tr', at);
   const head = body.slice(at, firstRow === -1 ? at + 4000 : firstRow);
@@ -465,7 +486,9 @@ function tableHead(body, at) {
   const mar = /<w:tblCellMar\b[^>]*>([\s\S]*?)<\/w:tblCellMar>/.exec(head);
   const side = (name) => { const m = mar ? new RegExp('<w:' + name + '\\b[^>]*\\bw:w="(\\d+)"').exec(mar[1]) : null; return m ? twipsToPx(Number(m[1])) : null; };
   const look = bare || fixed || rtl ? { bare, fixed, ...(rtl ? { rtl } : {}), ...(mar ? { cellMarginPx: { left: side('left') ?? side('start') ?? 0, right: side('right') ?? side('end') ?? 0, top: side('top') ?? 0, bottom: side('bottom') ?? 0 } } : {}) } : null;
-  return { gridPx: gridPx.length ? gridPx : null, tableWidth, ...(look ? { look } : {}) };
+  // Its own borders, and the table style it names (whose borders are under its own).
+  const styleId = /<w:tblStyle\b[^>]*\bw:val="([^"]*)"/.exec(head)?.[1] ?? null;
+  return { gridPx: gridPx.length ? gridPx : null, tableWidth, ...(look ? { look } : {}), borders: bordersOf(borders?.[0] ?? null), styleId };
 }
 
 /** A row's own height, if the file sets one, and whether it is exact or a floor. */
@@ -696,6 +719,41 @@ export class Document {
    * the control sits. `cellBlocks` in table.js flags the same paragraphs
    * `inSdt` so the two scans agree about what is addressable.
    */
+  /**
+   * A table style's own look, along its basedOn chain: its borders (tblPr's
+   * tblBorders) and its cells' shading (tcPr's shd) — Table Grid's lines, a
+   * shaded style's fill. Its conditional parts (header row, bands) are not
+   * read here. Cached against the styles part it was read from.
+   */
+  _tableStyleLook(id) {
+    if (!id) return { borders: null, fill: null };
+    const xml = this.pkg.has('word/styles.xml') ? this.pkg.text('word/styles.xml') : '';
+    if (this._tableStylesFor !== xml) {
+      this._tableStylesFor = xml;
+      this._tableStyles = new Map();
+      for (const m of xml.matchAll(/<w:style\b[^>]*\bw:type="table"[^>]*>([\s\S]*?)<\/w:style>/g)) {
+        const sid = /\bw:styleId="([^"]*)"/.exec(m[0])?.[1];
+        if (!sid) continue;
+        // Its own tblPr and tcPr, not a conditional part's.
+        const own = m[1].replace(/<w:tblStylePr\b[\s\S]*?<\/w:tblStylePr>/g, '');
+        this._tableStyles.set(sid, {
+          basedOn: /<w:basedOn\b[^>]*\bw:val="([^"]*)"/.exec(own)?.[1] ?? null,
+          borders: bordersOf(/<w:tblBorders\b[^>]*>[\s\S]*?<\/w:tblBorders>/.exec(own)?.[0] ?? null),
+          fill: (() => { const f = /<w:tcPr\b[^>]*>[\s\S]*?<w:shd\b[^>]*\bw:fill="([0-9a-fA-F]{6})"/.exec(own)?.[1]; return f ? '#' + f.toLowerCase() : null; })(),
+        });
+      }
+    }
+    const look = { borders: null, fill: null };
+    for (let sid = id, depth = 0; sid && depth < 12; depth++) {
+      const st = this._tableStyles.get(sid);
+      if (!st) break;
+      if (st.borders) look.borders = { ...st.borders, ...(look.borders || {}) };
+      if (!look.fill && st.fill) look.fill = st.fill;
+      sid = st.basedOn;
+    }
+    return look;
+  }
+
   editParagraphs() {
     if (this._editParagraphsFor === this.xml) return this._editParagraphs;
 
@@ -755,6 +813,10 @@ export class Document {
         ...(tc.span > 1 ? { cellSpan: tc.span } : {}),
         ...(tr.heightPx ? { rowHeightPx: tr.heightPx, rowRule: tr.rule } : {}),
         ...(tr.header ? { rowHeader: true } : {}),
+        // The table's lines ride every paragraph in it, a cell's own lines and shading its paragraphs.
+        ...(tbl.borders ? { tableBorders: tbl.borders } : {}),
+        ...(tc.cellBorders ? { cellBorders: tc.cellBorders } : {}),
+        ...(tc.fill || tbl.styleFill ? { cellFill: tc.fill || tbl.styleFill } : {}),
       };
     };
 
@@ -795,7 +857,13 @@ export class Document {
         }
         if (m[1]) {
           if (m[2] === '/') continue; // an empty element — nothing to enter
-          if (name === 'tbl') stack.push({ tag: 'tbl', id: m.index, nextRow: 0, ...tableHead(body, m.index) });
+          if (name === 'tbl') {
+            const head = tableHead(body, m.index);
+            // The table's lines: its style's, each side its own where it gives one.
+            const styled = this._tableStyleLook(head.styleId);
+            const borders = styled.borders || head.borders ? { ...(styled.borders || {}), ...(head.borders || {}) } : null;
+            stack.push({ tag: 'tbl', id: m.index, nextRow: 0, ...head, borders, styleFill: styled.fill });
+          }
           else if (name === 'tr') {
             const top = stack[stack.length - 1];
             stack.push({ tag: 'tr', index: top?.tag === 'tbl' ? top.nextRow++ : 0, nextCell: 0, ...rowHead(body, m.index) });
@@ -811,7 +879,10 @@ export class Document {
             const hidden = /<w:vMerge\b(?![^>]*w:val="restart")/.test(head);
             const span = /<w:gridSpan\b[^>]*\bw:val="(\d+)"/.exec(head);
             const vAlign = /<w:vAlign\b[^>]*\bw:val="(center|bottom)"/.exec(head);
-            stack.push({ tag: 'tc', index: top?.tag === 'tr' ? top.nextCell++ : 0, hidden, span: span ? Number(span[1]) : 1, ...(vAlign ? { vAlign: vAlign[1] } : {}) });
+            // The cell's own lines and shading, over the table's.
+            const cellBorders = bordersOf(/<w:tcBorders\b[^>]*>([\s\S]*?)<\/w:tcBorders>/.exec(head)?.[0] ?? null);
+            const fill = /<w:shd\b[^>]*\bw:fill="([0-9a-fA-F]{6})"/.exec(head)?.[1];
+            stack.push({ tag: 'tc', index: top?.tag === 'tr' ? top.nextCell++ : 0, hidden, span: span ? Number(span[1]) : 1, ...(vAlign ? { vAlign: vAlign[1] } : {}), ...(cellBorders ? { cellBorders } : {}), ...(fill ? { fill: '#' + fill.toLowerCase() } : {}) });
           }
         } else {
           for (let i = stack.length - 1; i >= 0; i--) {
@@ -4688,6 +4759,9 @@ export class Document {
       ...(p.tableLook ? { tableLook: p.tableLook } : {}),
       ...(p.cellVAlign ? { cellVAlign: p.cellVAlign } : {}),
       ...(p.rowHeader ? { rowHeader: true } : {}),
+      ...(p.tableBorders ? { tableBorders: p.tableBorders } : {}),
+      ...(p.cellBorders ? { cellBorders: p.cellBorders } : {}),
+      ...(p.cellFill ? { cellFill: p.cellFill } : {}),
       xml: p.xml,
       start: p.start,
       end: p.end,
