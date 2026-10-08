@@ -112,6 +112,23 @@ export async function verifyWordTableTools(h, { dir }) {
       /^4px solid rgb\(255, 0, 0\)$/.test(looks.red?.top || '') && looks.red?.bg === 'rgb(255, 255, 0)', JSON.stringify(looks.red));
     check('word: a table that gives no lines is drawn with none, only the faint gridlines',
       looks.bare?.top.startsWith('0px') && looks.bare?.outline === 'dashed', JSON.stringify(looks.bare));
+    // Table Layout → View Gridlines turns the faint dashes off, and on again.
+    const model = () => h.doc.model({ id: h.sessionFor('doc').id });
+    const at = model().blocks.findIndex((b) => b.text === 'No');
+    await js(`(() => { const a = document.querySelector('.wd-page [data-block="${at}"]'); a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); const r = document.createRange(); r.setStart(a.firstChild || a, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return true; })()`);
+    await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Table Layout')`), 'Table Layout', 3000);
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Table Layout').click(), 'tab'`);
+    const toggle = () => js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'View Gridlines'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+    const dashes = () => js(`getComputedStyle([...document.querySelectorAll('.wd-page table.wd-table td')].find((d) => d.innerText.trim() === 'No')).outlineStyle`);
+    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'View Gridlines'))`), 'View Gridlines', 3000);
+    await toggle();
+    await until(async () => (await dashes()) === 'none', 'the dashes off', 3000).catch(() => {});
+    const off = await dashes();
+    await toggle();
+    await until(async () => (await dashes()) === 'dashed', 'the dashes back', 3000).catch(() => {});
+    const on = await dashes();
+    check('word: Table Layout → View Gridlines turns a lineless table\'s faint dashes off and on', off === 'none' && on === 'dashed', `${off} → ${on}`);
+
     const complaints = await errorsIn(win);
     check('word: drawing a table\'s lines reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

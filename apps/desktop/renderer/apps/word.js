@@ -1275,6 +1275,10 @@ export default function Word({ app, shell, boot }) {
         case 'toggleGridlines':
           patchView((v) => ({ gridlines: !v.gridlines }));
           return;
+        // Table Layout → View Gridlines: a table's faint dashes where it has no lines, on screen only — on unless turned off.
+        case 'toggleTableGridlines':
+          patchView((v) => ({ noTableGridlines: !v.noTableGridlines }));
+          return;
         // View → Immersive Reader: open with Word's defaults on its own tab,
         // change one of its settings, or close it back to the View tab.
         case 'immersive':
@@ -2119,7 +2123,7 @@ export default function Word({ app, shell, boot }) {
               />
             ) : null}
             <div
-              className={`wd-page${view.drawBox ? ' drawing-box' : ''}${view.gridlines ? ' gridlines' : ''}${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}${mailings.highlight ? ' wd-mm-hl' : ''}${model.mailMerge?.preview ? ' wd-mm-preview' : ''}`}
+              className={`wd-page${view.drawBox ? ' drawing-box' : ''}${view.gridlines ? ' gridlines' : ''}${view.noTableGridlines ? ' wd-no-table-gridlines' : ''}${view.marks ? ' marks' : ''}${paged ? ' paged' : ''}${mailings.highlight ? ' wd-mm-hl' : ''}${model.mailMerge?.preview ? ' wd-mm-preview' : ''}`}
               ref={pageRef}
               // Immersive Reader is for reading: the words are not edited there, as in Word.
               contentEditable={!view.immersive}
@@ -3994,6 +3998,7 @@ const CSS = `
    Word's View Gridlines: faint dashes that take no room and never print. */
 .wd-table.wd-table-bare { margin: 0; }
 .wd-table.wd-table-bare td { border: 0; outline: 1px dashed rgba(70, 120, 200, 0.35); outline-offset: -1px; }
+.wd-page.wd-no-table-gridlines .wd-table.wd-table-bare td { outline: none; }
 .wd-cell-exact { display: flex; flex-direction: column; overflow: hidden; }
 .wd-cell-exact > .wd-block { margin-top: 0; margin-bottom: 0; }
 /* An envelope in front of the letter: its sheet at the envelope's size. */

@@ -790,6 +790,9 @@ export default function WordRibbon({
       {/* ── Table Layout (contextual) ─────────────────────────────────────── */}
       {tab === 'tableLayout' && table ? (
         <>
+          <Group label="Table">
+            <Button tall icon="grid" label="View Gridlines" pressed={!view.noTableGridlines} title="View Gridlines — a table's faint dashes where it has no lines of its own; on screen only, never printed" onClick={() => act('toggleTableGridlines')} />
+          </Group>
           <Group label="Rows & Columns">
             <Button tall icon="minus" label="Delete" title="Delete — the row, the column or the whole table at the caret" onClick={(e) => menu.open(e, [
               { label: 'Delete columns', icon: 'minus', run: () => tableOp('deleteColumn') },
