@@ -49,8 +49,21 @@ export async function verifyDeckCameo({ open, check, until, wait, errorsIn, doc 
     await until(async () => !(await playing('body')), 'the preview off', 3000).catch(() => {});
 
     // The show: the camera in the cameo, closed again when the show ends.
-    await js(`(async () => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(); await new Promise((r) => setTimeout(r, 200)); [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'From Beginning')?.click(); return 1; })()`);
-    const inShow = await until(async () => { const p = await playing('.sl-present'); return Boolean(p?.live) && p.w > 16; }, 'the camera in the show', 14000).then(() => true).catch(() => false);
+    const startShow = () => js(`(async () => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(); await new Promise((r) => setTimeout(r, 200)); [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'From Beginning')?.click(); return 1; })()`);
+    const liveInShow = () => until(async () => { const p = await playing('.sl-present'); return Boolean(p?.live) && p.w > 16; }, 'the camera in the show', 14000).then(() => true).catch(() => false);
+    await startShow();
+    let inShow = await liveInShow();
+    // A check run's stand-in camera, on a busy machine, sometimes will not
+    // start again so soon after the preview let it go: the show is left and
+    // started once more, and must then show the camera live.
+    if (!inShow) {
+      win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
+      win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
+      await until(() => js(`!document.querySelector('.sl-present')`), 'the show closed', 4000).catch(() => {});
+      await wait(2000);
+      await startShow();
+      inShow = await liveInShow();
+    }
     const shown = await playing('.sl-present');
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });

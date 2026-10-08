@@ -73,7 +73,17 @@ export function useCamera(on) {
         };
         if (alive(stream)) track?.addEventListener('ended', ended);
         else ended();
-      }).catch((err) => { if (live) setState({ stream: null, error: err?.name === 'NotAllowedError' ? 'The camera was not allowed.' : 'No camera was found.' }); });
+      }).catch((err) => {
+        if (!live) return;
+        // A camera that is there but busy — let go a moment ago by the stage's
+        // preview, or held by another program — is asked for again, as one
+        // that stops is; only no camera, or one not allowed, is the answer.
+        if (['NotReadableError', 'AbortError', 'TrackStartError'].includes(err?.name) && ++tries <= 5) {
+          timer = setTimeout(take, 300 * 2 ** (tries - 1));
+          return;
+        }
+        setState({ stream: null, error: err?.name === 'NotAllowedError' ? 'The camera was not allowed.' : err?.name === 'NotReadableError' ? 'The camera is in use by another program.' : 'No camera was found.' });
+      });
     };
     take();
     return () => {
