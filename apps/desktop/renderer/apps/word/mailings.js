@@ -105,14 +105,14 @@ export function MailingsTab({ mm, menu, create = null }) {
             icon="filter" label="Rules" disabled={!has}
             title={need("Rules — If…Then…Else, Next Record, Skip Record If and the record numbers")}
             onClick={(e) => menu.open(e, [
-              { label: 'Ask…', disabled: true, title: 'Asks at merge time; not in this build.' },
-              { label: 'Fill-in…', disabled: true, title: 'Asks at merge time; not in this build.' },
+              { label: 'Ask…', run: () => mm.act('rule', 'ask'), title: 'Ask — a question put when the merge runs, its answer kept in a bookmark and shown wherever the bookmark is' },
+              { label: 'Fill-in…', run: () => mm.act('rule', 'fillin'), title: 'Fill-in — a question put when the merge runs, its answer put here' },
               { label: 'If…Then…Else…', run: () => mm.act('rule', 'if') },
               { label: 'Merge Record #', run: () => mm.act('rule', 'mergerec') },
               { label: 'Merge Sequence #', run: () => mm.act('rule', 'mergeseq') },
               { label: 'Next Record', run: () => mm.act('rule', 'next') },
               { label: 'Next Record If…', run: () => mm.act('rule', 'nextif') },
-              { label: 'Set Bookmark…', disabled: true, title: 'SET fields are not in this build.' },
+              { label: 'Set Bookmark…', run: () => mm.act('rule', 'set'), title: 'Set Bookmark — a bookmark given a value for the merge, shown wherever the bookmark is' },
               { label: 'Skip Record If…', run: () => mm.act('rule', 'skipif') },
             ])}
           />
@@ -235,6 +235,7 @@ export function useMailings({ shell, doc, model, apply, toast, extra = null }) {
         return;
       case 'rule':
         if (arg === 'if' || arg === 'skipif' || arg === 'nextif') setDialog({ name: 'rule', kind: arg });
+        else if (arg === 'ask' || arg === 'fillin' || arg === 'set') setDialog({ name: 'prompt', kind: arg });
         else await apply({ op: 'insertMergeRule', kind: arg });
         return;
       case 'match':
@@ -317,6 +318,7 @@ export function useMailings({ shell, doc, model, apply, toast, extra = null }) {
       {dialog.name === 'recipients' ? <RecipientsDialog call={call} state={state} onClose={close} onApply={async (spec) => { await apply({ op: 'setMergeRecipients', ...spec }); close(); }} /> : null}
       {dialog.name === 'addressBlock' ? <AddressBlockDialog call={call} state={state} onClose={close} onMatch={() => setDialog({ name: 'match', back: 'addressBlock' })} onInsert={async (spec) => { close(); await apply({ op: 'insertAddressBlock', spec }); }} /> : null}
       {dialog.name === 'greetingLine' ? <GreetingLineDialog call={call} state={state} onClose={close} onInsert={async (spec) => { close(); await apply({ op: 'insertGreetingLine', spec }); }} /> : null}
+      {dialog.name === 'prompt' ? <PromptRuleDialog kind={dialog.kind} onClose={close} onInsert={async (spec) => { close(); await apply({ op: 'insertMergeRule', kind: dialog.kind, spec }); }} /> : null}
       {dialog.name === 'rule' ? <RuleDialog kind={dialog.kind} fields={state?.source?.fields || []} onClose={close} onInsert={async (spec) => { close(); await apply({ op: 'insertMergeRule', kind: dialog.kind, spec }); }} /> : null}
       {dialog.name === 'match' ? (
         <MatchFieldsDialog state={state} onClose={() => setDialog(dialog.back ? { name: dialog.back } : null)} onApply={async (overrides) => { await apply({ op: 'setMergeMapping', overrides }); setDialog(dialog.back ? { name: dialog.back } : null); }} />
@@ -620,6 +622,80 @@ function GreetingLineDialog({ call, state, onClose, onInsert }) {
 
 const RULE_TITLES = { if: 'Insert Word Field: IF', skipif: 'Insert Word Field: Skip Record If', nextif: 'Insert Word Field: Next Record If' };
 
+/**
+ * Rules → Ask, Fill-in and Set Bookmark, as Word's own dialogs: the
+ * bookmark, the prompt, the default answer, Ask once; or the bookmark and
+ * its value. An Ask or a Set can show its bookmark straight after it.
+ */
+function PromptRuleDialog({ kind, onClose, onInsert }) {
+  const [name, setName] = useState('');
+  const [prompt, setPrompt] = useState('');
+  const [def, setDef] = useState('');
+  const [once, setOnce] = useState(false);
+  const [show, setShow] = useState(true);
+  const needsName = kind !== 'fillin';
+  const ok = (!needsName || /^[A-Za-z]/.test(name.trim())) && (kind === 'set' || prompt.trim());
+  const title = { ask: 'Insert Word Field: Ask', fillin: 'Insert Word Field: Fill-in', set: 'Insert Word Field: Set' }[kind];
+  return (
+    <Dialog
+      title={title}
+      width={480}
+      onClose={onClose}
+      actions={<><Button label="Cancel" onClick={onClose} /><Button primary className="wd-mm-prompt-ok" label="OK" disabled={!ok} onClick={() => onInsert({ name: name.trim(), prompt, def, value: def, once, show })} /></>}
+    >
+      {needsName ? (
+        <Field label="Bookmark:" hint="A letter first, then letters, digits or underscores">
+          <Input className="wd-mm-prompt-name" value={name} autoFocus onChange={(e) => setName(e.target.value)} />
+        </Field>
+      ) : null}
+      {kind !== 'set' ? (
+        <Field label="Prompt:">
+          <Input className="wd-mm-prompt-text" value={prompt} autoFocus={!needsName} onChange={(e) => setPrompt(e.target.value)} />
+        </Field>
+      ) : null}
+      <Field label={kind === 'set' ? 'Value:' : kind === 'ask' ? 'Default bookmark text:' : 'Default fill-in text:'}>
+        <Input className="wd-mm-prompt-default" value={def} onChange={(e) => setDef(e.target.value)} />
+      </Field>
+      {kind !== 'set' ? <label className="wd-mm-check"><input type="checkbox" checked={once} onChange={(e) => setOnce(e.target.checked)} /> Ask once — one answer for every record</label> : null}
+      {kind !== 'fillin' ? <label className="wd-mm-check"><input type="checkbox" className="wd-mm-prompt-show" checked={show} onChange={(e) => setShow(e.target.checked)} /> Show the bookmark's value here, after the field</label> : null}
+    </Dialog>
+  );
+}
+
+/**
+ * Before a merge with Ask or Fill-in fields: each question answered — once,
+ * for a question asked once, else for each record in turn, its default
+ * filled in.
+ */
+function MergeAnswersDialog({ prompts, records, onClose, onMerge }) {
+  const [answers, setAnswers] = useState(() => Object.fromEntries(prompts.map((p) => [p.key, p.once ? p.def : Object.fromEntries(records.map((r) => [String(r.number), p.def]))])));
+  const set = (key, record, value) => setAnswers((a) => ({ ...a, [key]: record == null ? value : { ...a[key], [String(record)]: value } }));
+  return (
+    <Dialog
+      title="Answer the merge's questions"
+      width={620}
+      onClose={onClose}
+      actions={<><Button label="Cancel" onClick={onClose} /><Button primary className="wd-mm-answers-ok" label="Merge" onClick={() => onMerge(answers)} /></>}
+    >
+      <div className="wd-mm-answers">
+        {prompts.map((p) => (
+          <div key={p.key} className="wd-mm-answer" data-key={p.key}>
+            <div className="wd-mm-section">{p.prompt || p.name}{p.kind === 'ask' ? ` (kept in ${p.name})` : ''}</div>
+            {p.once ? (
+              <Input className="wd-mm-answer-once" value={answers[p.key]} onChange={(e) => set(p.key, null, e.target.value)} />
+            ) : records.map((r) => (
+              <label key={r.number} className="wd-mm-answer-row">
+                <span>{r.label}</span>
+                <Input className="wd-mm-answer-record" data-record={r.number} value={answers[p.key][String(r.number)]} onChange={(e) => set(p.key, r.number, e.target.value)} />
+              </label>
+            ))}
+          </div>
+        ))}
+      </div>
+    </Dialog>
+  );
+}
+
 function RuleDialog({ kind, fields, onClose, onInsert }) {
   const [field, setField] = useState(fields[0] || '');
   const [comparison, setComparison] = useState('=');
@@ -747,22 +823,30 @@ function FinishDialog({ to, shell, call, state, apply, toast, onClose }) {
   }, [shell, to]);
   const spec = range === 'range' ? { from: Number(from) || 1, to: Number(until) || state?.included || 1 } : range;
 
-  const run = async () => {
+  // Rules → Ask and Fill-in: the merge's questions, answered before it runs.
+  const [asking, setAsking] = useState(null);
+  const run = async (answers = null) => {
+    if (!answers) {
+      const got = await call('prompts', { range: spec }).catch(() => null);
+      if (got?.prompts?.length) { setAsking(got); return; }
+      answers = {};
+    }
+    setAsking(null);
     setBusy(true);
     try {
       if (to === 'document') {
-        const made = await call('finish', { range: spec });
+        const made = await call('finish', { range: spec, answers });
         await shell.win.create({ app: 'word', query: { session: made.id } });
         toast(`${made.name}: ${made.copies} ${made.copies === 1 ? 'copy' : 'copies'} of the ${made.typeLabel.toLowerCase()} — one section each.`, { tone: 'good', ms: 5000 });
         onClose();
       } else if (to === 'print') {
-        const made = await call('finish', { range: spec });
+        const made = await call('finish', { range: spec, answers });
         setPrinting(made);
       } else {
         if (!account) { toast('Add a mail account in Mail first.', { tone: 'bad' }); setBusy(false); return; }
         if (!toField) { toast('Choose the column that holds the e-mail addresses.', { tone: 'bad' }); setBusy(false); return; }
         await apply({ op: 'setMergeEmail', toField, subject });
-        const messages = await call('messages', { range: spec, toField, subject, format });
+        const messages = await call('messages', { range: spec, toField, subject, format, answers });
         setProgress({ done: 0, total: messages.length, sent: 0, failed: [] });
         const out = await sendMergedMessages(
           messages,
@@ -777,6 +861,8 @@ function FinishDialog({ to, shell, call, state, apply, toast, onClose }) {
     }
     setBusy(false);
   };
+
+  if (asking) return <MergeAnswersDialog prompts={asking.prompts} records={asking.records} onClose={() => setAsking(null)} onMerge={(answers) => run(answers)} />;
 
   if (printing) {
     // The merged document exists only to be printed: it goes when the print
@@ -813,7 +899,7 @@ function FinishDialog({ to, shell, call, state, apply, toast, onClose }) {
       width={to === 'email' ? 560 : 420}
       onClose={onClose}
       actions={finished ? <Button primary label="Close" onClick={onClose} /> : (
-        <><Button label="Cancel" onClick={onClose} disabled={busy} /><Button primary label={to === 'email' ? 'Send' : 'OK'} disabled={busy || (to === 'email' && accounts !== null && !accounts.length)} onClick={run} /></>
+        <><Button label="Cancel" onClick={onClose} disabled={busy} /><Button primary label={to === 'email' ? 'Send' : 'OK'} disabled={busy || (to === 'email' && accounts !== null && !accounts.length)} onClick={() => run()} /></>
       )}
     >
       {to === 'email' ? (

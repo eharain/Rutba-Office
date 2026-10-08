@@ -69,9 +69,11 @@ function resultXml(xml, field, text) {
  * (more than one on a sheet of labels) and its body with every mail merge
  * field replaced.
  */
-export function mergeCopies(bodyXml, source, order, { mapping = {} } = {}) {
+export function mergeCopies(bodyXml, source, order, { mapping = {}, answers = {} } = {}) {
   const xml = String(bodyXml);
-  const fields = fieldsIn(xml).filter((f) => MERGE_KINDS.has(readInstr(f.instr).kind));
+  // The bookmarks an ASK or a SET fills: a REF to one shows its value in each copy; any other REF is left as it stands.
+  const kept = new Set(fieldsIn(xml).map((f) => readInstr(f.instr)).filter((r) => r.kind === 'ask' || r.kind === 'set').map((r) => r.words[1]?.text).filter(Boolean));
+  const fields = fieldsIn(xml).filter((f) => { const r = readInstr(f.instr); return MERGE_KINDS.has(r.kind) || (r.kind === 'ref' && kept.has(r.words[1]?.text)); });
   const copies = [];
   let i = 0;
   let sequence = 0;
@@ -79,6 +81,7 @@ export function mergeCopies(bodyXml, source, order, { mapping = {} } = {}) {
     let pointer = i;
     let skip = false;
     const used = [order[i]];
+    const bookmarks = {};
     let out = '';
     let at = 0;
     for (const f of fields) {
@@ -87,7 +90,7 @@ export function mergeCopies(bodyXml, source, order, { mapping = {} } = {}) {
       const index = pointer < order.length ? order[pointer] : null;
       const record = index === null ? null : source.records[index];
       const got = record
-        ? evaluateField(f.instr, { source, record, recordNumber: index + 1, sequence: sequence + 1, mapping })
+        ? evaluateField(f.instr, { source, record, recordNumber: index + 1, sequence: sequence + 1, mapping, answers, bookmarks })
         : { text: '', next: readInstr(f.instr).kind === 'next' };
       if (got.skip) skip = true;
       if (got.next) {
@@ -174,9 +177,9 @@ function splitBody(doc) {
  * merged document is an ordinary one: no mail merge settings, no fields
  * left to merge. Answers `{ bytes, copies, records }`.
  */
-export function mergeToDocument(doc, source, order, { type = 'formLetters', mapping = {} } = {}) {
+export function mergeToDocument(doc, source, order, { type = 'formLetters', mapping = {}, answers = {} } = {}) {
   const { prefix, content, sectPr, suffix } = splitBody(doc);
-  const copies = mergeCopies(content, source, order, { mapping });
+  const copies = mergeCopies(content, source, order, { mapping, answers });
   let body = '';
   copies.forEach((copy, k) => {
     let xml = copy.xml;
@@ -236,9 +239,9 @@ export function bodyHtml(xml) {
  * its body (plain, or HTML with a plain copy beside it). Each carries the
  * record it came from, so a failure can say whose it was.
  */
-export function mergeMessages(doc, source, order, { toField, subject = '', format = 'html', mapping = {} } = {}) {
+export function mergeMessages(doc, source, order, { toField, subject = '', format = 'html', mapping = {}, answers = {} } = {}) {
   const { content } = splitBody(doc);
-  return mergeCopies(content, source, order, { mapping }).map((copy) => {
+  return mergeCopies(content, source, order, { mapping, answers }).map((copy) => {
     const record = source.records[copy.records[0]];
     const text = bodyText(copy.xml);
     return {

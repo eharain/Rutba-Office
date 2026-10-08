@@ -1309,8 +1309,11 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       }
       case 'errors':
         return view.mergeErrors();
+      // Rules → Ask and Fill-in: the questions to answer before a merge runs.
+      case 'prompts':
+        return view.mergePrompts({ range: a.range ?? 'all' });
       case 'finish': {
-        const merged = view.mergeToDocument({ range: a.range ?? 'all' });
+        const merged = view.mergeToDocument({ range: a.range ?? 'all', answers: a.answers || {} });
         const type = view.merge.type || 'formLetters';
         const base = MERGED_NAMES[type] || 'Letters';
         const n = (mergedCount.get(base) || 0) + 1;
@@ -1324,7 +1327,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         return { id: made.id, name: made.name, copies: merged.copies, records: merged.records, type, typeLabel: (MAIN_DOCUMENT_TYPES.find((t) => t.id === type) || {}).label || 'Letters' };
       }
       case 'messages':
-        return view.mergeMessages({ range: a.range ?? 'all', toField: a.toField, subject: a.subject, format: a.format || 'html' });
+        return view.mergeMessages({ range: a.range ?? 'all', toField: a.toField, subject: a.subject, format: a.format || 'html', answers: a.answers || {} });
       // Labels → New Document or Print, and Envelopes → Print: a document of
       // its own — Labels1, Envelope1 — for a window or the printer.
       case 'makeLabels':

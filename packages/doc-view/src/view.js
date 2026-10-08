@@ -23,6 +23,7 @@ import { hyphenationRules } from './hyphenate.js';
 import { bandForPage, resolveFields } from './bands.js';
 import {
   MERGE_KINDS, readInstr, evaluateField, matchFields, mergeOrder, placeholderFor, mergeFieldInstr,
+  readPrompt, promptKey, fillInInstr, askInstr, setInstr, refInstr,
   addressBlockInstr, greetingLineInstr, ifInstr, conditionInstr, findDuplicates, rangeOf as rangeOfOrder,
 } from '@rutba/ooxml/mailmerge';
 import {
@@ -3235,9 +3236,38 @@ export class DocView {
       : kind === 'next' ? ' NEXT '
       : kind === 'mergerec' ? ' MERGEREC '
       : kind === 'mergeseq' ? ' MERGESEQ '
+      : kind === 'fillin' ? fillInInstr(opts)
+      : kind === 'ask' ? askInstr(opts)
+      : kind === 'set' ? setInstr(opts)
       : null;
     if (!instr) throw new Error('no rule called ' + kind);
-    return this._insertMergeRun(instr, 'rule');
+    const done = this._insertMergeRun(instr, 'rule');
+    // Rules → Ask with "show the answer here": a REF to its bookmark straight after it.
+    if ((kind === 'ask' || kind === 'set') && opts.show) this._insertMergeRun(refInstr(opts.name), 'rule');
+    return done;
+  }
+
+  /**
+   * The questions a merge asks before it runs — each Ask's and Fill-in's
+   * prompt, default and whether it is asked once — in document order, a
+   * question that comes twice asked once.
+   */
+  mergePrompts({ range = 'all' } = {}) {
+    const out = new Map();
+    for (const b of this.blocks) {
+      for (const r of b.runs) {
+        if (!r.field || (r.field.kind !== 'ask' && r.field.kind !== 'fillin')) continue;
+        const p = readPrompt(r.field.instr);
+        const key = promptKey(p);
+        if (!out.has(key)) out.set(key, { key, ...p });
+      }
+    }
+    const prompts = [...out.values()];
+    // The records a question asked for each record is answered for: by number, named by their first words.
+    const m = this.merge;
+    const order = prompts.some((p) => !p.once) && m.source ? rangeOfOrder(this.mergeOrder(), range, m.record) : [];
+    const records = order.map((index) => ({ number: index + 1, label: (m.source.records[index] || []).filter((v) => String(v ?? '').trim()).slice(0, 2).join(' ') || `Record ${index + 1}` }));
+    return { prompts, records };
   }
 
   /**
@@ -3253,12 +3283,13 @@ export class DocView {
     const mapping = this.mergeMapping();
     let pointer = Math.max(0, Math.min(order.length, m.record) - 1);
     const out = new Map();
+    const previewMarks = {};
     for (const b of this.blocks) {
       for (const r of b.runs) {
         if (!r.field || !MERGE_KINDS.has(r.field.kind)) continue;
         const index = pointer < order.length ? order[pointer] : null;
         const record = index === null ? null : m.source.records[index];
-        const got = record ? evaluateField(r.field.instr, { source: m.source, record, recordNumber: index + 1, sequence: Math.min(order.length, m.record), mapping }) : { text: '' };
+        const got = record ? evaluateField(r.field.instr, { source: m.source, record, recordNumber: index + 1, sequence: Math.min(order.length, m.record), mapping, bookmarks: previewMarks }) : { text: '' };
         if (got.next || (!record && r.field.kind === 'next')) pointer += 1;
         out.set(r, got.text);
       }
@@ -3267,20 +3298,20 @@ export class DocView {
   }
 
   /** Finish & Merge → Edit Individual Documents (and Print Documents): the merged document's bytes. */
-  mergeToDocument({ range = 'all' } = {}) {
+  mergeToDocument({ range = 'all', answers = {} } = {}) {
     const m = this.merge;
     if (!m.source) throw new Error('Select recipients first — Mailings → Select Recipients.');
     const order = rangeOfOrder(this.mergeOrder(), range, m.record);
     if (!order.length) throw new Error('No recipients are ticked in the list.');
-    return this.doc.mergeToDocument(m.source, order, { type: m.type || 'formLetters', mapping: this.mergeMapping() });
+    return this.doc.mergeToDocument(m.source, order, { type: m.type || 'formLetters', mapping: this.mergeMapping(), answers });
   }
 
   /** Finish & Merge → Send E-mail Messages: a message per record. */
-  mergeMessages({ range = 'all', toField, subject, format = 'html' } = {}) {
+  mergeMessages({ range = 'all', toField, subject, format = 'html', answers = {} } = {}) {
     const m = this.merge;
     if (!m.source) throw new Error('Select recipients first — Mailings → Select Recipients.');
     const order = rangeOfOrder(this.mergeOrder(), range, m.record);
-    return this.doc.mergeMessages(m.source, order, { toField: toField ?? m.email.toField, subject: subject ?? m.email.subject, format, mapping: this.mergeMapping() });
+    return this.doc.mergeMessages(m.source, order, { toField: toField ?? m.email.toField, subject: subject ?? m.email.subject, format, mapping: this.mergeMapping(), answers });
   }
 
   // ---- mailings: envelopes and labels --------------------------------------

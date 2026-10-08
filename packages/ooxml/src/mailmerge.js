@@ -25,7 +25,7 @@ export const MAIN_DOCUMENT_TYPES = [
 ];
 
 /** The field kinds a merge evaluates; every other field (REF, PAGE, TOC) is left as it is. */
-export const MERGE_KINDS = new Set(['mergefield', 'addressblock', 'greetingline', 'if', 'next', 'nextif', 'skipif', 'mergerec', 'mergeseq']);
+export const MERGE_KINDS = new Set(['mergefield', 'addressblock', 'greetingline', 'if', 'next', 'nextif', 'skipif', 'mergerec', 'mergeseq', 'fillin', 'ask', 'set']);
 
 /** What each kind shows in the main document, between Word's chevrons, until a record is previewed. */
 export const PLACEHOLDERS = {
@@ -595,6 +595,26 @@ export function evaluateField(instr, ctx = {}) {
       const cond = condition(words.slice(1), ctx);
       return { text: '', skip: cond.ok && compare(cond.left, cond.op, cond.right) };
     }
+    // Rules → Fill-in: the answer to its question, put where the field is.
+    case 'fillin': {
+      const p = readPrompt(instr);
+      return { text: answerTo(p, ctx) };
+    }
+    // Rules → Ask: the answer kept in a bookmark, shown wherever a REF names it; nothing here.
+    case 'ask': {
+      const p = readPrompt(instr);
+      if (ctx.bookmarks && p.name) ctx.bookmarks[p.name] = answerTo(p, ctx);
+      return { text: '' };
+    }
+    // Rules → Set Bookmark: a value kept in a bookmark without asking, a field's value or words.
+    case 'set': {
+      const name = words[1]?.text || '';
+      const v = words[2];
+      if (ctx.bookmarks && name) ctx.bookmarks[name] = v ? (v.nested ? evaluateField(v.text, ctx).text : v.text) : '';
+      return { text: '' };
+    }
+    case 'ref':
+      return { text: ctx.bookmarks?.[words[1]?.text || ''] ?? '' };
     case 'mergerec':
       return { text: String(ctx.recordNumber ?? '') };
     case 'mergeseq':
@@ -632,6 +652,65 @@ export function conditionInstr(kind, { field, comparison = '=', value = '' }) {
   return ' ' + kind.toUpperCase() + ' {' + mergeFieldInstr(field).replace(/ \\\* MERGEFORMAT $/, ' ') + '} ' + op + ' ' + q(right) + ' ';
 }
 
+/**
+ * Rules → Ask and Fill-in: the question a field asks — `{ kind, name,
+ * prompt, def, once }`: the bookmark an ASK fills, the prompt, the
+ * default answer (`\d`) and whether it is asked once for the whole merge
+ * (`\o`) rather than for every record.
+ */
+export function readPrompt(instr) {
+  const { kind, words } = readInstr(instr);
+  const sw = switches(instr);
+  const plain = [];
+  for (let i = 1; i < words.length; i++) {
+    const w = words[i];
+    if (!w.quoted && !w.nested && /^\\/.test(w.text)) { if (/^\\[d*@#]$/i.test(w.text)) i++; continue; }
+    plain.push(w.text);
+  }
+  const name = kind === 'ask' ? plain[0] || '' : null;
+  const prompt = kind === 'ask' ? plain[1] || '' : plain[0] || '';
+  return { kind, name, prompt, def: sw.d ?? '', once: 'o' in sw };
+}
+
+/** The key a prompt's answers are kept under: the bookmark an ASK fills, a Fill-in's own question. */
+export const promptKey = (p) => (p.kind === 'ask' ? `ask:${p.name}` : `fillin:${p.prompt}`);
+
+/** The answer for the record in hand: once for all, or this record's, or the default. */
+function answerTo(p, ctx) {
+  const given = ctx.answers?.[promptKey(p)];
+  if (given == null) return p.def;
+  if (typeof given === 'string') return given;
+  const own = given[String(ctx.recordNumber)];
+  return own ?? given.all ?? p.def;
+}
+
+/** Rules → Fill-in: ` FILLIN "Your question" \d "default" \o `. */
+export function fillInInstr({ prompt = '', def = '', once = false } = {}) {
+  return ' FILLIN ' + q(prompt) + (def ? ' \\d ' + q(def) : '') + (once ? ' \\o' : '') + ' ';
+}
+
+/** Rules → Ask: ` ASK Bookmark "Your question" \d "default" \o `. */
+export function askInstr({ name, prompt = '', def = '', once = false } = {}) {
+  return ' ASK ' + bookmarkName(name) + ' ' + q(prompt) + (def ? ' \\d ' + q(def) : '') + (once ? ' \\o' : '') + ' ';
+}
+
+/** Rules → Set Bookmark: ` SET Bookmark "value" `. */
+export function setInstr({ name, value = '' } = {}) {
+  return ' SET ' + bookmarkName(name) + ' ' + q(value) + ' ';
+}
+
+/** A REF to a bookmark an ASK or a SET fills, so its value shows there. */
+export function refInstr(name) {
+  return ' REF ' + bookmarkName(name) + ' ';
+}
+
+/** A bookmark's name as Word allows one: a letter first, then letters, digits and underscores, at most forty. */
+export function bookmarkName(name) {
+  const out = String(name ?? '').trim().replace(/[^A-Za-z0-9_]+/g, '_').replace(/^[^A-Za-z]+/, '').slice(0, 40);
+  if (!out) throw new Error('A bookmark needs a name that starts with a letter');
+  return out;
+}
+
 /** The words a field shows in the main document: «FirstName», «AddressBlock», an IF's result. */
 export function placeholderFor(instr, ctx = null) {
   const { kind, words } = readInstr(instr);
@@ -645,6 +724,11 @@ export function placeholderFor(instr, ctx = null) {
     const texts = splitInstr(instr).filter((w) => w.quoted);
     return texts[texts.length - 1]?.text || texts[texts.length - 2]?.text || '«IF»';
   }
+  // A Fill-in shows its default answer; an Ask and a Set say what they keep, so they can be found and deleted.
+  if (kind === 'fillin') return readPrompt(instr).def || '«Fill-in»';
+  if (kind === 'ask') return '«Ask ' + (readPrompt(instr).name || '') + '»';
+  if (kind === 'set') return '«Set ' + (words[1]?.text || '') + '»';
+  if (kind === 'ref') return '«' + (words[1]?.text || 'REF') + '»';
   return PLACEHOLDERS[kind] || '«' + kind.toUpperCase() + '»';
 }
 
