@@ -189,9 +189,9 @@ it is where the gaps are.
   remove duplicates and a sort by up to three keys are built, 2026-09-21;
   group and outline, subtotals, advanced filter with a criteria range and
   flash fill, 2026-09-25; SUBTOTAL leaves out the rows a filter hides,
-  and 101–111 every hidden row, and Auto Outline builds the outline from
-  the formulas, since 2026-10-08 — an advanced filter copied to another
-  sheet is not.)
+  and 101–111 every hidden row, Auto Outline builds the outline from the
+  formulas, and an advanced filter copies a list from another sheet, since
+  2026-10-08.)
 - **Auditing**: Evaluate Formula steps a formula part by part since
   2026-09-25, into the cells it reads and back. Error checking and the watch window
   both arrived 2026-09-24: Formulas → Error Checking opens a pane listing
