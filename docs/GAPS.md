@@ -2,7 +2,7 @@
 
 Written 2026-09-09, from the code rather than from memory. Three sources: the
 suite's own register of unbuilt controls (257 of them then, 36 in
-1.29.5 — 6 in Documents, 12 in Worksheets, 18 in Presentations — each a
+1.29.5, 28 in 1.29.8 — 5 in Documents, 8 in Worksheets, 15 in Presentations — each a
 `<Soon>` in a ribbon with a sentence saying what it needs), a reading of what the engines
 write as against what they read, and the things a person expects that are not
 in either list because nothing in the interface offers them at all.
@@ -29,9 +29,9 @@ a suite.
 | **Tracked changes, shown** | **Built for documents, 2026-09-25** | Insertions and deletions are kept with their author and date, shown as All Markup, Simple Markup, No Markup or Original, walked with Previous and Next, and accepted or rejected one at a time or all at once; recording them arrived the same day (below). A deck's and a workbook's tracked changes are not read. |
 | **Page setup as a document property** | **Built for workbooks, 2026-09-09** | Paper, orientation, margins, scaling, gridlines, headings, centring, the print area and the repeated rows are read from and written to the file where Excel keeps them. A document and a deck still choose theirs in the dialog each time. |
 | **Password-protected files** | **Built, 2026-09-25** | An encrypted `.docx`, `.xlsx` or `.pptx` opens through a Password dialog, reading Agile and Standard Encryption and checking the file's HMAC. Info → Encrypt with Password saves Agile AES-256/SHA-512 inside a compound file as Office writes one, and the autosave copy is encrypted too. Since 2026-10-08 a password-protected Office 97–2003 file opens too — RC4 CryptoAPI and Office 97/2000 RC4 in `.doc`, `.xls` and `.ppt`, and Excel 95's XOR; Word's own older XOR obfuscation is refused with a message saying so. |
-| **A spell-check pass** | **Built, 2026-09-25** | Review → Spelling (F7) runs an Editor pane over a document, a workbook or a deck with Change, Change All, Ignore and Add to Dictionary. It uses English (UK) and English (US) Hunspell dictionaries on the machine and a personal dictionary shared by the three apps. Suggestions are not ranked by how common a word is ("brwn" offers bran before brown). The language is chosen once per document, not per paragraph; words marked as another language or not to be checked (Review → Language, 1.29.1) are read past rather than checked in their own. The grid and the slides have no spelling right-click. No other languages ship yet. |
+| **A spell-check pass** | **Built, 2026-09-25** | Review → Spelling (F7) runs an Editor pane over a document, a workbook or a deck with Change, Change All, Ignore and Add to Dictionary. It uses English (UK) and English (US) Hunspell dictionaries on the machine and a personal dictionary shared by the three apps. Since 1.29.8 Review → Thesaurus (Shift+F7) opens a pane of words of like meaning from a thesaurus of the suite's own, some six thousand words in British spelling, in all three apps. Suggestions are not ranked by how common a word is ("brwn" offers bran before brown). The language is chosen once per document, not per paragraph; words marked as another language or not to be checked (Review → Language, 1.29.1) are read past rather than checked in their own. The grid and the slides have no spelling right-click. No other languages ship yet. |
 | **Accessibility check** | **Built, 2026-09-25** | Review → Check Accessibility lists Errors, Warnings and Tips under Office's rule names in all three apps, with one-click fixes, Alt Text, Mark as decorative and a status-bar indicator that follows edits. Since 2026-10-08 a table cell's shading — its own and its table style's — is read for contrast, and merged cells in a document unmerge in one click; merged cells elsewhere and unclear links have no one-click fix. |
-| **Right-to-left layout** | **Built, 2026-10-08** | A paragraph Word marks right to left, or whose style does, runs from the right margin with its indents, hang, borders and drop cap mirrored; Home → Paragraph turns one either way, and its alignment is written mirrored as Word writes it. Since 2026-10-08 the ruler and tab stops count from the right margin in such a paragraph, a table runs from the right (`w:bidiVisual`, Table Layout → Right to Left), a section lays its columns from the right, Page Layout → Sheet Right-to-Left mirrors a worksheet, and a slide's paragraphs run right to left from Home → Paragraph. Not yet: Arabic and Hebrew in the PDF (no font for them) and the ribbons themselves. |
+| **Right-to-left layout** | **Built, 2026-10-08** | A paragraph Word marks right to left, or whose style does, runs from the right margin with its indents, hang, borders and drop cap mirrored; Home → Paragraph turns one either way, and its alignment is written mirrored as Word writes it. Since 2026-10-08 the ruler and tab stops count from the right margin in such a paragraph, a table runs from the right (`w:bidiVisual`, Table Layout → Right to Left), a section lays its columns from the right, Page Layout → Sheet Right-to-Left mirrors a worksheet, and a slide's paragraphs run right to left from Home → Paragraph. Since 1.29.8 a document's PDF prints Arabic, Hebrew, Greek and Cyrillic in a font the computer has that may be embedded, subset to the glyphs used with a ToUnicode map, Arabic joined (Urdu's and Persian's letters among them), right-to-left lines in drawing order by the bidirectional algorithm. Not yet: the ribbons themselves, and a workbook's or a deck's PDF in those scripts. |
 | **Localisation** | **Started, 2026-10-08** | A message catalogue: each string looked up by its English words (`t`, and `tn` for counts under each language's plural rules), the language taken from the setting or the system, `messages.json` made from the sources by tools/extract-messages.mjs and checked current. The shell, the ribbon's own controls, the Password, Restrict, proofing and Print dialogs and the home window go through it; most of the apps' own words do not yet, and no other language is translated. |
 
 ---
@@ -110,14 +110,14 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   Harvard and IEEE, written as Word writes them. An index (XE and INDEX
   fields, with Mark Entry), a table of figures, and PAGE, NUMPAGES, DATE,
   FILENAME, AUTHOR and TITLE fields in the body arrived 2026-09-26; the
-  index is laid in one column here, and a table of authorities is not
-  written yet.
+  index is laid in one column here. A table of authorities (TA and TOA
+  fields, with Mark Citation) arrived 2026-10-07.
 - ~~**Mail merge**, envelopes and labels~~ — built 2026-09-25: sources
   from a workbook, a .csv, Contacts or a typed list; Word's merge fields,
   Address Block, Greeting Line and rules; preview; a merge to a new
   document, to the printer or to e-mail through Mail; envelopes and Avery
-  label sheets. Ask, Fill-in and Set Bookmark rules, and the recipient
-  list's ticks kept in the file, are not.
+  label sheets. The Fill-in rule is built; Ask and Set Bookmark, and the
+  recipient list's ticks kept in the file, are not.
 - **Recording tracked changes.** Recorded since 2026-09-25: Review → Track
   Changes writes `w:trackRevisions`, typing and deleting are kept as
   `w:ins`/`w:del` with author and date, four markup views, Accept and Reject
@@ -216,7 +216,19 @@ it is where the gaps are.
   prefixes Excel needs. Array constants and `LET` came on 2026-09-09; `TEXT()` speaks every format code the grid does
   (the formatter moved in beside the engine), and serial 60 is 29 February
   1900 with Excel's own weekday arithmetic, as of the same day.
-- **Power Query, Office Scripts, macros**: not built, and macros are
+- **Power Query** arrived in 1.29.8: Data → From Table/Range and From
+  Text/CSV shape a table, a range or a delimited file in the Power Query
+  Editor — columns removed, renamed and typed, rows filtered, sorted,
+  deduplicated and grouped, text split and tidied, each an applied step —
+  and Close & Load writes the result as a table on a sheet of its own;
+  Queries & Connections and Refresh All run it again on its source. The
+  queries live in a part of the suite's own, which Excel keeps but does not
+  read as its own Power Query (that is a binary package this suite neither
+  reads nor writes), and there is no M language, no web or database source.
+- **A cut pasted** carries every reference with it since 1.29.8, as Excel's
+  does: formulas on any sheet and defined names that name only the moved
+  cells follow them, onto another sheet too.
+- **Office Scripts, macros**: not built, and macros are
   deliberately never run — a workbook that runs code it arrived with is how
   ransomware starts. VBA in a file is preserved untouched.
 
@@ -251,8 +263,13 @@ document and workbook writers.
   slide with its cells edited in place, and rows and columns added and
   removed from a right-click; Insert → Chart puts a cached chart part on
   the slide, no embedded workbook, its data edited from a dialog. Video,
-  audio, SmartArt and a hyperlink are still named and boxed, not
-  insertable.
+  audio, SmartArt and hyperlinks are insertable too, video and audio from a
+  file or recorded. 3D models and a live camera (Cameo) are not.
+- **Design Ideas** arrived in 1.29.8, worked out on this computer rather
+  than asked of a service: a pane of layouts the slide's own title, words
+  and pictures suit, each drawn by the deck's renderer, one applied in a
+  single undo step with a picture cropped (`a:srcRect`) to keep its
+  proportions.
 - **The master and layouts.** Masters and layouts are read and inherited
   from, and since 2026-09-10 the Designs pane puts an existing slide on
   another of the deck's layouts and starts a new slide from one (since
@@ -262,7 +279,7 @@ document and workbook writers.
   styles, placeholders, shapes, backgrounds, new and renamed layouts — and
   Design swaps the theme (eleven of our own, with variants), its colours,
   fonts and effects. The handout and notes masters, and a second master,
-  are not editable yet. Background styles
+  are editable since 2026-10-07. Background styles
   arrived 2026-09-24: Design → Background Styles gives a slide its own
   `p:bg` — a solid colour, a theme colour or a gradient — with Apply to
   all, though the master's own background is still not editable there.
@@ -275,11 +292,12 @@ document and workbook writers.
   deleted; hidden slides arrived the same day, Slide Show → Hide Slide
   marking a slide `show="0"` so the show steps over it while the strip,
   Slide Sorter and printing still draw it; custom shows and saving as a
-  show are still to come.
+  show (`.ppsx`) arrived 2026-10-07.
 - **The show**: transitions and animations are written and played since
   2026-09-25 (eleven transitions; entrance, emphasis and exit effects with
-  the Animation Pane). Recorded narration and timings, motion paths,
-  triggers, effects by paragraph and export to video are still to come.
+  the Animation Pane). Recorded narration and timings, triggers and
+  export to video arrived 2026-10-06 and 2026-10-07; motion paths and
+  effects by paragraph are still to come.
 - **Review**: comments on a slide arrived 2026-09-25, written as
   PowerPoint 365's modern comments; tracked changes on a deck are not. Find and replace across
   a deck arrived 2026-09-24: Home → Find (Ctrl+F) and Replace (Ctrl+H) open
@@ -299,8 +317,10 @@ Microsoft, rules, search, conversations, attachments in one place, tracker
 blocking and unsubscribe are built. What it is missing is not inside mail:
 
 - ~~the **calendar** and **contacts** above~~ — both built 2026-09-09, on
-  this computer; keeping them in step with a server (CalDAV, CardDAV) is
-  not built;
+  this computer; since 1.29.8 they are kept in step with a CalDAV and
+  CardDAV server (iCloud, Fastmail, Nextcloud and the like, with an app
+  password) — Google's and Microsoft's own calendars, which want their own
+  sign-in, are not;
 - **search** is indexed per account — an inverted index, with `from:`,
   `subject:`, `has:attachment`, `is:unread` and quoted phrases, an
   imported archive being an account of its own — but there is no one search
@@ -392,5 +412,5 @@ stage keeps a picture until the next has decoded. What is still missing:
 
 Everything above this line is work somebody can start on Monday. Below it
 sit the things that are deliberately not built — macros that run, cloud
-services (translation, dictation, design ideas, co-authoring), and anything
+services (translation, dictation, co-authoring), and anything
 that would make a request this suite has not declared.
