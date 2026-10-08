@@ -35,7 +35,7 @@ captions, green screen, screen and webcam recording, 1080p free, 4K paid).
 Everything new is its assistant, on a subscription.
 
 **Google Workspace.** Docs, Sheets, Slides, Gmail, Calendar, Meet, Drive,
-Vids; browser-first, co-editing as the norm, Gemini throughout from the
+Vids; browser-first, co-editing as the norm, its assistant throughout from the
 Standard plan up (about $7 to $8 a user a month at the bottom).
 
 **LibreOffice 25.8.** Writer, Calc, Impress, Draw, Base, Math; free and
