@@ -16,8 +16,22 @@ for the consolidation release ROADMAP.md asks for.
   review's additions, so the two counts were never at odds.
 - Fuzz: `node tools/fuzz-open.js 150 4242` damaged 450 files across the
   formats; 158 opened, 292 were refused in a sentence, no faults.
-- Editing checks, smoke and the full application pass: run under Xvfb at
-  the time of writing; their counts are appended below when they finish.
+- Editing checks 12 of 12; smoke 10 of 10 windows rendered clean; the full
+  application pass 1,146 of 1,170 under Xvfb. Of the 24 that did not pass,
+  eighteen want what the container has not got — an OS keystore (the
+  CalDAV account chain of four and Mail's import), a camera and a
+  microphone (the cameo's three, Record's four, Insert → Audio), a desktop
+  to capture (Screenshot in two apps, Screen Recording and its saved deck),
+  an Arabic font for the PDF text checks in Worksheets and Presentations,
+  and a real mouse for the slicer's corner handle. Six are not explained by
+  the platform and want a run on Windows before 1.30: the table of
+  contents' entries drawn on the page (none found); Formula → Your own
+  formula drawing =B2*2 (worked out, not drawn); Preview Results → Next
+  record's address block; the Track Changes button reading pressed; the
+  slicer's resize; and Summary Zoom's second target reading null. If any of
+  them fails there too, it is a 1.30 fix; if all pass, each is a check that
+  needs the time or the fonts this container lacks, and the check should
+  say so as the `float` and `pages` blocks learned to.
 
 ## Fixed on dev by this review
 
