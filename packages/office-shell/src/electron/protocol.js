@@ -167,6 +167,12 @@ const CSP = [
 ].join('; ');
 
 /**
+ * Automate → scripts: the worker a script runs in may work the script out
+ * (`unsafe-eval`) and reach nothing else — no network, no file, no frame.
+ */
+const WORKER_CSP = "default-src 'none'; script-src 'self' 'unsafe-eval'";
+
+/**
  * @param {object} o
  * @param {string} o.rendererDir directory holding index.html and the bundle
  * @param {(p: string) => boolean} [o.allowFile] gate for rutba://file reads
@@ -193,7 +199,7 @@ export function installProtocol({ rendererDir, allowFile = () => true, thumbnail
       headers.set('content-type', mimeFor(full));
       // The renderer runs no remote code and makes no remote requests. Media and
       // images arrive over rutba://file, which is same-scheme.
-      headers.set('content-security-policy', CSP);
+      headers.set('content-security-policy', rel === 'scripts-worker.js' ? WORKER_CSP : CSP);
       return new Response(res.body, { status: res.status, headers });
     }
 

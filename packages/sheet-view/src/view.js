@@ -49,6 +49,7 @@ import {
 } from './outline.js';
 import { advancedFilter, clearAdvancedFilter, filterNames } from './advanced-filter.js';
 import { readQueries, addQuery, refreshQueries, editQuery, removeQuery, previewQuery, describeSource } from './query-load.js';
+import { scriptSnapshot, applyScriptEdits } from './script-apply.js';
 import { paginate, planBands, pageSetup, readPageSetup, parseArea, PAPER, PX_PER_MM } from './print.js';
 import { inferProgram, runProgram } from './flash-fill.js';
 import { consolidate as consolidateRanges, lastConsolidation, consolidateRefText } from './consolidate.js';
@@ -2752,6 +2753,14 @@ export class SheetView {
 
   /** What a query would load, the first rows of it: for the editor, nothing changed. */
   previewQuery(spec) { return previewQuery(this, spec); }
+
+  // ---- Automate → scripts (script-apply.js) --------------------------------
+
+  /** The workbook as a script reads it. */
+  scriptSnapshot(opts) { return scriptSnapshot(this, opts); }
+
+  /** A script's edits applied as one undo step; answers how many cells it set. */
+  applyScriptEdits(edits) { return applyScriptEdits(this, edits); }
 
   /**
    * Data → From Table/Range: the source at the active cell — the table it is

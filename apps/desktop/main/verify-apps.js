@@ -63,6 +63,7 @@ import { verifyWordTheme } from './verify-word-theme.js';
 import { verifyDeckTrigger } from './verify-deck-trigger.js';
 import { verifyDeckChanges } from './verify-deck-changes.js';
 import { verifySheetQueriesMerge } from './verify-sheet-queries-merge.js';
+import { verifySheetScripts } from './verify-sheet-scripts.js';
 import { verifyDeckMotion } from './verify-deck-motion.js';
 import { verifyDeckModel3d } from './verify-deck-model3d.js';
 import { verifyWordModel3d } from './verify-word-model3d.js';
@@ -4680,6 +4681,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('trigger')) await verifyDeckTrigger({ open, check, until, wait, doc }, { dir });
     if (only.includes('deckchanges')) await verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('querymerge')) await verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('scripts')) await verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('motion')) await verifyDeckMotion({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('model3d')) await verifyDeckModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('wordmodel3d')) await verifyWordModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
@@ -4929,6 +4931,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckTrigger({ open, check, until, wait, doc }, { dir }));
   await block(() => verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await block(() => verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckMotion({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));

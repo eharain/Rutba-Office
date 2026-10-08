@@ -60,6 +60,18 @@ const rendererOptions = {
 };
 
 /**
+ * Automate → scripts: the worker a script runs in, a bundle of its own —
+ * protocol.js serves it under a policy of its own, which reaches nothing.
+ */
+const workerOptions = {
+  ...shared,
+  entryPoints: [path.join(app, 'renderer', 'apps', 'sheets', 'scripts-worker.js')],
+  outfile: path.join(out, 'scripts-worker.js'),
+  minify: !dev,
+  sourcemap: false,
+};
+
+/**
  * The preload is built from the same contract the renderer's client reads, so
  * a capability cannot exist on one side and be missing on the other. It has to
  * be CommonJS: a sandboxed preload has no module loader.
@@ -97,13 +109,14 @@ async function run() {
   if (watch) {
     const a = await esbuild.context(rendererOptions);
     const b = await esbuild.context(preloadOptions);
-    await Promise.all([a.watch(), b.watch()]);
+    const c = await esbuild.context(workerOptions);
+    await Promise.all([a.watch(), b.watch(), c.watch()]);
     console.log('watching renderer and preload…');
     return;
   }
 
   const started = Date.now();
-  await Promise.all([esbuild.build(rendererOptions), esbuild.build(preloadOptions)]);
+  await Promise.all([esbuild.build(rendererOptions), esbuild.build(preloadOptions), esbuild.build(workerOptions)]);
   const size = fs.statSync(path.join(out, 'app.js')).size;
   console.log(`built in ${Date.now() - started} ms — app.js ${(size / 1024).toFixed(0)} KB`);
 }

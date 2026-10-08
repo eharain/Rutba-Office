@@ -16,6 +16,7 @@ import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS, pivotAround } from './sheets/ribbon.js';
 import { PivotFieldsPane, PIVOT_FIELDS_CSS } from './sheets/pivot-fields.js';
+import { ScriptsPane, SCRIPTS_CSS, runInWorker, recordLines, recordedScript } from './sheets/scripts.js';
 import { QueryEditor, QueriesPane, rememberSource, cleanError } from './sheets/queries.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
@@ -181,6 +182,10 @@ export default function Sheets({ app, shell, boot }) {
   const [selPane, setSelPane] = useState(false);
   /** PivotTable Fields: the pivot whose pane was closed (it opens again for another, or from Field List). */
   const [pfClosed, setPfClosed] = useState(null);
+  // Automate → scripts: the Code Editor pane (open, and the script it opens on), and Record Actions' lines while it records.
+  const [scriptsPane, setScriptsPane] = useState(null);
+  const recordingRef = useRef(null);
+  const [recording, setRecording] = useState(false);
   /** Data → Get & Transform: the query open in the Power Query Editor, and Queries & Connections open or not. */
   const [queryEdit, setQueryEdit] = useState(null);
   const [queriesOpen, setQueriesOpen] = useState(false);
@@ -215,6 +220,8 @@ export default function Sheets({ app, shell, boot }) {
   const dispatch = useCallback(
     async (...ops) => {
       if (!doc) return null;
+      // Record Actions: what this does, as script lines, against the selection it acts on.
+      if (recordingRef.current) recordingRef.current.push(...recordLines(ops, modelRef.current));
       try {
         const next = await shell.doc.apply({ id: doc.id, ops });
         setDoc(next);
@@ -265,6 +272,30 @@ export default function Sheets({ app, shell, boot }) {
   const previewQuery = useCallback(async (spec) => {
     const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'previewQuery', ...spec }] });
     return JSON.parse(next.opResult || 'null');
+  }, [doc?.id, shell]);
+
+  /**
+   * Automate → Run: the workbook's snapshot to a worker that runs the
+   * script on it, then its edits applied here as one undo step.
+   */
+  const runScriptCode = useCallback(async (code) => {
+    let snapshot;
+    try {
+      const got = await shell.doc.apply({ id: doc.id, ops: [{ op: 'scriptSnapshot' }] });
+      snapshot = JSON.parse(got.opResult || 'null');
+    } catch (err) {
+      return { edits: [], logs: [], error: String(err?.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') };
+    }
+    const out = await runInWorker(code, snapshot);
+    if (out.error || !out.edits.length) return { ...out, cells: 0 };
+    try {
+      const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'applyScript', edits: out.edits }] });
+      setDoc(next);
+      setModel(next.model);
+      return { ...out, cells: Number(next.opResult) || 0 };
+    } catch (err) {
+      return { ...out, error: String(err?.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '') };
+    }
   }, [doc?.id, shell]);
 
   /** Paste, or Paste Special with `special`: what the system clipboard holds, words and table both. */
@@ -2812,6 +2843,21 @@ export default function Sheets({ app, shell, boot }) {
         toast(`Query ${arg.name} deleted — its sheet stays, as values`, { ms: 3500 });
         return;
       case 'queryGoTo': if (arg.sheet) await dispatch({ op: 'sheet', name: arg.sheet }); return;
+      // Automate → New Script, All Scripts and Record Actions.
+      case 'scripts': setScriptsPane({ open: true, script: arg === 'new' ? { id: `s${Date.now().toString(36)}`, name: 'Script', code: null } : null, key: Date.now() }); return;
+      case 'scriptRecord': {
+        if (!recordingRef.current) {
+          recordingRef.current = [];
+          setRecording(true);
+          toast('Recording: what you type and format becomes a script. Press Record Actions again to stop.', { ms: 4500 });
+          return;
+        }
+        const lines = recordingRef.current;
+        recordingRef.current = null;
+        setRecording(false);
+        setScriptsPane({ open: true, script: { id: `s${Date.now().toString(36)}`, name: 'Recorded script', code: recordedScript(lines) }, key: Date.now() });
+        return;
+      }
       case 'pivotFields': setPfClosed(null); return;
       case 'pivotTable':
       case 'pivotChart': {
@@ -3131,7 +3177,7 @@ export default function Sheets({ app, shell, boot }) {
           exportAs={exportAs}
           openDialog={setDialog}
           act={act}
-          view={view}
+          view={recording ? { ...view, recordingScript: true } : view}
           sel={sel}
           review={review}
         />
@@ -3449,6 +3495,20 @@ export default function Sheets({ app, shell, boot }) {
           {errorsPane()}
           {watchPane()}
           {commentsPane()}
+          {scriptsPane?.open ? (
+            <Panel right width={380} resizable title="Code Editor" actions={<Button icon="close" title="Close the Code Editor" onClick={() => setScriptsPane(null)} />}>
+              <style>{SCRIPTS_CSS}</style>
+              <ScriptsPane
+                key={scriptsPane.key}
+                shell={shell}
+                toast={toast}
+                initial={scriptsPane.script}
+                recording={recording}
+                onRecord={() => act('scriptRecord')}
+                run={runScriptCode}
+              />
+            </Panel>
+          ) : null}
           {queriesOpen ? (
             <Panel right width={300} resizable title="Queries & Connections" actions={<Button icon="close" title="Close the pane — Queries & Connections opens it again" onClick={() => setQueriesOpen(false)} />}>
               <QueriesPane

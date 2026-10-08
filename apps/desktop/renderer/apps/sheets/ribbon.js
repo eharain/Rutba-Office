@@ -762,9 +762,9 @@ export default function SheetsRibbon({
       {tab === 'automate' ? (
         <>
           <Group label="Scripting Tools">
-            <Soon tall icon="settings" label="New Script" why="Office Scripts are a cloud runtime; a local, open scripting surface is on the list." />
-            <Soon tall icon="settings" label="Record Actions" why="Comes with scripts." />
-            <Soon icon="list" label="All Scripts" why="Comes with scripts." />
+            <Button tall icon="textbox" label="New Script" className="sh-new-script" title="New Script — a script in the shape of Office Scripts, function main(workbook), written in the Code Editor and run on this workbook" onClick={() => act('scripts', 'new')} />
+            <Button tall icon="video" label="Record Actions" className="sh-record-actions" pressed={Boolean(view.recordingScript)} title={view.recordingScript ? 'Record Actions — recording what you type and format; press again to stop and see the script' : 'Record Actions — what you type and format becomes a script'} onClick={() => act('scriptRecord')} />
+            <Button icon="list" label="All Scripts" className="sh-all-scripts" title="All Scripts — the scripts kept on this computer, to run, edit or delete" onClick={() => act('scripts')} />
           </Group>
           <Group label="Power Automate">
             <Soon tall icon="refresh" label="Automate a Task" why="Power Automate is a Microsoft cloud service." />
