@@ -39,6 +39,21 @@ function statOf(p) {
   }
 }
 
+/**
+ * The same, without holding the main process: a folder of thousands of
+ * pictures, or one on a slow drive, was stat'd one file at a time while
+ * every window waited.
+ */
+async function statOfAsync(p) {
+  try {
+    const s = await fsp.stat(p);
+    const writable = await fsp.access(p, fs.constants.W_OK).then(() => true, () => false);
+    return { path: p, name: path.basename(p), dir: s.isDirectory(), size: s.size, mtime: s.mtimeMs, ctime: s.ctimeMs, ext: path.extname(p).toLowerCase(), readonly: !writable };
+  } catch {
+    return null;
+  }
+}
+
 function canWrite(p) {
   try {
     fs.accessSync(p, fs.constants.W_OK);
@@ -193,14 +208,17 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     list: async ({ path: p, filter }) => {
       const names = await fsp.readdir(p, { withFileTypes: true });
       const exts = filter ? new Set(filter.map((e) => (e.startsWith('.') ? e : `.${e}`).toLowerCase())) : null;
-      const out = [];
+      const wanted = [];
       for (const e of names) {
         if (e.name.startsWith('.')) continue;
-        const full = path.join(p, e.name);
         const isDir = e.isDirectory();
         if (!isDir && exts && !exts.has(path.extname(e.name).toLowerCase())) continue;
-        const s = statOf(full);
-        if (s) out.push(s);
+        wanted.push(path.join(p, e.name));
+      }
+      // Looked at sixty-four at a time, each without waiting on the main process.
+      const out = [];
+      for (let i = 0; i < wanted.length; i += 64) {
+        for (const s of await Promise.all(wanted.slice(i, i + 64).map(statOfAsync))) if (s) out.push(s);
       }
       out.sort((a, b) => (a.dir === b.dir ? a.name.localeCompare(b.name, undefined, { numeric: true }) : a.dir ? -1 : 1));
       return out;

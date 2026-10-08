@@ -62,6 +62,32 @@ async function systemThumbnail(target, size) {
   return bytes.length ? bytes : null;
 }
 
+const CACHE_MAX = 500 * 1024 * 1024;
+const CACHE_TRIM = 400 * 1024 * 1024;
+
+/** The thumbnail cache brought under its size, the least lately made going first. Answers how many went. */
+export async function trimCache(dir, { max = CACHE_MAX, trim = CACHE_TRIM } = {}) {
+  const names = (await fsp.readdir(dir)).filter((n) => n.endsWith('.jpg'));
+  const files = [];
+  let total = 0;
+  for (let i = 0; i < names.length; i += 64) {
+    for (const f of await Promise.all(names.slice(i, i + 64).map(async (n) => {
+      const s = await fsp.stat(path.join(dir, n)).catch(() => null);
+      return s ? { file: path.join(dir, n), size: s.size, at: s.mtimeMs } : null;
+    }))) if (f) { files.push(f); total += f.size; }
+  }
+  if (total <= max) return 0;
+  files.sort((a, b) => a.at - b.at);
+  let gone = 0;
+  for (const f of files) {
+    if (total <= trim) break;
+    await fsp.rm(f.file, { force: true }).catch(() => {});
+    total -= f.size;
+    gone += 1;
+  }
+  return gone;
+}
+
 /**
  * A queue that runs the newest job first, a few at a time.
  *
@@ -70,9 +96,12 @@ async function systemThumbnail(target, size) {
  * request that asked for it was abandoned (the tile scrolled away before
  * its turn): the thumbnail is kept on disk for the next time, and a second
  * request for the same file, sharing the job, must not inherit the first
- * one's abandonment.
+ * one's abandonment. Only the newest `keep` wait, though: a folder of
+ * thousands scrolled through quickly queued a job for every tile it ever
+ * passed; the oldest — the tiles long gone from view — are let go, answered
+ * with nothing, and asked again if their tile comes back.
  */
-export function createQueue({ concurrency = 3, run }) {
+export function createQueue({ concurrency = 3, run, keep = 200 }) {
   const waiting = [];
   let running = 0;
   const pump = () => {
@@ -91,6 +120,7 @@ export function createQueue({ concurrency = 3, run }) {
   return {
     push: (job) => new Promise((resolve) => {
       waiting.push({ ...job, resolve });
+      while (waiting.length > keep) waiting.shift().resolve(null);
       pump();
     }),
     get pending() {
@@ -127,17 +157,21 @@ export function createThumbnailer({ dir, make = systemThumbnail, concurrency = 3
     },
   });
 
-  const keyFor = (target, size) => {
-    const stat = fs.statSync(target);
+  const keyFor = async (target, size) => {
+    const stat = await fsp.stat(target);
     if (stat.isDirectory()) return null;
     return cacheKey(target, { size, mtimeMs: stat.mtimeMs, fileSize: stat.size });
   };
+
+  // The kept JPEGs held to a size: past CACHE_MAX the oldest go, down to
+  // CACHE_TRIM, looked at once a run, after the window is up.
+  setTimeout(() => { trimCache(dir).catch(() => {}); }, 30000).unref?.();
 
   /** The JPEG bytes for a file, from the cache or made now; null when there are none to be had. */
   const bytesFor = async (target, { size = THUMB_SIZE } = {}) => {
     let key;
     try {
-      key = keyFor(target, size);
+      key = await keyFor(target, size);
     } catch {
       return null;
     }
@@ -169,7 +203,7 @@ export function createThumbnailer({ dir, make = systemThumbnail, concurrency = 3
     },
     /** A thumbnail a window made itself, kept as if the system had made it. */
     put: async (target, bytes, { size = THUMB_SIZE } = {}) => {
-      const key = keyFor(target, size);
+      const key = await keyFor(target, size).catch(() => null);
       if (!key) return { stored: false };
       await fsp.writeFile(path.join(dir, `${key}.jpg`), Buffer.from(bytes));
       refused.delete(key);
