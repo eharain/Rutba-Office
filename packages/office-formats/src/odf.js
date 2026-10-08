@@ -624,6 +624,8 @@ function readChartObject(map, href, cellAt) {
   if (!series.length) return null;
   return {
     kind,
+    // Stacked, or stacked to a hundred, as its plot area's style says.
+    ...(plotProps['chart:percentage'] === 'true' ? { grouping: 'percentStacked' } : plotProps['chart:stacked'] === 'true' ? { grouping: 'stacked' } : {}),
     title: title ? all(title, 'text:p').map(textOf).join(' ').trim() || null : null,
     categories: catRange ? { ref: catRange.sheet !== localName ? rangeRef(catRange) : null, values: cellsOf(catRange, lookup).map(textOfCell) } : null,
     series,

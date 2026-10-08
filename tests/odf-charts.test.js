@@ -199,3 +199,17 @@ test('a PowerPoint deck saved as .odp names its preset shapes as an ODF reader k
   assert.equal(odf.slides[0].background.gradient.start, '#1F4E79');
   assert.equal(odf.slides[5].background.colour.toUpperCase(), '#FFF2CC');
 });
+
+test('a stacked chart stays stacked: read from ODF, written to the workbook, and back to ODF', async () => {
+  const odf = readOdf(fixture('showcase.ods'));
+  const area = odf.sheets.find((s) => s.name === 'Charts').drawings.find((d) => d.type === 'chart' && d.chart.kind === 'area').chart;
+  assert.equal(area.grouping, 'stacked', "Excel's \"Stacked, as areas\"");
+  const { buildXlsx, chartPartXml } = await import('@rutba/ooxml/build');
+  assert.ok(buildXlsx);
+  const columns = chartPartXml({ kind: 'column', grouping: 'percentStacked', series: [{ name: 'A', values: [1, 2] }, { name: 'B', values: [3, 4] }], categories: { values: ['x', 'y'] } });
+  assert.match(columns, /<c:grouping val="percentStacked"\/>[\s\S]*<\/c:ser><c:overlap val="100"\/><c:axId/);
+  assert.match(chartPartXml({ kind: 'column', series: [{ name: 'A', values: [1] }] }), /<c:grouping val="clustered"\/>/, 'unstacked unless asked');
+  const { writeOds } = await import('../packages/office-formats/src/odf-write.js');
+  const back = readOdf(writeOds({ sheets: [{ name: 'S', rows: [], drawings: [{ kind: 'chart', x: 0, y: 0, w: 100, h: 100, chart: { kind: 'area', grouping: 'stacked', categories: { values: ['a'] }, series: [{ name: 'n', values: [1] }] } }] }] }));
+  assert.equal(back.sheets[0].drawings[0].chart.grouping, 'stacked');
+});

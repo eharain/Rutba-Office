@@ -230,7 +230,7 @@ function odsDrawingsOf(view, sheet) {
         out.push({
           ...box, kind: 'chart',
           chart: {
-            kind, title: spec.title || null,
+            kind, title: spec.title || null, ...(spec.stacked ? { grouping: spec.percent ? 'percentStacked' : 'stacked' } : {}),
             categories: { ref: sers[0] ? refIn(sers[0], 'cat') || refIn(sers[0], 'xVal') : null, values: spec.categories || [] },
             series: (spec.series || []).map((s, i) => ({ name: s.name || `Series ${i + 1}`, nameRef: sers[i] ? refIn(sers[i], 'tx') : null, ref: sers[i] ? refIn(sers[i], 'val') || refIn(sers[i], 'yVal') : null, values: s.values || [] })),
           },
@@ -272,7 +272,7 @@ function odsDrawings(sheet, images) {
     if (d.type === 'chart') {
       const c = d.chart;
       out.push({
-        kind: 'chart', chartKind: c.kind, name, title: c.title || undefined, from, to,
+        kind: 'chart', chartKind: c.kind, name, title: c.title || undefined, from, to, ...(c.grouping ? { grouping: c.grouping } : {}),
         categories: c.categories ? { ref: c.categories.ref || undefined, values: c.categories.values } : undefined,
         series: c.series.map((s) => ({ name: s.name, nameRef: s.nameRef || undefined, ref: s.ref || undefined, values: s.values })),
       });
@@ -435,7 +435,7 @@ function odpSlidesToDeck(odf) {
         } else if (sh.type === 'chart') {
           // A chart, with the data its own table held.
           deck.addChart(i, {
-            ...box, type: sh.chart.kind, title: sh.chart.title || null,
+            ...box, type: sh.chart.kind, title: sh.chart.title || null, grouping: sh.chart.grouping || null,
             categories: sh.chart.categories?.values || sh.chart.series[0].values.map((_, k) => String(k + 1)),
             series: sh.chart.series.map((s) => ({ name: s.name, values: s.values.map((v) => v ?? 0) })),
           });
@@ -3221,7 +3221,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
             shapes.push({ kind: 'table', ...box, rows: s.table.rows.map((r) => r.cells.map((c) => (c.merged ? { covered: true } : { text: plain(c.text), colspan: c.colspan || 1, rowspan: c.rowspan || 1 }))) });
           } else if (s.kind === 'chart' && s.spec?.series?.length) {
             const kind = s.spec.type === 'pie' || s.spec.type === 'doughnut' || s.spec.type === 'line' || s.spec.type === 'area' || s.spec.type === 'scatter' ? s.spec.type : s.spec.type === 'bar' ? 'bar' : 'column';
-            shapes.push({ kind: 'chart', ...box, chart: { kind, title: s.spec.title || null, categories: { values: s.spec.categories || [] }, series: s.spec.series.map((x) => ({ name: x.name, values: x.values || [] })) } });
+            shapes.push({ kind: 'chart', ...box, chart: { kind, title: s.spec.title || null, ...(s.spec.stacked ? { grouping: s.spec.percent ? 'percentStacked' : 'stacked' } : {}), categories: { values: s.spec.categories || [] }, series: s.spec.series.map((x) => ({ name: x.name, values: x.values || [] })) } });
           } else if (s.kind === 'shape' && !s.placeholder && (s.preset && s.preset !== 'rect' || (s.fill && s.fill.type !== 'none') || (s.line && s.line.color))) {
             // A drawn shape: its preset (with an outline for an ODF reader that has not got it) or its own path, its look and words.
             const own = s.path?.d ? parseDeckPath(s.path.d, { w: s.path.w, h: s.path.h }) : null;

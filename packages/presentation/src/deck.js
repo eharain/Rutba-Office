@@ -3730,7 +3730,7 @@ export class Deck {
    *   defaults to centred, six tenths of the slide wide and just over half tall.
    * @returns {number} the frame's id
    */
-  addChart(slideIndex, { type = 'column', title = null, categories = [], series = [], x, y, w, h } = {}) {
+  addChart(slideIndex, { type = 'column', title = null, categories = [], series = [], x, y, w, h, grouping = null } = {}) {
     const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     if (!CHART_KINDS.includes(type)) throw new Error(`unknown chart type: ${type}`);
@@ -3746,6 +3746,7 @@ export class Deck {
     const chartPart = `ppt/charts/chart${n}.xml`;
     this.pkg.addPart(chartPart, chartPartXml({
       kind: type,
+      ...(grouping ? { grouping } : {}),
       title: title || undefined,
       categories: { values: categories },
       series: series.map((s) => ({ name: s.name, values: s.values })),

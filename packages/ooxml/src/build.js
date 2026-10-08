@@ -413,6 +413,11 @@ export function chartPartXml(chart) {
         : kind === 'area'
           ? '<c:areaChart><c:grouping val="standard"/><c:varyColors val="0"/>' + series + axRefs + '</c:areaChart>'
           : '<c:barChart><c:barDir val="' + (kind === 'bar' ? 'bar' : 'col') + '"/><c:grouping val="clustered"/><c:varyColors val="0"/>' + series + axRefs + '</c:barChart>';
+  // Stacked, or stacked to 100%, for lines, areas and bars (bars overlapping whole, as Excel writes them).
+  const grouping = chart.grouping === 'stacked' || chart.grouping === 'percentStacked' ? chart.grouping : null;
+  const stackedPlot = grouping && !scatter && kind !== 'pie' && kind !== 'doughnut'
+    ? plot.replace(/<c:grouping val="(standard|clustered)"\/>/, () => '<c:grouping val="' + grouping + '"/>').replace(/(<\/c:ser>)(<c:axId)/, (m, a, b) => (kind === 'column' || kind === 'bar' ? a + '<c:overlap val="100"/>' + b : m))
+    : plot;
   // A scatter's X axis is a value axis too: two valAx, the X one at the foot.
   const axes = scatter ? (
     '<c:valAx><c:axId val="' + CAT_AX + '"/><c:scaling><c:orientation val="minMax"/></c:scaling>'
@@ -430,7 +435,7 @@ export function chartPartXml(chart) {
     + 'xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" '
     + 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
     + '<c:chart>' + title + '<c:plotArea><c:layout/>'
-    + plot
+    + stackedPlot
     + axes
     + '</c:plotArea><c:plotVisOnly val="1"/></c:chart></c:chartSpace>';
 }

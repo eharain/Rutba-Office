@@ -421,7 +421,7 @@ function chartObjectXml(chart, { width, height }) {
   const axes = cls === 'chart:circle' || cls === 'chart:ring' ? (catRef ? `<chart:axis chart:dimension="x" chart:name="primary-x"><chart:categories table:cell-range-address="${esc(catRef)}"/></chart:axis>` : '')
     : `<chart:axis chart:dimension="x" chart:name="primary-x">${catRef ? `<chart:categories table:cell-range-address="${esc(catRef)}"/>` : ''}</chart:axis><chart:axis chart:dimension="y" chart:name="primary-y"><chart:grid chart:class="major"/></chart:axis>`;
   return `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-content ${NS}>`
-    + `<office:automatic-styles><style:style style:name="pa1" style:family="chart"><style:chart-properties chart:vertical="${chart.kind === 'bar' ? 'true' : 'false'}"/></style:style></office:automatic-styles>`
+    + `<office:automatic-styles><style:style style:name="pa1" style:family="chart"><style:chart-properties chart:vertical="${chart.kind === 'bar' ? 'true' : 'false'}"${chart.grouping === 'stacked' ? ' chart:stacked="true"' : chart.grouping === 'percentStacked' ? ' chart:percentage="true"' : ''}/></style:style></office:automatic-styles>`
     + `<office:body><office:chart><chart:chart svg:width="${cm(width)}" svg:height="${cm(height)}" chart:class="${cls}">`
     + (chart.title ? `<chart:title><text:p>${textXml(chart.title)}</text:p></chart:title>` : '')
     + '<chart:legend chart:legend-position="end"/>'
