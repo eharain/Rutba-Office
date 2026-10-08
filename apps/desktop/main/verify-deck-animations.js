@@ -209,16 +209,16 @@ export async function verifyDeckAnimations(h, { file }) {
       wiped === 'clicked' && isWipe === true && fromLeft === true && typed === 'set' && twoSeconds === true && clipping === true,
       `${wiped}/${typed}; ${JSON.stringify(anims().map((e) => [e.effect, e.direction, e.duration, e.trigger]))}; clipping ${clipping}`);
 
-    // More Effects: PowerPoint's three headings over their effects.
+    // More Effects: PowerPoint's headings over their effects, Motion Paths last.
     await wait(250);
     const more = await clickRibbon('More Effects');
-    const heads = await until(async () => (await js(`[...document.querySelectorAll('.rw-menu .rw-menu-head')].map((h) => h.textContent.trim()).join()`)) === 'Entrance,Emphasis,Exit', 'the three headings', 3000).catch(() => false);
+    const heads = await until(async () => (await js(`[...document.querySelectorAll('.rw-menu .rw-menu-head')].map((h) => h.textContent.trim()).join()`)) === 'Entrance,Emphasis,Exit,Motion Paths', 'the four headings', 3000).catch(() => false);
     const effectsListed = await js(`[...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim())`);
     await capture('slides-animation-menu.png');
     await js(`window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true })), 'closed'`);
     await until(() => js(`!document.querySelector('.rw-menu')`), 'the menu to close', 3000).catch(() => {});
-    check('slides: More Effects lists every effect under Entrance, Emphasis and Exit',
-      more === 'clicked' && heads === true && effectsListed.includes('Spin') && effectsListed.includes('Fly Out') && effectsListed.length === 17,
+    check('slides: More Effects lists every effect under Entrance, Emphasis, Exit and Motion Paths',
+      more === 'clicked' && heads === true && effectsListed.includes('Spin') && effectsListed.includes('Fly Out') && effectsListed.includes('Loop de Loop') && effectsListed.length === 28,
       `${more}; ${effectsListed.join(', ')}`);
 
     // Both taken out from the pane: the tags and the strip's star go, the file goes back to how it was.
