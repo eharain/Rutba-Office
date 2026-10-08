@@ -307,6 +307,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   impl.clipboard = {
     writeText: ({ text }) => void clipboard.writeText(text ?? ''),
     readText: () => clipboard.readText(),
+    write: ({ text, html }) => void clipboard.write(html ? { text: text ?? '', html } : { text: text ?? '' }),
+    read: () => ({ text: clipboard.readText(), html: clipboard.readHTML() }),
   };
 
   // Insert → Screenshot. Only on a press of the button, and only into the

@@ -253,6 +253,8 @@ export const METHODS = {
   clipboard: [
     'writeText',    // ({ text }) -> void
     'readText',     // () -> string
+    'write',        // ({ text, html }) -> void   the words, and a table for a spreadsheet to read by cell
+    'read',         // () -> { text, html }
   ],
   // Insert → Screenshot: the windows and screens there are, and one of them as a picture.
   capture: [

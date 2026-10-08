@@ -30,7 +30,7 @@ import {
   readSlicers, addSlicer, removeSlicer, slicerAnchorXml, writeSlicerCacheItems, setSlicerProps as writeSlicerProps,
 } from '@rutba/ooxml/slicers';
 import {
-  isError, shiftFormula, calculate, parse, compareValues, serialToDate, dateToSerial, FormulaEvaluation,
+  isError, shiftFormula, transposeFormula, calculate, parse, compareValues, serialToDate, dateToSerial, FormulaEvaluation,
 } from '@rutba/formula';
 import { formatValue, BUILTIN_FORMATS, isDateFormat } from './numfmt.js';
 import { applyFormat, formatOf, ensureDxf } from './styles-write.js';
@@ -2175,12 +2175,16 @@ export class SheetView {
     return lines.join('\n');
   }
 
-  /** Record what a copy meant, so a matching paste can be rich. */
-  markClipboard() {
+  /**
+   * Record what a copy meant, so a matching paste can be rich. A cut is
+   * marked as one: its paste moves the cells, and the mark goes with it.
+   */
+  markClipboard({ cut = false } = {}) {
     this.clipboard = {
       sheet: this.activeSheet,
       range: { ...this.selection.range },
       text: this.copyText(),
+      cut: Boolean(cut),
     };
     return this;
   }
@@ -2224,7 +2228,7 @@ export class SheetView {
     const normalized = String(text ?? '').replace(/\r\n?/g, '\n');
     const clip = this.clipboard;
     if (clip && clip.text === normalized && this.sheetNames().includes(clip.sheet)) {
-      return this._pasteCells(clip);
+      return clip.cut ? this._moveCells(clip) : this._pasteCells(clip);
     }
 
     const { row, col } = this.selection.active;
@@ -2311,6 +2315,151 @@ export class SheetView {
       }
       this.selection.collapseTo(anchor.row, anchor.col);
       this.selection.extendTo(src.bottom + dr, src.right + dc);
+      return this;
+    });
+  }
+
+  /**
+   * A cut pasted: the cells move — their inputs as typed, formulas keeping
+   * the references they had, and their formatting — and where they were is
+   * left empty. On their own sheet, as one undo step; the cut is spent.
+   */
+  _moveCells(clip) {
+    if (clip.sheet !== this.activeSheet) {
+      throw new Error('Cut cells are pasted on their own sheet — to put them on another, copy them instead');
+    }
+    const sheet = this.activeSheet;
+    const src = clip.range;
+    const anchor = this.selection.active;
+    const dr = anchor.row - src.top;
+    const dc = anchor.col - src.left;
+    if (src.top + dr < 0 || src.left + dc < 0) throw new Error('that paste would fall off the sheet');
+    const moved = [];
+    for (let r = src.top; r <= src.bottom; r++) {
+      for (let c = src.left; c <= src.right; c++) {
+        moved.push({ row: r + dr, col: c + dc, input: this.calc.getInput(sheet, r, c), styleIndex: this._styleIndexAt(sheet, r, c) });
+      }
+    }
+    const landing = new Set(moved.map((m) => m.row + ':' + m.col));
+    const left = [];
+    for (let r = src.top; r <= src.bottom; r++) for (let c = src.left; c <= src.right; c++) if (!landing.has(r + ':' + c)) left.push({ row: r, col: c });
+    return this._edit('move', null, [...left, ...moved.map(({ row, col }) => ({ row, col }))], () => {
+      for (const p of left) {
+        if (this.isFilled(p.row, p.col)) this._setCell(p.row, p.col, '');
+        if (this._styleIndexAt(sheet, p.row, p.col) != null) this._setStyleIndex(sheet, p.row, p.col, null);
+      }
+      for (const m of moved) {
+        this._setCell(m.row, m.col, m.input ?? '');
+        if ((this._styleIndexAt(sheet, m.row, m.col) ?? null) !== (m.styleIndex ?? null)) this._setStyleIndex(sheet, m.row, m.col, m.styleIndex ?? null);
+      }
+      this.clipboard = null;
+      this.selection.collapseTo(src.top + dr, src.left + dc);
+      this.selection.extendTo(src.bottom + dr, src.right + dc);
+      return this;
+    });
+  }
+
+  /**
+   * What a paste would bring: our own copy's cells (inputs, values and
+   * formatting, where they came from), or another application's values —
+   * an HTML table by cell, else text split at tabs and lines. Null when
+   * there is nothing.
+   */
+  _clipSource(text, html) {
+    const clip = this.clipboard;
+    const normalized = text == null ? null : String(text).replace(/\r\n?/g, '\n');
+    if (clip && this.sheetNames().includes(clip.sheet) && (normalized === null || normalized === clip.text)) {
+      const rows = [];
+      for (let r = clip.range.top; r <= clip.range.bottom; r++) {
+        const line = [];
+        for (let c = clip.range.left; c <= clip.range.right; c++) {
+          const input = this.calc.getInput(clip.sheet, r, c);
+          line.push({ row: r, col: c, input, value: this.calc.getValue(clip.sheet, r, c), styleIndex: this._styleIndexAt(clip.sheet, r, c), blank: input === null || input === undefined || input === '' });
+        }
+        rows.push(line);
+      }
+      return { rows, own: true, cut: Boolean(clip.cut) };
+    }
+    if (normalized === null || normalized === '') return null;
+    const grid = html ? parseHtmlTable(html) : null;
+    const lines = grid ? grid.map((l) => l.map((c) => c.value)) : normalized.replace(/\n$/, '').split('\n').map((l) => l.split('\t'));
+    return {
+      rows: lines.map((line) => line.map((raw) => {
+        const input = raw === '' || raw == null ? null : coerceInput(raw);
+        return { row: null, col: null, input, value: input, styleIndex: null, blank: input === null };
+      })),
+      own: false,
+      cut: false,
+    };
+  }
+
+  /**
+   * Home → Paste → Paste Special, as Excel's dialog: what of the copied
+   * cells comes — `all`, `formulas`, `values` (what they show, not how) or
+   * `formats` — combined with the cells already there by an `operation`
+   * (`add`, `subtract`, `multiply`, `divide`: a number pasted onto a
+   * number is worked out, onto a formula it joins the formula, onto words it
+   * leaves them), blanks in the copy leaving what is under them when
+   * `skipBlanks`, and the block turned on its side, rows to columns, when
+   * `transpose`. From our own copy every part is there to choose; from
+   * another application its values are. One undo step.
+   */
+  pasteSpecial({ what = 'all', operation = 'none', skipBlanks = false, transpose = false, text = null, html = null } = {}) {
+    if (!['all', 'formulas', 'values', 'formats'].includes(what)) throw new Error('Paste Special pastes all, formulas, values or formats');
+    if (!['none', 'add', 'subtract', 'multiply', 'divide'].includes(operation)) throw new Error('Paste Special adds, subtracts, multiplies or divides');
+    const source = this._clipSource(text, html);
+    if (!source) throw new Error('There is nothing copied to paste — copy some cells first');
+    if (source.cut) throw new Error('Cut cells are moved with Paste; Paste Special works on cells that were copied');
+    const op = what === 'formats' ? 'none' : operation;
+    const sheet = this.activeSheet;
+    const anchor = this.selection.active;
+    const sym = { add: '+', subtract: '-', multiply: '*', divide: '/' }[op];
+    const num = (n) => (n < 0 ? '(' + n + ')' : String(n));
+    const work = (a, b) => (op === 'add' ? a + b : op === 'subtract' ? a - b : op === 'multiply' ? a * b : a / b);
+    // A cell's value as a value to type: its number, words or truth, an error as it reads.
+    const asInput = (cell) => (cell.value !== null && typeof cell.value === 'object' ? formatValue(cell.value, 'General').text : cell.value);
+    const writes = [];
+    source.rows.forEach((line, i) => line.forEach((cell, j) => {
+      const row = anchor.row + (transpose ? j : i);
+      const col = anchor.col + (transpose ? i : j);
+      if (skipBlanks && cell.blank) return;
+      const w = { row, col };
+      if (what !== 'formats') {
+        const formula = source.own && what !== 'values' && typeof cell.input === 'string' && cell.input.startsWith('=');
+        const moved = () => (transpose ? transposeFormula(cell.input, { row: cell.row, col: cell.col }, { row, col }) : shiftFormula(cell.input, row - cell.row, col - cell.col));
+        let input = what === 'values' ? asInput(cell) : formula ? moved() : cell.input;
+        if (op !== 'none') {
+          const dest = this.calc.getInput(sheet, row, col);
+          const destValue = this.calc.getValue(sheet, row, col);
+          const destFormula = typeof dest === 'string' && dest.startsWith('=');
+          const srcValue = cell.blank ? 0 : typeof cell.value === 'number' ? cell.value : null;
+          if (formula || destFormula) {
+            // Formulas meet as formulas: (what was there) op (what came).
+            const left = destFormula ? '(' + dest.slice(1) + ')' : typeof destValue === 'number' ? num(destValue) : dest === null || dest === undefined || dest === '' ? '0' : null;
+            const right = formula ? '(' + input.slice(1) + ')' : srcValue !== null ? num(srcValue) : null;
+            if (left !== null && right !== null) input = '=' + left + sym + right;
+            else if (left === null) return; // words stay as they are
+          } else if (srcValue !== null) {
+            const base = dest === null || dest === undefined || dest === '' ? 0 : typeof destValue === 'number' ? destValue : null;
+            if (base === null) return; // words under the paste stay
+            input = op === 'divide' && srcValue === 0 ? '=' + num(base) + '/0' : Number(work(base, srcValue).toPrecision(15));
+          }
+        }
+        w.input = input;
+      }
+      if ((what === 'all' || what === 'formats') && source.own) w.styleIndex = cell.styleIndex;
+      writes.push(w);
+    }));
+    if (writes.some((w) => w.row < 0 || w.col < 0)) throw new Error('that paste would fall off the sheet');
+    const height = transpose ? source.rows[0]?.length ?? 1 : source.rows.length;
+    const width = transpose ? source.rows.length : Math.max(1, ...source.rows.map((l) => l.length));
+    return this._edit('paste special', null, writes.map(({ row, col }) => ({ row, col })), () => {
+      for (const w of writes) {
+        if ('input' in w) this._setCell(w.row, w.col, w.input ?? '');
+        if ('styleIndex' in w && (this._styleIndexAt(sheet, w.row, w.col) ?? null) !== (w.styleIndex ?? null)) this._setStyleIndex(sheet, w.row, w.col, w.styleIndex ?? null);
+      }
+      this.selection.collapseTo(anchor.row, anchor.col);
+      this.selection.extendTo(anchor.row + height - 1, anchor.col + width - 1);
       return this;
     });
   }
@@ -2892,8 +3041,16 @@ export class SheetView {
    *     memory expects
    *
    * Styles travel cyclically in every case. One undo step.
+   *
+   * `mode` is the Auto Fill Options' choice: `auto` as above; `copy`
+   * repeats the cells (formulas still moving with them); `series` makes a
+   * series even of a single number, counting up by one; `toggle` is a
+   * drag with Ctrl held, a series where the cells would be copied and a
+   * copy where they would make a series; `formats` fills the formatting
+   * alone; `values` the contents without the formatting.
    */
-  fill(target) {
+  fill(target, { mode = 'auto' } = {}) {
+    if (!['auto', 'copy', 'series', 'toggle', 'formats', 'values'].includes(mode)) throw new Error('a fill copies, makes a series, or fills the formatting or the contents alone');
     const t = {
       top: Number(target?.top), left: Number(target?.left),
       bottom: Number(target?.bottom), right: Number(target?.right),
@@ -2966,6 +3123,13 @@ export class SheetView {
         && sources.every((c) => isDateFormat(this.formatFor(c.row, c.col)));
       const monthly = allDates && n > 1 ? monthSeries(numbers) : null;
       const named = listSeries(numbers);
+      // Whether this lane continues as a series or is copied, by the mode.
+      const isSeries = Boolean(named || (allDates && n === 1) || monthly || (allNumeric && n > 1) || textNum);
+      const oneNumber = allNumeric && n === 1;
+      const series = mode === 'copy' ? false
+        : mode === 'series' ? isSeries || oneNumber
+          : mode === 'toggle' ? !isSeries && oneNumber
+            : isSeries;
 
       for (let k = 1; k <= count; k++) {
         const pos = start + (k - 1) * outward;
@@ -2973,11 +3137,12 @@ export class SheetView {
         const col = vertical ? lane : pos;
         const source = sources[(k - 1) % n];
         let input;
-        if (named) input = named(k);
-        else if (allDates && n === 1) input = numbers[0] + k;
-        else if (monthly) input = monthly(k);
-        else if (allNumeric && n > 1) input = numbers[n - 1] + step * k;
-        else if (textNum) input = textNum[1] + (Number(textNum[2]) + k);
+        if (series && named) input = named(k);
+        else if (series && allDates && n === 1) input = numbers[0] + k;
+        else if (series && monthly) input = monthly(k);
+        else if (series && allNumeric && n > 1) input = numbers[n - 1] + step * k;
+        else if (series && textNum) input = textNum[1] + (Number(textNum[2]) + k);
+        else if (series && oneNumber) input = numbers[0] + k;
         else if (typeof source.input === 'string' && source.input.startsWith('=')) {
           input = shiftFormula(source.input, row - source.row, col - source.col);
         } else input = source.input;
@@ -2985,15 +3150,115 @@ export class SheetView {
       }
     }
 
+    this._lastFill = { sheet: this.activeSheet, source: { ...s }, target: { ...t } };
     return this._edit('fill', null, writes.map(({ row, col }) => ({ row, col })), () => {
       for (const w of writes) {
-        this._setCell(w.row, w.col, w.input ?? '');
-        if ((this._styleIndexAt(this.activeSheet, w.row, w.col) ?? null) !== (w.styleIndex ?? null)) {
+        if (mode !== 'formats') this._setCell(w.row, w.col, w.input ?? '');
+        if (mode !== 'values' && (this._styleIndexAt(this.activeSheet, w.row, w.col) ?? null) !== (w.styleIndex ?? null)) {
           this._setStyleIndex(this.activeSheet, w.row, w.col, w.styleIndex ?? null);
         }
       }
       this.selection.collapseTo(t.top, t.left);
       this.selection.extendTo(t.bottom, t.right);
+      return this;
+    });
+  }
+
+  /**
+   * Auto Fill Options: the fill just made, made again the other way — the
+   * cells copied, a series, the formatting alone or the contents alone —
+   * in place of it, as Excel's button after a drag does.
+   */
+  refill(mode) {
+    const last = this._lastFill;
+    if (!last || last.sheet !== this.activeSheet || this.history.undoLabel !== 'fill') {
+      throw new Error('Auto Fill Options change the fill just made — drag the fill handle first');
+    }
+    this.undo();
+    this.selection.collapseTo(last.source.top, last.source.left);
+    this.selection.extendTo(last.source.bottom, last.source.right);
+    return this.fill(last.target, { mode });
+  }
+
+  /**
+   * Home → Fill → Series, as Excel's dialog: the first cell of each column
+   * of the selection (or each row, `direction: 'rows'`) carried on through
+   * the rest of it — `linear` adding the step, `growth` multiplying by it,
+   * `date` stepping by `unit` (a day, a weekday, a month, a year), or
+   * `autofill` as the fill handle would. With one cell selected and a
+   * `stop`, the series runs until it would pass the stop. The filled cells
+   * take the first cell's formatting. One undo step.
+   */
+  fillSeries({ direction = 'columns', type = 'linear', unit = 'day', step = 1, stop = null } = {}) {
+    if (!['linear', 'growth', 'date', 'autofill'].includes(type)) throw new Error('A series is linear, growth, dates or AutoFill');
+    if (!['day', 'weekday', 'month', 'year'].includes(unit)) throw new Error('A date series steps by a day, a weekday, a month or a year');
+    const s = this.selection.range;
+    const down = direction !== 'rows';
+    const single = s.top === s.bottom && s.left === s.right;
+    const by = Number(step);
+    if (!Number.isFinite(by)) throw new Error('The step value is a number');
+    const until = stop === null || stop === undefined || stop === '' ? null : Number(stop);
+    if (until !== null && !Number.isFinite(until)) throw new Error('The stop value is a number');
+    if (type === 'autofill') {
+      if (single) throw new Error('Select the cells to fill as well as the first one');
+      const first = down ? { top: s.top, bottom: s.top, left: s.left, right: s.right } : { top: s.top, bottom: s.bottom, left: s.left, right: s.left };
+      this.selection.collapseTo(first.top, first.left);
+      this.selection.extendTo(first.bottom, first.right);
+      return this.fill(s);
+    }
+    if (single && until === null) throw new Error('Select the cells to fill, or give a stop value');
+    const sheet = this.activeSheet;
+    const lanes = down ? Array.from({ length: s.right - s.left + 1 }, (_, i) => s.left + i) : Array.from({ length: s.bottom - s.top + 1 }, (_, i) => s.top + i);
+    const room = single ? 10000 : (down ? s.bottom - s.top : s.right - s.left);
+    const weekend = (serial) => { const d = ((Math.floor(serial) % 7) + 7) % 7; return d === 0 || d === 1; };
+    const addMonths = (serial, months) => {
+      const d = serialToDate(serial);
+      const m = d.getUTCFullYear() * 12 + d.getUTCMonth() + months;
+      const year = Math.floor(m / 12);
+      const month = ((m % 12) + 12) % 12;
+      const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+      return dateToSerial(new Date(Date.UTC(year, month, Math.min(d.getUTCDate(), last)))) + (serial - Math.floor(serial));
+    };
+    const writes = [];
+    let reach = 0;
+    for (const lane of lanes) {
+      const r0 = down ? s.top : lane;
+      const c0 = down ? lane : s.left;
+      const start = this.calc.getValue(sheet, r0, c0);
+      if (typeof start !== 'number') continue;
+      const styleIndex = this._styleIndexAt(sheet, r0, c0);
+      let value = start;
+      let rising = null;
+      for (let k = 1; k <= room; k++) {
+        if (type === 'linear') value = start + by * k;
+        else if (type === 'growth') value = start * by ** k;
+        else if (unit === 'day') value = start + by * k;
+        else if (unit === 'month') value = addMonths(start, by * k);
+        else if (unit === 'year') value = addMonths(start, 12 * by * k);
+        else {
+          // Weekdays: the step counted in working days, Saturdays and Sundays passed over.
+          let left = Math.abs(Math.round(by));
+          const dir = by < 0 ? -1 : 1;
+          while (left > 0) { value += dir; if (!weekend(value)) left -= 1; }
+        }
+        value = Number(value.toPrecision(15));
+        if (!Number.isFinite(value)) break;
+        if (rising === null) rising = value >= start;
+        if (until !== null && (rising ? value > until : value < until)) break;
+        writes.push({ row: down ? r0 + k : r0, col: down ? c0 : c0 + k, input: value, styleIndex });
+        reach = Math.max(reach, k);
+      }
+    }
+    if (!writes.length) throw new Error('A series starts from a number or a date in the first cell');
+    return this._edit('series', null, writes.map(({ row, col }) => ({ row, col })), () => {
+      for (const w of writes) {
+        this._setCell(w.row, w.col, w.input);
+        if ((this._styleIndexAt(sheet, w.row, w.col) ?? null) !== (w.styleIndex ?? null)) this._setStyleIndex(sheet, w.row, w.col, w.styleIndex ?? null);
+      }
+      if (single) {
+        this.selection.collapseTo(s.top, s.left);
+        this.selection.extendTo(down ? s.top + reach : s.top, down ? s.left : s.left + reach);
+      }
       return this;
     });
   }

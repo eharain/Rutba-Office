@@ -248,7 +248,15 @@ export default function SheetsRibbon({
       {tab === 'home' ? (
         <>
           <Group label="Clipboard">
-            <Button tall icon="paste" label="Paste" onClick={async () => dispatch({ op: 'paste', text: await shell.clipboard.readText() })} />
+            <Button tall icon="paste" label="Paste" title="Paste (Ctrl+V)" onClick={() => commands['edit.paste']?.run?.()} />
+            <Button icon="chevronDown" className="sh-paste-options" title="Paste options — the formulas, the values or the formatting alone, turned rows to columns, or Paste Special (Ctrl+Alt+V)" onClick={(e) => menu.open(e, [
+              { label: 'Paste', icon: 'paste', run: () => commands['edit.paste']?.run?.() },
+              { label: 'Formulas', run: () => act('pasteSpecial', { what: 'formulas' }) },
+              { label: 'Values', run: () => act('pasteSpecial', { what: 'values' }) },
+              { label: 'Formatting', run: () => act('pasteSpecial', { what: 'formats' }) },
+              { label: 'Transpose', run: () => act('pasteSpecial', { what: 'all', transpose: true }) },
+              { label: 'Paste Special…', run: () => commands['edit.pasteSpecial']?.run?.() },
+            ])} />
             <Rows>
               <>
                 <Button icon="cut" label="Cut" onClick={() => commands['edit.cut']?.run?.()} />
@@ -360,6 +368,9 @@ export default function SheetsRibbon({
             <Button icon="chevronDown" label="Fill" onClick={(e) => menu.open(e, [
               { label: 'Down (Ctrl+D)', run: () => act('fill', 'down') },
               { label: 'Right (Ctrl+R)', run: () => act('fill', 'right') },
+              { label: 'Up', run: () => act('fill', 'up') },
+              { label: 'Left', run: () => act('fill', 'left') },
+              { label: 'Series…', run: () => act('seriesDialog') },
             ])} />
             <Button icon="close" label="Clear" onClick={(e) => menu.open(e, [
               { label: 'Clear contents', run: () => dispatch({ op: 'clear' }) },

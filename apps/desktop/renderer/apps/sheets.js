@@ -21,7 +21,7 @@ import { SymbolDialog } from './word/dialogs.js';
 import { useSheetsReview } from './sheets/review.js';
 import {
   GoToDialog, FunctionDialog, StatisticsDialog, SheetShortcutsDialog, SizeDialog, SortDialog, LinkDialog, NoteDialog, HeaderFooterDialog, SheetNameDialog, SheetDeleteDialog, SparklineDialog, parseRef,
-  OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog,
+  OutlineAxisDialog, SubtotalDialog, AdvancedFilterDialog, EvaluateDialog, PasteSpecialDialog, SeriesDialog,
   ProtectDialog, PasswordDialog, EditRangesDialog, CustomViewsDialog, ConsolidateDialog, ForecastDialog,
 } from './sheets/dialogs.js';
 import { WorkbookGallery, SHEET_DESIGN_CSS } from './sheets/design.js';
@@ -103,6 +103,8 @@ export default function Sheets({ app, shell, boot }) {
   // A drag from the fill handle: the range it has reached, drawn as a dashed
   // box until the button is released and the engine fills it.
   const [filling, setFilling] = useState(null);
+  // The fill just made, for Auto Fill Options' button at its corner.
+  const [filled, setFilled] = useState(null);
   /**
    * How the grid is shown. None of it is in the workbook: gridlines,
    * headings and the formula bar are Excel's View toggles, "show formulas"
@@ -229,6 +231,35 @@ export default function Sheets({ app, shell, boot }) {
     },
     [doc, shell, toast]
   );
+
+  // The newest frame, for a drag to read the rows and columns it has scrolled to.
+  const modelRef = useRef(null);
+  modelRef.current = model;
+
+  /**
+   * Copy and Cut: the cells marked for a rich paste here, and put on the
+   * system clipboard as words for any application and as a table a
+   * spreadsheet reads by cell.
+   */
+  const clipOut = useCallback(async (op) => {
+    const next = await dispatch({ op });
+    if (!next?.opResult) return;
+    try {
+      await shell.clipboard.write(JSON.parse(next.opResult));
+    } catch (err) {
+      toast(String(err?.message || err), { tone: 'bad' });
+    }
+  }, [dispatch, shell, toast]);
+
+  /** Paste, or Paste Special with `special`: what the system clipboard holds, words and table both. */
+  const clipIn = useCallback(async (special = null) => {
+    const got = shell.clipboard.read ? await shell.clipboard.read() : { text: await shell.clipboard.readText(), html: '' };
+    const text = got?.text || '';
+    const html = got?.html || null;
+    if (special) return dispatch({ op: 'pasteSpecial', ...special, text, html });
+    if (!text && !html) { toast('There is nothing on the clipboard to paste.', { ms: 3500 }); return null; }
+    return dispatch({ op: 'paste', text, html });
+  }, [dispatch, shell, toast]);
 
   /**
    * Navigation, coalesced. A held arrow key fires thirty times a second and
@@ -494,7 +525,10 @@ export default function Sheets({ app, shell, boot }) {
       'file.print': { label: 'Print…', icon: 'print', key: 'Mod+P', global: true, run: () => setDialog('print') },
       'edit.undo': { label: 'Undo', icon: 'undo', key: 'Mod+Z', run: async () => { const n = await shell.doc.undo({ id: doc.id }); setDoc(n); setModel(n.model); } },
       'edit.redo': { label: 'Redo', icon: 'redo', key: 'Mod+Y', run: async () => { const n = await shell.doc.redo({ id: doc.id }); setDoc(n); setModel(n.model); } },
-      'edit.copy': { label: 'Copy', icon: 'copy', key: 'Mod+C', run: () => dispatch({ op: 'copy' }) },
+      'edit.cut': { label: 'Cut', icon: 'cut', key: 'Mod+X', run: () => clipOut('cut') },
+      'edit.copy': { label: 'Copy', icon: 'copy', key: 'Mod+C', run: () => clipOut('copy') },
+      'edit.paste': { label: 'Paste', icon: 'paste', key: 'Mod+V', run: () => clipIn() },
+      'edit.pasteSpecial': { label: 'Paste Special…', icon: 'paste', key: 'Mod+Alt+V', run: () => setDialog('pasteSpecial') },
       'edit.clear': { label: 'Clear', icon: 'close', key: 'Delete', run: () => dispatch({ op: 'clear' }) },
       'insert.link': { label: 'Link…', icon: 'link', key: 'Mod+K', run: () => setDialog('link') },
       'insert.note': { label: 'Note…', icon: 'reply', key: 'Shift+F2', run: () => setDialog('note') },
@@ -510,7 +544,7 @@ export default function Sheets({ app, shell, boot }) {
       'sheet.chart': { label: 'Chart', icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: 'column' }) },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc, model, dispatch, openFile, save, shell]
+    [doc, model, dispatch, openFile, save, shell, clipOut, clipIn]
   );
 
   useCommands(commands, [doc, model]);
@@ -656,6 +690,124 @@ export default function Sheets({ app, shell, boot }) {
   const continuing = (spot) => {
     const p = pointRef.current;
     return p && spot && p.start === spot.start && p.end === spot.end ? p : null;
+  };
+
+  /** Calls `send` with the newest value, one call at a time: a fast drag sends where it is, not every cell it crossed. */
+  const chaser = (send) => {
+    let busy = false;
+    let pending = false;
+    let want;
+    return (value) => {
+      want = value;
+      pending = true;
+      if (busy) return;
+      busy = true;
+      (async () => {
+        while (pending) { pending = false; await send(want); }
+        busy = false;
+      })();
+    };
+  };
+
+  /**
+   * A press on the grid, then a drag: the selection stretches from the cell
+   * pressed to the cell under the pointer, as in Excel; held past the grid's
+   * edge, the grid scrolls on and the selection follows it.
+   */
+  const startSelectDrag = (e, from) => {
+    // A real press only: a press made up in code has no release to end it.
+    if (e.button !== 0 || !e.isTrusted) return;
+    const layer = e.currentTarget.closest('.sh-cells');
+    const grid = gridRef.current;
+    if (!layer || !grid) return;
+    let last = { row: from.row, col: from.col };
+    let pointer = { x: e.clientX, y: e.clientY };
+    let moved = false;
+    const chase = chaser((c) => dispatch({ op: 'select', row: c.row, col: c.col, extend: true }));
+    const look = () => {
+      const r = grid.getBoundingClientRect();
+      const x = Math.min(Math.max(pointer.x, r.left + 1), r.right - 2);
+      const y = Math.min(Math.max(pointer.y, r.top + 1), r.bottom - 2);
+      const m = modelRef.current;
+      const pin = document.elementFromPoint(x, y)?.closest?.('.sh-pin');
+      const box = (pin || layer).getBoundingClientRect();
+      const z = view.zoom || 1;
+      const px = xIn(box, x) / z + Number(pin?.dataset.ox || 0);
+      const py = (y - box.top) / z + Number(pin?.dataset.oy || 0);
+      const cols = m?.columns || [];
+      const rows = m?.rows || [];
+      // Off the cells, the nearest one: above the first row is the first row.
+      const col = cols.find((c) => px >= c.x && px < c.x + c.width) || (cols.length && px < cols[0].x ? cols[0] : cols[cols.length - 1]);
+      const row = rows.find((rw) => py >= rw.y && py < rw.y + rw.height) || (rows.length && py < rows[0].y ? rows[0] : rows[rows.length - 1]);
+      if (!col || !row || (row.index === last.row && col.index === last.col)) return;
+      last = { row: row.index, col: col.index };
+      chase(last);
+    };
+    // Past the edge: a step of scroll each tick, and the selection reaching what it brings in.
+    const timer = setInterval(() => {
+      if (!moved) return;
+      const r = grid.getBoundingClientRect();
+      const m = modelRef.current;
+      const z = view.zoom || 1;
+      let dy = 0;
+      if (pointer.y > r.bottom - 4) dy = 24;
+      else if (pointer.y < r.top + (m?.headerHeight || 20) * z) dy = -24;
+      let dx = 0;
+      if (!rtlRef.current) {
+        if (pointer.x > r.right - 4) dx = 40;
+        else if (pointer.x < r.left + (m?.headerWidth || 40) * z) dx = -40;
+      }
+      if (dy) grid.scrollTop += dy;
+      if (dx) grid.scrollLeft += dx;
+      if (dx || dy) look();
+    }, 60);
+    const move = (ev) => { pointer = { x: ev.clientX, y: ev.clientY }; moved = true; look(); };
+    const up = () => {
+      clearInterval(timer);
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
+  };
+
+  /**
+   * A press on a column's or a row's heading, then a drag: whole columns or
+   * rows, from the first to where the pointer is. The press selects; the click
+   * that follows it is then passed over, and a click with no press before it
+   * (one made in code) selects as a click.
+   */
+  const headPress = useRef(false);
+  const headClick = (e, axis, index) => {
+    if (headPress.current) { headPress.current = false; return; }
+    dispatch({ op: axis === 'col' ? 'selectColumn' : 'selectRow', [axis]: index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
+  };
+  const startHeadDrag = (e, axis, index) => {
+    if (e.button !== 0 || !e.isTrusted) return;
+    headPress.current = true;
+    const op = axis === 'col' ? 'selectColumn' : 'selectRow';
+    dispatch({ op, [axis]: index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
+    const layer = gridRef.current?.querySelector('.sh-cells');
+    if (!layer) return;
+    let last = index;
+    const chase = chaser((i) => dispatch({ op, [axis]: i, extend: true }));
+    const move = (ev) => {
+      const rect = layer.getBoundingClientRect();
+      const z = view.zoom || 1;
+      const m = modelRef.current;
+      const found = axis === 'col'
+        ? (m?.columns || []).find((c) => { const x = xIn(rect, ev.clientX) / z; return x >= c.x && x < c.x + c.width; })
+        : (m?.rows || []).find((r) => { const y = (ev.clientY - rect.top) / z; return y >= r.y && y < r.y + r.height; });
+      if (found && found.index !== last) { last = found.index; chase(last); }
+    };
+    const up = () => {
+      window.removeEventListener('mousemove', move);
+      window.removeEventListener('mouseup', up);
+      // The click this press makes comes straight after; past it, clicks select again.
+      setTimeout(() => { headPress.current = false; }, 0);
+    };
+    window.addEventListener('mousemove', move);
+    window.addEventListener('mouseup', up);
   };
 
   /**
@@ -1034,7 +1186,10 @@ export default function Sheets({ app, shell, boot }) {
       const rows = model?.rows || [];
       const corner = { x: xIn(rect, e.clientX) / z, y: (e.clientY - rect.top) / z };
       let target = source;
+      // Ctrl held: a series where the cells would be copied, a copy where they would make one.
+      let ctrl = e.ctrlKey || e.metaKey;
       const move = (ev) => {
+        ctrl = ev.ctrlKey || ev.metaKey;
         const px = xIn(rect, ev.clientX) / z;
         const py = (ev.clientY - rect.top) / z;
         const col = columns.find((c) => px >= c.x && px < c.x + c.width) || (px >= (columns[columns.length - 1]?.x ?? 0) ? columns[columns.length - 1] : columns[0]);
@@ -1046,18 +1201,20 @@ export default function Sheets({ app, shell, boot }) {
           : { top: source.top, bottom: source.bottom, left: source.left, right: Math.max(source.right, col.index) };
         setFilling({ target });
       };
-      const stop = () => {
+      const stop = async (ev) => {
         window.removeEventListener('mousemove', move);
         window.removeEventListener('mouseup', stop);
         setFilling(null);
+        if (ev) ctrl = ev.ctrlKey || ev.metaKey;
         if (target.bottom > source.bottom || target.right > source.right) {
-          dispatch(
+          const next = await dispatch(
             { op: 'select', row: source.top, col: source.left },
             { op: 'select', row: source.bottom, col: source.right, extend: true },
-            { op: 'fill', target },
+            { op: 'fill', target, mode: ctrl ? 'toggle' : 'auto' },
             { op: 'select', row: target.top, col: target.left },
             { op: 'select', row: target.bottom, col: target.right, extend: true },
           );
+          if (next) setFilled({ target });
         }
       };
       window.addEventListener('mousemove', move);
@@ -1414,13 +1571,14 @@ export default function Sheets({ app, shell, boot }) {
           // Ctrl+click on a link follows it, as in Word; a plain click selects, as in Excel.
           if (cell.link && (e.ctrlKey || e.metaKey)) { e.preventDefault(); act('follow', cell.link); return; }
           dispatch({ op: 'select', row: cell.row, col: cell.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
+          startSelectDrag(e, { row: cell.row, col: cell.col });
         }}
         onDoubleClick={() => dispatch({ op: 'beginEdit' })}
         onContextMenu={(e) => menu.open(e, spark
-          ? menuItems(commands, ['edit.copy', 'edit.clear', '-']).concat([
+          ? menuItems(commands, ['edit.cut', 'edit.copy', 'edit.paste', 'edit.pasteSpecial', 'edit.clear', '-']).concat([
             { label: 'Remove sparkline', icon: 'close', run: () => dispatch({ op: 'removeSparklines', at: cell.ref }) },
           ])
-          : menuItems(commands, ['edit.copy', 'edit.clear', '-', 'insert.link', 'insert.comment', 'insert.note', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
+          : menuItems(commands, ['edit.cut', 'edit.copy', 'edit.paste', 'edit.pasteSpecial', 'edit.clear', '-', 'insert.link', 'insert.comment', 'insert.note', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
         data-tip={tipFor(cell)}
       >
         {spark ? sparkSvg(spark, cell.width, cell.height) : null}
@@ -1633,7 +1791,8 @@ export default function Sheets({ app, shell, boot }) {
       // Both coordinates, always: an absolute heading with no top took its
       // static place, which the pinned wrapper in flow had moved down.
       style={{ left: c.x - dx, top: gutH, width: c.width, height: model.headerHeight }}
-      onClick={(e) => dispatch({ op: 'selectColumn', col: c.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
+      onMouseDown={(e) => startHeadDrag(e, 'col', c.index)}
+      onClick={(e) => headClick(e, 'col', c.index)}
       onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertCol', 'sheet.deleteCol', '-', 'sheet.sortAsc', 'sheet.sortDesc']))}
     >
       {model.rtl ? <span className="sh-words">{c.label || colLabel(c.index)}</span> : (c.label || colLabel(c.index))}
@@ -1655,7 +1814,8 @@ export default function Sheets({ app, shell, boot }) {
       key={r.index}
       className={`sh-head${r.index >= (sel?.top ?? -1) && r.index <= (sel?.bottom ?? -2) ? ' active' : ''}`}
       style={{ top: r.y - dy, left: gutW, height: r.height, width: model.headerWidth }}
-      onClick={(e) => dispatch({ op: 'selectRow', row: r.index, extend: e.shiftKey, add: e.ctrlKey || e.metaKey })}
+      onMouseDown={(e) => startHeadDrag(e, 'row', r.index)}
+      onClick={(e) => headClick(e, 'row', r.index)}
       onContextMenu={(e) => menu.open(e, menuItems(commands, ['sheet.insertRow', 'sheet.deleteRow']))}
     >
       {model.rtl ? <span className="sh-words">{r.label ?? r.index + 1}</span> : (r.label ?? r.index + 1)}
@@ -2159,6 +2319,8 @@ export default function Sheets({ app, shell, boot }) {
   }
 
   const sel = model?.selection;
+  // The selection's rectangle: the frame carries its four sides on the selection itself.
+  const selRange = sel && Number.isInteger(sel.top) ? { top: sel.top, left: sel.left, bottom: sel.bottom, right: sel.right } : null;
   const status = model?.status;
   // The pivot under the cell, its fields pane shown beside the sheet as Excel shows it.
   const pivotHere = pivotAround(model, sel);
@@ -2208,7 +2370,7 @@ export default function Sheets({ app, shell, boot }) {
       return;
     }
     const at = sel?.active || { row: 0, col: 0 };
-    const range = sel?.range || { top: at.row, left: at.col, bottom: at.row, right: at.col };
+    const range = selRange || { top: at.row, left: at.col, bottom: at.row, right: at.col };
     switch (name) {
       case 'toggleGridlines': patchView((v) => ({ gridlines: v.gridlines === false })); return;
       case 'toggleHeadings': patchView((v) => ({ headings: v.headings === false })); return;
@@ -2377,17 +2539,24 @@ export default function Sheets({ app, shell, boot }) {
         await dispatch({ op: 'merge' }, { op: 'setFormat', delta: { align: 'center' } });
         return;
       case 'fill': {
-        // Excel's Ctrl+D/Ctrl+R: one cell fills from its neighbour above or
-        // left; a range fills from its own first row or column.
+        // Excel's Ctrl+D/Ctrl+R, and Fill Up and Left: one cell fills from
+        // its neighbour above, left, below or right; a range from its own
+        // first row or column, or its last for up and left.
         const single = range.top === range.bottom && range.left === range.right;
         if (single) {
-          const source = arg === 'right' ? { row: at.row, col: at.col - 1 } : { row: at.row - 1, col: at.col };
+          const source = arg === 'right' ? { row: at.row, col: at.col - 1 }
+            : arg === 'left' ? { row: at.row, col: at.col + 1 }
+              : arg === 'up' ? { row: at.row + 1, col: at.col }
+                : { row: at.row - 1, col: at.col };
           if (source.row < 0 || source.col < 0) return toast('Nothing above or left to fill from.', { ms: 4000 });
-          await dispatch({ op: 'select', row: source.row, col: source.col }, { op: 'fill', target: range }, { op: 'select', row: at.row, col: at.col });
+          const target = { top: Math.min(source.row, at.row), left: Math.min(source.col, at.col), bottom: Math.max(source.row, at.row), right: Math.max(source.col, at.col) };
+          await dispatch({ op: 'select', row: source.row, col: source.col }, { op: 'fill', target }, { op: 'select', row: at.row, col: at.col });
         } else {
           const source = arg === 'right'
             ? { top: range.top, bottom: range.bottom, left: range.left, right: range.left }
-            : { top: range.top, bottom: range.top, left: range.left, right: range.right };
+            : arg === 'left' ? { top: range.top, bottom: range.bottom, left: range.right, right: range.right }
+              : arg === 'up' ? { top: range.bottom, bottom: range.bottom, left: range.left, right: range.right }
+                : { top: range.top, bottom: range.top, left: range.left, right: range.right };
           await dispatch(
             { op: 'select', row: source.top, col: source.left },
             { op: 'select', row: source.bottom, col: source.right, extend: true },
@@ -2475,6 +2644,9 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'clearOutline': await dispatch({ op: 'clearOutline' }); return;
+      // Home → Paste's options, and Fill → Series.
+      case 'pasteSpecial': await clipIn(arg || {}); return;
+      case 'seriesDialog': setDialog('series'); return;
       case 'autoOutline': await dispatch({ op: 'autoOutline' }); return;
       // Data → Flash Fill (Ctrl+E), Advanced and Clear: what the engine says
       // when it will not is a note, not an alarm — a toast that says why.
@@ -3076,7 +3248,10 @@ export default function Sheets({ app, shell, boot }) {
                   // Typing a formula: an empty cell is pointed at as a drawn one is.
                   const spot = at && editing ? pointSpot() : null;
                   if (spot) { e.preventDefault(); startPoint(e, at, spot); return; }
-                  if (at) dispatch({ op: 'select', row: at.row, col: at.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
+                  if (at) {
+                    dispatch({ op: 'select', row: at.row, col: at.col, extend: e.shiftKey, add: e.ctrlKey || e.metaKey });
+                    startSelectDrag(e, at);
+                  }
                 }}
                 onDoubleClick={(e) => {
                   if (e.target.closest('.sh-cell, .sh-editor, .sh-drawing, .sh-card')) return;
@@ -3125,7 +3300,7 @@ export default function Sheets({ app, shell, boot }) {
                   // A selection in a frozen pane keeps its handle out of the way: the handle is
                   // drawn in the sliding layer, and a frozen cell is not there.
                   const active = model.cells.find((c) => c.active);
-                  const source = sel?.range || (active ? { top: active.row, left: active.col, bottom: active.row, right: active.col } : null);
+                  const source = selRange || (active ? { top: active.row, left: active.col, bottom: active.row, right: active.col } : null);
                   const box = source && !(source.top < frozen.rows || source.left < frozen.cols) ? boxOf(source) : null;
                   const reach = filling ? boxOf(filling.target) : null;
                   return (
@@ -3134,6 +3309,31 @@ export default function Sheets({ app, shell, boot }) {
                         <div className="sh-fill" title="Drag to fill the cells below or beside" style={{ left: box.right - 5, top: box.bottom - 5 }} onMouseDown={(e) => startFill(e, source)} />
                       ) : null}
                       {reach ? <div className="sh-fillguide" style={{ left: reach.x, top: reach.y, width: reach.right - reach.x, height: reach.bottom - reach.y }} /> : null}
+                      {(() => {
+                        // Auto Fill Options: at the corner of the fill just made, while it is still the selection.
+                        const t = filled?.target;
+                        const same = t && source && t.top === source.top && t.left === source.left && t.bottom === source.bottom && t.right === source.right;
+                        const at = same && !filling ? boxOf(t) : null;
+                        if (!at) return null;
+                        const pickMode = (mode) => dispatch({ op: 'refill', mode });
+                        return (
+                          <button
+                            type="button"
+                            className="sh-autofill"
+                            title="Auto Fill Options"
+                            style={{ left: at.right + 4, top: at.bottom + 2 }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            onClick={(e) => menu.open(e, [
+                              { label: 'Copy Cells', run: () => pickMode('copy') },
+                              { label: 'Fill Series', run: () => pickMode('series') },
+                              { label: 'Fill Formatting Only', run: () => pickMode('formats') },
+                              { label: 'Fill Without Formatting', run: () => pickMode('values') },
+                            ])}
+                          >
+                            <Icon name="table" size={12} /><Icon name="chevronDown" size={10} />
+                          </button>
+                        );
+                      })()}
                     </>
                   );
                 })()}
@@ -3406,6 +3606,19 @@ export default function Sheets({ app, shell, boot }) {
           onSort={async (keys) => { setDialog(null); await dispatch({ op: 'sort', keys }); toast('Sorted', { tone: 'good' }); }}
         />
       ) : null}
+      {dialog === 'pasteSpecial' ? (
+        <PasteSpecialDialog
+          onClose={() => setDialog(null)}
+          onApply={async (spec) => { setDialog(null); await clipIn(spec); }}
+        />
+      ) : null}
+      {dialog === 'series' ? (
+        <SeriesDialog
+          rows={Boolean(selRange && selRange.top === selRange.bottom && selRange.left !== selRange.right)}
+          onClose={() => setDialog(null)}
+          onApply={async (spec) => { setDialog(null); await dispatch({ op: 'fillSeries', ...spec }); }}
+        />
+      ) : null}
       {dialog === 'outlineAxis' && outlineAsk ? (
         <OutlineAxisDialog
           verb={outlineAsk}
@@ -3457,7 +3670,7 @@ export default function Sheets({ app, shell, boot }) {
           current={dialog === 'rowHeight' ? model?.cells?.find((c) => c.active)?.height : model?.cells?.find((c) => c.active)?.width}
           onClose={() => setDialog(null)}
           onApply={async (n) => {
-            const r = sel?.range || { top: sel?.active?.row ?? 0, bottom: sel?.active?.row ?? 0, left: sel?.active?.col ?? 0, right: sel?.active?.col ?? 0 };
+            const r = selRange || { top: sel?.active?.row ?? 0, bottom: sel?.active?.row ?? 0, left: sel?.active?.col ?? 0, right: sel?.active?.col ?? 0 };
             const ops = [];
             if (dialog === 'rowHeight') for (let row = r.top; row <= r.bottom; row++) ops.push({ op: 'rowHeight', row, height: n });
             else for (let col = r.left; col <= r.right; col++) ops.push({ op: 'colWidth', col, width: n });
@@ -3996,6 +4209,9 @@ const CSS = `
 /* The fill handle and the box a fill drag has reached. */
 .sh-fill { position: absolute; width: 9px; height: 9px; background: var(--accent); border: 1.5px solid #fff; border-radius: 1px; z-index: 5; cursor: crosshair; box-sizing: border-box; }
 .sh-fillguide { position: absolute; border: 1.5px dashed var(--accent); pointer-events: none; z-index: 5; box-sizing: border-box; }
+/* Auto Fill Options: the small button at a fill's corner. */
+.sh-autofill { position: absolute; z-index: 6; display: inline-flex; align-items: center; gap: 1px; height: 18px; padding: 0 3px; border: 1px solid var(--line); border-radius: 3px; background: var(--surface); color: var(--text); cursor: pointer; }
+.sh-autofill:hover { border-color: var(--accent); }
 .sh-guide.col { width: 2px; margin-left: -1px; }
 .sh-guide.row { height: 2px; margin-top: -1px; }
 .sh-cell {

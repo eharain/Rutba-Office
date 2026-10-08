@@ -1733,8 +1733,13 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
     autoSum: (v, a) => v.autoSum(a.fn || 'SUM'),
     sort: (v, a) => v.sortSelection({ ascending: a.ascending !== false, keys: Array.isArray(a.keys) ? a.keys : null }),
     paste: (v, a) => v.pasteText(a.text, a.html),
-    copy: (v) => v.markClipboard(),
-    fill: (v, a) => v.fill(a.target),
+    // Copy and Cut answer what goes on the system clipboard, the words and a table.
+    copy: (v) => { v.markClipboard(); return JSON.stringify({ text: v.copyText(), html: v.copyHtml() }); },
+    cut: (v) => { v.markClipboard({ cut: true }); return JSON.stringify({ text: v.copyText(), html: v.copyHtml() }); },
+    pasteSpecial: (v, a) => v.pasteSpecial({ what: a.what, operation: a.operation, skipBlanks: Boolean(a.skipBlanks), transpose: Boolean(a.transpose), text: a.text ?? null, html: a.html ?? null }),
+    fill: (v, a) => v.fill(a.target, { mode: a.mode || 'auto' }),
+    refill: (v, a) => v.refill(a.mode),
+    fillSeries: (v, a) => v.fillSeries({ direction: a.direction, type: a.type, unit: a.unit, step: a.step, stop: a.stop }),
     tab: (v, a) => v.tab(a.back),
     enter: (v, a) => v.enterKey(a.back),
     insertChart: (v, a) => v.insertChart(a),
@@ -2372,7 +2377,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

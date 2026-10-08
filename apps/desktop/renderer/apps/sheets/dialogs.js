@@ -981,6 +981,123 @@ export function SubtotalDialog({ list, onClose, onApply, onRemoveAll }) {
  * range and the destination as references; unique records only. The
  * ranges an earlier run used are offered again, as Excel offers them.
  */
+/**
+ * Home → Paste → Paste Special, Excel's dialog: what of the copied cells is
+ * pasted, an operation that works the copy out against what is there, and
+ * Skip blanks and Transpose.
+ */
+export function PasteSpecialDialog({ onClose, onApply }) {
+  const [what, setWhat] = useState('all');
+  const [operation, setOperation] = useState('none');
+  const [skipBlanks, setSkipBlanks] = useState(false);
+  const [transpose, setTranspose] = useState(false);
+  const apply = () => onApply({ what, operation: what === 'formats' ? 'none' : operation, skipBlanks, transpose });
+  const radio = (name, value, current, set, label, disabled = false) => (
+    <label style={{ ...CHECK_ROW, opacity: disabled ? 0.5 : 1 }}>
+      <input type="radio" name={name} className={`sh-ps-${value}`} checked={current === value} disabled={disabled} onChange={() => set(value)} /> {label}
+    </label>
+  );
+  return (
+    <Dialog
+      title="Paste Special"
+      width={420}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="OK" className="sh-ps-ok" onClick={apply} />
+        </>
+      }
+    >
+      <div className="ml-form" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <Field label="Paste">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {radio('sh-ps-what', 'all', what, setWhat, 'All')}
+            {radio('sh-ps-what', 'formulas', what, setWhat, 'Formulas')}
+            {radio('sh-ps-what', 'values', what, setWhat, 'Values')}
+            {radio('sh-ps-what', 'formats', what, setWhat, 'Formats')}
+          </div>
+        </Field>
+        <Field label="Operation">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {radio('sh-ps-op', 'none', operation, setOperation, 'None', what === 'formats')}
+            {radio('sh-ps-op', 'add', operation, setOperation, 'Add', what === 'formats')}
+            {radio('sh-ps-op', 'subtract', operation, setOperation, 'Subtract', what === 'formats')}
+            {radio('sh-ps-op', 'multiply', operation, setOperation, 'Multiply', what === 'formats')}
+            {radio('sh-ps-op', 'divide', operation, setOperation, 'Divide', what === 'formats')}
+          </div>
+        </Field>
+        <label style={CHECK_ROW}><input type="checkbox" className="sh-ps-skip" checked={skipBlanks} onChange={(e) => setSkipBlanks(e.target.checked)} /> Skip blanks</label>
+        <label style={CHECK_ROW}><input type="checkbox" className="sh-ps-transpose" checked={transpose} onChange={(e) => setTranspose(e.target.checked)} /> Transpose</label>
+      </div>
+    </Dialog>
+  );
+}
+
+/**
+ * Home → Fill → Series, Excel's dialog: down the columns or along the rows,
+ * linear, growth, dates by a unit, or AutoFill, with a step and a stop.
+ */
+export function SeriesDialog({ rows = false, onClose, onApply }) {
+  const [direction, setDirection] = useState(rows ? 'rows' : 'columns');
+  const [type, setType] = useState('linear');
+  const [unit, setUnit] = useState('day');
+  const [step, setStep] = useState('1');
+  const [stop, setStop] = useState('');
+  const ok = type === 'autofill' || (step.trim() !== '' && Number.isFinite(Number(step)) && (stop.trim() === '' || Number.isFinite(Number(stop))));
+  const apply = () => ok && onApply({ direction, type, unit, step: Number(step), stop: stop.trim() === '' ? null : Number(stop) });
+  const enter = (e) => { if (e.key === 'Enter') apply(); };
+  const radio = (name, value, current, set, label, disabled = false) => (
+    <label style={{ ...CHECK_ROW, opacity: disabled ? 0.5 : 1 }}>
+      <input type="radio" name={name} className={`sh-series-${value}`} checked={current === value} disabled={disabled} onChange={() => set(value)} /> {label}
+    </label>
+  );
+  return (
+    <Dialog
+      title="Series"
+      width={440}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="OK" className="sh-series-ok" disabled={!ok} onClick={apply} />
+        </>
+      }
+    >
+      <div className="ml-form" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
+        <Field label="Series in">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {radio('sh-series-dir', 'rows', direction, setDirection, 'Rows')}
+            {radio('sh-series-dir', 'columns', direction, setDirection, 'Columns')}
+          </div>
+        </Field>
+        <Field label="Type">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {radio('sh-series-type', 'linear', type, setType, 'Linear')}
+            {radio('sh-series-type', 'growth', type, setType, 'Growth')}
+            {radio('sh-series-type', 'date', type, setType, 'Date')}
+            {radio('sh-series-type', 'autofill', type, setType, 'AutoFill')}
+          </div>
+        </Field>
+        <Field label="Date unit">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {radio('sh-series-unit', 'day', unit, setUnit, 'Day', type !== 'date')}
+            {radio('sh-series-unit', 'weekday', unit, setUnit, 'Weekday', type !== 'date')}
+            {radio('sh-series-unit', 'month', unit, setUnit, 'Month', type !== 'date')}
+            {radio('sh-series-unit', 'year', unit, setUnit, 'Year', type !== 'date')}
+          </div>
+        </Field>
+        <Field label="Step value">
+          <Input className="sh-series-step" value={step} disabled={type === 'autofill'} onChange={(e) => setStep(e.target.value)} onKeyDown={enter} autoFocus />
+        </Field>
+        <Field label="Stop value" hint="Optional: with one cell selected, the series runs to here.">
+          <Input className="sh-series-stop" value={stop} disabled={type === 'autofill'} onChange={(e) => setStop(e.target.value)} onKeyDown={enter} />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
 export function AdvancedFilterDialog({ list, onClose, onApply }) {
   const kept = list.filter || {};
   const [action, setAction] = useState(kept.extract ? 'copy' : 'filter');

@@ -559,8 +559,12 @@ export function parse(input, { spans = false } = {}) {
  * Text-level rather than AST-level, deliberately: the result must preserve
  * every space, comma and function name exactly as typed, because this string
  * goes back into the cell as what the user "wrote".
+ *
+ * `mapCell(row, col, rowAbsolute, colAbsolute)`, when given, places each
+ * single-cell reference itself, answering `[row, col]` — what turning a
+ * formula with its block (transposeFormula) needs.
  */
-export function shiftFormula(formula, dr, dc) {
+export function shiftFormula(formula, dr, dc, mapCell = null) {
   const MAX_ROWS = 1048576;
   const MAX_COLS = 16384;
   const src = String(formula);
@@ -613,8 +617,11 @@ export function shiftFormula(formula, dr, dc) {
       if (cell) {
         let col = colToIndex(cell[2]);
         let row = Number(cell[4]) - 1;
-        if (!cell[1]) col += dc;
-        if (!cell[3]) row += dr;
+        if (mapCell) [row, col] = mapCell(row, col, Boolean(cell[3]), Boolean(cell[1]));
+        else {
+          if (!cell[1]) col += dc;
+          if (!cell[3]) row += dr;
+        }
         if (row < 0 || col < 0 || row >= MAX_ROWS || col >= MAX_COLS) {
           out += '#REF!';
         } else {
@@ -649,6 +656,22 @@ export function shiftFormula(formula, dr, dc) {
     i += 1;
   }
   return out;
+}
+
+/**
+ * A formula pasted with Transpose, from the cell at `from` to the cell at
+ * `to`: a relative reference keeps its place relative to the cell, turned
+ * as the block is turned — the cell above becomes the cell to the left —
+ * a reference absolute on both axes stays where it points, and one absolute
+ * on a single axis moves along the other as a copy moves it.
+ */
+export function transposeFormula(formula, from, to) {
+  const dr = to.row - from.row;
+  const dc = to.col - from.col;
+  return shiftFormula(formula, dr, dc, (row, col, rowAbs, colAbs) => {
+    if (!rowAbs && !colAbs) return [to.row + (col - from.col), to.col + (row - from.row)];
+    return [rowAbs ? row : row + dr, colAbs ? col : col + dc];
+  });
 }
 
 /** Every cell and range a formula depends on. Drives the recalculation graph. */
