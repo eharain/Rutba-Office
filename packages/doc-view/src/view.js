@@ -2171,7 +2171,8 @@ export class DocView {
    * (`{ rtl }`), `columnWidth` (`{ cm }`), `headerRows` (`{ on }`),
    * `cellVAlign` (`{ v }`), `distributeColumns`, `style` (`{ id }`), `styleOptions`
    * (`{ look }`), `shading` (`{ fill }`), `borders` (`{ kind, pen }`), `sort`
-   * (`{ descending, header }`) or `toText` (`{ separator }`). Each is one undo step; deleting the last
+   * (`{ descending, header }`), `toText` (`{ separator }`), `splitTable` or `autoFit`
+   * (`{ mode }`). Each is one undo step; deleting the last
    * row or column deletes the table, as Word does. A merged table refuses —
    * the engine says why.
    */
@@ -2198,6 +2199,8 @@ export class DocView {
       borders: 'setTableCellBorders',
       sort: 'sortTableRows',
       toText: 'tableToText',
+      splitTable: 'splitTable',
+      autoFit: 'setTableAutoFit',
     };
     const method = PORT[op];
     if (!method) throw new Error('unknown table operation: ' + op);
@@ -2310,6 +2313,11 @@ export class DocView {
       } else if (op === 'sort') {
         // Table Layout → Sort: by the caret's column, its header rows kept at the top.
         this.doc.sortTableRows(tableStart, arg.column ?? cellIndex, { descending: Boolean(arg.descending), header: arg.header ?? null });
+      } else if (op === 'splitTable') {
+        // Table Layout → Split Table: the caret's row starts a table of its own.
+        this.doc.splitTable(tableStart, rowIndex);
+      } else if (op === 'autoFit') {
+        this.doc.setTableAutoFit(tableStart, arg.mode);
       } else if (op === 'toText') {
         // Table Layout → Convert to Text: the table gone, its words in paragraphs where it stood.
         this.doc.tableToText(tableStart, arg.separator || 'tab');

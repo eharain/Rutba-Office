@@ -806,6 +806,7 @@ export default function WordRibbon({
           <Group label="Merge">
             <Button tall icon="mergeCells" label="Merge Cells" title={acrossCells ? 'Merge the selected cells into one' : 'Merge Cells — select from one cell to another first'} disabled={!acrossCells} onClick={() => tableOp('mergeCells')} />
             <Button tall icon="splitCells" label="Split Cells" title="Split a merged cell back into the cells it covers" onClick={() => tableOp('splitCell')} />
+            <Button tall icon="splitCells" label="Split Table" title="Split Table — the caret's row starts a table of its own, an empty paragraph between" onClick={() => tableOp('splitTable')} />
           </Group>
           <Group label="Cell Size">
             <Rows>
@@ -825,6 +826,11 @@ export default function WordRibbon({
                 <span className="wd-field-value" style={{ minWidth: 0 }}>cm</span>
               </div>
             </Rows>
+            <Button tall icon="table" label="AutoFit" title="AutoFit — the table to the window, to fixed column widths, or to its contents" onClick={(e) => menu.open(e, [
+              { label: 'AutoFit Contents', run: () => tableOp('autoFit', { mode: 'contents' }) },
+              { label: 'AutoFit Window', run: () => tableOp('autoFit', { mode: 'window' }) },
+              { label: 'Fixed Column Width', run: () => tableOp('autoFit', { mode: 'fixed' }) },
+            ])} />
             <Button tall icon="sliders" label="Distribute Columns" title="Distribute Columns — every column the same width, the table as wide as before" onClick={() => tableOp('distributeColumns')} />
           </Group>
           <Group label="Alignment">

@@ -261,6 +261,26 @@ test('Table Layout → Convert to Text and Insert → Convert Text to Table: row
   assert.throws(() => { view.setSelection({ block: at(view, 'Before'), offset: 0 }); view.textToTable({}); }, /in a table already/);
 });
 
+test('Table Layout → Split Table and AutoFit: two tables of the same make, and the table to its window, its contents or fixed widths', () => {
+  const view = doc();
+  view.setSelection({ block: at(view, 'South'), offset: 0 });
+  view.tableOp('splitTable');
+  const tables = new Set(blocks(view).filter((b) => b.container).map((b) => /^t(\d+)/.exec(b.container)[1]));
+  assert.equal(tables.size, 2, 'two tables');
+  assert.deepEqual(blocks(view).filter((b) => !b.container).map((b) => b.text), ['Before', '', 'After'], 'an empty paragraph between them, as Word leaves one');
+  assert.equal((xmlOf(view).match(/<w:tblGrid>/g) || []).length, 2, 'each with the grid');
+  assert.match(blocks(view)[at(view, 'South')].container, /:r0:c0$/, 'South heads the second');
+  view.setSelection({ block: at(view, 'Region'), offset: 0 });
+  assert.throws(() => view.tableOp('splitTable'), /not the first/);
+  view.tableOp('autoFit', { mode: 'window' });
+  assert.match(/<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(xmlOf(view))[0], /<w:tblW w:w="5000" w:type="pct"\/>/);
+  view.tableOp('autoFit', { mode: 'fixed' });
+  assert.match(/<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(xmlOf(view))[0], /<w:tblW w:w="0" w:type="auto"\/>[\s\S]*<w:tblLayout w:type="fixed"\/>/);
+  view.tableOp('autoFit', { mode: 'contents' });
+  assert.match(/<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(xmlOf(view))[0], /<w:tblLayout w:type="autofit"\/>/);
+  assert.equal((/<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(xmlOf(view))[0].match(/<w:tblW\b/g) || []).length, 1, 'one width, rewritten');
+});
+
 test('through the document service, Convert Text to Table is an operation of its own', () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-text-table-')), 'lines.docx');
   fs.writeFileSync(file, buildDocx({ styles: true, paragraphs: [{ text: 'a\tb' }, { text: 'c\td' }] }));

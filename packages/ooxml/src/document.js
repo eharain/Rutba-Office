@@ -6227,6 +6227,50 @@ export class Document {
     return this;
   }
 
+  /**
+   * Table Layout → Split Table: the rows from this one down become a table of
+   * their own under an empty paragraph, with the same properties and grid; a
+   * merge down a column that crosses the split refuses. The first row cannot
+   * split a table from nothing.
+   */
+  splitTable(tableStart, rowIndex) {
+    const parts = this._tableParts(tableStart);
+    if (rowIndex <= 0 || rowIndex >= parts.rows.length) throw new Error('Put the caret in the row the second table should start with — not the first.');
+    const { body } = this._body();
+    // A cell of this row that carries on a merge from above would lose its start.
+    const below = body.slice(parts.rows[rowIndex].start, parts.rows[rowIndex].end);
+    const carriesOn = this._rowCellSpans(below).some((c) => {
+      const cell = below.slice(c.start, c.end);
+      return /<w:vMerge\b(?![^>]*w:val="restart")/.test(cell.slice(0, Math.max(0, cell.indexOf('<w:p'))));
+    });
+    if (carriesOn) throw new Error('A merge down a column crosses this row — split the merged cells first.');
+    // The head of the table — its properties and grid — goes with both halves.
+    const head = body.slice(parts.at, parts.rows[0].start);
+    // A header row is not repeated into the second table by hand; it carries on as a property of the rows.
+    this._spliceBody(parts.rows[rowIndex].start, parts.rows[rowIndex].start, '</w:tbl><w:p/>' + head);
+    return this;
+  }
+
+  /**
+   * Table Layout → AutoFit: to the window (the table as wide as the text, its
+   * columns in proportion), to fixed column widths (laid out as the grid
+   * says), or to its contents (each column as wide as its words want).
+   */
+  setTableAutoFit(tableStart, mode) {
+    if (!['window', 'fixed', 'contents'].includes(mode)) throw new Error('a table fits its window, its contents or fixed widths');
+    return this._editTableProps(tableStart, (inner) => {
+      inner = inner.replace(/<w:tblW\b[^>]*\/>/g, '').replace(/<w:tblLayout\b[^>]*\/>/g, '');
+      const width = mode === 'window' ? '<w:tblW w:w="5000" w:type="pct"/>' : '<w:tblW w:w="0" w:type="auto"/>';
+      const layout = mode === 'fixed' ? '<w:tblLayout w:type="fixed"/>' : mode === 'contents' ? '<w:tblLayout w:type="autofit"/>' : '';
+      // tblW after the style, the floating position, overlap, direction and band sizes; tblLayout after the shading.
+      const lead = /^(?:<w:tblStyle\b[^>]*\/>|<w:tblpPr\b[^>]*\/>|<w:tblOverlap\b[^>]*\/>|<w:bidiVisual\b[^>]*\/>|<w:tblStyleRowBandSize\b[^>]*\/>|<w:tblStyleColBandSize\b[^>]*\/>)*/.exec(inner)[0];
+      inner = lead + width + inner.slice(lead.length);
+      if (!layout) return inner;
+      const after = /<w:(tblCellMar|tblLook|tblCaption|tblDescription|tblPrChange)\b/.exec(inner);
+      return after ? inner.slice(0, after.index) + layout + inner.slice(after.index) : inner + layout;
+    });
+  }
+
   deleteTable(tableStart) {
     const parts = this._tableParts(tableStart);
     // A document must keep a paragraph for the caret to land in; if the
