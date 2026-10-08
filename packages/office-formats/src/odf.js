@@ -114,7 +114,7 @@ function readTextBody(body) {
 }
 
 /** What a sheet draws: frames (charts, pictures, words), shapes, lines, groups. */
-const DRAWN = new Set(['draw:frame', 'draw:custom-shape', 'draw:rect', 'draw:ellipse', 'draw:circle', 'draw:line', 'draw:g']);
+const DRAWN = new Set(['draw:frame', 'draw:custom-shape', 'draw:rect', 'draw:ellipse', 'draw:circle', 'draw:line', 'draw:connector', 'draw:g']);
 
 function readTable(table, rowHeights = new Map()) {
   const rows = [];
@@ -130,9 +130,12 @@ function readTable(table, rowHeights = new Map()) {
     // A row collapsed or filtered out is hidden; so is each it repeats.
     const rowHidden = r.attrs['table:visibility'] === 'collapse' || r.attrs['table:visibility'] === 'filter';
     const cells = [];
+    // Empty cells not yet written out: a run of them is only built when something comes after it.
+    let pending = 0;
+    let runs = [];
     for (const c of kids(r).filter((k) => k.name === 'table:table-cell' || k.name === 'table:covered-table-cell')) {
       const repeat = repeatOf(c.attrs, 'table:number-columns-repeated');
-      for (const node of kids(c).filter((k) => DRAWN.has(k.name))) drawings.push({ row: rows.length, col: cells.length, node });
+      for (const node of kids(c).filter((k) => DRAWN.has(k.name))) drawings.push({ row: rows.length, col: cells.length + pending, node });
       const text = kids(c, 'text:p').map(inlineText).join('\n');
       const cell = {
         text,
@@ -146,6 +149,15 @@ function readTable(table, rowHeights = new Map()) {
         style: c.attrs['table:style-name'] || null,
         covered: c.name === 'table:covered-table-cell',
       };
+      if (!cell.text && cell.value == null && !cell.formula && !cell.covered && cell.colspan === 1 && cell.rowspan === 1) {
+        pending += repeat;
+        runs.push([cell, repeat]);
+        continue;
+      }
+      // Each run as it was, its own style kept.
+      for (const [empty, n] of runs) for (let i = 0; i < n; i++) cells.push({ ...empty });
+      pending = 0;
+      runs = [];
       for (let i = 0; i < repeat; i++) cells.push(i === 0 ? cell : { ...cell });
     }
     // Trim the trailing run of empty cells ODF writes to pad the row.
@@ -503,7 +515,8 @@ function readDrawings(page, styles) {
         shapes.push({ type: 'shape', name: c.attrs['draw:name'] || null, geometry, ...box, ...lookOf(c, styles), paragraphs: paragraphsOf(c), ...(figures ? { figures } : {}) });
         continue;
       }
-      if (c.name === 'draw:line') {
+      // A connector is drawn as the line between its ends.
+      if (c.name === 'draw:line' || c.name === 'draw:connector') {
         const x1 = lengthPx(c.attrs['svg:x1']) ?? 0;
         const y1 = lengthPx(c.attrs['svg:y1']) ?? 0;
         const x2 = lengthPx(c.attrs['svg:x2']) ?? 0;

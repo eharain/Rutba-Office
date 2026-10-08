@@ -531,6 +531,95 @@ export function writeOds({ sheets = [], title = '' } = {}) {
   return archive('ods', { content, styles, title, pictures: ctx.pictures, objects: ctx.objects });
 }
 
+/* ── a deck's drawings ─────────────────────────────────────────────────── */
+
+/**
+ * A fill and an outline as an ODF graphic (or drawing-page) style's
+ * properties: a solid colour and its opacity, a gradient named in the
+ * styles (`ctx.gradients`), or none; a solid line of a width, or none.
+ */
+function lookProps(ctx, fill, line, { page = false } = {}) {
+  const bits = [];
+  const hex = (c) => '#' + String(c || '#000000').replace('#', '').toUpperCase();
+  if (!fill || fill.type === 'none') bits.push('draw:fill="none"');
+  else if (fill.type === 'solid' || fill.type === 'pattern') {
+    bits.push(`draw:fill="solid" draw:fill-color="${hex(fill.color)}"`);
+    if (fill.alpha != null && fill.alpha < 1) bits.push(`draw:opacity="${Math.round(fill.alpha * 100)}%"`);
+  } else if (fill.type === 'gradient' && fill.stops?.length) {
+    // DrawingML's stops as ODF's two colours: out from a centre (radial), a
+    // band (axial) when it comes back to its first colour, else linear, its
+    // angle turned back (ODF counts counter-clockwise from top-to-bottom).
+    const stops = [...fill.stops].sort((a, b) => a.offset - b.offset);
+    const first = stops[0];
+    const last = stops[stops.length - 1];
+    const name = `Gradient_${ctx.gradients.length + 1}`;
+    let g;
+    if (fill.path) g = `draw:style="radial" draw:cx="${Math.round((fill.center?.x ?? 0.5) * 100)}%" draw:cy="${Math.round((fill.center?.y ?? 0.5) * 100)}%" draw:start-color="${hex(last.color)}" draw:end-color="${hex(first.color)}" draw:border="0%"`;
+    else {
+      const angle = Math.round(((((90 - (fill.angle ?? 90)) % 360) + 360) % 360) * 10);
+      const axial = stops.length >= 3 && hex(first.color) === hex(last.color);
+      g = axial
+        ? `draw:style="axial" draw:angle="${angle}" draw:start-color="${hex(first.color)}" draw:end-color="${hex(stops[Math.floor(stops.length / 2)].color)}" draw:border="0%"`
+        : `draw:style="linear" draw:angle="${angle}" draw:start-color="${hex(first.color)}" draw:end-color="${hex(last.color)}" draw:border="0%"`;
+    }
+    ctx.gradients.push(`<draw:gradient draw:name="${name}" ${g} draw:start-intensity="100%" draw:end-intensity="100%"/>`);
+    bits.push(`draw:fill="gradient" draw:fill-gradient-name="${name}"`);
+  } else bits.push('draw:fill="none"');
+  if (!page) {
+    if (line === 'none' || line?.type === 'none' || (line && !line.color)) bits.push('draw:stroke="none"');
+    else if (line) bits.push(`draw:stroke="solid" svg:stroke-color="${hex(line.color)}" svg:stroke-width="${Number(line.width ?? 0.75).toFixed(2)}pt"`);
+    else bits.push('draw:stroke="none"');
+  }
+  return bits.join(' ');
+}
+
+/** A graphic style of its own for one drawing, by its look. */
+function graphicStyle(ctx, fill, line, extra = '') {
+  const name = `gr${++ctx.graphicCount}`;
+  ctx.graphics.push(`<style:style style:name="${name}" style:family="graphic"><style:graphic-properties ${lookProps(ctx, fill, line)}${extra ? ' ' + extra : ''}/></style:style>`);
+  return name;
+}
+
+/** Where a drawing stands: its box, or — turned — the transform ODF places it with. */
+function placeOf(s) {
+  if (s.rot) {
+    const a = (-(s.rot * Math.PI) / 180).toFixed(5);
+    return `svg:width="${cm(s.w)}" svg:height="${cm(s.h)}" draw:transform="translate(${cm(-s.w / 2)} ${cm(-s.h / 2)}) rotate(${a}) translate(${cm(s.x + s.w / 2)} ${cm(s.y + s.h / 2)})"`;
+  }
+  return `svg:x="${cm(s.x)}" svg:y="${cm(s.y)}" svg:width="${cm(s.w)}" svg:height="${cm(s.h)}"`;
+}
+
+/** Path commands ({ op, pts }) as an enhanced path's text, in the units given. */
+function enhancedPathText(commands) {
+  const num = (v) => String(Math.round(v * 100) / 100);
+  return commands.map((c) => (c.op === 'Z' ? 'Z' : `${c.op} ${c.pts.map(([x, y]) => `${num(x)} ${num(y)}`).join(' ')}`)).join(' ') + ' N';
+}
+
+/**
+ * A deck's shape as ODF draws it: a custom shape of its ODF type (and, for
+ * one no ODF reader names, its outline as an enhanced path) or of its own
+ * outline, in a style of its fill and line, its words inside, turned and
+ * flipped as it was.
+ */
+function deckShapeXml(s, ctx, j) {
+  const style = graphicStyle(ctx, s.fill, s.line, 'draw:textarea-horizontal-align="center" draw:textarea-vertical-align="middle"');
+  const text = (s.paragraphs || []).map((p) => `<text:p>${typeof p === 'string' ? textXml(p) : runsXml(p.runs && p.runs.length ? p.runs : [{ text: p.plain ?? p.text ?? '' }], ctx.texts, ctx.fonts)}</text:p>`).join('');
+  const flips = `${s.flipH ? ' draw:mirror-horizontal="true"' : ''}${s.flipV ? ' draw:mirror-vertical="true"' : ''}`;
+  let geometry;
+  if (s.figures?.length || s.commands?.length) {
+    // Each figure its own, a figure not filled or not stroked saying so.
+    const text = s.figures?.length
+      ? s.figures.map((fig) => `${fig.fill === false ? 'F ' : ''}${fig.stroke === false ? 'S ' : ''}${enhancedPathText(fig.commands)}`).join(' ')
+      : enhancedPathText(s.commands);
+    geometry = `<draw:enhanced-geometry svg:viewBox="0 0 ${Math.max(1, Math.round(s.pathW))} ${Math.max(1, Math.round(s.pathH))}" draw:type="non-primitive"${flips} draw:enhanced-path="${esc(text)}"/>`;
+  } else {
+    const type = ODF_TYPES[s.preset] || `ooxml-${s.preset || 'rect'}`;
+    const path = !ODF_TYPES[s.preset] && s.presetCommands?.length ? ` draw:enhanced-path="${esc(enhancedPathText(s.presetCommands))}"` : '';
+    geometry = `<draw:enhanced-geometry svg:viewBox="0 0 21600 21600" draw:type="${esc(type)}"${flips}${path}/>`;
+  }
+  return `<draw:custom-shape draw:name="${esc(s.name || `Shape ${j + 1}`)}" draw:style-name="${style}" draw:layer="layout" ${placeOf(s)}>${text}${geometry}</draw:custom-shape>`;
+}
+
 /* ── a deck ────────────────────────────────────────────────────────────── */
 
 /**
@@ -547,11 +636,33 @@ export function writeOdp({ slides = [], size = { width: 1280, height: 720 }, tit
   const texts = styleTable('T');
   const fonts = new Set();
   const pictures = [];
+  // The drawings' styles, gradients, charts and the pages' backgrounds, gathered across the slides.
+  const ctx = { texts, fonts, graphics: [], graphicCount: 0, gradients: [], objects: [], pages: [] };
   const pageXml = slides
     .map((slide, i) => {
       const frames = (slide.shapes || [])
         .map((shape, j) => {
-          const box = `svg:x="${cm(shape.x)}" svg:y="${cm(shape.y)}" svg:width="${cm(shape.w)}" svg:height="${cm(shape.h)}"`;
+          const box = placeOf(shape);
+          if (shape.kind === 'shape') return deckShapeXml(shape, ctx, j);
+          if (shape.kind === 'line') {
+            const style = graphicStyle(ctx, null, shape.line || { color: '#000000', width: 0.75 });
+            const [x1, x2] = shape.flipH ? [shape.x + shape.w, shape.x] : [shape.x, shape.x + shape.w];
+            const [y1, y2] = shape.flipV ? [shape.y + shape.h, shape.y] : [shape.y, shape.y + shape.h];
+            return `<draw:line draw:name="${esc(shape.name || `Line ${j + 1}`)}" draw:style-name="${style}" draw:layer="layout" svg:x1="${cm(x1)}" svg:y1="${cm(y1)}" svg:x2="${cm(x2)}" svg:y2="${cm(y2)}"/>`;
+          }
+          if (shape.kind === 'table' && shape.rows?.length) {
+            // A table in a frame: its rows and cells, a merged cell spanning and the cells it covers.
+            const cols = Math.max(1, ...shape.rows.map((r) => r.length));
+            const rows = shape.rows.map((row) => `<table:table-row>${row.map((cell) => (cell?.covered
+              ? '<table:covered-table-cell/>'
+              : `<table:table-cell${cell?.colspan > 1 ? ` table:number-columns-spanned="${cell.colspan}"` : ''}${cell?.rowspan > 1 ? ` table:number-rows-spanned="${cell.rowspan}"` : ''}>${String(cell?.text ?? '').split('\n').map((t) => `<text:p>${textXml(t)}</text:p>`).join('')}</table:table-cell>`)).join('')}</table:table-row>`).join('');
+            return `<draw:frame draw:name="${esc(shape.name || `Table ${j + 1}`)}" draw:layer="layout" ${box}><table:table><table:table-column table:number-columns-repeated="${cols}"/>${rows}</table:table></draw:frame>`;
+          }
+          if (shape.kind === 'chart' && shape.chart?.series?.length) {
+            const dir = `Object ${ctx.objects.length + 1}`;
+            ctx.objects.push({ dir, content: chartObjectXml(shape.chart, shape) });
+            return `<draw:frame draw:name="${esc(shape.name || `Chart ${j + 1}`)}" draw:layer="layout" ${box}><draw:object xlink:href="./${dir}" xlink:type="simple" xlink:show="embed" xlink:actuate="onLoad"/></draw:frame>`;
+          }
           if (shape.kind === 'picture' && shape.data) {
             const ext = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/gif': 'gif', 'image/webp': 'webp', 'image/bmp': 'bmp', 'image/svg+xml': 'svg' }[shape.contentType] || 'bin';
             const name = `Pictures/image${pictures.length + 1}.${ext}`;
@@ -569,21 +680,28 @@ export function writeOdp({ slides = [], size = { width: 1280, height: 720 }, tit
       const notes = slide.notes
         ? `<presentation:notes><draw:frame presentation:class="notes" draw:layer="layout" svg:x="2cm" svg:y="12cm" svg:width="17cm" svg:height="12cm"><draw:text-box>${String(slide.notes).split('\n').map((line) => `<text:p>${textXml(line)}</text:p>`).join('')}</draw:text-box></draw:frame></presentation:notes>`
         : '';
-      return `<draw:page draw:name="${esc(slide.name || `Slide ${i + 1}`)}" draw:master-page-name="Default">${frames}${notes}</draw:page>`;
+      // Its own background, a colour or a gradient, in a page style of its own.
+      let pageStyle = '';
+      if (slide.background && slide.background.type !== 'none') {
+        const name = `dp${ctx.pages.length + 2}`;
+        ctx.pages.push(`<style:style style:name="${name}" style:family="drawing-page"><style:drawing-page-properties draw:background-size="border" ${lookProps(ctx, slide.background, null, { page: true })}/></style:style>`);
+        pageStyle = ` draw:style-name="${name}"`;
+      }
+      return `<draw:page draw:name="${esc(slide.name || `Slide ${i + 1}`)}"${pageStyle} draw:master-page-name="Default">${frames}${notes}</draw:page>`;
     })
     .join('');
 
   const content =
     `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-content ${NS}>` +
     fontDecls(fonts) +
-    `<office:automatic-styles>${texts.xml()}</office:automatic-styles>` +
+    `<office:automatic-styles>${texts.xml()}${ctx.graphics.join('')}${ctx.pages.join('')}</office:automatic-styles>` +
     `<office:body><office:presentation>${pageXml}</office:presentation></office:body></office:document-content>`;
   const styles =
-    `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-styles ${NS}><office:styles/>` +
+    `<?xml version="1.0" encoding="UTF-8"?>\n<office:document-styles ${NS}>${ctx.gradients.length ? `<office:styles>${ctx.gradients.join('')}</office:styles>` : '<office:styles/>'}` +
     `<office:automatic-styles><style:page-layout style:name="PM1"><style:page-layout-properties fo:page-width="${cm(size.width)}" fo:page-height="${cm(size.height)}" fo:margin-top="0cm" fo:margin-bottom="0cm" fo:margin-left="0cm" fo:margin-right="0cm" style:print-orientation="landscape"/></style:page-layout>` +
     '<style:style style:name="dp1" style:family="drawing-page"><style:drawing-page-properties draw:background-size="border" draw:fill="none"/></style:style></office:automatic-styles>' +
     '<office:master-styles><style:master-page style:name="Default" style:page-layout-name="PM1" draw:style-name="dp1"/></office:master-styles></office:document-styles>';
-  return archive('odp', { content, styles, title, pictures });
+  return archive('odp', { content, styles, title, pictures, objects: ctx.objects });
 }
 
 /* ── the archive ───────────────────────────────────────────────────────── */

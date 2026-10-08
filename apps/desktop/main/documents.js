@@ -39,6 +39,14 @@ import { probeImage } from '@rutba/imaging/probe';
 import { printHtml as sheetPrintHtml, printSummary as sheetPrintSummary, readPageSetup, writePageSetup } from '@rutba/sheet-view/print';
 import { pixelsToCharWidth } from '@rutba/sheet-view/geometry';
 import { parseChartXml } from '@rutba/drawing/ooxml';
+import { presetPath } from '@rutba/drawing/presets';
+import { parsePath as parseDeckPath } from '@rutba/presentation/points';
+
+/** A preset's outline in a 21600-square, as an ODF reader without the preset draws it — null when none is drawn here. */
+function presetOutlineCommands(preset) {
+  const d = presetPath(preset, 0, 0, 21600, 21600);
+  return d ? parseDeckPath(d, { w: 21600, h: 21600 }) : null;
+}
 import { deckPrintHtml, deckPrintSummary } from '@rutba/presentation/print';
 
 import { sniff, refineOoxml, kindFromExtension } from '@rutba/office-formats/sniff';
@@ -3197,17 +3205,38 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
         const slide = deck.slide(i);
         const shapes = [];
         for (const s of slide.shapes || []) {
+          if (s.hidden) continue;
           const g = s.geometry || {};
+          const box = { name: s.name, x: g.x, y: g.y, w: g.w, h: g.h, rot: g.rot || 0, flipH: g.flipH, flipV: g.flipV };
+          const paragraphs = s.text?.paragraphs?.filter((p) => (p.runs || []).some((r) => r.text)) || [];
           if (s.kind === 'picture' && s.source?.part && !s.source.external) {
             const data = deck.media(s.source.part);
             const ext = path.extname(s.source.part).slice(1).toLowerCase();
             const type = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp', svg: 'image/svg+xml' }[ext];
-            if (data && type) shapes.push({ kind: 'picture', data: Buffer.from(data), contentType: type, x: g.x, y: g.y, w: g.w, h: g.h });
-          } else if (s.text?.paragraphs?.length) {
-            shapes.push({ kind: 'text', name: s.name, placeholder: s.placeholder?.type, paragraphs: s.text.paragraphs, x: g.x, y: g.y, w: g.w, h: g.h });
+            if (data && type) shapes.push({ kind: 'picture', data: Buffer.from(data), contentType: type, ...box });
+          } else if (s.kind === 'connector' || (s.kind === 'shape' && /^(line|straightConnector1|bentConnector\d|curvedConnector\d)$/.test(s.preset || ''))) {
+            shapes.push({ kind: 'line', ...box, line: s.line });
+          } else if (s.kind === 'table' && s.table?.rows?.length) {
+            const plain = (t) => (t?.paragraphs || []).map((p) => (p.runs || []).map((r) => r.text || '').join('')).join('\n');
+            shapes.push({ kind: 'table', ...box, rows: s.table.rows.map((r) => r.cells.map((c) => (c.merged ? { covered: true } : { text: plain(c.text), colspan: c.colspan || 1, rowspan: c.rowspan || 1 }))) });
+          } else if (s.kind === 'chart' && s.spec?.series?.length) {
+            const kind = s.spec.type === 'pie' || s.spec.type === 'doughnut' || s.spec.type === 'line' || s.spec.type === 'area' || s.spec.type === 'scatter' ? s.spec.type : s.spec.type === 'bar' ? 'bar' : 'column';
+            shapes.push({ kind: 'chart', ...box, chart: { kind, title: s.spec.title || null, categories: { values: s.spec.categories || [] }, series: s.spec.series.map((x) => ({ name: x.name, values: x.values || [] })) } });
+          } else if (s.kind === 'shape' && !s.placeholder && (s.preset && s.preset !== 'rect' || (s.fill && s.fill.type !== 'none') || (s.line && s.line.color))) {
+            // A drawn shape: its preset (with an outline for an ODF reader that has not got it) or its own path, its look and words.
+            const own = s.path?.d ? parseDeckPath(s.path.d, { w: s.path.w, h: s.path.h }) : null;
+            const presetOutline = !own && s.preset ? presetOutlineCommands(s.preset) : null;
+            shapes.push({
+              kind: 'shape', ...box, preset: s.preset, fill: s.fill, line: s.line, paragraphs,
+              ...(own ? { commands: own, pathW: s.path.w, pathH: s.path.h } : {}),
+              ...(own && s.path.figures?.length ? { figures: s.path.figures.map((fig) => ({ commands: parseDeckPath(fig.d, { w: fig.w || s.path.w, h: fig.h || s.path.h, width: s.path.w, height: s.path.h }), fill: fig.filled, stroke: fig.stroked })) } : {}),
+              ...(presetOutline ? { presetCommands: presetOutline } : {}),
+            });
+          } else if (paragraphs.length) {
+            shapes.push({ kind: 'text', placeholder: s.placeholder?.type, paragraphs, ...box });
           }
         }
-        slides.push({ name: slide.name, shapes, notes: slide.notes || '' });
+        slides.push({ name: slide.name, shapes, notes: slide.notes || '', background: slide.background ?? null });
       }
       writeWhole(target, writeOdp({ slides, size: deck.size, title: session.name }));
       return { path: target, format: 'odp', slides: slides.length };

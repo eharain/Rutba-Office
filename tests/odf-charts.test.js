@@ -158,3 +158,44 @@ test('a chart with no cells behind it is written with a table of its own data, a
   assert.equal(disc.fill, '#FF0000');
   assert.deepEqual(disc.paragraphs, ['Hi']);
 });
+
+test('saved back as .odp, a deck keeps its shapes in their looks and outlines, its lines, table, charts and backgrounds', () => {
+  const { docs, id, out } = converted(fixture('showcase.odp'), 'showcase.odp');
+  const back = out.replace(/\.pptx$/, '-again.odp');
+  docs.save({ id, path: back });
+  const odf = readOdf(fs.readFileSync(back));
+  assert.equal(odf.slides.length, 8);
+  assert.deepEqual(odf.slides[0].background?.gradient && [odf.slides[0].background.gradient.start, odf.slides[0].background.gradient.end, odf.slides[0].background.gradient.angle], ['#1F4E79', '#C00000', 315], 'the first slide\'s gradient, at its angle');
+  const shapes = odf.slides[2].shapes.filter((s) => s.type === 'shape');
+  assert.ok(shapes.length >= 15, `${shapes.length} shapes`);
+  const named = (n) => shapes.find((s) => s.name === n);
+  assert.ok(named('Shape Rounded').figures, 'its own outline, as it came');
+  assert.equal(named('Shape Rounded').fill.gradient.start, '#ED7D31');
+  assert.deepEqual(named('Shape Smile').figures.map((f) => f.fill), [true, true, true, false], 'the mouth still a line');
+  assert.equal(named('Shape Parallelogram').rotation, 25, 'turned as it was');
+  assert.ok(odf.slides.some((s) => s.shapes.some((d) => d.type === 'line')), 'the connector as a line');
+  const table = odf.slides.flatMap((s) => s.shapes).find((d) => d.type === 'table');
+  assert.equal(table.rows[0][0], 'Region');
+  const charts = odf.slides.flatMap((s) => s.shapes).filter((d) => d.type === 'chart');
+  assert.deepEqual(charts.map((c) => c.chart.kind).sort(), ['column', 'pie']);
+  assert.deepEqual(charts.find((c) => c.chart.kind === 'pie').chart.series[0].values, [8.2, 3.2, 1.4, 1.2], 'its own table of data');
+  // And opened again, it is the deck it was.
+  const again = converted(fs.readFileSync(back), 'again.odp');
+  assert.ok([...again.parts.keys()].filter((n) => /^ppt\/charts\/chart\d+\.xml$/.test(n)).length === 2);
+});
+
+test('a PowerPoint deck saved as .odp names its preset shapes as an ODF reader knows them, its gradients and backgrounds with them', () => {
+  const { docs, id, out } = converted(fixture('showcase.pptx'), 'showcase.pptx');
+  const odp = out.replace(/\.pptx$/, '.odp');
+  docs.save({ id, path: odp });
+  const odf = readOdf(fs.readFileSync(odp));
+  const shapes = odf.slides[2].shapes.filter((s) => s.type === 'shape');
+  const named = (n) => shapes.find((s) => s.name === n);
+  assert.equal(named('Shape Rounded').geometry, 'round-rectangle');
+  assert.equal(named('Shape Rounded').fill.gradient.start, '#ED7D31');
+  assert.equal(named('Shape Smile').geometry, 'smiley');
+  assert.equal(named('Shape Parallelogram').geometry, 'can');
+  assert.equal(named('Shape Parallelogram').rotation, 25);
+  assert.equal(odf.slides[0].background.gradient.start, '#1F4E79');
+  assert.equal(odf.slides[5].background.colour.toUpperCase(), '#FFF2CC');
+});

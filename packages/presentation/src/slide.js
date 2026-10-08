@@ -949,10 +949,13 @@ function readCustomPath(spPr) {
   let h = 0;
   const d = [];
   let filled = false;
+  // Each path by itself too, filled and stroked as it says — a smile's mouth is a line.
+  const figures = [];
   for (const path of paths) {
     w = Math.max(w, Number(path.attrs.w) || 0);
     h = Math.max(h, Number(path.attrs.h) || 0);
     if (path.attrs.fill !== 'none') filled = true;
+    const from = d.length;
     let cx = 0;
     let cy = 0;
     for (const cmd of path.children || []) {
@@ -978,9 +981,10 @@ function readCustomPath(spPr) {
       }
       else if (name === 'close') d.push('Z');
     }
+    if (d.length > from) figures.push({ d: d.slice(from).join(' '), w: Number(path.attrs.w) || 0, h: Number(path.attrs.h) || 0, filled: path.attrs.fill !== 'none', stroked: path.attrs.stroke !== '0' && path.attrs.stroke !== 'false' });
   }
   if (!d.length) return null;
-  return { w: w || 1, h: h || 1, d: d.join(' '), filled };
+  return { w: w || 1, h: h || 1, d: d.join(' '), filled, ...(figures.length > 1 ? { figures } : {}) };
 }
 
 function readAdjustments(spPr) {
