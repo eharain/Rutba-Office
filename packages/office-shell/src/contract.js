@@ -116,6 +116,7 @@ export const METHODS = {
     'deckFind',     // ({ id, query, options }) -> [hit] — every occurrence across a deck, for the find pane
     'deckEquation', // ({ id, slide, shape, linear, display }) -> { model, opResult } — Insert → Equation on a slide, or one edited again
     'deckDesign',   // ({ id, slide, kind }) -> { info, items } — Design's gallery: themes, variants, colours, fonts or effects, with live previews
+    'designIdeas',  // ({ id, slide, width }) -> [{ id, name, svg }] — Design Ideas: the layouts the slide suits, each drawn
     'trace',        // ({ id, kind, row, col }) -> { kind, at, arrows, elsewhere } — a cell's precedents or dependents
     'evaluateFormula', // ({ id, row, col, actions }) -> { levels, canEvaluate, canStepIn, canStepOut, done, message } — Evaluate Formula after the presses
     'sessions',     // () -> [{ id, kind, path, dirty }]

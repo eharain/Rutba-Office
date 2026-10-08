@@ -374,7 +374,7 @@ export default function SlidesRibbon({
             <Soon tall icon="volume" label="Dictate" why="Dictation is an online speech service this suite does not call." />
           </Group>
           <Group label="Designer">
-            <Soon tall icon="wand" label="Design Suggestions" why="Design Ideas is a Microsoft cloud service." />
+            <Button tall icon="wand" label="Design Ideas" pressed={view?.pane === 'ideas'} title="Design Ideas — layouts this slide's title, words and pictures suit, worked out on this computer; a click applies one" onClick={() => act('pane', 'ideas')} />
           </Group>
         </>
       ) : null}
@@ -597,7 +597,7 @@ export default function SlidesRibbon({
             />
           </Group>
           <Group label="Edit">
-            <Soon tall icon="wand" label="Design Suggestions" why="Design Ideas is a Microsoft cloud service." />
+            <Button tall icon="wand" label="Design Ideas" pressed={view?.pane === 'ideas'} title="Design Ideas — layouts this slide's title, words and pictures suit, worked out on this computer; a click applies one" onClick={() => act('pane', 'ideas')} />
           </Group>
         </>
       ) : null}

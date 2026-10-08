@@ -680,13 +680,21 @@ export function renderSlide(slide, opts = {}) {
 
     if (shape.kind === 'picture') {
       const href = resolveImage ? resolveImage(shape) : null;
-      if (href) {
-        const clip = shape.crop
-          ? ` preserveAspectRatio="none"`
-          : ' preserveAspectRatio="xMidYMid slice"';
+      if (href && shape.crop) {
+        // A crop (a:srcRect) as PowerPoint draws it: the part of the picture
+        // left after each side's share is taken off, stretched to the box —
+        // the whole picture drawn larger and the box clipping it.
+        const c = shape.crop;
+        const fw = g.w / Math.max(0.001, 1 - (c.l || 0) - (c.r || 0));
+        const fh = g.h / Math.max(0.001, 1 - (c.t || 0) - (c.b || 0));
+        body.push(
+          `<g${transform}><svg x="${g.x.toFixed(2)}" y="${g.y.toFixed(2)}" width="${g.w.toFixed(2)}" height="${g.h.toFixed(2)}" overflow="hidden">` +
+          `<image x="${(-(c.l || 0) * fw).toFixed(2)}" y="${(-(c.t || 0) * fh).toFixed(2)}" width="${fw.toFixed(2)}" height="${fh.toFixed(2)}" href="${href}" preserveAspectRatio="none"/></svg></g>`
+        );
+      } else if (href) {
         body.push(
           `<image x="${g.x.toFixed(2)}" y="${g.y.toFixed(2)}" width="${g.w.toFixed(2)}" height="${g.h.toFixed(2)}" ` +
-          `href="${href}"${clip}${transform}/>`
+          `href="${href}" preserveAspectRatio="xMidYMid slice"${transform}/>`
         );
       } else {
         body.push(

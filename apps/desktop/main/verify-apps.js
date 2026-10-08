@@ -91,6 +91,7 @@ import { verifyWordTrackFormat } from './verify-word-track-format.js';
 import { verifySheetPivotFields } from './verify-sheet-pivot-fields.js';
 import { verifyDav } from './verify-dav.js';
 import { verifyThesaurus } from './verify-thesaurus.js';
+import { verifyDesignIdeas } from './verify-design-ideas.js';
 import { verifySheetSelectPaste } from './verify-sheet-select-paste.js';
 import { verifyDeck3d } from './verify-deck-3d.js';
 import { verifyDeckPoints } from './verify-deck-points.js';
@@ -4699,6 +4700,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('pivotfields')) await verifySheetPivotFields({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('dav')) await verifyDav({ open, check, until, wait, errorsIn });
     if (only.includes('thesaurus')) await verifyThesaurus({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('designideas')) await verifyDesignIdeas({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('sheetpaste')) await verifySheetSelectPaste({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('deck3d')) await verifyDeck3d({ open, check, until, wait, doc, sessionFor }, { dir });
     if (only.includes('points')) await verifyDeckPoints({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -4939,6 +4941,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifySheetPivotFields({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyDav({ open, check, until, wait, errorsIn }));
   await block(() => verifyThesaurus({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
+  await block(() => verifyDesignIdeas({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetSelectPaste({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeck3d({ open, check, until, wait, doc, sessionFor }, { dir }));
   await block(() => verifyDeckPoints({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));

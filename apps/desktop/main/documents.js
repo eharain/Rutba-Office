@@ -31,7 +31,7 @@ const commentAuthor = () => safeUserName() || 'Rutba Office user';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { compareDocx } from '@rutba/ooxml/compare';
 import { parseRef, Workbook } from '@rutba/ooxml/workbook';
-import { Deck, buildPptx, photoAlbum, renderSlide, renderThumbnail, TEMPLATES as DECK_TEMPLATES, THEMES as DECK_THEMES, PALETTES as DECK_PALETTES, FONT_PAIRS as DECK_FONT_PAIRS, EFFECT_PRESETS as DECK_EFFECTS } from '@rutba/presentation';
+import { Deck, buildPptx, photoAlbum, renderSlide, renderThumbnail, previewIdea, TEMPLATES as DECK_TEMPLATES, THEMES as DECK_THEMES, PALETTES as DECK_PALETTES, FONT_PAIRS as DECK_FONT_PAIRS, EFFECT_PRESETS as DECK_EFFECTS } from '@rutba/presentation';
 import { renderPdf } from '@rutba/doc-view/export/pdf';
 import { unicodeFont } from './system-fonts.js';
 import { linearToOmml } from '@rutba/ooxml/math-linear';
@@ -2133,6 +2133,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   const DECK_OPS = {
     setText: (d, a) => d.setText(a.slide, a.shape, a.paragraphs),
     setGeometry: (d, a) => d.setGeometry(a.slide, a.shape, a),
+    applyDesignIdea: (d, a) => d.applyDesignIdea(a.slide, a.idea),
     // Edit Points: the box fitted to the path first, then the path in it.
     setShapePath: (d, a) => {
       if (a.geometry) d.setGeometry(a.slide, a.shape, a.geometry);
@@ -3002,6 +3003,25 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       const pkg = OoxmlPackage.read(Buffer.from(session.engine.serialize ? session.engine.serialize() : session.engine.save()));
       if (!pkg.has(ref)) return null;
       return holdBlob(pkg.read(ref), 'application/octet-stream', path.basename(ref));
+    },
+
+    /**
+     * Design → Design Ideas: the layouts the slide's own content suits, each
+     * with the slide drawn as it would be, by the deck's own renderer.
+     */
+    designIdeas: ({ id, slide = 0, width = 200 }) => {
+      const session = get(id);
+      if (session.kind !== 'deck') return [];
+      const deck = session.engine;
+      if (!deck.slideCount) return [];
+      const index = Math.max(0, Math.min(Number(slide) || 0, deck.slideCount - 1));
+      const { resolveImage } = deckThumbnailer(session);
+      const scene = deck.slide(index);
+      return (safely(() => deck.designIdeas(index)) || []).map((idea) => ({
+        id: idea.id,
+        name: idea.name,
+        svg: safely(() => renderThumbnail(previewIdea(scene, idea), width, { resolveImage })) || null,
+      }));
     },
 
     /**

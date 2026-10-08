@@ -27,6 +27,7 @@ import { isPattern } from './patterns.js';
 import { BEVELS, CAMERAS, shape3dXml } from './shape3d.js';
 import { withNarration, withoutMediaNode, isNarration, NARRATION_NAME } from './narration.js';
 import { masterPartXml, placeholderXml, placeholderBox, placeholderTypesIn, MASTER_PLACEHOLDERS, NOTES_MASTER_CT, HANDOUT_MASTER_CT, NOTES_MASTER_REL, HANDOUT_MASTER_REL } from './notes-master.js';
+import { designIdeas } from './design-ideas.js';
 
 const A = (n) => `a:${n}`;
 const P = (n) => `p:${n}`;
@@ -3021,6 +3022,81 @@ export class Deck {
    *
    * @returns {boolean} true when the slide's own background changed
    */
+  /**
+   * A picture's crop: `{ l, t, r, b }`, what is taken off each side in
+   * thousandths of a percent (a:srcRect), or null for none — written in its
+   * schema place after the blip, so PowerPoint shows the picture filling its
+   * box rather than stretched to it.
+   */
+  setPictureCrop(slideIndex, shapeId, crop) {
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found`);
+    let whole = xml.slice(range.start, range.end);
+    if (!/^<p:pic\b/.test(whole)) throw new Error('only a picture is cropped');
+    whole = whole.replace(/<a:srcRect\b[^>]*\/>|<a:srcRect\b[^>]*>[\s\S]*?<\/a:srcRect>/, '');
+    const sides = crop ? ['l', 't', 'r', 'b'].filter((k) => Math.round(crop[k] || 0) !== 0).map((k) => ` ${k}="${Math.round(crop[k])}"`).join('') : '';
+    if (sides) {
+      const blip = /<a:blip\b[^>]*\/>|<a:blip\b[^>]*>[\s\S]*?<\/a:blip>/.exec(whole);
+      if (!blip) throw new Error('the picture has no blip');
+      const at = blip.index + blip[0].length;
+      whole = whole.slice(0, at) + `<a:srcRect${sides}/>` + whole.slice(at);
+    }
+    this.#writeSlide(part, xml.slice(0, range.start) + whole + xml.slice(range.end));
+    return true;
+  }
+
+  /** Design → Design Ideas: the ideas for a slide (design-ideas.js), in the theme's colours. */
+  designIdeas(slideIndex) {
+    return designIdeas(this.slide(slideIndex), { colors: this.designInfo(slideIndex)?.colors || {} });
+  }
+
+  /**
+   * Apply one of a slide's design ideas, by its id: shapes moved (and
+   * pictures cropped to their new box), shapes added behind the rest in
+   * the theme's own colours, words recoloured or centred.
+   */
+  applyDesignIdea(slideIndex, ideaId) {
+    const idea = this.designIdeas(slideIndex).find((i) => i.id === ideaId);
+    if (!idea) throw new Error('That design idea no longer fits this slide.');
+    const scene = this.slide(slideIndex);
+    for (const mv of idea.moves) {
+      const g = mv.geometry;
+      this.setGeometry(slideIndex, mv.shape, { x: g.x, y: g.y, w: g.w, h: g.h });
+      if (mv.crop) this.setPictureCrop(slideIndex, mv.shape, mv.crop);
+    }
+    for (const c of idea.colours) {
+      const s = scene.shapes.find((x) => String(x.id) === String(c.shape));
+      if (!s?.text?.paragraphs) continue;
+      const paragraphs = this.slide(slideIndex).shapes.find((x) => String(x.id) === String(c.shape)).text.paragraphs
+        .map(({ plain, runs, ...props }) => ({ ...props, runs: (runs || []).map((r) => (r.break || r.field ? r : { ...r, color: c.colour })) }));
+      this.setText(slideIndex, s.id, paragraphs);
+    }
+    for (const id of idea.centre || []) {
+      const s = this.slide(slideIndex).shapes.find((x) => String(x.id) === String(id));
+      if (!s?.text?.paragraphs) continue;
+      this.setText(slideIndex, s.id, s.text.paragraphs.map(({ plain, ...p }) => ({ ...p, align: 'center' })));
+    }
+    for (const id of [...(idea.back || [])].reverse()) this.reorderShape(slideIndex, id, 'back');
+    // The added shapes: the first at the very back, each one after just in front of the one before
+    // (or of the shape it covers, as the picture under a title band).
+    const added = [];
+    idea.adds.forEach((a, i) => {
+      const id = this.addShape(slideIndex, { preset: 'rect', x: a.x, y: a.y, w: a.w, h: a.h, fill: a.scheme ? { scheme: a.scheme } : a.fill, line: 'none', name: 'Design idea' });
+      this.reorderShape(slideIndex, id, 'back');
+      added.push(id);
+    });
+    // Back to front: each later one forward past the earlier ones, then past the shape it covers.
+    for (let i = added.length - 1; i >= 0; i--) {
+      const a = idea.adds[i];
+      const steps = i + (a.front ? 1 : 0);
+      for (let k = 0; k < steps; k++) this.reorderShape(slideIndex, added[i], 'forward');
+    }
+    return idea.id;
+  }
+
   setBackground(slideIndex, spec) {
     const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);

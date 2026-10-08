@@ -1176,6 +1176,8 @@ export default function Slides({ app, shell, boot }) {
       // The right-hand pane: Layers (the slide's shapes, in drawing order)
       // or Designs (the deck's layouts). Asking for the one that is open closes it.
       case 'pane': patchView((v) => ({ pane: v.pane === arg ? null : arg })); return;
+      // Design → Design Ideas: one of the layouts the pane drew, applied to the slide.
+      case 'designIdea': await apply({ op: 'applyDesignIdea', slide: index, idea: arg }); return;
       // The Format pane opens (and stays open) from Shape Fill and Shape Outline.
       case 'formatPane': patchView({ pane: 'format' }); return;
       case 'editPoints': editPoints(selectedShape); return;
@@ -2806,7 +2808,7 @@ export default function Slides({ app, shell, boot }) {
               right
               width={252}
               resizable
-              title={view.pane === 'layers' ? 'Layers' : view.pane === 'designs' ? 'Designs' : view.pane === 'animations' ? 'Animation Pane' : view.pane === 'comments' ? 'Comments' : 'Format'}
+              title={view.pane === 'layers' ? 'Layers' : view.pane === 'designs' ? 'Designs' : view.pane === 'ideas' ? 'Design Ideas' : view.pane === 'animations' ? 'Animation Pane' : view.pane === 'comments' ? 'Comments' : 'Format'}
               actions={<Button icon="close" title="Close the pane" onClick={() => act('pane', view.pane)} />}
             >
               {view.pane === 'comments' ? (
@@ -2831,6 +2833,8 @@ export default function Slides({ app, shell, boot }) {
                 <AnimationPane slide={slide} current={currentAnim} act={act} playing={preview?.kind === 'animation'} />
               ) : view.pane === 'designs' ? (
                 <DesignsPane layouts={model.layouts} current={slide?.layout || null} size={model.size} act={act} />
+              ) : view.pane === 'ideas' ? (
+                <IdeasPane shell={shell} doc={doc} index={index} act={act} />
               ) : (
                 <FormatPane shape={selectedShape} theme={slide?.theme} act={act} />
               )}
@@ -3612,6 +3616,33 @@ function LayersPane({ slide, selected, selectedIds = [], onSelect, onToggle, act
  * placeholders make, the way PowerPoint's Layout gallery draws them. A
  * click puts the current slide on that layout; New starts a slide from it.
  */
+/**
+ * Design → Design Ideas: the layouts this slide's own title, words and
+ * pictures suit, each drawn as the slide would be; a click applies one. Asked
+ * for again whenever the slide or the deck changes.
+ */
+function IdeasPane({ shell, doc, index, act }) {
+  const [ideas, setIdeas] = useState(null);
+  useEffect(() => {
+    let live = true;
+    setIdeas(null);
+    Promise.resolve(shell.doc.designIdeas({ id: doc.id, slide: index, width: 220 })).then((list) => { if (live) setIdeas(list || []); }).catch(() => { if (live) setIdeas([]); });
+    return () => { live = false; };
+  }, [shell, doc?.id, doc?.version, index]);
+  if (!ideas) return <div className="sl-ideas-note">Working out designs for this slide…</div>;
+  if (!ideas.length) return <div className="sl-ideas-note">No design ideas for this slide: give it a title, some words or a picture.</div>;
+  return (
+    <div className="sl-ideas">
+      {ideas.map((idea) => (
+        <button key={idea.id} type="button" className="sl-idea" data-idea={idea.id} data-tip={idea.name} onClick={() => act('designIdea', idea.id)}>
+          <span className="sl-idea-pic" dangerouslySetInnerHTML={{ __html: idea.svg || '' }} />
+          <span className="sl-idea-name">{idea.name}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
+
 function DesignsPane({ layouts, current, size, act }) {
   const W = size?.width || 960;
   const H = size?.height || 540;
@@ -3772,6 +3803,13 @@ const CSS = `
 /* A table's per-cell hit layer, over the grid the SVG already drew. */
 .sl-cell-hit { position: absolute; z-index: 2; cursor: text; border: 1px solid transparent; box-sizing: border-box; }
 .sl-cell-hit:hover { border-color: var(--accent-line); background: rgba(43, 95, 217, 0.06); }
+/* Design → Design Ideas. */
+.sl-ideas { display: flex; flex-direction: column; gap: 10px; padding: 8px; }
+.sl-idea { display: flex; flex-direction: column; gap: 4px; padding: 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface); color: inherit; cursor: pointer; text-align: start; }
+.sl-idea:hover { border-color: var(--accent); }
+.sl-idea-pic svg { display: block; width: 100%; height: auto; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.sl-idea-name { font-size: 12px; opacity: .8; }
+.sl-ideas-note { padding: 12px; opacity: .75; font-size: 13px; }
 .sl-editor {
   position: absolute; border: 2px solid var(--accent); border-radius: 3px; padding: 4px 6px;
   font: inherit; font-size: 15px; background: #fff; color: #111; resize: none; outline: none; z-index: 5;

@@ -1,3 +1,4 @@
+export { designIdeas, previewIdea } from './design-ideas.js';
 export { Deck, Theme } from './deck.js';
 export { readSlideScene, sceneText } from './slide.js';
 export { renderSlide, renderThumbnail, layoutText } from './render.js';
