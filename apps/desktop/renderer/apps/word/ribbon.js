@@ -874,6 +874,14 @@ export default function WordRibbon({
               { label: 'Separated by commas', run: () => tableOp('toText', { separator: 'comma' }) },
               { label: 'Each cell its own paragraph', run: () => tableOp('toText', { separator: 'paragraph' }) },
             ])} />
+            <Button tall icon="formula" label="Formula" title="Formula — a field in the caret's cell worked out from the numbers above or to the left of it, as Word's =SUM(ABOVE)" onClick={(e) => menu.open(e, [
+              { label: 'Sum above', run: () => tableOp('formula', { formula: '=SUM(ABOVE)' }) },
+              { label: 'Sum left', run: () => tableOp('formula', { formula: '=SUM(LEFT)' }) },
+              { label: 'Average above', run: () => tableOp('formula', { formula: '=AVERAGE(ABOVE)', format: '#,##0.00' }) },
+              { label: 'Count above', run: () => tableOp('formula', { formula: '=COUNT(ABOVE)' }) },
+              { label: 'Largest above', run: () => tableOp('formula', { formula: '=MAX(ABOVE)' }) },
+              { label: 'Smallest above', run: () => tableOp('formula', { formula: '=MIN(ABOVE)' }) },
+            ])} />
             <Button tall icon="refresh" label="Repeat Header Rows" pressed={Boolean(caretCell?.rowHeader)} title="Repeat Header Rows — the rows from the top through this one drawn again at the top of every page the table runs onto" onClick={() => tableOp('headerRows', { on: !caretCell?.rowHeader })} />
           </Group>
         </>

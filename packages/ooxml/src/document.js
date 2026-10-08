@@ -6313,6 +6313,74 @@ export class Document {
     });
   }
 
+  /**
+   * Table Layout → Formula: an = field in a cell — SUM, AVERAGE, COUNT, MAX,
+   * MIN or PRODUCT of the cells ABOVE, LEFT, BELOW or RIGHT of it, as Word
+   * reads them: the numbers next to the cell, up to the first that is not one
+   * (a heading, an empty cell). Its result is worked out and shown, in the
+   * cell's first paragraph, as Word shows a field's last result; a number
+   * format (`#,##0`, `#,##0.00`, `0`, `0%`) shapes it.
+   */
+  insertTableFormula(tableStart, rowIndex, cellIndex, formula, format = null) {
+    const m = /^=\s*(SUM|AVERAGE|COUNT|MAX|MIN|PRODUCT)\s*\(\s*(ABOVE|LEFT|BELOW|RIGHT)\s*\)\s*$/i.exec(String(formula || '').trim());
+    if (!m) throw new Error('A formula here is one of SUM, AVERAGE, COUNT, MAX, MIN or PRODUCT of ABOVE, LEFT, BELOW or RIGHT — =SUM(ABOVE), say.');
+    const fn = m[1].toUpperCase();
+    const dir = m[2].toUpperCase();
+    const parts = this._tableParts(tableStart);
+    const { body } = this._body();
+    const textAt = (r, c) => {
+      const row = parts.rows[r];
+      if (!row) return null;
+      const rowXml = body.slice(row.start, row.end);
+      const cell = this._rowCellSpans(rowXml)[c];
+      return cell ? [...rowXml.slice(cell.start, cell.end).matchAll(/<w:t\b[^>]*>([^<]*)<\/w:t>/g)].map((t) => unesc(t[1])).join('').trim() : null;
+    };
+    const numberOf = (t) => {
+      const s = String(t ?? '').replace(/[\s,£$€¥]/g, '').replace(/^\((.*)\)$/, '-$1');
+      return /^[-+]?\d*\.?\d+%?$/.test(s) ? Number(s.replace('%', '')) / (s.endsWith('%') ? 100 : 1) : null;
+    };
+    // The numbers next to the cell, nearest first, up to the first cell that is not one.
+    const step = { ABOVE: [-1, 0], BELOW: [1, 0], LEFT: [0, -1], RIGHT: [0, 1] }[dir];
+    const values = [];
+    for (let r = rowIndex + step[0], c = cellIndex + step[1]; ; r += step[0], c += step[1]) {
+      const t = textAt(r, c);
+      if (t == null) break;
+      const n = numberOf(t);
+      if (n == null) { if (values.length) break; continue; }
+      values.push(n);
+    }
+    const result = {
+      SUM: () => values.reduce((a, b) => a + b, 0),
+      AVERAGE: () => (values.length ? values.reduce((a, b) => a + b, 0) / values.length : 0),
+      COUNT: () => values.length,
+      MAX: () => (values.length ? Math.max(...values) : 0),
+      MIN: () => (values.length ? Math.min(...values) : 0),
+      PRODUCT: () => (values.length ? values.reduce((a, b) => a * b, 1) : 0),
+    }[fn]();
+    const shown = (() => {
+      if (format === '0%') return Math.round(result * 100) + '%';
+      const places = format === '#,##0.00' ? 2 : format === '#,##0' || format === '0' ? 0 : (Number.isInteger(result) ? 0 : 2);
+      return format === '0' ? result.toFixed(0) : result.toLocaleString('en-GB', { minimumFractionDigits: places, maximumFractionDigits: places });
+    })();
+    const instr = ' =' + fn + '(' + dir + ')' + (format ? ' \\# "' + format + '"' : '') + ' ';
+    const field = '<w:fldSimple w:instr="' + esc(instr) + '"><w:r><w:t xml:space="preserve">' + esc(shown) + '</w:t></w:r></w:fldSimple>';
+    // In the cell's first paragraph, in place of what was there.
+    const row = parts.rows[rowIndex];
+    if (!row) throw new Error('no row ' + rowIndex + ' in this table');
+    const rowXml = body.slice(row.start, row.end);
+    const cell = this._rowCellSpans(rowXml)[cellIndex];
+    if (!cell) throw new Error('no cell ' + cellIndex + ' in that row');
+    const cellXml = rowXml.slice(cell.start, cell.end);
+    const p = /<w:p\b[^>]*\/>|<w:p\b[^>]*>[\s\S]*?<\/w:p>/.exec(cellXml.replace(/<w:tcPr\b[^>]*>[\s\S]*?<\/w:tcPr>/, (t) => ' '.repeat(t.length)));
+    if (!p) throw new Error('that cell has no paragraph');
+    const old = cellXml.slice(p.index, p.index + p[0].length);
+    const pPr = /<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>|<w:pPr\b[^>]*\/>/.exec(old)?.[0] ?? '';
+    const replaced = '<w:p>' + pPr + field + '</w:p>';
+    const at = row.start + cell.start + p.index;
+    this._spliceBody(at, at + old.length, replaced);
+    return this;
+  }
+
   deleteTable(tableStart) {
     const parts = this._tableParts(tableStart);
     // A document must keep a paragraph for the caret to land in; if the

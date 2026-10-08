@@ -2173,7 +2173,7 @@ export class DocView {
    * (`{ look }`), `shading` (`{ fill }`), `borders` (`{ kind, pen }`), `sort`
    * (`{ descending, header }`), `toText` (`{ separator }`), `splitTable`, `autoFit`
    * (`{ mode }`), `align` (`{ align }`), `cellMargins` (`{ margins }`) or `textDirection`
-   * (`{ dir }`). Each is one undo step; deleting the last
+   * (`{ dir }`) or `formula` (`{ formula, format }`). Each is one undo step; deleting the last
    * row or column deletes the table, as Word does. A merged table refuses —
    * the engine says why.
    */
@@ -2205,6 +2205,7 @@ export class DocView {
       align: 'setTableAlign',
       cellMargins: 'setTableCellMargins',
       textDirection: 'setTableCellDirection',
+      formula: 'insertTableFormula',
     };
     const method = PORT[op];
     if (!method) throw new Error('unknown table operation: ' + op);
@@ -2320,6 +2321,9 @@ export class DocView {
       } else if (op === 'splitTable') {
         // Table Layout → Split Table: the caret's row starts a table of its own.
         this.doc.splitTable(tableStart, rowIndex);
+      } else if (op === 'formula') {
+        // Table Layout → Formula: the caret's cell shows the formula's result.
+        this.doc.insertTableFormula(tableStart, rowIndex, cellIndex, arg.formula, arg.format || null);
       } else if (op === 'align') {
         this.doc.setTableAlign(tableStart, arg.align);
       } else if (op === 'cellMargins') {

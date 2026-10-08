@@ -305,6 +305,21 @@ test('Table Layout → Cell Margins, Text Direction and Align Table: written in 
   assert.throws(() => view.tableOp('align', { align: 'middle' }), /left, the centre or the right/);
 });
 
+test('Table Layout → Formula: an = field worked out from the numbers above or to the left, up to the first that is not one', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ table: { rows: [['Region', 'Q1', 'Q2', 'Total'], ['North', '1,200', '135', ''], ['East', '95', '£40', ''], ['Sum', '', '', ''], ['Mean', '', '', '']] } }] }));
+  const cell = (r, c) => blocks(view).find((b) => new RegExp(`:r${r}:c${c}$`).test(b.container || ''));
+  const into = (r, c, formula, format) => { view.setSelection({ block: cell(r, c).index, offset: 0 }); view.tableOp('formula', { formula, format }); return cell(r, c).text; };
+  assert.equal(into(3, 1, '=SUM(ABOVE)'), '1,295', 'the two numbers above, not the heading');
+  assert.equal(into(3, 2, '=SUM(ABOVE)'), '175', 'a currency sign read past');
+  assert.equal(into(1, 3, '=SUM(LEFT)'), '1,335');
+  assert.equal(into(4, 1, '=AVERAGE(ABOVE)', '#,##0.00'), '863.33', 'the sum above it counts too, the run going up to the heading');
+  assert.equal(into(2, 3, '=MAX(LEFT)'), '95');
+  assert.equal(into(4, 2, '=COUNT(ABOVE)'), '3', '175, £40 and 135');
+  assert.match(xmlOf(view), /<w:fldSimple w:instr=" =SUM\(ABOVE\) "><w:r><w:t xml:space="preserve">1,295<\/w:t><\/w:r><\/w:fldSimple>/);
+  assert.match(xmlOf(view), /<w:fldSimple w:instr=" =AVERAGE\(ABOVE\) \\# &quot;#,##0.00&quot; ">/, 'the number format kept as Word\'s \\# switch');
+  assert.throws(() => into(4, 3, '=SUM(A1:B2)'), /A formula here is one of/);
+});
+
 test('through the document service, Convert Text to Table is an operation of its own', () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-text-table-')), 'lines.docx');
   fs.writeFileSync(file, buildDocx({ styles: true, paragraphs: [{ text: 'a\tb' }, { text: 'c\td' }] }));
