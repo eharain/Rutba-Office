@@ -12,7 +12,14 @@ import React, { useEffect, useRef, useState } from 'react';
 let shared = null; // { stream, users } once opened
 let opening = null;
 
+/** Whether a stream still has its camera: a stream whose camera stopped is not handed out again. */
+const alive = (stream) => Boolean(stream?.active && stream.getVideoTracks().some((t) => t.readyState === 'live'));
+
 async function openCamera() {
+  if (shared && !alive(shared.stream)) {
+    for (const t of shared.stream.getTracks()) t.stop();
+    shared = null;
+  }
   if (shared) { shared.users += 1; return shared.stream; }
   if (!opening) {
     opening = navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
@@ -20,34 +27,58 @@ async function openCamera() {
       .finally(() => { opening = null; });
   }
   const stream = await opening;
+  if (!shared || shared.stream !== stream) shared = { stream, users: 0 };
   shared.users += 1;
   return stream;
 }
 
-function closeCamera() {
-  if (!shared) return;
-  shared.users -= 1;
-  if (shared.users <= 0) {
+/** One holder of `stream` lets it go; the camera is closed with the last. A stream already replaced is left alone. */
+function closeCamera(stream) {
+  if (!shared || (stream && shared.stream !== stream)) return;
+  shared.users = Math.max(0, shared.users - 1);
+  if (!shared.users) {
     for (const t of shared.stream.getTracks()) t.stop();
     shared = null;
   }
 }
 
-/** The camera's stream while `on`, or null — and why not, when it could not be opened. */
+/**
+ * The camera's stream while `on`, or null — and why not, when it could not
+ * be opened. A camera that stops (unplugged, taken by another program, or
+ * handed back already stopped) is asked for again, three times.
+ */
 export function useCamera(on) {
   const [state, setState] = useState({ stream: null, error: null });
   useEffect(() => {
     if (!on) return undefined;
     let live = true;
-    let held = false;
-    openCamera().then((stream) => {
-      held = true;
-      if (live) setState({ stream, error: null });
-      else closeCamera();
-    }).catch((err) => { if (live) setState({ stream: null, error: err?.name === 'NotAllowedError' ? 'The camera was not allowed.' : 'No camera was found.' }); });
+    let held = null;
+    let tries = 0;
+    let timer = null;
+    const take = () => {
+      openCamera().then((stream) => {
+        if (!live) { closeCamera(stream); return; }
+        held = stream;
+        setState({ stream, error: null });
+        const track = stream.getVideoTracks()[0];
+        const ended = () => {
+          track?.removeEventListener('ended', ended);
+          if (!live || held !== stream) return;
+          closeCamera(stream);
+          held = null;
+          if (++tries <= 3) timer = setTimeout(take, 300);
+          else setState({ stream: null, error: 'The camera stopped.' });
+        };
+        if (alive(stream)) track?.addEventListener('ended', ended);
+        else ended();
+      }).catch((err) => { if (live) setState({ stream: null, error: err?.name === 'NotAllowedError' ? 'The camera was not allowed.' : 'No camera was found.' }); });
+    };
+    take();
     return () => {
       live = false;
-      if (held) closeCamera();
+      clearTimeout(timer);
+      if (held) closeCamera(held);
+      held = null;
       setState({ stream: null, error: null });
     };
   }, [on]);

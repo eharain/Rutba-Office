@@ -34,7 +34,7 @@ export async function verifyDeckCameo({ open, check, until, wait, errorsIn, doc 
 
     // Preview: the camera, live, on the stage.
     await js(`document.querySelector('.sl-cameo-preview')?.click(), 1`);
-    const previewed = await until(async () => ((await playing('body'))?.w || 0) > 0, 'the camera on the stage', 8000).then(() => true).catch(() => false);
+    const previewed = await until(async () => { const p = await playing('body'); return Boolean(p?.live) && p.w > 16; }, 'the camera on the stage', 8000).then(() => true).catch(() => false);
     const stage = await playing('body');
     check('presentations: Camera Format → Preview fills the cameo with the camera, live, mirrored as a camera pointed at oneself is',
       previewed && stage?.live, JSON.stringify(stage));
@@ -50,7 +50,7 @@ export async function verifyDeckCameo({ open, check, until, wait, errorsIn, doc 
 
     // The show: the camera in the cameo, closed again when the show ends.
     await js(`(async () => { [...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Slide Show')?.click(); await new Promise((r) => setTimeout(r, 200)); [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'From Beginning')?.click(); return 1; })()`);
-    const inShow = await until(async () => ((await playing('.sl-present'))?.w || 0) > 0, 'the camera in the show', 8000).then(() => true).catch(() => false);
+    const inShow = await until(async () => { const p = await playing('.sl-present'); return Boolean(p?.live) && p.w > 16; }, 'the camera in the show', 8000).then(() => true).catch(() => false);
     const shown = await playing('.sl-present');
     win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
     win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
