@@ -17,18 +17,54 @@ const pick = (view, top, left, bottom = top, right = left) => {
   if (bottom !== top || right !== left) view.select(bottom, right, { extend: true });
 };
 
-test('Cut and paste moves the cells: inputs as typed, formulas keeping their references, the old place left empty, in one undo step', () => {
+test('Cut and paste moves the cells: inputs as typed, a formula among them reading the moved cells where they went, the old place left empty, in one undo step', () => {
   const view = open([[1, 2, '=A1+B1'], [], []]);
   pick(view, 0, 0, 0, 2);
   view.markClipboard({ cut: true });
   pick(view, 2, 1);
   view.pasteText(view.clipboard.text);
-  assert.deepEqual([input(view, 2, 1), input(view, 2, 2), input(view, 2, 3)], ['1', '2', '=A1+B1'], 'the formula still reads A1 and B1');
+  assert.deepEqual([input(view, 2, 1), input(view, 2, 2), input(view, 2, 3)], ['1', '2', '=B3+C3'], 'the formula reads the cells it read, where they went');
   assert.deepEqual([0, 1, 2].map((c) => input(view, 0, c)), ['', '', '']);
   assert.equal(view.clipboard, null, 'a cut is pasted once');
   view.undo();
   assert.deepEqual([0, 1, 2].map((c) => input(view, 0, c)), ['1', '2', '=A1+B1']);
   assert.equal(input(view, 2, 1), '');
+});
+
+test('A cut pasted re-points every reference to the moved cells, on any sheet and in the names, as Excel does; a cut pastes on another sheet; one undo puts it all back', () => {
+  const book = buildXlsx({ sheets: [{ name: 'S', rows: [[1, 2, '=A1+B1'], [], [], ['=SUM(A1:B1)', '=A1*10', '=A1:A2']] }, { name: 'Other sheet', rows: [['=S!A1+S!B1', '=S!$A$1']] }], definedNames: [{ name: 'Pair', ref: 'S!$A$1:$B$1' }] });
+  const view = new SheetView(book);
+  pick(view, 0, 0, 0, 1);
+  view.markClipboard({ cut: true });
+  pick(view, 5, 3);
+  view.pasteText(view.clipboard.text);
+  assert.deepEqual([input(view, 5, 3), input(view, 5, 4)], ['1', '2']);
+  assert.equal(input(view, 0, 2), '=D6+E6', 'a formula beside the cells follows them');
+  assert.equal(input(view, 3, 0), '=SUM(D6:E6)', 'a range of only moved cells follows them');
+  assert.equal(input(view, 3, 1), '=D6*10');
+  assert.equal(input(view, 3, 2), '=A1:A2', 'a range only partly moved stays');
+  assert.equal(text(view, 0, 2), '3', 'and still works out');
+  view.selectSheet('Other sheet');
+  assert.equal(input(view, 0, 0), '=S!D6+S!E6', 'a formula on another sheet follows them');
+  assert.equal(input(view, 0, 1), '=S!$D$6', 'dollar signs and all');
+  assert.ok(view.pkg.text(view.workbook.mainPart).includes('<definedName name="Pair">S!$D$6:$E$6</definedName>'), 'the name follows them');
+  view.undo();
+  assert.equal(view.activeSheet, 'S', 'undo goes back to the sheet the cells were moved on');
+  assert.deepEqual([input(view, 0, 0), input(view, 0, 2), input(view, 3, 1)], ['1', '=A1+B1', '=A1*10']);
+  view.selectSheet('Other sheet');
+  assert.equal(input(view, 0, 0), '=S!A1+S!B1', 'one undo puts the other sheet back too');
+  view.selectSheet('S');
+  assert.ok(view.pkg.text(view.workbook.mainPart).includes('S!$A$1:$B$1'), 'and the name');
+  // Onto another sheet: the cells go there, what reads them names that sheet.
+  pick(view, 0, 0, 0, 1);
+  view.markClipboard({ cut: true });
+  view.selectSheet('Other sheet');
+  view.select(4, 0);
+  view.pasteText(view.clipboard.text);
+  assert.deepEqual([input(view, 4, 0), input(view, 4, 1), input(view, 0, 0)], ['1', '2', "='Other sheet'!A5+'Other sheet'!B5"]);
+  view.selectSheet('S');
+  assert.deepEqual([input(view, 0, 0), input(view, 0, 2)], ['', "='Other sheet'!A5+'Other sheet'!B5"]);
+  assert.equal(text(view, 0, 2), '3');
 });
 
 test('Paste Special: formulas, values or formats, and transposed — rows become columns', () => {

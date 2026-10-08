@@ -25,6 +25,7 @@ export {
   parse, tokenize, dependencies, parseReference, colToIndex, indexToCol, TOKEN,
   shiftFormula,
   transposeFormula,
+  moveReferences,
 } from './parser.js';
 
 export { FUNCTIONS, FUNCTION_NAMES, isVolatile } from './functions.js';

@@ -16,7 +16,7 @@ import { buildXlsx } from '@rutba/ooxml/build';
 export async function verifySheetSelectPaste({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }) {
   const file = path.join(dir, 'select-paste.xlsx');
   try {
-    fs.writeFileSync(file, buildXlsx({ sheets: [{ name: 'Data', rows: [['Item', 'Qty'], ['Ink', 4], ['Paper', 6], [], [1], [2], [], [null, null, 10]] }] }));
+    fs.writeFileSync(file, buildXlsx({ sheets: [{ name: 'Data', rows: [['Item', 'Qty'], ['Ink', 4], ['Paper', 6], [], [1], [2], [], [null, null, 10], [], [], [], [], [], ['=B2*2']] }] }));
     const win = await open('sheets', file);
     const wc = win.webContents;
     const js = (code) => wc.executeJavaScript(code);
@@ -128,7 +128,8 @@ export async function verifySheetSelectPaste({ open, check, until, wait, press, 
     await click(await spot('A12'));
     await press(wc, 'V', { modifiers: ['control'] });
     await until(() => text('A12') === 'Ink', 'the move', 5000).catch(() => {});
-    check('sheets: Ctrl+X then Ctrl+V moves the cells and leaves their old place empty', text('A12') === 'Ink' && text('B12') === '4' && text('A2') === '' && text('B2') === '', ['A12', 'B12', 'A2', 'B2'].map(text).join(' '));
+    const follows = String((model().cells || []).find((c) => c.ref === 'A14')?.input ?? '');
+    check('sheets: Ctrl+X then Ctrl+V moves the cells, leaves their old place empty, and a formula reading them follows them', text('A12') === 'Ink' && text('B12') === '4' && text('A2') === '' && text('B2') === '' && text('A14') === '8', ['A12', 'B12', 'A2', 'B2'].map(text).join(' ') + ' A14 ' + text('A14') + ' ' + follows);
 
     const complaints = await errorsIn(win);
     check('sheets: selecting, copying, pasting and filling report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

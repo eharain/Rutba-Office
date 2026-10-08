@@ -30,7 +30,7 @@ import {
   readSlicers, addSlicer, removeSlicer, slicerAnchorXml, writeSlicerCacheItems, setSlicerProps as writeSlicerProps,
 } from '@rutba/ooxml/slicers';
 import {
-  isError, shiftFormula, transposeFormula, calculate, parse, compareValues, serialToDate, dateToSerial, FormulaEvaluation,
+  isError, shiftFormula, transposeFormula, moveReferences, calculate, parse, compareValues, serialToDate, dateToSerial, FormulaEvaluation,
 } from '@rutba/formula';
 import { formatValue, BUILTIN_FORMATS, isDateFormat } from './numfmt.js';
 import { applyFormat, formatOf, ensureDxf } from './styles-write.js';
@@ -317,7 +317,7 @@ export class SheetView {
    * `cells` is the range the edit will touch, captured before it runs.
    */
   _edit(label, group, cells, fn, {
-    styles = false, parts = null, structural = false, tracksNewParts = false, sheetGate = true,
+    styles = false, parts = null, structural = false, tracksNewParts = false, sheetGate = true, others = null,
   } = {}) {
     const outermost = this._editDepth === 0;
     // What is read once per state of the workbook (the slicers' panels) is
@@ -377,6 +377,8 @@ export class SheetView {
           // on top of the rebuilt calc model. See `_step`.
           structural,
           pending: structural ? this._capturePending() : null,
+          // Cells on other sheets the edit changes too — a move's references.
+          others: others ? others.map(({ sheet: s, row, col }) => ({ sheet: s, row, col, input: this.calc.getInput(s, row, col), index: this._styleIndexAt(s, row, col) })) : null,
           // Formatting is undoable too, so the style index travels with the
           // value. Without it, undoing a bold leaves the cell bold and only
           // puts the text back — which reads as the undo having failed.
@@ -472,6 +474,9 @@ export class SheetView {
           styleIndex: this._styleIndexAt(p.sheet, p.row, p.col),
         }))
         : null,
+      others: previous.state.others
+        ? previous.state.others.map((p) => ({ ...p, input: this.calc.getInput(p.sheet, p.row, p.col), index: this._styleIndexAt(p.sheet, p.row, p.col) }))
+        : null,
       structuralDirty: this._structuralDirty,
       dirty: [...this.dirtyCells],
       styled: [...this.styledCells],
@@ -519,6 +524,10 @@ export class SheetView {
     this.activeSheet = entry.state.sheet;
     for (const { row, col, input } of entry.state.cells) {
       this.calc.setCell(entry.state.sheet, row, col, input ?? '');
+    }
+    for (const p of entry.state.others ?? []) {
+      this.calc.setCell(p.sheet, p.row, p.col, p.input ?? '');
+      this._setStyleIndex(p.sheet, p.row, p.col, p.index ?? null);
     }
     this.calc.recalculate();
     // styles.xml is restored WHOLE rather than per cell: undoing the first bold
@@ -2320,43 +2329,87 @@ export class SheetView {
   }
 
   /**
-   * A cut pasted: the cells move — their inputs as typed, formulas keeping
-   * the references they had, and their formatting — and where they were is
-   * left empty. On their own sheet, as one undo step; the cut is spent.
+   * A cut pasted: the cells move, here or onto another sheet — their inputs
+   * as typed and their formatting — and where they were is left empty. As
+   * Excel does, every reference to them follows: a formula anywhere in the
+   * workbook, the moved cells' own and the defined names, that named only
+   * moved cells names where they went. One undo step; the cut is spent.
    */
   _moveCells(clip) {
-    if (clip.sheet !== this.activeSheet) {
-      throw new Error('Cut cells are pasted on their own sheet — to put them on another, copy them instead');
-    }
     const sheet = this.activeSheet;
+    const fromSheet = clip.sheet;
     const src = clip.range;
     const anchor = this.selection.active;
     const dr = anchor.row - src.top;
     const dc = anchor.col - src.left;
     if (src.top + dr < 0 || src.left + dc < 0) throw new Error('that paste would fall off the sheet');
+    const from = { sheet: fromSheet, ...src };
+    const to = { sheet, row: anchor.row, col: anchor.col };
     const moved = [];
     for (let r = src.top; r <= src.bottom; r++) {
       for (let c = src.left; c <= src.right; c++) {
-        moved.push({ row: r + dr, col: c + dc, input: this.calc.getInput(sheet, r, c), styleIndex: this._styleIndexAt(sheet, r, c) });
+        const input = this.calc.getInput(fromSheet, r, c);
+        moved.push({
+          row: r + dr,
+          col: c + dc,
+          input: typeof input === 'string' && input.startsWith('=') ? moveReferences(input, { home: fromSheet, newHome: sheet, from, to }) : input,
+          styleIndex: this._styleIndexAt(fromSheet, r, c),
+        });
       }
     }
-    const landing = new Set(moved.map((m) => m.row + ':' + m.col));
-    const left = [];
-    for (let r = src.top; r <= src.bottom; r++) for (let c = src.left; c <= src.right; c++) if (!landing.has(r + ':' + c)) left.push({ row: r, col: c });
-    return this._edit('move', null, [...left, ...moved.map(({ row, col }) => ({ row, col }))], () => {
-      for (const p of left) {
-        if (this.isFilled(p.row, p.col)) this._setCell(p.row, p.col, '');
-        if (this._styleIndexAt(sheet, p.row, p.col) != null) this._setStyleIndex(sheet, p.row, p.col, null);
+    const key = (s, r, c) => s + '\u0000' + r + ':' + c;
+    const landing = new Set(moved.map((m) => key(sheet, m.row, m.col)));
+    const vacated = [];
+    for (let r = src.top; r <= src.bottom; r++) for (let c = src.left; c <= src.right; c++) if (!landing.has(key(fromSheet, r, c))) vacated.push({ sheet: fromSheet, row: r, col: c });
+    // Every other formula that reads the moved cells, wherever it is.
+    const block = new Set(vacated.map((p) => key(p.sheet, p.row, p.col)));
+    for (let r = src.top; r <= src.bottom; r++) for (let c = src.left; c <= src.right; c++) block.add(key(fromSheet, r, c));
+    const repointed = [];
+    for (const [s, cells] of this.calc.sheets) {
+      for (const c of cells.values()) {
+        if (!c.ast || typeof c.input !== 'string' || block.has(key(s, c.row, c.col)) || landing.has(key(s, c.row, c.col))) continue;
+        const next = moveReferences(c.input, { home: s, from, to });
+        if (next !== c.input) repointed.push({ sheet: s, row: c.row, col: c.col, input: next });
+      }
+    }
+    // The defined names that name only moved cells.
+    const names = [];
+    for (const n of this.workbook.definedNames()) {
+      if (/^_xlnm\._FilterDatabase$/i.test(n.name)) continue;
+      const next = moveReferences(n.ref, { home: fromSheet, from, to });
+      if (next !== n.ref) names.push({ ...n, ref: next });
+    }
+    const here = [...vacated.filter((p) => p.sheet === sheet), ...moved.map(({ row, col }) => ({ row, col })), ...repointed.filter((p) => p.sheet === sheet)];
+    const elsewhere = [...vacated.filter((p) => p.sheet !== sheet), ...repointed.filter((p) => p.sheet !== sheet)];
+    return this._edit('move', null, here.map(({ row, col }) => ({ row, col })), () => {
+      for (const p of vacated) {
+        if (this.calc.getInput(p.sheet, p.row, p.col) != null && this.calc.getInput(p.sheet, p.row, p.col) !== '') this._setCellOn(p.sheet, p.row, p.col, '');
+        if (this._styleIndexAt(p.sheet, p.row, p.col) != null) this._setStyleIndex(p.sheet, p.row, p.col, null);
       }
       for (const m of moved) {
-        this._setCell(m.row, m.col, m.input ?? '');
+        this._setCellOn(sheet, m.row, m.col, m.input ?? '');
         if ((this._styleIndexAt(sheet, m.row, m.col) ?? null) !== (m.styleIndex ?? null)) this._setStyleIndex(sheet, m.row, m.col, m.styleIndex ?? null);
       }
+      for (const p of repointed) this._setCellOn(p.sheet, p.row, p.col, p.input);
+      for (const n of names) {
+        const extra = {};
+        for (const a of n.attrsStr.matchAll(/([\w:]+)="([^"]*)"/g)) if (a[1] !== 'name') extra[a[1]] = a[2].replace(/&quot;/g, '"').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+        this.workbook.setDefinedName(n.name, n.ref, extra);
+      }
+      if (names.length) this._syncNames();
+      this.calc.recalculate();
       this.clipboard = null;
       this.selection.collapseTo(src.top + dr, src.left + dc);
       this.selection.extendTo(src.bottom + dr, src.right + dc);
       return this;
-    });
+    }, { others: elsewhere, parts: names.length ? [this.workbook.mainPart] : null });
+  }
+
+  /** A cell on any sheet set from what was typed, without working the workbook out again. */
+  _setCellOn(sheet, row, col, input) {
+    this.calc.setCell(sheet, row, col, coerceInput(input));
+    this.dirtyCells.add(sheet + '!' + ref(row, col));
+    return this;
   }
 
   /**

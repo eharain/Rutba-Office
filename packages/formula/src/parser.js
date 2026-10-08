@@ -659,6 +659,69 @@ export function shiftFormula(formula, dr, dc, mapCell = null) {
 }
 
 /**
+ * A formula after cells were cut and pasted, as Excel rewrites every one:
+ * a reference that names only cells inside the moved block `from`
+ * (`{ sheet, top, left, bottom, right }`) follows them to where they went,
+ * `to` (`{ sheet, row, col }`, the block's new top-left), dollar signs
+ * and all; any other stays. `home` is the sheet the formula was on, for
+ * the references that name no sheet, and `newHome` the sheet it is on now
+ * — a formula that moved to another sheet names the sheet of what it still
+ * reads where it named none. A range only partly inside stays as it was.
+ */
+export function moveReferences(formula, { home, newHome = home, from, to }) {
+  const src = String(formula);
+  const same = (a, b) => String(a ?? '').toLowerCase() === String(b ?? '').toLowerCase();
+  const quote = (name) => (/^[A-Za-z_][A-Za-z0-9_.]*$/.test(name) && !/^[A-Za-z]{1,3}\d+$/.test(name) ? name : "'" + String(name).replace(/'/g, "''") + "'");
+  const dr = to.row - from.top;
+  const dc = to.col - from.left;
+  const inside = (r, c) => r >= from.top && r <= from.bottom && c >= from.left && c <= from.right;
+  const REF = /^(?:'((?:[^']|'')+)'!|([A-Za-z_][A-Za-z0-9_.]*)!)?(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7})(?::(\$?)([A-Za-z]{1,3})(\$?)(\d{1,7}))?(?![\w(!])/;
+  let out = '';
+  let i = 0;
+  while (i < src.length) {
+    const ch = src[i];
+    if (ch === '"') {
+      let j = i + 1;
+      while (j < src.length) { if (src[j] === '"') { if (src[j + 1] === '"') { j += 2; continue; } break; } j += 1; }
+      out += src.slice(i, j + 1);
+      i = j + 1;
+      continue;
+    }
+    if (ch === '[') {
+      let depth = 0;
+      let j = i;
+      while (j < src.length) {
+        const c = src[j];
+        if (c === "'") { j += 2; continue; }
+        if (c === '[') depth += 1;
+        else if (c === ']') { depth -= 1; if (depth === 0) { j += 1; break; } }
+        j += 1;
+      }
+      out += src.slice(i, j);
+      i = j;
+      continue;
+    }
+    const prev = out[out.length - 1] ?? '';
+    const m = /[A-Za-z0-9_.$']/.test(prev) ? null : REF.exec(src.slice(i));
+    if (!m) { out += ch; i += 1; continue; }
+    const named = m[1] != null ? m[1].replace(/''/g, "'") : m[2] ?? null;
+    const sheet = named ?? home;
+    const a = { row: Number(m[6]) - 1, col: colToIndex(m[4]) };
+    const b = m[8] ? { row: Number(m[10]) - 1, col: colToIndex(m[8]) } : a;
+    const moves = same(sheet, from.sheet) && inside(a.row, a.col) && inside(b.row, b.col);
+    const target = moves ? to.sheet : sheet;
+    // The sheet is named where it was, and wherever the formula now sits on another.
+    const prefix = named != null || !same(target, newHome) ? quote(target) + '!' : '';
+    const cell = (r, c, colAbs, rowAbs) => colAbs + indexToCol(c) + rowAbs + (r + 1);
+    const pa = moves ? { row: a.row + dr, col: a.col + dc } : a;
+    const pb = moves ? { row: b.row + dr, col: b.col + dc } : b;
+    out += prefix + cell(pa.row, pa.col, m[3], m[5]) + (m[8] ? ':' + cell(pb.row, pb.col, m[7], m[9]) : '');
+    i += m[0].length;
+  }
+  return out;
+}
+
+/**
  * A formula pasted with Transpose, from the cell at `from` to the cell at
  * `to`: a relative reference keeps its place relative to the cell, turned
  * as the block is turned — the cell above becomes the cell to the left —
