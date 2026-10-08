@@ -302,6 +302,68 @@ export async function verifyWordTableTools(h, { dir }) {
     check('word: the Table Design checks ran', false, err.message);
   }
 
+  // Table Layout → Data: Sort and Convert to Text; Insert → Text to Table back again.
+  const data = path.join(dir, 'table-data.docx');
+  try {
+    fs.writeFileSync(data, buildDocx({ styles: true, paragraphs: [
+      { text: 'Before the table' },
+      { table: { rows: [['Region', 'Sales'], ['North', '1,200'], ['East', '95'], ['West', '1000']] } },
+      { text: 'After the table' },
+    ] }));
+    const win = await open('word', data);
+    const js = (code) => win.webContents.executeJavaScript(code);
+    const session = h.sessionFor('doc');
+    const model = () => h.doc.model({ id: session.id });
+    const index = (text) => model().blocks.findIndex((b) => b.text === text);
+    await until(() => js(`document.querySelectorAll('.wd-page table.wd-table').length === 1`), 'the table to be drawn', 8000);
+    const select = (from, to = from, toOffset = 0) => js(`(() => {
+      const el = (i) => document.querySelector('.wd-page [data-block="' + i + '"]');
+      const a = el(${index(from)}); const b = el(${index(to)});
+      a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 }));
+      const text = (n) => { const w = document.createTreeWalker(n, NodeFilter.SHOW_TEXT); return w.nextNode() || n; };
+      const r = document.createRange(); r.setStart(text(a), 0); r.setEnd(text(b), ${toOffset});
+      const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+      document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true }));
+      return true;
+    })()`);
+    const tabTo = (name) => js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === ${JSON.stringify(name)})?.click(), 'tab'`);
+    const button = (label) => `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === ${JSON.stringify(label)})`;
+    const pick = async (label, item) => {
+      await js(`(() => { const b = ${button(label)}; b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+      await until(() => js(`Boolean([...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}))`), `"${item}" in ${label}`, 3000);
+      return js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(item)}).click(), 'picked'`);
+    };
+    const firstColumn = () => js(`[...(document.querySelector('.wd-page table.wd-table')?.tBodies[0].rows || [])].map((r) => r.cells[0].innerText.trim())`);
+
+    await select('95');
+    await until(() => js(`[...document.querySelectorAll('.rw-tab')].some((t) => t.textContent.trim() === 'Table Layout')`), 'Table Layout', 3000);
+    await tabTo('Table Layout');
+    await until(() => js(`Boolean(${button('Sort')})`), 'Sort', 3000);
+    await pick('Sort', 'Z to A, the first row a header');
+    await until(async () => (await firstColumn())[1] === 'North', 'the rows sorted', 5000).catch(() => {});
+    const sorted = await firstColumn();
+    check('word: Table Layout → Sort puts the rows in order of the caret\'s column, as numbers, the header kept on top',
+      sorted.join('|') === 'Region|North|West|East', sorted.join('|'));
+
+    await pick('Convert to Text', 'Separated by tabs');
+    await until(() => js(`document.querySelectorAll('.wd-page table.wd-table').length === 0`), 'the table gone', 5000).catch(() => {});
+    const lines = model().blocks.map((b) => b.text);
+    check('word: Convert to Text leaves each row a line, its cells between tabs',
+      lines.join(' / ') === 'Before the table / Region\tSales / North\t1,200 / West\t1000 / East\t95 / After the table', lines.join(' / '));
+
+    await select('Region\tSales', 'East\t95', 2);
+    await tabTo('Insert');
+    await until(() => js(`Boolean(${button('Text to Table')})`), 'Text to Table', 3000);
+    await pick('Text to Table', 'Split at tabs');
+    await until(() => js(`document.querySelectorAll('.wd-page table.wd-table').length === 1`), 'the table back', 5000).catch(() => {});
+    const back = await firstColumn();
+    check('word: Insert → Text to Table makes the lines a table again, split at their tabs', back.join('|') === 'Region|North|West|East', back.join('|') || 'no table');
+    const complaints = await errorsIn(win);
+    check('word: sorting and converting a table reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
+  } catch (err) {
+    check('word: the table-data checks ran', false, err.message);
+  }
+
   // A header row repeated: a table too long for its page, its top row made
   // the header, draws that row again at the head of the next page's piece.
   const long = path.join(dir, 'header-rows.docx');

@@ -207,3 +207,65 @@ test('Table Design → Borders: outside, inside, all and none over the selected 
   // The page draws them as the cell's own lines.
   assert.equal(blocks(view)[at(view, '120')].cellBorders.top.style, 'double');
 });
+
+test('Table Layout → Sort: rows by the caret\'s column, as numbers or as words, rising or falling, a header row kept on top', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ table: { rows: [['Region', 'Sales'], ['north', '1,200'], ['East', '95'], ['South', ''], ['west', '1000']] } }] }));
+  const column = (c) => { const rows = new Map(); for (const b of blocks(view)) { const m = /:r(\d+):c(\d+)$/.exec(b.container || ''); if (m && Number(m[2]) === c) rows.set(Number(m[1]), b.text); } return [...rows.keys()].sort((a, b) => a - b).map((r) => rows.get(r)); };
+  view.setSelection({ block: at(view, '95'), offset: 0 });
+  view.tableOp('sort', { descending: false, header: true });
+  assert.deepEqual(column(1), ['Sales', '95', '1000', '1,200', ''], 'as numbers, the empty cell last, the header kept');
+  assert.deepEqual(column(0), ['Region', 'East', 'west', 'north', 'South'], 'each row moved whole');
+  view.setSelection({ block: at(view, 'East'), offset: 0 });
+  view.tableOp('sort', { descending: true, header: true });
+  assert.deepEqual(column(0), ['Region', 'west', 'South', 'north', 'East'], 'as words, in the language\'s order, falling');
+  // A header row the table marks needs no telling.
+  view.setSelection({ block: at(view, 'Region'), offset: 0 });
+  view.tableOp('headerRows', { on: true });
+  view.setSelection({ block: at(view, 'East'), offset: 0 });
+  view.tableOp('sort', { descending: false });
+  assert.deepEqual(column(0), ['Region', 'East', 'north', 'South', 'west']);
+  // Merged down a column, the rows cannot be put in another order.
+  view.setSelection({ block: at(view, 'north'), offset: 0 }, { block: at(view, 'South'), offset: 0 });
+  view.tableOp('mergeCells');
+  view.setSelection({ block: at(view, 'East'), offset: 0 });
+  assert.throws(() => view.tableOp('sort', {}), /merged down a column/);
+});
+
+test('Table Layout → Convert to Text and Insert → Convert Text to Table: rows and paragraphs into each other, the words\' looks kept going out', () => {
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'Before' }, { table: { rows: [['Region', 'Q1'], ['North', '120']] } }, { text: 'After' }] }));
+  view.doc.doc.xml = view.doc.doc.xml.replace(/<w:r>(<w:t[^>]*>North<\/w:t>)/, '<w:r><w:rPr><w:b/></w:rPr>$1');
+  view._invalidate?.();
+  view.setSelection({ block: at(view, 'North'), offset: 0 });
+  view.tableOp('toText', { separator: 'tab' });
+  const texts = blocks(view).map((b) => b.text);
+  assert.deepEqual(texts, ['Before', 'Region\tQ1', 'North\t120', 'After']);
+  assert.ok(!blocks(view).some((b) => b.container), 'the table gone');
+  assert.match(xmlOf(view), /<w:r><w:rPr><w:b\/><\/w:rPr><w:t[^>]*>North<\/w:t><\/w:r><w:r><w:tab\/><\/w:r>/, 'North still bold, a tab after it');
+  // And back: the two paragraphs split at their tabs into a table of two columns.
+  view.setSelection({ block: at(view, 'Region\tQ1'), offset: 0 }, { block: at(view, 'North\t120'), offset: 3 });
+  view.textToTable({ separator: 'tab' });
+  const cells = blocks(view).filter((b) => b.container).map((b) => `${/:r(\d+):c(\d+)$/.exec(b.container).slice(1).join('.')}=${b.text}`);
+  assert.deepEqual(cells, ['0.0=Region', '0.1=Q1', '1.0=North', '1.1=120']);
+  assert.deepEqual(blocks(view).filter((b) => !b.container).map((b) => b.text), ['Before', 'After']);
+  // Commas, and each cell its own paragraph.
+  view.setSelection({ block: at(view, 'Region'), offset: 0 });
+  view.tableOp('toText', { separator: 'comma' });
+  assert.deepEqual(blocks(view).map((b) => b.text), ['Before', 'Region, Q1', 'North, 120', 'After']);
+  view.setSelection({ block: at(view, 'Region, Q1'), offset: 0 }, { block: at(view, 'North, 120'), offset: 1 });
+  view.textToTable({ separator: 'comma' });
+  view.setSelection({ block: at(view, 'Q1'), offset: 0 });
+  view.tableOp('toText', { separator: 'paragraph' });
+  assert.deepEqual(blocks(view).map((b) => b.text), ['Before', 'Region', 'Q1', 'North', '120', 'After']);
+  view.setSelection({ block: at(view, 'Before'), offset: 0 });
+  view.textToTable({});
+  assert.throws(() => { view.setSelection({ block: at(view, 'Before'), offset: 0 }); view.textToTable({}); }, /in a table already/);
+});
+
+test('through the document service, Convert Text to Table is an operation of its own', () => {
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-text-table-')), 'lines.docx');
+  fs.writeFileSync(file, buildDocx({ styles: true, paragraphs: [{ text: 'a\tb' }, { text: 'c\td' }] }));
+  const docs = createDocumentService({ holdBlob: () => ({ url: 'blob:x' }) });
+  const s = docs.open({ path: file });
+  docs.apply({ id: s.id, ops: [{ op: 'setSelection', anchor: { block: 0, offset: 0 }, focus: { block: 1, offset: 1 } }, { op: 'textToTable', separator: 'tab' }] });
+  assert.deepEqual(docs.model({ id: s.id }).blocks.filter((b) => b.container).map((b) => b.text), ['a', 'b', 'c', 'd']);
+});

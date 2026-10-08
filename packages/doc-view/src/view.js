@@ -2170,7 +2170,8 @@ export class DocView {
    * `deleteColumn`, `deleteTable`, `mergeCells`, `splitCell`, `direction`
    * (`{ rtl }`), `columnWidth` (`{ cm }`), `headerRows` (`{ on }`),
    * `cellVAlign` (`{ v }`), `distributeColumns`, `style` (`{ id }`), `styleOptions`
-   * (`{ look }`), `shading` (`{ fill }`) or `borders` (`{ kind, pen }`). Each is one undo step; deleting the last
+   * (`{ look }`), `shading` (`{ fill }`), `borders` (`{ kind, pen }`), `sort`
+   * (`{ descending, header }`) or `toText` (`{ separator }`). Each is one undo step; deleting the last
    * row or column deletes the table, as Word does. A merged table refuses —
    * the engine says why.
    */
@@ -2195,6 +2196,8 @@ export class DocView {
       styleOptions: 'setTableLook',
       shading: 'setTableCellShading',
       borders: 'setTableCellBorders',
+      sort: 'sortTableRows',
+      toText: 'tableToText',
     };
     const method = PORT[op];
     if (!method) throw new Error('unknown table operation: ' + op);
@@ -2304,6 +2307,12 @@ export class DocView {
             if (want.length) this.doc.setTableCellBorders(tableStart, r, c, Object.fromEntries(want.map((s) => [s, pen])));
           }
         }
+      } else if (op === 'sort') {
+        // Table Layout → Sort: by the caret's column, its header rows kept at the top.
+        this.doc.sortTableRows(tableStart, arg.column ?? cellIndex, { descending: Boolean(arg.descending), header: arg.header ?? null });
+      } else if (op === 'toText') {
+        // Table Layout → Convert to Text: the table gone, its words in paragraphs where it stood.
+        this.doc.tableToText(tableStart, arg.separator || 'tab');
       } else if (op === 'distributeColumns') {
         // Every column the same width, the table as wide as it was.
         const prefix = 't' + tableStart + ':';
@@ -2320,6 +2329,22 @@ export class DocView {
       // back on a block that exists.
       this.anchor = clampPosition(this.blocks, this.anchor);
       this.focus = clampPosition(this.blocks, this.focus);
+      return this;
+    });
+  }
+
+  /**
+   * Insert → Table → Convert Text to Table: the selected paragraphs (or the
+   * caret's) as the rows of a table, split at their tabs or commas. One undo
+   * step; the caret lands in the table's first cell.
+   */
+  textToTable({ separator = 'tab' } = {}) {
+    if (typeof this.doc.textToTable !== 'function') throw new Error('this document backend does not support tables');
+    const { from, to } = this.selection;
+    return this._edit('table', null, () => {
+      this.doc.textToTable(from.block, to.block, separator);
+      this._invalidate();
+      this.collapseTo({ block: Math.min(from.block, this.blocks.length - 1), offset: 0 });
       return this;
     });
   }

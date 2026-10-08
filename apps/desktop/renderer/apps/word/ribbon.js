@@ -456,6 +456,10 @@ export default function WordRibbon({
           </Group>
           <Group label="Tables">
             <Button tall icon="table" label="Table" onClick={() => openDialog('table')} />
+            <Button icon="table" label="Text to Table" disabled={Boolean(table)} title={table ? 'Convert Text to Table — the caret is in a table already' : 'Convert Text to Table — the selected paragraphs as rows, split at their tabs or commas'} onClick={(e) => menu.open(e, [
+              { label: 'Split at tabs', run: () => dispatch({ op: 'textToTable', separator: 'tab' }) },
+              { label: 'Split at commas', run: () => dispatch({ op: 'textToTable', separator: 'comma' }) },
+            ])} />
           </Group>
           <Group label="Illustrations">
             <Button tall icon="picture" label="Pictures" onClick={insertPicture} />
@@ -834,6 +838,18 @@ export default function WordRibbon({
             <Button tall icon="textRtl" label="Right to Left" title="Right to left — the table's columns run from the right, as an Arabic or Hebrew table's do" pressed={table.rtl} onClick={() => tableOp('direction', { rtl: !table.rtl })} />
           </Group>
           <Group label="Data">
+            <Button tall icon="sort" label="Sort" title="Sort — the table's rows by the caret's column, its header row kept at the top" onClick={(e) => menu.open(e, [
+              { label: 'Sort A to Z by this column', run: () => tableOp('sort', { descending: false }) },
+              { label: 'Sort Z to A by this column', run: () => tableOp('sort', { descending: true }) },
+              '-',
+              { label: 'A to Z, the first row a header', run: () => tableOp('sort', { descending: false, header: true }) },
+              { label: 'Z to A, the first row a header', run: () => tableOp('sort', { descending: true, header: true }) },
+            ])} />
+            <Button tall icon="file" label="Convert to Text" title="Convert to Text — each row a paragraph, its cells between tabs or commas" onClick={(e) => menu.open(e, [
+              { label: 'Separated by tabs', run: () => tableOp('toText', { separator: 'tab' }) },
+              { label: 'Separated by commas', run: () => tableOp('toText', { separator: 'comma' }) },
+              { label: 'Each cell its own paragraph', run: () => tableOp('toText', { separator: 'paragraph' }) },
+            ])} />
             <Button tall icon="refresh" label="Repeat Header Rows" pressed={Boolean(caretCell?.rowHeader)} title="Repeat Header Rows — the rows from the top through this one drawn again at the top of every page the table runs onto" onClick={() => tableOp('headerRows', { on: !caretCell?.rowHeader })} />
           </Group>
         </>

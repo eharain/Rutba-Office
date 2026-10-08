@@ -6134,6 +6134,99 @@ export class Document {
     return this;
   }
 
+  /**
+   * Table Layout → Sort: the table's rows in the order of one cell's words
+   * down them — as numbers when every one reads as a number, else as words in
+   * the language's own order — rising or falling, an empty cell last. Its
+   * header rows (w:tblHeader, or the first row when `header` says so) stay at
+   * the top. A table merged down a column refuses, as Word's does.
+   */
+  sortTableRows(tableStart, cellIndex, { descending = false, header = null } = {}) {
+    const parts = this._tableParts(tableStart);
+    if (/<w:vMerge\b/.test(parts.inner)) throw new Error('This table has cells merged down a column — split them before sorting its rows.');
+    const { body } = this._body();
+    const rows = parts.rows.map((r) => body.slice(r.start, r.end));
+    for (let k = 1; k < parts.rows.length; k++) {
+      if (body.slice(parts.rows[k - 1].end, parts.rows[k].start).trim()) throw new Error('This table has something between its rows that sorting would lose.');
+    }
+    const isHeader = (xml) => /<w:tblHeader\b(?![^>]*w:val="(?:0|false|off)")/.test(xml.slice(0, Math.max(0, xml.indexOf('<w:tc'))));
+    let lead = 0;
+    while (lead < rows.length && isHeader(rows[lead])) lead += 1;
+    if (header === true && lead === 0) lead = 1;
+    if (header === false) lead = 0;
+    const keyOf = (rowXml) => {
+      const cell = this._rowCellSpans(rowXml)[cellIndex];
+      return cell ? [...rowXml.slice(cell.start, cell.end).matchAll(/<w:t\b[^>]*>([^<]*)<\/w:t>/g)].map((m) => unesc(m[1])).join('').trim() : '';
+    };
+    const sortable = rows.slice(lead).map((xml, k) => ({ xml, key: keyOf(xml), k }));
+    const numberOf = (s) => Number(s.replace(/[,\s]/g, '').replace(/%$/, ''));
+    const numeric = sortable.some((r) => r.key) && sortable.every((r) => !r.key || /^[-+]?[\d,\s]*\.?\d+%?$/.test(r.key));
+    const collator = new Intl.Collator(undefined, { numeric: true, sensitivity: 'base' });
+    sortable.sort((a, b) => {
+      if (!a.key || !b.key) return (!a.key) - (!b.key) || a.k - b.k;
+      const d = numeric ? numberOf(a.key) - numberOf(b.key) : collator.compare(a.key, b.key);
+      return (descending ? -d : d) || a.k - b.k;
+    });
+    if (lead >= rows.length) return this;
+    this._spliceBody(parts.rows[lead].start, parts.rows[rows.length - 1].end, sortable.map((r) => r.xml).join(''));
+    return this;
+  }
+
+  /**
+   * Table Layout → Convert to Text: each row a paragraph, its cells' words —
+   * runs and their looks kept — between tabs or commas; or, by paragraph marks,
+   * each cell's paragraphs on their own. A table inside a cell gives its words.
+   */
+  tableToText(tableStart, separator = 'tab') {
+    const parts = this._tableParts(tableStart);
+    const { body } = this._body();
+    const runsOf = (xml) => [...xml.matchAll(/<w:p\b[^>]*\/>|<w:p\b[^>]*>([\s\S]*?)<\/w:p>/g)]
+      .map((m) => (m[1] || '').replace(/<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>|<w:pPr\b[^>]*\/>/, ''));
+    const between = separator === 'comma' ? '<w:r><w:t xml:space="preserve">, </w:t></w:r>' : '<w:r><w:tab/></w:r>';
+    const out = [];
+    for (const row of parts.rows) {
+      const rowXml = body.slice(row.start, row.end);
+      const cells = this._rowCellSpans(rowXml).map((c) => runsOf(rowXml.slice(c.start, c.end).replace(/<w:tcPr\b[^>]*>[\s\S]*?<\/w:tcPr>/, '')));
+      if (separator === 'paragraph') {
+        for (const cell of cells) for (const p of cell) out.push('<w:p>' + p + '</w:p>');
+      } else {
+        out.push('<w:p>' + cells.map((ps) => ps.filter(Boolean).join('<w:r><w:t xml:space="preserve"> </w:t></w:r>')).join(between) + '</w:p>');
+      }
+    }
+    this._spliceBody(parts.at, parts.end, out.join('') || '<w:p/>');
+    return this;
+  }
+
+  /**
+   * Insert → Table → Convert Text to Table: the body's paragraphs from one to
+   * another as the rows of a table, each split into cells at its tabs or its
+   * commas, as wide as its longest row and ruled as a new table is.
+   */
+  textToTable(from, to, separator = 'tab') {
+    const ps = [];
+    for (let i = Math.min(from, to); i <= Math.max(from, to); i++) {
+      const p = this.editParagraph(i);
+      if (!p) throw new Error('no paragraph at index ' + i);
+      if (p.container) throw new Error('The words to make a table of are in a table already.');
+      ps.push(p);
+    }
+    const textOf = (xml) => [...xml.matchAll(/<w:t\b[^>]*>([^<]*)<\/w:t>|<w:tab\/>/g)].map((m) => (m[0] === '<w:tab/>' ? '\t' : unesc(m[1]))).join('');
+    const rows = ps.map((p) => textOf(p.xml).split(separator === 'comma' ? ',' : '\t').map((t) => (separator === 'comma' ? t.trim() : t)));
+    const cols = Math.max(1, Math.min(63, ...rows.map((r) => r.length)));
+    const colW = Math.max(240, Math.floor(this._contentWidthTwips() / cols));
+    const borders = '<w:tblBorders>' + ['top', 'left', 'bottom', 'right', 'insideH', 'insideV'].map((side) => '<w:' + side + ' w:val="single" w:sz="4" w:space="0" w:color="auto"/>').join('') + '</w:tblBorders>';
+    const cell = (text) => '<w:tc><w:tcPr><w:tcW w:w="' + colW + '" w:type="dxa"/></w:tcPr>' + (text ? '<w:p><w:r><w:t xml:space="preserve">' + esc(text) + '</w:t></w:r></w:p>' : '<w:p/>') + '</w:tc>';
+    const tbl = '<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/>' + borders + '</w:tblPr><w:tblGrid>' + ('<w:gridCol w:w="' + colW + '"/>').repeat(cols) + '</w:tblGrid>'
+      + rows.map((r) => '<w:tr>' + Array.from({ length: cols }, (_, c) => cell(r[c] ?? '')).join('') + '</w:tr>').join('') + '</w:tbl>';
+    const { body } = this._body();
+    const first = ps[0];
+    const last = ps[ps.length - 1];
+    const after = body.slice(last.end);
+    const spacer = after === '' || /^<w:(tbl|sectPr)\b/.test(after) ? '<w:p/>' : '';
+    this._spliceBody(first.start, last.end, tbl + spacer);
+    return this;
+  }
+
   deleteTable(tableStart) {
     const parts = this._tableParts(tableStart);
     // A document must keep a paragraph for the caret to land in; if the
