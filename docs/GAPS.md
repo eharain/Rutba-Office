@@ -82,16 +82,19 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   Table 1, Grid Table 1 Light, Grid Table 4 and List Table 4 in each accent,
   written in the document's theme colours when it has none), its options,
   shading and borders with a pen; Table Layout puts rows and columns in and
-  takes them out, merges and splits cells, splits the table, sets a column's
+  takes them out, merges cells and splits one into columns and rows (or a
+  merged one back), draws a line through a cell with the Draw Table pen to
+  split it there and rubs one out with the Eraser, splits the table, sets a column's
   width, AutoFit and Distribute Columns, aligns the table and a cell's
   words, turns a cell's words to read up or down, sets the cells' margins,
   repeats header rows, sorts the rows by a column, works out a formula
   (=SUM(ABOVE), =B2*C2, =AVERAGE(B2:B4) and the like) and updates them
   all, converts the table to text and back, turns it right to left and
   shows or hides its gridlines; Properties sets its width, alignment and
-  alt text and the caret's row and column. Not yet: drawing a table by
-  hand; a formula is worked out again on Update all formulas, as Word does
-  on F9, not as its numbers are typed.
+  alt text and the caret's row and column. Not yet: the pen drawing a new
+  table's outline on the page, as Word's does (Insert → Table makes one); a
+  formula is worked out again on Update all formulas, as Word does on F9,
+  not as its numbers are typed.
 - **Fields.** Bookmarks arrived 2026-09-24, Insert → Bookmark naming a span
   of paragraphs (`w:bookmarkStart`/`w:bookmarkEnd`) that Go To finds again
   and a bookmarked paragraph stays editable through it. Cross-references
