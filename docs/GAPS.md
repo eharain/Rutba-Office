@@ -2,7 +2,7 @@
 
 Written 2026-09-09, from the code rather than from memory. Three sources: the
 suite's own register of unbuilt controls (257 of them then, 36 in
-1.29.5, 28 in 1.29.8, 24 in 1.29.9 — 4 in Documents, 8 in Worksheets, 12 in Presentations — each a
+1.29.5, 28 in 1.29.8, 24 in 1.29.9, 20 in 1.29.10 — 4 in Documents, 5 in Worksheets, 11 in Presentations — each a
 `<Soon>` in a ribbon with a sentence saying what it needs), a reading of what the engines
 write as against what they read, and the things a person expects that are not
 in either list because nothing in the interface offers them at all.
@@ -31,7 +31,7 @@ a suite.
 | **Password-protected files** | **Built, 2026-09-25** | An encrypted `.docx`, `.xlsx` or `.pptx` opens through a Password dialog, reading Agile and Standard Encryption and checking the file's HMAC. Info → Encrypt with Password saves Agile AES-256/SHA-512 inside a compound file as Office writes one, and the autosave copy is encrypted too. Since 2026-10-08 a password-protected Office 97–2003 file opens too — RC4 CryptoAPI and Office 97/2000 RC4 in `.doc`, `.xls` and `.ppt`, and Excel 95's XOR; Word's own older XOR obfuscation is refused with a message saying so. |
 | **A spell-check pass** | **Built, 2026-09-25** | Review → Spelling (F7) runs an Editor pane over a document, a workbook or a deck with Change, Change All, Ignore and Add to Dictionary. It uses English (UK) and English (US) Hunspell dictionaries on the machine and a personal dictionary shared by the three apps. Since 1.29.8 Review → Thesaurus (Shift+F7) opens a pane of words of like meaning from a thesaurus of the suite's own, some six thousand words in British spelling, in all three apps. Suggestions are not ranked by how common a word is ("brwn" offers bran before brown). The language is chosen once per document, not per paragraph; words marked as another language or not to be checked (Review → Language, 1.29.1) are read past rather than checked in their own. The grid and the slides have no spelling right-click. No other languages ship yet. |
 | **Accessibility check** | **Built, 2026-09-25** | Review → Check Accessibility lists Errors, Warnings and Tips under Office's rule names in all three apps, with one-click fixes, Alt Text, Mark as decorative and a status-bar indicator that follows edits. Since 2026-10-08 a table cell's shading — its own and its table style's — is read for contrast, and merged cells in a document unmerge in one click; merged cells elsewhere and unclear links have no one-click fix. |
-| **Right-to-left layout** | **Built, 2026-10-08** | A paragraph Word marks right to left, or whose style does, runs from the right margin with its indents, hang, borders and drop cap mirrored; Home → Paragraph turns one either way, and its alignment is written mirrored as Word writes it. Since 2026-10-08 the ruler and tab stops count from the right margin in such a paragraph, a table runs from the right (`w:bidiVisual`, Table Layout → Right to Left), a section lays its columns from the right, Page Layout → Sheet Right-to-Left mirrors a worksheet, and a slide's paragraphs run right to left from Home → Paragraph. Since 1.29.8 a document's PDF prints Arabic, Hebrew, Greek and Cyrillic in a font the computer has that may be embedded, subset to the glyphs used with a ToUnicode map, Arabic joined (Urdu's and Persian's letters among them), right-to-left lines in drawing order by the bidirectional algorithm. Not yet: the ribbons themselves, and a workbook's or a deck's PDF in those scripts. |
+| **Right-to-left layout** | **Built, 2026-10-08** | A paragraph Word marks right to left, or whose style does, runs from the right margin with its indents, hang, borders and drop cap mirrored; Home → Paragraph turns one either way, and its alignment is written mirrored as Word writes it. Since 2026-10-08 the ruler and tab stops count from the right margin in such a paragraph, a table runs from the right (`w:bidiVisual`, Table Layout → Right to Left), a section lays its columns from the right, Page Layout → Sheet Right-to-Left mirrors a worksheet, and a slide's paragraphs run right to left from Home → Paragraph. Since 1.29.8 a document's PDF prints Arabic, Hebrew, Greek and Cyrillic in a font the computer has that may be embedded, subset to the glyphs used with a ToUnicode map, Arabic joined (Urdu's and Persian's letters among them), right-to-left lines in drawing order by the bidirectional algorithm. A workbook's and a deck's PDF, laid out and printed by Chromium, carry those scripts as text too, which a window check now holds them to. Not yet: the ribbons themselves. |
 | **Localisation** | **Started, 2026-10-08** | A message catalogue: each string looked up by its English words (`t`, and `tn` for counts under each language's plural rules), the language taken from the setting or the system, `messages.json` made from the sources by tools/extract-messages.mjs and checked current. The shell, the ribbon's own controls, the Password, Restrict, proofing and Print dialogs and the home window go through it; most of the apps' own words do not yet, and no other language is translated. |
 
 ---
@@ -117,8 +117,9 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   Address Block, Greeting Line and rules; preview; a merge to a new
   document, to the printer or to e-mail through Mail; envelopes and Avery
   label sheets. The Ask, Fill-in and Set Bookmark rules arrived in 1.29.9,
-  their questions answered before the merge runs; the recipient list's
-  ticks kept in the file are not.
+  their questions answered before the merge runs; since 1.29.10 the
+  recipient list's ticks and sort are kept in the file, in a part of the
+  suite's own (Word keys its own by its data source's record ids).
 - **Recording tracked changes.** Recorded since 2026-09-25: Review → Track
   Changes writes `w:trackRevisions`, typing and deleting are kept as
   `w:ins`/`w:del` with author and date, four markup views, Accept and Reject
@@ -226,11 +227,19 @@ it is where the gaps are.
   queries live in a part of the suite's own, which Excel keeps but does not
   read as its own Power Query (that is a binary package this suite neither
   reads nor writes), and there is no M language, no web or database source.
+  Merge Queries (left outer, inner, left anti, full outer) and Append
+  Queries arrived in 1.29.10, a query reading another query's result.
 - **A cut pasted** carries every reference with it since 1.29.8, as Excel's
   does: formulas on any sheet and defined names that name only the moved
   cells follow them, onto another sheet too.
-- **Office Scripts, macros**: not built, and macros are
-  deliberately never run — a workbook that runs code it arrived with is how
+- **Scripts** arrived in 1.29.10: Automate → New Script, All Scripts and
+  Record Actions, scripts in the shape of Office Scripts (`function
+  main(workbook)`) kept on this computer, run in a worker that reaches
+  nothing but a snapshot of the workbook, their edits one undo step. Only
+  the commonest of Office Scripts' calls are there (ranges, values,
+  formulas, number formats, fonts, fills, alignment, sheets added and
+  renamed); a script that awaits is refused.
+- **Macros** are deliberately never run — a workbook that runs code it arrived with is how
   ransomware starts. VBA in a file is preserved untouched.
 
 ## 3. Presentations — the deck
@@ -287,7 +296,8 @@ document and workbook writers.
   are editable since 2026-10-07. Background styles
   arrived 2026-09-24: Design → Background Styles gives a slide its own
   `p:bg` — a solid colour, a theme colour or a gradient — with Apply to
-  all, though the master's own background is still not editable there.
+  all, and in Slide Master view the Slide Master tab's Background Styles
+  sets the master's own or a layout's.
   The Layers pane of the same day gives the drawing order, hiding and naming;
   grouping and alignment across shapes arrived 2026-09-25.
 - **Structure**: since 2026-09-24 Home → Section adds, renames and removes
@@ -305,7 +315,9 @@ document and workbook writers.
   as PowerPoint writes a path drawn by hand) and effects by paragraph in
   1.29.9.
 - **Review**: comments on a slide arrived 2026-09-25, written as
-  PowerPoint 365's modern comments; tracked changes on a deck are not. Find and replace across
+  PowerPoint 365's modern comments; tracked changes on a deck are not, but
+  since 1.29.10 Review → Show Changes lists what is different about a deck
+  since it was last open on this computer, slide by slide. Find and replace across
   a deck arrived 2026-09-24: Home → Find (Ctrl+F) and Replace (Ctrl+H) open
   a small pane at the stage's own top right, the way Word's find pane does
   rather than a dialog over the slide; Next and Previous walk every hit in
