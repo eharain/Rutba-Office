@@ -3253,6 +3253,28 @@ export class SheetView {
       }
     }
 
+    // The merges inside the selection go along with the rest of its look, as
+    // Excel's fill takes them: each repeated, a whole one at a time, where
+    // it falls inside the new cells and over no merge already there.
+    const merges = [];
+    if (mode !== 'values') {
+      const all = this.merges.get(this.activeSheet) ?? [];
+      const inside = all.filter((m) => m.top >= s.top && m.bottom <= s.bottom && m.left >= s.left && m.right <= s.right);
+      const size = vertical ? s.bottom - s.top + 1 : s.right - s.left + 1;
+      const lo = Math.min(start, end);
+      const hi = Math.max(start, end);
+      const overlaps = (a, b) => !(a.right < b.left || a.left > b.right || a.bottom < b.top || a.top > b.bottom);
+      for (let k = 1; inside.length && k <= Math.ceil(count / size); k++) {
+        const off = k * size * outward;
+        for (const m of inside) {
+          const n = vertical ? { top: m.top + off, bottom: m.bottom + off, left: m.left, right: m.right } : { top: m.top, bottom: m.bottom, left: m.left + off, right: m.right + off };
+          const from = vertical ? n.top : n.left;
+          const to = vertical ? n.bottom : n.right;
+          if (from >= lo && to <= hi && !all.some((e) => overlaps(e, n)) && !merges.some((e) => overlaps(e, n))) merges.push(n);
+        }
+      }
+    }
+
     this._lastFill = { sheet: this.activeSheet, source: { ...s }, target: { ...t } };
     return this._edit('fill', null, writes.map(({ row, col }) => ({ row, col })), () => {
       for (const w of writes) {
@@ -3261,10 +3283,15 @@ export class SheetView {
           this._setStyleIndex(this.activeSheet, w.row, w.col, w.styleIndex ?? null);
         }
       }
+      if (merges.length) {
+        for (const m of merges) this.workbook.addMerge(this.activeSheet, ref(m.top, m.left) + ':' + ref(m.bottom, m.right));
+        this._structuralDirty = true;
+        this._refreshMerges(this.activeSheet);
+      }
       this.selection.collapseTo(t.top, t.left);
       this.selection.extendTo(t.bottom, t.right);
       return this;
-    });
+    }, merges.length ? { parts: [this.workbook.partNameFor(this.activeSheet)] } : undefined);
   }
 
   /**

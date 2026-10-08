@@ -180,3 +180,20 @@ test('Fill Series refuses a step that never reaches its stop, and passes over th
   merged.fillSeries({ step: 1 });
   assert.deepEqual([1, 2, 3, 4].map((r) => input(merged, r, 0)), ['2', '3', '', '5'], 'the hidden cell of the merge is left alone');
 });
+
+test('the fill handle takes a merge along, a whole one at a time, and undo takes it back', () => {
+  const view = open([['Region', 1], [null, 2], [], [], [], [], []]);
+  pick(view, 0, 0, 1, 0);
+  view.mergeSelection();
+  pick(view, 0, 0, 1, 1);
+  view.fill({ top: 0, left: 0, bottom: 6, right: 1 });
+  const merged = (row) => { const m = view.mergeAt(row, 0); return m ? `${m.top}-${m.bottom}` : null; };
+  assert.deepEqual([0, 2, 4, 6].map(merged), ['0-1', '2-3', '4-5', null], 'whole merges only: the last row has no room for one');
+  assert.equal(view.mergeAt(2, 1), null, 'the merge is the merge, not the column beside it');
+  view.undo();
+  assert.equal(view.mergeAt(2, 0), null, 'undone');
+  assert.equal(merged(0), '0-1', 'the first one stays');
+  pick(view, 0, 0, 1, 1);
+  view.fill({ top: 0, left: 0, bottom: 3, right: 1 }, { mode: 'values' });
+  assert.equal(view.mergeAt(2, 0), null, 'Fill Without Formatting takes no merge');
+});
