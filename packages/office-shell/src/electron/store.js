@@ -8,7 +8,7 @@
 import { app, safeStorage } from 'electron';
 import fs from 'node:fs';
 import path from 'node:path';
-import { removeEntry, renameEntry } from '../recent-store.js';
+import { removeEntry, renameEntry, presentEntries } from '../recent-store.js';
 
 function readJson(file, fallback) {
   try {
@@ -80,7 +80,8 @@ export function createStores() {
   };
 
   const recentApi = {
-    list: () => recent.filter((r) => fs.existsSync(r.path)).slice(0, 30),
+    // Looked for together, without waiting on a drive that has gone (see presentEntries).
+    list: () => presentEntries(recent, { exists: (p) => fs.promises.access(p).then(() => true, () => false) }),
     add: ({ path: p, app: which }) => {
       if (!p) return recentApi.list();
       recent = [

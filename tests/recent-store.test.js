@@ -1,7 +1,7 @@
 // The recent-files list's own bookkeeping, apart from Electron and the disk.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { removeEntry, renameEntry } from '../packages/office-shell/src/recent-store.js';
+import { removeEntry, renameEntry, presentEntries } from '../packages/office-shell/src/recent-store.js';
 
 const list = () => [
   { path: '/docs/report.docx', name: 'report.docx', app: 'word', at: 3 },
@@ -29,4 +29,14 @@ test('renameEntry on an unknown path is a no-op', () => {
   const before = list();
   const out = renameEntry(before, '/docs/nowhere.docx', '/docs/elsewhere.docx');
   assert.deepEqual(out, before);
+});
+
+test('the Recent list waits on no file for long: a drive that does not answer is listed, a file that is gone is not', async () => {
+  const list = [{ path: 'C:/here.docx' }, { path: 'Z:/lost/drive.xlsx' }, { path: 'C:/gone.pptx' }];
+  const exists = (p) => (p.startsWith('Z:') ? new Promise(() => {}) : Promise.resolve(p !== 'C:/gone.pptx'));
+  const started = Date.now();
+  const shown = await presentEntries(list, { exists, timeoutMs: 80 });
+  assert.ok(Date.now() - started < 1000, 'answered without waiting on the lost drive');
+  assert.deepEqual(shown.map((r) => r.path), ['C:/here.docx', 'Z:/lost/drive.xlsx']);
+  assert.equal((await presentEntries(Array.from({ length: 50 }, (_, i) => ({ path: `f${i}` })), { exists: () => true, limit: 30 })).length, 30);
 });

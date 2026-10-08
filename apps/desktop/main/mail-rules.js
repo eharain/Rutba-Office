@@ -128,6 +128,9 @@ export function planRules(rows, rules) {
  */
 export function applyPlan(plan, { store, accountId, folderFor }) {
   const tally = { matched: plan.length, moved: 0, starred: 0, read: 0, deleted: 0, pinned: 0 };
+  // The messages leaving each folder, taken out of it together at the end.
+  const gone = new Map();
+  const leaving = (folder) => { if (!gone.has(folder)) gone.set(folder, []); return gone.get(folder); };
 
   for (const { row, actions } of plan) {
     // A message can only be moved once, and moving it makes every later action
@@ -182,7 +185,7 @@ export function applyPlan(plan, { store, accountId, folderFor }) {
     }
 
     if (remove) {
-      store.remove(accountId, row.folder, row.id);
+      leaving(row.folder).push(row.id);
       tally.deleted++;
       continue;
     }
@@ -190,12 +193,14 @@ export function applyPlan(plan, { store, accountId, folderFor }) {
       const message = store.get(accountId, row.folder, row.id);
       if (message) {
         store.put(accountId, destination, message, { force: true });
-        store.remove(accountId, row.folder, row.id);
+        leaving(row.folder).push(row.id);
         store.upsertFolder(accountId, { path: destination, name: String(destination).split('/').pop() });
         tally.moved++;
       }
     }
   }
 
+  // Each folder messages left is written once, however many left it.
+  for (const [folder, ids] of gone) store.removeMany(accountId, folder, ids);
   return tally;
 }

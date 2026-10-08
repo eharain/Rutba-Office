@@ -270,6 +270,7 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const isContact = (address) => isKnownContact(contacts, address);
       const to = folderFor(accountId, 'junk') || 'Junk';
       const kept = [];
+      const gone = [];
       for (const row of rows) {
         const message = store.get(accountId, folder, row.id);
         const verdict = message ? junkVerdict(message, settings, { isContact }) : { junk: false };
@@ -278,9 +279,11 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
           continue;
         }
         store.put(accountId, to, { ...message, junk: { why: verdict.why, reason: JUNK_REASONS[verdict.why], score: verdict.score } }, { force: true });
-        store.remove(accountId, folder, row.id);
+        gone.push(row.id);
         junked++;
       }
+      // Taken out of the Inbox in one write of its index, not one a message.
+      if (gone.length) store.removeMany(accountId, folder, gone);
       if (junked) store.upsertFolder(accountId, { path: to, name: to.split('/').pop(), ...classify(to) });
       rows = kept;
     }
@@ -905,14 +908,17 @@ export function createMailService({ stores, holdBlob, broadcast, userData, oauth
       const into = roleOf(accountId, to);
       const teach = into === 'junk' && from !== 'junk' ? true : from === 'junk' && into !== 'junk' && into !== 'trash' ? false : null;
       let settings = teach === null ? null : junk(accountId);
+      const moved = [];
       for (const id of ids || []) {
         const message = store.get(accountId, folder, id);
         if (!message) continue;
         const { junk: _note, ...clean } = message;
         if (settings) settings = learnJunk(settings, clean, teach);
         store.put(accountId, to, into === 'junk' ? message : clean, { force: true });
-        store.remove(accountId, folder, id);
+        moved.push(id);
       }
+      // The folder they left is written once, however many moved.
+      if (moved.length) store.removeMany(accountId, folder, moved);
       if (settings) saveModel(settings.model);
       store.upsertFolder(accountId, { path: to, name: to.split('/').pop() });
       return { moved: (ids || []).length };
