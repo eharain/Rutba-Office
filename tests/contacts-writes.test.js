@@ -27,3 +27,19 @@ test('a burst of saves is one write, and the file holds every card', async () =>
     fs.promises.rename = realRename;
   }
 });
+
+test('a list says only that a card has a photo; the card itself carries it, and saving a listed card keeps it', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-contacts-'));
+  const contacts = createContactsService({ stores: { dir }, broadcast: null });
+  const photo = Buffer.from('a photo, as bytes').toString('base64');
+  const vcard = ['BEGIN:VCARD', 'VERSION:3.0', 'FN:Ann Lee', 'N:Lee;Ann;;;', `PHOTO;ENCODING=b;TYPE=JPEG:${photo}`, 'EMAIL:ann@example.com', 'END:VCARD', ''].join('\r\n');
+  contacts.importText({ text: vcard });
+  const [listed] = contacts.list({});
+  assert.equal(listed.photoUrl, null, 'no photo in the list');
+  assert.equal(listed.hasPhoto, true);
+  const full = contacts.get({ id: listed.id });
+  assert.match(full.photoUrl, /^data:image\/jpeg;base64,/);
+  contacts.save({ contact: { ...listed, org: 'Rutba' } });
+  assert.match(contacts.get({ id: listed.id }).photoUrl, /^data:image\/jpeg;base64,/, 'the photo kept through a save from the list');
+  assert.equal(contacts.get({ id: listed.id }).org, 'Rutba');
+});

@@ -241,7 +241,7 @@ export default function Contacts({ app, shell, boot }) {
   const card = selected && !draft ? (
     <div className="ct-card">
       <div className="ct-head">
-        <Avatar contact={selected} size={72} />
+        <Avatar contact={selected} size={72} shell={shell} />
         <div className="ct-who">
           <h2>{selected.display}</h2>
           {selected.title || selected.org ? <div className="ct-sub">{[selected.title, selected.org].filter(Boolean).join(' · ')}</div> : null}
@@ -431,7 +431,7 @@ export default function Contacts({ app, shell, boot }) {
                   onClick={() => { setSelectedId(c.id); setDraft(null); }}
                   onContextMenu={(e) => { setSelectedId(c.id); menu.open(e, menuItems(commands, ['contact.edit', 'contact.mail', '-', 'contact.delete'])); }}
                 >
-                  <Avatar contact={c} size={30} />
+                  <Avatar contact={c} size={30} shell={shell} />
                   <span className="ct-item-text">
                     <span className="name">{c.display || '(no name)'}</span>
                     <span className="sub">{c.emails?.[0]?.value || c.org || c.phones?.[0]?.value || ''}</span>
@@ -467,9 +467,30 @@ function splitTyped(full) {
   return { given, family, middle: words.join(' '), prefix };
 }
 
-function Avatar({ contact, size }) {
+/** Photos asked for once a card, by its id and when it last changed. */
+const photos = new Map();
+
+/** A card's photo, asked for when it is first drawn: a list sends only that there is one. */
+function usePhoto(shell, contact) {
+  const key = contact?.id && contact.hasPhoto && !contact.photoUrl ? `${contact.id}:${contact.updatedAt || ''}` : null;
+  const [url, setUrl] = useState(() => (key ? photos.get(key) ?? null : null));
+  useEffect(() => {
+    if (!key || !shell) return undefined;
+    if (photos.has(key)) { setUrl(photos.get(key)); return undefined; }
+    let live = true;
+    shell.contacts.get({ id: contact.id }).then((full) => {
+      photos.set(key, full?.photoUrl || null);
+      if (live) setUrl(full?.photoUrl || null);
+    }).catch(() => {});
+    return () => { live = false; };
+  }, [key, shell, contact?.id]);
+  return contact?.photoUrl || url;
+}
+
+function Avatar({ contact, size, shell = null }) {
   const style = { width: size, height: size, fontSize: Math.round(size * 0.38) };
-  if (contact.photoUrl) return <img className="ct-avatar" src={contact.photoUrl} alt="" style={style} />;
+  const photoUrl = usePhoto(shell, contact);
+  if (photoUrl) return <img className="ct-avatar" src={photoUrl} alt="" style={style} />;
   const hue = [...String(contact.display || contact.name?.full || '')].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 7);
   return <span className="ct-avatar" style={{ ...style, background: `hsl(${hue} 45% 82%)`, color: `hsl(${hue} 50% 28%)` }}>{initialsOf(contact)}</span>;
 }

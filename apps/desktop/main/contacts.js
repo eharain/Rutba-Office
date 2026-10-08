@@ -34,10 +34,16 @@ const writeJsonLater = async (file, value) => {
 
 const norm = (s) => String(s || '').trim().toLowerCase();
 
-/** A card as the window shows it: the photo as a URL it can put in an <img>. */
-function present(c) {
-  const photo = c.photo?.data ? `data:${c.photo.mediaType || 'image/jpeg'};base64,${c.photo.data}` : c.photo?.uri || null;
-  return { ...c, display: displayName(c), photoUrl: photo, photo: undefined };
+/**
+ * A card as the window shows it: the photo as a URL it can put in an <img>.
+ * In a list (`photo: false`) only whether it has one: every card's photo
+ * went to the window as base64 on every list, megabytes for an address book
+ * of pictures, and the window asks for a card's own when it draws it.
+ */
+function present(c, { photo = true } = {}) {
+  const hasPhoto = Boolean(c.photo?.data || c.photo?.uri);
+  const url = !photo && c.photo?.data ? null : c.photo?.data ? `data:${c.photo.mediaType || 'image/jpeg'};base64,${c.photo.data}` : c.photo?.uri || null;
+  return { ...c, display: displayName(c), photoUrl: url, hasPhoto, photo: undefined };
 }
 
 /** A card as the file keeps it: photo bytes as base64 text. */
@@ -159,7 +165,7 @@ export function createContactsService({ stores, broadcast, people = null }) {
       const hit = q
         ? all.filter((c) => [displayName(c), c.org, c.title, c.nickname, ...(c.emails || []).map((e) => e.value), ...(c.phones || []).map((p) => p.value), ...(c.categories || [])].some((v) => norm(v).includes(q)))
         : all;
-      return hit.map(present);
+      return hit.map((c) => present(c, { photo: false }));
     },
 
     get: ({ id }) => {
@@ -172,15 +178,16 @@ export function createContactsService({ stores, broadcast, people = null }) {
       const now = Date.now();
       if (contact.id && byId(contact.id)) {
         const kept = byId(contact.id);
-        const photo = contact.photoUrl && !contact.photo ? kept.photo : storable(contact).photo;
-        Object.assign(kept, { ...contact, photo, photoUrl: undefined, display: undefined, updatedAt: now, book: kept.book, remote: kept.remote });
+        // A card from a list carries only that it has a photo: the one kept stays.
+        const photo = (contact.photoUrl || contact.hasPhoto) && !contact.photo ? kept.photo : storable(contact).photo;
+        Object.assign(kept, { ...contact, photo, photoUrl: undefined, hasPhoto: undefined, display: undefined, updatedAt: now, book: kept.book, remote: kept.remote });
         touch(kept);
         save();
         return present(kept);
       }
       // A new card goes to the address book chosen for new cards, when an account set one.
       const book = state.defaultBook && (state.books || []).some((b) => b.id === state.defaultBook) ? state.defaultBook : undefined;
-      const fresh = { ...storable(contact), id: crypto.randomUUID(), createdAt: now, updatedAt: now, photoUrl: undefined, display: undefined, book, remote: undefined };
+      const fresh = { ...storable(contact), id: crypto.randomUUID(), createdAt: now, updatedAt: now, photoUrl: undefined, hasPhoto: undefined, display: undefined, book, remote: undefined };
       state.contacts.push(fresh);
       touch(fresh);
       save();
