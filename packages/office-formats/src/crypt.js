@@ -251,6 +251,10 @@ function agileSecretKey(info, password) {
   const s = agileSpec(p);
   if (s.cipher !== 'AES') throw new EncryptedFileError('unsupported', `its cipher (${s.cipher}) is not AES`);
   const name = cipherName(s.keyBits, s.chaining);
+  // The spin count is the file's to name, and every round is a hash on the
+  // main thread: 4,000,000,000 held the whole application for hours after a
+  // password was typed. Office itself refuses anything past ten million.
+  if (Number(p.spinCount) > 10000000) throw new EncryptedFileError('damaged', 'its password spin count is higher than any Office program writes');
   const spun = spinPassword(password, s.salt, Number(p.spinCount) || 0, s.alg);
   const iv = fit(s.salt, s.blockSize);
   const input = aes(false, name, agileKey(spun, BLOCK_KEYS.verifierHashInput, s.keyBits, s.alg), iv, Buffer.from(p.encryptedVerifierHashInput || '', 'base64'));

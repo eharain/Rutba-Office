@@ -48,6 +48,14 @@ function partsOf(view) {
  */
 export function applyScriptEdits(view, edits = []) {
   if (!edits.length) return 0;
+  // The edits come back from a worker running someone's script: a cell
+  // beyond Excel's grid would be written into the file, which Excel then
+  // calls damaged, so it is refused before anything is changed.
+  for (const e of edits) {
+    if ((e.kind === 'value' || e.kind === 'formula') && !(Number.isInteger(e.row) && e.row >= 0 && e.row <= 1048575 && Number.isInteger(e.col) && e.col >= 0 && e.col <= 16383)) {
+      throw new Error('A script cannot set a cell outside the worksheet (A1 to XFD1048576)');
+    }
+  }
   view._structureGate();
   let cells = 0;
   const FORMAT_KEYS = { bold: 'bold', italic: 'italic', underline: 'underline', color: 'fontColour', fill: 'fill', fontSize: 'fontSize', fontFamily: 'fontName', align: 'align', wrap: 'wrap', numberFormat: 'numberFormat' };
@@ -75,8 +83,11 @@ export function applyScriptEdits(view, edits = []) {
           cells += 1;
           break;
         case 'clear':
-          for (let r = e.top; r <= Math.min(e.bottom, e.top + 100000); r++) {
-            for (let c = e.left; c <= e.right; c++) if (view.calc.getInput(e.sheet, r, c) !== '') { view._setCellOn(e.sheet, r, c, ''); cells += 1; }
+          // Only as far as the sheet is used: a whole-sheet range walked
+          // 1.6 billion empty cells and held the window for minutes.
+          const used = view.calc.usedBounds(e.sheet);
+          for (let r = e.top; r <= Math.min(e.bottom, used.maxRow); r++) {
+            for (let c = e.left; c <= Math.min(e.right, used.maxCol); c++) if (view.calc.getInput(e.sheet, r, c) !== '') { view._setCellOn(e.sheet, r, c, ''); cells += 1; }
           }
           break;
         case 'format': {

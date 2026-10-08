@@ -22,7 +22,7 @@
 import { CompoundFile } from './cfb.js';
 import {
   DocError, buildModel, readStyles, resolveStyles, groupTables, readPicture,
-  ICO, u8, u16, i16, u32, i32, FC,
+  ICO, u8, u16, i16, u32, i32, FC, entriesIn,
 } from './msdoc.js';
 import { decodeIn, encode1252 } from './codepage.js';
 
@@ -451,7 +451,7 @@ function readOldPieces(table, clx, w2, unicode, translate) {
   if (table[at] !== 0x02) throw new DocError('the document\'s piece table is damaged');
   const lcb = w2 ? u16(table, at + 1) : u32(table, at + 1);
   const plc = at + (w2 ? 3 : 5);
-  const n = Math.floor((lcb - 4) / 12);
+  const n = entriesIn(lcb, 12, plc, table.length);
   const pieces = [];
   for (let i = 0; i < n; i++) {
     const pcd = plc + (n + 1) * 4 + i * 8;
@@ -468,7 +468,7 @@ function readOldPieces(table, clx, w2, unicode, translate) {
  */
 function readOldFkps(wd, table, plc, cpn, pnFirst, which, kind, translate) {
   const w2 = kind !== 'word6';
-  const n = plc.lcb >= 4 ? Math.floor((plc.lcb - 4) / 6) : 0;
+  const n = plc.lcb >= 4 ? entriesIn(plc.lcb, 6, plc.fc, table.length) : 0;
   let pns = [];
   for (let i = 0; i < n; i++) pns.push(u16(table, plc.fc + (n + 1) * 4 + i * 2));
   if (cpn > n && pnFirst) pns = Array.from({ length: cpn }, (_, i) => pnFirst + i);

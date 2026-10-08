@@ -7,6 +7,8 @@
 
 /* ── the reading frame ───────────────────────────────────────────────────── */
 
+import { withoutBlocks } from '@rutba/mailbox/mime';
+
 export const BLOCKED_NOTE = 'blocked-remote';
 
 /**
@@ -31,7 +33,7 @@ export function bodyDocument(message, { remote = false, dark = false, plain = fa
   }
 
   if (!remote) {
-    html = html.replace(/(<img\b[^>]*?\bsrc=)(["'])(https?:[^"']*)\2/gi, `$1$2$2 data-${BLOCKED_NOTE}=$2$3$2`);
+    html = html.replace(/(<img\b[^<>]*?\bsrc=)(["'])(https?:[^"']*)\2/gi, `$1$2$2 data-${BLOCKED_NOTE}=$2$3$2`);
   }
 
   const csp = remote
@@ -58,11 +60,11 @@ export function bodyDocument(message, { remote = false, dark = false, plain = fa
 
 /** HTML to something readable, for the plain-text view and for quoting a reply. */
 export function stripTags(html) {
-  return String(html || '')
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')
+  // Linear in the message however many "<" it holds with no ">" after them.
+  return withoutBlocks(html)
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
+    .replace(/<[^<>]*>/g, '')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')

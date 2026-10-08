@@ -93,8 +93,13 @@ export class CompoundFile {
     }
     let next = this.difatStart;
     let guard = 0;
-    while (next !== ENDOFCHAIN && next !== FREESECT && guard++ < 1 << 20) {
+    // A DIFAT chain cannot be longer than the file has sectors; a longer one
+    // is a loop, and following it for a million turns filled memory.
+    const sectorsInFile = Math.ceil(this.b.length / this.sectorSize);
+    while (next !== ENDOFCHAIN && next !== FREESECT && guard++ < sectorsInFile) {
       const sec = this.#sector(next);
+      // A DIFAT sector past the end of a cut file is not there to read.
+      if (sec.byteLength < this.sectorSize) break;
       const per = this.sectorSize / 4 - 1;
       const dv = new DataView(sec.buffer, sec.byteOffset, sec.byteLength);
       for (let i = 0; i < per; i++) {
@@ -119,7 +124,9 @@ export class CompoundFile {
     const out = [];
     let s = start;
     let guard = 0;
-    while (s !== ENDOFCHAIN && s !== FREESECT && s !== FATSECT && s !== DIFSECT && guard++ < 1 << 22) {
+    // A chain cannot visit more sectors than its table has entries; a longer
+    // one has a loop in it, and was followed four million times.
+    while (s !== ENDOFCHAIN && s !== FREESECT && s !== FATSECT && s !== DIFSECT && guard++ < fat.length) {
       out.push(s);
       s = fat[s];
       if (s === undefined) break;
@@ -139,7 +146,9 @@ export class CompoundFile {
         const at = i * 128;
         const nameLen = dv.getUint16(at + 64, true);
         let name = '';
-        for (let c = 0; c + 1 < Math.max(0, nameLen - 2); c += 2) {
+        // A name is at most 32 characters, 64 bytes; a damaged length read
+        // on into the next entry, and off the end of the sector.
+        for (let c = 0; c + 1 < Math.max(0, Math.min(nameLen, 64) - 2); c += 2) {
           name += String.fromCharCode(dv.getUint16(at + c, true));
         }
         const type = sec[at + 66];
@@ -173,18 +182,21 @@ export class CompoundFile {
 
     // Rebuild the tree: each storage names one child, and siblings hang off it
     // in a red-black tree we only need to walk, never to balance.
-    const walk = (id, into) => {
-      if (id === FREESECT || id >= entries.length) return;
+    // An entry met twice is a loop in a damaged tree, which recursed until
+    // the stack gave out.
+    const walk = (id, into, seen) => {
+      if (id === FREESECT || id >= entries.length || seen.has(id)) return;
+      seen.add(id);
       const e = entries[id];
       if (!e) return;
-      walk(e.left, into);
+      walk(e.left, into, seen);
       into.push(id);
-      walk(e.right, into);
+      walk(e.right, into, seen);
     };
     for (const e of entries) {
       if (e.type === 1 || e.type === 5) {
         const kids = [];
-        walk(e.child, kids);
+        walk(e.child, kids, new Set());
         e.children = kids;
       }
     }
@@ -212,7 +224,10 @@ export class CompoundFile {
 
   #readChainBytes(start, size, fat, unit) {
     const chain = this.#chain(start, fat);
-    const out = new Uint8Array(Math.min(size, chain.length * unit));
+    // No stream is longer than the bytes it is read from: a 2 GB size on a
+    // small file allocated 2 GB.
+    const room = unit === this.sectorSize ? this.b.length : this.miniStream.length;
+    const out = new Uint8Array(Math.min(size, chain.length * unit, room));
     let at = 0;
     for (const s of chain) {
       if (at >= out.length) break;

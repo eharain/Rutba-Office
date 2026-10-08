@@ -108,7 +108,7 @@ export function readPieces(table, clx) {
   if (table[at] !== 0x02) throw new DocError('the document\'s piece table is damaged');
   const lcb = u32(table, at + 1);
   const plc = at + 5;
-  const n = Math.floor((lcb - 4) / 12);
+  const n = entriesIn(lcb, 12, plc, table.length);
   const pieces = [];
   for (let i = 0; i < n; i++) {
     const cpStart = u32(table, plc + i * 4);
@@ -431,7 +431,7 @@ function cellShading(o) {
 function readChpx(wd, table, plc) {
   const out = [];
   if (!plc.lcb) return out;
-  const n = Math.floor((plc.lcb - 4) / 8);
+  const n = entriesIn(plc.lcb, 8, plc.fc, table.length);
   for (let i = 0; i < n; i++) {
     const pn = u32(table, plc.fc + (n + 1) * 4 + i * 4) & 0x3fffff;
     const page = pn * 512;
@@ -451,7 +451,7 @@ function readChpx(wd, table, plc) {
 function readPapx(wd, table, plc) {
   const out = [];
   if (!plc.lcb) return out;
-  const n = Math.floor((plc.lcb - 4) / 8);
+  const n = entriesIn(plc.lcb, 8, plc.fc, table.length);
   for (let i = 0; i < n; i++) {
     const pn = u32(table, plc.fc + (n + 1) * 4 + i * 4) & 0x3fffff;
     const page = pn * 512;
@@ -667,10 +667,21 @@ function readSep(grpprl) {
   return sep;
 }
 
+/**
+ * How many entries a table of `per` bytes each, `lcb` long at `fc`, can hold
+ * in a stream of `length` bytes. The count in the file is a 32-bit field
+ * a damaged file sets to billions; it is never allowed past the stream.
+ */
+export function entriesIn(lcb, per, fc, length) {
+  const claimed = Math.floor((lcb - 4) / per);
+  const room = Math.floor((length - fc - 4) / per);
+  return Math.max(0, Math.min(claimed, room));
+}
+
 /** A PLC: n+1 positions, then n entries of `size` bytes. */
 function readPlc(table, plc, size) {
   if (!plc.lcb) return { cps: [], entries: [] };
-  const n = Math.floor((plc.lcb - 4) / (4 + size));
+  const n = entriesIn(plc.lcb, 4 + size, plc.fc, table.length);
   const cps = [];
   for (let i = 0; i <= n; i++) cps.push(i32(table, plc.fc + i * 4));
   const entries = [];

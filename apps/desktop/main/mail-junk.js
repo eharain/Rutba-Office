@@ -16,6 +16,8 @@
 //
 // Pure: settings and messages in, verdicts and new settings out.
 
+import { withoutBlocks } from '@rutba/mailbox/mime';
+
 /** How hard the filter looks: Outlook's four settings. */
 export const JUNK_LEVELS = ['off', 'low', 'high', 'safeOnly'];
 
@@ -170,9 +172,8 @@ export function charsetsOf(message) {
   return [...out];
 }
 
-const stripHtml = (html) => String(html || '')
-  .replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ')
-  .replace(/<[^>]+>/g, ' ')
+const stripHtml = (html) => withoutBlocks(html)
+  .replace(/<[^<>]*>/g, ' ')
   .replace(/&nbsp;/g, ' ')
   .replace(/&amp;/g, '&');
 

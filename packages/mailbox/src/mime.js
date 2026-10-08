@@ -454,6 +454,19 @@ const DEVICE_NAMES = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$/i;
  * dots and spaces go (Windows drops them and then cannot find the file), and
  * a device name such as `CON.txt` is made an ordinary one.
  */
+/**
+ * The extension an attachment is opened under, lower case, letters and
+ * digits only. A sender names the file, so the name can end "exe " or
+ * "exe::$DATA": Windows drops the space and the stream name when it makes the
+ * file, so the program ran while the check for a program saw some other
+ * word. Whatever follows the first character that cannot be in an extension
+ * is not part of it.
+ */
+export function attachmentExtension(name) {
+  const last = String(name ?? '').split('.').pop();
+  return (/^[A-Za-z0-9_~+-]*/.exec(last)[0] || '').toLowerCase();
+}
+
 export function attachmentFileName(name, fallback = 'attachment') {
   let base = String(name ?? '').split(/[\\/]/).pop()
     .replace(/[<>:"|?*\u0000-\u001f\u007f]/g, '_')
@@ -469,13 +482,36 @@ export function attachmentFileName(name, fallback = 'attachment') {
   return base;
 }
 
+/**
+ * HTML with its script and style blocks taken out, in one pass. A block with
+ * no end drops the rest of the text. The lazy pattern this replaces started
+ * a fresh scan to the end of the message at every unclosed "<script", which
+ * took minutes on a megabyte of them.
+ */
+export function withoutBlocks(html) {
+  const text = String(html || '');
+  const open = /<(script|style)\b/gi;
+  let out = '';
+  let at = 0;
+  for (let m = open.exec(text); m; m = open.exec(text)) {
+    out += `${text.slice(at, m.index)} `;
+    const close = new RegExp(`</${m[1]}\\s*>`, 'gi');
+    close.lastIndex = m.index;
+    const end = close.exec(text);
+    at = end ? end.index + end[0].length : text.length;
+    open.lastIndex = at;
+  }
+  return out + text.slice(at);
+}
+
 /** A plain-text shadow of an HTML body, for previews and search. */
 export function stripHtml(html) {
-  return String(html || '')
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, ' ')
+  // Tags are matched as "<", then anything that is not "<" or ">", then ">":
+  // a run of "<" with no ">" cost a scan to the end for each one.
+  return withoutBlocks(html)
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
+    .replace(/<[^<>]*>/g, ' ')
     .replace(/&nbsp;/g, ' ')
     .replace(/&amp;/g, '&')
     .replace(/&lt;/g, '<')

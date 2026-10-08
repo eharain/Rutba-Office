@@ -108,7 +108,9 @@ export function scriptWorkbook(snapshot) {
       },
       setFormula: (f) => range.setValue(String(f).startsWith('=') ? f : `=${f}`),
       setFormulas: (m) => range.setValues(m.map((row) => row.map((f) => (String(f).startsWith('=') ? f : `=${f}`)))),
-      clear: () => { for (let r = box.top; r <= box.bottom; r++) for (let c = box.left; c <= box.right; c++) s.cells.delete(`${r},${c}`); edits.push({ kind: 'clear', sheet: s.name, ...box }); },
+      // Walks the cells that exist, not the box: a whole-sheet range is
+      // seventeen billion addresses, and the script ran out its time on them.
+      clear: () => { for (const key of [...s.cells.keys()]) { const [r, c] = key.split(',').map(Number); if (r >= box.top && r <= box.bottom && c >= box.left && c <= box.right) s.cells.delete(key); } edits.push({ kind: 'clear', sheet: s.name, ...box }); },
       setNumberFormat: (code) => format({ numberFormat: String(code) }),
       setNumberFormatLocal: (code) => format({ numberFormat: String(code) }),
       select: () => { edits.push({ kind: 'select', sheet: s.name, ...box }); },

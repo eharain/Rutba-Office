@@ -31,6 +31,7 @@ import Reader from './mail/reader.js';
 import Compose from './mail/compose.js';
 import { AccountDialog, ImportDialog, ImportPreview, ImportingDialog, FilesView, PeopleView, SignatureDialog, OutOfOfficeDialog, JunkDialog } from './mail/dialogs.js';
 import { RulesDialog } from './mail/rules.js';
+import { attachmentExtension } from '@rutba/mailbox/mime';
 import { withSignature, withSignatureHtml, signatureTextToHtml } from '@rutba/mailbox/signature';
 import { textToHtml } from './mail/richtext.js';
 
@@ -544,7 +545,7 @@ export default function Mail({ app, shell }) {
           });
           if (!held) continue;
           const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
-          const { path } = await shell.fs.temp({ ext: a.filename.split('.').pop(), bytes });
+          const { path } = await shell.fs.temp({ ext: attachmentExtension(a.filename), bytes });
           attachments.push({ filename: a.filename, path });
         }
 
@@ -641,7 +642,7 @@ export default function Mail({ app, shell }) {
       if (!held) return toast('That attachment is not stored.', { tone: 'bad' });
       const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
       const name = String(meta?.filename || held.name);
-      const { path } = await shell.fs.temp({ ext: name.split('.').pop(), bytes });
+      const { path } = await shell.fs.temp({ ext: attachmentExtension(name), bytes });
       const owner = appFor(kindFromExtension(name));
       // Anything the suite understands opens in the app that owns it; anything
       // else goes to whatever this computer uses for that kind of file.
@@ -649,7 +650,7 @@ export default function Mail({ app, shell }) {
       // For a program, "whatever this computer uses" is the computer itself:
       // one click on a .exe or a .js chip ran it, with no word first. It is
       // still the person's file and their choice, so it is asked, not refused.
-      if (RUNS_WHEN_OPENED.has(name.split('.').pop().toLowerCase())) {
+      if (RUNS_WHEN_OPENED.has(attachmentExtension(name))) {
         const { response } = await shell.dialog.message({
           type: 'warning',
           message: `${held.name} is a program. Opening it runs it on this computer.`,
