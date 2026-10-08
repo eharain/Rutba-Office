@@ -611,6 +611,12 @@ function equationXml({ xml = null, linear = null, display = true } = {}) {
   return built.xml;
 }
 
+/** A query's file source: a CSV, TSV or text file, read as UTF-8. Anything else is refused. */
+function readQuerySource(file) {
+  if (!/\.(csv|tsv|txt)$/i.test(String(file || ''))) throw new Error('A query reads a .csv, .tsv or .txt file');
+  return fs.readFileSync(file, 'utf8');
+}
+
 export function createDocumentService({ holdBlob, recoveryDir = null, measureMath = null, proofing = null }) {
   // Review → Check Accessibility and Spelling (main/proofing.js): ops for the
   // tables below, and `proof` for what reads.
@@ -1909,6 +1915,16 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
       dataFields: a.dataFields || [], chart: a.chart || null, fileName: a.fileName || null,
     }).name,
     refreshPivot: (v, a) => { v.refreshPivot(a.name); },
+    // Get & Transform: a CSV source is read here, and only a delimited text file.
+    addQuery: (v, a) => JSON.stringify(v.addQuery({ name: a.name, source: a.source, steps: a.steps || [], read: readQuerySource })),
+    editQuery: (v, a) => JSON.stringify(v.editQuery({ id: a.id, name: a.name, source: a.source, steps: a.steps, read: readQuerySource })),
+    refreshQueries: (v, a) => v.refreshQueries({ id: a.id ?? null, read: readQuerySource }),
+    removeQuery: (v, a) => v.removeQuery({ id: a.id }),
+    previewQuery: (v, a) => JSON.stringify(v.previewQuery({ source: a.source, steps: a.steps || [], upTo: a.upTo ?? null, read: readQuerySource, limit: a.limit || 100 })),
+    // From Table/Range: the table at the active cell, or the block of data round it.
+    querySourceHere: (v) => JSON.stringify(v.querySourceHere()),
+    // Queries & Connections → Edit: the query whole, steps and all.
+    queryInfo: (v, a) => JSON.stringify(v.queries().find((q) => q.id === a.id) || null),
     // PivotTable Fields: the rows, columns and values of a pivot changed, and the pivot laid out again.
     pivotLayout: (v, a) => { v.setPivotLayout(a.name, { rows: a.rows || [], cols: a.cols || [], values: a.values || [] }); },
     // Insert → PivotChart with the cursor in a pivot.
@@ -2379,7 +2395,7 @@ export function createDocumentService({ holdBlob, recoveryDir = null, measureMat
   // a document nobody trusts.
   /** Operations that move the selection and change nothing else. */
   const NAV_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'selectAll']);
-  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources']);
+  const CLEAN_OPS = new Set(['select', 'selectRow', 'selectColumn', 'move', 'tab', 'enter', 'findNext', 'gotoName', 'scrollTo', 'viewport', 'beginEdit', 'cancelEdit', 'setSelection', 'moveCaret', 'selectAll', 'copy', 'cut', 'buildingBlock', 'formatBrush', 'sheet', 'gotoBookmark', 'errorCheck', 'watchOpen', 'watchAdd', 'watchRemove', 'listFields', 'calculate', 'commentsOpen', 'stepComment', 'scrollSplit', 'mergePreview', 'findRecipient', 'setMergeMapping', 'mergeRefresh', 'unlockRange', 'consolidateInfo', 'forecastInfo', 'forecastPreview', 'slicerSources', 'previewQuery', 'querySourceHere', 'queryInfo']);
 
   /* ── the namespace ────────────────────────────────────────────────────── */
 

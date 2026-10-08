@@ -48,6 +48,7 @@ import {
   clearOutline, autoOutline, outlineFrame, selectionAxis, subtotal, removeSubtotals, listFields,
 } from './outline.js';
 import { advancedFilter, clearAdvancedFilter, filterNames } from './advanced-filter.js';
+import { readQueries, addQuery, refreshQueries, editQuery, removeQuery, previewQuery, describeSource } from './query-load.js';
 import { paginate, planBands, pageSetup, readPageSetup, parseArea, PAPER, PX_PER_MM } from './print.js';
 import { inferProgram, runProgram } from './flash-fill.js';
 import { consolidate as consolidateRanges, lastConsolidation, consolidateRefText } from './consolidate.js';
@@ -1513,6 +1514,8 @@ export class SheetView {
       comments: this.commentsOpen ? this.allThreads() : null,
       // The defined names, for the Name Manager and the name box's jump list.
       names: this.names(),
+      // Get & Transform: the queries kept in the workbook, for Queries & Connections.
+      queries: this.queries().map(({ id, name, sourceText, loaded, refreshed, load, steps }) => ({ id, name, sourceText, loaded: loaded ?? null, refreshed: refreshed ?? null, sheet: load?.sheet ?? null, steps: steps?.length ?? 0 })),
       // The tables (ListObjects) on this sheet, for styling and the filter
       // UI — plus the sheet-level autofilter as a pseudo-entry named #sheet,
       // so the grid's funnels and panel serve both without a second path.
@@ -2729,6 +2732,44 @@ export class SheetView {
   /** Data → Show Detail / Hide Detail, at the active cell. */
   showDetail() { return outlineDetail(this, true); }
   hideDetail() { return outlineDetail(this, false); }
+
+  // ---- Get & Transform (query-load.js) ----------------------------------
+
+  /** The workbook's queries: name, source, steps and where each is loaded. */
+  queries() { return readQueries(this).map((q) => ({ ...q, sourceText: describeSource(q.source) })); }
+
+  /** Data → From Table/Range, From Text/CSV, Close & Load: a query run, loaded on a sheet of its own, kept. */
+  addQuery(spec) { return addQuery(this, spec); }
+
+  /** Data → Refresh All, or one query's Refresh. Answers how many ran. */
+  refreshQueries(spec = {}) { return refreshQueries(this, spec); }
+
+  /** The query editor's Close & Load on a query already loaded. */
+  editQuery(spec) { return editQuery(this, spec); }
+
+  /** Delete a query; its sheet stays. */
+  removeQuery(spec) { return removeQuery(this, spec); }
+
+  /** What a query would load, the first rows of it: for the editor, nothing changed. */
+  previewQuery(spec) { return previewQuery(this, spec); }
+
+  /**
+   * Data → From Table/Range: the source at the active cell — the table it is
+   * in, or else the block of data round it, its first row the headings.
+   */
+  querySourceHere() {
+    const { row, col } = this.selection.active;
+    const table = this._tableAt(row, col);
+    if (table) {
+      const source = { kind: 'table', table: table.name };
+      return { source, sourceText: describeSource(source), name: table.name };
+    }
+    if (!this.isFilled(row, col)) throw new Error('Select a cell in a list or a table first: From Table/Range reads the data round it.');
+    const r = this._currentRegion(row, col);
+    if (r.bottom === r.top) throw new Error('From Table/Range needs a row of headings and the data under it.');
+    const source = { kind: 'range', sheet: this.activeSheet, ref: `${colName(r.left)}${r.top + 1}:${colName(r.right)}${r.bottom + 1}` };
+    return { source, sourceText: describeSource(source), name: `${this.activeSheet} query` };
+  }
 
   /** Data → Ungroup → Clear Outline. */
   clearOutline() { return clearOutline(this); }

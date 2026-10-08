@@ -16,6 +16,7 @@ import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS, pivotAround } from './sheets/ribbon.js';
 import { PivotFieldsPane, PIVOT_FIELDS_CSS } from './sheets/pivot-fields.js';
+import { QueryEditor, QueriesPane, rememberSource, cleanError } from './sheets/queries.js';
 import { SITE } from '@rutba/office-formats/registry';
 import { SymbolDialog } from './word/dialogs.js';
 import { useSheetsReview } from './sheets/review.js';
@@ -180,6 +181,9 @@ export default function Sheets({ app, shell, boot }) {
   const [selPane, setSelPane] = useState(false);
   /** PivotTable Fields: the pivot whose pane was closed (it opens again for another, or from Field List). */
   const [pfClosed, setPfClosed] = useState(null);
+  /** Data → Get & Transform: the query open in the Power Query Editor, and Queries & Connections open or not. */
+  const [queryEdit, setQueryEdit] = useState(null);
+  const [queriesOpen, setQueriesOpen] = useState(false);
   const gridRef = useRef(null);
   /** The element that takes the keys: the grid's own container. */
   const shRef = useRef(null);
@@ -250,6 +254,12 @@ export default function Sheets({ app, shell, boot }) {
       toast(String(err?.message || err), { tone: 'bad' });
     }
   }, [dispatch, shell, toast]);
+
+  /** The Power Query Editor's preview: what a query would load, the first hundred rows, nothing changed. */
+  const previewQuery = useCallback(async (spec) => {
+    const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'previewQuery', ...spec }] });
+    return JSON.parse(next.opResult || 'null');
+  }, [doc?.id, shell]);
 
   /** Paste, or Paste Special with `special`: what the system clipboard holds, words and table both. */
   const clipIn = useCallback(async (special = null) => {
@@ -2604,6 +2614,11 @@ export default function Sheets({ app, shell, boot }) {
       }
       case 'refreshAll':
         await dispatch({ op: 'select', row: at.row, col: at.col });
+        // The queries first: a pivot may read what one loads.
+        if (model?.queries?.length) {
+          const said = await tryOps({ op: 'refreshQueries' });
+          if (said) toast(cleanError(said), { tone: 'warn', ms: 4500 });
+        }
         try { await shell.doc.apply({ id: doc.id, ops: [{ op: 'refreshPivot' }] }).then((next) => { setDoc(next); setModel(next.model); }); } catch { /* no pivot to refresh */ }
         toast('Refreshed.', { tone: 'good', ms: 2000 });
         return;
@@ -2748,6 +2763,49 @@ export default function Sheets({ app, shell, boot }) {
       // Insert → PivotTable, and PivotChart: on a pivot a chart of it (its
       // kind from the menu), on data PivotChart & PivotTable — a dialog that
       // opens on the list round the cursor.
+      // Data → Get & Transform: a query begun on the table or list at the cell, or on a
+      // text file, shaped in the editor; Queries & Connections and what it does to one.
+      case 'queryFromRange': {
+        try {
+          const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'select', row: at.row, col: at.col }, { op: 'querySourceHere' }] });
+          const here = JSON.parse(next.opResult || 'null');
+          if (here) setQueryEdit({ name: here.name, source: here.source, sourceText: here.sourceText, steps: [] });
+        } catch (err) {
+          toast(cleanError(err), { tone: 'warn', ms: 4500 });
+        }
+        return;
+      }
+      case 'queryFromCsv': {
+        const file = arg || (await shell.dialog.open({ title: 'Get Data From Text/CSV', filters: [{ name: 'Text and CSV files', extensions: ['csv', 'tsv', 'txt'] }] }))?.[0];
+        if (!file) return;
+        const base = String(file).split(/[\\/]/).pop();
+        setQueryEdit({ name: base.replace(/\.[^.]+$/, ''), source: { kind: 'csv', path: file }, sourceText: base, steps: [{ kind: 'promoteHeaders' }] });
+        return;
+      }
+      case 'recentSource':
+        setQueryEdit({ name: arg.sourceText.replace(/\.[^.]+$/, ''), source: arg.source, sourceText: arg.sourceText, steps: [{ kind: 'promoteHeaders' }] });
+        return;
+      case 'queriesPane': setQueriesOpen((v) => !v); return;
+      case 'queryEdit': {
+        try {
+          const next = await shell.doc.apply({ id: doc.id, ops: [{ op: 'queryInfo', id: arg.id }] });
+          const q = JSON.parse(next.opResult || 'null');
+          if (q) setQueryEdit({ id: q.id, name: q.name, source: q.source, sourceText: q.sourceText, steps: q.steps || [] });
+        } catch (err) {
+          toast(cleanError(err), { tone: 'warn', ms: 4500 });
+        }
+        return;
+      }
+      case 'queryRefresh': {
+        const said = await tryOps({ op: 'refreshQueries', id: arg.id });
+        toast(said ? cleanError(said) : `${arg.name} refreshed`, { tone: said ? 'warn' : 'good', ms: said ? 4500 : 2000 });
+        return;
+      }
+      case 'queryDelete':
+        await dispatch({ op: 'removeQuery', id: arg.id });
+        toast(`Query ${arg.name} deleted — its sheet stays, as values`, { ms: 3500 });
+        return;
+      case 'queryGoTo': if (arg.sheet) await dispatch({ op: 'sheet', name: arg.sheet }); return;
       case 'pivotFields': setPfClosed(null); return;
       case 'pivotTable':
       case 'pivotChart': {
@@ -3385,6 +3443,18 @@ export default function Sheets({ app, shell, boot }) {
           {errorsPane()}
           {watchPane()}
           {commentsPane()}
+          {queriesOpen ? (
+            <Panel right width={300} resizable title="Queries & Connections" actions={<Button icon="close" title="Close the pane — Queries & Connections opens it again" onClick={() => setQueriesOpen(false)} />}>
+              <QueriesPane
+                queries={model?.queries || []}
+                onRefresh={(q) => act('queryRefresh', q)}
+                onEdit={(q) => act('queryEdit', q)}
+                onDelete={(q) => act('queryDelete', q)}
+                onRefreshAll={() => act('refreshAll')}
+                onGoTo={(q) => act('queryGoTo', q)}
+              />
+            </Panel>
+          ) : null}
           {pivotPane ? (
             <Panel right width={300} resizable title="PivotTable Fields" actions={<Button icon="close" title="Close the pane — Field List opens it again" onClick={() => setPfClosed(pivotPane.name)} />}>
               <style>{PIVOT_FIELDS_CSS}</style>
@@ -3914,6 +3984,26 @@ export default function Sheets({ app, shell, boot }) {
             setDialog(null);
             toast('Forecast sheet made — the table and its chart, in front of the data', { tone: 'good', ms: 4000 });
             return null;
+          }}
+        />
+      ) : null}
+
+      {queryEdit && doc ? (
+        <QueryEditor
+          query={queryEdit}
+          preview={previewQuery}
+          onClose={() => setQueryEdit(null)}
+          onLoad={async (q) => {
+            const op = q.id ? { op: 'editQuery', id: q.id, name: q.name, source: q.source, steps: q.steps } : { op: 'addQuery', name: q.name, source: q.source, steps: q.steps };
+            const next = await shell.doc.apply({ id: doc.id, ops: [op] });
+            setDoc(next);
+            if (next.patch) setModel((m) => (m ? withSelection(m, next.patch) : m));
+            else setModel(next.model);
+            const done = JSON.parse(next.opResult || 'null');
+            if (q.source.kind === 'csv') rememberSource({ source: q.source, sourceText: q.sourceText });
+            setQueryEdit(null);
+            setQueriesOpen(true);
+            if (done) toast(`${done.name}: ${done.rows} row${done.rows === 1 ? '' : 's'} loaded on ${done.sheet || done.load?.sheet}`, { tone: 'good', ms: 3500 });
           }}
         />
       ) : null}

@@ -20,7 +20,8 @@
     "./formula-refs": "./src/formula-refs.js",
     "./flash-fill": "./src/flash-fill.js",
     "./advanced-filter": "./src/advanced-filter.js",
-    "./styles-write": "./src/styles-write.js"
+    "./styles-write": "./src/styles-write.js",
+    "./queries": "./src/queries.js"
   },
   "dependencies": {
     "@rutba/formula": "*",

@@ -11,6 +11,7 @@ import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select } from '@rutba/office-ui';
 import { catalogByCategory } from '@rutba/formula';
 import { NUMBER_FORMATS } from './dialogs.js';
+import { recentSources } from './queries.js';
 import { MARGIN_PRESETS as PRINT_MARGINS } from '../../print.js';
 import { wordArtMenu } from '../../wordart.js';
 import { PEN_COLOURS, PEN_WIDTHS } from '../slides/ink-geometry.js';
@@ -607,14 +608,20 @@ export default function SheetsRibbon({
       {tab === 'data' ? (
         <>
           <Group label="Get & Transform Data">
-            <Button tall icon="import" label="From Text/CSV" title="Open a CSV or TSV file as a workbook" onClick={openFile} />
+            <Button tall icon="import" label="From Text/CSV" title="From Text/CSV — a CSV or TSV file opened as a workbook, or read into this one by a query" onClick={(e) => menu.open(e, [
+              { label: 'Into this workbook, as a query…', icon: 'table', run: () => act('queryFromCsv') },
+              { label: 'Open as a workbook…', icon: 'open', run: openFile },
+            ])} />
             <Soon tall icon="globe" label="From Web" why="Fetching a table from a web page is a network feature this suite does not do on its own." />
-            <Soon icon="table" label="From Table/Range" why="Power Query is not here." />
-            <Soon icon="clock" label="Recent Sources" why="Power Query is not here." />
+            <Button icon="table" label="From Table/Range" title="From Table/Range — a query on the table or the list round the cell, shaped in the Power Query Editor and loaded on a sheet of its own" onClick={() => act('queryFromRange')} />
+            <Button icon="clock" label="Recent Sources" title="Recent Sources — a file a query read lately, in a new query" onClick={(e) => {
+              const list = recentSources();
+              menu.open(e, list.length ? list.map((r) => ({ label: r.sourceText, title: r.source.path, icon: 'file', run: () => act('recentSource', r) })) : [{ label: 'No recent sources yet', disabled: true }]);
+            }} />
           </Group>
           <Group label="Queries & Connections">
-            <Button tall icon="refresh" label="Refresh All" title="Recalculate and refresh every pivot table" onClick={() => act('refreshAll')} />
-            <Soon icon="list" label="Queries & Connections" why="Power Query is not here." />
+            <Button tall icon="refresh" label="Refresh All" title="Refresh All — every query run again on its source, every pivot table refreshed, the workbook recalculated" onClick={() => act('refreshAll')} />
+            <Button icon="list" label="Queries & Connections" title="Queries & Connections — the workbook's queries, each refreshed, edited or deleted" onClick={() => act('queriesPane')} />
           </Group>
           <Group label="Sort & Filter">
             <Button tall icon="sort" label="A → Z" title="Sort the selection ascending by its first column" onClick={() => commands['sheet.sortAsc'].run()} />
