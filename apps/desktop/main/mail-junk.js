@@ -17,6 +17,7 @@
 // Pure: settings and messages in, verdicts and new settings out.
 
 import { withoutBlocks } from '@rutba/mailbox/mime';
+import { authenticationReport } from './mail-insight.js';
 
 /** How hard the filter looks: Outlook's four settings. */
 export const JUNK_LEVELS = ['off', 'low', 'high', 'safeOnly'];
@@ -285,10 +286,14 @@ export function serverSaysJunk(message) {
 export function junkVerdict(message, settings, { isContact = null } = {}) {
   const { address } = senderOf(message);
   if (onList(settings.blocked, address)) return { junk: true, why: 'blocked', score: null };
-  if (onList(settings.safe, address)) return { junk: false, why: 'safe', score: null };
+  // A From or a To anyone can write: a message the delivering server called
+  // junk is let in on a Safe Sender's, a Safe Recipient's or a contact's
+  // name only when the server also found it really came from there.
+  const trusted = !serverSaysJunk(message) || authenticationReport(message).ok === true;
+  if (trusted && onList(settings.safe, address)) return { junk: false, why: 'safe', score: null };
   // Safe Recipients: mail sent to a group or a mailing list kept safe.
-  if ((settings.safeRecipients || []).length && recipientsOf(message).some((a) => onList(settings.safeRecipients, a))) return { junk: false, why: 'safeRecipient', score: null };
-  if (settings.trustContacts && address && isContact?.(address)) return { junk: false, why: 'contact', score: null };
+  if (trusted && (settings.safeRecipients || []).length && recipientsOf(message).some((a) => onList(settings.safeRecipients, a))) return { junk: false, why: 'safeRecipient', score: null };
+  if (trusted && settings.trustContacts && address && isContact?.(address)) return { junk: false, why: 'contact', score: null };
   // The International lists, which work as Blocked Senders do, whatever the level.
   const tld = address.includes('@') ? address.split('@').pop().split('.').pop() : '';
   if (tld && (settings.blockedTlds || []).includes(tld)) return { junk: true, why: 'blockedTld', score: null };

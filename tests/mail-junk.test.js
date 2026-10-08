@@ -246,3 +246,20 @@ test('mail written in a blocked encoding goes to Junk, a multipart one by its te
   assert.equal(full.junk.why, 'blockedEncoding');
   assert.match(full.junk.reason, /Blocked Encodings/);
 });
+
+test('a message the server called junk is let in on a Safe Sender\'s or a contact\'s name only when it really came from them', () => {
+  const s = junkSettings({ ...defaultJunk(), safe: ['boss@work.example'], trustContacts: true });
+  const flagged = (auth) => ({
+    from: [{ address: 'boss@work.example' }],
+    subject: 'Wire the money today',
+    text: 'Urgent.',
+    headers: [{ key: 'x-spam-flag', value: 'YES' }, ...(auth ? [{ key: 'authentication-results', value: auth }] : [])],
+  });
+  assert.deepEqual(junkVerdict(flagged(null), s), { junk: true, why: 'server', score: null }, 'not recorded: the From may be anyone');
+  assert.equal(junkVerdict(flagged('mx.example; spf=fail; dkim=none; dmarc=fail'), s).why, 'server', 'forged');
+  assert.deepEqual(junkVerdict(flagged('mx.example; spf=pass; dkim=pass; dmarc=pass'), s), { junk: false, why: 'safe', score: null }, 'really them');
+  const contact = { from: [{ address: 'pal@home.example' }], subject: 'hi', text: 'x', headers: [{ key: 'x-spam-flag', value: 'YES' }] };
+  assert.equal(junkVerdict(contact, s, { isContact: () => true }).why, 'server');
+  const clean = { from: [{ address: 'boss@work.example' }], subject: 'Lunch', text: 'x', headers: [] };
+  assert.equal(junkVerdict(clean, s).why, 'safe', 'not flagged: a Safe Sender is safe as ever');
+});
