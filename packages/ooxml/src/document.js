@@ -498,8 +498,12 @@ function tableHead(body, at) {
   const la = lookEl ? attrs(lookEl[1]) : {};
   const bits = la['w:val'] != null ? parseInt(la['w:val'], 16) : lookEl ? 0 : 0x04a0;
   const flag = (name, bit) => (la['w:' + name] != null ? la['w:' + name] === '1' || la['w:' + name] === 'true' : Boolean(bits & bit));
+  // Its words for those who cannot see it (Table Properties → Alt Text).
+  const caption = /<w:tblCaption\b[^>]*\bw:val="([^"]*)"/.exec(head)?.[1];
+  const description = /<w:tblDescription\b[^>]*\bw:val="([^"]*)"/.exec(head)?.[1];
+  const alt = caption || description ? { title: caption ? unesc(caption) : '', description: description ? unesc(description) : '' } : null;
   const styleLook = { firstRow: flag('firstRow', 0x20), lastRow: flag('lastRow', 0x40), firstColumn: flag('firstColumn', 0x80), lastColumn: flag('lastColumn', 0x100), noHBand: flag('noHBand', 0x200), noVBand: flag('noVBand', 0x400) };
-  return { gridPx: gridPx.length ? gridPx : null, tableWidth, ...(look ? { look } : {}), borders: bordersOf(borders?.[0] ?? null), styleId, styleLook };
+  return { gridPx: gridPx.length ? gridPx : null, tableWidth, ...(look ? { look } : {}), borders: bordersOf(borders?.[0] ?? null), styleId, styleLook, ...(alt ? { alt } : {}) };
 }
 
 /** A row's own height, if the file sets one, and whether it is exact or a floor. */
@@ -507,7 +511,11 @@ function rowHead(body, at) {
   const firstCell = body.indexOf('<w:tc', at);
   const head = body.slice(at, firstCell === -1 ? at + 1000 : firstCell);
   // A header row (w:tblHeader) repeats at the top of each page the table runs onto.
-  const header = /<w:tblHeader\b(?![^>]*w:val="(?:0|false|off)")/.test(head) ? { header: true } : {};
+  const header = {
+    ...(/<w:tblHeader\b(?![^>]*w:val="(?:0|false|off)")/.test(head) ? { header: true } : {}),
+    // A row that is not to break across pages (w:cantSplit).
+    ...(/<w:cantSplit\b(?![^>]*w:val="(?:0|false|off)")/.test(head) ? { cantSplit: true } : {}),
+  };
   const h = /<w:trHeight\b([^>]*)\/>/.exec(head);
   if (!h) return header;
   const a = attrs(h[1]);
@@ -851,6 +859,8 @@ export class Document {
         ...(tc.span > 1 ? { cellSpan: tc.span } : {}),
         ...(tr.heightPx ? { rowHeightPx: tr.heightPx, rowRule: tr.rule } : {}),
         ...(tr.header ? { rowHeader: true } : {}),
+        ...(tr.cantSplit ? { rowCantSplit: true } : {}),
+        ...(tbl.alt ? { tableAlt: tbl.alt } : {}),
         // The table's lines ride every paragraph in it, a cell's own lines and shading its paragraphs.
         ...(tbl.borders ? { tableBorders: tbl.borders } : {}),
         ...(tc.cellBorders ? { cellBorders: tc.cellBorders } : {}),
@@ -4813,6 +4823,8 @@ export class Document {
       ...(p.cellFill ? { cellFill: p.cellFill } : {}),
       ...(p.tableStyle ? { tableStyle: p.tableStyle } : {}),
       ...(p.cellDirection ? { cellDirection: p.cellDirection } : {}),
+      ...(p.rowCantSplit ? { rowCantSplit: true } : {}),
+      ...(p.tableAlt ? { tableAlt: p.tableAlt } : {}),
       xml: p.xml,
       start: p.start,
       end: p.end,
@@ -6378,6 +6390,44 @@ export class Document {
     const replaced = '<w:p>' + pPr + field + '</w:p>';
     const at = row.start + cell.start + p.index;
     this._spliceBody(at, at + old.length, replaced);
+    return this;
+  }
+
+  /** Table Properties → Alt Text: the table's title and description (w:tblCaption, w:tblDescription), or none. */
+  setTableAltText(tableStart, { title = '', description = '' } = {}) {
+    return this._editTableProps(tableStart, (inner) => {
+      inner = inner.replace(/<w:tblCaption\b[^>]*\/>|<w:tblDescription\b[^>]*\/>/g, '');
+      const el = (title ? '<w:tblCaption w:val="' + esc(title) + '"/>' : '') + (description ? '<w:tblDescription w:val="' + esc(description) + '"/>' : '');
+      if (!el) return inner;
+      const after = /<w:tblPrChange\b/.exec(inner);
+      return after ? inner.slice(0, after.index) + el + inner.slice(after.index) : inner + el;
+    });
+  }
+
+  /** Table Properties → Preferred width: a share of the text width (`pct`, in percent), a fixed width (`dxa`, in twips) or none (`auto`). */
+  setTableWidth(tableStart, { type = 'auto', value = 0 } = {}) {
+    if (!['auto', 'pct', 'dxa'].includes(type)) throw new Error('a table\'s width is a share of the text, a fixed width or none');
+    const w = type === 'pct' ? Math.round(Math.max(1, Math.min(100, Number(value) || 100)) * 50) : type === 'dxa' ? Math.round(Math.max(144, Math.min(31680, Number(value) || 0))) : 0;
+    return this._editTableProps(tableStart, (inner) => {
+      inner = inner.replace(/<w:tblW\b[^>]*\/>/g, '');
+      const el = '<w:tblW w:w="' + w + '" w:type="' + type + '"/>';
+      const lead = /^(?:<w:tblStyle\b[^>]*\/>|<w:tblpPr\b[^>]*\/>|<w:tblOverlap\b[^>]*\/>|<w:bidiVisual\b[^>]*\/>|<w:tblStyleRowBandSize\b[^>]*\/>|<w:tblStyleColBandSize\b[^>]*\/>)*/.exec(inner)[0];
+      return lead + el + inner.slice(lead.length);
+    });
+  }
+
+  /** Table Properties → Row: whether a row may break across pages (w:cantSplit). */
+  setTableRowCantSplit(tableStart, rowIndex, on) {
+    const parts = this._tableParts(tableStart);
+    const row = parts.rows[rowIndex];
+    if (!row) throw new Error('no row ' + rowIndex + ' in this table');
+    this._editRowProps(row, (inner) => {
+      inner = inner.replace(/<w:cantSplit\b[^>]*\/>/g, '');
+      if (!on) return inner;
+      // cantSplit leads, before the height and the header mark, as Word writes it.
+      const after = /<w:(trHeight|tblHeader|tblCellSpacing|jc|hidden)\b/.exec(inner);
+      return after ? inner.slice(0, after.index) + '<w:cantSplit/>' + inner.slice(after.index) : inner + '<w:cantSplit/>';
+    });
     return this;
   }
 

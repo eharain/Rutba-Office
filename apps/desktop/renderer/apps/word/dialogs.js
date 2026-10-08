@@ -87,6 +87,91 @@ export function TableDialog({ onClose, onInsert }) {
   );
 }
 
+/**
+ * Table Layout → Properties, as Word's: the table's preferred width and where
+ * it sits, the caret's row (its height, whether it may break across pages,
+ * whether it repeats as a header) and column (its width), and the table's
+ * Alt Text. Only what is changed is sent.
+ */
+export function TablePropertiesDialog({ current, onClose, onApply }) {
+  const [width, setWidth] = useState(current.width || { type: 'auto', value: 100 });
+  const [align, setAlign] = useState(current.align || 'left');
+  const [rowHeight, setRowHeight] = useState(current.rowHeightCm ?? '');
+  const [cantSplit, setCantSplit] = useState(Boolean(current.cantSplit));
+  const [header, setHeader] = useState(Boolean(current.header));
+  const [columnWidth, setColumnWidth] = useState(current.columnWidthCm ?? '');
+  const [title, setTitle] = useState(current.alt?.title || '');
+  const [description, setDescription] = useState(current.alt?.description || '');
+  const apply = () => {
+    const out = {};
+    if (width.type !== (current.width?.type || 'auto') || Number(width.value) !== Number(current.width?.value ?? 100)) out.width = { type: width.type, value: width.type === 'dxa' ? Math.round(Number(width.value) * 567) : Number(width.value) };
+    if (align !== (current.align || 'left')) out.align = align;
+    if (String(rowHeight) !== String(current.rowHeightCm ?? '')) out.rowHeightTwips = rowHeight === '' ? null : Math.round(Number(rowHeight) * 567);
+    if (cantSplit !== Boolean(current.cantSplit)) out.cantSplit = cantSplit;
+    if (header !== Boolean(current.header)) out.header = header;
+    if (String(columnWidth) !== String(current.columnWidthCm ?? '') && columnWidth !== '') out.columnWidthCm = Number(columnWidth);
+    if (title !== (current.alt?.title || '') || description !== (current.alt?.description || '')) out.alt = { title, description };
+    onApply(out);
+  };
+  return (
+    <Dialog
+      title="Table properties"
+      width={480}
+      onClose={onClose}
+      actions={
+        <>
+          <Button label="Cancel" onClick={onClose} />
+          <Button primary label="OK" onClick={apply} />
+        </>
+      }
+    >
+      <div className="ml-form">
+        <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
+          <Field label="Preferred width">
+            <Select value={width.type} onChange={(e) => setWidth({ type: e.target.value, value: e.target.value === 'pct' ? 100 : e.target.value === 'dxa' ? 15 : 0 })}>
+              <option value="auto">None</option>
+              <option value="pct">Percent of the text</option>
+              <option value="dxa">Centimetres</option>
+            </Select>
+          </Field>
+          <Field label={width.type === 'dxa' ? 'Width (cm)' : 'Width (%)'}>
+            <Input type="number" min="1" max={width.type === 'dxa' ? 55 : 100} step="0.1" disabled={width.type === 'auto'} value={width.type === 'auto' ? '' : width.value} onChange={(e) => setWidth({ ...width, value: e.target.value })} />
+          </Field>
+          <Field label="Alignment">
+            <Select value={align} onChange={(e) => setAlign(e.target.value)}>
+              <option value="left">Left</option>
+              <option value="center">Centre</option>
+              <option value="right">Right</option>
+            </Select>
+          </Field>
+        </div>
+        <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr' }}>
+          <Field label="This row's height (cm, at least)">
+            <Input type="number" min="0.1" max="55" step="0.1" placeholder="As its words need" value={rowHeight} onChange={(e) => setRowHeight(e.target.value)} />
+          </Field>
+          <Field label="This column's width (cm)">
+            <Input type="number" min="0.3" max="50" step="0.1" value={columnWidth} onChange={(e) => setColumnWidth(e.target.value)} />
+          </Field>
+        </div>
+        <label className="about-auto">
+          <input type="checkbox" checked={cantSplit} onChange={(e) => setCantSplit(e.target.checked)} />
+          <span>Keep this row on one page — do not let it break across pages</span>
+        </label>
+        <label className="about-auto">
+          <input type="checkbox" checked={header} onChange={(e) => setHeader(e.target.checked)} />
+          <span>Repeat as a header row at the top of each page</span>
+        </label>
+        <Field label="Alt Text — title">
+          <Input value={title} placeholder="What the table is" onChange={(e) => setTitle(e.target.value)} />
+        </Field>
+        <Field label="Alt Text — description">
+          <Input value={description} placeholder="What it shows, for someone who cannot see it" onChange={(e) => setDescription(e.target.value)} />
+        </Field>
+      </div>
+    </Dialog>
+  );
+}
+
 /* ── headers and footers ─────────────────────────────────────────────────── */
 
 /**

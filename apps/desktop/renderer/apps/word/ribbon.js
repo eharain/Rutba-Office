@@ -791,6 +791,7 @@ export default function WordRibbon({
       {tab === 'tableLayout' && table ? (
         <>
           <Group label="Table">
+            <Button tall icon="settings" label="Properties" title="Table Properties — the table's width, alignment and alt text, the caret's row and column" onClick={() => openDialog('tableProperties')} />
             <Button tall icon="alignCenter" label="Align Table" title="Align Table — the table at the left margin, centred or at the right" onClick={(e) => menu.open(e, [
               { label: 'Left', run: () => tableOp('align', { align: 'left' }) },
               { label: 'Centre', run: () => tableOp('align', { align: 'center' }) },

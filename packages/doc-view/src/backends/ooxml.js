@@ -127,6 +127,9 @@ export class OoxmlBackend {
   tableToText(tableStart, separator) { this.doc.tableToText(tableStart, separator); return this; }
   splitTable(tableStart, rowIndex) { this.doc.splitTable(tableStart, rowIndex); return this; }
   setTableAlign(tableStart, align) { this.doc.setTableAlign(tableStart, align); return this; }
+  setTableAltText(tableStart, alt) { this.doc.setTableAltText(tableStart, alt); return this; }
+  setTableWidth(tableStart, width) { this.doc.setTableWidth(tableStart, width); return this; }
+  setTableRowCantSplit(tableStart, rowIndex, on) { this.doc.setTableRowCantSplit(tableStart, rowIndex, on); return this; }
   insertTableFormula(tableStart, rowIndex, cellIndex, formula, format) { this.doc.insertTableFormula(tableStart, rowIndex, cellIndex, formula, format); return this; }
   setTableCellMargins(tableStart, margins) { this.doc.setTableCellMargins(tableStart, margins); return this; }
   setTableCellDirection(tableStart, rowIndex, cellIndex, dir) { this.doc.setTableCellDirection(tableStart, rowIndex, cellIndex, dir); return this; }

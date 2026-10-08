@@ -320,6 +320,30 @@ test('Table Layout → Formula: an = field worked out from the numbers above or 
   assert.throws(() => into(4, 3, '=SUM(A1:B2)'), /A formula here is one of/);
 });
 
+test('Table Properties: the table\'s alt text and preferred width, a row kept on one page, each read back for the dialog', () => {
+  const view = doc();
+  view.setSelection({ block: at(view, 'North'), offset: 0 });
+  view.tableOp('altText', { title: 'Sales by region', description: 'Q1 & Q2 for the north and the south' });
+  const tblPr = () => /<w:tblPr>[\s\S]*?<\/w:tblPr>/.exec(xmlOf(view))[0];
+  assert.match(tblPr(), /<w:tblCaption w:val="Sales by region"\/><w:tblDescription w:val="Q1 &amp; Q2 for the north and the south"\/><\/w:tblPr>$/, 'last, as the schema has them');
+  assert.deepEqual(blocks(view)[at(view, 'North')].tableAlt, { title: 'Sales by region', description: 'Q1 & Q2 for the north and the south' });
+  view.tableOp('altText', { title: '', description: '' });
+  assert.doesNotMatch(tblPr(), /tblCaption|tblDescription/);
+  view.tableOp('tableWidth', { type: 'pct', value: 80 });
+  assert.match(tblPr(), /<w:tblW w:w="4000" w:type="pct"\/>/);
+  assert.deepEqual(blocks(view)[at(view, 'North')].tableWidth, { type: 'pct', value: 4000 });
+  view.tableOp('tableWidth', { type: 'dxa', value: 5670 });
+  assert.match(tblPr(), /<w:tblW w:w="5670" w:type="dxa"\/>/);
+  assert.equal((tblPr().match(/<w:tblW\b/g) || []).length, 1);
+  view.tableOp('rowCantSplit', { on: true });
+  assert.match(xmlOf(view), /<w:trPr><w:cantSplit\/><\/w:trPr>(?:(?!<\/w:tr>)[\s\S])*North/);
+  assert.equal(blocks(view)[at(view, 'North')].rowCantSplit, true);
+  assert.equal(blocks(view)[at(view, 'South')].rowCantSplit, undefined);
+  view.tableOp('rowCantSplit', { on: false });
+  assert.equal(blocks(view)[at(view, 'North')].rowCantSplit, undefined);
+  assert.throws(() => view.tableOp('tableWidth', { type: 'em', value: 3 }), /share of the text/);
+});
+
 test('through the document service, Convert Text to Table is an operation of its own', () => {
   const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-text-table-')), 'lines.docx');
   fs.writeFileSync(file, buildDocx({ styles: true, paragraphs: [{ text: 'a\tb' }, { text: 'c\td' }] }));

@@ -2173,7 +2173,8 @@ export class DocView {
    * (`{ look }`), `shading` (`{ fill }`), `borders` (`{ kind, pen }`), `sort`
    * (`{ descending, header }`), `toText` (`{ separator }`), `splitTable`, `autoFit`
    * (`{ mode }`), `align` (`{ align }`), `cellMargins` (`{ margins }`) or `textDirection`
-   * (`{ dir }`) or `formula` (`{ formula, format }`). Each is one undo step; deleting the last
+   * (`{ dir }`), `formula` (`{ formula, format }`), `altText` (`{ title, description }`),
+   * `tableWidth` (`{ type, value }`) or `rowCantSplit` (`{ on }`). Each is one undo step; deleting the last
    * row or column deletes the table, as Word does. A merged table refuses —
    * the engine says why.
    */
@@ -2206,6 +2207,9 @@ export class DocView {
       cellMargins: 'setTableCellMargins',
       textDirection: 'setTableCellDirection',
       formula: 'insertTableFormula',
+      altText: 'setTableAltText',
+      tableWidth: 'setTableWidth',
+      rowCantSplit: 'setTableRowCantSplit',
     };
     const method = PORT[op];
     if (!method) throw new Error('unknown table operation: ' + op);
@@ -2321,6 +2325,12 @@ export class DocView {
       } else if (op === 'splitTable') {
         // Table Layout → Split Table: the caret's row starts a table of its own.
         this.doc.splitTable(tableStart, rowIndex);
+      } else if (op === 'altText') {
+        this.doc.setTableAltText(tableStart, { title: arg.title || '', description: arg.description || '' });
+      } else if (op === 'tableWidth') {
+        this.doc.setTableWidth(tableStart, { type: arg.type, value: arg.value });
+      } else if (op === 'rowCantSplit') {
+        this.doc.setTableRowCantSplit(tableStart, rowIndex, Boolean(arg.on));
       } else if (op === 'formula') {
         // Table Layout → Formula: the caret's cell shows the formula's result.
         this.doc.insertTableFormula(tableStart, rowIndex, cellIndex, arg.formula, arg.format || null);
@@ -3523,6 +3533,8 @@ export class DocView {
         ...(b.cellBorders ? { cellBorders: b.cellBorders } : {}),
         ...(b.cellFill ? { cellFill: b.cellFill } : {}),
         ...(b.cellDirection ? { cellDirection: b.cellDirection } : {}),
+        ...(b.rowCantSplit ? { rowCantSplit: true } : {}),
+        ...(b.tableAlt ? { tableAlt: b.tableAlt } : {}),
         ...(b.tableStyle ? { tableStyle: b.tableStyle } : {}),
         // A paragraph in a frame placed on the page — drawn there.
         ...(b.frame ? { frame: b.frame } : {}),

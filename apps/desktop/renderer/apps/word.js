@@ -29,7 +29,7 @@ import { geometryOf, layPages, clearPages, sliceRuns, pageOfElement, columnBoxes
 installWordStyles();
 installRulerStyles();
 import {
-  LinkDialog, TableDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
+  LinkDialog, TableDialog, TablePropertiesDialog, BandDialog, CommentDialog, CommentsDialog, FindDialog, WordCountDialog,
   DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog, WatermarkDialog,
   BookmarkDialog, CrossReferenceDialog, CaptionDialog, HyphenationDialog, ManualHyphenationDialog,
 } from './word/dialogs.js';
@@ -2500,13 +2500,47 @@ export default function Word({ app, shell, boot }) {
         <TableDialog
           onClose={() => setDialog(null)}
           onInsert={async (spec) => {
-            // The engine takes a size; a header row is a formatting decision it
-            // does not model yet, so it is not pretended.
+            // The table goes in with the caret in its first cell; a header row
+            // asked for repeats at the top of each page.
             await apply({ op: 'insertTable', rows: spec.rows, cols: spec.cols });
+            if (spec.header) await apply({ op: 'tableOp', kind: 'headerRows', arg: { on: true } });
             setDialog(null);
           }}
         />
       ) : null}
+
+      {dialog === 'tableProperties' && tableAt ? (() => {
+        // What the dialog starts from: the caret's table, row and column as the model has them.
+        const caret = model?.blocks?.[at] || {};
+        const cm = (px) => (px == null ? null : Math.round((px / (96 / 2.54)) * 100) / 100);
+        const w = caret.tableWidth;
+        return (
+          <TablePropertiesDialog
+            current={{
+              width: w ? (w.type === 'pct' ? { type: 'pct', value: Math.round(w.value / 50) } : w.type === 'dxa' ? { type: 'dxa', value: Math.round((w.value / 567) * 100) / 100 } : { type: 'auto', value: 0 }) : { type: 'auto', value: 0 },
+              align: caret.tableLook?.align || 'left',
+              rowHeightCm: caret.rowHeightPx ? cm(caret.rowHeightPx) : '',
+              cantSplit: Boolean(caret.rowCantSplit),
+              header: Boolean(caret.rowHeader),
+              columnWidthCm: tableAt.gridPx?.[tableAt.col] ? cm(tableAt.gridPx[tableAt.col]) : '',
+              alt: caret.tableAlt || null,
+            }}
+            onClose={() => setDialog(null)}
+            onApply={async (change) => {
+              const ops = [];
+              if (change.width) ops.push({ op: 'tableOp', kind: 'tableWidth', arg: change.width });
+              if (change.align) ops.push({ op: 'tableOp', kind: 'align', arg: { align: change.align } });
+              if ('rowHeightTwips' in change) ops.push({ op: 'setTableRowHeight', table: Number(tableAt.id.slice(1)), row: tableAt.row, twips: change.rowHeightTwips });
+              if ('cantSplit' in change) ops.push({ op: 'tableOp', kind: 'rowCantSplit', arg: { on: change.cantSplit } });
+              if ('header' in change) ops.push({ op: 'tableOp', kind: 'headerRows', arg: { on: change.header } });
+              if (change.columnWidthCm) ops.push({ op: 'tableOp', kind: 'columnWidth', arg: { cm: change.columnWidthCm } });
+              if (change.alt) ops.push({ op: 'tableOp', kind: 'altText', arg: change.alt });
+              if (ops.length) await apply(...ops);
+              setDialog(null);
+            }}
+          />
+        );
+      })() : null}
 
       {dialog === 'print' && doc ? (
         <PrintDialog

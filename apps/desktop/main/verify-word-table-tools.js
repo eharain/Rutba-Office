@@ -412,6 +412,37 @@ export async function verifyWordTableTools(h, { dir }) {
     await until(() => js(`document.querySelector('.wd-page table.wd-table').style.marginLeft === 'auto'`), 'the table centred', 5000).catch(() => {});
     const centred = await js(`(() => { const t = document.querySelector('.wd-page table.wd-table'); return t.style.marginLeft + ' ' + t.style.marginRight; })()`);
     check('word: Align Table → Centre sets the table between the margins', centred === 'auto auto', centred);
+    // Table Layout → Properties: alt text typed in, the row kept on one page, OK.
+    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Properties'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+    await until(() => js(`Boolean([...document.querySelectorAll('.rw-dialog, [role="dialog"]')].find((d) => /Table properties/.test(d.textContent)))`), 'the Table properties dialog', 3000);
+    await js(`(() => {
+      const d = [...document.querySelectorAll('.rw-dialog, [role="dialog"]')].find((x) => /Table properties/.test(x.textContent));
+      const set = (input, value) => { const proto = Object.getPrototypeOf(input); Object.getOwnPropertyDescriptor(proto, 'value').set.call(input, value); input.dispatchEvent(new Event('input', { bubbles: true })); };
+      set(d.querySelector('input[placeholder="What the table is"]'), 'Sales by region');
+      const keep = [...d.querySelectorAll('label')].find((l) => /Keep this row on one page/.test(l.textContent)).querySelector('input');
+      keep.click();
+      [...d.querySelectorAll('button')].find((b) => b.textContent.trim() === 'OK').click();
+      return 'applied';
+    })()`);
+    const caretRow = () => model().blocks[model().blocks.findIndex((b) => b.text === 'North')];
+    await until(() => caretRow()?.tableAlt?.title === 'Sales by region', 'the alt text kept', 5000).catch(() => {});
+    check('word: Table Layout → Properties writes the table\'s alt text and keeps the caret\'s row on one page',
+      caretRow()?.tableAlt?.title === 'Sales by region' && caretRow()?.rowCantSplit === true, JSON.stringify({ alt: caretRow()?.tableAlt, cantSplit: caretRow()?.rowCantSplit }));
+
+    // Insert → Table with its header box ticked: the new table's first row repeats as a header.
+    const end = model().blocks.findIndex((b) => b.text === 'After');
+    await js(`(() => { const a = document.querySelector('.wd-page [data-block="${end}"]'); a.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, button: 0 })); const r = document.createRange(); r.setStart(a.firstChild || a, 0); r.collapse(true); const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.querySelector('.wd-page').dispatchEvent(new MouseEvent('mouseup', { bubbles: true })); return true; })()`);
+    await js(`[...document.querySelectorAll('.rw-tab')].find((t) => t.textContent.trim() === 'Insert')?.click(), 'tab'`);
+    await until(() => js(`Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Table'))`), 'Insert → Table', 3000);
+    await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => n.textContent.trim() === 'Table'); b.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); b.click(); return 'pressed'; })()`);
+    await until(() => js(`Boolean([...document.querySelectorAll('.rw-dialog, [role="dialog"]')].find((d) => /Insert table/.test(d.textContent)))`), 'the Insert table dialog', 3000);
+    const tablesBefore = new Set(model().blocks.filter((b) => b.container).map((b) => b.container.split(':')[0])).size;
+    await js(`(() => { const d = [...document.querySelectorAll('.rw-dialog, [role="dialog"]')].find((x) => /Insert table/.test(x.textContent)); [...d.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Insert').click(); return 'inserted'; })()`);
+    await until(() => new Set(model().blocks.filter((b) => b.container).map((b) => b.container.split(':')[0])).size > tablesBefore, 'the new table', 5000).catch(() => {});
+    await until(() => model().blocks.some((b) => b.rowHeader), 'its header row', 5000).catch(() => {});
+    const headed = model().blocks.filter((b) => b.rowHeader).map((b) => b.container);
+    check('word: Insert table\'s "repeat the first row as a header" makes the new table\'s first row its header', headed.length === 3 && headed.every((c) => /:r0:c\d$/.test(c)), headed.join(' '));
+
     const complaints = await errorsIn(win);
     check('word: a cell\'s direction, margins and the table\'s alignment report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
