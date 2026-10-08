@@ -151,6 +151,7 @@ export class SheetView {
     this.pkg = this.workbook.pkg;
     const { sheet } = toSpreadsheet(this.workbook, { now });
     this.calc = sheet;
+    this.calc.rowHidden = (s, r) => this._rowHidden(s, r);
     this.calc.recalculate();
     // Formulas → Calculation Options, as the file says: a workbook saved in
     // manual mode opens in manual mode. It is calculated once on opening
@@ -252,6 +253,57 @@ export class SheetView {
     this.filterPanel = null;
     /** Pivot definitions, read lazily and dropped when the parts change. */
     this._pivots = null;
+    // The file's hidden rows were not known when the engine first worked the
+    // formulas out: a SUBTOTAL over them is worked out again now.
+    this._hiddenSeen = this._hiddenPrint();
+    if (this._hiddenSeen && this.calc.subtotalsChanged()) this.calc.recalculate({ force: true });
+  }
+
+  /**
+   * Whether a row is hidden, and whether a filter hid it — what SUBTOTAL
+   * asks: 1–11 leave out the rows a filter hides, 101–111 every hidden row.
+   * A hidden row inside a filter's range (the sheet's own or a table's) is
+   * the filter's, as Excel reads a file; any other is hidden by hand.
+   */
+  _rowHidden(sheet, row) {
+    const geo = this.geometry?.get(sheet)
+      ?? [...(this.geometry ?? new Map())].find(([n]) => n.toLowerCase() === String(sheet).toLowerCase())?.[1];
+    if (!geo || !geo.hiddenRows.has(row)) return null;
+    if (!this._filterRows || this._filterRows.stamp !== this._editStamp) this._filterRows = { stamp: this._editStamp, bySheet: new Map() };
+    const name = [...this.geometry].find(([, g]) => g === geo)[0];
+    let ranges = this._filterRows.bySheet.get(name);
+    if (!ranges) {
+      ranges = [];
+      const af = this.workbook.sheetAutoFilter(name);
+      if (af) ranges.push([af.top + 1, af.bottom]);
+      for (const t of this.workbook.tables()) {
+        if (t.sheet !== name || !t.ref) continue;
+        const [a, b] = String(t.ref).replace(/\$/g, '').split(':');
+        try {
+          const [r1] = parseRefPair(a.toUpperCase());
+          const [r2] = b ? parseRefPair(b.toUpperCase()) : [r1];
+          ranges.push([Math.min(r1, r2) + t.headerRowCount, Math.max(r1, r2) - t.totalsRowCount]);
+        } catch { /* a table whose range cannot be read filters nothing */ }
+      }
+      this._filterRows.bySheet.set(name, ranges);
+    }
+    return ranges.some(([top, bottom]) => row >= top && row <= bottom) ? 'filter' : 'manual';
+  }
+
+  /** Which rows hide on each sheet, as a mark that changes whenever they do. */
+  _hiddenPrint() {
+    let mark = '';
+    for (const [name, geo] of this.geometry) if (geo.hiddenRows.size || geo.hiddenVersion) mark += name + ':' + geo.serial + ':' + geo.hiddenVersion + ';';
+    return mark;
+  }
+
+  /** Rows hidden or shown since the last look: every SUBTOTAL worked out again. */
+  _refreshSubtotals() {
+    const mark = this._hiddenPrint();
+    if (mark === this._hiddenSeen) return;
+    this._hiddenSeen = mark;
+    this._filterRows = null;
+    if (this.calc.subtotalsChanged()) this.calc.recalculate();
   }
 
   /**
@@ -355,6 +407,7 @@ export class SheetView {
     } finally {
       this._editDepth -= 1;
       if (outermost) this._editStamp += 1;
+      if (outermost) this._refreshSubtotals();
       if (partsBefore) {
         const entry = this.history.past.at(-1);
         const added = {};
@@ -374,8 +427,8 @@ export class SheetView {
   /** The cells of the current selection, as plain coordinates. */
   _selectedCells() { return [...this.selection.cells()]; }
 
-  undo() { return this._step('undo'); }
-  redo() { return this._step('redo'); }
+  undo() { const done = this._step('undo'); this._refreshSubtotals(); return done; }
+  redo() { const done = this._step('redo'); this._refreshSubtotals(); return done; }
 
   _step(direction) {
     const previous = this.history[direction === 'undo' ? 'past' : 'future'].at(-1);
@@ -2088,6 +2141,7 @@ export class SheetView {
   _rebuildDerivedState() {
     const { sheet } = toSpreadsheet(this.workbook, { now: this._now });
     this.calc = sheet;
+    this.calc.rowHidden = (s, r) => this._rowHidden(s, r);
     this.calc.recalculate();
     this.calc.manual = this.workbook.calcMode() === 'manual';
     this._pivots = null;

@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 
 import { buildXlsx } from '@rutba/ooxml/build';
 import { SheetView } from '@rutba/sheet-view';
+import { Workbook } from '@rutba/ooxml';
 
 const SALES = [
   ['Region', 'Rep', 'Units', 'Sales'],
@@ -141,4 +142,29 @@ test('Summaries above the data put the Grand Total first and each subtotal over 
   assert.deepEqual(groups.groups.filter((g) => g.level === 2).map((g) => [g.start, g.end, g.summary]), [[3, 4, 2], [6, 6, 5], [8, 10, 7]]);
   assert.throws(() => view.subtotal({ groupBy: 0, fn: 'median', columns: [3] }), /no function/);
   assert.throws(() => view.subtotal({ groupBy: 0, fn: 'sum', columns: [] }), /at least one column/);
+});
+
+test('SUBTOTAL leaves out the rows a filter hides, and 101–111 the rows hidden by hand as well, as Excel does', () => {
+  const rows = [...SALES, [], ['', 'Visible', '=SUBTOTAL(9,C2:C7)', '=SUBTOTAL(109,D2:D7)'], ['', 'Count', '=SUBTOTAL(103,A2:A7)', '=SUM(D2:D7)']];
+  const view = open(rows);
+  assert.deepEqual([text(view, 8, 2), text(view, 8, 3), text(view, 9, 2), text(view, 9, 3)], ['17', '1370', '6', '1370'], 'nothing hidden: everything counts');
+  view.select(0, 0);
+  view.toggleAutoFilter();
+  view.applyFilter('#sheet', 'Region', ['West']);
+  assert.deepEqual([text(view, 8, 2), text(view, 8, 3), text(view, 9, 2), text(view, 9, 3)], ['7', '420', '3', '1370'], 'the West rows only; SUM still counts every row');
+  view.undo();
+  assert.deepEqual([text(view, 8, 2), text(view, 8, 3), text(view, 9, 2)], ['17', '1370', '6'], 'undone, the rows count again');
+  view.redo();
+  assert.equal(text(view, 8, 2), '7');
+  view.applyFilter('#sheet', 'Region', null);
+  assert.equal(text(view, 8, 2), '17');
+});
+
+test('a row hidden by hand still counts for SUBTOTAL 9 and not for 109, from the file as it opens', () => {
+  const rows = [...SALES, [], ['', 'Totals', '=SUBTOTAL(9,C2:C7)', '=SUBTOTAL(109,C2:C7)']];
+  const book = Workbook.open(buildXlsx({ sheets: [{ name: 'S', rows }] }));
+  book.setRowsHidden('S', 1, 6, new Set([3]));
+  const view = new SheetView(book.save());
+  assert.equal(view.geo.rowHeight(3), 0, 'North is hidden');
+  assert.deepEqual([text(view, 8, 2), text(view, 8, 3)], ['17', '12'], 'North\'s 5 units left out by 109 only');
 });

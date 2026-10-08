@@ -95,6 +95,8 @@ class TrackedMap extends Map {
     super.clear();
   }
 }
+let geometrySerial = 0;
+
 class TrackedSet extends Set {
   constructor(changed) {
     super();
@@ -167,7 +169,10 @@ export class SheetGeometry {
     /** @type {Map<number, number>} row index -> pixels */
     this.rowHeights = new TrackedMap(rows);
     this.hiddenCols = new TrackedSet(cols);
-    this.hiddenRows = new TrackedSet(rows);
+    // Which rows hide is counted, so a SUBTOTAL can be worked out again when it changes.
+    this.hiddenVersion = 0;
+    this.serial = ++geometrySerial;
+    this.hiddenRows = new TrackedSet(() => { rows(); this.hiddenVersion += 1; });
     // The exception indexes, built on first use after a change.
     this._cols = null;
     this._rows = null;

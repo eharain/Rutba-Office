@@ -348,9 +348,9 @@ export const FUNCTIONS = {
   COUNTA: def((...args) => flatten(args).filter((v) => !isBlank(v)).length),
   COUNTBLANK: def((...args) => flatten(args).filter((v) => isBlank(v)).length),
   // SUBTOTAL(function_num, ref1, …): the aggregate a table's total row uses.
-  // 1–11 are AVERAGE … VARP; 101–111 are the same ignoring rows a filter has
-  // hidden, which this engine does not model, so both aggregate everything
-  // the references hold.
+  // 1–11 are AVERAGE … VARP over what a filter has not hidden; 101–111 the
+  // same over the rows nobody has hidden. The evaluator blanks the hidden
+  // rows before they reach here.
   SUBTOTAL: def((fn, ...refs) => {
     const n = num1(fn);
     if (isError(n)) return n;

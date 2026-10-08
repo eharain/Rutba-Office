@@ -64,7 +64,7 @@ export const FUNCTION_CATALOG = [
   math('SUMPRODUCT', '(array1, array2, …)', 'Multiply arrays position by position and add'),
   math('SUMIF', '(range, criteria, [sum_range])', 'Add the cells a criterion selects'),
   math('SUMIFS', '(sum_range, range1, criteria1, …)', 'Add cells matching every criterion'),
-  math('SUBTOTAL', '(function_num, ref1, …)', 'The aggregate a total row uses: 1 AVERAGE, 2 COUNT, 3 COUNTA, 4 MAX, 5 MIN, 6 PRODUCT, 7 STDEV, 8 STDEVP, 9 SUM, 10 VAR, 11 VARP; 101–111 the same'),
+  math('SUBTOTAL', '(function_num, ref1, …)', 'The aggregate a total row uses: 1 AVERAGE, 2 COUNT, 3 COUNTA, 4 MAX, 5 MIN, 6 PRODUCT, 7 STDEV, 8 STDEVP, 9 SUM, 10 VAR, 11 VARP over the rows a filter shows; 101–111 the same, leaving out rows hidden by hand too'),
   math('RAND', '()', 'Random number between 0 and 1'),
   math('RANDBETWEEN', '(bottom, top)', 'Random whole number in a range'),
   math('RANDARRAY', '([rows], [columns], [min], [max], [whole_number])', 'An array of random numbers, spilled'),

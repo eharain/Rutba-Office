@@ -312,6 +312,12 @@ export class Spreadsheet {
       getName(name) {
         return self.names.get(String(name).toUpperCase()) ?? null;
       },
+      // Whether a row is hidden, and whether a filter hid it ('filter' or
+      // 'manual', null when it shows) — what SUBTOTAL leaves out. The sheet
+      // view knows; on its own the engine sees every row.
+      rowHidden(sheet, row) {
+        return self.rowHidden ? self.rowHidden(sheet, row) : null;
+      },
       // Whether a cell's own formula is a SUBTOTAL, which a SUBTOTAL over
       // it leaves out. The flag is worked out once per formula text.
       isSubtotalCell(sheet, row, col) {
@@ -342,6 +348,20 @@ export class Spreadsheet {
   // ---- recalculation ------------------------------------------------------
 
   /** Every formula cell in the workbook, in insertion order. */
+  /**
+   * Rows were hidden or shown: every SUBTOTAL formula is worked out again
+   * on the next pass. Answers whether there were any.
+   */
+  subtotalsChanged() {
+    let any = false;
+    for (const c of this._formulaCells()) {
+      if (!/\bSUBTOTAL\s*\(/i.test(String(c.input ?? ''))) continue;
+      this.dirty.add(key(c.sheet, c.row, c.col));
+      any = true;
+    }
+    return any;
+  }
+
   _formulaCells() {
     const out = [];
     for (const cells of this.sheets.values()) {

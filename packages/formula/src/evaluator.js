@@ -531,21 +531,30 @@ export function evaluate(ast, resolver, context = {}) {
 
     // SUBTOTAL leaves out every cell in its ranges that holds a SUBTOTAL
     // itself, as Excel's does: a Grand Total over a list with subtotal rows
-    // in it counts the data once, not the data and its subtotals. Only the
-    // AST still knows which cells a range covers, so it is done here.
-    if (node.name === 'SUBTOTAL' && node.args.length >= 2 && resolver.isSubtotalCell) {
+    // in it counts the data once, not the data and its subtotals. It leaves
+    // out hidden rows too — 1–11 the rows a filter hides, 101–111 every
+    // hidden row. Only the AST still knows which cells a range covers, so it
+    // is done here.
+    if (node.name === 'SUBTOTAL' && node.args.length >= 2 && (resolver.isSubtotalCell || resolver.rowHidden)) {
       const args = [evalNode(node.args[0])];
+      const which = Math.trunc(Number(scalar(args[0])));
+      const everyHidden = which >= 101 && which <= 111;
+      const hiddenRow = (sheet, row) => {
+        const why = resolver.rowHidden?.(sheet, row);
+        return Boolean(why) && (everyHidden || why === 'filter');
+      };
+      const left = (sheet, row, col) => Boolean(resolver.isSubtotalCell?.(sheet, row, col)) || hiddenRow(sheet, row);
       for (const a of node.args.slice(1)) {
         if (a.type === 'range') {
           const sheet = a.sheet ?? a.start.sheet ?? ctx.sheet;
           const bounds = clip(resolver, sheet, a.start, a.end);
           const top = Math.min(bounds.start.row, bounds.end.row);
-          const left = Math.min(bounds.start.col, bounds.end.col);
-          const grid = resolver.getRange(sheet, { row: top, col: left }, {
+          const left0 = Math.min(bounds.start.col, bounds.end.col);
+          const grid = resolver.getRange(sheet, { row: top, col: left0 }, {
             row: Math.max(bounds.start.row, bounds.end.row), col: Math.max(bounds.start.col, bounds.end.col),
           });
-          args.push(grid.map((line, i) => line.map((v, j) => (resolver.isSubtotalCell(sheet, top + i, left + j) ? '' : v))));
-        } else if (a.type === 'cell' && resolver.isSubtotalCell(a.sheet ?? ctx.sheet, a.row, a.col)) {
+          args.push(grid.map((line, i) => line.map((v, j) => (left(sheet, top + i, left0 + j) ? '' : v))));
+        } else if (a.type === 'cell' && left(a.sheet ?? ctx.sheet, a.row, a.col)) {
           args.push('');
         } else {
           args.push(evalNode(a));
