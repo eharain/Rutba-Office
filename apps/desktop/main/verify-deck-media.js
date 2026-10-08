@@ -73,7 +73,10 @@ export async function verifyDeckMedia(h, { dir }) {
         paint(i);
         await new Promise((r) => setTimeout(r, 40));
       }
-      rec.stop(); await done;
+      // The canvas's track is stopped too: one left running keeps the
+      // window's later cameras from giving a picture (Chromium's stand-in
+      // camera ends each track it hands out while it runs).
+      rec.stop(); await done; track.stop();
       const bytes = new Uint8Array(await new Blob(parts, { type: 'video/webm' }).arrayBuffer());
       let s = ''; for (let i = 0; i < bytes.length; i++) s += String.fromCharCode(bytes[i]);
       return btoa(s);
