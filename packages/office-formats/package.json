@@ -21,6 +21,7 @@
     "./crypt-binary": "./src/crypt-binary.js",
     "./odf": "./src/odf.js",
     "./odf-write": "./src/odf-write.js",
+    "./odf-geometry": "./src/odf-geometry.js",
     "./rtf": "./src/rtf.js",
     "./text": "./src/text.js",
     "./markdown": "./src/markdown.js",

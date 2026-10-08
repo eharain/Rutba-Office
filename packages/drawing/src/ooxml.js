@@ -303,15 +303,19 @@ function readColour(xml) {
 
 /** A custom geometry's first path: its size and commands — M, L, Q, C, Z — each with its points. */
 function customPath(xml) {
-  const p = /<([\w]+:)?path\b([^>]*)>([\s\S]*?)<\/([\w]+:)?path>/.exec(xml);
-  if (!p) return null;
-  const a = attrs('<p ' + p[2] + '>');
-  const cmds = [];
-  for (const m of p[3].matchAll(/<([\w]+:)?(moveTo|lnTo|quadBezTo|cubicBezTo|close)\b[^>]*?(?:\/>|>([\s\S]*?)<\/([\w]+:)?\2>)/g)) {
-    const pts = [...(m[3] || '').matchAll(/<([\w]+:)?pt\b[^>]*\bx="(-?\d+)"[^>]*\by="(-?\d+)"/g)].map((q) => [Number(q[2]), Number(q[3])]);
-    cmds.push({ c: { moveTo: 'M', lnTo: 'L', quadBezTo: 'Q', cubicBezTo: 'C', close: 'Z' }[m[2]], pts });
-  }
-  return { w: Number(a.w) || 1, h: Number(a.h) || 1, filled: a.fill !== 'none', cmds };
+  // Every path of it — a smile is a face, two eyes and a mouth that is a line —
+  // the first's fields kept at the top for a reader that wants one.
+  const paths = [...xml.matchAll(/<([\w]+:)?path\b([^>]*)>([\s\S]*?)<\/([\w]+:)?path>/g)].map((p) => {
+    const a = attrs('<p ' + p[2] + '>');
+    const cmds = [];
+    for (const m of p[3].matchAll(/<([\w]+:)?(moveTo|lnTo|quadBezTo|cubicBezTo|close)\b[^>]*?(?:\/>|>([\s\S]*?)<\/([\w]+:)?\2>)/g)) {
+      const pts = [...(m[3] || '').matchAll(/<([\w]+:)?pt\b[^>]*\bx="(-?\d+)"[^>]*\by="(-?\d+)"/g)].map((q) => [Number(q[2]), Number(q[3])]);
+      cmds.push({ c: { moveTo: 'M', lnTo: 'L', quadBezTo: 'Q', cubicBezTo: 'C', close: 'Z' }[m[2]], pts });
+    }
+    return { w: Number(a.w) || 1, h: Number(a.h) || 1, filled: a.fill !== 'none', stroked: a.stroke !== '0' && a.stroke !== 'false', cmds };
+  });
+  if (!paths.length) return null;
+  return { ...paths[0], ...(paths.length > 1 ? { paths } : {}) };
 }
 
 /** A colour element's `#rrggbb` and alpha, when it states an sRGB one. */

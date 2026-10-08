@@ -56,6 +56,12 @@ export async function verifyOdfCharts(h, { dir }) {
     const gradients = await sj(`(() => { const svg = document.querySelector('.sl-stage svg'); return { linear: svg.querySelectorAll('linearGradient').length, html: svg.innerHTML.includes('#1f4e79') || svg.innerHTML.includes('#1F4E79') }; })()`);
     check('odf: an .odp from PowerPoint opens with its first slide\'s gradient background drawn', gradients.linear >= 1 && gradients.html, JSON.stringify(gradients));
     await capture(slides, 'odf-gradients.png');
+    // The slide of shapes: each drawn as its own outline, not a box.
+    await sj(`(() => { document.querySelectorAll('.sl-thumb')[2]?.click(); return 1; })()`);
+    await wait(600);
+    const outlines = await sj(`(() => { const svg = document.querySelector('.sl-stage svg'); return { paths: svg.querySelectorAll('path').length, curves: [...svg.querySelectorAll('path')].filter((p) => /C/.test(p.getAttribute('d') || '')).length }; })()`);
+    check('odf: its shapes are drawn as their own outlines — the oval, the heart, the smile curved', outlines.curves >= 4, JSON.stringify(outlines));
+    await capture(slides, 'odf-outlines.png');
 
     const complaints = [...(await errorsIn(sheets)), ...(await errorsIn(slides))];
     check('odf: the charts, shapes and gradients report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

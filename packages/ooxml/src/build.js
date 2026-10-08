@@ -320,7 +320,10 @@ function drawingPartXml(drawings, relIdOf) {
     return '<xdr:twoCellAnchor>' + from + to
       + '<xdr:sp macro="" textlink=""><xdr:nvSpPr>'
       + '<xdr:cNvPr id="' + d.id + '" name="' + esc(d.name ?? 'Shape') + '"/><xdr:cNvSpPr/></xdr:nvSpPr>'
-      + '<xdr:spPr><a:prstGeom prst="' + esc(d.geometry ?? 'rect') + '"><a:avLst/></a:prstGeom>'
+      // Its own outline (a converted drawing's custom geometry), or a preset.
+      // A turned shape says so in its own frame, its size given with it.
+      + '<xdr:spPr>' + (d.rotation ? '<a:xfrm rot="' + Math.round(d.rotation * 60000) + '"><a:off x="0" y="0"/><a:ext cx="' + Math.round((d.widthPx ?? 96) * EMU_PX) + '" cy="' + Math.round((d.heightPx ?? 48) * EMU_PX) + '"/></a:xfrm>' : '')
+      + (typeof d.geometryXml === 'string' && /^<a:custGeom>/.test(d.geometryXml) ? d.geometryXml : '<a:prstGeom prst="' + esc(d.geometry ?? 'rect') + '"><a:avLst/></a:prstGeom>')
       + fill + '</xdr:spPr>' + body
       + '</xdr:sp><xdr:clientData/></xdr:twoCellAnchor>';
   }).join('');

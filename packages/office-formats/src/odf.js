@@ -14,6 +14,7 @@
 import { readZip } from '@rutba/ooxml/zip';
 import { parse, all, kids, textOf, first } from './xml.js';
 import { formulaFromOdf } from './odf-write.js';
+import { enhancedFigures } from './odf-geometry.js';
 
 const dec = new TextDecoder('utf-8');
 
@@ -403,13 +404,36 @@ function readPageSize(stylesRoot) {
   return null;
 }
 
-/** A drawing's box, in pixels, from its own svg:x, svg:y, svg:width and svg:height. */
-const boxOf = (node) => ({
-  x: lengthPx(node.attrs['svg:x']) ?? 0,
-  y: lengthPx(node.attrs['svg:y']) ?? 0,
-  w: lengthPx(node.attrs['svg:width']) ?? 0,
-  h: lengthPx(node.attrs['svg:height']) ?? 0,
-});
+/**
+ * A drawing's box, in pixels, from its own svg:x, svg:y, svg:width and
+ * svg:height — or, for one placed by draw:transform (a turned drawing),
+ * where the transform takes its centre, and the turn in degrees clockwise.
+ * ODF applies the transform's steps as they are written, left to right,
+ * and turns counter-clockwise.
+ */
+const boxOf = (node) => {
+  const w = lengthPx(node.attrs['svg:width']) ?? 0;
+  const h = lengthPx(node.attrs['svg:height']) ?? 0;
+  const transform = node.attrs['draw:transform'];
+  if (!transform) return { x: lengthPx(node.attrs['svg:x']) ?? 0, y: lengthPx(node.attrs['svg:y']) ?? 0, w, h };
+  let p = [(lengthPx(node.attrs['svg:x']) ?? 0) + w / 2, (lengthPx(node.attrs['svg:y']) ?? 0) + h / 2];
+  let turn = 0;
+  for (const m of String(transform).matchAll(/(translate|rotate|scale)\s*\(([^)]*)\)/g)) {
+    const args = m[2].trim().split(/[\s,]+/);
+    if (m[1] === 'translate') p = [p[0] + (lengthPx(args[0]) ?? 0), p[1] + (lengthPx(args[1] ?? '0') ?? 0)];
+    else if (m[1] === 'rotate') {
+      const a = Number(args[0]) || 0;
+      p = [p[0] * Math.cos(a) + p[1] * Math.sin(a), -p[0] * Math.sin(a) + p[1] * Math.cos(a)];
+      turn += a;
+    } else {
+      const sx = Number(args[0]) || 1;
+      const sy = Number(args[1] ?? args[0]) || 1;
+      p = [p[0] * sx, p[1] * sy];
+    }
+  }
+  const rotation = ((((-turn * 180) / Math.PI) % 360) + 360) % 360;
+  return { x: p[0] - w / 2, y: p[1] - h / 2, w, h, ...(Math.abs(rotation) > 0.01 && Math.abs(rotation - 360) > 0.01 ? { rotation: Math.round(rotation * 100) / 100 } : {}) };
+};
 
 /** The paragraphs a text box or shape holds, lists' items among them. */
 const paragraphsOf = (node) => {
@@ -471,8 +495,12 @@ function readDrawings(page, styles) {
         continue;
       }
       if (c.name === 'draw:custom-shape' || c.name === 'draw:rect' || c.name === 'draw:ellipse' || c.name === 'draw:circle') {
-        const geometry = c.name === 'draw:custom-shape' ? (first(c, 'draw:enhanced-geometry')?.attrs['draw:type'] || 'rectangle') : c.name === 'draw:rect' ? 'rectangle' : 'ellipse';
-        shapes.push({ type: 'shape', name: c.attrs['draw:name'] || null, geometry, ...boxOf(c), ...lookOf(c, styles), paragraphs: paragraphsOf(c) });
+        const enhanced = c.name === 'draw:custom-shape' ? first(c, 'draw:enhanced-geometry') : null;
+        const geometry = c.name === 'draw:custom-shape' ? (enhanced?.attrs['draw:type'] || 'rectangle') : c.name === 'draw:rect' ? 'rectangle' : 'ellipse';
+        const box = boxOf(c);
+        // A custom shape's own outline, worked out from its path and equations.
+        const figures = enhanced ? enhancedFigures(enhanced, { width: box.w, height: box.h }) : null;
+        shapes.push({ type: 'shape', name: c.attrs['draw:name'] || null, geometry, ...box, ...lookOf(c, styles), paragraphs: paragraphsOf(c), ...(figures ? { figures } : {}) });
         continue;
       }
       if (c.name === 'draw:line') {

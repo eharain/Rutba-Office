@@ -416,6 +416,22 @@ const EMU = 9525;
  * size in EMU so nothing is rounded away. `filled` false is a line: its
  * figures drawn, never filled.
  */
+/**
+ * Several figures as one custom geometry — each its own path, filled or
+ * not and stroked or not, as a converted shape's outline may need.
+ */
+export function custGeomFiguresXml(figures, w, h) {
+  const e = (v) => Math.round(v * EMU);
+  const pt = ([x, y]) => `<a:pt x="${e(x)}" y="${e(y)}"/>`;
+  const paths = figures.map((f) => `<a:path w="${Math.max(1, e(w))}" h="${Math.max(1, e(h))}"${f.fill === false ? ' fill="none"' : ''}${f.stroke === false ? ' stroke="0"' : ''}>${f.commands.map((c) => {
+    if (c.op === 'M') return `<a:moveTo>${pt(c.pts[0])}</a:moveTo>`;
+    if (c.op === 'L') return `<a:lnTo>${pt(c.pts[0])}</a:lnTo>`;
+    if (c.op === 'C') return `<a:cubicBezTo>${c.pts.map(pt).join('')}</a:cubicBezTo>`;
+    return '<a:close/>';
+  }).join('')}</a:path>`).join('');
+  return `<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="l" t="t" r="r" b="b"/><a:pathLst>${paths}</a:pathLst></a:custGeom>`;
+}
+
 export function custGeomXml(commands, w, h, { filled = true } = {}) {
   const e = (v) => Math.round(v * EMU);
   const pt = ([x, y]) => `<a:pt x="${e(x)}" y="${e(y)}"/>`;

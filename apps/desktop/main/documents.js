@@ -44,6 +44,7 @@ import { sniff, refineOoxml, kindFromExtension } from '@rutba/office-formats/sni
 import { APPS } from '@rutba/office-formats/registry';
 import { designedThemePart, readThemeDesign } from '@rutba/office-formats/themes';
 import { readOdf } from '@rutba/office-formats/odf';
+import { figuresGeometryXml } from '@rutba/office-formats/odf-geometry';
 import { writeOdt, writeOds, writeOdp } from '@rutba/office-formats/odf-write';
 import { readRtf, writeRtf } from '@rutba/office-formats/rtf';
 import { readDelimited, writeDelimited, readMarkdown, readPlain, writeMarkdown, writePlain, decodeText } from '@rutba/office-formats/text';
@@ -224,11 +225,14 @@ function odsDrawings(sheet, images) {
       out.push({
         kind: 'shape', name, from, to,
         geometry: d.type === 'line' ? 'line' : d.type === 'text' ? 'rect' : ODF_SHAPES[d.geometry] || (/^ooxml-/.test(d.geometry || '') ? d.geometry.slice(6) : 'rect'),
+        // A custom shape no preset names, drawn as its own outline.
+        ...(d.type === 'shape' && d.figures && !ODF_SHAPES[d.geometry] && !/^ooxml-/.test(d.geometry || '') ? { geometryXml: figuresGeometryXml(d.figures, d.w, d.h) } : {}),
         fill,
         ...(d.fill?.gradient && d.type === 'shape' ? { gradient: odfGradient(d.fill.gradient) } : {}),
         ...(lineColour ? { line: { color: lineColour, width: d.lineWidth ? d.lineWidth * 0.75 : 0.75 } } : {}),
         text: (d.paragraphs || []).filter(Boolean).join(' ') || undefined,
         ...(d.type === 'text' ? { textColor: '000000' } : {}),
+        ...(d.rotation ? { rotation: d.rotation, widthPx: Math.round(box.w), heightPx: Math.round(box.h) } : {}),
       });
     }
   }
@@ -357,6 +361,10 @@ function odpSlidesToDeck(odf) {
           });
           // A gradient, as its style made it.
           if (sh.fill?.gradient) deck.setShapeStyle(i, id, { fill: { gradient: odfGradient(sh.fill.gradient) } });
+          // A custom shape no preset names, drawn as its own outline.
+          if (sh.figures && !ODF_SHAPES[sh.geometry] && !/^ooxml-/.test(sh.geometry || '')) deck.setShapePath(i, id, { figures: sh.figures, w: box.w, h: box.h });
+          // Turned as it was.
+          if (sh.rotation) deck.rotateShapes(i, [id], sh.rotation);
         } else if (sh.type === 'line') {
           deck.addShape(i, {
             preset: 'line', name: sh.name || null,

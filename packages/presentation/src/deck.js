@@ -10,7 +10,7 @@
 // the only honest way to ship a presentation editor without twenty years of
 // feature work behind it.
 
-import { custGeomXml } from './points.js';
+import { custGeomXml, custGeomFiguresXml } from './points.js';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parse, kids, first, all, escapeXml } from '@rutba/office-formats/xml';
 import { emuToPx, pxToEmu, ptToSz } from './units.js';
@@ -1865,16 +1865,18 @@ export class Deck {
    * module's, in a box `w × h` pixels; `filled` false draws the outline
    * only, a line's.
    */
-  setShapePath(slideIndex, shapeId, { commands, w, h, filled = true }) {
+  setShapePath(slideIndex, shapeId, { commands, w, h, filled = true, figures = null }) {
     const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);
     const range = this.#shapeRange(xml, shapeId);
     if (!range) throw new Error(`shape ${shapeId} not found`);
     if (range.tag !== '<p:sp>') throw new Error('Only a shape has points to edit.');
-    if (!Array.isArray(commands) || !commands.some((c) => c.op === 'M')) throw new Error('A path starts with a point.');
+    // Several figures (a converted shape's: { commands, fill, stroke } each), or one path of commands.
+    const paths = figures ?? [{ commands }];
+    if (!Array.isArray(paths) || !paths.length || !paths.every((f) => Array.isArray(f.commands) && f.commands.some((c) => c.op === 'M'))) throw new Error('A path starts with a point.');
     let shapeXml = xml.slice(range.start, range.end);
-    const geom = custGeomXml(commands, w, h, { filled });
+    const geom = figures ? custGeomFiguresXml(figures, w, h) : custGeomXml(commands, w, h, { filled });
     const existing = /<a:(prstGeom|custGeom)\b[^>]*\/>|<a:(prstGeom|custGeom)\b[^>]*>[\s\S]*?<\/a:\2>/;
     if (existing.test(shapeXml)) shapeXml = shapeXml.replace(existing, () => geom);
     else if (/<p:spPr\b[^>]*\/>/.test(shapeXml)) shapeXml = shapeXml.replace(/<p:spPr\b[^>]*\/>/, () => `<p:spPr>${geom}</p:spPr>`);

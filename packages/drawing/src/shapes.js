@@ -192,16 +192,19 @@ export function buildShape(descriptor, box, { mode = 'light', palette = null } =
       stroke: (stroke && stroke !== 'none') ? stroke : fill, strokeWidth: strokeWidth || 1,
     }));
   } else if (geometry === 'custom' && descriptor.path?.cmds?.length) {
-    // A freeform — ink among them — its path scaled from its own units onto the box.
-    const sx = width / descriptor.path.w;
-    const sy = height / descriptor.path.h;
-    const d = descriptor.path.cmds.map((c) => c.c + c.pts.map(([px, py]) => `${r2(x + px * sx)} ${r2(y + py * sy)}`).join(' ')).join('');
-    children.push(path({
-      d, fill: descriptor.path.filled && fill !== 'none' ? fill : 'none',
-      stroke: (stroke && stroke !== 'none') ? stroke : null, strokeWidth: strokeWidth || 1,
-      ...(descriptor.strokeCap ? { linecap: descriptor.strokeCap, linejoin: 'round' } : {}),
-      ...(descriptor.strokeAlpha != null && descriptor.strokeAlpha < 1 ? { opacity: descriptor.strokeAlpha } : {}),
-    }));
+    // A freeform — ink among them — its paths scaled from their own units onto the box, each filled and stroked as it says.
+    for (const one of descriptor.path.paths || [descriptor.path]) {
+      if (!one.cmds?.length) continue;
+      const sx = width / one.w;
+      const sy = height / one.h;
+      const d = one.cmds.map((c) => c.c + c.pts.map(([px, py]) => `${r2(x + px * sx)} ${r2(y + py * sy)}`).join(' ')).join('');
+      children.push(path({
+        d, fill: one.filled && fill !== 'none' ? fill : 'none',
+        stroke: one.stroked !== false && stroke && stroke !== 'none' ? stroke : null, strokeWidth: strokeWidth || 1,
+        ...(descriptor.strokeCap ? { linecap: descriptor.strokeCap, linejoin: 'round' } : {}),
+        ...(descriptor.strokeAlpha != null && descriptor.strokeAlpha < 1 ? { opacity: descriptor.strokeAlpha } : {}),
+      }));
+    }
   } else if (geometry === 'roundRect') {
 
     const radius = Math.min(width, height) * 0.14;
