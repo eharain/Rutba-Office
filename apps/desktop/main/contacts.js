@@ -25,6 +25,12 @@ const writeJson = (file, value) => {
   fs.writeFileSync(tmp, JSON.stringify(value));
   fs.renameSync(tmp, file);
 };
+const writeJsonLater = async (file, value) => {
+  await fs.promises.mkdir(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  await fs.promises.writeFile(tmp, JSON.stringify(value));
+  await fs.promises.rename(tmp, file);
+};
 
 const norm = (s) => String(s || '').trim().toLowerCase();
 
@@ -53,8 +59,26 @@ export function createContactsService({ stores, broadcast, people = null }) {
   if (!Array.isArray(state.contacts)) state.contacts = [];
 
   const hooks = { local: null };
-  const save = () => {
+  // Writes coalesced: a burst of changes — an import of hundreds, a sync —
+  // was a rewrite of the whole file for each one, on the main process; now
+  // it is one write a moment after the last, off its way, and one at once
+  // when the app quits.
+  let pending = null;
+  const writeNow = () => {
+    if (!pending) return;
+    clearTimeout(pending);
+    pending = null;
     writeJson(file, state);
+  };
+  process.once('exit', writeNow);
+  const save = () => {
+    if (!pending) {
+      pending = setTimeout(() => {
+        pending = null;
+        writeJsonLater(file, state).catch(() => writeJson(file, state));
+      }, 250);
+      pending.unref?.();
+    }
     broadcast?.('contacts:changed', { count: state.contacts.length });
   };
   // A card an account brings (dav-sync.js) names its address book in `book`;

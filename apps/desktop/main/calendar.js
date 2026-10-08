@@ -29,6 +29,12 @@ const writeJson = (file, value) => {
   fs.writeFileSync(tmp, JSON.stringify(value));
   fs.renameSync(tmp, file);
 };
+const writeJsonLater = async (file, value) => {
+  await fs.promises.mkdir(path.dirname(file), { recursive: true });
+  const tmp = `${file}.${process.pid}.tmp`;
+  await fs.promises.writeFile(tmp, JSON.stringify(value));
+  await fs.promises.rename(tmp, file);
+};
 
 const COLOURS = ['#2b5fd9', '#1a9f7a', '#d9534f', '#e08b2b', '#7b5cd6', '#c2408f', '#3aa0b5', '#8c6d1f'];
 
@@ -39,8 +45,26 @@ export function createCalendarService({ stores, broadcast, mail = null }) {
   if (!state.calendars.length) state.calendars.push({ id: crypto.randomUUID(), name: 'My calendar', colour: COLOURS[0], visible: true, events: [] });
 
   const hooks = { local: null };
-  const save = () => {
+  // Writes coalesced: a burst of changes — an import of hundreds, a sync —
+  // was a rewrite of the whole file for each one, on the main process; now
+  // it is one write a moment after the last, off its way, and one at once
+  // when the app quits.
+  let pending = null;
+  const writeNow = () => {
+    if (!pending) return;
+    clearTimeout(pending);
+    pending = null;
     writeJson(file, state);
+  };
+  process.once('exit', writeNow);
+  const save = () => {
+    if (!pending) {
+      pending = setTimeout(() => {
+        pending = null;
+        writeJsonLater(file, state).catch(() => writeJson(file, state));
+      }, 250);
+      pending.unref?.();
+    }
     broadcast?.('calendar:changed', {});
   };
   /** An event of a server's calendar changed here: queued for the server. */
