@@ -499,6 +499,9 @@ export class OoxmlBackend {
   acceptParagraphChanges(index) { return this.doc.acceptParagraphChanges(index); }
   rejectParagraphChanges(index) { return this.doc.rejectParagraphChanges(index); }
   acceptAllChanges() { return this.doc.acceptAllChanges(); }
+  // The headers, footers and notes Accept All and Reject All change, named before the edit for its undo.
+  trackedStoryParts() { return this.doc.trackedStoryParts(); }
+  willEditPart(name) { this.doc.willEditPart(name); return this; }
   rejectAllChanges() { return this.doc.rejectAllChanges(); }
   /** The default bands as an editing panel sees them, and their edit path. */
   bandInfo() { return this.doc.bandInfo(); }

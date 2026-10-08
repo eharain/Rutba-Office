@@ -4886,6 +4886,95 @@ export class Document {
     return true;
   }
 
+  /**
+   * Table rows put in or taken out while tracking — a self-closing `w:ins` or
+   * `w:del` in the row's own `w:trPr`, as Word writes a row inserted or
+   * deleted with Track Changes on. Accepted, an inserted row keeps itself and
+   * loses the mark and a deleted row goes; rejected, the other way about. A
+   * table left with no rows goes too, as in Word. The paragraphs' own
+   * changes are left to the paragraph pass. True when anything changed.
+   */
+  _resolveRowChanges(keep) {
+    const { body } = this._body();
+    if (!/<w:trPr\b[^>]*>(?:(?!<\/w:trPr>)[\s\S])*?<w:(?:ins|del)\b[^>]*\/>/.test(body)) return false;
+    // Each row and table by where it opens and closes, nested ones included.
+    const spans = (tag) => {
+      const out = [];
+      const stack = [];
+      const re = new RegExp(`<(/?)w:${tag}\\b[^>]*?(/?)>`, 'g');
+      for (let m = re.exec(body); m; m = re.exec(body)) {
+        if (m[2]) continue;
+        if (!m[1]) stack.push({ start: m.index, open: m[0] });
+        else if (stack.length) { const s = stack.pop(); out.push({ start: s.start, end: m.index + m[0].length, open: s.open }); }
+      }
+      return out;
+    };
+    const edits = [];
+    for (const row of spans('tr')) {
+      const xml = body.slice(row.start, row.end);
+      const trPr = /^<w:tr\b[^>]*>\s*(<w:trPr\b[^>]*>(?:(?!<\/w:trPr>)[\s\S])*?<\/w:trPr>)/.exec(xml);
+      const mark = trPr?.[1].match(/<w:(ins|del)\b[^>]*\/>/)?.[1];
+      if (!mark) continue;
+      const goes = (mark === 'ins' && !keep) || (mark === 'del' && keep);
+      if (goes) edits.push({ start: row.start, end: row.end, text: '' });
+      else {
+        const at = row.start + trPr.index + trPr[0].length - trPr[1].length;
+        const cleaned = trPr[1].replace(/<w:(?:ins|del)\b[^>]*\/>/g, '').replace(/^<w:trPr\b[^>]*>\s*<\/w:trPr>$/, '');
+        edits.push({ start: at, end: at + trPr[1].length, text: cleaned });
+      }
+    }
+    if (!edits.length) return false;
+    // Rows inside a row that goes go with it: only the outermost edit stands.
+    edits.sort((a, b) => a.start - b.start || b.end - a.end);
+    const kept = [];
+    for (const e of edits) if (!kept.some((k) => k.text === '' && e.start >= k.start && e.end <= k.end)) kept.push(e);
+    let next = body;
+    for (const e of kept.sort((a, b) => b.start - a.start)) next = next.slice(0, e.start) + e.text + next.slice(e.end);
+    // A table with no rows left is no table.
+    let emptied = true;
+    while (emptied) {
+      emptied = false;
+      const tbls = [];
+      const stack = [];
+      const re = /<(\/?)w:tbl\b[^>]*?(\/?)>/g;
+      for (let m = re.exec(next); m; m = re.exec(next)) {
+        if (m[2]) continue;
+        if (!m[1]) stack.push(m.index);
+        else if (stack.length) tbls.push({ start: stack.pop(), end: m.index + m[0].length });
+      }
+      for (const t of tbls.sort((a, b) => b.start - a.start)) {
+        const inner = next.slice(t.start, t.end);
+        if (!/<w:tr\b/.test(inner)) { next = next.slice(0, t.start) + next.slice(t.end); emptied = true; break; }
+      }
+    }
+    this._spliceBody(0, body.length, next);
+    this.dirty = true;
+    return true;
+  }
+
+  /**
+   * Accept All and Reject All in the headers, footers, footnotes and
+   * endnotes: words put in and taken out, words moved, and formatting changed,
+   * as in the body. A paragraph mark tracked there loses its mark without
+   * joining paragraphs. True when any part changed.
+   */
+  /** The headers, footers and notes that hold tracked changes — what Accept All and Reject All will change besides the body. */
+  trackedStoryParts() {
+    return this.pkg.partNames().filter((name) => /^word\/(?:header|footer|footnotes|endnotes)\d*\.xml$/.test(name)
+      && /<w:(?:ins|del|rPrChange|pPrChange|moveFrom|moveTo)\b/.test(this.pkg.text(name)));
+  }
+
+  _resolveStoryChanges(keep) {
+    let changed = false;
+    for (const name of this.trackedStoryParts()) {
+      const xml = this.pkg.text(name);
+      const next = resolveTrackedXml(xml, keep);
+      if (next !== xml) { this.pkg.write_(name, next); changed = true; }
+    }
+    if (changed) this.dirty = true;
+    return changed;
+  }
+
   /** Review → Accept All / Reject All. True when anything in the body changed. */
   acceptAllChanges() {
     return this._resolveAllChanges(true);
@@ -4896,7 +4985,8 @@ export class Document {
   }
 
   _resolveAllChanges(keep) {
-    let changed = false;
+    let changed = this._resolveRowChanges(keep);
+    if (this._resolveStoryChanges(keep)) changed = true;
     // A paragraph that joins the next is looked at again: the joined one may carry changes of its own.
     for (let i = 0; i < this.editParagraphCount();) {
       const before = this.editParagraphCount();
@@ -6907,16 +6997,74 @@ export class Document {
     return this;
   }
 
+  /**
+   * Each revision its own `w:id`, as the schema asks. A change made in one
+   * stroke over several runs or paragraphs — a selection deleted across a
+   * paragraph mark — is written as several `w:del`s from the one change;
+   * the second and later of an id are given fresh ones. Word groups changes
+   * by author and time, not by id, so nothing a reader sees moves.
+   */
+  _uniqueRevisionIds() {
+    const kinds = /(<w:(?:ins|del|rPrChange|pPrChange|sectPrChange|tblPrChange|tblPrExChange|trPrChange|tcPrChange|tblGridChange|numberingChange|cellIns|cellDel|cellMerge|moveFrom|moveTo)\b[^>]*\bw:id=")(\d+)(")/g;
+    const seen = new Set();
+    let repeated = false;
+    for (const m of this.xml.matchAll(kinds)) { if (seen.has(m[2])) { repeated = true; break; } seen.add(m[2]); }
+    if (!repeated) return;
+    let next = this.nextTrackChangeId();
+    seen.clear();
+    this.xml = this.xml.replace(kinds, (whole, before, id, after) => {
+      if (!seen.has(id)) { seen.add(id); return whole; }
+      return before + String(next++) + after;
+    });
+  }
+
   /** Flush and return package bytes. */
   save() {
-    if (this.dirty) { this.pkg.write_(this.mainPart, this.xml); this._flushed = this.xml; }
+    if (this.dirty) { this._uniqueRevisionIds(); this.pkg.write_(this.mainPart, this.xml); this._flushed = this.xml; }
     return this.pkg.write();
   }
 
   modifiedParts() {
-    if (this.dirty) { this.pkg.write_(this.mainPart, this.xml); this._flushed = this.xml; }
+    if (this.dirty) { this._uniqueRevisionIds(); this.pkg.write_(this.mainPart, this.xml); this._flushed = this.xml; }
     return this.pkg.modifiedParts();
   }
+}
+
+/**
+ * One story's tracked changes resolved in place — accepted (`keep`) or
+ * rejected: the words, the moves and the formatting, as the body's
+ * paragraphs are resolved; a tracked paragraph mark loses its mark.
+ */
+export function resolveTrackedXml(xml, keep) {
+  const ins = /<w:ins\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:ins>/g;
+  const del = /<w:del\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:del>/g;
+  let out = keep
+    ? xml.replace(ins, '$1').replace(del, '')
+    : xml.replace(ins, '').replace(del, (whole, inner) => inner
+      .replace(/<w:delText\b([^>]*)\/>/g, '<w:t$1/>')
+      .replace(/<w:delText\b([^>]*)>/g, '<w:t$1>')
+      .replace(/<\/w:delText>/g, '</w:t>')
+      .replace(/<(\/?)w:delInstrText\b/g, '<$1w:instrText'));
+  const movedFrom = /<w:moveFrom\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:moveFrom>/g;
+  const movedTo = /<w:moveTo\b(?![^>]*\/>)[^>]*>([\s\S]*?)<\/w:moveTo>/g;
+  out = (keep ? out.replace(movedFrom, '').replace(movedTo, '$1') : out.replace(movedFrom, '$1').replace(movedTo, ''))
+    .replace(/<w:move(?:From|To)Range(?:Start|End)\b[^>]*\/>/g, '');
+  // A paragraph mark put in or taken out: the mark goes, the paragraphs stay.
+  out = out.replace(/<w:(?:ins|del)\b[^>]*\/>/g, '');
+  // The paragraph's own formatting: kept as it is, or put back as it was.
+  out = out.replace(/<w:pPr\b[^>]*>((?:(?!<\/w:pPr>)[\s\S])*?)<w:pPrChange\b[^>]*>\s*(?:<w:pPr\b[^>]*>([\s\S]*?)<\/w:pPr>|<w:pPr\b[^>]*\/>)\s*<\/w:pPrChange>((?:(?!<\/w:pPr>)[\s\S])*?)<\/w:pPr>/g, (whole, nowA, was, nowB) => {
+    if (keep) return '<w:pPr>' + nowA + nowB + '</w:pPr>';
+    const markProps = /<w:rPr\b[\s\S]*?<\/w:rPr>/.exec(nowA + nowB)?.[0] ?? '';
+    const sect = /<w:sectPr\b[\s\S]*?<\/w:sectPr>/.exec(nowA + nowB)?.[0] ?? '';
+    return '<w:pPr>' + (was ?? '') + markProps + sect + '</w:pPr>';
+  });
+  // Formatting changed on runs: kept as it is now, or put back as it was.
+  const fmt = /<w:rPr\b[^>]*>((?:(?!<\/w:rPr>|<w:rPrChange\b)[\s\S])*)<w:rPrChange\b[^>]*>\s*<w:rPr\b[^>]*>([\s\S]*?)<\/w:rPr>\s*<\/w:rPrChange>\s*<\/w:rPr>|<w:rPr\b[^>]*>((?:(?!<\/w:rPr>|<w:rPrChange\b)[\s\S])*)<w:rPrChange\b[^>]*>\s*<w:rPr\b[^>]*\/>\s*<\/w:rPrChange>\s*<\/w:rPr>/g;
+  out = out.replace(fmt, (whole, nowA, was, nowB) => {
+    const props = keep ? (nowA ?? nowB ?? '') : (was ?? '');
+    return props.trim() ? '<w:rPr>' + props + '</w:rPr>' : '';
+  });
+  return out.replace(/<w:pPr\b[^>]*>\s*<\/w:pPr>/g, '');
 }
 
 // References: citations and a bibliography (references.js).

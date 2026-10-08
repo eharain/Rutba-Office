@@ -2916,6 +2916,8 @@ export class DocView {
     if (typeof this.doc.acceptParagraphChanges !== 'function') {
       throw new Error('this document backend does not support tracked changes');
     }
+    // The headers, footers and notes Accept All changes are named first, so its undo puts them back too.
+    if (all) for (const name of this.doc.trackedStoryParts?.() || []) this.doc.willEditPart?.(name);
     return this._edit('accept changes', null, () => {
       const changed = all ? this.doc.acceptAllChanges() : this.doc.acceptParagraphChanges(this.focus.block);
       this._invalidate();
@@ -2931,6 +2933,7 @@ export class DocView {
     if (typeof this.doc.rejectParagraphChanges !== 'function') {
       throw new Error('this document backend does not support tracked changes');
     }
+    if (all) for (const name of this.doc.trackedStoryParts?.() || []) this.doc.willEditPart?.(name);
     return this._edit('reject changes', null, () => {
       const changed = all ? this.doc.rejectAllChanges() : this.doc.rejectParagraphChanges(this.focus.block);
       this._invalidate();
