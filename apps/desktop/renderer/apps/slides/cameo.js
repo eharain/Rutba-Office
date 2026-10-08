@@ -45,7 +45,9 @@ function closeCamera(stream) {
 /**
  * The camera's stream while `on`, or null — and why not, when it could not
  * be opened. A camera that stops (unplugged, taken by another program, or
- * handed back already stopped) is asked for again, three times.
+ * handed back already stopped) is asked for again, waiting a little longer
+ * each time, for about nine seconds: a camera another program held for a
+ * moment is let go by then.
  */
 export function useCamera(on) {
   const [state, setState] = useState({ stream: null, error: null });
@@ -66,7 +68,7 @@ export function useCamera(on) {
           if (!live || held !== stream) return;
           closeCamera(stream);
           held = null;
-          if (++tries <= 3) timer = setTimeout(take, 300);
+          if (++tries <= 5) timer = setTimeout(take, 300 * 2 ** (tries - 1));
           else setState({ stream: null, error: 'The camera stopped.' });
         };
         if (alive(stream)) track?.addEventListener('ended', ended);
