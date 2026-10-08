@@ -365,7 +365,10 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     grab: async ({ id }) => {
       // As large as the largest screen, so a window or a screen comes at its own size.
       const big = screen.getAllDisplays().reduce((m, d) => ({ width: Math.max(m.width, Math.round(d.size.width * d.scaleFactor)), height: Math.max(m.height, Math.round(d.size.height * d.scaleFactor)) }), { width: 0, height: 0 });
-      const found = await desktopCapturer.getSources({ types: ['window', 'screen'], thumbnailSize: big, fetchWindowIcons: false });
+      // Only the kind the id names: a window's grab drew every screen at full
+      // size as well, and a screen's every window, to keep one of them.
+      const kind = String(id).startsWith('screen:') ? 'screen' : 'window';
+      const found = await desktopCapturer.getSources({ types: [kind], thumbnailSize: big, fetchWindowIcons: false });
       const source = found.find((s) => s.id === id);
       if (!source) throw new Error('That window has closed since the list was made.');
       if (source.thumbnail.isEmpty()) throw new Error(`${source.name} could not be captured — a minimised window shows nothing to take.`);
