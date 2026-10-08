@@ -86,11 +86,12 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   width, AutoFit and Distribute Columns, aligns the table and a cell's
   words, turns a cell's words to read up or down, sets the cells' margins,
   repeats header rows, sorts the rows by a column, works out a formula
-  (=SUM(ABOVE) and the like), converts the table to text and back, turns
-  it right to left and shows or hides its gridlines; Properties sets its
-  width, alignment and alt text and the caret's row and column. Not yet: a
-  formula's result kept up to date as its numbers change, formulas over
-  cell references, and drawing a table by hand.
+  (=SUM(ABOVE), =B2*C2, =AVERAGE(B2:B4) and the like) and updates them
+  all, converts the table to text and back, turns it right to left and
+  shows or hides its gridlines; Properties sets its width, alignment and
+  alt text and the caret's row and column. Not yet: drawing a table by
+  hand; a formula is worked out again on Update all formulas, as Word does
+  on F9, not as its numbers are typed.
 - **Fields.** Bookmarks arrived 2026-09-24, Insert → Bookmark naming a span
   of paragraphs (`w:bookmarkStart`/`w:bookmarkEnd`) that Go To finds again
   and a bookmarked paragraph stays editable through it. Cross-references
