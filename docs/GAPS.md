@@ -136,17 +136,18 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   with `w:framePr` and laid as a float on screen and in print. WordArt,
   SmartArt, OMML equations: read past, not written.
 - **WordArt's shapes.** A run's WordArt look (outline, glow, shadow, no
-  fill) is written; the words themselves are only ever drawn straight.
-  Word's Text Effects → Transform — the arcs (Arch Up, Arch Down), Circle,
-  Button, the waves, inflate, deflate, slant and the rest — is the
-  `a:prstTxWarp` preset on the text body with its adjust handles, and is
-  read past, not drawn, not written. To build: read the preset and its
-  handles; draw the words glyph by glyph along the preset's path on screen,
-  in the thumbnail and in PDF (an arc and a circle first, then the waves
-  and the warps); offer the gallery from Text Effects → Transform in
-  Documents and from Shape Format → Text Effects in Presentations and
-  Worksheets; write the preset back as Word writes it, with the handles
-  the person dragged. Asked for 2026-10-08.
+  fill) is written. Since 1.31.0 Shape Format → Text Effects → Transform
+  lays the words along Arch Up, Arch Down, Circle or Button in Documents,
+  Presentations and Worksheets: the `a:prstTxWarp` preset on the text body
+  is read (a deck's adjust handles with it) and written back first in the
+  body's properties, as Office writes it, and the words are drawn along
+  the preset's path (`@rutba/drawing/warp`) on the page, the slide and the
+  sheet, in a slide's thumbnail and in the show. In Documents the words
+  show straight while the caret is in them. Still to build: the waves,
+  inflate, deflate, slant and the other warps (drawn straight); the
+  handles, kept from the file but neither drawn nor dragged here; and a
+  Documents PDF, which draws a transformed box's words straight. Asked for
+  2026-10-08.
 - **A real watermark** (the header holds text only), multilevel list
   definitions. (Paragraph shading and borders, and the page colour, are
   written from the ribbon since 2026-09-21, and printed.)
@@ -242,6 +243,8 @@ it is where the gaps are.
   reads nor writes), and there is no M language, no web or database source.
   Merge Queries (left outer, inner, left anti, full outer) and Append
   Queries arrived in 1.29.10, a query reading another query's result.
+  Since 1.31.0 a column's type follows it through every step, and a column
+  made dates loads in the short date format.
 - **A cut pasted** carries every reference with it since 1.29.8, as Excel's
   does: formulas on any sheet and defined names that name only the moved
   cells follow them, onto another sheet too.
@@ -276,10 +279,11 @@ document and workbook writers.
   a highlight are written from the Home tab, and a slide's own bullets,
   spacing and run looks survive an edit (until then a format press or an
   edited line dropped them), and the box's own anchor, text direction
-  and columns are written from the same tab. WordArt's run look is written;
-  its Transform presets — arcs, circle, button, waves — are read past, not
-  drawn (see Documents, "WordArt's shapes"; the same work serves all three
-  apps, since the preset lives on the shared text body).
+  and columns are written from the same tab. WordArt's run look is written,
+  and since 1.31.0 its Transform's arcs, circle and button are drawn and
+  written from Shape Format; the waves and the other warps are still drawn
+  straight (see Documents, "WordArt's shapes"; the same drawing serves all
+  three apps, since the preset lives on the shared text body).
 - **What can be put on a slide**: a table and a chart are read and drawn —
   a table in its table style since 1.29.5 (its header, bands, borders and
   first and last rows and columns, which Table Design turns on and off since

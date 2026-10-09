@@ -320,3 +320,35 @@ Low:
 The gate now writes its own counts: `npm run gate -- --record` puts them in
 the release note's Gate section and the README, and docs/RELEASING.md holds
 the version policy.
+
+## Taken up in 1.31.0
+
+What was still open after 1.30.0, each with a test or a window check. Done
+on Windows, 2026-10-09.
+
+- `rutba://file` serving any path: a local file is served as before; a
+  path on a network share only once the person reached it in this run, by
+  opening a file there, browsing its folder or picking it in a dialog
+  (`office-shell/src/electron/grants.js`), since only looking at a share
+  hands it the Windows sign-in. The thumbnail host follows the same rule.
+- `screen-record.js` holding the recording whole: the recording is written
+  to a scratch file four megabytes a message (`fs.append`, only to a file
+  `fs.temp` made in the run), the poster is drawn from the file, and the
+  deck reads the file itself and removes it. Chromium's MP4 recorder hands
+  the recording over only at Stop, so for MP4 the writing happens then; a
+  WebM one is written as it is made.
+- Photos as base64 on every contacts list: the list says whether a card has
+  a photo, and each avatar asks for its own.
+- `split.js` cloning the page: only the paragraphs that changed are copied.
+- `capture.grab`: only the kind of source asked for, screens or windows, is
+  drawn.
+- `w:cellMerge` while recording: Word itself records neither a merge nor a
+  split as a tracked change and says so before doing either; this window
+  now asks the same question. The fill handle copying a merge: done.
+- The query `types` side table: kept through every step, and read at load,
+  where a date column is given the short date format.
+
+Still open: the move of the document service into a `utilityProcess`, and
+the 40 MP JPEG shrunk synchronously on Linux (the window could make that
+tile itself, as it does a clip's frame, but it wants a run on Linux to
+check).
