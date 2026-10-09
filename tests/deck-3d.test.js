@@ -78,3 +78,23 @@ test('a bevel PowerPoint wrote is read at its default size, and the presets cove
   const read = reopened.slide(0).shapes.find((s) => String(s.id) === String(id)).shape3d;
   assert.deepEqual(read.bevel, { prst: 'circle', w: 6, h: 6 });
 });
+
+test('two 3-D changes sent one after the other both stand, the second keeping what the first set', async () => {
+  // The window sends only what changed; the service fills the rest from the
+  // deck as it is now. It used to send the whole from what it last saw, so
+  // the camera chosen before the depth came back put the depth back to 0.
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const { createDocumentService } = await import('../apps/desktop/main/documents.js');
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-3d-')), 'three.pptx');
+  const { deck, id } = fresh();
+  fs.writeFileSync(file, deck.save());
+  const docs = createDocumentService({ holdBlob: () => ({ url: 'blob:x' }) });
+  const { id: doc } = await docs.open({ path: file });
+  const three = () => docs.model({ id: doc, slide: 0 }).slide.shapes.find((s) => String(s.id) === String(id)).shape3d;
+  docs.apply({ id: doc, ops: [{ op: 'setShape3d', slide: 0, shape: id, patch: { bevel: { prst: 'circle', w: 6, h: 6 } } }] });
+  docs.apply({ id: doc, ops: [{ op: 'setShape3d', slide: 0, shape: id, patch: { depth: 18 } }] });
+  docs.apply({ id: doc, ops: [{ op: 'setShape3d', slide: 0, shape: id, patch: { camera: 'isometricRightUp' } }] });
+  assert.deepEqual({ bevel: three().bevel, depth: three().depth, camera: three().camera }, { bevel: { prst: 'circle', w: 6, h: 6 }, depth: 18, camera: 'isometricRightUp' });
+});

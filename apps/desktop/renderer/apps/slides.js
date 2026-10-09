@@ -1349,9 +1349,8 @@ export default function Slides({ app, shell, boot }) {
       // the bevel, the depth, its colour, the camera — and the rest rides along.
       case 'shape3d': {
         if (!selectedShape) return;
-        const cur = selectedShape.shape3d || {};
-        const spec = { bevel: cur.bevel ?? null, depth: cur.depth ?? 0, depthColor: cur.depthColor ?? null, camera: cur.camera ?? 'orthographicFront', ...arg };
-        await apply({ op: 'setShape3d', slide: index, shape: selectedShape.id, spec });
+        // Only what changed: the deck keeps the rest as it has them (documents.js).
+        await apply({ op: 'setShape3d', slide: index, shape: selectedShape.id, patch: arg });
         return;
       }
       case 'shapeLine': {

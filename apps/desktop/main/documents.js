@@ -2461,7 +2461,14 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     setBodyProps: (d, a) => d.setBodyProps(a.slide, a.shape, { anchor: a.anchor, vert: a.vert, columns: a.columns }),
     // The Format pane: a shape's fill and outline.
     setShapeStyle: (d, a) => d.setShapeStyle(a.slide, a.shape, { fill: a.fill ?? null, line: a.line ?? null, effects: a.effects ?? null }),
-    setShape3d: (d, a) => d.setShape3d(a.slide, a.shape, a.spec || {}),
+    // `patch`, one of bevel, depth, its colour and the camera, keeps the
+    // others as the deck has them now, not as the window last saw them: a
+    // second change sent before the first came back no longer undoes it.
+    setShape3d: (d, a) => {
+      if (!a.patch) return d.setShape3d(a.slide, a.shape, a.spec || {});
+      const now = d.slide(a.slide).shapes.find((s) => String(s.id) === String(a.shape))?.shape3d || {};
+      return d.setShape3d(a.slide, a.shape, { bevel: now.bevel ?? null, depth: now.depth ?? 0, depthColor: now.depthColor ?? null, camera: now.camera ?? 'orthographicFront', ...a.patch });
+    },
     // Home → Clear all formatting: the selected shape's words keep only their links.
     clearTextFormat: (d, a) => d.clearTextFormat(a.slide, a.shape),
     // Insert → Link: an address on the selected shape's words, or none.
