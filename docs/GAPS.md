@@ -27,7 +27,7 @@ a suite.
 | **OpenDocument drawings** | **Built, 2026-10-08** | An `.odp` opens as it was made: slides at its own page size holding each drawing where it stood — text boxes, pictures, shapes in their fill and outline with their words, lines and tables — and its notes; since 2026-10-08 its gradients, backgrounds and charts too, and its shapes as their own outlines, all written back on save. An `.ods` keeps its column widths, hidden rows and columns and frozen panes, and since 2026-10-08 its charts (embedded objects, plotting their cells), shapes, pictures and text boxes, read and written back. An `.odt` opens whole since 2026-10-08 — headings, run looks, links, lists at their levels, tables with their spans and shading, pictures, the page — where it came in as plain lines. Found 2026-09-10 by tools/make-rich-fixtures.ps1. |
 | **Equations** | **Built, 2026-09-25** | Office Math is read, drawn through the browser's own MathML, edited in Word's linear format, written as Word writes it and printed. A deck's equations are read, drawn and inserted the same way since the same day. |
 | **Tracked changes, shown** | **Built for documents, 2026-09-25** | Insertions and deletions are kept with their author and date, shown as All Markup, Simple Markup, No Markup or Original, walked with Previous and Next, and accepted or rejected one at a time or all at once (since 1.30.0 all at once reaches inserted and deleted table rows, and the headers, footers and notes); recording them arrived the same day (below). A deck's and a workbook's tracked changes are not read. |
-| **Page setup as a document property** | **Built for workbooks, 2026-09-09** | Paper, orientation, margins, scaling, gridlines, headings, centring, the print area and the repeated rows are read from and written to the file where Excel keeps them. A document and a deck still choose theirs in the dialog each time. |
+| **Page setup as a document property** | **Built for workbooks, 2026-09-09; documents and decks, 1.32.0** | Paper, orientation, margins, scaling, gridlines, headings, centring, the print area and the repeated rows are read from and written to the file where Excel keeps them. Since 1.32.0 a document's print shows and changes the document's own paper, orientation and margins, as Word's does, and a deck's print choices (slides, notes or a handout, slides to a page, a frame) are kept in `p:prnPr`, as PowerPoint keeps them. |
 | **Password-protected files** | **Built, 2026-09-25** | An encrypted `.docx`, `.xlsx` or `.pptx` opens through a Password dialog, reading Agile and Standard Encryption and checking the file's HMAC. Info → Encrypt with Password saves Agile AES-256/SHA-512 inside a compound file as Office writes one, and the autosave copy is encrypted too. Since 2026-10-08 a password-protected Office 97–2003 file opens too — RC4 CryptoAPI and Office 97/2000 RC4 in `.doc`, `.xls` and `.ppt`, and Excel 95's XOR; Word's own older XOR obfuscation is refused with a message saying so. |
 | **A spell-check pass** | **Built, 2026-09-25** | Review → Spelling (F7) runs an Editor pane over a document, a workbook or a deck with Change, Change All, Ignore and Add to Dictionary. It uses English (UK) and English (US) Hunspell dictionaries on the machine and a personal dictionary shared by the three apps. Since 1.29.8 Review → Thesaurus (Shift+F7) opens a pane of words of like meaning from a thesaurus of the suite's own, some six thousand words in British spelling, in all three apps. Suggestions are not ranked by how common a word is ("brwn" offers bran before brown). The language is chosen once per document, not per paragraph; words marked as another language or not to be checked (Review → Language, 1.29.1) are read past rather than checked in their own. The grid and the slides have no spelling right-click. No other languages ship yet. |
 | **Accessibility check** | **Built, 2026-09-25** | Review → Check Accessibility lists Errors, Warnings and Tips under Office's rule names in all three apps, with one-click fixes, Alt Text, Mark as decorative and a status-bar indicator that follows edits. Since 2026-10-08 a table cell's shading — its own and its table style's — is read for contrast, and merged cells in a document unmerge in one click; merged cells elsewhere and unclear links have no one-click fix. |
@@ -143,13 +143,17 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   body's properties, as Office writes it, and the words are drawn along
   the preset's path (`@rutba/drawing/warp`) on the page, the slide and the
   sheet, in a slide's thumbnail and in the show. In Documents the words
-  show straight while the caret is in them. Still to build: the waves,
-  inflate, deflate, slant and the other warps (drawn straight); the
-  handles, kept from the file but neither drawn nor dragged here; and a
-  Documents PDF, which draws a transformed box's words straight. Asked for
-  2026-10-08.
-- **A real watermark** (the header holds text only), multilevel list
-  definitions. (Paragraph shading and borders, and the page colour, are
+  show straight while the caret is in them. Since 1.32.0 Transform → More
+  gives twenty of the warps (the waves, inflate and deflate, slants,
+  triangles, chevrons, fades and curves), each letter stretched between
+  the warp's two curves. Still to build: the rest of the gallery (the
+  pour arches, rings, cans, cascades, stop, deflate-inflate), drawn
+  straight; the handles, kept from the file but neither drawn nor dragged
+  here; and a Documents PDF, which draws a transformed box's words
+  straight. Asked for 2026-10-08.
+- **Multilevel list definitions.** (A picture watermark arrived in
+  1.32.0: Design → Watermark → Picture watermark, washed out behind every
+  page, written in the header as Word writes one.) (Paragraph shading and borders, and the page colour, are
   written from the ribbon since 2026-09-21, and printed.)
 - **A default template.** (Building blocks — Insert → Quick Parts, the
   Quick Part and AutoText galleries and the Organizer — arrived in 1.29.4.)
@@ -281,8 +285,8 @@ document and workbook writers.
   edited line dropped them), and the box's own anchor, text direction
   and columns are written from the same tab. WordArt's run look is written,
   and since 1.31.0 its Transform's arcs, circle and button are drawn and
-  written from Shape Format; the waves and the other warps are still drawn
-  straight (see Documents, "WordArt's shapes"; the same drawing serves all
+  written from Shape Format, and since 1.32.0 twenty of the warps; the rest
+  of the gallery is still drawn straight (see Documents, "WordArt's shapes"; the same drawing serves all
   three apps, since the preset lives on the shared text body).
 - **What can be put on a slide**: a table and a chart are read and drawn —
   a table in its table style since 1.29.5 (its header, bands, borders and
@@ -403,10 +407,13 @@ thumbnail kept on disk (never the file), a clip's tile is a frame rather than
 a live player, the grid and the filmstrip draw only what is in view, and the
 stage keeps a picture until the next has decoded. What is still missing:
 
-- **Thumbnails on Linux.** The platform there makes none; a picture is read
-  and shrunk by Electron's own decoder, which knows PNG and JPEG, and a clip's
-  frame is drawn by the window. HEIC, AVIF, TIFF and SVG tiles show the kind's
-  icon there. On Windows and macOS the system knows what it has a codec for.
+- **Thumbnails on Linux.** The platform there makes none; a small PNG or
+  JPEG is shrunk by Electron's own decoder, and since 1.32.0 anything else
+  the window can decode (a large photo, an SVG, an AVIF, a WebP) is drawn by
+  the window at the tile's size and kept, as a clip's frame is, on any
+  platform whose system has no tile for it. HEIC and TIFF tiles still show
+  the kind's icon on Linux. Not yet run on Linux: checked on Windows, where
+  an SVG has no system tile.
 - **A clip's length on its tile** arrived 2026-09-24, read once from the
   clip's own metadata and kept for the window's life, as the frames are.
 - **A slideshow with transitions** arrived 2026-09-24: View → Slideshow
