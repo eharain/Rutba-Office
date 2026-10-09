@@ -114,7 +114,7 @@ export function createPrintService({ docs }) {
      */
     summary: async ({ id, options }) => {
       await prepareMath(id);
-      return docs.printSummary({ id, options });
+      return await docs.printSummary({ id, options });
     },
 
     /** The printers this machine can reach, the default one first. */
@@ -135,7 +135,7 @@ export function createPrintService({ docs }) {
      */
     pdf: async ({ id, path: target, options = {} }) => {
       await prepareMath(id);
-      const source = docs.printSource({ id, options });
+      const source = await docs.printSource({ id, options });
       if (source.pdf) {
         fs.writeFileSync(target, Buffer.from(source.pdf));
         return { path: target, format: 'pdf' };
@@ -161,7 +161,7 @@ export function createPrintService({ docs }) {
      */
     document: async ({ id, options = {}, printer = null, copies = 1, silent = false }) => {
       await prepareMath(id);
-      const source = docs.printSource({ id, options });
+      const source = await docs.printSource({ id, options });
       return withJob(
         source,
         (win) =>

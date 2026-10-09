@@ -13,7 +13,7 @@ import { app, BrowserWindow, Menu, dialog, nativeTheme, shell as electronShell }
 import path from 'node:path';
 import fs from 'node:fs';
 import { createStores } from './store.js';
-import { registerSchemePrivileges, installProtocol, fileUrl, thumbUrl, holdBlob, releaseBlob, SCHEME } from './protocol.js';
+import { registerSchemePrivileges, installProtocol, fileUrl, thumbUrl, holdBlob, releaseBlob, blobUrl, SCHEME } from './protocol.js';
 import { createThumbnailer } from './thumbs.js';
 import { mayServe } from './grants.js';
 import { createWindowManager } from './windows.js';
@@ -385,4 +385,4 @@ export function createShell({
   return { app, get windows() { return windows; }, get stores() { return stores; }, openPath, fileUrl, holdBlob };
 }
 
-export { fileUrl, holdBlob, releaseBlob, sendEvent, broadcast, path };
+export { fileUrl, holdBlob, releaseBlob, blobUrl, sendEvent, broadcast, path };

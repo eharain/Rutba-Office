@@ -28,15 +28,19 @@ let blobSeq = 0;
  * the window's blobs of an older generation in that group go. Several held
  * for one generation (a message's three pictures) keep each other.
  *
- * @param {{ group?: string, generation?: string }} [options]
+ * A blob held for a request answered elsewhere (the document service's
+ * thread) comes with its own `id`, minted there, and the `owner` its
+ * request named, since no request is being answered here when it arrives.
+ *
+ * @param {{ group?: string, generation?: string, id?: string, owner?: number|null }} [options]
  * @returns {{ id: string, size: number }}
  */
-export function hold(bytes, type = 'application/octet-stream', name = '', { group = null, generation = null } = {}) {
-  const owner = blobOwner.getStore() ?? null;
+export function hold(bytes, type = 'application/octet-stream', name = '', { group = null, generation = null, id: given = null, owner: named } = {}) {
+  const owner = named !== undefined ? named : blobOwner.getStore() ?? null;
   if (group) {
     for (const [id, b] of blobs) if (b.owner === owner && b.group === group && b.generation !== generation) blobs.delete(id);
   }
-  const id = `b${++blobSeq}`;
+  const id = given || `b${++blobSeq}`;
   // Bytes already in memory are kept as they are, not copied: a deck's
   // pictures were each held twice, once by the deck and once here.
   const buf = Buffer.isBuffer(bytes) ? bytes : bytes instanceof Uint8Array ? Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength) : Buffer.from(bytes);

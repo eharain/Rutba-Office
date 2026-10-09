@@ -1,6 +1,7 @@
-// Review → Check Accessibility and Review → Spelling, on the main process.
+// Review → Check Accessibility and Review → Spelling, on the document
+// service's thread (doc-worker.js).
 //
-// The engines live here, so this is where a document is read for the
+// The engines live there, so this is where a document is read for the
 // accessibility rules and walked for the spelling pass. It hands the
 // document service two things: operations for its DOC_OPS / SHEET_OPS /
 // DECK_OPS tables (every fix and every change is an op, so it is one undo
@@ -38,7 +39,7 @@ function systemLocale() {
   }
 }
 
-export function createProofing({ stores = null, locale = systemLocale, worker = true } = {}) {
+export function createProofing({ stores = null, locale = systemLocale, worker = true, teach = null } = {}) {
   const host = createSpellerHost({ worker });
   // Without a settings store (a test) the dictionary lives here.
   let memoryWords = [];
@@ -54,8 +55,13 @@ export function createProofing({ stores = null, locale = systemLocale, worker = 
   };
   const readOptions = () => ({ ...DEFAULT_OPTIONS, ...(stores?.settings?.get(OPTIONS_KEY, null) || {}) });
 
-  /** Chromium's own underline learns what the person adds, and forgets what they take out. */
+  /**
+   * Chromium's own underline learns what the person adds, and forgets what
+   * they take out. On the document service's thread, which has no windows,
+   * `teach` hands the word to the main process to do it.
+   */
   const teachChromium = (win, word, add) => {
+    if (teach) return teach(win, word, add);
     try {
       const ses = win?.webContents?.session;
       if (!ses) return;

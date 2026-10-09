@@ -8,11 +8,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { app as electron, BrowserWindow } from 'electron';
-import { createShell, holdBlob, broadcast } from '@rutba/office-shell/electron/main';
+import { createShell, holdBlob, releaseBlob, blobUrl, broadcast } from '@rutba/office-shell/electron/main';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { fileAssociations, APPS } from '@rutba/office-formats/registry';
-import { createDocumentService } from './documents.js';
-import { createProofing } from './proofing.js';
+import { createDocumentHost } from './doc-host.js';
 import { createPrintService } from './print.js';
 import { createMathMeasurer } from './math-raster.js';
 import { createMailService } from './mail.js';
@@ -33,6 +32,10 @@ const app = path.resolve(here, '..');
 let services = null;
 let updates = null;
 
+// The document service runs on a thread of its own (doc-host.js, doc-worker.js).
+// Started here, its engines load while the shell gets the first window ready.
+const docHost = createDocumentHost({ holdBlob, releaseBlob, blobUrl }).start();
+
 /**
  * Renaming a recent file from the launcher: the file on disk moves, and the
  * recent list is told where it went. Refused — with a plain sentence, never
@@ -42,7 +45,7 @@ let updates = null;
  * of the path and would go on saving to a file that no longer answers to
  * that name, so that one has to close first.
  */
-function renameRecent({ stores, doc, path: from, name }) {
+async function renameRecent({ stores, doc, path: from, name }) {
   const trimmed = String(name || '').trim();
   if (!from) throw new Error('No file was given to rename.');
   if (!trimmed) throw new Error('Enter a name.');
@@ -54,7 +57,7 @@ function renameRecent({ stores, doc, path: from, name }) {
   const to = path.join(dir, finalName);
 
   if (to !== from && fs.existsSync(to)) throw new Error('A file with that name already exists.');
-  if (doc.sessions().some((s) => s.path === from)) throw new Error('That file is open in a window. Close it first.');
+  if ((await doc.sessions()).some((s) => s.path === from)) throw new Error('That file is open in a window. Close it first.');
 
   if (to !== from) fs.renameSync(from, to);
   return stores.recent.rename({ path: from, to });
@@ -85,17 +88,31 @@ createShell({
    */
   appForFile: (file) => appFor(kindFromExtension(file)) || 'home',
 
-  namespaces: ({ stores, holdBlob: hold, releaseBlob }) => {
+  namespaces: async ({ stores, holdBlob: hold }) => {
     // Built before the mail service, which needs it to fetch an access token
     // for an account that was added by signing in rather than by typing a
     // password.
     const oauth = createOAuthService({ stores, broadcast });
     // Equations printed as Chromium lays their MathML out — see math-raster.js.
     const math = createMathMeasurer();
+    // What the document service's thread asks of the main process: an
+    // equation laid out by Chromium, a word taught to a window's spelling
+    // underline, a proofing setting written to the store.
+    docHost.provide({
+      measureMath: (list) => math.measure(list),
+      teach: (winId, word, add) => {
+        const ses = winId == null ? null : BrowserWindow.fromId(winId)?.webContents?.session;
+        if (!ses) return;
+        if (add) ses.addWordToSpellCheckerDictionary?.(word);
+        else ses.removeWordFromSpellCheckerDictionary?.(word);
+      },
+      setting: (key, value) => stores.settings.set(key, value),
+    });
     // Unsaved work is written to a copy in the profile every half minute,
     // and the copy is deleted the moment the document is saved or closed. What
     // is left in that folder at start-up is what a crash took.
-    const doc = createDocumentService({ holdBlob: hold, releaseBlob, recoveryDir: path.join(stores.dir, 'recovery'), measureMath: (list) => math.measure(list), proofing: createProofing({ stores, locale: () => electron.getLocale?.() || 'en-GB' }) });
+    docHost.init({ recoveryDir: path.join(stores.dir, 'recovery'), locale: electron.getLocale?.() || 'en-GB', settings: stores.settings.all() });
+    const { doc } = await docHost.ready();
 
     // The address book, with the people mail has seen behind it for Compose
     // to complete from. Built before the mail service, which needs it too —
@@ -123,11 +140,12 @@ createShell({
     const calendar = createCalendarService({ stores, broadcast, mail: { accounts: () => services?.mail?.accounts?.() || [] } });
 
     return (services = {
-      // A window's Open waits on the file and its unzipping rather than
-      // holding the main process (documents.js, `openAsync`).
-      // Save the same: the parts compressed off the main process too
-      // (`saveAsync`). The checks, which read a file the moment they save
-      // it, are handed the service with its own save (`directDoc` below).
+      // Every call answered from the service's thread. A window's Open waits
+      // on the file and its unzipping (documents.js, `openAsync`), and its
+      // Save compresses the parts on the thread pool (`saveAsync`), so
+      // neither holds the thread's other documents either. The checks,
+      // which read a file the moment they save it, are handed the service
+      // as a function call (`directDoc` below).
       doc: { ...doc, open: doc.openAsync, save: doc.saveAsync, saveNow: doc.save },
       // Paper and PDFs, for every kind of document. It asks the document
       // service where the pages fall and hands the result to a hidden window.
@@ -247,11 +265,9 @@ createShell({
     // costs nothing to leave open.
     if (!process.env.RUTBA_OFFICE_VERIFY_CORPUS) {
       const timer = setInterval(() => {
-        try {
-          services.doc?.autosave?.();
-        } catch (err) {
-          console.error('autosave:', err?.message || err);
-        }
+        Promise.resolve()
+          .then(() => services.doc?.autosave?.())
+          .catch((err) => console.error('autosave:', err?.message || err));
       }, Number(process.env.RUTBA_AUTOSAVE_MS || 30000));
       timer.unref?.();
     }
@@ -262,8 +278,8 @@ createShell({
     const { app: electronApp, BrowserWindow } = await import('electron');
     electronApp.on('browser-window-created', (_e, win) => {
       const id = win.id;
-      win.once('closed', () => {
-        const gone = services.doc?.closeWindow?.(id) ?? [];
+      win.once('closed', async () => {
+        const gone = (await Promise.resolve(services.doc?.closeWindow?.(id)).catch(() => [])) ?? [];
         if (!gone.length) return;
         // A presenter window shows a deck its editor holds open. With the
         // editor gone the deck is gone, and a window left showing it would
@@ -300,8 +316,9 @@ createShell({
       }
     };
 
-    // The document service as the checks call it: saving at once, as their reads expect.
-    const directDoc = () => ({ ...services.doc, save: services.doc.saveNow });
+    // The document service as the checks call it: a function that answers,
+    // saving at once, as their reads expect; opening as a window opens.
+    const directDoc = () => ({ ...docHost.direct, open: docHost.direct.openAsync, saveNow: docHost.direct.save });
     if (process.env.RUTBA_OFFICE_VERIFY_EDIT) {
       return finish(async () => {
         const { verifyEditing } = await import('./verify-edit.js');

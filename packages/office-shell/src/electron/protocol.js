@@ -104,7 +104,12 @@ export function thumbUrl(p, size = 256) {
  */
 export function holdBlob(bytes, type = 'application/octet-stream', name = '', options = {}) {
   const { id, size } = hold(bytes, type, name, options);
-  return { id, url: `${SCHEME}://blob/${id}`, size };
+  return { id, url: blobUrl(id), size };
+}
+
+/** Where a held blob is fetched: what a thread that mints its own ids writes in its models. */
+export function blobUrl(id) {
+  return `${SCHEME}://blob/${id}`;
 }
 
 export function releaseBlob(id) {

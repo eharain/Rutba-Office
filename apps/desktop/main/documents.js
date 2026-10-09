@@ -1,9 +1,11 @@
 // The document service.
 //
-// Documents open, edit and save in the main process, because the engines are
-// Node engines — they inflate with zlib and work in Buffers — and because a
-// 200 MB workbook has no business in a window's heap. The renderer draws
-// whatever view model comes back and sends back operations by name.
+// Documents open, edit and save in Node, because the engines are Node
+// engines — they inflate with zlib and work in Buffers — and because a
+// 200 MB workbook has no business in a window's heap: on a thread of the
+// main process's own (doc-worker.js), so the windows, the menu and mail are
+// answered while a document is worked on. The renderer draws whatever view
+// model comes back and sends back operations by name.
 //
 // Formats we cannot write are converted on open into ones we can: an .odt
 // becomes a document, an .ods a workbook, a .csv a workbook. That way there is
