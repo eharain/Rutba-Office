@@ -11,7 +11,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
-import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import SheetsRibbon, { FUNCTIONS, MARGIN_PRESETS, pivotAround } from './sheets/ribbon.js';
@@ -215,7 +215,9 @@ export default function Sheets({ app, shell, boot }) {
       ...(model?.protection?.sheet ? [`${model?.activeSheet || 'This sheet'} is protected: locked cells take no edits.`] : []),
     ],
   });
-  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.(), extra: doc ? [protection.menuItem] : [] });
+  // File → Save as Template, from the menu made before `save` is.
+  const saveRef = useRef(null);
+  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.(), extra: doc ? [protection.menuItem, { label: 'Save as Template…', icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'sheets', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
 
   const dispatch = useCallback(
     async (...ops) => {
@@ -379,6 +381,8 @@ export default function Sheets({ app, shell, boot }) {
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const template = params.get('template');
+    // A template of one's own from File → New: a new workbook made from it.
+    const templateFile = params.get('templateFile');
     const recover = params.get('recover');
     // A recovery copy the launcher offered: opened as the workbook it came
     // from, dirty, because what is on screen is not what is on disk.
@@ -386,6 +390,7 @@ export default function Sheets({ app, shell, boot }) {
     // password in this window before anything opens.
     if (recover) load(() => openProtected((password) => shell.doc.recover({ file: recover, password }), gate).then((r) => { toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 }); return r; }));
     else if (boot.file) load(() => openProtected((password) => shell.doc.open({ path: boot.file, kind: 'sheet', password }), gate));
+    else if (templateFile) load(() => shell.doc.new({ kind: 'sheets', templateFile }));
     else load(() => shell.doc.new({ kind: 'sheets', template: template && template !== 'blank' ? template : 'sheet' }));
     // A window an earlier build zoomed stays zoomed across restarts — the
     // level is kept per origin — and the grid carries the zoom now, so the
@@ -409,10 +414,10 @@ export default function Sheets({ app, shell, boot }) {
   }, [shell, doc]);
 
   const save = useCallback(
-    async (as = false) => {
+    async (as = false, given = null) => {
       if (!doc) return false;
-      let target = doc.path;
-      if (as || !target) {
+      let target = given || doc.path;
+      if (!given && (as || !target)) {
         target = await pickSave(shell, 'sheets', doc.path || doc.name);
         // A cancelled Save As is not a save; the caller must know.
         if (!target) return false;
@@ -430,6 +435,7 @@ export default function Sheets({ app, shell, boot }) {
     },
     [doc, shell, toast]
   );
+  saveRef.current = save;
 
   const exportAs = useCallback(
     async (format, options = null) => {

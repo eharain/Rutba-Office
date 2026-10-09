@@ -15,7 +15,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, formatWhen } from '@rutba/office-ui';
-import { AppFrame, useAppMenu, pickOpen, pickSave, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows } from '../shell.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
 import WordRibbon from './word/ribbon.js';
 import { NavigationPane, installWordStyles } from './word/panes.js';
@@ -336,12 +336,14 @@ export default function Word({ app, shell, boot }) {
   const [unprotecting, setUnprotecting] = useState(null);
   const protectionRef = useRef(null);
   protectionRef.current = model?.protection || null;
+  // File → Save as Template, from the menu made before `save` is.
+  const saveRef = useRef(null);
   const appMenu = useAppMenu({
     shell,
     appKey: 'word',
     onNew: () => shell.win.create({ app: 'word' }),
     onOpen: () => openFileRef.current?.(),
-    extra: doc ? [protection.menuItem] : [],
+    extra: doc ? [protection.menuItem, { label: 'Save as Template…', icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'word', doc?.name); if (target) saveRef.current?.(true, target); } }] : [],
   });
 
   const apply = useCallback(
@@ -387,6 +389,8 @@ export default function Word({ app, shell, boot }) {
 
   useEffect(() => {
     const template = new URLSearchParams(location.search).get('template');
+    // A template of one's own from File → New: a new document made from it.
+    const templateFile = new URLSearchParams(location.search).get('templateFile');
     const run = async () => {
       setBusy(true);
       try {
@@ -404,6 +408,8 @@ export default function Word({ app, shell, boot }) {
           ? await openProtected((password) => shell.doc.recover({ file: recover, password }), gate)
           : boot.file
             ? await openProtected((password) => shell.doc.open({ path: boot.file, kind: 'doc', password }), gate)
+            : templateFile
+              ? await shell.doc.new({ kind: 'word', templateFile })
             : await shell.doc.new({
               kind: 'word',
               template: template && template !== 'blank' ? template : 'doc',
@@ -445,10 +451,10 @@ export default function Word({ app, shell, boot }) {
   }, []);
 
   const save = useCallback(
-    async (as = false) => {
+    async (as = false, given = null) => {
       if (!doc) return false;
-      let target = doc.path;
-      if (as || !target) {
+      let target = given || doc.path;
+      if (!given && (as || !target)) {
         target = await pickSave(shell, 'word', doc.path || doc.name);
         // A cancelled Save As is not a save; the caller must know.
         if (!target) return false;
@@ -467,6 +473,7 @@ export default function Word({ app, shell, boot }) {
     [doc, shell, toast]
   );
 
+  saveRef.current = save;
   // Closing a window with unsaved work must ask, not discard.
   useDirtyGuard({ shell, dirty: doc?.dirty, name: doc?.name, onSave: () => save(false) });
   const openFile = useCallback(async () => {

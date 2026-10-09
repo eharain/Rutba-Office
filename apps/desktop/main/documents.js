@@ -2693,7 +2693,22 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
   /* ── the namespace ────────────────────────────────────────────────────── */
 
   return {
-    new: ({ kind = 'doc', template, design = null }, win) => {
+    new: ({ kind = 'doc', template, design = null, templateFile = null }, win) => {
+      // File → New → a template of one's own: a new, untitled document made
+      // from it, as Word, Excel and PowerPoint make one, the template left as
+      // it is; its main part labelled as the document it makes.
+      if (templateFile) {
+        const ext = path.extname(String(templateFile)).toLowerCase();
+        const made = { '.dotx': ['doc', '.docx'], '.xltx': ['sheet', '.xlsx'], '.potx': ['deck', '.pptx'] }[ext];
+        if (!made) throw new Error(`${path.basename(String(templateFile))} is not a template (.dotx, .xltx or .potx).`);
+        const bytes = labelledFor(fs.readFileSync(templateFile), made[1], path.basename(templateFile));
+        const engine = engineFor(made[0], bytes);
+        const session = new Session({ id: nextId(), kind: made[0], filePath: null, engine, source: 'new' });
+        session.windowId = win?.id ?? null;
+        session.template = templateFile;
+        sessions.set(session.id, session);
+        return { ...session.meta(), model: modelOf(session) };
+      }
       const make = TEMPLATES[template] || TEMPLATES[KIND_FOR_APP[kind] || kind] || TEMPLATES.doc;
       const bytes = make();
       const resolved = template && TEMPLATES[template] ? (['budget', 'invoice', 'sheet'].includes(template) ? 'sheet' : ['pitch', 'deck'].includes(template) ? 'deck' : 'doc') : KIND_FOR_APP[kind] || kind;

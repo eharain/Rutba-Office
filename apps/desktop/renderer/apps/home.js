@@ -9,7 +9,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Icon, Search, Empty, Button, Chip, Spacer, Dialog, useMenu, useToast, formatBytes, formatWhen, basename, t, tn } from '@rutba/office-ui';
 import { APPS, NEW_DOCUMENTS, SITE } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension, KINDS } from '@rutba/office-formats/sniff';
-import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, openInApp, useFileDrop, templatesFolder } from '../shell.js';
 import { WhatsNew } from '../whatsnew.js';
 
 const ORDER = ['mail', 'calendar', 'contacts', 'word', 'sheets', 'slides', 'pictures', 'image', 'video'];
@@ -53,8 +53,15 @@ export default function Home({ app, shell }) {
   // either — and the person who lost it is looking at this window.
   const [recovered, setRecovered] = useState([]);
 
+  // Templates of one's own, from the folder Office keeps them in (shell.js).
+  const [personal, setPersonal] = useState([]);
+
   const refresh = useCallback(() => {
     shell.app.recent().then(setRecent).catch(() => setRecent([]));
+    templatesFolder(shell)
+      .then((dir) => shell.fs.list({ path: dir, filter: ['dotx', 'xltx', 'potx'] }))
+      .then((list) => setPersonal((list || []).filter((f) => !f.dir).map((f) => ({ path: f.path, name: String(f.name).replace(/\.[^.]+$/, ''), app: { dotx: 'word', xltx: 'sheets', potx: 'slides' }[String(f.name).split('.').pop().toLowerCase()] })).filter((f) => f.app)))
+      .catch(() => setPersonal([]));
   }, [shell]);
 
   useEffect(() => {
@@ -213,6 +220,15 @@ export default function Home({ app, shell }) {
                   <Icon name={APPS[tpl.app].icon} size={16} />
                 </span>
                 <span>{tpl.label}</span>
+              </button>
+            ))}
+            {/* Templates of one's own: each makes a new document, the template left as it is. */}
+            {personal.map((tpl) => (
+              <button key={tpl.path} type="button" className="home-template personal" title={t('Your template: a new document made from {name}', { name: tpl.name })} data-template={tpl.path} onClick={() => shell.win.create({ app: tpl.app, query: { templateFile: tpl.path } })}>
+                <span className="tpl-glyph" data-app={tpl.app}>
+                  <Icon name={APPS[tpl.app].icon} size={16} />
+                </span>
+                <span>{tpl.name}</span>
               </button>
             ))}
           </div>

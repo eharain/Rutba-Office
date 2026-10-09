@@ -11,7 +11,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, menuItems } from '@rutba/office-ui';
-import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
+import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
 import { SITE, APPS } from '@rutba/office-formats/registry';
@@ -446,7 +446,9 @@ export default function Slides({ app, shell, boot }) {
   const openFileRef = useRef(null);
   // File → Info: the Protect Presentation card and Encrypt with Password.
   const protection = useProtection({ app: 'slides', shell, doc, setDoc, toast });
-  const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.(), extra: doc && !presenterFor ? [protection.menuItem] : [] });
+  // File → Save as Template, from the menu made before `save` is.
+  const saveRef = useRef(null);
+  const appMenu = useAppMenu({ shell, appKey: 'slides', onNew: () => shell.win.create({ app: 'slides' }), onOpen: () => openFileRef.current?.(), extra: doc && !presenterFor ? [protection.menuItem, { label: 'Save as Template…', icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'slides', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
 
   const load = useCallback(
     async (next = index) => {
@@ -644,6 +646,8 @@ export default function Slides({ app, shell, boot }) {
 
   useEffect(() => {
     const template = new URLSearchParams(location.search).get('template');
+    // A template of one's own from File → New: a new deck made from it.
+    const templateFile = new URLSearchParams(location.search).get('templateFile');
     const run = async () => {
       setBusy(true);
       try {
@@ -659,6 +663,8 @@ export default function Slides({ app, shell, boot }) {
           ? await openProtected((password) => shell.doc.recover({ file: recover, password }), gate)
           : boot.file
             ? await openProtected((password) => shell.doc.open({ path: boot.file, kind: 'deck', width: 1280, password }), gate)
+            : templateFile
+              ? await shell.doc.new({ kind: 'slides', templateFile })
             : await shell.doc.new({ kind: 'slides', template: template && template !== 'blank' ? template : 'deck' });
         if (recover) toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 });
         setDoc(opened);
@@ -755,10 +761,10 @@ export default function Slides({ app, shell, boot }) {
   }, [shell, toast]);
 
   const save = useCallback(
-    async (as = false) => {
+    async (as = false, given = null) => {
       if (!doc) return false;
-      let target = doc.path;
-      if (as || !target) {
+      let target = given || doc.path;
+      if (!given && (as || !target)) {
         target = await pickSave(shell, 'slides', doc.path || doc.name);
         // A cancelled Save As is not a save; the caller must know.
         if (!target) return false;
@@ -778,6 +784,7 @@ export default function Slides({ app, shell, boot }) {
     },
     [doc, shell, toast, noteSeen]
   );
+  saveRef.current = save;
 
   // Closing a window with unsaved work must ask, not discard.
   useDirtyGuard({ shell, dirty: doc?.dirty, name: doc?.name, onSave: () => save(false) });

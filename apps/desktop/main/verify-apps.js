@@ -65,6 +65,7 @@ import { verifySheetWordArtTransform } from './verify-sheet-wordart-transform.js
 import { verifyWordWordArtTransform } from './verify-word-wordart-transform.js';
 import { verifyPictureTiles } from './verify-picture-tiles.js';
 import { verifyPrintSetup } from './verify-print-setup.js';
+import { verifyPersonalTemplates } from './verify-personal-templates.js';
 import { verifyWordWatermarkPicture } from './verify-word-watermark-picture.js';
 import { verifyDeckWordArtTransform } from './verify-deck-wordart-transform.js';
 import { verifyWordMergeTracked } from './verify-word-merge-tracked.js';
@@ -4696,6 +4697,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('wordwordart')) await verifyWordWordArtTransform({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('picturetiles')) await verifyPictureTiles({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('printsetup')) await verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
+    if (only.includes('templates')) await verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('picwatermark')) await verifyWordWatermarkPicture({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('wordarttransform')) await verifyDeckWordArtTransform({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('mergetracked')) await verifyWordMergeTracked({ open, check, until, doc, sessionFor }, { dir });
@@ -4961,6 +4963,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyWordWordArtTransform({ open, check, until, wait, press, errorsIn }, { dir }));
   await block(() => verifyPictureTiles({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
+  await block(() => verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => verifyWordWatermarkPicture({ open, check, until, wait, press, errorsIn }, { dir }));
   await block(() => verifyDeckWordArtTransform({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordMergeTracked({ open, check, until, doc, sessionFor }, { dir }));

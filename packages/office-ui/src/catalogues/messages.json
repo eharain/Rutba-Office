@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 296,
+  "count": 298,
   "messages": [
     {
       "message": "(default)",
@@ -1303,6 +1303,12 @@
       ]
     },
     {
+      "message": "Save as Template",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
       "message": "Save changes to {name}?",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -1674,6 +1680,12 @@
       "message": "Your changes will be lost if you don’t save them.",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Your template: a new document made from {name}",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
       ]
     },
     {

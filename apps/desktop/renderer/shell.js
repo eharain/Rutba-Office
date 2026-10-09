@@ -150,6 +150,30 @@ export async function pickSave(shell, appKey, defaultPath) {
   return shell.dialog.save({ title: t('Save as'), filters: saveFilters(appKey), defaultPath });
 }
 
+/** Each app's template, by the name Office gives it. */
+export const TEMPLATE_KINDS = { word: { ext: 'dotx', label: 'Word Template (.dotx)' }, sheets: { ext: 'xltx', label: 'Excel Template (.xltx)' }, slides: { ext: 'potx', label: 'PowerPoint Template (.potx)' } };
+
+/**
+ * Where templates of one's own are kept: Office's own folder for them,
+ * Documents\Custom Office Templates, so Word, Excel and PowerPoint list the
+ * same ones as File → New here does.
+ */
+export async function templatesFolder(shell) {
+  const { documents } = await shell.app.paths();
+  const sep = String(documents).includes('\\') ? '\\' : '/';
+  return `${documents}${sep}Custom Office Templates`;
+}
+
+/** File → Save as Template: a name in the templates folder, made if it is not there yet. */
+export async function pickSaveTemplate(shell, appKey, name) {
+  const kind = TEMPLATE_KINDS[appKey];
+  const dir = await templatesFolder(shell);
+  await shell.fs.mkdirp({ path: dir }).catch(() => {});
+  const base = String(name || 'Template').replace(/\.[^.]+$/, '');
+  const sep = dir.includes('\\') ? '\\' : '/';
+  return shell.dialog.save({ title: t('Save as Template'), filters: [{ name: kind.label, extensions: [kind.ext] }], defaultPath: `${dir}${sep}${base}.${kind.ext}` });
+}
+
 /**
  * Files dropped onto a window. Chromium would happily navigate to the file and
  * replace the app with it, so the default is refused everywhere and the drop is
