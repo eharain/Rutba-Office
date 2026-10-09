@@ -22,7 +22,7 @@
  * honest boundary, and it is why the editor roadmap and the fidelity roadmap are
  * different roadmaps.
  */
-import { readZip, writeZip, ZipEntry, inflateEntries } from './zip.js';
+import { readZip, writeZip, ZipEntry, inflateEntries, precompressEntries } from './zip.js';
 
 const RELS_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
 const CT_NS = 'http://schemas.openxmlformats.org/package/2006/content-types';
@@ -175,7 +175,35 @@ export class OoxmlPackage {
   }
 
   write() {
+    // Held back while `saveAsync` lets an engine flush its parts.
+    if (this._holdWrite) return null;
     return writeZip(this.entries, this.comment);
+  }
+
+  /**
+   * An engine's save, its compression off the main thread: `save` (the
+   * engine's own, which flushes its parts and ends by writing the package)
+   * runs with the final write held back; the parts as they stand then are
+   * the file, the changed ones deflated on Node's thread pool while the main
+   * thread is free, and the archive is assembled from them. A part changed
+   * while that runs is not in this save, which holds what was flushed.
+   */
+  async saveAsync(save) {
+    this._holdWrite = true;
+    try {
+      save();
+    } finally {
+      this._holdWrite = false;
+    }
+    // The parts as flushed: later edits replace a part's bytes, never these.
+    const snapshot = this.entries.map((entry) => Object.assign(Object.create(entry), {
+      _raw: entry._raw, modified: entry.modified, crc: entry.crc, uncompressedSize: entry.uncompressedSize,
+    }));
+    await precompressEntries(this.entries);
+    for (const [i, entry] of this.entries.entries()) {
+      if (entry._deflatedFor === snapshot[i]._raw) Object.assign(snapshot[i], { _deflated: entry._deflated, _deflatedFor: entry._deflatedFor });
+    }
+    return writeZip(snapshot, this.comment);
   }
 
   has(name) { return this.byName.has(name); }

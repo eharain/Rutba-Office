@@ -125,7 +125,8 @@ createShell({
     return (services = {
       // A window's Open waits on the file and its unzipping rather than
       // holding the main process (documents.js, `openAsync`).
-      doc: { ...doc, open: doc.openAsync },
+      // Save the same: the parts compressed off the main process too (`saveAsync`).
+      doc: { ...doc, open: doc.openAsync, save: doc.saveAsync },
       // Paper and PDFs, for every kind of document. It asks the document
       // service where the pages fall and hands the result to a hidden window.
       print: createPrintService({ docs: doc }),

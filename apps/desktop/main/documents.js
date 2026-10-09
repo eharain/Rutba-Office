@@ -579,6 +579,20 @@ class Session {
     return this.password ? encryptPackage(plain, this.password, { cache: this.keyCache }) : plain;
   }
 
+  /**
+   * `fileBytes`, the parts compressed off the main thread (OoxmlPackage
+   * `saveAsync`): a window's Save no longer holds every window while a large
+   * workbook's sheets are deflated.
+   */
+  async fileBytesAsync(ext = null) {
+    const pkg = this.engine?.pkg ?? this.engine?.workbook?.pkg ?? this.engine?.doc?.doc?.pkg ?? null;
+    let plain = typeof pkg?.saveAsync === 'function'
+      ? Buffer.from(await pkg.saveAsync(() => this.engine.save()))
+      : Buffer.from(this.engine.save());
+    if (ext) plain = labelledFor(plain, ext, this.name);
+    return this.password ? encryptPackage(plain, this.password, { cache: this.keyCache }) : plain;
+  }
+
   get name() {
     return this.path ? path.basename(this.path) : this.untitled ? this.untitled : this.kind === 'sheet' ? 'Book1.xlsx' : this.kind === 'deck' ? 'Presentation1.pptx' : 'Document1.docx';
   }
@@ -3120,6 +3134,28 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       // What is on disk is now what is on screen, so the recovery copy is
       // not wanted: leaving it would offer a person their own saved work
       // back after the next crash, as if it had been lost.
+      forgetRecovery(session);
+      return { ...session.meta(), path: to, stat: { size: fs.statSync(to).size } };
+    },
+
+    /**
+     * The windows save through this one (see main.js): the same steps as
+     * `save`, the compression off the main thread. An edit made while it
+     * runs is not in the file, and leaves the document marked unsaved.
+     */
+    saveAsync: async ({ id, path: target }) => {
+      const session = get(id);
+      const to = target || session.path;
+      if (!to) throw new Error('This document has never been saved, so it needs a name.');
+      const ext = path.extname(to).toLowerCase();
+      const native = { sheet: ['.xlsx', '.xlsm', '.xltx'], doc: ['.docx', '.docm', '.dotx'], deck: ['.pptx', '.pptm', '.potx', '.ppsx'] }[session.kind];
+      if (!native.includes(ext)) return writing(to, () => exportTo(session, to, ext.replace('.', '')));
+      const version = session.version;
+      const bytes = await session.fileBytesAsync(ext);
+      writing(to, () => writeWhole(to, bytes));
+      session.path = to;
+      if (session.version === version) session.dirty = false;
+      session.converted = null;
       forgetRecovery(session);
       return { ...session.meta(), path: to, stat: { size: fs.statSync(to).size } };
     },

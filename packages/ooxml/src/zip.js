@@ -99,9 +99,34 @@ export class ZipEntry {
     // Level 6, zlib's default: level 9 took 7.8 s for a 34 MB sheet part where
     // 6 takes 0.8 s, for a file about 8% larger. Saving runs on the main
     // thread, so the slower level froze every window for the difference.
-    const deflated = zlib.deflateRawSync(this._raw, { level: 6 });
+    // A part deflated ahead, off the thread (`precompressEntries`), is used
+    // as it is, while it is still the part's bytes.
+    const deflated = this._deflatedFor === this._raw && this._deflated ? this._deflated : zlib.deflateRawSync(this._raw, { level: 6 });
     return { method: 8, payload: deflated, crc: this.crc, uncompressedSize: this._raw.length };
   }
+}
+
+const deflateRawAsync = (raw) => new Promise((resolve, reject) => {
+  zlib.deflateRaw(raw, { level: 6 }, (err, out) => (err ? reject(err) : resolve(out)));
+});
+
+/**
+ * Deflate every changed part on Node's thread pool, ahead of the write, so
+ * the write that follows only assembles the archive: a save of a large
+ * workbook spent most of its time compressing on the main thread, holding
+ * every window. Each result is kept with the bytes it was made from, and
+ * used only while they are still the part's.
+ */
+export async function precompressEntries(entries) {
+  if (typeof zlib?.deflateRaw !== 'function') return;
+  await Promise.all(entries.map(async (entry) => {
+    if (!entry.modified || entry.method === 0 || !entry._raw) return;
+    if (entry._deflatedFor === entry._raw && entry._deflated) return;
+    const raw = entry._raw;
+    const out = await deflateRawAsync(raw);
+    entry._deflated = out;
+    entry._deflatedFor = raw;
+  }));
 }
 
 /**
