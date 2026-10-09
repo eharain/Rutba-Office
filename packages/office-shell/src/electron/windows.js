@@ -13,6 +13,7 @@
 import { app, BrowserWindow, screen, nativeTheme } from 'electron';
 import path from 'node:path';
 import { SCHEME, encodePath, releaseBlobsOf } from './protocol.js';
+import { grantPlace } from './grants.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -279,6 +280,8 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
 
   function open({ app: appKey, file, query }) {
     if (file) {
+      // A file opened is drawn from where it is, a share included (grants.js).
+      grantPlace(file);
       const existing = findByFile(file);
       if (existing) {
         if (existing.isMinimized()) existing.restore();

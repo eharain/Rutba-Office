@@ -18,6 +18,7 @@ import { METHODS, CHANNEL_PREFIX } from '../contract.js';
 import { blobOwner } from './blobs.js';
 import { runsWhenOpened } from '../runs.js';
 import { writeWhole } from '../write-whole.js';
+import { grantPlace } from './grants.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -207,6 +208,8 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     exists: ({ path: p }) => fs.existsSync(p),
     list: async ({ path: p, filter }) => {
       const names = await fsp.readdir(p, { withFileTypes: true });
+      // A folder browsed: its pictures may be drawn, a share's among them (grants.js).
+      grantPlace(p);
       const exts = filter ? new Set(filter.map((e) => (e.startsWith('.') ? e : `.${e}`).toLowerCase())) : null;
       const wanted = [];
       for (const e of names) {
@@ -242,7 +245,7 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
   impl.dialog = {
     open: async (p, win) => {
       const planned = plannedAnswer('open');
-      if (planned !== undefined) return planned;
+      if (planned !== undefined) { for (const f of [].concat(planned || [])) if (typeof f === 'string') grantPlace(f); return planned; }
       const props = ['openFile'];
       if (p.multiple) props.push('multiSelections');
       if (p.directory) {
@@ -255,7 +258,10 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
         filters: p.filters,
         properties: props,
       });
-      return r.canceled ? [] : r.filePaths;
+      if (r.canceled) return [];
+      // Picked by the person: drawn from, on a share too (grants.js).
+      for (const f of r.filePaths) grantPlace(f);
+      return r.filePaths;
     },
     save: async (p, win) => {
       const planned = plannedAnswer('save');

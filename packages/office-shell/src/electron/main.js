@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import { createStores } from './store.js';
 import { registerSchemePrivileges, installProtocol, fileUrl, thumbUrl, holdBlob, releaseBlob, SCHEME } from './protocol.js';
 import { createThumbnailer } from './thumbs.js';
+import { mayServe } from './grants.js';
 import { createWindowManager } from './windows.js';
 import { buildImplementations, installIpc, sendEvent, broadcast } from './ipc.js';
 
@@ -286,7 +287,8 @@ export function createShell({
     } catch (err) {
       record('thumbnails', err);
     }
-    installProtocol({ rendererDir, allowFile: () => true, thumbnailer });
+    // A local file is served as asked; a share only once the person reached it (grants.js).
+    installProtocol({ rendererDir, allowFile: mayServe, thumbnailer });
 
     windows = createWindowManager({
       stores,
