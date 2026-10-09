@@ -1152,8 +1152,24 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       // Move by dragging the shape.
       const g0 = geometry();
       await drag(hit, 60, 30);
-      const g1 = await (async () => { await until(() => Math.abs(geometry().x - (g0.x + 60 / scale)) <= 2, 'the shape to move', 4000).catch(() => {}); return geometry(); })();
+      let g1 = await (async () => { await until(() => Math.abs(geometry().x - (g0.x + 60 / scale)) <= 2, 'the shape to move', 4000).catch(() => {}); return geometry(); })();
       check('slides: dragging a shape moves it', Math.abs(g1.x - (g0.x + 60 / scale)) <= 2 && Math.abs(g1.y - (g0.y + 30 / scale)) <= 2 && Math.abs(g1.w - g0.w) <= 1 && Math.abs(g1.h - g0.h) <= 1, `from ${Math.round(g0.x)},${Math.round(g0.y)} to ${Math.round(g1.x)},${Math.round(g1.y)} at scale ${scale}; size ${Math.round(g0.w)}×${Math.round(g0.h)} → ${Math.round(g1.w)}×${Math.round(g1.h)}`);
+
+      // No flicker on release: the box stays where it was dropped while the
+      // redrawn slide comes back from the document thread, rather than
+      // showing at its old place for a frame or more. Every animation frame
+      // from the press to well after the release is sampled.
+      await js(`(() => { const el = () => document.querySelector(${JSON.stringify(hit)}); const out = window.__dragFrames = []; const t0 = performance.now(); const tick = () => { const r = el()?.getBoundingClientRect(); if (r) out.push({ t: performance.now() - t0, x: r.left }); if (performance.now() - t0 < 2500) requestAnimationFrame(tick); }; requestAnimationFrame(tick); return 1; })()`);
+      const startX = (await rectOf(hit)).x - (await rectOf(hit)).w / 2;
+      const gBefore = geometry();
+      await drag(hit, 50, 0);
+      await until(() => Math.abs(geometry().x - (gBefore.x + 50 / scale)) <= 2, 'the second move', 4000).catch(() => {});
+      await wait(1500);
+      const frames = await js('window.__dragFrames');
+      const firstAway = frames.findIndex((f) => f.x > startX + 25);
+      const back = firstAway < 0 ? [] : frames.slice(firstAway).filter((f) => Math.abs(f.x - startX) < 5);
+      check('slides: a dropped shape never shows at its old place before its new one', firstAway >= 0 && back.length === 0, `${frames.length} frames, ${back.length} back at the start`);
+      g1 = geometry();
 
       // Resize by the south-east handle.
       await drag('.sl-handle[data-handle="se"]', 40, 20);

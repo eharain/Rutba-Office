@@ -284,6 +284,16 @@ export default function Slides({ app, shell, boot }) {
   const [reading, setReading] = useState(false);
   const stageRef = useRef(null);
   const dragRef = useRef(null);
+  // The box a drag left a shape at stays on the stage until the redrawn
+  // slide comes back from the document thread. Cleared on release, it showed
+  // the shape at its old place for a moment and then at the new one, a
+  // flicker on every move, resize and turn. Each gesture takes a number, so
+  // a drag started before the last one's slide returns is never cleared by it.
+  const dragGen = useRef(0);
+  const settleDrag = (clear, pending) => {
+    const gen = dragGen.current;
+    Promise.resolve(pending).finally(() => { if (dragGen.current === gen) clear(null); });
+  };
   // A shape newly selected — Insert → Picture or Shapes selects what it put
   // in — gives the stage the keyboard, so Delete takes it out at once, as in
   // PowerPoint; unless someone is typing in a field, which keeps it.
@@ -314,6 +324,7 @@ export default function Slides({ app, shell, boot }) {
     const y0 = e.clientY;
     let moved = false;
     let g = g0;
+    dragGen.current += 1;
     setSelected(shape.id);
     const move = (ev) => {
       const dx = (ev.clientX - x0) / s;
@@ -326,8 +337,8 @@ export default function Slides({ app, shell, boot }) {
     const up = () => {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
-      setDrag(null);
-      if (moved) actRef.current?.('dragEnd', { id: shape.id, g });
+      if (moved) settleDrag(setDrag, actRef.current?.('dragEnd', { id: shape.id, g }));
+      else setDrag(null);
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
@@ -356,6 +367,7 @@ export default function Slides({ app, shell, boot }) {
     const y0 = e.clientY;
     let moved = false;
     let boxes = g0s;
+    dragGen.current += 1;
     const move = (ev) => {
       const dx = (ev.clientX - x0) / s;
       const dy = (ev.clientY - y0) / s;
@@ -369,8 +381,8 @@ export default function Slides({ app, shell, boot }) {
     const up = () => {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
-      setGroupDrag(null);
-      if (moved) actRef.current?.('groupDragEnd', { boxes });
+      if (moved) settleDrag(setGroupDrag, actRef.current?.('groupDragEnd', { boxes }));
+      else setGroupDrag(null);
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
@@ -404,6 +416,7 @@ export default function Slides({ app, shell, boot }) {
     const startAngle = Math.atan2(e.clientY - cyScreen, e.clientX - cxScreen);
     const rot0 = g.rot || 0;
     let rot = rot0;
+    dragGen.current += 1;
     const move = (ev) => {
       const angle = Math.atan2(ev.clientY - cyScreen, ev.clientX - cxScreen);
       let deg = rot0 + ((angle - startAngle) * 180) / Math.PI;
@@ -414,8 +427,7 @@ export default function Slides({ app, shell, boot }) {
     const up = () => {
       window.removeEventListener('mousemove', move);
       window.removeEventListener('mouseup', up);
-      setDrag(null);
-      actRef.current?.('rotateEnd', { id: shape.id, rot });
+      settleDrag(setDrag, actRef.current?.('rotateEnd', { id: shape.id, rot }));
     };
     window.addEventListener('mousemove', move);
     window.addEventListener('mouseup', up);
