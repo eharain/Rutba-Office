@@ -38,6 +38,106 @@ export function rememberSource(entry) {
 
 const shown = (v) => (v === null || v === undefined ? '' : typeof v === 'number' ? String(Math.round(v * 1e10) / 1e10) : String(v));
 
+/** Another table a step reads, in words: the engine's sourceWords, in the window's language. */
+function sourceWords(src) {
+  if (!src) return t('a table');
+  if (src.kind === 'query') return t('query {name}', { name: src.name || src.id });
+  if (src.kind === 'table') return t('table {name}', { name: src.table });
+  if (src.kind === 'range') return `${src.sheet}!${src.ref}`;
+  if (src.kind === 'csv') return String(src.path || '').split(/[\\/]/).pop();
+  return src.kind;
+}
+
+/**
+ * What a step says it does, for Applied Steps: the engine's describeStep
+ * (@rutba/sheet-view/queries), each in a message of its own so a language
+ * can put the column, the value and the verb in its own order.
+ */
+export function stepLabel(s) {
+  const cols = (list) => (list || []).map((c) => `"${c}"`).join(', ');
+  const column = s.column;
+  switch (s.kind) {
+    case 'removeColumns': return t('Removed {columns}', { columns: cols(s.columns) });
+    case 'keepColumns': return t('Kept {columns}', { columns: cols(s.columns) });
+    case 'renameColumn': return t('Renamed "{from}" to "{to}"', { from: s.from, to: s.to });
+    case 'changeType':
+      return s.type === 'integer' ? t('"{column}" made whole numbers', { column })
+        : s.type === 'number' ? t('"{column}" made numbers', { column })
+          : s.type === 'boolean' ? t('"{column}" made true or false', { column })
+            : s.type === 'date' ? t('"{column}" made dates', { column })
+              : t('"{column}" made text', { column });
+    case 'filterRows': {
+      const value = JSON.stringify(s.value);
+      switch (s.op) {
+        case 'equals': return t('Rows where "{column}" is {value}', { column, value });
+        case 'notEquals': return t('Rows where "{column}" is not {value}', { column, value });
+        case 'contains': return t('Rows where "{column}" contains {value}', { column, value });
+        case 'notContains': return t('Rows where "{column}" does not contain {value}', { column, value });
+        case 'beginsWith': return t('Rows where "{column}" begins with {value}', { column, value });
+        case 'endsWith': return t('Rows where "{column}" ends with {value}', { column, value });
+        case 'greater': return t('Rows where "{column}" is more than {value}', { column, value });
+        case 'greaterOrEqual': return t('Rows where "{column}" is at least {value}', { column, value });
+        case 'less': return t('Rows where "{column}" is less than {value}', { column, value });
+        case 'lessOrEqual': return t('Rows where "{column}" is at most {value}', { column, value });
+        case 'blank': return t('Rows where "{column}" is blank', { column });
+        case 'notBlank': return t('Rows where "{column}" is not blank', { column });
+        default: return `Rows where "${column}" ${s.op} ${value}`; // words-ok: an operation no version of the editor makes
+      }
+    }
+    case 'sort': {
+      const by = s.by?.[0] || s;
+      return by.descending ? t('Sorted by "{column}", Z to A', { column: by.column }) : t('Sorted by "{column}"', { column: by.column });
+    }
+    case 'removeDuplicates': return s.columns?.length ? t('Duplicates of {columns} removed', { columns: cols(s.columns) }) : t('Duplicate rows removed');
+    case 'removeBlankRows': return t('Blank rows removed');
+    case 'keepTopRows': return t('The first {count} rows kept', { count: s.count });
+    case 'replaceValues': return t('In "{column}", {find} replaced with {replace}', { column, find: JSON.stringify(s.find), replace: JSON.stringify(s.replace) });
+    case 'splitColumn':
+      return s.delimiter === 'tab' ? t('"{column}" split at each tab', { column })
+        : s.delimiter === 'space' ? t('"{column}" split at each space', { column })
+          : s.delimiter === 'comma' ? t('"{column}" split at each comma', { column })
+            : s.delimiter === 'semicolon' ? t('"{column}" split at each semicolon', { column })
+              : t('"{column}" split at {delimiter}', { column, delimiter: JSON.stringify(s.delimiter) });
+    case 'groupBy': return t('Grouped by {columns}', { columns: cols(s.columns || [s.column]) });
+    case 'addIndex': return t('Index column "{name}" added', { name: s.name || t('Index') });
+    case 'transformText':
+      return s.how === 'trim' ? t('"{column}" trimmed', { column })
+        : s.how === 'upper' ? t('"{column}" in capitals', { column })
+          : s.how === 'lower' ? t('"{column}" in small letters', { column })
+            : t('"{column}" in title case', { column });
+    case 'promoteHeaders': return t('First row used as headers');
+    case 'conditionalColumn': return t('Conditional column "{name}" added', { name: s.name || t('Custom') });
+    case 'pivotColumn': {
+      const values = s.values;
+      if (!s.fn || s.fn === 'sum') return t('"{column}" pivoted, its values from "{values}"', { column, values });
+      if (s.fn === 'none') return t('"{column}" pivoted, its values from "{values}" (not added up)', { column, values });
+      const fn = { count: t('count'), average: t('average'), min: t('min'), max: t('max') }[s.fn] || s.fn;
+      return t('"{column}" pivoted, its values from "{values}" ({fn})', { column, values, fn });
+    }
+    case 'fillDown': return t('{columns} filled down', { columns: cols(s.columns || [s.column]) });
+    case 'fillUp': return t('{columns} filled up', { columns: cols(s.columns || [s.column]) });
+    case 'unpivotOthers': return t('Columns other than {columns} unpivoted', { columns: cols(s.columns || [s.column]) });
+    case 'mergeColumns': return t('{columns} merged into "{name}"', { columns: cols(s.columns), name: s.name || t('Merged') });
+    case 'extractText': {
+      const delimiter = JSON.stringify(s.delimiter);
+      return s.how === 'first' ? t('From "{column}", the first {count} characters kept', { column, count: s.count })
+        : s.how === 'last' ? t('From "{column}", the last {count} characters kept', { column, count: s.count })
+          : s.how === 'before' ? t('From "{column}", the text before {delimiter} kept', { column, delimiter })
+            : s.how === 'after' ? t('From "{column}", the text after {delimiter} kept', { column, delimiter })
+              : t('From "{column}", text kept', { column });
+    }
+    case 'appendQuery': return t('Appended {source}', { source: sourceWords(s.with) });
+    case 'mergeQueries': {
+      const values = { source: sourceWords(s.with), on: s.on, withOn: s.withOn };
+      return s.how === 'inner' ? t('Merged with {source} on "{on}" = "{withOn}" (inner)', values)
+        : s.how === 'leftAnti' ? t('Merged with {source} on "{on}" = "{withOn}" (left anti)', values)
+          : s.how === 'full' ? t('Merged with {source} on "{on}" = "{withOn}" (full outer)', values)
+            : t('Merged with {source} on "{on}" = "{withOn}"', values);
+    }
+    default: return s.kind;
+  }
+}
+
 /**
  * The editor. `query` is `{ id?, name, source, steps }`: an id when it is a
  * query already loaded, whose Close & Load changes it.
@@ -138,7 +238,7 @@ export function QueryEditor({ query, preview, listSources = null, onClose, onLoa
     [t('Merge Queries'), () => {
       if (!need()) return;
       if (!sources.length) { setError(t('There is no other table or query in this workbook to merge with.')); return; }
-      askFor(t('Merge on "{column}" with', { column }), [{ key: 'with', label: t('Table or query'), options: sourceOptions, value: '0' }, { key: 'how', label: t('Join kind'), options: JOIN_KINDS, value: 'left' }], async (v) => {
+      askFor(t('Merge on "{column}" with', { column }), [{ key: 'with', label: t('Table or query'), options: sourceOptions, value: '0' }, { key: 'how', label: t('Join kind'), options: JOIN_KINDS.map(([kind, label]) => [kind, t(label)]), value: 'left' }], async (v) => {
         const other = sources[Number(v.with)].source;
         try {
           const cols = (await preview({ source: other, steps: [] }))?.columns || [];
@@ -222,7 +322,7 @@ export function QueryEditor({ query, preview, listSources = null, onClose, onLoa
             <div className="pq-steps">
               <div className="pq-steps-head">{t('Applied steps')}</div>
               <button type="button" className={`pq-step${upTo === 0 ? ' at' : ''}`} onClick={() => setUpTo(0)}>{t('Source')}</button>
-              {(table?.steps || steps.map((s) => s.kind)).map((label, i) => (
+              {steps.map(stepLabel).map((label, i) => (
                 <div key={i} className={`pq-step-row${upTo === i + 1 || (upTo === null && i === steps.length - 1) ? ' at' : ''}`}>
                   <button type="button" className="pq-step" onClick={() => setUpTo(i + 1 === steps.length ? null : i + 1)}>{label}</button>
                   <button type="button" className="pq-step-x" title={t('Take this step away')} onClick={() => { setSteps((s) => s.filter((_, k) => k !== i)); setUpTo(null); }}>×</button>

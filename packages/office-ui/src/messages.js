@@ -98,5 +98,49 @@ export function tn(count, one, other, values = {}) {
   return fill(form || english, all);
 }
 
+/**
+ * A message that arrives already written — an engine's or a service's,
+ * thrown in English with its names filled in ('There is no paragraph style
+ * "Quote".') — in the window's language: itself when the catalogue has it as
+ * it is, else the message whose pattern it fits ('There is no paragraph style
+ * "{name}".'), translated with the names put back. Unknown, it stays as it came.
+ */
+export function tFilled(message) {
+  const text = String(message ?? '');
+  if (!table || !text) return text;
+  const own = table[text];
+  if (typeof own === 'string' && own) return own;
+  for (const { re, names, key } of patternsFor(table)) {
+    const m = re.exec(text);
+    if (!m) continue;
+    const values = Object.fromEntries(names.map((name, i) => [name, m[i + 1]]));
+    const translation = table[key];
+    if (typeof translation === 'string' && translation) return fill(translation, values);
+  }
+  return text;
+}
+
+/** The catalogue's messages with names in them, as patterns to fit a filled message to; made once per catalogue. */
+const patterns = new WeakMap();
+function patternsFor(catalogue) {
+  if (patterns.has(catalogue)) return patterns.get(catalogue);
+  const list = [];
+  for (const key of Object.keys(catalogue)) {
+    // A message of names and marks alone ('{a} × {b}') would fit almost anything: only one with words in it is a pattern.
+    if (typeof catalogue[key] !== 'string' || !/\{\w+\}/.test(key) || !/[A-Za-z]{2,}/.test(key.replace(/\{\w+\}/g, ''))) continue;
+    const names = [];
+    const source = key.split(/(\{\w+\})/).map((part) => {
+      const name = /^\{(\w+)\}$/.exec(part)?.[1];
+      if (name) { names.push(name); return '(.+?)'; }
+      return part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }).join('');
+    // The most literal patterns first, so a specific message wins over a loose one.
+    list.push({ re: new RegExp(`^${source}$`, 's'), names, key, weight: key.replace(/\{\w+\}/g, '').length });
+  }
+  list.sort((a, b) => b.weight - a.weight);
+  patterns.set(catalogue, list);
+  return list;
+}
+
 /** The messages shown in English since the language was set for want of a translation: what a translator has left. */
 export const untranslated = () => [...asked].sort();

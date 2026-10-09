@@ -4,11 +4,11 @@
 
 import React, { createContext, useContext, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from './icons.js';
-import { t } from './messages.js';
+import { t, tFilled } from './messages.js';
 
 export { Icon };
 export * from './commands.js';
-export { t, tn, msg, setLanguage, language, languages, registerCatalogue, untranslated } from './messages.js';
+export { t, tn, msg, tFilled, setLanguage, language, languages, registerCatalogue, untranslated } from './messages.js';
 
 /* ── theme ──────────────────────────────────────────────────────────────── */
 
@@ -62,8 +62,10 @@ export function ToastProvider({ children }) {
   const [items, setItems] = useState([]);
   const seq = useRef(0);
 
-  const push = useCallback((message, { tone = 'plain', ms = 3200, action } = {}) => {
+  const push = useCallback((said, { tone = 'plain', ms = 3200, action } = {}) => {
     const id = ++seq.current;
+    // An engine's message shown as it was thrown, in the window's language as well.
+    const message = typeof said === 'string' ? tFilled(said) : said;
     setItems((list) => {
       // The same thing going wrong fifteen times is one problem, not fifteen.
       // A repeat is counted on the notice already showing rather than stacked

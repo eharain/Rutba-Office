@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { t, tn, msg, setLanguage, language, languages, registerCatalogue, untranslated } from '@rutba/office-ui/messages';
+import { t, tn, msg, tFilled, setLanguage, language, languages, registerCatalogue, untranslated } from '@rutba/office-ui/messages';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { extract, render, OUTPUT } from '../tools/extract-messages.mjs';
 
@@ -89,6 +89,31 @@ test('a system locale written with an underscore is the same language as its hyp
     assert.equal(setLanguage('pt_BR'), 'pt-br');
     assert.equal(tn(1, '{count} word', '{count} words'), '1 palavra');
     assert.equal(tn(3, '{count} word', '{count} words'), '3 palavras');
+  } finally {
+    setLanguage('en');
+  }
+});
+
+test("an engine's message, thrown already filled, finds its translation as it is or by its pattern", () => {
+  registerCatalogue('xx', {
+    'The password is not right.': 'Le mot de passe est faux.',
+    'There is no paragraph style "{name}".': 'Il n’y a pas de style « {name} ».',
+    'Row {row} of "{sheet}" is past the end.': 'La ligne {row} de « {sheet} » est après la fin.',
+    'Row {row} of {what}.': 'Ligne {row} de {what}.',
+    '{a} × {b}': '{b} × {a}',
+  });
+  try {
+    setLanguage('xx');
+    assert.equal(tFilled('The password is not right.'), 'Le mot de passe est faux.');
+    assert.equal(tFilled('There is no paragraph style "Quote".'), 'Il n’y a pas de style « Quote ».');
+    // The most literal pattern wins over a looser one the message also fits.
+    assert.equal(tFilled('Row 12 of "Budget" is past the end.'), 'La ligne 12 de « Budget » est après la fin.');
+    // A message of names and marks alone is no pattern: it would reorder any sentence with a × in it.
+    assert.equal(tFilled('Paper 3 × 5'), 'Paper 3 × 5');
+    assert.equal(tFilled('Something no catalogue knows.'), 'Something no catalogue knows.');
+    assert.equal(tFilled(''), '');
+    setLanguage('en');
+    assert.equal(tFilled('There is no paragraph style "Quote".'), 'There is no paragraph style "Quote".', 'English is left as it came');
   } finally {
     setLanguage('en');
   }

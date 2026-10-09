@@ -12,7 +12,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Button, Dialog, Field, Input, Select, Icon, t, tn } from '@rutba/office-ui';
-import { ENVELOPE_SIZES, LABEL_PRODUCTS, labelProduct, describeLabel, addressLines } from '@rutba/ooxml/labels';
+import { ENVELOPE_SIZES, LABEL_PRODUCTS, labelProduct, addressLines } from '@rutba/ooxml/labels';
 import { PrintDialog } from '../../print.js';
 
 const FONTS = ['Calibri', 'Calibri Light', 'Cambria', 'Arial', 'Times New Roman', 'Georgia', 'Verdana', 'Segoe UI', 'Tahoma', 'Garamond', 'Consolas', 'Courier New'];
@@ -20,6 +20,14 @@ const SIZES = [8, 9, 10, 11, 12, 14, 16];
 const RETURN_KEY = 'word.mailings.returnAddress';
 const LABEL_KEY = 'word.mailings.label';
 const ENVELOPE_KEY = 'word.mailings.envelope';
+
+/** A label product in a line, as the engine's describeLabel puts it, in the window's language. */
+function labelSummary(p) {
+  const values = { name: p.name, kind: t(p.kind), w: Math.round(p.w * 10) / 10, h: Math.round(p.h * 10) / 10, count: p.cols * p.rows };
+  return p.page.name === 'A4'
+    ? t('{name} {kind} — {w} × {h} mm, {count} on an A4 sheet', values)
+    : t('{name} {kind} — {w} × {h} mm, {count} on a Letter sheet', values);
+}
 
 /** A card from the address book as the lines of an address. */
 function contactLines(c) {
@@ -181,7 +189,7 @@ export function EnvelopesDialog({ shell, model, selection, onClose, onAdd, onPri
           <div className="wd-el-col">
             <Field label={t('Envelope size:')}>
               <Select className="rw-select wd-el-size" value={size} onChange={(e) => { touched.current = true; setSize(e.target.value); }} style={{ width: '100%' }}>
-                {ENVELOPE_SIZES.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+                {ENVELOPE_SIZES.map((s) => <option key={s.id} value={s.id}>{t(s.label)}</option>)}
               </Select>
             </Field>
             <div className="wd-el-fonts">
@@ -232,7 +240,7 @@ export function LabelOptionsDialog({ product, onClose, onPick, title = t('Label 
           <div className="wd-mm-pick wd-el-products" role="listbox" aria-label={t('Product number')}>
             {list.map((x) => (
               <button key={x.id} type="button" role="option" aria-selected={x.id === picked} className={x.id === picked ? 'on' : ''} data-product={x.id} onClick={() => setPicked(x.id)} onDoubleClick={() => onPick(x.id)}>
-                {t('{name} {kind} Labels', { name: x.name, kind: x.kind })}
+                {t('{name} {kind} Labels', { name: x.name, kind: t(x.kind) })}
               </button>
             ))}
           </div>
@@ -240,7 +248,7 @@ export function LabelOptionsDialog({ product, onClose, onPick, title = t('Label 
         <div className="wd-el-col">
           <div className="wd-mm-section">{t('Label information')}</div>
           <dl className="about-list wd-el-info">
-            <dt>{t('Type')}</dt><dd>{t('{kind} Labels', { kind: p.kind })}</dd>
+            <dt>{t('Type')}</dt><dd>{t('{kind} Labels', { kind: t(p.kind) })}</dd>
             <dt>{t('Height')}</dt><dd>{t('{value} mm', { value: Math.round(p.h * 10) / 10 })}</dd>
             <dt>{t('Width')}</dt><dd>{t('{value} mm', { value: Math.round(p.w * 10) / 10 })}</dd>
             <dt>{t('Page size')}</dt><dd>{t('{name} — {width} × {height} mm', { name: p.page.name, width: p.page.w, height: p.page.h })}</dd>
@@ -310,7 +318,7 @@ export function LabelsDialog({ shell, selection, onClose, onNewDocument, onPrint
             <div className="wd-el-product">
               <div>
                 <div className="wd-el-product-name">{p.vendor}, {p.name}</div>
-                <div className="rw-hint">{describeLabel(p)}</div>
+                <div className="rw-hint">{labelSummary(p)}</div>
               </div>
               <Button label={t('Options…')} onClick={() => setOptions(true)} />
             </div>

@@ -8,7 +8,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
-import { t, tn, setLanguage, registerCatalogue } from '@rutba/office-ui/messages';
+import { t, tn, tFilled, setLanguage, registerCatalogue } from '@rutba/office-ui/messages';
+import { ENGINE_WORDS } from '../apps/desktop/renderer/engine-words.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LIST = JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/office-ui/src/catalogues/messages.json'), 'utf8')).messages;
@@ -44,6 +45,27 @@ test('an Urdu window speaks Urdu: a message, a counted one by Urdu\'s rules, and
     assert.equal(one, UR['{count} word'].one.replace('{count}', '1'));
     assert.equal(many, UR['{count} word'].other.replace('{count}', '5'));
     assert.equal(t('A message no window shows'), 'A message no window shows');
+  } finally {
+    setLanguage('en');
+  }
+});
+
+test("an engine's message reaches an Urdu window in Urdu, the names it was thrown with put back", () => {
+  // Each message as an engine throws it, its names filled; the window must
+  // find that message's own Urdu, not a looser one it also happens to fit.
+  registerCatalogue('ur', UR);
+  try {
+    setLanguage('ur');
+    const astray = [];
+    for (const message of ENGINE_WORDS) {
+      const values = {};
+      let n = 0;
+      const thrown = message.replace(/\{(\w+)\}/g, (m, name) => (values[name] ??= `Q${++n}z`));
+      const want = UR[message].replace(/\{(\w+)\}/g, (m, name) => values[name]);
+      if (tFilled(thrown) !== want) astray.push(message);
+    }
+    assert.deepEqual(astray, []);
+    assert.equal(tFilled('Nothing any engine says.'), 'Nothing any engine says.');
   } finally {
     setLanguage('en');
   }

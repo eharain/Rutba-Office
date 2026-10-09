@@ -11,8 +11,9 @@
 // panes, the dialogs — while a page, a grid or a slide keeps the direction
 // its document gives it (they say `dir` for themselves).
 
-import { registerCatalogue, setLanguage, language } from '@rutba/office-ui';
+import { registerCatalogue, setLanguage, language, tFilled } from '@rutba/office-ui';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
+import { setErrorWords } from '@rutba/office-shell/client';
 import { registryInLanguage } from './registry-words.js';
 
 /** The languages written right to left, by their base tag. */
@@ -31,6 +32,8 @@ if (typeof document !== 'undefined') {
 }
 // The app names and kinds of file every window shows, in the same language.
 registryInLanguage();
+// And what the engines and services say, as each message reaches the window.
+setErrorWords(tFilled);
 
 /**
  * Dates and numbers in the window's language too. Every place the windows

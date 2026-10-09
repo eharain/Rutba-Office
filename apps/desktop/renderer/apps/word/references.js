@@ -58,7 +58,7 @@ export function CitationsGroup({ refs, menu }) {
         <label className="wd-refs-style" data-tip={t('Style — how every citation and the bibliography are written')}>
           <span>{t('Style:')}</span>
           <Select className="rw-select wd-refs-style-select" value={style} onChange={(e) => refs.setStyle(e.target.value)} title={t('Citation and bibliography style')}>
-            {BIBLIOGRAPHY_STYLES.map((s) => <option key={s.id} value={s.id} title={`${s.label} ${s.edition}`}>{s.name === 'APA' ? t('APA {version}th', { version: s.version }) : s.label}</option>)}
+            {BIBLIOGRAPHY_STYLES.map((s) => <option key={s.id} value={s.id} title={`${s.label} ${t(s.edition)}`}>{s.name === 'APA' ? t('APA {version}th', { version: s.version }) : s.label}</option>)}
           </Select>
         </label>
         <Button
@@ -426,7 +426,7 @@ export function SourceDialog({ style, initial, taken = [], onClose, onSave }) {
   const [all, setAll] = useState(false);
   const [tagTouched, setTagTouched] = useState(Boolean(initial));
   const [focus, setFocus] = useState('Author');
-  const type = SOURCE_TYPES.find((t) => t.id === source.type) || SOURCE_TYPES[0];
+  const type = SOURCE_TYPES.find((x) => x.id === source.type) || SOURCE_TYPES[0];
   const keys = all ? [...type.fields, ...type.more] : type.fields;
 
   // People from the boxes: a corporate author is one name, as typed.
@@ -471,14 +471,14 @@ export function SourceDialog({ style, initial, taken = [], onClose, onSave }) {
         <div className="wd-refs-type">
           <label htmlFor="wd-refs-type">{t('Type of Source')}</label>
           <Select id="wd-refs-type" className="rw-select wd-refs-type-select" value={source.type} onChange={(e) => setSource((x) => ({ ...x, type: e.target.value }))}>
-            {SOURCE_TYPES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+            {SOURCE_TYPES.map((x) => <option key={x.id} value={x.id}>{t(x.label)}</option>)}
           </Select>
         </div>
         <div className="wd-refs-section">{t('Bibliography Fields for {style}', { style: s.label })}</div>
         <div className="wd-refs-grid">
           {keys.map((key) => {
             const person = PERSON_ROLES.includes(key);
-            const label = fieldLabel(source.type, key);
+            const label = t(fieldLabel(source.type, key));
             return (
               <React.Fragment key={key}>
                 <label htmlFor={`wd-refs-f-${key}`}>{label}</label>

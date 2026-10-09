@@ -78,13 +78,13 @@ export function MarkCitationPanel({ selected, authorities, onMark, onNext, onClo
         <div className="wd-refs-options">
           <label htmlFor="wd-toa-category">{t('Category')}</label>
           <Select id="wd-toa-category" className="rw-select wd-toa-category" value={String(category)} onChange={(e) => setCategory(Number(e.target.value))}>
-            {TOA_CATEGORIES.map((name, i) => <option key={i} value={String(i + 1)}>{name}</option>)}
+            {TOA_CATEGORIES.map((name, i) => <option key={i} value={String(i + 1)}>{t(name)}</option>)}
           </Select>
           <label htmlFor="wd-toa-short">{t('Short citation')}</label>
           <Input id="wd-toa-short" type="text" className="rw-input wd-toa-short" value={short} onChange={(e) => { typedShort.current = true; setShort(e.target.value); }}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); mark(false); } }} />
         </div>
-        <div className="wd-toa-label">{t('Long citations in {category}', { category: categoryName(category) })}</div>
+        <div className="wd-toa-label">{t('Long citations in {category}', { category: t(categoryName(category)) })}</div>
         <div className="wd-toa-list" role="listbox" aria-label={t('Long citations')}>
           {inCategory.length ? inCategory.map((a) => (
             <button key={a.long} type="button" role="option" aria-selected={a.long === long} className={`wd-toa-item${a.long === long ? ' on' : ''}`} onClick={() => choose(a)}>{a.long}</button>
@@ -143,7 +143,7 @@ export function ToaDialog({ authorities, current, onClose, onOk, onMark }) {
           <div className="wd-idx-preview wd-toa-preview">
             {preview.map((g) => (
               <React.Fragment key={g.category}>
-                <div className="wd-idx-letter">{categoryName(g.category)}</div>
+                <div className="wd-idx-letter">{t(categoryName(g.category))}</div>
                 {g.list.length ? g.list.map((a) => (
                   <div key={a.long} className="wd-idx-line right wd-toa-line">
                     <span>{a.long}</span>
@@ -166,7 +166,7 @@ export function ToaDialog({ authorities, current, onClose, onOk, onMark }) {
         <div className="wd-refs-index-side">
           <div className="wd-refs-section">{t('Category')}</div>
           <div className="wd-toa-list wd-toa-cats" role="listbox" aria-label={t('Category')}>
-            {[['all', t('All')], ...TOA_CATEGORIES.map((name, i) => [String(i + 1), name])].map(([id, name]) => (
+            {[['all', t('All')], ...TOA_CATEGORIES.map((name, i) => [String(i + 1), t(name)])].map(([id, name]) => (
               <button key={id} type="button" role="option" aria-selected={category === id} data-category={id} className={`wd-toa-item${category === id ? ' on' : ''}`} onClick={() => setCategory(id)}>{name}</button>
             ))}
           </div>

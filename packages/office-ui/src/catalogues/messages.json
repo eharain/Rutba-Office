@@ -1,11 +1,287 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 4913,
+  "count": 5348,
   "messages": [
+    {
+      "message": "\"{address}\" is not a cell or a range",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{address}\" is not an address or a domain.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{bad}\" is not a top-level domain, such as ru or cn.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{bad}\" is not an address or a domain.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{bad}\" is not an encoding the filter knows.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" in capitals",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" in small letters",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" in title case",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" made dates",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" made numbers",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" made text",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" made true or false",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" made whole numbers",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" pivoted, its values from \"{values}\"",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" pivoted, its values from \"{values}\" (not added up)",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" pivoted, its values from \"{values}\" ({fn})",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" split at each comma",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" split at each semicolon",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" split at each space",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" split at each tab",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" split at {delimiter}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{column}\" trimmed",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "\"{c}\" is not a colour a script can set: a name or #RRGGBB",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{effect}\" is not an animation this writes",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{fn}\" is not a way rows are added up",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{fn}\" is not a way values are added up",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{format}\" is not a number style Word knows.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{how}\" is not a change to text",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{how}\" is not a way to extract text",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{kind} {effect}\" is not an animation this writes",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{kind}\" is not a source a query reads",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{kind}\" is not a step a query takes",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{kind}\" is not an edit a script makes",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{level}\" is not a junk filter level.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{name}\" cannot name a compound-file entry",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{name}\" is not a motion path in the gallery",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{op}\" is not a condition",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{op}\" is not a filter",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
     {
       "message": "\"{ref}\" is not a reference, such as Sheet1!$A$1:$C$5.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "\"{text}\" is not a range",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{to}\" cannot be a worksheet's name here",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{to}\" is not a place Home or End goes to",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{type}\" is not a transition this writes",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{type}\" is not a type a column can be given",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{url}\" is not a server address",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{v1}\" is named twice",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "\"{value}\" is not a colour this can draw with.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -137,7 +413,8 @@
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/word/list-dialog.js",
         "apps/desktop/renderer/apps/word/mailings.js",
-        "apps/desktop/renderer/apps/word/references-index.js"
+        "apps/desktop/renderer/apps/word/references-index.js",
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -417,9 +694,39 @@
       ]
     },
     {
+      "message": "A PDF with no pages is not a document. Add a page first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A background is a PNG, JPEG, GIF, BMP or WebP picture.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A bookmark needs a name that starts with a letter",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A calendar or contacts server is reached over HTTPS — give its address with https://",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A card needs a name, an address or a company.",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
+      ]
+    },
+    {
+      "message": "A cell splits into 1 to 20 columns and 1 to 20 rows, more than one cell in all.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -429,15 +736,93 @@
       ]
     },
     {
+      "message": "A cell's line is its top, bottom, left or right.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A chart drawn from the table the caret is in — put the caret in a table first",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
     {
+      "message": "A chart needs a table with a header row, a category column and at least one number.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A column is pivoted on another column's values",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A column is split at something",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A column needs a name",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A conditional column needs a rule",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A custom show needs a name.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A custom view name is 255 characters at most.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A custom view needs a name.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A date series steps by a day, a weekday, a month or a year",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A deck keeps its comments and whether each is resolved, but not who has read them, so there is nothing in the file to mark.",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "A diagram cannot go inside a table cell — move the caret out of the table.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A diagram goes in the body, after a paragraph of its own — move the caret out of the box or the table first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A drawing in line with the text cannot be grouped — give each one a wrap first (Layout → Wrap Text).",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -459,6 +844,30 @@
       ]
     },
     {
+      "message": "A file source is read on the main process",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A file with that name already exists.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A forecast is drawn as a line chart or a column chart.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A formula here is numbers, cells like B2 or B2:B4, + - * / and brackets, and SUM, AVERAGE, COUNT, MAX, MIN, PRODUCT or ABS of them or of ABOVE, LEFT, BELOW or RIGHT — =SUM(ABOVE), say.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A free office suite: mail, documents, worksheets, presentations, pictures, images and video, on an engine we own.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
@@ -467,7 +876,8 @@
     {
       "message": "A group has no fill or outline of its own — format a shape inside it.",
       "where": [
-        "apps/desktop/renderer/apps/slides.js"
+        "apps/desktop/renderer/apps/slides.js",
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -483,9 +893,27 @@
       ]
     },
     {
+      "message": "A level starts at a whole number.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A level's number text is too long.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A level's text sits at or past its number: Text indent at is not less than Aligned at.",
       "where": [
         "apps/desktop/renderer/apps/word/list-dialog.js"
+      ]
+    },
+    {
+      "message": "A link needs a shape with words.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -498,6 +926,12 @@
       "message": "A link on {cell}",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "A list needs at least one level.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -519,9 +953,27 @@
       ]
     },
     {
+      "message": "A merge down a column crosses this row — split the merged cells first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A merged cell back into its cells",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "A motion path needs a path to follow",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A name cannot be empty.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -540,6 +992,12 @@
       "message": "A name turns",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "A new list needs a name to be saved under.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -567,6 +1025,12 @@
       ]
     },
     {
+      "message": "A page break cannot start inside a table cell — move the caret out of the table.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A page break goes above the row and left of the column of the cell: pick one past A1",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -585,6 +1049,18 @@
       ]
     },
     {
+      "message": "A path starts with a point.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A picture cannot go inside a table cell yet — move the caret out of the table.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A picture, a chart, a table or a group has no points to edit — select a shape",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -594,6 +1070,24 @@
       "message": "A pie chart draws only its first series.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "A pivot needs at least one field in Values.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A query needs a source",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A query reads a .csv, .tsv or .txt file",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -621,9 +1115,21 @@
       ]
     },
     {
+      "message": "A range needs a title.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A range on this sheet or another, such as East!$A$1:$C$10 — Add puts it in the list.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "A range title is letters, digits, spaces, dots, hyphens and underscores.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -645,15 +1151,57 @@
       ]
     },
     {
+      "message": "A scatter chart here plots up to three series — select a block of an X column and up to three Y columns.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A scheduled or held message sends when Rutba Office is running — one that falls due while it is closed goes out the next time it opens. A failed send stays here with the error and keeps retrying.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
     {
+      "message": "A script cannot merge across part of a merged region",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A script cannot set a cell outside the worksheet (A1 to XFD1048576)",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A script needs a function called main(workbook)",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A sender goes on the Safe or the Blocked list.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A sentence or two is usually right.",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "A series is linear, growth, dates or AutoFill",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A series starts from a number or a date in the first cell",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -669,6 +1217,24 @@
       ]
     },
     {
+      "message": "A signature line cannot go inside a table cell yet — move the caret out of the table.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A slicer is not grouped with other objects here — take it out of the selection.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A slicer keeps at least one item selected — Clear Filter shows them all.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A slide with a timing of its own keeps it when timings are used; the rest stay up for the seconds above. Animations are shown finished.",
       "where": [
         "apps/desktop/renderer/apps/slides/export-video.js"
@@ -681,9 +1247,40 @@
       ]
     },
     {
+      "message": "A style can be linked to one level only.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A table needs columns.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A table or chart frame has no fill or outline of its own.",
       "where": [
-        "apps/desktop/renderer/apps/slides.js"
+        "apps/desktop/renderer/apps/slides.js",
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A table row does not fit even on an empty page; the margins leave no body.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A text box cannot be anchored in this paragraph — it is part of a field or a content control.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "A text box goes beside the words, not in a table cell — move the caret out of the table first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -723,6 +1320,12 @@
       ]
     },
     {
+      "message": "A watermark picture is a PNG, a JPEG, a GIF, a BMP or a WebP.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "A web address starts http:// or https://, an e-mail address mailto:.",
       "where": [
         "apps/desktop/renderer/apps/slides/action.js"
@@ -756,6 +1359,12 @@
       "message": "A workbook must contain at least one visible worksheet",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "A workbook must contain at least one visible worksheet.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -1206,6 +1815,12 @@
       ]
     },
     {
+      "message": "Add at least one reference to consolidate.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Add email",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
@@ -1359,7 +1974,8 @@
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/slides.js",
-        "apps/desktop/renderer/apps/word/dialogs.js"
+        "apps/desktop/renderer/apps/word/dialogs.js",
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -2002,6 +2618,12 @@
       ]
     },
     {
+      "message": "An action goes to a web address (http:// or https://) or an e-mail address (mailto:).",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "An address such as rutba.io or hello@rutba.io, or a place in this workbook such as C12, Sheet2!B4 or a name.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -2014,9 +2636,27 @@
       ]
     },
     {
+      "message": "An equation is edited in the equation editor — double-click it.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "An invitation from {name}.",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "An object cannot go inside a table cell yet — move the caret out of the table.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "An outline goes seven levels deep at most",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -2160,7 +2800,19 @@
       ]
     },
     {
+      "message": "Append needs the other table",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Append the rows of",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Appended {source}",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
@@ -2579,7 +3231,8 @@
       "message": "Author",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
-        "apps/desktop/renderer/apps/word/references.js"
+        "apps/desktop/renderer/apps/word/references.js",
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -2589,9 +3242,21 @@
       ]
     },
     {
+      "message": "Auto Fill Options change the fill just made — drag the fill handle first",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Auto Outline",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Auto Outline found no formula totalling the rows above it or the columns to its left, so there is nothing to outline.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -2756,6 +3421,12 @@
       "message": "Average {value}",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "B5 — 176 × 250 mm",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -3076,6 +3747,12 @@
       ]
     },
     {
+      "message": "Blank rows removed",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "Blank worksheet",
       "where": [
         "apps/desktop/renderer/registry-words.js"
@@ -3173,6 +3850,30 @@
       "message": "Bold only",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Book",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Book Author",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Book Section",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Book Title",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -3362,6 +4063,12 @@
       ]
     },
     {
+      "message": "Bring Forward and Send Backward move floating drawings — choose a wrap other than In Line with Text first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Bring Forward — one place nearer the front; also Bring to Front and Bring in Front of Text",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -3539,6 +4246,24 @@
       "message": "By changing cell",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "C4 — 229 × 324 mm",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "C5 — 162 × 229 mm",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "C6 — 114 × 162 mm",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -3886,6 +4611,12 @@
       ]
     },
     {
+      "message": "Cases",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Categories",
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
@@ -4099,6 +4830,12 @@
       ]
     },
     {
+      "message": "Changes cannot be accepted or rejected while the document is protected for tracked changes.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Character",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -4148,6 +4885,12 @@
       "message": "Charts",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Charts and slicers do not turn — select a picture, a shape or a group.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -4333,6 +5076,12 @@
       ]
     },
     {
+      "message": "Choose at least one column to add a subtotal to",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Choose fields to add to the report:",
       "where": [
         "apps/desktop/renderer/apps/sheets/pivot-fields.js"
@@ -4427,7 +5176,8 @@
       "message": "City",
       "where": [
         "apps/desktop/renderer/apps/contacts.js",
-        "apps/desktop/renderer/apps/word/mailings.js"
+        "apps/desktop/renderer/apps/word/mailings.js",
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -4537,6 +5287,12 @@
         "apps/desktop/renderer/apps/mail/compose.js",
         "apps/desktop/renderer/apps/mail/dialogs.js",
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Clear formatting needs a shape with words.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -5021,6 +5777,12 @@
       ]
     },
     {
+      "message": "Columns other than {columns} unpivoted",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "Columns — now one",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -5130,7 +5892,8 @@
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/restrict.js",
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -5208,6 +5971,12 @@
       ]
     },
     {
+      "message": "Compiler",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Compose",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -5238,9 +6007,27 @@
       ]
     },
     {
+      "message": "Conditional column \"{name}\" added",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "Conditional formatting",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Conference Name",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Conference Proceedings",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -5272,6 +6059,12 @@
       "message": "Consolidated with links to the source data — the outline's 2 opens the detail",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Constitutional Provisions",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -5672,6 +6465,12 @@
       ]
     },
     {
+      "message": "Create from Selection needs a header row with at least one row of data under it",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Create from Selection — a name for each column of the block, from its header",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -5991,6 +6790,12 @@
       ]
     },
     {
+      "message": "Cut cells are moved with Paste; Paste Special works on cells that were copied",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Cut the shape (Ctrl+X)",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -6003,9 +6808,21 @@
       ]
     },
     {
+      "message": "DL — 110 × 220 mm",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "DO NOT COPY",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "DOI",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -6244,7 +7061,14 @@
       "message": "Day",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/sheets/dialogs.js"
+        "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Day Accessed",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -6810,6 +7634,12 @@
       ]
     },
     {
+      "message": "Department",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Depth",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -7370,6 +8200,12 @@
       ]
     },
     {
+      "message": "Draw the table at least a fifth of an inch wide.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Draw with Touch",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -7440,6 +8276,12 @@
       ]
     },
     {
+      "message": "Duplicate rows removed",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "Duplicate rows removed; the rest closed up",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -7455,6 +8297,12 @@
       "message": "Duplicate values",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Duplicates of {columns} removed",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
     {
@@ -7759,9 +8607,16 @@
       ]
     },
     {
+      "message": "Edition",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Editor",
       "where": [
-        "apps/desktop/renderer/review.js"
+        "apps/desktop/renderer/review.js",
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -8122,6 +8977,12 @@
       ]
     },
     {
+      "message": "Equations here are for a presentation.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Eraser",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -8265,6 +9126,12 @@
       ]
     },
     {
+      "message": "Every row of the column is already filled",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Every sheet ({count})",
       "where": [
         "apps/desktop/renderer/print.js"
@@ -8364,6 +9231,12 @@
       "message": "Exceptions (optional)",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "Exceptions are set before protection is enforced — Stop Protection first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -9104,6 +9977,12 @@
       ]
     },
     {
+      "message": "First capital",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "First characters…",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -9119,6 +9998,12 @@
       "message": "First record",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "First row used as headers",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
     {
@@ -9181,6 +10066,24 @@
       "plural": "Flash Fill filled {count} cells",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Flash Fill found no pattern that makes every example — type another example and try again",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Flash Fill found the pattern but no other row has the parts it needs",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Flash Fill works beside a block of data — type an example in the column next to it",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -9795,6 +10698,36 @@
       ]
     },
     {
+      "message": "From \"{column}\", text kept",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "From \"{column}\", the first {count} characters kept",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "From \"{column}\", the last {count} characters kept",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "From \"{column}\", the text after {delimiter} kept",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "From \"{column}\", the text before {delimiter} kept",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "From Beginning",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -9857,6 +10790,12 @@
       "message": "From Table/Range",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "From Table/Range needs a row of headings and the data under it.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -9951,6 +10890,12 @@
       "message": "Full HD (1080p)",
       "where": [
         "apps/desktop/renderer/apps/slides/export-video.js"
+      ]
+    },
+    {
+      "message": "Full Outer (all rows from both)",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -10162,6 +11107,12 @@
       "message": "Go to the slide",
       "where": [
         "apps/desktop/renderer/apps/slides/changes.js"
+      ]
+    },
+    {
+      "message": "Goal Seek needs a number to aim for",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -10439,6 +11390,12 @@
       "message": "Group — {need}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Grouped by {columns}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
     {
@@ -11338,6 +12295,12 @@
       ]
     },
     {
+      "message": "In \"{column}\", {find} replaced with {replace}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "In Slide Master view the font, size, colour, weight and alignment of a placeholder are its text style; the rest belongs to a slide.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -11474,6 +12437,12 @@
       ]
     },
     {
+      "message": "Index column \"{name}\" added",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "Index updated",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -11541,6 +12510,12 @@
       ]
     },
     {
+      "message": "Ink is anchored in a paragraph of the body.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Ink to Math",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -11567,6 +12542,12 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Inner (only matching rows)",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -12066,6 +13047,12 @@
       ]
     },
     {
+      "message": "Institution",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Instructions to the signer",
       "where": [
         "apps/desktop/renderer/apps/word/signature.js"
@@ -12193,6 +13180,12 @@
       ]
     },
     {
+      "message": "Issue",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "It uses the {encoding} encoding, which this build cannot decode.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
@@ -12237,6 +13230,18 @@
       "message": "Join kind",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Journal Article",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Journal Name",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -12394,6 +13399,12 @@
       "message": "Kept in this computer's keystore, never in a file you can read.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Kept {columns}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
     {
@@ -12819,9 +13830,21 @@
       ]
     },
     {
+      "message": "Left Anti (rows only in the first)",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Left Border",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Left Outer (all from the first, matching from the second)",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -13257,6 +14280,12 @@
       ]
     },
     {
+      "message": "Links cannot be created when the source and destination areas are on the same sheet.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Link…",
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
@@ -13524,6 +14553,12 @@
       ]
     },
     {
+      "message": "Lowercase",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "MP4 Video (.mp4)",
       "where": [
         "apps/desktop/renderer/registry-words.js"
@@ -13590,6 +14625,12 @@
       "message": "Mail merge",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Mail merge is a Word document's.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -14017,7 +15058,8 @@
     {
       "message": "Medium",
       "where": [
-        "apps/desktop/renderer/apps/pictures/library.js"
+        "apps/desktop/renderer/apps/pictures/library.js",
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -14076,6 +15118,12 @@
       ]
     },
     {
+      "message": "Merge Columns needs two columns or more",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Merge Queries",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -14099,6 +15147,12 @@
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Merge needs the other table",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -14145,6 +15199,30 @@
     },
     {
       "message": "Merged",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Merged with {source} on \"{on}\" = \"{withOn}\"",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Merged with {source} on \"{on}\" = \"{withOn}\" (full outer)",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Merged with {source} on \"{on}\" = \"{withOn}\" (inner)",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Merged with {source} on \"{on}\" = \"{withOn}\" (left anti)",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
@@ -14307,6 +15385,12 @@
       ]
     },
     {
+      "message": "Monarch — 3⅞ × 7½ in",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Monday morning, 8am",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js"
@@ -14334,7 +15418,14 @@
       "message": "Month",
       "where": [
         "apps/desktop/renderer/apps/calendar.js",
-        "apps/desktop/renderer/apps/sheets/dialogs.js"
+        "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Month Accessed",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -14659,6 +15750,12 @@
       ]
     },
     {
+      "message": "Multipurpose",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "My calendars",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
@@ -14686,6 +15783,18 @@
       "message": "Name format",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Name of Web Page",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Name of Web Site",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -15214,6 +16323,12 @@
       ]
     },
     {
+      "message": "No OS keystore is available, so this password cannot be stored safely.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "No Outline",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -15270,6 +16385,12 @@
       ]
     },
     {
+      "message": "No advanced filter is hiding rows on this sheet",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "No animations on this slide. Select a shape and pick an effect from the Animations tab.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -15317,6 +16438,12 @@
       "message": "No building blocks yet",
       "where": [
         "apps/desktop/renderer/apps/word/blocks.js"
+      ]
+    },
+    {
+      "message": "No calendars or address books were found at that address.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -15444,6 +16571,12 @@
       "message": "No file in this folder matches the filter. Clear it, or choose another kind.",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "No file was given to rename.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -15582,6 +16715,12 @@
       ]
     },
     {
+      "message": "No numbers found — a chart wants the table's body cells to be numeric.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "No one here. People added in Contacts are listed.",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
@@ -15621,6 +16760,12 @@
       "message": "No paragraph space",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "No password is stored for {email}.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -15675,6 +16820,12 @@
       "message": "No recent sources yet",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "No recipients are ticked in the list.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -15850,6 +17001,12 @@
       "message": "No {label} captions yet: Insert Caption adds them, and Update Table brings the list up to date.",
       "where": [
         "apps/desktop/renderer/apps/word/references-figures.js"
+      ]
+    },
+    {
+      "message": "No {label} client id is set up in this build. See docs/OAUTH.md — it takes about five minutes and is free.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -16100,6 +17257,12 @@
       ]
     },
     {
+      "message": "Nothing could be set — the desktop entry may not be installed yet.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Nothing else matches.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
@@ -16260,6 +17423,12 @@
       "message": "Number format",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Number of Volumes",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -16553,9 +17722,63 @@
       ]
     },
     {
+      "message": "Only a document has a design to set as the default.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Only a scratch file made in this run is added to.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Only a scratch file of this suite is taken as a recording.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Only a shape has points to edit.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Only a shape or a text box has words to change.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Only a shape or a text box has words to transform.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Only a text box has words to transform.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Only an entrance, emphasis or exit this writes can be played by paragraph",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Only certain kinds of changes can be made to this document — Review → Restrict Editing.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Only glTF 2.0 models are read",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -16568,6 +17791,12 @@
       "message": "Only pictures rated so many stars or more",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Only pictures, shapes, text boxes and groups can be grouped.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -16740,6 +17969,12 @@
       "message": "OpenDocument Text (.odt)",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "OpenDocument file has no content.xml",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -16956,6 +18191,12 @@
       ]
     },
     {
+      "message": "Other Authorities",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Other Sound…",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -17086,6 +18327,18 @@
       "message": "PNG Image (.png)",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "PNG colour type {colorType} is not supported",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "PNG filter {filter} is not in the specification",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -17296,7 +18549,8 @@
     {
       "message": "Pages",
       "where": [
-        "apps/desktop/renderer/apps/word/ribbon.js"
+        "apps/desktop/renderer/apps/word/ribbon.js",
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -17369,6 +18623,12 @@
       ]
     },
     {
+      "message": "Parcel",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Parentheses",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
@@ -17417,6 +18677,18 @@
       "message": "Paste Special",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Paste Special adds, subtracts, multiplies or divides",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Paste Special pastes all, formulas, values or formats",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -17792,6 +19064,12 @@
       "message": "Pivot Column",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Pivot Column without adding up needs one value a cell; some rows share one",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -18493,6 +19771,12 @@
       ]
     },
     {
+      "message": "Production Company",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Prompt:",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -18638,6 +19922,12 @@
       ]
     },
     {
+      "message": "Publisher",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Pull Quote",
       "where": [
         "apps/desktop/renderer/apps/word/drawings.js",
@@ -18673,9 +19963,27 @@
       ]
     },
     {
+      "message": "Put the caret in a paragraph that starts with a letter",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Put the caret in a paragraph with a comment first — Previous and Next go to them.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Put the caret in the row the second table should start with — not the first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Put the cursor in a pivot table first — or make one with Insert → PivotChart on the data.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -18737,6 +20045,12 @@
       "message": "Query",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Query \"{name}\" reads itself",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -19278,6 +20592,12 @@
       ]
     },
     {
+      "message": "Regulations",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Rehearsal",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -19617,6 +20937,12 @@
       ]
     },
     {
+      "message": "Removed {columns}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "Removed {name}.",
       "where": [
         "apps/desktop/renderer/apps/contacts.js"
@@ -19684,6 +21010,12 @@
       "message": "Rename — this master's name",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Renamed \"{from}\" to \"{to}\"",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
     {
@@ -19895,7 +21227,14 @@
     {
       "message": "Report",
       "where": [
-        "apps/desktop/renderer/registry-words.js"
+        "apps/desktop/renderer/registry-words.js",
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Report Type",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -20479,6 +21818,78 @@
       ]
     },
     {
+      "message": "Rows where \"{column}\" begins with {value}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rows where \"{column}\" contains {value}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rows where \"{column}\" does not contain {value}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rows where \"{column}\" ends with {value}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rows where \"{column}\" is at least {value}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rows where \"{column}\" is at most {value}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rows where \"{column}\" is blank",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rows where \"{column}\" is less than {value}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rows where \"{column}\" is more than {value}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rows where \"{column}\" is not blank",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rows where \"{column}\" is not {value}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Rows where \"{column}\" is {value}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "Rule saved",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
@@ -20528,7 +21939,8 @@
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/mail/rules.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
-        "apps/desktop/renderer/apps/word/mailings.js"
+        "apps/desktop/renderer/apps/word/mailings.js",
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -20628,6 +22040,12 @@
       ]
     },
     {
+      "message": "Rutba Office cannot open {v1} files yet.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Rutba Office is now {version}",
       "where": [
         "apps/desktop/renderer/shell.js"
@@ -20649,6 +22067,18 @@
       "message": "Rutba Office {version} is ready to install",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Rutba Office: no backend for {ns}:{name}",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Rutba Office: the document service has no {name}.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -20958,6 +22388,18 @@
       ]
     },
     {
+      "message": "Say where to copy the rows — a cell such as I1",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Say which cells the range covers, such as B2:D10.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Scale",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -21231,6 +22673,12 @@
       ]
     },
     {
+      "message": "Seasonality is detected automatically, or set to a whole number of points.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Second",
       "where": [
         "apps/desktop/renderer/smartart-dialog.js"
@@ -21335,9 +22783,27 @@
       ]
     },
     {
+      "message": "Select a cell in a list or a table first: From Table/Range reads the data round it.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Select a cell in a list with a header row first — Subtotal groups the rows under it",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Select a cell inside your data first — a filter needs a range.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Select a cell with a formula in it, then Evaluate Formula steps through it.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -21364,13 +22830,20 @@
       "message": "Select a group to ungroup.",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
-        "apps/desktop/renderer/apps/word.js"
+        "apps/desktop/renderer/apps/word.js",
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
       "message": "Select a picture, shape, chart or slicer first — click it on the sheet, or in the Selection Pane.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Select a picture, shape, chart or slicer first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -21410,6 +22883,12 @@
       ]
     },
     {
+      "message": "Select across at least two cells to merge.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Select all",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -21430,6 +22909,12 @@
       ]
     },
     {
+      "message": "Select from one cell to another in the same table, then merge.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Select one or more floating drawings first (Shift+click adds one).",
       "where": [
         "apps/desktop/renderer/apps/word.js"
@@ -21439,6 +22924,12 @@
       "message": "Select parts of the document and choose users who are allowed to freely edit them.",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "Select recipients first — Mailings → Select Recipients.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -21466,6 +22957,18 @@
       ]
     },
     {
+      "message": "Select the cells to fill as well as the first one",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Select the cells to fill, or give a stop value",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Select the words to keep first.",
       "where": [
         "apps/desktop/renderer/apps/word/blocks.js"
@@ -21490,6 +22993,12 @@
       ]
     },
     {
+      "message": "Select three or more objects to distribute.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Select three or more shapes first.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -21508,15 +23017,33 @@
       ]
     },
     {
+      "message": "Select two or more drawings to group them.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Select two or more floating drawings to group — Shift+click adds one.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
       ]
     },
     {
+      "message": "Select two or more objects to align.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Select two or more objects to group",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Select two or more objects to group.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -22004,9 +23531,21 @@
       ]
     },
     {
+      "message": "Settings is open. Choose Rutba Office there — Windows does not let a program set this for you.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Settings…",
       "where": [
         "packages/office-shell/src/electron/main.js"
+      ]
+    },
+    {
+      "message": "Seventh Edition",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -22264,6 +23803,18 @@
     },
     {
       "message": "Shingle",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Shipping",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Short Title",
       "where": [
         "apps/desktop/renderer/shared-words.js"
       ]
@@ -22714,6 +24265,18 @@
       ]
     },
     {
+      "message": "Sixteenth Edition",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Sixth Edition",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Size",
       "where": [
         "apps/desktop/renderer/apps/mail/parts.js",
@@ -22721,6 +24284,24 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/protect.js"
+      ]
+    },
+    {
+      "message": "Size 10 — 4⅛ × 9½ in",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Size 6¾ — 3⅝ × 6½ in",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Size 9 — 3⅞ × 8⅞ in",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -23120,6 +24701,12 @@
       ]
     },
     {
+      "message": "Something other than paragraphs sits inside the selection; select a plain run of paragraphs to sort.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Sort",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -23220,6 +24807,12 @@
       ]
     },
     {
+      "message": "Sort works on the body's paragraphs; a table sorts by its own rows.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Sort — the table's rows by the caret's column, its header row kept at the top",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -23235,6 +24828,18 @@
       "message": "Sorted",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "Sorted by \"{column}\"",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "Sorted by \"{column}\", Z to A",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
     {
@@ -23272,6 +24877,12 @@
       "message": "Source code",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Source references overlap destination area.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -23457,6 +25068,12 @@
       ]
     },
     {
+      "message": "Split a vertical merge from its first cell.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Split at commas",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -23546,6 +25163,12 @@
       "message": "Standard (480p)",
       "where": [
         "apps/desktop/renderer/apps/slides/export-video.js"
+      ]
+    },
+    {
+      "message": "Standard Number",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -23718,7 +25341,19 @@
       ]
     },
     {
+      "message": "State/Province",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Statistical",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Statutes",
       "where": [
         "apps/desktop/renderer/shared-words.js"
       ]
@@ -23898,6 +25533,12 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Subtotal needs a list with a header row and at least one row of data under it",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24549,6 +26190,12 @@
       ]
     },
     {
+      "message": "Text is extracted before or after something",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Text of a given length",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -24564,6 +26211,12 @@
       "message": "Text to Columns",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Text to Columns takes one column at a time: select the cells of one column",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24603,9 +26256,39 @@
       ]
     },
     {
+      "message": "That 3D model's file is missing",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That account does not use a signed-in provider.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That account is not set up.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That address is not one this can sign in to.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "That attachment is not stored.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "That could not be sent to the document service: {v1}",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24615,15 +26298,106 @@
       ]
     },
     {
+      "message": "That design idea no longer fits this slide.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That document is no longer open.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That drawing is not a group.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That equation cannot be built: {error}.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That event is no longer there.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That file is open in a window. Close it first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That file no longer exists.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That formula does not produce a number",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That is more cells than a script may set at once",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "That is not a 3D model",
       "where": [
-        "apps/desktop/renderer/apps/slides.js"
+        "apps/desktop/renderer/apps/slides.js",
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That is not a Transform preset",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That is not a cameo",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That is not an embedded document.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That is the table's own edge — there is no cell beyond it to join.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That message was sent to you, not to a group or a mailing list — Never block sender keeps its sender instead.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
       "message": "That name did not work.",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "That object is not an equation.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24635,7 +26409,8 @@
     {
       "message": "That password is not right, so the protection stays on.",
       "where": [
-        "apps/desktop/renderer/apps/word.js"
+        "apps/desktop/renderer/apps/word.js",
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24651,15 +26426,63 @@
       ]
     },
     {
+      "message": "That query is no longer in this workbook",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That range already has a table in it.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That recovered document is no longer there.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "That shape has no animation to copy.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
+      "message": "That shape has no words to transform",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That slide has no cameo to record into",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That step never reaches the stop value: give another step, or select the cells to fill",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "That window has closed since the list was made.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "That works on slides — Close Master View first.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "The .glb file has no scene description",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24684,6 +26507,12 @@
       "message": "The address book is empty. Add people in Contacts first, or type a new list.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "The answer to that could not be sent: {v1}",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24723,6 +26552,12 @@
       ]
     },
     {
+      "message": "The caret is not in a table.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The caret's column width, in centimetres",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -24741,9 +26576,21 @@
       ]
     },
     {
+      "message": "The cell to set must hold a formula — otherwise just type the value",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The cell you are trying to change is in the range \"{range}\", which is protected by a password. Enter the password to change this cell:",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "The cells either side of that line are not the same width — make them match before rubbing it out.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24753,9 +26600,45 @@
       ]
     },
     {
+      "message": "The changing cell must hold a plain value, not a formula",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The column to group by is not in the list",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The compared document is the revised one, with what changed marked as revisions to accept or reject. Paragraphs and their words are compared; tables come from the revised document as they are.",
       "where": [
         "apps/desktop/renderer/apps/word/compare.js"
+      ]
+    },
+    {
+      "message": "The confidence interval is a percentage between 0 and 100.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The criteria range cannot sit inside the list",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The criteria range needs its headings and at least one row of conditions under them",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The criteria range needs its headings and at least one row of conditions — e.g. F1:G3",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24795,6 +26678,30 @@
       ]
     },
     {
+      "message": "The document engine is not running.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The document engine is starting again; try that once more.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The document engine stopped while answering.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The document engine stopped, and the documents it held were closed. Unsaved work is kept as a recovery copy.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The document goes in whole, shown as an icon; a double-click opens it in its own app. It is kept in the file as PowerPoint and Word keep an embedded document.",
       "where": [
         "apps/desktop/renderer/object-insert.js"
@@ -24804,6 +26711,30 @@
       "message": "The document is not encrypted — people can still open it; the password only stops them taking the protection off.",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "The document service did not answer {name} in ten minutes.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The document's file name",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "The document's title, from its properties",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "The embedded document is missing from the deck.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24849,9 +26780,27 @@
       ]
     },
     {
+      "message": "The first {count} rows kept",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "The folder's grid beside an open picture",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "The forecast end must be at least one step after the last point.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The forecast end must come after the last point of the timeline.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24864,6 +26813,12 @@
       "message": "The index is written as Word's INDEX field; on this screen and on paper it is laid in one column, and Word lays it in the columns chosen.",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js"
+      ]
+    },
+    {
+      "message": "The last calendar stays; delete its events instead.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24882,6 +26837,12 @@
       "message": "The link on {cell}",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "The list range needs a header row and at least one row under it",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -24910,6 +26871,12 @@
       ]
     },
     {
+      "message": "The main process cannot {fn} here.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The message",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
@@ -24923,15 +26890,81 @@
       ]
     },
     {
+      "message": "The model has nothing to draw: no triangles in its scene",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The model is compressed with Draco, which this suite does not decode",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The model is compressed with meshopt, which this suite does not decode",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The model names a file outside its folder (\"{file}\"), which is not read",
       "where": [
         "apps/desktop/renderer/model3d.js"
       ]
     },
     {
+      "message": "The model needs the file \"{uri}\" beside it",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The model needs the picture \"{uri}\" beside it",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The model points at a buffer view it does not have",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The model points at an accessor it does not have",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The model stores numbers in a form ({componentType}) this does not read",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The model's buffer is missing",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The most obvious junk goes to Junk.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "The name cannot contain a path separator.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The name of the document's author, from its properties",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -24953,6 +26986,18 @@
       ]
     },
     {
+      "message": "The number of pages in the document",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "The number of the page it is on",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "The numbers each sparkline is drawn from.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -24968,6 +27013,12 @@
       "message": "The original is untouched.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "The other table has no column \"{withOn}\"",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25013,9 +27064,16 @@
       ]
     },
     {
+      "message": "The recipient list {path} is on a network share, so it is not opened from the letter. Choose it with Select Recipients → Use an Existing List.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The recipient list {path} was not found. Select Recipients to choose it again.",
       "where": [
-        "apps/desktop/renderer/apps/word/mailings.js"
+        "apps/desktop/renderer/apps/word/mailings.js",
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25025,9 +27083,21 @@
       ]
     },
     {
+      "message": "The references hold nothing to consolidate.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The release notes",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "The rows copied would land on the list or the criteria — choose a place beside or below them",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25044,6 +27114,18 @@
       ]
     },
     {
+      "message": "The script ran too long",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The selection already contains merged cells — split them first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The selection holds a formula in its corner and the values to try along its edges. Each cell is filled with what the formula gives for that combination.",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -25053,6 +27135,42 @@
       "message": "The sender supports one-click unsubscribe. A single request is sent to them and nothing else leaves this computer.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "The server answered {status} where a list was asked for.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The server did not accept the user name and password.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The server refused to keep {href}: {status}",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The server refused to remove {href}: {status}",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The server sent the request round in circles.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The shape has no words to play paragraph by paragraph",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25092,6 +27210,18 @@
       ]
     },
     {
+      "message": "The sign-in came back with the wrong state, so it was refused.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The sign-in was not completed in five minutes. Nothing has been changed.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The slide with its notes under it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -25116,6 +27246,18 @@
       ]
     },
     {
+      "message": "The step value is a number",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The stop value is a number",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "The suite has English dictionaries only, so Spelling reads past words in {language} rather than marking them wrong; Office proofs them in {language}.",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -25137,6 +27279,24 @@
       "message": "The theme's own looks: filled in an accent, outlined in the same",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "The time now",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "The timeline and the values are one column each.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The timeline and the values must be the same size.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25181,6 +27341,12 @@
       "message": "The words change; the number and its reference stay where they are.",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "The words to make a table of are in a table already.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25296,9 +27462,45 @@
       ]
     },
     {
+      "message": "There are no rows of data to subtotal",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "There are no slides to zoom to.",
       "where": [
         "apps/desktop/renderer/apps/slides/zoom.js"
+      ]
+    },
+    {
+      "message": "There is already a column \"{to}\"",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "There is already a custom show called \"{name}\".",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "There is already a worksheet called \"{n}\"",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "There is no cell to the right to merge with.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "There is no column \"{name}\"",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25314,6 +27516,12 @@
       ]
     },
     {
+      "message": "There is no invitation to answer.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "There is no other table or query in this workbook to append.",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -25326,15 +27534,57 @@
       ]
     },
     {
+      "message": "There is no paragraph style \"{style}\" to link a level to.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "There is no query called \"{v1}\"",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "There is no recording in a cameo on this slide",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
       ]
     },
     {
+      "message": "There is no sheet called \"{sheet}\"",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "There is no sheet of labels in this document. Start Mail Merge → Labels makes one.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "There is no table called \"{table}\"",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "There is no text to check.",
       "where": [
         "apps/desktop/renderer/review.js"
+      ]
+    },
+    {
+      "message": "There is no worksheet called \"{name}\"",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "There is nothing copied to paste — copy some cells first",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25375,6 +27625,18 @@
       "message": "These are imported archives — there is nothing to fetch.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
+      ]
+    },
+    {
+      "message": "These are set with xdg-mime, which this can do directly.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "These cells are part of a vertical merge — widening one row of it would tear the range.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25452,9 +27714,21 @@
       ]
     },
     {
+      "message": "This build cannot sign in to that provider.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This build has no {provider} client id, so signing in is not set up. See docs/OAUTH.md.",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "This calendar comes from an account — remove the account to remove its calendars.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25464,9 +27738,33 @@
       ]
     },
     {
+      "message": "This cell has a comment. Reply to it, or delete it, before adding a note.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This cell has a note. Delete it, or edit it, to comment here instead.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "This cell has a note. Delete the note, or edit it, before starting a comment here.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This cell is merged down its column — unmerge it before splitting it.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This cell is not merged — there is nothing to split.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25476,9 +27774,27 @@
       ]
     },
     {
+      "message": "This cell runs past the table's grid, so it cannot be split.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This column's width (cm)",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "This comment was made in an older version of PowerPoint; it can be read and deleted, not replied to.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This comment was made in an older version of PowerPoint; it can be read and deleted, not resolved.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25518,6 +27834,12 @@
       ]
     },
     {
+      "message": "This document has never been saved, so it needs a name.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This document has none recorded.",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -25532,7 +27854,8 @@
     {
       "message": "This document is protected for filling in forms: only its form fields can be changed.",
       "where": [
-        "apps/desktop/renderer/apps/word/restrict.js"
+        "apps/desktop/renderer/apps/word/restrict.js",
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25569,6 +27892,18 @@
       "message": "This document is protected from unintentional editing. You may only view this region.",
       "where": [
         "apps/desktop/renderer/apps/word/restrict.js"
+      ]
+    },
+    {
+      "message": "This document is protected: formatting is limited to styles.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This document is protected: only comments can be added here.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25643,9 +27978,27 @@
       ]
     },
     {
+      "message": "This is a glTF {version} file; only glTF 2.0 is read",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This is an ordinary document again — no mail merge.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "This is not a binary glTF (.glb) file",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This is not a glTF file: it is neither a .glb nor glTF's JSON",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25685,6 +28038,12 @@
       ]
     },
     {
+      "message": "This list has no subtotals to remove",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This message is in Junk because {reason}.",
       "where": [
         "apps/desktop/renderer/apps/mail/reader.js"
@@ -25699,7 +28058,8 @@
     {
       "message": "This modification is not allowed because the selection is locked.",
       "where": [
-        "apps/desktop/renderer/apps/word/restrict.js"
+        "apps/desktop/renderer/apps/word/restrict.js",
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25739,6 +28099,12 @@
       ]
     },
     {
+      "message": "This platform is not supported yet.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This presentation has no slides",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -25763,6 +28129,12 @@
       ]
     },
     {
+      "message": "This selection crosses a table boundary — delete inside one cell at a time.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This sends a message to {address}.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -25782,9 +28154,21 @@
       ]
     },
     {
+      "message": "This sheet has no outline to clear",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This sheet is protected with a password. Type it to take the protection off.",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "This sheet is protected — unprotect it before consolidating into it.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25836,9 +28220,51 @@
       ]
     },
     {
+      "message": "This slide's animations are laid out in a way this cannot rewrite; they are kept as they are.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "This slide's transition is now on every slide",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "This table has cells merged down a column — split them before sorting its rows.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This table has horizontally merged cells — its columns cannot be restructured yet.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This table has no column widths of its own to share out.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This table has no grid to split a cell in.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This table has something between its rows that sorting would lose.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "This table has vertically merged cells — rows through a merge cannot be restructured yet.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25863,6 +28289,12 @@
       "message": "This workbook is password-protected",
       "where": [
         "apps/desktop/renderer/apps/sheets.js"
+      ]
+    },
+    {
+      "message": "This workbook is too large for a script to read at once",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -25917,6 +28349,12 @@
       "message": "Throw this copy away",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Tick at least one field to make a slicer for.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -26044,7 +28482,8 @@
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/mailings.js",
-        "apps/desktop/renderer/apps/word/references.js"
+        "apps/desktop/renderer/apps/word/references.js",
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -26057,6 +28496,12 @@
       "message": "Title and Content",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Title case",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -26106,6 +28551,12 @@
       "message": "Today (Ctrl+T)",
       "where": [
         "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Today's date",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -26271,6 +28722,18 @@
       ]
     },
     {
+      "message": "Track Changes stays on: the document is protected for tracked changes.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Track Changes stays on: the document is protected for tracked changes. Stop Protection first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Track Changes — locked on: the document is protected for tracked changes",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -26382,6 +28845,12 @@
       ]
     },
     {
+      "message": "Translator",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Transparency {value}%",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -26407,6 +28876,12 @@
       "where": [
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Treatises",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -26662,6 +29137,12 @@
       ]
     },
     {
+      "message": "Type an example of what you want in this column first, then Flash Fill",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Type of Source",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -26677,6 +29158,18 @@
       "message": "Type recipient information in the table. To add more entries, click New Entry. The list is saved as a .csv file beside your document.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Type the equation first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "Type the words first.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -26709,6 +29202,12 @@
       "message": "URGENT",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "URL",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -27162,6 +29661,12 @@
       ]
     },
     {
+      "message": "Uppercase",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Upward diagonal",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -27506,6 +30011,12 @@
       ]
     },
     {
+      "message": "Volume",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
       "message": "Waiting ({count})",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -27600,6 +30111,12 @@
       "message": "Web Page (.html)",
       "where": [
         "apps/desktop/renderer/registry-words.js"
+      ]
+    },
+    {
+      "message": "Web site",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -27883,6 +30400,12 @@
       ]
     },
     {
+      "message": "Windows keeps this choice for you: pick Rutba Office in Settings › Default apps. The button below opens it there.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "Windows — locking the window's size and place is greyed in Excel on Windows too",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -27947,6 +30470,12 @@
       "message": "Word count",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Word document has no word/document.xml",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -28024,6 +30553,12 @@
       "message": "Workbook Views",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Workbook is protected and cannot be changed.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
       ]
     },
     {
@@ -28148,7 +30683,14 @@
       "message": "Year",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js",
-        "apps/desktop/renderer/apps/word/references.js"
+        "apps/desktop/renderer/apps/word/references.js",
+        "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Year Accessed",
+      "where": [
+        "apps/desktop/renderer/shared-words.js"
       ]
     },
     {
@@ -28421,6 +30963,12 @@
       ]
     },
     {
+      "message": "a table",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "about {count} minute",
       "plural": "about {count} minutes",
       "where": [
@@ -28523,6 +31071,12 @@
       ]
     },
     {
+      "message": "average",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "begins with",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -28605,6 +31159,12 @@
       "message": "contains",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js",
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "count",
+      "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
@@ -28961,6 +31521,18 @@
       ]
     },
     {
+      "message": "macOS keeps this choice in Finder: select a file, press Command-I, choose Rutba Office under “Open with”, then Change All.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "macOS sets this in Finder: select a file, press Command-I, pick Rutba Office and choose Change All.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "mail",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
@@ -28974,6 +31546,12 @@
       ]
     },
     {
+      "message": "max",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "mesosphere",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js"
@@ -28983,6 +31561,12 @@
       "message": "middle",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "min",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
     {
@@ -29194,6 +31778,12 @@
       ]
     },
     {
+      "message": "query {name}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
       "message": "recipient",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -29355,6 +31945,12 @@
       "message": "tOGGLE cASE",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "table {name}",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
     {
@@ -29695,6 +32291,12 @@
       ]
     },
     {
+      "message": "{changed} file types now open with Rutba Office.",
+      "where": [
+        "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
       "message": "{change}: slide {number}",
       "where": [
         "apps/desktop/renderer/apps/slides/changes.js"
@@ -29717,6 +32319,24 @@
       "plural": "{chosen} of {count} folders",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "{columns} filled down",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "{columns} filled up",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
+      ]
+    },
+    {
+      "message": "{columns} merged into \"{name}\"",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
     {
@@ -30576,6 +33196,18 @@
     },
     {
       "message": "{name} {kind} Labels",
+      "where": [
+        "apps/desktop/renderer/apps/word/envelopes.js"
+      ]
+    },
+    {
+      "message": "{name} {kind} — {w} × {h} mm, {count} on a Letter sheet",
+      "where": [
+        "apps/desktop/renderer/apps/word/envelopes.js"
+      ]
+    },
+    {
+      "message": "{name} {kind} — {w} × {h} mm, {count} on an A4 sheet",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
       ]

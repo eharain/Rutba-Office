@@ -168,7 +168,7 @@ export function FieldDialog({ context, onClose, onOk }) {
               <div className="wd-refs-list wd-refs-formats">
                 {(field.formats === 'number' ? NUMBER_FORMATS : TEXT_FORMATS).map(([id, label]) => (
                   <button key={id || 'none'} type="button" className={`wd-refs-row${id === format ? ' on' : ''}`} onClick={() => setFormat(id)}>
-                    <span className="wd-refs-row-text">{label}</span>
+                    <span className="wd-refs-row-text">{t(label)}</span>
                   </button>
                 ))}
               </div>
@@ -189,7 +189,7 @@ export function FieldDialog({ context, onClose, onOk }) {
           </div>
         </div>
       </div>
-      <p className="wd-refs-lead wd-refs-foot-lead"><Icon name="info" size={12} /> {t('Description: {description}. Update Fields (F9) works it out again, and so does printing.', { description: field.description })}</p>
+      <p className="wd-refs-lead wd-refs-foot-lead"><Icon name="info" size={12} /> {t('Description: {description}. Update Fields (F9) works it out again, and so does printing.', { description: t(field.description) })}</p>
     </Dialog>
   );
 }

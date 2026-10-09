@@ -2088,7 +2088,8 @@ export default function Word({ app, shell, boot }) {
         toast(t('Protection is off.'), { tone: 'good' });
       } catch (err) {
         const said = String(err?.message || err);
-        if (/password is not right/i.test(said)) setUnprotecting({ error: t('That password is not right, so the protection stays on.') });
+        // Decided by the engine's own English, which an Urdu window shows translated.
+        if (/password is not right/i.test(String(err?.original || said))) setUnprotecting({ error: t('That password is not right, so the protection stays on.') });
         else toast(said, { tone: 'bad' });
       }
     },

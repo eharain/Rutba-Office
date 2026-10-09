@@ -33,10 +33,21 @@ export const hasShell = () => Boolean(globalThis.rutbaOffice);
  */
 const CHANNEL_NOISE = /^Error invoking remote method '[^']*':\s*(?:Error:\s*)?/;
 
+/**
+ * What the window does to a message before a person reads it: the windows put
+ * an engine's English into their own language (renderer/language.js sets it).
+ */
+let inLanguage = (message) => message;
+export function setErrorWords(fn) {
+  inLanguage = typeof fn === 'function' ? fn : (message) => message;
+}
+
 function unwrap(error, ns, name) {
   const message = String(error?.message ?? error ?? 'something went wrong');
   const clean = message.replace(CHANNEL_NOISE, '').trim();
-  const out = new Error(clean || message);
+  const out = new Error(inLanguage(clean || message) || clean || message);
+  // The engine's own words, for code that decides by them rather than shows them.
+  out.original = clean || message;
   out.name = error?.name && error.name !== 'Error' ? error.name : 'OfficeError';
   out.operation = `${ns}.${name}`;
   out.cause = error;

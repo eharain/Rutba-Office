@@ -11,7 +11,7 @@
 // true, so it shows which formats actually open with us right now.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Dialog, Icon, Chip, Spinner, t } from '@rutba/office-ui';
+import { Button, Dialog, Icon, Chip, Spinner, t, tFilled } from '@rutba/office-ui';
 
 export function useDefaults(shell) {
   const [status, setStatus] = useState(null);
@@ -40,7 +40,7 @@ export function DefaultsDialog({ shell, onClose, toast }) {
     setWorking(true);
     try {
       const result = await shell.defaults.set({});
-      toast?.(result.message, { tone: result.changed ? 'good' : 'plain', ms: 7000 });
+      toast?.(tFilled(result.message), { tone: result.changed ? 'good' : 'plain', ms: 7000 });
       if (result.changed) refresh();
     } catch (err) {
       toast?.(err.message, { tone: 'bad' });
@@ -81,7 +81,7 @@ export function DefaultsDialog({ shell, onClose, toast }) {
 
           <div className="ml-note" style={{ marginBottom: 12 }}>
             <Icon name="info" size={14} />
-            <span>{status.instructions}</span>
+            <span>{tFilled(status.instructions)}</span>
           </div>
 
           {!status.packaged ? (
