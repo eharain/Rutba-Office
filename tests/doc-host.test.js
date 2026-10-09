@@ -12,6 +12,18 @@ import os from 'node:os';
 import path from 'node:path';
 import { createDocumentHost } from '../apps/desktop/main/doc-host.js';
 
+test('a thread that does not get ready in time leaves the service to the main process, which still opens documents', async (t) => {
+  const host = createDocumentHost({ holdBlob: (b, ty, n, o) => ({ id: o?.id || 'b1', url: 'rutba://blob/b1' }), releaseBlob: () => {}, blobUrl: (id) => `rutba://blob/${id}`, readyLimitMs: 1 }).start();
+  t.after(() => host.stop());
+  host.provide({ measureMath: async () => new Map(), setting: () => {}, teach: () => {} });
+  host.init({ recoveryDir: fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-host-')), locale: 'en-GB', settings: {} });
+  const { doc, direct } = await host.ready();
+  assert.equal(host.threaded, false, 'on the main process');
+  const made = await doc.new({ kind: 'doc' });
+  assert.ok(made.id);
+  assert.ok(direct.sessions().some((s) => s.id === made.id), 'both faces reach the same service');
+});
+
 test('the document service answers from its own thread, as a promise and as a function call', async (t) => {
   const recoveryDir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-host-'));
   const held = [];
@@ -31,6 +43,7 @@ test('the document service answers from its own thread, as a promise and as a fu
   });
   host.init({ recoveryDir, locale: 'en-GB', settings: {} });
   const { doc, direct } = await host.ready();
+  assert.equal(host.threaded, true, 'on its own thread');
   assert.equal(typeof doc.apply, 'function');
   assert.equal(typeof direct.model, 'function');
 

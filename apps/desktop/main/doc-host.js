@@ -51,13 +51,17 @@ export function asBuffers(value, seen = new Set()) {
 /** How long a check waits on one call before saying the thread has stopped answering. */
 const SYNC_LIMIT_MS = 10 * 60 * 1000;
 
+/** How long the thread may take to load before the main process takes the service on. */
+const READY_LIMIT_MS = Number(process.env.RUTBA_DOC_READY_MS || 60000);
+
 /**
  * @param {object} o
  * @param {(bytes, type, name, options) => object} o.holdBlob the shell's, with `id` and `owner` options
  * @param {(id: string) => void} o.releaseBlob
  * @param {(id: string) => string} o.blobUrl where a held blob is fetched
+ * @param {number} [o.readyLimitMs] how long the thread may take to get ready
  */
-export function createDocumentHost({ holdBlob, releaseBlob, blobUrl }) {
+export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitMs = READY_LIMIT_MS }) {
   // What the main process does for the thread, filled in once it can.
   const handlers = { measureMath: null, teach: null, setting: null };
   let init = null;
@@ -65,7 +69,12 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl }) {
   let generation = 0;
   let seq = 0;
   let readyNames = null;
-  let whenReady = null;
+  // Ready once, by the first thread or, if no thread can start, by the
+  // service made on the main process instead (`local`).
+  let readyOf;
+  const firstReady = new Promise((resolve) => { readyOf = resolve; });
+  let local = null;
+  let fallingBack = null;
   const waiting = new Map(); // seq -> { resolve, reject } for the promised answers
   const answered = new Map(); // seq -> message, for the one call a check is blocked on
   // [0] an answer is on its way to a blocked caller; [1] the thread has ended.
@@ -82,11 +91,6 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl }) {
       workerData: { port: port1, signal: signal.buffer, generation, blobPrefix: blobUrl('') },
       transferList: [port1],
     });
-    let readyOf;
-    whenReady = new Promise((resolve, reject) => { readyOf = { resolve, reject }; });
-    // A thread that ends before it is ready is said by whoever awaits it, if anyone does.
-    whenReady.catch(() => {});
-    mine.ready = readyOf;
     port2.on('message', (m) => handle(mine, m));
     // A thread started again is told what the first was.
     if (init) port2.postMessage({ t: 'init', ...init });
@@ -100,8 +104,10 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl }) {
       const gone = new Error('The document engine stopped, and the documents it held were closed. Unsaved work is kept as a recovery copy.');
       for (const [, w] of waiting) w.reject(gone);
       waiting.clear();
-      readyOf.reject(gone);
-      if (thread === mine && !stopping) {
+      if (thread === mine && !stopping && !mine.everReady) {
+        // A thread that never got ready will not get ready if started again.
+        fallBack(`it ended (${code}) before it was ready`);
+      } else if (thread === mine && !stopping && !fallingBack) {
         console.error(`the document service ended (${code}); starting it again`);
         thread = start();
       }
@@ -109,11 +115,40 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl }) {
     return mine;
   }
 
+  /**
+   * The service on the main process, as it ran before it had a thread: for
+   * a machine where the thread cannot start or never gets ready, so the
+   * suite still opens documents, only without the thread's freedom.
+   */
+  function fallBack(why) {
+    fallingBack ||= fallBackNow(why);
+    return fallingBack;
+  }
+
+  async function fallBackNow(why) {
+    console.error(`the document service could not start on a thread of its own (${why}); it runs on the main process`);
+    try {
+      await thread?.worker?.terminate();
+    } catch {
+      /* gone already */
+    }
+    const [{ createDocumentService }, { createProofing }] = await Promise.all([import('./documents.js'), import('./proofing.js')]);
+    const mirror = { ...(init?.settings || {}) };
+    const proofing = createProofing({
+      stores: { settings: { get: (key, fallback) => (key in mirror ? mirror[key] : fallback), set: (key, value) => { mirror[key] = value; handlers.setting?.(key, value); } } },
+      locale: () => init?.locale || 'en-GB',
+    });
+    local = createDocumentService({ holdBlob, releaseBlob, recoveryDir: init?.recoveryDir ?? null, measureMath: (list) => handlers.measureMath(list), proofing });
+    readyNames = Object.keys(local).filter((k) => typeof local[k] === 'function');
+    readyOf(readyNames);
+  }
+
   function handle(from, m) {
     switch (m.t) {
       case 'ready':
         readyNames = m.names;
-        from.ready.resolve(m.names);
+        from.everReady = true;
+        readyOf(m.names);
         return;
       case 'reply':
       case 'settle': {
@@ -170,6 +205,7 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl }) {
 
   /** A call answered with a promise. */
   function call(name, args, win) {
+    if (local) return Promise.resolve().then(() => local[name](args, win));
     const t = thread;
     if (!t?.alive) return Promise.reject(new Error('The document engine is starting again; try that once more.'));
     if (trace) {
@@ -194,6 +230,7 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl }) {
 
   /** A call the caller blocks on, as the checks call the service. */
   function callSync(name, args, win) {
+    if (local) return local[name](args, win);
     const t = thread;
     if (!t?.alive) throw new Error('The document engine is not running.');
     const n = ++seq;
@@ -237,8 +274,16 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl }) {
       init = options;
       if (thread) thread.port.postMessage({ t: 'init', ...init });
       else thread = start();
+      // A thread that has not got ready in a minute never will: the main
+      // process takes the service on rather than open no documents at all.
+      const waitingFor = thread;
+      const late = setTimeout(() => { if (!waitingFor.everReady && thread === waitingFor) fallBack(`it was not ready in ${Math.round(readyLimitMs / 1000)} s`); }, readyLimitMs);
+      late.unref?.();
       return this;
     },
+
+    /** Whether the service runs on its own thread (false once it has fallen back to the main process). */
+    get threaded() { return !local; },
 
     /** What only the main process can do: `measureMath`, `teach`, `setting`. */
     provide(more) {
@@ -247,7 +292,7 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl }) {
 
     /** The service's method names, once the thread has loaded. */
     async ready() {
-      await whenReady;
+      await firstReady;
       if (!faces.doc) {
         faces.doc = Object.fromEntries(readyNames.map((name) => [name, (args, win) => call(name, args, win)]));
         faces.direct = Object.fromEntries(readyNames.map((name) => [name, (args, win) => callSync(name, args, win)]));
