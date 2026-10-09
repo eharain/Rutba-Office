@@ -56,7 +56,7 @@ test('each preset\'s paths: one arc, one circle, three lines for the button', ()
   assert.equal(warpPaths('textArchUp', box).length, 1);
   assert.equal(warpPaths('textCircle', box)[0].length > warpPaths('textArchUp', box)[0].length * 1.9, true);
   assert.equal(warpPaths('textButton', box).length, 3);
-  assert.deepEqual(warpPaths('textWave1', box), [], 'not drawn yet: straight');
+  assert.deepEqual(warpPaths('textWave1', box), [], 'a warp follows no path: its letters are stood one by one');
   assert.deepEqual(WARP_PRESETS.map((p) => p.id), ['textNoShape', 'textArchUp', 'textArchDown', 'textCircle', 'textButton']);
 });
 
@@ -101,4 +101,41 @@ test('a document\'s text box takes a Transform, written first in its body proper
   assert.doesNotMatch(bodyPr(), /prstTxWarp/);
   assert.equal(box().warp, null);
   assert.throws(() => view.updateDrawings({ id: box().id, warp: '"/><x' }), /not a Transform preset/);
+});
+
+test('a warp stretches each letter between its two curves, upright, across the whole box', async () => {
+  const { warpedTextSvg, WARP_MORE, drawnWarp, warpLabel } = await import('@rutba/drawing/warp');
+  const box = { x: 0, y: 0, w: 400, h: 200 };
+  const lines = [[{ text: 'WAVES', size: 24 }]];
+  const letters = (svg) => [...svg.matchAll(/<text font-size="100" text-anchor="middle" transform="matrix\(([-\d.]+) ([-\d.]+) 0 ([-\d.]+) ([-\d.]+) ([-\d.]+)\)">(.)<\/text>/g)]
+    .map((m) => ({ sx: Number(m[1]), skew: Number(m[2]), sy: Number(m[3]), x: Number(m[4]), foot: Number(m[5]), ch: m[6] }));
+  const wave = letters(warpedTextSvg({ preset: 'textWave1', box, lines }));
+  assert.deepEqual(wave.map((l) => l.ch), ['W', 'A', 'V', 'E', 'S']);
+  assert.ok(wave[0].x > 0 && wave[4].x < 400 && wave[4].x - wave[0].x > 250, 'across the whole box');
+  assert.ok(Math.abs(wave[1].foot - wave[3].foot) > 20, 'the first rise and the second fall apart');
+  const inflate = letters(warpedTextSvg({ preset: 'textInflate', box, lines }));
+  assert.ok(inflate[2].sy > inflate[0].sy * 1.15, 'inflated: the middle letter taller than the first');
+  const slant = letters(warpedTextSvg({ preset: 'textSlantUp', box, lines }));
+  assert.ok(slant[0].skew < 0 && slant[4].foot < slant[0].foot, 'slanted up: sheared, the last letter higher, the uprights upright');
+  assert.equal(slant.every((l) => Math.abs(l.sy - slant[0].sy) < 0.001), true, 'a slant keeps every letter one height');
+  const two = letters(warpedTextSvg({ preset: 'textDeflate', box, lines: [[{ text: 'AB', size: 24 }], [{ text: 'CD', size: 24 }]] }));
+  assert.ok(two.find((l) => l.ch === 'C').foot > two.find((l) => l.ch === 'A').foot, 'two lines share the height, one band each');
+  assert.equal(WARP_MORE.length, 20);
+  assert.equal(WARP_MORE.every((p) => drawnWarp(p.id)), true);
+  assert.equal(warpLabel('textWave1'), 'Wave: Down');
+  assert.equal(warpLabel('textArchUp'), 'Arch Up');
+});
+
+test('a warp is written and read in each app, a digit in its name and all', async () => {
+  const { d, id } = deckWithBox();
+  d.setTextWarp(0, id, 'textDoubleWave1');
+  assert.equal(Deck.open(d.save()).slide(0).shapes.find((s) => String(s.id) === String(id)).text.warp.preset, 'textDoubleWave1');
+  assert.match(renderSlide(d.slide(0), {}), /transform="matrix\(/, 'drawn letter by letter on the slide');
+  const { buildXlsx } = await import('@rutba/ooxml/build');
+  const { SheetView } = await import('@rutba/sheet-view');
+  const view = SheetView.open(buildXlsx({ sheets: [{ name: 'Sheet1', rows: [['a']] }] }), { viewportWidth: 800, viewportHeight: 400 });
+  view.insertWordArt({ text: 'Rutba Office', size: 36 });
+  const shape = view.render().objects.find((o) => o.kind === 'shape');
+  view.setShapeWarp({ id: shape.id, preset: 'textWave4' });
+  assert.equal(view.render().objects.find((o) => o.id === shape.id).textWarp, 'textWave4');
 });

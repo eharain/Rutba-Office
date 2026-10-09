@@ -4100,7 +4100,7 @@ export class SheetView {
    * 'textNoShape' puts them straight again.
    */
   setShapeWarp({ id, preset = null } = {}) {
-    if (preset != null && !/^text[A-Z][A-Za-z]+$/.test(String(preset))) throw new Error('That is not a Transform preset');
+    if (preset != null && !/^text[A-Z][A-Za-z0-9]+$/.test(String(preset))) throw new Error('That is not a Transform preset');
     const d = this._drawingById(id);
     if (d.kind !== 'shape') throw new Error('Only a shape or a text box has words to transform.');
     if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before changing objects.');

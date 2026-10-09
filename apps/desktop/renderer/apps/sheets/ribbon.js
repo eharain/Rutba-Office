@@ -9,7 +9,7 @@
 
 import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select } from '@rutba/office-ui';
-import { WARP_PRESETS } from '@rutba/drawing/warp';
+import { WARP_PRESETS, WARP_MORE, warpLabel } from '@rutba/drawing/warp';
 import { catalogByCategory } from '@rutba/formula';
 import { NUMBER_FORMATS } from './dialogs.js';
 import { recentSources } from './queries.js';
@@ -255,6 +255,8 @@ export default function SheetsRibbon({
             {WARP_PRESETS.map((p) => (
               <Button key={p.id} tall icon="wand" label={p.label} className="sh-warp" data-preset={p.id} pressed={(arrange.picked[0].textWarp || 'textNoShape') === p.id} title={p.id === 'textNoShape' ? 'No Transform — the words in straight lines' : `Transform — the words along ${p.label === 'Button' ? 'a button: an arc, a line and an arc' : `the ${p.label === 'Circle' ? 'circle' : 'arc'} of the shape`}`} onClick={() => act('textWarp', { id: arrange.picked[0].id, preset: p.id })} />
             ))}
+            {/* The warps, the rest of Office's gallery, from a menu. */}
+            <Button tall icon="wand" label="More" className="sh-warp-more" pressed={WARP_MORE.some((p) => p.id === arrange.picked[0].textWarp)} title={WARP_MORE.some((p) => p.id === arrange.picked[0].textWarp) ? `Transform — now ${warpLabel(arrange.picked[0].textWarp)}; the warps: the words stretched between two curves` : 'More Transforms — the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest'} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: p.label, icon: arrange.picked[0].textWarp === p.id ? 'check' : 'wand', run: () => act('textWarp', { id: arrange.picked[0].id, preset: p.id }) })))} />
           </Group>
         </>
       ) : null}

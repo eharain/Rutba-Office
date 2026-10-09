@@ -1423,7 +1423,7 @@ export class Deck {
    * 'textNoShape' takes it off, the words straight again.
    */
   setTextWarp(slideIndex, shapeId, preset) {
-    if (preset != null && !/^text[A-Z][A-Za-z]+$/.test(String(preset))) throw new Error('That is not a Transform preset');
+    if (preset != null && !/^text[A-Z][A-Za-z0-9]+$/.test(String(preset))) throw new Error('That is not a Transform preset');
     const part = this.#partOf(slideIndex);
     if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
     const xml = this.pkg.text(part);

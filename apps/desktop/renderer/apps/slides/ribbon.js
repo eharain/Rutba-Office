@@ -10,7 +10,7 @@
 
 import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select, Icon } from '@rutba/office-ui';
-import { WARP_PRESETS } from '@rutba/drawing/warp';
+import { WARP_PRESETS, WARP_MORE, warpLabel } from '@rutba/drawing/warp';
 import { TRANSITION_GALLERY, TRANSITION_OPTIONS, galleryKeyOf, optionOf, describeTransition } from './motion.js';
 import { ANIMATION_GALLERY, EFFECT_MENU, ANIMATION_OPTIONS } from './animate.js';
 import { MODEL_VIEWS } from '@rutba/imaging/model3d';
@@ -1076,6 +1076,8 @@ export default function SlidesRibbon({
             {WARP_PRESETS.map((p) => (
               <Button key={p.id} tall icon="wand" label={p.label} className="sl-warp" data-preset={p.id} pressed={(selectedShapeObj.text.warp?.preset || 'textNoShape') === p.id} title={p.id === 'textNoShape' ? 'No Transform — the words in straight lines' : `Transform — the words along ${p.label === 'Button' ? 'a button: an arc, a line and an arc' : `the ${p.label === 'Circle' ? 'circle' : 'arc'} of the shape`}`} onClick={() => act('textWarp', p.id)} />
             ))}
+            {/* The warps, the rest of Office's gallery, from a menu. */}
+            <Button tall icon="wand" label="More" className="sl-warp-more" pressed={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset)} title={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset) ? `Transform — now ${warpLabel(selectedShapeObj.text.warp?.preset)}; the warps: the words stretched between two curves` : 'More Transforms — the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest'} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: p.label, icon: selectedShapeObj.text.warp?.preset === p.id ? 'check' : 'wand', run: () => act('textWarp', p.id) })))} />
           </Group>
         </>
       ) : null}

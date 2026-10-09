@@ -22,7 +22,7 @@
 
 import React from 'react';
 import { TABLE_STYLES } from '@rutba/ooxml/table-styles';
-import { WARP_PRESETS } from '@rutba/drawing/warp';
+import { WARP_PRESETS, WARP_MORE, warpLabel } from '@rutba/drawing/warp';
 import { Ribbon, Group, Rows, Button, Separator, Select, Input } from '@rutba/office-ui';
 import { EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
 import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS } from '@rutba/office-formats/themes';
@@ -746,6 +746,8 @@ export default function WordRibbon({
                 onClick={() => act('boxFormat', { warp: p.id === 'textNoShape' ? null : p.id })}
               />
             ))}
+            {/* The warps, the rest of Office's gallery, from a menu. */}
+            <Button tall disabled={drawing?.kind !== 'textbox'} icon="wand" label="More" className="wd-warp-more" pressed={WARP_MORE.some((p) => p.id === look.warp)} title={WARP_MORE.some((p) => p.id === look.warp) ? `Transform — now ${warpLabel(look.warp)}; the warps: the words stretched between two curves` : 'More Transforms — the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest'} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: p.label, icon: look.warp === p.id ? 'check' : 'wand', run: () => act('boxFormat', { warp: p.id }) })))} />
           </Group>
           {arrange}
           <Group label="Size">

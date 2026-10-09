@@ -47,6 +47,21 @@ export async function verifyDeckWordArtTransform({ open, check, until, wait, err
     const straight = model().slide.shapes.find((s) => String(s.id) === id)?.text?.warp == null && !(await js(`Boolean(document.querySelector('svg textPath'))`));
     check('presentations: the saved deck carries a:prstTxWarp as PowerPoint writes it, and No Transform puts the words straight again', saved && straight, JSON.stringify({ saved, straight }));
 
+    // More → a warp: the words stretched between two curves, a letter at a time.
+    const warps = {};
+    for (const [label, preset] of [['Wave: Down', 'textWave1'], ['Inflate', 'textInflate'], ['Slant: Up', 'textSlantUp'], ['Chevron: Up', 'textChevron']]) {
+      await js(`(() => { const b = document.querySelector('.sl-warp-more'); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
+      await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === ${JSON.stringify(label)})`), `the ${label} item`, 3000).catch(() => {});
+      await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click(), 1`);
+      warps[preset] = await until(() => model().slide.shapes.find((s) => String(s.id) === id)?.text?.warp?.preset === preset, `the ${label} warp`, 4000)
+        .then(() => until(() => js(`[...document.querySelectorAll('svg text[transform^="matrix("]')].map((t) => t.textContent).join('').includes('RutbaOffice')`), 'the letters stretched', 4000))
+        .then(() => true).catch(() => false);
+      if (process.env.RUTBA_VERIFY_CAPTURE) { await wait(500); fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, `deck-wordart-${preset}.png`), (await win.webContents.capturePage()).toPNG()); }
+    }
+    const more = await js(`document.querySelector('.sl-warp-more')?.getAttribute('aria-pressed') === 'true' || document.querySelector('.sl-warp-more')?.classList.contains('pressed') || false`);
+    check('presentations: Transform → More gives the warps, each drawing the words stretched between its two curves, More pressed while one is on',
+      Object.values(warps).every(Boolean) && more, JSON.stringify({ warps, more }));
+
     const complaints = await errorsIn(win);
     check('presentations: WordArt\'s Transform reports nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

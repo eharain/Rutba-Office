@@ -16,8 +16,45 @@ export const WARP_PRESETS = [
   { id: 'textButton', label: 'Button' },
 ];
 
+const TAU = Math.PI * 2;
+
+/**
+ * The warps: the words stretched to fill the box between a top and a bottom
+ * curve, as Office's Transform → Warp gallery has them. Each curve gives the
+ * height in the box (0 the top, 1 the bottom) at a place across it (0 the
+ * left, 1 the right), at Office's default handle.
+ */
+const ENVELOPES = {
+  textTriangle: { label: 'Triangle: Up', top: (u) => 0.6 * Math.abs(2 * u - 1), bottom: () => 1 },
+  textTriangleInverted: { label: 'Triangle: Down', top: () => 0, bottom: (u) => 1 - 0.6 * Math.abs(2 * u - 1) },
+  textChevron: { label: 'Chevron: Up', top: (u) => 0.25 * Math.abs(2 * u - 1), bottom: (u) => 0.75 + 0.25 * Math.abs(2 * u - 1) },
+  textChevronInverted: { label: 'Chevron: Down', top: (u) => 0.25 * (1 - Math.abs(2 * u - 1)), bottom: (u) => 1 - 0.25 * Math.abs(2 * u - 1) },
+  textCurveUp: { label: 'Curve: Up', top: (u) => 0.4 * Math.cos((Math.PI * u) / 2), bottom: (u) => 0.6 + 0.4 * Math.cos((Math.PI * u) / 2) },
+  textCurveDown: { label: 'Curve: Down', top: (u) => 0.4 * Math.sin((Math.PI * u) / 2), bottom: (u) => 0.6 + 0.4 * Math.sin((Math.PI * u) / 2) },
+  textWave1: { label: 'Wave: Down', top: (u) => 0.125 * (1 + Math.sin(TAU * u)), bottom: (u) => 0.75 + 0.125 * (1 + Math.sin(TAU * u)) },
+  textWave2: { label: 'Wave: Up', top: (u) => 0.125 * (1 - Math.sin(TAU * u)), bottom: (u) => 0.75 + 0.125 * (1 - Math.sin(TAU * u)) },
+  textDoubleWave1: { label: 'Double Wave: Down', top: (u) => 0.0625 * (1 + Math.sin(2 * TAU * u)), bottom: (u) => 0.875 + 0.0625 * (1 + Math.sin(2 * TAU * u)) },
+  textWave4: { label: 'Double Wave: Up', top: (u) => 0.0625 * (1 - Math.sin(2 * TAU * u)), bottom: (u) => 0.875 + 0.0625 * (1 - Math.sin(2 * TAU * u)) },
+  textInflate: { label: 'Inflate', top: (u) => 0.18 * (1 - Math.sin(Math.PI * u)), bottom: (u) => 1 - 0.18 * (1 - Math.sin(Math.PI * u)) },
+  textDeflate: { label: 'Deflate', top: (u) => 0.18 * Math.sin(Math.PI * u), bottom: (u) => 1 - 0.18 * Math.sin(Math.PI * u) },
+  textInflateBottom: { label: 'Inflate: Bottom', top: () => 0, bottom: (u) => 1 - 0.3 * (1 - Math.sin(Math.PI * u)) },
+  textDeflateBottom: { label: 'Deflate: Bottom', top: () => 0, bottom: (u) => 1 - 0.3 * Math.sin(Math.PI * u) },
+  textInflateTop: { label: 'Inflate: Top', top: (u) => 0.3 * (1 - Math.sin(Math.PI * u)), bottom: () => 1 },
+  textDeflateTop: { label: 'Deflate: Top', top: (u) => 0.3 * Math.sin(Math.PI * u), bottom: () => 1 },
+  textFadeRight: { label: 'Fade: Right', top: (u) => 0.33 * u, bottom: (u) => 1 - 0.33 * u },
+  textFadeLeft: { label: 'Fade: Left', top: (u) => 0.33 * (1 - u), bottom: (u) => 1 - 0.33 * (1 - u) },
+  textSlantUp: { label: 'Slant: Up', top: (u) => 0.3 * (1 - u), bottom: (u) => 1 - 0.3 * u },
+  textSlantDown: { label: 'Slant: Down', top: (u) => 0.3 * u, bottom: (u) => 1 - 0.3 * (1 - u) },
+};
+
+/** The rest of the gallery, after the five on the ribbon: the warps. */
+export const WARP_MORE = Object.entries(ENVELOPES).map(([id, e]) => ({ id, label: e.label }));
+
 /** Whether a preset is one this drawing follows (the rest are drawn straight). */
-export const drawnWarp = (preset) => ['textArchUp', 'textArchDown', 'textCircle', 'textButton'].includes(preset);
+export const drawnWarp = (preset) => ['textArchUp', 'textArchDown', 'textCircle', 'textButton'].includes(preset) || Object.hasOwn(ENVELOPES, String(preset));
+
+/** A preset's name as the gallery gives it. */
+export const warpLabel = (preset) => WARP_PRESETS.find((p) => p.id === preset)?.label || ENVELOPES[preset]?.label || null;
 
 /** Half an ellipse's length, by Ramanujan's second approximation. */
 function halfEllipse(a, b) {
@@ -90,6 +127,7 @@ function pathId(seed) {
 export function warpedTextSvg({ preset, box, lines, span, family = 'sans-serif', color = '#1a1a1a' }) {
   // A family named in quotes ("Segoe UI") goes in an attribute that is itself in double quotes.
   const face = String(family).replace(/"/g, "'");
+  if (ENVELOPES[preset]) return envelopeSvg(ENVELOPES[preset], { box, lines, span, face, color });
   const first = warpPaths(preset, box);
   if (!first.length) return '';
   // More lines than paths: the rest run on along the last path, as one line.
@@ -135,3 +173,55 @@ export function warpedTextSvg({ preset, box, lines, span, family = 'sans-serif',
 }
 
 const escape = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+// Where a letter stands in its em: its top a little over the capitals, its
+// foot under the descenders, as a share of the size.
+const ASCENT = 0.76;
+const DESCENT = 0.22;
+
+/**
+ * A warp's words: each line stretched across the box and between its share
+ * of the envelope's two curves, a letter at a time. A letter is stood at its
+ * place across, as tall as the curves are apart there and sheared to their
+ * slope, so its uprights stay upright, as Office's warps keep them. Lines
+ * share the height between the curves, one band each.
+ */
+function envelopeSvg(env, { box, lines, span, face, color }) {
+  const laid = lines.map((l) => (l || []).filter((r) => r.text));
+  const count = laid.length;
+  if (!laid.some((l) => l.length)) return '';
+  const BASE = 100;
+  const out = [];
+  laid.forEach((runs, k) => {
+    // Each letter with its run and how far it goes at the base size.
+    const glyphs = [];
+    for (const r of runs) {
+      const scale = BASE / (r.size || 18);
+      for (const ch of Array.from(String(r.text))) glyphs.push({ ch, run: r, adv: measureText(ch, { size: r.size || 18, weight: r.bold ? 'bold' : 'normal' }) * scale });
+    }
+    const width = glyphs.reduce((n, g) => n + g.adv, 0);
+    if (!width) return;
+    const sx = box.w / width;
+    // The band this line has between the curves, in the box's units.
+    const at = (u, t) => box.y + box.h * (env.top(u) + (env.bottom(u) - env.top(u)) * t);
+    const top = (u) => at(u, k / count);
+    const bottom = (u) => at(u, (k + 1) / count);
+    let along = 0;
+    for (const g of glyphs) {
+      const u = (along + g.adv / 2) / width;
+      along += g.adv;
+      if (!g.ch.trim()) continue;
+      const yt = top(u);
+      const yb = bottom(u);
+      const sy = Math.max(0.01, (yb - yt) / ((ASCENT + DESCENT) * BASE));
+      const foot = yt + ASCENT * BASE * sy;
+      // The slope at the letter: the band's middle a little either side of it.
+      const e = 0.002;
+      const slope = (((top(u + e) + bottom(u + e)) - (top(u - e) + bottom(u - e))) / 2) / (2 * e * box.w);
+      const cx = box.x + u * box.w;
+      const attrs = span ? span(g.run) : '';
+      out.push(`<text font-size="${BASE}" text-anchor="middle" transform="matrix(${sx.toFixed(4)} ${(slope * sx).toFixed(4)} 0 ${sy.toFixed(4)} ${f(cx)} ${f(foot)})"${attrs ? ` ${attrs}` : ''}>${escape(g.ch)}</text>`);
+    }
+  });
+  return out.length ? `<g font-family="${face}" fill="${laid.flat()[0]?.color || color}" xml:space="preserve">${out.join('')}</g>` : '';
+}
