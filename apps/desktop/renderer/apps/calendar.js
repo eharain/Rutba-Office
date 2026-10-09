@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Panel, Content, Field, Input, Select, Dialog,
-  useToast, useCommands, useMenu, menuItems, t, tn, language,
+  useToast, useCommands, useMenu, menuItems, t, tn, language, numberTag,
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
 import { AccountsDialog } from '../dav-accounts.js';
@@ -24,6 +24,40 @@ const DAYS = named({ weekday: 'short' }, 7, (i) => new Date(2024, 0, 1 + i));
 const DAY_LETTERS = named({ weekday: 'narrow' }, 7, (i) => new Date(2024, 0, 1 + i));
 const MONTHS = named({ month: 'long' }, 12, (i) => new Date(2024, i, 1));
 const MONTHS_SHORT = named({ month: 'short' }, 12, (i) => new Date(2024, i, 1));
+
+/**
+ * The Hijri calendar (Umm al-Qura) beside the Gregorian, as Office's second
+ * calendar shows it: a day's Hijri number, the month's name on its first day,
+ * in the window's language and digits. Null where the system has no Hijri
+ * calendar to ask.
+ */
+let hijriFormat;
+function hijriOf(d) {
+  try {
+    if (hijriFormat === undefined) {
+      const tag = numberTag();
+      hijriFormat = new Intl.DateTimeFormat(`${tag}${tag.includes('-u-') ? '' : '-u'}-ca-islamic-umalqura`, { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+    const parts = Object.fromEntries(hijriFormat.formatToParts(d).map((p) => [p.type, p.value]));
+    return { day: parts.day, month: parts.month, year: parts.year };
+  } catch {
+    hijriFormat = null;
+    return null;
+  }
+}
+const hijriLabel = (d) => {
+  const h = hijriOf(d);
+  if (!h) return '';
+  return /^[1١۱]$/.test(h.day) ? `${h.day} ${h.month}` : h.day;
+};
+/** A Gregorian month's Hijri months: "Rabiʻ II – Jumada I 1448". */
+function hijriSpan(cursor) {
+  const first = hijriOf(new Date(cursor.getFullYear(), cursor.getMonth(), 1));
+  const last = hijriOf(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 0));
+  if (!first || !last) return '';
+  if (first.month === last.month) return `${first.month} ${last.year}`;
+  return first.year === last.year ? `${first.month} – ${last.month} ${last.year}` : `${first.month} ${first.year} – ${last.month} ${last.year}`;
+}
 const HOUR_PX = 44;
 const VIEW_NAMES = { day: t('Day'), week: t('Week'), month: t('Month'), agenda: t('Agenda') };
 const ANSWERS = { ACCEPTED: t('accepted'), DECLINED: t('declined'), TENTATIVE: t('tentative'), DELEGATED: t('delegated') };
@@ -153,6 +187,18 @@ export default function Calendar({ app, shell, boot }) {
   const menu = useMenu();
   const [view, setView] = useState('month');
   const [cursor, setCursor] = useState(() => new Date());
+  // The Hijri calendar beside each day: on in an Arabic or Urdu window until
+  // the person says otherwise, off elsewhere; the choice is kept.
+  const [hijri, setHijri] = useState(() => ['ar', 'ur', 'fa'].includes(language()));
+  useEffect(() => {
+    shell.store.get({ key: 'calendar.hijri', fallback: null }).then((v) => { if (v !== null && v !== undefined) setHijri(Boolean(v)); }).catch(() => {});
+  }, [shell]);
+  const toggleHijri = useCallback(() => {
+    setHijri((on) => {
+      shell.store.set({ key: 'calendar.hijri', value: !on }).catch(() => {});
+      return !on;
+    });
+  }, [shell]);
   const [calendars, setCalendars] = useState([]);
   const [slots, setSlots] = useState([]);
   const [file, setFile] = useState(null);
@@ -347,7 +393,7 @@ export default function Calendar({ app, shell, boot }) {
   );
   useCommands(commands, [view, cursor]);
 
-  const title = view === 'month' ? `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}` : view === 'week' ? t('Week of {date}', { date: `${range.from.getDate()} ${MONTHS_SHORT[range.from.getMonth()]} ${range.from.getFullYear()}` }) : view === 'day' ? `${DAYS[(cursor.getDay() + 6) % 7]} ${cursor.getDate()} ${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}` : t('Next 30 days');
+  const title = view === 'month' ? `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}${hijri && hijriSpan(cursor) ? ` · ${hijriSpan(cursor)}` : ''}` : view === 'week' ? t('Week of {date}', { date: `${range.from.getDate()} ${MONTHS_SHORT[range.from.getMonth()]} ${range.from.getFullYear()}` }) : view === 'day' ? `${DAYS[(cursor.getDay() + 6) % 7]} ${cursor.getDate()} ${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}` : t('Next 30 days');
 
   /* ── views ────────────────────────────────────────────────────────────── */
 
@@ -393,7 +439,10 @@ export default function Calendar({ app, shell, boot }) {
                 onClick={() => newEvent(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9), false)}
                 onDoubleClick={(e) => e.stopPropagation()}
               >
-                <div className="cal-day-n">{d.getDate() === 1 ? `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}` : d.getDate()}</div>
+                <div className="cal-day-top">
+                  {hijri ? <span className="cal-day-h">{hijriLabel(d)}</span> : <span />}
+                  <div className="cal-day-n">{d.getDate() === 1 ? `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}` : d.getDate()}</div>
+                </div>
                 {shown.map((s, i) => chip(s, `${s.id}-${s.original}-${i}`))}
                 {list.length > shown.length ? <button type="button" className="cal-more" onClick={(e) => { e.stopPropagation(); setCursor(d); setView('day'); }}>{t('+{count} more', { count: list.length - shown.length })}</button> : null}{/* words-ok: code, not words */}
               </div>
@@ -414,6 +463,7 @@ export default function Calendar({ app, shell, boot }) {
           {days.map((d) => (
             <div key={isoDate(d)} className={`cal-col-head${sameDay(d, today) ? ' today' : ''}`}>
               <span className="dn">{DAYS[(d.getDay() + 6) % 7]}</span> <span className="dd">{d.getDate()}</span>
+              {hijri ? <span className="dh">{hijriLabel(d)}</span> : null}
             </div>
           ))}
         </div>
@@ -632,6 +682,7 @@ export default function Calendar({ app, shell, boot }) {
                 <Button tall icon="table" label={t('Week')} pressed={view === 'week'} onClick={() => setView('week')} />
                 <Button tall icon="grid" label={t('Month')} pressed={view === 'month'} onClick={() => setView('month')} />
                 <Button tall icon="list" label={t('Agenda')} pressed={view === 'agenda'} onClick={() => setView('agenda')} />
+                <Button tall icon="moon" label={t('Hijri')} title={t('Hijri dates beside each day, in the Umm al-Qura calendar')} pressed={hijri} onClick={toggleHijri} />
               </Group>
               <Group label={t('Files')}>
                 <Button tall icon="import" label={t('Import')} title={t('Events from a .ics')} onClick={() => importFile()} />
@@ -766,6 +817,9 @@ const CSS = `
 .cal-day.other { background: var(--sunken); color: var(--ink-3); }
 .cal-day.today .cal-day-n { background: var(--accent); color: white; }
 .cal-day-n { align-self: flex-end; font-size: 12px; font-weight: 600; padding: 1px 6px; border-radius: 10px; }
+.cal-day-top { display: flex; align-items: center; justify-content: space-between; gap: 4px; }
+.cal-day-h, .cal-col-head .dh { font-size: 10.5px; color: var(--ink-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cal-col-head .dh { margin-inline-start: 6px; }
 .cal-chip { display: flex; align-items: center; gap: 4px; border: 0; border-left: 3px solid var(--c); border-radius: 3px; background: color-mix(in srgb, var(--c) 14%, var(--surface)); color: var(--ink); font: inherit; font-size: 11.5px; padding: 1px 5px; text-align: left; cursor: pointer; overflow: hidden; white-space: nowrap; }
 .cal-chip.allday { background: var(--c); color: white; border-left-color: var(--c); }
 .cal-chip .t { color: var(--ink-3); flex: none; }

@@ -10,7 +10,7 @@
 // rewrites one slide's XML and leaves every other part of the file alone.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, menuItems, t, tn } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Dialog, Field, Select, ZoomSlider, useToast, useMenu, useCommands, menuItems, t, tn, language } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
@@ -2674,7 +2674,7 @@ export default function Slides({ app, shell, boot }) {
                   key={findOpen}
                   mode={findOpen}
                   onClose={() => { setFindOpen(false); setFindHit(null); }}
-                  onSearch={(text, matchCase) => (doc ? shell.doc.deckFind({ id: doc.id, query: text, options: { matchCase } }) : Promise.resolve([]))}
+                  onSearch={(text, matchCase, matchDiacritics) => (doc ? shell.doc.deckFind({ id: doc.id, query: text, options: { matchCase, matchDiacritics } }) : Promise.resolve([]))}
                   onGoto={(hit) => {
                     setFindHit(hit ? hit.shape : null);
                     if (!hit) return;
@@ -2685,8 +2685,8 @@ export default function Slides({ app, shell, boot }) {
                     const next = await apply({ op: 'replaceHit', hit, replacement });
                     return Boolean(next?.opResult);
                   }}
-                  onReplaceAll={async (find, replace, matchCase) => {
-                    const next = await apply({ op: 'replaceAllHits', find, replace, matchCase });
+                  onReplaceAll={async (find, replace, matchCase, matchDiacritics) => {
+                    const next = await apply({ op: 'replaceAllHits', find, replace, matchCase, matchDiacritics });
                     return next?.opResult ?? 0;
                   }}
                 />
@@ -4546,10 +4546,15 @@ function ChartDataDialog({ chart, onClose, onApply }) {
  * Ctrl+F opens to find only, Ctrl+H with it open — but either can reach the
  * other's row once open.
  */
+/** The languages whose windows offer Match diacritics: those written in Arabic's letters. */
+const RIGHT_TO_LEFT_LANGUAGES = new Set(['ar', 'ur', 'fa']);
+
 function FindPane({ mode, onClose, onSearch, onGoto, onReplaceOne, onReplaceAll }) {
   const [find, setFind] = useState('');
   const [replace, setReplace] = useState('');
   const [matchCase, setMatchCase] = useState(false);
+  // Off, as PowerPoint in Arabic has it: a word is found whatever marks it is written with.
+  const [matchDiacritics, setMatchDiacritics] = useState(false);
   const [hits, setHits] = useState([]);
   const [at, setAt] = useState(0);
   const [note, setNote] = useState(null);
@@ -4561,7 +4566,7 @@ function FindPane({ mode, onClose, onSearch, onGoto, onReplaceOne, onReplaceAll 
   const runSearch = useCallback(
     async (text, mc, { keepAt = false, note = null } = {}) => {
       const mine = ++seq.current;
-      const found = text ? await onSearch(text, mc) : [];
+      const found = text ? await onSearch(text, mc, matchDiacritics) : [];
       if (mine !== seq.current) return; // a later search landed first
       setHits(found);
       // A note the caller already has (Replace All's count) outranks the
@@ -4571,14 +4576,14 @@ function FindPane({ mode, onClose, onSearch, onGoto, onReplaceOne, onReplaceAll 
       setAt(nextAt);
       onGoto(found.length ? found[nextAt] : null);
     },
-    [onSearch, onGoto]
+    [onSearch, onGoto, matchDiacritics]
   );
 
   useEffect(() => {
     const t = setTimeout(() => runSearch(find, matchCase), 150);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [find, matchCase]);
+  }, [find, matchCase, matchDiacritics]);
 
   const step = (dir) => {
     if (!hits.length) return;
@@ -4595,7 +4600,7 @@ function FindPane({ mode, onClose, onSearch, onGoto, onReplaceOne, onReplaceAll 
 
   const replaceAll = async () => {
     if (!find) return;
-    const n = await onReplaceAll(find, replace, matchCase);
+    const n = await onReplaceAll(find, replace, matchCase, matchDiacritics);
     await runSearch(find, matchCase, { note: tn(n, 'Replaced {count} across the deck.', 'Replaced {count} across the deck.') });
   };
 
@@ -4623,6 +4628,12 @@ function FindPane({ mode, onClose, onSearch, onGoto, onReplaceOne, onReplaceAll 
           <input type="checkbox" className="sl-find-case-box" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />
           {t('Match case')}
         </label>
+        {RIGHT_TO_LEFT_LANGUAGES.has(language()) ? (
+          <label className="sl-find-case" title={t('Find a word only as it is written: its vowel marks, kashida and the forms of alef and yeh as they are')}>
+            <input type="checkbox" className="sl-find-diacritics-box" checked={matchDiacritics} onChange={(e) => setMatchDiacritics(e.target.checked)} />
+            {t('Match diacritics')}
+          </label>
+        ) : null}
         <Spacer />
         {showReplace ? null : <Button label={t('Replace…')} className="sl-find-toggle-replace" onClick={() => setShowReplace(true)} />}
         <Button icon="close" title={t('Close')} className="sl-find-close" onClick={onClose} />

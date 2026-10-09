@@ -13,6 +13,7 @@
 // about what it is about to write.
 
 import fs from 'node:fs';
+import { findAll, includesFolded } from '@rutba/editing/find';
 import os from 'node:os';
 import path from 'node:path';
 import { SheetView, addWatches, removeWatch, resolveWatches } from '@rutba/sheet-view';
@@ -2292,7 +2293,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     setDropCap: (v, a) => v.setDropCap(a.spec ?? null),
     insertChart: (v, a) => v.insertChart(a),
     insertShape: (v, a) => v.insertShape(a),
-    replaceAll: (v, a) => v.replaceAll(a.find, a.replace, { matchCase: a.matchCase }),
+    replaceAll: (v, a) => v.replaceAll(a.find, a.replace, { matchCase: a.matchCase, matchDiacritics: Boolean(a.matchDiacritics) }),
     pasteText: (v, a) => v.pasteText(a.text),
     // Insert → Equation: the editor sends the linear form (or, from the
     // gallery and a paste, the OMML itself); it is built up here into the
@@ -2545,12 +2546,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     setLink: (d, a) => d.setLink(a.slide, a.shape, a.url ?? null),
     setAction: (d, a) => d.setAction(a.slide, a.shape, a.action ?? null),
     // Home → Editing: the words replaced across every slide.
-    replaceText: (d, a) => d.replaceText(a.find, a.replace, { matchCase: Boolean(a.matchCase) }),
+    replaceText: (d, a) => d.replaceText(a.find, a.replace, { matchCase: Boolean(a.matchCase), matchDiacritics: Boolean(a.matchDiacritics) }),
     // The find pane's Next/Previous and Replace: one hit, exactly as
     // `deckFind` (below) gave it, rewritten in place; and its Replace All,
     // counted precisely rather than the shape-by-shape count `replaceText` gives.
     replaceHit: (d, a) => d.replace(a.hit, a.replacement),
-    replaceAllHits: (d, a) => d.replaceAll(a.find, a.replace, { matchCase: Boolean(a.matchCase) }),
+    replaceAllHits: (d, a) => d.replaceAll(a.find, a.replace, { matchCase: Boolean(a.matchCase), matchDiacritics: Boolean(a.matchDiacritics) }),
     // Home → Section: a section before this slide, its name, one taken away, or all of them.
     addSection: (d, a) => d.addSection(a.slide, a.name ?? 'Untitled Section'),
     renameSection: (d, a) => d.renameSection(a.section, a.name),
@@ -3202,7 +3203,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     deckFind: ({ id, query, options }) => {
       const session = get(id);
       if (session.kind !== 'deck') return [];
-      return session.engine.find(query, { matchCase: Boolean(options?.matchCase) });
+      return session.engine.find(query, { matchCase: Boolean(options?.matchCase), matchDiacritics: Boolean(options?.matchDiacritics) });
     },
 
     pageSetup: ({ id, sheet }) => {
@@ -3256,14 +3257,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (session.kind === 'doc' && typeof session.engine.render === 'function') {
         const frame = session.engine.render();
         const hits = [];
-        const needle = options?.matchCase ? query : query.toLowerCase();
+        // Matched as the engines' own Find matches: case and Arabic's marks aside unless asked.
+        const matching = { matchCase: Boolean(options?.matchCase), matchDiacritics: Boolean(options?.matchDiacritics) };
         (frame.blocks || []).forEach((block, index) => {
           const text = (block.runs || []).map((r) => r.text).join('') || block.text || '';
-          const hay = options?.matchCase ? text : text.toLowerCase();
-          let at = hay.indexOf(needle);
-          while (at >= 0 && needle) {
-            hits.push({ block: index, offset: at, length: needle.length, preview: text.slice(Math.max(0, at - 30), at + needle.length + 30) });
-            at = hay.indexOf(needle, at + needle.length);
+          for (const m of findAll(text, query, matching)) {
+            hits.push({ block: index, offset: m.start, length: m.end - m.start, preview: text.slice(Math.max(0, m.start - 30), m.end + 30) });
           }
         });
         return hits;
@@ -3272,12 +3271,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
         const view = session.engine;
         const hits = [];
         const bounds = view.bounds;
-        const needle = (options?.matchCase ? query : query.toLowerCase()) || '';
+        const needle = String(query ?? '');
+        const matching = { matchCase: Boolean(options?.matchCase), matchDiacritics: Boolean(options?.matchDiacritics) };
         for (let r = 0; r <= Math.min(bounds.maxRow, 5000) && needle; r++) {
           for (let c = 0; c <= Math.min(bounds.maxCol, 200); c++) {
             const text = String(view.displayValue(r, c)?.text ?? '');
-            const hay = options?.matchCase ? text : text.toLowerCase();
-            if (text && hay.includes(needle)) hits.push({ row: r, col: c, preview: text });
+            if (text && includesFolded(text, needle, matching)) hits.push({ row: r, col: c, preview: text });
             if (hits.length >= 500) return hits;
           }
         }

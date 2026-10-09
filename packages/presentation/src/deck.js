@@ -11,6 +11,7 @@
 // feature work behind it.
 
 import { custGeomXml, custGeomFiguresXml } from './points.js';
+import { findAll, replaceAllIn } from '@rutba/editing/find';
 import { OoxmlPackage } from '@rutba/ooxml/package';
 import { parse, kids, first, all, escapeXml } from '@rutba/office-formats/xml';
 import { emuToPx, pxToEmu, ptToSz } from './units.js';
@@ -3347,10 +3348,12 @@ export class Deck {
    * replaces — a match inside one run, not in a field — so the two agree:
    * the count found was once matched across runs, which replace left alone.
    */
-  findText(query, { matchCase = false } = {}) {
+  findText(query, { matchCase = false, matchDiacritics = false } = {}) {
     const needle = String(query ?? '');
     if (!needle) return [];
-    const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi');
+    // Case aside unless asked, and Arabic's marks and letter forms aside
+    // unless asked, as PowerPoint's Find does (@rutba/editing/find).
+    const options = { matchCase, matchDiacritics };
     const hits = [];
     for (let i = 0; i < this.slideCount; i++) {
       for (const s of this.slide(i).shapes) {
@@ -3360,7 +3363,7 @@ export class Deck {
         const words = [];
         for (const p of paragraphs) {
           words.push((p.runs || []).map((r) => r.text).join(''));
-          for (const r of p.runs || []) if (r.text && !r.field && !r.break) count += (r.text.match(re) || []).length;
+          for (const r of p.runs || []) if (r.text && !r.field && !r.break) count += findAll(r.text, needle, options).length;
         }
         if (count) hits.push({ slide: i, shape: s.id, name: s.name || s.kind, count, text: words.join(' ').replace(/\s+/g, ' ').trim().slice(0, 80) });
       }
@@ -3373,11 +3376,10 @@ export class Deck {
    * look; a field's text and a match straddling two runs are left alone.
    * Returns how many were replaced.
    */
-  replaceText(query, replacement, { matchCase = false } = {}) {
+  replaceText(query, replacement, { matchCase = false, matchDiacritics = false } = {}) {
     const needle = String(query ?? '');
     if (!needle) return 0;
-    const target = matchCase ? needle : needle.toLowerCase();
-    const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi');
+    const options = { matchCase, matchDiacritics };
     const after = String(replacement ?? '');
     let total = 0;
     for (let i = 0; i < this.slideCount; i++) {
@@ -3391,10 +3393,10 @@ export class Deck {
             ...props,
             runs: (runs || []).map((r) => {
               if (!r.text || r.field || r.break) return r;
-              const hay = matchCase ? r.text : r.text.toLowerCase();
-              if (!hay.includes(target)) return r;
-              count += (r.text.match(re) || []).length;
-              return { ...r, text: r.text.replace(re, () => after) };
+              const replaced = replaceAllIn(r.text, needle, after, options);
+              if (!replaced.count) return r;
+              count += replaced.count;
+              return { ...r, text: replaced.text };
             }),
           };
         });
@@ -3421,20 +3423,21 @@ export class Deck {
    * blend of the two — so `find` only reports what `replace` can rewrite
    * cleanly, a match that sits inside a single run.
    */
-  find(text, { matchCase = false } = {}) {
+  find(text, { matchCase = false, matchDiacritics = false } = {}) {
     const needle = String(text ?? '');
     if (!needle) return [];
-    // Matched on the run's own text, not on a lower-cased copy: a capital
-    // like the dotted I lowers to two characters, which would shift every
-    // offset after it and make `replace` cut the wrong slice.
-    const re = new RegExp(needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), matchCase ? 'g' : 'gi');
+    // Matched in the run's own positions, not a folded copy's: a capital
+    // like the dotted I lowers to two characters, and Arabic's marks are
+    // passed over, either of which would shift the offsets and make
+    // `replace` cut the wrong slice.
+    const options = { matchCase, matchDiacritics };
     const hits = [];
     const walk = (paragraphs, extra) => {
       paragraphs.forEach((p, pi) => {
         (p.runs || []).forEach((r, ri) => {
           if (!r.text || r.field || r.break) return;
-          for (const m of r.text.matchAll(re)) {
-            hits.push({ ...extra, paragraph: pi, run: ri, offset: m.index, length: m[0].length, text: m[0] });
+          for (const m of findAll(r.text, needle, options)) {
+            hits.push({ ...extra, paragraph: pi, run: ri, offset: m.start, length: m.end - m.start, text: r.text.slice(m.start, m.end) });
           }
         });
       });
@@ -3487,9 +3490,9 @@ export class Deck {
    * shifts the offset of a hit still waiting its turn in the same run.
    * Returns how many were replaced.
    */
-  replaceAll(text, replacement, { matchCase = false } = {}) {
+  replaceAll(text, replacement, { matchCase = false, matchDiacritics = false } = {}) {
     const groups = new Map();
-    for (const hit of this.find(text, { matchCase })) {
+    for (const hit of this.find(text, { matchCase, matchDiacritics })) {
       const key = `${hit.slide}:${hit.shape}:${hit.row ?? ''}:${hit.col ?? ''}`;
       if (!groups.has(key)) groups.set(key, []);
       groups.get(key).push(hit);

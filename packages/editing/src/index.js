@@ -7,3 +7,4 @@
  * belongs in that surface's package.
  */
 export { History, DEFAULT_LIMIT, DEFAULT_COALESCE_MS } from './history.js';
+export { foldForSearch, findAll, includesFolded, replaceAllIn } from './find.js';

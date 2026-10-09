@@ -6,7 +6,7 @@
 // in the grid, and a dialog's job is to get out of the way.
 
 import React, { useEffect, useState } from 'react';
-import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, t, tn } from '@rutba/office-ui';
+import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, t, tn, language } from '@rutba/office-ui';
 
 /* ── number formats ──────────────────────────────────────────────────────── */
 
@@ -31,6 +31,28 @@ export const NUMBER_FORMATS = [
   { label: t('Duration'), code: '[h]:mm:ss' },
   { label: t('Text'), code: '@' },
 ];
+
+/**
+ * And the formats a window in Arabic or Urdu offers besides, as Excel in
+ * those languages does: dates in the Hijri calendar (B2, and the calendar
+ * byte of `[$-60401]` for Arabic month names) and numbers in the language's
+ * own digits (`[$-2000000]` Arabic-Indic, `[$-3000000]` Urdu's).
+ */
+const REGIONAL_FORMATS = {
+  ar: [
+    { label: t('Hijri date'), code: 'B2dd/mm/yyyy' },
+    { label: t('Hijri long date'), code: '[$-60401]d mmmm yyyy' },
+    { label: t('Number in Arabic-Indic digits'), code: '[$-2000000]#,##0.00' },
+  ],
+  ur: [
+    { label: t('Hijri date'), code: 'B2dd/mm/yyyy' },
+    { label: t('Hijri long date'), code: '[$-60401]d mmmm yyyy' },
+    { label: t('Number in Urdu digits'), code: '[$-3000000]#,##0.00' },
+  ],
+};
+
+/** The number formats the window offers: everyone's, then its language's own. */
+export const numberFormats = () => [...NUMBER_FORMATS, ...(REGIONAL_FORMATS[language()] || [])];
 
 /* ── conditional formatting ──────────────────────────────────────────────── */
 

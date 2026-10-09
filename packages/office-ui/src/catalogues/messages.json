@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5353,
+  "count": 5361,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -9881,6 +9881,13 @@
       ]
     },
     {
+      "message": "Find a word only as it is written: its vowel marks, kashida and the forms of alef and yeh as they are",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js",
+        "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
       "message": "Find an icon",
       "where": [
         "apps/desktop/renderer/icons-insert.js"
@@ -11876,6 +11883,30 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Hijri",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Hijri date",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Hijri dates beside each day, in the Umm al-Qura calendar",
+      "where": [
+        "apps/desktop/renderer/apps/calendar.js"
+      ]
+    },
+    {
+      "message": "Hijri long date",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
     {
@@ -15014,6 +15045,13 @@
       ]
     },
     {
+      "message": "Match diacritics",
+      "where": [
+        "apps/desktop/renderer/apps/slides.js",
+        "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
       "message": "Math & Trig",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -17441,6 +17479,18 @@
       "message": "Number format",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Number in Arabic-Indic digits",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Number in Urdu digits",
+      "where": [
+        "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
     {

@@ -11,7 +11,7 @@ import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select, t, tn } from '@rutba/office-ui';
 import { WARP_PRESETS, WARP_MORE, warpLabel } from '@rutba/drawing/warp';
 import { catalogByCategory } from '@rutba/formula';
-import { NUMBER_FORMATS } from './dialogs.js';
+import { numberFormats } from './dialogs.js';
 import { recentSources } from './queries.js';
 import { MARGIN_PRESETS as PRINT_MARGINS } from '../../print.js';
 import { wordArtMenu } from '../../wordart.js';
@@ -336,8 +336,8 @@ export default function SheetsRibbon({
           <Group label={t('Number')}>
             <Rows>
               <Select value={format.numberFormat || 'General'} onChange={(e) => setFormat({ numberFormat: e.target.value })} style={{ width: 148 }} title={t('Number format')}>
-                {NUMBER_FORMATS.map((f) => <option key={f.label} value={f.code}>{f.label}</option>)}
-                {NUMBER_FORMATS.some((f) => f.code === (format.numberFormat || 'General')) ? null : (
+                {numberFormats().map((f) => <option key={f.label} value={f.code}>{f.label}</option>)}
+                {numberFormats().some((f) => f.code === (format.numberFormat || 'General')) ? null : (
                   <option value={format.numberFormat}>{format.numberFormat}</option>
                 )}
               </Select>

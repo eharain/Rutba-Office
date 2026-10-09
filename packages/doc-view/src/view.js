@@ -16,6 +16,7 @@
  */
 import { assertBackend, supportsContentControls } from './backend.js';
 import { History } from '@rutba/editing';
+import { findAll } from '@rutba/editing/find';
 import { paginate } from './paginate.js';
 import { measureText, lineHeight as lineHeightOf } from '@rutba/drawing';
 import { computeListLabels } from './lists.js';
@@ -1572,11 +1573,10 @@ export class DocView {
    *
    * @returns {number} how many occurrences were replaced
    */
-  replaceAll(find, replaceWith, { matchCase = false } = {}) {
+  replaceAll(find, replaceWith, { matchCase = false, matchDiacritics = false } = {}) {
     const needle = String(find ?? '');
     if (needle === '') return 0;
     const replacement = String(replaceWith ?? '');
-    const target = matchCase ? needle : needle.toLowerCase();
 
     // Find everything FIRST: a replace-all that matches nothing must not
     // record an undo step for a document it never changed.
@@ -1584,11 +1584,9 @@ export class DocView {
     for (let i = 0; i < this.blocks.length; i++) {
       const b = this.block(i);
       if (b.structural) continue;
-      const haystack = matchCase ? b.text : b.text.toLowerCase();
-      const matches = [];
-      for (let at = haystack.indexOf(target); at !== -1; at = haystack.indexOf(target, at + target.length)) {
-        matches.push(at);
-      }
+      // Case aside unless asked, and Arabic's marks and letter forms aside
+      // unless asked, as Word's Find does (@rutba/editing/find).
+      const matches = findAll(b.text, needle, { matchCase, matchDiacritics });
       if (matches.length) found.set(i, matches);
     }
     if (!found.size) return 0;
@@ -1602,20 +1600,20 @@ export class DocView {
         const b = this.block(i);
         const matches = found.get(i);
         let runs = b.runs;
-        for (const at of matches.reverse()) {
-          const covered = sliceRuns(runs, at, at + needle.length);
+        for (const { start: at, end } of matches.reverse()) {
+          const covered = sliceRuns(runs, at, end);
           const rPr = covered.find((r) => !r.del)?.rPr ?? null;
           if (recording) {
             // While recording, as Word records a replace: the words found
             // taken out, then the replacement put in after them.
             const del = this._trackMeta(null);
-            const removed = trackedRemoveRange(runs, at, at + needle.length, true, del);
+            const removed = trackedRemoveRange(runs, at, end, true, del);
             runs = replacement ? insertAfterDeletions(removed, at, { rPr, text: replacement, ins: this._trackMeta(null) }) : removed;
           } else {
             runs = [
               ...sliceRuns(runs, 0, at),
               { rPr, text: replacement },
-              ...sliceRuns(runs, at + needle.length, Infinity),
+              ...sliceRuns(runs, end, Infinity),
             ];
           }
           count += 1;

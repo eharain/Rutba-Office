@@ -24,6 +24,11 @@
  *     alignment instructions we consume and skip rather than render literally.
  *   - `[Red]` and friends are colour, not text. They come back as a hint so the
  *     view can apply it, rather than being printed.
+ *   - `[$-hhhhhhhh]` carries a locale, and above it a calendar and a set of
+ *     digits: `[$-2000000]` writes a number in Arabic-Indic digits (١٢٣),
+ *     `[$-3000000]` in Urdu's and Persian's (۱۲۳), `[$-60000]` a date in the
+ *     Hijri calendar. A section that starts `B2` is Hijri too, `B1` Gregorian,
+ *     as Excel writes them.
  */
 import { serialToParts, formatNumber } from './values.js';
 
@@ -103,22 +108,81 @@ export function splitSections(code) {
 
 const COLOURS = ['black', 'blue', 'cyan', 'green', 'magenta', 'red', 'white', 'yellow'];
 
+/** The digits a `[$-…]` code's numeral-system byte names: their zero, from which 0 to 9 follow. */
+const DIGIT_ZERO = { 2: 0x660, 3: 0x6f0 };
+
+/** A text's 0 to 9 in another set of digits; Western digits are left as they are. */
+function inDigits(text, system) {
+  const zero = DIGIT_ZERO[system];
+  return zero ? String(text).replace(/[0-9]/g, (d) => String.fromCharCode(zero + Number(d))) : text;
+}
+
 /** Pull `[Red]`, `[$-409]`, `[h]` etc out of a section. */
 function extractDirectives(section) {
   let colour = null;
   let elapsed = false;
   let condition = null;
-  const body = section.replace(/\[([^\]]*)\]/g, (_, inner) => {
+  let digits = 0;
+  let calendar = 0;
+  let lcid = 0;
+  const raw = section.replace(/\[([^\]]*)\]/g, (_, inner) => {
     const lower = inner.toLowerCase();
     if (COLOURS.includes(lower)) { colour = lower; return ''; }
     if (/^color\s*\d+$/i.test(inner)) { colour = 'color' + inner.replace(/\D/g, ''); return ''; }
     if (/^(h+|m+|s+)$/i.test(inner)) { elapsed = true; return inner; } // [h] elapsed time
     const cond = /^([<>=]{1,2})(-?[\d.]+)$/.exec(inner);
     if (cond) { condition = { op: cond[1], value: Number(cond[2]) }; return ''; }
-    if (inner.startsWith('$')) return ''; // locale/currency hint, e.g. [$-409]
+    if (inner.startsWith('$')) {
+      // A locale, a currency or both: [$-409], [$€-407], [$-2060401]. Above the
+      // locale's sixteen bits, a calendar (a byte) and a set of digits (a byte).
+      const code = /-([0-9a-f]{1,8})$/i.exec(inner);
+      if (code) {
+        const n = parseInt(code[1], 16);
+        lcid = n & 0xffff;
+        calendar = (n >>> 16) & 0xff;
+        digits = (n >>> 24) & 0xff;
+      }
+      return '';
+    }
     return '';
   });
-  return { body, colour, elapsed, condition };
+  // Excel's calendar marks at the start of a section: B1 Gregorian, B2 Hijri.
+  const mark = /^(\s*)B([12])/i.exec(raw);
+  if (mark) calendar = mark[2] === '2' ? 6 : 1;
+  const body = mark ? raw.slice(mark[0].length) : raw;
+  return { body, colour, elapsed, condition, digits, hijri: calendar === 6 || calendar === 23, lcid };
+}
+
+/** Hijri (Umm al-Qura) dates and month names, made once per language. */
+const hijriFormats = new Map();
+function hijriFormat(lang) {
+  if (!hijriFormats.has(lang)) {
+    let parts = null;
+    let months = null;
+    try {
+      parts = new Intl.DateTimeFormat(`${lang}-u-ca-islamic-umalqura-nu-latn`, { timeZone: 'UTC', year: 'numeric', month: 'numeric', day: 'numeric' });
+      months = new Intl.DateTimeFormat(`${lang}-u-ca-islamic-umalqura-nu-latn`, { timeZone: 'UTC', month: 'long' });
+    } catch { /* no Hijri calendar here: dates stay Gregorian */ }
+    hijriFormats.set(lang, { parts, months });
+  }
+  return hijriFormats.get(lang);
+}
+
+/**
+ * A Gregorian day in the Hijri calendar: { y, m (from 0), d, month }, the
+ * month's name in Arabic for an Arabic locale, else as English writes it.
+ */
+function toHijri(y, m, d, lcid) {
+  const lang = (lcid & 0x3ff) === 0x01 ? 'ar' : 'en';
+  const { parts, months } = hijriFormat(lang);
+  if (!parts) return null;
+  const at = new Date(Date.UTC(y, m, d, 12));
+  const got = Object.fromEntries(parts.formatToParts(at).map((p) => [p.type, p.value]));
+  const year = parseInt(String(got.year ?? got.relatedYear).replace(/\D/g, ''), 10);
+  const month = parseInt(got.month, 10);
+  const day = parseInt(got.day, 10);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) return null;
+  return { y: year, m: month - 1, d: day, month: months.format(at) };
 }
 
 const DATE_TOKEN = /(am\/pm|a\/p|yyyy|yy|mmmmm|mmmm|mmm|mm|m|dddd|ddd|dd|d|hh|h|ss|s|\.0+)/i;
@@ -232,9 +296,13 @@ function renderNumber(value, pattern, { percent }) {
 
 const pad = (n, width) => String(n).padStart(width, '0');
 
-function renderDate(value, tokens, { elapsed }) {
+function renderDate(value, tokens, { elapsed, hijri = false, lcid = 0 }) {
   // The parts, not a Date: serial 60 is 29 February 1900 here, as in Excel.
-  const date = serialToParts(value);
+  const gregorian = serialToParts(value);
+  // In the Hijri calendar the year, month and day are Hijri's; the weekday is the same day's.
+  const h = hijri ? toHijri(gregorian.y, gregorian.m, gregorian.d, lcid) : null;
+  const date = h ? { ...gregorian, y: h.y, m: h.m, d: h.d } : gregorian;
+  const monthName = (m) => (h ? h.month : MONTHS[m]);
   const dayFraction = value - Math.floor(value);
   const totalSeconds = Math.round(dayFraction * 86400);
   const hours24 = Math.floor(totalSeconds / 3600);
@@ -264,9 +332,9 @@ function renderDate(value, tokens, { elapsed }) {
     if (/^\.0+$/.test(lower)) return '.' + pad(0, raw.length - 1);
     if (/^m+$/.test(lower)) {
       if (t.meaning === 'minute') return raw.length > 1 ? pad(minutes, 2) : String(minutes);
-      if (raw.length === 5) return MONTHS[date.m][0];
-      if (raw.length === 4) return MONTHS[date.m];
-      if (raw.length === 3) return MONTHS[date.m].slice(0, 3);
+      if (raw.length === 5) return monthName(date.m)[0];
+      if (raw.length === 4) return monthName(date.m);
+      if (raw.length === 3) return h ? monthName(date.m) : MONTHS[date.m].slice(0, 3);
       if (raw.length === 2) return pad(date.m + 1, 2);
       return String(date.m + 1);
     }
@@ -393,29 +461,31 @@ export function formatValue(value, code = 'General') {
   else if (sections.length === 2) section = value < 0 ? sections[1] : sections[0];
   else section = value > 0 ? sections[0] : value < 0 ? sections[1] : sections[2];
 
-  const { body, colour, elapsed, condition } = extractDirectives(section);
+  const { body, colour, elapsed, condition, digits, hijri, lcid } = extractDirectives(section);
+  // Whatever the section writes, in the digits its code names.
+  const out = (text) => ({ text: inDigits(text, digits), colour, align: 'right' });
   if (condition && !testCondition(value, condition)) {
     // a conditional section that does not apply falls back to General
-    return { text: formatNumber(value), colour, align: 'right' };
+    return out(formatNumber(value));
   }
 
   const trimmed = body.trim();
   if (trimmed === '' ) return { text: '', colour, align: 'right' };
-  if (/^general$/i.test(trimmed)) return { text: formatNumber(value), colour, align: 'right' };
+  if (/^general$/i.test(trimmed)) return out(formatNumber(value));
 
   if (isDateFormat(body)) {
     const tokens = classifyMonthMinute(tokenize(body));
-    return { text: renderDate(value, tokens, { elapsed }), colour, align: 'right' };
+    return out(renderDate(value, tokens, { elapsed, hijri, lcid }));
   }
 
   if (SCIENTIFIC.test(body.trim())) {
     const sign = sections.length > 1 || value >= 0 ? '' : '-';
-    return { text: sign + renderScientific(Math.abs(value), body), colour, align: 'right' };
+    return out(sign + renderScientific(Math.abs(value), body));
   }
 
   if (FRACTION.test(body.trim())) {
     const sign = sections.length > 1 || value >= 0 ? '' : '-';
-    return { text: sign + renderFraction(Math.abs(value), body), colour, align: 'right' };
+    return out(sign + renderFraction(Math.abs(value), body));
   }
 
   const tokens = tokenize(body);
@@ -441,7 +511,7 @@ export function formatValue(value, code = 'General') {
   // A section with no numeric placeholder renders only its literals — that is
   // how `#,##0;(#,##0);"-"` shows a dash for zero rather than "-0".
   void numberRendered;
-  return { text: sign + text, colour, align: 'right' };
+  return out(sign + text);
 }
 
 function testCondition(value, { op, value: threshold }) {

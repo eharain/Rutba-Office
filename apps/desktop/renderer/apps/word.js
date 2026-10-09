@@ -2896,8 +2896,8 @@ export default function Word({ app, shell, boot }) {
       {dialog === 'find' ? (
         <FindDialog
           onClose={() => setDialog(null)}
-          onReplaceAll={async (find, replace, matchCase) => {
-            const next = await apply({ op: 'replaceAll', find, replace, matchCase });
+          onReplaceAll={async (find, replace, matchCase, matchDiacritics) => {
+            const next = await apply({ op: 'replaceAll', find, replace, matchCase, matchDiacritics });
             return next ? t('Replaced every match.') : t('Nothing matched.');
           }}
         />

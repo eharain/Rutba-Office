@@ -6,7 +6,10 @@
 // within one press.
 
 import React, { useMemo, useState } from 'react';
-import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, formatWhen, t, tn } from '@rutba/office-ui';
+import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, formatWhen, t, tn, language } from '@rutba/office-ui';
+
+/** The languages whose windows offer Match diacritics: those written in Arabic's letters. */
+const RIGHT_TO_LEFT = new Set(['ar', 'ur', 'fa']);
 
 /* ── links ───────────────────────────────────────────────────────────────── */
 
@@ -535,6 +538,8 @@ export function FindDialog({ onClose, onReplaceAll }) {
   const [find, setFind] = useState('');
   const [replace, setReplace] = useState('');
   const [matchCase, setMatchCase] = useState(false);
+  // Off, as Word in Arabic has it: a word is found whatever marks it is written with.
+  const [matchDiacritics, setMatchDiacritics] = useState(false);
   const [note, setNote] = useState(null);
 
   return (
@@ -545,7 +550,7 @@ export function FindDialog({ onClose, onReplaceAll }) {
       actions={
         <>
           <Button label={t('Close')} onClick={onClose} />
-          <Button primary label={t('Replace all')} disabled={!find} onClick={async () => setNote(await onReplaceAll(find, replace, matchCase))} />
+          <Button primary label={t('Replace all')} disabled={!find} onClick={async () => setNote(await onReplaceAll(find, replace, matchCase, matchDiacritics))} />
         </>
       }
     >
@@ -560,6 +565,12 @@ export function FindDialog({ onClose, onReplaceAll }) {
           <input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />
           <span>{t('Match case')}</span>
         </label>
+        {RIGHT_TO_LEFT.has(language()) ? (
+          <label className="about-auto" title={t('Find a word only as it is written: its vowel marks, kashida and the forms of alef and yeh as they are')}>
+            <input type="checkbox" className="wd-find-diacritics" checked={matchDiacritics} onChange={(e) => setMatchDiacritics(e.target.checked)} />
+            <span>{t('Match diacritics')}</span>
+          </label>
+        ) : null}
         {note ? <div className="ml-note"><Icon name="info" size={14} />{note}</div> : null}
       </div>
     </Dialog>

@@ -13,7 +13,8 @@
   "main": "src/index.js",
   "exports": {
     ".": "./src/index.js",
-    "./history": "./src/history.js"
+    "./history": "./src/history.js",
+    "./find": "./src/find.js"
   },
   "files": [
     "src",

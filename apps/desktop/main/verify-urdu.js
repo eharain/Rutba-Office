@@ -83,7 +83,17 @@ async function verifyLanguage({ open, check, until, wait, errorsIn }, { dir, fil
     await snap(deck, `${key}-presentations.png`);
     check(`${key}: a Presentations window in ${name} keeps its stage as the slide has it`, stage.dir === 'rtl' && stage.stage === 'ltr', JSON.stringify(stage));
 
-    const complaints = [...await errorsIn(word), ...await errorsIn(sheet), ...await errorsIn(deck)];
+    // Calendar: the Hijri calendar beside each day, on by default in this
+    // language, a Hijri month's name in its own script on that month's first day.
+    const cal = await open('calendar');
+    const cjs = (code) => cal.webContents.executeJavaScript(code);
+    await until(() => cjs(`document.querySelectorAll('.cal-day-h').length >= 28`), 'the Hijri days', 10000).catch(() => {});
+    const hijri = await cjs(`(() => { const days = [...document.querySelectorAll('.cal-day-h')].map((n) => n.textContent.trim()); return { days: days.length, named: days.filter((d) => d.includes(' ')), button: Boolean([...document.querySelectorAll('.rw-ribbon .rw-btn')].find((b) => b.getAttribute('aria-pressed') === 'true' && b.textContent.trim() === ${JSON.stringify(words.Hijri || 'Hijri')})) }; })()`);
+    await snap(cal, `${key}-calendar.png`);
+    check(`${key}: Calendar in ${name} shows the Hijri day beside each day, a month's name on its first, its Hijri button pressed`,
+      hijri.days >= 28 && hijri.named.length >= 1 && hijri.named.every((d) => !/[A-Za-z]/.test(d)) && hijri.button, JSON.stringify(hijri));
+
+    const complaints = [...await errorsIn(word), ...await errorsIn(sheet), ...await errorsIn(deck), ...await errorsIn(cal)];
     check(`${key}: the ${name} windows report nothing`, complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {
     check(`${key}: the ${name} checks ran`, false, err?.message || String(err));

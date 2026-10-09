@@ -84,6 +84,7 @@ function equationSvg(omml, { width, height, sizePt = 11, dark = false, title = '
 }
 import { newGuid } from '@rutba/ooxml/workbook';
 import { History } from '@rutba/editing';
+import { includesFolded, replaceAllIn } from '@rutba/editing/find';
 import {
   readWorkbookDesign, designedThemeXml, stylesFollowingFonts, THEME_PART, THEME_TYPE, THEME_REL,
 } from './themes.js';
@@ -7163,12 +7164,14 @@ export class SheetView {
 
   // ---- find and replace --------------------------------------------------
 
-  /** Whether one cell matches the search text, against what is SHOWN and what was TYPED. */
+  /**
+   * Whether one cell matches the search text, against what is SHOWN and what
+   * was TYPED: case aside, and Arabic's marks and letter forms aside, as
+   * Excel's Find does (@rutba/editing/find).
+   */
   _matches(row, col, needle) {
     if (!this.isFilled(row, col)) return false;
-    const q = String(needle).toLowerCase();
-    return this.displayValue(row, col).text.toLowerCase().includes(q)
-      || this.editValue(row, col).toLowerCase().includes(q);
+    return includesFolded(this.displayValue(row, col).text, needle) || includesFolded(this.editValue(row, col), needle);
   }
 
   /**
@@ -7197,10 +7200,9 @@ export class SheetView {
     return false;
   }
 
-  /** Case-insensitive replacement of every occurrence within one input. */
+  /** Replacement of every occurrence within one input, matched as _matches matches. */
   static _replaceIn(input, find, replaceWith) {
-    const pattern = new RegExp(String(find).replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-    return String(input).replace(pattern, () => replaceWith);
+    return replaceAllIn(input, find, replaceWith).text;
   }
 
   /**
