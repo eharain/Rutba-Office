@@ -45,6 +45,22 @@ const ENVELOPES = {
   textFadeLeft: { label: 'Fade: Left', top: (u) => 0.33 * (1 - u), bottom: (u) => 1 - 0.33 * (1 - u) },
   textSlantUp: { label: 'Slant: Up', top: (u) => 0.3 * (1 - u), bottom: (u) => 1 - 0.3 * u },
   textSlantDown: { label: 'Slant: Down', top: (u) => 0.3 * u, bottom: (u) => 1 - 0.3 * (1 - u) },
+  // The words stretched to fill the box, as Office's Square does.
+  textPlain: { label: 'Square', top: () => 0, bottom: () => 1 },
+  // The poured arches: the words in a band that bends over, or under, the box.
+  textArchUpPour: { label: 'Arch: Up', top: (u) => 0.5 * (1 - Math.sin(Math.PI * u)), bottom: (u) => 0.5 * (1 - Math.sin(Math.PI * u)) + 0.5 },
+  textArchDownPour: { label: 'Arch: Down', top: (u) => 0.5 * Math.sin(Math.PI * u), bottom: (u) => 0.5 * Math.sin(Math.PI * u) + 0.5 },
+  // A can seen from above or below: both curves bowed the same way.
+  textCanUp: { label: 'Can: Up', top: (u) => 0.15 * Math.sin(Math.PI * u), bottom: (u) => 0.85 + 0.15 * Math.sin(Math.PI * u) },
+  textCanDown: { label: 'Can: Down', top: (u) => 0.15 * (1 - Math.sin(Math.PI * u)), bottom: (u) => 0.85 + 0.15 * (1 - Math.sin(Math.PI * u)) },
+  // Inside a ring, or round it.
+  textRingInside: { label: 'Ring: Inside', top: (u) => 0.25 * Math.sin(Math.PI * u), bottom: (u) => 1 - 0.25 * Math.sin(Math.PI * u) },
+  textRingOutside: { label: 'Ring: Outside', top: (u) => 0.25 * (1 - Math.sin(Math.PI * u)), bottom: (u) => 1 - 0.25 * (1 - Math.sin(Math.PI * u)) },
+  // Cascades: the words growing taller as they climb, or fall.
+  textCascadeUp: { label: 'Cascade: Up', top: (u) => 0.55 * (1 - u), bottom: (u) => 1 - 0.25 * u },
+  textCascadeDown: { label: 'Cascade: Down', top: (u) => 0.55 * u, bottom: (u) => 1 - 0.25 * (1 - u) },
+  // Stop: the corners cut, as an octagon's.
+  textStop: { label: 'Stop', top: (u) => 0.2 * Math.max(0, 1 - 4 * Math.min(u, 1 - u)), bottom: (u) => 1 - 0.2 * Math.max(0, 1 - 4 * Math.min(u, 1 - u)) },
 };
 
 /** The rest of the gallery, after the five on the ribbon: the warps. */

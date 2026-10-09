@@ -120,7 +120,7 @@ test('a warp stretches each letter between its two curves, upright, across the w
   assert.equal(slant.every((l) => Math.abs(l.sy - slant[0].sy) < 0.001), true, 'a slant keeps every letter one height');
   const two = letters(warpedTextSvg({ preset: 'textDeflate', box, lines: [[{ text: 'AB', size: 24 }], [{ text: 'CD', size: 24 }]] }));
   assert.ok(two.find((l) => l.ch === 'C').foot > two.find((l) => l.ch === 'A').foot, 'two lines share the height, one band each');
-  assert.equal(WARP_MORE.length, 20);
+  assert.equal(WARP_MORE.length, 30);
   assert.equal(WARP_MORE.every((p) => drawnWarp(p.id)), true);
   assert.equal(warpLabel('textWave1'), 'Wave: Down');
   assert.equal(warpLabel('textArchUp'), 'Arch Up');
