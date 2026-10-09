@@ -17,6 +17,9 @@
 
 import { runSteps, parseDelimited, describeStep } from './queries.js';
 import { colName } from './selection.js';
+import { applyFormat } from './styles-write.js';
+import { readStyles } from './styles.js';
+import { BUILTIN_FORMATS } from './numfmt.js';
 
 const PART = 'customXml/rutbaQueries.xml';
 const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/customXml';
@@ -146,6 +149,33 @@ function put(view, sheet, row, col, value) {
   view.dirtyCells.add(sheet + '!' + a1(row, col));
 }
 
+/**
+ * A column the query made dates shows dates, in the short date format, as
+ * Power Query loads one; it held day numbers, which the cells showed bare.
+ * Each cell's own look is kept besides.
+ */
+function showDates(view, sheet, table) {
+  const dated = table.columns.map((c, i) => (table.types?.[c] === 'date' ? i : -1)).filter((i) => i >= 0);
+  if (!dated.length || !table.rows.length) return;
+  view._ensureStylesPart();
+  let xml = view.pkg.text('xl/styles.xml');
+  const made = new Map();
+  for (const c of dated) {
+    for (let r = 1; r <= table.rows.length; r++) {
+      const base = view._styleIndexAt(sheet, r, c);
+      if (!made.has(base)) {
+        const out = applyFormat(xml, base, { numberFormat: BUILTIN_FORMATS[14] });
+        xml = out.xml;
+        made.set(base, out.index);
+      }
+      if (made.get(base) !== base) view._setStyleIndex(sheet, r, c, made.get(base));
+    }
+  }
+  view.pkg.write_('xl/styles.xml', xml);
+  view.styles = readStyles(view.pkg, { BUILTIN_FORMATS });
+  view._stylesDirty = true;
+}
+
 /** A query's result written over its table: the cells, and the table grown or shrunk to fit. */
 function writeResult(view, q, table) {
   const sheet = q.load.sheet;
@@ -159,6 +189,7 @@ function writeResult(view, q, table) {
   table.columns.forEach((name, c) => put(view, sheet, 0, c, name));
   table.rows.forEach((row, r) => row.forEach((v, c) => put(view, sheet, r + 1, c, v)));
   if (!table.rows.length) for (let c = 0; c < width; c++) put(view, sheet, 1, c, null);
+  showDates(view, sheet, table);
   const ref = areaText({ top: 0, left: 0, bottom, right: width - 1 });
   if (!old) {
     view.workbook.addTable(sheet, ref, { name: q.load.table, headerNames: table.columns });
@@ -193,6 +224,8 @@ function partsOf(view) {
   }
   for (const t of view.workbook.tables()) out.push(t.part);
   if (view.pkg.has(PART)) out.push(PART);
+  // A date column's format is a style.
+  if (view.pkg.has('xl/styles.xml')) out.push('xl/styles.xml');
   return [...new Set(out)].filter((p) => view.pkg.has(p));
 }
 

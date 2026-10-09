@@ -58,10 +58,21 @@ function uniqueNames(names) {
   });
 }
 
+/** A table's column types, by name, given only when there are any. */
+const typed = (types) => (types && Object.keys(types).length ? { types } : {});
+
+/** The types of the columns a step keeps, `[from, to]` names: each under its name now. */
+const keepTypes = (types, pairs) => {
+  const out = {};
+  if (types) for (const [from, to] of pairs) if (types[from]) out[to] = types[from];
+  return typed(out);
+};
+
 /**
  * One step applied to a table: a new table. Append and Merge read another
  * table with `ctx.table(source)` — a table or range of the workbook, a file,
- * or another query.
+ * or another query. A column given a type keeps it through every step that
+ * keeps the column, under the name it has now.
  */
 export function applyStep(t, step, ctx = {}) {
   const s = step || {};
@@ -81,7 +92,17 @@ export function applyStep(t, step, ctx = {}) {
         at.forEach((to, from) => { row[to] = r[from] === undefined ? null : r[from]; });
         rows.push(row);
       }
-      return { columns, rows };
+      // A column keeps its type unless the other table gives it another.
+      const mine = t.types || {};
+      const theirs = raw.types || {};
+      const types = {};
+      for (const c of columns) {
+        const a = t.columns.includes(c) ? mine[c] : undefined;
+        const b = other.columns.includes(c) ? theirs[c] : undefined;
+        if (a && (!b || a === b)) types[c] = a;
+        else if (b && !t.columns.includes(c)) types[c] = b;
+      }
+      return { columns, rows, ...typed(types) };
     }
     // Merge Queries: each row joined to the other table's rows whose key matches, their other columns brought in.
     case 'mergeQueries': {
@@ -94,7 +115,7 @@ export function applyStep(t, step, ctx = {}) {
       const key = (v) => (blank(v) ? null : asText(v).trim().toLowerCase());
       const index = new Map();
       other.rows.forEach((r, i) => { const k = key(r[theirs]); if (k === null) return; if (!index.has(k)) index.set(k, []); index.get(k).push(i); });
-      if (how === 'leftAnti') return { columns: t.columns.slice(), rows: t.rows.filter((r) => !index.has(key(r[mine]))) };
+      if (how === 'leftAnti') return { columns: t.columns.slice(), rows: t.rows.filter((r) => !index.has(key(r[mine]))), ...typed(t.types) };
       // The other table's columns but its key, named apart from these where they clash.
       const brought = other.columns.map((c, i) => [c, i]).filter(([, i]) => i !== theirs);
       const prefix = s.prefix || 'Merged';
@@ -116,22 +137,27 @@ export function applyStep(t, step, ctx = {}) {
           rows.push([...row, ...brought.map(([, i]) => (r[i] === undefined ? null : r[i]))]);
         });
       }
-      return { columns, rows };
+      // These columns' types, and the other table's for the columns brought in, under their names here.
+      const types = { ...keepTypes(t.types, t.columns.map((c, i) => [c, columns[i]])).types, ...keepTypes(other.types, brought.map(([c], k) => [c, columns[t.columns.length + k]])).types };
+      return { columns, rows, ...typed(types) };
     }
     case 'removeColumns': {
       const drop = new Set((s.columns || []).map((c) => indexOf(t, c)));
-      return { columns: t.columns.filter((_, i) => !drop.has(i)), rows: t.rows.map((r) => r.filter((_, i) => !drop.has(i))) };
+      const columns = t.columns.filter((_, i) => !drop.has(i));
+      return { columns, rows: t.rows.map((r) => r.filter((_, i) => !drop.has(i))), ...keepTypes(t.types, columns.map((c) => [c, c])) };
     }
     case 'keepColumns': {
       const keep = (s.columns || []).map((c) => indexOf(t, c));
-      return { columns: keep.map((i) => t.columns[i]), rows: t.rows.map((r) => keep.map((i) => r[i] ?? null)) };
+      const columns = keep.map((i) => t.columns[i]);
+      return { columns, rows: t.rows.map((r) => keep.map((i) => r[i] ?? null)), ...keepTypes(t.types, columns.map((c) => [c, c])) };
     }
     case 'renameColumn': {
       const i = indexOf(t, s.from);
       const to = String(s.to || '').trim();
       if (!to) throw new Error('A column needs a name');
       if (t.columns.some((c, j) => j !== i && c === to)) throw new Error(`There is already a column "${to}"`);
-      return { columns: t.columns.map((c, j) => (j === i ? to : c)), rows: t.rows };
+      const columns = t.columns.map((c, j) => (j === i ? to : c));
+      return { columns, rows: t.rows, ...keepTypes(t.types, t.columns.map((c, j) => [c, columns[j]])) };
     }
     case 'changeType': {
       const i = indexOf(t, s.column);
@@ -150,7 +176,7 @@ export function applyStep(t, step, ctx = {}) {
           default: throw new Error(`"${s.type}" is not a type a column can be given`);
         }
       };
-      return { columns: t.columns, rows: t.rows.map((r) => r.map((v, j) => (j === i ? to(v) : v))), types: { ...(t.types || {}), [s.column]: s.type } };
+      return { columns: t.columns, rows: t.rows.map((r) => r.map((v, j) => (j === i ? to(v) : v))), types: { ...(t.types || {}), [t.columns[i]]: s.type } };
     }
     case 'filterRows': {
       const i = indexOf(t, s.column);
@@ -208,7 +234,9 @@ export function applyStep(t, step, ctx = {}) {
       // A part that is a number becomes one, but not one whose leading zeros
       // would go: "A-007" splits into A and 007, a code, not 7.
       const part = (p) => (p === undefined || p === '' ? null : /^[-+]?0\d/.test(p) ? p : asNumber(p) ?? p);
-      return { columns: names, rows: t.rows.map((r, n) => [...r.slice(0, i), ...Array.from({ length: width }, (_, k) => part(parts[n][k])), ...r.slice(i + 1)]) };
+      // The parts are new columns with no type; the rest keep theirs.
+      const kept = t.columns.map((c, j) => [c, j < i ? names[j] : j > i ? names[j - 1 + width] : null]).filter(([, to]) => to);
+      return { columns: names, rows: t.rows.map((r, n) => [...r.slice(0, i), ...Array.from({ length: width }, (_, k) => part(parts[n][k])), ...r.slice(i + 1)]), ...keepTypes(t.types, kept) };
     }
     case 'groupBy': {
       const keys = (s.columns || [s.column]).filter(Boolean).map((c) => indexOf(t, c));
@@ -229,15 +257,18 @@ export function applyStep(t, step, ctx = {}) {
         if (a.fn === 'max') return nums.length ? Math.max(...nums) : null;
         throw new Error(`"${a.fn}" is not a way rows are added up`);
       };
+      const columns = uniqueNames([...keys.map((i) => t.columns[i]), ...aggs.map((a) => a.name || `${a.fn[0].toUpperCase()}${a.fn.slice(1)}${a.i >= 0 ? ` of ${t.columns[a.i]}` : ''}`)]);
       return {
-        columns: uniqueNames([...keys.map((i) => t.columns[i]), ...aggs.map((a) => a.name || `${a.fn[0].toUpperCase()}${a.fn.slice(1)}${a.i >= 0 ? ` of ${t.columns[a.i]}` : ''}`)]),
+        columns,
         rows: [...groups.values()].map((g) => [...g.key, ...aggs.map((a) => fold(a, g.rows))]),
+        // The keys keep their types; a count is a whole number.
+        ...typed({ ...keepTypes(t.types, keys.map((i, k) => [t.columns[i], columns[k]])).types, ...Object.fromEntries(aggs.map((a, k) => [columns[keys.length + k], a.fn === 'count' ? 'integer' : null]).filter(([, v]) => v)) }),
       };
     }
     case 'addIndex': {
       const start = Number.isFinite(Number(s.start)) ? Number(s.start) : 1;
       const name = uniqueNames([...t.columns, s.name || 'Index']).pop();
-      return { columns: [...t.columns, name], rows: t.rows.map((r, n) => [...r, start + n]) };
+      return { columns: [...t.columns, name], rows: t.rows.map((r, n) => [...r, start + n]), ...typed(t.types) };
     }
     case 'transformText': {
       const i = indexOf(t, s.column);
