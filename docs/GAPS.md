@@ -261,8 +261,9 @@ it is where the gaps are.
   Queries arrived in 1.29.10, a query reading another query's result.
   Since 1.31.0 a column's type follows it through every step, and a column
   made dates loads in the short date format. Since 1.33.0 Fill Down and Up,
-  Unpivot Other Columns, Merge Columns and Extract are steps too; Pivot
-  Column, conditional and custom columns are not.
+  Unpivot Other Columns, Merge Columns and Extract are steps too, and since
+  1.35.0 Pivot Column and Conditional Column; custom columns, which want
+  M, are not.
 - **A cut pasted** carries every reference with it since 1.29.8, as Excel's
   does: formulas on any sheet and defined names that name only the moved
   cells follow them, onto another sheet too.
@@ -272,7 +273,10 @@ it is where the gaps are.
   nothing but a snapshot of the workbook, their edits one undo step. Only
   the commonest of Office Scripts' calls are there (ranges, values,
   formulas, number formats, fonts, fills, alignment, sheets added and
-  renamed); a script that awaits is refused.
+  renamed, and since 1.35.0 column widths, row heights, AutoFit, merges,
+  strikethrough and vertical alignment, which Record Actions writes too);
+  a script that awaits is refused, and rows and columns are not inserted
+  or deleted by one.
 - **Macros** are deliberately never run — a workbook that runs code it arrived with is how
   ransomware starts. VBA in a file is preserved untouched.
 

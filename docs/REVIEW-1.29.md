@@ -352,3 +352,17 @@ Still open: the move of the document service into a `utilityProcess`, and
 the 40 MP JPEG shrunk synchronously on Linux (the window could make that
 tile itself, as it does a clip's frame, but it wants a run on Linux to
 check).
+
+## Taken up since
+
+- The 40 MP JPEG on Linux, 1.32.0: only a small picture is shrunk on the
+  main process; the window draws the rest at the tile's size off its own
+  thread and hands the tile in. Checked on Windows, where an SVG has no
+  system tile; a run on Linux is still wanted.
+- The document service on the main process, 1.35.0, a second step: a
+  window's Save flushes the engine's parts with the final write held back
+  and deflates the changed parts on Node's thread pool (OoxmlPackage
+  `saveAsync`), so a large workbook's save no longer holds every window
+  while it compresses. Opening was taken off in 1.30.0. Edits, layout and
+  the XML of a save still run on the main process; the move into a
+  `utilityProcess` is still open.
