@@ -27,7 +27,7 @@ function AppCard({ app, onOpen, onNew }) {
         </span>
       </button>
       {onNew ? (
-        <button type="button" className="home-card-new" onClick={onNew} title={`New ${app.noun || app.short.toLowerCase()}`}>
+        <button type="button" className="home-card-new" onClick={onNew} title={t('New {kind}', { kind: app.noun || app.short.toLowerCase() })}>
           <Icon name="plus" size={14} />
         </button>
       ) : null}
@@ -131,11 +131,13 @@ export default function Home({ app, shell }) {
   }, [recent, query]);
 
   return (
+    // words-ok: the suite's own name
     <AppFrame app={app} shell={shell} title="Rutba Office" menu={menu} status={<HomeStatus version={version} recent={recent.length} shell={shell} />}>
       <style>{CSS}</style>
       <div className="home">
         <header className="home-hero">
           <div>
+            {/* words-ok: the suite's own name */}
             <h1>Rutba Office</h1>
             <p>
               {t('Mail, documents, worksheets, presentations and media — free, open source, and working with the network switched off.')}

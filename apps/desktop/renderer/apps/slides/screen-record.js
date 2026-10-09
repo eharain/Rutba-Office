@@ -5,7 +5,7 @@
 // can make one, WebM where it cannot.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Button } from '@rutba/office-ui';
+import { Button, t } from '@rutba/office-ui';
 
 /** The container a recording is made in: MP4 first, as PowerPoint plays it everywhere. */
 export function recordingType() {
@@ -69,17 +69,17 @@ export function ScreenRecorder({ source, shell, onDone, onCancel, onError }) {
           await written;
           if (cancelled.current || failed) {
             shell.fs.dropTemp({ path }).catch(() => {});
-            if (failed && !cancelled.current) { onError?.(`The recording could not be kept: ${failed.message || failed}`); onCancel(); }
+            if (failed && !cancelled.current) { onError?.(t('The recording could not be kept: {reason}', { reason: failed.message || failed })); onCancel(); }
             return;
           }
-          onDone({ path, contentType, name: `Screen Recording ${new Date().toLocaleTimeString()}.${ext}` });
+          onDone({ path, contentType, name: `${t('Screen Recording {time}', { time: new Date().toLocaleTimeString() })}.${ext}` });
         };
         r.start(500);
         rec.current = r;
         setStarted(Date.now());
       } catch (err) {
         stream?.getTracks().forEach((t) => t.stop());
-        onError?.(`${source.name} could not be recorded: ${err.message || err}`);
+        onError?.(t('{name} could not be recorded: {reason}', { name: source.name, reason: err.message || err }));
         onCancel();
       }
     })();
@@ -97,12 +97,12 @@ export function ScreenRecorder({ source, shell, onDone, onCancel, onError }) {
   }, [started]);
 
   return (
-    <div className="sl-screenrec" role="status" aria-label="Screen Recording">
+    <div className="sl-screenrec" role="status" aria-label={t('Screen Recording')}>
       <span className="sl-screenrec-dot" />
-      <span className="sl-screenrec-what">Recording {source.name}</span>
-      <b className="sl-screenrec-time">{started ? clock(now - started) : 'starting…'}</b>
-      <Button primary label="Stop" className="sl-screenrec-stop" disabled={!started} onClick={() => rec.current?.stop()} />
-      <Button label="Cancel" onClick={() => { cancelled.current = true; rec.current?.stop(); onCancel(); }} />
+      <span className="sl-screenrec-what">{t('Recording {name}', { name: source.name })}</span>
+      <b className="sl-screenrec-time">{started ? clock(now - started) : t('starting…')}</b>
+      <Button primary label={t('Stop')} className="sl-screenrec-stop" disabled={!started} onClick={() => rec.current?.stop()} />
+      <Button label={t('Cancel')} onClick={() => { cancelled.current = true; rec.current?.stop(); onCancel(); }} />
     </div>
   );
 }

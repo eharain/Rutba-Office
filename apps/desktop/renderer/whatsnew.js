@@ -8,11 +8,11 @@
 // page does.
 
 import React, { useEffect, useState } from 'react';
-import { Button, Dialog } from '@rutba/office-ui';
+import { Button, Dialog, t } from '@rutba/office-ui';
 import { SITE } from '@rutba/office-formats/registry';
 import { parseNotes } from './whatsnew/notes.js';
 
-const Runs = ({ runs }) => runs.map((r, i) => (r.bold ? <strong key={i}>{r.text}</strong> : r.code ? <code key={i}>{r.text}</code> : <React.Fragment key={i}>{r.text}</React.Fragment>));
+const Runs = ({ runs }) => runs.map((r, i) => (r.bold ? <strong key={i}>{r.text}</strong> : r.code ? <code key={i}>{r.text}</code> : <React.Fragment key={i}>{r.text}</React.Fragment>)); // words-ok: code, not words
 
 /** The blocks drawn: bullets gathered into lists, the first paragraph as the lead. */
 function Notes({ blocks }) {
@@ -32,7 +32,7 @@ function Notes({ blocks }) {
       lead = false;
     }
   });
-  return out.map((n) => (n.items ? <ul key={n.key}>{n.items}</ul> : n));
+  return out.map((n) => (n.items ? <ul key={n.key}>{n.items}</ul> : n)); // words-ok: code, not words
 }
 
 /**
@@ -57,21 +57,21 @@ export function WhatsNew({ shell, version, onClose }) {
   // back, and Escape to close it, as every other dialog has.
   return (
     <Dialog
-      title={`What’s new in Rutba Office ${version || notes?.version || ''}`.trim()}
+      title={t('What’s new in Rutba Office {version}', { version: version || notes?.version || '' }).trim()}
       width={580}
       className="rw-whatsnew"
       onClose={onClose}
       actions={<>
-        <Button label="All releases" onClick={() => open(SITE.releases)} />
-        <Button label="Close" primary className="rw-whatsnew-close" onClick={onClose} />
+        <Button label={t('All releases')} onClick={() => open(SITE.releases)} />
+        <Button label={t('Close')} primary className="rw-whatsnew-close" onClick={onClose} />
       </>}
     >
       <style>{CSS}</style>
       <div className="rw-whatsnew-body">
         {notes === undefined ? (
-          <p className="rw-hint">Reading the notes…</p>
+          <p className="rw-hint">{t('Reading the notes…')}</p>
         ) : notes === null ? (
-          <p>The notes for this version are on the releases page.</p>
+          <p>{t('The notes for this version are on the releases page.')}</p>
         ) : (
           <Notes blocks={notes.blocks} />
         )}

@@ -15,7 +15,7 @@ import { fileUrl } from './library.js';
 const SIZE = 256;
 const TIMEOUT = 8000;
 
-const results = new Map(); // path -> Promise<string|null> (an object URL, or nothing)
+const results = new Map(); // path -> Promise<string|null> (an object URL, or nothing) // words-ok: a type, in a comment
 /** How many clips' frames are kept; past it the least lately asked for is let go, its object URL with it. */
 const KEPT = 300;
 let chain = Promise.resolve();

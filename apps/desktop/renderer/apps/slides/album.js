@@ -4,7 +4,7 @@
 // of its own, as PowerPoint's New Photo Album does.
 
 import React, { useState } from 'react';
-import { Button, Dialog, Field } from '@rutba/office-ui';
+import { Button, Dialog, Field, t, tn } from '@rutba/office-ui';
 
 const baseName = (file) => String(file).split(/[\\/]/).pop();
 
@@ -13,14 +13,14 @@ export function PhotoAlbumDialog({ shell, onCreate, onClose }) {
   const [picked, setPicked] = useState(0);
   const [perSlide, setPerSlide] = useState(1);
   const [captions, setCaptions] = useState(false);
-  const [title, setTitle] = useState('Photo Album');
+  const [title, setTitle] = useState(t('Photo Album'));
   const [busy, setBusy] = useState(false);
 
   const add = async () => {
     const more = await shell.dialog.open({
-      title: 'Insert New Pictures',
+      title: t('Insert New Pictures'),
       multiple: true,
-      filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp'] }],
+      filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp'] }],
     });
     if (more?.length) setFiles((list) => [...list, ...more.filter((f) => !list.includes(f))]);
   };
@@ -41,7 +41,7 @@ export function PhotoAlbumDialog({ shell, onCreate, onClose }) {
     if (!files.length || busy) return;
     setBusy(true);
     try {
-      await onCreate({ files, perSlide, captions, title: title.trim() || 'Photo Album' });
+      await onCreate({ files, perSlide, captions, title: title.trim() || t('Photo Album') });
     } finally {
       setBusy(false);
     }
@@ -49,41 +49,41 @@ export function PhotoAlbumDialog({ shell, onCreate, onClose }) {
 
   return (
     <Dialog
-      title="Photo Album"
+      title={t('Photo Album')}
       width={500}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label={busy ? 'Creating…' : 'Create'} className="sl-album-create" disabled={!files.length || busy} onClick={create} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={busy ? t('Creating…') : t('Create')} className="sl-album-create" disabled={!files.length || busy} onClick={create} /></>}
     >
       <div className="sl-album">
         <div className="sl-album-head">
-          <span>Pictures in album</span>
-          <Button icon="picture" label="File/Disk…" className="sl-album-add" title="Add pictures from a folder" onClick={add} />
+          <span>{t('Pictures in album')}</span>
+          <Button icon="picture" label={t('File/Disk…')} className="sl-album-add" title={t('Add pictures from a folder')} onClick={add} />
         </div>
-        <div className="sl-album-list" role="listbox" aria-label="Pictures in album">
+        <div className="sl-album-list" role="listbox" aria-label={t('Pictures in album')}>
           {files.length ? files.map((f, i) => (
             <button key={f} type="button" role="option" aria-selected={i === picked} className={`sl-album-row${i === picked ? ' on' : ''}`} title={f} onClick={() => setPicked(i)}>
               <span className="sl-album-n">{i + 1}</span>{baseName(f)}
             </button>
-          )) : <div className="sl-album-empty">No pictures yet. File/Disk… adds them.</div>}
+          )) : <div className="sl-album-empty">{t('No pictures yet. File/Disk… adds them.')}</div>}
         </div>
         <div className="sl-album-tools">
-          <Button icon="chevronUp" title="Move the picture earlier" disabled={picked <= 0} onClick={() => move(-1)} />
-          <Button icon="chevronDown" title="Move the picture later" disabled={picked < 0 || picked >= files.length - 1} onClick={() => move(1)} />
-          <Button icon="trash" label="Remove" disabled={!files.length} onClick={remove} />
-          <span className="sl-album-count">{files.length} {files.length === 1 ? 'picture' : 'pictures'}</span>
+          <Button icon="chevronUp" title={t('Move the picture earlier')} disabled={picked <= 0} onClick={() => move(-1)} />
+          <Button icon="chevronDown" title={t('Move the picture later')} disabled={picked < 0 || picked >= files.length - 1} onClick={() => move(1)} />
+          <Button icon="trash" label={t('Remove')} disabled={!files.length} onClick={remove} />
+          <span className="sl-album-count">{tn(files.length, '{count} picture', '{count} pictures')}</span>
         </div>
-        <Field label="Picture layout">
+        <Field label={t('Picture layout')}>
           <select className="rw-input sl-album-layout" value={perSlide} onChange={(e) => setPerSlide(Number(e.target.value))}>
-            <option value={1}>1 picture</option>
-            <option value={2}>2 pictures</option>
-            <option value={4}>4 pictures</option>
+            <option value={1}>{tn(1, '{count} picture', '{count} pictures')}</option>
+            <option value={2}>{tn(2, '{count} picture', '{count} pictures')}</option>
+            <option value={4}>{tn(4, '{count} picture', '{count} pictures')}</option>
           </select>
         </Field>
         <label className="sl-album-check">
           <input type="checkbox" className="sl-album-captions" checked={captions} onChange={(e) => setCaptions(e.target.checked)} />
-          Captions below all pictures
+          {t('Captions below all pictures')}
         </label>
-        <Field label="Title">
+        <Field label={t('Title')}>
           <input className="rw-input sl-album-title" value={title} onChange={(e) => setTitle(e.target.value)} />
         </Field>
       </div>

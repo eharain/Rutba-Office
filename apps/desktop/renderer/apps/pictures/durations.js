@@ -13,7 +13,7 @@ import { fileUrl } from './library.js';
 const CONCURRENCY = 3;
 const TIMEOUT = 8000;
 
-const jobs = new Map(); // path -> Promise<number|null>
+const jobs = new Map(); // path -> Promise<number|null> // words-ok: a type, in a comment
 const found = new Map(); // path -> number|null, once that promise has settled
 const waiting = [];
 let running = 0;

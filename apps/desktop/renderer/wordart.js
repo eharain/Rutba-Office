@@ -4,19 +4,20 @@
 // shown on an "A" in the menu, as Office shows them.
 
 import React from 'react';
+import { t } from '@rutba/office-ui';
 
 /** PowerPoint's WordArt shadow: 3 pt down and to the right, 3 pt soft, 43% black. */
 const SHADOW = { blurPx: 4, distPx: 4, dir: 45, color: '#000000', alpha: 0.43 };
 
 /** The gallery: each style's name, as Office names them, and the look its words take. */
 export const WORDART_STYLES = [
-  { label: 'Fill: Black, Text color 1; Shadow', run: { color: '#262626', textEffects: { shadow: SHADOW } } },
-  { label: 'Fill: Blue, Accent color 1; Shadow', run: { color: '#4472C4', textEffects: { shadow: SHADOW } } },
-  { label: 'Fill: White; Outline: Blue, Accent color 1; Glow: Blue', run: { color: '#FFFFFF', outline: { width: 1, color: '#4472C4' }, textEffects: { glow: { radiusPt: 5, color: '#4472C4', alpha: 0.4 } } } },
-  { label: 'Fill: Gold, Accent color 4; Glow: Gold', run: { color: '#FFC000', textEffects: { glow: { radiusPt: 5, color: '#FFC000', alpha: 0.4 } } } },
-  { label: 'Fill: Orange, Accent color 2; Outline: White; Shadow', run: { color: '#ED7D31', outline: { width: 1, color: '#FFFFFF' }, textEffects: { shadow: SHADOW } } },
-  { label: 'Fill: None; Outline: Orange, Accent color 2', run: { noFill: true, outline: { width: 1.5, color: '#ED7D31' } } },
-  { label: 'Fill: Gray, Background color 2; Inner Shadow', run: { color: '#7F7F7F', textEffects: { shadow: { ...SHADOW, distPx: 2, blurPx: 2 } } } },
+  { label: t('Fill: Black, Text color 1; Shadow'), run: { color: '#262626', textEffects: { shadow: SHADOW } } },
+  { label: t('Fill: Blue, Accent color 1; Shadow'), run: { color: '#4472C4', textEffects: { shadow: SHADOW } } },
+  { label: t('Fill: White; Outline: Blue, Accent color 1; Glow: Blue'), run: { color: '#FFFFFF', outline: { width: 1, color: '#4472C4' }, textEffects: { glow: { radiusPt: 5, color: '#4472C4', alpha: 0.4 } } } },
+  { label: t('Fill: Gold, Accent color 4; Glow: Gold'), run: { color: '#FFC000', textEffects: { glow: { radiusPt: 5, color: '#FFC000', alpha: 0.4 } } } },
+  { label: t('Fill: Orange, Accent color 2; Outline: White; Shadow'), run: { color: '#ED7D31', outline: { width: 1, color: '#FFFFFF' }, textEffects: { shadow: SHADOW } } },
+  { label: t('Fill: None; Outline: Orange, Accent color 2'), run: { noFill: true, outline: { width: 1.5, color: '#ED7D31' } } },
+  { label: t('Fill: Gray, Background color 2; Inner Shadow'), run: { color: '#7F7F7F', textEffects: { shadow: { ...SHADOW, distPx: 2, blurPx: 2 } } } },
 ];
 
 /** What a run's look draws as in CSS — for the menu's samples. */

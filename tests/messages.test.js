@@ -66,7 +66,9 @@ test('the list of messages is current, every catalogue keys only messages on it,
   for (const want of ['Minimise', 'Save changes to {name}?', 'Change All', 'That password is not right — passwords are case-sensitive.']) {
     assert.ok(messages.some((m) => m.message === want), want);
   }
-  assert.deepEqual(messages.find((m) => m.message === '{count} word'), { message: '{count} word', plural: '{count} words', where: ['packages/office-ui/src/proofing.js'] });
+  const counted = messages.find((m) => m.message === '{count} word');
+  assert.equal(counted.plural, '{count} words');
+  assert.ok(counted.where.includes('packages/office-ui/src/proofing.js'), 'a counted message lists the files that use it');
   const known = new Set(messages.map((m) => m.message));
   for (const [tag, catalogue] of Object.entries(CATALOGUES)) {
     for (const [message, translation] of Object.entries(catalogue)) {

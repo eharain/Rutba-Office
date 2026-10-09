@@ -11,16 +11,51 @@ import { APPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-for
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { pathOf } from '@rutba/office-shell/client';
 import { WhatsNew } from './whatsnew.js';
+import { filtersInLanguage } from './registry-words.js';
+
+/**
+ * The languages the windows can be shown in, each named in its own words
+ * (none, the first, follows the system). A language is offered once its
+ * catalogue is whole.
+ */
+const LANGUAGES = [[null, null], ['en', 'English'], ['ur', 'اردو']];
+
+/** A window's address with its language set, or taken off for the system's. */
+function withLanguage(href, tag) {
+  const url = new URL(href);
+  if (tag) url.searchParams.set('lang', tag);
+  else url.searchParams.delete('lang');
+  return url.toString();
+}
 
 /** The menu behind the app mark: new, open, recent, and the way out. */
 export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
   const [menu, setMenu] = useState(null);
   const [recent, setRecent] = useState([]);
   const { mode, setTheme } = useTheme();
+  const toast = useToast();
+  // The language setting as stored: a tag, or none for the system's.
+  const [chosenLanguage, setChosenLanguage] = useState(undefined);
 
   useEffect(() => {
     shell.app.recent().then(setRecent).catch(() => {});
+    shell.store.get({ key: 'language', fallback: null }).then((v) => setChosenLanguage(v || null)).catch(() => setChosenLanguage(null));
   }, [shell]);
+
+  /**
+   * A window keeps the language it opened in, as Office's do: the choice is
+   * kept for the windows opened after it, and the launcher, which holds no
+   * document, opens again in it at once.
+   */
+  const chooseLanguage = useCallback(async (tag) => {
+    await shell.store.set({ key: 'language', value: tag || null });
+    setChosenLanguage(tag || null);
+    if (appKey === 'home') {
+      window.location.replace(withLanguage(window.location.href, tag));
+      return;
+    }
+    toast(t('The windows you open from now on are in the language chosen. Restart Rutba Office to see every window in it.'), { ms: 5000 });
+  }, [shell, appKey, toast]);
 
   const open = useCallback(
     (e) => {
@@ -49,12 +84,18 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
       });
       items.push({ label: t('All apps'), icon: 'grid', run: () => shell.win.create({ app: 'home' }) });
       items.push('-');
+      // The language, each named in its own words, the window's own ticked.
+      items.push({ heading: true, label: t('Language') });
+      for (const [tag, name] of LANGUAGES) {
+        items.push({ label: tag ? name : t('As the system is'), icon: (tag || null) === (chosenLanguage ?? null) ? 'check' : undefined, run: () => chooseLanguage(tag) });
+      }
+      items.push('-');
       items.push({ label: t('What’s new'), icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) });
       items.push({ label: t('About Rutba Office'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) });
 
       setMenu({ x: rect.left, y: rect.bottom + 4, items });
     },
-    [recent, onNew, onOpen, extra, mode, setTheme, shell, appKey]
+    [recent, onNew, onOpen, extra, mode, setTheme, shell, appKey, chosenLanguage, chooseLanguage]
   );
 
   return { open, node: menu ? <Menu {...menu} onClose={() => setMenu(null)} /> : null };
@@ -105,7 +146,7 @@ export async function confirmDiscard(shell, name) {
 export async function pickOpen(shell, appKey, { multiple = false } = {}) {
   const paths = await shell.dialog.open({
     title: t('Open'),
-    filters: openFilters(appKey),
+    filters: filtersInLanguage(openFilters(appKey)),
     multiple,
   });
   return multiple ? paths : paths[0] || null;
@@ -147,11 +188,11 @@ export async function openWindowMenu(e, menu, shell, { hiddenOnly = false, toast
 }
 
 export async function pickSave(shell, appKey, defaultPath) {
-  return shell.dialog.save({ title: t('Save as'), filters: saveFilters(appKey), defaultPath });
+  return shell.dialog.save({ title: t('Save as'), filters: filtersInLanguage(saveFilters(appKey)), defaultPath });
 }
 
 /** Each app's template, by the name Office gives it. */
-export const TEMPLATE_KINDS = { word: { ext: 'dotx', label: 'Word Template (.dotx)' }, sheets: { ext: 'xltx', label: 'Excel Template (.xltx)' }, slides: { ext: 'potx', label: 'PowerPoint Template (.potx)' } };
+export const TEMPLATE_KINDS = { word: { ext: 'dotx', label: t('Word Template (.dotx)') }, sheets: { ext: 'xltx', label: t('Excel Template (.xltx)') }, slides: { ext: 'potx', label: t('PowerPoint Template (.potx)') } };
 
 /**
  * Where templates of one's own are kept: Office's own folder for them,

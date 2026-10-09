@@ -10,7 +10,7 @@
 // the sheet came from a .xlsx, a .csv or an .ods.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, Input } from '@rutba/office-ui';
+import { Button, Icon, Spacer, Chip, Empty, Spinner, Dialog, ZoomSlider, Panel, useToast, useMenu, useCommands, menuItems, Input, t, tn } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, pickSaveTemplate, confirmDiscard, useFileDrop, openInApp , useDirtyGuard, arrangeWindows, openWindowMenu } from '../shell.js';
 import { PrintDialog, defaultPrintOptions } from '../print.js';
 import { usePasswordGate, openProtected, LockedAction, useProtection } from '../protect.js';
@@ -76,12 +76,12 @@ function withSelection(model, patch) {
 /** What the tip layer says over a cell: its note, or where its link goes. */
 const tipFor = (cell) => {
   if (cell.thread) {
-    const t = cell.thread;
-    const more = t.replies ? ` (${t.replies} ${t.replies === 1 ? 'reply' : 'replies'})` : '';
-    return `${t.author ? t.author + ': ' : ''}${t.text}${more}${t.done ? ' — resolved' : ''} — click the corner to open the thread`;
+    const th = cell.thread;
+    const more = th.replies ? ` (${tn(th.replies, '{count} reply', '{count} replies')})` : '';
+    return `${th.author ? th.author + ': ' : ''}${th.text}${more}${th.done ? ` — ${t('resolved')}` : ''} — ${t('click the corner to open the thread')}`;
   }
   if (cell.note) return `${cell.note.author ? cell.note.author + ': ' : ''}${cell.note.text}`;
-  if (cell.link) return `${cell.link.tooltip ? cell.link.tooltip + ' — ' : ''}${cell.link.href || cell.link.location} (Ctrl+click to open)`;
+  if (cell.link) return `${cell.link.tooltip ? cell.link.tooltip + ' — ' : ''}${cell.link.href || cell.link.location} ${t('(Ctrl+click to open)')}`;
   return undefined;
 };
 
@@ -207,17 +207,17 @@ export default function Sheets({ app, shell, boot }) {
     setDoc,
     toast,
     items: [
-      { id: 'sheet', icon: 'table', label: model?.protection?.sheet ? 'Unprotect Current Sheet' : 'Protect Current Sheet', detail: 'Control what types of changes people can make to the current sheet.', run: () => actRef.current?.('protectSheet') },
-      { id: 'structure', icon: 'grid', label: model?.workbookProtection?.structure ? 'Unprotect Workbook Structure' : 'Protect Workbook Structure', detail: 'Prevent unwanted changes to the structure of the workbook, such as adding sheets.', run: () => actRef.current?.('protectWorkbook') },
+      { id: 'sheet', icon: 'table', label: model?.protection?.sheet ? t('Unprotect Current Sheet') : t('Protect Current Sheet'), detail: t('Control what types of changes people can make to the current sheet.'), run: () => actRef.current?.('protectSheet') },
+      { id: 'structure', icon: 'grid', label: model?.workbookProtection?.structure ? t('Unprotect Workbook Structure') : t('Protect Workbook Structure'), detail: t('Prevent unwanted changes to the structure of the workbook, such as adding sheets.'), run: () => actRef.current?.('protectWorkbook') },
     ],
     notes: [
-      ...(model?.workbookProtection?.structure ? ['The workbook’s structure is locked to prevent unwanted changes, such as moving, deleting or adding sheets.'] : []),
-      ...(model?.protection?.sheet ? [`${model?.activeSheet || 'This sheet'} is protected: locked cells take no edits.`] : []),
+      ...(model?.workbookProtection?.structure ? [t('The workbook’s structure is locked to prevent unwanted changes, such as moving, deleting or adding sheets.')] : []),
+      ...(model?.protection?.sheet ? [t('{sheet} is protected: locked cells take no edits.', { sheet: model?.activeSheet || t('This sheet') })] : []),
     ],
   });
   // File → Save as Template, from the menu made before `save` is.
   const saveRef = useRef(null);
-  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.(), extra: doc ? [protection.menuItem, { label: 'Save as Template…', icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'sheets', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
+  const appMenu = useAppMenu({ shell, appKey: 'sheets', onNew: () => shell.win.create({ app: 'sheets' }), onOpen: () => openFileRef.current?.(), extra: doc ? [protection.menuItem, { label: t('Save as Template…'), icon: 'save', run: async () => { const target = await pickSaveTemplate(shell, 'sheets', doc?.name); if (target) saveRef.current?.(true, target); } }] : [] });
 
   const dispatch = useCallback(
     async (...ops) => {
@@ -306,7 +306,7 @@ export default function Sheets({ app, shell, boot }) {
     const text = got?.text || '';
     const html = got?.html || null;
     if (special) return dispatch({ op: 'pasteSpecial', ...special, text, html });
-    if (!text && !html) { toast('There is nothing on the clipboard to paste.', { ms: 3500 }); return null; }
+    if (!text && !html) { toast(t('There is nothing on the clipboard to paste.'), { ms: 3500 }); return null; }
     return dispatch({ op: 'paste', text, html });
   }, [dispatch, shell, toast]);
 
@@ -363,8 +363,8 @@ export default function Sheets({ app, shell, boot }) {
           const was = opened.converted.from.toUpperCase();
           toast(
             opened.converted.writesBack
-              ? `Opened from ${was}. Saving writes the ${was} back.`
-              : `Opened from ${was}. This build cannot write ${was} — Save as will write a .xlsx.`,
+              ? t('Opened from {was}. Saving writes the {was} back.', { was })
+              : t('Opened from {was}. This build cannot write {was} — Save as will write a .xlsx.', { was }),
             { ms: 5200 }
           );
         }
@@ -388,7 +388,7 @@ export default function Sheets({ app, shell, boot }) {
     // from, dirty, because what is on screen is not what is on disk.
     // A password-protected file (or the encrypted copy of one) asks for its
     // password in this window before anything opens.
-    if (recover) load(() => openProtected((password) => shell.doc.recover({ file: recover, password }), gate).then((r) => { toast('Recovered unsaved work. Save it to keep it.', { ms: 6000 }); return r; }));
+    if (recover) load(() => openProtected((password) => shell.doc.recover({ file: recover, password }), gate).then((r) => { toast(t('Recovered unsaved work. Save it to keep it.'), { ms: 6000 }); return r; }));
     else if (boot.file) load(() => openProtected((password) => shell.doc.open({ path: boot.file, kind: 'sheet', password }), gate));
     else if (templateFile) load(() => shell.doc.new({ kind: 'sheets', templateFile }));
     else load(() => shell.doc.new({ kind: 'sheets', template: template && template !== 'blank' ? template : 'sheet' }));
@@ -426,7 +426,7 @@ export default function Sheets({ app, shell, boot }) {
         const saved = await shell.doc.save({ id: doc.id, path: target });
         setDoc((d) => ({ ...d, ...saved, dirty: false }));
         shell.app.addRecent({ path: saved.path, app: 'sheets' }).catch(() => {});
-        toast(`Saved ${saved.path.split(/[\\/]/).pop()}`, { tone: 'good' });
+        toast(t('Saved {name}', { name: saved.path.split(/[\\/]/).pop() }), { tone: 'good' });
         return true;
       } catch (err) {
         toast(err.message, { tone: 'bad' });
@@ -441,7 +441,7 @@ export default function Sheets({ app, shell, boot }) {
     async (format, options = null) => {
       if (!doc) return;
       const target = await shell.dialog.save({
-        title: `Export as ${format.toUpperCase()}`,
+        title: t('Export as {format}', { format: format.toUpperCase() }),
         defaultPath: (doc.path || doc.name).replace(/\.[^.]+$/, `.${format}`),
         filters: [{ name: format.toUpperCase(), extensions: [format] }],
       });
@@ -452,7 +452,7 @@ export default function Sheets({ app, shell, boot }) {
         // and a workbook or a deck must be laid out before it is one.
         if (format === 'pdf') await shell.print.pdf({ id: doc.id, path: target, options: options || defaultPrintOptions('sheet') });
         else await shell.doc.export({ id: doc.id, format, path: target });
-        toast(`Exported ${target.split(/[\\/]/).pop()}`, { tone: 'good' });
+        toast(t('Exported {name}', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       } catch (err) {
         toast(err.message, { tone: 'bad' });
         return false;
@@ -571,30 +571,30 @@ export default function Sheets({ app, shell, boot }) {
 
   const commands = useMemo(
     () => ({
-      'file.new': { label: 'New', icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'sheets' }) },
-      'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
-      'file.save': { label: 'Save', icon: 'save', key: 'Mod+S', run: () => save(false) },
-      'file.saveAs': { label: 'Save as…', icon: 'save', key: 'Mod+Shift+S', run: () => save(true) },
-      'file.print': { label: 'Print…', icon: 'print', key: 'Mod+P', global: true, run: () => setDialog('print') },
-      'edit.undo': { label: 'Undo', icon: 'undo', key: 'Mod+Z', run: async () => { const n = await shell.doc.undo({ id: doc.id }); setDoc(n); setModel(n.model); } },
-      'edit.redo': { label: 'Redo', icon: 'redo', key: 'Mod+Y', run: async () => { const n = await shell.doc.redo({ id: doc.id }); setDoc(n); setModel(n.model); } },
-      'edit.cut': { label: 'Cut', icon: 'cut', key: 'Mod+X', run: () => clipOut('cut') },
-      'edit.copy': { label: 'Copy', icon: 'copy', key: 'Mod+C', run: () => clipOut('copy') },
-      'edit.paste': { label: 'Paste', icon: 'paste', key: 'Mod+V', run: () => clipIn() },
-      'edit.pasteSpecial': { label: 'Paste Special…', icon: 'paste', key: 'Mod+Alt+V', run: () => setDialog('pasteSpecial') },
-      'edit.clear': { label: 'Clear', icon: 'close', key: 'Delete', run: () => dispatch({ op: 'clear' }) },
-      'insert.link': { label: 'Link…', icon: 'link', key: 'Mod+K', run: () => setDialog('link') },
-      'insert.note': { label: 'Note…', icon: 'reply', key: 'Shift+F2', run: () => setDialog('note') },
-      'insert.comment': { label: 'New comment', icon: 'reply', key: 'Mod+Alt+M', run: () => actRef.current?.('newComment') },
-      'sheet.autoSum': { label: 'AutoSum', icon: 'sum', run: () => dispatch({ op: 'autoSum', fn: 'SUM' }) },
-      'sheet.merge': { label: 'Merge cells', icon: 'table', run: () => dispatch({ op: 'merge' }) },
-      'sheet.insertRow': { label: 'Insert row', icon: 'plus', run: () => dispatch({ op: 'insertRows', at: model?.selection.top ?? 0, count: 1 }) },
-      'sheet.deleteRow': { label: 'Delete row', icon: 'minus', run: () => dispatch({ op: 'deleteRows', at: model?.selection.top ?? 0, count: 1 }) },
-      'sheet.insertCol': { label: 'Insert column', icon: 'plus', run: () => dispatch({ op: 'insertCols', at: model?.selection.left ?? 0, count: 1 }) },
-      'sheet.deleteCol': { label: 'Delete column', icon: 'minus', run: () => dispatch({ op: 'deleteCols', at: model?.selection.left ?? 0, count: 1 }) },
-      'sheet.sortAsc': { label: 'Sort A→Z', icon: 'sort', run: () => dispatch({ op: 'sort', ascending: true }) },
-      'sheet.sortDesc': { label: 'Sort Z→A', icon: 'sort', run: () => dispatch({ op: 'sort', ascending: false }) },
-      'sheet.chart': { label: 'Chart', icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: 'column' }) },
+      'file.new': { label: t('New'), icon: 'new', key: 'Mod+N', run: () => shell.win.create({ app: 'sheets' }) },
+      'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
+      'file.save': { label: t('Save'), icon: 'save', key: 'Mod+S', run: () => save(false) },
+      'file.saveAs': { label: t('Save as…'), icon: 'save', key: 'Mod+Shift+S', run: () => save(true) },
+      'file.print': { label: t('Print…'), icon: 'print', key: 'Mod+P', global: true, run: () => setDialog('print') },
+      'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', run: async () => { const n = await shell.doc.undo({ id: doc.id }); setDoc(n); setModel(n.model); } },
+      'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', run: async () => { const n = await shell.doc.redo({ id: doc.id }); setDoc(n); setModel(n.model); } },
+      'edit.cut': { label: t('Cut'), icon: 'cut', key: 'Mod+X', run: () => clipOut('cut') },
+      'edit.copy': { label: t('Copy'), icon: 'copy', key: 'Mod+C', run: () => clipOut('copy') },
+      'edit.paste': { label: t('Paste'), icon: 'paste', key: 'Mod+V', run: () => clipIn() },
+      'edit.pasteSpecial': { label: t('Paste Special…'), icon: 'paste', key: 'Mod+Alt+V', run: () => setDialog('pasteSpecial') },
+      'edit.clear': { label: t('Clear'), icon: 'close', key: 'Delete', run: () => dispatch({ op: 'clear' }) },
+      'insert.link': { label: t('Link…'), icon: 'link', key: 'Mod+K', run: () => setDialog('link') },
+      'insert.note': { label: t('Note…'), icon: 'reply', key: 'Shift+F2', run: () => setDialog('note') },
+      'insert.comment': { label: t('New comment'), icon: 'reply', key: 'Mod+Alt+M', run: () => actRef.current?.('newComment') },
+      'sheet.autoSum': { label: t('AutoSum'), icon: 'sum', run: () => dispatch({ op: 'autoSum', fn: 'SUM' }) },
+      'sheet.merge': { label: t('Merge cells'), icon: 'table', run: () => dispatch({ op: 'merge' }) },
+      'sheet.insertRow': { label: t('Insert row'), icon: 'plus', run: () => dispatch({ op: 'insertRows', at: model?.selection.top ?? 0, count: 1 }) },
+      'sheet.deleteRow': { label: t('Delete row'), icon: 'minus', run: () => dispatch({ op: 'deleteRows', at: model?.selection.top ?? 0, count: 1 }) },
+      'sheet.insertCol': { label: t('Insert column'), icon: 'plus', run: () => dispatch({ op: 'insertCols', at: model?.selection.left ?? 0, count: 1 }) },
+      'sheet.deleteCol': { label: t('Delete column'), icon: 'minus', run: () => dispatch({ op: 'deleteCols', at: model?.selection.left ?? 0, count: 1 }) },
+      'sheet.sortAsc': { label: t('Sort A→Z'), icon: 'sort', run: () => dispatch({ op: 'sort', ascending: true }) },
+      'sheet.sortDesc': { label: t('Sort Z→A'), icon: 'sort', run: () => dispatch({ op: 'sort', ascending: false }) },
+      'sheet.chart': { label: t('Chart'), icon: 'chart', run: () => dispatch({ op: 'insertChart', kind: 'column' }) },
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [doc, model, dispatch, openFile, save, shell, clipOut, clipIn]
@@ -696,9 +696,9 @@ export default function Sheets({ app, shell, boot }) {
     putDraft(null);
     setPasswordAsk({
       kind: 'range',
-      title: 'Unlock Range',
+      title: t('Unlock Range'),
       range: title,
-      message: `The cell you are trying to change is in the range "${title}", which is protected by a password. Enter the password to change this cell:`,
+      message: t('The cell you are trying to change is in the range "{range}", which is protected by a password. Enter the password to change this cell:', { range: title }),
       retry: ops.filter((o) => o.op !== 'updateDraft' && o.op !== 'commitEdit'),
     });
   };
@@ -934,8 +934,8 @@ export default function Sheets({ app, shell, boot }) {
    */
   const insertPicture = useCallback(async () => {
     const [file] = await shell.dialog.open({
-      title: 'Insert picture',
-      filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+      title: t('Insert picture'),
+      filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
     });
     if (!file) return;
     const { bytes, stat } = await shell.fs.read({ path: file });
@@ -1294,8 +1294,8 @@ export default function Sheets({ app, shell, boot }) {
    * layer, the way the headings already stick in the grid's own tracks.
    */
   const frozen = model?.frozen || { rows: 0, cols: 0 };
-  const frozenH = frozen.rows ? (model?.rows || []).reduce((m, r) => (r.index < frozen.rows ? Math.max(m, r.y + r.height) : m), 0) : 0;
-  const frozenW = frozen.cols ? (model?.columns || []).reduce((m, c) => (c.index < frozen.cols ? Math.max(m, c.x + c.width) : m), 0) : 0;
+  const frozenH = frozen.rows ? (model?.rows || []).reduce((m, r) => (r.index < frozen.rows ? Math.max(m, r.y + r.height) : m), 0) : 0; // words-ok: code, not words
+  const frozenW = frozen.cols ? (model?.columns || []).reduce((m, c) => (c.index < frozen.cols ? Math.max(m, c.x + c.width) : m), 0) : 0; // words-ok: code, not words
   /**
    * The outline gutter, Excel's: a lane per level beside the row headings
    * (above the column headings), the brackets and − / + boxes of the
@@ -1350,7 +1350,7 @@ export default function Sheets({ app, shell, boot }) {
   const lane = (level) => 2.5 + (level - 1) * OUTLINE_LANE + OUTLINE_LANE / 2;
   const headTop = view.headings ? (model?.headerHeight ?? 0) + gutH : 0;
   const headLeft = view.headings ? (model?.headerWidth ?? 0) + gutW : 0;
-  const pane = (at) => (at.row < frozen.rows ? (at.col < frozen.cols ? 'corner' : 'rows') : at.col < frozen.cols ? 'cols' : 'main');
+  const pane = (at) => (at.row < frozen.rows ? (at.col < frozen.cols ? 'corner' : 'rows') : at.col < frozen.cols ? 'cols' : 'main'); // words-ok: code, not words
   /**
    * View → Split: the top and left panes are the frozen panes' pinned
    * layers, each showing the rows or columns it has scrolled to — the top
@@ -1518,16 +1518,16 @@ export default function Sheets({ app, shell, boot }) {
               // The drawing's own place on the sheet: an id like "d5" is its
               // drawing number, not its place, and read as one named the first.
               onContextMenu={(e) => menu.open(e, [
-                { label: 'Edit Alt Text…', icon: 'textbox', run: () => review.openAltText({ sheet: model.activeSheet, anchor: d.index ?? (Number(String(d.id).replace('drawing-', '')) || 0) }) },
-                { label: picked.includes(d.id) && picked.length > 1 ? 'Delete drawings' : 'Delete', icon: 'trash', run: () => { const ids = picked.includes(d.id) ? picked : [d.id]; setPicked([]); dispatch({ op: 'deleteDrawings', ids }); } },
+                { label: t('Edit Alt Text…'), icon: 'textbox', run: () => review.openAltText({ sheet: model.activeSheet, anchor: d.index ?? (Number(String(d.id).replace('drawing-', '')) || 0) }) },
+                { label: picked.includes(d.id) && picked.length > 1 ? t('Delete drawings') : t('Delete'), icon: 'trash', run: () => { const ids = picked.includes(d.id) ? picked : [d.id]; setPicked([]); dispatch({ op: 'deleteDrawings', ids }); } },
               ])}
               data-name={d.name || ''}
               style={{ left: box.x, top: box.y, width: box.width, height: box.height, ...(transform ? { transform } : {}) }}
-              title={d.unsupported ? `${d.name || d.kind}: ${d.unsupported}` : d.pivot ? `${d.name || 'PivotChart'} — a PivotChart of ${d.pivot}` : d.name || undefined}
+              title={d.unsupported ? `${d.name || d.kind}: ${d.unsupported}` : d.pivot ? t('{name} — a PivotChart of {pivot}', { name: d.name || t('PivotChart'), pivot: d.pivot }) : d.name || undefined}
               onMouseDown={(e) => press(e, d)}
               // An equation opens again in the equation editor.
               // A text box or a shape with words (WordArt among them) opens its words.
-              onDoubleClick={d.kind === 'equation' ? () => setDialog({ kind: 'equation', id: d.id, initial: d.linear || '' }) : d.kind === 'shape' && (d.textBox || d.text) ? () => setDialog({ kind: 'words', id: d.id, initial: d.text || '', title: 'Edit Text' }) : undefined}
+              onDoubleClick={d.kind === 'equation' ? () => setDialog({ kind: 'equation', id: d.id, initial: d.linear || '' }) : d.kind === 'shape' && (d.textBox || d.text) ? () => setDialog({ kind: 'words', id: d.id, initial: d.text || '', title: t('Edit Text') }) : undefined}
               {...(d.svg ? { dangerouslySetInnerHTML: { __html: d.svg } } : {})}
             >
               {d.svg ? null : d.members ? d.members.map((m) => (
@@ -1673,7 +1673,7 @@ export default function Sheets({ app, shell, boot }) {
         onDoubleClick={() => dispatch({ op: 'beginEdit' })}
         onContextMenu={(e) => menu.open(e, spark
           ? menuItems(commands, ['edit.cut', 'edit.copy', 'edit.paste', 'edit.pasteSpecial', 'edit.clear', '-']).concat([
-            { label: 'Remove sparkline', icon: 'close', run: () => dispatch({ op: 'removeSparklines', at: cell.ref }) },
+            { label: t('Remove sparkline'), icon: 'close', run: () => dispatch({ op: 'removeSparklines', at: cell.ref }) },
           ])
           : menuItems(commands, ['edit.cut', 'edit.copy', 'edit.paste', 'edit.pasteSpecial', 'edit.clear', '-', 'insert.link', 'insert.comment', 'insert.note', '-', 'sheet.insertRow', 'sheet.insertCol', '-', 'sheet.merge']))}
         data-tip={tipFor(cell)}
@@ -1712,7 +1712,7 @@ export default function Sheets({ app, shell, boot }) {
     const out = [];
     let at = 0;
     refs.forEach((r, i) => {
-      if (r.start > at) out.push(<span key={`t${i}`}>{text.slice(at, r.start)}</span>);
+      if (r.start > at) out.push(<span key={`t${i}`}>{text.slice(at, r.start)}</span>); // words-ok: code, not words
       out.push(<span key={`r${i}`} className="sh-ref-text" style={{ color: REF_COLOURS[r.colour] }}>{text.slice(r.start, r.end)}</span>);
       at = r.end;
     });
@@ -1827,8 +1827,7 @@ export default function Sheets({ app, shell, boot }) {
         }
       }
       if (mid !== null) {
-        const what = row ? 'rows' : 'columns';
-        const span = row ? `${g.start + 1} to ${g.end + 1}` : `${colLabel(g.start)} to ${colLabel(g.end)}`;
+        const span = { from: row ? g.start + 1 : colLabel(g.start), to: row ? g.end + 1 : colLabel(g.end) };
         boxes.push(
           <div
             key={key + 'b'}
@@ -1836,7 +1835,9 @@ export default function Sheets({ app, shell, boot }) {
             data-axis={axis}
             data-level={g.level}
             data-start={g.start}
-            data-tip={g.collapsed ? `Show Detail — ${what} ${span}` : `Hide Detail — ${what} ${span}`}
+            data-tip={g.collapsed
+              ? (row ? t('Show Detail — rows {from} to {to}', span) : t('Show Detail — columns {from} to {to}', span))
+              : (row ? t('Hide Detail — rows {from} to {to}', span) : t('Hide Detail — columns {from} to {to}', span))}
             style={row ? { left: c - BOX / 2, top: Math.round(mid - BOX / 2) } : { top: c - BOX / 2, left: Math.round(mid - BOX / 2) }}
             onMouseDown={(e) => e.stopPropagation()}
             onClick={() => dispatch({ op: 'outlineToggle', axis, level: g.level, start: g.start })}
@@ -1864,7 +1865,7 @@ export default function Sheets({ app, shell, boot }) {
         className="sh-ol-level"
         data-axis={axis}
         data-level={n}
-        data-tip={`${n} — show ${axis === 'row' ? 'rows' : 'columns'} down to outline level ${n}`}
+        data-tip={axis === 'row' ? t('{n} — show rows down to outline level {n}', { n }) : t('{n} — show columns down to outline level {n}', { n })}
         style={style}
         onMouseDown={(e) => e.stopPropagation()}
         onClick={() => dispatch({ op: 'outlineLevel', axis, level: n })}
@@ -1895,7 +1896,7 @@ export default function Sheets({ app, shell, boot }) {
       {model.rtl ? <span className="sh-words">{c.label || colLabel(c.index)}</span> : (c.label || colLabel(c.index))}
       <div
         className="sh-grip col"
-        title="Drag to resize the column; double-click to fit its text"
+        title={t('Drag to resize the column; double-click to fit its text')}
         onMouseDown={(e) => startResize(e, 'col', c.index, c.width, c.x)}
         onClick={(e) => e.stopPropagation()}
         onDoubleClick={(e) => {
@@ -1918,7 +1919,7 @@ export default function Sheets({ app, shell, boot }) {
       {model.rtl ? <span className="sh-words">{r.label ?? r.index + 1}</span> : (r.label ?? r.index + 1)}
       <div
         className="sh-grip row"
-        title="Drag to resize the row; double-click for the default height"
+        title={t('Drag to resize the row; double-click for the default height')}
         onMouseDown={(e) => startResize(e, 'row', r.index, r.height, r.y)}
         onClick={(e) => e.stopPropagation()}
         onDoubleClick={(e) => {
@@ -1941,11 +1942,11 @@ export default function Sheets({ app, shell, boot }) {
     return (
       <div className="sh-errors">
         <div className="sh-errors-head">
-          <strong>{list.length ? `${list.length} error${list.length === 1 ? '' : 's'}` : 'No errors found'}</strong>
+          <strong>{list.length ? tn(list.length, '{count} error', '{count} errors') : t('No errors found')}</strong>
           <Spacer />
-          <Button className="sh-error-prev" icon="chevronUp" title="Previous error" disabled={!list.length} onClick={() => act('stepError', 'prev')} />
-          <Button className="sh-error-next" icon="chevronDown" title="Next error" disabled={!list.length} onClick={() => act('stepError', 'next')} />
-          <Button icon="close" title="Close — turns Error Checking off" onClick={() => act('errorCheck', false)} />
+          <Button className="sh-error-prev" icon="chevronUp" title={t('Previous error')} disabled={!list.length} onClick={() => act('stepError', 'prev')} />
+          <Button className="sh-error-next" icon="chevronDown" title={t('Next error')} disabled={!list.length} onClick={() => act('stepError', 'next')} />
+          <Button icon="close" title={t('Close — turns Error Checking off')} onClick={() => act('errorCheck', false)} />
         </div>
         {list.length ? (
           <div className="sh-errors-list">
@@ -1986,19 +1987,19 @@ export default function Sheets({ app, shell, boot }) {
     return (
       <div className="sh-watch">
         <div className="sh-watch-head">
-          <strong>{list.length ? `${list.length} cell${list.length === 1 ? '' : 's'} watched` : 'No cells watched'}</strong>
+          <strong>{list.length ? tn(list.length, '{count} cell watched', '{count} cells watched') : t('No cells watched')}</strong>
           <Spacer />
-          <Button icon="plus" label="Add Watch" title="Add Watch — every cell in the current selection" onClick={() => act('addWatch')} />
-          <Button icon="trash" label="Delete Watch" title="Delete Watch — the selected row" disabled={!watchSel} onClick={() => act('deleteWatch')} />
-          <Button icon="close" title="Close — turns the Watch Window off" onClick={() => act('watchOpen', false)} />
+          <Button icon="plus" label={t('Add Watch')} title={t('Add Watch — every cell in the current selection')} onClick={() => act('addWatch')} />
+          <Button icon="trash" label={t('Delete Watch')} title={t('Delete Watch — the selected row')} disabled={!watchSel} onClick={() => act('deleteWatch')} />
+          <Button icon="close" title={t('Close — turns the Watch Window off')} onClick={() => act('watchOpen', false)} />
         </div>
         {list.length ? (
           <div className="sh-watch-list">
             <div className="sh-watch-row sh-watch-cols">
-              <span>Sheet</span>
-              <span>Cell</span>
-              <span>Value</span>
-              <span>Formula</span>
+              <span>{t('Sheet')}</span>
+              <span>{t('Cell')}</span>
+              <span>{t('Value')}</span>
+              <span>{t('Formula')}</span>
               <span />
             </div>
             {list.map((w) => (
@@ -2017,7 +2018,7 @@ export default function Sheets({ app, shell, boot }) {
                 <Button
                   className="sh-watch-x"
                   icon="close"
-                  title="Remove this watch"
+                  title={t('Remove this watch')}
                   onClick={(e) => { e.stopPropagation(); if (selKey === keyOf(w)) setWatchSel(null); act('removeWatch', w); }}
                 />
               </div>
@@ -2077,16 +2078,16 @@ export default function Sheets({ app, shell, boot }) {
         {shade('r', a.x + a.width, a.y, W - a.x - a.width, a.height)}
         {pb.pages.map((p) => (
           <div key={'p' + p.n} className="sh-pb-page" data-page={p.n} style={{ left: p.x, top: p.y, width: p.width, height: p.height }}>
-            <span style={{ fontSize: Math.max(18, Math.min(64, Math.round(Math.min(p.width / 4, p.height / 5)))) }}>Page {p.n}</span>
+            <span style={{ fontSize: Math.max(18, Math.min(64, Math.round(Math.min(p.width / 4, p.height / 5)))) }}>{t('Page {n}', { n: p.n })}</span>
           </div>
         ))}
         <div className="sh-pb-area" style={{ left: a.x, top: a.y, width: a.width, height: a.height }} />
         {pb.rows.map((b) => (
-          <div key={'r' + b.index} className={`sh-pb-break row${b.manual ? ' manual' : ''}`} data-index={b.index} data-tip={`${b.manual ? 'Page break put by hand' : 'Automatic page break'} above row ${b.index + 1} — drag to move it`}
+          <div key={'r' + b.index} className={`sh-pb-break row${b.manual ? ' manual' : ''}`} data-index={b.index} data-tip={b.manual ? t('Page break put by hand above row {row} — drag to move it', { row: b.index + 1 }) : t('Automatic page break above row {row} — drag to move it', { row: b.index + 1 })}
             style={{ left: a.x, top: b.y - 4, width: a.width }} onMouseDown={shift ? undefined : (e) => startDrag(e, 'row', b)} />
         ))}
         {pb.cols.map((b) => (
-          <div key={'c' + b.index} className={`sh-pb-break col${b.manual ? ' manual' : ''}`} data-index={b.index} data-tip={`${b.manual ? 'Page break put by hand' : 'Automatic page break'} left of column ${colLabel(b.index)} — drag to move it`}
+          <div key={'c' + b.index} className={`sh-pb-break col${b.manual ? ' manual' : ''}`} data-index={b.index} data-tip={b.manual ? t('Page break put by hand left of column {col} — drag to move it', { col: colLabel(b.index) }) : t('Automatic page break left of column {col} — drag to move it', { col: colLabel(b.index) })}
             style={{ top: a.y, left: b.x - 4, height: a.height }} onMouseDown={shift ? undefined : (e) => startDrag(e, 'col', b)} />
         ))}
         {breakDrag ? (
@@ -2136,12 +2137,12 @@ export default function Sheets({ app, shell, boot }) {
         : (has ? p.box.y - p.y + p.box.height - pl.foot : p.height - Math.max(6, m.bottom / 2 + 12));
       const height = has ? (kind === 'head' ? pl.head : pl.foot) : 24;
       const said = has && p.n ? parts(kind === 'head' ? pl.header : pl.footer, p.n) : null;
-      const label = kind === 'head' ? 'Click to add header' : 'Click to add footer';
+      const label = kind === 'head' ? t('Click to add header') : t('Click to add footer');
       return (
         <div
           className={`sh-pl-zone ${kind}${has ? ' set' : ''}`}
           data-zone={kind}
-          data-tip={has ? (kind === 'head' ? 'Header — click to change it' : 'Footer — click to change it') : label}
+          data-tip={has ? (kind === 'head' ? t('Header — click to change it') : t('Footer — click to change it')) : label}
           style={{ left: p.box.x - p.x, top, width, height }}
           onMouseDown={(e) => { e.stopPropagation(); }}
           onClick={() => act('headerFooter')}
@@ -2191,7 +2192,7 @@ export default function Sheets({ app, shell, boot }) {
             <div className="sh-pl-box" style={{ left: p.box.x - p.x, top: p.box.y - p.y, width: p.box.width, height: p.box.height }} />
             {zone('head', p)}
             {zone('foot', p)}
-            {p.blank ? <div className="sh-pl-blank" style={{ left: p.box.x - p.x, top: p.box.y - p.y, width: p.box.width, height: p.box.height }}><span>Click to add data</span></div> : null}
+            {p.blank ? <div className="sh-pl-blank" style={{ left: p.box.x - p.x, top: p.box.y - p.y, width: p.box.width, height: p.box.height }}><span>{t('Click to add data')}</span></div> : null}
           </div>
         ))}
       </div>
@@ -2233,8 +2234,8 @@ export default function Sheets({ app, shell, boot }) {
     return (
       <>
         {/* Right to left the grid's own scroll bar is on the left and its columns count from the right. */}
-        {splitH ? <div className={`sh-splitbar h${splitDrag?.axis === 'h' ? ' dragging' : ''}`} data-tip="Split — drag to move; drag to the edge to take it away" style={model.rtl ? { top: hTop - 2, left: barW, right: 0 } : { top: hTop - 2, left: 0, right: barW }} onMouseDown={(e) => start(e, 'h')} /> : null}
-        {splitW ? <div className={`sh-splitbar v${splitDrag?.axis === 'v' ? ' dragging' : ''}`} data-tip="Split — drag to move; drag to the edge to take it away" style={{ left: model.rtl ? (el?.offsetWidth ?? 0) - vLeft - 3 : vLeft - 2, top: 0, bottom: barH }} onMouseDown={(e) => start(e, 'v')} /> : null}
+        {splitH ? <div className={`sh-splitbar h${splitDrag?.axis === 'h' ? ' dragging' : ''}`} data-tip={t('Split — drag to move; drag to the edge to take it away')} style={model.rtl ? { top: hTop - 2, left: barW, right: 0 } : { top: hTop - 2, left: 0, right: barW }} onMouseDown={(e) => start(e, 'h')} /> : null}
+        {splitW ? <div className={`sh-splitbar v${splitDrag?.axis === 'v' ? ' dragging' : ''}`} data-tip={t('Split — drag to move; drag to the edge to take it away')} style={{ left: model.rtl ? (el?.offsetWidth ?? 0) - vLeft - 3 : vLeft - 2, top: 0, bottom: barH }} onMouseDown={(e) => start(e, 'v')} /> : null}
       </>
     );
   };
@@ -2255,7 +2256,7 @@ export default function Sheets({ app, shell, boot }) {
     if (!mode) return null;
     const box = boxOf({ top: card.row, left: card.col, bottom: card.row, right: card.col });
     if (!box) return null;
-    const me = model.commentAuthor || 'You';
+    const me = model.commentAuthor || t('You');
     const initials = (name) => String(name || '?').trim().split(/\s+/).slice(0, 2).map((w) => w[0]?.toUpperCase() || '').join('') || '?';
     const hue = (name) => [...String(name || '')].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 360, 17);
     const avatar = (name) => <span className="sh-avatar" style={{ background: `hsl(${hue(name)} 42% 42%)` }}>{initials(name)}</span>;
@@ -2288,7 +2289,7 @@ export default function Sheets({ app, shell, boot }) {
           }}
         />
         <div className="sh-card-actions">
-          {mode !== 'thread' ? <Button label="Cancel" onClick={() => setCard(thread ? { ...card, mode: 'thread' } : null)} /> : null}
+          {mode !== 'thread' ? <Button label={t('Cancel')} onClick={() => setCard(thread ? { ...card, mode: 'thread' } : null)} /> : null}
           <Button primary label={label} className="sh-card-post" type="submit" onClick={(e) => { e.preventDefault(); e.currentTarget.closest('form').requestSubmit(); }} />
         </div>
       </form>
@@ -2306,8 +2307,8 @@ export default function Sheets({ app, shell, boot }) {
         {thread?.done ? (
           <div className="sh-card-resolved">
             <Icon name="check" size={13} />
-            <span className="grow">Resolved</span>
-            <Button label="Reopen" className="sh-card-reopen" onClick={() => act('resolveComment', { row: card.row, col: card.col, done: false })} />
+            <span className="grow">{t('Resolved')}</span>
+            <Button label={t('Reopen')} className="sh-card-reopen" onClick={() => act('resolveComment', { row: card.row, col: card.col, done: false })} />
           </div>
         ) : null}
         {thread ? (
@@ -2317,18 +2318,18 @@ export default function Sheets({ app, shell, boot }) {
                 <div className="sh-comment-head">
                   {avatar(c.author)}
                   <div className="sh-comment-who">
-                    <div className="sh-comment-name">{c.author || 'Someone'}</div>
+                    <div className="sh-comment-name">{c.author || t('Someone')}</div>
                     <div className="sh-comment-when">{when(c.date)}</div>
                   </div>
                   <div className="sh-comment-tools">
                     {i === 0 && !thread.done ? (
-                      <Button icon="check" className="sh-card-resolve" title="Resolve thread — mark the conversation done; Reopen brings it back" onClick={() => act('resolveComment', { row: card.row, col: card.col, done: true })} />
+                      <Button icon="check" className="sh-card-resolve" title={t('Resolve thread — mark the conversation done; Reopen brings it back')} onClick={() => act('resolveComment', { row: card.row, col: card.col, done: true })} />
                     ) : null}
-                    <Button icon="more" className="sh-comment-more" title="More — edit or delete" onClick={(e) => menu.open(e, [
-                      { label: 'Edit comment', icon: 'textbox', run: () => setCard({ ...card, mode: 'thread', editing: c.id }) },
+                    <Button icon="more" className="sh-comment-more" title={t('More — edit or delete')} onClick={(e) => menu.open(e, [
+                      { label: t('Edit comment'), icon: 'textbox', run: () => setCard({ ...card, mode: 'thread', editing: c.id }) },
                       i === 0
-                        ? { label: 'Delete thread', icon: 'trash', run: () => act('deleteComment', { id: c.id, top: true }) }
-                        : { label: 'Delete comment', icon: 'trash', run: () => act('deleteComment', { id: c.id }) },
+                        ? { label: t('Delete thread'), icon: 'trash', run: () => act('deleteComment', { id: c.id, top: true }) }
+                        : { label: t('Delete comment'), icon: 'trash', run: () => act('deleteComment', { id: c.id }) },
                     ])} />
                   </div>
                 </div>
@@ -2344,8 +2345,8 @@ export default function Sheets({ app, shell, boot }) {
                   >
                     <textarea name="words" className="sh-comment-edit" defaultValue={c.text} autoFocus rows={3} onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); e.currentTarget.form.requestSubmit(); } }} />
                     <div className="sh-card-actions">
-                      <Button label="Cancel" onClick={() => setCard({ ...card, editing: null })} />
-                      <Button primary label="Save" className="sh-comment-save" onClick={(e) => { e.preventDefault(); e.currentTarget.closest('form').requestSubmit(); }} />
+                      <Button label={t('Cancel')} onClick={() => setCard({ ...card, editing: null })} />
+                      <Button primary label={t('Save')} className="sh-comment-save" onClick={(e) => { e.preventDefault(); e.currentTarget.closest('form').requestSubmit(); }} />
                     </div>
                   </form>
                 ) : (
@@ -2355,7 +2356,7 @@ export default function Sheets({ app, shell, boot }) {
             ))}
           </div>
         ) : null}
-        {thread?.done ? null : mode === 'new' ? composer('Start a conversation', 'Post') : composer('Reply…', 'Reply')}
+        {thread?.done ? null : mode === 'new' ? composer(t('Start a conversation'), t('Post')) : composer(t('Reply…'), t('Reply'))}
       </div>
     );
   };
@@ -2373,29 +2374,29 @@ export default function Sheets({ app, shell, boot }) {
     return (
       <div className="sh-comments">
         <div className="sh-comments-head">
-          <strong>Comments</strong>
+          <strong>{t('Comments')}</strong>
           <Spacer />
-          <Button icon="plus" label="New" title="New — a comment on the active cell" onClick={() => act('newComment')} />
-          <Button icon="close" title="Close — hides the Comments pane" onClick={() => act('commentsOpen', false)} />
+          <Button icon="plus" label={t('New')} title={t('New — a comment on the active cell')} onClick={() => act('newComment')} />
+          <Button icon="close" title={t('Close — hides the Comments pane')} onClick={() => act('commentsOpen', false)} />
         </div>
         <div className="sh-comments-filter">
-          {[['all', `All ${all.length}`], ['open', `Open ${open}`], ['resolved', `Resolved ${all.length - open}`]].map(([key, label]) => (
+          {[['all', t('All {n}', { n: all.length })], ['open', t('Open {n}', { n: open })], ['resolved', t('Resolved {n}', { n: all.length - open })]].map(([key, label]) => (
             <button key={key} type="button" className={commentFilter === key ? 'on' : ''} data-filter={key} onClick={() => setCommentFilter(key)}>{label}</button>
           ))}
         </div>
         <div className="sh-comments-list">
-          {list.length ? list.map((t) => {
-            const here = t.sheet === model.activeSheet && sel?.active?.row === t.row && sel?.active?.col === t.col;
-            const first = t.comments[0] || {};
-            const replies = t.comments.length - 1;
+          {list.length ? list.map((th) => {
+            const here = th.sheet === model.activeSheet && sel?.active?.row === th.row && sel?.active?.col === th.col;
+            const first = th.comments[0] || {};
+            const replies = th.comments.length - 1;
             return (
-              <div key={t.sheet + '!' + t.ref} className={`sh-comments-item${here ? ' here' : ''}${t.done ? ' resolved' : ''}`} data-ref={t.ref} data-sheet={t.sheet} onClick={() => act('gotoThread', t)}>
-                <div className="where"><span className="ref">{t.ref}</span><span>{t.sheet}</span>{t.done ? <span className="done">Resolved</span> : null}</div>
-                <div className="first"><b>{first.author || 'Someone'}</b><span>{first.text}</span></div>
-                {replies ? <div className="more">{replies} {replies === 1 ? 'reply' : 'replies'}</div> : null}
+              <div key={th.sheet + '!' + th.ref} className={`sh-comments-item${here ? ' here' : ''}${th.done ? ' resolved' : ''}`} data-ref={th.ref} data-sheet={th.sheet} onClick={() => act('gotoThread', th)}>
+                <div className="where"><span className="ref">{th.ref}</span><span>{th.sheet}</span>{th.done ? <span className="done">{t('Resolved')}</span> : null}</div>
+                <div className="first"><b>{first.author || t('Someone')}</b><span>{first.text}</span></div>
+                {replies ? <div className="more">{tn(replies, '{count} reply', '{count} replies')}</div> : null}
               </div>
             );
-          }) : <div className="sh-comments-empty">{all.length ? 'No comments in this view.' : 'No comments yet. New Comment starts one on the active cell.'}</div>}
+          }) : <div className="sh-comments-empty">{all.length ? t('No comments in this view.') : t('No comments yet. New Comment starts one on the active cell.')}</div>}
         </div>
       </div>
     );
@@ -2407,8 +2408,8 @@ export default function Sheets({ app, shell, boot }) {
 
   if (error) {
     return (
-      <AppFrame app={app} shell={shell} title="Worksheets" menu={appMenu}>
-        <Empty icon={lockedOut ? 'lock' : 'sheets'} title={lockedOut ? 'This workbook is password-protected' : 'This file could not be opened'} action={lockedOut ? <LockedAction /> : null}>
+      <AppFrame app={app} shell={shell} title={t('Worksheets')} menu={appMenu}>
+        <Empty icon={lockedOut ? 'lock' : 'sheets'} title={lockedOut ? t('This workbook is password-protected') : t('This file could not be opened')} action={lockedOut ? <LockedAction /> : null}>
           {error}
         </Empty>
       </AppFrame>
@@ -2433,7 +2434,7 @@ export default function Sheets({ app, shell, boot }) {
    * that will not do — rather than as a toast: the sentence, or null.
    */
   const tryOps = async (...ops) => {
-    if (!doc) return 'No workbook';
+    if (!doc) return t('No workbook');
     try {
       const next = await shell.doc.apply({ id: doc.id, ops });
       setDoc(next);
@@ -2481,26 +2482,26 @@ export default function Sheets({ app, shell, boot }) {
         // sent back whole, since the writer rebuilds it from what it is given.
         const current = await shell.doc.pageSetup({ id: doc.id });
         const next = { ...current };
-        let said = 'Page setup saved with the file';
-        if (arg.orientation) { next.orientation = arg.orientation; said = `Orientation: ${arg.orientation}`; }
-        if (arg.size) { next.paper = arg.size; said = `Paper: ${arg.size}`; }
-        if (arg.margins && MARGIN_PRESETS[arg.margins]) { next.margins = { ...MARGIN_PRESETS[arg.margins] }; said = `Margins: ${arg.margins}`; }
+        let said = t('Page setup saved with the file');
+        if (arg.orientation) { next.orientation = arg.orientation; said = t('Orientation: {value}', { value: arg.orientation === 'portrait' ? t('portrait') : arg.orientation === 'landscape' ? t('landscape') : arg.orientation }); }
+        if (arg.size) { next.paper = arg.size; said = t('Paper: {size}', { size: arg.size }); }
+        if (arg.margins && MARGIN_PRESETS[arg.margins]) { next.margins = { ...MARGIN_PRESETS[arg.margins] }; said = t('Margins: {name}', { name: { normal: t('normal'), narrow: t('narrow'), wide: t('wide') }[arg.margins] || arg.margins }); }
         if (arg.fit !== undefined) {
           next.fit = arg.fit;
-          said = { none: 'No scaling', width: 'All the columns on one page across', height: 'All the rows on one page down', page: 'The sheet on one page' }[arg.fit] || 'Scaling set';
+          said = { none: t('No scaling'), width: t('All the columns on one page across'), height: t('All the rows on one page down'), page: t('The sheet on one page') }[arg.fit] || t('Scaling set');
         }
-        if (arg.scale !== undefined) { next.scale = arg.scale; next.fit = 'none'; said = `Scale: ${Math.round(arg.scale * 100)}%`; }
+        if (arg.scale !== undefined) { next.scale = arg.scale; next.fit = 'none'; said = t('Scale: {value}%', { value: Math.round(arg.scale * 100) }); }
         if (arg.repeatRows !== undefined) {
           next.repeatRows = arg.repeatRows === 'selection'
             ? (sel && Number.isFinite(sel.top) && sel.top === 0 ? sel.bottom + 1 : 0)
             : Number(arg.repeatRows) || 0;
-          said = next.repeatRows ? `Rows 1 to ${next.repeatRows} repeat at the top of every page` : 'No rows repeat';
-          if (arg.repeatRows === 'selection' && !next.repeatRows) said = 'Select rows from row 1 to repeat them';
+          said = next.repeatRows ? t('Rows 1 to {last} repeat at the top of every page', { last: next.repeatRows }) : t('No rows repeat');
+          if (arg.repeatRows === 'selection' && !next.repeatRows) said = t('Select rows from row 1 to repeat them');
         }
         if (arg.header !== undefined || arg.footer !== undefined) {
           next.header = arg.header || null;
           next.footer = arg.footer || null;
-          said = next.header || next.footer ? 'Header and footer saved with the file' : 'No header or footer';
+          said = next.header || next.footer ? t('Header and footer saved with the file') : t('No header or footer');
         }
         if (arg.breaks) {
           // Excel's Breaks: a break goes above the cell's row and left of its
@@ -2512,19 +2513,19 @@ export default function Sheets({ app, shell, boot }) {
           const colName = (n) => { let s = ''; let k = n + 1; while (k > 0) { const m = (k - 1) % 26; s = String.fromCharCode(65 + m) + s; k = Math.floor((k - 1) / 26); } return s; };
           if (arg.breaks === 'reset') {
             rowsSet.clear(); colsSet.clear();
-            said = 'All page breaks removed';
+            said = t('All page breaks removed');
           } else if (!at) {
             return;
           } else if (arg.breaks === 'insert') {
             if (at.top > 0) rowsSet.add(at.top);
             if (at.left > 0) colsSet.add(at.left);
-            said = at.top > 0 && at.left > 0 ? `Page break above row ${at.top + 1} and left of column ${colName(at.left)}`
-              : at.top > 0 ? `Page break above row ${at.top + 1}`
-              : at.left > 0 ? `Page break left of column ${colName(at.left)}`
-              : 'A page break goes above the row and left of the column of the cell: pick one past A1';
+            said = at.top > 0 && at.left > 0 ? t('Page break above row {row} and left of column {col}', { row: at.top + 1, col: colName(at.left) })
+              : at.top > 0 ? t('Page break above row {row}', { row: at.top + 1 })
+              : at.left > 0 ? t('Page break left of column {col}', { col: colName(at.left) })
+              : t('A page break goes above the row and left of the column of the cell: pick one past A1');
           } else if (arg.breaks === 'remove') {
             const had = rowsSet.delete(at.top) | colsSet.delete(at.left);
-            said = had ? 'Page break removed' : 'No page break at the cell';
+            said = had ? t('Page break removed') : t('No page break at the cell');
           }
           next.rowBreaks = [...rowsSet].sort((a, b) => a - b);
           next.colBreaks = [...colsSet].sort((a, b) => a - b);
@@ -2555,24 +2556,24 @@ export default function Sheets({ app, shell, boot }) {
         return;
       // View → Custom Views, greyed with Excel's reason in a workbook with a table.
       case 'customViews':
-        if (model?.customViewsBlocked) { toast(`Custom Views are ${model.customViewsBlocked}`, { ms: 4000 }); return; }
+        if (model?.customViewsBlocked) { toast(t('Custom Views are {reason}', { reason: model.customViewsBlocked }), { ms: 4000 }); return; }
         setDialog('customViews');
         return;
       // Page Layout → Background, or Delete Background when the sheet has one.
       case 'background': {
         if (model?.background) {
-          if (await dispatch({ op: 'deleteBackground' })) toast('Background deleted', { tone: 'good' });
+          if (await dispatch({ op: 'deleteBackground' })) toast(t('Background deleted'), { tone: 'good' });
           return;
         }
         const [file] = await shell.dialog.open({
-          title: 'Sheet Background',
-          filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
+          title: t('Sheet Background'),
+          filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'] }],
         });
         if (!file) return;
         const { bytes, stat } = await shell.fs.read({ path: file });
         const ext = String(stat?.ext || file.split('.').pop()).replace('.', '').toLowerCase();
         const contentType = { png: 'image/png', gif: 'image/gif', webp: 'image/webp', bmp: 'image/bmp' }[ext] || 'image/jpeg';
-        if (await dispatch({ op: 'setBackground', contentType, data: bytes })) toast('Background set — it is drawn behind the cells and not printed, as in Excel', { tone: 'good', ms: 4200 });
+        if (await dispatch({ op: 'setBackground', contentType, data: bytes })) toast(t('Background set — it is drawn behind the cells and not printed, as in Excel'), { tone: 'good', ms: 4200 });
         return;
       }
       // View → Split, a toggle at the active cell.
@@ -2594,8 +2595,8 @@ export default function Sheets({ app, shell, boot }) {
         await dispatch({ op: 'setPageSetup', setup: next });
         patchView({ page: next });
         toast(inside
-          ? (axis === 'row' ? `Page break above row ${to + 1}` : `Page break left of column ${colLabel(to)}`)
-          : 'Page break removed', { tone: 'good', ms: 2400 });
+          ? (axis === 'row' ? t('Page break above row {row}', { row: to + 1 }) : t('Page break left of column {col}', { col: colLabel(to) }))
+          : t('Page break removed'), { tone: 'good', ms: 2400 });
         return;
       }
       case 'zoom': {
@@ -2623,12 +2624,12 @@ export default function Sheets({ app, shell, boot }) {
         await openWindowMenu(arg, menu, shell, { hiddenOnly: true, toast });
         return;
       case 'newWindow':
-        if (!doc?.path) return toast('Save the workbook first, so a second window can open the same file.', { ms: 5000 });
+        if (!doc?.path) return toast(t('Save the workbook first, so a second window can open the same file.'), { ms: 5000 });
         shell.win.create({ app: 'sheets', file: doc.path });
         return;
       case 'freeze': {
         const spec = arg === 'row' ? { rows: 1, cols: 0 } : arg === 'col' ? { rows: 0, cols: 1 } : arg === 'here' ? { rows: at.row, cols: at.col } : { rows: 0, cols: 0 };
-        if (arg === 'here' && !spec.rows && !spec.cols) return toast('Select a cell below and right of what should stay in view, then freeze.', { ms: 5000 });
+        if (arg === 'here' && !spec.rows && !spec.cols) return toast(t('Select a cell below and right of what should stay in view, then freeze.'), { ms: 5000 });
         await dispatch({ op: 'freeze', ...spec });
         return;
       }
@@ -2645,7 +2646,7 @@ export default function Sheets({ app, shell, boot }) {
             : arg === 'left' ? { row: at.row, col: at.col + 1 }
               : arg === 'up' ? { row: at.row + 1, col: at.col }
                 : { row: at.row - 1, col: at.col };
-          if (source.row < 0 || source.col < 0) return toast('Nothing above or left to fill from.', { ms: 4000 });
+          if (source.row < 0 || source.col < 0) return toast(t('Nothing above or left to fill from.'), { ms: 4000 });
           const target = { top: Math.min(source.row, at.row), left: Math.min(source.col, at.col), bottom: Math.max(source.row, at.row), right: Math.max(source.col, at.col) };
           await dispatch({ op: 'select', row: source.row, col: source.col }, { op: 'fill', target }, { op: 'select', row: at.row, col: at.col });
         } else {
@@ -2679,13 +2680,13 @@ export default function Sheets({ app, shell, boot }) {
         const next = await dispatch({ op: 'calculate', scope });
         if (!next) return;
         const n = Number(next.opResult) || 0;
-        toast(`${scope === 'sheet' ? 'Calculated this sheet' : 'Calculated'}: ${n} formula${n === 1 ? '' : 's'} worked out`, { tone: 'good', ms: 2400 });
+        toast(scope === 'sheet' ? tn(n, 'Calculated this sheet: {count} formula worked out', 'Calculated this sheet: {count} formulas worked out') : tn(n, 'Calculated: {count} formula worked out', 'Calculated: {count} formulas worked out'), { tone: 'good', ms: 2400 });
         return;
       }
       // Formulas → Calculation Options: written to the workbook.
       case 'calcMode': {
         await dispatch({ op: 'setCalcMode', mode: arg });
-        toast({ auto: 'Calculation: automatic', autoNoTable: 'Calculation: automatic except for data tables', manual: 'Calculation: manual — F9 calculates' }[arg] || 'Calculation set', { tone: 'good', ms: 2600 });
+        toast({ auto: t('Calculation: automatic'), autoNoTable: t('Calculation: automatic except for data tables'), manual: t('Calculation: manual — F9 calculates') }[arg] || t('Calculation set'), { tone: 'good', ms: 2600 });
         return;
       }
       // Formulas → Evaluate Formula: the active cell's formula, a part at a time.
@@ -2707,7 +2708,7 @@ export default function Sheets({ app, shell, boot }) {
           if (said) toast(cleanError(said), { tone: 'warn', ms: 4500 });
         }
         try { await shell.doc.apply({ id: doc.id, ops: [{ op: 'refreshPivot' }] }).then((next) => { setDoc(next); setModel(next.model); }); } catch { /* no pivot to refresh */ }
-        toast('Refreshed.', { tone: 'good', ms: 2000 });
+        toast(t('Refreshed.'), { tone: 'good', ms: 2000 });
         return;
       case 'autoFit': {
         // Each selected column takes the widest text on screen, plus padding.
@@ -2720,7 +2721,7 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'textBox':
-        await dispatch({ op: 'insertShape', geometry: 'rect', text: 'Text' });
+        await dispatch({ op: 'insertShape', geometry: 'rect', text: t('Text') });
         return;
       case 'goto': {
         const at2 = parseRef(arg);
@@ -2761,9 +2762,9 @@ export default function Sheets({ app, shell, boot }) {
           setDoc(next);
           setModel(next.model);
           const n = Number(next.opResult) || 0;
-          if (name === 'flashFill') toast(`Flash Fill filled ${n} cell${n === 1 ? '' : 's'}`, { tone: 'good' });
-          else if (name === 'clearFilter') toast(`${n} row${n === 1 ? '' : 's'} shown again`, { tone: 'good' });
-          else toast(arg.action === 'copy' ? `${n} row${n === 1 ? '' : 's'} copied to ${arg.copyTo}` : `${n} row${n === 1 ? '' : 's'} of the list pass the criteria`, { tone: 'good' });
+          if (name === 'flashFill') toast(tn(n, 'Flash Fill filled {count} cell', 'Flash Fill filled {count} cells'), { tone: 'good' });
+          else if (name === 'clearFilter') toast(tn(n, '{count} row shown again', '{count} rows shown again'), { tone: 'good' });
+          else toast(arg.action === 'copy' ? tn(n, '{count} row copied to {target}', '{count} rows copied to {target}', { target: arg.copyTo }) : tn(n, '{count} row of the list pass the criteria', '{count} rows of the list pass the criteria'), { tone: 'good' });
         } catch (err) {
           toast(String(err?.message || err), { tone: 'warn', ms: 5500 });
         }
@@ -2784,7 +2785,7 @@ export default function Sheets({ app, shell, boot }) {
         let info = null;
         try { info = next?.opResult ? JSON.parse(next.opResult) : null; } catch { info = null; }
         if (!info || info.bottom <= info.top) {
-          toast('Select a cell in a list with a header row first — Subtotal groups the rows under it', { tone: 'warn', ms: 5000 });
+          toast(t('Select a cell in a list with a header row first — Subtotal groups the rows under it'), { tone: 'warn', ms: 5000 });
           return;
         }
         setListInfo(info);
@@ -2795,7 +2796,7 @@ export default function Sheets({ app, shell, boot }) {
       // Review → New Comment: the card on the active cell, its box ready —
       // a reply at the end of the thread when the cell has one already.
       case 'newComment': {
-        if (model?.note) { toast('This cell has a note. Delete it, or edit it, to comment here instead.', { tone: 'warn', ms: 4500 }); return; }
+        if (model?.note) { toast(t('This cell has a note. Delete it, or edit it, to comment here instead.'), { tone: 'warn', ms: 4500 }); return; }
         setCard({ row: at.row, col: at.col, mode: model?.thread ? 'reply' : 'new' });
         return;
       }
@@ -2815,7 +2816,7 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'deleteThread': {
-        if (!model?.thread) { toast('There is no comment on this cell to delete.', { ms: 3000 }); return; }
+        if (!model?.thread) { toast(t('There is no comment on this cell to delete.'), { ms: 3000 }); return; }
         await dispatch({ op: 'deleteThread', row: at.row, col: at.col });
         setCard(null);
         return;
@@ -2828,7 +2829,7 @@ export default function Sheets({ app, shell, boot }) {
       case 'stepComment': {
         const next = await dispatch({ op: 'stepComment', direction: arg });
         if (!next) return;
-        if (!next.opResult) { toast('This workbook has no comments.', { ms: 3000 }); return; }
+        if (!next.opResult) { toast(t('This workbook has no comments.'), { ms: 3000 }); return; }
         const a = next.model?.selection?.active;
         if (a) setCard({ row: a.row, col: a.col, mode: 'thread' });
         return;
@@ -2863,7 +2864,7 @@ export default function Sheets({ app, shell, boot }) {
         return;
       }
       case 'queryFromCsv': {
-        const file = arg || (await shell.dialog.open({ title: 'Get Data From Text/CSV', filters: [{ name: 'Text and CSV files', extensions: ['csv', 'tsv', 'txt'] }] }))?.[0];
+        const file = arg || (await shell.dialog.open({ title: t('Get Data From Text/CSV'), filters: [{ name: t('Text and CSV files'), extensions: ['csv', 'tsv', 'txt'] }] }))?.[0];
         if (!file) return;
         const base = String(file).split(/[\\/]/).pop();
         setQueryEdit({ name: base.replace(/\.[^.]+$/, ''), source: { kind: 'csv', path: file }, sourceText: base, steps: [{ kind: 'promoteHeaders' }] });
@@ -2885,27 +2886,27 @@ export default function Sheets({ app, shell, boot }) {
       }
       case 'queryRefresh': {
         const said = await tryOps({ op: 'refreshQueries', id: arg.id });
-        toast(said ? cleanError(said) : `${arg.name} refreshed`, { tone: said ? 'warn' : 'good', ms: said ? 4500 : 2000 });
+        toast(said ? cleanError(said) : t('{name} refreshed', { name: arg.name }), { tone: said ? 'warn' : 'good', ms: said ? 4500 : 2000 });
         return;
       }
       case 'queryDelete':
         await dispatch({ op: 'removeQuery', id: arg.id });
-        toast(`Query ${arg.name} deleted — its sheet stays, as values`, { ms: 3500 });
+        toast(t('Query {name} deleted — its sheet stays, as values', { name: arg.name }), { ms: 3500 });
         return;
       case 'queryGoTo': if (arg.sheet) await dispatch({ op: 'sheet', name: arg.sheet }); return;
       // Automate → New Script, All Scripts and Record Actions.
-      case 'scripts': setScriptsPane({ open: true, script: arg === 'new' ? { id: `s${Date.now().toString(36)}`, name: 'Script', code: null } : null, key: Date.now() }); return;
+      case 'scripts': setScriptsPane({ open: true, script: arg === 'new' ? { id: `s${Date.now().toString(36)}`, name: t('Script'), code: null } : null, key: Date.now() }); return;
       case 'scriptRecord': {
         if (!recordingRef.current) {
           recordingRef.current = [];
           setRecording(true);
-          toast('Recording: what you type and format becomes a script. Press Record Actions again to stop.', { ms: 4500 });
+          toast(t('Recording: what you type and format becomes a script. Press Record Actions again to stop.'), { ms: 4500 });
           return;
         }
         const lines = recordingRef.current;
         recordingRef.current = null;
         setRecording(false);
-        setScriptsPane({ open: true, script: { id: `s${Date.now().toString(36)}`, name: 'Recorded script', code: recordedScript(lines) }, key: Date.now() });
+        setScriptsPane({ open: true, script: { id: `s${Date.now().toString(36)}`, name: t('Recorded script'), code: recordedScript(lines) }, key: Date.now() });
         return;
       }
       case 'pivotFields': setPfClosed(null); return;
@@ -2925,7 +2926,7 @@ export default function Sheets({ app, shell, boot }) {
       case 'arrange': {
         const ids = picked.filter((id) => (model?.drawings || []).some((d) => d.id === id) || (model?.objects || []).some((o) => o.id === id));
         if (arg?.op === 'pane') { setSelPane((v) => !v); return; }
-        if (!ids.length) { toast('Select a picture, shape, chart or slicer first — click it on the sheet, or in the Selection Pane.', { tone: 'warn', ms: 4000 }); return; }
+        if (!ids.length) { toast(t('Select a picture, shape, chart or slicer first — click it on the sheet, or in the Selection Pane.'), { tone: 'warn', ms: 4000 }); return; }
         if (arg.op === 'group') {
           const next = await dispatch({ op: 'groupDrawings', ids });
           if (next?.opResult) setPicked([next.opResult]);
@@ -2946,7 +2947,7 @@ export default function Sheets({ app, shell, boot }) {
         let src = null;
         try { src = next?.opResult ? JSON.parse(next.opResult) : null; } catch { src = null; }
         if (!src?.kind) {
-          toast(src?.reason || 'Put the cursor in a table or a pivot table — a slicer filters one of them.', { tone: 'warn', ms: 5000 });
+          toast(src?.reason || t('Put the cursor in a table or a pivot table — a slicer filters one of them.'), { tone: 'warn', ms: 5000 });
           return;
         }
         setSlicerAsk(src);
@@ -2958,7 +2959,7 @@ export default function Sheets({ app, shell, boot }) {
       // Insert → Equation: typed in its linear form, set as math over the selection.
       case 'equation': setDialog({ kind: 'equation', id: null, initial: '' }); return;
       // Insert → WordArt: the words asked for, in the chosen style.
-      case 'wordArt': setDialog({ kind: 'words', id: null, initial: 'Your text here', look: arg?.run || {}, title: 'WordArt' }); return;
+      case 'wordArt': setDialog({ kind: 'words', id: null, initial: t('Your text here'), look: arg?.run || {}, title: t('WordArt') }); return;
       // Shape Format → Transform: the picked shape's words along a preset's path.
       case 'textWarp': dispatch({ op: 'setShapeWarp', id: arg.id, preset: arg.preset === 'textNoShape' ? null : arg.preset }); return;
       // Insert → SmartArt: the box, then the layout's shapes as one group at the selection.
@@ -2994,11 +2995,11 @@ export default function Sheets({ app, shell, boot }) {
         const got = await shell.doc.trace({ id: doc.id, kind: arg, row: at.row, col: at.col }).catch(() => null);
         if (!got) return;
         if (!got.arrows.length) {
-          toast(arg === 'dependents' ? 'No formula on this sheet reads this cell' : (got.elsewhere ? 'This formula reads other sheets or names only' : 'This cell reads no other cell'), { ms: 3500 });
+          toast(arg === 'dependents' ? t('No formula on this sheet reads this cell') : (got.elsewhere ? t('This formula reads other sheets or names only') : t('This cell reads no other cell')), { ms: 3500 });
           return;
         }
         setArrows((prev) => [...prev, ...got.arrows.map((a) => ({ ...a, kind: arg, at: { row: at.row, col: at.col } }))]);
-        if (got.elsewhere) toast(`${got.elsewhere} reference${got.elsewhere === 1 ? '' : 's'} on other sheets or by name not drawn`, { ms: 3500 });
+        if (got.elsewhere) toast(tn(got.elsewhere, '{count} reference on other sheets or by name not drawn', '{count} references on other sheets or by name not drawn'), { ms: 3500 });
         return;
       }
       case 'removeArrows':
@@ -3007,7 +3008,7 @@ export default function Sheets({ app, shell, boot }) {
       case 'namesFromSelection': {
         try {
           await dispatch({ op: 'namesFromSelection' });
-          toast('A name for each column, from its header — the Name Manager lists them', { tone: 'good', ms: 4000 });
+          toast(t('A name for each column, from its header — the Name Manager lists them'), { tone: 'good', ms: 4000 });
         } catch (err) {
           toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
         }
@@ -3017,7 +3018,7 @@ export default function Sheets({ app, shell, boot }) {
         // The engine refuses more than one column; its message is the toast.
         try {
           await dispatch({ op: 'textToColumns', delimiter: arg || 'comma' });
-          toast('Split into the cells to the right', { tone: 'good' });
+          toast(t('Split into the cells to the right'), { tone: 'good' });
         } catch (err) {
           toast(String(err?.message || err), { tone: 'warn', ms: 5000 });
         }
@@ -3029,7 +3030,7 @@ export default function Sheets({ app, shell, boot }) {
         await dispatch({ op: 'removeDuplicates' });
         const after = await shell.doc.model({ id: doc.id }).catch(() => null);
         const filledAfter = (after?.cells || []).filter((c) => c.text !== '').length;
-        toast(filledAfter < filledBefore ? 'Duplicate rows removed; the rest closed up' : 'No duplicate rows in the selection', { tone: 'good' });
+        toast(filledAfter < filledBefore ? t('Duplicate rows removed; the rest closed up') : t('No duplicate rows in the selection'), { tone: 'good' });
         return;
       }
       case 'addSheet': {
@@ -3045,10 +3046,10 @@ export default function Sheets({ app, shell, boot }) {
       case 'protectSheet': {
         if (model?.protection?.sheet) {
           if (model.protection.hasPassword) {
-            setPasswordAsk({ kind: 'sheet', title: 'Unprotect Sheet', message: 'This sheet is protected with a password. Type it to take the protection off.' });
+            setPasswordAsk({ kind: 'sheet', title: t('Unprotect Sheet'), message: t('This sheet is protected with a password. Type it to take the protection off.') });
             return;
           }
-          if (await dispatch({ op: 'unprotect' })) toast('Sheet unprotected', { tone: 'good' });
+          if (await dispatch({ op: 'unprotect' })) toast(t('Sheet unprotected'), { tone: 'good' });
           return;
         }
         setDialog('protectSheet');
@@ -3058,10 +3059,10 @@ export default function Sheets({ app, shell, boot }) {
       case 'protectWorkbook': {
         if (model?.workbookProtection?.structure) {
           if (model.workbookProtection.hasPassword) {
-            setPasswordAsk({ kind: 'workbook', title: 'Unprotect Workbook', message: 'The workbook’s structure is protected with a password. Type it to take the protection off.' });
+            setPasswordAsk({ kind: 'workbook', title: t('Unprotect Workbook'), message: t('The workbook’s structure is protected with a password. Type it to take the protection off.') });
             return;
           }
-          if (await dispatch({ op: 'unprotectWorkbook' })) toast('Workbook unprotected — sheets can be added, moved and renamed again', { tone: 'good' });
+          if (await dispatch({ op: 'unprotectWorkbook' })) toast(t('Workbook unprotected — sheets can be added, moved and renamed again'), { tone: 'good' });
           return;
         }
         setDialog('protectWorkbook');
@@ -3081,7 +3082,7 @@ export default function Sheets({ app, shell, boot }) {
         const next = await dispatch({ op: 'forecastInfo' });
         if (!next) return;
         const info = JSON.parse(next.opResult || 'null');
-        if (!info) { toast('Select a timeline and its values — dates in one column, numbers in the next — or put the cursor in them.', { ms: 5000 }); return; }
+        if (!info) { toast(t('Select a timeline and its values — dates in one column, numbers in the next — or put the cursor in them.'), { ms: 5000 }); return; }
         setAnalysis(info);
         setDialog('forecast');
         return;
@@ -3100,7 +3101,7 @@ export default function Sheets({ app, shell, boot }) {
         const current = await shell.doc.pageSetup({ id: doc.id });
         if (arg === 'clear') {
           await dispatch({ op: 'setPageSetup', setup: { ...current, area: '' } });
-          toast('Print area cleared', { tone: 'good' });
+          toast(t('Print area cleared'), { tone: 'good' });
           return;
         }
         // The frame's selection is flat: the range's top, bottom, left and right sit beside `active`.
@@ -3109,7 +3110,7 @@ export default function Sheets({ app, shell, boot }) {
         const letters = (n) => { let s = ''; let k = n + 1; while (k > 0) { const m = (k - 1) % 26; s = String.fromCharCode(65 + m) + s; k = Math.floor((k - 1) / 26); } return s; };
         const area = `${letters(r.left)}${r.top + 1}:${letters(r.right)}${r.bottom + 1}`;
         await dispatch({ op: 'setPageSetup', setup: { ...current, area } });
-        toast(`Print area: ${area}`, { tone: 'good' });
+        toast(t('Print area: {area}', { area }), { tone: 'good' });
         return;
       }
       // A link is followed: an address opens outside the suite, a place in
@@ -3169,7 +3170,7 @@ export default function Sheets({ app, shell, boot }) {
         }
         const refs = all.slice(0, cap);
         await dispatch({ op: 'watchAdd', refs });
-        if (all.length > cap) toast(`Only the first ${cap} cells of the selection were added`, { tone: 'warn', ms: 4000 });
+        if (all.length > cap) toast(t('Only the first {cap} cells of the selection were added', { cap }), { tone: 'warn', ms: 4000 });
         return;
       }
       // A row's own × button: remove that one watch.
@@ -3198,7 +3199,7 @@ export default function Sheets({ app, shell, boot }) {
       case 'feedback': shell.shell.openExternal({ url: SITE.contact }); return;
       case 'about': shell.win.create({ app: 'home', query: { about: 1 } }); return;
       default:
-        toast(`${name} is not wired yet.`, { ms: 3000 });
+        toast(t('{name} is not wired yet.', { name }), { ms: 3000 });
     }
   };
 
@@ -3208,8 +3209,8 @@ export default function Sheets({ app, shell, boot }) {
     <AppFrame
       app={app}
       shell={shell}
-      title={doc?.name || 'Worksheets'}
-      subtitle={doc?.converted ? `from ${doc.converted.from.toUpperCase()}` : null}
+      title={doc?.name || t('Worksheets')}
+      subtitle={doc?.converted ? t('from {format}', { format: doc.converted.from.toUpperCase() }) : null}
       dirty={doc?.dirty}
       menu={appMenu}
       ribbon={
@@ -3236,34 +3237,34 @@ export default function Sheets({ app, shell, boot }) {
       }
       status={
         <>
-          <span>{doc?.path || 'Not saved yet'}</span>
+          <span>{doc?.path || t('Not saved yet')}</span>
           <Spacer />
           {status ? (
             <>
-              <Chip>Count {status.count}</Chip>
-              {status.numeric ? <Chip>Sum {formatNumber(status.sum)}</Chip> : null}
-              {status.numeric ? <Chip>Average {formatNumber(status.average)}</Chip> : null}
+              <Chip>{t('Count {n}', { n: status.count })}</Chip>
+              {status.numeric ? <Chip>{t('Sum {value}', { value: formatNumber(status.sum) })}</Chip> : null}
+              {status.numeric ? <Chip>{t('Average {value}', { value: formatNumber(status.average) })}</Chip> : null}
             </>
           ) : null}
           {review.status}
           <Chip>{model?.activeSheet || ''}</Chip>
           <Chip>{sel?.ref || ''}</Chip>
-          {model?.link ? <Chip title="Ctrl+click the cell to open it">{model.link.href || model.link.location}</Chip> : null}
-          {model?.notes ? <Chip title="Rest the pointer on a marked cell to read its note">{model.notes} {model.notes === 1 ? 'note' : 'notes'}</Chip> : null}
-          {model?.threads ? <Chip title="Review → Show Comments lists them">{model.threads} {model.threads === 1 ? 'comment' : 'comments'}</Chip> : null}
+          {model?.link ? <Chip title={t('Ctrl+click the cell to open it')}>{model.link.href || model.link.location}</Chip> : null}
+          {model?.notes ? <Chip title={t('Rest the pointer on a marked cell to read its note')}>{tn(model.notes, '{count} note', '{count} notes')}</Chip> : null}
+          {model?.threads ? <Chip title={t('Review → Show Comments lists them')}>{tn(model.threads, '{count} comment', '{count} comments')}</Chip> : null}
           {model?.calc?.pending ? (
             // Excel's word for formulas that have not caught up with an edit
             // in manual mode; pressing it is Calculate Now.
-            <button type="button" className="sh-calc-pending" data-tip="Calculate — formulas are waiting for Calculate Now (F9)" onClick={() => act('calculate', 'workbook')}>Calculate</button>
+            <button type="button" className="sh-calc-pending" data-tip={t('Calculate — formulas are waiting for Calculate Now (F9)')} onClick={() => act('calculate', 'workbook')}>{t('Calculate')}</button>
           ) : null}
           <span className="sh-viewbtns">
-            <button type="button" className={`sh-viewbtn${(model?.viewMode || 'normal') === 'normal' ? ' on' : ''}`} data-view="normal" data-tip="Normal" onClick={() => act('view', 'normal')}>
+            <button type="button" className={`sh-viewbtn${(model?.viewMode || 'normal') === 'normal' ? ' on' : ''}`} data-view="normal" data-tip={t('Normal')} onClick={() => act('view', 'normal')}>
               <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1" /><path d="M1.5 5.2h11M1.5 8.8h11M5.2 1.5v11M8.8 1.5v11" /></svg>
             </button>
-            <button type="button" className={`sh-viewbtn${model?.viewMode === 'pageLayout' ? ' on' : ''}`} data-view="pageLayout" data-tip="Page Layout" onClick={() => act('view', 'pageLayout')}>
+            <button type="button" className={`sh-viewbtn${model?.viewMode === 'pageLayout' ? ' on' : ''}`} data-view="pageLayout" data-tip={t('Page Layout')} onClick={() => act('view', 'pageLayout')}>
               <svg width="14" height="14" viewBox="0 0 14 14"><rect x="2.5" y="1.5" width="9" height="11" rx="0.8" /><path d="M4.3 4h5.4M4.3 6.2h5.4M4.3 8.4h5.4M4.3 10.6h3.2" /></svg>
             </button>
-            <button type="button" className={`sh-viewbtn${model?.viewMode === 'pageBreakPreview' ? ' on' : ''}`} data-view="pageBreakPreview" data-tip="Page Break Preview" onClick={() => act('view', 'pageBreakPreview')}>
+            <button type="button" className={`sh-viewbtn${model?.viewMode === 'pageBreakPreview' ? ' on' : ''}`} data-view="pageBreakPreview" data-tip={t('Page Break Preview')} onClick={() => act('view', 'pageBreakPreview')}>
               <svg width="14" height="14" viewBox="0 0 14 14"><rect x="1.5" y="1.5" width="11" height="11" rx="1" /><path d="M7 1.5v11" strokeDasharray="1.6 1.4" /><path d="M1.5 7h11" /></svg>
             </button>
           </span>
@@ -3468,28 +3469,28 @@ export default function Sheets({ app, shell, boot }) {
                   return (
                     <>
                       {box && !resizing ? (
-                        <div className="sh-fill" title="Drag to fill the cells below or beside" style={{ left: box.right - 5, top: box.bottom - 5 }} onMouseDown={(e) => startFill(e, source)} />
+                        <div className="sh-fill" title={t('Drag to fill the cells below or beside')} style={{ left: box.right - 5, top: box.bottom - 5 }} onMouseDown={(e) => startFill(e, source)} />
                       ) : null}
                       {reach ? <div className="sh-fillguide" style={{ left: reach.x, top: reach.y, width: reach.right - reach.x, height: reach.bottom - reach.y }} /> : null}
                       {(() => {
                         // Auto Fill Options: at the corner of the fill just made, while it is still the selection.
-                        const t = filled?.target;
-                        const same = t && source && t.top === source.top && t.left === source.left && t.bottom === source.bottom && t.right === source.right;
-                        const at = same && !filling ? boxOf(t) : null;
+                        const tg = filled?.target;
+                        const same = tg && source && tg.top === source.top && tg.left === source.left && tg.bottom === source.bottom && tg.right === source.right;
+                        const at = same && !filling ? boxOf(tg) : null;
                         if (!at) return null;
                         const pickMode = (mode) => dispatch({ op: 'refill', mode });
                         return (
                           <button
                             type="button"
                             className="sh-autofill"
-                            title="Auto Fill Options"
+                            title={t('Auto Fill Options')}
                             style={{ left: at.right + 4, top: at.bottom + 2 }}
                             onMouseDown={(e) => e.stopPropagation()}
                             onClick={(e) => menu.open(e, [
-                              { label: 'Copy Cells', run: () => pickMode('copy') },
-                              { label: 'Fill Series', run: () => pickMode('series') },
-                              { label: 'Fill Formatting Only', run: () => pickMode('formats') },
-                              { label: 'Fill Without Formatting', run: () => pickMode('values') },
+                              { label: t('Copy Cells'), run: () => pickMode('copy') },
+                              { label: t('Fill Series'), run: () => pickMode('series') },
+                              { label: t('Fill Formatting Only'), run: () => pickMode('formats') },
+                              { label: t('Fill Without Formatting'), run: () => pickMode('values') },
                             ])}
                           >
                             <Icon name="table" size={12} /><Icon name="chevronDown" size={10} />
@@ -3548,7 +3549,7 @@ export default function Sheets({ app, shell, boot }) {
           {watchPane()}
           {commentsPane()}
           {scriptsPane?.open ? (
-            <Panel right width={380} resizable title="Code Editor" actions={<Button icon="close" title="Close the Code Editor" onClick={() => setScriptsPane(null)} />}>
+            <Panel right width={380} resizable title={t('Code Editor')} actions={<Button icon="close" title={t('Close the Code Editor')} onClick={() => setScriptsPane(null)} />}>
               <style>{SCRIPTS_CSS}</style>
               <ScriptsPane
                 key={scriptsPane.key}
@@ -3562,7 +3563,7 @@ export default function Sheets({ app, shell, boot }) {
             </Panel>
           ) : null}
           {queriesOpen ? (
-            <Panel right width={300} resizable title="Queries & Connections" actions={<Button icon="close" title="Close the pane — Queries & Connections opens it again" onClick={() => setQueriesOpen(false)} />}>
+            <Panel right width={300} resizable title={t('Queries & Connections')} actions={<Button icon="close" title={t('Close the pane — Queries & Connections opens it again')} onClick={() => setQueriesOpen(false)} />}>
               <QueriesPane
                 queries={model?.queries || []}
                 onRefresh={(q) => act('queryRefresh', q)}
@@ -3574,7 +3575,7 @@ export default function Sheets({ app, shell, boot }) {
             </Panel>
           ) : null}
           {pivotPane ? (
-            <Panel right width={300} resizable title="PivotTable Fields" actions={<Button icon="close" title="Close the pane — Field List opens it again" onClick={() => setPfClosed(pivotPane.name)} />}>
+            <Panel right width={300} resizable title={t('PivotTable Fields')} actions={<Button icon="close" title={t('Close the pane — Field List opens it again')} onClick={() => setPfClosed(pivotPane.name)} />}>
               <style>{PIVOT_FIELDS_CSS}</style>
               <PivotFieldsPane
                 pivot={pivotPane}
@@ -3584,7 +3585,7 @@ export default function Sheets({ app, shell, boot }) {
             </Panel>
           ) : null}
           {review.pane ? (
-            <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title="Close the pane" onClick={review.close} />}>
+            <Panel right width={300} resizable title={review.paneTitle} actions={<Button icon="close" title={t('Close the pane')} onClick={review.close} />}>
               {review.paneNode}
             </Panel>
           ) : null}
@@ -3610,7 +3611,7 @@ export default function Sheets({ app, shell, boot }) {
               const hidden = new Set(model.hiddenSheets || []);
               const shown = (model.sheets || []).filter((n) => !hidden.has(n));
               const locked = Boolean(model.workbookProtection?.structure);
-              const why = locked ? 'The workbook is protected — Review → Unprotect Workbook to change its sheets' : undefined;
+              const why = locked ? t('The workbook is protected — Review → Unprotect Workbook to change its sheets') : undefined;
               return shown.map((name) => {
                 const at = (model.sheets || []).indexOf(name);
                 const left = shown[shown.indexOf(name) - 1];
@@ -3622,16 +3623,16 @@ export default function Sheets({ app, shell, boot }) {
                     className={`sh-tab${name === model.activeSheet ? ' active' : ''}`}
                     onClick={() => dispatch({ op: 'sheet', name })}
                     onContextMenu={(e) => menu.open(e, [
-                      { label: 'Insert sheet', icon: 'plus', disabled: locked, title: why, run: () => act('addSheet') },
-                      { label: 'Delete sheet…', icon: 'trash', disabled: locked || shown.length <= 1, title: why, run: () => { setSheetTarget(name); setDialog('deleteSheet'); } },
-                      { label: 'Rename sheet…', icon: 'textbox', disabled: locked, title: why, run: () => { setSheetTarget(name); setDialog('renameSheet'); } },
-                      { label: 'Move left', icon: 'chevronLeft', disabled: locked || !left, title: why, run: () => act('moveSheet', { name, to: (model.sheets || []).indexOf(left) }) },
-                      { label: 'Move right', icon: 'chevronRight', disabled: locked || !right, title: why, run: () => act('moveSheet', { name, to: (model.sheets || []).indexOf(right) }) },
+                      { label: t('Insert sheet'), icon: 'plus', disabled: locked, title: why, run: () => act('addSheet') },
+                      { label: t('Delete sheet…'), icon: 'trash', disabled: locked || shown.length <= 1, title: why, run: () => { setSheetTarget(name); setDialog('deleteSheet'); } },
+                      { label: t('Rename sheet…'), icon: 'textbox', disabled: locked, title: why, run: () => { setSheetTarget(name); setDialog('renameSheet'); } },
+                      { label: t('Move left'), icon: 'chevronLeft', disabled: locked || !left, title: why, run: () => act('moveSheet', { name, to: (model.sheets || []).indexOf(left) }) },
+                      { label: t('Move right'), icon: 'chevronRight', disabled: locked || !right, title: why, run: () => act('moveSheet', { name, to: (model.sheets || []).indexOf(right) }) },
                       '-',
-                      { label: 'Hide', icon: 'eye', disabled: locked || shown.length <= 1, title: why || (shown.length <= 1 ? 'A workbook must contain at least one visible worksheet' : undefined), run: () => act('hideSheet', name) },
+                      { label: t('Hide'), icon: 'eye', disabled: locked || shown.length <= 1, title: why || (shown.length <= 1 ? t('A workbook must contain at least one visible worksheet') : undefined), run: () => act('hideSheet', name) },
                       ...(hidden.size
-                        ? [...hidden].map((h) => ({ label: `Unhide "${h}"`, icon: 'eye', disabled: locked, title: why, run: () => act('unhideSheet', h) }))
-                        : [{ label: 'Unhide…', icon: 'eye', disabled: true, title: 'No sheet is hidden' }]),
+                        ? [...hidden].map((h) => ({ label: t('Unhide "{name}"', { name: h }), icon: 'eye', disabled: locked, title: why, run: () => act('unhideSheet', h) }))
+                        : [{ label: t('Unhide…'), icon: 'eye', disabled: true, title: t('No sheet is hidden') }]),
                     ])}
                     data-index={at}
                   >
@@ -3640,8 +3641,8 @@ export default function Sheets({ app, shell, boot }) {
                 );
               });
             })()}
-            <button type="button" className="sh-tab sh-tab-add" disabled={Boolean(model.workbookProtection?.structure)} data-tip={model.workbookProtection?.structure ? 'New sheet — the workbook is protected; Review → Unprotect Workbook first' : 'New sheet — at the end of the tabs'} onClick={() => act('addSheet')}>+</button>
-            {model.workbookProtection?.structure ? <span className="sh-tabs-lock" data-tip="The workbook's structure is protected — Review → Unprotect Workbook"><Icon name="lock" size={12} /></span> : null}
+            <button type="button" className="sh-tab sh-tab-add" disabled={Boolean(model.workbookProtection?.structure)} data-tip={model.workbookProtection?.structure ? t('New sheet — the workbook is protected; Review → Unprotect Workbook first') : t('New sheet — at the end of the tabs')} onClick={() => act('addSheet')}>+</button>
+            {model.workbookProtection?.structure ? <span className="sh-tabs-lock" data-tip={t("The workbook's structure is protected — Review → Unprotect Workbook")}><Icon name="lock" size={12} /></span> : null}
           </div>
           {menu.node}
         </div>
@@ -3762,7 +3763,7 @@ export default function Sheets({ app, shell, boot }) {
           onClose={() => setDialog(null)}
           onDelete={async () => {
             setDialog(null);
-            try { await dispatch({ op: 'removeSheet', name: sheetTarget }); toast(`Sheet "${sheetTarget}" deleted`, { tone: 'good' }); } catch (err) { toast(String(err?.message || err), { tone: 'warn', ms: 5000 }); }
+            try { await dispatch({ op: 'removeSheet', name: sheetTarget }); toast(t('Sheet "{name}" deleted', { name: sheetTarget }), { tone: 'good' }); } catch (err) { toast(String(err?.message || err), { tone: 'warn', ms: 5000 }); }
           }}
         />
       ) : null}
@@ -3786,12 +3787,12 @@ export default function Sheets({ app, shell, boot }) {
             const out = [];
             for (let c = left; c <= right; c++) {
               const head = model?.cells?.find((x) => x.col === c && x.row === Math.max(0, top - (r && r.top !== r.bottom ? 0 : 1)) && !x.numeric && x.text);
-              out.push({ col: c, name: head ? `${name(c)} — ${head.text}` : `Column ${name(c)}` });
+              out.push({ col: c, name: head ? `${name(c)} — ${head.text}` : t('Column {name}', { name: name(c) }) });
             }
             return out;
           })()}
           onClose={() => setDialog(null)}
-          onSort={async (keys) => { setDialog(null); await dispatch({ op: 'sort', keys }); toast('Sorted', { tone: 'good' }); }}
+          onSort={async (keys) => { setDialog(null); await dispatch({ op: 'sort', keys }); toast(t('Sorted'), { tone: 'good' }); }}
         />
       ) : null}
       {dialog === 'pasteSpecial' ? (
@@ -3821,12 +3822,12 @@ export default function Sheets({ app, shell, boot }) {
           onApply={async (spec) => {
             setDialog(null);
             const next = await dispatch({ op: 'subtotal', ...spec });
-            if (next) toast('Subtotals added — the buttons beside the row headings fold and open the groups', { tone: 'good', ms: 4000 });
+            if (next) toast(t('Subtotals added — the buttons beside the row headings fold and open the groups'), { tone: 'good', ms: 4000 });
           }}
           onRemoveAll={async () => {
             setDialog(null);
             const next = await dispatch({ op: 'removeSubtotals' });
-            if (next) toast('Subtotals and their outline removed', { tone: 'good' });
+            if (next) toast(t('Subtotals and their outline removed'), { tone: 'good' });
           }}
         />
       ) : null}
@@ -3939,15 +3940,15 @@ export default function Sheets({ app, shell, boot }) {
           onClose={() => setDialog(null)}
           onFind={async (text) => {
             const next = await dispatch({ op: 'findNext', text });
-            return next ? 'Found the next match.' : 'Nothing else matches.';
+            return next ? t('Found the next match.') : t('Nothing else matches.');
           }}
           onReplace={async (find, replace) => {
             const next = await dispatch({ op: 'replaceNext', find, replace });
-            return next ? 'Replaced one.' : 'Nothing left to replace.';
+            return next ? t('Replaced one.') : t('Nothing left to replace.');
           }}
           onReplaceAll={async (find, replace) => {
             const next = await dispatch({ op: 'replaceAll', find, replace });
-            return next ? 'Replaced every match.' : 'Nothing matched.';
+            return next ? t('Replaced every match.') : t('Nothing matched.');
           }}
         />
       ) : null}
@@ -3962,7 +3963,7 @@ export default function Sheets({ app, shell, boot }) {
             const next = await dispatch({ op: 'pivot', ...spec, fileName: doc?.name });
             if (next) {
               setPivotAsk(null);
-              toast(spec.chart ? 'PivotChart and PivotTable made — the chart follows the pivot' : 'PivotTable made under the data', { tone: 'good', ms: 3000 });
+              toast(spec.chart ? t('PivotChart and PivotTable made — the chart follows the pivot') : t('PivotTable made under the data'), { tone: 'good', ms: 3000 });
             }
           }}
         />
@@ -3985,7 +3986,7 @@ export default function Sheets({ app, shell, boot }) {
       {customise === 'colours' ? (
         <CustomColoursDialog
           info={model?.design}
-          hint="Saved into this workbook's theme: every cell, table, chart and shape that takes its colours from the theme follows, and Undo puts the old ones back."
+          hint={t("Saved into this workbook's theme: every cell, table, chart and shape that takes its colours from the theme follows, and Undo puts the old ones back.")}
           onClose={() => setCustomise(null)}
           onSave={async (colors, name) => { const next = await dispatch({ op: 'workbookTheme', colors, name }); if (next) setCustomise(null); }}
         />
@@ -4032,8 +4033,8 @@ export default function Sheets({ app, shell, boot }) {
             const next = await dispatch({ op: which === 'protectWorkbook' ? 'protectWorkbook' : 'protect', password });
             if (next) {
               toast(which === 'protectWorkbook'
-                ? `Workbook structure protected${password ? ' with a password' : ''} — no sheet can be added, deleted, renamed, moved or hidden`
-                : `Sheet protected${password ? ' with a password' : ''}`, { tone: 'good', ms: 4000 });
+                ? (password ? t('Workbook structure protected with a password — no sheet can be added, deleted, renamed, moved or hidden') : t('Workbook structure protected — no sheet can be added, deleted, renamed, moved or hidden'))
+                : (password ? t('Sheet protected with a password') : t('Sheet protected')), { tone: 'good', ms: 4000 });
             }
           }}
         />
@@ -4056,7 +4057,7 @@ export default function Sheets({ app, shell, boot }) {
             setPasswordAsk(null);
             shRef.current?.focus();
             if (ask.kind === 'range') {
-              toast(`Range "${ask.range}" unlocked until the workbook is closed`, { tone: 'good', ms: 3200 });
+              toast(t('Range "{range}" unlocked until the workbook is closed', { range: ask.range }), { tone: 'good', ms: 3200 });
               // The edit that was refused goes ahead: the key typed, or F2.
               if (ask.retry?.length) {
                 const first = ask.retry.find((o) => o.op === 'beginEdit')?.initial;
@@ -4064,7 +4065,7 @@ export default function Sheets({ app, shell, boot }) {
                 await dispatch(...ask.retry);
               }
             } else {
-              toast(ask.kind === 'sheet' ? 'Sheet unprotected' : 'Workbook unprotected — sheets can be added, moved and renamed again', { tone: 'good' });
+              toast(ask.kind === 'sheet' ? t('Sheet unprotected') : t('Workbook unprotected — sheets can be added, moved and renamed again'), { tone: 'good' });
             }
           }}
         />
@@ -4078,7 +4079,7 @@ export default function Sheets({ app, shell, boot }) {
             const said = await tryOps({ op: 'consolidate', ...spec });
             if (said) return said;
             setDialog(null);
-            toast(spec.links ? 'Consolidated with links to the source data — the outline\'s 2 opens the detail' : 'Consolidated', { tone: 'good' });
+            toast(spec.links ? t('Consolidated with links to the source data — the outline\'s 2 opens the detail') : t('Consolidated'), { tone: 'good' });
             return null;
           }}
         />
@@ -4100,7 +4101,7 @@ export default function Sheets({ app, shell, boot }) {
             const said = await tryOps({ op: 'forecastSheet', ...spec });
             if (said) return said;
             setDialog(null);
-            toast('Forecast sheet made — the table and its chart, in front of the data', { tone: 'good', ms: 4000 });
+            toast(t('Forecast sheet made — the table and its chart, in front of the data'), { tone: 'good', ms: 4000 });
             return null;
           }}
         />
@@ -4122,7 +4123,7 @@ export default function Sheets({ app, shell, boot }) {
             if (q.source.kind === 'csv') rememberSource({ source: q.source, sourceText: q.sourceText });
             setQueryEdit(null);
             setQueriesOpen(true);
-            if (done) toast(`${done.name}: ${done.rows} row${done.rows === 1 ? '' : 's'} loaded on ${done.sheet || done.load?.sheet}`, { tone: 'good', ms: 3500 });
+            if (done) toast(tn(done.rows, '{name}: {count} row loaded on {sheet}', '{name}: {count} rows loaded on {sheet}', { name: done.name, sheet: done.sheet || done.load?.sheet }), { tone: 'good', ms: 3500 });
           }}
         />
       ) : null}
@@ -4141,7 +4142,7 @@ export default function Sheets({ app, shell, boot }) {
             try { kept = JSON.parse(next.opResult || 'null'); } catch { kept = null; }
             if (kept?.zoom) patchView({ zoom: Math.max(0.3, Math.min(3, kept.zoom)) });
             refreshPage(doc.id);
-            toast(`Custom view "${name}" shown`, { tone: 'good' });
+            toast(t('Custom view "{name}" shown', { name }), { tone: 'good' });
           }}
         />
       ) : null}
@@ -4174,24 +4175,24 @@ function FreezeDialog({ model, sel, dispatch, onClose }) {
   const at = sel?.active || { row: 0, col: 0 };
 
   const choices = [
-    { label: 'Freeze the top row', rows: 1, cols: 0 },
-    { label: 'Freeze the first column', rows: 0, cols: 1 },
-    { label: 'Freeze the top row and first column', rows: 1, cols: 1 },
-    { label: `Freeze above and left of ${sel?.ref?.split(':')[0] || 'the selection'}`, rows: at.row, cols: at.col },
-    { label: 'Unfreeze', rows: 0, cols: 0 },
+    { label: t('Freeze the top row'), rows: 1, cols: 0 },
+    { label: t('Freeze the first column'), rows: 0, cols: 1 },
+    { label: t('Freeze the top row and first column'), rows: 1, cols: 1 },
+    { label: sel?.ref?.split(':')[0] ? t('Freeze above and left of {ref}', { ref: sel.ref.split(':')[0] }) : t('Freeze above and left of the selection'), rows: at.row, cols: at.col },
+    { label: t('Unfreeze'), rows: 0, cols: 0 },
   ];
 
   return (
     <Dialog
-      title="Freeze panes"
+      title={t('Freeze panes')}
       width={420}
       onClose={onClose}
-      actions={<Button label="Close" onClick={onClose} />}
+      actions={<Button label={t('Close')} onClick={onClose} />}
     >
       <p style={{ marginTop: 0, fontSize: 12.5 }}>
         {frozen.rows || frozen.cols
-          ? `Currently frozen: ${frozen.rows} row${frozen.rows === 1 ? '' : 's'}, ${frozen.cols} column${frozen.cols === 1 ? '' : 's'}.`
-          : 'Nothing is frozen.'}
+          ? t('Currently frozen: {rows}, {cols}.', { rows: tn(frozen.rows, '{count} row', '{count} rows'), cols: tn(frozen.cols, '{count} column', '{count} columns') })
+          : t('Nothing is frozen.')}
       </p>
       <div className="ml-found">
         {choices.map((c) => (

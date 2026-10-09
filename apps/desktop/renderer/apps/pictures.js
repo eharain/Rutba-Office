@@ -21,7 +21,7 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Search,
-  Select, useToast, useMenu, useCommands, menuItems, formatBytes, formatWhen, basename, dirname,
+  Select, useToast, useMenu, useCommands, menuItems, formatBytes, formatWhen, basename, dirname, t, tn,
 } from '@rutba/office-ui';
 import { megapixels, aspectName } from '@rutba/imaging/probe';
 import { timecode } from '@rutba/media/timeline';
@@ -36,12 +36,14 @@ import { nextIndex, formatLength, advanceAfter } from './pictures/show.js';
 import { useMarks, useFolderCount } from './pictures/marks.js';
 
 const INTERVALS = [
-  { label: '2s', value: 2000 },
-  { label: '3s', value: 3000 },
-  { label: '5s', value: 5000 },
-  { label: '10s', value: 10000 },
-  { label: '30s', value: 30000 },
+  { label: t('{seconds}s', { seconds: 2 }), value: 2000 },
+  { label: t('{seconds}s', { seconds: 3 }), value: 3000 },
+  { label: t('{seconds}s', { seconds: 5 }), value: 5000 },
+  { label: t('{seconds}s', { seconds: 10 }), value: 10000 },
+  { label: t('{seconds}s', { seconds: 30 }), value: 30000 },
 ];
+
+const TILE_TIPS = { s: t('Small tiles'), m: t('Medium tiles'), l: t('Large tiles') };
 
 // The slideshow's own timing, kept apart from the folder's Play button
 // above — that one leaves a clip running and stops at the ends unless
@@ -275,7 +277,7 @@ export default function Pictures({ app, shell, boot }) {
       if (!alive) return;
       setFailed(current);
       setShown(current);
-      toast('This picture could not be decoded.', { tone: 'bad' });
+      toast(t('This picture could not be decoded.'), { tone: 'bad' });
     };
     img.decode().then(arrive, () => {
       // decode() can refuse a picture Chromium will still paint (one too
@@ -501,7 +503,7 @@ export default function Pictures({ app, shell, boot }) {
   /* ── opening ─────────────────────────────────────────────────────────── */
 
   const openFolder = useCallback(async () => {
-    const dirs = await shell.dialog.open({ title: 'Open a folder', directory: true });
+    const dirs = await shell.dialog.open({ title: t('Open a folder'), directory: true });
     if (dirs[0]) {
       setCurrent(null);
       await list(dirs[0]);
@@ -561,13 +563,13 @@ export default function Pictures({ app, shell, boot }) {
         const read = await shell.fs.read({ path: p });
         bytes = withOrientation(read.bytes, TURN_CLOCKWISE[readExif(read.bytes).orientation] || 6);
         if (!bytes) {
-          toast('This photo keeps its turn where it cannot be changed without redrawing it. Edit opens it in Image, which can.', { ms: 5000 });
+          toast(t('This photo keeps its turn where it cannot be changed without redrawing it. Edit opens it in Image, which can.'), { ms: 5000 });
           return;
         }
       } else if (ext === 'png') {
         bytes = await turnedPng(p);
       } else {
-        toast('Pictures turns a JPEG or a PNG and saves it. Edit opens this one in Image to turn and save it.', { ms: 5000 });
+        toast(t('Pictures turns a JPEG or a PNG and saves it. Edit opens this one in Image to turn and save it.'), { ms: 5000 });
         return;
       }
       await shell.fs.write({ path: p, bytes });
@@ -576,9 +578,9 @@ export default function Pictures({ app, shell, boot }) {
       arrived.delete(p);
       setSpin(0);
       setFresh((n) => n + 1);
-      toast('Turned and saved.', { tone: 'good', ms: 2000 });
+      toast(t('Turned and saved.'), { tone: 'good', ms: 2000 });
     } catch (err) {
-      toast(`The picture could not be turned: ${err.message || err}`, { tone: 'bad' });
+      toast(t('The picture could not be turned: {error}', { error: err.message || err }), { tone: 'bad' });
     }
   }, [shell, toast]);
 
@@ -586,48 +588,48 @@ export default function Pictures({ app, shell, boot }) {
 
   const commands = useMemo(
     () => ({
-      'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
-      'file.folder': { label: 'Open folder…', icon: 'folderOpen', run: openFolder },
+      'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
+      'file.folder': { label: t('Open folder…'), icon: 'folderOpen', run: openFolder },
       // Escape, Space and the arrows are the slideshow's own keys while it
       // plays — its own keydown listener handles them; these step aside.
-      'nav.back': { label: 'Back to the folder', icon: 'grid', key: 'Escape', when: () => !showOpen, run: () => current && back() },
-      'nav.up': { label: 'Up a folder', icon: 'chevronUp', key: 'Backspace', run: () => hasParent && !current && enterFolder(parent) },
-      'nav.first': { label: 'First', icon: 'skipBack', key: 'Home', run: () => goTo(0) },
-      'nav.prev': { label: 'Previous', icon: 'chevronLeft', key: 'arrowleft', when: () => !showOpen, run: () => step(-1) },
-      'nav.next': { label: 'Next', icon: 'chevronRight', key: 'arrowright', when: () => !showOpen, run: () => step(1) },
-      'nav.last': { label: 'Last', icon: 'skipForward', key: 'End', run: () => goTo(files.length - 1) },
-      'nav.play': { label: playing ? 'Stop' : 'Play automatically', icon: playing ? 'pause' : 'play', key: ' ', when: () => !showOpen, run: () => setPlaying((p) => !p) },
-      'view.slideshow': { label: 'Slideshow', icon: 'play', key: 'F5', when: () => Boolean(files.length) && !showOpen, run: startShow },
-      'view.fit': { label: 'Fit to window', icon: 'maximize', key: 'Mod+0', run: () => setZoom(0) },
-      'view.actual': { label: 'Actual size', icon: 'check', key: 'Mod+1', run: () => setZoom(1) },
-      'view.in': { label: 'Zoom in', icon: 'zoomIn', key: 'Mod+Plus', run: () => setZoom((z) => Math.min(12, (z || 1) * 1.25)) },
-      'view.out': { label: 'Zoom out', icon: 'zoomOut', key: 'Mod+-', run: () => setZoom((z) => Math.max(0.05, (z || 1) / 1.25)) },
-      'view.rotate': { label: 'Rotate view', icon: 'rotate', key: 'r', run: () => setSpin((s) => (s + 1) % 4) },
+      'nav.back': { label: t('Back to the folder'), icon: 'grid', key: 'Escape', when: () => !showOpen, run: () => current && back() },
+      'nav.up': { label: t('Up a folder'), icon: 'chevronUp', key: 'Backspace', run: () => hasParent && !current && enterFolder(parent) },
+      'nav.first': { label: t('First'), icon: 'skipBack', key: 'Home', run: () => goTo(0) },
+      'nav.prev': { label: t('Previous'), icon: 'chevronLeft', key: 'arrowleft', when: () => !showOpen, run: () => step(-1) },
+      'nav.next': { label: t('Next'), icon: 'chevronRight', key: 'arrowright', when: () => !showOpen, run: () => step(1) },
+      'nav.last': { label: t('Last'), icon: 'skipForward', key: 'End', run: () => goTo(files.length - 1) },
+      'nav.play': { label: playing ? t('Stop') : t('Play automatically'), icon: playing ? 'pause' : 'play', key: ' ', when: () => !showOpen, run: () => setPlaying((p) => !p) },
+      'view.slideshow': { label: t('Slideshow'), icon: 'play', key: 'F5', when: () => Boolean(files.length) && !showOpen, run: startShow },
+      'view.fit': { label: t('Fit to window'), icon: 'maximize', key: 'Mod+0', run: () => setZoom(0) },
+      'view.actual': { label: t('Actual size'), icon: 'check', key: 'Mod+1', run: () => setZoom(1) },
+      'view.in': { label: t('Zoom in'), icon: 'zoomIn', key: 'Mod+Plus', run: () => setZoom((z) => Math.min(12, (z || 1) * 1.25)) },
+      'view.out': { label: t('Zoom out'), icon: 'zoomOut', key: 'Mod+-', run: () => setZoom((z) => Math.max(0.05, (z || 1) / 1.25)) },
+      'view.rotate': { label: t('Rotate view'), icon: 'rotate', key: 'r', run: () => setSpin((s) => (s + 1) % 4) },
       // The file itself turned and saved, as Windows Photos turns it.
-      'file.rotate': { label: 'Rotate the picture', icon: 'rotate', key: 'Mod+R', when: () => Boolean(current) && isStill && !showOpen, run: () => current && rotateFile(current) },
+      'file.rotate': { label: t('Rotate the picture'), icon: 'rotate', key: 'Mod+R', when: () => Boolean(current) && isStill && !showOpen, run: () => current && rotateFile(current) },
       // Rate the picture on the stage: 1 to 5 stars, 0 to clear, as Windows Photos and Lightroom take them.
-      ...Object.fromEntries([0, 1, 2, 3, 4, 5].map((n) => [`file.rate${n}`, { label: n ? `Rate ${'★'.repeat(n)}` : 'Clear the rating', icon: 'star', key: String(n), when: () => Boolean(current) && !showOpen, run: () => current && rate(current, n) }])),
-      'view.details': { label: 'Details panel', icon: 'info', run: () => setView({ details: !showDetails }) },
-      'view.grid': { label: 'Folder grid beside the picture', icon: 'grid', run: () => setView({ grid: !showGrid }) },
-      'view.filmstrip': { label: 'Filmstrip', icon: 'list', run: () => setView({ filmstrip: !filmstrip }) },
-      'view.fullscreen': { label: 'Full screen', icon: 'maximize', key: 'F11', run: () => shell.win.fullscreen({}) },
-      'media.animation': { label: frozen ? 'Resume animation' : 'Hold this frame', icon: frozen ? 'play' : 'pause', run: toggleAnimation },
-      'file.edit': { label: 'Edit this picture', icon: 'wand', run: () => current && shell.win.create({ app: 'image', file: current }) },
-      'file.video': { label: 'Open in Video', icon: 'video', run: () => current && shell.win.create({ app: 'video', file: current }) },
-      'file.reveal': { label: 'Show in folder', icon: 'folderOpen', run: () => current && shell.shell.showInFolder({ path: current }) },
+      ...Object.fromEntries([0, 1, 2, 3, 4, 5].map((n) => [`file.rate${n}`, { label: n ? t('Rate {stars}', { stars: '★'.repeat(n) }) : t('Clear the rating'), icon: 'star', key: String(n), when: () => Boolean(current) && !showOpen, run: () => current && rate(current, n) }])),
+      'view.details': { label: t('Details panel'), icon: 'info', run: () => setView({ details: !showDetails }) },
+      'view.grid': { label: t('Folder grid beside the picture'), icon: 'grid', run: () => setView({ grid: !showGrid }) },
+      'view.filmstrip': { label: t('Filmstrip'), icon: 'list', run: () => setView({ filmstrip: !filmstrip }) },
+      'view.fullscreen': { label: t('Full screen'), icon: 'maximize', key: 'F11', run: () => shell.win.fullscreen({}) },
+      'media.animation': { label: frozen ? t('Resume animation') : t('Hold this frame'), icon: frozen ? 'play' : 'pause', run: toggleAnimation },
+      'file.edit': { label: t('Edit this picture'), icon: 'wand', run: () => current && shell.win.create({ app: 'image', file: current }) },
+      'file.video': { label: t('Open in Video'), icon: 'video', run: () => current && shell.win.create({ app: 'video', file: current }) },
+      'file.reveal': { label: t('Show in folder'), icon: 'folderOpen', run: () => current && shell.shell.showInFolder({ path: current }) },
       'file.copy': {
-        label: 'Copy the path',
+        label: t('Copy the path'),
         icon: 'copy',
-        run: () => current && shell.clipboard.writeText({ text: current }).then(() => toast('Path copied')),
+        run: () => current && shell.clipboard.writeText({ text: current }).then(() => toast(t('Path copied'))),
       },
       'file.trash': {
-        label: 'Move to trash',
+        label: t('Move to trash'),
         icon: 'trash',
         key: 'Delete',
         run: async () => {
           if (!current) return;
           await shell.fs.remove({ path: current });
-          toast('Moved to the trash', { tone: 'good' });
+          toast(t('Moved to the trash'), { tone: 'good' });
           const dir = folder;
           // The next file takes its place, so a folder can be weeded
           // without going back to the grid for each one.
@@ -685,7 +687,7 @@ export default function Pictures({ app, shell, boot }) {
             onEnded={() => showStep(1)}
           />
         ) : null}
-        {showPaused ? <span className="pv-show-chip">Paused</span> : null}
+        {showPaused ? <span className="pv-show-chip">{t('Paused')}</span> : null}
         <style>{CSS}</style>
       </div>
     );
@@ -695,14 +697,14 @@ export default function Pictures({ app, shell, boot }) {
     <AppFrame
       app={app}
       shell={shell}
-      title={current ? basename(current) : folder ? basename(folder) : 'Pictures'}
+      title={current ? basename(current) : folder ? basename(folder) : t('Pictures')}
       menu={appMenu}
       ribbon={
         <Ribbon
           tabs={[
-            { id: 'home', label: 'Home' },
-            { id: 'navigate', label: 'Navigate' },
-            { id: 'view', label: 'View' },
+            { id: 'home', label: t('Home') },
+            { id: 'navigate', label: t('Navigate') },
+            { id: 'view', label: t('View') },
           ]}
           active={tab}
           onTab={setTab}
@@ -710,60 +712,60 @@ export default function Pictures({ app, shell, boot }) {
           onCollapse={collapseRibbon}
           quick={
             <>
-              {current ? <Button icon="grid" title="Back to the folder (Esc)" onClick={back} /> : null}
-              <Button icon="chevronLeft" title="Previous" onClick={() => step(-1)} disabled={!files.length} />
-              <Button icon={playing ? 'pause' : 'play'} title={playing ? 'Stop' : 'Play automatically'} onClick={() => setPlaying((p) => !p)} disabled={files.length < 2} />
-              <Button icon="chevronRight" title="Next" onClick={() => step(1)} disabled={!files.length} />
+              {current ? <Button icon="grid" title={t('Back to the folder (Esc)')} onClick={back} /> : null}
+              <Button icon="chevronLeft" title={t('Previous')} onClick={() => step(-1)} disabled={!files.length} />
+              <Button icon={playing ? 'pause' : 'play'} title={playing ? t('Stop') : t('Play automatically')} onClick={() => setPlaying((p) => !p)} disabled={files.length < 2} />
+              <Button icon="chevronRight" title={t('Next')} onClick={() => step(1)} disabled={!files.length} />
             </>
           }
         >
           {tab === 'home' ? (
             <>
-              <Group label="Open">
-                <Button tall icon="open" label="File" onClick={openFile} />
-                <Button tall icon="folderOpen" label="Folder" onClick={openFolder} />
-                <Button tall icon="chevronUp" label="Up" disabled={!hasParent} onClick={() => enterFolder(parent)} />
+              <Group label={t('Open')}>
+                <Button tall icon="open" label={t('File')} onClick={openFile} />
+                <Button tall icon="folderOpen" label={t('Folder')} onClick={openFolder} />
+                <Button tall icon="chevronUp" label={t('Up')} disabled={!hasParent} onClick={() => enterFolder(parent)} />
               </Group>
-              <Group label="This file">
-                <Button tall icon="wand" label="Edit" disabled={!current || isMedia} onClick={() => commands['file.edit'].run()} />
-                <Button tall icon="video" label="In Video" disabled={!current || !isMedia} onClick={() => commands['file.video'].run()} />
-                <Button tall icon="folderOpen" label="Reveal" disabled={!current} onClick={() => commands['file.reveal'].run()} />
-                <Button tall icon="trash" label="Trash" disabled={!current} onClick={() => commands['file.trash'].run()} />
+              <Group label={t('This file')}>
+                <Button tall icon="wand" label={t('Edit')} disabled={!current || isMedia} onClick={() => commands['file.edit'].run()} />
+                <Button tall icon="video" label={t('In Video')} disabled={!current || !isMedia} onClick={() => commands['file.video'].run()} />
+                <Button tall icon="folderOpen" label={t('Reveal')} disabled={!current} onClick={() => commands['file.reveal'].run()} />
+                <Button tall icon="trash" label={t('Trash')} disabled={!current} onClick={() => commands['file.trash'].run()} />
               </Group>
-              <Group label="Clipboard">
-                <Button icon="copy" label="Copy path" disabled={!current} onClick={() => commands['file.copy'].run()} />
+              <Group label={t('Clipboard')}>
+                <Button icon="copy" label={t('Copy path')} disabled={!current} onClick={() => commands['file.copy'].run()} />
               </Group>
             </>
           ) : tab === 'navigate' ? (
             <>
-              <Group label="Move">
-                <Button tall icon="skipBack" label="First" disabled={!files.length} onClick={() => goTo(0)} />
-                <Button tall icon="chevronLeft" label="Previous" disabled={!files.length} onClick={() => step(-1)} />
-                <Button tall icon="chevronRight" label="Next" disabled={!files.length} onClick={() => step(1)} />
-                <Button tall icon="skipForward" label="Last" disabled={!files.length} onClick={() => goTo(files.length - 1)} />
-                <Button tall icon="grid" label="Folder" disabled={!current} onClick={back} />
+              <Group label={t('Move')}>
+                <Button tall icon="skipBack" label={t('First')} disabled={!files.length} onClick={() => goTo(0)} />
+                <Button tall icon="chevronLeft" label={t('Previous')} disabled={!files.length} onClick={() => step(-1)} />
+                <Button tall icon="chevronRight" label={t('Next')} disabled={!files.length} onClick={() => step(1)} />
+                <Button tall icon="skipForward" label={t('Last')} disabled={!files.length} onClick={() => goTo(files.length - 1)} />
+                <Button tall icon="grid" label={t('Folder')} disabled={!current} onClick={back} />
               </Group>
-              <Group label="Automatic">
+              <Group label={t('Automatic')}>
                 <Button
                   tall
                   icon={playing ? 'pause' : 'play'}
-                  label={playing ? 'Stop' : 'Play'}
+                  label={playing ? t('Stop') : t('Play')}
                   disabled={files.length < 2}
                   onClick={() => setPlaying((p) => !p)}
                 />
-                <Select value={interval} onChange={(e) => setIntervalMs(Number(e.target.value))} style={{ width: 74 }} title="How long each picture is shown">
+                <Select value={interval} onChange={(e) => setIntervalMs(Number(e.target.value))} style={{ width: 74 }} title={t('How long each picture is shown')}>
                   {INTERVALS.map((i) => (
                     <option key={i.value} value={i.value}>{i.label}</option>
                   ))}
                 </Select>
-                <Button icon="refresh" label="Loop" pressed={loop} onClick={() => setLoop((l) => !l)} />
-                <Button icon="sort" label="Shuffle" pressed={shuffle} onClick={() => setShuffle((s) => !s)} />
+                <Button icon="refresh" label={t('Loop')} pressed={loop} onClick={() => setLoop((l) => !l)} />
+                <Button icon="sort" label={t('Shuffle')} pressed={shuffle} onClick={() => setShuffle((s) => !s)} />
               </Group>
-              <Group label="Animation">
+              <Group label={t('Animation')}>
                 <Button
                   tall
                   icon={frozen ? 'play' : 'pause'}
-                  label={frozen ? 'Resume' : 'Hold frame'}
+                  label={frozen ? t('Resume') : t('Hold frame')}
                   disabled={!isAnimated}
                   onClick={toggleAnimation}
                 />
@@ -771,41 +773,41 @@ export default function Pictures({ app, shell, boot }) {
             </>
           ) : (
             <>
-              <Group label="Zoom">
-                <Button icon="zoomOut" label="Out" onClick={() => commands['view.out'].run()} />
-                <Button icon="zoomIn" label="In" onClick={() => commands['view.in'].run()} />
-                <Button icon="maximize" label="Fit" pressed={zoom === 0} onClick={() => setZoom(0)} />
+              <Group label={t('Zoom')}>
+                <Button icon="zoomOut" label={t('Out')} onClick={() => commands['view.out'].run()} />
+                <Button icon="zoomIn" label={t('In')} onClick={() => commands['view.in'].run()} />
+                <Button icon="maximize" label={t('Fit')} pressed={zoom === 0} onClick={() => setZoom(0)} />
                 <Button icon="check" label="100%" pressed={zoom === 1} onClick={() => setZoom(1)} />
               </Group>
-              <Group label="Slideshow">
-                <Button tall icon="play" label="Slideshow" disabled={!files.length} onClick={startShow} />
+              <Group label={t('Slideshow')}>
+                <Button tall icon="play" label={t('Slideshow')} disabled={!files.length} onClick={startShow} />
                 <Select
                   data-role="show-seconds"
                   value={showSeconds}
                   onChange={(e) => chooseShowSeconds(Number(e.target.value))}
                   style={{ width: 60 }}
-                  title="How long each picture is shown"
+                  title={t('How long each picture is shown')}
                 >
                   {SHOW_SECONDS.map((s) => (
-                    <option key={s} value={s}>{s}s</option>
+                    <option key={s} value={s}>{t('{seconds}s', { seconds: s })}</option>
                   ))}
                 </Select>
-                <Button icon="volume" label="Sound" pressed={showSound} title="Play a clip's sound in the show" onClick={toggleShowSound} />
+                <Button icon="volume" label={t('Sound')} pressed={showSound} title={t("Play a clip's sound in the show")} onClick={toggleShowSound} />
               </Group>
-              <Group label="Orientation">
-                <Button tall icon="rotate" label="Rotate" onClick={() => setSpin((s) => (s + 1) % 4)} />
+              <Group label={t('Orientation')}>
+                <Button tall icon="rotate" label={t('Rotate')} onClick={() => setSpin((s) => (s + 1) % 4)} />
               </Group>
-              <Group label="Tiles">
+              <Group label={t('Tiles')}>
                 {TILE_SIZES.map((s) => (
                   <Button key={s.id} label={s.label} pressed={tileSize === s.id} onClick={() => setView({ tileSize: s.id })} />
                 ))}
               </Group>
-              <Group label="Panels">
-                <Button icon="info" label="Details" pressed={showDetails} onClick={() => setView({ details: !showDetails })} />
-                <Button icon="grid" label="Grid" pressed={showGrid} title="The folder's grid beside an open picture" onClick={() => setView({ grid: !showGrid })} />
-                <Button icon="list" label="Filmstrip" pressed={filmstrip} onClick={() => setView({ filmstrip: !filmstrip })} />
+              <Group label={t('Panels')}>
+                <Button icon="info" label={t('Details')} pressed={showDetails} onClick={() => setView({ details: !showDetails })} />
+                <Button icon="grid" label={t('Grid')} pressed={showGrid} title={t("The folder's grid beside an open picture")} onClick={() => setView({ grid: !showGrid })} />
+                <Button icon="list" label={t('Filmstrip')} pressed={filmstrip} onClick={() => setView({ filmstrip: !filmstrip })} />
                 <Separator />
-                <Button icon="maximize" label="Full screen" onClick={() => shell.win.fullscreen({})} />
+                <Button icon="maximize" label={t('Full screen')} onClick={() => shell.win.fullscreen({})} />
               </Group>
             </>
           )}
@@ -819,14 +821,14 @@ export default function Pictures({ app, shell, boot }) {
           {current && details?.probe?.width ? (
             <>
               <Chip>{details.probe.width} × {details.probe.height}</Chip>
-              <Chip>{megapixels(details.probe.width, details.probe.height)} MP</Chip>
+              <Chip>{t('{value} MP', { value: megapixels(details.probe.width, details.probe.height) })}</Chip>
               <Chip>{aspectName(details.probe.width, details.probe.height)}</Chip>
             </>
           ) : null}
-          {isAnimated ? <Chip title="This picture is animated">Animated</Chip> : null}
-          {current ? zoom ? <Chip>{Math.round(zoom * 100)}%</Chip> : <Chip>Fit</Chip> : null}
+          {isAnimated ? <Chip title={t('This picture is animated')}>{t('Animated')}</Chip> : null}
+          {current ? zoom ? <Chip>{Math.round(zoom * 100)}%</Chip> : <Chip>{t('Fit')}</Chip> : null}
           {current && details?.stat ? <Chip>{formatBytes(details.stat.size)}</Chip> : null}
-          <Chip>{current && files.length ? `${at + 1} of ${files.length}` : files.length ? `${files.length} ${files.length === 1 ? 'file' : 'files'}${folders.length ? `, ${folders.length} ${folders.length === 1 ? 'folder' : 'folders'}` : ''}` : 'nothing here'}</Chip>
+          <Chip>{current && files.length ? t('{index} of {total}', { index: at + 1, total: files.length }) : files.length ? (folders.length ? t('{files}, {folders}', { files: tn(files.length, '{count} file', '{count} files'), folders: tn(folders.length, '{count} folder', '{count} folders') }) : tn(files.length, '{count} file', '{count} files')) : t('nothing here')}</Chip>
         </>
       }
     >
@@ -844,15 +846,15 @@ export default function Pictures({ app, shell, boot }) {
           /* The folder, with the whole window. */
           <div className="pv-browse">
             <div className="pv-browse-head">
-              <Button icon="chevronUp" title="Up a folder (Backspace)" disabled={!hasParent} onClick={() => enterFolder(parent)} />
-              <span className="pv-browse-name" title={folder || ''}>{folder ? basename(folder) || folder : 'Pictures'}</span>
+              <Button icon="chevronUp" title={t('Up a folder (Backspace)')} disabled={!hasParent} onClick={() => enterFolder(parent)} />
+              <span className="pv-browse-name" title={folder || ''}>{folder ? basename(folder) || folder : t('Pictures')}</span>
               {tools}
             </div>
             {!files.length && !folders.length && !busy ? (
-              <Empty icon="pictures" title={entries.length ? 'Nothing matches' : 'Nothing here yet'}>
+              <Empty icon="pictures" title={entries.length ? t('Nothing matches') : t('Nothing here yet')}>
                 {entries.length
-                  ? 'No file in this folder matches the filter. Clear it, or choose another kind.'
-                  : 'Open a folder, or drop pictures, video or animations onto this window.'}
+                  ? t('No file in this folder matches the filter. Clear it, or choose another kind.')
+                  : t('Open a folder, or drop pictures, video or animations onto this window.')}
               </Empty>
             ) : (
               <Grid files={files} folders={folders} current={null} tileSize={tileSize} browse busy={busy} onOpen={openAt} onFolder={enterFolder} onMenu={tileMenu} shell={shell} marks={marks} />
@@ -874,7 +876,7 @@ export default function Pictures({ app, shell, boot }) {
             freezeRef={freezeRef}
             mediaRef={mediaRef}
             onEnded={() => playing && step(1)}
-            onMediaError={() => { setFailed(current); toast('This file could not be played.', { tone: 'bad' }); }}
+            onMediaError={() => { setFailed(current); toast(t('This file could not be played.'), { tone: 'bad' }); }}
             onMenu={(e) => menu.open(e, menuItems(commands, ['nav.prev', 'nav.next', 'nav.back', '-', 'view.fit', 'view.actual', 'view.rotate', 'file.rotate', '-', 'file.edit', 'file.reveal', '-', 'file.trash']))}
           />
         )}
@@ -882,19 +884,19 @@ export default function Pictures({ app, shell, boot }) {
         {/* The navigator: where you are, and every way to move. */}
         {current && files.length ? (
           <div className="pv-nav">
-            <Button icon="grid" title="Back to the folder (Esc)" onClick={back} />
+            <Button icon="grid" title={t('Back to the folder (Esc)')} onClick={back} />
             <Separator />
-            <Button icon="skipBack" title="First" onClick={() => goTo(0)} />
-            <Button icon="chevronLeft" title="Previous" onClick={() => step(-1)} />
+            <Button icon="skipBack" title={t('First')} onClick={() => goTo(0)} />
+            <Button icon="chevronLeft" title={t('Previous')} onClick={() => step(-1)} />
             <Button
               icon={playing ? 'pause' : 'play'}
               primary={playing}
-              title={playing ? 'Stop' : 'Play automatically'}
+              title={playing ? t('Stop') : t('Play automatically')}
               disabled={files.length < 2}
               onClick={() => setPlaying((p) => !p)}
             />
-            <Button icon="chevronRight" title="Next" onClick={() => step(1)} />
-            <Button icon="skipForward" title="Last" onClick={() => goTo(files.length - 1)} />
+            <Button icon="chevronRight" title={t('Next')} onClick={() => step(1)} />
+            <Button icon="skipForward" title={t('Last')} onClick={() => goTo(files.length - 1)} />
 
             <input
               className="pv-scrub"
@@ -903,19 +905,19 @@ export default function Pictures({ app, shell, boot }) {
               max={Math.max(0, files.length - 1)}
               value={Math.max(0, at)}
               onChange={(e) => goTo(Number(e.target.value))}
-              title="Scrub through the folder"
+              title={t('Scrub through the folder')}
             />
             <span className="pv-counter">{files.length ? `${at + 1} / ${files.length}` : '—'}</span>
 
             <Separator />
             {isAnimated ? (
-              <Button icon={frozen ? 'play' : 'pause'} title={frozen ? 'Resume animation' : 'Hold this frame'} onClick={toggleAnimation} />
+              <Button icon={frozen ? 'play' : 'pause'} title={frozen ? t('Resume animation') : t('Hold this frame')} onClick={toggleAnimation} />
             ) : null}
-            <Button icon="rotate" title="Rotate the view" onClick={() => setSpin((s) => (s + 1) % 4)} />
-            {isStill ? <Button icon="save" className="pv-rotate-file" title="Rotate the picture: turned a quarter clockwise and saved (Ctrl+R)" onClick={() => current && rotateFile(current)} /> : null}
-            <Button icon="zoomOut" title="Zoom out" onClick={() => commands['view.out'].run()} />
-            <Button icon="zoomIn" title="Zoom in" onClick={() => commands['view.in'].run()} />
-            <Button icon="maximize" title="Fit to window" pressed={zoom === 0} onClick={() => setZoom(0)} />
+            <Button icon="rotate" title={t('Rotate the view')} onClick={() => setSpin((s) => (s + 1) % 4)} />
+            {isStill ? <Button icon="save" className="pv-rotate-file" title={t('Rotate the picture: turned a quarter clockwise and saved (Ctrl+R)')} onClick={() => current && rotateFile(current)} /> : null}
+            <Button icon="zoomOut" title={t('Zoom out')} onClick={() => commands['view.out'].run()} />
+            <Button icon="zoomIn" title={t('Zoom in')} onClick={() => commands['view.in'].run()} />
+            <Button icon="maximize" title={t('Fit to window')} pressed={zoom === 0} onClick={() => setZoom(0)} />
           </div>
         ) : null}
 
@@ -923,12 +925,12 @@ export default function Pictures({ app, shell, boot }) {
       </Content>
 
       {current && showDetails ? (
-        <Panel right width={230} title="Details" resizable>
+        <Panel right width={230} title={t('Details')} resizable>
           <div className="pv-details">
             <div className="pv-detail-name">{basename(current)}</div>
-            <div className="pv-stars" role="group" aria-label="Rating">
+            <div className="pv-stars" role="group" aria-label={t('Rating')}>
               {[1, 2, 3, 4, 5].map((n) => (
-                <button key={n} type="button" className={`pv-star${(marks[current]?.rating || 0) >= n ? ' on' : ''}`} data-star={n} data-tip={`${n} star${n === 1 ? '' : 's'} (${n})`} onClick={() => rate(current, (marks[current]?.rating || 0) === n ? 0 : n)}>★</button>
+                <button key={n} type="button" className={`pv-star${(marks[current]?.rating || 0) >= n ? ' on' : ''}`} data-star={n} data-tip={tn(n, '{count} star ({key})', '{count} stars ({key})', { key: n })} onClick={() => rate(current, (marks[current]?.rating || 0) === n ? 0 : n)}>★</button>
               ))}
             </div>
             <Tags tags={marks[current]?.tags || []} onChange={(tags) => tag(current, tags)} />
@@ -936,37 +938,37 @@ export default function Pictures({ app, shell, boot }) {
               <dl>
                 {details.probe?.format ? (
                   <>
-                    <dt>Format</dt>
-                    <dd>{String(details.probe.format).toUpperCase()}{details.probe.animated ? ' · animated' : ''}</dd>
+                    <dt>{t('Format')}</dt>
+                    <dd>{String(details.probe.format).toUpperCase()}{details.probe.animated ? ` · ${t('animated')}` : ''}</dd>
                   </>
                 ) : null}
                 {details.probe?.width ? (
                   <>
-                    <dt>Dimensions</dt>
+                    <dt>{t('Dimensions')}</dt>
                     <dd>{details.probe.width} × {details.probe.height}</dd>
                   </>
                 ) : null}
                 {details.probe?.duration ? (
                   <>
-                    <dt>Duration</dt>
+                    <dt>{t('Duration')}</dt>
                     <dd>{timecode(details.probe.duration)}</dd>
                   </>
                 ) : null}
-                <dt>Size</dt>
+                <dt>{t('Size')}</dt>
                 <dd>{formatBytes(details.stat?.size || 0)}</dd>
-                <dt>Modified</dt>
+                <dt>{t('Modified')}</dt>
                 <dd>{formatWhen(details.stat?.mtime, { long: true })}</dd>
                 {details.rows.map((r) => (
                   <React.Fragment key={r.label}>
-                    <dt>{r.label}</dt>
+                    <dt>{t(r.label)}</dt>
                     <dd>{r.value}</dd>
                   </React.Fragment>
                 ))}
               </dl>
             ) : (
-              <div className="pv-detail-wait">Reading the file…</div>
+              <div className="pv-detail-wait">{t('Reading the file…')}</div>
             )}
-            {!isMedia && kind !== 'pdf' ? <Button icon="wand" label="Edit this picture" onClick={() => commands['file.edit'].run()} /> : null}
+            {!isMedia && kind !== 'pdf' ? <Button icon="wand" label={t('Edit this picture')} onClick={() => commands['file.edit'].run()} /> : null}
           </div>
         </Panel>
       ) : null}
@@ -984,10 +986,10 @@ function Tags({ tags, onChange }) {
   const add = () => { const t = draft.trim(); if (t) onChange([...tags, t]); setDraft(''); };
   return (
     <div className="pv-tags">
-      {tags.map((t) => (
-        <span key={t} className="pv-tag" data-tag={t}>{t}<button type="button" aria-label={`Remove ${t}`} onClick={() => onChange(tags.filter((x) => x !== t))}>×</button></span>
+      {tags.map((name) => (
+        <span key={name} className="pv-tag" data-tag={name}>{name}<button type="button" aria-label={t('Remove {tag}', { tag: name })} onClick={() => onChange(tags.filter((x) => x !== name))}>×</button></span>
       ))}
-      <input className="rw-input pv-tag-input" value={draft} placeholder="Add a tag" onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } e.stopPropagation(); }} onBlur={add} />
+      <input className="rw-input pv-tag-input" value={draft} placeholder={t('Add a tag')}onChange={(e) => setDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } e.stopPropagation(); }} onBlur={add} />
     </div>
   );
 }
@@ -997,12 +999,12 @@ function Tags({ tags, onChange }) {
 function Tools({ query, onQuery, family, onFamily, counts, sort, onSort, tileSize, onTileSize, stacked, rated = 0, onRated, deep = false, onDeep, searching = false }) {
   return (
     <div className={`pv-tools${stacked ? ' stacked' : ''}`}>
-      <Search value={query} onChange={onQuery} placeholder={deep ? 'Search the folders inside by name or tag' : 'Filter by name or tag'} style={{ minWidth: 0 }} />
-      <button type="button" className="pv-deep" aria-pressed={deep} data-tip="Include subfolders — the folders inside this one searched too" onClick={() => onDeep?.(!deep)}>{searching ? 'Searching…' : 'Subfolders'}</button>
-      <Select data-role="rated" value={rated} onChange={(e) => onRated?.(Number(e.target.value))} style={{ padding: '3px 8px', fontSize: 11.5 }} title="Only pictures rated so many stars or more" aria-label="Rating">
+      <Search value={query} onChange={onQuery} placeholder={deep ? t('Search the folders inside by name or tag') : t('Filter by name or tag')} style={{ minWidth: 0 }} />
+      <button type="button" className="pv-deep" aria-pressed={deep} data-tip={t('Include subfolders — the folders inside this one searched too')} onClick={() => onDeep?.(!deep)}>{searching ? t('Searching…') : t('Subfolders')}</button>
+      <Select data-role="rated" value={rated} onChange={(e) => onRated?.(Number(e.target.value))} style={{ padding: '3px 8px', fontSize: 11.5 }} title={t('Only pictures rated so many stars or more')} aria-label={t('Rating')}>
         {RATED.map(([n, label]) => <option key={n} value={n}>{label}</option>)}
       </Select>
-      <div className="pv-kinds" role="group" aria-label="Kind">
+      <div className="pv-kinds" role="group" aria-label={t('Kind')}>
         {FAMILIES.filter((f) => f.id === 'all' || counts[f.id] > 0).map((f) => (
           <button
             key={f.id}
@@ -1018,14 +1020,14 @@ function Tools({ query, onQuery, family, onFamily, counts, sort, onSort, tileSiz
         ))}
       </div>
       <div className="pv-order">
-        <Select data-role="sort" value={sort} onChange={(e) => onSort(e.target.value)} style={{ padding: '3px 8px', fontSize: 11.5 }} title="The order of the folder" aria-label="Sort by">
+        <Select data-role="sort" value={sort} onChange={(e) => onSort(e.target.value)} style={{ padding: '3px 8px', fontSize: 11.5 }} title={t('The order of the folder')} aria-label={t('Sort by')}>
           {SORTS.map((s) => (
             <option key={s.id} value={s.id}>{s.label}</option>
           ))}
         </Select>
-        <span className="pv-sizes" role="group" aria-label="Tile size">
+        <span className="pv-sizes" role="group" aria-label={t('Tile size')}>
           {TILE_SIZES.map((s) => (
-            <button key={s.id} type="button" className="pv-size" data-size={s.id} aria-pressed={tileSize === s.id} data-tip={`${s.label} tiles`} onClick={() => onTileSize(s.id)}>
+            <button key={s.id} type="button" className="pv-size" data-size={s.id} aria-pressed={tileSize === s.id} data-tip={TILE_TIPS[s.id] ?? `${s.label} tiles`} onClick={() => onTileSize(s.id)}>
               <i />
             </button>
           ))}
@@ -1071,7 +1073,7 @@ function useScrollBox(ref) {
 /** A folder tile's count of what is in it, read when the tile is drawn. */
 function FolderCount({ shell, path }) {
   const n = useFolderCount(shell, path, VIEWABLE);
-  return n === null ? null : <span className="pv-folder-count" data-count={n}>{n === 0 ? 'empty' : `${n} item${n === 1 ? '' : 's'}`}</span>;
+  return n === null ? null : <span className="pv-folder-count" data-count={n}>{n === 0 ? t('empty') : tn(n, '{count} item', '{count} items')}</span>;
 }
 
 function Grid({ files, folders, current, tileSize, browse = false, busy, onOpen, onFolder, onMenu, shell, marks = null }) {
@@ -1149,7 +1151,7 @@ async function turnedPng(p) {
   g.rotate(Math.PI / 2);
   g.drawImage(img, 0, 0);
   const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
-  if (!blob) throw new Error('The picture could not be redrawn.');
+  if (!blob) throw new Error(t('The picture could not be redrawn.'));
   return new Uint8Array(await blob.arrayBuffer());
 }
 
@@ -1241,7 +1243,7 @@ const Tile = React.memo(function Tile({ file, active, size, rating = 0, onOpen, 
       {kind === 'video' || kind === 'audio' ? (
         <span className="pv-tile-badge"><Icon name={kind === 'audio' ? 'volume' : 'play'} size={11} /></span>
       ) : kind === 'pdf' ? (
-        <span className="pv-tile-badge text">PDF</span>
+        <span className="pv-tile-badge text">PDF</span> // words-ok: a format's name
       ) : null}
       <LengthBadge file={file} />
       {rating ? <span className="pv-tile-stars" data-rating={rating}>{'★'.repeat(rating)}</span> : null}
@@ -1322,10 +1324,10 @@ function Stage({ current, shown, kind, failed, playing, zoom, setZoom, rotation,
     >
       {waiting ? <div className="pv-loading" /> : null}
       {failed === current ? (
-        <Empty icon="pictures" title="This file could not be opened">
+        <Empty icon="pictures" title={t('This file could not be opened')}>
           {isMedia
-            ? `${basename(current)} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.`
-            : `${basename(current)} could not be decoded as a picture. It may be a download that stopped early, or a file with the wrong extension.`}
+            ? t('{name} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.', { name: basename(current) })
+            : t('{name} could not be decoded as a picture. It may be a download that stopped early, or a file with the wrong extension.', { name: basename(current) })}
         </Empty>
       ) : kind === 'pdf' ? (
         <embed src={fileUrl(current)} type="application/pdf" className="pv-pdf" />

@@ -6,7 +6,7 @@
 // by the same counting the page uses.
 
 import React, { useMemo, useState } from 'react';
-import { Button, Dialog, Field, Input, Select } from '@rutba/office-ui';
+import { Button, Dialog, Field, Input, Select, t } from '@rutba/office-ui';
 import { computeListLabels } from '@rutba/doc-view/lists';
 
 const STYLES = [
@@ -16,8 +16,8 @@ const STYLES = [
   ['upperLetter', 'A, B, C, …'],
   ['lowerRoman', 'i, ii, iii, …'],
   ['upperRoman', 'I, II, III, …'],
-  ['bullet', 'Bullet •'],
-  ['none', '(none)'],
+  ['bullet', t('Bullet •')],
+  ['none', t('(none)')],
 ];
 
 /** Twentieths of a point to centimetres and back, as the dialog speaks. */
@@ -72,20 +72,20 @@ export function DefineListDialog({ styles = [], onClose, onApply }) {
   });
   return (
     <Dialog
-      title="Define new Multilevel list"
+      title={t('Define new Multilevel list')}
       width={620}
       onClose={onClose}
       className="wd-define-list"
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="OK" className="wd-define-list-ok" disabled={!indentOk || !textOk} onClick={apply} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('OK')} className="wd-define-list-ok" disabled={!indentOk || !textOk} onClick={apply} />
         </>
       }
     >
       <div className="ml-form">
         <div style={{ display: 'grid', gridTemplateColumns: '64px 1fr', gap: 12 }}>
-          <div role="listbox" aria-label="Level to change" style={{ display: 'grid', gap: 2 }}>
+          <div role="listbox" aria-label={t('Level to change')} style={{ display: 'grid', gap: 2 }}>
             {levels.map((_, i) => (
               <button key={i} type="button" role="option" aria-selected={i === at} className={`wd-define-level${i === at ? ' on' : ''}`} onClick={() => setAt(i)}
                 style={{ padding: '3px 0', border: '1px solid var(--line, #ccc)', background: i === at ? 'var(--accent-soft, #dbe6fb)' : 'transparent', borderRadius: 4, cursor: 'pointer' }}>
@@ -93,7 +93,7 @@ export function DefineListDialog({ styles = [], onClose, onApply }) {
               </button>
             ))}
           </div>
-          <div className="wd-define-preview" aria-label="Preview" style={{ border: '1px solid var(--line, #ccc)', borderRadius: 4, padding: '6px 10px', fontSize: 12.5, lineHeight: '17px', overflow: 'hidden' }}>
+          <div className="wd-define-preview" aria-label={t('Preview')} style={{ border: '1px solid var(--line, #ccc)', borderRadius: 4, padding: '6px 10px', fontSize: 12.5, lineHeight: '17px', overflow: 'hidden' }}>
             {levels.map((l, i) => (
               <div key={i} data-level={i} style={{ paddingLeft: `${Math.min(14, Number(l.alignedCm) || 0) * 14}px`, fontWeight: i === at ? 600 : 400, whiteSpace: 'nowrap' }}>
                 <span className="wd-define-label">{labels[i]}</span>
@@ -103,7 +103,7 @@ export function DefineListDialog({ styles = [], onClose, onApply }) {
           </div>
         </div>
         <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <Field label={`Number style for level ${at + 1}`}>
+          <Field label={t('Number style for level {level}', { level: at + 1 })}>
             <Select data-role="define-format" value={level.format} onChange={(e) => {
               const format = e.target.value;
               set(format === 'bullet' ? { format, text: '•' } : level.format === 'bullet' ? { format, text: `%${at + 1}.` } : { format });
@@ -111,44 +111,44 @@ export function DefineListDialog({ styles = [], onClose, onApply }) {
               {STYLES.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
             </Select>
           </Field>
-          <Field label="Include level number from">
+          <Field label={t('Include level number from')}>
             <Select value="" disabled={at === 0 || level.format === 'bullet'} onChange={(e) => { if (e.target.value) set({ text: `${e.target.value}${level.text}` }); }}>
-              <option value="">{at === 0 ? '(the first level has none above it)' : 'Choose a level above…'}</option>
-              {Array.from({ length: at }, (_, k) => <option key={k} value={`%${k + 1}.`}>Level {k + 1}</option>)}
+              <option value="">{at === 0 ? t('(the first level has none above it)') : t('Choose a level above…')}</option>
+              {Array.from({ length: at }, (_, k) => <option key={k} value={`%${k + 1}.`}>{t('Level {level}', { level: k + 1 })}</option>)}
             </Select>
           </Field>
         </div>
-        <Field label="Enter formatting for number" hint={level.format === 'bullet' ? 'The bullet character.' : `%${at + 1} is this level's number${at === 0 ? '.' : at === 1 ? '; %1 the number of the level above it.' : `; %1 to %${at} the numbers of the levels above it.`}`}>
+        <Field label={t('Enter formatting for number')} hint={level.format === 'bullet' ? t('The bullet character.') : at === 0 ? t('%{level} is this level\'s number.', { level: at + 1 }) : at === 1 ? t('%2 is this level\'s number; %1 the number of the level above it.') : t('%{level} is this level\'s number; %1 to %{above} the numbers of the levels above it.', { level: at + 1, above: at })}>
           <Input data-role="define-text" value={level.text} maxLength={60} onChange={(e) => set({ text: e.target.value })} />
         </Field>
         <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-          <Field label="Start at">
+          <Field label={t('Start at')}>
             <Input data-role="define-start" type="number" min="0" max="32767" value={level.start} disabled={level.format === 'bullet' || level.format === 'none'} onChange={(e) => set({ start: e.target.value })} />
           </Field>
-          <Field label="Aligned at (cm)">
+          <Field label={t('Aligned at (cm)')}>
             <Input type="number" min="0" max="50" step="0.01" value={level.alignedCm} onChange={(e) => set({ alignedCm: e.target.value })} />
           </Field>
-          <Field label="Text indent at (cm)">
+          <Field label={t('Text indent at (cm)')}>
             <Input type="number" min="0" max="50" step="0.01" value={level.indentCm} onChange={(e) => set({ indentCm: e.target.value })} />
           </Field>
         </div>
         <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <Field label="Link level to style">
+          <Field label={t('Link level to style')}>
             <Select data-role="define-style" value={level.style} onChange={(e) => linkStyle(e.target.value)}>
-              <option value="">(no style)</option>
+              <option value="">{t('(no style)')}</option>
               {styles.map((s) => <option key={s.id} value={s.id}>{s.name || s.id}</option>)}
             </Select>
           </Field>
-          <Field label="List name (optional)">
-            <Input data-role="define-name" value={name} maxLength={60} placeholder="As Word lists it in the file" onChange={(e) => setName(e.target.value)} />
+          <Field label={t('List name (optional)')}>
+            <Input data-role="define-name" value={name} maxLength={60} placeholder={t('As Word lists it in the file')} onChange={(e) => setName(e.target.value)} />
           </Field>
         </div>
         <label className="about-auto">
           <input type="checkbox" className="wd-define-legal" checked={level.legal} disabled={level.format === 'bullet'} onChange={(e) => set({ legal: e.target.checked })} />
-          <span>Legal style numbering: every number in this level shown in figures (Section 1.01 under Article I)</span>
+          <span>{t('Legal style numbering: every number in this level shown in figures (Section 1.01 under Article I)')}</span>
         </label>
-        {!indentOk ? <p role="alert" style={{ margin: 0, fontSize: 12.5 }}>A level's text sits at or past its number: Text indent at is not less than Aligned at.</p> : null}
-        {!textOk ? <p role="alert" style={{ margin: 0, fontSize: 12.5 }}>Each numbered level shows its own number: keep %{missing + 1} in level {missing + 1}'s number.</p> : null}
+        {!indentOk ? <p role="alert" style={{ margin: 0, fontSize: 12.5 }}>{t('A level\'s text sits at or past its number: Text indent at is not less than Aligned at.')}</p> : null}
+        {!textOk ? <p role="alert" style={{ margin: 0, fontSize: 12.5 }}>{t('Each numbered level shows its own number: keep %{level} in level {level}\'s number.', { level: missing + 1 })}</p> : null}
       </div>
     </Dialog>
   );

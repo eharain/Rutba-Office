@@ -9,12 +9,12 @@
 // sheet of its own and keeps the query in the workbook.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Dialog, Input, Select, useMenu } from '@rutba/office-ui';
+import { Button, Dialog, Input, Select, useMenu, t, tn } from '@rutba/office-ui';
 import { JOIN_KINDS } from '@rutba/sheet-view/queries';
 
-const TYPES = [['text', 'Text'], ['integer', 'Whole number'], ['number', 'Decimal number'], ['date', 'Date'], ['boolean', 'True/False']];
-const FILTERS = [['equals', 'equals'], ['notEquals', 'does not equal'], ['contains', 'contains'], ['notContains', 'does not contain'], ['beginsWith', 'begins with'], ['endsWith', 'ends with'], ['greater', 'is more than'], ['greaterOrEqual', 'is at least'], ['less', 'is less than'], ['lessOrEqual', 'is at most'], ['blank', 'is blank'], ['notBlank', 'is not blank']];
-const AGGREGATES = [['count', 'Count rows'], ['sum', 'Sum'], ['average', 'Average'], ['min', 'Least'], ['max', 'Most']];
+const TYPES = [['text', t('Text')], ['integer', t('Whole number')], ['number', t('Decimal number')], ['date', t('Date')], ['boolean', t('True/False')]];
+const FILTERS = [['equals', t('equals')], ['notEquals', t('does not equal')], ['contains', t('contains')], ['notContains', t('does not contain')], ['beginsWith', t('begins with')], ['endsWith', t('ends with')], ['greater', t('is more than')], ['greaterOrEqual', t('is at least')], ['less', t('is less than')], ['lessOrEqual', t('is at most')], ['blank', t('is blank')], ['notBlank', t('is not blank')]];
+const AGGREGATES = [['count', t('Count rows')], ['sum', t('Sum')], ['average', t('Average')], ['min', t('Least')], ['max', t('Most')]];
 
 /** A refusal from the main process, without Electron's "Error invoking remote method" in front of it. */
 export const cleanError = (err) => String(err?.message || err).replace(/^Error invoking remote method '[^']+': (Error: )?/, '');
@@ -52,14 +52,14 @@ export function QueryEditor({ query, preview, listSources = null, onClose, onLoa
       if (!live || !got) return;
       const own = (got.queries || []).find((q) => q.id === query.id);
       setSources([
-        ...(got.queries || []).filter((q) => q.id !== query.id).map((q) => ({ label: `Query: ${q.name}`, source: { kind: 'query', id: q.id, name: q.name } })),
-        ...(got.tables || []).filter((t) => t.name !== own?.table && !(query.source?.kind === 'table' && query.source.table === t.name)).map((t) => ({ label: `Table: ${t.name} (${t.sheet})`, source: { kind: 'table', table: t.name } })),
+        ...(got.queries || []).filter((q) => q.id !== query.id).map((q) => ({ label: t('Query: {name}', { name: q.name }), name: q.name, source: { kind: 'query', id: q.id, name: q.name } })),
+        ...(got.tables || []).filter((t) => t.name !== own?.table && !(query.source?.kind === 'table' && query.source.table === t.name)).map((tb) => ({ label: t('Table: {name} ({sheet})', { name: tb.name, sheet: tb.sheet }), name: `${tb.name} (${tb.sheet})`, source: { kind: 'table', table: tb.name } })),
       ]);
     }).catch(() => {});
     return () => { live = false; };
   }, [listSources, query.id, query.source]);
   const sourceOptions = sources.map((s, i) => [String(i), s.label]);
-  const [name, setName] = useState(query.name || 'Query');
+  const [name, setName] = useState(query.name || t('Query'));
   const [steps, setSteps] = useState(query.steps || []);
   const [upTo, setUpTo] = useState(null);
   const [column, setColumn] = useState(null);
@@ -80,96 +80,96 @@ export function QueryEditor({ query, preview, listSources = null, onClose, onLoa
     setSteps((s) => (upTo === null ? [...s, step] : [...s.slice(0, upTo), step, ...s.slice(upTo)]));
     setUpTo((u) => (u === null ? null : u + 1));
   }, [upTo]);
-  const need = () => { if (!column) { setError('Click a column\'s heading first.'); return false; } return true; };
+  const need = () => { if (!column) { setError(t('Click a column\'s heading first.')); return false; } return true; };
   const askFor = (title, fields, run) => setAsk({ title, fields, values: Object.fromEntries(fields.map((f) => [f.key, f.value ?? ''])), run });
 
   const actions = [
-    ['Remove Column', () => need() && add({ kind: 'removeColumns', columns: [column] })],
-    ['Remove Other Columns', () => need() && add({ kind: 'keepColumns', columns: [column] })],
-    ['Rename', () => need() && askFor(`Rename "${column}"`, [{ key: 'to', label: 'New name', value: column }], (v) => add({ kind: 'renameColumn', from: column, to: v.to }))],
-    ['Data Type', (e) => need() && menu.open(e, TYPES.map(([type, label]) => ({ label, run: () => add({ kind: 'changeType', column, type }) })))],
-    ['Filter', () => need() && askFor(`Keep the rows where "${column}"…`, [{ key: 'op', label: 'Condition', options: FILTERS, value: 'equals' }, { key: 'value', label: 'Value' }], (v) => add({ kind: 'filterRows', column, op: v.op, value: v.value !== '' && !Number.isNaN(Number(v.value)) ? Number(v.value) : v.value }))],
-    ['Sort A → Z', () => need() && add({ kind: 'sort', column, descending: false })],
-    ['Sort Z → A', () => need() && add({ kind: 'sort', column, descending: true })],
-    ['Replace Values', () => need() && askFor(`Replace in "${column}"`, [{ key: 'find', label: 'Value to find' }, { key: 'replace', label: 'Replace with' }], (v) => add({ kind: 'replaceValues', column, find: v.find, replace: v.replace }))],
-    ['Split Column', (e) => need() && menu.open(e, [['Comma', 'comma'], ['Tab', 'tab'], ['Space', 'space'], ['Semicolon', 'semicolon']].map(([label, delimiter]) => ({ label: `At each ${label.toLowerCase()}`, run: () => add({ kind: 'splitColumn', column, delimiter }) })).concat([{ label: 'At another character…', run: () => askFor(`Split "${column}" at`, [{ key: 'delimiter', label: 'Character' }], (v) => add({ kind: 'splitColumn', column, delimiter: v.delimiter })) }]))],
-    ['Format', (e) => need() && menu.open(e, [['Trim', 'trim'], ['UPPERCASE', 'upper'], ['lowercase', 'lower'], ['Capitalise Each Word', 'proper']].map(([label, how]) => ({ label, run: () => add({ kind: 'transformText', column, how }) })))],
+    [t('Remove Column'), () => need() && add({ kind: 'removeColumns', columns: [column] })],
+    [t('Remove Other Columns'), () => need() && add({ kind: 'keepColumns', columns: [column] })],
+    [t('Rename'), () => need() && askFor(t('Rename "{column}"', { column }), [{ key: 'to', label: t('New name'), value: column }], (v) => add({ kind: 'renameColumn', from: column, to: v.to }))],
+    [t('Data Type'), (e) => need() && menu.open(e, TYPES.map(([type, label]) => ({ label, run: () => add({ kind: 'changeType', column, type }) })))],
+    [t('Filter'), () => need() && askFor(t('Keep the rows where "{column}"…', { column }), [{ key: 'op', label: t('Condition'), options: FILTERS, value: 'equals' }, { key: 'value', label: t('Value') }], (v) => add({ kind: 'filterRows', column, op: v.op, value: v.value !== '' && !Number.isNaN(Number(v.value)) ? Number(v.value) : v.value }))],
+    [t('Sort A → Z'), () => need() && add({ kind: 'sort', column, descending: false })],
+    [t('Sort Z → A'), () => need() && add({ kind: 'sort', column, descending: true })],
+    [t('Replace Values'), () => need() && askFor(t('Replace in "{column}"', { column }), [{ key: 'find', label: t('Value to find') }, { key: 'replace', label: t('Replace with') }], (v) => add({ kind: 'replaceValues', column, find: v.find, replace: v.replace }))],
+    [t('Split Column'), (e) => need() && menu.open(e, [[t('At each comma'), 'comma'], [t('At each tab'), 'tab'], [t('At each space'), 'space'], [t('At each semicolon'), 'semicolon']].map(([label, delimiter]) => ({ label, run: () => add({ kind: 'splitColumn', column, delimiter }) })).concat([{ label: t('At another character…'), run: () => askFor(t('Split "{column}" at', { column }), [{ key: 'delimiter', label: t('Character') }], (v) => add({ kind: 'splitColumn', column, delimiter: v.delimiter })) }]))],
+    [t('Format'), (e) => need() && menu.open(e, [[t('Trim'), 'trim'], [t('UPPERCASE'), 'upper'], [t('lowercase'), 'lower'], [t('Capitalise Each Word'), 'proper']].map(([label, how]) => ({ label, run: () => add({ kind: 'transformText', column, how }) })))],
     // Transform → Extract, as Power Query's: part of each cell's text kept.
-    ['Extract', (e) => need() && menu.open(e, [
-      { label: 'First characters…', run: () => askFor(`The first characters of "${column}"`, [{ key: 'count', label: 'How many', value: '3' }], (v) => add({ kind: 'extractText', column, how: 'first', count: Number(v.count) || 0 })) },
-      { label: 'Last characters…', run: () => askFor(`The last characters of "${column}"`, [{ key: 'count', label: 'How many', value: '3' }], (v) => add({ kind: 'extractText', column, how: 'last', count: Number(v.count) || 0 })) },
-      { label: 'Text before delimiter…', run: () => askFor(`The text of "${column}" before`, [{ key: 'delimiter', label: 'Delimiter', value: '-' }], (v) => add({ kind: 'extractText', column, how: 'before', delimiter: v.delimiter })) },
-      { label: 'Text after delimiter…', run: () => askFor(`The text of "${column}" after`, [{ key: 'delimiter', label: 'Delimiter', value: '-' }], (v) => add({ kind: 'extractText', column, how: 'after', delimiter: v.delimiter })) },
+    [t('Extract'), (e) => need() && menu.open(e, [
+      { label: t('First characters…'), run: () => askFor(t('The first characters of "{column}"', { column }), [{ key: 'count', label: t('How many'), value: '3' }], (v) => add({ kind: 'extractText', column, how: 'first', count: Number(v.count) || 0 })) },
+      { label: t('Last characters…'), run: () => askFor(t('The last characters of "{column}"', { column }), [{ key: 'count', label: t('How many'), value: '3' }], (v) => add({ kind: 'extractText', column, how: 'last', count: Number(v.count) || 0 })) },
+      { label: t('Text before delimiter…'), run: () => askFor(t('The text of "{column}" before', { column }), [{ key: 'delimiter', label: t('Delimiter'), value: '-' }], (v) => add({ kind: 'extractText', column, how: 'before', delimiter: v.delimiter })) },
+      { label: t('Text after delimiter…'), run: () => askFor(t('The text of "{column}" after', { column }), [{ key: 'delimiter', label: t('Delimiter'), value: '-' }], (v) => add({ kind: 'extractText', column, how: 'after', delimiter: v.delimiter })) },
     ])],
     // Transform → Fill: a blank cell takes the value above it, or below.
-    ['Fill', (e) => need() && menu.open(e, [
-      { label: 'Down', run: () => add({ kind: 'fillDown', columns: [column] }) },
-      { label: 'Up', run: () => add({ kind: 'fillUp', columns: [column] }) },
+    [t('Fill'), (e) => need() && menu.open(e, [
+      { label: t('Down'), run: () => add({ kind: 'fillDown', columns: [column] }) },
+      { label: t('Up'), run: () => add({ kind: 'fillUp', columns: [column] }) },
     ])],
     // Transform → Pivot Column: this column's values become columns, filled from another, added up.
-    ['Pivot Column', () => need() && askFor(`Pivot "${column}"`, [
-      { key: 'values', label: 'Values from', options: (table?.columns || []).filter((c) => c !== column).map((c) => [c, c]), value: [...(table?.columns || [])].reverse().find((c) => c !== column) || '' },
-      { key: 'fn', label: 'Add up as', options: [['sum', 'Sum'], ['count', 'Count'], ['average', 'Average'], ['min', 'Minimum'], ['max', 'Maximum'], ['none', 'Do not add up']], value: 'sum' },
+    [t('Pivot Column'), () => need() && askFor(t('Pivot "{column}"', { column }), [
+      { key: 'values', label: t('Values from'), options: (table?.columns || []).filter((c) => c !== column).map((c) => [c, c]), value: [...(table?.columns || [])].reverse().find((c) => c !== column) || '' },
+      { key: 'fn', label: t('Add up as'), options: [['sum', t('Sum')], ['count', t('Count')], ['average', t('Average')], ['min', t('Minimum')], ['max', t('Maximum')], ['none', t('Do not add up')]], value: 'sum' },
     ], (v) => add({ kind: 'pivotColumn', column, values: v.values, fn: v.fn }))],
     // Add Column → Conditional Column: if a column meets a condition then one value, otherwise another.
-    ['Conditional Column', () => askFor('Add a conditional column', [
-      { key: 'name', label: 'New column name', value: 'Custom' },
-      { key: 'column', label: 'If column', options: (table?.columns || []).map((c) => [c, c]), value: column || table?.columns?.[0] || '' },
-      { key: 'op', label: 'Is', options: FILTERS, value: 'equals' },
-      { key: 'value', label: 'Value' },
-      { key: 'output', label: 'Then' },
-      { key: 'otherwise', label: 'Otherwise' },
+    [t('Conditional Column'), () => askFor(t('Add a conditional column'), [
+      { key: 'name', label: t('New column name'), value: t('Custom') },
+      { key: 'column', label: t('If column'), options: (table?.columns || []).map((c) => [c, c]), value: column || table?.columns?.[0] || '' },
+      { key: 'op', label: t('Is'), options: FILTERS, value: 'equals' },
+      { key: 'value', label: t('Value') },
+      { key: 'output', label: t('Then') },
+      { key: 'otherwise', label: t('Otherwise') },
     ], (v) => {
       const typedOf = (x) => (x !== '' && !Number.isNaN(Number(x)) ? Number(x) : x);
-      add({ kind: 'conditionalColumn', name: v.name || 'Custom', rules: [{ column: v.column, op: v.op, value: typedOf(v.value), output: v.output === '' ? null : typedOf(v.output) }], otherwise: v.otherwise === '' ? null : typedOf(v.otherwise) });
+      add({ kind: 'conditionalColumn', name: v.name || t('Custom'), rules: [{ column: v.column, op: v.op, value: typedOf(v.value), output: v.output === '' ? null : typedOf(v.output) }], otherwise: v.otherwise === '' ? null : typedOf(v.otherwise) });
     })],
     // Transform → Unpivot Other Columns: this column kept; every other column's cells become rows.
-    ['Unpivot Other Columns', () => need() && add({ kind: 'unpivotOthers', columns: [column] })],
+    [t('Unpivot Other Columns'), () => need() && add({ kind: 'unpivotOthers', columns: [column] })],
     // Transform → Merge Columns: this column and another joined, with a separator.
-    ['Merge Columns', () => need() && askFor(`Merge "${column}" with`, [
-      { key: 'other', label: 'Column', options: (table?.columns || []).filter((c) => c !== column).map((c) => [c, c]), value: (table?.columns || []).find((c) => c !== column) || '' },
-      { key: 'separator', label: 'Separator', options: [[' ', 'Space'], [', ', 'Comma'], ['-', 'Dash'], ['', 'None']], value: ' ' },
-      { key: 'name', label: 'New column name', value: 'Merged' },
-    ], (v) => add({ kind: 'mergeColumns', columns: [column, v.other], separator: v.separator, name: v.name || 'Merged' }))],
-    ['Group By', () => need() && askFor(`Group by "${column}"`, [{ key: 'fn', label: 'Operation', options: AGGREGATES, value: 'count' }, { key: 'of', label: 'Of column', options: (table?.columns || []).map((c) => [c, c]), value: (table?.columns || []).find((c) => c !== column) || column }, { key: 'as', label: 'New column name', value: 'Count' }], (v) => add({ kind: 'groupBy', columns: [column], aggregations: [{ fn: v.fn, column: v.fn === 'count' ? null : v.of, name: v.as || undefined }] }))],
-    ['Append Queries', () => (sources.length
-      ? askFor('Append the rows of', [{ key: 'with', label: 'Table or query', options: sourceOptions, value: '0' }], (v) => add({ kind: 'appendQuery', with: sources[Number(v.with)].source }))
-      : setError('There is no other table or query in this workbook to append.'))],
-    ['Merge Queries', () => {
+    [t('Merge Columns'), () => need() && askFor(t('Merge "{column}" with', { column }), [
+      { key: 'other', label: t('Column'), options: (table?.columns || []).filter((c) => c !== column).map((c) => [c, c]), value: (table?.columns || []).find((c) => c !== column) || '' },
+      { key: 'separator', label: t('Separator'), options: [[' ', t('Space')], [', ', t('Comma')], ['-', t('Dash')], ['', t('None')]], value: ' ' },
+      { key: 'name', label: t('New column name'), value: t('Merged') },
+    ], (v) => add({ kind: 'mergeColumns', columns: [column, v.other], separator: v.separator, name: v.name || t('Merged') }))],
+    [t('Group By'), () => need() && askFor(t('Group by "{column}"', { column }), [{ key: 'fn', label: t('Operation'), options: AGGREGATES, value: 'count' }, { key: 'of', label: t('Of column'), options: (table?.columns || []).map((c) => [c, c]), value: (table?.columns || []).find((c) => c !== column) || column }, { key: 'as', label: t('New column name'), value: t('Count') }], (v) => add({ kind: 'groupBy', columns: [column], aggregations: [{ fn: v.fn, column: v.fn === 'count' ? null : v.of, name: v.as || undefined }] }))],
+    [t('Append Queries'), () => (sources.length
+      ? askFor(t('Append the rows of'), [{ key: 'with', label: t('Table or query'), options: sourceOptions, value: '0' }], (v) => add({ kind: 'appendQuery', with: sources[Number(v.with)].source }))
+      : setError(t('There is no other table or query in this workbook to append.')))],
+    [t('Merge Queries'), () => {
       if (!need()) return;
-      if (!sources.length) { setError('There is no other table or query in this workbook to merge with.'); return; }
-      askFor(`Merge on "${column}" with`, [{ key: 'with', label: 'Table or query', options: sourceOptions, value: '0' }, { key: 'how', label: 'Join kind', options: JOIN_KINDS, value: 'left' }], async (v) => {
+      if (!sources.length) { setError(t('There is no other table or query in this workbook to merge with.')); return; }
+      askFor(t('Merge on "{column}" with', { column }), [{ key: 'with', label: t('Table or query'), options: sourceOptions, value: '0' }, { key: 'how', label: t('Join kind'), options: JOIN_KINDS, value: 'left' }], async (v) => {
         const other = sources[Number(v.with)].source;
         try {
           const cols = (await preview({ source: other, steps: [] }))?.columns || [];
-          askFor(`Match "${column}" with a column of ${sources[Number(v.with)].label.replace(/^\w+: /, '')}`, [{ key: 'withOn', label: 'Its column', options: cols.map((c) => [c, c]), value: cols.find((c) => c.toLowerCase() === String(column).toLowerCase()) || cols[0] }], (w) => add({ kind: 'mergeQueries', with: other, on: column, withOn: w.withOn, how: v.how }));
+          askFor(t('Match "{column}" with a column of {source}', { column, source: sources[Number(v.with)].name }), [{ key: 'withOn', label: t('Its column'), options: cols.map((c) => [c, c]), value: cols.find((c) => c.toLowerCase() === String(column).toLowerCase()) || cols[0] }], (w) => add({ kind: 'mergeQueries', with: other, on: column, withOn: w.withOn, how: v.how }));
         } catch (err) { setError(cleanError(err)); }
       });
     }],
-    ['Keep Top Rows', () => askFor('Keep the first rows', [{ key: 'count', label: 'Number of rows', value: '10' }], (v) => add({ kind: 'keepTopRows', count: Number(v.count) || 0 }))],
-    ['Remove Duplicates', () => add({ kind: 'removeDuplicates', ...(column ? { columns: [column] } : {}) })],
-    ['Remove Blank Rows', () => add({ kind: 'removeBlankRows' })],
-    ['Use First Row as Headers', () => add({ kind: 'promoteHeaders' })],
-    ['Index Column', () => add({ kind: 'addIndex', name: 'Index', start: 1 })],
+    [t('Keep Top Rows'), () => askFor(t('Keep the first rows'), [{ key: 'count', label: t('Number of rows'), value: '10' }], (v) => add({ kind: 'keepTopRows', count: Number(v.count) || 0 }))],
+    [t('Remove Duplicates'), () => add({ kind: 'removeDuplicates', ...(column ? { columns: [column] } : {}) })],
+    [t('Remove Blank Rows'), () => add({ kind: 'removeBlankRows' })],
+    [t('Use First Row as Headers'), () => add({ kind: 'promoteHeaders' })],
+    [t('Index Column'), () => add({ kind: 'addIndex', name: t('Index'), start: 1 })],
   ];
 
   const load = async () => {
     setBusy(true);
-    try { await onLoad({ id: query.id, name: name.trim() || 'Query', source: query.source, sourceText: query.sourceText, steps }); } catch (err) { setError(cleanError(err)); setBusy(false); }
+    try { await onLoad({ id: query.id, name: name.trim() || t('Query'), source: query.source, sourceText: query.sourceText, steps }); } catch (err) { setError(cleanError(err)); setBusy(false); }
   };
 
   return (
     <>
       {menu.node}
       <Dialog
-        title={`Power Query Editor — ${query.sourceText || ''}`}
+        title={t('Power Query Editor — {source}', { source: query.sourceText || '' })}
         width={980}
         onClose={onClose}
         actions={(
           <>
-            <Input className="pq-name" value={name} onChange={(e) => setName(e.target.value)} style={{ width: 220 }} title="The query's name, and its sheet's" />
-            <Button label="Cancel" onClick={onClose} />
-            <Button primary className="pq-load" label={busy ? 'Loading…' : 'Close & Load'} disabled={busy || Boolean(error && !table)} onClick={load} />
+            <Input className="pq-name" value={name} onChange={(e) => setName(e.target.value)} style={{ width: 220 }} title={t('The query\'s name, and its sheet\'s')} />
+            <Button label={t('Cancel')} onClick={onClose} />
+            <Button primary className="pq-load" label={busy ? t('Loading…') : t('Close & Load')} disabled={busy || Boolean(error && !table)} onClick={load} />
           </>
         )}
       >
@@ -193,8 +193,8 @@ export function QueryEditor({ query, preview, listSources = null, onClose, onLoa
                   )}
                 </label>
               ))}
-              <Button primary className="pq-ask-ok" label="OK" onClick={() => { ask.run(ask.values); setAsk(null); }} />
-              <Button label="Cancel" onClick={() => setAsk(null)} />
+              <Button primary className="pq-ask-ok" label={t('OK')} onClick={() => { ask.run(ask.values); setAsk(null); }} />
+              <Button label={t('Cancel')} onClick={() => setAsk(null)} />
             </div>
           ) : null}
           <div className="pq-body">
@@ -205,7 +205,7 @@ export function QueryEditor({ query, preview, listSources = null, onClose, onLoa
                   <thead>
                     <tr>
                       <th className="pq-rownum" />
-                      {table.columns.map((c) => <th key={c} className={c === column ? 'sel' : ''} data-col={c} onClick={() => setColumn(c)} title="Pick this column for the next step">{c}</th>)}
+                      {table.columns.map((c) => <th key={c} className={c === column ? 'sel' : ''} data-col={c} onClick={() => setColumn(c)} title={t('Pick this column for the next step')}>{c}</th>)}
                     </tr>
                   </thead>
                   <tbody>
@@ -217,18 +217,18 @@ export function QueryEditor({ query, preview, listSources = null, onClose, onLoa
                     ))}
                   </tbody>
                 </table>
-              ) : !error ? <div className="pq-note">Reading the source…</div> : null}
+              ) : !error ? <div className="pq-note">{t('Reading the source…')}</div> : null}
             </div>
             <div className="pq-steps">
-              <div className="pq-steps-head">Applied steps</div>
-              <button type="button" className={`pq-step${upTo === 0 ? ' at' : ''}`} onClick={() => setUpTo(0)}>Source</button>
+              <div className="pq-steps-head">{t('Applied steps')}</div>
+              <button type="button" className={`pq-step${upTo === 0 ? ' at' : ''}`} onClick={() => setUpTo(0)}>{t('Source')}</button>
               {(table?.steps || steps.map((s) => s.kind)).map((label, i) => (
                 <div key={i} className={`pq-step-row${upTo === i + 1 || (upTo === null && i === steps.length - 1) ? ' at' : ''}`}>
                   <button type="button" className="pq-step" onClick={() => setUpTo(i + 1 === steps.length ? null : i + 1)}>{label}</button>
-                  <button type="button" className="pq-step-x" title="Take this step away" onClick={() => { setSteps((s) => s.filter((_, k) => k !== i)); setUpTo(null); }}>×</button>
+                  <button type="button" className="pq-step-x" title={t('Take this step away')} onClick={() => { setSteps((s) => s.filter((_, k) => k !== i)); setUpTo(null); }}>×</button>
                 </div>
               ))}
-              <div className="pq-count">{table ? `${table.total} row${table.total === 1 ? '' : 's'}${table.total > table.rows.length ? `, the first ${table.rows.length} shown` : ''}` : ''}</div>
+              <div className="pq-count">{table ? (table.total > table.rows.length ? t('{rows}, the first {shown} shown', { rows: tn(table.total, '{count} row', '{count} rows'), shown: table.rows.length }) : tn(table.total, '{count} row', '{count} rows')) : ''}</div>
             </div>
           </div>
         </div>
@@ -239,19 +239,19 @@ export function QueryEditor({ query, preview, listSources = null, onClose, onLoa
 
 /** Data → Queries & Connections: the workbook's queries, each refreshed, edited or deleted from here. */
 export function QueriesPane({ queries, onRefresh, onEdit, onDelete, onRefreshAll, onGoTo }) {
-  if (!queries?.length) return <div className="pq-note"><style>{QUERIES_CSS}</style>No queries in this workbook yet. Data → From Table/Range or From Text/CSV makes one.</div>;
+  if (!queries?.length) return <div className="pq-note"><style>{QUERIES_CSS}</style>{t('No queries in this workbook yet. Data → From Table/Range or From Text/CSV makes one.')}</div>;
   return (
     <div className="pq-pane">
       <style>{QUERIES_CSS}</style>
-      <Button icon="refresh" className="pq-refresh-all" label="Refresh All" onClick={onRefreshAll} />
+      <Button icon="refresh" className="pq-refresh-all" label={t('Refresh All')} onClick={onRefreshAll} />
       {queries.map((q) => (
         <div key={q.id} className="pq-item" data-query={q.id}>
-          <button type="button" className="pq-item-name" onClick={() => onGoTo(q)} title="Go to its sheet">{q.name}</button>
-          <div className="pq-item-meta">{q.loaded != null ? `${q.loaded} row${q.loaded === 1 ? '' : 's'} loaded` : 'Not loaded'} · {q.sourceText}</div>
+          <button type="button" className="pq-item-name" onClick={() => onGoTo(q)} title={t('Go to its sheet')}>{q.name}</button>
+          <div className="pq-item-meta">{q.loaded != null ? tn(q.loaded, '{count} row loaded', '{count} rows loaded') : t('Not loaded')} · {q.sourceText}</div>
           <div className="pq-item-tools">
-            <Button icon="refresh" className="pq-refresh" title="Refresh — run it again on its source as it is now" onClick={() => onRefresh(q)} />
-            <Button icon="textbox" className="pq-edit" title="Edit — open it in the Power Query Editor" onClick={() => onEdit(q)} />
-            <Button icon="trash" className="pq-delete" title="Delete the query; its sheet stays" onClick={() => onDelete(q)} />
+            <Button icon="refresh" className="pq-refresh" title={t('Refresh — run it again on its source as it is now')} onClick={() => onRefresh(q)} />
+            <Button icon="textbox" className="pq-edit" title={t('Edit — open it in the Power Query Editor')} onClick={() => onEdit(q)} />
+            <Button icon="trash" className="pq-delete" title={t('Delete the query; its sheet stays')} onClick={() => onDelete(q)} />
           </div>
         </div>
       ))}

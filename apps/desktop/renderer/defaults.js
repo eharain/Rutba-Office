@@ -11,7 +11,7 @@
 // true, so it shows which formats actually open with us right now.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Dialog, Icon, Chip, Spinner } from '@rutba/office-ui';
+import { Button, Dialog, Icon, Chip, Spinner, t } from '@rutba/office-ui';
 
 export function useDefaults(shell) {
   const [status, setStatus] = useState(null);
@@ -51,16 +51,16 @@ export function DefaultsDialog({ shell, onClose, toast }) {
 
   return (
     <Dialog
-      title="Open files with Rutba Office"
+      title={t('Open files with Rutba Office')}
       width={560}
       onClose={onClose}
       actions={
         <>
-          <Button label="Close" onClick={onClose} />
+          <Button label={t('Close')} onClick={onClose} />
           <Button
             primary
             icon="check"
-            label={status?.canSet ? 'Set them all' : 'Open system settings'}
+            label={status?.canSet ? t('Set them all') : t('Open system settings')}
             disabled={working || !status}
             onClick={apply}
           />
@@ -74,9 +74,9 @@ export function DefaultsDialog({ shell, onClose, toast }) {
       ) : (
         <>
           <div className="ml-import-summary">
-            <Chip>{status.ours} of {status.total} formats</Chip>
+            <Chip>{t('{ours} of {total} formats', { ours: status.ours, total: status.total })}</Chip>
             <Chip>{status.platform}</Chip>
-            {status.packaged ? null : <Chip>development build</Chip>}
+            {status.packaged ? null : <Chip>{t('development build')}</Chip>}
           </div>
 
           <div className="ml-note" style={{ marginBottom: 12 }}>
@@ -86,8 +86,7 @@ export function DefaultsDialog({ shell, onClose, toast }) {
 
           {!status.packaged ? (
             <p className="rw-hint" style={{ marginTop: 0 }}>
-              File types are registered by the installer. A build run from the source tree has not registered any, so
-              this list will read empty until Rutba Office is installed.
+              {t('File types are registered by the installer. A build run from the source tree has not registered any, so this list will read empty until Rutba Office is installed.')}
             </p>
           ) : null}
 
@@ -98,7 +97,7 @@ export function DefaultsDialog({ shell, onClose, toast }) {
                 <span className="name">
                   .{f.ext} — {f.name}
                 </span>
-                <span className="count" title={f.handler || 'no handler recorded'}>
+                <span className="count" title={f.handler || t('no handler recorded')}>
                   {f.isDefault ? 'Rutba Office' : f.handler ? shorten(f.handler) : '—'}
                 </span>
               </div>

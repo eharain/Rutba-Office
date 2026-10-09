@@ -8,11 +8,13 @@
 // with a guide line following the hand until then.
 
 import React from 'react';
+import { t } from '@rutba/office-ui';
 import { rectOf, columnBoxesOf } from './pages.js';
 
 const PX_PER_CM = 96 / 2.54;
 const TWIPS_PER_PX = 15;
 const TAB_TYPES = ['left', 'center', 'right', 'decimal'];
+const TAB_NAMES = { left: t('left'), center: t('center'), right: t('right'), decimal: t('decimal') };
 const MIN_COLUMN = 20; // px — the engine's own floor is a quarter centimetre
 const MIN_ROW = 12;
 
@@ -251,7 +253,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
         type="button"
         className="wd-ruler-type"
         data-type={tabType}
-        data-tip={`Tab stop to add: ${tabType}. Click to change.`}
+        data-tip={t('Tab stop to add: {type}. Click to change.', { type: TAB_NAMES[tabType] || tabType })}
         onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
         onClick={() => setTabType(TAB_TYPES[(TAB_TYPES.indexOf(tabType) + 1) % TAB_TYPES.length])}
       >
@@ -260,14 +262,14 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
       <div
         className="wd-ruler-bound"
         data-bound="left"
-        data-tip="Left margin"
+        data-tip={t('Left margin')}
         style={{ left: leftBound - 3 }}
         onMouseDown={(e) => onMargin && hold(e, { kind: 'margin', index: 0, x: ML, min: 24, max: W - MR - 120, release: (x) => onMargin('left', x) })}
       />
       <div
         className="wd-ruler-bound"
         data-bound="right"
-        data-tip="Right margin"
+        data-tip={t('Right margin')}
         style={{ left: rightBound - 3 }}
         onMouseDown={(e) => onMargin && hold(e, { kind: 'margin', index: 1, x: W - MR, min: ML + 120, max: W - 24, release: (x) => onMargin('right', W - x) })}
       />
@@ -276,7 +278,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
           <div
             className="wd-ruler-first"
             data-marker="first"
-            data-tip="First line indent"
+            data-tip={t('First line indent')}
             style={{ left: place(pos('first', 0, first)) - 5 }}
             onMouseDown={(e) => hold(e, {
               kind: 'first', index: 0, x: first, min: edge, max: right - 8, mirrored,
@@ -289,7 +291,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
           <div
             className="wd-ruler-hang"
             data-marker="hanging"
-            data-tip="Hanging indent"
+            data-tip={t('Hanging indent')}
             style={{ left: place(pos('hang', 0, left)) - 5 }}
             onMouseDown={(e) => hold(e, {
               kind: 'hang', index: 0, x: left, min: edge, max: right - 8, mirrored,
@@ -303,7 +305,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
           <div
             className="wd-ruler-left"
             data-marker="left"
-            data-tip="Left indent"
+            data-tip={t('Left indent')}
             style={{ left: place(pos('left', 0, left)) - 5 }}
             onMouseDown={(e) => hold(e, {
               kind: 'left', index: 0, x: left, min: edge + Math.max(0, -para.indentPx), max: right - 8, mirrored,
@@ -316,7 +318,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
           <div
             className="wd-ruler-right"
             data-marker="right"
-            data-tip="Right indent"
+            data-tip={t('Right indent')}
             style={{ left: place(pos('right', 0, right)) - 5 }}
             onMouseDown={(e) => hold(e, {
               kind: 'right', index: 0, x: right, min: Math.max(first, left) + 8, max: W - END, mirrored,
@@ -331,7 +333,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
                 className={`wd-ruler-tab${drag && drag.kind === 'tab' && drag.index === i && drag.off ? ' off' : ''}`}
                 data-align={s.align || 'left'}
                 data-pos={Math.round(s.posPx)}
-                data-tip={`${s.align || 'left'} tab at ${(s.posPx / PX_PER_CM).toFixed(2)} cm — drag to move, drag off to remove`}
+                data-tip={t('{align} tab at {value} cm — drag to move, drag off to remove', { align: TAB_NAMES[s.align || 'left'] || s.align, value: (s.posPx / PX_PER_CM).toFixed(2) })}
                 style={{ left: place(pos('tab', i, x)) - 4 }}
                 onMouseDown={(e) => hold(e, {
                   kind: 'tab', index: i, x, min: START + 1, max: W - END, mirrored,
@@ -352,7 +354,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
             key={c.k}
             className="wd-ruler-col"
             data-k={c.k}
-            data-tip="Table column — drag to resize"
+            data-tip={t('Table column — drag to resize')}
             style={{ left: pos('col', c.k, c.x) - 4 }}
             onMouseDown={(e) => hold(e, {
               kind: 'col', index: c.k, x: c.x, min, max,
@@ -365,7 +367,7 @@ export function Ruler({ section, page, model, at, tableId, gridPx, onParagraph, 
         <>
           <div className="wd-ruler-guide" style={{ left: bar.left + (drag.kind === 'margin' || drag.kind === 'col' ? drag.x : place(drag.x)), top: bar.bottom }} />
           <div className="wd-ruler-readout" style={{ left: drag.kind === 'margin' || drag.kind === 'col' ? drag.x : place(drag.x) }}>
-            {drag.off ? 'Remove' : `${((drag.x - (drag.kind === 'margin' || drag.kind === 'col' ? ML : START)) / PX_PER_CM).toFixed(2)} cm`}
+            {drag.off ? t('Remove') : t('{value} cm', { value: ((drag.x - (drag.kind === 'margin' || drag.kind === 'col' ? ML : START)) / PX_PER_CM).toFixed(2) })}
           </div>
         </>
       ) : null}

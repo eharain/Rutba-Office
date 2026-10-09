@@ -13,32 +13,33 @@
 // it where the path ends.
 
 import { MOTION_PATHS } from '@rutba/presentation/timing';
+import { t } from '@rutba/office-ui';
 
 /** The Animation gallery's entrances, in PowerPoint's order, and what each does. */
 export const ANIMATION_GALLERY = [
-  ['appear', 'Appear', 'the shape is simply there on the click'],
-  ['fade', 'Fade', 'the shape fades in'],
-  ['fly', 'Fly In', 'the shape flies in from off the slide'],
-  ['float', 'Float In', 'the shape drifts up into place as it fades in'],
-  ['split', 'Split', 'the shape opens out from its middle'],
-  ['wipe', 'Wipe', 'the shape is wiped on from one side'],
-  ['zoom', 'Zoom', 'the shape grows from its centre'],
+  ['appear', t('Appear'), t('the shape is simply there on the click')],
+  ['fade', t('Fade'), t('the shape fades in')],
+  ['fly', t('Fly In'), t('the shape flies in from off the slide')],
+  ['float', t('Float In'), t('the shape drifts up into place as it fades in')],
+  ['split', t('Split'), t('the shape opens out from its middle')],
+  ['wipe', t('Wipe'), t('the shape is wiped on from one side')],
+  ['zoom', t('Zoom'), t('the shape grows from its centre')],
 ];
 /** More Effects and Add Animation: every effect, under PowerPoint's three headings. */
 export const EFFECT_MENU = [
-  ['entr', 'Entrance', ANIMATION_GALLERY.map(([effect, label]) => [effect, label])],
-  ['emph', 'Emphasis', [['pulse', 'Pulse'], ['spin', 'Spin'], ['grow', 'Grow/Shrink']]],
-  ['exit', 'Exit', [['appear', 'Disappear'], ['fade', 'Fade'], ['fly', 'Fly Out'], ['float', 'Float Out'], ['split', 'Split'], ['wipe', 'Wipe'], ['zoom', 'Zoom']]],
+  ['entr', t('Entrance'), ANIMATION_GALLERY.map(([effect, label]) => [effect, label])],
+  ['emph', t('Emphasis'), [['pulse', t('Pulse')], ['spin', t('Spin')], ['grow', t('Grow/Shrink')]]],
+  ['exit', t('Exit'), [['appear', t('Disappear')], ['fade', t('Fade')], ['fly', t('Fly Out')], ['float', t('Float Out')], ['split', t('Split')], ['wipe', t('Wipe')], ['zoom', t('Zoom')]]],
   // Motion Paths: each a path from the shape's centre (`motionPath`).
-  ['path', 'Motion Paths', MOTION_PATHS],
+  ['path', t('Motion Paths'), MOTION_PATHS.map(([path, label]) => [path, t(label)])],
 ];
 /** Effect Options for each effect that has a direction, as `[value, label]` — the engine's own values. */
 export const ANIMATION_OPTIONS = {
-  fly: [['bottom', 'From Bottom'], ['bottom-left', 'From Bottom-Left'], ['left', 'From Left'], ['top-left', 'From Top-Left'], ['top', 'From Top'], ['top-right', 'From Top-Right'], ['right', 'From Right'], ['bottom-right', 'From Bottom-Right']],
-  wipe: [['bottom', 'From Bottom'], ['left', 'From Left'], ['right', 'From Right'], ['top', 'From Top']],
-  split: [['vertical-out', 'Vertical Out'], ['vertical-in', 'Vertical In'], ['horizontal-out', 'Horizontal Out'], ['horizontal-in', 'Horizontal In']],
-  float: [['up', 'Float Up'], ['down', 'Float Down']],
-  spin: [['clockwise', 'Clockwise'], ['counterclockwise', 'Counterclockwise']],
+  fly: [['bottom', t('From Bottom')], ['bottom-left', t('From Bottom-Left')], ['left', t('From Left')], ['top-left', t('From Top-Left')], ['top', t('From Top')], ['top-right', t('From Top-Right')], ['right', t('From Right')], ['bottom-right', t('From Bottom-Right')]],
+  wipe: [['bottom', t('From Bottom')], ['left', t('From Left')], ['right', t('From Right')], ['top', t('From Top')]],
+  split: [['vertical-out', t('Vertical Out')], ['vertical-in', t('Vertical In')], ['horizontal-out', t('Horizontal Out')], ['horizontal-in', t('Horizontal In')]],
+  float: [['up', t('Float Up')], ['down', t('Float Down')]],
+  spin: [['clockwise', t('Clockwise')], ['counterclockwise', t('Counterclockwise')]],
 };
 
 /** Every element drawing a shape, or the members of a group — or, given a paragraph, that paragraph's lines in the shape. */

@@ -6,6 +6,7 @@
 // share the window out.
 
 import React, { useEffect, useRef } from 'react';
+import { t } from '@rutba/office-ui';
 
 /** A node made safe to show as a copy: nothing in it editable, no id twice in the window. */
 function inert(node) {
@@ -78,7 +79,7 @@ export function SplitPane({ pageRef, version, onGo, onResize }) {
   };
   return (
     <>
-      <div className="wd-split-bar" role="separator" aria-orientation="horizontal" title="Drag to share the window between the panes" onMouseDown={drag} />
+      <div className="wd-split-bar" role="separator" aria-orientation="horizontal" title={t('Drag to share the window between the panes')} onMouseDown={drag} />
       <div
         className="wd-split-pane"
         ref={host}

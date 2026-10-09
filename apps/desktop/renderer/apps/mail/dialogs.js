@@ -9,7 +9,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Button, Dialog, Field, Input, Icon, Chip, Empty, Spinner, Search, Progress, Separator,
-  formatBytes, formatWhen,
+  formatBytes, formatWhen, t, tn,
 } from '@rutba/office-ui';
 import { avatarFor, displayName } from './parts.js';
 import { cleanHtml, htmlToText, LinkRow, selectionIn } from './richtext.js';
@@ -54,11 +54,11 @@ export function SignatureDialog({ shell, accounts, accountId, onClose, onSaved, 
   // message without a fetch from anywhere; small, because it goes with every
   // message.
   const picture = useCallback(async () => {
-    const [file] = (await shell.dialog.open({ title: 'Insert a picture', filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }] })) || [];
+    const [file] = (await shell.dialog.open({ title: t('Insert a picture'), filters: [{ name: t('Pictures'), extensions: ['png', 'jpg', 'jpeg', 'gif', 'webp'] }] })) || [];
     if (!file) return;
     const { bytes } = await shell.fs.read({ path: file });
     if (bytes.length > 256 * 1024) {
-      toast('That picture is over 256 KB — a signature goes with every message, so use a smaller one.', { tone: 'bad' });
+      toast(t('That picture is over 256 KB — a signature goes with every message, so use a smaller one.'), { tone: 'bad' });
       return;
     }
     const ext = String(file).split('.').pop().toLowerCase();
@@ -79,7 +79,7 @@ export function SignatureDialog({ shell, accounts, accountId, onClose, onSaved, 
       const text = htmlToText(html).replace(/\s+$/, '');
       const plainOnly = !text || html === signatureTextToHtml(text);
       await shell.mail.updateAccount({ id, patch: { signature: text, signatureHtml: plainOnly ? null : html } });
-      toast('Signature saved', { tone: 'good' });
+      toast(t('Signature saved'), { tone: 'good' });
       onSaved();
     } catch (err) {
       toast(err.message, { tone: 'bad' });
@@ -90,18 +90,18 @@ export function SignatureDialog({ shell, accounts, accountId, onClose, onSaved, 
 
   return (
     <Dialog
-      title="Signature"
+      title={t('Signature')}
       width={560}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label={saving ? 'Saving…' : 'Save'} disabled={saving || !id} onClick={save} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={saving ? t('Saving…') : t('Save')} disabled={saving || !id} onClick={save} />
         </>
       }
     >
       {accounts.length > 1 ? (
-        <Field label="Account">
+        <Field label={t('Account')}>
           <select className="rw-input ml-signature-account" value={id} onChange={(e) => setId(e.target.value)}>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>{a.name ? `${a.name} <${a.email}>` : a.email}</option>
@@ -109,22 +109,22 @@ export function SignatureDialog({ shell, accounts, accountId, onClose, onSaved, 
           </select>
         </Field>
       ) : null}
-      <Field label="Added to the end of new messages, and above the quote when you reply or forward">
+      <Field label={t('Added to the end of new messages, and above the quote when you reply or forward')}>
         <div className="ml-toolbar ml-signature-tools">
-          <Button icon="bold" title="Bold" onMouseDown={keep} onClick={() => run('bold')} />
-          <Button icon="italic" title="Italic" onMouseDown={keep} onClick={() => run('italic')} />
-          <Button icon="underline" title="Underline" onMouseDown={keep} onClick={() => run('underline')} />
+          <Button icon="bold" title={t('Bold')} onMouseDown={keep} onClick={() => run('bold')} />
+          <Button icon="italic" title={t('Italic')} onMouseDown={keep} onClick={() => run('italic')} />
+          <Button icon="underline" title={t('Underline')} onMouseDown={keep} onClick={() => run('underline')} />
           <Separator />
           {SIGNATURE_COLOURS.map(([colour, name]) => (
-            <button key={colour} type="button" className="ml-signature-colour" title={`Colour: ${name}`} aria-label={`Colour: ${name}`} style={{ background: colour }} onMouseDown={keep} onClick={() => run('foreColor', colour)} />
+            <button key={colour} type="button" className="ml-signature-colour" title={t('Colour: {name}', { name })} aria-label={t('Colour: {name}', { name })} style={{ background: colour }} onMouseDown={keep} onClick={() => run('foreColor', colour)} />
           ))}
           <Separator />
-          <Button label="A−" title="Smaller" onMouseDown={keep} onClick={() => run('fontSize', '2')} />
-          <Button label="A+" title="Larger" onMouseDown={keep} onClick={() => run('fontSize', '4')} />
+          <Button label="A−" title={t('Smaller')} onMouseDown={keep} onClick={() => run('fontSize', '2')} />
+          <Button label="A+" title={t('Larger')} onMouseDown={keep} onClick={() => run('fontSize', '4')} />
           <Separator />
-          <Button icon="link" title="Link" onMouseDown={keep} onClick={() => setLinking({ range: selectionIn(editor.current) })} />
-          <Button icon="picture" title="Picture" onMouseDown={keep} onClick={picture} />
-          <Button icon="undo" title="Clear formatting" onMouseDown={keep} onClick={() => run('removeFormat')} />
+          <Button icon="link" title={t('Link')} onMouseDown={keep} onClick={() => setLinking({ range: selectionIn(editor.current) })} />
+          <Button icon="picture" title={t('Picture')} onMouseDown={keep} onClick={picture} />
+          <Button icon="undo" title={t('Clear formatting')} onMouseDown={keep} onClick={() => run('removeFormat')} />
         </div>
         {linking ? <LinkRow editor={editor.current} range={linking.range} onDone={() => setLinking(null)} /> : null}
         <div
@@ -135,8 +135,8 @@ export function SignatureDialog({ shell, accounts, accountId, onClose, onSaved, 
           spellCheck
           role="textbox"
           aria-multiline="true"
-          aria-label="Signature"
-          data-placeholder="Left blank, nothing is added."
+          aria-label={t('Signature')}
+          data-placeholder={t('Left blank, nothing is added.')}
         />
       </Field>
     </Dialog>
@@ -144,7 +144,7 @@ export function SignatureDialog({ shell, accounts, accountId, onClose, onSaved, 
 }
 
 /** The colours the signature editor offers: the house blue, and the ones signatures use. */
-const SIGNATURE_COLOURS = [['#1a1c20', 'Black'], ['#5f6368', 'Grey'], ['#2b5fd9', 'Blue'], ['#0f9d58', 'Green'], ['#c00000', 'Red'], ['#7b5cd6', 'Purple']];
+const SIGNATURE_COLOURS = [['#1a1c20', t('Black')], ['#5f6368', t('Grey')], ['#2b5fd9', t('Blue')], ['#0f9d58', t('Green')], ['#c00000', t('Red')], ['#7b5cd6', t('Purple')]];
 
 /* ── out of office ────────────────────────────────────────────────────────── */
 
@@ -200,7 +200,7 @@ export function OutOfOfficeDialog({ shell, accounts, accountId, onClose, onSaved
       const sentTo = form.enabled && !wasOn ? [] : form.sentTo || [];
       const patch = { enabled: form.enabled, start: form.start || null, end: form.end || null, subject: form.subject, message: form.message, contactsOnly: form.contactsOnly, sentTo };
       await shell.mail.updateAccount({ id, patch: { autoReply: patch } });
-      toast(patch.enabled ? 'Automatic replies are on' : 'Automatic replies are off', { tone: 'good' });
+      toast(patch.enabled ? t('Automatic replies are on') : t('Automatic replies are off'), { tone: 'good' });
       onSaved();
     } catch (err) {
       toast(err.message, { tone: 'bad' });
@@ -211,18 +211,18 @@ export function OutOfOfficeDialog({ shell, accounts, accountId, onClose, onSaved
 
   return (
     <Dialog
-      title="Automatic replies"
+      title={t('Automatic replies')}
       width={520}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label={saving ? 'Saving…' : 'Save'} disabled={saving || !id} onClick={save} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={saving ? t('Saving…') : t('Save')} disabled={saving || !id} onClick={save} />
         </>
       }
     >
       {accounts.length > 1 ? (
-        <Field label="Account">
+        <Field label={t('Account')}>
           <select className="rw-input ml-signature-account" value={id} onChange={(e) => setId(e.target.value)}>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>{a.name ? `${a.name} <${a.email}>` : a.email}</option>
@@ -233,44 +233,41 @@ export function OutOfOfficeDialog({ shell, accounts, accountId, onClose, onSaved
 
       <label className="ml-ooo-toggle ml-ooo-enabled">
         <input type="checkbox" checked={form.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
-        <span>Send automatic replies</span>
+        <span>{t('Send automatic replies')}</span>
       </label>
 
       <div className="ml-servers3" style={{ gridTemplateColumns: '1fr 1fr' }}>
-        <Field label="Start (optional)">
+        <Field label={t('Start (optional)')}>
           <input type="datetime-local" className="rw-input" value={forDateInput(form.start)} onChange={(e) => set({ start: fromDateInput(e.target.value) })} />
         </Field>
-        <Field label="End (optional)">
+        <Field label={t('End (optional)')}>
           <input type="datetime-local" className="rw-input" value={forDateInput(form.end)} onChange={(e) => set({ end: fromDateInput(e.target.value) })} />
         </Field>
       </div>
       <p className="rw-hint" style={{ marginTop: -4 }}>
-        Left blank, it starts the moment you save it and runs until you turn it off. Replies go out while Rutba
-        Office is running — one due while it is closed goes out the next time mail is fetched.
+        {t('Left blank, it starts the moment you save it and runs until you turn it off. Replies go out while Rutba Office is running — one due while it is closed goes out the next time mail is fetched.')}
       </p>
 
-      <Field label="Subject" hint="Leave blank for “Automatic reply: ” and the original subject.">
-        <Input value={form.subject} onChange={(e) => set({ subject: e.target.value })} placeholder="Automatic reply: <original subject>" />
+      <Field label={t('Subject')} hint={t('Leave blank for “Automatic reply: ” and the original subject.')}>
+        <Input value={form.subject} onChange={(e) => set({ subject: e.target.value })} placeholder={t('Automatic reply: <original subject>')} />
       </Field>
-      <Field label="Message">
+      <Field label={t('Message')}>
         <textarea
           className="rw-input ml-compose-body ml-ooo-message"
           rows={6}
           value={form.message}
           onChange={(e) => set({ message: e.target.value })}
-          placeholder="I'm away until … and will answer when I'm back."
+          placeholder={t("I'm away until … and will answer when I'm back.")}
         />
       </Field>
 
       <label className="ml-ooo-toggle ml-ooo-contacts">
         <input type="checkbox" checked={form.contactsOnly} onChange={(e) => set({ contactsOnly: e.target.checked })} />
-        <span>Only reply to people in my contacts</span>
+        <span>{t('Only reply to people in my contacts')}</span>
       </label>
 
       <p className="rw-hint" style={{ marginBottom: 0 }}>
-        Each sender hears from this once while it stays on — a second message from the same person is not answered
-        again until it is turned off and on. A mailing list, a no-reply address and a message that already says it
-        is automatic are never answered.
+        {t('Each sender hears from this once while it stays on — a second message from the same person is not answered again until it is turned off and on. A mailing list, a no-reply address and a message that already says it is automatic are never answered.')}
       </p>
     </Dialog>
   );
@@ -295,8 +292,8 @@ export function Discovered({ scan, onImportStore, onUseAccount }) {
         <div className="ml-found-item" style={{ cursor: 'default' }}>
           <Spinner />
           <span className="grow">
-            <div className="who">Looking for mail already on this computer…</div>
-            <div className="what">Outlook, Thunderbird, Apple Mail and Windows Mail</div>
+            <div className="who">{t('Looking for mail already on this computer…')}</div>
+            <div className="what">{t('Outlook, Thunderbird, Apple Mail and Windows Mail')}</div>
           </span>
         </div>
       </div>
@@ -306,7 +303,7 @@ export function Discovered({ scan, onImportStore, onUseAccount }) {
   if (!scan.accounts?.length) {
     return (
       <p className="rw-hint" style={{ marginTop: 0 }}>
-        No other mail client was found on this computer. Choose a file below if you have an archive elsewhere.
+        {t('No other mail client was found on this computer. Choose a file below if you have an archive elsewhere.')}
       </p>
     );
   }
@@ -328,12 +325,12 @@ export function Discovered({ scan, onImportStore, onUseAccount }) {
               <div className="who">{account.email}</div>
               <div className="what">
                 {account.source}
-                {account.storeCount ? ` · ${account.storeCount} data file${account.storeCount === 1 ? '' : 's'}` : ''}
+                {account.storeCount ? ` · ${tn(account.storeCount, '{count} data file', '{count} data files')}` : ''}
                 {account.messagesHint ? ` · ${formatBytes(account.messagesHint)}` : ''}
                 {account.incoming?.host ? ` · ${account.incoming.host}` : ''}
               </div>
             </span>
-            {account.stores?.length ? <Chip>Import</Chip> : null}
+            {account.stores?.length ? <Chip>{t('Import')}</Chip> : null}
           </button>
 
           {/* More than one data file: name them, because "4 stores" is not a choice. */}
@@ -360,18 +357,17 @@ export function Discovered({ scan, onImportStore, onUseAccount }) {
               <Icon name="settings" size={14} />
               <span className="grow">
                 <div className="what">
-                  Set up this account here — {account.incoming.protocol.toUpperCase()} {account.incoming.host}
+                  {t('Set up this account here — {protocol} {host}', { protocol: account.incoming.protocol.toUpperCase(), host: account.incoming.host })}
                   {account.outgoing?.host ? `, SMTP ${account.outgoing.host}` : ''}
                 </div>
               </span>
-              <Chip>Use settings</Chip>
+              <Chip>{t('Use settings')}</Chip>
             </button>
           ) : null}
         </div>
       ))}
       <p className="rw-hint" style={{ margin: 0 }}>
-        Nothing was read — only the file names and the settings those clients keep in plain text. Your password is
-        never among them, so you will be asked for it once.
+        {t('Nothing was read — only the file names and the settings those clients keep in plain text. Your password is never among them, so you will be asked for it once.')}
       </p>
     </div>
   );
@@ -382,30 +378,30 @@ export function Discovered({ scan, onImportStore, onUseAccount }) {
 export function ImportDialog({ scan, onClose, onChoose, onImportStore, onUseAccount, onImportAccounts }) {
   return (
     <Dialog
-      title="Import mail"
+      title={t('Import mail')}
       width={600}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="Choose a file…" onClick={onChoose} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('Choose a file…')} onClick={onChoose} />
         </>
       }
     >
       <Discovered scan={scan} onImportStore={onImportStore} onUseAccount={onUseAccount} />
-      <p style={{ marginTop: 4, marginBottom: 6, fontWeight: 600, fontSize: 12.5 }}>Or open an archive directly</p>
+      <p style={{ marginTop: 4, marginBottom: 6, fontWeight: 600, fontSize: 12.5 }}>{t('Or open an archive directly')}</p>
       <ul className="ml-formats">
-        <li><strong>.pst</strong> and <strong>.ost</strong> — Outlook data files, with folders, attachments and read state</li>
-        <li><strong>.olm</strong> — Outlook for Mac archives</li>
-        <li><strong>.mbox</strong> — Thunderbird, Apple Mail, Google Takeout</li>
-        <li><strong>.eml</strong>, <strong>.msg</strong> — single messages, or a folder full of them</li>
+        <li><strong>.pst</strong> {t('and')} <strong>.ost</strong> — {t('Outlook data files, with folders, attachments and read state')}</li>{/* words-ok: file extensions */}
+        <li><strong>.olm</strong> — {t('Outlook for Mac archives')}</li>
+        <li><strong>.mbox</strong> — Thunderbird, Apple Mail, Google Takeout{/* words-ok: product names */}</li>
+        <li><strong>.eml</strong>, <strong>.msg</strong> — {t('single messages, or a folder full of them')}</li>
       </ul>
-      <p style={{ marginTop: 10, marginBottom: 6, fontWeight: 600, fontSize: 12.5 }}>Or set up accounts from a file</p>
+      <p style={{ marginTop: 10, marginBottom: 6, fontWeight: 600, fontSize: 12.5 }}>{t('Or set up accounts from a file')}</p>
       <p className="rw-hint" style={{ marginBottom: 6 }}>
-        A JSON file of accounts — address, password, servers — from another client or from whoever runs your mail. Each is tried before it is kept; one already set up is left alone.
+        {t('A JSON file of accounts — address, password, servers — from another client or from whoever runs your mail. Each is tried before it is kept; one already set up is left alone.')}
       </p>
-      <Button label="Choose an accounts file…" onClick={onImportAccounts} className="ml-import-accounts" />
-      <p className="rw-hint" style={{ marginTop: 10 }}>Nothing is sent anywhere. The import reads the file and writes to this computer only.</p>
+      <Button label={t('Choose an accounts file…')} onClick={onImportAccounts} className="ml-import-accounts" />
+      <p className="rw-hint" style={{ marginTop: 10 }}>{t('Nothing is sent anywhere. The import reads the file and writes to this computer only.')}</p>
     </Dialog>
   );
 }
@@ -417,29 +413,29 @@ export function ImportPreview({ found, onCancel, onImport }) {
 
   if (!found.readable) {
     return (
-      <Dialog title="This file cannot be read" onClose={onCancel} actions={<Button primary label="Close" onClick={onCancel} />}>
+      <Dialog title={t('This file cannot be read')} onClose={onCancel} actions={<Button primary label={t('Close')} onClick={onCancel} />}>
         <p style={{ marginTop: 0 }}>{found.label}</p>
-        <p className="rw-hint">{found.encoding ? `It uses the ${found.encoding} encoding, which this build cannot decode.` : 'The format was not recognised.'}</p>
+        <p className="rw-hint">{found.encoding ? t('It uses the {encoding} encoding, which this build cannot decode.', { encoding: found.encoding }) : t('The format was not recognised.')}</p>
       </Dialog>
     );
   }
 
   return (
     <Dialog
-      title={`Import from ${found.label}`}
+      title={t('Import from {source}', { source: found.label })}
       width={560}
       onClose={onCancel}
       actions={
         <>
-          <Button label="Cancel" onClick={onCancel} />
-          <Button primary label={`Import ${total.toLocaleString()} messages`} disabled={!total} onClick={() => onImport([...chosen])} />
+          <Button label={t('Cancel')} onClick={onCancel} />
+          <Button primary label={tn(total, 'Import {count} message', 'Import {count} messages')} disabled={!total} onClick={() => onImport([...chosen])} />
         </>
       }
     >
       <div className="ml-import-summary">
         <Chip>{formatBytes(found.bytes || 0)}</Chip>
-        <Chip>{(found.folders || []).length} folders</Chip>
-        <Chip>{(found.messages || 0).toLocaleString()} messages</Chip>
+        <Chip>{tn((found.folders || []).length, '{count} folder', '{count} folders')}</Chip>
+        <Chip>{tn(found.messages || 0, '{count} message', '{count} messages')}</Chip>
         {found.encoding ? <Chip>{found.encoding}</Chip> : null}
       </div>
       <div className="ml-listbar" style={{ borderTop: '1px solid var(--line-soft)' }}>
@@ -449,7 +445,7 @@ export function ImportPreview({ found, onCancel, onImport }) {
           checked={chosen.size === all.length && all.length > 0}
           onChange={(e) => setChosen(e.target.checked ? new Set(all.map((f) => f.path || f.name)) : new Set())}
         />
-        <span>{chosen.size} of {all.length} folders</span>
+        <span>{tn(all.length, '{chosen} of {count} folder', '{chosen} of {count} folders', { chosen: chosen.size })}</span>
       </div>
       <div className="ml-import-folders">
         {(found.folders || []).map((f) => {
@@ -477,7 +473,7 @@ export function ImportPreview({ found, onCancel, onImport }) {
           );
         })}
       </div>
-      <p className="rw-hint">Importing the same archive twice adds nothing: a message is identified by its own contents.</p>
+      <p className="rw-hint">{t('Importing the same archive twice adds nothing: a message is identified by its own contents.')}</p>
     </Dialog>
   );
 }
@@ -493,7 +489,7 @@ export function ImportPreview({ found, onCancel, onImport }) {
 function ProviderTiles({ providers, onChoose, onOther }) {
   return (
     <div className="ml-providers">
-      <div className="ml-providers-head">Choose your provider</div>
+      <div className="ml-providers-head">{t('Choose your provider')}</div>
       <div className="ml-providers-row">
         {providers.map((p) => (
           <button key={p.id} type="button" className="ml-provider" data-provider={p.id} onClick={() => onChoose(p)}>
@@ -502,8 +498,8 @@ function ProviderTiles({ providers, onChoose, onOther }) {
           </button>
         ))}
         <button type="button" className="ml-provider" data-provider="other" onClick={onOther}>
-          <span className="label">Other</span>
-          <span className="domain">Enter your address and the servers are found for you</span>
+          <span className="label">{t('Other')}</span>
+          <span className="domain">{t('Enter your address and the servers are found for you')}</span>
         </button>
       </div>
     </div>
@@ -582,7 +578,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
         const p = r.oauth ? await shell.oauth.provider({ email, id: r.oauth }).catch(() => null) : null;
         if (p) setProvider(p);
       } catch (err) {
-        setFound({ imap: null, smtp: null, note: err.message, steps: [{ name: 'the search', status: 'failed', detail: err.message }] });
+        setFound({ imap: null, smtp: null, note: err.message, steps: [{ name: t('the search'), status: 'failed', detail: err.message }] });
       } finally {
         if (lookedUp.current === domain) setLooking(false);
       }
@@ -602,7 +598,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
         provider: { id: entry.id, label: entry.tileLabel || entry.label, domain: entry.domain },
         oauth: entry.oauth || null,
         appPassword: entry.appPassword || null,
-        note: entry.note || `${entry.tileLabel || entry.label}'s servers, filled in — nothing was searched.`,
+        note: entry.note || t("{provider}'s servers, filled in — nothing was searched.", { provider: entry.tileLabel || entry.label }),
         steps: [],
       });
       set({
@@ -717,7 +713,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
   const ready = form.email.includes('@') && form.imapHost && form.smtpHost;
   const showTiles = tilesOverride ? tilesOverride === 'open' : !form.email.trim() || !found?.provider;
   const addressPlaceholder = found?.provider?.domain ? `you@${found.provider.domain}` : 'you@example.com';
-  const label = (s) => ({ tls: 'TLS', starttls: 'STARTTLS', none: 'None' }[s] || s);
+  const label = (s) => ({ tls: 'TLS', starttls: 'STARTTLS', none: t('None') }[s] || s);
   const server = (host, port, sec, verified) => (
     <>
       <b>{host}</b> · {port} · {label(sec)}
@@ -727,16 +723,16 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
 
   return (
     <Dialog
-      title="Add a mail account"
+      title={t('Add a mail account')}
       width={560}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          {onImportAccounts ? <Button label="From a file…" title="Set up the accounts in a file, all at once" className="ml-import-accounts" onClick={onImportAccounts} /> : null}
-          <Button label={advanced ? 'Simple' : 'Advanced…'} onClick={() => setAdvanced((a) => !a)} />
-          <Button label={testing ? 'Testing…' : 'Test'} disabled={testing || adding || !ready || !form.password} onClick={test} />
-          <Button primary label={adding ? 'Adding…' : 'Add account'} disabled={adding || testing || !ready || !form.password} onClick={add} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          {onImportAccounts ? <Button label={t('From a file…')} title={t('Set up the accounts in a file, all at once')} className="ml-import-accounts" onClick={onImportAccounts} /> : null}
+          <Button label={advanced ? t('Simple') : t('Advanced…')} onClick={() => setAdvanced((a) => !a)} />
+          <Button label={testing ? t('Testing…') : t('Test')} disabled={testing || adding || !ready || !form.password} onClick={test} />
+          <Button primary label={adding ? t('Adding…') : t('Add account')} disabled={adding || testing || !ready || !form.password} onClick={add} />
         </>
       }
     >
@@ -745,11 +741,11 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
           <ProviderTiles providers={providers} onChoose={chooseTile} onOther={otherTile} />
         ) : (
           <button type="button" className="ml-provider-change" onClick={() => setTilesOverride('open')}>
-            Change provider
+            {t('Change provider')}
           </button>
         )}
 
-        <Field label="Email address">
+        <Field label={t('Email address')}>
           <Input
             id="ml-address"
             value={form.email}
@@ -768,40 +764,40 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
             <button type="button" className="ml-found-item" disabled={signingIn || !provider.configured} onClick={signIn}>
               <span className="ml-found-logo">{signingIn ? <Spinner /> : <Icon name="lock" size={15} />}</span>
               <span className="grow">
-                <div className="who">{signingIn ? `Waiting for ${provider.label}…` : `Sign in with ${provider.label}`}</div>
+                <div className="who">{signingIn ? t('Waiting for {provider}…', { provider: provider.label }) : t('Sign in with {provider}', { provider: provider.label })}</div>
                 <div className="what">
                   {provider.configured
-                    ? 'Opens your own browser. Your password is typed into their page and never reaches this application.'
-                    : `This build has no ${provider.label} client id, so signing in is not set up. See docs/OAUTH.md.`}
+                    ? t('Opens your own browser. Your password is typed into their page and never reaches this application.')
+                    : t('This build has no {provider} client id, so signing in is not set up. See docs/OAUTH.md.', { provider: provider.label })}
                 </div>
               </span>
-              {provider.configured ? <Chip>Recommended</Chip> : null}
+              {provider.configured ? <Chip>{t('Recommended')}</Chip> : null}
             </button>
             <p className="rw-hint" style={{ margin: 0 }}>
-              {provider.label} no longer accepts an ordinary password for mail programs. An app password below still works if you have one.
+              {t('{provider} no longer accepts an ordinary password for mail programs. An app password below still works if you have one.', { provider: provider.label })}
             </p>
           </div>
         ) : null}
 
-        <Field label="Password" hint="Kept in this computer's keystore, never in a file you can read.">
+        <Field label={t('Password')} hint={t("Kept in this computer's keystore, never in a file you can read.")}>
           <Input type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter' && ready && form.password && !adding) add(); }} />
         </Field>
 
         <div className="ml-search" data-state={looking ? 'looking' : found ? (found.imap ? 'found' : 'nothing') : 'idle'}>
           {looking ? (
-            <div className="ml-search-line"><Spinner /> Looking up where {form.email.split('@')[1]} keeps its mail…</div>
+            <div className="ml-search-line"><Spinner /> {t('Looking up where {domain} keeps its mail…', { domain: form.email.split('@')[1] })}</div>
           ) : found ? (
             <>
               {found.imap ? (
                 <div className="ml-search-line">
                   <Icon name={found.imap.verified ? 'check' : 'info'} size={14} />
-                  <span>Incoming {server(found.imap.host, found.imap.port, security(found.imap), found.imap.verified)}</span>
+                  <span>{t('Incoming')} {server(found.imap.host, found.imap.port, security(found.imap), found.imap.verified)}</span>
                 </div>
               ) : null}
               {found.smtp ? (
                 <div className="ml-search-line">
                   <Icon name={found.smtp.verified ? 'check' : 'info'} size={14} />
-                  <span>Outgoing {server(found.smtp.host, found.smtp.port, security(found.smtp), found.smtp.verified)}</span>
+                  <span>{t('Outgoing')} {server(found.smtp.host, found.smtp.port, security(found.smtp), found.smtp.verified)}</span>
                 </div>
               ) : null}
               {found.note ? (
@@ -811,8 +807,8 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
                   {found.appPassword ? (
                     <Button
                       className="ml-app-password"
-                      label="Make an app password"
-                      title={`Make an app password for ${found.provider?.label || 'this account'} — ${found.appPassword.url}`}
+                      label={t('Make an app password')}
+                      title={t('Make an app password for {provider} — {url}', { provider: found.provider?.label || t('this account'), url: found.appPassword.url })}
                       onClick={() => shell.shell.openExternal({ url: found.appPassword.url })}
                     />
                   ) : null}
@@ -820,7 +816,7 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
               ) : null}
               {found.steps?.length ? (
                 <button type="button" className="ml-steps-toggle" onClick={() => setShowSteps((s) => !s)}>
-                  {showSteps ? 'Hide what was checked' : 'What was checked'}
+                  {showSteps ? t('Hide what was checked') : t('What was checked')}
                 </button>
               ) : null}
               {showSteps ? (
@@ -836,45 +832,45 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
               ) : null}
             </>
           ) : seed ? (
-            <div className="ml-note"><Icon name="info" size={14} />These settings came from {seed.source} on this computer; they are checked when the address is complete.</div>
+            <div className="ml-note"><Icon name="info" size={14} />{t('These settings came from {source} on this computer; they are checked when the address is complete.', { source: seed.source })}</div>
           ) : (
-            <div className="ml-search-line quiet">The mail server is found from the address. If it is not, Advanced takes the names from your provider.</div>
+            <div className="ml-search-line quiet">{t('The mail server is found from the address. If it is not, Advanced takes the names from your provider.')}</div>
           )}
         </div>
 
         {advanced ? (
           <div className="ml-advanced">
-            <Field label="Your name">
-              <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="How your name appears on messages you send" />
+            <Field label={t('Your name')}>
+              <Input value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder={t('How your name appears on messages you send')} />
             </Field>
-            <Field label="Username" hint="Only when it is not the address itself.">
+            <Field label={t('Username')} hint={t('Only when it is not the address itself.')}>
               <Input value={form.user} onChange={(e) => set({ user: e.target.value })} placeholder={form.email || 'you@example.com'} />
             </Field>
             <div className="ml-servers3">
-              <Field label="Incoming server (IMAP)">
+              <Field label={t('Incoming server (IMAP)')}>
                 <Input value={form.imapHost} onChange={(e) => set({ imapHost: e.target.value })} placeholder="imap.example.com" />
               </Field>
-              <Field label="Port">
+              <Field label={t('Port')}>
                 <Input type="number" value={form.imapPort} onChange={(e) => set({ imapPort: e.target.value })} />
               </Field>
-              <Field label="Security">
+              <Field label={t('Security')}>
                 <select className="rw-input" value={form.imapSecurity} onChange={(e) => set({ imapSecurity: e.target.value, imapPort: e.target.value === 'tls' ? 993 : 143 })}>
-                  <option value="tls">TLS</option>
+                  <option value="tls">TLS</option>{/* words-ok: protocol names */}
                   <option value="starttls">STARTTLS</option>
-                  <option value="none">None</option>
+                  <option value="none">{t('None')}</option>
                 </select>
               </Field>
-              <Field label="Outgoing server (SMTP)">
+              <Field label={t('Outgoing server (SMTP)')}>
                 <Input value={form.smtpHost} onChange={(e) => set({ smtpHost: e.target.value })} placeholder="smtp.example.com" />
               </Field>
-              <Field label="Port">
+              <Field label={t('Port')}>
                 <Input type="number" value={form.smtpPort} onChange={(e) => set({ smtpPort: e.target.value })} />
               </Field>
-              <Field label="Security">
+              <Field label={t('Security')}>
                 <select className="rw-input" value={form.smtpSecurity} onChange={(e) => set({ smtpSecurity: e.target.value, smtpPort: e.target.value === 'tls' ? 465 : 587 })}>
-                  <option value="tls">TLS</option>
+                  <option value="tls">TLS</option>{/* words-ok: protocol names */}
                   <option value="starttls">STARTTLS</option>
-                  <option value="none">None</option>
+                  <option value="none">{t('None')}</option>
                 </select>
               </Field>
             </div>
@@ -885,9 +881,9 @@ export function AccountDialog({ shell, seed, onClose, onSaved, onImportAccounts,
           <div className={`ml-result${result.error ? ' bad' : ' good'}`}>
             <Icon name={result.error ? 'info' : 'check'} size={14} />
             <span>
-              Incoming {result.imap?.ok ? `signed in — ${result.imap.folders} folders` : `failed: ${result.imap?.message}`}
+              {t('Incoming')} {result.imap?.ok ? tn(result.imap.folders, 'signed in — {count} folder', 'signed in — {count} folders') : t('failed: {reason}', { reason: result.imap?.message })}
               {' · '}
-              Outgoing {result.smtp?.ok ? 'signed in' : `failed: ${result.smtp?.message}`}
+              {t('Outgoing')} {result.smtp?.ok ? t('signed in') : t('failed: {reason}', { reason: result.smtp?.message })}
             </span>
           </div>
         ) : null}
@@ -923,7 +919,7 @@ export function FilesView({ shell, accountId, onOpen, onReveal }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div className="ml-tools">
-        <Search value={query} onChange={setQuery} placeholder="Search attachments by name or subject" />
+        <Search value={query} onChange={setQuery} placeholder={t('Search attachments by name or subject')} />
       </div>
       {!files ? (
         <div style={{ padding: 40, display: 'grid', placeItems: 'center' }}><Spinner /></div>
@@ -936,14 +932,14 @@ export function FilesView({ shell, accountId, onOpen, onReveal }) {
                 <span className="name">{f.filename}</span>
               </div>
               <div className="sub">{formatBytes(f.size)} · {displayName(f.from)}</div>
-              <div className="sub">{f.subject || '(no subject)'}</div>
+              <div className="sub">{f.subject || t('(no subject)')}</div>
               <div className="sub">{formatWhen(f.date)}</div>
             </button>
           ))}
         </div>
       ) : (
-        <Empty icon="attach" title={query ? 'Nothing matches' : 'No attachments yet'}>
-          Every file anyone has sent you appears here, whatever folder it landed in.
+        <Empty icon="attach" title={query ? t('Nothing matches') : t('No attachments yet')}>
+          {t('Every file anyone has sent you appears here, whatever folder it landed in.')}
         </Empty>
       )}
     </div>
@@ -985,7 +981,7 @@ export function PeopleView({ shell, accountId, onPerson }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 }}>
       <div className="ml-tools">
-        <Search value={query} onChange={setQuery} placeholder="Search people" />
+        <Search value={query} onChange={setQuery} placeholder={t('Search people')} />
       </div>
       {!people ? (
         <div style={{ padding: 40, display: 'grid', placeItems: 'center' }}><Spinner /></div>
@@ -1001,16 +997,16 @@ export function PeopleView({ shell, accountId, onPerson }) {
                   <div className="ad">{p.address}</div>
                 </span>
                 <span className="n">
-                  {p.received ? `${p.received.toLocaleString()} received` : ''}
+                  {p.received ? tn(p.received, '{count} received', '{count} received') : ''}
                   {p.received && p.sent ? ' · ' : ''}
-                  {p.sent ? `${p.sent.toLocaleString()} sent` : ''}
+                  {p.sent ? tn(p.sent, '{count} sent', '{count} sent') : ''}
                 </span>
               </button>
             );
           })}
         </div>
       ) : (
-        <Empty icon="reply" title="Nobody yet">This fills in as mail arrives, and after an import.</Empty>
+        <Empty icon="reply" title={t('Nobody yet')}>{t('This fills in as mail arrives, and after an import.')}</Empty>
       )}
     </div>
   );
@@ -1020,11 +1016,11 @@ export function PeopleView({ shell, accountId, onPerson }) {
 
 export function ImportingDialog({ path, progress }) {
   return (
-    <Dialog title="Importing" onClose={undefined}>
+    <Dialog title={t('Importing')} onClose={undefined}>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, padding: '6px 0 14px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <Spinner />
-          <span>{progress ? `${progress.done.toLocaleString()} messages — ${progress.folder}` : 'Reading the archive…'}</span>
+          <span>{progress ? tn(progress.done, '{count} message — {folder}', '{count} messages — {folder}', { folder: progress.folder }) : t('Reading the archive…')}</span>
         </div>
         <Progress value={progress?.done ? (progress.done % 500) / 500 : 0.15} />
         <div className="rw-hint">{path}</div>
@@ -1036,10 +1032,10 @@ export function ImportingDialog({ path, progress }) {
 /* ── junk email options ───────────────────────────────────────────────────── */
 
 const JUNK_CHOICES = [
-  ['off', 'No automatic filtering', 'Only senders on your Blocked Senders list go to Junk.'],
-  ['low', 'Low', 'The most obvious junk goes to Junk.'],
-  ['high', 'High', 'More junk is caught, and now and then a good message with it — look in Junk once in a while.'],
-  ['safeOnly', 'Safe Lists Only', 'Anything not from a Safe Sender or a contact goes to Junk.'],
+  ['off', t('No automatic filtering'), t('Only senders on your Blocked Senders list go to Junk.')],
+  ['low', t('Low'), t('The most obvious junk goes to Junk.')],
+  ['high', t('High'), t('More junk is caught, and now and then a good message with it — look in Junk once in a while.')],
+  ['safeOnly', t('Safe Lists Only'), t('Anything not from a Safe Sender or a contact goes to Junk.')],
 ];
 
 /**
@@ -1081,7 +1077,7 @@ export function JunkDialog({ shell, accountId, accounts = [], onClose, onSaved, 
           safeRecipients: lines(form.safeRecipients), blockedTlds: lines(form.blockedTlds), blockedEncodings: form.blockedEncodings,
         },
       });
-      toast('Junk email options saved', { tone: 'good' });
+      toast(t('Junk email options saved'), { tone: 'good' });
       onSaved?.();
     } catch (err) {
       toast(err.message, { tone: 'bad' });
@@ -1096,7 +1092,7 @@ export function JunkDialog({ shell, accountId, accounts = [], onClose, onSaved, 
     try {
       const j = await shell.mail.learnJunk({ accountId: who });
       setForm((f) => ({ ...f, learned: j.learned, ready: j.ready }));
-      toast(`Learned from ${j.added.junk} junk and ${j.added.good} good message${j.added.good === 1 ? '' : 's'}`, { tone: 'good' });
+      toast(tn(j.added.good, 'Learned from {junk} junk and {count} good message', 'Learned from {junk} junk and {count} good messages', { junk: j.added.junk }), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     } finally {
@@ -1107,28 +1103,28 @@ export function JunkDialog({ shell, accountId, accounts = [], onClose, onSaved, 
   const account = accounts.find((a) => a.id === who);
   return (
     <Dialog
-      title="Junk email options"
+      title={t('Junk email options')}
       width={600}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label={saving ? 'Saving…' : 'Save'} disabled={saving || !form} onClick={save} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={saving ? t('Saving…') : t('Save')} disabled={saving || !form} onClick={save} />
         </>
       }
     >
       {accounts.length > 1 ? (
-        <Field label="Account" hint="Each account keeps its own options, as in Outlook.">
+        <Field label={t('Account')} hint={t('Each account keeps its own options, as in Outlook.')}>
           <select className="rw-input ml-junk-account" value={who || ''} onChange={(e) => setWho(e.target.value)}>
             {accounts.map((a) => (
               <option key={a.id} value={a.id}>{a.name ? `${a.name} <${a.email}>` : a.email}</option>
             ))}
           </select>
         </Field>
-      ) : account ? <div className="rw-hint ml-junk-for">For {account.email}</div> : null}
+      ) : account ? <div className="rw-hint ml-junk-for">{t('For {address}', { address: account.email })}</div> : null}
       {!form ? <Spinner /> : (
         <>
-          <div className="ml-junk-levels" role="radiogroup" aria-label="How hard the filter looks">
+          <div className="ml-junk-levels" role="radiogroup" aria-label={t('How hard the filter looks')}>
             {JUNK_CHOICES.map(([value, label, hint]) => (
               <label key={value} className={`ml-junk-level${form.level === value ? ' on' : ''}`}>
                 <input type="radio" name="ml-junk-level" value={value} checked={form.level === value} onChange={() => set({ level: value })} />
@@ -1140,33 +1136,33 @@ export function JunkDialog({ shell, accountId, accounts = [], onClose, onSaved, 
           <div className="ml-junk-learned">
             <span>
               {form.ready
-                ? `The filter has learned from ${form.learned.junk} junk and ${form.learned.good} good messages.`
-                : `The filter has learned from ${form.learned.junk} junk and ${form.learned.good} good messages, and judges nothing until it has seen ${form.minimum} of each. Mark messages Junk and Not junk, or learn from what is already here.`}
+                ? t('The filter has learned from {junk} junk and {good} good messages.', { junk: form.learned.junk, good: form.learned.good })
+                : t('The filter has learned from {junk} junk and {good} good messages, and judges nothing until it has seen {minimum} of each. Mark messages Junk and Not junk, or learn from what is already here.', { junk: form.learned.junk, good: form.learned.good, minimum: form.minimum })}
             </span>
-            <Button label={learning ? 'Learning…' : 'Learn from my folders'} title="What is in Junk is learned as junk, the Inbox as good" disabled={learning || !who} onClick={learn} />
+            <Button label={learning ? t('Learning…') : t('Learn from my folders')} title={t('What is in Junk is learned as junk, the Inbox as good')} disabled={learning || !who} onClick={learn} />
           </div>
 
           <label className="ml-ooo-toggle ml-junk-contacts">
             <input type="checkbox" checked={form.trustContacts} onChange={(e) => set({ trustContacts: e.target.checked })} />
-            <span>Trust email from my contacts</span>
+            <span>{t('Trust email from my contacts')}</span>
           </label>
 
           <div className="ml-servers3" style={{ gridTemplateColumns: '1fr 1fr' }}>
-            <Field label="Safe Senders" hint="Never junk. One address or domain a line.">
+            <Field label={t('Safe Senders')} hint={t('Never junk. One address or domain a line.')}>
               <textarea className="rw-input ml-junk-safe" rows={6} value={form.safe} onChange={(e) => set({ safe: e.target.value })} placeholder={'friend@example.com\nexample.org'} />
             </Field>
-            <Field label="Blocked Senders" hint="Always junk.">
-              <textarea className="rw-input ml-junk-blocked" rows={6} value={form.blocked} onChange={(e) => set({ blocked: e.target.value })} placeholder="@offers.example" />
+            <Field label={t('Blocked Senders')} hint={t('Always junk.')}>
+              <textarea className="rw-input ml-junk-blocked" rows={6} value={form.blocked} onChange={(e) => set({ blocked: e.target.value })} placeholder="@offers.example" /* words-ok: an example address */ />
             </Field>
-            <Field label="Safe Recipients" hint="Mail sent to these — a group or a mailing list — is never junk.">
-              <textarea className="rw-input ml-junk-recipients" rows={4} value={form.safeRecipients} onChange={(e) => set({ safeRecipients: e.target.value })} placeholder="team@lists.example.org" />
+            <Field label={t('Safe Recipients')} hint={t('Mail sent to these — a group or a mailing list — is never junk.')}>
+              <textarea className="rw-input ml-junk-recipients" rows={4} value={form.safeRecipients} onChange={(e) => set({ safeRecipients: e.target.value })} placeholder="team@lists.example.org" /* words-ok: an example address */ />
             </Field>
-            <Field label="Blocked Top-Level Domains" hint="Mail from addresses ending in these is junk, such as ru or cn.">
+            <Field label={t('Blocked Top-Level Domains')} hint={t('Mail from addresses ending in these is junk, such as ru or cn.')}>
               <textarea className="rw-input ml-junk-tlds" rows={4} value={form.blockedTlds} onChange={(e) => set({ blockedTlds: e.target.value })} placeholder={'ru\ncn'} />
             </Field>
           </div>
 
-          <Field label="Blocked Encodings" hint="Mail written in these languages' character sets is junk.">
+          <Field label={t('Blocked Encodings')} hint={t("Mail written in these languages' character sets is junk.")}>
             <div className="ml-junk-encodings">
               {form.encodings.map((e) => (
                 <label key={e.key} className="ml-junk-encoding">

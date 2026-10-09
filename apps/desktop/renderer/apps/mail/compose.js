@@ -13,7 +13,7 @@
 // editor next door, and a reply does not need one.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Button, Dialog, Field, Input, Icon, Select, Separator, formatBytes } from '@rutba/office-ui';
+import { Button, Dialog, Field, Input, Icon, Select, Separator, formatBytes, t } from '@rutba/office-ui';
 import { textToHtml, htmlToText, LinkRow, selectionIn } from './richtext.js';
 import { swapSignature, signatureBlockHtml, signatureTextToHtml, SIGNATURE_ATTR } from '@rutba/mailbox/signature';
 import { pathOf } from '@rutba/office-shell/client';
@@ -83,7 +83,7 @@ function AddressInput({ value, onChange, shell, placeholder, autoFocus }) {
             <button type="button" key={h.email} className={i === on ? 'on' : ''} onMouseDown={(e) => { e.preventDefault(); pick(h); }}>
               <span className="n">{h.name || h.email}</span>
               {h.name ? <span className="e">{h.email}</span> : null}
-              <span className="s">{h.source === 'contacts' ? 'contact' : 'mail'}</span>
+              <span className="s">{h.source === 'contacts' ? t('contact') : t('mail')}</span>
             </button>
           ))}
         </div>
@@ -181,7 +181,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
   const keepSelection = (e) => e.preventDefault();
 
   const attach = useCallback(async () => {
-    const paths = await shell.dialog.open({ title: 'Attach files', multiple: true });
+    const paths = await shell.dialog.open({ title: t('Attach files'), multiple: true });
     if (!paths?.length) return;
     const added = [];
     for (const p of paths) {
@@ -201,21 +201,21 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
 
   return (
     <Dialog
-      title={draft.subject ? `Message — ${draft.subject}` : 'New message'}
+      title={draft.subject ? t('Message — {subject}', { subject: draft.subject }) : t('New message')}
       width={760}
       onClose={onClose}
       actions={
         <>
-          <Button label="Discard" onClick={onClose} />
-          <Button label="Save draft" onClick={() => onSaveDraft(collect())} />
-          <Button icon="clock" label="Send later" disabled={!draft.to} onClick={() => setScheduling((s) => !s)} />
-          <Button primary icon="send" label="Send" disabled={!draft.to} onClick={() => onSend(collect(), null)} />
+          <Button label={t('Discard')} onClick={onClose} />
+          <Button label={t('Save draft')} onClick={() => onSaveDraft(collect())} />
+          <Button icon="clock" label={t('Send later')} disabled={!draft.to} onClick={() => setScheduling((s) => !s)} />
+          <Button primary icon="send" label={t('Send')} disabled={!draft.to} onClick={() => onSend(collect(), null)} />
         </>
       }
     >
       <div className="ml-form">
         {accounts.length > 1 ? (
-          <Field label="From">
+          <Field label={t('From')}>
             <Select value={accountId || ''} onChange={(e) => onAccount(e.target.value)}>
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
@@ -225,12 +225,12 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
             </Select>
           </Field>
         ) : (
-          <Field label="From">
+          <Field label={t('From')}>
             <Input value={account ? `${account.name || ''} <${account.email}>` : ''} disabled />
           </Field>
         )}
 
-        <Field label="To">
+        <Field label={t('To')}>
           <div className="ml-to-row">
             <span className="grow">
               <AddressInput
@@ -238,49 +238,49 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
                 shell={shell}
                 value={draft.to || ''}
                 onChange={(to) => onChange({ ...draft, to })}
-                placeholder="someone@example.com, another@example.com"
+                placeholder="someone@example.com, another@example.com" // words-ok: example addresses
               />
             </span>
             <button type="button" className={`ml-linkchip${showCc ? ' on' : ''}`} onClick={() => setShowCc((s) => !s)}>
-              Cc / Bcc
+              {t('Cc / Bcc')}
             </button>
           </div>
         </Field>
 
         {showCc ? (
           <>
-            <Field label="Cc">
+            <Field label={t('Cc')}>
               <AddressInput shell={shell} value={draft.cc || ''} onChange={(cc) => onChange({ ...draft, cc })} />
             </Field>
-            <Field label="Bcc" hint="Nobody on this line is visible to the other recipients.">
+            <Field label={t('Bcc')} hint={t('Nobody on this line is visible to the other recipients.')}>
               <AddressInput shell={shell} value={draft.bcc || ''} onChange={(bcc) => onChange({ ...draft, bcc })} />
             </Field>
           </>
         ) : null}
 
-        <Field label="Subject">
+        <Field label={t('Subject')}>
           <Input value={draft.subject || ''} onChange={(e) => onChange({ ...draft, subject: e.target.value })} />
         </Field>
 
         {rich ? (
           <div>
             <div className="ml-toolbar">
-              <Button icon="bold" title="Bold" onClick={() => exec('bold')} />
-              <Button icon="italic" title="Italic" onClick={() => exec('italic')} />
-              <Button icon="underline" title="Underline" onClick={() => exec('underline')} />
-              <Button icon="strike" title="Strikethrough" onClick={() => exec('strikeThrough')} />
+              <Button icon="bold" title={t('Bold')} onClick={() => exec('bold')} />
+              <Button icon="italic" title={t('Italic')} onClick={() => exec('italic')} />
+              <Button icon="underline" title={t('Underline')} onClick={() => exec('underline')} />
+              <Button icon="strike" title={t('Strikethrough')} onClick={() => exec('strikeThrough')} />
               <Separator />
-              <Button icon="listBullet" title="Bulleted list" onClick={() => exec('insertUnorderedList')} />
-              <Button icon="listNumber" title="Numbered list" onClick={() => exec('insertOrderedList')} />
-              <Button icon="alignLeft" title="Align left" onClick={() => exec('justifyLeft')} />
-              <Button icon="alignCenter" title="Centre" onClick={() => exec('justifyCenter')} />
+              <Button icon="listBullet" title={t('Bulleted list')} onClick={() => exec('insertUnorderedList')} />
+              <Button icon="listNumber" title={t('Numbered list')} onClick={() => exec('insertOrderedList')} />
+              <Button icon="alignLeft" title={t('Align left')} onClick={() => exec('justifyLeft')} />
+              <Button icon="alignCenter" title={t('Centre')} onClick={() => exec('justifyCenter')} />
               <Separator />
-              <Button icon="link" title="Insert link" onMouseDown={keepSelection} onClick={() => setLinking({ range: selectionIn(bodyRef.current) })} />
-              <Button icon="formula" title="Quote" onClick={() => exec('formatBlock', 'blockquote')} />
-              <Button icon="undo" title="Clear formatting" onClick={() => exec('removeFormat')} />
+              <Button icon="link" title={t('Insert link')} onMouseDown={keepSelection} onClick={() => setLinking({ range: selectionIn(bodyRef.current) })} />
+              <Button icon="formula" title={t('Quote')} onClick={() => exec('formatBlock', 'blockquote')} />
+              <Button icon="undo" title={t('Clear formatting')} onClick={() => exec('removeFormat')} />
               <Separator />
-              <Button icon="attach" label="Attach" onClick={attach} />
-              <Button icon="file" title="Plain text" onClick={toPlain} />
+              <Button icon="attach" label={t('Attach')} onClick={attach} />
+              <Button icon="file" title={t('Plain text')} onClick={toPlain} />
             </div>
             {linking ? <LinkRow editor={bodyRef.current} range={linking.range} onDone={() => setLinking(null)} /> : null}
             <div
@@ -302,10 +302,10 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
             />
           </div>
         ) : (
-          <Field label="Message">
+          <Field label={t('Message')}>
             <div className="ml-toolbar">
-              <Button icon="attach" label="Attach" onClick={attach} />
-              <Button icon="word" label="Rich text" onClick={toRich} />
+              <Button icon="attach" label={t('Attach')} onClick={attach} />
+              <Button icon="word" label={t('Rich text')} onClick={toRich} />
             </div>
             <textarea
               className="rw-input ml-compose-body"
@@ -326,14 +326,14 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
                 <button
                   type="button"
                   className="ml-linkchip"
-                  title="Remove"
+                  title={t('Remove')}
                   onClick={() => onChange({ ...draft, attachments: draft.attachments.filter((_, n) => n !== i) })}
                 >
                   <Icon name="close" size={11} />
                 </button>
               </span>
             ))}
-            <span className="ml-badge">{formatBytes(total)} in total</span>
+            <span className="ml-badge">{t('{size} in total', { size: formatBytes(total) })}</span>
           </div>
         ) : null}
 
@@ -345,7 +345,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
                   <Icon name="clock" size={15} />
                 </span>
                 <span className="grow">
-                  <div className="who">{choice.label}</div>
+                  <div className="who">{{ tonight: t('Later today, 9pm'), 'tomorrow-morning': t('Tomorrow morning, 8am'), 'tomorrow-afternoon': t('Tomorrow afternoon, 1pm'), monday: t('Monday morning, 8am') }[choice.id] || choice.label}</div>
                   <div className="what">{choice.at.toLocaleString()}</div>
                 </span>
                 <Icon name="chevronRight" size={14} />
@@ -356,7 +356,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
                 <Icon name="clock" size={15} />
               </span>
               <span className="grow">
-                <div className="who">Pick a date and time</div>
+                <div className="who">{t('Pick a date and time')}</div>
                 <input
                   type="datetime-local"
                   className="rw-input ml-schedule-custom"
@@ -365,7 +365,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
                 />
               </span>
               <Button
-                label="Schedule"
+                label={t('Schedule')}
                 disabled={!parseCustomSchedule(customAt)}
                 onClick={() => {
                   const at = parseCustomSchedule(customAt);
@@ -374,8 +374,7 @@ export default function Compose({ draft, accounts, accountId, onAccount, onChang
               />
             </div>
             <p className="rw-hint" style={{ margin: 0 }}>
-              Times are in your computer's own time zone. A scheduled message waits here, so it sends when Rutba
-              Office is running — one that falls due while it is closed goes out the next time it opens.
+              {t("Times are in your computer's own time zone. A scheduled message waits here, so it sends when Rutba Office is running — one that falls due while it is closed goes out the next time it opens.")}
             </p>
           </div>
         ) : null}

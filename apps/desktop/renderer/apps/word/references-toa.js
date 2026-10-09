@@ -6,7 +6,7 @@
 // write. The table's words are `@rutba/ooxml/wordtoa`'s.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Dialog, Group, Input, Select, Icon } from '@rutba/office-ui';
+import { Button, Dialog, Group, Input, Select, Icon, t, tn } from '@rutba/office-ui';
 import { TOA_CATEGORIES, buildAuthorities, authorityTail, categoryName } from '@rutba/ooxml/wordtoa';
 import { LEADERS } from './references-index.js';
 
@@ -15,11 +15,11 @@ const LEADER_CSS = { dot: 'dotted', hyphen: 'dashed', underscore: 'solid' };
 /** References → Table of Authorities, as Word lays the group out. */
 export function ToaGroup({ act, hasTable }) {
   return (
-    <Group label="Table of Authorities">
-      <Button tall icon="flag" label={'Mark\nCitation'} className="wd-refs-2line" title="Mark Citation (Alt+Shift+I) — add the selected words to the table of authorities" onClick={() => act('markCitation')} />
+    <Group label={t('Table of Authorities')}>
+      <Button tall icon="flag" label={t('Mark\nCitation')} className="wd-refs-2line" title={t('Mark Citation (Alt+Shift+I) — add the selected words to the table of authorities')} onClick={() => act('markCitation')} />
       <div className="wd-refs-col">
-        <Button icon="listBullet" label="Insert Table of Authorities" title="Insert Table of Authorities — the cases, statutes and other authorities cited, and the pages they are cited on" onClick={() => act('insertToa')} />
-        <Button icon="refresh" label="Update Table" className="wd-toa-update" disabled={!hasTable} title="Update Table — the citations and their pages as they stand now" onClick={() => act('updateToa')} />
+        <Button icon="listBullet" label={t('Insert Table of Authorities')} title={t('Insert Table of Authorities — the cases, statutes and other authorities cited, and the pages they are cited on')} onClick={() => act('insertToa')} />
+        <Button icon="refresh" label={t('Update Table')} className="wd-toa-update" disabled={!hasTable} title={t('Update Table — the citations and their pages as they stand now')} onClick={() => act('updateToa')} />
       </div>
     </Group>
   );
@@ -54,7 +54,7 @@ export function MarkCitationPanel({ selected, authorities, onMark, onNext, onClo
   const mark = async (all) => {
     if (!long.trim()) return;
     const n = await onMark({ long: long.trim(), short: short.trim() || long.trim(), category: Number(category), all, text: all ? selected : null });
-    setNote(all ? `${n || 0} citation${n === 1 ? '' : 's'} marked.` : 'Marked. Select another citation, or press Next Citation.');
+    setNote(all ? tn(n || 0, '{count} citation marked.', '{count} citations marked.') : t('Marked. Select another citation, or press Next Citation.'));
     typedLong.current = false;
     typedShort.current = false;
   };
@@ -67,36 +67,36 @@ export function MarkCitationPanel({ selected, authorities, onMark, onNext, onClo
   };
 
   return (
-    <div className="wd-refs-float wd-toa-float" role="dialog" aria-label="Mark Citation">
+    <div className="wd-refs-float wd-toa-float" role="dialog" aria-label={t('Mark Citation')}>
       <div className="wd-refs-float-head">
-        <span>Mark Citation</span>
-        <button type="button" className="wd-refs-x" data-tip="Close" aria-label="Close" onClick={onClose}><Icon name="close" size={14} /></button>
+        <span>{t('Mark Citation')}</span>
+        <button type="button" className="wd-refs-x" data-tip={t('Close')} aria-label={t('Close')} onClick={onClose}><Icon name="close" size={14} /></button>
       </div>
       <div className="wd-refs-float-body">
-        <label className="wd-toa-label" htmlFor="wd-toa-long">Selected text</label>
+        <label className="wd-toa-label" htmlFor="wd-toa-long">{t('Selected text')}</label>
         <textarea id="wd-toa-long" className="rw-input wd-toa-long" rows={3} value={long} onChange={(e) => { typedLong.current = true; setLong(e.target.value); if (!typedShort.current) setShort(e.target.value); }} autoFocus />
         <div className="wd-refs-options">
-          <label htmlFor="wd-toa-category">Category</label>
+          <label htmlFor="wd-toa-category">{t('Category')}</label>
           <Select id="wd-toa-category" className="rw-select wd-toa-category" value={String(category)} onChange={(e) => setCategory(Number(e.target.value))}>
             {TOA_CATEGORIES.map((name, i) => <option key={i} value={String(i + 1)}>{name}</option>)}
           </Select>
-          <label htmlFor="wd-toa-short">Short citation</label>
+          <label htmlFor="wd-toa-short">{t('Short citation')}</label>
           <Input id="wd-toa-short" type="text" className="rw-input wd-toa-short" value={short} onChange={(e) => { typedShort.current = true; setShort(e.target.value); }}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); mark(false); } }} />
         </div>
-        <div className="wd-toa-label">Long citations in {categoryName(category)}</div>
-        <div className="wd-toa-list" role="listbox" aria-label="Long citations">
+        <div className="wd-toa-label">{t('Long citations in {category}', { category: categoryName(category) })}</div>
+        <div className="wd-toa-list" role="listbox" aria-label={t('Long citations')}>
           {inCategory.length ? inCategory.map((a) => (
             <button key={a.long} type="button" role="option" aria-selected={a.long === long} className={`wd-toa-item${a.long === long ? ' on' : ''}`} onClick={() => choose(a)}>{a.long}</button>
-          )) : <div className="wd-toa-empty">None marked yet.</div>}
+          )) : <div className="wd-toa-empty">{t('None marked yet.')}</div>}
         </div>
-        <p className="wd-refs-lead wd-refs-note">{note || 'This box stays open so that you can mark one citation after another.'}</p>
+        <p className="wd-refs-lead wd-refs-note">{note || t('This box stays open so that you can mark one citation after another.')}</p>
       </div>
       <div className="wd-refs-float-foot">
-        <Button className="wd-toa-next" label="Next Citation" title="Next Citation — find the next words that look like a citation: v., In re, Id., supra, §, a reporter" onClick={async () => { const found = await onNext(); setNote(found ? '' : 'No more citations found.'); }} />
-        <Button primary className="wd-toa-mark" label="Mark" disabled={!long.trim()} onClick={() => mark(false)} />
-        <Button className="wd-toa-markall" label="Mark All" disabled={!long.trim() || !selected} title="Mark All — every other place this long or short citation appears, matching case" onClick={() => mark(true)} />
-        <Button label="Close" onClick={onClose} />
+        <Button className="wd-toa-next" label={t('Next Citation')} title={t('Next Citation — find the next words that look like a citation: v., In re, Id., supra, §, a reporter')} onClick={async () => { const found = await onNext(); setNote(found ? '' : t('No more citations found.')); }} />
+        <Button primary className="wd-toa-mark" label={t('Mark')} disabled={!long.trim()} onClick={() => mark(false)} />
+        <Button className="wd-toa-markall" label={t('Mark All')} disabled={!long.trim() || !selected} title={t('Mark All — every other place this long or short citation appears, matching case')} onClick={() => mark(true)} />
+        <Button label={t('Close')} onClick={onClose} />
       </div>
     </div>
   );
@@ -125,21 +125,21 @@ export function ToaDialog({ authorities, current, onClose, onOk, onMark }) {
 
   return (
     <Dialog
-      title="Table of Authorities"
+      title={t('Table of Authorities')}
       width={640}
       onClose={onClose}
       actions={
         <>
-          <Button label="Mark Citation…" className="wd-toa-open-mark" onClick={onMark} />
+          <Button label={t('Mark Citation…')} className="wd-toa-open-mark" onClick={onMark} />
           <span style={{ flex: 1 }} />
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary className="wd-toa-ok" label="OK" onClick={() => onOk({ category: category === 'all' ? 'all' : Number(category), passim, keepFormatting, leader })} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary className="wd-toa-ok" label={t('OK')} onClick={() => onOk({ category: category === 'all' ? 'all' : Number(category), passim, keepFormatting, leader })} />
         </>
       }
     >
       <div className="wd-refs-index">
         <div>
-          <div className="wd-refs-section">Print Preview</div>
+          <div className="wd-refs-section">{t('Print Preview')}</div>
           <div className="wd-idx-preview wd-toa-preview">
             {preview.map((g) => (
               <React.Fragment key={g.category}>
@@ -150,29 +150,29 @@ export function ToaDialog({ authorities, current, onClose, onOk, onMark }) {
                     <span className="wd-idx-leader" style={{ borderBottomStyle: LEADER_CSS[leader] || 'none', borderBottomColor: LEADER_CSS[leader] ? 'currentColor' : 'transparent' }} />
                     <span className="wd-idx-pages">{authorityTail(a).slice(1).map((s) => s.text).join('')}</span>
                   </div>
-                )) : <div className="wd-idx-line"><b>No table of authorities entries found.</b></div>}
+                )) : <div className="wd-idx-line"><b>{t('No table of authorities entries found.')}</b></div>}
               </React.Fragment>
             ))}
           </div>
-          <label className="wd-refs-check"><input type="checkbox" className="wd-toa-passim" checked={passim} onChange={(e) => setPassim(e.target.checked)} />Use passim</label>
-          <label className="wd-refs-check"><input type="checkbox" className="wd-toa-keep" checked={keepFormatting} onChange={(e) => setKeepFormatting(e.target.checked)} />Keep original formatting</label>
+          <label className="wd-refs-check"><input type="checkbox" className="wd-toa-passim" checked={passim} onChange={(e) => setPassim(e.target.checked)} />{t('Use passim')}</label>
+          <label className="wd-refs-check"><input type="checkbox" className="wd-toa-keep" checked={keepFormatting} onChange={(e) => setKeepFormatting(e.target.checked)} />{t('Keep original formatting')}</label>
           <label className="wd-refs-leader">
-            Tab leader
+            {t('Tab leader')}
             <Select className="rw-select wd-toa-leader" value={leader} onChange={(e) => setLeader(e.target.value)}>
               {LEADERS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </Select>
           </label>
         </div>
         <div className="wd-refs-index-side">
-          <div className="wd-refs-section">Category</div>
-          <div className="wd-toa-list wd-toa-cats" role="listbox" aria-label="Category">
-            {[['all', 'All'], ...TOA_CATEGORIES.map((name, i) => [String(i + 1), name])].map(([id, name]) => (
+          <div className="wd-refs-section">{t('Category')}</div>
+          <div className="wd-toa-list wd-toa-cats" role="listbox" aria-label={t('Category')}>
+            {[['all', t('All')], ...TOA_CATEGORIES.map((name, i) => [String(i + 1), name])].map(([id, name]) => (
               <button key={id} type="button" role="option" aria-selected={category === id} data-category={id} className={`wd-toa-item${category === id ? ' on' : ''}`} onClick={() => setCategory(id)}>{name}</button>
             ))}
           </div>
         </div>
       </div>
-      <p className="wd-refs-lead wd-refs-foot-lead">Each category is written as Word's TOA field, its heading over it; All writes one for every category that has citations in it.</p>
+      <p className="wd-refs-lead wd-refs-foot-lead">{t("Each category is written as Word's TOA field, its heading over it; All writes one for every category that has citations in it.")}</p>
     </Dialog>
   );
 }

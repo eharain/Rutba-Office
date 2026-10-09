@@ -6,30 +6,31 @@
 // (smartart.js) and puts the shapes in.
 
 import React, { useMemo, useState } from 'react';
-import { Button, Dialog } from '@rutba/office-ui';
+import { Button, Dialog, t } from '@rutba/office-ui';
 import { SMARTART_LAYOUTS, parseItems, smartArtSvg } from './smartart.js';
 
 const KINDS = ['All', 'List', 'Process', 'Cycle', 'Hierarchy'];
+const KIND_NAMES = { All: t('All'), List: t('List'), Process: t('Process'), Cycle: t('Cycle'), Hierarchy: t('Hierarchy') };
 
 const ABOUT = {
-  blockList: 'Shows ideas that need not follow one another, each in a box of its own, the boxes in rows.',
-  verticalList: 'Shows a list of ideas one under the other, each in a wide rounded box.',
-  process: 'Shows the steps of a process in order, left to right, an arrow from each to the next.',
-  chevron: 'Shows the stages of a process moving forward, each a chevron pointing to the next.',
-  cycle: 'Shows stages that come round again, in circles on a ring, clockwise from the top.',
-  hierarchy: 'Shows each top item over the items under it — a line to each. Tab a line in to put it under the one above.',
+  blockList: t('Shows ideas that need not follow one another, each in a box of its own, the boxes in rows.'),
+  verticalList: t('Shows a list of ideas one under the other, each in a wide rounded box.'),
+  process: t('Shows the steps of a process in order, left to right, an arrow from each to the next.'),
+  chevron: t('Shows the stages of a process moving forward, each a chevron pointing to the next.'),
+  cycle: t('Shows stages that come round again, in circles on a ring, clockwise from the top.'),
+  hierarchy: t('Shows each top item over the items under it — a line to each. Tab a line in to put it under the one above.'),
 };
 
 const STARTER = {
-  hierarchy: 'Lead\n\tFirst\n\tSecond\n\tThird',
-  default: 'First\nSecond\nThird',
+  hierarchy: `${t('Lead')}\n\t${t('First')}\n\t${t('Second')}\n\t${t('Third')}`,
+  default: `${t('First')}\n${t('Second')}\n${t('Third')}`,
 };
 
 /**
  * `initial` — the text it starts with (a box's words, for Convert to
  * SmartArt); `title` the box's own title. `onInsert({ layout, name, items })`.
  */
-export function SmartArtDialog({ initial = '', title = 'Choose a SmartArt Graphic', onInsert, onClose }) {
+export function SmartArtDialog({ initial = '', title = t('Choose a SmartArt Graphic'), onInsert, onClose }) {
   const [kind, setKind] = useState('All');
   const [layout, setLayout] = useState('blockList');
   const [text, setText] = useState(initial || null);
@@ -43,15 +44,15 @@ export function SmartArtDialog({ initial = '', title = 'Choose a SmartArt Graphi
       title={title}
       width={780}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="OK" className="sa-ok" disabled={!items.length} onClick={ok} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} className="sa-ok" disabled={!items.length} onClick={ok} /></>}
     >
       <div className="sa">
-        <div className="sa-kinds" role="tablist" aria-label="Kind">
+        <div className="sa-kinds" role="tablist" aria-label={t('Kind')}>
           {KINDS.map((k) => (
-            <button key={k} type="button" role="tab" aria-selected={kind === k} className={`sa-kind${kind === k ? ' on' : ''}`} onClick={() => setKind(k)}>{k}</button>
+            <button key={k} type="button" role="tab" aria-selected={kind === k} className={`sa-kind${kind === k ? ' on' : ''}`} onClick={() => setKind(k)}>{KIND_NAMES[k]}</button>
           ))}
         </div>
-        <div className="sa-gallery" role="listbox" aria-label="Layout">
+        <div className="sa-gallery" role="listbox" aria-label={t('Layout')}>
           {shown.map((l) => (
             <button
               key={l.id}
@@ -72,7 +73,7 @@ export function SmartArtDialog({ initial = '', title = 'Choose a SmartArt Graphi
           <div className="sa-preview" dangerouslySetInnerHTML={{ __html: smartArtSvg(layout, items, { width: 260, height: 160 }) }} />
           <div className="sa-title">{chosen.name}</div>
           <p className="sa-about">{ABOUT[layout]}</p>
-          <label className="sa-label" htmlFor="sa-text">Type your text here</label>
+          <label className="sa-label" htmlFor="sa-text">{t('Type your text here')}</label>
           <textarea
             id="sa-text"
             className="sa-text"

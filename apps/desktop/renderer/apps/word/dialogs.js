@@ -6,7 +6,7 @@
 // within one press.
 
 import React, { useMemo, useState } from 'react';
-import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, formatWhen } from '@rutba/office-ui';
+import { Button, Dialog, Field, Input, Select, Icon, Chip, Empty, formatWhen, t, tn } from '@rutba/office-ui';
 
 /* ── links ───────────────────────────────────────────────────────────────── */
 
@@ -15,26 +15,26 @@ export function LinkDialog({ current, selectedText, onClose, onApply, onRemove }
 
   return (
     <Dialog
-      title="Link"
+      title={t('Link')}
       width={480}
       onClose={onClose}
       actions={
         <>
-          {current ? <Button label="Remove link" onClick={onRemove} /> : null}
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label={current ? 'Update' : 'Add link'} disabled={!url.trim()} onClick={() => onApply(normalise(url))} />
+          {current ? <Button label={t('Remove link')} onClick={onRemove} /> : null}
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={current ? t('Update') : t('Add link')} disabled={!url.trim()} onClick={() => onApply(normalise(url))} />
         </>
       }
     >
       <div className="ml-form">
         {selectedText ? (
-          <Field label="Text">
+          <Field label={t('Text')}>
             <Input value={selectedText} disabled />
           </Field>
         ) : (
-          <p style={{ marginTop: 0, fontSize: 12.5 }}>Select some text first, and it becomes the link.</p>
+          <p style={{ marginTop: 0, fontSize: 12.5 }}>{t('Select some text first, and it becomes the link.')}</p>
         )}
-        <Field label="Address" hint="A web address, or mailto: for an email link.">
+        <Field label={t('Address')} hint={t('A web address, or mailto: for an email link.')}>
           <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://office.rutba.io" autoFocus />
         </Field>
       </div>
@@ -59,28 +59,28 @@ export function TableDialog({ onClose, onInsert }) {
 
   return (
     <Dialog
-      title="Insert table"
+      title={t('Insert table')}
       width={420}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="Insert" onClick={() => onInsert({ rows: Number(rows), cols: Number(cols), header })} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('Insert')} onClick={() => onInsert({ rows: Number(rows), cols: Number(cols), header })} />
         </>
       }
     >
       <div className="ml-form">
         <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <Field label="Rows">
+          <Field label={t('Rows')}>
             <Input type="number" min="1" max="200" value={rows} onChange={(e) => setRows(e.target.value)} autoFocus />
           </Field>
-          <Field label="Columns">
+          <Field label={t('Columns')}>
             <Input type="number" min="1" max="30" value={cols} onChange={(e) => setCols(e.target.value)} />
           </Field>
         </div>
         <label className="about-auto">
           <input type="checkbox" checked={header} onChange={(e) => setHeader(e.target.checked)} />
-          <span>Repeat the first row as a header on every page</span>
+          <span>{t('Repeat the first row as a header on every page')}</span>
         </label>
       </div>
     </Dialog>
@@ -115,57 +115,57 @@ export function TablePropertiesDialog({ current, onClose, onApply }) {
   };
   return (
     <Dialog
-      title="Table properties"
+      title={t('Table properties')}
       width={480}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="OK" onClick={apply} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('OK')} onClick={apply} />
         </>
       }
     >
       <div className="ml-form">
         <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr 1fr' }}>
-          <Field label="Preferred width">
+          <Field label={t('Preferred width')}>
             <Select value={width.type} onChange={(e) => setWidth({ type: e.target.value, value: e.target.value === 'pct' ? 100 : e.target.value === 'dxa' ? 15 : 0 })}>
-              <option value="auto">None</option>
-              <option value="pct">Percent of the text</option>
-              <option value="dxa">Centimetres</option>
+              <option value="auto">{t('None')}</option>
+              <option value="pct">{t('Percent of the text')}</option>
+              <option value="dxa">{t('Centimetres')}</option>
             </Select>
           </Field>
-          <Field label={width.type === 'dxa' ? 'Width (cm)' : 'Width (%)'}>
+          <Field label={width.type === 'dxa' ? t('Width (cm)') : t('Width (%)')}>
             <Input type="number" min="1" max={width.type === 'dxa' ? 55 : 100} step="0.1" disabled={width.type === 'auto'} value={width.type === 'auto' ? '' : width.value} onChange={(e) => setWidth({ ...width, value: e.target.value })} />
           </Field>
-          <Field label="Alignment">
+          <Field label={t('Alignment')}>
             <Select value={align} onChange={(e) => setAlign(e.target.value)}>
-              <option value="left">Left</option>
-              <option value="center">Centre</option>
-              <option value="right">Right</option>
+              <option value="left">{t('Left')}</option>
+              <option value="center">{t('Centre')}</option>
+              <option value="right">{t('Right')}</option>
             </Select>
           </Field>
         </div>
         <div className="ml-servers" style={{ gridTemplateColumns: '1fr 1fr' }}>
-          <Field label="This row's height (cm, at least)">
-            <Input type="number" min="0.1" max="55" step="0.1" placeholder="As its words need" value={rowHeight} onChange={(e) => setRowHeight(e.target.value)} />
+          <Field label={t('This row\'s height (cm, at least)')}>
+            <Input type="number" min="0.1" max="55" step="0.1" placeholder={t('As its words need')} value={rowHeight} onChange={(e) => setRowHeight(e.target.value)} />
           </Field>
-          <Field label="This column's width (cm)">
+          <Field label={t('This column\'s width (cm)')}>
             <Input type="number" min="0.3" max="50" step="0.1" value={columnWidth} onChange={(e) => setColumnWidth(e.target.value)} />
           </Field>
         </div>
         <label className="about-auto">
           <input type="checkbox" checked={cantSplit} onChange={(e) => setCantSplit(e.target.checked)} />
-          <span>Keep this row on one page — do not let it break across pages</span>
+          <span>{t('Keep this row on one page — do not let it break across pages')}</span>
         </label>
         <label className="about-auto">
           <input type="checkbox" checked={header} onChange={(e) => setHeader(e.target.checked)} />
-          <span>Repeat as a header row at the top of each page</span>
+          <span>{t('Repeat as a header row at the top of each page')}</span>
         </label>
-        <Field label="Alt Text — title">
-          <Input value={title} placeholder="What the table is" onChange={(e) => setTitle(e.target.value)} />
+        <Field label={t('Alt Text — title')}>
+          <Input value={title} placeholder={t('What the table is')} onChange={(e) => setTitle(e.target.value)} />
         </Field>
-        <Field label="Alt Text — description">
-          <Input value={description} placeholder="What it shows, for someone who cannot see it" onChange={(e) => setDescription(e.target.value)} />
+        <Field label={t('Alt Text — description')}>
+          <Input value={description} placeholder={t('What it shows, for someone who cannot see it')} onChange={(e) => setDescription(e.target.value)} />
         </Field>
       </div>
     </Dialog>
@@ -183,7 +183,7 @@ export function TablePropertiesDialog({ current, onClose, onApply }) {
  */
 export function BandDialog({ band, current, onClose, onApply }) {
   const [lines, setLines] = useState(() => (current || []).join('\n'));
-  const name = band === 'header' ? 'Header' : 'Footer';
+  const name = band === 'header' ? t('Header') : t('Footer');
 
   const insert = (token) => setLines((t) => (t ? `${t}${t.endsWith('\n') ? '' : ' '}${token}` : token));
 
@@ -194,14 +194,14 @@ export function BandDialog({ band, current, onClose, onApply }) {
       onClose={onClose}
       actions={
         <>
-          <Button label="Remove" onClick={() => onApply([])} />
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="Apply" onClick={() => onApply(lines.split('\n'))} />
+          <Button label={t('Remove')} onClick={() => onApply([])} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('Apply')} onClick={() => onApply(lines.split('\n'))} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label={`${name} text`} hint="One line per line. A tab moves to the centre, a second to the right.">
+        <Field label={band === 'header' ? t('Header text') : t('Footer text')} hint={t('One line per line. A tab moves to the centre, a second to the right.')}>
           <textarea
             className="rw-input ml-compose-body"
             style={{ minHeight: 90 }}
@@ -212,13 +212,13 @@ export function BandDialog({ band, current, onClose, onApply }) {
           />
         </Field>
         <div className="ml-toolbar">
-          <Button icon="file" label="Page number" onClick={() => insert('{PAGE}')} />
-          <Button icon="file" label="Of total" onClick={() => insert('{PAGE} of {PAGES}')} />
-          <Button icon="clock" label="Date" onClick={() => insert('{DATE}')} />
-          <Button icon="word" label="File name" onClick={() => insert('{FILENAME}')} />
+          <Button icon="file" label={t('Page number')} onClick={() => insert('{PAGE}')} />
+          <Button icon="file" label={t('Of total')} onClick={() => insert('{PAGE} of {PAGES}')} />
+          <Button icon="clock" label={t('Date')} onClick={() => insert('{DATE}')} />
+          <Button icon="word" label={t('File name')} onClick={() => insert('{FILENAME}')} />
         </div>
         <p className="rw-hint" style={{ margin: 0 }}>
-          Fields in braces are resolved when the page is drawn and when it is printed.
+          {t('Fields in braces are resolved when the page is drawn and when it is printed.')}
         </p>
       </div>
     </Dialog>
@@ -235,18 +235,18 @@ export function WatermarkDialog({ current, onClose, onApply }) {
   const ok = text.trim().length > 0;
   return (
     <Dialog
-      title="Watermark"
+      title={t('Watermark')}
       width={420}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="Apply" className="wd-watermark-ok" disabled={!ok} onClick={() => onApply(text.trim())} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('Apply')} className="wd-watermark-ok" disabled={!ok} onClick={() => onApply(text.trim())} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label="Words" hint="Faint and rising across every page, behind the text — drawn as Word draws its own.">
+        <Field label={t('Words')} hint={t('Faint and rising across every page, behind the text — drawn as Word draws its own.')}>
           <Input className="wd-watermark-text" value={text} onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && ok) onApply(text.trim()); }} autoFocus />
         </Field>
       </div>
@@ -258,18 +258,18 @@ export function CommentDialog({ onClose, onAdd }) {
   const [text, setText] = useState('');
   return (
     <Dialog
-      title="New comment"
+      title={t('New comment')}
       width={460}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="Add" disabled={!text.trim()} onClick={() => onAdd(text.trim())} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('Add')} disabled={!text.trim()} onClick={() => onAdd(text.trim())} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label="Comment" hint="Anchored to what is selected, and saved into the document.">
+        <Field label={t('Comment')} hint={t('Anchored to what is selected, and saved into the document.')}>
           <textarea
             className="rw-input ml-compose-body"
             style={{ minHeight: 100 }}
@@ -287,23 +287,23 @@ export function CommentDialog({ onClose, onAdd }) {
 /** A footnote or endnote: its words, on the way in or on the way to a change. */
 export function NoteDialog({ kind = 'footnote', initial = '', onClose, onSave }) {
   const [text, setText] = useState(initial);
-  const label = kind === 'endnote' ? 'Endnote' : 'Footnote';
+  const label = kind === 'endnote' ? t('Endnote') : t('Footnote');
   return (
     <Dialog
-      title={initial ? `Edit ${label.toLowerCase()}` : `Insert ${label.toLowerCase()}`}
+      title={initial ? (kind === 'endnote' ? t('Edit endnote') : t('Edit footnote')) : (kind === 'endnote' ? t('Insert endnote') : t('Insert footnote'))}
       width={460}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label={initial ? 'Save' : 'Insert'} disabled={!text.trim()} onClick={() => onSave(text.trim())} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={initial ? t('Save') : t('Insert')} disabled={!text.trim()} onClick={() => onSave(text.trim())} />
         </>
       }
     >
       <div className="ml-form">
         <Field
           label={label}
-          hint={initial ? 'The words change; the number and its reference stay where they are.' : `A raised number at the caret, and these words ${kind === 'endnote' ? 'at the end of the document' : 'under the body'}.`}
+          hint={initial ? t('The words change; the number and its reference stay where they are.') : kind === 'endnote' ? t('A raised number at the caret, and these words at the end of the document.') : t('A raised number at the caret, and these words under the body.')}
         >
           <textarea
             className="rw-input ml-compose-body"
@@ -321,7 +321,7 @@ export function NoteDialog({ kind = 'footnote', initial = '', onClose, onSave })
 
 export function CommentsDialog({ comments, onClose, onGoto, onDelete = null }) {
   return (
-    <Dialog title="Comments" width={520} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
+    <Dialog title={t('Comments')} width={520} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
       {comments?.length ? (
         <div className="ml-import-folders" style={{ maxHeight: 340 }}>
           {comments.map((c) => (
@@ -334,18 +334,18 @@ export function CommentsDialog({ comments, onClose, onGoto, onDelete = null }) {
               >
                 <span className="ml-found-logo"><Icon name="reply" size={14} /></span>
                 <span className="grow">
-                  <div className="who">{c.author || 'Someone'}{c.date ? ` · ${formatWhen(c.date)}` : ''}</div>
+                  <div className="who">{c.author || t('Someone')}{c.date ? ` · ${formatWhen(c.date)}` : ''}</div>
                   <div className="what">{c.text}</div>
                 </span>
               </button>
               {onDelete ? (
-                <Button icon="trash" className="wd-comment-delete" title="Delete this comment, and any replies to it" aria-label={`Delete the comment from ${c.author || 'someone'}`} onClick={() => onDelete(c)} />
+                <Button icon="trash" className="wd-comment-delete" title={t('Delete this comment, and any replies to it')} aria-label={t('Delete the comment from {author}', { author: c.author || t('someone') })} onClick={() => onDelete(c)} />
               ) : null}
             </div>
           ))}
         </div>
       ) : (
-        <Empty icon="reply" title="No comments">Nothing has been marked up in this document.</Empty>
+        <Empty icon="reply" title={t('No comments')}>{t('Nothing has been marked up in this document.')}</Empty>
       )}
     </Dialog>
   );
@@ -356,7 +356,7 @@ export function CommentsDialog({ comments, onClose, onGoto, onDelete = null }) {
 const BOOKMARK_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,39}$/;
 
 function bookmarkSpan(b) {
-  return b.from === b.to ? `paragraph ${b.from + 1}` : `paragraphs ${b.from + 1}–${b.to + 1}`;
+  return b.from === b.to ? t('paragraph {number}', { number: b.from + 1 }) : t('paragraphs {from}–{to}', { from: b.from + 1, to: b.to + 1 });
 }
 
 /**
@@ -380,20 +380,20 @@ export function BookmarkDialog({ bookmarks, onClose, onAdd, onDelete, onGoto }) 
 
   return (
     <Dialog
-      title="Bookmark"
+      title={t('Bookmark')}
       width={460}
       onClose={onClose}
       actions={
         <>
-          <Button label="Close" onClick={onClose} />
-          <Button className="wd-bookmark-delete" label="Delete" disabled={!picked} onClick={() => { onDelete(selected); setSelected(null); }} />
-          <Button className="wd-bookmark-goto" label="Go To" disabled={!picked} onClick={() => onGoto(selected)} />
-          <Button primary className="wd-bookmark-add" label="Add" disabled={!valid} onClick={add} />
+          <Button label={t('Close')} onClick={onClose} />
+          <Button className="wd-bookmark-delete" label={t('Delete')} disabled={!picked} onClick={() => { onDelete(selected); setSelected(null); }} />
+          <Button className="wd-bookmark-goto" label={t('Go To')} disabled={!picked} onClick={() => onGoto(selected)} />
+          <Button primary className="wd-bookmark-add" label={t('Add')} disabled={!valid} onClick={add} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label="Bookmark name" hint="Letters, digits and underscores, starting with a letter — up to 40 characters.">
+        <Field label={t('Bookmark name')} hint={t('Letters, digits and underscores, starting with a letter — up to 40 characters.')}>
           <Input
             className="wd-bookmark-name"
             value={name}
@@ -421,7 +421,7 @@ export function BookmarkDialog({ bookmarks, onClose, onAdd, onDelete, onGoto }) 
             ))}
           </div>
         ) : (
-          <Empty icon="flag" title="No bookmarks">Name the selected paragraphs, so Go To can find them again.</Empty>
+          <Empty icon="flag" title={t('No bookmarks')}>{t('Name the selected paragraphs, so Go To can find them again.')}</Empty>
         )}
       </div>
     </Dialog>
@@ -443,13 +443,13 @@ export function CrossReferenceDialog({ bookmarks, onClose, onInsert }) {
 
   return (
     <Dialog
-      title="Cross-reference"
+      title={t('Cross-reference')}
       width={460}
       onClose={onClose}
       actions={
         <>
-          <Button label="Close" onClick={onClose} />
-          <Button primary className="wd-xref-insert" label="Insert" disabled={!picked} onClick={() => insert(selected)} />
+          <Button label={t('Close')} onClick={onClose} />
+          <Button primary className="wd-xref-insert" label={t('Insert')} disabled={!picked} onClick={() => insert(selected)} />
         </>
       }
     >
@@ -474,7 +474,7 @@ export function CrossReferenceDialog({ bookmarks, onClose, onInsert }) {
             ))}
           </div>
         ) : (
-          <Empty icon="flag" title="No bookmarks">Add a bookmark first: Insert → Bookmark.</Empty>
+          <Empty icon="flag" title={t('No bookmarks')}>{t('Add a bookmark first: Insert → Bookmark.')}</Empty>
         )}
       </div>
     </Dialog>
@@ -482,6 +482,7 @@ export function CrossReferenceDialog({ bookmarks, onClose, onInsert }) {
 }
 
 const CAPTION_LABELS = ['Figure', 'Table', 'Equation'];
+const CAPTION_NAMES = { Figure: t('Figure'), Table: t('Table'), Equation: t('Equation') };
 
 /**
  * Insert → Captions → Insert Caption: a label, the caption's own words, and
@@ -503,23 +504,23 @@ export function CaptionDialog({ fields, onClose, onInsert }) {
 
   return (
     <Dialog
-      title="Caption"
+      title={t('Caption')}
       width={440}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary className="wd-caption-insert" label="OK" onClick={insert} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary className="wd-caption-insert" label={t('OK')} onClick={insert} />
         </>
       }
     >
       <div className="ml-form" onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); insert(); } }}>
-        <Field label="Label">
+        <Field label={t('Label')}>
           <Select className="wd-caption-label" value={label} onChange={(e) => setLabel(e.target.value)}>
-            {CAPTION_LABELS.map((l) => <option key={l} value={l}>{l}</option>)}
+            {CAPTION_LABELS.map((l) => <option key={l} value={l}>{CAPTION_NAMES[l]}</option>)}
           </Select>
         </Field>
-        <Field label="Caption text">
+        <Field label={t('Caption text')}>
           <Input className="wd-caption-text" value={text} onChange={(e) => setText(e.target.value)} autoFocus />
         </Field>
         <p className="wd-caption-preview" style={{ marginTop: 0, fontSize: 12.5, color: 'var(--text-soft)' }}>{preview}</p>
@@ -538,26 +539,26 @@ export function FindDialog({ onClose, onReplaceAll }) {
 
   return (
     <Dialog
-      title="Find and replace"
+      title={t('Find and replace')}
       width={480}
       onClose={onClose}
       actions={
         <>
-          <Button label="Close" onClick={onClose} />
-          <Button primary label="Replace all" disabled={!find} onClick={async () => setNote(await onReplaceAll(find, replace, matchCase))} />
+          <Button label={t('Close')} onClick={onClose} />
+          <Button primary label={t('Replace all')} disabled={!find} onClick={async () => setNote(await onReplaceAll(find, replace, matchCase))} />
         </>
       }
     >
       <div className="ml-form">
-        <Field label="Find">
+        <Field label={t('Find')}>
           <Input value={find} onChange={(e) => setFind(e.target.value)} autoFocus />
         </Field>
-        <Field label="Replace with">
+        <Field label={t('Replace with')}>
           <Input value={replace} onChange={(e) => setReplace(e.target.value)} />
         </Field>
         <label className="about-auto">
           <input type="checkbox" checked={matchCase} onChange={(e) => setMatchCase(e.target.checked)} />
-          <span>Match case</span>
+          <span>{t('Match case')}</span>
         </label>
         {note ? <div className="ml-note"><Icon name="info" size={14} />{note}</div> : null}
       </div>
@@ -583,8 +584,8 @@ const DATE_FORMATS = [
 export function DateTimeDialog({ onClose, onInsert }) {
   const now = new Date();
   return (
-    <Dialog title="Date and time" width={420} onClose={onClose} actions={<Button label="Cancel" onClick={onClose} />}>
-      <p style={{ marginTop: 0, fontSize: 12.5 }}>Inserted as text, in your own language and region.</p>
+    <Dialog title={t('Date and time')} width={420} onClose={onClose} actions={<Button label={t('Cancel')} onClick={onClose} />}>
+      <p style={{ marginTop: 0, fontSize: 12.5 }}>{t('Inserted as text, in your own language and region.')}</p>
       <div className="ml-found">
         {DATE_FORMATS.map((fmt, i) => {
           const text = fmt(now);
@@ -603,13 +604,13 @@ export function DateTimeDialog({ onClose, onInsert }) {
 /* ── symbols ─────────────────────────────────────────────────────────────── */
 
 const SYMBOLS = [
-  ['Common', '— – … • · © ® ™ § ¶ † ‡ ° ± × ÷ ≠ ≤ ≥ ≈ ∞ √ ∑ ∏ ∆ µ « » “ ” ‘ ’ ‹ › ¡ ¿'],
-  ['Currency', '€ £ $ ¥ ₹ ₽ ₩ ₺ ₪ ¢ ₫ ₴ ₦ ₱'],
-  ['Arrows', '← → ↑ ↓ ↔ ↕ ⇐ ⇒ ⇑ ⇓ ⇔ ↩ ↪ ➜ ➔ ➤'],
-  ['Marks', '✓ ✔ ✗ ✘ ☐ ☑ ☒ ★ ☆ ♥ ♦ ♣ ♠ ♪ ♫ ☎ ✉ ⚠ ⚡ ☀ ☁ ☂'],
-  ['Greek', 'α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ σ τ υ φ χ ψ ω Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω'],
-  ['Fractions and numbers', '½ ⅓ ⅔ ¼ ¾ ⅛ ⅜ ⅝ ⅞ ¹ ² ³ ⁴ ⁿ ₀ ₁ ₂ ₃ ①  ② ③ ④ ⑤'],
-  ['Letters', 'à á â ä å æ ç è é ê ë ì í î ï ñ ò ó ô ö ø ù ú û ü ý ÿ ß À Á Â Ä Å Æ Ç È É Ê Ë Ñ Ö Ø Ü'],
+  [t('Common'), '— – … • · © ® ™ § ¶ † ‡ ° ± × ÷ ≠ ≤ ≥ ≈ ∞ √ ∑ ∏ ∆ µ « » “ ” ‘ ’ ‹ › ¡ ¿'],
+  [t('Currency'), '€ £ $ ¥ ₹ ₽ ₩ ₺ ₪ ¢ ₫ ₴ ₦ ₱'],
+  [t('Arrows'), '← → ↑ ↓ ↔ ↕ ⇐ ⇒ ⇑ ⇓ ⇔ ↩ ↪ ➜ ➔ ➤'],
+  [t('Marks'), '✓ ✔ ✗ ✘ ☐ ☑ ☒ ★ ☆ ♥ ♦ ♣ ♠ ♪ ♫ ☎ ✉ ⚠ ⚡ ☀ ☁ ☂'],
+  [t('Greek'), 'α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ σ τ υ φ χ ψ ω Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω'],
+  [t('Fractions and numbers'), '½ ⅓ ⅔ ¼ ¾ ⅛ ⅜ ⅝ ⅞ ¹ ² ³ ⁴ ⁿ ₀ ₁ ₂ ₃ ①  ② ③ ④ ⑤'],
+  [t('Letters'), 'à á â ä å æ ç è é ê ë ì í î ï ñ ò ó ô ö ø ù ú û ü ý ÿ ß À Á Â Ä Å Æ Ç È É Ê Ë Ñ Ö Ø Ü'],
 ];
 
 /**
@@ -631,7 +632,7 @@ export function SymbolDialog({ onClose, onInsert }) {
   const [set, setSet] = useState(0);
   const chars = SYMBOLS[set][1].split(/\s+/).filter(Boolean);
   return (
-    <Dialog title="Symbol" width={520} onClose={onClose} actions={<Button label="Close" onClick={onClose} />}>
+    <Dialog title={t('Symbol')} width={520} onClose={onClose} actions={<Button label={t('Close')} onClick={onClose} />}>
       <style>{SYMBOL_CSS}</style>
       <div className="ml-filters" style={{ flexWrap: 'wrap', marginBottom: 10 }}>
         {SYMBOLS.map(([label], i) => (
@@ -645,7 +646,7 @@ export function SymbolDialog({ onClose, onInsert }) {
           </button>
         ))}
       </div>
-      <p className="rw-hint">Click a symbol to insert it at the caret. The dialog stays open for the next one.</p>
+      <p className="rw-hint">{t('Click a symbol to insert it at the caret. The dialog stays open for the next one.')}</p>
     </Dialog>
   );
 }
@@ -657,19 +658,19 @@ export function PropertiesDialog({ doc, model, onClose }) {
   const words = blocks.reduce((n, b) => n + ((b.text || (b.runs || []).map((r) => r.text).join('')).match(/[^\s]+/g) || []).length, 0);
   const section = model?.section;
   return (
-    <Dialog title="Properties" width={460} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
+    <Dialog title={t('Properties')} width={460} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
       <dl className="about-list">
-        <dt>Name</dt><dd>{doc?.name || '—'}</dd>
-        <dt>Location</dt><dd style={{ wordBreak: 'break-all' }}>{doc?.path || 'Not saved yet'}</dd>
-        <dt>Format</dt><dd>{doc?.source ? doc.source.toUpperCase() : 'DOCX'}{doc?.converted?.from ? ` (opened from ${doc.converted.from.toUpperCase()})` : ''}</dd>
-        <dt>Paragraphs</dt><dd>{blocks.filter((b) => !b.container).length.toLocaleString()}</dd>
-        <dt>Words</dt><dd>{words.toLocaleString()}</dd>
-        <dt>Tables</dt><dd>{new Set(blocks.map((b) => (b.container || '').split(':')[0]).filter(Boolean)).size}</dd>
-        <dt>Pictures</dt><dd>{blocks.reduce((n, b) => n + (b.images?.length || 0), 0)}</dd>
-        <dt>Comments</dt><dd>{(model?.comments || []).length}</dd>
-        <dt>Page</dt><dd>{section ? `${Math.round((section.widthPx / 96) * 25.4)} × ${Math.round((section.heightPx / 96) * 25.4)} mm, ${section.orientation}` : '—'}</dd>
-        <dt>Styles</dt><dd>{(model?.styles || []).length}</dd>
-        <dt>Unsaved changes</dt><dd>{doc?.dirty ? 'Yes' : 'No'}</dd>
+        <dt>{t('Name')}</dt><dd>{doc?.name || '—'}</dd>
+        <dt>{t('Location')}</dt><dd style={{ wordBreak: 'break-all' }}>{doc?.path || t('Not saved yet')}</dd>
+        <dt>{t('Format')}</dt><dd>{doc?.source ? doc.source.toUpperCase() : 'DOCX'}{doc?.converted?.from ? ` ${t('(opened from {format})', { format: doc.converted.from.toUpperCase() })}` : ''}</dd>
+        <dt>{t('Paragraphs')}</dt><dd>{blocks.filter((b) => !b.container).length.toLocaleString()}</dd>
+        <dt>{t('Words')}</dt><dd>{words.toLocaleString()}</dd>
+        <dt>{t('Tables')}</dt><dd>{new Set(blocks.map((b) => (b.container || '').split(':')[0]).filter(Boolean)).size}</dd>
+        <dt>{t('Pictures')}</dt><dd>{blocks.reduce((n, b) => n + (b.images?.length || 0), 0)}</dd>
+        <dt>{t('Comments')}</dt><dd>{(model?.comments || []).length}</dd>
+        <dt>{t('Page')}</dt><dd>{section ? t('{width} × {height} mm, {orientation}', { width: Math.round((section.widthPx / 96) * 25.4), height: Math.round((section.heightPx / 96) * 25.4), orientation: section.orientation === 'landscape' ? t('landscape') : section.orientation === 'portrait' ? t('portrait') : section.orientation }) : '—'}</dd>
+        <dt>{t('Styles')}</dt><dd>{(model?.styles || []).length}</dd>
+        <dt>{t('Unsaved changes')}</dt><dd>{doc?.dirty ? t('Yes') : t('No')}</dd>
       </dl>
     </Dialog>
   );
@@ -678,15 +679,15 @@ export function PropertiesDialog({ doc, model, onClose }) {
 /* ── shortcuts ───────────────────────────────────────────────────────────── */
 
 const SHORTCUTS = [
-  ['Ctrl+N', 'New document'], ['Ctrl+O', 'Open'], ['Ctrl+S', 'Save'], ['Ctrl+Shift+S', 'Save as'], ['Ctrl+P', 'Print'],
-  ['Ctrl+Z / Ctrl+Y', 'Undo / Redo'], ['Ctrl+X / C / V', 'Cut / Copy / Paste'], ['Ctrl+A', 'Select all'], ['Ctrl+F', 'Find and replace'],
-  ['Ctrl+B / I / U', 'Bold / Italic / Underline'], ['Ctrl+L / E / R / J', 'Align left / Centre / Align right / Justify'], ['Ctrl+K', 'Link'], ['Ctrl+Enter', 'Page break'],
-  ['F11', 'Full screen'], ['Esc', 'Leave full screen'],
+  ['Ctrl+N', t('New document')], ['Ctrl+O', t('Open')], ['Ctrl+S', t('Save')], ['Ctrl+Shift+S', t('Save as')], ['Ctrl+P', t('Print')],
+  ['Ctrl+Z / Ctrl+Y', t('Undo / Redo')], ['Ctrl+X / C / V', t('Cut / Copy / Paste')], ['Ctrl+A', t('Select all')], ['Ctrl+F', t('Find and replace')],
+  ['Ctrl+B / I / U', t('Bold / Italic / Underline')], ['Ctrl+L / E / R / J', t('Align left / Centre / Align right / Justify')], ['Ctrl+K', t('Link')], ['Ctrl+Enter', t('Page break')],
+  ['F11', t('Full screen')], ['Esc', t('Leave full screen')],
 ];
 
 export function ShortcutsDialog({ onClose }) {
   return (
-    <Dialog title="Keyboard shortcuts" width={440} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
+    <Dialog title={t('Keyboard shortcuts')} width={440} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
       <dl className="about-list">
         {SHORTCUTS.map(([keys, what]) => (
           <React.Fragment key={keys}>
@@ -702,38 +703,37 @@ export function ShortcutsDialog({ onClose }) {
 /* ── the reviewing pane ──────────────────────────────────────────────────── */
 
 /** What a paragraph's changes are, in words: "2 insertions, formatting, a new paragraph". */
-export function trackedKinds(t) {
-  const n = (count, one, many) => (count === 1 ? one : `${count} ${many}`);
+export function trackedKinds(tracked) {
   return [
-    t.inserted ? n(t.inserted, 'an insertion', 'insertions') : null,
-    t.deleted ? n(t.deleted, 'a deletion', 'deletions') : null,
-    t.formatted ? 'formatting' : null,
-    t.moved ? 'words moved' : null,
-    t.mark === 'inserted' ? 'a new paragraph' : t.mark === 'deleted' ? 'paragraphs joined' : null,
-  ].filter(Boolean).join(', ') || 'changed';
+    tracked.inserted ? tn(tracked.inserted, 'an insertion', '{count} insertions') : null,
+    tracked.deleted ? tn(tracked.deleted, 'a deletion', '{count} deletions') : null,
+    tracked.formatted ? t('formatting') : null,
+    tracked.moved ? t('words moved') : null,
+    tracked.mark === 'inserted' ? t('a new paragraph') : tracked.mark === 'deleted' ? t('paragraphs joined') : null,
+  ].filter(Boolean).join(', ') || t('changed');
 }
 
 /** Every tracked change the document carries, read from the file. */
 export function TrackedDialog({ blocks, onClose, onGoto }) {
   const changed = (blocks || []).filter((b) => b.tracked);
   return (
-    <Dialog title="Tracked changes" width={560} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
+    <Dialog title={t('Tracked changes')} width={560} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
       {changed.length ? (
         <div className="ml-import-folders" style={{ maxHeight: 340 }}>
           {changed.map((b) => (
             <button key={b.index} type="button" className="ml-found-item" style={{ border: 0, borderBottom: '1px solid var(--line-soft)', borderRadius: 0 }} onClick={() => onGoto(b.index)}>
               <span className="ml-found-logo"><Icon name="eye" size={14} /></span>
               <span className="grow">
-                <div className="who">{typeof b.tracked === 'object' ? ((b.tracked.authors || []).join(', ') || 'Someone') : 'Changed'}{typeof b.tracked === 'object' ? <span className="wd-tracked-kinds"> — {trackedKinds(b.tracked)}</span> : null}</div>
-                <div className="what">{(b.text || (b.runs || []).map((r) => r.text).join('')).slice(0, 120) || '(empty paragraph)'}</div>
+                <div className="who">{typeof b.tracked === 'object' ? ((b.tracked.authors || []).join(', ') || t('Someone')) : t('Changed')}{typeof b.tracked === 'object' ? <span className="wd-tracked-kinds"> — {trackedKinds(b.tracked)}</span> : null}</div>
+                <div className="what">{(b.text || (b.runs || []).map((r) => r.text).join('')).slice(0, 120) || t('(empty paragraph)')}</div>
               </span>
             </button>
           ))}
         </div>
       ) : (
-        <Empty icon="eye" title="No tracked changes">This document has none recorded.</Empty>
+        <Empty icon="eye" title={t('No tracked changes')}>{t('This document has none recorded.')}</Empty>
       )}
-      <p className="rw-hint">Click a row to go to it. Accept and Reject are on the Review tab.</p>
+      <p className="rw-hint">{t('Click a row to go to it. Accept and Reject are on the Review tab.')}</p>
     </Dialog>
   );
 }
@@ -766,18 +766,18 @@ export function WordCountDialog({ blocks, onClose }) {
   }, [blocks]);
 
   return (
-    <Dialog title="Word count" width={380} onClose={onClose} actions={<Button primary label="Close" onClick={onClose} />}>
+    <Dialog title={t('Word count')} width={380} onClose={onClose} actions={<Button primary label={t('Close')} onClick={onClose} />}>
       <dl className="about-list">
-        <dt>Words</dt>
+        <dt>{t('Words')}</dt>
         <dd>{counts.words.toLocaleString()}</dd>
-        <dt>Characters</dt>
+        <dt>{t('Characters')}</dt>
         <dd>{counts.characters.toLocaleString()}</dd>
-        <dt>Without spaces</dt>
+        <dt>{t('Without spaces')}</dt>
         <dd>{counts.withoutSpaces.toLocaleString()}</dd>
-        <dt>Paragraphs</dt>
+        <dt>{t('Paragraphs')}</dt>
         <dd>{counts.paragraphs.toLocaleString()}</dd>
-        <dt>Reading time</dt>
-        <dd>about {counts.minutes} minute{counts.minutes === 1 ? '' : 's'}</dd>
+        <dt>{t('Reading time')}</dt>
+        <dd>{tn(counts.minutes, 'about {count} minute', 'about {count} minutes')}</dd>
       </dl>
     </Dialog>
   );
@@ -803,32 +803,32 @@ export function HyphenationDialog({ current, onClose, onApply, onManual }) {
   const apply = () => onApply({ auto, caps, zoneTwips: Math.round(zoneCm * CM * 15), limit: limit === '' ? 0 : Number(limit) });
   return (
     <Dialog
-      title="Hyphenation"
+      title={t('Hyphenation')}
       width={420}
       onClose={onClose}
       actions={
         <>
-          <Button label="Manual…" className="wd-hyph-manual" onClick={onManual} />
+          <Button label={t('Manual…')} className="wd-hyph-manual" onClick={onManual} />
           <span style={{ flex: 1 }} />
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="OK" className="wd-hyph-ok" disabled={!ok} onClick={apply} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('OK')} className="wd-hyph-ok" disabled={!ok} onClick={apply} />
         </>
       }
     >
       <div className="ml-form">
         <label className="about-auto">
           <input type="checkbox" className="wd-hyph-auto" checked={auto} onChange={(e) => setAuto(e.target.checked)} />
-          <span>Automatically hyphenate document</span>
+          <span>{t('Automatically hyphenate document')}</span>
         </label>
         <label className="about-auto">
           <input type="checkbox" className="wd-hyph-caps" checked={caps} onChange={(e) => setCaps(e.target.checked)} />
-          <span>Hyphenate words in CAPS</span>
+          <span>{t('Hyphenate words in CAPS')}</span>
         </label>
-        <Field label="Hyphenation zone (cm)" hint="A word is broken only where the line would otherwise end further than this from the right margin.">
+        <Field label={t('Hyphenation zone (cm)')} hint={t('A word is broken only where the line would otherwise end further than this from the right margin.')}>
           <Input type="number" min="0" max="20" step="0.05" className="wd-hyph-zone" value={zone} onChange={(e) => setZone(e.target.value)} style={{ width: 96 }} />
         </Field>
-        <Field label="Limit consecutive hyphens to" hint="How many lines in a row may end in a hyphen — empty for no limit.">
-          <Input type="number" min="0" max="99" className="wd-hyph-limit" placeholder="No limit" value={limit} onChange={(e) => setLimit(e.target.value)} style={{ width: 96 }} />
+        <Field label={t('Limit consecutive hyphens to')} hint={t('How many lines in a row may end in a hyphen — empty for no limit.')}>
+          <Input type="number" min="0" max="99" className="wd-hyph-limit" placeholder={t('No limit')} value={limit} onChange={(e) => setLimit(e.target.value)} style={{ width: 96 }} />
         </Field>
       </div>
     </Dialog>
@@ -848,25 +848,25 @@ export function ManualHyphenationDialog({ candidate, onYes, onNo, onClose }) {
   React.useEffect(() => { setAt(null); }, [candidate?.key]);
   return (
     <Dialog
-      title="Manual Hyphenation: English"
+      title={t('Manual Hyphenation: English')}
       width={440}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button label="No" className="wd-hyph-no" disabled={!candidate} onClick={onNo} />
-          <Button primary label="Yes" className="wd-hyph-yes" disabled={!candidate || chosen == null} onClick={() => onYes(chosen)} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button label={t('No')} className="wd-hyph-no" disabled={!candidate} onClick={onNo} />
+          <Button primary label={t('Yes')} className="wd-hyph-yes" disabled={!candidate || chosen == null} onClick={() => onYes(chosen)} />
         </>
       }
     >
       {candidate ? (
         <div className="ml-form">
-          <Field label="Hyphenate at" hint="Click another place to break the word there instead.">
+          <Field label={t('Hyphenate at')} hint={t('Click another place to break the word there instead.')}>
             <div className="wd-hyph-word" data-word={candidate.word}>
               {[...candidate.word].map((ch, i) => (
                 <React.Fragment key={i}>
                   {i > 0 && points.includes(i) ? (
-                    <button type="button" className={`wd-hyph-point${chosen === i ? ' on' : ''}`} data-point={i} title={`Break after "${candidate.word.slice(0, i)}"`} onClick={() => setAt(i)}>-</button>
+                    <button type="button" className={`wd-hyph-point${chosen === i ? ' on' : ''}`} data-point={i} title={t('Break after "{text}"', { text: candidate.word.slice(0, i) })} onClick={() => setAt(i)}>-</button>
                   ) : null}
                   <span>{ch}</span>
                 </React.Fragment>
@@ -875,7 +875,7 @@ export function ManualHyphenationDialog({ candidate, onYes, onNo, onClose }) {
           </Field>
         </div>
       ) : (
-        <p className="wd-hyph-done">No more words to hyphenate.</p>
+        <p className="wd-hyph-done">{t('No more words to hyphenate.')}</p>
       )}
     </Dialog>
   );

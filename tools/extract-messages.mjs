@@ -5,19 +5,20 @@
 //   node tools/extract-messages.mjs --check   says whether that file is current (exit 1 when not)
 //
 // Only files that import t, tn or msg from @rutba/office-ui (or its own
-// messages.js) are read, so another function called t is never mistaken for
-// the catalogue's. A message is found only where it is written out as a
+// messages.js, or the shell's words.js, which hands the main process the
+// same) are read, so another function called t is never mistaken for the
+// catalogue's. A message is found only where it is written out as a
 // literal string in the call — which is why the code always writes it so.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-export const SOURCES = ['packages/office-ui/src', 'apps/desktop/renderer'];
+export const SOURCES = ['packages/office-ui/src', 'apps/desktop/renderer', 'packages/office-shell/src/electron'];
 export const OUTPUT = 'packages/office-ui/src/catalogues/messages.json';
 
 const STR = String.raw`'((?:[^'\\\n]|\\.)*)'|"((?:[^"\\\n]|\\.)*)"`;
-const IMPORTS = /import\s*\{[^}]*\b(?:t|tn|msg)\b[^}]*\}\s*from\s*['"](?:@rutba\/office-ui|\.\/messages\.js|\.\.\/messages\.js)['"]/;
+const IMPORTS = /import\s*\{[^}]*\b(?:t|tn|msg)\b[^}]*\}\s*from\s*['"](?:@rutba\/office-ui(?:\/messages)?|\.\/messages\.js|\.\.\/messages\.js|\.\/words\.js)['"]/;
 const unescape = (s) => s.replace(/\\(n|.)/g, (m, c) => (c === 'n' ? '\n' : c));
 
 function files(dir, out = []) {

@@ -11,25 +11,25 @@
 // window.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ribbon, Group, Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Field, useToast, useCommands, formatBytes, basename } from '@rutba/office-ui';
+import { Ribbon, Group, Button, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, Field, useToast, useCommands, formatBytes, basename, t, tn } from '@rutba/office-ui';
 import { OPS, DEFAULT_ADJUSTMENTS, toCanvasPlan, resultSize, isIdentity, constrainCrop } from '@rutba/imaging/pipeline';
 import { AppFrame, useAppMenu, pickOpen, useFileDrop, openInApp } from '../shell.js';
 
 const fileUrl = (p) => `rutba://file/${btoa(unescape(encodeURIComponent(p))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
 
 const ADJUSTMENTS = [
-  { key: 'brightness', label: 'Brightness', min: 0, max: 200, unit: '%' },
-  { key: 'contrast', label: 'Contrast', min: 0, max: 200, unit: '%' },
-  { key: 'saturation', label: 'Saturation', min: 0, max: 200, unit: '%' },
-  { key: 'hue', label: 'Hue', min: -180, max: 180, unit: '°' },
-  { key: 'blur', label: 'Blur', min: 0, max: 20, unit: 'px' },
-  { key: 'sepia', label: 'Sepia', min: 0, max: 100, unit: '%' },
-  { key: 'grayscale', label: 'Greyscale', min: 0, max: 100, unit: '%' },
+  { key: 'brightness', label: t('Brightness'), min: 0, max: 200, unit: '%' },
+  { key: 'contrast', label: t('Contrast'), min: 0, max: 200, unit: '%' },
+  { key: 'saturation', label: t('Saturation'), min: 0, max: 200, unit: '%' },
+  { key: 'hue', label: t('Hue'), min: -180, max: 180, unit: '°' },
+  { key: 'blur', label: t('Blur'), min: 0, max: 20, unit: 'px' },
+  { key: 'sepia', label: t('Sepia'), min: 0, max: 100, unit: '%' },
+  { key: 'grayscale', label: t('Greyscale'), min: 0, max: 100, unit: '%' },
 ];
 
 const RATIOS = [
-  { label: 'Free', value: null },
-  { label: 'Square', value: 1 },
+  { label: t('Free'), value: null },
+  { label: t('Square'), value: 1 },
   { label: '4:3', value: 4 / 3 },
   { label: '3:2', value: 1.5 },
   { label: '16:9', value: 16 / 9 },
@@ -116,7 +116,7 @@ export default function ImageTool({ app, shell, boot }) {
         img.decoding = 'sync';
         await new Promise((resolve, reject) => {
           img.onload = resolve;
-          img.onerror = () => reject(new Error('This file could not be decoded as an image.'));
+          img.onerror = () => reject(new Error(t('This file could not be decoded as an image.')));
           img.src = fileUrl(target);
         });
         setImage(img);
@@ -169,7 +169,7 @@ export default function ImageTool({ app, shell, boot }) {
     async (format) => {
       if (!image || !plan) return;
       const target = await shell.dialog.save({
-        title: 'Export picture',
+        title: t('Export picture'),
         defaultPath: (path || 'picture').replace(/\.[^.]+$/, '') + (format === 'jpeg' ? '.jpg' : `.${format}`),
         filters: [{ name: format.toUpperCase(), extensions: [format === 'jpeg' ? 'jpg' : format] }],
       });
@@ -182,7 +182,7 @@ export default function ImageTool({ app, shell, boot }) {
         const blob = await new Promise((resolve) => full.toBlob(resolve, `image/${format}`, format === 'jpeg' ? 0.92 : undefined));
         const bytes = new Uint8Array(await blob.arrayBuffer());
         await shell.fs.write({ path: target, bytes });
-        toast(`Saved ${basename(target)} — ${formatBytes(bytes.length)}`, { tone: 'good' });
+        toast(t('Saved {name} — {size}', { name: basename(target), size: formatBytes(bytes.length) }), { tone: 'good' });
       } catch (err) {
         toast(err.message, { tone: 'bad' });
       } finally {
@@ -194,14 +194,14 @@ export default function ImageTool({ app, shell, boot }) {
 
   const commands = useMemo(
     () => ({
-      'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
-      'file.save': { label: 'Export as PNG…', icon: 'save', key: 'Mod+S', run: () => exportAs('png') },
-      'edit.undo': { label: 'Undo', icon: 'undo', key: 'Mod+Z', run: () => setOps((l) => l.slice(0, -1)) },
-      'edit.reset': { label: 'Reset all', icon: 'refresh', run: () => { setOps([]); setAdjust({ ...DEFAULT_ADJUSTMENTS }); setCrop(null); } },
-      'image.rotateRight': { label: 'Rotate right', icon: 'rotate', key: 'Mod+R', run: () => setOps((l) => [...l, { op: OPS.rotate, degrees: 90 }]) },
-      'image.rotateLeft': { label: 'Rotate left', icon: 'rotate', run: () => setOps((l) => [...l, { op: OPS.rotate, degrees: 270 }]) },
-      'image.flipX': { label: 'Flip horizontally', icon: 'flip', run: () => setOps((l) => [...l, { op: OPS.flip, axis: 'x' }]) },
-      'image.flipY': { label: 'Flip vertically', icon: 'flip', run: () => setOps((l) => [...l, { op: OPS.flip, axis: 'y' }]) },
+      'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
+      'file.save': { label: t('Export as PNG…'), icon: 'save', key: 'Mod+S', run: () => exportAs('png') },
+      'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', run: () => setOps((l) => l.slice(0, -1)) },
+      'edit.reset': { label: t('Reset all'), icon: 'refresh', run: () => { setOps([]); setAdjust({ ...DEFAULT_ADJUSTMENTS }); setCrop(null); } },
+      'image.rotateRight': { label: t('Rotate right'), icon: 'rotate', key: 'Mod+R', run: () => setOps((l) => [...l, { op: OPS.rotate, degrees: 90 }]) },
+      'image.rotateLeft': { label: t('Rotate left'), icon: 'rotate', run: () => setOps((l) => [...l, { op: OPS.rotate, degrees: 270 }]) },
+      'image.flipX': { label: t('Flip horizontally'), icon: 'flip', run: () => setOps((l) => [...l, { op: OPS.flip, axis: 'x' }]) },
+      'image.flipY': { label: t('Flip vertically'), icon: 'flip', run: () => setOps((l) => [...l, { op: OPS.flip, axis: 'y' }]) },
     }),
     [openFile, exportAs]
   );
@@ -215,33 +215,33 @@ export default function ImageTool({ app, shell, boot }) {
     <AppFrame
       app={app}
       shell={shell}
-      title={path ? basename(path) : 'Image'}
+      title={path ? basename(path) : t('Image')}
       dirty={changed}
       menu={appMenu}
       ribbon={
         <Ribbon
-          tabs={[{ id: 'home', label: 'Home' }, { id: 'adjust', label: 'Adjust' }, { id: 'export', label: 'Export' }]}
+          tabs={[{ id: 'home', label: t('Home') }, { id: 'adjust', label: t('Adjust') }, { id: 'export', label: t('Export') }]}
           active={tab}
           onTab={setTab}
           quick={
             <>
-              <Button icon="undo" title="Undo" disabled={!ops.length} onClick={() => commands['edit.undo'].run()} />
-              <Button icon="refresh" title="Reset" disabled={!changed} onClick={() => commands['edit.reset'].run()} />
+              <Button icon="undo" title={t('Undo')} disabled={!ops.length} onClick={() => commands['edit.undo'].run()} />
+              <Button icon="refresh" title={t('Reset')} disabled={!changed} onClick={() => commands['edit.reset'].run()} />
             </>
           }
         >
           {tab === 'home' ? (
             <>
-              <Group label="File">
-                <Button tall icon="open" label="Open" onClick={openFile} />
-                <Button tall icon="save" label="Export" disabled={!image} onClick={() => exportAs('png')} />
+              <Group label={t('File')}>
+                <Button tall icon="open" label={t('Open')} onClick={openFile} />
+                <Button tall icon="save" label={t('Export')} disabled={!image} onClick={() => exportAs('png')} />
               </Group>
-              <Group label="Rotate">
-                <Button tall icon="rotate" label="Right" disabled={!image} onClick={() => commands['image.rotateRight'].run()} />
-                <Button tall icon="rotate" label="Left" disabled={!image} onClick={() => commands['image.rotateLeft'].run()} />
-                <Button tall icon="flip" label="Flip" disabled={!image} onClick={() => commands['image.flipX'].run()} />
+              <Group label={t('Rotate')}>
+                <Button tall icon="rotate" label={t('Right')} disabled={!image} onClick={() => commands['image.rotateRight'].run()} />
+                <Button tall icon="rotate" label={t('Left')} disabled={!image} onClick={() => commands['image.rotateLeft'].run()} />
+                <Button tall icon="flip" label={t('Flip')} disabled={!image} onClick={() => commands['image.flipX'].run()} />
               </Group>
-              <Group label="Crop">
+              <Group label={t('Crop')}>
                 {RATIOS.map((r) => (
                   <Button
                     key={r.label}
@@ -256,11 +256,11 @@ export default function ImageTool({ app, shell, boot }) {
                     }}
                   />
                 ))}
-                <Button icon="crop" label="Apply" primary disabled={!crop} onClick={applyCrop} />
+                <Button icon="crop" label={t('Apply')} primary disabled={!crop} onClick={applyCrop} />
               </Group>
             </>
           ) : tab === 'adjust' ? (
-            <Group label="Adjustments">
+            <Group label={t('Adjustments')}>
               <div className="im-sliders">
                 {ADJUSTMENTS.map((a) => (
                   <label key={a.key} className="im-slider">
@@ -279,34 +279,34 @@ export default function ImageTool({ app, shell, boot }) {
               </div>
             </Group>
           ) : (
-            <Group label="Export as">
-              <Button tall icon="export" label="PNG" disabled={!image} onClick={() => exportAs('png')} />
-              <Button tall icon="export" label="JPEG" disabled={!image} onClick={() => exportAs('jpeg')} />
-              <Button tall icon="export" label="WebP" disabled={!image} onClick={() => exportAs('webp')} />
+            <Group label={t('Export as')}>
+              <Button tall icon="export" label="PNG" disabled={!image} onClick={() => exportAs('png')} />{/* words-ok: a format's name */}
+              <Button tall icon="export" label="JPEG" disabled={!image} onClick={() => exportAs('jpeg')} />{/* words-ok: a format's name */}
+              <Button tall icon="export" label="WebP" disabled={!image} onClick={() => exportAs('webp')} />{/* words-ok: a format's name */}
             </Group>
           )}
         </Ribbon>
       }
       status={
         <>
-          <span>{path || 'No picture open'}</span>
+          <span>{path || t('No picture open')}</span>
           <Spacer />
-          {image ? <Chip>{image.naturalWidth} × {image.naturalHeight} source</Chip> : null}
-          {size ? <Chip>{size.width} × {size.height} result</Chip> : null}
+          {image ? <Chip>{t('{width} × {height} source', { width: image.naturalWidth, height: image.naturalHeight })}</Chip> : null}
+          {size ? <Chip>{t('{width} × {height} result', { width: size.width, height: size.height })}</Chip> : null}
           {stat ? <Chip>{formatBytes(stat.size)}</Chip> : null}
-          {ops.length ? <Chip>{ops.length} edits</Chip> : null}
+          {ops.length ? <Chip>{tn(ops.length, '{count} edit', '{count} edits')}</Chip> : null}
         </>
       }
     >
       {!image && failed && !busy ? (
-        <Empty icon="image" title="This file could not be opened">
+        <Empty icon="image" title={t('This file could not be opened')}>
           {failed}
-          <Button primary icon="open" label="Open another" onClick={openFile} style={{ marginTop: 12 }} />
+          <Button primary icon="open" label={t('Open another')} onClick={openFile} style={{ marginTop: 12 }} />
         </Empty>
       ) : !image ? (
-        <Empty icon="image" title={busy ? 'Opening…' : 'No picture open'}>
-          {busy ? null : 'Open a picture, or drop one onto this window. Nothing is changed until you export.'}
-          {busy ? <Spinner /> : <Button primary icon="open" label="Open a picture" onClick={openFile} style={{ marginTop: 12 }} />}
+        <Empty icon="image" title={busy ? t('Opening…') : t('No picture open')}>
+          {busy ? null : t('Open a picture, or drop one onto this window. Nothing is changed until you export.')}
+          {busy ? <Spinner /> : <Button primary icon="open" label={t('Open a picture')} onClick={openFile} style={{ marginTop: 12 }} />}
         </Empty>
       ) : (
         <>
@@ -319,7 +319,7 @@ export default function ImageTool({ app, shell, boot }) {
             </div>
           </Content>
 
-          <Panel right width={216} title="Adjustments" resizable>
+          <Panel right width={216} title={t('Adjustments')} resizable>
             <div className="im-panel">
               {ADJUSTMENTS.map((a) => (
                 <Field key={a.key} label={`${a.label} — ${adjust[a.key]}${a.unit}`}>
@@ -332,20 +332,20 @@ export default function ImageTool({ app, shell, boot }) {
                   />
                 </Field>
               ))}
-              <Button label="Reset adjustments" onClick={() => setAdjust({ ...DEFAULT_ADJUSTMENTS })} />
+              <Button label={t('Reset adjustments')} onClick={() => setAdjust({ ...DEFAULT_ADJUSTMENTS })} />
               <div className="im-history">
-                <div className="rw-panel-head" style={{ padding: '6px 0' }}>Edits</div>
+                <div className="rw-panel-head" style={{ padding: '6px 0' }}>{t('Edits')}</div>
                 {ops.length ? (
                   ops.map((op, i) => (
                     <div key={i} className="im-op">
                       <Icon name={op.op === OPS.crop ? 'crop' : op.op === OPS.rotate ? 'rotate' : 'flip'} size={13} />
                       <span>
-                        {op.op === OPS.crop ? `Crop ${Math.round(op.width)}×${Math.round(op.height)}` : op.op === OPS.rotate ? `Rotate ${op.degrees}°` : `Flip ${op.axis}`}
+                        {op.op === OPS.crop ? t('Crop {width}×{height}', { width: Math.round(op.width), height: Math.round(op.height) }) : op.op === OPS.rotate ? t('Rotate {degrees}°', { degrees: op.degrees }) : t('Flip {axis}', { axis: op.axis })}
                       </span>
                     </div>
                   ))
                 ) : (
-                  <div className="rw-hint">The original is untouched.</div>
+                  <div className="rw-hint">{t('The original is untouched.')}</div>
                 )}
               </div>
             </div>

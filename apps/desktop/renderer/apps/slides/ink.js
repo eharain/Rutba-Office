@@ -7,6 +7,7 @@
 // strokes again in the order they were made.
 
 import React, { useEffect, useRef, useState } from 'react';
+import { t } from '@rutba/office-ui';
 
 import { DEFAULT_PENS, PEN_COLOURS, PEN_WIDTHS, strokeLook, isInk, alongRuler, recognise, thin, polygonHas } from './ink-geometry.js';
 
@@ -134,7 +135,7 @@ function Ruler({ ruler, size, onChange }) {
       }}
       onPointerUp={(e) => { e.stopPropagation(); grab.current = null; }}
       onWheel={(e) => { e.stopPropagation(); onChange({ ...ruler, angle: Math.round(((ruler.angle + Math.sign(e.deltaY) * (e.shiftKey ? 15 : 1)) % 360) * 10) / 10 }); }}
-      title="Ruler — drag to move, the wheel to turn it; a stroke begun along its top edge follows it"
+      title={t('Ruler — drag to move, the wheel to turn it; a stroke begun along its top edge follows it')}
     >
       <span className="sl-ink-ruler-angle">{Math.round(((ruler.angle % 360) + 360) % 360)}°</span>
     </div>

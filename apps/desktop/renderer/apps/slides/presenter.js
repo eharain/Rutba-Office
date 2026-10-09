@@ -11,7 +11,7 @@
 // each other and duplicating the position in both is how they drift apart.
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Button, Icon, Spinner, Empty } from '@rutba/office-ui';
+import { Button, Icon, Spinner, Empty, t } from '@rutba/office-ui';
 import { clickCount, applyState } from './animate.js';
 import { Markup, FILL } from './markup.js';
 
@@ -120,7 +120,7 @@ export default function Presenter({ shell, docId }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [move, shell, state.blank, model]);
 
-  if (error) return <Empty icon="info" title="The presentation is not open">{error}</Empty>;
+  if (error) return <Empty icon="info" title={t('The presentation is not open')}>{error}</Empty>;
   if (!model) {
     return (
       <div className="pv" style={{ placeItems: 'center', display: 'grid' }}>
@@ -136,22 +136,22 @@ export default function Presenter({ shell, docId }) {
       <style>{CSS}</style>
 
       <header className="pv-bar">
-        <span className="pv-clock" title="How long you have been talking">
+        <span className="pv-clock" title={t('How long you have been talking')}>
           <Icon name="clock" size={14} />
           {elapsed(state.startedAt)}
         </span>
         <Button
           icon={state.running ? 'pause' : 'play'}
-          label={state.running ? 'Pause' : 'Start'}
+          label={state.running ? t('Pause') : t('Start')}
           onClick={() => shell.present.set({ running: !state.running })}
         />
-        <Button icon="refresh" label="Reset" onClick={() => shell.present.set({ restart: true, running: true, step: 0 })} />
+        <Button icon="refresh" label={t('Reset')} onClick={() => shell.present.set({ restart: true, running: true, step: 0 })} />
         <span className="pv-spacer" />
         <span className="pv-position">
-          Slide {index + 1} of {model.count}{clicks ? ` · click ${step} of ${clicks}` : ''}
+          {t('Slide {number} of {total}', { number: index + 1, total: model.count })}{clicks ? ` · ${t('click {step} of {clicks}', { step, clicks })}` : ''}
         </span>
         <span className="pv-spacer" />
-        <Button icon={state.blank ? 'eye' : 'stop'} label={state.blank ? 'Show' : 'Black'} onClick={() => shell.present.set({ blank: !state.blank })} />
+        <Button icon={state.blank ? 'eye' : 'stop'} label={state.blank ? t('Show') : t('Black')} onClick={() => shell.present.set({ blank: !state.blank })} />
         <span className="pv-time">{new Date(now).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
       </header>
 
@@ -159,22 +159,22 @@ export default function Presenter({ shell, docId }) {
         <section className="pv-current">
           <div className="pv-stage" ref={stageRef}><Markup html={model.slide?.svg} style={FILL} /></div>
           <div className="pv-controls">
-            <Button icon="skipBack" label="Previous" disabled={index === 0 && step === 0} onClick={() => move(-1)} />
-            <Button primary icon="skipForward" label="Next" disabled={index >= model.count - 1 && step >= clicks} onClick={() => move(1)} />
+            <Button icon="skipBack" label={t('Previous')} disabled={index === 0 && step === 0} onClick={() => move(-1)} />
+            <Button primary icon="skipForward" label={t('Next')} disabled={index >= model.count - 1 && step >= clicks} onClick={() => move(1)} />
           </div>
         </section>
 
         <aside className="pv-side">
           <div className="pv-next">
             {/* What the next press brings: this slide's next animation while it has one, else the next slide. */}
-            <div className="pv-label">{step < clicks ? `Next: click ${step + 1} of ${clicks}` : next ? 'Next' : 'End of the deck'}</div>
+            <div className="pv-label">{step < clicks ? t('Next: click {step} of {clicks}', { step: step + 1, clicks }) : next ? t('Next') : t('End of the deck')}</div>
             {step < clicks ? (
               <div className="pv-thumb" ref={nextRef}><Markup html={model.slide?.svg} style={FILL} /></div>
-            ) : next ? <div className="pv-thumb"><Markup html={next.slide?.svg} style={FILL} /></div> : <div className="pv-thumb pv-empty">Nothing after this one</div>}
+            ) : next ? <div className="pv-thumb"><Markup html={next.slide?.svg} style={FILL} /></div> : <div className="pv-thumb pv-empty">{t('Nothing after this one')}</div>}
           </div>
 
           <div className="pv-notes">
-            <div className="pv-label">Notes</div>
+            <div className="pv-label">{t('Notes')}</div>
             {notes ? (
               <div className="pv-notes-text">
                 {notes.split('\n').map((line, i) => (
@@ -182,7 +182,7 @@ export default function Presenter({ shell, docId }) {
                 ))}
               </div>
             ) : (
-              <p className="pv-none">No notes on this slide. Add them from the Home tab.</p>
+              <p className="pv-none">{t('No notes on this slide. Add them from the Home tab.')}</p>
             )}
           </div>
         </aside>

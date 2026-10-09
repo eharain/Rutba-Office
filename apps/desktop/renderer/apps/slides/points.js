@@ -7,6 +7,7 @@
 // and flips with the shape, so a point is dragged where it is seen.
 
 import React from 'react';
+import { t } from '@rutba/office-ui';
 import { anchors, moveAnchor, deleteAnchor, insertAnchor, nearestSegment, pathData } from '@rutba/presentation/points';
 
 /**
@@ -80,13 +81,13 @@ export function PointsOverlay({ shape, commands, picked, scale, menu, onChange, 
           const at = local(e);
           const segment = nearestSegment(commands, at.x, at.y);
           menu.open(e, [
-            { label: 'Add Point', disabled: segment < 0, run: () => onCommit(insertAnchor(commands, segment)) },
+            { label: t('Add Point'), disabled: segment < 0, run: () => onCommit(insertAnchor(commands, segment)) },
             '-',
-            { label: 'Exit Edit Points', run: onExit },
+            { label: t('Exit Edit Points'), run: onExit },
           ]);
         }}
       >
-        <title>Right-click to add a point</title>
+        <title>{t('Right-click to add a point')}</title>
       </path>
       {anchors(commands).map((a) => (
         <rect
@@ -104,13 +105,13 @@ export function PointsOverlay({ shape, commands, picked, scale, menu, onChange, 
             e.stopPropagation();
             const next = deleteAnchor(commands, a.index);
             menu.open(e, [
-              { label: 'Delete Point', disabled: !next, title: next ? undefined : 'A figure needs the points it has left', run: () => next && onCommit(next) },
+              { label: t('Delete Point'), disabled: !next, title: next ? undefined : t('A figure needs the points it has left'), run: () => next && onCommit(next) },
               '-',
-              { label: 'Exit Edit Points', run: onExit },
+              { label: t('Exit Edit Points'), run: onExit },
             ]);
           }}
         >
-          <title>Drag to move this point — right-click to delete it</title>
+          <title>{t('Drag to move this point — right-click to delete it')}</title>
         </rect>
       ))}
     </svg>

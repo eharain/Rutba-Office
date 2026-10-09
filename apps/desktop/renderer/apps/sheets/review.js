@@ -5,6 +5,7 @@
 // as Excel asks. The panes, the pass and the dialogs are renderer/review.js.
 
 import { useMemo, useRef } from 'react';
+import { t, tn } from '@rutba/office-ui';
 import { useReview, wordAround } from '../../review.js';
 
 export function useSheetsReview({ shell, doc, model, dispatch, toast }) {
@@ -45,7 +46,7 @@ export function useSheetsReview({ shell, doc, model, dispatch, toast }) {
       const active = modelRef.current?.activeSheet;
       if (state?.extra?.sheets || sheets.length < 2) return null;
       const others = sheets.filter((s) => s !== active);
-      return { message: `The spelling check is complete for ${active}.`, label: `Check the other ${others.length === 1 ? 'sheet' : `${others.length} sheets`}`, extra: { sheets: others }, others };
+      return { message: t('The spelling check is complete for {sheet}.', { sheet: active }), label: tn(others.length, 'Check the other sheet', 'Check the other {count} sheets'), extra: { sheets: others }, others };
     },
     async showWord(found) {
       const ops = at(found.where);

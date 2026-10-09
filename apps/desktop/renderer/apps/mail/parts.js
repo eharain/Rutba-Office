@@ -8,6 +8,7 @@
 /* ── the reading frame ───────────────────────────────────────────────────── */
 
 import { withoutBlocks } from '@rutba/mailbox/mime';
+import { t } from '@rutba/office-ui/messages';
 
 export const BLOCKED_NOTE = 'blocked-remote';
 
@@ -93,7 +94,7 @@ export function avatarFor(person) {
   return { colour: TONES[hash % TONES.length], initial: initial || '?' };
 }
 
-export const displayName = (person) => person?.name || person?.address || '(unknown sender)';
+export const displayName = (person) => person?.name || person?.address || t('(unknown sender)');
 
 /* ── conversations ───────────────────────────────────────────────────────── */
 
@@ -201,18 +202,18 @@ export function buildThreads(rows) {
 /* ── views ───────────────────────────────────────────────────────────────── */
 
 export const FILTERS = [
-  { id: 'all', label: 'All', test: () => true },
-  { id: 'unread', label: 'Unread', icon: 'mail', test: (r) => r.unread },
-  { id: 'starred', label: 'Starred', icon: 'star', test: (r) => r.flagged },
-  { id: 'attachments', label: 'Attachments', icon: 'attach', test: (r) => r.hasAttachments },
-  { id: 'people', label: 'People', icon: 'reply', test: (r) => !r.bulk },
+  { id: 'all', label: t('All'), test: () => true },
+  { id: 'unread', label: t('Unread'), icon: 'mail', test: (r) => r.unread },
+  { id: 'starred', label: t('Starred'), icon: 'star', test: (r) => r.flagged },
+  { id: 'attachments', label: t('Attachments'), icon: 'attach', test: (r) => r.hasAttachments },
+  { id: 'people', label: t('People'), icon: 'reply', test: (r) => !r.bulk },
 ];
 
 export const SORTS = [
-  { id: 'date', label: 'Date', of: (r) => r.date || '' },
-  { id: 'from', label: 'Sender', of: (r) => String(r.from?.name || r.from?.address || '').toLowerCase() },
-  { id: 'subject', label: 'Subject', of: (r) => threadSubject(r.subject) },
-  { id: 'size', label: 'Size', of: (r) => String(r.size || 0).padStart(12, '0') },
+  { id: 'date', label: t('Date'), of: (r) => r.date || '' },
+  { id: 'from', label: t('Sender'), of: (r) => String(r.from?.name || r.from?.address || '').toLowerCase() },
+  { id: 'subject', label: t('Subject'), of: (r) => threadSubject(r.subject) },
+  { id: 'size', label: t('Size'), of: (r) => String(r.size || 0).padStart(12, '0') },
 ];
 
 /** Apply the chosen filter, search and order to a page of headers. */

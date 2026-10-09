@@ -18,6 +18,7 @@ import { createThumbnailer } from './thumbs.js';
 import { mayServe } from './grants.js';
 import { createWindowManager } from './windows.js';
 import { buildImplementations, installIpc, sendEvent, broadcast } from './ipc.js';
+import { speakAs, t } from './words.js';
 
 const isMac = process.platform === 'darwin';
 
@@ -39,7 +40,7 @@ function buildMenu({ send, appName, appShortNames = {} }) {
             submenu: [
               { role: 'about' },
               { type: 'separator' },
-              { label: 'Settings…', accelerator: 'Cmd+,', click: cmd('app.settings') },
+              { label: t('Settings…'), accelerator: 'Cmd+,', click: cmd('app.settings') },
               { type: 'separator' },
               { role: 'services' },
               { type: 'separator' },
@@ -53,47 +54,47 @@ function buildMenu({ send, appName, appShortNames = {} }) {
         ]
       : []),
     {
-      label: '&File',
+      label: t('&File'),
       submenu: [
-        { label: 'New', accelerator: 'CmdOrCtrl+N', click: cmd('file.new') },
-        { label: 'Open…', accelerator: 'CmdOrCtrl+O', click: cmd('file.open') },
-        { label: 'Open Recent', role: 'recentDocuments', submenu: [{ label: 'Clear', role: 'clearRecentDocuments' }] },
+        { label: t('New'), accelerator: 'CmdOrCtrl+N', click: cmd('file.new') },
+        { label: t('Open…'), accelerator: 'CmdOrCtrl+O', click: cmd('file.open') },
+        { label: t('Open Recent'), role: 'recentDocuments', submenu: [{ label: t('Clear'), role: 'clearRecentDocuments' }] },
         { type: 'separator' },
-        { label: 'Save', accelerator: 'CmdOrCtrl+S', click: cmd('file.save') },
-        { label: 'Save As…', accelerator: 'CmdOrCtrl+Shift+S', click: cmd('file.saveAs') },
-        { label: 'Export as PDF…', accelerator: 'CmdOrCtrl+Shift+E', click: cmd('file.exportPdf') },
+        { label: t('Save'), accelerator: 'CmdOrCtrl+S', click: cmd('file.save') },
+        { label: t('Save As…'), accelerator: 'CmdOrCtrl+Shift+S', click: cmd('file.saveAs') },
+        { label: t('Export as PDF…'), accelerator: 'CmdOrCtrl+Shift+E', click: cmd('file.exportPdf') },
         { type: 'separator' },
-        { label: 'Print…', accelerator: 'CmdOrCtrl+P', click: cmd('file.print') },
+        { label: t('Print…'), accelerator: 'CmdOrCtrl+P', click: cmd('file.print') },
         { type: 'separator' },
-        { label: 'Close Window', accelerator: 'CmdOrCtrl+W', role: 'close' },
-        ...(isMac ? [] : [{ label: 'Exit', role: 'quit' }]),
+        { label: t('Close Window'), accelerator: 'CmdOrCtrl+W', role: 'close' },
+        ...(isMac ? [] : [{ label: t('Exit'), role: 'quit' }]),
       ],
     },
     {
-      label: '&Edit',
+      label: t('&Edit'),
       submenu: [
-        { label: 'Undo', accelerator: 'CmdOrCtrl+Z', click: cmd('edit.undo') },
-        { label: 'Redo', accelerator: isMac ? 'Cmd+Shift+Z' : 'Ctrl+Y', click: cmd('edit.redo') },
+        { label: t('Undo'), accelerator: 'CmdOrCtrl+Z', click: cmd('edit.undo') },
+        { label: t('Redo'), accelerator: isMac ? 'Cmd+Shift+Z' : 'Ctrl+Y', click: cmd('edit.redo') },
         { type: 'separator' },
         { role: 'cut' },
         { role: 'copy' },
         { role: 'paste' },
-        { label: 'Paste as Plain Text', accelerator: 'CmdOrCtrl+Shift+V', role: 'pasteAndMatchStyle' },
+        { label: t('Paste as Plain Text'), accelerator: 'CmdOrCtrl+Shift+V', role: 'pasteAndMatchStyle' },
         { role: 'selectAll' },
         { type: 'separator' },
-        { label: 'Find…', accelerator: 'CmdOrCtrl+F', click: cmd('edit.find') },
-        { label: 'Replace…', accelerator: 'CmdOrCtrl+H', click: cmd('edit.replace') },
+        { label: t('Find…'), accelerator: 'CmdOrCtrl+F', click: cmd('edit.find') },
+        { label: t('Replace…'), accelerator: 'CmdOrCtrl+H', click: cmd('edit.replace') },
       ],
     },
     {
-      label: '&View',
+      label: t('&View'),
       submenu: [
-        { label: 'Zoom In', accelerator: 'CmdOrCtrl+Plus', click: cmd('view.zoomIn') },
-        { label: 'Zoom Out', accelerator: 'CmdOrCtrl+-', click: cmd('view.zoomOut') },
-        { label: 'Actual Size', accelerator: 'CmdOrCtrl+0', click: cmd('view.zoomReset') },
+        { label: t('Zoom In'), accelerator: 'CmdOrCtrl+Plus', click: cmd('view.zoomIn') },
+        { label: t('Zoom Out'), accelerator: 'CmdOrCtrl+-', click: cmd('view.zoomOut') },
+        { label: t('Actual Size'), accelerator: 'CmdOrCtrl+0', click: cmd('view.zoomReset') },
         { type: 'separator' },
-        { label: 'Toggle Theme', accelerator: 'CmdOrCtrl+Shift+D', click: cmd('view.toggleTheme') },
-        { label: 'Full Screen', accelerator: isMac ? 'Ctrl+Cmd+F' : 'F11', click: cmd('view.fullscreen') },
+        { label: t('Toggle Theme'), accelerator: 'CmdOrCtrl+Shift+D', click: cmd('view.toggleTheme') },
+        { label: t('Full Screen'), accelerator: isMac ? 'Ctrl+Cmd+F' : 'F11', click: cmd('view.fullscreen') },
         // For working on the suite, not in it. Reload sat on Ctrl+R, which a
         // Word user presses for Align Right: the window reloaded the file
         // from disk and said nothing about the edits left behind. An
@@ -101,35 +102,35 @@ function buildMenu({ send, appName, appShortNames = {} }) {
         // with Reload where nothing else wants it.
         ...(app.isPackaged ? [] : [
           { type: 'separator' },
-          { label: 'Reload', accelerator: 'CmdOrCtrl+Shift+R', role: 'reload' },
-          { label: 'Developer Tools', accelerator: isMac ? 'Alt+Cmd+I' : 'Ctrl+Shift+I', role: 'toggleDevTools' },
+          { label: t('Reload'), accelerator: 'CmdOrCtrl+Shift+R', role: 'reload' },
+          { label: t('Developer Tools'), accelerator: isMac ? 'Alt+Cmd+I' : 'Ctrl+Shift+I', role: 'toggleDevTools' },
         ]),
       ],
     },
     {
-      label: '&Apps',
+      label: t('&Apps'),
       submenu: [
-        { label: 'Home', accelerator: 'CmdOrCtrl+Shift+H', click: cmd('open.app', { app: 'home' }) },
+        { label: t('Home'), accelerator: 'CmdOrCtrl+Shift+H', click: cmd('open.app', { app: 'home' }) },
         { type: 'separator' },
         // Named by the app's own registry entry, as the windows and the
         // taskbar are, so a rename reaches the menu too: written out here,
         // the menu still said Rutba Word after the app had a new name.
-        ...MENU_APPS.map((key) => ({ label: appShortNames[key] || key, click: cmd('open.app', { app: key }) })),
+        ...MENU_APPS.map((key) => ({ label: t(appShortNames[key] || key), click: cmd('open.app', { app: key }) })),
       ],
     },
     {
-      label: '&Help',
+      label: t('&Help'),
       submenu: [
-        { label: 'Rutba Office Help', accelerator: 'F1', click: cmd('help.show') },
-        { label: 'Keyboard Shortcuts', click: cmd('help.shortcuts') },
+        { label: t('Rutba Office Help'), accelerator: 'F1', click: cmd('help.show') },
+        { label: t('Keyboard Shortcuts'), click: cmd('help.shortcuts') },
         { type: 'separator' },
-        { label: 'Rutba Office Website', click: () => electronShell.openExternal('https://office.rutba.io') },
-        { label: 'Contact Us', click: () => electronShell.openExternal('https://office.rutba.io/contact') },
-        { label: 'Source Code (AGPL)', click: () => electronShell.openExternal('https://github.com/eharain/Rutba-Office') },
+        { label: t('Rutba Office Website'), click: () => electronShell.openExternal('https://office.rutba.io') },
+        { label: t('Contact Us'), click: () => electronShell.openExternal('https://office.rutba.io/contact') },
+        { label: t('Source Code (AGPL)'), click: () => electronShell.openExternal('https://github.com/eharain/Rutba-Office') },
         { type: 'separator' },
-        { label: 'Check for Updates…', click: cmd('help.updates') },
+        { label: t('Check for Updates…'), click: cmd('help.updates') },
         { type: 'separator' },
-        { label: 'About Rutba Office', click: cmd('help.about') },
+        { label: t('About Rutba Office'), click: cmd('help.about') },
       ],
     },
   ];
@@ -308,11 +309,12 @@ export function createShell({
        * to the window, which knows how to save itself and closes when it has.
        */
       confirmClose: async (win, info) => {
+        speakAs(stores);
         const { response } = await dialog.showMessageBox(win, {
           type: 'warning',
-          message: `Save changes to ${info.name || 'this document'}?`,
-          detail: 'If you don’t save, your changes will be lost.',
-          buttons: ['Save', "Don't save", 'Cancel'],
+          message: info.name ? t('Save changes to {name}?', { name: info.name }) : t('Save changes to this document?'),
+          detail: t('If you don’t save, your changes will be lost.'),
+          buttons: [t('Save'), t("Don't save"), t('Cancel')],
           defaultId: 0,
           cancelId: 2,
           noLink: true,
@@ -360,6 +362,7 @@ export function createShell({
     for (const [ns, methods] of Object.entries(extra)) merged[ns] = { ...(merged[ns] || {}), ...methods };
     installIpc(merged);
 
+    speakAs(stores);
     Menu.setApplicationMenu(buildMenu({ send, appName, appShortNames }));
 
     nativeTheme.on('updated', () => broadcast('theme:changed', { dark: nativeTheme.shouldUseDarkColors }));

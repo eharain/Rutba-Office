@@ -13,11 +13,11 @@
 // needs the document it came from.
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Button, Dialog, Field, Input, Empty } from '@rutba/office-ui';
+import { Button, Dialog, Field, Input, Empty, t } from '@rutba/office-ui';
 import { blockText } from '@rutba/ooxml/blocks';
 
 const KEY = 'word.buildingBlocks';
-const GALLERIES = [['quickParts', 'Quick Parts'], ['autoText', 'AutoText']];
+const GALLERIES = [['quickParts', t('Quick Parts')], ['autoText', t('AutoText')]];
 const galleryName = (id) => (GALLERIES.find(([g]) => g === id) || [])[1] || id;
 
 /**
@@ -55,11 +55,11 @@ export function useBuildingBlocks({ shell, apply, toast }) {
       block = null;
     }
     if (!block?.paragraphs?.length) {
-      toast('Select the words to keep first.', { tone: 'bad' });
+      toast(t('Select the words to keep first.'), { tone: 'bad' });
       return;
     }
     const preview = blockText(block.paragraphs);
-    const name = preview.split(/\s+/).filter(Boolean).slice(0, 4).join(' ').replace(/[.,;:]+$/, '') || 'Building block';
+    const name = preview.split(/\s+/).filter(Boolean).slice(0, 4).join(' ').replace(/[.,;:]+$/, '') || t('Building block');
     setDialog({ kind: 'save', block, preview, name, gallery, category: 'General', description: '' });
   }, [apply, toast]);
 
@@ -80,7 +80,7 @@ export function useBuildingBlocks({ shell, apply, toast }) {
     const replaced = blocks.some((b) => b.gallery === entry.gallery && b.name.toLowerCase() === name.toLowerCase());
     await persist([...blocks.filter((b) => !(b.gallery === entry.gallery && b.name.toLowerCase() === name.toLowerCase())), entry]);
     setDialog(null);
-    toast(`${replaced ? 'Redefined' : 'Saved'} “${name}” in ${galleryName(entry.gallery)}`, { tone: 'good' });
+    toast(replaced ? t('Redefined “{name}” in {gallery}', { name, gallery: galleryName(entry.gallery) }) : t('Saved “{name}” in {gallery}', { name, gallery: galleryName(entry.gallery) }), { tone: 'good' });
   }, [blocks, persist, toast]);
 
   const remove = useCallback(async (id) => {
@@ -95,18 +95,18 @@ export function useBuildingBlocks({ shell, apply, toast }) {
   const head = () => {
     const quick = entries('quickParts');
     return [
-      ...(quick.length ? [{ heading: true, label: 'Quick Parts' }, ...quick, '-'] : []),
-      { heading: true, label: 'AutoText' },
+      ...(quick.length ? [{ heading: true, label: t('Quick Parts') }, ...quick, '-'] : []),
+      { heading: true, label: t('AutoText') },
       ...entries('autoText'),
-      { label: 'Save Selection to AutoText Gallery…', run: () => startSave('autoText') },
+      { label: t('Save Selection to AutoText Gallery…'), run: () => startSave('autoText') },
       '-',
     ];
   };
   /** What it ends with. */
   const tail = () => [
     '-',
-    { label: 'Building Blocks Organizer…', run: () => setDialog({ kind: 'organizer' }) },
-    { label: 'Save Selection to Quick Part Gallery…', icon: 'save', run: () => startSave('quickParts') },
+    { label: t('Building Blocks Organizer…'), run: () => setDialog({ kind: 'organizer' }) },
+    { label: t('Save Selection to Quick Part Gallery…'), icon: 'save', run: () => startSave('quickParts') },
   ];
 
   const node = dialog?.kind === 'save' ? (
@@ -124,27 +124,27 @@ function SaveBlockDialog({ initial, categories, onSave, onClose }) {
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
   return (
     <Dialog
-      title="Create New Building Block"
+      title={t('Create New Building Block')}
       width={480}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="OK" disabled={!form.name.trim()} onClick={() => onSave(form)} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} disabled={!form.name.trim()} onClick={() => onSave(form)} /></>}
     >
-      <Field label="Name">
+      <Field label={t('Name')}>
         <Input className="wd-bb-name" value={form.name} autoFocus onChange={(e) => set({ name: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter' && form.name.trim()) onSave(form); }} />
       </Field>
-      <Field label="Gallery">
+      <Field label={t('Gallery')}>
         <select className="rw-input wd-bb-gallery" value={form.gallery} onChange={(e) => set({ gallery: e.target.value })}>
           {GALLERIES.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
         </select>
       </Field>
-      <Field label="Category">
+      <Field label={t('Category')}>
         <Input value={form.category} list="wd-bb-categories" onChange={(e) => set({ category: e.target.value })} />
         <datalist id="wd-bb-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
       </Field>
-      <Field label="Description">
-        <Input value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="Optional" />
+      <Field label={t('Description')}>
+        <Input value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder={t('Optional')} />
       </Field>
-      <div className="wd-bb-preview" title="What it holds">{form.preview}</div>
+      <div className="wd-bb-preview" title={t('What it holds')}>{form.preview}</div>
     </Dialog>
   );
 }
@@ -155,21 +155,21 @@ function OrganizerDialog({ blocks, onInsert, onDelete, onClose }) {
   const current = blocks.find((b) => b.id === picked) || null;
   return (
     <Dialog
-      title="Building Blocks Organizer"
+      title={t('Building Blocks Organizer')}
       width={620}
       onClose={onClose}
       actions={
         <>
-          <Button label="Delete" disabled={!current} onClick={() => { onDelete(current.id); setPicked(blocks.find((b) => b.id !== current.id)?.id ?? null); }} />
-          <Button label="Close" onClick={onClose} />
-          <Button primary label="Insert" disabled={!current} onClick={() => onInsert(current)} />
+          <Button label={t('Delete')} disabled={!current} onClick={() => { onDelete(current.id); setPicked(blocks.find((b) => b.id !== current.id)?.id ?? null); }} />
+          <Button label={t('Close')} onClick={onClose} />
+          <Button primary label={t('Insert')} disabled={!current} onClick={() => onInsert(current)} />
         </>
       }
     >
       {blocks.length ? (
         <div className="wd-bb-organizer">
-          <div className="wd-bb-list" role="listbox" aria-label="Building blocks">
-            <div className="wd-bb-row head"><span>Name</span><span>Gallery</span><span>Category</span></div>
+          <div className="wd-bb-list" role="listbox" aria-label={t('Building blocks')}>
+            <div className="wd-bb-row head"><span>{t('Name')}</span><span>{t('Gallery')}</span><span>{t('Category')}</span></div>
             {blocks.map((b) => (
               <button key={b.id} type="button" role="option" aria-selected={b.id === picked} className={`wd-bb-row${b.id === picked ? ' on' : ''}`} onClick={() => setPicked(b.id)} onDoubleClick={() => onInsert(b)}>
                 <span>{b.name}</span><span>{galleryName(b.gallery)}</span><span>{b.category}</span>
@@ -179,7 +179,7 @@ function OrganizerDialog({ blocks, onInsert, onDelete, onClose }) {
           <div className="wd-bb-preview">{current ? (current.description ? `${current.description}\n\n` : '') + current.preview : ''}</div>
         </div>
       ) : (
-        <Empty icon="textbox" title="No building blocks yet">Select some words, then Insert → Quick Parts → Save Selection to Quick Part Gallery.</Empty>
+        <Empty icon="textbox" title={t('No building blocks yet')}>{t('Select some words, then Insert → Quick Parts → Save Selection to Quick Part Gallery.')}</Empty>
       )}
     </Dialog>
   );

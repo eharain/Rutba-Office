@@ -4,7 +4,7 @@
 // signer's name and title under it, as Word draws one before it is signed.
 
 import React, { useState } from 'react';
-import { Button, Dialog, Field } from '@rutba/office-ui';
+import { Button, Dialog, Field, t } from '@rutba/office-ui';
 
 const WIDTH = 256;
 const HEIGHT = 128;
@@ -55,21 +55,21 @@ export function SignatureSetupDialog({ onInsert, onClose }) {
   );
   return (
     <Dialog
-      title="Signature Setup"
+      title={t('Signature Setup')}
       width={440}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="OK" className="wd-sig-ok" onClick={() => onInsert(s)} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} className="wd-sig-ok" onClick={() => onInsert(s)} /></>}
     >
       <div className="wd-sig">
-        {field('signer', 'Suggested signer (for example, Jo Bloggs)', { autoFocus: true })}
-        {field('title', 'Suggested signer\'s title (for example, Manager)')}
-        {field('email', 'Suggested signer\'s e-mail address')}
-        <Field label="Instructions to the signer">
+        {field('signer', t('Suggested signer (for example, Jo Bloggs)'), { autoFocus: true })}
+        {field('title', t('Suggested signer\'s title (for example, Manager)'))}
+        {field('email', t('Suggested signer\'s e-mail address'))}
+        <Field label={t('Instructions to the signer')}>
           <textarea className="rw-input wd-sig-instructions" rows={2} value={s.instructions} onChange={(e) => set({ instructions: e.target.value })} />
         </Field>
-        <label className="wd-sig-check"><input type="checkbox" checked={s.allowComments} onChange={(e) => set({ allowComments: e.target.checked })} /> Allow the signer to add comments in the Sign dialog</label>
-        <label className="wd-sig-check"><input type="checkbox" className="wd-sig-date" checked={s.showDate} onChange={(e) => set({ showDate: e.target.checked })} /> Show sign date in signature line</label>
-        <p className="wd-sig-note">Word offers to sign the line; this suite keeps the signer's details and the line as Word writes them.</p>
+        <label className="wd-sig-check"><input type="checkbox" checked={s.allowComments} onChange={(e) => set({ allowComments: e.target.checked })} /> {t('Allow the signer to add comments in the Sign dialog')}</label>
+        <label className="wd-sig-check"><input type="checkbox" className="wd-sig-date" checked={s.showDate} onChange={(e) => set({ showDate: e.target.checked })} /> {t('Show sign date in signature line')}</label>
+        <p className="wd-sig-note">{t('Word offers to sign the line; this suite keeps the signer\'s details and the line as Word writes them.')}</p>
       </div>
     </Dialog>
   );

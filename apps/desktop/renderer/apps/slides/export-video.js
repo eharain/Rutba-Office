@@ -7,11 +7,11 @@
 // of the frame: what a picture of the slide can hold.
 
 import React, { useRef, useState } from 'react';
-import { Button, Dialog, Select } from '@rutba/office-ui';
+import { Button, Dialog, Select, t } from '@rutba/office-ui';
 import { isNarration } from '@rutba/presentation/narration';
 import { recordingType } from './screen-record.js';
 
-export const QUALITIES = [['1920', 'Full HD (1080p)'], ['1280', 'HD (720p)'], ['852', 'Standard (480p)']];
+export const QUALITIES = [['1920', t('Full HD (1080p)')], ['1280', t('HD (720p)')], ['852', t('Standard (480p)')]];
 
 /**
  * A slide's drawing with its pictures carried inside it, and nothing a canvas
@@ -36,7 +36,7 @@ async function standalone(svg, cache = new Map()) {
 const imageOf = (svg) => new Promise((resolve, reject) => {
   const img = new Image();
   img.onload = () => resolve(img);
-  img.onerror = () => reject(new Error('a slide could not be drawn'));
+  img.onerror = () => reject(new Error(t('a slide could not be drawn')));
   img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 });
 
@@ -128,8 +128,8 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
     const width = Number(quality);
     const height = Math.round((width * size.height) / size.width / 2) * 2;
     const ext = recordingType().startsWith('video/mp4') ? 'mp4' : 'webm';
-    const base = (doc?.name || 'Presentation').replace(/\.[^.]+$/, '');
-    const target = await shell.dialog.save({ title: 'Export to Video', defaultPath: `${base}.${ext}`, filters: [{ name: ext === 'mp4' ? 'MPEG-4 Video' : 'WebM Video', extensions: [ext] }] });
+    const base = (doc?.name || t('Presentation')).replace(/\.[^.]+$/, '');
+    const target = await shell.dialog.save({ title: t('Export to Video'), defaultPath: `${base}.${ext}`, filters: [{ name: ext === 'mp4' ? t('MPEG-4 Video') : t('WebM Video'), extensions: [ext] }] });
     if (!target) return;
     stop.current = false;
     setBusy({ at: 0, of: model.count });
@@ -147,30 +147,30 @@ export function ExportVideoDialog({ shell, doc, model, onClose, toast }) {
       const video = await renderVideo(slides, { width, height, onProgress: (i) => setBusy({ at: i + 1, of: slides.length }), cancelled: () => stop.current });
       if (stop.current) { setBusy(null); return; }
       await shell.fs.write({ path: target, bytes: video.bytes });
-      toast?.(`Video saved — ${target.split(/[\\/]/).pop()}`, { tone: 'good' });
+      toast?.(t('Video saved — {name}', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
       onClose();
     } catch (err) {
       setBusy(null);
-      toast?.(`The video could not be made: ${err.message || err}`, { ms: 5000 });
+      toast?.(t('The video could not be made: {reason}', { reason: err.message || err }), { ms: 5000 });
     }
   };
   return (
     <Dialog
-      title="Export to Video"
+      title={t('Export to Video')}
       width={440}
       onClose={busy ? () => { stop.current = true; } : onClose}
       actions={busy
-        ? <Button label="Cancel" onClick={() => { stop.current = true; }} />
-        : <><Button label="Cancel" onClick={onClose} /><Button primary label="Create Video" className="sl-video-go" onClick={go} /></>}
+        ? <Button label={t('Cancel')} onClick={() => { stop.current = true; }} />
+        : <><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Create Video')} className="sl-video-go" onClick={go} /></>}
     >
       {busy ? (
-        <div className="sl-video-busy" role="status" aria-live="polite">Making the video: slide {busy.at} of {busy.of}. It plays the deck through, so it takes as long as the show.</div>
+        <div className="sl-video-busy" role="status" aria-live="polite">{t('Making the video: slide {at} of {of}. It plays the deck through, so it takes as long as the show.', { at: busy.at, of: busy.of })}</div>
       ) : (
         <div className="sl-video">
-          <label>Quality <Select className="rw-select sl-video-quality" value={quality} onChange={(e) => setQuality(e.target.value)}>{QUALITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></label>
-          <label className="sl-video-check"><input type="checkbox" className="sl-video-timings" checked={useTimings} onChange={(e) => setUseTimings(e.target.checked)} /> Use Recorded Timings and Narrations</label>
-          <label>Seconds spent on each slide <input type="number" min="1" max="60" className="rw-input sl-video-seconds" value={seconds} onChange={(e) => setSeconds(e.target.value)} /></label>
-          <p className="sl-video-lead">A slide with a timing of its own keeps it when timings are used; the rest stay up for the seconds above. Animations are shown finished.</p>
+          <label>{t('Quality')} <Select className="rw-select sl-video-quality" value={quality} onChange={(e) => setQuality(e.target.value)}>{QUALITIES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></label>
+          <label className="sl-video-check"><input type="checkbox" className="sl-video-timings" checked={useTimings} onChange={(e) => setUseTimings(e.target.checked)} /> {t('Use Recorded Timings and Narrations')}</label>
+          <label>{t('Seconds spent on each slide')} <input type="number" min="1" max="60" className="rw-input sl-video-seconds" value={seconds} onChange={(e) => setSeconds(e.target.value)} /></label>
+          <p className="sl-video-lead">{t('A slide with a timing of its own keeps it when timings are used; the rest stay up for the seconds above. Animations are shown finished.')}</p>
         </div>
       )}
     </Dialog>

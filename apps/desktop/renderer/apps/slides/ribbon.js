@@ -9,7 +9,7 @@
 // entrance, emphasis and exit effects PowerPoint's gallery offers first.
 
 import React from 'react';
-import { Ribbon, Group, Rows, Button, Separator, Select, Icon } from '@rutba/office-ui';
+import { Ribbon, Group, Rows, Button, Separator, Select, Icon, t, tn } from '@rutba/office-ui';
 import { WARP_PRESETS, WARP_MORE, warpLabel } from '@rutba/drawing/warp';
 import { TRANSITION_GALLERY, TRANSITION_OPTIONS, galleryKeyOf, optionOf, describeTransition } from './motion.js';
 import { ANIMATION_GALLERY, EFFECT_MENU, ANIMATION_OPTIONS } from './animate.js';
@@ -21,21 +21,21 @@ import { PEN_COLOURS, PEN_WIDTHS } from './ink.js';
 
 const SIZES = [8, 9, 10, 11, 12, 14, 16, 18, 20, 24, 28, 32, 36, 40, 44, 48, 54, 60, 66, 72, 80, 88, 96];
 const COLOURS = [
-  ['#000000', 'Black'], ['#404040', 'Dark grey'], ['#808080', 'Grey'], ['#ffffff', 'White'],
-  ['#c00000', 'Dark red'], ['#ff0000', 'Red'], ['#ffc000', 'Orange'], ['#ffff00', 'Yellow'],
-  ['#92d050', 'Light green'], ['#00b050', 'Green'], ['#00b0f0', 'Light blue'], ['#0070c0', 'Blue'],
-  ['#002060', 'Dark blue'], ['#7030a0', 'Purple'],
+  ['#000000', t('Black')], ['#404040', t('Dark grey')], ['#808080', t('Grey')], ['#ffffff', t('White')],
+  ['#c00000', t('Dark red')], ['#ff0000', t('Red')], ['#ffc000', t('Orange')], ['#ffff00', t('Yellow')],
+  ['#92d050', t('Light green')], ['#00b050', t('Green')], ['#00b0f0', t('Light blue')], ['#0070c0', t('Blue')],
+  ['#002060', t('Dark blue')], ['#7030a0', t('Purple')],
 ];
 const LAYOUTS = [
-  ['title', 'Title Slide'], ['obj', 'Title and Content'], ['blank', 'Blank'],
+  ['title', t('Title Slide')], ['obj', t('Title and Content')], ['blank', t('Blank')],
 ];
 /** The preset geometries the engine writes and the renderer draws, in PowerPoint's names. */
 const SHAPES = [
-  ['rect', 'Rectangle'], ['roundRect', 'Rectangle: Rounded Corners'], ['ellipse', 'Oval'],
-  ['triangle', 'Isosceles Triangle'], ['rtTriangle', 'Right Triangle'], ['diamond', 'Diamond'],
-  ['parallelogram', 'Parallelogram'], ['trapezoid', 'Trapezoid'], ['pentagon', 'Pentagon'],
-  ['hexagon', 'Hexagon'], ['octagon', 'Octagon'], ['star5', 'Star: 5 Points'],
-  ['rightArrow', 'Arrow: Right'], ['chevron', 'Chevron'], ['line', 'Line'],
+  ['rect', t('Rectangle')], ['roundRect', t('Rectangle: Rounded Corners')], ['ellipse', t('Oval')],
+  ['triangle', t('Isosceles Triangle')], ['rtTriangle', t('Right Triangle')], ['diamond', t('Diamond')],
+  ['parallelogram', t('Parallelogram')], ['trapezoid', t('Trapezoid')], ['pentagon', t('Pentagon')],
+  ['hexagon', t('Hexagon')], ['octagon', t('Octagon')], ['star5', t('Star: 5 Points')],
+  ['rightArrow', t('Arrow: Right')], ['chevron', t('Chevron')], ['line', t('Line')],
 ];
 /** Insert → Table: the sizes PowerPoint's own gallery offers first. */
 const TABLE_SIZES = [
@@ -43,35 +43,35 @@ const TABLE_SIZES = [
 ];
 /** Insert → Chart: the kinds `chartPartXml` writes — the ones a chart on a slide can be. */
 const CHART_TYPES = [
-  ['column', 'Column'], ['bar', 'Bar'], ['line', 'Line'], ['pie', 'Pie'],
+  ['column', t('Column')], ['bar', t('Bar')], ['line', t('Line')], ['pie', t('Pie')],
 ];
 
 /** Design → Background Styles: the theme backgrounds PowerPoint's gallery offers first, then a few flat colours. */
 const BACKGROUND_STYLES = [
-  ['Background 1', { scheme: 'bg1' }],
-  ['Background 2', { scheme: 'bg2' }],
-  ['Text 1', { scheme: 'tx1' }],
-  ['Text 2', { scheme: 'tx2' }],
-  ['Accent 1 gradient', { gradient: { from: { scheme: 'accent1' }, to: { scheme: 'accent1', lumMod: 75 } } }],
+  [t('Background 1'), { scheme: 'bg1' }],
+  [t('Background 2'), { scheme: 'bg2' }],
+  [t('Text 1'), { scheme: 'tx1' }],
+  [t('Text 2'), { scheme: 'tx2' }],
+  [t('Accent 1 gradient'), { gradient: { from: { scheme: 'accent1' }, to: { scheme: 'accent1', lumMod: 75 } } }],
   '-',
-  ['White', { colour: 'FFFFFF' }],
-  ['Black', { colour: '000000' }],
-  ['Light grey', { colour: 'F2F2F2' }],
-  ['Dark blue', { colour: '1F3864' }],
+  [t('White'), { colour: 'FFFFFF' }],
+  [t('Black'), { colour: '000000' }],
+  [t('Light grey'), { colour: 'F2F2F2' }],
+  [t('Dark blue'), { colour: '1F3864' }],
 ];
 
 /** A control that is drawn where PowerPoint draws it, and says why it is not live. */
 const Soon = ({ icon, label, tall, why }) => (
-  <Button tall={tall} icon={icon} label={label} disabled title={`${label} — not built yet. ${why}`} />
+  <Button tall={tall} icon={icon} label={label} disabled title={t('{label} — not built yet. {why}', { label, why })} />
 );
 /** Shape Effects: the shadows PowerPoint offers first, and none. */
-const SHADOW_MENU = [['br', 'Shadow: bottom right'], ['b', 'Shadow: below'], ['r', 'Shadow: right'], ['tl', 'Shadow: top left'], ['c', 'Shadow: all round'], ['none', 'No shadow']];
+const SHADOW_MENU = [['br', t('Shadow: bottom right')], ['b', t('Shadow: below')], ['r', t('Shadow: right')], ['tl', t('Shadow: top left')], ['c', t('Shadow: all round')], ['none', t('No shadow')]];
 /** Shape Effects → Glow: PowerPoint's own gallery radii. */
-const GLOW_MENU = [[5, 'Glow: 5 pt'], [8, 'Glow: 8 pt'], [11, 'Glow: 11 pt'], [18, 'Glow: 18 pt'], [null, 'No glow']];
+const GLOW_MENU = [[5, t('Glow: 5 pt')], [8, t('Glow: 8 pt')], [11, t('Glow: 11 pt')], [18, t('Glow: 18 pt')], [null, t('No glow')]];
 /** Shape Effects → Soft Edges. */
-const SOFTEDGE_MENU = [[1, 'Soft Edges: 1 pt'], [2.5, 'Soft Edges: 2.5 pt'], [5, 'Soft Edges: 5 pt'], [10, 'Soft Edges: 10 pt'], [null, 'No soft edges']];
+const SOFTEDGE_MENU = [[1, t('Soft Edges: 1 pt')], [2.5, t('Soft Edges: 2.5 pt')], [5, t('Soft Edges: 5 pt')], [10, t('Soft Edges: 10 pt')], [null, t('No soft edges')]];
 /** Shape Effects → Reflection: the three gallery presets. */
-const REFLECTION_MENU = [['tight', 'Reflection: tight'], ['half', 'Reflection: half'], ['full', 'Reflection: full'], [null, 'No reflection']];
+const REFLECTION_MENU = [['tight', t('Reflection: tight')], ['half', t('Reflection: half')], ['full', t('Reflection: full')], [null, t('No reflection')]];
 const INK = 'Ink is a drawing part (ink ML) the engine does not write, and the stage has no pen surface yet.';
 /** The gallery's small pictures, one per effect. */
 const TRANSITION_ICONS = { none: 'trNone', cut: 'trCut', fade: 'trFade', push: 'trPush', wipe: 'trWipe', split: 'trSplit', pull: 'trUncover', cover: 'trCover', randomBar: 'trBars', shape: 'trShape', dissolve: 'trDissolve' };
@@ -119,7 +119,7 @@ function SecondsField({ value, onCommit, disabled = false, min = 0, max = 3600, 
 export default function SlidesRibbon({
   tab, setTab, model, doc, commands, shell, menu, save, openFile, exportAs,
   act, view = {}, index = 0, selected = null, selectedIds = [], format = {}, canPaste = false, painter = false, animation = null, animPainter = false, addSlide, insertPicture, presentWithNotes, setPresent, setNotesOpen,
-  monitorName = 'Automatic',
+  monitorName = t('Automatic'),
   ink = null,
   designStrip = null,
   masterView = null,
@@ -146,7 +146,7 @@ export default function SlidesRibbon({
     return dir > 0 ? bigger[0] ?? size : bigger[bigger.length - 1] ?? size;
   };
   const fmt = (delta) => act('format', delta);
-  const needShape = hasShape ? undefined : 'Select a text box first — click it once';
+  const needShape = hasShape ? undefined : t('Select a text box first — click it once');
   const hasSections = (model?.sections || []).length > 0;
   const inSection = (model?.sections || []).some((s) => s.slides.includes(index));
   // Transitions: this slide's own, the gallery button it presses (none for
@@ -165,10 +165,10 @@ export default function SlidesRibbon({
   const animWords = (animShape?.text?.paragraphs || []).filter((p) => String(p.plain || '').trim()).length;
   const sequenceItems = animation && animation.kind !== 'path' && (animation.known || animation.paragraph != null) && animWords > 1
     ? [
-        { heading: true, label: 'Sequence' },
-        { label: 'As One Object', icon: animation.paragraph == null ? 'check' : undefined, run: () => act('animSequence', 'object') },
-        { label: 'All at Once', run: () => act('animSequence', 'together') },
-        { label: 'By Paragraph', icon: animation.paragraph != null ? 'check' : undefined, run: () => act('animSequence', 'paragraph') },
+        { heading: true, label: t('Sequence') },
+        { label: t('As One Object'), icon: animation.paragraph == null ? 'check' : undefined, run: () => act('animSequence', 'object') },
+        { label: t('All at Once'), run: () => act('animSequence', 'together') },
+        { label: t('By Paragraph'), icon: animation.paragraph != null ? 'check' : undefined, run: () => act('animSequence', 'paragraph') },
       ]
     : [];
   /** More Effects and Add Animation: every effect under its heading, each a verb on the selected shape. */
@@ -192,8 +192,8 @@ export default function SlidesRibbon({
     menu.open(e, [
       ...BACKGROUND_STYLES.map((row) => (row === '-' ? '-' : { label: row[0], icon: same(row[1]) ? 'check' : undefined, run: () => act('background', { spec: row[1] }) })),
       '-',
-      { label: masterView ? (isLayout ? "Reset to the master's" : 'Reset to the theme\'s') : "Reset to the layout's", icon: same(null) ? 'check' : undefined, run: () => act('background', { spec: null }) },
-      ...(masterView ? [] : ['-', { label: 'Apply to all slides', run: () => act('background', { spec: own, all: true }) }]),
+      { label: masterView ? (isLayout ? t("Reset to the master's") : t('Reset to the theme\'s')) : t("Reset to the layout's"), icon: same(null) ? 'check' : undefined, run: () => act('background', { spec: null }) },
+      ...(masterView ? [] : ['-', { label: t('Apply to all slides'), run: () => act('background', { spec: own, all: true }) }]),
     ]);
   };
   const galleryAt = (kind) => (e) => { const r = e.currentTarget.getBoundingClientRect(); act('designGallery', { kind, anchor: { left: r.left, bottom: r.bottom + 4 } }); };
@@ -201,176 +201,176 @@ export default function SlidesRibbon({
   return (
     <Ribbon
       tabs={[
-        ...(masterView ? [masterView.kind === 'notes' ? { id: 'notesMaster', label: 'Notes Master' } : masterView.kind === 'handout' ? { id: 'handoutMaster', label: 'Handout Master' } : { id: 'master', label: 'Slide Master' }] : []),
-        { id: 'home', label: 'Home' },
-        { id: 'insert', label: 'Insert' },
-        { id: 'draw', label: 'Draw' },
-        { id: 'design', label: 'Design' },
-        { id: 'transitions', label: 'Transitions' },
-        { id: 'animations', label: 'Animations' },
-        { id: 'show', label: 'Slide Show' },
-        { id: 'record', label: 'Record' },
-        { id: 'review', label: 'Review' },
-        { id: 'view', label: 'View' },
-        { id: 'help', label: 'Help' },
-        { id: 'pdf', label: 'PDF' },
+        ...(masterView ? [masterView.kind === 'notes' ? { id: 'notesMaster', label: t('Notes Master') } : masterView.kind === 'handout' ? { id: 'handoutMaster', label: t('Handout Master') } : { id: 'master', label: t('Slide Master') }] : []),
+        { id: 'home', label: t('Home') },
+        { id: 'insert', label: t('Insert') },
+        { id: 'draw', label: t('Draw') },
+        { id: 'design', label: t('Design') },
+        { id: 'transitions', label: t('Transitions') },
+        { id: 'animations', label: t('Animations') },
+        { id: 'show', label: t('Slide Show') },
+        { id: 'record', label: t('Record') },
+        { id: 'review', label: t('Review') },
+        { id: 'view', label: t('View') },
+        { id: 'help', label: t('Help') },
+        { id: 'pdf', label: 'PDF' }, // words-ok: a file format's name
         // Table Design, as PowerPoint's: there while a table is selected.
-        ...(selectedShapeObj?.kind === 'table' ? [{ id: 'tableDesign', label: 'Table Design' }] : []),
+        ...(selectedShapeObj?.kind === 'table' ? [{ id: 'tableDesign', label: t('Table Design') }] : []),
         // Shape Format, as PowerPoint's: there while a shape with words is selected.
-        ...(selectedShapeObj?.kind === 'shape' && selectedShapeObj?.text && !selectedShapeObj?.cameo ? [{ id: 'shapeFormat', label: 'Shape Format' }] : []),
+        ...(selectedShapeObj?.kind === 'shape' && selectedShapeObj?.text && !selectedShapeObj?.cameo ? [{ id: 'shapeFormat', label: t('Shape Format') }] : []),
         // Camera Format, as PowerPoint's: there while a cameo is selected.
-        ...(selectedShapeObj?.cameo ? [{ id: 'cameraFormat', label: 'Camera Format' }] : []),
+        ...(selectedShapeObj?.cameo ? [{ id: 'cameraFormat', label: t('Camera Format') }] : []),
         // 3D Model, as PowerPoint's: there while a 3D model is selected.
-        ...(selectedShapeObj?.model3d ? [{ id: 'model3d', label: '3D Model' }] : []),
+        ...(selectedShapeObj?.model3d ? [{ id: 'model3d', label: t('3D Model') }] : []),
       ]}
       active={tab}
       onTab={setTab}
       quick={
         <>
-          <Button icon="save" title="Save (Ctrl+S)" onClick={() => save(false)} />
-          <Button icon="undo" title="Undo (Ctrl+Z)" disabled={!doc?.canUndo} onClick={() => commands['edit.undo']?.run?.()} />
-          <Button icon="play" title="Start from the beginning (F5)" onClick={() => act('present', 'start')} />
+          <Button icon="save" title={t('Save (Ctrl+S)')} onClick={() => save(false)} />
+          <Button icon="undo" title={t('Undo (Ctrl+Z)')} disabled={!doc?.canUndo} onClick={() => commands['edit.undo']?.run?.()} />
+          <Button icon="play" title={t('Start from the beginning (F5)')} onClick={() => act('present', 'start')} />
         </>
       }
     >
       {/* ── Home ─────────────────────────────────────────────────────────── */}
       {tab === 'home' ? (
         <>
-          <Group label="Clipboard">
-            <Button tall icon="paste" label="Paste" title={canPaste ? 'Paste the copied shape on this slide (Ctrl+V)' : 'Paste — copy a shape first, then Ctrl+V'} disabled={!canPaste} onClick={() => act('pasteShape')} />
+          <Group label={t('Clipboard')}>
+            <Button tall icon="paste" label={t('Paste')} title={canPaste ? t('Paste the copied shape on this slide (Ctrl+V)') : t('Paste — copy a shape first, then Ctrl+V')} disabled={!canPaste} onClick={() => act('pasteShape')} />
             <Rows>
               <>
-                <Button icon="cut" label="Cut" title={needShape || 'Cut the shape (Ctrl+X)'} disabled={!hasShape} onClick={() => act('cutShape')} />
-                <Button icon="copy" label="Copy" title={needShape || 'Copy the shape (Ctrl+C)'} disabled={!hasShape} onClick={() => act('copyShape')} />
+                <Button icon="cut" label={t('Cut')} title={needShape || t('Cut the shape (Ctrl+X)')} disabled={!hasShape} onClick={() => act('cutShape')} />
+                <Button icon="copy" label={t('Copy')} title={needShape || t('Copy the shape (Ctrl+C)')} disabled={!hasShape} onClick={() => act('copyShape')} />
               </>
               <Button
                 icon="wand"
-                label="Format Painter"
+                label={t('Format Painter')}
                 pressed={painter}
                 disabled={!hasShape && !painter}
-                title={painter ? 'Format Painter — armed: click a shape to give it this look; Esc puts it down' : (needShape || 'Format Painter — this shape’s fill, outline and font onto the next shape you click')}
+                title={painter ? t('Format Painter — armed: click a shape to give it this look; Esc puts it down') : (needShape || t('Format Painter — this shape’s fill, outline and font onto the next shape you click'))}
                 onClick={() => act('painter')}
               />
             </Rows>
           </Group>
-          <Group label="Slides">
-            <Button tall icon="plus" label="New Slide" onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
+          <Group label={t('Slides')}>
+            <Button tall icon="plus" label={t('New Slide')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
             <Rows>
               <>
-                <Button icon="grid" label="Layout" title="Layout — put this slide on another of the deck's layouts" onClick={(e) => menu.open(e, (model?.layouts || []).map((l) => ({ label: l.name || l.part, icon: l.part === model?.slide?.layout ? 'check' : undefined, run: () => act('applyLayout', l.part) })))} />
-                <Button icon="undo" label="Reset" title="Reset — the placeholders back where the layout puts them" onClick={() => act('resetSlide')} />
+                <Button icon="grid" label={t('Layout')} title={t("Layout — put this slide on another of the deck's layouts")} onClick={(e) => menu.open(e, (model?.layouts || []).map((l) => ({ label: l.name || l.part, icon: l.part === model?.slide?.layout ? 'check' : undefined, run: () => act('applyLayout', l.part) })))} />
+                <Button icon="undo" label={t('Reset')} title={t('Reset — the placeholders back where the layout puts them')} onClick={() => act('resetSlide')} />
                 <Button
                   icon="list"
-                  label="Section"
-                  title="Section — a section before this slide, its name, or one taken away"
+                  label={t('Section')}
+                  title={t('Section — a section before this slide, its name, or one taken away')}
                   onClick={(e) => menu.open(e, [
-                    { label: 'Add Section', icon: 'plus', run: () => act('addSection') },
-                    { label: 'Rename Section…', icon: 'textbox', disabled: !inSection, run: () => act('renameSection') },
-                    { label: 'Remove Section', icon: 'trash', disabled: !inSection, run: () => act('removeSection') },
-                    { label: 'Remove All Sections', icon: 'close', disabled: !hasSections, run: () => act('removeAllSections') },
+                    { label: t('Add Section'), icon: 'plus', run: () => act('addSection') },
+                    { label: t('Rename Section…'), icon: 'textbox', disabled: !inSection, run: () => act('renameSection') },
+                    { label: t('Remove Section'), icon: 'trash', disabled: !inSection, run: () => act('removeSection') },
+                    { label: t('Remove All Sections'), icon: 'close', disabled: !hasSections, run: () => act('removeAllSections') },
                   ])}
                 />
               </>
               <>
-                <Button icon="copy" label="Duplicate" onClick={() => commands['slide.new']?.run?.()} />
-                <Button icon="trash" label="Delete" disabled={count < 2} onClick={() => commands['slide.delete']?.run?.()} />
+                <Button icon="copy" label={t('Duplicate')} onClick={() => commands['slide.new']?.run?.()} />
+                <Button icon="trash" label={t('Delete')} disabled={count < 2} onClick={() => commands['slide.delete']?.run?.()} />
               </>
             </Rows>
           </Group>
-          <Group label="Font">
+          <Group label={t('Font')}>
             <Rows>
               <>
-                <Select value={format.font || ''} onChange={(e) => fmt({ font: e.target.value })} style={{ width: 118 }} title={needShape || 'Font'} disabled={!hasShape}>
-                  <option value="">{format.font || (format.themeFont ? `${format.themeFont} (theme)` : 'Theme font')}</option>
+                <Select value={format.font || ''} onChange={(e) => fmt({ font: e.target.value })} style={{ width: 118 }} title={needShape || t('Font')} disabled={!hasShape}>
+                  <option value="">{format.font || (format.themeFont ? t('{font} (theme)', { font: format.themeFont }) : t('Theme font'))}</option>
                   {['Calibri', 'Calibri Light', 'Arial', 'Segoe UI', 'Georgia', 'Times New Roman', 'Verdana', 'Consolas'].filter((f) => f !== format.font).map((f) => <option key={f} value={f}>{f}</option>)}
                 </Select>
-                <Select value={String(size)} onChange={(e) => fmt({ size: Number(e.target.value) })} style={{ width: 58 }} title={needShape || 'Font size'} disabled={!hasShape}>
+                <Select value={String(size)} onChange={(e) => fmt({ size: Number(e.target.value) })} style={{ width: 58 }} title={needShape || t('Font size')} disabled={!hasShape}>
                   {SIZES.map((s) => <option key={s} value={String(s)}>{s}</option>)}
                   {SIZES.includes(size) ? null : <option value={String(size)}>{size}</option>}
                 </Select>
-                <Button icon="chevronUp" title={needShape || 'Increase font size'} disabled={!hasShape} onClick={() => fmt({ size: nearer(1) })} />
-                <Button icon="chevronDown" title={needShape || 'Decrease font size'} disabled={!hasShape} onClick={() => fmt({ size: nearer(-1) })} />
-                <Button icon="undo" title={needShape || 'Clear all formatting — the words keep only their links'} disabled={!hasShape} onClick={() => act('clearFormat')} />
+                <Button icon="chevronUp" title={needShape || t('Increase font size')} disabled={!hasShape} onClick={() => fmt({ size: nearer(1) })} />
+                <Button icon="chevronDown" title={needShape || t('Decrease font size')} disabled={!hasShape} onClick={() => fmt({ size: nearer(-1) })} />
+                <Button icon="undo" title={needShape || t('Clear all formatting — the words keep only their links')} disabled={!hasShape} onClick={() => act('clearFormat')} />
               </>
               <>
-                <Button icon="bold" title={needShape || 'Bold (Ctrl+B)'} pressed={format.bold} disabled={!hasShape} onClick={() => fmt({ bold: 'toggle' })} />
-                <Button icon="italic" title={needShape || 'Italic (Ctrl+I)'} pressed={format.italic} disabled={!hasShape} onClick={() => fmt({ italic: 'toggle' })} />
-                <Button icon="underline" title={needShape || 'Underline (Ctrl+U)'} pressed={format.underline} disabled={!hasShape} onClick={() => fmt({ underline: 'toggle' })} />
-                <Button icon="strike" title={needShape || 'Strikethrough'} pressed={format.strike} disabled={!hasShape} onClick={() => fmt({ strike: 'toggle' })} />
-                <Button icon="textbox" label="AV" title={needShape || `Character spacing — now ${format.spacing ? `${format.spacing} pt` : 'normal'}`} disabled={!hasShape} onClick={(e) => menu.open(e, [['Very tight', -1.5], ['Tight', -0.75], ['Normal', 0], ['Loose', 1.5], ['Very loose', 3]].map(([label, v]) => ({ label, icon: (format.spacing || 0) === v ? 'check' : undefined, run: () => fmt({ spacing: v }) })))} />
-                <Button icon="textbox" label="Aa" title={needShape || 'Change case'} disabled={!hasShape} onClick={(e) => menu.open(e, [['Sentence case', 'sentence'], ['lowercase', 'lower'], ['UPPERCASE', 'upper'], ['Capitalise Each Word', 'title']].map(([label, mode]) => ({ label, run: () => fmt({ case: mode }) })))} />
+                <Button icon="bold" title={needShape || t('Bold (Ctrl+B)')} pressed={format.bold} disabled={!hasShape} onClick={() => fmt({ bold: 'toggle' })} />
+                <Button icon="italic" title={needShape || t('Italic (Ctrl+I)')} pressed={format.italic} disabled={!hasShape} onClick={() => fmt({ italic: 'toggle' })} />
+                <Button icon="underline" title={needShape || t('Underline (Ctrl+U)')} pressed={format.underline} disabled={!hasShape} onClick={() => fmt({ underline: 'toggle' })} />
+                <Button icon="strike" title={needShape || t('Strikethrough')} pressed={format.strike} disabled={!hasShape} onClick={() => fmt({ strike: 'toggle' })} />
+                <Button icon="textbox" label="AV" title={needShape || (format.spacing ? t('Character spacing — now {spacing} pt', { spacing: format.spacing }) : t('Character spacing — now normal'))} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Very tight'), -1.5], [t('Tight'), -0.75], [t('Normal'), 0], [t('Loose'), 1.5], [t('Very loose'), 3]].map(([label, v]) => ({ label, icon: (format.spacing || 0) === v ? 'check' : undefined, run: () => fmt({ spacing: v }) })))} />{/* words-ok: AV is the control's picture of letter spacing, as PowerPoint draws it */}
+                <Button icon="textbox" label="Aa" title={needShape || t('Change case')} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Sentence case'), 'sentence'], [t('lowercase'), 'lower'], [t('UPPERCASE'), 'upper'], [t('Capitalise Each Word'), 'title']].map(([label, mode]) => ({ label, run: () => fmt({ case: mode }) })))} />{/* words-ok: Aa is the control's picture of letter case, as PowerPoint draws it */}
                 <Separator />
-                <Button icon="wand" title={needShape || 'Text highlight colour'} pressed={Boolean(format.highlight)} disabled={!hasShape} onClick={(e) => menu.open(e, [['#FFFF00', 'Yellow'], ['#00FF00', 'Bright green'], ['#00FFFF', 'Turquoise'], ['#FF00FF', 'Pink'], [null, 'No colour']].map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => fmt({ highlight: value }) })))} />
-                <Button icon="contrast" title={needShape || 'Font colour'} disabled={!hasShape} onClick={(e) => menu.open(e, COLOURS.map(([value, label]) => ({ label, run: () => fmt({ color: value }) })))} />
+                <Button icon="wand" title={needShape || t('Text highlight colour')} pressed={Boolean(format.highlight)} disabled={!hasShape} onClick={(e) => menu.open(e, [['#FFFF00', t('Yellow')], ['#00FF00', t('Bright green')], ['#00FFFF', t('Turquoise')], ['#FF00FF', t('Pink')], [null, t('No colour')]].map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => fmt({ highlight: value }) })))} />
+                <Button icon="contrast" title={needShape || t('Font colour')} disabled={!hasShape} onClick={(e) => menu.open(e, COLOURS.map(([value, label]) => ({ label, run: () => fmt({ color: value }) })))} />
               </>
             </Rows>
           </Group>
-          <Group label="Paragraph">
+          <Group label={t('Paragraph')}>
             <Rows>
               <>
-                <Button icon="listBullet" title={needShape || 'Bullets'} pressed={format.bullet === 'char'} disabled={!hasShape} onClick={() => fmt({ bullet: format.bullet === 'char' ? 'none' : 'char' })} />
-                <Button icon="listNumber" title={needShape || 'Numbering'} pressed={format.bullet === 'number'} disabled={!hasShape} onClick={() => fmt({ bullet: format.bullet === 'number' ? 'none' : 'number' })} />
-                <Button icon="chevronLeft" title={needShape || 'Decrease list level'} disabled={!hasShape || !format.level} onClick={() => fmt({ level: -1 })} />
-                <Button icon="chevronRight" title={needShape || 'Increase list level'} disabled={!hasShape} onClick={() => fmt({ level: 1 })} />
-                <Button icon="list" title={needShape || `Line spacing — now ${format.lineHeight ? String(format.lineHeight) : 'as the layout has it'}`} disabled={!hasShape} onClick={(e) => menu.open(e, [1, 1.15, 1.5, 2].map((v) => ({ label: String(v), icon: format.lineHeight === v ? 'check' : undefined, run: () => fmt({ lineHeight: v }) })))} />
+                <Button icon="listBullet" title={needShape || t('Bullets')} pressed={format.bullet === 'char'} disabled={!hasShape} onClick={() => fmt({ bullet: format.bullet === 'char' ? 'none' : 'char' })} />
+                <Button icon="listNumber" title={needShape || t('Numbering')} pressed={format.bullet === 'number'} disabled={!hasShape} onClick={() => fmt({ bullet: format.bullet === 'number' ? 'none' : 'number' })} />
+                <Button icon="chevronLeft" title={needShape || t('Decrease list level')} disabled={!hasShape || !format.level} onClick={() => fmt({ level: -1 })} />
+                <Button icon="chevronRight" title={needShape || t('Increase list level')} disabled={!hasShape} onClick={() => fmt({ level: 1 })} />
+                <Button icon="list" title={needShape || (format.lineHeight ? t('Line spacing — now {value}', { value: String(format.lineHeight) }) : t('Line spacing — now as the layout has it'))} disabled={!hasShape} onClick={(e) => menu.open(e, [1, 1.15, 1.5, 2].map((v) => ({ label: String(v), icon: format.lineHeight === v ? 'check' : undefined, run: () => fmt({ lineHeight: v }) })))} />
                 <Separator />
-                <Button icon="grid" title={needShape || `Columns — now ${format.columns || 1}`} disabled={!hasShape} onClick={(e) => menu.open(e, [['One column', 1], ['Two columns', 2], ['Three columns', 3]].map(([label, n]) => ({ label, icon: (format.columns || 1) === n ? 'check' : undefined, run: () => act('body', { columns: n }) })))} />
-                <Button icon="rotate" title={needShape || `Text direction — now ${({ horz: 'horizontal', vert270: 'rotated up', vert: 'rotated down', eaVert: 'stacked' })[format.vert] || 'horizontal'}`} disabled={!hasShape} onClick={(e) => menu.open(e, [['Horizontal', 'horz'], ['Rotate all text 90° (reads down)', 'vert'], ['Rotate all text 270° (reads up)', 'vert270']].map(([label, v]) => ({ label, icon: (format.vert || 'horz') === v ? 'check' : undefined, run: () => act('body', { vert: v }) })))} />
-                <Button icon="chevronUp" title={needShape || `Align text — now ${format.anchor || 'top'}`} disabled={!hasShape} onClick={(e) => menu.open(e, [['Top', 'top'], ['Middle', 'middle'], ['Bottom', 'bottom']].map(([label, a]) => ({ label, icon: (format.anchor || 'top') === a ? 'check' : undefined, run: () => act('body', { anchor: a }) })))} />
+                <Button icon="grid" title={needShape || t('Columns — now {columns}', { columns: format.columns || 1 })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('One column'), 1], [t('Two columns'), 2], [t('Three columns'), 3]].map(([label, n]) => ({ label, icon: (format.columns || 1) === n ? 'check' : undefined, run: () => act('body', { columns: n }) })))} />
+                <Button icon="rotate" title={needShape || t('Text direction — now {direction}', { direction: ({ horz: t('horizontal'), vert270: t('rotated up'), vert: t('rotated down'), eaVert: t('stacked') })[format.vert] || t('horizontal') })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Horizontal'), 'horz'], [t('Rotate all text 90° (reads down)'), 'vert'], [t('Rotate all text 270° (reads up)'), 'vert270']].map(([label, v]) => ({ label, icon: (format.vert || 'horz') === v ? 'check' : undefined, run: () => act('body', { vert: v }) })))} />
+                <Button icon="chevronUp" title={needShape || t('Align text — now {anchor}', { anchor: ({ top: t('top'), middle: t('middle'), bottom: t('bottom') })[format.anchor || 'top'] || format.anchor })} disabled={!hasShape} onClick={(e) => menu.open(e, [[t('Top'), 'top'], [t('Middle'), 'middle'], [t('Bottom'), 'bottom']].map(([label, a]) => ({ label, icon: (format.anchor || 'top') === a ? 'check' : undefined, run: () => act('body', { anchor: a }) })))} />
               </>
               <>
-                <Button icon="alignLeft" title={needShape || 'Align left'} pressed={format.align === 'left'} disabled={!hasShape} onClick={() => fmt({ align: 'left' })} />
-                <Button icon="alignCenter" title={needShape || 'Centre'} pressed={format.align === 'center'} disabled={!hasShape} onClick={() => fmt({ align: 'center' })} />
-                <Button icon="alignRight" title={needShape || 'Align right'} pressed={format.align === 'right'} disabled={!hasShape} onClick={() => fmt({ align: 'right' })} />
-                <Button icon="alignJustify" title={needShape || 'Justify'} pressed={format.align === 'justify'} disabled={!hasShape} onClick={() => fmt({ align: 'justify' })} />
-                <Button icon="textLtr" title={needShape || 'Left-to-right text direction'} pressed={hasShape && !format.rtl} disabled={!hasShape} onClick={() => fmt({ rtl: false })} />
-                <Button icon="textRtl" title={needShape || 'Right-to-left text direction — the words read from the right, as Arabic and Hebrew do'} pressed={Boolean(format.rtl)} disabled={!hasShape} onClick={() => fmt({ rtl: true })} />
+                <Button icon="alignLeft" title={needShape || t('Align left')} pressed={format.align === 'left'} disabled={!hasShape} onClick={() => fmt({ align: 'left' })} />
+                <Button icon="alignCenter" title={needShape || t('Centre')} pressed={format.align === 'center'} disabled={!hasShape} onClick={() => fmt({ align: 'center' })} />
+                <Button icon="alignRight" title={needShape || t('Align right')} pressed={format.align === 'right'} disabled={!hasShape} onClick={() => fmt({ align: 'right' })} />
+                <Button icon="alignJustify" title={needShape || t('Justify')} pressed={format.align === 'justify'} disabled={!hasShape} onClick={() => fmt({ align: 'justify' })} />
+                <Button icon="textLtr" title={needShape || t('Left-to-right text direction')} pressed={hasShape && !format.rtl} disabled={!hasShape} onClick={() => fmt({ rtl: false })} />
+                <Button icon="textRtl" title={needShape || t('Right-to-left text direction — the words read from the right, as Arabic and Hebrew do')} pressed={Boolean(format.rtl)} disabled={!hasShape} onClick={() => fmt({ rtl: true })} />
                 <Separator />
-                <Button icon="shape" label="SmartArt" title={needShape || 'Convert to SmartArt — this box\'s lines as a diagram: a list, a process, a cycle or a hierarchy'} disabled={!hasShape} onClick={() => act('convertSmartArt')} />
+                <Button icon="shape" label={t('SmartArt')} title={needShape || t('Convert to SmartArt — this box\'s lines as a diagram: a list, a process, a cycle or a hierarchy')} disabled={!hasShape} onClick={() => act('convertSmartArt')} />
               </>
             </Rows>
           </Group>
-          <Group label="Drawing">
-            <Button tall icon="shape" label="Shapes" title="Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
+          <Group label={t('Drawing')}>
+            <Button tall icon="shape" label={t('Shapes')} title={t("Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours")} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
 
-            <Button tall icon="grid" label="Arrange" onClick={(e) => menu.open(e, [
-              { label: 'Bring to front', icon: 'chevronUp', run: () => act('order', 'front') },
-              { label: 'Bring forward', run: () => act('order', 'forward') },
-              { label: 'Send backward', run: () => act('order', 'backward') },
-              { label: 'Send to back', icon: 'chevronDown', run: () => act('order', 'back') },
+            <Button tall icon="grid" label={t('Arrange')} onClick={(e) => menu.open(e, [
+              { label: t('Bring to front'), icon: 'chevronUp', run: () => act('order', 'front') },
+              { label: t('Bring forward'), run: () => act('order', 'forward') },
+              { label: t('Send backward'), run: () => act('order', 'backward') },
+              { label: t('Send to back'), icon: 'chevronDown', run: () => act('order', 'back') },
               '-',
-              { label: 'Group', icon: 'grid', disabled: multiCount < 2, title: multiCount < 2 ? 'Select two or more shapes to group' : undefined, run: () => act('group') },
-              { label: 'Ungroup', icon: 'grid', disabled: !isGroup, title: !isGroup ? 'Select a group to ungroup' : undefined, run: () => act('ungroup') },
+              { label: t('Group'), icon: 'grid', disabled: multiCount < 2, title: multiCount < 2 ? t('Select two or more shapes to group') : undefined, run: () => act('group') },
+              { label: t('Ungroup'), icon: 'grid', disabled: !isGroup, title: !isGroup ? t('Select a group to ungroup') : undefined, run: () => act('ungroup') },
               '-',
-              { label: 'Align Left', run: () => act('align', { edge: 'left', to: alignTo }) },
-              { label: 'Align Center', run: () => act('align', { edge: 'center', to: alignTo }) },
-              { label: 'Align Right', run: () => act('align', { edge: 'right', to: alignTo }) },
-              { label: 'Align Top', run: () => act('align', { edge: 'top', to: alignTo }) },
-              { label: 'Align Middle', run: () => act('align', { edge: 'middle', to: alignTo }) },
-              { label: 'Align Bottom', run: () => act('align', { edge: 'bottom', to: alignTo }) },
-              { label: 'Distribute Horizontally', disabled: multiCount < 3, title: multiCount < 3 ? 'Select three or more shapes to distribute' : undefined, run: () => act('distribute', { axis: 'horizontal', to: alignTo }) },
-              { label: 'Distribute Vertically', disabled: multiCount < 3, title: multiCount < 3 ? 'Select three or more shapes to distribute' : undefined, run: () => act('distribute', { axis: 'vertical', to: alignTo }) },
+              { label: t('Align Left'), run: () => act('align', { edge: 'left', to: alignTo }) },
+              { label: t('Align Center'), run: () => act('align', { edge: 'center', to: alignTo }) },
+              { label: t('Align Right'), run: () => act('align', { edge: 'right', to: alignTo }) },
+              { label: t('Align Top'), run: () => act('align', { edge: 'top', to: alignTo }) },
+              { label: t('Align Middle'), run: () => act('align', { edge: 'middle', to: alignTo }) },
+              { label: t('Align Bottom'), run: () => act('align', { edge: 'bottom', to: alignTo }) },
+              { label: t('Distribute Horizontally'), disabled: multiCount < 3, title: multiCount < 3 ? t('Select three or more shapes to distribute') : undefined, run: () => act('distribute', { axis: 'horizontal', to: alignTo }) },
+              { label: t('Distribute Vertically'), disabled: multiCount < 3, title: multiCount < 3 ? t('Select three or more shapes to distribute') : undefined, run: () => act('distribute', { axis: 'vertical', to: alignTo }) },
               '-',
-              { label: 'Align to Slide', icon: alignTo === 'slide' ? 'check' : undefined, run: () => setAlignTo('slide') },
-              { label: 'Align Selected Objects', icon: alignTo === 'selection' ? 'check' : undefined, run: () => setAlignTo('selection') },
+              { label: t('Align to Slide'), icon: alignTo === 'slide' ? 'check' : undefined, run: () => setAlignTo('slide') },
+              { label: t('Align Selected Objects'), icon: alignTo === 'selection' ? 'check' : undefined, run: () => setAlignTo('selection') },
               '-',
-              { label: 'Rotate Right 90°', run: () => act('rotateBy', 90) },
-              { label: 'Rotate Left 90°', run: () => act('rotateBy', -90) },
-              { label: 'Flip Vertical', run: () => act('flipShape', 'vertical') },
-              { label: 'Flip Horizontal', run: () => act('flipShape', 'horizontal') },
+              { label: t('Rotate Right 90°'), run: () => act('rotateBy', 90) },
+              { label: t('Rotate Left 90°'), run: () => act('rotateBy', -90) },
+              { label: t('Flip Vertical'), run: () => act('flipShape', 'vertical') },
+              { label: t('Flip Horizontal'), run: () => act('flipShape', 'horizontal') },
               '-',
-              { label: 'Selection pane (layers)', icon: 'list', run: () => act('pane', 'layers') },
+              { label: t('Selection pane (layers)'), icon: 'list', run: () => act('pane', 'layers') },
               '-',
-              { label: 'Delete shape', icon: 'trash', run: () => act('deleteShape') },
-              { label: 'Move up (nudge)', run: () => act('nudge', { dy: -8 }) },
-              { label: 'Move down (nudge)', run: () => act('nudge', { dy: 8 }) },
-              { label: 'Move left (nudge)', run: () => act('nudge', { dx: -8 }) },
-              { label: 'Move right (nudge)', run: () => act('nudge', { dx: 8 }) },
-            ])} disabled={!hasShape} title={needShape || 'Arrange the selected shape(s)'} />
-            <Button tall icon="wand" label="Quick Styles" disabled={!hasShape} title={needShape || 'The theme\'s own looks: filled in an accent, outlined in the same'} onClick={(e) => menu.open(e, [1, 2, 3, 4, 5, 6].map((n) => ({ label: `Accent ${n}`, icon: 'shape', run: () => act('quickStyle', n) })))} />
-            <Button icon="wand" label="Shape Fill" disabled={!hasShape} title={needShape || 'The fill of the selected shape, in the Format pane'} onClick={() => act('formatPane')} />
-            <Button icon="shape" label="Shape Outline" disabled={!hasShape} title={needShape || 'The outline of the selected shape, in the Format pane'} onClick={() => act('formatPane')} />
-            <Button icon="wand" label="Shape Effects" disabled={!hasShape} title={needShape || 'Shape Effects — a shadow, a glow, soft edges or a reflection on the selected shape'} onClick={(e) => menu.open(e, [
+              { label: t('Delete shape'), icon: 'trash', run: () => act('deleteShape') },
+              { label: t('Move up (nudge)'), run: () => act('nudge', { dy: -8 }) },
+              { label: t('Move down (nudge)'), run: () => act('nudge', { dy: 8 }) },
+              { label: t('Move left (nudge)'), run: () => act('nudge', { dx: -8 }) },
+              { label: t('Move right (nudge)'), run: () => act('nudge', { dx: 8 }) },
+            ])} disabled={!hasShape} title={needShape || t('Arrange the selected shape(s)')} />
+            <Button tall icon="wand" label={t('Quick Styles')} disabled={!hasShape} title={needShape || t('The theme\'s own looks: filled in an accent, outlined in the same')} onClick={(e) => menu.open(e, [1, 2, 3, 4, 5, 6].map((n) => ({ label: t('Accent {n}', { n }), icon: 'shape', run: () => act('quickStyle', n) })))} />
+            <Button icon="wand" label={t('Shape Fill')} disabled={!hasShape} title={needShape || t('The fill of the selected shape, in the Format pane')} onClick={() => act('formatPane')} />
+            <Button icon="shape" label={t('Shape Outline')} disabled={!hasShape} title={needShape || t('The outline of the selected shape, in the Format pane')} onClick={() => act('formatPane')} />
+            <Button icon="wand" label={t('Shape Effects')} disabled={!hasShape} title={needShape || t('Shape Effects — a shadow, a glow, soft edges or a reflection on the selected shape')} onClick={(e) => menu.open(e, [
               ...SHADOW_MENU.map(([key, label]) => ({ label, icon: key === 'none' ? 'close' : undefined, run: () => act('shapeShadow', key) })),
               '-',
               ...GLOW_MENU.map(([pt, label]) => ({ label, icon: pt === null ? 'close' : undefined, run: () => act('shapeEffects', { glow: pt === null ? null : { radius: pt, color: selectedShapeObj?.effects?.glow?.color } }) })),
@@ -380,20 +380,20 @@ export default function SlidesRibbon({
               ...REFLECTION_MENU.map(([key, label]) => ({ label, icon: key === null ? 'close' : undefined, run: () => act('shapeEffects', { reflection: key }) })),
             ])} />
           </Group>
-          <Group label="Edit Shape">
-            <Button tall icon="shape" label="Edit Shape" disabled={!canEditPoints} title={canEditPoints ? 'Edit Points — drag the selected shape\'s points, add one on its outline or delete one' : hasShape ? 'A picture, a chart, a table or a group has no points to edit — select a shape' : needShape} onClick={(e) => menu.open(e, [
-              { label: 'Edit Points', icon: 'shape', run: () => act('editPoints') },
+          <Group label={t('Edit Shape')}>
+            <Button tall icon="shape" label={t('Edit Shape')} disabled={!canEditPoints} title={canEditPoints ? t('Edit Points — drag the selected shape\'s points, add one on its outline or delete one') : hasShape ? t('A picture, a chart, a table or a group has no points to edit — select a shape') : needShape} onClick={(e) => menu.open(e, [
+              { label: t('Edit Points'), icon: 'shape', run: () => act('editPoints') },
             ])} />
           </Group>
-          <Group label="Editing">
-            <Button tall icon="find" label="Find" title="Find — words on every slide, walked one hit at a time (Ctrl+F)" onClick={() => act('find')} />
-            <Button tall icon="find" label="Replace" title="Replace — find and replace words across the deck (Ctrl+H)" onClick={() => act('replace')} />
+          <Group label={t('Editing')}>
+            <Button tall icon="find" label={t('Find')} title={t('Find — words on every slide, walked one hit at a time (Ctrl+F)')} onClick={() => act('find')} />
+            <Button tall icon="find" label={t('Replace')} title={t('Replace — find and replace words across the deck (Ctrl+H)')} onClick={() => act('replace')} />
           </Group>
-          <Group label="Voice">
-            <Soon tall icon="volume" label="Dictate" why="Dictation is an online speech service this suite does not call." />
+          <Group label={t('Voice')}>
+            <Soon tall icon="volume" label={t('Dictate')} why={t('Dictation is an online speech service this suite does not call.')} />
           </Group>
-          <Group label="Designer">
-            <Button tall icon="wand" label="Design Ideas" pressed={view?.pane === 'ideas'} title="Design Ideas — layouts this slide's title, words and pictures suit, worked out on this computer; a click applies one" onClick={() => act('pane', 'ideas')} />
+          <Group label={t('Designer')}>
+            <Button tall icon="wand" label={t('Design Ideas')} pressed={view?.pane === 'ideas'} title={t("Design Ideas — layouts this slide's title, words and pictures suit, worked out on this computer; a click applies one")} onClick={() => act('pane', 'ideas')} />
           </Group>
         </>
       ) : null}
@@ -402,121 +402,121 @@ export default function SlidesRibbon({
       {/* ── Slide Master (only while the master and its layouts are on the stage) ── */}
       {tab === 'master' && masterView ? (
         <>
-          <Group label="Edit Master">
-            <Button tall icon="slides" label="Insert Slide Master" title="Insert Slide Master — a second master, a copy of this one with its layouts and theme, to restyle on its own" onClick={() => act('insertMaster')} />
-            <Button tall icon="plus" label="Insert Layout" title="Insert Layout — a new layout on this master, with a title and the footers" onClick={() => act('insertLayout')} />
+          <Group label={t('Edit Master')}>
+            <Button tall icon="slides" label={t('Insert Slide Master')} title={t('Insert Slide Master — a second master, a copy of this one with its layouts and theme, to restyle on its own')} onClick={() => act('insertMaster')} />
+            <Button tall icon="plus" label={t('Insert Layout')} title={t('Insert Layout — a new layout on this master, with a title and the footers')} onClick={() => act('insertLayout')} />
             <Rows>
-              <Button icon="trash" label="Delete" disabled={!isLayout || masterItem?.used > 0} title={!isLayout ? 'Delete — pick a layout; the master stays' : masterItem?.used ? `Delete — ${masterItem.used === 1 ? 'a slide uses' : `${masterItem.used} slides use`} this layout; put ${masterItem.used === 1 ? 'it' : 'them'} on another first` : 'Delete — this layout, which no slide uses'} onClick={() => act('deleteLayout')} />
-              <Button icon="textbox" label="Rename" title={`Rename — this ${isLayout ? 'layout' : 'master'}'s name`} onClick={() => act('renameLayout')} />
-              <Button icon="lock" label="Preserve" pressed={Boolean(masterOfItem?.preserve)} title="Preserve — keep this master in the file even when no slide uses it" onClick={() => act('preserve')} />
+              <Button icon="trash" label={t('Delete')} disabled={!isLayout || masterItem?.used > 0} title={!isLayout ? t('Delete — pick a layout; the master stays') : masterItem?.used ? tn(masterItem.used, 'Delete — a slide uses this layout; put it on another first', 'Delete — {count} slides use this layout; put them on another first') : t('Delete — this layout, which no slide uses')} onClick={() => act('deleteLayout')} />
+              <Button icon="textbox" label={t('Rename')} title={isLayout ? t("Rename — this layout's name") : t("Rename — this master's name")} onClick={() => act('renameLayout')} />
+              <Button icon="lock" label={t('Preserve')} pressed={Boolean(masterOfItem?.preserve)} title={t('Preserve — keep this master in the file even when no slide uses it')} onClick={() => act('preserve')} />
             </Rows>
           </Group>
-          <Group label="Master Layout">
-            <Button tall icon="grid" label="Insert Placeholder" disabled={!isLayout} title={isLayout ? 'Insert Placeholder — a content, text or picture placeholder on this layout' : 'Insert Placeholder — pick a layout; the master holds the placeholders every layout draws from'} onClick={(e) => menu.open(e, [['content', 'Content'], ['text', 'Text'], ['picture', 'Picture']].map(([kind, label]) => ({ label, icon: kind === 'picture' ? 'picture' : 'textbox', run: () => act('insertPlaceholder', kind) })))} />
+          <Group label={t('Master Layout')}>
+            <Button tall icon="grid" label={t('Insert Placeholder')} disabled={!isLayout} title={isLayout ? t('Insert Placeholder — a content, text or picture placeholder on this layout') : t('Insert Placeholder — pick a layout; the master holds the placeholders every layout draws from')} onClick={(e) => menu.open(e, [['content', t('Content')], ['text', t('Text')], ['picture', t('Picture')]].map(([kind, label]) => ({ label, icon: kind === 'picture' ? 'picture' : 'textbox', run: () => act('insertPlaceholder', kind) })))} />
             <Rows>
-              <label className="sl-rb-field sl-rb-check" data-tip="Title — this layout's title placeholder, or none"><input type="checkbox" className="sl-master-title" checked={Boolean(masterItem?.hasTitle)} onChange={(e) => act('masterPlaceholders', { title: e.target.checked })} /> Title</label>
-              <label className="sl-rb-field sl-rb-check" data-tip="Footers — the date, footer and slide number placeholders, or none"><input type="checkbox" className="sl-master-footers" checked={Boolean(masterItem?.hasFooters)} onChange={(e) => act('masterPlaceholders', { footers: e.target.checked })} /> Footers</label>
+              <label className="sl-rb-field sl-rb-check" data-tip={t("Title — this layout's title placeholder, or none")}><input type="checkbox" className="sl-master-title" checked={Boolean(masterItem?.hasTitle)} onChange={(e) => act('masterPlaceholders', { title: e.target.checked })} /> {t('Title')}</label>
+              <label className="sl-rb-field sl-rb-check" data-tip={t('Footers — the date, footer and slide number placeholders, or none')}><input type="checkbox" className="sl-master-footers" checked={Boolean(masterItem?.hasFooters)} onChange={(e) => act('masterPlaceholders', { footers: e.target.checked })} /> {t('Footers')}</label>
             </Rows>
           </Group>
-          <Group label="Edit Theme">
-            <Button tall icon="wand" label="Themes" title="Themes — every theme, drawn on the first slide" onClick={galleryAt('themes')} />
+          <Group label={t('Edit Theme')}>
+            <Button tall icon="wand" label={t('Themes')} title={t('Themes — every theme, drawn on the first slide')} onClick={galleryAt('themes')} />
             <Rows>
-              <Button icon="contrast" label="Colours" title="Colours — the theme's twelve colours" onClick={galleryAt('colours')} />
-              <Button icon="textbox" label="Fonts" title="Fonts — the theme's heading and body faces" onClick={galleryAt('fonts')} />
-              <Button icon="wand" label="Effects" title="Effects — the theme's format scheme" onClick={galleryAt('effects')} />
+              <Button icon="contrast" label={t('Colours')} title={t("Colours — the theme's twelve colours")} onClick={galleryAt('colours')} />
+              <Button icon="textbox" label={t('Fonts')} title={t("Fonts — the theme's heading and body faces")} onClick={galleryAt('fonts')} />
+              <Button icon="wand" label={t('Effects')} title={t("Effects — the theme's format scheme")} onClick={galleryAt('effects')} />
             </Rows>
           </Group>
-          <Group label="Background">
-            <Button tall icon="picture" label="Background Styles" title={`Background Styles — ${isLayout ? 'this layout' : 'the master'}'s background`} onClick={backgroundMenu} />
+          <Group label={t('Background')}>
+            <Button tall icon="picture" label={t('Background Styles')} title={isLayout ? t("Background Styles — this layout's background") : t("Background Styles — the master's background")} onClick={backgroundMenu} />
             <Rows>
-              <label className="sl-rb-field sl-rb-check" data-tip={isLayout ? "Hide Background Graphics — this layout without the master's own shapes" : 'Hide Background Graphics — pick a layout; the master always draws its own'}><input type="checkbox" className="sl-master-hidebg" disabled={!isLayout} checked={Boolean(masterItem?.hidesBackgroundGraphics)} onChange={(e) => act('hideBackgroundGraphics', e.target.checked)} /> Hide Background Graphics</label>
+              <label className="sl-rb-field sl-rb-check" data-tip={isLayout ? t("Hide Background Graphics — this layout without the master's own shapes") : t('Hide Background Graphics — pick a layout; the master always draws its own')}><input type="checkbox" className="sl-master-hidebg" disabled={!isLayout} checked={Boolean(masterItem?.hidesBackgroundGraphics)} onChange={(e) => act('hideBackgroundGraphics', e.target.checked)} /> {t('Hide Background Graphics')}</label>
             </Rows>
           </Group>
-          <Group label="Close">
-            <Button tall icon="close" label="Close Master View" title="Close Master View — back to the slides" onClick={() => act('closeMaster')} />
+          <Group label={t('Close')}>
+            <Button tall icon="close" label={t('Close Master View')} title={t('Close Master View — back to the slides')} onClick={() => act('closeMaster')} />
           </Group>
         </>
       ) : null}
 
       {(tab === 'notesMaster' || tab === 'handoutMaster') && (masterView?.kind === 'notes' || masterView?.kind === 'handout') ? (
         <>
-          <Group label="Page Setup">
-            <Button tall icon="file" label={masterView.kind === 'notes' ? 'Notes Page Orientation' : 'Handout Orientation'} title="Orientation — the printed page portrait or landscape; the notes page and the handout share one size" onClick={(e) => menu.open(e, [
-              { label: 'Portrait', icon: masterView.portrait ? 'check' : undefined, run: () => act('notesOrientation', 'portrait') },
-              { label: 'Landscape', icon: masterView.portrait ? undefined : 'check', run: () => act('notesOrientation', 'landscape') },
+          <Group label={t('Page Setup')}>
+            <Button tall icon="file" label={masterView.kind === 'notes' ? t('Notes Page Orientation') : t('Handout Orientation')} title={t('Orientation — the printed page portrait or landscape; the notes page and the handout share one size')} onClick={(e) => menu.open(e, [
+              { label: t('Portrait'), icon: masterView.portrait ? 'check' : undefined, run: () => act('notesOrientation', 'portrait') },
+              { label: t('Landscape'), icon: masterView.portrait ? undefined : 'check', run: () => act('notesOrientation', 'landscape') },
             ])} />
             {masterView.kind === 'handout' ? (
-              <Button tall icon="grid" label="Slides Per Page" title="Slides Per Page — how many slides each handout page shows" onClick={(e) => menu.open(e, [1, 2, 3, 4, 6, 9].map((n) => ({ label: `${n} ${n === 1 ? 'Slide' : 'Slides'}`, icon: (view.handoutPer || 6) === n ? 'check' : undefined, run: () => act('handoutPer', n) })))} />
+              <Button tall icon="grid" label={t('Slides Per Page')} title={t('Slides Per Page — how many slides each handout page shows')} onClick={(e) => menu.open(e, [1, 2, 3, 4, 6, 9].map((n) => ({ label: tn(n, '{count} Slide', '{count} Slides'), icon: (view.handoutPer || 6) === n ? 'check' : undefined, run: () => act('handoutPer', n) })))} />
             ) : null}
           </Group>
-          <Group label="Placeholders">
+          <Group label={t('Placeholders')}>
             <Rows>
               {(masterView.kind === 'notes'
-                ? [['hdr', 'Header'], ['sldImg', 'Slide Image'], ['ftr', 'Footer'], ['dt', 'Date'], ['body', 'Body'], ['sldNum', 'Page Number']]
-                : [['hdr', 'Header'], ['ftr', 'Footer'], ['dt', 'Date'], ['sldNum', 'Page Number']]
+                ? [['hdr', t('Header')], ['sldImg', t('Slide Image')], ['ftr', t('Footer')], ['dt', t('Date')], ['body', t('Body')], ['sldNum', t('Page Number')]]
+                : [['hdr', t('Header')], ['ftr', t('Footer')], ['dt', t('Date')], ['sldNum', t('Page Number')]]
               ).map(([type, label]) => (
-                <label key={type} className="sl-rb-field sl-rb-check" data-tip={`${label} — this placeholder on the master, or none`}><input type="checkbox" className={`sl-nm-ph sl-nm-${type}`} checked={Boolean(masterView.placeholders?.[type])} onChange={(e) => act('masterPlaceholder', { type, on: e.target.checked })} /> {label}</label>
+                <label key={type} className="sl-rb-field sl-rb-check" data-tip={t('{label} — this placeholder on the master, or none', { label })}><input type="checkbox" className={`sl-nm-ph sl-nm-${type}`} checked={Boolean(masterView.placeholders?.[type])} onChange={(e) => act('masterPlaceholder', { type, on: e.target.checked })} /> {label}</label>
               ))}
             </Rows>
           </Group>
-          <Group label="Close">
-            <Button tall icon="close" label="Close Master View" title="Close Master View — back to the slides" onClick={() => act('closeMaster')} />
+          <Group label={t('Close')}>
+            <Button tall icon="close" label={t('Close Master View')} title={t('Close Master View — back to the slides')} onClick={() => act('closeMaster')} />
           </Group>
         </>
       ) : null}
 
       {tab === 'insert' ? (
         <>
-          <Group label="Slides">
-            <Button tall icon="plus" label="New Slide" onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
+          <Group label={t('Slides')}>
+            <Button tall icon="plus" label={t('New Slide')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
           </Group>
-          <Group label="Tables">
-            <Button tall icon="table" label="Table" title="Table — a grid of cells, in PowerPoint's own default style" onClick={(e) => menu.open(e, TABLE_SIZES.map(([rows, cols, label]) => ({ label, icon: 'table', run: () => act('addTable', { rows, cols }) })))} />
+          <Group label={t('Tables')}>
+            <Button tall icon="table" label={t('Table')} title={t("Table — a grid of cells, in PowerPoint's own default style")} onClick={(e) => menu.open(e, TABLE_SIZES.map(([rows, cols, label]) => ({ label, icon: 'table', run: () => act('addTable', { rows, cols }) })))} />
           </Group>
-          <Group label="Images">
-            <Button tall icon="picture" label="Pictures" title="Pictures — a picture from this device, onto this slide" onClick={insertPicture} />
+          <Group label={t('Images')}>
+            <Button tall icon="picture" label={t('Pictures')} title={t('Pictures — a picture from this device, onto this slide')} onClick={insertPicture} />
 
-            <Button tall icon="picture" label="Screenshot" title="Screenshot — a picture of another open window, or of a whole screen, put on this slide" onClick={() => act('screenshot')} />
-            <Button tall icon="picture" label="Photo Album" title="Photo Album — a new presentation of your pictures, one, two or four to a slide, captioned if you like" onClick={() => act('photoAlbum')} />
+            <Button tall icon="picture" label={t('Screenshot')} title={t('Screenshot — a picture of another open window, or of a whole screen, put on this slide')} onClick={() => act('screenshot')} />
+            <Button tall icon="picture" label={t('Photo Album')} title={t('Photo Album — a new presentation of your pictures, one, two or four to a slide, captioned if you like')} onClick={() => act('photoAlbum')} />
           </Group>
-          <Group label="Camera">
-            <Button tall icon="video" label="Cameo" className="sl-cameo-insert" title="Cameo — your camera, live, in a shape on the slide; the show fills it, and Camera Format → Preview shows it here" onClick={() => act('cameo')} />
+          <Group label={t('Camera')}>
+            <Button tall icon="video" label={t('Cameo')} className="sl-cameo-insert" title={t('Cameo — your camera, live, in a shape on the slide; the show fills it, and Camera Format → Preview shows it here')} onClick={() => act('cameo')} />
           </Group>
-          <Group label="Illustrations">
-            <Button tall icon="shape" label="Shapes" title="Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours" onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
+          <Group label={t('Illustrations')}>
+            <Button tall icon="shape" label={t('Shapes')} title={t("Shapes — a rectangle, an oval, an arrow, a star, in the theme's colours")} onClick={(e) => menu.open(e, SHAPES.map(([preset, label]) => ({ label, icon: 'shape', run: () => act('addShape', preset) })))} />
 
-            <Button tall icon="star" label="Icons" title="Icons — one of the suite's own icons, in the colour you choose, as a picture on this slide" onClick={() => act('icons')} />
-            <Button tall icon="shape" label="3D Models" className="sl-model3d-insert" title="3D Models — a model from a .glb or .gltf file on this computer, drawn on the slide; turn it from the 3D Model tab or by its handle" onClick={() => act('model3d')} />
-            <Button tall icon="shape" label="SmartArt" title="SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes" onClick={() => act('insertSmartArt')} />
-            <Button tall icon="chart" label="Chart" title="Chart — a sample chart, drawn from the writer Documents and Worksheets already use; double-click it to edit its data" onClick={(e) => menu.open(e, CHART_TYPES.map(([type, label]) => ({ label, icon: 'chart', run: () => act('addChart', { type }) })))} />
+            <Button tall icon="star" label={t('Icons')} title={t("Icons — one of the suite's own icons, in the colour you choose, as a picture on this slide")} onClick={() => act('icons')} />
+            <Button tall icon="shape" label={t('3D Models')} className="sl-model3d-insert" title={t('3D Models — a model from a .glb or .gltf file on this computer, drawn on the slide; turn it from the 3D Model tab or by its handle')} onClick={() => act('model3d')} />
+            <Button tall icon="shape" label={t('SmartArt')} title={t('SmartArt — a list, a process, a cycle or a hierarchy, drawn from lines you type, as a group of shapes')} onClick={() => act('insertSmartArt')} />
+            <Button tall icon="chart" label={t('Chart')} title={t('Chart — a sample chart, drawn from the writer Documents and Worksheets already use; double-click it to edit its data')} onClick={(e) => menu.open(e, CHART_TYPES.map(([type, label]) => ({ label, icon: 'chart', run: () => act('addChart', { type }) })))} />
           </Group>
-          <Group label="Forms">
-            <Soon tall icon="check" label="Forms" why="Forms is a Microsoft cloud service." />
+          <Group label={t('Forms')}>
+            <Soon tall icon="check" label={t('Forms')} why={t('Forms is a Microsoft cloud service.')} />
           </Group>
-          <Group label="Links">
-            <Button tall icon="zoomIn" label="Zoom" title="Zoom — a picture of a slide or a section that takes the show there with a click, and back here after" onClick={(e) => menu.open(e, [{ label: 'Summary Zoom…', icon: 'grid', run: () => act('insertZoom', 'summary') }, { label: 'Section Zoom…', icon: 'list', disabled: !(model?.sections || []).length, run: () => act('insertZoom', 'section') }, { label: 'Slide Zoom…', icon: 'slides', run: () => act('insertZoom', 'slide') }])} />
-            <Button tall icon="link" label="Link" disabled={!hasShape} title={needShape || 'Link — a web address on the selected shape’s words (Ctrl+K); Ctrl+click follows it'} onClick={() => act('link')} />
-            <Button tall icon="play" label="Action" title="Action — what a click on the selected shape does in the show: another slide, the end of the show, or a web address" onClick={() => act('action')} />
+          <Group label={t('Links')}>
+            <Button tall icon="zoomIn" label={t('Zoom')} title={t('Zoom — a picture of a slide or a section that takes the show there with a click, and back here after')} onClick={(e) => menu.open(e, [{ label: t('Summary Zoom…'), icon: 'grid', run: () => act('insertZoom', 'summary') }, { label: t('Section Zoom…'), icon: 'list', disabled: !(model?.sections || []).length, run: () => act('insertZoom', 'section') }, { label: t('Slide Zoom…'), icon: 'slides', run: () => act('insertZoom', 'slide') }])} />
+            <Button tall icon="link" label={t('Link')} disabled={!hasShape} title={needShape || t('Link — a web address on the selected shape’s words (Ctrl+K); Ctrl+click follows it')} onClick={() => act('link')} />
+            <Button tall icon="play" label={t('Action')} title={t('Action — what a click on the selected shape does in the show: another slide, the end of the show, or a web address')} onClick={() => act('action')} />
           </Group>
-          <Group label="Comments">
-            <Button tall icon="reply" label="Comment" title="Comment — a new comment on the selected shape, or on this slide" onClick={() => act('newComment')} />
+          <Group label={t('Comments')}>
+            <Button tall icon="reply" label={t('Comment')} title={t('Comment — a new comment on the selected shape, or on this slide')} onClick={() => act('newComment')} />
           </Group>
-          <Group label="Text">
-            <Button tall icon="textbox" label="Text Box" onClick={() => commands['slide.textbox']?.run?.()} />
-            <Button tall icon="file" label="Header & Footer" title="Header & Footer — the date, the slide number and the footer's words, on this slide or all of them" onClick={() => act('footer')} />
-            <Button tall icon="wand" label="WordArt" title="WordArt — big words in a style of their own: a fill, an outline round the letters, a shadow or a glow" onClick={(e) => menu.open(e, wordArtMenu((style) => act('wordArt', style)))} />
-            <Button icon="clock" label="Date & Time" title="Date & Time — a date along the bottom, kept current or fixed" onClick={() => act('footer', 'date')} />
-            <Button icon="list" label="Slide Number" title="Slide Number — the slide's number along the bottom, following it when slides move" onClick={() => act('footer', 'number')} />
-            <Button icon="file" label="Object" title="Object — a Word, Excel or PowerPoint document embedded on the slide as an icon; a double-click opens it" onClick={() => act('insertObject')} />
+          <Group label={t('Text')}>
+            <Button tall icon="textbox" label={t('Text Box')} onClick={() => commands['slide.textbox']?.run?.()} />
+            <Button tall icon="file" label={t('Header & Footer')} title={t("Header & Footer — the date, the slide number and the footer's words, on this slide or all of them")} onClick={() => act('footer')} />
+            <Button tall icon="wand" label={t('WordArt')} title={t('WordArt — big words in a style of their own: a fill, an outline round the letters, a shadow or a glow')} onClick={(e) => menu.open(e, wordArtMenu((style) => act('wordArt', style)))} />
+            <Button icon="clock" label={t('Date & Time')} title={t('Date & Time — a date along the bottom, kept current or fixed')} onClick={() => act('footer', 'date')} />
+            <Button icon="list" label={t('Slide Number')} title={t("Slide Number — the slide's number along the bottom, following it when slides move")} onClick={() => act('footer', 'number')} />
+            <Button icon="file" label={t('Object')} title={t('Object — a Word, Excel or PowerPoint document embedded on the slide as an icon; a double-click opens it')} onClick={() => act('insertObject')} />
           </Group>
-          <Group label="Symbols">
-            <Button tall icon="formula" label="Equation" title="Equation — Office Math on this slide, typed in Word's linear format with a live preview; double-click one to edit it" onClick={() => act('equation')} />
-            <Button tall icon="star" label="Symbol" title="Symbol — a character from the symbol sets, put in where the caret is in a text box" onClick={() => act('symbol')} />
+          <Group label={t('Symbols')}>
+            <Button tall icon="formula" label={t('Equation')} title={t("Equation — Office Math on this slide, typed in Word's linear format with a live preview; double-click one to edit it")} onClick={() => act('equation')} />
+            <Button tall icon="star" label={t('Symbol')} title={t('Symbol — a character from the symbol sets, put in where the caret is in a text box')} onClick={() => act('symbol')} />
           </Group>
-          <Group label="Media">
-            <Button tall icon="video" label="Video" title="Video — a video from this computer on the slide; a click on it plays it in the show" onClick={(e) => menu.open(e, [{ label: 'This Device…', icon: 'video', run: () => act('insertMedia', 'video') }])} />
-            <Button tall icon="volume" label="Audio" title="Audio — a sound from this computer on the slide, as a speaker; a click on it plays it in the show" onClick={(e) => menu.open(e, [{ label: 'Audio on My PC…', icon: 'volume', run: () => act('insertMedia', 'audio') }])} />
-            <Button tall icon="video" label="Screen Recording" title="Screen Recording — record a window or a screen until Stop, and put the recording on this slide as a video" onClick={() => act('screenRecording')} />
+          <Group label={t('Media')}>
+            <Button tall icon="video" label={t('Video')} title={t('Video — a video from this computer on the slide; a click on it plays it in the show')} onClick={(e) => menu.open(e, [{ label: t('This Device…'), icon: 'video', run: () => act('insertMedia', 'video') }])} />
+            <Button tall icon="volume" label={t('Audio')} title={t('Audio — a sound from this computer on the slide, as a speaker; a click on it plays it in the show')} onClick={(e) => menu.open(e, [{ label: t('Audio on My PC…'), icon: 'volume', run: () => act('insertMedia', 'audio') }])} />
+            <Button tall icon="video" label={t('Screen Recording')} title={t('Screen Recording — record a window or a screen until Stop, and put the recording on this slide as a video')} onClick={() => act('screenRecording')} />
           </Group>
         </>
       ) : null}
@@ -524,45 +524,45 @@ export default function SlidesRibbon({
       {/* ── Draw ─────────────────────────────────────────────────────────── */}
       {tab === 'draw' ? (
         <>
-          <Group label="Drawing Tools">
-            <Button tall icon="mouse" label="Select" pressed={!ink?.tool} title="Select — put the pen down and work with the slide's shapes again (Esc)" onClick={() => act('inkTool', null)} />
-            <Button tall icon="wand" label="Lasso" pressed={ink?.tool === 'lasso'} title="Lasso Select — draw a loop round strokes to select them" onClick={() => act('inkTool', 'lasso')} />
-            <Button tall icon="close" label="Eraser" pressed={ink?.tool === 'eraser'} title="Eraser — take away each stroke the pointer passes over" onClick={() => act('inkTool', 'eraser')} />
+          <Group label={t('Drawing Tools')}>
+            <Button tall icon="mouse" label={t('Select')} pressed={!ink?.tool} title={t("Select — put the pen down and work with the slide's shapes again (Esc)")} onClick={() => act('inkTool', null)} />
+            <Button tall icon="wand" label={t('Lasso')} pressed={ink?.tool === 'lasso'} title={t('Lasso Select — draw a loop round strokes to select them')} onClick={() => act('inkTool', 'lasso')} />
+            <Button tall icon="close" label={t('Eraser')} pressed={ink?.tool === 'eraser'} title={t('Eraser — take away each stroke the pointer passes over')} onClick={() => act('inkTool', 'eraser')} />
             {(ink?.pens || []).map((p) => {
               const on = ink.tool === 'pen' && ink.penId === p.id;
-              const label = { pen: 'Pen', pencil: 'Pencil', highlighter: 'Highlighter' }[p.tool];
+              const label = { pen: t('Pen'), pencil: t('Pencil'), highlighter: t('Highlighter') }[p.tool];
               return (
                 <Button key={p.id} tall icon="wand" label={label} pressed={on} className={`sl-pen sl-pen-${p.tool}`} data-pen={p.id}
                   style={{ '--pen': p.color }}
-                  title={on ? `${label} — click again for its colour and thickness` : `${label} — draw on the slide`}
+                  title={on ? t('{label} — click again for its colour and thickness', { label }) : t('{label} — draw on the slide', { label })}
                   onClick={(e) => {
                     if (!on) { act('inkTool', p.id); return; }
                     menu.open(e, [
-                      { heading: true, label: 'Thickness' },
-                      ...PEN_WIDTHS[p.tool].map((w) => ({ label: `${w} pt`, icon: p.width === w ? 'check' : undefined, run: () => act('inkPen', { id: p.id, width: w }) })),
-                      { heading: true, label: 'Colour' },
+                      { heading: true, label: t('Thickness') },
+                      ...PEN_WIDTHS[p.tool].map((w) => ({ label: t('{width} pt', { width: w }), icon: p.width === w ? 'check' : undefined, run: () => act('inkPen', { id: p.id, width: w }) })),
+                      { heading: true, label: t('Colour') },
                       ...PEN_COLOURS.map((c) => ({ label: c, icon: p.color === c ? 'check' : undefined, preview: <span style={{ display: 'inline-block', width: 16, height: 16, borderRadius: 8, background: c, border: '1px solid rgba(0,0,0,.25)' }} />, run: () => act('inkPen', { id: p.id, color: c }) })),
                     ]);
                   }} />
               );
             })}
-            <Button tall icon="plus" label="Add" title="Add Pen — another pen, pencil or highlighter in the gallery" onClick={(e) => menu.open(e, [['pen', 'Pen'], ['pencil', 'Pencil'], ['highlighter', 'Highlighter']].map(([tool, label]) => ({ label, icon: 'plus', run: () => act('inkAdd', tool) })))} />
+            <Button tall icon="plus" label={t('Add')} title={t('Add Pen — another pen, pencil or highlighter in the gallery')} onClick={(e) => menu.open(e, [['pen', t('Pen')], ['pencil', t('Pencil')], ['highlighter', t('Highlighter')]].map(([tool, label]) => ({ label, icon: 'plus', run: () => act('inkAdd', tool) })))} />
           </Group>
-          <Group label="Touch">
-            <Button tall icon="wand" label="Draw with Touch" pressed={ink?.touch !== false} title="Draw with Touch — a finger draws with the pen in hand; off, only a pen or the mouse does" onClick={() => act('inkTouch')} />
+          <Group label={t('Touch')}>
+            <Button tall icon="wand" label={t('Draw with Touch')} pressed={ink?.touch !== false} title={t('Draw with Touch — a finger draws with the pen in hand; off, only a pen or the mouse does')} onClick={() => act('inkTouch')} />
           </Group>
-          <Group label="Stencils">
-            <Button tall icon="minus" label="Ruler" pressed={Boolean(ink?.ruler)} title="Ruler — a straight edge on the slide: a stroke begun along it follows it; drag it to move, the wheel to turn it" onClick={() => act('inkRuler')} />
+          <Group label={t('Stencils')}>
+            <Button tall icon="minus" label={t('Ruler')} pressed={Boolean(ink?.ruler)} title={t('Ruler — a straight edge on the slide: a stroke begun along it follows it; drag it to move, the wheel to turn it')} onClick={() => act('inkRuler')} />
           </Group>
-          <Group label="Convert">
-            <Button tall icon="shape" label="Ink to Shape" pressed={Boolean(ink?.toShape)} title="Ink to Shape — a rectangle, oval or triangle drawn becomes that shape" onClick={() => act('inkToShape')} />
-            <Soon tall icon="formula" label="Ink to Math" why="Turning handwriting into an equation needs handwriting recognition, which this suite does not have." />
+          <Group label={t('Convert')}>
+            <Button tall icon="shape" label={t('Ink to Shape')} pressed={Boolean(ink?.toShape)} title={t('Ink to Shape — a rectangle, oval or triangle drawn becomes that shape')} onClick={() => act('inkToShape')} />
+            <Soon tall icon="formula" label={t('Ink to Math')} why={t('Turning handwriting into an equation needs handwriting recognition, which this suite does not have.')} />
           </Group>
-          <Group label="Replay">
-            <Button tall icon="play" label="Ink Replay" title="Ink Replay — the slide's strokes drawn again, in the order they were made" onClick={() => act('inkReplay')} />
+          <Group label={t('Replay')}>
+            <Button tall icon="play" label={t('Ink Replay')} title={t("Ink Replay — the slide's strokes drawn again, in the order they were made")} onClick={() => act('inkReplay')} />
           </Group>
-          <Group label="Help">
-            <Button tall icon="info" label="Ink Help" onClick={() => act('help')} />
+          <Group label={t('Help')}>
+            <Button tall icon="info" label={t('Ink Help')} onClick={() => act('help')} />
           </Group>
         </>
       ) : null}
@@ -570,53 +570,53 @@ export default function SlidesRibbon({
       {/* ── Design ───────────────────────────────────────────────────────── */}
       {tab === 'design' ? (
         <>
-          <Group label="Themes">
+          <Group label={t('Themes')}>
             <RibbonStrip
               kind="themes"
               items={designStrip?.themes}
               count={4}
-              label="Drawing this slide…"
+              label={t('Drawing this slide…')}
               onPick={(it) => act('applyTheme', it)}
               onMore={(e) => { const r = e.currentTarget.closest('.sl-rs').getBoundingClientRect(); act('designGallery', { kind: 'themes', anchor: { left: r.left, bottom: r.bottom + 4 } }); }}
             />
           </Group>
-          <Group label="Variants">
+          <Group label={t('Variants')}>
             <RibbonStrip
               kind="variants"
               items={designStrip?.variants}
               count={4}
-              label="Drawing this slide…"
+              label={t('Drawing this slide…')}
               onPick={(it) => act('applyVariant', it.id)}
               onMore={(e) => { const r = e.currentTarget.closest('.sl-rs').getBoundingClientRect(); act('designGallery', { kind: 'variants', anchor: { left: r.left, bottom: r.bottom + 4 } }); }}
             />
             <Rows>
-              <Button icon="contrast" label="Colours" title="Colours — the theme's twelve colours: a palette, or your own" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); act('designGallery', { kind: 'colours', anchor: { left: r.left, bottom: r.bottom + 4 } }); }} />
-              <Button icon="textbox" label="Fonts" title="Fonts — the theme's heading and body faces: a pair, or your own" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); act('designGallery', { kind: 'fonts', anchor: { left: r.left, bottom: r.bottom + 4 } }); }} />
-              <Button icon="wand" label="Effects" title="Effects — how theme-styled shapes are filled, outlined and lifted" onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); act('designGallery', { kind: 'effects', anchor: { left: r.left, bottom: r.bottom + 4 } }); }} />
+              <Button icon="contrast" label={t('Colours')} title={t("Colours — the theme's twelve colours: a palette, or your own")} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); act('designGallery', { kind: 'colours', anchor: { left: r.left, bottom: r.bottom + 4 } }); }} />
+              <Button icon="textbox" label={t('Fonts')} title={t("Fonts — the theme's heading and body faces: a pair, or your own")} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); act('designGallery', { kind: 'fonts', anchor: { left: r.left, bottom: r.bottom + 4 } }); }} />
+              <Button icon="wand" label={t('Effects')} title={t('Effects — how theme-styled shapes are filled, outlined and lifted')} onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); act('designGallery', { kind: 'effects', anchor: { left: r.left, bottom: r.bottom + 4 } }); }} />
             </Rows>
           </Group>
-          <Group label="Customise">
+          <Group label={t('Customise')}>
             <Button
               tall
               icon="picture"
-              label="Background Styles"
-              title="Background Styles — a solid or gradient background for this slide, or every slide"
+              label={t('Background Styles')}
+              title={t('Background Styles — a solid or gradient background for this slide, or every slide')}
               onClick={backgroundMenu}
             />
           </Group>
-          <Group label="Slides">
-            <Button tall icon="grid" label="Layouts" pressed={view.pane === 'designs'} title="The deck's layouts in a pane — put this slide on one, or start a new slide from it" onClick={() => act('pane', 'designs')} />
-            <Button tall icon="slides" label="Layout" title="A new slide with this layout, after the current one" onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
+          <Group label={t('Slides')}>
+            <Button tall icon="grid" label={t('Layouts')} pressed={view.pane === 'designs'} title={t("The deck's layouts in a pane — put this slide on one, or start a new slide from it")} onClick={() => act('pane', 'designs')} />
+            <Button tall icon="slides" label={t('Layout')} title={t('A new slide with this layout, after the current one')} onClick={(e) => menu.open(e, LAYOUTS.map(([layout, label]) => ({ label, icon: 'slides', run: () => addSlide(layout) })))} />
             <Button
               tall
               icon="grid"
-              label="Slide Size"
-              title={model?.size ? `Slides are ${Math.round(model.size.width)} by ${Math.round(model.size.height)} pixels — ${Math.abs(model.size.width / model.size.height - 16 / 9) < 0.02 ? '16:9 widescreen' : Math.abs(model.size.width / model.size.height - 4 / 3) < 0.02 ? '4:3 standard' : 'a custom ratio'}. Changing it rescales every slide; not built yet.` : 'The deck decides its own size'}
+              label={t('Slide Size')}
+              title={model?.size ? t('Slides are {width} by {height} pixels — {ratio}. Changing it rescales every slide; not built yet.', { width: Math.round(model.size.width), height: Math.round(model.size.height), ratio: Math.abs(model.size.width / model.size.height - 16 / 9) < 0.02 ? t('16:9 widescreen') : Math.abs(model.size.width / model.size.height - 4 / 3) < 0.02 ? t('4:3 standard') : t('a custom ratio') }) : t('The deck decides its own size')}
               disabled
             />
           </Group>
-          <Group label="Edit">
-            <Button tall icon="wand" label="Design Ideas" pressed={view?.pane === 'ideas'} title="Design Ideas — layouts this slide's title, words and pictures suit, worked out on this computer; a click applies one" onClick={() => act('pane', 'ideas')} />
+          <Group label={t('Edit')}>
+            <Button tall icon="wand" label={t('Design Ideas')} pressed={view?.pane === 'ideas'} title={t("Design Ideas — layouts this slide's title, words and pictures suit, worked out on this computer; a click applies one")} onClick={() => act('pane', 'ideas')} />
           </Group>
         </>
       ) : null}
@@ -624,17 +624,17 @@ export default function SlidesRibbon({
       {/* ── Transitions ──────────────────────────────────────────────────── */}
       {tab === 'transitions' ? (
         <>
-          <Group label="Preview">
+          <Group label={t('Preview')}>
             <Button
               tall
               icon="play"
-              label="Preview"
+              label={t('Preview')}
               disabled={!transitionPlays}
-              title={transitionPlays ? `Preview — play this slide's transition on the stage (${describeTransition(transition)})` : 'Preview — this slide has no transition to play; pick one from the gallery'}
+              title={transitionPlays ? t("Preview — play this slide's transition on the stage ({transition})", { transition: describeTransition(transition) }) : t('Preview — this slide has no transition to play; pick one from the gallery')}
               onClick={() => act('preview', 'transition')}
             />
           </Group>
-          <Group label="Transition to This Slide">
+          <Group label={t('Transition to This Slide')}>
             {TRANSITION_GALLERY.map(([key, label, blurb]) => (
               <Button
                 key={key}
@@ -644,16 +644,16 @@ export default function SlidesRibbon({
                 className="sl-tr-pick"
                 data-transition={key}
                 pressed={transitionKey === key}
-                title={`${label} — ${blurb}`}
+                title={t('{label} — {blurb}', { label, blurb })}
                 onClick={() => act('transition', key === 'none' ? { type: 'none' } : { type: key === 'shape' ? 'circle' : key })}
               />
             ))}
             <Button
               tall
               icon="settings"
-              label="Effect Options"
+              label={t('Effect Options')}
               disabled={!transitionOptions}
-              title={transitionOptions ? `Effect Options — which way the ${TRANSITION_GALLERY.find(([k]) => k === transitionKey)?.[1] || 'transition'} goes` : 'Effect Options — pick a transition with a direction first (Push, Wipe, Split, Cover…)'}
+              title={transitionOptions ? t('Effect Options — which way the {name} goes', { name: TRANSITION_GALLERY.find(([k]) => k === transitionKey)?.[1] || t('transition') }) : t('Effect Options — pick a transition with a direction first (Push, Wipe, Split, Cover…)')}
               onClick={(e) => menu.open(e, transitionOptions.map(([value, label]) => ({
                 label,
                 icon: optionOf(transition) === value ? 'check' : undefined,
@@ -661,40 +661,40 @@ export default function SlidesRibbon({
               })))}
             />
           </Group>
-          <Group label="Timing">
+          <Group label={t('Timing')}>
             <Rows>
-              <Button icon="volume" label="Sound" title="Sound — what plays as this slide comes in: one of the suite's sounds, a WAV of your own, or one that stops the last" onClick={(e) => {
+              <Button icon="volume" label={t('Sound')} title={t("Sound — what plays as this slide comes in: one of the suite's sounds, a WAV of your own, or one that stops the last")} onClick={(e) => {
                 const s = model?.slide?.transitionSound || null;
                 const tick = (on) => (on ? 'check' : undefined);
                 menu.open(e, [
-                  { label: '[No Sound]', icon: tick(!s), run: () => act('transitionSound', { none: true }) },
-                  { label: '[Stop Previous Sound]', icon: tick(Boolean(s?.stop)), run: () => act('transitionSound', { stop: true }) },
+                  { label: t('[No Sound]'), icon: tick(!s), run: () => act('transitionSound', { none: true }) },
+                  { label: t('[Stop Previous Sound]'), icon: tick(Boolean(s?.stop)), run: () => act('transitionSound', { stop: true }) },
                   '-',
                   ...SOUNDS.map((name) => ({ label: name, icon: tick(s?.name === soundFile(name)) || 'volume', run: () => act('transitionSound', { builtin: name }) })),
                   '-',
-                  { label: 'Other Sound…', icon: 'folder', run: () => act('transitionSound', { other: true }) },
+                  { label: t('Other Sound…'), icon: 'folder', run: () => act('transitionSound', { other: true }) },
                   '-',
-                  { label: 'Loop Until Next Sound', icon: tick(Boolean(s?.loop)), disabled: !s || s.stop, run: () => act('transitionSound', { loop: !s?.loop }) },
+                  { label: t('Loop Until Next Sound'), icon: tick(Boolean(s?.loop)), disabled: !s || s.stop, run: () => act('transitionSound', { loop: !s?.loop }) },
                 ]);
               }} />
-              <div className="sl-rb-field" data-tip="Duration — how long the transition takes, in seconds">
+              <div className="sl-rb-field" data-tip={t('Duration — how long the transition takes, in seconds')}>
                 <Icon name="clock" size={15} />
-                <span>Duration</span>
+                <span>{t('Duration')}</span>
                 <SecondsField className="sl-tr-duration" value={transition && transitionKey !== 'none' ? transition.duration : null} disabled={!transition || transitionKey === 'none'} min={0.01} max={59} onCommit={(v) => act('transition', { duration: v })} />
               </div>
-              <Button icon="check" label="Apply To All" disabled={count < 2} title={count < 2 ? 'Apply To All — the deck has one slide' : "Apply To All — this slide's transition, timing and advance settings on every slide"} onClick={() => act('transitionAll')} />
+              <Button icon="check" label={t('Apply To All')} disabled={count < 2} title={count < 2 ? t('Apply To All — the deck has one slide') : t("Apply To All — this slide's transition, timing and advance settings on every slide")} onClick={() => act('transitionAll')} />
             </Rows>
             <Separator />
             <Rows>
-              <div className="sl-rb-caption">Advance Slide</div>
-              <label className="sl-rb-field" data-tip="On Mouse Click — a click moves the show on from this slide">
+              <div className="sl-rb-caption">{t('Advance Slide')}</div>
+              <label className="sl-rb-field" data-tip={t('On Mouse Click — a click moves the show on from this slide')}>
                 <input type="checkbox" className="sl-tr-onclick" checked={transition ? transition.advanceOnClick !== false : true} onChange={(e) => act('transition', { advanceOnClick: e.target.checked })} />
-                <span>On Mouse Click</span>
+                <span>{t('On Mouse Click')}</span>
               </label>
-              <div className="sl-rb-field" data-tip="After — the show moves on by itself this many seconds after the slide is shown">
+              <div className="sl-rb-field" data-tip={t('After — the show moves on by itself this many seconds after the slide is shown')}>
                 <label className="sl-rb-check">
                   <input type="checkbox" className="sl-tr-after-on" checked={transition?.advanceAfter != null} onChange={(e) => act('transition', { advanceAfter: e.target.checked ? (transition?.advanceAfter ?? 0) : null })} />
-                  <span>After:</span>
+                  <span>{t('After:')}</span>
                 </label>
                 <SecondsField className="sl-tr-after" value={transition?.advanceAfter ?? 0} min={0} max={3600} onCommit={(v) => act('transition', { advanceAfter: v })} />
               </div>
@@ -706,26 +706,26 @@ export default function SlidesRibbon({
       {/* ── Animations ───────────────────────────────────────────────────── */}
       {tab === 'animations' ? (
         <>
-          <Group label="Preview">
+          <Group label={t('Preview')}>
             <Button
               tall
               icon="play"
-              label="Preview"
+              label={t('Preview')}
               disabled={!animationList.length}
-              title={animationList.length ? `Preview — play this slide's ${animationList.length === 1 ? 'animation' : `${animationList.length} animations`} on the stage` : 'Preview — this slide has no animations yet; select a shape and pick an effect'}
+              title={animationList.length ? tn(animationList.length, "Preview — play this slide's animation on the stage", "Preview — play this slide's {count} animations on the stage") : t('Preview — this slide has no animations yet; select a shape and pick an effect')}
               onClick={() => act('preview', 'animation')}
             />
           </Group>
-          <Group label="Animation">
+          <Group label={t('Animation')}>
             <Button
               tall
               icon="star"
-              label="None"
+              label={t('None')}
               className="sl-an-pick sl-an-none"
               data-effect="none"
               pressed={hasShape && !shapeAnimated}
               disabled={!hasShape}
-              title={hasShape ? 'None — take every animation off the selected shape' : 'None — select a shape first; its animations come off'}
+              title={hasShape ? t('None — take every animation off the selected shape') : t('None — select a shape first; its animations come off')}
               onClick={() => act('animate', { kind: 'entr', effect: 'none' })}
             />
             {ANIMATION_GALLERY.map(([effect, label, blurb]) => (
@@ -738,34 +738,34 @@ export default function SlidesRibbon({
                 data-effect={effect}
                 pressed={animation?.kind === 'entr' && animation?.effect === effect}
                 disabled={!hasShape}
-                title={hasShape ? `${label} — ${blurb}${animation ? '; it replaces the selected effect' : ''}` : `${label} — select a shape first, then pick its entrance`}
+                title={hasShape ? (animation ? t('{label} — {blurb}; it replaces the selected effect', { label, blurb }) : t('{label} — {blurb}', { label, blurb })) : t('{label} — select a shape first, then pick its entrance', { label })}
                 onClick={() => act('animate', { kind: 'entr', effect })}
               />
             ))}
             <Button
               tall
               icon="redo"
-              label="Motion Paths"
+              label={t('Motion Paths')}
               className="sl-an-paths"
               pressed={animation?.kind === 'path'}
               disabled={!hasShape}
-              title={hasShape ? 'Motion Paths — the shape moves along a line, an arc, a turn, a circle, a square or a loop from where it stands' : 'Motion Paths — select a shape first'}
+              title={hasShape ? t('Motion Paths — the shape moves along a line, an arc, a turn, a circle, a square or a loop from where it stands') : t('Motion Paths — select a shape first')}
               onClick={(e) => menu.open(e, EFFECT_MENU.find(([kind]) => kind === 'path')[2].map(([effect, label]) => ({ label, icon: 'redo', run: () => act('animate', { kind: 'path', effect }) })))}
             />
             <Button
               tall
               icon="more"
-              label="More Effects"
+              label={t('More Effects')}
               disabled={!hasShape}
-              title={hasShape ? 'More Effects — every entrance, emphasis and exit effect' : 'More Effects — select a shape first'}
+              title={hasShape ? t('More Effects — every entrance, emphasis and exit effect') : t('More Effects — select a shape first')}
               onClick={(e) => menu.open(e, effectMenu('animate'))}
             />
             <Button
               tall
               icon="settings"
-              label="Effect Options"
+              label={t('Effect Options')}
               disabled={!animationOptions && !sequenceItems.length}
-              title={animationOptions || sequenceItems.length ? `Effect Options — ${animationOptions ? `which way the ${animation?.name || 'effect'} goes` : ''}${animationOptions && sequenceItems.length ? ', and ' : ''}${sequenceItems.length ? 'the words as one object or paragraph by paragraph' : ''}` : 'Effect Options — pick an effect with a direction (Fly In, Float In, Split, Wipe, Spin), or one on words of more than one paragraph'}
+              title={animationOptions || sequenceItems.length ? (animationOptions && sequenceItems.length ? t('Effect Options — which way the {name} goes, and the words as one object or paragraph by paragraph', { name: animation?.name || t('effect') }) : animationOptions ? t('Effect Options — which way the {name} goes', { name: animation?.name || t('effect') }) : t('Effect Options — the words as one object or paragraph by paragraph')) : t('Effect Options — pick an effect with a direction (Fly In, Float In, Split, Wipe, Spin), or one on words of more than one paragraph')}
               onClick={(e) => menu.open(e, [
                 ...(animationOptions || []).map(([value, label]) => ({ label, icon: animation?.direction === value ? 'check' : undefined, run: () => act('animPatch', { direction: value }) })),
                 ...(animationOptions && sequenceItems.length ? ['-'] : []),
@@ -773,20 +773,20 @@ export default function SlidesRibbon({
               ])}
             />
           </Group>
-          <Group label="Advanced Animation">
-            <Button tall icon="plus" label="Add Animation" disabled={!hasShape} title={hasShape ? 'Add Animation — another effect on the selected shape, after its others' : 'Add Animation — select a shape first'} onClick={(e) => menu.open(e, effectMenu('addAnimation'))} />
+          <Group label={t('Advanced Animation')}>
+            <Button tall icon="plus" label={t('Add Animation')} disabled={!hasShape} title={hasShape ? t('Add Animation — another effect on the selected shape, after its others') : t('Add Animation — select a shape first')} onClick={(e) => menu.open(e, effectMenu('addAnimation'))} />
             <Rows>
-              <Button icon="list" label="Animation Pane" pressed={view.pane === 'animations'} title="Animation Pane — the slide's effects in order, to pick, reorder, retime or remove" onClick={() => act('pane', 'animations')} />
+              <Button icon="list" label={t('Animation Pane')} pressed={view.pane === 'animations'} title={t("Animation Pane — the slide's effects in order, to pick, reorder, retime or remove")} onClick={() => act('pane', 'animations')} />
               <Button
                 icon="play"
-                label="Trigger"
+                label={t('Trigger')}
                 disabled={!animation}
-                title={animation ? `Trigger — start this effect on a click on a shape in the show${animation.triggerShape ? ', not in the slide\'s own order' : ''}` : 'Trigger — pick an effect in the Animation Pane first'}
+                title={animation ? (animation.triggerShape ? t('Trigger — start this effect on a click on a shape in the show, not in the slide\'s own order') : t('Trigger — start this effect on a click on a shape in the show')) : t('Trigger — pick an effect in the Animation Pane first')}
                 onClick={(e) => menu.open(e, [
-                  { label: 'On Click Sequence', icon: !animation?.triggerShape ? 'check' : undefined, run: () => act('animPatch', { triggerShape: null }) },
+                  { label: t('On Click Sequence'), icon: !animation?.triggerShape ? 'check' : undefined, run: () => act('animPatch', { triggerShape: null }) },
                   '-',
                   ...(model?.slide?.shapes || []).filter((s) => s.groupId == null).map((s) => ({
-                    label: `On Click of ${s.name || `Shape ${s.id}`}`,
+                    label: t('On Click of {name}', { name: s.name || t('Shape {id}', { id: s.id }) }),
                     icon: String(animation?.triggerShape) === String(s.id) ? 'check' : undefined,
                     run: () => act('animPatch', { triggerShape: s.id }),
                   })),
@@ -794,41 +794,41 @@ export default function SlidesRibbon({
               />
               <Button
                 icon="wand"
-                label="Animation Painter"
+                label={t('Animation Painter')}
                 pressed={animPainter}
                 disabled={!animPainter && !shapeAnimated}
-                title={animPainter ? 'Animation Painter — armed: click a shape to give it these effects; Esc puts it down' : shapeAnimated ? "Animation Painter — this shape's effects onto the next shape you click" : 'Animation Painter — select an animated shape first'}
+                title={animPainter ? t('Animation Painter — armed: click a shape to give it these effects; Esc puts it down') : shapeAnimated ? t("Animation Painter — this shape's effects onto the next shape you click") : t('Animation Painter — select an animated shape first')}
                 onClick={() => act('animPainter')}
               />
             </Rows>
           </Group>
-          <Group label="Timing">
+          <Group label={t('Timing')}>
             <Rows>
-              <div className="sl-rb-field" data-tip="Start — when the effect plays: on a click, with the one before it, or after it">
+              <div className="sl-rb-field" data-tip={t('Start — when the effect plays: on a click, with the one before it, or after it')}>
                 <Icon name="play" size={14} />
-                <span className="sl-rb-label">Start:</span>
+                <span className="sl-rb-label">{t('Start:')}</span>
                 <Select className="rw-select sl-an-start" value={animation?.trigger || 'onClick'} disabled={!animation} style={{ width: 128, height: 24 }} onChange={(e) => act('animPatch', { trigger: e.target.value })}>
-                  <option value="onClick">On Click</option>
-                  <option value="withPrevious">With Previous</option>
-                  <option value="afterPrevious">After Previous</option>
+                  <option value="onClick">{t('On Click')}</option>
+                  <option value="withPrevious">{t('With Previous')}</option>
+                  <option value="afterPrevious">{t('After Previous')}</option>
                 </Select>
               </div>
-              <div className="sl-rb-field" data-tip="Duration — how long the effect takes, in seconds">
+              <div className="sl-rb-field" data-tip={t('Duration — how long the effect takes, in seconds')}>
                 <Icon name="clock" size={14} />
-                <span className="sl-rb-label">Duration:</span>
+                <span className="sl-rb-label">{t('Duration:')}</span>
                 <SecondsField className="sl-an-duration" value={animation ? animation.duration : null} disabled={!animation || !animation.duration} min={0.01} max={59} onCommit={(v) => act('animPatch', { duration: v })} />
               </div>
-              <div className="sl-rb-field" data-tip="Delay — how long after its start the effect waits, in seconds">
+              <div className="sl-rb-field" data-tip={t('Delay — how long after its start the effect waits, in seconds')}>
                 <Icon name="clock" size={14} />
-                <span className="sl-rb-label">Delay:</span>
+                <span className="sl-rb-label">{t('Delay:')}</span>
                 <SecondsField className="sl-an-delay" value={animation ? animation.delay : null} disabled={!animation} min={0} max={3600} onCommit={(v) => act('animPatch', { delay: v })} />
               </div>
             </Rows>
             <Separator />
             <Rows>
-              <div className="sl-rb-caption">Reorder Animation</div>
-              <Button icon="chevronUp" label="Move Earlier" disabled={!animation || animation.index <= 0} title={animation ? 'Move Earlier — this effect plays before the one above it' : 'Move Earlier — pick an effect first'} onClick={() => act('animMove', 'earlier')} />
-              <Button icon="chevronDown" label="Move Later" disabled={!animation || animation.index >= animationList.length - 1} title={animation ? 'Move Later — this effect plays after the one below it' : 'Move Later — pick an effect first'} onClick={() => act('animMove', 'later')} />
+              <div className="sl-rb-caption">{t('Reorder Animation')}</div>
+              <Button icon="chevronUp" label={t('Move Earlier')} disabled={!animation || animation.index <= 0} title={animation ? t('Move Earlier — this effect plays before the one above it') : t('Move Earlier — pick an effect first')} onClick={() => act('animMove', 'earlier')} />
+              <Button icon="chevronDown" label={t('Move Later')} disabled={!animation || animation.index >= animationList.length - 1} title={animation ? t('Move Later — this effect plays after the one below it') : t('Move Later — pick an effect first')} onClick={() => act('animMove', 'later')} />
             </Rows>
           </Group>
         </>
@@ -837,56 +837,56 @@ export default function SlidesRibbon({
       {/* ── Slide Show ───────────────────────────────────────────────────── */}
       {tab === 'show' ? (
         <>
-          <Group label="Start Slide Show">
-            <Button tall icon="play" label="From Beginning" title="Start the show at the first slide (F5)" onClick={() => act('present', 'start')} />
-            <Button tall icon="play" label="From Current Slide" title="Start the show at this slide" onClick={() => act('present', 'here')} />
-            <Button tall icon="list" label="Custom Slide Show" title="Custom Slide Show — play one of the deck's named shows, or make one: some of its slides, in an order of their own" onClick={(e) => act('customShowMenu', e)} />
+          <Group label={t('Start Slide Show')}>
+            <Button tall icon="play" label={t('From Beginning')} title={t('Start the show at the first slide (F5)')} onClick={() => act('present', 'start')} />
+            <Button tall icon="play" label={t('From Current Slide')} title={t('Start the show at this slide')} onClick={() => act('present', 'here')} />
+            <Button tall icon="list" label={t('Custom Slide Show')} title={t("Custom Slide Show — play one of the deck's named shows, or make one: some of its slides, in an order of their own")} onClick={(e) => act('customShowMenu', e)} />
           </Group>
-          <Group label="Rehearse">
-            <Soon tall icon="volume" label="Rehearse with Coach" why="Presenter Coach is a Microsoft cloud service." />
+          <Group label={t('Rehearse')}>
+            <Soon tall icon="volume" label={t('Rehearse with Coach')} why={t('Presenter Coach is a Microsoft cloud service.')} />
           </Group>
-          <Group label="Set Up">
-            <Button tall icon="settings" label="Set Up Slide Show" title="Set Up Slide Show — who the show is for, looping, which slides and how it moves on" onClick={() => act('setupShow')} />
+          <Group label={t('Set Up')}>
+            <Button tall icon="settings" label={t('Set Up Slide Show')} title={t('Set Up Slide Show — who the show is for, looping, which slides and how it moves on')} onClick={() => act('setupShow')} />
             <Button
               tall
               icon="eye"
-              label="Hide Slide"
+              label={t('Hide Slide')}
               pressed={Boolean(model?.slide?.hidden)}
-              title={model?.slide?.hidden ? 'Hide Slide — this slide is hidden from the show; press again to show it' : 'Hide Slide — leave this slide out of the show'}
+              title={model?.slide?.hidden ? t('Hide Slide — this slide is hidden from the show; press again to show it') : t('Hide Slide — leave this slide out of the show')}
               onClick={() => act('hideSlide')}
             />
-            <Button tall icon="clock" label="Rehearse Timings" title="Rehearse Timings — run the show from the start with a clock, and keep how long each slide was on screen as its timing" onClick={() => act('rehearse')} />
-            <Button tall icon="video" label="Record" title="Record — the show with the microphone on: each slide's narration and how long it was up" onClick={(e) => menu.open(e, [{ label: 'From Current Slide…', icon: 'play', run: () => act('recordShow', 'here') }, { label: 'From Beginning…', icon: 'play', run: () => act('recordShow', 'start') }])} />
-            <Soon icon="check" label="Keep Slides Updated" why="Live co-authoring is not built." />
+            <Button tall icon="clock" label={t('Rehearse Timings')} title={t('Rehearse Timings — run the show from the start with a clock, and keep how long each slide was on screen as its timing')} onClick={() => act('rehearse')} />
+            <Button tall icon="video" label={t('Record')} title={t("Record — the show with the microphone on: each slide's narration and how long it was up")} onClick={(e) => menu.open(e, [{ label: t('From Current Slide…'), icon: 'play', run: () => act('recordShow', 'here') }, { label: t('From Beginning…'), icon: 'play', run: () => act('recordShow', 'start') }])} />
+            <Soon icon="check" label={t('Keep Slides Updated')} why={t('Live co-authoring is not built.')} />
             <Button
               icon="check"
-              label="Play Narrations"
+              label={t('Play Narrations')}
               pressed={model?.showSettings?.narration !== false}
-              title="Play Narrations — whether the show plays the narration recorded with it; kept in the file for PowerPoint, as this suite records none"
+              title={t('Play Narrations — whether the show plays the narration recorded with it; kept in the file for PowerPoint, as this suite records none')}
               onClick={() => act('showFlag', { narration: model?.showSettings?.narration === false })}
             />
             <Button
               icon="check"
-              label="Use Timings"
+              label={t('Use Timings')}
               pressed={model?.showSettings?.useTimings !== false}
-              title="Use Timings — slides with a timing move on by themselves; off, the show moves only when you move it"
+              title={t('Use Timings — slides with a timing move on by themselves; off, the show moves only when you move it')}
               onClick={() => act('showFlag', { useTimings: model?.showSettings?.useTimings === false })}
             />
             <Button
               icon="check"
-              label="Show Media Controls"
+              label={t('Show Media Controls')}
               pressed={model?.showSettings?.mediaControls !== false}
-              title="Show Media Controls — a video in the show gets its play bar once it has started"
+              title={t('Show Media Controls — a video in the show gets its play bar once it has started')}
               onClick={() => act('showFlag', { mediaControls: model?.showSettings?.mediaControls === false })}
             />
           </Group>
-          <Group label="Monitors">
-            <Button icon="grid" label={`Monitor: ${monitorName}`} title="Monitor — the screen the slide show plays on; Automatic puts it on another screen than Presenter View's" onClick={(e) => act('monitorMenu', e)} />
-            <Button icon="check" label="Use Presenter View" title="Opens a second window with your notes, the next slide and a clock — put it on the other screen" onClick={presentWithNotes} />
+          <Group label={t('Monitors')}>
+            <Button icon="grid" label={t('Monitor: {name}', { name: monitorName })} title={t("Monitor — the screen the slide show plays on; Automatic puts it on another screen than Presenter View's")} onClick={(e) => act('monitorMenu', e)} />
+            <Button icon="check" label={t('Use Presenter View')} title={t('Opens a second window with your notes, the next slide and a clock — put it on the other screen')} onClick={presentWithNotes} />
           </Group>
-          <Group label="Captions & Subtitles">
-            <Soon icon="check" label="Always Use Subtitles" why="Live captions are an online speech service this suite does not call." />
-            <Soon icon="settings" label="Subtitle Settings" why="Comes with captions." />
+          <Group label={t('Captions & Subtitles')}>
+            <Soon icon="check" label={t('Always Use Subtitles')} why={t('Live captions are an online speech service this suite does not call.')} />
+            <Soon icon="settings" label={t('Subtitle Settings')} why={t('Comes with captions.')} />
           </Group>
         </>
       ) : null}
@@ -894,28 +894,28 @@ export default function SlidesRibbon({
       {/* ── Record ───────────────────────────────────────────────────────── */}
       {tab === 'record' ? (
         <>
-          <Group label="Preview">
-            <Button tall icon="play" label="Preview" title="Preview — this slide's narration, heard" onClick={() => act('previewNarration')} />
+          <Group label={t('Preview')}>
+            <Button tall icon="play" label={t('Preview')} title={t("Preview — this slide's narration, heard")} onClick={() => act('previewNarration')} />
           </Group>
-          <Group label="Camera">
-            <Button tall icon="video" label="Cameo" title="Cameo — your camera, live, in a shape on this slide" onClick={() => act('cameo')} />
+          <Group label={t('Camera')}>
+            <Button tall icon="video" label={t('Cameo')} title={t('Cameo — your camera, live, in a shape on this slide')} onClick={() => act('cameo')} />
           </Group>
-          <Group label="Record">
-            <Button tall icon="video" label="From Beginning" title="Record From Beginning — the show from its first slide with the microphone on" onClick={() => act('recordShow', 'start')} />
-            <Button tall icon="video" label="From Current Slide" title="Record From Current Slide — the show from this slide with the microphone on" onClick={() => act('recordShow', 'here')} />
-            <Button tall icon="video" label="Screen Recording" title="Screen Recording — record a window or a screen until Stop, and put the recording on this slide as a video" onClick={() => act('screenRecording')} />
-            <Button tall icon="volume" label="Audio" title="Record Audio — record a sound and put it on this slide" onClick={() => act('recordAudio')} />
+          <Group label={t('Record')}>
+            <Button tall icon="video" label={t('From Beginning')} title={t('Record From Beginning — the show from its first slide with the microphone on')} onClick={() => act('recordShow', 'start')} />
+            <Button tall icon="video" label={t('From Current Slide')} title={t('Record From Current Slide — the show from this slide with the microphone on')} onClick={() => act('recordShow', 'here')} />
+            <Button tall icon="video" label={t('Screen Recording')} title={t('Screen Recording — record a window or a screen until Stop, and put the recording on this slide as a video')} onClick={() => act('screenRecording')} />
+            <Button tall icon="volume" label={t('Audio')} title={t('Record Audio — record a sound and put it on this slide')} onClick={() => act('recordAudio')} />
           </Group>
-          <Group label="Edit">
-            <Button tall icon="close" label="Clear Recording" title="Clear — narration or timings, on this slide or every slide" onClick={(e) => menu.open(e, [{ label: 'Clear Narration on Current Slide', run: () => act('clearRecording', 'narrationHere') }, { label: 'Clear Narration on All Slides', run: () => act('clearRecording', 'narrationAll') }, '-', { label: 'Clear Timings on Current Slide', run: () => act('clearRecording', 'timingsHere') }, { label: 'Clear Timings on All Slides', run: () => act('clearRecording', 'timingsAll') }])} />
-            <Button tall icon="undo" label="Reset to Cameo" className="sl-reset-cameo" title="Reset to Cameo — the camera's recording taken off this slide, its live cameo back" onClick={() => act('resetCameo')} />
+          <Group label={t('Edit')}>
+            <Button tall icon="close" label={t('Clear Recording')} title={t('Clear — narration or timings, on this slide or every slide')} onClick={(e) => menu.open(e, [{ label: t('Clear Narration on Current Slide'), run: () => act('clearRecording', 'narrationHere') }, { label: t('Clear Narration on All Slides'), run: () => act('clearRecording', 'narrationAll') }, '-', { label: t('Clear Timings on Current Slide'), run: () => act('clearRecording', 'timingsHere') }, { label: t('Clear Timings on All Slides'), run: () => act('clearRecording', 'timingsAll') }])} />
+            <Button tall icon="undo" label={t('Reset to Cameo')} className="sl-reset-cameo" title={t("Reset to Cameo — the camera's recording taken off this slide, its live cameo back")} onClick={() => act('resetCameo')} />
           </Group>
-          <Group label="Export">
-            <Button tall icon="export" label="Save as Show" title="Save as Show — a copy as a .ppsx, which PowerPoint opens straight into the show" onClick={() => act('saveAsShow')} />
-            <Button tall icon="video" label="Export to Video" title="Export to Video — the deck played into a video file, with its timings and narrations" onClick={() => act('exportVideo')} />
+          <Group label={t('Export')}>
+            <Button tall icon="export" label={t('Save as Show')} title={t('Save as Show — a copy as a .ppsx, which PowerPoint opens straight into the show')} onClick={() => act('saveAsShow')} />
+            <Button tall icon="video" label={t('Export to Video')} title={t('Export to Video — the deck played into a video file, with its timings and narrations')} onClick={() => act('exportVideo')} />
           </Group>
-          <Group label="Help">
-            <Button tall icon="info" label="Learn More" onClick={() => act('help')} />
+          <Group label={t('Help')}>
+            <Button tall icon="info" label={t('Learn More')} onClick={() => act('help')} />
           </Group>
         </>
       ) : null}
@@ -923,40 +923,40 @@ export default function SlidesRibbon({
       {/* ── Review ───────────────────────────────────────────────────────── */}
       {tab === 'review' ? (
         <>
-          <Group label="Proofing">
-            <Button tall icon="check" label="Spelling" pressed={review?.pane === 'editor'} title="Spelling (F7) — check every slide's words and notes, from this slide" onClick={() => review?.startSpelling()} />
-            <Button tall icon="find" label="Thesaurus" pressed={review?.pane === 'thesaurus'} title="Thesaurus (Shift+F7) — words of like meaning for the word where the caret was in a shape's text" onClick={() => review?.openThesaurus()} />
+          <Group label={t('Proofing')}>
+            <Button tall icon="check" label={t('Spelling')} pressed={review?.pane === 'editor'} title={t("Spelling (F7) — check every slide's words and notes, from this slide")} onClick={() => review?.startSpelling()} />
+            <Button tall icon="find" label={t('Thesaurus')} pressed={review?.pane === 'thesaurus'} title={t("Thesaurus (Shift+F7) — words of like meaning for the word where the caret was in a shape's text")} onClick={() => review?.openThesaurus()} />
           </Group>
-          <Group label="Accessibility">
-            <Button tall icon="shield" label="Check Accessibility" pressed={review?.pane === 'accessibility'} title="Check Accessibility — alt text, slide titles, reading order, contrast and table headers, with a fix for each" onClick={() => review?.openAccessibility()} />
-            <Button icon="textbox" label="Alt Text" disabled={selected == null} title={selected == null ? 'Alt Text — select a picture or shape first, then describe it' : 'Alt Text — describe the selected object for people who cannot see it'} onClick={() => selected != null && review?.openAltText({ slide: index, shape: selected })} />
+          <Group label={t('Accessibility')}>
+            <Button tall icon="shield" label={t('Check Accessibility')} pressed={review?.pane === 'accessibility'} title={t('Check Accessibility — alt text, slide titles, reading order, contrast and table headers, with a fix for each')} onClick={() => review?.openAccessibility()} />
+            <Button icon="textbox" label={t('Alt Text')} disabled={selected == null} title={selected == null ? t('Alt Text — select a picture or shape first, then describe it') : t('Alt Text — describe the selected object for people who cannot see it')} onClick={() => selected != null && review?.openAltText({ slide: index, shape: selected })} />
           </Group>
-          <Group label="Language">
-            <Soon tall icon="globe" label="Translate" why="Translation is an online service this suite does not call." />
-            <Button tall icon="globe" label="Language" title="Language — mark the selected text box's words as a language, or as not to be checked, for Spelling here and proofing in PowerPoint" onClick={() => act('language')} />
+          <Group label={t('Language')}>
+            <Soon tall icon="globe" label={t('Translate')} why={t('Translation is an online service this suite does not call.')} />
+            <Button tall icon="globe" label={t('Language')} title={t("Language — mark the selected text box's words as a language, or as not to be checked, for Spelling here and proofing in PowerPoint")} onClick={() => act('language')} />
           </Group>
-          <Group label="Activity">
-            <Soon icon="check" label="Mark All as Read" why="A deck keeps its comments and whether each is resolved, but not who has read them, so there is nothing in the file to mark." />
-            <Button icon="eye" label="Show Changes" className="sl-show-changes" pressed={view.pane === 'changes'} title={view.changes ? `Show Changes — ${view.changes} slide${view.changes === 1 ? '' : 's'} different since this deck was last open here` : 'Show Changes — what is different about this deck since it was last open on this computer'} onClick={() => act('pane', 'changes')} />
+          <Group label={t('Activity')}>
+            <Soon icon="check" label={t('Mark All as Read')} why={t('A deck keeps its comments and whether each is resolved, but not who has read them, so there is nothing in the file to mark.')} />
+            <Button icon="eye" label={t('Show Changes')} className="sl-show-changes" pressed={view.pane === 'changes'} title={view.changes ? tn(view.changes, 'Show Changes — {count} slide different since this deck was last open here', 'Show Changes — {count} slides different since this deck was last open here') : t('Show Changes — what is different about this deck since it was last open on this computer')} onClick={() => act('pane', 'changes')} />
           </Group>
-          <Group label="Comments">
-            <Button tall icon="reply" label="New Comment" title="New Comment — on the selected shape, or on this slide; it is signed with your name" onClick={() => act('newComment')} />
+          <Group label={t('Comments')}>
+            <Button tall icon="reply" label={t('New Comment')} title={t('New Comment — on the selected shape, or on this slide; it is signed with your name')} onClick={() => act('newComment')} />
             <Rows>
-              <Button icon="trash" label="Delete" disabled={!commentCount} title={commentCount ? 'Delete — this comment, every comment on this slide, or every one in the presentation' : 'Delete — there are no comments in this presentation'} onClick={(e) => menu.open(e, [
-                { label: 'Delete Comment', icon: 'trash', run: () => act('deleteComment') },
-                { label: 'Delete All Comments on This Slide', icon: 'trash', run: () => act('deleteComments', 'slide') },
-                { label: 'Delete All Comments in This Presentation', icon: 'trash', run: () => act('deleteComments', 'all') },
+              <Button icon="trash" label={t('Delete')} disabled={!commentCount} title={commentCount ? t('Delete — this comment, every comment on this slide, or every one in the presentation') : t('Delete — there are no comments in this presentation')} onClick={(e) => menu.open(e, [
+                { label: t('Delete Comment'), icon: 'trash', run: () => act('deleteComment') },
+                { label: t('Delete All Comments on This Slide'), icon: 'trash', run: () => act('deleteComments', 'slide') },
+                { label: t('Delete All Comments in This Presentation'), icon: 'trash', run: () => act('deleteComments', 'all') },
               ])} />
-              <Button icon="chevronLeft" label="Previous" disabled={!commentCount} title={commentCount ? 'Previous — the comment before this one, across the slides' : 'Previous — there are no comments in this presentation'} onClick={() => act('commentStep', -1)} />
-              <Button icon="chevronRight" label="Next" disabled={!commentCount} title={commentCount ? 'Next — the comment after this one, across the slides' : 'Next — there are no comments in this presentation'} onClick={() => act('commentStep', 1)} />
+              <Button icon="chevronLeft" label={t('Previous')} disabled={!commentCount} title={commentCount ? t('Previous — the comment before this one, across the slides') : t('Previous — there are no comments in this presentation')} onClick={() => act('commentStep', -1)} />
+              <Button icon="chevronRight" label={t('Next')} disabled={!commentCount} title={commentCount ? t('Next — the comment after this one, across the slides') : t('Next — there are no comments in this presentation')} onClick={() => act('commentStep', 1)} />
             </Rows>
-            <Button tall icon="eye" label="Show Comments" pressed={view.pane === 'comments'} title="Show Comments — the Comments pane beside the slide" onClick={() => act('pane', 'comments')} />
+            <Button tall icon="eye" label={t('Show Comments')} pressed={view.pane === 'comments'} title={t('Show Comments — the Comments pane beside the slide')} onClick={() => act('pane', 'comments')} />
           </Group>
-          <Group label="Notes">
-            <Button tall icon="word" label="Speaker Notes" title="Speaker Notes — this slide's, shown in Presenter View" onClick={() => setNotesOpen(true)} />
+          <Group label={t('Notes')}>
+            <Button tall icon="word" label={t('Speaker Notes')} title={t("Speaker Notes — this slide's, shown in Presenter View")} onClick={() => setNotesOpen(true)} />
           </Group>
-          <Group label="Ink">
-            <Button icon="eye" label="Hide Ink" pressed={Boolean(ink?.hide)} title="Hide Ink — the slide's strokes out of sight while you work; they stay in the deck" onClick={() => act('hideInk')} />
+          <Group label={t('Ink')}>
+            <Button icon="eye" label={t('Hide Ink')} pressed={Boolean(ink?.hide)} title={t("Hide Ink — the slide's strokes out of sight while you work; they stay in the deck")} onClick={() => act('hideInk')} />
           </Group>
         </>
       ) : null}
@@ -964,48 +964,48 @@ export default function SlidesRibbon({
       {/* ── View ─────────────────────────────────────────────────────────── */}
       {tab === 'view' ? (
         <>
-          <Group label="Presentation Views">
-            <Button tall icon="slides" label="Normal" pressed={(view.mode || 'normal') === 'normal'} onClick={() => act('mode', 'normal')} />
-            <Button tall icon="list" label="Outline View" pressed={view.mode === 'outline'} title="Every slide's words, as an outline" onClick={() => act('mode', 'outline')} />
-            <Button tall icon="grid" label="Slide Sorter" pressed={view.mode === 'sorter'} title="All the slides at once — click one to open it" onClick={() => act('mode', 'sorter')} />
-            <Button tall icon="word" label="Notes Page" pressed={view.mode === 'notes'} title="The slide with its notes under it" onClick={() => act('mode', 'notes')} />
-            <Button tall icon="play" label="Reading View" title="The show in this window, not full screen" onClick={() => act('present', 'reading')} />
+          <Group label={t('Presentation Views')}>
+            <Button tall icon="slides" label={t('Normal')} pressed={(view.mode || 'normal') === 'normal'} onClick={() => act('mode', 'normal')} />
+            <Button tall icon="list" label={t('Outline View')} pressed={view.mode === 'outline'} title={t("Every slide's words, as an outline")} onClick={() => act('mode', 'outline')} />
+            <Button tall icon="grid" label={t('Slide Sorter')} pressed={view.mode === 'sorter'} title={t('All the slides at once — click one to open it')} onClick={() => act('mode', 'sorter')} />
+            <Button tall icon="word" label={t('Notes Page')} pressed={view.mode === 'notes'} title={t('The slide with its notes under it')} onClick={() => act('mode', 'notes')} />
+            <Button tall icon="play" label={t('Reading View')} title={t('The show in this window, not full screen')} onClick={() => act('present', 'reading')} />
           </Group>
-          <Group label="Master Views">
-            <Button tall icon="slides" label="Slide Master" pressed={masterView?.kind === 'slide'} title="Slide Master — edit the master and its layouts; every slide on them follows" onClick={() => act(masterView?.kind === 'slide' ? 'closeMaster' : 'masterView')} />
-            <Button tall icon="file" label="Handout Master" pressed={masterView?.kind === 'handout'} title="Handout Master — the printed handout's header, date, footer and page number, and how many slides a page shows" onClick={() => act(masterView?.kind === 'handout' ? 'closeMaster' : 'handoutMasterView')} />
-            <Button tall icon="word" label="Notes Master" pressed={masterView?.kind === 'notes'} title="Notes Master — the printed notes page: where the slide and the notes go, the notes' text styles, the header and footer" onClick={() => act(masterView?.kind === 'notes' ? 'closeMaster' : 'notesMasterView')} />
+          <Group label={t('Master Views')}>
+            <Button tall icon="slides" label={t('Slide Master')} pressed={masterView?.kind === 'slide'} title={t('Slide Master — edit the master and its layouts; every slide on them follows')} onClick={() => act(masterView?.kind === 'slide' ? 'closeMaster' : 'masterView')} />
+            <Button tall icon="file" label={t('Handout Master')} pressed={masterView?.kind === 'handout'} title={t("Handout Master — the printed handout's header, date, footer and page number, and how many slides a page shows")} onClick={() => act(masterView?.kind === 'handout' ? 'closeMaster' : 'handoutMasterView')} />
+            <Button tall icon="word" label={t('Notes Master')} pressed={masterView?.kind === 'notes'} title={t("Notes Master — the printed notes page: where the slide and the notes go, the notes' text styles, the header and footer")} onClick={() => act(masterView?.kind === 'notes' ? 'closeMaster' : 'notesMasterView')} />
           </Group>
-          <Group label="Show">
-            <Button icon="minus" label="Ruler" pressed={Boolean(view.ruler)} onClick={() => act('toggle', 'ruler')} />
-            <Button icon="grid" label="Gridlines" pressed={Boolean(view.gridlines)} onClick={() => act('toggle', 'gridlines')} />
-            <Button icon="plus" label="Guides" pressed={Boolean(view.guides)} onClick={() => act('toggle', 'guides')} />
-            <Button icon="word" label="Notes" pressed={view.notes !== false} title="The notes strip under the slide" onClick={() => act('toggle', 'notes')} />
-            <Button icon="list" label="Layers" pressed={view.pane === 'layers'} title="The slide's shapes as layers — select, reorder, hide, rename" onClick={() => act('pane', 'layers')} />
-            <Button icon="grid" label="Designs" pressed={view.pane === 'designs'} title="The deck's layouts — put this slide on one, or start a new slide from it" onClick={() => act('pane', 'designs')} />
+          <Group label={t('Show')}>
+            <Button icon="minus" label={t('Ruler')} pressed={Boolean(view.ruler)} onClick={() => act('toggle', 'ruler')} />
+            <Button icon="grid" label={t('Gridlines')} pressed={Boolean(view.gridlines)} onClick={() => act('toggle', 'gridlines')} />
+            <Button icon="plus" label={t('Guides')} pressed={Boolean(view.guides)} onClick={() => act('toggle', 'guides')} />
+            <Button icon="word" label={t('Notes')} pressed={view.notes !== false} title={t('The notes strip under the slide')} onClick={() => act('toggle', 'notes')} />
+            <Button icon="list" label={t('Layers')} pressed={view.pane === 'layers'} title={t("The slide's shapes as layers — select, reorder, hide, rename")} onClick={() => act('pane', 'layers')} />
+            <Button icon="grid" label={t('Designs')} pressed={view.pane === 'designs'} title={t("The deck's layouts — put this slide on one, or start a new slide from it")} onClick={() => act('pane', 'designs')} />
           </Group>
-          <Group label="Direction">
-            <Button icon="rotate" label="View Direction" pressed={Boolean(view.rtl)} title={view.rtl ? "View Direction — right to left: the slides on the right, the strip and the panes mirrored; click for left to right" : "View Direction — left to right; click for right to left, the slides strip on the right as a right-to-left language reads"} onClick={() => act('toggle', 'rtl')} />
+          <Group label={t('Direction')}>
+            <Button icon="rotate" label={t('View Direction')} pressed={Boolean(view.rtl)} title={view.rtl ? t("View Direction — right to left: the slides on the right, the strip and the panes mirrored; click for left to right") : t("View Direction — left to right; click for right to left, the slides strip on the right as a right-to-left language reads")} onClick={() => act('toggle', 'rtl')} />
           </Group>
-          <Group label="Zoom">
-            <Button tall icon="zoomIn" label="Zoom" onClick={(e) => menu.open(e, [50, 75, 100, 150, 200].map((z) => ({ label: `${z}%`, run: () => act('zoom', z / 100) })))} />
-            <Button tall icon="maximize" label="Fit to Window" pressed={!view.zoom} onClick={() => act('zoom', null)} />
+          <Group label={t('Zoom')}>
+            <Button tall icon="zoomIn" label={t('Zoom')} onClick={(e) => menu.open(e, [50, 75, 100, 150, 200].map((z) => ({ label: `${z}%`, run: () => act('zoom', z / 100) })))} />
+            <Button tall icon="maximize" label={t('Fit to Window')} pressed={!view.zoom} onClick={() => act('zoom', null)} />
           </Group>
-          <Group label="Colour/Greyscale">
-            <Button icon="contrast" label="Colour" pressed={!view.tone || view.tone === 'colour'} onClick={() => act('tone', 'colour')} />
-            <Button icon="contrast" label="Greyscale" pressed={view.tone === 'grey'} onClick={() => act('tone', 'grey')} />
-            <Button icon="contrast" label="Black and White" pressed={view.tone === 'mono'} onClick={() => act('tone', 'mono')} />
+          <Group label={t('Colour/Greyscale')}>
+            <Button icon="contrast" label={t('Colour')} pressed={!view.tone || view.tone === 'colour'} onClick={() => act('tone', 'colour')} />
+            <Button icon="contrast" label={t('Greyscale')} pressed={view.tone === 'grey'} onClick={() => act('tone', 'grey')} />
+            <Button icon="contrast" label={t('Black and White')} pressed={view.tone === 'mono'} onClick={() => act('tone', 'mono')} />
           </Group>
-          <Group label="Window">
-            <Button tall icon="new" label="New Window" title="This deck in a second window" onClick={() => act('newWindow')} />
-            <Button icon="grid" label="Arrange All" title="Arrange All — every Presentations window, side by side" onClick={() => act('arrange', 'columns')} />
-            <Button icon="grid" label="Cascade" title="Cascade — every Presentations window, each a step down and across from the last" onClick={() => act('arrange', 'cascade')} />
-            <Button icon="minus" label="Move Split" title="Move Split — the arrow keys move the slide pane's edge and the top of the notes; Enter or Esc when done" onClick={() => act('moveSplit')} />
-            <Button icon="list" label="Switch Windows" title="Switch Windows — the Presentations windows open now" onClick={(e) => act('switchWindows', e)} />
-            <Button icon="maximize" label="Full Screen" onClick={() => shell.win.fullscreen({})} />
+          <Group label={t('Window')}>
+            <Button tall icon="new" label={t('New Window')} title={t('This deck in a second window')} onClick={() => act('newWindow')} />
+            <Button icon="grid" label={t('Arrange All')} title={t('Arrange All — every Presentations window, side by side')} onClick={() => act('arrange', 'columns')} />
+            <Button icon="grid" label={t('Cascade')} title={t('Cascade — every Presentations window, each a step down and across from the last')} onClick={() => act('arrange', 'cascade')} />
+            <Button icon="minus" label={t('Move Split')} title={t("Move Split — the arrow keys move the slide pane's edge and the top of the notes; Enter or Esc when done")} onClick={() => act('moveSplit')} />
+            <Button icon="list" label={t('Switch Windows')} title={t('Switch Windows — the Presentations windows open now')} onClick={(e) => act('switchWindows', e)} />
+            <Button icon="maximize" label={t('Full Screen')} onClick={() => shell.win.fullscreen({})} />
           </Group>
-          <Group label="Macros">
-            <Soon tall icon="settings" label="Macros" why="VBA is preserved in the file and never run: a deck that runs code it received in an email is how ransomware starts." />
+          <Group label={t('Macros')}>
+            <Soon tall icon="settings" label={t('Macros')} why={t('VBA is preserved in the file and never run: a deck that runs code it received in an email is how ransomware starts.')} />
           </Group>
         </>
       ) : null}
@@ -1013,17 +1013,17 @@ export default function SlidesRibbon({
       {/* ── Help ─────────────────────────────────────────────────────────── */}
       {tab === 'help' ? (
         <>
-          <Group label="Help & Support">
-            <Button tall icon="info" label="Help" title="The Presentation guide on office.rutba.io" onClick={() => act('help')} />
-            <Button tall icon="send" label="Feedback" title="Tell us what is wrong or missing" onClick={() => act('feedback')} />
-            <Button tall icon="info" label="Show Training" onClick={() => act('help')} />
-            <Button tall icon="star" label="What's New" title="The release notes" onClick={() => act('releases')} />
-            <Button icon="list" label="Keyboard Shortcuts" onClick={() => act('shortcuts')} />
+          <Group label={t('Help & Support')}>
+            <Button tall icon="info" label={t('Help')} title={t('The Presentation guide on office.rutba.io')} onClick={() => act('help')} />
+            <Button tall icon="send" label={t('Feedback')} title={t('Tell us what is wrong or missing')} onClick={() => act('feedback')} />
+            <Button tall icon="info" label={t('Show Training')} onClick={() => act('help')} />
+            <Button tall icon="star" label={t("What's New")} title={t('The release notes')} onClick={() => act('releases')} />
+            <Button icon="list" label={t('Keyboard Shortcuts')} onClick={() => act('shortcuts')} />
           </Group>
-          <Group label="File">
-            <Button tall icon="new" label="New" onClick={() => shell.win.create({ app: 'slides' })} />
-            <Button tall icon="open" label="Open" onClick={openFile} />
-            <Button tall icon="save" label="Save" onClick={() => save(false)} />
+          <Group label={t('File')}>
+            <Button tall icon="new" label={t('New')} onClick={() => shell.win.create({ app: 'slides' })} />
+            <Button tall icon="open" label={t('Open')} onClick={openFile} />
+            <Button tall icon="save" label={t('Save')} onClick={() => save(false)} />
           </Group>
         </>
       ) : null}
@@ -1031,8 +1031,8 @@ export default function SlidesRibbon({
       {/* ── PDF ──────────────────────────────────────────────────────────── */}
       {tab === 'pdf' ? (
         <>
-          <Group label="Export">
-            <Button tall icon="pdf" label="Export as PDF" title="Every slide as a page, drawn exactly as the stage draws it" onClick={() => exportAs('pdf')} />
+          <Group label={t('Export')}>
+            <Button tall icon="pdf" label={t('Export as PDF')} title={t('Every slide as a page, drawn exactly as the stage draws it')} onClick={() => exportAs('pdf')} />
           </Group>
         </>
       ) : null}
@@ -1044,25 +1044,25 @@ export default function SlidesRibbon({
         const rows = [MODEL_VIEWS.slice(0, 4), MODEL_VIEWS.slice(4, 7), MODEL_VIEWS.slice(7)];
         return (
           <>
-            <Group label="3D Model Views">
+            <Group label={t('3D Model Views')}>
               {rows.map((row, i) => (
                 <Rows key={i}>
-                  {row.map(([key, label, view]) => <Button key={key} icon={at(view) ? 'check' : 'shape'} label={label} className="sl-model3d-view" data-view={key} pressed={at(view)} title={`${label} — the model turned to show it from there`} onClick={() => act('model3dView', view)} />)}
+                  {row.map(([key, label, view]) => <Button key={key} icon={at(view) ? 'check' : 'shape'} label={t(label)} className="sl-model3d-view" data-view={key} pressed={at(view)} title={t('{label} — the model turned to show it from there', { label: t(label) })} onClick={() => act('model3dView', view)} />)}
                 </Rows>
               ))}
             </Group>
-            <Group label="Turn">
+            <Group label={t('Turn')}>
               <Rows>
-                <Button icon="chevronLeft" label="Turn Left" className="sl-model3d-turn-left" title="Turn Left — fifteen degrees about its upright" onClick={() => act('model3dView', { turn: { yaw: -15, pitch: 0 } })} />
-                <Button icon="chevronRight" label="Turn Right" title="Turn Right — fifteen degrees about its upright" onClick={() => act('model3dView', { turn: { yaw: 15, pitch: 0 } })} />
+                <Button icon="chevronLeft" label={t('Turn Left')} className="sl-model3d-turn-left" title={t('Turn Left — fifteen degrees about its upright')} onClick={() => act('model3dView', { turn: { yaw: -15, pitch: 0 } })} />
+                <Button icon="chevronRight" label={t('Turn Right')} title={t('Turn Right — fifteen degrees about its upright')} onClick={() => act('model3dView', { turn: { yaw: 15, pitch: 0 } })} />
               </Rows>
               <Rows>
-                <Button icon="chevronUp" label="Tip Back" title="Tip Back — fifteen degrees, the top towards you" onClick={() => act('model3dView', { turn: { yaw: 0, pitch: 15 } })} />
-                <Button icon="chevronDown" label="Tip Forward" title="Tip Forward — fifteen degrees, the bottom towards you" onClick={() => act('model3dView', { turn: { yaw: 0, pitch: -15 } })} />
+                <Button icon="chevronUp" label={t('Tip Back')} title={t('Tip Back — fifteen degrees, the top towards you')} onClick={() => act('model3dView', { turn: { yaw: 0, pitch: 15 } })} />
+                <Button icon="chevronDown" label={t('Tip Forward')} title={t('Tip Forward — fifteen degrees, the bottom towards you')} onClick={() => act('model3dView', { turn: { yaw: 0, pitch: -15 } })} />
               </Rows>
             </Group>
-            <Group label="Adjust">
-              <Button tall icon="undo" label="Reset 3D Model" className="sl-model3d-reset" title="Reset 3D Model — back to the view it was put in at" onClick={() => act('model3dView', 'reset')} />
+            <Group label={t('Adjust')}>
+              <Button tall icon="undo" label={t('Reset 3D Model')} className="sl-model3d-reset" title={t('Reset 3D Model — back to the view it was put in at')} onClick={() => act('model3dView', 'reset')} />
             </Group>
           </>
         );
@@ -1072,24 +1072,24 @@ export default function SlidesRibbon({
       {/* ── Shape Format (contextual): WordArt's Transform ──────────────── */}
       {tab === 'shapeFormat' && selectedShapeObj?.kind === 'shape' && selectedShapeObj?.text ? (
         <>
-          <Group label="Text Effects: Transform">
+          <Group label={t('Text Effects: Transform')}>
             {WARP_PRESETS.map((p) => (
-              <Button key={p.id} tall icon="wand" label={p.label} className="sl-warp" data-preset={p.id} pressed={(selectedShapeObj.text.warp?.preset || 'textNoShape') === p.id} title={p.id === 'textNoShape' ? 'No Transform — the words in straight lines' : `Transform — the words along ${p.label === 'Button' ? 'a button: an arc, a line and an arc' : `the ${p.label === 'Circle' ? 'circle' : 'arc'} of the shape`}`} onClick={() => act('textWarp', p.id)} />
+              <Button key={p.id} tall icon="wand" label={t(p.label)} className="sl-warp" data-preset={p.id} pressed={(selectedShapeObj.text.warp?.preset || 'textNoShape') === p.id} title={p.id === 'textNoShape' ? t('No Transform — the words in straight lines') : p.label === 'Button' ? t('Transform — the words along a button: an arc, a line and an arc') : p.label === 'Circle' ? t('Transform — the words along the circle of the shape') : t('Transform — the words along the arc of the shape')} onClick={() => act('textWarp', p.id)} />
             ))}
             {/* The warps, the rest of Office's gallery, from a menu. */}
-            <Button tall icon="wand" label="More" className="sl-warp-more" pressed={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset)} title={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset) ? `Transform — now ${warpLabel(selectedShapeObj.text.warp?.preset)}; the warps: the words stretched between two curves` : 'More Transforms — the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest'} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: p.label, icon: selectedShapeObj.text.warp?.preset === p.id ? 'check' : 'wand', run: () => act('textWarp', p.id) })))} />
+            <Button tall icon="wand" label={t('More')} className="sl-warp-more" pressed={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset)} title={WARP_MORE.some((p) => p.id === selectedShapeObj.text.warp?.preset) ? t('Transform — now {name}; the warps: the words stretched between two curves', { name: t(warpLabel(selectedShapeObj.text.warp?.preset)) }) : t('More Transforms — the warps: the words stretched between two curves, a wave, a slant, a chevron and the rest')} onClick={(e) => menu.open(e, WARP_MORE.map((p) => ({ label: t(p.label), icon: selectedShapeObj.text.warp?.preset === p.id ? 'check' : 'wand', run: () => act('textWarp', p.id) })))} />
           </Group>
         </>
       ) : null}
 
       {tab === 'cameraFormat' && selectedShapeObj?.cameo ? (
         <>
-          <Group label="Camera">
-            <Button tall icon="eye" label="Preview" className="sl-cameo-preview" pressed={Boolean(view.cameoPreview)} title={view.cameoPreview ? 'Preview — the camera is on here; press to turn it off' : 'Preview — the camera, live, in the cameo here on the slide'} onClick={() => act('cameoPreview')} />
+          <Group label={t('Camera')}>
+            <Button tall icon="eye" label={t('Preview')} className="sl-cameo-preview" pressed={Boolean(view.cameoPreview)} title={view.cameoPreview ? t('Preview — the camera is on here; press to turn it off') : t('Preview — the camera, live, in the cameo here on the slide')} onClick={() => act('cameoPreview')} />
           </Group>
-          <Group label="Camera Styles">
-            {[['rect', 'Rectangle'], ['ellipse', 'Oval'], ['roundRect', 'Rounded Rectangle']].map(([preset, label]) => (
-              <Button key={preset} tall icon="shape" label={label} className="sl-cameo-shape" data-preset={preset} pressed={selectedShapeObj.preset === preset} title={`Camera Shape — the cameo as a ${label.toLowerCase()}`} onClick={() => act('cameoShape', preset)} />
+          <Group label={t('Camera Styles')}>
+            {[['rect', t('Rectangle')], ['ellipse', t('Oval')], ['roundRect', t('Rounded Rectangle')]].map(([preset, label]) => (
+              <Button key={preset} tall icon="shape" label={label} className="sl-cameo-shape" data-preset={preset} pressed={selectedShapeObj.preset === preset} title={t('Camera Shape — the cameo as a {shape}', { shape: label.toLowerCase() })} onClick={() => act('cameoShape', preset)} />
             ))}
           </Group>
         </>
@@ -1101,21 +1101,21 @@ export default function SlidesRibbon({
         const toggle = (name, label, why) => <Button icon={flags[name] ? 'check' : undefined} label={label} pressed={Boolean(flags[name])} title={why} onClick={() => act('tableLook', { [name]: !flags[name] })} />;
         return (
           <>
-            <Group label="Table Style Options">
+            <Group label={t('Table Style Options')}>
               <Rows>
-                {toggle('firstRow', 'Header Row', 'Header Row — the first row in its style\'s header look')}
-                {toggle('lastRow', 'Total Row', 'Total Row — the last row in its style\'s total look')}
-                {toggle('bandRow', 'Banded Rows', 'Banded Rows — every other row shaded, as the style bands them')}
+                {toggle('firstRow', t('Header Row'), t('Header Row — the first row in its style\'s header look'))}
+                {toggle('lastRow', t('Total Row'), t('Total Row — the last row in its style\'s total look'))}
+                {toggle('bandRow', t('Banded Rows'), t('Banded Rows — every other row shaded, as the style bands them'))}
               </Rows>
               <Rows>
-                {toggle('firstCol', 'First Column', 'First Column — the first column in its style\'s look')}
-                {toggle('lastCol', 'Last Column', 'Last Column — the last column in its style\'s look')}
-                {toggle('bandCol', 'Banded Columns', 'Banded Columns — every other column shaded, as the style bands them')}
+                {toggle('firstCol', t('First Column'), t('First Column — the first column in its style\'s look'))}
+                {toggle('lastCol', t('Last Column'), t('Last Column — the last column in its style\'s look'))}
+                {toggle('bandCol', t('Banded Columns'), t('Banded Columns — every other column shaded, as the style bands them'))}
               </Rows>
             </Group>
-            <Group label="Shading">
-              <Button tall icon="wand" label="Shading" title="Shading — the cell last typed in, or every cell of the table" onClick={(e) => menu.open(e, [
-                { label: 'No Fill', icon: 'close', run: () => act('tableShading', { fill: null }) },
+            <Group label={t('Shading')}>
+              <Button tall icon="wand" label={t('Shading')} title={t('Shading — the cell last typed in, or every cell of the table')} onClick={(e) => menu.open(e, [
+                { label: t('No Fill'), icon: 'close', run: () => act('tableShading', { fill: null }) },
                 '-',
                 ...COLOURS.map(([hex, label]) => ({ label, run: () => act('tableShading', { fill: hex }) })),
               ])} />

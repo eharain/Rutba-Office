@@ -3,7 +3,7 @@
 // that say where each thread is anchored, as PowerPoint 365 draws them.
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Button, Icon } from '@rutba/office-ui';
+import { Button, Icon, t, tn } from '@rutba/office-ui';
 
 /** A person's colour: the same name, the same colour, every time. */
 export function personColour(name) {
@@ -19,9 +19,9 @@ export function whenOf(created) {
   const d = new Date(/Z|[+-]\d\d:?\d\d$/.test(created) ? created : `${created}Z`);
   if (Number.isNaN(d.getTime())) return '';
   const mins = Math.round((Date.now() - d.getTime()) / 60000);
-  if (mins < 1) return 'Just now';
-  if (mins < 60) return `${mins} min ago`;
-  if (mins < 60 * 12) return `${Math.round(mins / 60)} h ago`;
+  if (mins < 1) return t('Just now');
+  if (mins < 60) return tn(mins, '{count} min ago', '{count} min ago');
+  if (mins < 60 * 12) return tn(Math.round(mins / 60), '{count} h ago', '{count} h ago');
   return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
 }
 
@@ -30,7 +30,7 @@ const Avatar = ({ name, initials, size = 26 }) => (
 );
 
 /** A box that posts on Ctrl+Enter, the pane's composer and every reply box. */
-function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, className = '', label = 'Post' }) {
+function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, className = '', label = t('Post') }) {
   const [text, setText] = useState('');
   const ref = useRef(null);
   useEffect(() => { if (autoFocus) ref.current?.focus(); }, [autoFocus]);
@@ -55,7 +55,7 @@ function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, cla
         }}
       />
       <div className="sl-cm-compose-actions">
-        {onCancel ? <Button label="Cancel" className="sl-cm-cancel" onClick={onCancel} /> : null}
+        {onCancel ? <Button label={t('Cancel')} className="sl-cm-cancel" onClick={onCancel} /> : null}
         <Button primary label={label} className="sl-cm-post" disabled={!text.trim()} title={`${label} (Ctrl+Enter)`} onClick={post} />
       </div>
     </div>
@@ -69,7 +69,7 @@ function Composer({ placeholder, onPost, onCancel = null, autoFocus = false, cla
  * offers Delete only, as PowerPoint 365 does.
  */
 export function CommentsPane({ threads, draft, selected, shapes, me, onSelect, onPost, onCancelDraft, onReply, onResolve, onDelete, onDeleteReply, onNew }) {
-  const shapeName = (id) => shapes.find((s) => String(s.id) === String(id))?.name || 'a shape';
+  const shapeName = (id) => shapes.find((s) => String(s.id) === String(id))?.name || t('a shape');
   const listRef = useRef(null);
   useEffect(() => {
     if (!selected || !listRef.current) return;
@@ -78,62 +78,62 @@ export function CommentsPane({ threads, draft, selected, shapes, me, onSelect, o
   return (
     <div className="sl-cm-pane">
       <div className="sl-cm-tools">
-        <Button icon="plus" label="New" title="New comment — on the selected shape, or on the slide" className="sl-cm-new" onClick={onNew} />
-        <span className="sl-cm-count">{threads.length ? `${threads.length} on this slide` : ''}</span>
+        <Button icon="plus" label={t('New')} title={t('New comment — on the selected shape, or on the slide')} className="sl-cm-new" onClick={onNew} />
+        <span className="sl-cm-count">{threads.length ? tn(threads.length, '{count} on this slide', '{count} on this slide') : ''}</span>
       </div>
       <div className="sl-cm-list" ref={listRef}>
         {draft ? (
           <div className="sl-cm-card sl-cm-draft">
             <div className="sl-cm-head">
               <Avatar name={me} initials={initialsFrom(me)} />
-              <div className="sl-cm-who"><span className="sl-cm-name">{me}</span><span className="sl-cm-anchor">{draft.shape != null ? `On ${shapeName(draft.shape)}` : 'On this slide'}</span></div>
+              <div className="sl-cm-who"><span className="sl-cm-name">{me}</span><span className="sl-cm-anchor">{draft.shape != null ? t('On {shape}', { shape: shapeName(draft.shape) }) : t('On this slide')}</span></div>
             </div>
-            <Composer autoFocus placeholder="Type your comment…" onPost={onPost} onCancel={onCancelDraft} className="sl-cm-draftbox" />
+            <Composer autoFocus placeholder={t('Type your comment…')} onPost={onPost} onCancel={onCancelDraft} className="sl-cm-draftbox" />
           </div>
         ) : null}
         {!threads.length && !draft ? (
           <div className="sl-cm-empty">
             <Icon name="reply" size={22} />
-            <div>No comments on this slide.</div>
-            <Button label="New Comment" className="sl-cm-new-empty" onClick={onNew} />
+            <div>{t('No comments on this slide.')}</div>
+            <Button label={t('New Comment')} className="sl-cm-new-empty" onClick={onNew} />
           </div>
         ) : null}
-        {threads.map((t) => (
+        {threads.map((th) => (
           <div
-            key={t.id}
-            className={`sl-cm-card${selected === t.id ? ' selected' : ''}${t.status === 'resolved' ? ' resolved' : ''}${t.legacy ? ' legacy' : ''}`}
-            data-comment={t.id}
-            onMouseDown={() => onSelect(t.id)}
+            key={th.id}
+            className={`sl-cm-card${selected === th.id ? ' selected' : ''}${th.status === 'resolved' ? ' resolved' : ''}${th.legacy ? ' legacy' : ''}`}
+            data-comment={th.id}
+            onMouseDown={() => onSelect(th.id)}
           >
             <div className="sl-cm-head">
-              <Avatar name={t.author} initials={t.initials} />
+              <Avatar name={th.author} initials={th.initials} />
               <div className="sl-cm-who">
-                <span className="sl-cm-name">{t.author}</span>
-                <span className="sl-cm-anchor">{whenOf(t.created)}{t.shapeId != null ? ` · on ${shapeName(t.shapeId)}` : ''}</span>
+                <span className="sl-cm-name">{th.author}</span>
+                <span className="sl-cm-anchor">{whenOf(th.created)}{th.shapeId != null ? ` · ${t('on {shape}', { shape: shapeName(th.shapeId) })}` : ''}</span>
               </div>
               <div className="sl-cm-actions">
-                {!t.legacy ? (
-                  <button type="button" className="sl-cm-act sl-cm-resolve" data-tip={t.status === 'resolved' ? 'Reopen this thread' : 'Resolve this thread'} aria-label={t.status === 'resolved' ? 'Reopen this thread' : 'Resolve this thread'} onClick={(e) => { e.stopPropagation(); onResolve(t, t.status !== 'resolved'); }}>
-                    <Icon name={t.status === 'resolved' ? 'refresh' : 'check'} size={14} />
+                {!th.legacy ? (
+                  <button type="button" className="sl-cm-act sl-cm-resolve" data-tip={th.status === 'resolved' ? t('Reopen this thread') : t('Resolve this thread')} aria-label={th.status === 'resolved' ? t('Reopen this thread') : t('Resolve this thread')} onClick={(e) => { e.stopPropagation(); onResolve(th, th.status !== 'resolved'); }}>
+                    <Icon name={th.status === 'resolved' ? 'refresh' : 'check'} size={14} />
                   </button>
                 ) : null}
-                <button type="button" className="sl-cm-act sl-cm-delete" data-tip="Delete this thread" aria-label="Delete this thread" onClick={(e) => { e.stopPropagation(); onDelete(t); }}>
+                <button type="button" className="sl-cm-act sl-cm-delete" data-tip={t('Delete this thread')} aria-label={t('Delete this thread')} onClick={(e) => { e.stopPropagation(); onDelete(th); }}>
                   <Icon name="trash" size={14} />
                 </button>
               </div>
             </div>
-            {t.status === 'resolved' ? <div className="sl-cm-badge">Resolved</div> : null}
-            <div className="sl-cm-text">{t.text}</div>
-            {t.replies.length ? (
+            {th.status === 'resolved' ? <div className="sl-cm-badge">{t('Resolved')}</div> : null}
+            <div className="sl-cm-text">{th.text}</div>
+            {th.replies.length ? (
               <div className="sl-cm-replies">
-                {t.replies.map((r) => (
+                {th.replies.map((r) => (
                   <div key={r.id} className="sl-cm-reply" data-reply={r.id}>
                     <div className="sl-cm-head">
                       <Avatar name={r.author} initials={r.initials} size={22} />
                       <div className="sl-cm-who"><span className="sl-cm-name">{r.author}</span><span className="sl-cm-anchor">{whenOf(r.created)}</span></div>
-                      {!t.legacy ? (
+                      {!th.legacy ? (
                         <div className="sl-cm-actions">
-                          <button type="button" className="sl-cm-act sl-cm-delete-reply" data-tip="Delete this reply" aria-label="Delete this reply" onClick={(e) => { e.stopPropagation(); onDeleteReply(t, r); }}><Icon name="trash" size={13} /></button>
+                          <button type="button" className="sl-cm-act sl-cm-delete-reply" data-tip={t('Delete this reply')} aria-label={t('Delete this reply')} onClick={(e) => { e.stopPropagation(); onDeleteReply(th, r); }}><Icon name="trash" size={13} /></button>
                         </div>
                       ) : null}
                     </div>
@@ -142,10 +142,10 @@ export function CommentsPane({ threads, draft, selected, shapes, me, onSelect, o
                 ))}
               </div>
             ) : null}
-            {t.legacy ? (
-              <div className="sl-cm-note">Made in an older version of PowerPoint: it can be read and deleted, not replied to.</div>
-            ) : t.status === 'resolved' ? null : selected === t.id ? (
-              <Composer placeholder="Reply…" label="Reply" className="sl-cm-replybox" onPost={(text) => onReply(t, text)} />
+            {th.legacy ? (
+              <div className="sl-cm-note">{t('Made in an older version of PowerPoint: it can be read and deleted, not replied to.')}</div>
+            ) : th.status === 'resolved' ? null : selected === th.id ? (
+              <Composer placeholder={t('Reply…')} label={t('Reply')} className="sl-cm-replybox" onPost={(text) => onReply(th, text)} />
             ) : null}
           </div>
         ))}

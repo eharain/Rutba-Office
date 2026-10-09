@@ -12,7 +12,7 @@
 // says so rather than pretending otherwise.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Ribbon, Group, Button, Icon, Spacer, Chip, Empty, Panel, Content, Field, useToast, useCommands, formatBytes, basename } from '@rutba/office-ui';
+import { Ribbon, Group, Button, Icon, Spacer, Chip, Empty, Panel, Content, Field, useToast, useCommands, formatBytes, basename, t, tn } from '@rutba/office-ui';
 import { Timeline, timecode, clipDuration } from '@rutba/media/timeline';
 import { AppFrame, useAppMenu, pickOpen, useFileDrop } from '../shell.js';
 
@@ -138,7 +138,7 @@ export default function VideoTool({ app, shell, boot }) {
   const split = useCallback(() => {
     if (!timeline) return;
     setTimeline(timeline.split(time));
-    toast('Split at the playhead');
+    toast(t('Split at the playhead'));
   }, [timeline, time, toast]);
 
   const trimTo = useCallback(
@@ -147,7 +147,7 @@ export default function VideoTool({ app, shell, boot }) {
       const found = timeline.locate(time);
       if (!found) return;
       setTimeline(timeline.trim(found.clip.id, edge === 'start' ? { start: found.sourceTime } : { end: found.sourceTime }));
-      toast(edge === 'start' ? 'Trimmed the start' : 'Trimmed the end');
+      toast(edge === 'start' ? t('Trimmed the start') : t('Trimmed the end'));
     },
     [timeline, time, toast]
   );
@@ -163,9 +163,9 @@ export default function VideoTool({ app, shell, boot }) {
     const el = videoRef.current;
     if (!el || !timeline) return;
     const target = await shell.dialog.save({
-      title: 'Export video',
+      title: t('Export video'),
       defaultPath: (path || 'video').replace(/\.[^.]+$/, '') + '-edited.webm',
-      filters: [{ name: 'WebM video', extensions: ['webm'] }],
+      filters: [{ name: t('WebM video'), extensions: ['webm'] }],
     });
     if (!target) return;
 
@@ -228,19 +228,19 @@ export default function VideoTool({ app, shell, boot }) {
     await shell.fs.write({ path: target, bytes });
     setExporting(null);
     if (wasPlaying) el.play();
-    toast(`Exported ${basename(target)} — ${formatBytes(bytes.length)}`, { tone: 'good', ms: 6000 });
+    toast(t('Exported {name} — {size}', { name: basename(target), size: formatBytes(bytes.length) }), { tone: 'good', ms: 6000 });
   }, [timeline, path, shell, toast]);
 
   const commands = useMemo(
     () => ({
-      'file.open': { label: 'Open…', icon: 'open', key: 'Mod+O', run: openFile },
-      'play.toggle': { label: 'Play or pause', icon: 'play', key: ' ', run: play },
-      'play.back': { label: 'Back 5 seconds', icon: 'skipBack', key: 'arrowleft', run: () => seek(time - 5) },
-      'play.forward': { label: 'Forward 5 seconds', icon: 'skipForward', key: 'arrowright', run: () => seek(time + 5) },
-      'edit.split': { label: 'Split here', icon: 'scissors', key: 's', run: split },
-      'edit.trimStart': { label: 'Trim start to here', icon: 'crop', key: 'i', run: () => trimTo('start') },
-      'edit.trimEnd': { label: 'Trim end to here', icon: 'crop', key: 'o', run: () => trimTo('end') },
-      'file.export': { label: 'Export…', icon: 'export', key: 'Mod+E', run: exportVideo },
+      'file.open': { label: t('Open…'), icon: 'open', key: 'Mod+O', run: openFile },
+      'play.toggle': { label: t('Play or pause'), icon: 'play', key: ' ', run: play },
+      'play.back': { label: t('Back 5 seconds'), icon: 'skipBack', key: 'arrowleft', run: () => seek(time - 5) },
+      'play.forward': { label: t('Forward 5 seconds'), icon: 'skipForward', key: 'arrowright', run: () => seek(time + 5) },
+      'edit.split': { label: t('Split here'), icon: 'scissors', key: 's', run: split },
+      'edit.trimStart': { label: t('Trim start to here'), icon: 'crop', key: 'i', run: () => trimTo('start') },
+      'edit.trimEnd': { label: t('Trim end to here'), icon: 'crop', key: 'o', run: () => trimTo('end') },
+      'file.export': { label: t('Export…'), icon: 'export', key: 'Mod+E', run: exportVideo },
     }),
     [openFile, play, seek, time, split, trimTo, exportVideo]
   );
@@ -254,27 +254,27 @@ export default function VideoTool({ app, shell, boot }) {
     <AppFrame
       app={app}
       shell={shell}
-      title={path ? basename(path) : 'Video'}
+      title={path ? basename(path) : t('Video')}
       menu={appMenu}
       ribbon={
         <Ribbon
-          tabs={[{ id: 'home', label: 'Home' }, { id: 'edit', label: 'Edit' }]}
+          tabs={[{ id: 'home', label: t('Home') }, { id: 'edit', label: t('Edit') }]}
           active={tab}
           onTab={setTab}
-          quick={<Button icon={playing ? 'pause' : 'play'} title="Play" onClick={play} disabled={!path} />}
+          quick={<Button icon={playing ? 'pause' : 'play'} title={t('Play')} onClick={play} disabled={!path} />}
         >
           {tab === 'home' ? (
             <>
-              <Group label="File">
-                <Button tall icon="open" label="Open" onClick={openFile} />
-                <Button tall icon="export" label="Export" disabled={!timeline} onClick={exportVideo} />
+              <Group label={t('File')}>
+                <Button tall icon="open" label={t('Open')} onClick={openFile} />
+                <Button tall icon="export" label={t('Export')} disabled={!timeline} onClick={exportVideo} />
               </Group>
-              <Group label="Playback">
-                <Button icon="skipBack" label="-5s" disabled={!path} onClick={() => seek(time - 5)} />
-                <Button icon={playing ? 'pause' : 'play'} label={playing ? 'Pause' : 'Play'} disabled={!path} onClick={play} />
-                <Button icon="skipForward" label="+5s" disabled={!path} onClick={() => seek(time + 5)} />
+              <Group label={t('Playback')}>
+                <Button icon="skipBack" label={t('-5s')} disabled={!path} onClick={() => seek(time - 5)} />
+                <Button icon={playing ? 'pause' : 'play'} label={playing ? t('Pause') : t('Play')} disabled={!path} onClick={play} />
+                <Button icon="skipForward" label={t('+5s')} disabled={!path} onClick={() => seek(time + 5)} />
               </Group>
-              <Group label="Speed">
+              <Group label={t('Speed')}>
                 {[0.5, 1, 1.5, 2].map((r) => (
                   <Button
                     key={r}
@@ -291,15 +291,15 @@ export default function VideoTool({ app, shell, boot }) {
             </>
           ) : (
             <>
-              <Group label="Cut">
-                <Button tall icon="scissors" label="Split" disabled={!timeline} onClick={split} />
-                <Button tall icon="crop" label="Trim start" disabled={!timeline} onClick={() => trimTo('start')} />
-                <Button tall icon="crop" label="Trim end" disabled={!timeline} onClick={() => trimTo('end')} />
+              <Group label={t('Cut')}>
+                <Button tall icon="scissors" label={t('Split')} disabled={!timeline} onClick={split} />
+                <Button tall icon="crop" label={t('Trim start')} disabled={!timeline} onClick={() => trimTo('start')} />
+                <Button tall icon="crop" label={t('Trim end')} disabled={!timeline} onClick={() => trimTo('end')} />
               </Group>
-              <Group label="Clip">
+              <Group label={t('Clip')}>
                 <Button
                   icon="trash"
-                  label="Remove"
+                  label={t('Remove')}
                   disabled={!selected || layout.length < 2}
                   onClick={() => {
                     setTimeline(timeline.remove(selected));
@@ -313,24 +313,24 @@ export default function VideoTool({ app, shell, boot }) {
       }
       status={
         <>
-          <span>{path || 'No media open'}</span>
+          <span>{path || t('No media open')}</span>
           <Spacer />
-          {exporting ? <span role="status" aria-live="polite"><Chip>Exporting {timecode(exporting.done)} of {timecode(exporting.total)}</Chip></span> : null}
-          {timeline ? <Chip>{layout.length} clips</Chip> : null}
+          {exporting ? <span role="status" aria-live="polite"><Chip>{t('Exporting {done} of {total}', { done: timecode(exporting.done), total: timecode(exporting.total) })}</Chip></span> : null}
+          {timeline ? <Chip>{tn(layout.length, '{count} clip', '{count} clips')}</Chip> : null}
           <Chip>{timecode(time)} / {timecode(timeline ? timeline.duration : duration)}</Chip>
           {stat ? <Chip>{formatBytes(stat.size)}</Chip> : null}
         </>
       }
     >
       {!path ? (
-        <Empty icon="video" title="No media open">
-          Open a video or an audio file, or drop one onto this window.
-          <Button primary icon="open" label="Open media" onClick={openFile} style={{ marginTop: 12 }} />
+        <Empty icon="video" title={t('No media open')}>
+          {t('Open a video or an audio file, or drop one onto this window.')}
+          <Button primary icon="open" label={t('Open media')} onClick={openFile} style={{ marginTop: 12 }} />
         </Empty>
       ) : error ? (
-        <Empty icon="video" title="This file could not be opened">
+        <Empty icon="video" title={t('This file could not be opened')}>
           {error}
-          <Button icon="open" label="Open another" onClick={openFile} style={{ marginTop: 12 }} />
+          <Button icon="open" label={t('Open another')} onClick={openFile} style={{ marginTop: 12 }} />
         </Empty>
       ) : (
         <Content>
@@ -353,10 +353,10 @@ export default function VideoTool({ app, shell, boot }) {
                 const name = basename(path);
                 setError(
                   code === 3
-                    ? `${name} is damaged: the decoder stopped part way through it.`
+                    ? t('{name} is damaged: the decoder stopped part way through it.', { name })
                     : code === 2
-                      ? `${name} could not be read from disk.`
-                      : `${name} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.`
+                      ? t('{name} could not be read from disk.', { name })
+                      : t('{name} is not a video or sound file this machine can play. It may be in a format with no decoder installed, or it may not be media at all despite its name.', { name })
                 );
               }}
               // Not while a seek is pending: the element still reports the old
@@ -372,7 +372,7 @@ export default function VideoTool({ app, shell, boot }) {
           </div>
 
           <div className="vd-transport">
-            <Button icon={playing ? 'pause' : 'play'} onClick={play} title="Play" />
+            <Button icon={playing ? 'pause' : 'play'} onClick={play} title={t('Play')} />
             <span className="vd-time">{timecode(time)}</span>
             <input
               className="vd-scrub"
@@ -425,8 +425,7 @@ export default function VideoTool({ app, shell, boot }) {
                 />
               </div>
               <div className="rw-hint" style={{ padding: '6px 12px' }}>
-                Export writes WebM using the browser engine's own recorder, so there is no ffmpeg in the
-                download — and it takes about as long as the video runs.
+                {t("Export writes WebM using the browser engine's own recorder, so there is no ffmpeg in the download — and it takes about as long as the video runs.")}
               </div>
             </div>
           ) : null}

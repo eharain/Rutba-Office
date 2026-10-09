@@ -7,10 +7,10 @@
 // change lays the pivot out again at once, as Excel's does.
 
 import React from 'react';
-import { Button } from '@rutba/office-ui';
+import { Button, t } from '@rutba/office-ui';
 
-export const SUMMARIES = [['sum', 'Sum'], ['count', 'Count'], ['average', 'Average'], ['max', 'Max'], ['min', 'Min'], ['product', 'Product']];
-const AREAS = [['rows', 'Rows'], ['cols', 'Columns'], ['values', 'Values']];
+export const SUMMARIES = [['sum', t('Sum')], ['count', t('Count')], ['average', t('Average')], ['max', t('Max')], ['min', t('Min')], ['product', t('Product')]];
+const AREAS = [['rows', t('Rows')], ['cols', t('Columns')], ['values', t('Values')]];
 
 /** The layout as the pane holds it: names in rows and columns, `{ field, subtotal }` in values. */
 export function layoutOf(pivot) {
@@ -58,7 +58,7 @@ export function PivotFieldsPane({ pivot, numeric = () => false, onChange }) {
   };
   return (
     <div className="sh-pf" data-pivot={pivot.name}>
-      <div className="sh-pf-lead">Choose fields to add to the report:</div>
+      <div className="sh-pf-lead">{t('Choose fields to add to the report:')}</div>
       <div className="sh-pf-fields" role="list">
         {(pivot.fields || []).map((field) => (
           <label key={field} className="sh-pf-field" role="listitem">
@@ -74,22 +74,22 @@ export function PivotFieldsPane({ pivot, numeric = () => false, onChange }) {
             const field = area === 'values' ? item.field : item;
             return (
               <div key={field + ':' + i} className="sh-pf-item" data-field={field}>
-                <span className="sh-pf-name">{area === 'values' ? `${SUMMARIES.find(([k]) => k === item.subtotal)?.[1] || 'Sum'} of ${field}` : field}</span>
+                <span className="sh-pf-name">{area === 'values' ? t('{summary} of {field}', { summary: SUMMARIES.find(([k]) => k === item.subtotal)?.[1] || t('Sum'), field }) : field}</span>
                 {area === 'values' ? (
-                  <select className="sh-pf-sum" value={item.subtotal} title="Summarise values by" onChange={(e) => summarise(i, e.target.value)}>
+                  <select className="sh-pf-sum" value={item.subtotal} title={t('Summarise values by')} onChange={(e) => summarise(i, e.target.value)}>
                     {SUMMARIES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
                   </select>
                 ) : null}
-                <Button icon="chevronUp" title="Move up" disabled={i === 0} onClick={() => move(area, i, -1)} />
-                <Button icon="chevronDown" title="Move down" disabled={i === layout[area].length - 1} onClick={() => move(area, i, 1)} />
-                <select className="sh-pf-to" value="" title="Move to another area" onChange={(e) => { if (e.target.value) moveTo(area, i, e.target.value); }}>
-                  <option value="">Move to…</option>
+                <Button icon="chevronUp" title={t('Move up')} disabled={i === 0} onClick={() => move(area, i, -1)} />
+                <Button icon="chevronDown" title={t('Move down')} disabled={i === layout[area].length - 1} onClick={() => move(area, i, 1)} />
+                <select className="sh-pf-to" value="" title={t('Move to another area')} onChange={(e) => { if (e.target.value) moveTo(area, i, e.target.value); }}>
+                  <option value="">{t('Move to…')}</option>
                   {AREAS.filter(([a]) => a !== area).map(([a, label]) => <option key={a} value={a}>{label}</option>)}
                 </select>
-                <Button icon="close" title="Remove field" disabled={area === 'values' && layout.values.length === 1} onClick={() => remove(area, i)} />
+                <Button icon="close" title={t('Remove field')} disabled={area === 'values' && layout.values.length === 1} onClick={() => remove(area, i)} />
               </div>
             );
-          }) : <div className="sh-pf-empty">None — tick a field above, or move one here.</div>}
+          }) : <div className="sh-pf-empty">{t('None — tick a field above, or move one here.')}</div>}
         </div>
       ))}
     </div>

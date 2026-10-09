@@ -6,6 +6,8 @@
 // is a pure function of numbers, which is what lets the engine suite hold it
 // to account without opening a window.
 
+import { t } from '@rutba/office-ui/messages';
+
 /** Everything the viewer will open. */
 export const STILL = ['.jpg', '.jpeg', '.jpe', '.png', '.bmp', '.tif', '.tiff', '.ico', '.svg', '.avif', '.heic', '.heif'];
 export const ANIMATED = ['.gif', '.webp', '.apng'];
@@ -31,11 +33,11 @@ export function kindOf(file) {
 
 /** The filter chips: a family each, with what it covers. */
 export const FAMILIES = [
-  { id: 'all', label: 'All' },
-  { id: 'pictures', label: 'Pictures', kinds: ['still', 'maybe-animated'] },
-  { id: 'video', label: 'Videos', kinds: ['video'] },
-  { id: 'audio', label: 'Audio', kinds: ['audio'] },
-  { id: 'pdf', label: 'PDF', kinds: ['pdf'] },
+  { id: 'all', label: t('All') },
+  { id: 'pictures', label: t('Pictures'), kinds: ['still', 'maybe-animated'] },
+  { id: 'video', label: t('Videos'), kinds: ['video'] },
+  { id: 'audio', label: t('Audio'), kinds: ['audio'] },
+  { id: 'pdf', label: 'PDF', kinds: ['pdf'] }, // words-ok: a format's name
 ];
 
 export function familyOf(file) {
@@ -56,16 +58,16 @@ export function countByFamily(entries) {
 }
 
 export const SORTS = [
-  { id: 'name', label: 'Name' },
-  { id: 'newest', label: 'Newest first' },
-  { id: 'oldest', label: 'Oldest first' },
-  { id: 'largest', label: 'Largest first' },
-  { id: 'kind', label: 'Kind' },
-  { id: 'rating', label: 'Highest rated' },
+  { id: 'name', label: t('Name') },
+  { id: 'newest', label: t('Newest first') },
+  { id: 'oldest', label: t('Oldest first') },
+  { id: 'largest', label: t('Largest first') },
+  { id: 'kind', label: t('Kind') },
+  { id: 'rating', label: t('Highest rated') },
 ];
 
 /** The rating filter: any, or at least so many stars. */
-export const RATED = [[0, 'Any rating'], [1, '★ and up'], [2, '★★ and up'], [3, '★★★ and up'], [4, '★★★★ and up'], [5, '★★★★★']];
+export const RATED = [[0, t('Any rating')], [1, t('★ and up')], [2, t('★★ and up')], [3, t('★★★ and up')], [4, t('★★★★ and up')], [5, '★★★★★']];
 
 const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' });
 const KIND_ORDER = ['still', 'maybe-animated', 'video', 'audio', 'pdf'];
@@ -134,9 +136,9 @@ export function foldersOf(entries) {
  * button says.
  */
 export const TILE_SIZES = [
-  { id: 's', label: 'Small', px: 84, browsePx: 124 },
-  { id: 'm', label: 'Medium', px: 116, browsePx: 172 },
-  { id: 'l', label: 'Large', px: 168, browsePx: 248 },
+  { id: 's', label: t('Small'), px: 84, browsePx: 124 },
+  { id: 'm', label: t('Medium'), px: 116, browsePx: 172 },
+  { id: 'l', label: t('Large'), px: 168, browsePx: 248 },
 ];
 
 /**

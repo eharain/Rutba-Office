@@ -4,7 +4,7 @@
 // with — one grid, one stroke — so the icons look like a set on the page too.
 
 import React, { useMemo, useState } from 'react';
-import { Button, Dialog, Icon } from '@rutba/office-ui';
+import { Button, Dialog, Icon, t } from '@rutba/office-ui';
 import { iconSvg } from '@rutba/office-ui/icons';
 
 export const ICON_GROUPS = [
@@ -13,8 +13,9 @@ export const ICON_GROUPS = [
   ['Media', ['pictures', 'image', 'video', 'play', 'pause', 'stop', 'volume', 'scissors', 'crop', 'rotate', 'zoomIn', 'zoomOut']],
   ['Signs and symbols', ['check', 'close', 'plus', 'minus', 'info', 'star', 'heart', 'flag', 'lock', 'shield', 'eye', 'sun', 'moon', 'home', 'settings', 'wand', 'refresh', 'download', 'export', 'import', 'trash', 'find', 'mouse']],
 ];
+const GROUP_TITLES = { Communication: t('Communication'), Office: t('Office'), Media: t('Media'), 'Signs and symbols': t('Signs and symbols') };
 
-const COLOURS = [['#000000', 'Black'], ['#1F4E79', 'Dark blue'], ['#2B5FD9', 'Blue'], ['#00796B', 'Teal'], ['#2E7D32', 'Green'], ['#C62828', 'Red'], ['#EF6C00', 'Orange'], ['#6A1B9A', 'Purple'], ['#7F7F7F', 'Grey']];
+const COLOURS = [['#000000', t('Black')], ['#1F4E79', t('Dark blue')], ['#2B5FD9', t('Blue')], ['#00796B', t('Teal')], ['#2E7D32', t('Green')], ['#C62828', t('Red')], ['#EF6C00', t('Orange')], ['#6A1B9A', t('Purple')], ['#7F7F7F', t('Grey')]];
 
 /** A readable name from an icon's key: folderOpen → "folder open". */
 const words = (name) => name.replace(/([A-Z])/g, ' $1').toLowerCase();
@@ -44,7 +45,7 @@ export function IconsDialog({ onInsert, onClose }) {
   const [busy, setBusy] = useState(false);
   const groups = useMemo(() => {
     const f = find.trim().toLowerCase();
-    return ICON_GROUPS.map(([title, names]) => [title, f ? names.filter((n) => words(n).includes(f) || title.toLowerCase().includes(f)) : names]).filter(([, names]) => names.length);
+    return ICON_GROUPS.map(([title, names]) => [title, f ? names.filter((n) => words(n).includes(f) || GROUP_TITLES[title].toLowerCase().includes(f)) : names]).filter(([, names]) => names.length);
   }, [find]);
   const insert = async (name = picked) => {
     if (!name || busy) return;
@@ -58,18 +59,18 @@ export function IconsDialog({ onInsert, onClose }) {
 
   return (
     <Dialog
-      title="Insert Icons"
+      title={t('Insert Icons')}
       width={560}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="Insert" className="ic-insert" disabled={!picked || busy} onClick={() => insert()} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Insert')} className="ic-insert" disabled={!picked || busy} onClick={() => insert()} /></>}
     >
       <style>{ICONS_CSS}</style>
       <div className="ic">
-        <input className="rw-input ic-find" placeholder="Find an icon" value={find} spellCheck={false} autoFocus onChange={(e) => setFind(e.target.value)} />
+        <input className="rw-input ic-find" placeholder={t('Find an icon')} value={find} spellCheck={false} autoFocus onChange={(e) => setFind(e.target.value)} />
         <div className="ic-scroll">
           {groups.length ? groups.map(([title, names]) => (
             <section key={title}>
-              <div className="ic-title">{title}</div>
+              <div className="ic-title">{GROUP_TITLES[title]}</div>
               <div className="ic-grid">
                 {names.map((n) => (
                   <button key={n} type="button" className={`ic-cell${picked === n ? ' on' : ''}`} data-icon={n} title={words(n)} aria-pressed={picked === n} onClick={() => setPicked(n)} onDoubleClick={() => { setPicked(n); insert(n); }} style={{ color: colour }}>
@@ -78,10 +79,10 @@ export function IconsDialog({ onInsert, onClose }) {
                 ))}
               </div>
             </section>
-          )) : <div className="ic-none">No icon matches.</div>}
+          )) : <div className="ic-none">{t('No icon matches.')}</div>}
         </div>
-        <div className="ic-colours" role="radiogroup" aria-label="Colour">
-          <span>Colour</span>
+        <div className="ic-colours" role="radiogroup" aria-label={t('Colour')}>
+          <span>{t('Colour')}</span>
           {COLOURS.map(([c, label]) => (
             <button key={c} type="button" role="radio" aria-checked={colour === c} className={`ic-swatch${colour === c ? ' on' : ''}`} data-colour={c} title={label} style={{ background: c }} onClick={() => setColour(c)} />
           ))}

@@ -229,9 +229,9 @@ export function ShowStage({ slide, size = null, step = null, hidden = false, onS
         </div>
       ))}
       {/* Insert → Cameo: the camera, live, in each cameo on the slide. */}
-      {slide?.shapes?.some((s) => s.cameo) ? <><style>{CAMEO_CSS}</style><CameoLayer key={`cameo-${slide.index}`} shapes={slide.shapes} size={size} percent /></> : null}
+      {slide?.shapes?.some((s) => s.cameo) ? <><style>{CAMEO_CSS}</style><CameoLayer key={`cameo-${slide.index}`} shapes={slide.shapes} size={size} percent /></> : null}{/* words-ok: code, not words */}
       {/* Videos and sounds: a click on one plays it, and does not move the show on. */}
-      {slide?.shapes?.some((s) => s.media) ? <ShowMedia key={`media-${slide.index}`} shapes={slide.shapes} size={size} controls={mediaControls} narration={narration} /> : null}
+      {slide?.shapes?.some((s) => s.media) ? <ShowMedia key={`media-${slide.index}`} shapes={slide.shapes} size={size} controls={mediaControls} narration={narration} /> : null}{/* words-ok: code, not words */}
       {/* A narration's speaker is not seen in the show, as PowerPoint hides it. */}
       {slide?.shapes?.some(isNarration) ? <style>{slide.shapes.filter(isNarration).map((s) => `.sl-show-stage [data-shape="${String(s.id).replace(/[^\w-]/g, '')}"]`).join(', ') + ' { visibility: hidden; }'}</style> : null}
     </div>

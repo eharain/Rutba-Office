@@ -7,7 +7,7 @@
 // different one in each.
 
 import React from 'react';
-import { Icon } from '@rutba/office-ui';
+import { Icon, t } from '@rutba/office-ui';
 
 /**
  * Headings, in order, indented by level — the way Word's Navigation Pane draws
@@ -25,8 +25,8 @@ export function NavigationPane({ blocks, at, onGo, onClose }) {
   return (
     <aside className="wd-nav">
       <div className="wd-nav-head">
-        <span>Navigation</span>
-        <button type="button" className="wd-nav-close" onClick={onClose} title="Close the navigation pane" aria-label="Close">
+        <span>{t('Navigation')}</span>
+        <button type="button" className="wd-nav-close" onClick={onClose} title={t('Close the navigation pane')} aria-label={t('Close')}>
           <Icon name="close" size={12} />
         </button>
       </div>
@@ -47,7 +47,7 @@ export function NavigationPane({ blocks, at, onGo, onClose }) {
         </div>
       ) : (
         <p className="wd-nav-empty">
-          No headings yet. Give the paragraphs you want listed a Heading style, and they appear here — and in a table of contents.
+          {t('No headings yet. Give the paragraphs you want listed a Heading style, and they appear here — and in a table of contents.')}
         </p>
       )}
     </aside>

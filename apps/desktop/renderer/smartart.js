@@ -6,14 +6,16 @@
 // part, which carries Office's own layout definitions. This module is the
 // arithmetic only: where each shape goes, and the gallery's small pictures.
 
+import { t } from '@rutba/office-ui/messages';
+
 /** The gallery, in Office's names and groups. */
 export const SMARTART_LAYOUTS = [
-  { id: 'blockList', name: 'Basic Block List', group: 'List' },
-  { id: 'verticalList', name: 'Vertical Box List', group: 'List' },
-  { id: 'process', name: 'Basic Process', group: 'Process' },
-  { id: 'chevron', name: 'Basic Chevron Process', group: 'Process' },
-  { id: 'cycle', name: 'Basic Cycle', group: 'Cycle' },
-  { id: 'hierarchy', name: 'Hierarchy', group: 'Hierarchy' },
+  { id: 'blockList', name: t('Basic Block List'), group: 'List' },
+  { id: 'verticalList', name: t('Vertical Box List'), group: 'List' },
+  { id: 'process', name: t('Basic Process'), group: 'Process' },
+  { id: 'chevron', name: t('Basic Chevron Process'), group: 'Process' },
+  { id: 'cycle', name: t('Basic Cycle'), group: 'Cycle' },
+  { id: 'hierarchy', name: t('Hierarchy'), group: 'Hierarchy' },
 ];
 
 /**
@@ -184,8 +186,8 @@ export function boundsOf(shapes) {
   return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
 }
 
-const SAMPLE = [{ text: 'Text', level: 0 }, { text: 'Text', level: 0 }, { text: 'Text', level: 0 }];
-const SAMPLE_TREE = [{ text: 'Text', level: 0 }, { text: 'Text', level: 1 }, { text: 'Text', level: 1 }, { text: 'Text', level: 1 }];
+const SAMPLE = [{ text: t('Text'), level: 0 }, { text: t('Text'), level: 0 }, { text: t('Text'), level: 0 }];
+const SAMPLE_TREE = [{ text: t('Text'), level: 0 }, { text: t('Text'), level: 1 }, { text: t('Text'), level: 1 }, { text: t('Text'), level: 1 }];
 
 /** A layout drawn small, as SVG — the gallery's pictures and the preview. */
 export function smartArtSvg(layout, items = [], { width = 240, height = 150, labels = true } = {}) {

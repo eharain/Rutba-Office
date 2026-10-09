@@ -9,7 +9,7 @@
 // default font follow.
 
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { Icon } from '@rutba/office-ui';
+import { Icon, t } from '@rutba/office-ui';
 import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS } from '@rutba/office-formats/themes';
 
 const hex = (v) => `#${String(v || '000000').replace('#', '')}`;
@@ -30,11 +30,11 @@ export function SheetPreview({ colors, fonts, width = 176 }) {
   return (
     <svg viewBox="0 0 176 110" width={width} height={Math.round((width * 110) / 176)} className="sh-dg-sheet" aria-hidden="true">
       <rect x="0" y="0" width="176" height="110" fill={c('lt1')} />
-      <text x="10" y="24" fontSize="17" fontFamily={stack(fonts?.major || 'Segoe UI')} fill={c('dk2')}>Aa</text>
-      <text x="40" y="23" fontSize="8" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill={c('dk1')} opacity=".7">Quarterly sales</text>
+      <text x="10" y="24" fontSize="17" fontFamily={stack(fonts?.major || 'Segoe UI')} fill={c('dk2')}>Aa</text>{/* words-ok: sample letters in the heading face */}
+      <text x="40" y="23" fontSize="8" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill={c('dk1')} opacity=".7">{t('Quarterly sales')}</text>
       <rect x="10" y="33" width="86" height="11" fill={c('accent1')} rx="1" />
-      <text x="14" y="41" fontSize="7" fontWeight="600" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill="#fff">Region</text>
-      <text x="92" y="41" fontSize="7" fontWeight="600" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill="#fff" textAnchor="end">Units</text>
+      <text x="14" y="41" fontSize="7" fontWeight="600" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill="#fff">{t('Region')}</text>
+      <text x="92" y="41" fontSize="7" fontWeight="600" fontFamily={stack(fonts?.minor || 'Segoe UI')} fill="#fff" textAnchor="end">{t('Units')}</text>
       {[0, 1, 2, 3].map((i) => (
         <g key={i}>
           <rect x="10" y={44 + i * 10} width="86" height="10" fill={i % 2 ? tint(c('accent1'), 0.82) : c('lt1')} />
@@ -129,24 +129,24 @@ export function WorkbookGallery({ kind, anchor, design, onPick, onCustomise, onC
   });
   const d = design || {};
   const same = (a, b) => ['dk1', 'lt1', 'dk2', 'lt2', 'accent1', 'accent2', 'accent3', 'accent4', 'accent5', 'accent6'].every((k) => String(a?.[k] || '').toUpperCase() === String(b?.[k] || '').toUpperCase());
-  const title = { themes: 'Themes', colours: 'Colours', fonts: 'Fonts', effects: 'Effects' }[kind];
+  const title = { themes: t('Themes'), colours: t('Colours'), fonts: t('Fonts'), effects: t('Effects') }[kind];
   return (
     <div className={`sl-dg sl-dg-${kind} sh-dg`} ref={ref} style={{ left: pos.left, top: pos.top }} role="dialog" aria-label={title}>
       <div className="sl-dg-head">
         <span>{title}</span>
-        {kind === 'themes' ? <span className="sl-dg-sub">This workbook: {d.name || 'Office Theme'}</span> : null}
-        {kind === 'colours' ? <span className="sl-dg-sub">Now: {d.colorName || 'Office'}</span> : null}
-        {kind === 'fonts' && d.fonts ? <span className="sl-dg-sub">Now: {d.fonts.major} / {d.fonts.minor}</span> : null}
+        {kind === 'themes' ? <span className="sl-dg-sub">{t('This workbook: {name}', { name: d.name || 'Office Theme' })}</span> : null}
+        {kind === 'colours' ? <span className="sl-dg-sub">{t('Now: {name}', { name: d.colorName || 'Office' })}</span> : null}
+        {kind === 'fonts' && d.fonts ? <span className="sl-dg-sub">{t('Now: {major} / {minor}', { major: d.fonts.major, minor: d.fonts.minor })}</span> : null}
       </div>
       {kind === 'themes' ? (
         <div className="sl-dg-grid">
-          {THEMES.map((t) => {
-            const current = d.builtIn === t.id;
+          {THEMES.map((theme) => {
+            const current = d.builtIn === theme.id;
             return (
-              <button key={t.id} type="button" className={`sl-dg-card${current ? ' current' : ''}`} data-theme={t.id}
-                data-tip={`${t.name} — ${t.fonts.major} and ${t.fonts.minor}`} onClick={() => onPick({ theme: t.id })}>
-                <span className="sl-dg-pic"><SheetPreview colors={t.palette} fonts={t.fonts} /></span>
-                <span className="sl-dg-name">{current ? <Icon name="check" size={12} /> : null}<span className="sl-dg-label">{t.name}</span><Accents colors={t.palette} /></span>
+              <button key={theme.id} type="button" className={`sl-dg-card${current ? ' current' : ''}`} data-theme={theme.id}
+                data-tip={t('{theme} — {major} and {minor}', { theme: t(theme.name), major: theme.fonts.major, minor: theme.fonts.minor })} onClick={() => onPick({ theme: theme.id })}>
+                <span className="sl-dg-pic"><SheetPreview colors={theme.palette} fonts={theme.fonts} /></span>
+                <span className="sl-dg-name">{current ? <Icon name="check" size={12} /> : null}<span className="sl-dg-label">{t(theme.name)}</span><Accents colors={theme.palette} /></span>
               </button>
             );
           })}
@@ -159,7 +159,7 @@ export function WorkbookGallery({ kind, anchor, design, onPick, onCustomise, onC
             return (
               <button key={p.id} type="button" className={`sl-dg-row${current ? ' current' : ''}`} data-palette={p.id} onClick={() => onPick({ colors: p.id })}>
                 <Swatches colors={p.colors} />
-                <span className="sl-dg-rowname">{p.name}</span>
+                <span className="sl-dg-rowname">{t(p.name)}</span>
                 {current ? <Icon name="check" size={13} /> : null}
               </button>
             );
@@ -172,9 +172,9 @@ export function WorkbookGallery({ kind, anchor, design, onPick, onCustomise, onC
             const current = d.fonts?.major === p.major && d.fonts?.minor === p.minor;
             return (
               <button key={p.id} type="button" className={`sl-dg-row sl-dg-fontrow${current ? ' current' : ''}`} data-pair={p.id} onClick={() => onPick({ fonts: p.id })}>
-                <span className="sl-dg-aa" style={{ fontFamily: stack(p.major) }}>Aa</span>
+                <span className="sl-dg-aa" style={{ fontFamily: stack(p.major) }}>Aa</span>{/* words-ok: sample letters in the heading face */}
                 <span className="sl-dg-faces">
-                  <span className="sl-dg-rowname">{p.name}</span>
+                  <span className="sl-dg-rowname">{t(p.name)}</span>
                   <span className="sl-dg-major" style={{ fontFamily: stack(p.major) }}>{p.major}</span>
                   <span className="sl-dg-minor" style={{ fontFamily: stack(p.minor) }}>{p.minor}</span>
                 </span>
@@ -189,9 +189,9 @@ export function WorkbookGallery({ kind, anchor, design, onPick, onCustomise, onC
           {EFFECT_PRESETS.map((p) => {
             const current = d.effects === p.id;
             return (
-              <button key={p.id} type="button" className={`sl-dg-card${current ? ' current' : ''}`} data-effects={p.id} data-tip={`${p.name} — ${p.description}`} onClick={() => onPick({ effects: p.id })}>
+              <button key={p.id} type="button" className={`sl-dg-card${current ? ' current' : ''}`} data-effects={p.id} data-tip={t('{name} — {description}', { name: t(p.name), description: t(p.description) })} onClick={() => onPick({ effects: p.id })}>
                 <span className="sl-dg-pic"><EffectsPreview id={p.id} colors={d.colors} /></span>
-                <span className="sl-dg-name">{current ? <Icon name="check" size={12} /> : null}{p.name}</span>
+                <span className="sl-dg-name">{current ? <Icon name="check" size={12} /> : null}{t(p.name)}</span>
               </button>
             );
           })}
@@ -200,11 +200,11 @@ export function WorkbookGallery({ kind, anchor, design, onPick, onCustomise, onC
       {kind === 'colours' || kind === 'fonts' ? (
         <div className="sl-dg-foot">
           <button type="button" className="sl-dg-custom" onClick={() => onCustomise(kind)}>
-            <Icon name="settings" size={14} /> {kind === 'colours' ? 'Customise Colours…' : 'Customise Fonts…'}
+            <Icon name="settings" size={14} /> {kind === 'colours' ? t('Customise Colours…') : t('Customise Fonts…')}
           </button>
         </div>
       ) : null}
-      {kind === 'effects' ? <div className="sl-dg-foot sl-dg-note">Effects reach shapes styled from the theme, as Excel's own shape styles are.</div> : null}
+      {kind === 'effects' ? <div className="sl-dg-foot sl-dg-note">{t('Effects reach shapes styled from the theme, as Excel\'s own shape styles are.')}</div> : null}
     </div>
   );
 }

@@ -8,6 +8,7 @@
 // no, the cameo's own drawing (a camera in a grey shape) is all there is.
 
 import React, { useEffect, useRef, useState } from 'react';
+import { t } from '@rutba/office-ui';
 import { recordingType } from './screen-record.js';
 
 let shared = null; // { stream, users } once opened
@@ -89,7 +90,7 @@ export function useCamera(on) {
           closeCamera(stream);
           held = null;
           if (++tries <= 5) timer = setTimeout(take, 300 * 2 ** (tries - 1));
-          else setState({ stream: null, error: 'The camera stopped.' });
+          else setState({ stream: null, error: t('The camera stopped.') });
         };
         if (alive(stream)) track?.addEventListener('ended', ended);
         else ended();
@@ -102,7 +103,7 @@ export function useCamera(on) {
           timer = setTimeout(take, 300 * 2 ** (tries - 1));
           return;
         }
-        setState({ stream: null, error: err?.name === 'NotAllowedError' ? 'The camera was not allowed.' : err?.name === 'NotReadableError' ? 'The camera is in use by another program.' : 'No camera was found.' });
+        setState({ stream: null, error: err?.name === 'NotAllowedError' ? t('The camera was not allowed.') : err?.name === 'NotReadableError' ? t('The camera is in use by another program.') : t('No camera was found.') });
       });
     };
     take();

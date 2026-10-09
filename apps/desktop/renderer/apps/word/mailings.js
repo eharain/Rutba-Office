@@ -9,7 +9,7 @@
 // an Address Block from the very functions the merge itself runs.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Dialog, Field, Input, Select, Icon, Group, Rows, Separator, Progress } from '@rutba/office-ui';
+import { Button, Dialog, Field, Input, Select, Icon, Group, Rows, Separator, Progress, t, tn } from '@rutba/office-ui';
 import {
   MAIN_DOCUMENT_TYPES, NEW_LIST_FIELDS, ADDRESS_NAME_FORMATS, GREETING_NAME_FORMATS, GREETING_SALUTATIONS,
   GREETING_PUNCTUATION, GREETING_FALLBACKS, ADDRESS_FIELDS, addressBlockInstr, greetingLineInstr,
@@ -18,9 +18,9 @@ import {
 import { PrintDialog } from '../../print.js';
 
 const SOURCE_FILTERS = [
-  { name: 'Recipient lists', extensions: ['xlsx', 'xlsm', 'csv', 'tsv', 'txt'] },
-  { name: 'Excel workbooks', extensions: ['xlsx', 'xlsm'] },
-  { name: 'Comma or tab separated', extensions: ['csv', 'tsv', 'txt'] },
+  { name: t('Recipient lists'), extensions: ['xlsx', 'xlsm', 'csv', 'tsv', 'txt'] },
+  { name: t('Excel workbooks'), extensions: ['xlsx', 'xlsm'] },
+  { name: t('Comma or tab separated'), extensions: ['csv', 'tsv', 'txt'] },
 ];
 
 /** The country an Address Block leaves off by default: this machine's own, as Word takes it from Windows. */
@@ -34,9 +34,23 @@ function homeCountry() {
 }
 
 const COMPARISONS = [
-  ['=', 'Equal to'], ['<>', 'Not equal to'], ['<', 'Less than'], ['>', 'Greater than'],
-  ['<=', 'Less than or equal'], ['>=', 'Greater than or equal'], ['blank', 'Is blank'], ['notBlank', 'Is not blank'],
+  ['=', t('Equal to')], ['<>', t('Not equal to')], ['<', t('Less than')], ['>', t('Greater than')],
+  ['<=', t('Less than or equal')], ['>=', t('Greater than or equal')], ['blank', t('Is blank')], ['notBlank', t('Is not blank')],
 ];
+
+const TYPE_NAMES = { formLetters: t('Letters'), email: t('E-mail Messages'), envelopes: t('Envelopes'), mailingLabels: t('Labels'), catalog: t('Directory') };
+const TYPE_NAMES_LOWER = { formLetters: t('letters'), email: t('e-mail messages'), envelopes: t('envelopes'), mailingLabels: t('labels'), catalog: t('directory') };
+
+const ADDRESS_FIELD_NAMES = {
+  _TITLE0_: t('Courtesy Title'), _FIRST0_: t('First Name'), _MIDDLE0_: t('Middle Name'), _LAST0_: t('Last Name'), _SUFFIX0_: t('Suffix'), _NICK0_: t('Nickname'),
+  _COMPANY_: t('Company'), _STREET1_: t('Address 1'), _STREET2_: t('Address 2'), _CITY_: t('City'), _STATE_: t('State'), _POSTAL_: t('Postal Code'),
+  _COUNTRY_: t('Country or Region'), _EMAIL_: t('E-mail Address'),
+};
+
+const NEW_LIST_NAMES = {
+  'Title': t('Title'), 'First Name': t('First Name'), 'Last Name': t('Last Name'), 'Company Name': t('Company Name'), 'Address Line 1': t('Address Line 1'), 'Address Line 2': t('Address Line 2'),
+  'City': t('City'), 'State': t('State'), 'ZIP Code': t('ZIP Code'), 'Country or Region': t('Country or Region'), 'Home Phone': t('Home Phone'), 'Work Phone': t('Work Phone'), 'E-mail Address': t('E-mail Address'),
+};
 
 /* ── the ribbon tab ──────────────────────────────────────────────────────── */
 
@@ -54,103 +68,103 @@ export function MailingsTab({ mm, menu, create = null }) {
   const total = s?.included ?? 0;
   const go = (n) => mm.act('record', n);
   // Greyed until there is a list — and the tip says so, as every idle control here does.
-  const need = (tip) => (has ? tip : `${tip}. Select Recipients first.`);
+  const need = (tip) => (has ? tip : t('{tip}. Select Recipients first.', { tip }));
 
   return (
     <>
-      <Group label="Create">
+      <Group label={t('Create')}>
         {create || (
           <>
-            <Button tall icon="mail" label="Envelopes" title="Envelopes — the delivery and return addresses on an envelope of your size, added to the document or printed" onClick={() => mm.act('envelopes')} />
-            <Button tall icon="grid" label="Labels" title="Labels — a sheet of the same address, or one label, on an Avery sheet" onClick={() => mm.act('labels')} />
+            <Button tall icon="mail" label={t('Envelopes')} title={t('Envelopes — the delivery and return addresses on an envelope of your size, added to the document or printed')} onClick={() => mm.act('envelopes')} />
+            <Button tall icon="grid" label={t('Labels')} title={t('Labels — a sheet of the same address, or one label, on an Avery sheet')} onClick={() => mm.act('labels')} />
           </>
         )}
       </Group>
-      <Group label="Start Mail Merge">
+      <Group label={t('Start Mail Merge')}>
         <Button
-          tall className="wd-mm-2line" icon="mail" label={'Start Mail\nMerge'}
-          title={`Start Mail Merge — letters, e-mail messages, envelopes, labels or a directory${s?.type ? ` (now: ${(MAIN_DOCUMENT_TYPES.find((t) => t.id === s.type) || {}).label})` : ''}`}
+          tall className="wd-mm-2line" icon="mail" label={t('Start Mail\nMerge')}
+          title={s?.type ? t('Start Mail Merge — letters, e-mail messages, envelopes, labels or a directory (now: {type})', { type: TYPE_NAMES[s.type] || (MAIN_DOCUMENT_TYPES.find((type) => type.id === s.type) || {}).label }) : t('Start Mail Merge — letters, e-mail messages, envelopes, labels or a directory')}
           onClick={(e) => menu.open(e, [
-            ...MAIN_DOCUMENT_TYPES.map((t) => ({
-              label: t.id === 'envelopes' || t.id === 'mailingLabels' ? `${t.label}…` : t.label,
-              icon: s?.type === t.id ? 'check' : undefined,
-              disabled: (t.id === 'envelopes' || t.id === 'mailingLabels') && !mm.canLayout,
-              run: () => mm.act('start', t.id),
+            ...MAIN_DOCUMENT_TYPES.map((type) => ({
+              label: type.id === 'envelopes' ? t('Envelopes…') : type.id === 'mailingLabels' ? t('Labels…') : TYPE_NAMES[type.id] || type.label,
+              icon: s?.type === type.id ? 'check' : undefined,
+              disabled: (type.id === 'envelopes' || type.id === 'mailingLabels') && !mm.canLayout,
+              run: () => mm.act('start', type.id),
             })),
-            { label: 'Normal Word Document', icon: s?.type ? undefined : 'check', run: () => mm.act('start', null) },
+            { label: t('Normal Word Document'), icon: s?.type ? undefined : 'check', run: () => mm.act('start', null) },
           ])}
         />
         <Button
-          tall className="wd-mm-2line" icon="contacts" label={'Select\nRecipients'}
-          title="Select Recipients — type a new list, use an existing one, or choose from Contacts"
+          tall className="wd-mm-2line" icon="contacts" label={t('Select\nRecipients')}
+          title={t('Select Recipients — type a new list, use an existing one, or choose from Contacts')}
           onClick={(e) => menu.open(e, [
-            { label: 'Type a New List…', icon: 'plus', run: () => mm.act('newList') },
-            { label: 'Use an Existing List…', icon: 'open', run: () => mm.act('existingList') },
-            { label: 'Choose from Contacts…', icon: 'contacts', run: () => mm.act('contacts') },
+            { label: t('Type a New List…'), icon: 'plus', run: () => mm.act('newList') },
+            { label: t('Use an Existing List…'), icon: 'open', run: () => mm.act('existingList') },
+            { label: t('Choose from Contacts…'), icon: 'contacts', run: () => mm.act('contacts') },
           ])}
         />
-        <Button tall className="wd-mm-2line" icon="list" label={'Edit\nRecipient List'} disabled={!has} title={need("Edit Recipient List — tick who the merge goes to, sort, filter and find duplicates")} onClick={() => mm.act('editList')} />
+        <Button tall className="wd-mm-2line" icon="list" label={t('Edit\nRecipient List')} disabled={!has} title={need(t('Edit Recipient List — tick who the merge goes to, sort, filter and find duplicates'))} onClick={() => mm.act('editList')} />
       </Group>
-      <Group label="Write & Insert Fields">
-        <Button tall className="wd-mm-2line" icon="wand" label={'Highlight\nMerge Fields'} pressed={mm.highlight} disabled={!has} title={need("Highlight Merge Fields — shade every «field» grey, so none is missed")} onClick={() => mm.act('highlight')} />
-        <Button tall className="wd-mm-2line" icon="textbox" label={'Address\nBlock'} disabled={!has} title={need("Address Block — the recipient's name and address, blank lines left out")} onClick={() => mm.act('addressBlock')} />
-        <Button tall className="wd-mm-2line" icon="textbox" label={'Greeting\nLine'} disabled={!has} title={need("Greeting Line — Dear Mr. Randall, or Dear Sir or Madam, when the name is missing")} onClick={() => mm.act('greetingLine')} />
+      <Group label={t('Write & Insert Fields')}>
+        <Button tall className="wd-mm-2line" icon="wand" label={t('Highlight\nMerge Fields')} pressed={mm.highlight} disabled={!has} title={need(t('Highlight Merge Fields — shade every «field» grey, so none is missed'))} onClick={() => mm.act('highlight')} />
+        <Button tall className="wd-mm-2line" icon="textbox" label={t('Address\nBlock')} disabled={!has} title={need(t('Address Block — the recipient\'s name and address, blank lines left out'))} onClick={() => mm.act('addressBlock')} />
+        <Button tall className="wd-mm-2line" icon="textbox" label={t('Greeting\nLine')} disabled={!has} title={need(t('Greeting Line — Dear Mr. Randall, or Dear Sir or Madam, when the name is missing'))} onClick={() => mm.act('greetingLine')} />
         <Button
-          tall className="wd-mm-2line" icon="plus" label={'Insert Merge\nField'} disabled={!has}
-          title={need("Insert Merge Field — a column of the list, at the caret")}
+          tall className="wd-mm-2line" icon="plus" label={t('Insert Merge\nField')} disabled={!has}
+          title={need(t('Insert Merge Field — a column of the list, at the caret'))}
           onClick={(e) => menu.open(e, fields.map((f) => ({ label: f, run: () => mm.act('field', f) })))}
         />
         <Rows>
           <Button
-            icon="filter" label="Rules" disabled={!has}
-            title={need("Rules — If…Then…Else, Next Record, Skip Record If and the record numbers")}
+            icon="filter" label={t('Rules')} disabled={!has}
+            title={need(t('Rules — If…Then…Else, Next Record, Skip Record If and the record numbers'))}
             onClick={(e) => menu.open(e, [
-              { label: 'Ask…', run: () => mm.act('rule', 'ask'), title: 'Ask — a question put when the merge runs, its answer kept in a bookmark and shown wherever the bookmark is' },
-              { label: 'Fill-in…', run: () => mm.act('rule', 'fillin'), title: 'Fill-in — a question put when the merge runs, its answer put here' },
-              { label: 'If…Then…Else…', run: () => mm.act('rule', 'if') },
-              { label: 'Merge Record #', run: () => mm.act('rule', 'mergerec') },
-              { label: 'Merge Sequence #', run: () => mm.act('rule', 'mergeseq') },
-              { label: 'Next Record', run: () => mm.act('rule', 'next') },
-              { label: 'Next Record If…', run: () => mm.act('rule', 'nextif') },
-              { label: 'Set Bookmark…', run: () => mm.act('rule', 'set'), title: 'Set Bookmark — a bookmark given a value for the merge, shown wherever the bookmark is' },
-              { label: 'Skip Record If…', run: () => mm.act('rule', 'skipif') },
+              { label: t('Ask…'), run: () => mm.act('rule', 'ask'), title: t('Ask — a question put when the merge runs, its answer kept in a bookmark and shown wherever the bookmark is') },
+              { label: t('Fill-in…'), run: () => mm.act('rule', 'fillin'), title: t('Fill-in — a question put when the merge runs, its answer put here') },
+              { label: t('If…Then…Else…'), run: () => mm.act('rule', 'if') },
+              { label: t('Merge Record #'), run: () => mm.act('rule', 'mergerec') },
+              { label: t('Merge Sequence #'), run: () => mm.act('rule', 'mergeseq') },
+              { label: t('Next Record'), run: () => mm.act('rule', 'next') },
+              { label: t('Next Record If…'), run: () => mm.act('rule', 'nextif') },
+              { label: t('Set Bookmark…'), run: () => mm.act('rule', 'set'), title: t('Set Bookmark — a bookmark given a value for the merge, shown wherever the bookmark is') },
+              { label: t('Skip Record If…'), run: () => mm.act('rule', 'skipif') },
             ])}
           />
-          <Button icon="link" label="Match Fields" disabled={!has} title={need("Match Fields — which column is the first name, the street, the postcode")} onClick={() => mm.act('match')} />
-          <Button icon="refresh" label="Update Labels" disabled={!mm.canUpdateLabels} title={mm.canUpdateLabels ? "Update Labels — copy the first label's fields to every label on the sheet" : "Update Labels — copy the first label's fields to every label on the sheet. Start Mail Merge → Labels first."} onClick={() => mm.act('updateLabels')} />
+          <Button icon="link" label={t('Match Fields')} disabled={!has} title={need(t('Match Fields — which column is the first name, the street, the postcode'))} onClick={() => mm.act('match')} />
+          <Button icon="refresh" label={t('Update Labels')} disabled={!mm.canUpdateLabels} title={mm.canUpdateLabels ? t('Update Labels — copy the first label\'s fields to every label on the sheet') : t('Update Labels — copy the first label\'s fields to every label on the sheet. Start Mail Merge → Labels first.')} onClick={() => mm.act('updateLabels')} />
         </Rows>
       </Group>
-      <Group label="Preview Results">
-        <Button tall className="wd-mm-2line" icon="eye" label={'Preview\nResults'} pressed={Boolean(s?.preview)} disabled={!has} title={need("Preview Results — see each record's words in place of the «fields»")} onClick={() => mm.act('preview')} />
+      <Group label={t('Preview Results')}>
+        <Button tall className="wd-mm-2line" icon="eye" label={t('Preview\nResults')} pressed={Boolean(s?.preview)} disabled={!has} title={need(t('Preview Results — see each record\'s words in place of the «fields»'))} onClick={() => mm.act('preview')} />
         <Rows>
           <span className="wd-mm-nav">
-            <Button icon="skipBack" title="First record" disabled={!has || (s?.record ?? 1) <= 1} onClick={() => go(1)} />
-            <Button icon="chevronLeft" title="Previous record" disabled={!has || (s?.record ?? 1) <= 1} onClick={() => go((s?.record ?? 1) - 1)} />
+            <Button icon="skipBack" title={t('First record')} disabled={!has || (s?.record ?? 1) <= 1} onClick={() => go(1)} />
+            <Button icon="chevronLeft" title={t('Previous record')} disabled={!has || (s?.record ?? 1) <= 1} onClick={() => go((s?.record ?? 1) - 1)} />
             <Input
               className="rw-input wd-mm-record"
               value={box}
               disabled={!has}
-              title={need("Go to record")}
-              aria-label="Record"
+              title={need(t('Go to record'))}
+              aria-label={t('Record')}
               onChange={(e) => setBox(e.target.value.replace(/[^\d]/g, ''))}
               onKeyDown={(e) => { if (e.key === 'Enter') go(Number(box) || 1); }}
               onBlur={() => { if (has && Number(box) !== s?.record) go(Number(box) || 1); }}
             />
-            <Button icon="chevronRight" title="Next record" disabled={!has || (s?.record ?? 1) >= total} onClick={() => go((s?.record ?? 1) + 1)} />
-            <Button icon="skipForward" title="Last record" disabled={!has || (s?.record ?? 1) >= total} onClick={() => go(total)} />
+            <Button icon="chevronRight" title={t('Next record')} disabled={!has || (s?.record ?? 1) >= total} onClick={() => go((s?.record ?? 1) + 1)} />
+            <Button icon="skipForward" title={t('Last record')} disabled={!has || (s?.record ?? 1) >= total} onClick={() => go(total)} />
           </span>
-          <Button icon="find" label="Find Recipient" disabled={!has} title={need("Find Recipient — go to the record that holds some words")} onClick={() => mm.act('find')} />
-          <Button icon="check" label="Check for Errors" disabled={!has} title={need("Check for Errors — merge fields the list has no column for")} onClick={() => mm.act('errors')} />
+          <Button icon="find" label={t('Find Recipient')} disabled={!has} title={need(t('Find Recipient — go to the record that holds some words'))} onClick={() => mm.act('find')} />
+          <Button icon="check" label={t('Check for Errors')} disabled={!has} title={need(t('Check for Errors — merge fields the list has no column for'))} onClick={() => mm.act('errors')} />
         </Rows>
       </Group>
-      <Group label="Finish">
+      <Group label={t('Finish')}>
         <Button
-          tall className="wd-mm-2line" icon="send" label={'Finish &\nMerge'} disabled={!has}
-          title={need("Finish & Merge — a document of every letter, print them, or send each as an e-mail")}
+          tall className="wd-mm-2line" icon="send" label={t('Finish &\nMerge')} disabled={!has}
+          title={need(t('Finish & Merge — a document of every letter, print them, or send each as an e-mail'))}
           onClick={(e) => menu.open(e, [
-            { label: 'Edit Individual Documents…', icon: 'file', run: () => mm.act('finish', 'document') },
-            { label: 'Print Documents…', icon: 'print', run: () => mm.act('finish', 'print') },
-            { label: 'Send E-mail Messages…', icon: 'send', run: () => mm.act('finish', 'email') },
+            { label: t('Edit Individual Documents…'), icon: 'file', run: () => mm.act('finish', 'document') },
+            { label: t('Print Documents…'), icon: 'print', run: () => mm.act('finish', 'print') },
+            { label: t('Send E-mail Messages…'), icon: 'send', run: () => mm.act('finish', 'email') },
           ])}
         />
       </Group>
@@ -184,7 +198,7 @@ export function useMailings({ shell, doc, model, apply, toast, extra = null }) {
       }
       const got = await call('attach', { path, sheet });
       await refresh();
-      toast(`${got.source.count} recipient${got.source.count === 1 ? '' : 's'} from ${got.source.name}${got.source.sheet ? ` — ${got.source.sheet}` : ''}.`, { tone: 'good' });
+      toast(got.source.sheet ? tn(got.source.count, '{count} recipient from {name} — {sheet}.', '{count} recipients from {name} — {sheet}.', { name: got.source.name, sheet: got.source.sheet }) : tn(got.source.count, '{count} recipient from {name}.', '{count} recipients from {name}.', { name: got.source.name }), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad', ms: 6000 });
     }
@@ -197,13 +211,13 @@ export function useMailings({ shell, doc, model, apply, toast, extra = null }) {
       case 'start':
         if ((arg === 'envelopes' || arg === 'mailingLabels') && extra?.startLayout) return extra.startLayout(arg);
         await apply({ op: 'startMailMerge', type: arg });
-        if (!arg) toast('This is an ordinary document again — no mail merge.', { ms: 4000 });
+        if (!arg) toast(t('This is an ordinary document again — no mail merge.'), { ms: 4000 });
         return;
       case 'newList':
         setDialog({ name: 'newList' });
         return;
       case 'existingList': {
-        const [file] = await shell.dialog.open({ title: 'Select Data Source', filters: SOURCE_FILTERS });
+        const [file] = await shell.dialog.open({ title: t('Select Data Source'), filters: SOURCE_FILTERS });
         if (file) await useList({ path: file });
         return;
       }
@@ -212,10 +226,10 @@ export function useMailings({ shell, doc, model, apply, toast, extra = null }) {
         return;
       case 'contacts': {
         const contacts = await shell.contacts.list({}).catch(() => []);
-        if (!contacts.length) return toast('The address book is empty. Add people in Contacts first, or type a new list.', { ms: 6000 });
+        if (!contacts.length) return toast(t('The address book is empty. Add people in Contacts first, or type a new list.'), { ms: 6000 });
         const got = await call('attachContacts', { contacts });
         await refresh();
-        toast(`${got.source.count} recipient${got.source.count === 1 ? '' : 's'} from Contacts.`, { tone: 'good' });
+        toast(tn(got.source.count, '{count} recipient from Contacts.', '{count} recipients from Contacts.'), { tone: 'good' });
         return;
       }
       case 'editList':
@@ -252,8 +266,8 @@ export function useMailings({ shell, doc, model, apply, toast, extra = null }) {
         return;
       case 'errors': {
         const bad = await call('errors');
-        if (!bad.length) toast('No errors: every merge field has a column in the list.', { tone: 'good', ms: 4500 });
-        else toast(`Invalid merge field${bad.length === 1 ? '' : 's'}: ${bad.map((b) => `«${b}»`).join(', ')} — the list has no such column. Match Fields or Insert Merge Field again.`, { tone: 'bad', ms: 9000 });
+        if (!bad.length) toast(t('No errors: every merge field has a column in the list.'), { tone: 'good', ms: 4500 });
+        else toast(tn(bad.length, 'Invalid merge field: {fields} — the list has no such column. Match Fields or Insert Merge Field again.', 'Invalid merge fields: {fields} — the list has no such column. Match Fields or Insert Merge Field again.', { fields: bad.map((b) => `«${b}»`).join(', ') }), { tone: 'bad', ms: 9000 });
         return;
       }
       case 'finish':
@@ -283,16 +297,16 @@ export function useMailings({ shell, doc, model, apply, toast, extra = null }) {
     if (state.pending.contacts) {
       shell.contacts.list({}).then((contacts) => call('attachContacts', { contacts, restore: true })).then(refresh).catch(() => {});
     } else if (state.pending.path && state.pending.network) {
-      toast(`This letter's recipient list is on a network share (${state.pending.path}), so it is not opened from the letter. Select Recipients → Use an Existing List to choose it.`, { ms: 9000 });
+      toast(t('This letter\'s recipient list is on a network share ({path}), so it is not opened from the letter. Select Recipients → Use an Existing List to choose it.', { path: state.pending.path }), { ms: 9000 });
     } else if (state.pending.path && !state.pending.found) {
-      toast(`The recipient list ${state.pending.path} was not found. Select Recipients to choose it again.`, { ms: 8000 });
+      toast(t('The recipient list {path} was not found. Select Recipients to choose it again.', { path: state.pending.path }), { ms: 8000 });
     } else if (state.pending.path) {
       // Asked, not done: the path came from the file, as Word asks before
       // it opens a letter's data source.
       const name = state.pending.path.split(/[\\/]/).pop();
-      toast(`This letter takes its recipients from ${name}. Attach the list?`, {
+      toast(t('This letter takes its recipients from {name}. Attach the list?', { name }), {
         ms: 15000,
-        action: { label: 'Attach', run: () => call('reattach').then(refresh).catch((err) => toast(err?.message || String(err), { ms: 8000 })) },
+        action: { label: t('Attach'), run: () => call('reattach').then(refresh).catch((err) => toast(err?.message || String(err), { ms: 8000 })) },
       });
     }
   }, [doc, state, shell, call, refresh, toast]);
@@ -310,12 +324,12 @@ export function useMailings({ shell, doc, model, apply, toast, extra = null }) {
           onClose={close}
           onSave={async (fields, rows) => {
             const dir = doc?.path ? doc.path.replace(/[\\/][^\\/]*$/, '') : (await shell.app.paths()).documents;
-            const target = await shell.dialog.save({ title: 'Save Address List', defaultPath: `${dir}${dir.includes('\\') ? '\\' : '/'}Mailing list.csv`, filters: [{ name: 'Comma separated', extensions: ['csv'] }] });
+            const target = await shell.dialog.save({ title: t('Save Address List'), defaultPath: `${dir}${dir.includes('\\') ? '\\' : '/'}${t('Mailing list')}.csv`, filters: [{ name: t('Comma separated'), extensions: ['csv'] }] });
             if (!target) return false;
             try {
               const got = await call('createList', { path: target, fields, rows });
               await refresh();
-              toast(`${got.source.count} recipient${got.source.count === 1 ? '' : 's'} saved to ${got.source.name}.`, { tone: 'good' });
+              toast(tn(got.source.count, '{count} recipient saved to {name}.', '{count} recipients saved to {name}.', { name: got.source.name }), { tone: 'good' });
               close();
               return true;
             } catch (err) {
@@ -340,7 +354,7 @@ export function useMailings({ shell, doc, model, apply, toast, extra = null }) {
           onFind={async (text, field) => {
             const next = await apply({ op: 'findRecipient', text, field });
             if (!next) return;
-            if (!next.opResult) toast('No record holds those words.', { ms: 4000 });
+            if (!next.opResult) toast(t('No record holds those words.'), { ms: 4000 });
           }}
         />
       ) : null}
@@ -368,9 +382,9 @@ function useRecords(call) {
 function RecordStepper({ at, total, onGo }) {
   return (
     <div className="wd-mm-stepper">
-      <Button icon="chevronLeft" title="Previous record" disabled={at <= 1} onClick={() => onGo(at - 1)} />
-      <span>{total ? `Record ${at} of ${total}` : 'No records'}</span>
-      <Button icon="chevronRight" title="Next record" disabled={at >= total} onClick={() => onGo(at + 1)} />
+      <Button icon="chevronLeft" title={t('Previous record')} disabled={at <= 1} onClick={() => onGo(at - 1)} />
+      <span>{total ? t('Record {at} of {total}', { at, total }) : t('No records')}</span>
+      <Button icon="chevronRight" title={t('Next record')} disabled={at >= total} onClick={() => onGo(at + 1)} />
     </div>
   );
 }
@@ -381,13 +395,13 @@ function SelectTableDialog({ peek, path, onClose, onPick }) {
   const [sheet, setSheet] = useState(peek.sheet || peek.sheets[0]);
   return (
     <Dialog
-      title="Select Table"
+      title={t('Select Table')}
       width={440}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="OK" onClick={() => onPick(sheet)} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} onClick={() => onPick(sheet)} /></>}
     >
-      <p className="wd-mm-lead">{path.split(/[\\/]/).pop()} has more than one sheet. The first row of the one you choose names the fields.</p>
-      <div className="wd-mm-pick" role="listbox" aria-label="Sheets">
+      <p className="wd-mm-lead">{t('{name} has more than one sheet. The first row of the one you choose names the fields.', { name: path.split(/[\\/]/).pop() })}</p>
+      <div className="wd-mm-pick" role="listbox" aria-label={t('Sheets')}>
         {peek.sheets.map((s) => (
           <button key={s} type="button" role="option" aria-selected={s === sheet} className={s === sheet ? 'on' : ''} onClick={() => setSheet(s)} onDoubleClick={() => onPick(s)}>
             <Icon name="sheets" size={14} /> <span>{s}</span>
@@ -408,30 +422,31 @@ function NewListDialog({ onClose, onSave }) {
   const filled = rows.filter((r) => r.some((v) => v.trim()));
   return (
     <Dialog
-      title="New Address List"
+      title={t('New Address List')}
       width={900}
       onClose={onClose}
+      className="wd-mm-wide"
       actions={
         <>
-          <Button icon="plus" label="New Entry" onClick={() => { setRows((l) => [...l, NEW_LIST_FIELDS.map(() => '')]); setAt(rows.length); }} />
-          <Button icon="trash" label="Delete Entry" disabled={rows.length <= 1} onClick={() => { setRows((l) => l.filter((_, i) => i !== at)); setAt(Math.max(0, at - 1)); }} />
+          <Button icon="plus" label={t('New Entry')} onClick={() => { setRows((l) => [...l, NEW_LIST_FIELDS.map(() => '')]); setAt(rows.length); }} />
+          <Button icon="trash" label={t('Delete Entry')} disabled={rows.length <= 1} onClick={() => { setRows((l) => l.filter((_, i) => i !== at)); setAt(Math.max(0, at - 1)); }} />
           <span style={{ flex: 1 }} />
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="OK" disabled={!filled.length || busy} onClick={async () => { setBusy(true); const ok = await onSave(NEW_LIST_FIELDS, filled); if (!ok) setBusy(false); }} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('OK')} disabled={!filled.length || busy} onClick={async () => { setBusy(true); const ok = await onSave(NEW_LIST_FIELDS, filled); if (!ok) setBusy(false); }} />
         </>
       }
     >
-      <p className="wd-mm-lead">Type recipient information in the table. To add more entries, click New Entry. The list is saved as a .csv file beside your document.</p>
+      <p className="wd-mm-lead">{t('Type recipient information in the table. To add more entries, click New Entry. The list is saved as a .csv file beside your document.')}</p>
       <div className="wd-mm-grid-wrap">
         <table className="wd-mm-grid wd-mm-newlist">
-          <thead><tr><th className="wd-mm-rowno" />{NEW_LIST_FIELDS.map((f) => <th key={f}>{f}</th>)}</tr></thead>
+          <thead><tr><th className="wd-mm-rowno" />{NEW_LIST_FIELDS.map((f) => <th key={f}>{NEW_LIST_NAMES[f] || f}</th>)}</tr></thead>
           <tbody>
             {rows.map((row, r) => (
               <tr key={r} className={r === at ? 'on' : ''}>
                 <td className="wd-mm-rowno">{r === at ? '▸' : ''}</td>
                 {row.map((v, c) => (
                   <td key={c}>
-                    <input className="wd-mm-cell" value={v} autoFocus={r === 0 && c === 0} onFocus={() => setAt(r)} onChange={(e) => set(r, c, e.target.value)} aria-label={NEW_LIST_FIELDS[c]} />
+                    <input className="wd-mm-cell" value={v} autoFocus={r === 0 && c === 0} onFocus={() => setAt(r)} onChange={(e) => set(r, c, e.target.value)} aria-label={NEW_LIST_NAMES[NEW_LIST_FIELDS[c]] || NEW_LIST_FIELDS[c]} />
                   </td>
                 ))}
               </tr>
@@ -439,7 +454,7 @@ function NewListDialog({ onClose, onSave }) {
           </tbody>
         </table>
       </div>
-      <p className="rw-hint">{filled.length} entr{filled.length === 1 ? 'y' : 'ies'}</p>
+      <p className="rw-hint">{tn(filled.length, '{count} entry', '{count} entries')}</p>
     </Dialog>
   );
 }
@@ -467,37 +482,38 @@ function RecipientsDialog({ call, state, onClose, onApply }) {
   const sortBy = (f) => setSort((cur) => (cur?.field === f ? (cur.descending ? null : { field: f, descending: true }) : { field: f, descending: false }));
   return (
     <Dialog
-      title="Mail Merge Recipients"
+      title={t('Mail Merge Recipients')}
       width={900}
       onClose={onClose}
+      className="wd-mm-wide"
       actions={
         <>
-          <span className="wd-mm-foot-note">{data ? `${ticked} of ${data.records.length} recipients ticked` : ''}</span>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="OK" disabled={!data} onClick={() => onApply({ excluded: [...(off || [])], sort })} />
+          <span className="wd-mm-foot-note">{data ? t('{ticked} of {total} recipients ticked', { ticked, total: data.records.length }) : ''}</span>
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('OK')} disabled={!data} onClick={() => onApply({ excluded: [...(off || [])], sort })} />
         </>
       }
     >
-      <p className="wd-mm-lead">This is the list of recipients that will be used in your merge. Use the checkboxes to add or remove recipients; click a column heading to sort by it.</p>
+      <p className="wd-mm-lead">{t('This is the list of recipients that will be used in your merge. Use the checkboxes to add or remove recipients; click a column heading to sort by it.')}</p>
       <div className="wd-mm-toolbar">
         <span className="wd-mm-filter">
           <Icon name="filter" size={14} />
-          <input className="wd-mm-filter-input" placeholder="Filter — show only the records that hold…" value={filter} onChange={(e) => setFilter(e.target.value)} aria-label="Filter" />
+          <input className="wd-mm-filter-input" placeholder={t('Filter — show only the records that hold…')} value={filter} onChange={(e) => setFilter(e.target.value)} aria-label={t('Filter')} />
         </span>
-        <Button icon="check" label="Select all" onClick={() => setOff(new Set())} />
-        <Button icon="close" label="Clear all" onClick={() => setOff(new Set(data?.records.map((_, i) => i) || []))} />
+        <Button icon="check" label={t('Select all')} onClick={() => setOff(new Set())} />
+        <Button icon="close" label={t('Clear all')} onClick={() => setOff(new Set(data?.records.map((_, i) => i) || []))} />
         {dupes.size ? (
-          <Button icon="flag" label={`Remove ${dupes.size} duplicate${dupes.size === 1 ? '' : 's'}`} title={`Remove duplicates — untick ${dupes.size} record${dupes.size === 1 ? '' : 's'} that repeat an earlier one field for field`} onClick={() => setOff((s) => new Set([...(s || []), ...dupes]))} />
-        ) : <span className="wd-mm-dupes-none">No duplicates</span>}
+          <Button icon="flag" label={tn(dupes.size, 'Remove {count} duplicate', 'Remove {count} duplicates')} title={tn(dupes.size, 'Remove duplicates — untick {count} record that repeat an earlier one field for field', 'Remove duplicates — untick {count} records that repeat an earlier one field for field')} onClick={() => setOff((s) => new Set([...(s || []), ...dupes]))} />
+        ) : <span className="wd-mm-dupes-none">{t('No duplicates')}</span>}
       </div>
       <div className="wd-mm-grid-wrap wd-mm-recipients">
-        {!data ? <p className="rw-hint">Reading the list…</p> : (
+        {!data ? <p className="rw-hint">{t('Reading the list…')}</p> : (
           <table className="wd-mm-grid">
             <thead>
               <tr>
-                <th className="wd-mm-tick"><input type="checkbox" aria-label="All" checked={off?.size === 0} onChange={(e) => setOff(e.target.checked ? new Set() : new Set(data.records.map((_, i) => i)))} /></th>
+                <th className="wd-mm-tick"><input type="checkbox" aria-label={t('All')} checked={off?.size === 0} onChange={(e) => setOff(e.target.checked ? new Set() : new Set(data.records.map((_, i) => i)))} /></th>
                 {fields.map((f) => (
-                  <th key={f} className="wd-mm-sortable" onClick={() => sortBy(f)} title={`Sort by ${f}`}>
+                  <th key={f} className="wd-mm-sortable" onClick={() => sortBy(f)} title={t('Sort by {field}', { field: f })}>
                     {f}{sort?.field === f ? (sort.descending ? ' ▼' : ' ▲') : ''}
                   </th>
                 ))}
@@ -506,7 +522,7 @@ function RecipientsDialog({ call, state, onClose, onApply }) {
             <tbody>
               {rows.map((i) => (
                 <tr key={i} className={`${off?.has(i) ? 'off' : ''}${dupes.has(i) ? ' dupe' : ''}`} data-record={i}>
-                  <td className="wd-mm-tick"><input type="checkbox" checked={!off?.has(i)} onChange={() => toggle(i)} aria-label={`Include record ${i + 1}`} /></td>
+                  <td className="wd-mm-tick"><input type="checkbox" checked={!off?.has(i)} onChange={() => toggle(i)} aria-label={t('Include record {number}', { number: i + 1 })} /></td>
                   {data.records[i].map((v, c) => <td key={c}>{v}</td>)}
                 </tr>
               ))}
@@ -515,7 +531,7 @@ function RecipientsDialog({ call, state, onClose, onApply }) {
         )}
       </div>
       <p className="rw-hint wd-mm-source">
-        Data source: {data?.name || state?.source?.name}{data?.sheet ? ` — ${data.sheet}` : ''}{dupes.size ? ` · ${dupes.size} possible duplicate${dupes.size === 1 ? '' : 's'} shaded` : ''}
+        {t('Data source: {name}', { name: data?.name || state?.source?.name || '' })}{data?.sheet ? ` — ${data.sheet}` : ''}{dupes.size ? ` · ${tn(dupes.size, '{count} possible duplicate shaded', '{count} possible duplicates shaded')}` : ''}
       </p>
     </Dialog>
   );
@@ -544,44 +560,45 @@ function AddressBlockDialog({ call, state, onClose, onInsert, onMatch }) {
   const lines = p.record ? formatAddressBlock(addressBlockInstr(spec), p.source, p.record, state?.mapping || {}) : [];
   return (
     <Dialog
-      title="Insert Address Block"
+      title={t('Insert Address Block')}
       width={760}
       onClose={onClose}
+      className="wd-mm-wide"
       actions={
         <>
-          <Button icon="link" label="Match Fields…" onClick={onMatch} />
+          <Button icon="link" label={t('Match Fields…')} onClick={onMatch} />
           <span style={{ flex: 1 }} />
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary label="OK" disabled={!withName && !company && !postal} onClick={() => onInsert(spec)} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary label={t('OK')} disabled={!withName && !company && !postal} onClick={() => onInsert(spec)} />
         </>
       }
     >
       <div className="wd-mm-cols">
         <div className="wd-mm-col">
-          <div className="wd-mm-section">Specify address elements</div>
-          <label className="wd-mm-check"><input type="checkbox" checked={withName} onChange={(e) => setWithName(e.target.checked)} /> Insert recipient's name in this format:</label>
-          <div className="wd-mm-pick wd-mm-formats" role="listbox" aria-label="Name format">
+          <div className="wd-mm-section">{t('Specify address elements')}</div>
+          <label className="wd-mm-check"><input type="checkbox" checked={withName} onChange={(e) => setWithName(e.target.checked)} /> {t('Insert recipient\'s name in this format:')}</label>
+          <div className="wd-mm-pick wd-mm-formats" role="listbox" aria-label={t('Name format')}>
             {ADDRESS_NAME_FORMATS.map((f) => (
               <button key={f.id} type="button" role="option" disabled={!withName} aria-selected={f.id === name} className={f.id === name ? 'on' : ''} onClick={() => setName(f.id)}>{f.label}</button>
             ))}
           </div>
-          <label className="wd-mm-check"><input type="checkbox" checked={company} onChange={(e) => setCompany(e.target.checked)} /> Insert company name</label>
-          <label className="wd-mm-check"><input type="checkbox" checked={postal} onChange={(e) => setPostal(e.target.checked)} /> Insert postal address:</label>
+          <label className="wd-mm-check"><input type="checkbox" checked={company} onChange={(e) => setCompany(e.target.checked)} /> {t('Insert company name')}</label>
+          <label className="wd-mm-check"><input type="checkbox" checked={postal} onChange={(e) => setPostal(e.target.checked)} /> {t('Insert postal address:')}</label>
           <div className="wd-mm-radios">
-            <label><input type="radio" name="wd-mm-country" disabled={!postal} checked={country === 'never'} onChange={() => setCountry('never')} /> Never include the country/region in the address</label>
-            <label><input type="radio" name="wd-mm-country" disabled={!postal} checked={country === 'always'} onChange={() => setCountry('always')} /> Always include the country/region in the address</label>
-            <label><input type="radio" name="wd-mm-country" disabled={!postal} checked={country === 'unlessEqual'} onChange={() => setCountry('unlessEqual')} /> Only include the country/region if different than:</label>
-            <Input value={except} disabled={!postal || country !== 'unlessEqual'} onChange={(e) => setExcept(e.target.value)} style={{ marginLeft: 22 }} aria-label="Leave off this country" />
+            <label><input type="radio" name="wd-mm-country" disabled={!postal} checked={country === 'never'} onChange={() => setCountry('never')} /> {t('Never include the country/region in the address')}</label>
+            <label><input type="radio" name="wd-mm-country" disabled={!postal} checked={country === 'always'} onChange={() => setCountry('always')} /> {t('Always include the country/region in the address')}</label>
+            <label><input type="radio" name="wd-mm-country" disabled={!postal} checked={country === 'unlessEqual'} onChange={() => setCountry('unlessEqual')} /> {t('Only include the country/region if different than:')}</label>
+            <Input value={except} disabled={!postal || country !== 'unlessEqual'} onChange={(e) => setExcept(e.target.value)} style={{ marginLeft: 22 }} aria-label={t('Leave off this country')} />
           </div>
         </div>
         <div className="wd-mm-col">
-          <div className="wd-mm-section">Preview</div>
-          <p className="rw-hint" style={{ margin: '0 0 6px' }}>Here is a preview from your recipient list:</p>
+          <div className="wd-mm-section">{t('Preview')}</div>
+          <p className="rw-hint" style={{ margin: '0 0 6px' }}>{t('Here is a preview from your recipient list:')}</p>
           <RecordStepper at={p.at} total={p.total} onGo={p.setAt} />
           <div className="wd-mm-preview wd-mm-address-preview">
-            {lines.length ? lines.map((l, i) => <div key={i}>{l}</div>) : <span className="rw-hint">Nothing to show for this record.</span>}
+            {lines.length ? lines.map((l, i) => <div key={i}>{l}</div>) : <span className="rw-hint">{t('Nothing to show for this record.')}</span>}
           </div>
-          <p className="rw-hint">If items in your address block are missing or out of order, use Match Fields to identify the correct columns from your list.</p>
+          <p className="rw-hint">{t('If items in your address block are missing or out of order, use Match Fields to identify the correct columns from your list.')}</p>
         </div>
       </div>
     </Dialog>
@@ -600,37 +617,37 @@ function GreetingLineDialog({ call, state, onClose, onInsert }) {
   const line = p.record ? formatGreeting(greetingLineInstr(spec), p.source, p.record, state?.mapping || {}) : '';
   return (
     <Dialog
-      title="Insert Greeting Line"
+      title={t('Insert Greeting Line')}
       width={560}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="OK" onClick={() => onInsert(spec)} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} onClick={() => onInsert(spec)} /></>}
     >
-      <div className="wd-mm-section">Greeting line format:</div>
+      <div className="wd-mm-section">{t('Greeting line format:')}</div>
       <div className="wd-mm-row3">
-        <Select value={salutation} onChange={(e) => setSalutation(e.target.value)} aria-label="Salutation">
-          {GREETING_SALUTATIONS.map((s) => <option key={s} value={s}>{s || '(none)'}</option>)}
+        <Select value={salutation} onChange={(e) => setSalutation(e.target.value)} aria-label={t('Salutation')}>
+          {GREETING_SALUTATIONS.map((s) => <option key={s} value={s}>{s || t('(none)')}</option>)}
         </Select>
-        <Select value={name} onChange={(e) => setName(e.target.value)} aria-label="Name format">
+        <Select value={name} onChange={(e) => setName(e.target.value)} aria-label={t('Name format')}>
           {GREETING_NAME_FORMATS.map((f) => <option key={f.id} value={f.id}>{f.label}</option>)}
         </Select>
-        <Select value={punctuation} onChange={(e) => setPunctuation(e.target.value)} aria-label="Punctuation">
-          {GREETING_PUNCTUATION.map((s) => <option key={s} value={s}>{s || '(none)'}</option>)}
+        <Select value={punctuation} onChange={(e) => setPunctuation(e.target.value)} aria-label={t('Punctuation')}>
+          {GREETING_PUNCTUATION.map((s) => <option key={s} value={s}>{s || t('(none)')}</option>)}
         </Select>
       </div>
-      <div className="wd-mm-section">Greeting line for invalid recipient names:</div>
-      <Select value={fallback} onChange={(e) => setFallback(e.target.value)} aria-label="Fallback" style={{ width: '100%' }}>
-        {GREETING_FALLBACKS.map((s) => <option key={s} value={s}>{s || '(none)'}</option>)}
+      <div className="wd-mm-section">{t('Greeting line for invalid recipient names:')}</div>
+      <Select value={fallback} onChange={(e) => setFallback(e.target.value)} aria-label={t('Fallback')} style={{ width: '100%' }}>
+        {GREETING_FALLBACKS.map((s) => <option key={s} value={s}>{s || t('(none)')}</option>)}
       </Select>
-      <div className="wd-mm-section">Preview</div>
+      <div className="wd-mm-section">{t('Preview')}</div>
       <RecordStepper at={p.at} total={p.total} onGo={p.setAt} />
-      <div className="wd-mm-preview">{line || <span className="rw-hint">(nothing)</span>}</div>
+      <div className="wd-mm-preview">{line || <span className="rw-hint">{t('(nothing)')}</span>}</div>
     </Dialog>
   );
 }
 
 /* ── Rules: If…Then…Else, Skip Record If, Next Record If ─────────────────── */
 
-const RULE_TITLES = { if: 'Insert Word Field: IF', skipif: 'Insert Word Field: Skip Record If', nextif: 'Insert Word Field: Next Record If' };
+const RULE_TITLES = { if: t('Insert Word Field: IF'), skipif: t('Insert Word Field: Skip Record If'), nextif: t('Insert Word Field: Next Record If') };
 
 /**
  * Rules → Ask, Fill-in and Set Bookmark, as Word's own dialogs: the
@@ -645,29 +662,29 @@ function PromptRuleDialog({ kind, onClose, onInsert }) {
   const [show, setShow] = useState(true);
   const needsName = kind !== 'fillin';
   const ok = (!needsName || /^[A-Za-z]/.test(name.trim())) && (kind === 'set' || prompt.trim());
-  const title = { ask: 'Insert Word Field: Ask', fillin: 'Insert Word Field: Fill-in', set: 'Insert Word Field: Set' }[kind];
+  const title = { ask: t('Insert Word Field: Ask'), fillin: t('Insert Word Field: Fill-in'), set: t('Insert Word Field: Set') }[kind];
   return (
     <Dialog
       title={title}
       width={480}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary className="wd-mm-prompt-ok" label="OK" disabled={!ok} onClick={() => onInsert({ name: name.trim(), prompt, def, value: def, once, show })} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary className="wd-mm-prompt-ok" label={t('OK')} disabled={!ok} onClick={() => onInsert({ name: name.trim(), prompt, def, value: def, once, show })} /></>}
     >
       {needsName ? (
-        <Field label="Bookmark:" hint="A letter first, then letters, digits or underscores">
+        <Field label={t('Bookmark:')} hint={t('A letter first, then letters, digits or underscores')}>
           <Input className="wd-mm-prompt-name" value={name} autoFocus onChange={(e) => setName(e.target.value)} />
         </Field>
       ) : null}
       {kind !== 'set' ? (
-        <Field label="Prompt:">
+        <Field label={t('Prompt:')}>
           <Input className="wd-mm-prompt-text" value={prompt} autoFocus={!needsName} onChange={(e) => setPrompt(e.target.value)} />
         </Field>
       ) : null}
-      <Field label={kind === 'set' ? 'Value:' : kind === 'ask' ? 'Default bookmark text:' : 'Default fill-in text:'}>
+      <Field label={kind === 'set' ? t('Value:') : kind === 'ask' ? t('Default bookmark text:') : t('Default fill-in text:')}>
         <Input className="wd-mm-prompt-default" value={def} onChange={(e) => setDef(e.target.value)} />
       </Field>
-      {kind !== 'set' ? <label className="wd-mm-check"><input type="checkbox" checked={once} onChange={(e) => setOnce(e.target.checked)} /> Ask once — one answer for every record</label> : null}
-      {kind !== 'fillin' ? <label className="wd-mm-check"><input type="checkbox" className="wd-mm-prompt-show" checked={show} onChange={(e) => setShow(e.target.checked)} /> Show the bookmark's value here, after the field</label> : null}
+      {kind !== 'set' ? <label className="wd-mm-check"><input type="checkbox" checked={once} onChange={(e) => setOnce(e.target.checked)} /> {t('Ask once — one answer for every record')}</label> : null}
+      {kind !== 'fillin' ? <label className="wd-mm-check"><input type="checkbox" className="wd-mm-prompt-show" checked={show} onChange={(e) => setShow(e.target.checked)} /> {t('Show the bookmark\'s value here, after the field')}</label> : null}
     </Dialog>
   );
 }
@@ -682,15 +699,15 @@ function MergeAnswersDialog({ prompts, records, onClose, onMerge }) {
   const set = (key, record, value) => setAnswers((a) => ({ ...a, [key]: record == null ? value : { ...a[key], [String(record)]: value } }));
   return (
     <Dialog
-      title="Answer the merge's questions"
+      title={t('Answer the merge\'s questions')}
       width={620}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary className="wd-mm-answers-ok" label="Merge" onClick={() => onMerge(answers)} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary className="wd-mm-answers-ok" label={t('Merge')} onClick={() => onMerge(answers)} /></>}
     >
       <div className="wd-mm-answers">
         {prompts.map((p) => (
           <div key={p.key} className="wd-mm-answer" data-key={p.key}>
-            <div className="wd-mm-section">{p.prompt || p.name}{p.kind === 'ask' ? ` (kept in ${p.name})` : ''}</div>
+            <div className="wd-mm-section">{p.prompt || p.name}{p.kind === 'ask' ? ` ${t('(kept in {name})', { name: p.name })}` : ''}</div>
             {p.once ? (
               <Input className="wd-mm-answer-once" value={answers[p.key]} onChange={(e) => set(p.key, null, e.target.value)} />
             ) : records.map((r) => (
@@ -719,31 +736,31 @@ function RuleDialog({ kind, fields, onClose, onInsert }) {
       title={RULE_TITLES[kind]}
       width={560}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="OK" disabled={!ok} onClick={() => onInsert({ field, comparison, value, then, otherwise })} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} disabled={!ok} onClick={() => onInsert({ field, comparison, value, then, otherwise })} /></>}
     >
-      <div className="wd-mm-section">{kind === 'if' ? 'IF' : 'Skip or move on when'}</div>
+      <div className="wd-mm-section">{kind === 'if' ? 'IF' : t('Skip or move on when')}</div>
       <div className="wd-mm-row3">
-        <Field label="Field name:">
+        <Field label={t('Field name:')}>
           <Select value={field} onChange={(e) => setField(e.target.value)}>{fields.map((f) => <option key={f} value={f}>{f}</option>)}</Select>
         </Field>
-        <Field label="Comparison:">
+        <Field label={t('Comparison:')}>
           <Select value={comparison} onChange={(e) => setComparison(e.target.value)}>{COMPARISONS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select>
         </Field>
-        <Field label="Compare to:">
+        <Field label={t('Compare to:')}>
           <Input value={value} disabled={!needsValue} onChange={(e) => setValue(e.target.value)} />
         </Field>
       </div>
       {kind === 'if' ? (
         <>
-          <Field label="Insert this text:">
+          <Field label={t('Insert this text:')}>
             <textarea className="rw-input wd-mm-text" rows={3} value={then} onChange={(e) => setThen(e.target.value)} />
           </Field>
-          <Field label="Otherwise insert this text:">
+          <Field label={t('Otherwise insert this text:')}>
             <textarea className="rw-input wd-mm-text" rows={3} value={otherwise} onChange={(e) => setOtherwise(e.target.value)} />
           </Field>
         </>
       ) : (
-        <p className="rw-hint">{kind === 'skipif' ? 'A record for which this holds is left out of the merge.' : 'When this holds, the fields after this one take the next record — the next label on the sheet.'}</p>
+        <p className="rw-hint">{kind === 'skipif' ? t('A record for which this holds is left out of the merge.') : t('When this holds, the fields after this one take the next record — the next label on the sheet.')}</p>
       )}
     </Dialog>
   );
@@ -760,18 +777,18 @@ function MatchFieldsDialog({ state, onClose, onApply }) {
   });
   return (
     <Dialog
-      title="Match Fields"
+      title={t('Match Fields')}
       width={520}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="OK" onClick={() => onApply(map)} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} onClick={() => onApply(map)} /></>}
     >
-      <p className="wd-mm-lead">For each address field the Address Block and the Greeting Line need, choose the column of your list that holds it.</p>
+      <p className="wd-mm-lead">{t('For each address field the Address Block and the Greeting Line need, choose the column of your list that holds it.')}</p>
       <div className="wd-mm-match">
         {ADDRESS_FIELDS.map((f) => (
           <React.Fragment key={f.token}>
-            <label htmlFor={`wd-mm-m-${f.token}`}>{f.label}</label>
+            <label htmlFor={`wd-mm-m-${f.token}`}>{ADDRESS_FIELD_NAMES[f.token] || f.label}</label>
             <Select id={`wd-mm-m-${f.token}`} value={map[f.token]} onChange={(e) => setMap((m) => ({ ...m, [f.token]: e.target.value }))}>
-              <option value="">(not matched)</option>
+              <option value="">{t('(not matched)')}</option>
               {fields.map((c) => <option key={c} value={c}>{c}</option>)}
             </Select>
           </React.Fragment>
@@ -789,17 +806,17 @@ function FindRecipientDialog({ fields, onClose, onFind }) {
   const [field, setField] = useState(fields[0] || '');
   return (
     <Dialog
-      title="Find Entry"
+      title={t('Find Entry')}
       width={440}
       onClose={onClose}
-      actions={<><Button label="Close" onClick={onClose} /><Button primary label="Find Next" disabled={!text.trim()} onClick={() => onFind(text, where === 'field' ? field : null)} /></>}
+      actions={<><Button label={t('Close')} onClick={onClose} /><Button primary label={t('Find Next')} disabled={!text.trim()} onClick={() => onFind(text, where === 'field' ? field : null)} /></>}
     >
-      <Field label="Find:">
+      <Field label={t('Find:')}>
         <Input value={text} autoFocus onChange={(e) => setText(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter' && text.trim()) onFind(text, where === 'field' ? field : null); }} />
       </Field>
       <div className="wd-mm-radios" style={{ marginTop: 10 }}>
-        <label><input type="radio" name="wd-mm-where" checked={where === 'all'} onChange={() => setWhere('all')} /> All fields</label>
-        <label className="wd-mm-inline"><input type="radio" name="wd-mm-where" checked={where === 'field'} onChange={() => setWhere('field')} /> This field:
+        <label><input type="radio" name="wd-mm-where" checked={where === 'all'} onChange={() => setWhere('all')} /> {t('All fields')}</label>
+        <label className="wd-mm-inline"><input type="radio" name="wd-mm-where" checked={where === 'field'} onChange={() => setWhere('field')} /> {t('This field:')}
           <Select value={field} disabled={where !== 'field'} onChange={(e) => setField(e.target.value)}>{fields.map((f) => <option key={f} value={f}>{f}</option>)}</Select>
         </label>
       </div>
@@ -809,7 +826,7 @@ function FindRecipientDialog({ fields, onClose, onFind }) {
 
 /* ── Finish & Merge ──────────────────────────────────────────────────────── */
 
-const FINISH_TITLES = { document: 'Merge to New Document', print: 'Merge to Printer', email: 'Merge to E-mail' };
+const FINISH_TITLES = { document: t('Merge to New Document'), print: t('Merge to Printer'), email: t('Merge to E-mail') };
 
 function FinishDialog({ to, shell, call, state, apply, toast, onClose }) {
   const [range, setRange] = useState('all');
@@ -847,14 +864,14 @@ function FinishDialog({ to, shell, call, state, apply, toast, onClose }) {
       if (to === 'document') {
         const made = await call('finish', { range: spec, answers });
         await shell.win.create({ app: 'word', query: { session: made.id } });
-        toast(`${made.name}: ${made.copies} ${made.copies === 1 ? 'copy' : 'copies'} of the ${made.typeLabel.toLowerCase()} — one section each.`, { tone: 'good', ms: 5000 });
+        toast(tn(made.copies, '{name}: {count} copy of the {type} — one section each.', '{name}: {count} copies of the {type} — one section each.', { name: made.name, type: TYPE_NAMES_LOWER[made.type] || made.typeLabel.toLowerCase() }), { tone: 'good', ms: 5000 });
         onClose();
       } else if (to === 'print') {
         const made = await call('finish', { range: spec, answers });
         setPrinting(made);
       } else {
-        if (!account) { toast('Add a mail account in Mail first.', { tone: 'bad' }); setBusy(false); return; }
-        if (!toField) { toast('Choose the column that holds the e-mail addresses.', { tone: 'bad' }); setBusy(false); return; }
+        if (!account) { toast(t('Add a mail account in Mail first.'), { tone: 'bad' }); setBusy(false); return; }
+        if (!toField) { toast(t('Choose the column that holds the e-mail addresses.'), { tone: 'bad' }); setBusy(false); return; }
         await apply({ op: 'setMergeEmail', toField, subject });
         const messages = await call('messages', { range: spec, toField, subject, format, answers });
         setProgress({ done: 0, total: messages.length, sent: 0, failed: [] });
@@ -864,7 +881,7 @@ function FinishDialog({ to, shell, call, state, apply, toast, onClose }) {
           (done, total) => setProgress((p) => ({ ...p, done, total })),
         );
         setProgress((p) => ({ ...p, sent: out.sent, failed: out.failed, finished: true }));
-        toast(`Sent ${out.sent} of ${messages.length} message${messages.length === 1 ? '' : 's'}${out.failed.length ? ` — ${out.failed.length} could not be sent` : ''}.`, { tone: out.failed.length ? 'bad' : 'good', ms: 6000 });
+        toast(out.failed.length ? tn(messages.length, 'Sent {sent} of {count} message — {failed} could not be sent.', 'Sent {sent} of {count} messages — {failed} could not be sent.', { sent: out.sent, failed: out.failed.length }) : tn(messages.length, 'Sent {sent} of {count} message.', 'Sent {sent} of {count} messages.', { sent: out.sent }), { tone: out.failed.length ? 'bad' : 'good', ms: 6000 });
       }
     } catch (err) {
       toast(err.message, { tone: 'bad', ms: 6000 });
@@ -888,10 +905,10 @@ function FinishDialog({ to, shell, call, state, apply, toast, onClose }) {
         onSaveAs={async (options) => {
           savingPdf.current = true;
           try {
-            const target = await shell.dialog.save({ title: 'Save as PDF', defaultPath: printing.name.replace(/\.[^.]+$/, '') + '.pdf', filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+            const target = await shell.dialog.save({ title: t('Save as PDF'), defaultPath: printing.name.replace(/\.[^.]+$/, '') + '.pdf', filters: [{ name: 'PDF', extensions: ['pdf'] }] });
             if (target) {
               await shell.print.pdf({ id: printing.id, path: target, options });
-              toast(`Saved ${target.split(/[\\/]/).pop()}`, { tone: 'good' });
+              toast(t('Saved {name}', { name: target.split(/[\\/]/).pop() }), { tone: 'good' });
             }
           } catch (err) {
             toast(err.message, { tone: 'bad' });
@@ -908,50 +925,50 @@ function FinishDialog({ to, shell, call, state, apply, toast, onClose }) {
       title={FINISH_TITLES[to]}
       width={to === 'email' ? 560 : 420}
       onClose={onClose}
-      actions={finished ? <Button primary label="Close" onClick={onClose} /> : (
-        <><Button label="Cancel" onClick={onClose} disabled={busy} /><Button primary label={to === 'email' ? 'Send' : 'OK'} disabled={busy || (to === 'email' && accounts !== null && !accounts.length)} onClick={() => run()} /></>
+      actions={finished ? <Button primary label={t('Close')} onClick={onClose} /> : (
+        <><Button label={t('Cancel')} onClick={onClose} disabled={busy} /><Button primary label={to === 'email' ? t('Send') : t('OK')} disabled={busy || (to === 'email' && accounts !== null && !accounts.length)} onClick={() => run()} /></>
       )}
     >
       {to === 'email' ? (
         <>
-          <div className="wd-mm-section">Message options</div>
+          <div className="wd-mm-section">{t('Message options')}</div>
           <div className="wd-mm-match">
-            <label>To:</label>
+            <label>{t('To:')}</label>
             <Select className="rw-select wd-mm-to" value={toField} onChange={(e) => setToField(e.target.value)}>
-              <option value="">(choose a column)</option>
+              <option value="">{t('(choose a column)')}</option>
               {(state?.source?.fields || []).map((f) => <option key={f} value={f}>{f}</option>)}
             </Select>
-            <label>Subject line:</label>
+            <label>{t('Subject line:')}</label>
             <Input className="rw-input wd-mm-subject" value={subject} onChange={(e) => setSubject(e.target.value)} />
-            <label>Mail format:</label>
+            <label>{t('Mail format:')}</label>
             <Select value={format} onChange={(e) => setFormat(e.target.value)}>
-              <option value="html">HTML</option>
-              <option value="text">Plain text</option>
+              <option value="html">HTML</option>{/* words-ok: a format's name */}
+              <option value="text">{t('Plain text')}</option>
             </Select>
-            <label>Send from:</label>
+            <label>{t('Send from:')}</label>
             <Select className="rw-select wd-mm-account" value={account} onChange={(e) => setAccount(e.target.value)}>
-              {accounts === null ? <option>Reading accounts…</option> : accounts.length ? accounts.map((a) => <option key={a.id} value={a.id}>{a.name ? `${a.name} <${a.email}>` : a.email}</option>) : <option value="">No mail account — add one in Mail</option>}
+              {accounts === null ? <option>{t('Reading accounts…')}</option> : accounts.length ? accounts.map((a) => <option key={a.id} value={a.id}>{a.name ? `${a.name} <${a.email}>` : a.email}</option>) : <option value="">{t('No mail account — add one in Mail')}</option>}
             </Select>
           </div>
-          <p className="rw-hint">Each message is the merged letter itself. The account's signature is not added: what you wrote in the letter is what each person receives.</p>
+          <p className="rw-hint">{t('Each message is the merged letter itself. The account\'s signature is not added: what you wrote in the letter is what each person receives.')}</p>
         </>
       ) : null}
-      <div className="wd-mm-section">{to === 'email' ? 'Send records' : 'Merge records'}</div>
+      <div className="wd-mm-section">{to === 'email' ? t('Send records') : t('Merge records')}</div>
       <div className="wd-mm-radios">
-        <label><input type="radio" name="wd-mm-range" checked={range === 'all'} onChange={() => setRange('all')} /> All</label>
-        <label><input type="radio" name="wd-mm-range" checked={range === 'current'} onChange={() => setRange('current')} /> Current record</label>
-        <label className="wd-mm-inline"><input type="radio" name="wd-mm-range" checked={range === 'range'} onChange={() => setRange('range')} /> From:
-          <Input className="rw-input wd-mm-num" value={from} disabled={range !== 'range'} onChange={(e) => setFrom(e.target.value.replace(/[^\d]/g, ''))} aria-label="From record" />
-          To:
-          <Input className="rw-input wd-mm-num" value={until} disabled={range !== 'range'} onChange={(e) => setUntil(e.target.value.replace(/[^\d]/g, ''))} aria-label="To record" />
+        <label><input type="radio" name="wd-mm-range" checked={range === 'all'} onChange={() => setRange('all')} /> {t('All')}</label>
+        <label><input type="radio" name="wd-mm-range" checked={range === 'current'} onChange={() => setRange('current')} /> {t('Current record')}</label>
+        <label className="wd-mm-inline"><input type="radio" name="wd-mm-range" checked={range === 'range'} onChange={() => setRange('range')} /> {t('From:')}
+          <Input className="rw-input wd-mm-num" value={from} disabled={range !== 'range'} onChange={(e) => setFrom(e.target.value.replace(/[^\d]/g, ''))} aria-label={t('From record')} />
+          {t('To:')}
+          <Input className="rw-input wd-mm-num" value={until} disabled={range !== 'range'} onChange={(e) => setUntil(e.target.value.replace(/[^\d]/g, ''))} aria-label={t('To record')} />
         </label>
       </div>
       {progress ? (
         <div className="wd-mm-progress" aria-live="polite">
           <Progress value={progress.done} max={progress.total || 1} />
-          <span className="wd-mm-progress-text">{finished ? `Sent ${progress.sent} of ${progress.total}.` : `Sending ${progress.done} of ${progress.total}…`}</span>
+          <span className="wd-mm-progress-text">{finished ? t('Sent {sent} of {total}.', { sent: progress.sent, total: progress.total }) : t('Sending {done} of {total}…', { done: progress.done, total: progress.total })}</span>
           {finished && progress.failed.length ? (
-            <ul className="wd-mm-failed">{progress.failed.map((f) => <li key={f.record}>Record {f.record}{f.to ? ` (${f.to})` : ''}: {f.error}</li>)}</ul>
+            <ul className="wd-mm-failed">{progress.failed.map((f) => <li key={f.record}>{f.to ? t('Record {record} ({to}): {error}', { record: f.record, to: f.to, error: f.error }) : t('Record {record}: {error}', { record: f.record, error: f.error })}</li>)}</ul>
           ) : null}
         </div>
       ) : null}
@@ -1016,7 +1033,7 @@ export const MAILINGS_CSS = `
 .wd-mm-progress { margin-top: 14px; display: flex; flex-direction: column; gap: 6px; }
 .wd-mm-progress-text { font-size: 12.5px; color: var(--ink-2); }
 .wd-mm-failed { margin: 4px 0 0; padding-left: 18px; font-size: 12px; color: var(--bad); }
-.rw-dialog[aria-label="Mail Merge Recipients"], .rw-dialog[aria-label="New Address List"], .rw-dialog[aria-label="Insert Address Block"] { max-width: min(94vw, 920px); }
+.rw-dialog.wd-mm-wide { max-width: min(94vw, 920px); }
 `;
 
 let installed = false;

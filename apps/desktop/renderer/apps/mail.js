@@ -21,7 +21,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Spinner, Panel, Content, List, Item,
   Search, Dialog, Field, Input, Select, useToast, useMenu, useCommands, menuItems,
-  formatWhen, formatBytes,
+  formatWhen, formatBytes, t, tn,
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, useFileDrop } from '../shell.js';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
@@ -105,9 +105,9 @@ export default function Mail({ app, shell }) {
     shell,
     appKey: 'mail',
     extra: [
-      { label: 'Import mail…', icon: 'import', run: () => setDialog({ kind: 'import' }) },
-      { label: 'Add account…', icon: 'plus', run: () => setDialog({ kind: 'account' }) },
-      { label: 'Open files with Rutba Office…', icon: 'settings', run: () => setDialog({ kind: 'defaults' }) },
+      { label: t('Import mail…'), icon: 'import', run: () => setDialog({ kind: 'import' }) },
+      { label: t('Add account…'), icon: 'plus', run: () => setDialog({ kind: 'account' }) },
+      { label: t('Open files with Rutba Office…'), icon: 'settings', run: () => setDialog({ kind: 'defaults' }) },
     ],
   });
 
@@ -232,12 +232,12 @@ export default function Mail({ app, shell }) {
       setFolderTick((n) => n + 1);
     });
     const offSent = shell.on('mail:sent', ({ to }) => {
-      toast(`Sent to ${to}`, { tone: 'good' });
+      toast(t('Sent to {to}', { to }), { tone: 'good' });
       shell.mail.outbox().then(setOutbox).catch(() => {});
       refreshList();
     });
     const offFailed = shell.on('mail:sendFailed', ({ message: why, gaveUp }) => {
-      toast(gaveUp ? `Could not send: ${why}. The message is back in Drafts.` : `Send failed, trying again: ${why}`, {
+      toast(gaveUp ? t('Could not send: {why}. The message is back in Drafts.', { why }) : t('Send failed, trying again: {why}', { why }), {
         tone: 'bad',
         ms: 9000,
       });
@@ -365,7 +365,12 @@ export default function Mail({ app, shell }) {
           const inJunk = (r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk');
           if (what === 'block') await overRows(chosen.filter((r) => !inJunk(r)), (g) => shell.mail.move({ ...g, to: foldersFor(g.accountId).find((f) => f.role === 'junk')?.path || 'Junk' }));
           else await overRows(chosen.filter(inJunk), (g) => shell.mail.notJunk(g));
-          toast(`${entries.length === 1 ? entries[0] : `${entries.length} senders`} added to ${what === 'block' ? 'Blocked' : 'Safe'} Senders`, { tone: 'good' });
+          toast(
+            entries.length === 1
+              ? what === 'block' ? t('{sender} added to Blocked Senders', { sender: entries[0] }) : t('{sender} added to Safe Senders', { sender: entries[0] })
+              : what === 'block' ? tn(entries.length, '{count} sender added to Blocked Senders', '{count} senders added to Blocked Senders') : tn(entries.length, '{count} sender added to Safe Senders', '{count} senders added to Safe Senders'),
+            { tone: 'good' }
+          );
         } else if (what === 'safeGroup') {
           // Never block this group or mailing list: the address the mail went
           // to kept as a Safe Recipient, and anything of it in Junk put back.
@@ -379,10 +384,10 @@ export default function Mail({ app, shell }) {
               refused = err.message;
             }
           });
-          if (!added.size) { toast(refused || 'Nothing to keep', { tone: 'bad' }); return; }
+          if (!added.size) { toast(refused || t('Nothing to keep'), { tone: 'bad' }); return; }
           const inJunk = (r) => foldersFor(r.accountId).find((f) => f.path === r.folder)?.role === 'junk' || (unified && role === 'junk');
           await overRows(chosen.filter(inJunk), (g) => shell.mail.notJunk(g));
-          toast(`${added.size === 1 ? [...added][0] : `${added.size} groups`} added to Safe Recipients`, { tone: 'good' });
+          toast(added.size === 1 ? t('{recipient} added to Safe Recipients', { recipient: [...added][0] }) : tn(added.size, '{count} group added to Safe Recipients', '{count} groups added to Safe Recipients'), { tone: 'good' });
         } else if (what === 'move') {
           await overRows(chosen, (g) => shell.mail.move({ ...g, to: extra }));
         } else if (what === 'read') {
@@ -435,8 +440,8 @@ export default function Mail({ app, shell }) {
       }
       toast(
         localOnly === ids.length
-          ? 'These are imported archives — there is nothing to fetch.'
-          : `${added} new message${added === 1 ? '' : 's'}`,
+          ? t('These are imported archives — there is nothing to fetch.')
+          : tn(added, '{count} new message', '{count} new messages'),
         { tone: localOnly === ids.length ? 'plain' : 'good' }
       );
       await refreshList();
@@ -513,7 +518,7 @@ export default function Mail({ app, shell }) {
   const doSend = useCallback(
     async (draft, at) => {
       const from = draft.accountId || accountId;
-      if (!from || from === EVERYTHING) return toast('Choose which account to send from.', { tone: 'bad' });
+      if (!from || from === EVERYTHING) return toast(t('Choose which account to send from.'), { tone: 'bad' });
       try {
         // Attachments forwarded from another message are held by the backend;
         // they are written to a temporary file so SMTP can stream them.
@@ -545,7 +550,7 @@ export default function Mail({ app, shell }) {
         });
         setOutbox(await shell.mail.outbox());
         setCompose(null);
-        if (at) toast(`Scheduled for ${new Date(at).toLocaleString()}`, { tone: 'good', ms: 6000 });
+        if (at) toast(t('Scheduled for {when}', { when: new Date(at).toLocaleString() }), { tone: 'good', ms: 6000 });
         return item;
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 7000 });
@@ -570,7 +575,7 @@ export default function Mail({ app, shell }) {
       try {
         await shell.mail.unsend({ id: item.id });
         await shell.mail.send({ accountId: item.accountId, draft: item.draft });
-        toast(`Sent to ${item.draft?.to || 'recipient'}`, { tone: 'good' });
+        toast(t('Sent to {to}', { to: item.draft?.to || t('recipient') }), { tone: 'good' });
         refreshList();
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 7000 });
@@ -587,7 +592,7 @@ export default function Mail({ app, shell }) {
       await shell.mail.unsend({ id: item.id });
       await shell.mail.saveDraft({ accountId: item.accountId, draft: item.draft });
       setOutbox(await shell.mail.outbox());
-      toast('Moved to Drafts', { tone: 'good' });
+      toast(t('Moved to Drafts'), { tone: 'good' });
       refreshList();
     },
     [shell, toast, refreshList]
@@ -600,7 +605,7 @@ export default function Mail({ app, shell }) {
       if (!selected) return;
       const list = index === 'all' ? (message.attachments || []).map((a, i) => i).filter((i) => !message.attachments[i].inline) : [index];
       if (index === 'all') {
-        const dirs = await shell.dialog.open({ title: 'Save all attachments to…', directory: true });
+        const dirs = await shell.dialog.open({ title: t('Save all attachments to…'), directory: true });
         if (!dirs?.[0]) return;
         for (const i of list) {
           const held = await shell.mail.attachment({ ...selected, index: i });
@@ -608,16 +613,16 @@ export default function Mail({ app, shell }) {
           const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
           await shell.fs.write({ path: `${dirs[0]}/${held.name}`, bytes });
         }
-        toast(`Saved ${list.length} files`, { tone: 'good' });
+        toast(tn(list.length, 'Saved {count} file', 'Saved {count} files'), { tone: 'good' });
         return;
       }
       const held = await shell.mail.attachment({ ...selected, index });
-      if (!held) return toast('That attachment is not stored.', { tone: 'bad' });
-      const target = await shell.dialog.save({ title: 'Save attachment', defaultPath: held.name });
+      if (!held) return toast(t('That attachment is not stored.'), { tone: 'bad' });
+      const target = await shell.dialog.save({ title: t('Save attachment'), defaultPath: held.name });
       if (!target) return;
       const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
       await shell.fs.write({ path: target, bytes });
-      toast(`Saved ${held.name}`, { tone: 'good' });
+      toast(t('Saved {name}', { name: held.name }), { tone: 'good' });
     },
     [selected, message, shell, toast]
   );
@@ -626,7 +631,7 @@ export default function Mail({ app, shell }) {
   const openAttachment = useCallback(
     async (index, meta, where = selected) => {
       const held = await shell.mail.attachment({ ...where, index });
-      if (!held) return toast('That attachment is not stored.', { tone: 'bad' });
+      if (!held) return toast(t('That attachment is not stored.'), { tone: 'bad' });
       const bytes = new Uint8Array(await (await fetch(held.url)).arrayBuffer());
       const name = String(meta?.filename || held.name);
       const { path } = await shell.fs.temp({ ext: attachmentExtension(name), bytes });
@@ -659,10 +664,10 @@ export default function Mail({ app, shell }) {
 
   const chooseImport = useCallback(async () => {
     const paths = await shell.dialog.open({
-      title: 'Import mail',
+      title: t('Import mail'),
       filters: [
-        { name: 'Mail archives', extensions: ['pst', 'ost', 'olm', 'mbox', 'mbx', 'eml', 'emlx', 'msg'] },
-        { name: 'All files', extensions: ['*'] },
+        { name: t('Mail archives'), extensions: ['pst', 'ost', 'olm', 'mbox', 'mbx', 'eml', 'emlx', 'msg'] },
+        { name: t('All files'), extensions: ['*'] },
       ],
     });
     if (paths[0]) importFrom(paths[0]);
@@ -671,10 +676,10 @@ export default function Mail({ app, shell }) {
   // A file of accounts: the picker, the service, and what came of it.
   const importAccountsFrom = useCallback(async () => {
     const paths = await shell.dialog.open({
-      title: 'Set up accounts from a file',
+      title: t('Set up accounts from a file'),
       filters: [
-        { name: 'Accounts (JSON)', extensions: ['json'] },
-        { name: 'All files', extensions: ['*'] },
+        { name: t('Accounts (JSON)'), extensions: ['json'] },
+        { name: t('All files'), extensions: ['*'] },
       ],
     });
     if (!paths[0]) return;
@@ -684,10 +689,10 @@ export default function Mail({ app, shell }) {
       await loadAccounts();
       if (r.added.length) setAccountId(r.added[0].id);
       const parts = [];
-      if (r.added.length) parts.push(`${r.added.length} set up`);
-      if (r.skipped.length) parts.push(`${r.skipped.length} left as ${r.skipped.length === 1 ? 'it was' : 'they were'}`);
-      if (r.failed.length) parts.push(`${r.failed.length} could not sign in: ${r.failed.map((f) => f.email).join(', ')}`);
-      toast(parts.length ? `${parts.join('; ')}.` : 'No accounts in that file.', { tone: r.failed.length ? 'bad' : r.added.length ? 'good' : 'plain', ms: 8000 });
+      if (r.added.length) parts.push(tn(r.added.length, '{count} set up', '{count} set up'));
+      if (r.skipped.length) parts.push(tn(r.skipped.length, '{count} left as it was', '{count} left as they were'));
+      if (r.failed.length) parts.push(tn(r.failed.length, '{count} could not sign in: {addresses}', '{count} could not sign in: {addresses}', { addresses: r.failed.map((f) => f.email).join(', ') }));
+      toast(parts.length ? `${parts.join('; ')}.` : t('No accounts in that file.'), { tone: r.failed.length ? 'bad' : r.added.length ? 'good' : 'plain', ms: 8000 });
     } catch (err) {
       toast(err.message, { tone: 'bad', ms: 8000 });
     }
@@ -700,7 +705,7 @@ export default function Mail({ app, shell }) {
         const result = await shell.mail.import({ path: target, folders: chosen });
         await loadAccounts();
         setAccountId(result.accountId);
-        toast(`Imported ${result.messages.toLocaleString()} messages into ${result.folders} folders`, { tone: 'good', ms: 6000 });
+        toast(t('Imported {messages} into {folders}', { messages: tn(result.messages, '{count} message', '{count} messages'), folders: tn(result.folders, '{count} folder', '{count} folders') }), { tone: 'good', ms: 6000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 7000 });
       } finally {
@@ -728,7 +733,7 @@ export default function Mail({ app, shell }) {
         const seen = await shell.calendar.openFile({ text: part.text, name: part.name });
         if (!live) return;
         const first = seen.first;
-        const when = !first ? '' : first.allDay ? `${first.start.date}, all day` : new Date(first.start.at).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+        const when = !first ? '' : first.allDay ? t('{date}, all day', { date: first.start.date }) : new Date(first.start.at).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
         const me = seen.invitation?.me;
         const who = first?.attendees?.[0];
         setInvitation({
@@ -740,7 +745,7 @@ export default function Mail({ app, shell }) {
           location: first?.location || '',
           organizer: first?.organizer?.name || first?.organizer?.email || '',
           answered: me?.partstat && me.partstat !== 'NEEDS-ACTION' ? me.partstat : null,
-          reply: seen.method === 'REPLY' && who ? `${who.name || who.email} ${String(who.partstat || 'replied').toLowerCase()}` : null,
+          reply: seen.method === 'REPLY' && who ? t('{name} {answer}', { name: who.name || who.email, answer: { ACCEPTED: t('accepted'), TENTATIVE: t('tentative'), DECLINED: t('declined') }[who.partstat] || String(who.partstat || t('replied')).toLowerCase() }) : null,
         });
       } catch (err) {
         // A calendar part that will not read is an attachment like any other; say why on the console.
@@ -758,7 +763,7 @@ export default function Mail({ app, shell }) {
       try {
         if (partstat === 'KEEP') {
           const r = await shell.calendar.importFile({ text: invitation.text });
-          toast(`${r.added} added to ${r.calendar}.`, { tone: 'good' });
+          toast(tn(r.added, '{count} added to {calendar}.', '{count} added to {calendar}.', { calendar: r.calendar }), { tone: 'good' });
           return;
         }
         const r = await shell.calendar.respond({ text: invitation.text, partstat });
@@ -766,7 +771,7 @@ export default function Mail({ app, shell }) {
         if (r.replyPath && r.organizer?.email) {
           setCompose({ to: r.organizer.email, subject: r.subject, text: '', attachments: [{ filename: 'reply.ics', path: r.replyPath, size: 0 }] });
         }
-        toast(r.kept ? 'Added to your calendar; the reply is ready to send.' : 'Declined; the reply is ready to send.', { tone: 'good', ms: 6000 });
+        toast(r.kept ? t('Added to your calendar; the reply is ready to send.') : t('Declined; the reply is ready to send.'), { tone: 'good', ms: 6000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 8000 });
       }
@@ -779,7 +784,7 @@ export default function Mail({ app, shell }) {
       if (!from?.address) return;
       try {
         const kept = await shell.contacts.fromMail({ name: from.name || '', email: from.address });
-        toast(`Kept ${kept?.display || from.address} in Contacts.`, { tone: 'good' });
+        toast(t('Kept {name} in Contacts.', { name: kept?.display || from.address }), { tone: 'good' });
       } catch (err) {
         toast(err.message, { tone: 'bad' });
       }
@@ -809,21 +814,21 @@ export default function Mail({ app, shell }) {
     async (offer) => {
       const { response } = await shell.dialog.message({
         type: 'question',
-        message: `Unsubscribe from ${offer.list || 'this list'}?`,
+        message: t('Unsubscribe from {list}?', { list: offer.list || t('this list') }),
         detail:
           offer.method === 'one-click'
-            ? 'The sender supports one-click unsubscribe. A single request is sent to them and nothing else leaves this computer.'
+            ? t('The sender supports one-click unsubscribe. A single request is sent to them and nothing else leaves this computer.')
             : offer.method === 'web'
-              ? `This opens ${new URL(offer.http).hostname} in your browser, where the sender handles it.`
-              : `This sends a message to ${offer.address}.`,
-        buttons: ['Unsubscribe', 'Cancel'],
+              ? t('This opens {host} in your browser, where the sender handles it.', { host: new URL(offer.http).hostname })
+              : t('This sends a message to {address}.', { address: offer.address }),
+        buttons: [t('Unsubscribe'), t('Cancel')],
         cancelId: 1,
       });
       if (response !== 0) return;
 
       if (offer.method === 'email' || (!offer.http && offer.address)) {
         await doSend({ to: offer.address, subject: offer.subject, text: 'Please remove this address from the list.' }, null);
-        toast('Unsubscribe request queued.', { tone: 'good' });
+        toast(t('Unsubscribe request queued.'), { tone: 'good' });
       } else {
         await shell.shell.openExternal({ url: offer.http });
       }
@@ -837,9 +842,9 @@ export default function Mail({ app, shell }) {
     () => ({
       // F5, the key every mail client fetches on; Ctrl+R is Reply, and one
       // key cannot do both.
-      'mail.sync': { label: 'Get mail', icon: 'refresh', key: 'F5', run: sync },
+      'mail.sync': { label: t('Get mail'), icon: 'refresh', key: 'F5', run: sync },
       'mail.compose': {
-        label: 'New message',
+        label: t('New message'),
         icon: 'new',
         key: 'Mod+N',
         run: () => {
@@ -847,19 +852,19 @@ export default function Mail({ app, shell }) {
           setCompose({ to: '', subject: '', text: withSignature('', signatureFor(fromId)), html: withSignatureHtml('', signatureHtmlFor(fromId)) || null, accountId: fromId || undefined });
         },
       },
-      'mail.reply': { label: 'Reply', icon: 'reply', key: 'Mod+R', run: () => reply(false) },
-      'mail.replyAll': { label: 'Reply all', icon: 'replyAll', run: () => reply(true) },
-      'mail.forward': { label: 'Forward', icon: 'forward', run: forward },
-      'mail.archive': { label: 'Archive', icon: 'archive', key: 'e', run: () => act('archive') },
-      'mail.delete': { label: 'Delete', icon: 'trash', key: 'Delete', run: () => act('delete') },
-      'mail.junk': { label: 'Move to Junk', icon: 'spam', run: () => act('junk') },
-      'mail.flag': { label: 'Star', icon: 'star', run: () => act('flag') },
-      'mail.pin': { label: 'Pin to the top', icon: 'flag', run: () => act('pin') },
-      'mail.read': { label: 'Mark read', icon: 'check', run: () => act('read') },
-      'mail.unread': { label: 'Mark unread', icon: 'eye', run: () => act('unread') },
-      'mail.import': { label: 'Import mail…', icon: 'import', run: () => setDialog({ kind: 'import' }) },
-      'mail.account': { label: 'Add account…', icon: 'plus', run: () => setDialog({ kind: 'account' }) },
-      'mail.search': { label: 'Search', icon: 'find', key: 'Mod+F', run: () => document.querySelector('.rw-search input')?.focus() },
+      'mail.reply': { label: t('Reply'), icon: 'reply', key: 'Mod+R', run: () => reply(false) },
+      'mail.replyAll': { label: t('Reply all'), icon: 'replyAll', run: () => reply(true) },
+      'mail.forward': { label: t('Forward'), icon: 'forward', run: forward },
+      'mail.archive': { label: t('Archive'), icon: 'archive', key: 'e', run: () => act('archive') },
+      'mail.delete': { label: t('Delete'), icon: 'trash', key: 'Delete', run: () => act('delete') },
+      'mail.junk': { label: t('Move to Junk'), icon: 'spam', run: () => act('junk') },
+      'mail.flag': { label: t('Star'), icon: 'star', run: () => act('flag') },
+      'mail.pin': { label: t('Pin to the top'), icon: 'flag', run: () => act('pin') },
+      'mail.read': { label: t('Mark read'), icon: 'check', run: () => act('read') },
+      'mail.unread': { label: t('Mark unread'), icon: 'eye', run: () => act('unread') },
+      'mail.import': { label: t('Import mail…'), icon: 'import', run: () => setDialog({ kind: 'import' }) },
+      'mail.account': { label: t('Add account…'), icon: 'plus', run: () => setDialog({ kind: 'account' }) },
+      'mail.search': { label: t('Search'), icon: 'find', key: 'Mod+F', run: () => document.querySelector('.rw-search input')?.focus() },
     }),
     [sync, reply, forward, act, accountId, accounts, signatureFor, signatureHtmlFor]
   );
@@ -898,7 +903,7 @@ export default function Mail({ app, shell }) {
   const account = accounts.find((a) => a.id === accountId);
   const current = folders.find((f) => f.path === folder);
   const unreadTotal = accounts.reduce((n, a) => n + (a.counts?.unread || 0), 0);
-  const title = unified ? 'All accounts' : account ? `${current?.name || 'Mail'} — ${account.name || account.email}` : 'Mail';
+  const title = unified ? t('All accounts') : account ? `${current?.name || t('Mail')} — ${account.name || account.email}` : t('Mail');
 
   const moveMenu = useCallback(
     (event) =>
@@ -917,15 +922,15 @@ export default function Mail({ app, shell }) {
   const junkMenu = (event) => {
     const none = !selected && !checked.size;
     menu.open(event, [
-      { label: 'Mark as junk', icon: 'spam', disabled: none || inJunk, run: () => act('junk') },
-      { label: 'Not junk', icon: 'inbox', disabled: none || !inJunk, run: () => act('notJunk') },
+      { label: t('Mark as junk'), icon: 'spam', disabled: none || inJunk, run: () => act('junk') },
+      { label: t('Not junk'), icon: 'inbox', disabled: none || !inJunk, run: () => act('notJunk') },
       '-',
-      { label: 'Block sender', disabled: none, run: () => act('block') },
-      { label: 'Never block sender', disabled: none, run: () => act('safe') },
-      { label: "Never block sender's domain", disabled: none, run: () => act('safeDomain') },
-      { label: 'Never block this group or mailing list', disabled: none, run: () => act('safeGroup') },
+      { label: t('Block sender'), disabled: none, run: () => act('block') },
+      { label: t('Never block sender'), disabled: none, run: () => act('safe') },
+      { label: t("Never block sender's domain"), disabled: none, run: () => act('safeDomain') },
+      { label: t('Never block this group or mailing list'), disabled: none, run: () => act('safeGroup') },
       '-',
-      { label: 'Junk email options…', icon: 'settings', run: () => setDialog({ kind: 'junk' }) },
+      { label: t('Junk email options…'), icon: 'settings', run: () => setDialog({ kind: 'junk' }) },
     ]);
   };
 
@@ -938,102 +943,102 @@ export default function Mail({ app, shell }) {
       ribbon={
         <Ribbon
           tabs={[
-            { id: 'home', label: 'Home' },
-            { id: 'send', label: 'Send / Receive' },
-            { id: 'folder', label: 'Folder' },
-            { id: 'view', label: 'View' },
-            { id: 'tools', label: 'Tools' },
+            { id: 'home', label: t('Home') },
+            { id: 'send', label: t('Send / Receive') },
+            { id: 'folder', label: t('Folder') },
+            { id: 'view', label: t('View') },
+            { id: 'tools', label: t('Tools') },
           ]}
           active={tab}
           onTab={setTab}
           quick={
             <>
-              <Button icon="refresh" title="Get mail" onClick={sync} disabled={!accountId} />
-              <Button icon="new" title="New message" onClick={() => commands['mail.compose'].run()} disabled={!accounts.length} />
-              <Button icon="trash" title="Delete" onClick={() => act('delete')} disabled={!selected && !checked.size} />
-              <Button icon="star" title="Star" onClick={() => act('flag')} disabled={!selected && !checked.size} />
+              <Button icon="refresh" title={t('Get mail')} onClick={sync} disabled={!accountId} />
+              <Button icon="new" title={t('New message')} onClick={() => commands['mail.compose'].run()} disabled={!accounts.length} />
+              <Button icon="trash" title={t('Delete')} onClick={() => act('delete')} disabled={!selected && !checked.size} />
+              <Button icon="star" title={t('Star')} onClick={() => act('flag')} disabled={!selected && !checked.size} />
             </>
           }
         >
           {tab === 'home' ? (
             <>
-              <Group label="New">
-                <Button tall icon="new" label="Message" onClick={() => commands['mail.compose'].run()} disabled={!accounts.length} />
+              <Group label={t('New')}>
+                <Button tall icon="new" label={t('Message')} onClick={() => commands['mail.compose'].run()} disabled={!accounts.length} />
               </Group>
-              <Group label="Delete">
-                <Button tall icon="trash" label="Delete" disabled={!selected && !checked.size} onClick={() => act('delete')} />
-                <Button icon="archive" label="Archive" disabled={!selected && !checked.size} onClick={() => act('archive')} />
-                <Button icon="spam" label="Junk" title="Junk — mark, block a sender, or the junk filter's options" onClick={junkMenu} />
+              <Group label={t('Delete')}>
+                <Button tall icon="trash" label={t('Delete')} disabled={!selected && !checked.size} onClick={() => act('delete')} />
+                <Button icon="archive" label={t('Archive')} disabled={!selected && !checked.size} onClick={() => act('archive')} />
+                <Button icon="spam" label={t('Junk')} title={t("Junk — mark, block a sender, or the junk filter's options")} onClick={junkMenu} />
               </Group>
-              <Group label="Respond">
-                <Button tall icon="reply" label="Reply" disabled={!message} onClick={() => reply(false)} />
-                <Button tall icon="replyAll" label="Reply all" disabled={!message} onClick={() => reply(true)} />
-                <Button tall icon="forward" label="Forward" disabled={!message} onClick={forward} />
+              <Group label={t('Respond')}>
+                <Button tall icon="reply" label={t('Reply')} disabled={!message} onClick={() => reply(false)} />
+                <Button tall icon="replyAll" label={t('Reply all')} disabled={!message} onClick={() => reply(true)} />
+                <Button tall icon="forward" label={t('Forward')} disabled={!message} onClick={forward} />
               </Group>
-              <Group label="Move">
-                <Button tall icon="folder" label="Move to" disabled={(!selected && !checked.size) || unified} onClick={moveMenu} />
+              <Group label={t('Move')}>
+                <Button tall icon="folder" label={t('Move to')} disabled={(!selected && !checked.size) || unified} onClick={moveMenu} />
               </Group>
-              <Group label="Tags">
-                <Button icon="star" label="Star" disabled={!selected && !checked.size} onClick={() => act('flag')} />
-                <Button icon="flag" label="Pin" disabled={!selected && !checked.size} onClick={() => act('pin')} />
-                <Button icon="check" label="Read" disabled={!selected && !checked.size} onClick={() => act('read')} />
-                <Button icon="eye" label="Unread" disabled={!selected && !checked.size} onClick={() => act('unread')} />
+              <Group label={t('Tags')}>
+                <Button icon="star" label={t('Star')} disabled={!selected && !checked.size} onClick={() => act('flag')} />
+                <Button icon="flag" label={t('Pin')} disabled={!selected && !checked.size} onClick={() => act('pin')} />
+                <Button icon="check" label={t('Read')} disabled={!selected && !checked.size} onClick={() => act('read')} />
+                <Button icon="eye" label={t('Unread')} disabled={!selected && !checked.size} onClick={() => act('unread')} />
               </Group>
-              <Group label="Find">
-                <Button tall icon="find" label="Search" onClick={() => commands['mail.search'].run()} />
-                <Button icon="attach" label="Attachments" pressed={view === 'files'} onClick={() => setView(view === 'files' ? 'mail' : 'files')} disabled={unified} />
-                <Button icon="reply" label="People" pressed={view === 'people'} onClick={() => setView(view === 'people' ? 'mail' : 'people')} disabled={unified} />
-                <Button icon="filter" label="Rules" onClick={() => setDialog({ kind: 'rules' })} />
+              <Group label={t('Find')}>
+                <Button tall icon="find" label={t('Search')} onClick={() => commands['mail.search'].run()} />
+                <Button icon="attach" label={t('Attachments')} pressed={view === 'files'} onClick={() => setView(view === 'files' ? 'mail' : 'files')} disabled={unified} />
+                <Button icon="reply" label={t('People')} pressed={view === 'people'} onClick={() => setView(view === 'people' ? 'mail' : 'people')} disabled={unified} />
+                <Button icon="filter" label={t('Rules')} onClick={() => setDialog({ kind: 'rules' })} />
               </Group>
             </>
           ) : tab === 'send' ? (
             <>
-              <Group label="Send and receive">
-                <Button tall icon="refresh" label={unified ? 'All accounts' : 'This account'} onClick={sync} disabled={!accountId} />
-                <Button icon="download" label="This folder" disabled={!folder || unified} onClick={sync} />
+              <Group label={t('Send and receive')}>
+                <Button tall icon="refresh" label={unified ? t('All accounts') : t('This account')} onClick={sync} disabled={!accountId} />
+                <Button icon="download" label={t('This folder')} disabled={!folder || unified} onClick={sync} />
               </Group>
-              <Group label="Outbox">
+              <Group label={t('Outbox')}>
                 <Button
                   tall
                   icon="clock"
-                  label={outbox.length ? `Waiting (${outbox.length})` : 'Nothing waiting'}
+                  label={outbox.length ? t('Waiting ({count})', { count: outbox.length }) : t('Nothing waiting')}
                   disabled={!outbox.length}
                   onClick={() => setDialog({ kind: 'outbox' })}
                 />
               </Group>
-              <Group label="Import">
-                <Button tall icon="import" label="Import mail" onClick={() => setDialog({ kind: 'import' })} />
+              <Group label={t('Import')}>
+                <Button tall icon="import" label={t('Import mail')} onClick={() => setDialog({ kind: 'import' })} />
               </Group>
-              <Group label="Export">
+              <Group label={t('Export')}>
                 <Button
                   tall
                   icon="export"
-                  label="Mbox"
+                  label="Mbox" // words-ok: a file format's name
                   disabled={!folder || unified}
                   onClick={async () => {
-                    const target = await shell.dialog.save({ title: 'Export folder', defaultPath: `${current?.name || 'folder'}.mbox` });
+                    const target = await shell.dialog.save({ title: t('Export folder'), defaultPath: `${current?.name || t('folder')}.mbox` });
                     if (!target) return;
                     const r = await shell.mail.export({ accountId, folder, path: target, format: 'mbox' });
-                    toast(`Exported ${r.messages} messages`, { tone: 'good' });
+                    toast(tn(r.messages, 'Exported {count} message', 'Exported {count} messages'), { tone: 'good' });
                   }}
                 />
               </Group>
             </>
           ) : tab === 'folder' ? (
             <>
-              <Group label="Accounts">
-                <Button tall icon="plus" label="Add" onClick={() => setDialog({ kind: 'account' })} />
+              <Group label={t('Accounts')}>
+                <Button tall icon="plus" label={t('Add')} onClick={() => setDialog({ kind: 'account' })} />
                 <Button
                   tall
                   icon="word"
-                  label="Signature"
+                  label={t('Signature')}
                   disabled={!account}
                   onClick={() => setDialog({ kind: 'signature', accountId: account.id })}
                 />
                 <Button
                   tall
                   icon="clock"
-                  label={account?.autoReply?.enabled ? 'Out of office (on)' : 'Out of office'}
+                  label={account?.autoReply?.enabled ? t('Out of office (on)') : t('Out of office')}
                   pressed={Boolean(account?.autoReply?.enabled)}
                   disabled={!account}
                   onClick={() => setDialog({ kind: 'ooo', accountId: account.id })}
@@ -1041,14 +1046,14 @@ export default function Mail({ app, shell }) {
                 <Button
                   tall
                   icon="trash"
-                  label="Remove"
+                  label={t('Remove')}
                   disabled={!account}
                   onClick={async () => {
                     const { response } = await shell.dialog.message({
                       type: 'warning',
-                      message: `Remove ${account.email}?`,
-                      detail: 'The mail stored on this computer for that account is deleted too.',
-                      buttons: ['Remove', 'Keep the mail', 'Cancel'],
+                      message: t('Remove {address}?', { address: account.email }),
+                      detail: t('The mail stored on this computer for that account is deleted too.'),
+                      buttons: [t('Remove'), t('Keep the mail'), t('Cancel')],
                       cancelId: 2,
                     });
                     if (response === 2) return;
@@ -1058,34 +1063,34 @@ export default function Mail({ app, shell }) {
                   }}
                 />
               </Group>
-              <Group label="This folder">
+              <Group label={t('This folder')}>
                 <Button
                   tall
                   icon="check"
-                  label="Mark all read"
+                  label={t('Mark all read')}
                   disabled={!folder || unified}
                   onClick={async () => {
                     const r = await shell.mail.markAllRead({ accountId, folder });
-                    toast(`${r.changed} marked read`, { tone: 'good' });
+                    toast(tn(r.changed, '{count} marked read', '{count} marked read'), { tone: 'good' });
                     refreshList();
                     loadAccounts();
                   }}
                 />
                 <Button
                   icon="trash"
-                  label="Empty folder"
+                  label={t('Empty folder')}
                   disabled={!current || !['trash', 'junk'].includes(current.role)}
                   onClick={async () => {
                     const { response } = await shell.dialog.message({
                       type: 'warning',
-                      message: `Permanently delete everything in ${current.name}?`,
-                      detail: 'This cannot be undone.',
-                      buttons: ['Delete', 'Cancel'],
+                      message: t('Permanently delete everything in {folder}?', { folder: current.name }),
+                      detail: t('This cannot be undone.'),
+                      buttons: [t('Delete'), t('Cancel')],
                       cancelId: 1,
                     });
                     if (response !== 0) return;
                     const r = await shell.mail.emptyFolder({ accountId, folder });
-                    toast(`${r.removed} deleted`, { tone: 'good' });
+                    toast(tn(r.removed, '{count} deleted', '{count} deleted'), { tone: 'good' });
                     refreshList();
                   }}
                 />
@@ -1093,51 +1098,51 @@ export default function Mail({ app, shell }) {
             </>
           ) : tab === 'view' ? (
             <>
-              <Group label="Arrangement">
-                <Button icon="list" label="Conversations" pressed={prefs.threaded} onClick={() => setPref({ threaded: !prefs.threaded })} />
+              <Group label={t('Arrangement')}>
+                <Button icon="list" label={t('Conversations')} pressed={prefs.threaded} onClick={() => setPref({ threaded: !prefs.threaded })} />
                 <Button
                   icon="sort"
-                  label={`Sort: ${SORTS.find((s) => s.id === prefs.sort)?.label}`}
+                  label={t('Sort: {order}', { order: SORTS.find((s) => s.id === prefs.sort)?.label })}
                   onClick={(e) =>
                     menu.open(
                       e,
                       SORTS.map((s) => ({ label: s.label, icon: prefs.sort === s.id ? 'check' : undefined, run: () => setPref({ sort: s.id }) }))
-                        .concat(['-', { label: prefs.ascending ? 'Newest first' : 'Oldest first', icon: 'refresh', run: () => setPref({ ascending: !prefs.ascending }) }])
+                        .concat(['-', { label: prefs.ascending ? t('Newest first') : t('Oldest first'), icon: 'refresh', run: () => setPref({ ascending: !prefs.ascending }) }])
                     )
                   }
                 />
-                <Button icon="grid" label={prefs.density === 'compact' ? 'Compact' : 'Comfortable'} onClick={() => setPref({ density: prefs.density === 'compact' ? 'cosy' : 'compact' })} />
+                <Button icon="grid" label={prefs.density === 'compact' ? t('Compact') : t('Comfortable')} onClick={() => setPref({ density: prefs.density === 'compact' ? 'cosy' : 'compact' })} />
               </Group>
-              <Group label="Reading pane">
-                <Button icon="grid" label="Right" pressed={prefs.layout === 'right'} onClick={() => setPref({ layout: 'right' })} />
-                <Button icon="list" label="Bottom" pressed={prefs.layout === 'bottom'} onClick={() => setPref({ layout: 'bottom' })} />
-                <Button icon="close" label="Off" pressed={prefs.layout === 'off'} onClick={() => setPref({ layout: 'off' })} />
+              <Group label={t('Reading pane')}>
+                <Button icon="grid" label={t('Right')} pressed={prefs.layout === 'right'} onClick={() => setPref({ layout: 'right' })} />
+                <Button icon="list" label={t('Bottom')} pressed={prefs.layout === 'bottom'} onClick={() => setPref({ layout: 'bottom' })} />
+                <Button icon="close" label={t('Off')} pressed={prefs.layout === 'off'} onClick={() => setPref({ layout: 'off' })} />
               </Group>
-              <Group label="Message">
-                <Button icon="eye" label="Remote images" pressed={remote} onClick={() => setRemote((r) => !r)} />
-                <Button icon="file" label="Plain text" pressed={plain} onClick={() => setPlain((p) => !p)} />
+              <Group label={t('Message')}>
+                <Button icon="eye" label={t('Remote images')} pressed={remote} onClick={() => setRemote((r) => !r)} />
+                <Button icon="file" label={t('Plain text')} pressed={plain} onClick={() => setPlain((p) => !p)} />
               </Group>
-              <Group label="Zoom">
+              <Group label={t('Zoom')}>
                 {/* The message alone is scaled; zooming the window took the list and the ribbon with it. */}
-                <Button icon="zoomOut" label="Out" title={`Zoom out — the message at ${Math.round((prefs.zoom ?? 1) * 100)}%`} onClick={() => setPref({ zoom: Math.max(0.5, Math.round(((prefs.zoom ?? 1) - 0.1) * 100) / 100) })} />
-                <Button icon="zoomIn" label="In" title={`Zoom in — the message at ${Math.round((prefs.zoom ?? 1) * 100)}%`} onClick={() => setPref({ zoom: Math.min(3, Math.round(((prefs.zoom ?? 1) + 0.1) * 100) / 100) })} />
-                <Button icon="check" label="100%" disabled={Math.abs((prefs.zoom ?? 1) - 1) < 0.001} title="100% — the message at its own size" onClick={() => setPref({ zoom: 1 })} />
+                <Button icon="zoomOut" label={t('Out')} title={t('Zoom out — the message at {percent}%', { percent: Math.round((prefs.zoom ?? 1) * 100) })} onClick={() => setPref({ zoom: Math.max(0.5, Math.round(((prefs.zoom ?? 1) - 0.1) * 100) / 100) })} />
+                <Button icon="zoomIn" label={t('In')} title={t('Zoom in — the message at {percent}%', { percent: Math.round((prefs.zoom ?? 1) * 100) })} onClick={() => setPref({ zoom: Math.min(3, Math.round(((prefs.zoom ?? 1) + 0.1) * 100) / 100) })} />
+                <Button icon="check" label="100%" disabled={Math.abs((prefs.zoom ?? 1) - 1) < 0.001} title={t('100% — the message at its own size')} onClick={() => setPref({ zoom: 1 })} />
               </Group>
             </>
           ) : (
             <>
-              <Group label="This computer">
-                <Button tall icon="settings" label="Default apps" onClick={() => setDialog({ kind: 'defaults' })} />
-                <Button tall icon="import" label="Find my mail" onClick={() => setDialog({ kind: 'import' })} />
+              <Group label={t('This computer')}>
+                <Button tall icon="settings" label={t('Default apps')} onClick={() => setDialog({ kind: 'defaults' })} />
+                <Button tall icon="import" label={t('Find my mail')} onClick={() => setDialog({ kind: 'import' })} />
               </Group>
-              <Group label="Mail">
-                <Button tall icon="filter" label="Rules" onClick={() => setDialog({ kind: 'rules' })} />
+              <Group label={t('Mail')}>
+                <Button tall icon="filter" label={t('Rules')} onClick={() => setDialog({ kind: 'rules' })} />
               </Group>
-              <Group label="Sending">
+              <Group label={t('Sending')}>
                 <Button
                   tall
                   icon="clock"
-                  label="Undo window"
+                  label={t('Undo window')}
                   onClick={async () => {
                     const now = await shell.store.get({ key: 'mail.undoSeconds', fallback: 8 });
                     setDialog({ kind: 'undo', seconds: now });
@@ -1146,13 +1151,13 @@ export default function Mail({ app, shell }) {
                 <Button
                   tall
                   icon="word"
-                  label="Signature"
+                  label={t('Signature')}
                   disabled={!accounts.length}
                   onClick={() => setDialog({ kind: 'signature', accountId: accountId && accountId !== EVERYTHING ? accountId : accounts[0]?.id })}
                 />
               </Group>
-              <Group label="Privacy">
-                <Button icon="shield" label="Always block" pressed disabled title="Remote content is blocked in every message until you ask for it." />
+              <Group label={t('Privacy')}>
+                <Button icon="shield" label={t('Always block')} pressed disabled title={t('Remote content is blocked in every message until you ask for it.')} />
               </Group>
             </>
           )}
@@ -1160,26 +1165,26 @@ export default function Mail({ app, shell }) {
       }
       status={
         <>
-          <span>{unified ? `${accounts.length} accounts` : account ? account.email : 'No account yet'}</span>
+          <span>{unified ? tn(accounts.length, '{count} account', '{count} accounts') : account ? account.email : t('No account yet')}</span>
           {progress ? (
             <>
               <Spinner />
               <span>
-                {progress.phase === 'import' ? 'Importing' : 'Fetching'} {progress.folder} — {progress.done.toLocaleString()}
+                {progress.phase === 'import' ? t('Importing {folder} — {done}', { folder: progress.folder, done: progress.done.toLocaleString() }) : t('Fetching {folder} — {done}', { folder: progress.folder, done: progress.done.toLocaleString() })}
               </span>
             </>
           ) : null}
           <Spacer />
-          {checked.size ? <Chip>{checked.size} selected</Chip> : null}
-          <Chip>{list.total.toLocaleString()} messages</Chip>
-          {unreadTotal ? <Chip>{unreadTotal.toLocaleString()} unread</Chip> : null}
+          {checked.size ? <Chip>{tn(checked.size, '{count} selected', '{count} selected')}</Chip> : null}
+          <Chip>{tn(list.total, '{count} message', '{count} messages')}</Chip>
+          {unreadTotal ? <Chip>{tn(unreadTotal, '{count} unread', '{count} unread')}</Chip> : null}
         </>
       }
     >
       {!unified && account?.autoReply?.enabled ? (
         <div className="ml-ooo-banner">
           <Icon name="info" size={14} />
-          <span>Automatic replies are on for {account.email}.</span>
+          <span>{t('Automatic replies are on for {address}.', { address: account.email })}</span>
           <button
             type="button"
             onClick={async () => {
@@ -1187,18 +1192,17 @@ export default function Mail({ app, shell }) {
               loadAccounts();
             }}
           >
-            Turn off
+            {t('Turn off')}
           </button>
         </div>
       ) : null}
 
       {!accounts.length ? (
-        <Empty icon="mail" title="No mail here yet">
-          Add an account to fetch mail, or import what you already have — an Outlook .pst or .ost, an mbox, or a
-          folder of messages. Rutba Office can find them for you.
+        <Empty icon="mail" title={t('No mail here yet')}>
+          {t('Add an account to fetch mail, or import what you already have — an Outlook .pst or .ost, an mbox, or a folder of messages. Rutba Office can find them for you.')}
           <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
-            <Button primary icon="plus" label="Add account" onClick={() => setDialog({ kind: 'account' })} />
-            <Button icon="import" label="Find my mail" onClick={() => setDialog({ kind: 'import' })} />
+            <Button primary icon="plus" label={t('Add account')} onClick={() => setDialog({ kind: 'account' })} />
+            <Button icon="import" label={t('Find my mail')} onClick={() => setDialog({ kind: 'import' })} />
           </div>
         </Empty>
       ) : (
@@ -1207,7 +1211,7 @@ export default function Mail({ app, shell }) {
             <div className="ml-compose-cta">
               <button type="button" onClick={() => commands['mail.compose'].run()}>
                 <Icon name="new" size={15} />
-                <span>Compose</span>
+                <span>{t('Compose')}</span>
               </button>
             </div>
 
@@ -1215,7 +1219,7 @@ export default function Mail({ app, shell }) {
               {accounts.length > 1 ? (
                 <Item
                   icon="inbox"
-                  label="All accounts"
+                  label={t('All accounts')}
                   current={unified}
                   count={unreadTotal || undefined}
                   onClick={() => {
@@ -1235,20 +1239,20 @@ export default function Mail({ app, shell }) {
                   title={a.email}
                 />
               ))}
-              <Item icon="plus" label="Add account" onClick={() => setDialog({ kind: 'account' })} />
+              <Item icon="plus" label={t('Add account')} onClick={() => setDialog({ kind: 'account' })} />
             </div>
 
-            <div className="rw-panel-head">{unified ? 'Across every account' : 'Folders'}</div>
+            <div className="rw-panel-head">{unified ? t('Across every account') : t('Folders')}</div>
             <List>
               {unified
                 ? [
-                    { path: 'inbox', name: 'Inbox', icon: 'inbox' },
-                    { path: 'sent', name: 'Sent', icon: 'send' },
-                    { path: 'drafts', name: 'Drafts', icon: 'file' },
-                    { path: 'archive', name: 'Archive', icon: 'archive' },
-                    { path: 'junk', name: 'Junk', icon: 'spam' },
-                    { path: 'trash', name: 'Trash', icon: 'trash' },
-                    { path: 'all', name: 'Everything', icon: 'grid' },
+                    { path: 'inbox', name: t('Inbox'), icon: 'inbox' },
+                    { path: 'sent', name: t('Sent'), icon: 'send' },
+                    { path: 'drafts', name: t('Drafts'), icon: 'file' },
+                    { path: 'archive', name: t('Archive'), icon: 'archive' },
+                    { path: 'junk', name: t('Junk'), icon: 'spam' },
+                    { path: 'trash', name: t('Trash'), icon: 'trash' },
+                    { path: 'all', name: t('Everything'), icon: 'grid' },
                   ].map((f) => (
                     <Item key={f.path} icon={f.icon} label={f.name} current={role === f.path} onClick={() => setRole(f.path)} />
                   ))
@@ -1271,17 +1275,17 @@ export default function Mail({ app, shell }) {
 
             {!unified ? (
               <>
-                <div className="rw-panel-head">Views</div>
+                <div className="rw-panel-head">{t('Views')}</div>
                 <List>
-                  <Item icon="attach" label="Attachments" current={view === 'files'} onClick={() => setView('files')} />
-                  <Item icon="reply" label="People" current={view === 'people'} onClick={() => setView('people')} />
+                  <Item icon="attach" label={t('Attachments')} current={view === 'files'} onClick={() => setView('files')} />
+                  <Item icon="reply" label={t('People')} current={view === 'people'} onClick={() => setView('people')} />
                   <Item
                     icon="clock"
-                    label="Outbox"
+                    label={t('Outbox')}
                     current={dialog?.kind === 'outbox'}
                     count={outbox.filter((o) => o.accountId === accountId).length || undefined}
                     onClick={() => setDialog({ kind: 'outbox' })}
-                    title="Scheduled and waiting to send — sends while Rutba Office is running"
+                    title={t('Scheduled and waiting to send — sends while Rutba Office is running')}
                   />
                 </List>
               </>
@@ -1289,11 +1293,11 @@ export default function Mail({ app, shell }) {
               <List>
                 <Item
                   icon="clock"
-                  label="Outbox"
+                  label={t('Outbox')}
                   current={dialog?.kind === 'outbox'}
                   count={outbox.length || undefined}
                   onClick={() => setDialog({ kind: 'outbox' })}
-                  title="Every account's scheduled and waiting mail"
+                  title={t("Every account's scheduled and waiting mail")}
                 />
               </List>
             )}
@@ -1330,7 +1334,7 @@ export default function Mail({ app, shell }) {
                 }}
               >
                 <div className="ml-tools">
-                  <Search value={query} onChange={setQuery} placeholder={unified ? 'Search every account' : `Search ${current?.name || 'mail'}`} />
+                  <Search value={query} onChange={setQuery} placeholder={unified ? t('Search every account') : t('Search {folder}', { folder: current?.name || t('mail') })} />
                   <div className="ml-filters">
                     {FILTERS.filter((f) => f.id !== 'people').map((f) => (
                       <button key={f.id} type="button" className={`ml-filter${prefs.filter === f.id ? ' on' : ''}`} onClick={() => setPref({ filter: f.id })}>
@@ -1348,18 +1352,18 @@ export default function Mail({ app, shell }) {
                       className="ml-check"
                       checked
                       onChange={() => setChecked(new Set())}
-                      title="Clear the selection"
+                      title={t('Clear the selection')}
                     />
                     <strong>{checked.size}</strong>
-                    <span>selected</span>
+                    <span>{t('selected')}</span>
                     <Spacer />
-                    <Button icon="archive" title="Archive" onClick={() => act('archive')} />
-                    <Button icon="trash" title="Delete" onClick={() => act('delete')} />
-                    <Button icon="spam" title="Junk" onClick={() => act('junk')} />
-                    <Button icon="check" title="Mark read" onClick={() => act('read')} />
-                    <Button icon="eye" title="Mark unread" onClick={() => act('unread')} />
-                    <Button icon="star" title="Star" onClick={() => act('flag')} />
-                    {!unified ? <Button icon="folder" title="Move to" onClick={moveMenu} /> : null}
+                    <Button icon="archive" title={t('Archive')} onClick={() => act('archive')} />
+                    <Button icon="trash" title={t('Delete')} onClick={() => act('delete')} />
+                    <Button icon="spam" title={t('Junk')} onClick={() => act('junk')} />
+                    <Button icon="check" title={t('Mark read')} onClick={() => act('read')} />
+                    <Button icon="eye" title={t('Mark unread')} onClick={() => act('unread')} />
+                    <Button icon="star" title={t('Star')} onClick={() => act('flag')} />
+                    {!unified ? <Button icon="folder" title={t('Move to')} onClick={moveMenu} /> : null}
                   </div>
                 ) : (
                   <div className="ml-listbar">
@@ -1368,13 +1372,13 @@ export default function Mail({ app, shell }) {
                       className="ml-check"
                       checked={false}
                       onChange={() => setChecked(new Set(threads.flatMap((t) => allRowsIn(t)).map(keyOf)))}
-                      title="Select everything here"
+                      title={t('Select everything here')}
                     />
                     <span>
-                      {threads.length.toLocaleString()} {prefs.threaded ? 'conversations' : 'messages'}
+                      {prefs.threaded ? tn(threads.length, '{count} conversation', '{count} conversations') : tn(threads.length, '{count} message', '{count} messages')}
                     </span>
                     <Spacer />
-                    <Button icon="refresh" title="Get mail" onClick={sync} />
+                    <Button icon="refresh" title={t('Get mail')} onClick={sync} />
                   </div>
                 )}
 
@@ -1414,8 +1418,8 @@ export default function Mail({ app, shell }) {
                     ))}
                   </div>
                 ) : (
-                  <Empty icon="inbox" title={query ? 'Nothing matches' : prefs.filter !== 'all' ? 'Nothing here under this filter' : 'This folder is empty'}>
-                    {query ? 'Try a different search, or search every account.' : null}
+                  <Empty icon="inbox" title={query ? t('Nothing matches') : prefs.filter !== 'all' ? t('Nothing here under this filter') : t('This folder is empty')}>
+                    {query ? t('Try a different search, or search every account.') : null}
                   </Empty>
                 )}
               </Panel>
@@ -1445,9 +1449,9 @@ export default function Mail({ app, shell }) {
                       onNotJunk={() => act('notJunk')}
                     />
                   ) : (
-                    <Empty icon="mail" title="No message selected">
-                      Choose a message to read it here. <kbd>j</kbd> and <kbd>k</kbd> move, <kbd>r</kbd> replies,
-                      <kbd>s</kbd> stars.
+                    <Empty icon="mail" title={t('No message selected')}>
+                      {t('Choose a message to read it here.')} <kbd>j</kbd> {t('and')} <kbd>k</kbd> {t('move,')} <kbd>r</kbd> {t('replies,')}
+                      <kbd>s</kbd> {t('stars.')}
                     </Empty>
                   )}
                 </Content>
@@ -1465,11 +1469,11 @@ export default function Mail({ app, shell }) {
           <Icon name="send" size={14} />
           <span>
             {outbox.length === 1
-              ? `Sending to ${outbox[0].draft?.to || 'recipient'}`
-              : `${outbox.length} messages waiting to go`}
+              ? t('Sending to {to}', { to: outbox[0].draft?.to || t('recipient') })
+              : tn(outbox.length, '{count} message waiting to go', '{count} messages waiting to go')}
           </span>
           <button type="button" onClick={() => unsend(outbox[outbox.length - 1].id)}>
-            Undo
+            {t('Undo')}
           </button>
         </div>
       ) : null}
@@ -1523,7 +1527,7 @@ export default function Mail({ app, shell }) {
       ) : null}
 
       {dialog?.kind === 'outbox' ? (
-        <Dialog title="Outbox" width={620} onClose={() => setDialog(null)} actions={<Button primary label="Close" onClick={() => setDialog(null)} />}>
+        <Dialog title={t('Outbox')} width={620} onClose={() => setDialog(null)} actions={<Button primary label={t('Close')} onClick={() => setDialog(null)} />}>
           {outbox.length ? (
             <div className="ml-found">
               {(unified ? outbox : outbox.filter((o) => o.accountId === accountId)).map((item) => (
@@ -1532,27 +1536,26 @@ export default function Mail({ app, shell }) {
                     <Icon name="clock" size={15} />
                   </span>
                   <span className="grow">
-                    <div className="who">{item.draft?.subject || '(no subject)'}</div>
+                    <div className="who">{item.draft?.subject || t('(no subject)')}</div>
                     <div className="what">
-                      To {item.draft?.to} · {new Date(item.at) > new Date() ? `sends ${new Date(item.at).toLocaleString()}` : 'sending now'}
+                      {t('To {to}', { to: item.draft?.to || '' })} · {new Date(item.at) > new Date() ? t('sends {when}', { when: new Date(item.at).toLocaleString() }) : t('sending now')}
                       {unified ? ` · ${accounts.find((a) => a.id === item.accountId)?.email || item.accountId}` : ''}
-                      {item.error ? ` · last try failed: ${item.error} — trying again` : ''}
+                      {item.error ? ` · ${t('last try failed: {error} — trying again', { error: item.error })}` : ''}
                     </div>
                     <div className="ml-outbox-actions">
-                      <Button label="Edit" title="Take it back and reopen it in Compose" onClick={() => unsend(item.id)} />
-                      <Button label="Send now" onClick={() => sendOutboxNow(item)} />
-                      <Button label="Cancel" title="Move it to Drafts" onClick={() => cancelOutboxItem(item)} />
+                      <Button label={t('Edit')} title={t('Take it back and reopen it in Compose')} onClick={() => unsend(item.id)} />
+                      <Button label={t('Send now')} onClick={() => sendOutboxNow(item)} />
+                      <Button label={t('Cancel')} title={t('Move it to Drafts')} onClick={() => cancelOutboxItem(item)} />
                     </div>
                   </span>
                 </div>
               ))}
             </div>
           ) : (
-            <p style={{ marginTop: 0 }}>Nothing is waiting.</p>
+            <p style={{ marginTop: 0 }}>{t('Nothing is waiting.')}</p>
           )}
           <p className="rw-hint" style={{ marginBottom: 0 }}>
-            A scheduled or held message sends when Rutba Office is running — one that falls due while it is closed
-            goes out the next time it opens. A failed send stays here with the error and keeps retrying.
+            {t('A scheduled or held message sends when Rutba Office is running — one that falls due while it is closed goes out the next time it opens. A failed send stays here with the error and keeps retrying.')}
           </p>
         </Dialog>
       ) : null}
@@ -1598,31 +1601,31 @@ export default function Mail({ app, shell }) {
 
       {dialog?.kind === 'undo' ? (
         <Dialog
-          title="Undo window"
+          title={t('Undo window')}
           width={460}
           onClose={() => setDialog(null)}
           actions={
             <>
-              <Button label="Cancel" onClick={() => setDialog(null)} />
+              <Button label={t('Cancel')} onClick={() => setDialog(null)} />
               <Button
                 primary
-                label="Save"
+                label={t('Save')}
                 onClick={async () => {
                   await shell.store.set({ key: 'mail.undoSeconds', value: Number(dialog.seconds) || 0 });
-                  toast(Number(dialog.seconds) ? `${dialog.seconds} seconds to change your mind` : 'Messages now send immediately', { tone: 'good' });
+                  toast(Number(dialog.seconds) ? tn(Number(dialog.seconds), '{count} second to change your mind', '{count} seconds to change your mind') : t('Messages now send immediately'), { tone: 'good' });
                   setDialog(null);
                 }}
               />
             </>
           }
         >
-          <Field label="Hold a message for" hint="Every message waits this long before it leaves, and can be taken back until then.">
+          <Field label={t('Hold a message for')} hint={t('Every message waits this long before it leaves, and can be taken back until then.')}>
             <Select value={String(dialog.seconds)} onChange={(e) => setDialog((d) => ({ ...d, seconds: Number(e.target.value) }))}>
-              <option value="0">No delay</option>
-              <option value="5">5 seconds</option>
-              <option value="8">8 seconds</option>
-              <option value="15">15 seconds</option>
-              <option value="30">30 seconds</option>
+              <option value="0">{t('No delay')}</option>
+              <option value="5">{tn(5, '{count} second', '{count} seconds')}</option>
+              <option value="8">{tn(8, '{count} second', '{count} seconds')}</option>
+              <option value="15">{tn(15, '{count} second', '{count} seconds')}</option>
+              <option value="30">{tn(30, '{count} second', '{count} seconds')}</option>
             </Select>
           </Field>
         </Dialog>
@@ -1639,7 +1642,7 @@ export default function Mail({ app, shell }) {
           onSend={doSend}
           onSaveDraft={async (draft) => {
             await shell.mail.saveDraft({ accountId: draft.accountId || accountId, draft });
-            toast('Saved to Drafts', { tone: 'good' });
+            toast(t('Saved to Drafts'), { tone: 'good' });
             setCompose(null);
             refreshList();
           }}
@@ -1700,7 +1703,7 @@ const Row = React.memo(function Row({ thread, unified, threaded, selected, check
                   e.stopPropagation();
                   onExpand();
                 }}
-                title={`${thread.count} messages in this conversation`}
+                title={tn(thread.count, '{count} message in this conversation', '{count} messages in this conversation')}
               >
                 {thread.count}
               </button>
@@ -1708,7 +1711,7 @@ const Row = React.memo(function Row({ thread, unified, threaded, selected, check
           </div>
           <div className="ml-subject">
             {thread.pinned ? <Icon name="flag" size={12} /> : null}
-            {thread.subject || '(no subject)'}
+            {thread.subject || t('(no subject)')}
           </div>
           <div className="ml-preview">
             {thread.hasAttachments ? <Icon name="attach" size={12} /> : null}
@@ -1723,7 +1726,7 @@ const Row = React.memo(function Row({ thread, unified, threaded, selected, check
             <button
               type="button"
               className={`ml-star${thread.flagged ? ' on' : ''}`}
-              title={thread.flagged ? 'Remove star' : 'Star'}
+              title={thread.flagged ? t('Remove star') : t('Star')}
               onClick={(e) => onStar(thread, e)}
             >
               <Icon name="star" size={13} />

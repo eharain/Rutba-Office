@@ -10,30 +10,29 @@
 // next region they can edit, highlights them all, and offers Stop Protection.
 
 import React, { useEffect, useState } from 'react';
-import { Dialog, Button, Icon, Select } from '@rutba/office-ui';
+import { Dialog, Button, Icon, Select, t, tn } from '@rutba/office-ui';
 import { SecretInput, PROTECT_CSS } from '../../protect.js';
 
 export const EDIT_KINDS = [
-  { id: 'readOnly', label: 'No changes (Read only)' },
-  { id: 'trackedChanges', label: 'Tracked changes' },
-  { id: 'comments', label: 'Comments' },
-  { id: 'forms', label: 'Filling in forms' },
+  { id: 'readOnly', label: t('No changes (Read only)') },
+  { id: 'trackedChanges', label: t('Tracked changes') },
+  { id: 'comments', label: t('Comments') },
+  { id: 'forms', label: t('Filling in forms') },
 ];
 
 /** What Word's pane says about the caret's place, under each kind of protection. */
 export function permissionSentence(protection, editable) {
-  const lead = 'This document is protected from unintentional editing.';
   switch (protection?.edit) {
     case 'trackedChanges':
-      return `${lead} You may edit it, and every change is tracked.`;
+      return t('This document is protected from unintentional editing. You may edit it, and every change is tracked.');
     case 'none':
-      return `${lead} You may edit it; formatting is limited to styles.`;
+      return t('This document is protected from unintentional editing. You may edit it; formatting is limited to styles.');
     case 'comments':
-      return editable ? `${lead} You may edit in this region.` : `${lead} You may only insert comments into this region.`;
+      return editable ? t('This document is protected from unintentional editing. You may edit in this region.') : t('This document is protected from unintentional editing. You may only insert comments into this region.');
     case 'forms':
-      return `${lead} You may only fill in forms in this region.`;
+      return t('This document is protected from unintentional editing. You may only fill in forms in this region.');
     default:
-      return editable ? `${lead} You may edit in this region.` : `${lead} You may only view this region.`;
+      return editable ? t('This document is protected from unintentional editing. You may edit in this region.') : t('This document is protected from unintentional editing. You may only view this region.');
   }
 }
 
@@ -41,11 +40,11 @@ export function permissionSentence(protection, editable) {
 export function refusalSentence(protection) {
   switch (protection?.edit) {
     case 'comments':
-      return 'This document is protected: only comments can be added here. Review → Restrict Editing shows the regions you can edit.';
+      return t('This document is protected: only comments can be added here. Review → Restrict Editing shows the regions you can edit.');
     case 'forms':
-      return 'This document is protected for filling in forms: only its form fields can be changed.';
+      return t('This document is protected for filling in forms: only its form fields can be changed.');
     default:
-      return 'This modification is not allowed because the selection is locked.';
+      return t('This modification is not allowed because the selection is locked.');
   }
 }
 
@@ -74,47 +73,47 @@ export function RestrictPane({ protection, selection, highlight, onHighlight, on
   const exceptions = limit && (edit === 'readOnly' || edit === 'comments');
 
   return (
-    <aside className="wd-restrict" aria-label="Restrict Editing">
+    <aside className="wd-restrict" aria-label={t('Restrict Editing')}>
       <div className="wd-restrict-head">
-        <span>Restrict Editing</span>
-        <button type="button" className="wd-nav-close" onClick={onClose} data-tip="Close the Restrict Editing pane" aria-label="Close">
+        <span>{t('Restrict Editing')}</span>
+        <button type="button" className="wd-nav-close" onClick={onClose} data-tip={t('Close the Restrict Editing pane')} aria-label={t('Close')}>
           <Icon name="close" size={12} />
         </button>
       </div>
       {enforced ? (
         <div className="wd-restrict-body">
           <section className="wd-restrict-step">
-            <h4>Your permissions</h4>
+            <h4>{t('Your permissions')}</h4>
             <p className="wd-restrict-perm">{permissionSentence(protection, inRegion || protection.edit === 'trackedChanges' || protection.edit === 'none')}</p>
             {regions.length && protection.edit !== 'trackedChanges' && protection.edit !== 'forms' && protection.edit !== 'none' ? (
               <>
-                <Button label="Find Next Region I Can Edit" className="wd-restrict-next" onClick={onFindNext} />
+                <Button label={t('Find Next Region I Can Edit')} className="wd-restrict-next" onClick={onFindNext} />
                 <label className="wd-restrict-check">
                   <input type="checkbox" className="wd-restrict-highlight" checked={highlight} onChange={(e) => onHighlight(e.target.checked)} />
-                  <span>Highlight the regions I can edit</span>
+                  <span>{t('Highlight the regions I can edit')}</span>
                 </label>
               </>
             ) : null}
-            {protection.formatting ? <p className="wd-restrict-note">Formatting is limited to styles: direct formatting is refused.</p> : null}
+            {protection.formatting ? <p className="wd-restrict-note">{t('Formatting is limited to styles: direct formatting is refused.')}</p> : null}
           </section>
           <div className="wd-restrict-foot">
-            <Button label="Stop Protection" className="wd-restrict-stop" onClick={onStop} />
+            <Button label={t('Stop Protection')} className="wd-restrict-stop" onClick={onStop} />
           </div>
         </div>
       ) : (
         <div className="wd-restrict-body">
           <section className="wd-restrict-step">
-            <h4><span className="wd-restrict-n">1</span>Formatting restrictions</h4>
+            <h4><span className="wd-restrict-n">1</span>{t('Formatting restrictions')}</h4>
             <label className="wd-restrict-check">
               <input type="checkbox" className="wd-restrict-formatting" checked={formatting} onChange={(e) => setFormatting(e.target.checked)} />
-              <span>Limit formatting to a selection of styles</span>
+              <span>{t('Limit formatting to a selection of styles')}</span>
             </label>
           </section>
           <section className="wd-restrict-step">
-            <h4><span className="wd-restrict-n">2</span>Editing restrictions</h4>
+            <h4><span className="wd-restrict-n">2</span>{t('Editing restrictions')}</h4>
             <label className="wd-restrict-check">
               <input type="checkbox" className="wd-restrict-limit" checked={limit} onChange={(e) => setLimit(e.target.checked)} />
-              <span>Allow only this type of editing in the document:</span>
+              <span>{t('Allow only this type of editing in the document:')}</span>
             </label>
             <Select className="wd-restrict-kind" value={edit} disabled={!limit} onChange={(e) => setEdit(e.target.value)}>
               {EDIT_KINDS.map((k) => (
@@ -123,28 +122,28 @@ export function RestrictPane({ protection, selection, highlight, onHighlight, on
             </Select>
             {exceptions ? (
               <div className="wd-restrict-exceptions">
-                <div className="wd-restrict-sub">Exceptions (optional)</div>
-                <p className="wd-restrict-note">Select parts of the document and choose users who are allowed to freely edit them.</p>
+                <div className="wd-restrict-sub">{t('Exceptions (optional)')}</div>
+                <p className="wd-restrict-note">{t('Select parts of the document and choose users who are allowed to freely edit them.')}</p>
                 <div className="wd-restrict-groups">
-                  <div className="wd-restrict-sub2">Groups:</div>
+                  <div className="wd-restrict-sub2">{t('Groups:')}</div>
                   <label className="wd-restrict-check wd-restrict-everyone-row">
                     <input type="checkbox" className="wd-restrict-everyone" checked={touched} onChange={(e) => onPermission(e.target.checked)} />
-                    <span>Everyone</span>
+                    <span>{t('Everyone')}</span>
                   </label>
                 </div>
-                {regions.length ? <p className="wd-restrict-count">{regions.length === 1 ? 'One region' : `${regions.length} regions`} marked for Everyone.</p> : null}
+                {regions.length ? <p className="wd-restrict-count">{tn(regions.length, 'One region marked for Everyone.', '{count} regions marked for Everyone.')}</p> : null}
               </div>
             ) : null}
           </section>
           <section className="wd-restrict-step">
-            <h4><span className="wd-restrict-n">3</span>Start enforcement</h4>
-            <p className="wd-restrict-note">Are you ready to apply these settings? (You can turn them off later)</p>
+            <h4><span className="wd-restrict-n">3</span>{t('Start enforcement')}</h4>
+            <p className="wd-restrict-note">{t('Are you ready to apply these settings? (You can turn them off later)')}</p>
             <Button
               primary
-              label="Yes, Start Enforcing Protection"
+              label={t('Yes, Start Enforcing Protection')}
               className="wd-restrict-start"
               disabled={!limit && !formatting}
-              title={!limit && !formatting ? 'Yes, Start Enforcing Protection — choose a restriction above first' : 'Yes, Start Enforcing Protection — with an optional password'}
+              title={!limit && !formatting ? t('Yes, Start Enforcing Protection — choose a restriction above first') : t('Yes, Start Enforcing Protection — with an optional password')}
               onClick={() => onStart({ edit: limit ? edit : 'none', formatting })}
             />
           </section>
@@ -166,27 +165,27 @@ export function StartEnforcingDialog({ onClose, onStart }) {
   };
   return (
     <Dialog
-      title="Start Enforcing Protection"
+      title={t('Start Enforcing Protection')}
       width={440}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" className="wd-enforce-cancel" onClick={onClose} />
-          <Button primary label="OK" className="wd-enforce-ok" disabled={!ok} onClick={submit} />
+          <Button label={t('Cancel')} className="wd-enforce-cancel" onClick={onClose} />
+          <Button primary label={t('OK')} className="wd-enforce-ok" disabled={!ok} onClick={submit} />
         </>
       }
     >
       <style>{PROTECT_CSS}</style>
       <div className="pw-set">
-        <p className="pw-set-lead">Protection method: <b>Password</b>. The document is not encrypted — people can still open it; the password only stops them taking the protection off.</p>
-        <label className="pw-label">Enter new password (optional)</label>
-        <SecretInput className="wd-enforce-password" label="Enter new password (optional)" value={password} onChange={setPassword} onKeyDown={enter} autoFocus />
-        <label className="pw-label">Reenter password to confirm</label>
-        <SecretInput className="wd-enforce-again" label="Reenter password to confirm" value={again} onChange={setAgain} onKeyDown={enter} invalid={mismatch} />
+        <p className="pw-set-lead">{t('Protection method:')} <b>{t('Password')}</b>. {t('The document is not encrypted — people can still open it; the password only stops them taking the protection off.')}</p>
+        <label className="pw-label">{t('Enter new password (optional)')}</label>
+        <SecretInput className="wd-enforce-password" label={t('Enter new password (optional)')} value={password} onChange={setPassword} onKeyDown={enter} autoFocus />
+        <label className="pw-label">{t('Reenter password to confirm')}</label>
+        <SecretInput className="wd-enforce-again" label={t('Reenter password to confirm')} value={again} onChange={setAgain} onKeyDown={enter} invalid={mismatch} />
         {mismatch ? (
           <div className="pw-error" role="alert">
             <Icon name="info" size={14} />
-            <span>The two passwords are not the same.</span>
+            <span>{t('The two passwords are not the same.')}</span>
           </div>
         ) : null}
       </div>
@@ -203,20 +202,20 @@ export function UnprotectDialog({ error = '', onClose, onSubmit }) {
   const submit = () => onSubmit(password);
   return (
     <Dialog
-      title="Unprotect Document"
+      title={t('Unprotect Document')}
       width={400}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" className="wd-unprotect-cancel" onClick={onClose} />
-          <Button primary label="OK" className="wd-unprotect-ok" onClick={submit} />
+          <Button label={t('Cancel')} className="wd-unprotect-cancel" onClick={onClose} />
+          <Button primary label={t('OK')} className="wd-unprotect-ok" onClick={submit} />
         </>
       }
     >
       <style>{PROTECT_CSS}</style>
       <div className="pw-set">
-        <label className="pw-label">Password</label>
-        <SecretInput className="wd-unprotect-password" label="Password" value={password} onChange={setPassword} invalid={Boolean(error) && !password} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} autoFocus />
+        <label className="pw-label">{t('Password')}</label>
+        <SecretInput className="wd-unprotect-password" label={t('Password')} value={password} onChange={setPassword} invalid={Boolean(error) && !password} onKeyDown={(e) => { if (e.key === 'Enter') submit(); }} autoFocus />
         {error ? (
           <div className="pw-error wd-unprotect-error" role="alert">
             <Icon name="info" size={14} />

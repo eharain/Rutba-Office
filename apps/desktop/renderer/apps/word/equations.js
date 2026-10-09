@@ -17,7 +17,7 @@
  * on a selected one) opens it in the editor below.
  */
 import React from 'react';
-import { Button, Dialog } from '@rutba/office-ui';
+import { Button, Dialog, t } from '@rutba/office-ui';
 import { ommlToMathml } from '@rutba/ooxml/math';
 import { linearToOmml, EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
 
@@ -134,8 +134,8 @@ export function MathRun({ run, at }) {
       data-jc={side && side !== 'center' ? side : undefined}
       data-linear={math.linear || ''}
       role="math"
-      aria-label={math.linear || 'Equation'}
-      title="Equation — double-click to edit"
+      aria-label={math.linear || t('Equation')}
+      title={t('Equation — double-click to edit')}
     >
       {run.text}
     </span>
@@ -172,72 +172,72 @@ function MathFace({ linear, display = false }) {
  * is an invisible group, so an empty one draws as Word's dotted placeholder.
  */
 export const STRUCTURES = [
-  { name: 'Fraction', face: 'x/y', templates: [
-    { label: 'Stacked fraction', text: '()/()', caret: 1 },
-    { label: 'Skewed fraction', text: '()∕()', caret: 1 },
-    { label: 'Linear fraction', text: '()⊘()', caret: 1 },
-    { label: 'Fraction with no bar', text: '(¦)', caret: 1 },
-    { label: 'dy/dx', text: '(dy)/(dx)', caret: 9 },
+  { name: 'Fraction', label: t('Fraction'), face: 'x/y', templates: [
+    { label: t('Stacked fraction'), text: '()/()', caret: 1 },
+    { label: t('Skewed fraction'), text: '()∕()', caret: 1 },
+    { label: t('Linear fraction'), text: '()⊘()', caret: 1 },
+    { label: t('Fraction with no bar'), text: '(¦)', caret: 1 },
+    { label: 'dy/dx', text: '(dy)/(dx)', caret: 9 }, // words-ok: math notation
   ] },
-  { name: 'Script', face: 'e^x', templates: [
-    { label: 'Superscript', text: '〖〗^()', caret: 1 },
-    { label: 'Subscript', text: '〖〗_()', caret: 1 },
-    { label: 'Subscript and superscript', text: '〖〗_()^()', caret: 1 },
-    { label: 'Left subscript and superscript', text: '_()^() 〖〗', caret: 2 },
-    { label: 'x squared', text: 'x^2', caret: 3 },
+  { name: 'Script', label: t('Script'), face: 'e^x', templates: [
+    { label: t('Superscript'), text: '〖〗^()', caret: 1 },
+    { label: t('Subscript'), text: '〖〗_()', caret: 1 },
+    { label: t('Subscript and superscript'), text: '〖〗_()^()', caret: 1 },
+    { label: t('Left subscript and superscript'), text: '_()^() 〖〗', caret: 2 },
+    { label: t('x squared'), text: 'x^2', caret: 3 },
   ] },
-  { name: 'Radical', face: '√x', templates: [
-    { label: 'Square root', text: '√()', caret: 2 },
-    { label: 'Radical with degree', text: '√(&)', caret: 2 },
-    { label: 'Cube root', text: '∛()', caret: 2 },
-    { label: 'Square root of a² + b²', text: '√(a^2+b^2)', caret: 10 },
+  { name: 'Radical', label: t('Radical'), face: '√x', templates: [
+    { label: t('Square root'), text: '√()', caret: 2 },
+    { label: t('Radical with degree'), text: '√(&)', caret: 2 },
+    { label: t('Cube root'), text: '∛()', caret: 2 },
+    { label: t('Square root of a² + b²'), text: '√(a^2+b^2)', caret: 10 },
   ] },
-  { name: 'Integral', face: '∫_0^1▒〖〗', templates: [
-    { label: 'Integral', text: '∫▒〖〗', caret: 3 },
-    { label: 'Integral with limits', text: '∫_()^()▒〖〗', caret: 3 },
-    { label: 'Double integral', text: '∬▒〖〗', caret: 3 },
-    { label: 'Contour integral', text: '∮▒〖〗', caret: 3 },
-    { label: 'Differential dx', text: 'dx', caret: 2 },
+  { name: 'Integral', label: t('Integral'), face: '∫_0^1▒〖〗', templates: [
+    { label: t('Integral'), text: '∫▒〖〗', caret: 3 },
+    { label: t('Integral with limits'), text: '∫_()^()▒〖〗', caret: 3 },
+    { label: t('Double integral'), text: '∬▒〖〗', caret: 3 },
+    { label: t('Contour integral'), text: '∮▒〖〗', caret: 3 },
+    { label: t('Differential dx'), text: 'dx', caret: 2 },
   ] },
-  { name: 'Large Operator', face: '∑_(i=1)^n▒〖〗', templates: [
-    { label: 'Summation', text: '∑▒〖〗', caret: 3 },
-    { label: 'Summation with limits', text: '∑_()^()▒〖〗', caret: 3 },
-    { label: 'Summation below', text: '∑_()▒〖〗', caret: 3 },
-    { label: 'Product with limits', text: '∏_()^()▒〖〗', caret: 3 },
-    { label: 'Union with limits', text: '⋃_()^()▒〖〗', caret: 3 },
+  { name: 'Large Operator', label: t('Large Operator'), face: '∑_(i=1)^n▒〖〗', templates: [
+    { label: t('Summation'), text: '∑▒〖〗', caret: 3 },
+    { label: t('Summation with limits'), text: '∑_()^()▒〖〗', caret: 3 },
+    { label: t('Summation below'), text: '∑_()▒〖〗', caret: 3 },
+    { label: t('Product with limits'), text: '∏_()^()▒〖〗', caret: 3 },
+    { label: t('Union with limits'), text: '⋃_()^()▒〖〗', caret: 3 },
   ] },
-  { name: 'Bracket', face: '(x)', templates: [
-    { label: 'Parentheses', text: '()', caret: 1 },
-    { label: 'Brackets', text: '[]', caret: 1 },
-    { label: 'Braces', text: '{}', caret: 1 },
-    { label: 'Absolute value', text: '||', caret: 1 },
-    { label: 'Norm', text: '‖‖', caret: 1 },
-    { label: 'Angle brackets', text: '⟨⟩', caret: 1 },
-    { label: 'Floor', text: '⌊⌋', caret: 1 },
-    { label: 'Ceiling', text: '⌈⌉', caret: 1 },
+  { name: 'Bracket', label: t('Bracket'), face: '(x)', templates: [
+    { label: t('Parentheses'), text: '()', caret: 1 },
+    { label: t('Brackets'), text: '[]', caret: 1 },
+    { label: t('Braces'), text: '{}', caret: 1 },
+    { label: t('Absolute value'), text: '||', caret: 1 },
+    { label: t('Norm'), text: '‖‖', caret: 1 },
+    { label: t('Angle brackets'), text: '⟨⟩', caret: 1 },
+    { label: t('Floor'), text: '⌊⌋', caret: 1 },
+    { label: t('Ceiling'), text: '⌈⌉', caret: 1 },
   ] },
-  { name: 'Function', face: 'sin θ', templates: [
-    { label: 'Sine', text: 'sin〖〗', caret: 4 },
-    { label: 'Cosine', text: 'cos〖〗', caret: 4 },
-    { label: 'Tangent', text: 'tan〖〗', caret: 4 },
-    { label: 'Logarithm', text: 'log〖〗', caret: 4 },
-    { label: 'Natural logarithm', text: 'ln〖〗', caret: 3 },
-    { label: 'Limit', text: 'lim_(n→∞) 〖〗', caret: 11 },
+  { name: 'Function', label: t('Function'), face: 'sin θ', templates: [
+    { label: t('Sine'), text: 'sin〖〗', caret: 4 },
+    { label: t('Cosine'), text: 'cos〖〗', caret: 4 },
+    { label: t('Tangent'), text: 'tan〖〗', caret: 4 },
+    { label: t('Logarithm'), text: 'log〖〗', caret: 4 },
+    { label: t('Natural logarithm'), text: 'ln〖〗', caret: 3 },
+    { label: t('Limit'), text: 'lim_(n→∞) 〖〗', caret: 11 },
   ] },
-  { name: 'Matrix', face: '(■(1&0@0&1))', templates: [
-    { label: '2 × 2 empty matrix', text: '■(&@&)', caret: 2 },
-    { label: '2 × 2 matrix in parentheses', text: '(■(&@&))', caret: 3 },
-    { label: '2 × 2 matrix in brackets', text: '[■(&@&)]', caret: 3 },
-    { label: '3 × 3 empty matrix', text: '■(&&@&&@&&)', caret: 2 },
-    { label: 'Identity matrix', text: '(■(1&0@0&1))', caret: 12 },
+  { name: 'Matrix', label: t('Matrix'), face: '(■(1&0@0&1))', templates: [
+    { label: t('2 × 2 empty matrix'), text: '■(&@&)', caret: 2 },
+    { label: t('2 × 2 matrix in parentheses'), text: '(■(&@&))', caret: 3 },
+    { label: t('2 × 2 matrix in brackets'), text: '[■(&@&)]', caret: 3 },
+    { label: t('3 × 3 empty matrix'), text: '■(&&@&&@&&)', caret: 2 },
+    { label: t('Identity matrix'), text: '(■(1&0@0&1))', caret: 12 },
   ] },
 ];
 
 /** The Symbols palette — Greek letters, operators and arrows. */
 export const SYMBOL_SETS = [
-  ['Greek', 'α β γ δ ε ζ η θ ι κ λ μ ν ξ π ρ σ τ υ φ χ ψ ω Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω'],
-  ['Operators', '± ∓ × ÷ ⋅ ∘ = ≠ ≈ ≡ ∼ ∝ < > ≤ ≥ ≪ ≫ ∞ ∂ ∇ ∈ ∉ ⊂ ⊃ ⊆ ⊇ ∪ ∩ ∀ ∃ ¬ ∧ ∨ ′ ° … ⋯'],
-  ['Arrows', '→ ← ↔ ⇒ ⇐ ⇔ ↑ ↓ ↦ ⟶ ⟹ ⟺ ↗ ↘ ↙ ↖'],
+  [t('Greek'), 'α β γ δ ε ζ η θ ι κ λ μ ν ξ π ρ σ τ υ φ χ ψ ω Γ Δ Θ Λ Ξ Π Σ Φ Ψ Ω'],
+  [t('Operators'), '± ∓ × ÷ ⋅ ∘ = ≠ ≈ ≡ ∼ ∝ < > ≤ ≥ ≪ ≫ ∞ ∂ ∇ ∈ ∉ ⊂ ⊃ ⊆ ⊇ ∪ ∩ ∀ ∃ ¬ ∧ ∨ ′ ° … ⋯'],
+  [t('Arrows'), '→ ← ↔ ⇒ ⇐ ⇔ ↑ ↓ ↦ ⟶ ⟹ ⟺ ↗ ↘ ↙ ↖'],
 ];
 
 /**
@@ -286,33 +286,33 @@ export function EquationDialog({ initial = '', display: initialDisplay = true, e
 
   return (
     <Dialog
-      title={editing ? 'Edit Equation' : 'Equation'}
+      title={editing ? t('Edit Equation') : t('Equation')}
       width={720}
       onClose={onClose}
       actions={
         <>
           <label className="wd-eq-check" style={{ marginRight: 'auto' }}>
             <input type="checkbox" className="wd-eq-display" checked={display} onChange={(e) => setDisplay(e.target.checked)} />
-            Display — on a line of its own, centred
+            {t('Display — on a line of its own, centred')}
           </label>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary className="wd-eq-ok" label={editing ? 'Update' : 'Insert'} disabled={!preview?.ok} onClick={ok} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary className="wd-eq-ok" label={editing ? t('Update') : t('Insert')} disabled={!preview?.ok} onClick={ok} />
         </>
       }
     >
       <div className="wd-eq">
-        <div className="wd-eq-structs" role="toolbar" aria-label="Structures">
+        <div className="wd-eq-structs" role="toolbar" aria-label={t('Structures')}>
           {STRUCTURES.map((s) => (
             <button
               key={s.name}
               type="button"
               className={`wd-eq-struct${open === s.name ? ' on' : ''}`}
               data-struct={s.name}
-              data-tip={`${s.name} — pick a template to put in at the caret`}
+              data-tip={t('{name} — pick a template to put in at the caret', { name: s.label })}
               onClick={() => setOpen(open === s.name ? null : s.name)}
             >
               <MathFace linear={s.face} />
-              <span className="wd-eq-struct-name">{s.name}</span>
+              <span className="wd-eq-struct-name">{s.label}</span>
             </button>
           ))}
         </div>
@@ -331,20 +331,20 @@ export function EquationDialog({ initial = '', display: initialDisplay = true, e
           className="wd-eq-input"
           value={text}
           spellCheck={false}
-          placeholder="Type an equation — x=(-b±√(b^2-4ac))/2a, \sum_(i=1)^n i, \int_0^1 f(x)dx, a_i, \alpha"
+          placeholder={t('Type an equation — x=(-b±√(b^2-4ac))/2a, \\sum_(i=1)^n i, \\int_0^1 f(x)dx, a_i, \\alpha')}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); ok(); }
           }}
         />
         <div className={`wd-eq-preview${preview && !preview.ok ? ' bad' : ''}`} aria-live="polite">
-          {!preview ? <span className="wd-eq-hint">The equation appears here as you type.</span>
+          {!preview ? <span className="wd-eq-hint">{t('The equation appears here as you type.')}</span>
             : preview.ok ? <span className="wd-eq-built" dangerouslySetInnerHTML={{ __html: preview.mathml }} />
-            : <span className="wd-eq-error">{`${preview.error} (at character ${preview.at + 1})`}</span>}
+            : <span className="wd-eq-error">{t('{error} (at character {at})', { error: preview.error, at: preview.at + 1 })}</span>}
         </div>
 
         <div className="wd-eq-row">
-          <span className="wd-eq-label">Symbols</span>
+          <span className="wd-eq-label">{t('Symbols')}</span>
           <div className="wd-eq-sets">
             {SYMBOL_SETS.map(([label], i) => (
               <button key={label} type="button" className={`wd-eq-set${set === i ? ' on' : ''}`} onClick={() => setSet(i)}>{label}</button>
@@ -357,11 +357,11 @@ export function EquationDialog({ initial = '', display: initialDisplay = true, e
           ))}
         </div>
 
-        <span className="wd-eq-label">Built-in</span>
+        <span className="wd-eq-label">{t('Built-in')}</span>
         <div className="wd-eq-gallery">
           {EQUATION_GALLERY.map((g) => (
-            <button key={g.name} type="button" className="wd-eq-tile" data-gallery={g.name} data-tip={`${g.name} — put it in the editor`} onClick={() => setText(g.linear)}>
-              <span className="wd-eq-tile-name">{g.name}</span>
+            <button key={g.name} type="button" className="wd-eq-tile" data-gallery={g.name} data-tip={t('{name} — put it in the editor', { name: t(g.name) })} onClick={() => setText(g.linear)}>
+              <span className="wd-eq-tile-name">{t(g.name)}</span>
               <span className="wd-eq-tile-math"><MathFace linear={g.linear} /></span>
             </button>
           ))}

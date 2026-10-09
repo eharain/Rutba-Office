@@ -8,42 +8,44 @@
 // own duration and direction, and the same player drives the slideshow and
 // the ribbon's Preview on the stage.
 
+import { t } from '@rutba/office-ui';
+
 /** The Transition to This Slide gallery, in PowerPoint's order and names. `shape` stands for circle, diamond, plus and zoom — PowerPoint's own "Shape". */
 export const TRANSITION_GALLERY = [
-  ['none', 'None', 'no effect: the slide simply replaces the last'],
-  ['cut', 'Cut', 'the slide replaces the last at once'],
-  ['fade', 'Fade', 'the slide fades in over the last'],
-  ['push', 'Push', 'the slide pushes the last one off'],
-  ['wipe', 'Wipe', 'the slide is wiped on across the last'],
-  ['split', 'Split', 'the slide opens from the middle, or closes in from the edges'],
-  ['pull', 'Uncover', 'the last slide slides away to show this one'],
-  ['cover', 'Cover', 'the slide slides in over the last'],
-  ['randomBar', 'Random Bars', 'the slide appears in random bars'],
-  ['shape', 'Shape', 'the slide grows out of a circle, a diamond or a plus'],
-  ['dissolve', 'Dissolve', 'the slide appears in small random squares'],
+  ['none', t('None'), t('no effect: the slide simply replaces the last')],
+  ['cut', t('Cut'), t('the slide replaces the last at once')],
+  ['fade', t('Fade'), t('the slide fades in over the last')],
+  ['push', t('Push'), t('the slide pushes the last one off')],
+  ['wipe', t('Wipe'), t('the slide is wiped on across the last')],
+  ['split', t('Split'), t('the slide opens from the middle, or closes in from the edges')],
+  ['pull', t('Uncover'), t('the last slide slides away to show this one')],
+  ['cover', t('Cover'), t('the slide slides in over the last')],
+  ['randomBar', t('Random Bars'), t('the slide appears in random bars')],
+  ['shape', t('Shape'), t('the slide grows out of a circle, a diamond or a plus')],
+  ['dissolve', t('Dissolve'), t('the slide appears in small random squares')],
 ];
 
 const SHAPE_TYPES = ['circle', 'diamond', 'plus', 'zoom'];
 /** The gallery button a transition type presses. */
 export const galleryKeyOf = (type) => (!type || type === 'none' ? 'none' : SHAPE_TYPES.includes(type) ? 'shape' : type);
 
-const SIDES = [['u', 'From Bottom'], ['r', 'From Left'], ['l', 'From Right'], ['d', 'From Top']];
-const EIGHT = [...SIDES, ['lu', 'From Bottom-Right'], ['ru', 'From Bottom-Left'], ['ld', 'From Top-Right'], ['rd', 'From Top-Left']];
+const SIDES = [['u', t('From Bottom')], ['r', t('From Left')], ['l', t('From Right')], ['d', t('From Top')]];
+const EIGHT = [...SIDES, ['lu', t('From Bottom-Right')], ['ru', t('From Bottom-Left')], ['ld', t('From Top-Right')], ['rd', t('From Top-Left')]];
 /**
  * Effect Options, per gallery button: each `[value, label]`. A value for
  * Shape names the type too (`circle`, `zoom:in`), since PowerPoint's Shape
  * options switch between elements rather than set a direction.
  */
 export const TRANSITION_OPTIONS = {
-  cut: [['smooth', 'Cut'], ['black', 'Through Black']],
-  fade: [['smooth', 'Smoothly'], ['black', 'Through Black']],
+  cut: [['smooth', t('Cut')], ['black', t('Through Black')]],
+  fade: [['smooth', t('Smoothly')], ['black', t('Through Black')]],
   push: SIDES,
   wipe: SIDES,
   pull: EIGHT,
   cover: EIGHT,
-  split: [['vert-out', 'Vertical Out'], ['vert-in', 'Vertical In'], ['horz-out', 'Horizontal Out'], ['horz-in', 'Horizontal In']],
-  randomBar: [['vert', 'Vertical'], ['horz', 'Horizontal']],
-  shape: [['circle', 'Circle'], ['diamond', 'Diamond'], ['plus', 'Plus'], ['zoom:in', 'In'], ['zoom:out', 'Out']],
+  split: [['vert-out', t('Vertical Out')], ['vert-in', t('Vertical In')], ['horz-out', t('Horizontal Out')], ['horz-in', t('Horizontal In')]],
+  randomBar: [['vert', t('Vertical')], ['horz', t('Horizontal')]],
+  shape: [['circle', t('Circle')], ['diamond', t('Diamond')], ['plus', t('Plus')], ['zoom:in', t('In')], ['zoom:out', t('Out')]],
 };
 
 /** The option value a transition currently stands at, in TRANSITION_OPTIONS' terms. */
@@ -54,14 +56,14 @@ export function optionOf(transition) {
 }
 
 /** A transition as a sentence, for the ribbon's tips and the strip's star. */
-export function describeTransition(t) {
-  if (!t) return 'No transition';
-  const key = galleryKeyOf(t.type);
-  const name = TRANSITION_GALLERY.find(([k]) => k === key)?.[1] || t.type;
-  const option = (TRANSITION_OPTIONS[key] || []).find(([v]) => v === optionOf(t))?.[1];
-  const effect = t.known === false ? `${t.type} (played as ${t.fallback || 'fade'})` : key === 'none' ? 'No effect' : option && option !== name ? `${name}, ${option}` : name;
-  const timing = key === 'none' || t.duration == null ? '' : `, ${Number(t.duration || 0).toFixed(2)} s`;
-  const after = t.advanceAfter != null ? `; moves on after ${Number(t.advanceAfter).toFixed(2)} s` : '';
+export function describeTransition(tr) {
+  if (!tr) return t('No transition');
+  const key = galleryKeyOf(tr.type);
+  const name = TRANSITION_GALLERY.find(([k]) => k === key)?.[1] || tr.type;
+  const option = (TRANSITION_OPTIONS[key] || []).find(([v]) => v === optionOf(tr))?.[1];
+  const effect = tr.known === false ? t('{type} (played as {fallback})', { type: tr.type, fallback: tr.fallback || 'fade' }) : key === 'none' ? t('No effect') : option && option !== name ? t('{name}, {option}', { name, option }) : name;
+  const timing = key === 'none' || tr.duration == null ? '' : t(', {seconds} s', { seconds: Number(tr.duration || 0).toFixed(2) });
+  const after = tr.advanceAfter != null ? t('; moves on after {seconds} s', { seconds: Number(tr.advanceAfter).toFixed(2) }) : '';
   return `${effect}${timing}${after}`;
 }
 

@@ -9,7 +9,7 @@
 // no script and fetches nothing, never in the window's own.
 
 import React, { useState } from 'react';
-import { Button, Input } from '@rutba/office-ui';
+import { Button, Input, t } from '@rutba/office-ui';
 
 /** Plain text into the markup the editor expects, quoting preserved. */
 export function textToHtml(text) {
@@ -168,9 +168,9 @@ export function LinkRow({ editor, range, onDone }) {
   };
   return (
     <div className="ml-linkrow">
-      <Input value={url} autoFocus onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } if (e.key === 'Escape') onDone(); }} aria-label="Link address" />
-      <Button primary label="Add link" disabled={!/^(https?:\/\/.+|mailto:.+)/i.test(url.trim())} onClick={add} />
-      <Button label="Cancel" onClick={onDone} />
+      <Input value={url} autoFocus onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } if (e.key === 'Escape') onDone(); }} aria-label={t('Link address')} />
+      <Button primary label={t('Add link')} disabled={!/^(https?:\/\/.+|mailto:.+)/i.test(url.trim())} onClick={add} />
+      <Button label={t('Cancel')} onClick={onDone} />
     </div>
   );
 }

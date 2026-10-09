@@ -5,22 +5,22 @@
 // and layout chosen. The index's words are `@rutba/ooxml/wordindex`'s.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Dialog, Group, Input, Select, Icon } from '@rutba/office-ui';
+import { Button, Dialog, Group, Input, Select, Icon, t, tn } from '@rutba/office-ui';
 import { buildIndex, lineTail } from '@rutba/ooxml/wordindex';
 
 export const LEADERS = [
-  ['none', '(none)'], ['dot', '.......'], ['hyphen', '-------'], ['underscore', '_______'],
+  ['none', t('(none)')], ['dot', '.......'], ['hyphen', '-------'], ['underscore', '_______'],
 ];
 const LEADER_CSS = { dot: 'dotted', hyphen: 'dashed', underscore: 'solid' };
 
 /** References → Index, as Word lays the group out. */
 export function IndexGroup({ act, hasIndex }) {
   return (
-    <Group label="Index">
-      <Button tall icon="flag" label={'Mark\nEntry'} className="wd-refs-2line" title="Mark Entry (Alt+Shift+X) — add the selected words to the index" onClick={() => act('markEntry')} />
+    <Group label={t('Index')}>
+      <Button tall icon="flag" label={t('Mark\nEntry')} className="wd-refs-2line" title={t('Mark Entry (Alt+Shift+X) — add the selected words to the index')} onClick={() => act('markEntry')} />
       <div className="wd-refs-col">
-        <Button icon="listBullet" label="Insert Index" title="Insert Index — a list of the marked words and the pages they are on" onClick={() => act('insertIndex')} />
-        <Button icon="refresh" label="Update Index" disabled={!hasIndex} title="Update Index — the entries and their pages as they stand now" onClick={() => act('updateIndex')} />
+        <Button icon="listBullet" label={t('Insert Index')} title={t('Insert Index — a list of the marked words and the pages they are on')} onClick={() => act('insertIndex')} />
+        <Button icon="refresh" label={t('Update Index')} disabled={!hasIndex} title={t('Update Index — the entries and their pages as they stand now')} onClick={() => act('updateIndex')} />
       </div>
     </Group>
   );
@@ -60,54 +60,54 @@ export function MarkEntryPanel({ selected, bookmarks, onMark, onClose }) {
   const mark = async (all) => {
     if (!main.trim()) return;
     const n = await onMark({ ...spec(), all, text: all ? selected : null });
-    setNote(all ? `${n || 0} entr${n === 1 ? 'y' : 'ies'} marked.` : 'Marked. Select more words to mark another.');
+    setNote(all ? tn(n || 0, '{count} entry marked.', '{count} entries marked.') : t('Marked. Select more words to mark another.'));
     typed.current = false;
   };
 
   return (
-    <div className="wd-refs-float" role="dialog" aria-label="Mark Index Entry">
+    <div className="wd-refs-float" role="dialog" aria-label={t('Mark Index Entry')}>
       <div className="wd-refs-float-head">
-        <span>Mark Index Entry</span>
-        <button type="button" className="wd-refs-x" data-tip="Close" aria-label="Close" onClick={onClose}><Icon name="close" size={14} /></button>
+        <span>{t('Mark Index Entry')}</span>
+        <button type="button" className="wd-refs-x" data-tip={t('Close')} aria-label={t('Close')} onClick={onClose}><Icon name="close" size={14} /></button>
       </div>
       <div className="wd-refs-float-body" onKeyDown={(e) => { if (e.key === 'Enter' && e.target.tagName === 'INPUT' && e.target.type === 'text') { e.preventDefault(); mark(false); } }}>
-        <div className="wd-refs-section">Index</div>
+        <div className="wd-refs-section">{t('Index')}</div>
         <div className="wd-refs-grid wd-refs-grid-tight">
-          <label htmlFor="wd-refs-main">Main entry</label>
+          <label htmlFor="wd-refs-main">{t('Main entry')}</label>
           <Input id="wd-refs-main" type="text" className="rw-input wd-refs-main" value={main} onChange={(e) => { typed.current = true; setMain(e.target.value); }} autoFocus />
-          <label htmlFor="wd-refs-sub">Subentry</label>
+          <label htmlFor="wd-refs-sub">{t('Subentry')}</label>
           <Input id="wd-refs-sub" type="text" className="rw-input wd-refs-sub" value={sub} onChange={(e) => setSub(e.target.value)} />
         </div>
-        <div className="wd-refs-section">Options</div>
+        <div className="wd-refs-section">{t('Options')}</div>
         <div className="wd-refs-options">
           <label className="wd-refs-check">
             <input type="radio" name="wd-refs-opt" className="wd-refs-opt-see" checked={option === 'see'} onChange={() => setOption('see')} />
-            Cross-reference:
+            {t('Cross-reference:')}
           </label>
           <Input type="text" className="rw-input wd-refs-see" value={see} disabled={option !== 'see'} onChange={(e) => setSee(e.target.value)} />
           <label className="wd-refs-check wd-refs-span2">
             <input type="radio" name="wd-refs-opt" checked={option === 'page'} onChange={() => setOption('page')} />
-            Current page
+            {t('Current page')}
           </label>
           <label className="wd-refs-check">
             <input type="radio" name="wd-refs-opt" className="wd-refs-opt-range" checked={option === 'range'} disabled={!bookmarks.length} onChange={() => setOption('range')} />
-            Page range
+            {t('Page range')}
           </label>
-          <Select className="rw-select wd-refs-bookmark" value={bookmark} disabled={option !== 'range' || !bookmarks.length} onChange={(e) => setBookmark(e.target.value)} title="Bookmark">
-            {bookmarks.length ? bookmarks.map((b) => <option key={b.name} value={b.name}>{b.name}</option>) : <option value="">No bookmarks</option>}
+          <Select className="rw-select wd-refs-bookmark" value={bookmark} disabled={option !== 'range' || !bookmarks.length} onChange={(e) => setBookmark(e.target.value)} title={t('Bookmark')}>
+            {bookmarks.length ? bookmarks.map((b) => <option key={b.name} value={b.name}>{b.name}</option>) : <option value="">{t('No bookmarks')}</option>}
           </Select>
         </div>
-        <div className="wd-refs-section">Page number format</div>
+        <div className="wd-refs-section">{t('Page number format')}</div>
         <div className="wd-refs-inline">
-          <label className="wd-refs-check"><input type="checkbox" className="wd-refs-bold" checked={bold} onChange={(e) => setBold(e.target.checked)} /><b>Bold</b></label>
-          <label className="wd-refs-check"><input type="checkbox" className="wd-refs-italic" checked={italic} onChange={(e) => setItalic(e.target.checked)} /><i>Italic</i></label>
+          <label className="wd-refs-check"><input type="checkbox" className="wd-refs-bold" checked={bold} onChange={(e) => setBold(e.target.checked)} /><b>{t('Bold')}</b></label>
+          <label className="wd-refs-check"><input type="checkbox" className="wd-refs-italic" checked={italic} onChange={(e) => setItalic(e.target.checked)} /><i>{t('Italic')}</i></label>
         </div>
-        <p className="wd-refs-lead wd-refs-note">{note || 'This box stays open so that you can mark one entry after another.'}</p>
+        <p className="wd-refs-lead wd-refs-note">{note || t('This box stays open so that you can mark one entry after another.')}</p>
       </div>
       <div className="wd-refs-float-foot">
-        <Button primary className="wd-refs-mark" label="Mark" disabled={!main.trim()} onClick={() => mark(false)} />
-        <Button className="wd-refs-markall" label="Mark All" disabled={!main.trim() || !selected || option !== 'page'} title="Mark All — the first time these words appear in every paragraph, matching case" onClick={() => mark(true)} />
-        <Button label="Close" onClick={onClose} />
+        <Button primary className="wd-refs-mark" label={t('Mark')} disabled={!main.trim()} onClick={() => mark(false)} />
+        <Button className="wd-refs-markall" label={t('Mark All')} disabled={!main.trim() || !selected || option !== 'page'} title={t('Mark All — the first time these words appear in every paragraph, matching case')} onClick={() => mark(true)} />
+        <Button label={t('Close')} onClick={onClose} />
       </div>
     </div>
   );
@@ -115,13 +115,13 @@ export function MarkEntryPanel({ selected, bookmarks, onMark, onClose }) {
 
 /** Word's own print-preview entries, so the preview shows every kind of line. */
 const SAMPLE = [
-  { main: 'Aristotle', page: 2 },
-  { main: 'Asteroid belt', crossRef: 'See Jupiter' },
-  { main: 'Atmosphere', subs: ['Earth'], page: 4 },
-  { main: 'Atmosphere', subs: ['Earth', 'exosphere'], page: 4 },
-  { main: 'Atmosphere', subs: ['Earth', 'ionosphere'], page: 3 },
-  { main: 'Atmosphere', subs: ['Earth', 'mesosphere'], page: 3 },
-  { main: 'Atmosphere', subs: ['Earth', 'mesosphere'], page: 4 },
+  { main: t('Aristotle'), page: 2 },
+  { main: t('Asteroid belt'), crossRef: t('See Jupiter') },
+  { main: t('Atmosphere'), subs: [t('Earth')], page: 4 },
+  { main: t('Atmosphere'), subs: [t('Earth'), t('exosphere')], page: 4 },
+  { main: t('Atmosphere'), subs: [t('Earth'), t('ionosphere')], page: 3 },
+  { main: t('Atmosphere'), subs: [t('Earth'), t('mesosphere')], page: 3 },
+  { main: t('Atmosphere'), subs: [t('Earth'), t('mesosphere')], page: 4 },
 ];
 
 /** Insert Index: type, columns, right-aligned page numbers behind a leader — and a preview of all of it. */
@@ -139,7 +139,7 @@ export function IndexDialog({ current, onClose, onOk }) {
     const parts = [<span key="t">{l.text}</span>];
     if (runIn && l.runIn?.length) {
       parts.push(<span key="c">{lineTail(l).map((s, i) => <span key={i} style={{ fontStyle: s.italic ? 'italic' : undefined }}>{s.text}</span>)}: </span>);
-      l.runIn.forEach((sub, i) => parts.push(<span key={'r' + i}>{i ? '; ' : ''}{sub.text}{lineTail(sub).map((s) => s.text).join('')}</span>));
+      l.runIn.forEach((sub, i) => parts.push(<span key={'r' + i}>{i ? '; ' : ''}{sub.text}{lineTail(sub).map((s) => s.text).join('')}</span>)); // words-ok: code, not words
       return <div key={key} className="wd-idx-line lvl1">{parts}</div>;
     }
     return (
@@ -153,19 +153,19 @@ export function IndexDialog({ current, onClose, onOk }) {
 
   return (
     <Dialog
-      title="Index"
+      title={t('Index')}
       width={640}
       onClose={onClose}
       actions={
         <>
-          <Button label="Cancel" onClick={onClose} />
-          <Button primary className="wd-refs-index-ok" label="OK" onClick={() => onOk({ runIn, columns: Number(columns) || 1, rightAlign: right, leader })} />
+          <Button label={t('Cancel')} onClick={onClose} />
+          <Button primary className="wd-refs-index-ok" label={t('OK')} onClick={() => onOk({ runIn, columns: Number(columns) || 1, rightAlign: right, leader })} />
         </>
       }
     >
       <div className="wd-refs-index">
         <div>
-          <div className="wd-refs-section">Print Preview</div>
+          <div className="wd-refs-section">{t('Print Preview')}</div>
           <div className="wd-idx-preview" style={{ columnCount: Math.min(2, Number(columns) || 1) }}>
             {groups.map((g) => (
               <React.Fragment key={g.letter}>
@@ -176,24 +176,24 @@ export function IndexDialog({ current, onClose, onOk }) {
           </div>
         </div>
         <div className="wd-refs-index-side">
-          <div className="wd-refs-section">Type</div>
-          <label className="wd-refs-check"><input type="radio" name="wd-idx-type" checked={!runIn} onChange={() => setRunIn(false)} />Indented</label>
-          <label className="wd-refs-check"><input type="radio" name="wd-idx-type" className="wd-refs-runin" checked={runIn} onChange={() => setRunIn(true)} />Run-in</label>
-          <div className="wd-refs-section">Columns</div>
+          <div className="wd-refs-section">{t('Type')}</div>
+          <label className="wd-refs-check"><input type="radio" name="wd-idx-type" checked={!runIn} onChange={() => setRunIn(false)} />{t('Indented')}</label>
+          <label className="wd-refs-check"><input type="radio" name="wd-idx-type" className="wd-refs-runin" checked={runIn} onChange={() => setRunIn(true)} />{t('Run-in')}</label>
+          <div className="wd-refs-section">{t('Columns')}</div>
           <Input type="number" min="1" max="4" className="rw-input wd-refs-columns" value={columns} onChange={(e) => setColumns(e.target.value.replace(/[^\d]/g, '').slice(0, 1))} />
           <label className="wd-refs-check">
             <input type="checkbox" className="wd-refs-right" checked={right} disabled={runIn} onChange={(e) => setRightAlign(e.target.checked)} />
-            Right align page numbers
+            {t('Right align page numbers')}
           </label>
           <label className="wd-refs-leader">
-            Tab leader
+            {t('Tab leader')}
             <Select className="rw-select wd-refs-leader-select" value={leader} disabled={!right} onChange={(e) => setLeader(e.target.value)}>
               {LEADERS.map(([id, label]) => <option key={id} value={id}>{label}</option>)}
             </Select>
           </label>
         </div>
       </div>
-      <p className="wd-refs-lead wd-refs-foot-lead">The index is written as Word's INDEX field; on this screen and on paper it is laid in one column, and Word lays it in the columns chosen.</p>
+      <p className="wd-refs-lead wd-refs-foot-lead">{t("The index is written as Word's INDEX field; on this screen and on paper it is laid in one column, and Word lays it in the columns chosen.")}</p>
     </Dialog>
   );
 }

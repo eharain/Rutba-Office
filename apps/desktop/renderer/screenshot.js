@@ -4,7 +4,7 @@
 // handed back as a PNG for the app to insert like any picture.
 
 import React, { useEffect, useState } from 'react';
-import { Button, Dialog, Spinner } from '@rutba/office-ui';
+import { Button, Dialog, Spinner, t } from '@rutba/office-ui';
 
 /**
  * @param {{ shell, onPick, onClose, record? }} props
@@ -54,14 +54,14 @@ export function ScreenshotDialog({ shell, onPick, onClose, record = false }) {
   };
 
   return (
-    <Dialog title={record ? 'Screen Recording' : 'Screenshot'} width={620} onClose={onClose} actions={<Button label="Cancel" onClick={onClose} />}>
+    <Dialog title={record ? t('Screen Recording') : t('Screenshot')} width={620} onClose={onClose} actions={<Button label={t('Cancel')} onClick={onClose} />}>
       <style>{SCREENSHOT_CSS}</style>
       <div className="ss">
         {error ? <div className="ss-error">{error}</div> : null}
-        {sources == null && !error ? <div className="ss-wait"><Spinner /> Looking at what is open…</div> : null}
-        {sources && !sources.length ? <div className="ss-wait">No other window is open to take a picture of.</div> : null}
-        {group('window', 'Available Windows')}
-        {group('screen', 'Screens')}
+        {sources == null && !error ? <div className="ss-wait"><Spinner /> {t('Looking at what is open…')}</div> : null}
+        {sources && !sources.length ? <div className="ss-wait">{t('No other window is open to take a picture of.')}</div> : null}
+        {group('window', t('Available Windows'))}
+        {group('screen', t('Screens'))}
       </div>
     </Dialog>
   );

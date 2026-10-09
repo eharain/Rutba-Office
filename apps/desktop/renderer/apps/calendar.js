@@ -11,15 +11,22 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Panel, Content, Field, Input, Select, Dialog,
-  useToast, useCommands, useMenu, menuItems,
+  useToast, useCommands, useMenu, menuItems, t, tn, language,
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
 import { AccountsDialog } from '../dav-accounts.js';
 
 const DAY = 86400000;
-const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// The days, Monday first, and the months, as the window's language names them
+// (Mon and January in English): 1 January 2024 was a Monday.
+const named = (options, count, at) => Array.from({ length: count }, (_, i) => at(i).toLocaleDateString(language(), options));
+const DAYS = named({ weekday: 'short' }, 7, (i) => new Date(2024, 0, 1 + i));
+const DAY_LETTERS = named({ weekday: 'narrow' }, 7, (i) => new Date(2024, 0, 1 + i));
+const MONTHS = named({ month: 'long' }, 12, (i) => new Date(2024, i, 1));
+const MONTHS_SHORT = named({ month: 'short' }, 12, (i) => new Date(2024, i, 1));
 const HOUR_PX = 44;
+const VIEW_NAMES = { day: t('Day'), week: t('Week'), month: t('Month'), agenda: t('Agenda') };
+const ANSWERS = { ACCEPTED: t('accepted'), DECLINED: t('declined'), TENTATIVE: t('tentative'), DELEGATED: t('delegated') };
 
 /* ── dates on this machine's clock ─────────────────────────────────────── */
 
@@ -189,7 +196,7 @@ export default function Calendar({ app, shell, boot }) {
         const seen = await shell.calendar.openFile({ path, from: range.from.getTime(), to: range.to.getTime() });
         setFile(seen);
         if (seen.first?.start?.at) setCursor(new Date(seen.first.allDay ? new Date(seen.first.start.date + 'T00:00:00') : seen.first.start.at));
-        toast(seen.invitation ? `An invitation from ${seen.invitation.organizer?.name || seen.invitation.organizer?.email || 'someone'}.` : `${seen.count} event${seen.count === 1 ? '' : 's'} in ${seen.name}.`, { ms: 5000 });
+        toast(seen.invitation ? t('An invitation from {name}.', { name: seen.invitation.organizer?.name || seen.invitation.organizer?.email || t('someone') }) : tn(seen.count, '{count} event in {name}.', '{count} events in {name}.', { name: seen.name }), { ms: 5000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 8000 });
       }
@@ -254,7 +261,7 @@ export default function Calendar({ app, shell, boot }) {
         const r = await shell.calendar.importFile({ path: target });
         setFile(null);
         await refresh();
-        toast(`${r.added} added, ${r.updated} updated in ${r.calendar}.`, { tone: 'good', ms: 6000 });
+        toast(t('{added} added, {updated} updated in {calendar}.', { added: r.added, updated: r.updated, calendar: r.calendar }), { tone: 'good', ms: 6000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 8000 });
       }
@@ -267,7 +274,7 @@ export default function Calendar({ app, shell, boot }) {
     if (!target) return;
     try {
       const r = await shell.calendar.exportFile({ path: target });
-      toast(`Wrote ${r.count} event${r.count === 1 ? '' : 's'}.`, { tone: 'good' });
+      toast(tn(r.count, 'Wrote {count} event.', 'Wrote {count} events.'), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
@@ -283,7 +290,7 @@ export default function Calendar({ app, shell, boot }) {
         }
         setFile(null);
         await refresh();
-        toast(r.kept ? 'Added to your calendar, and the reply is ready to send.' : 'Declined; the reply is ready to send.', { tone: 'good', ms: 6000 });
+        toast(r.kept ? t('Added to your calendar, and the reply is ready to send.') : t('Declined; the reply is ready to send.'), { tone: 'good', ms: 6000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 8000 });
       }
@@ -315,7 +322,7 @@ export default function Calendar({ app, shell, boot }) {
     if (!results.length) { setAccountsOpen(true); return; }
     const failed = results.find((r) => r.error);
     if (failed) toast(failed.error, { tone: 'warn', ms: 5500 });
-    else toast(`Synced: ${results.reduce((n, r) => n + (r.received || 0), 0)} in, ${results.reduce((n, r) => n + (r.sent || 0), 0)} out`, { tone: 'good' });
+    else toast(t('Synced: {received} in, {sent} out', { received: results.reduce((n, r) => n + (r.received || 0), 0), sent: results.reduce((n, r) => n + (r.sent || 0), 0) }), { tone: 'good' });
     await refresh();
   }, [shell, toast, refresh]);
   const addCalendar = useCallback(async () => {
@@ -327,20 +334,20 @@ export default function Calendar({ app, shell, boot }) {
   const appMenu = useAppMenu({ shell, appKey: 'calendar', onNew: () => newEvent(), onOpen: () => importFile() });
   const commands = useMemo(
     () => ({
-      'event.new': { label: 'New event', icon: 'plus', key: 'Mod+N', run: () => newEvent() },
-      'view.today': { label: 'Today', icon: 'clock', key: 'Mod+T', run: () => setCursor(new Date()) },
-      'view.month': { label: 'Month', icon: 'grid', run: () => setView('month') },
-      'view.week': { label: 'Week', icon: 'table', run: () => setView('week') },
-      'view.day': { label: 'Day', icon: 'file', run: () => setView('day') },
-      'view.agenda': { label: 'Agenda', icon: 'list', run: () => setView('agenda') },
-      'file.import': { label: 'Import…', icon: 'import', key: 'Mod+O', run: () => importFile() },
-      'file.export': { label: 'Export…', icon: 'export', run: exportFile },
+      'event.new': { label: t('New event'), icon: 'plus', key: 'Mod+N', run: () => newEvent() },
+      'view.today': { label: t('Today'), icon: 'clock', key: 'Mod+T', run: () => setCursor(new Date()) },
+      'view.month': { label: t('Month'), icon: 'grid', run: () => setView('month') },
+      'view.week': { label: t('Week'), icon: 'table', run: () => setView('week') },
+      'view.day': { label: t('Day'), icon: 'file', run: () => setView('day') },
+      'view.agenda': { label: t('Agenda'), icon: 'list', run: () => setView('agenda') },
+      'file.import': { label: t('Import…'), icon: 'import', key: 'Mod+O', run: () => importFile() },
+      'file.export': { label: t('Export…'), icon: 'export', run: exportFile },
     }),
     [newEvent, importFile, exportFile]
   );
   useCommands(commands, [view, cursor]);
 
-  const title = view === 'month' ? `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}` : view === 'week' ? `Week of ${range.from.getDate()} ${MONTHS[range.from.getMonth()].slice(0, 3)} ${range.from.getFullYear()}` : view === 'day' ? `${DAYS[(cursor.getDay() + 6) % 7]} ${cursor.getDate()} ${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}` : 'Next 30 days';
+  const title = view === 'month' ? `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}` : view === 'week' ? t('Week of {date}', { date: `${range.from.getDate()} ${MONTHS_SHORT[range.from.getMonth()]} ${range.from.getFullYear()}` }) : view === 'day' ? `${DAYS[(cursor.getDay() + 6) % 7]} ${cursor.getDate()} ${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}` : t('Next 30 days');
 
   /* ── views ────────────────────────────────────────────────────────────── */
 
@@ -386,9 +393,9 @@ export default function Calendar({ app, shell, boot }) {
                 onClick={() => newEvent(new Date(d.getFullYear(), d.getMonth(), d.getDate(), 9), false)}
                 onDoubleClick={(e) => e.stopPropagation()}
               >
-                <div className="cal-day-n">{d.getDate() === 1 ? `${d.getDate()} ${MONTHS[d.getMonth()].slice(0, 3)}` : d.getDate()}</div>
+                <div className="cal-day-n">{d.getDate() === 1 ? `${d.getDate()} ${MONTHS_SHORT[d.getMonth()]}` : d.getDate()}</div>
                 {shown.map((s, i) => chip(s, `${s.id}-${s.original}-${i}`))}
-                {list.length > shown.length ? <button type="button" className="cal-more" onClick={(e) => { e.stopPropagation(); setCursor(d); setView('day'); }}>+{list.length - shown.length} more</button> : null}
+                {list.length > shown.length ? <button type="button" className="cal-more" onClick={(e) => { e.stopPropagation(); setCursor(d); setView('day'); }}>{t('+{count} more', { count: list.length - shown.length })}</button> : null}{/* words-ok: code, not words */}
               </div>
             );
           })}
@@ -411,7 +418,7 @@ export default function Calendar({ app, shell, boot }) {
           ))}
         </div>
         <div className="cal-allday">
-          <div className="cal-gutter">all day</div>
+          <div className="cal-gutter">{t('all day')}</div>
           {days.map((d) => (
             <div key={isoDate(d)} className="cal-allday-cell" onClick={() => newEvent(new Date(d.getFullYear(), d.getMonth(), d.getDate()), true)}>
               {allDay.filter((s) => { const { first, last } = slotDays(s); return d >= first && d <= last; }).map((s, i) => chip(s, `${s.id}-${i}`))}
@@ -480,11 +487,11 @@ export default function Calendar({ app, shell, boot }) {
           const d = new Date(`${k}T00:00:00`);
           return (
             <div key={k} className={`cal-agenda-day${sameDay(d, today) ? ' today' : ''}`}>
-              <div className="cal-agenda-date"><span className="dn">{DAYS[(d.getDay() + 6) % 7]}</span><span className="dd">{d.getDate()}</span><span className="dm">{MONTHS[d.getMonth()].slice(0, 3)}</span></div>
+              <div className="cal-agenda-date"><span className="dn">{DAYS[(d.getDay() + 6) % 7]}</span><span className="dd">{d.getDate()}</span><span className="dm">{MONTHS_SHORT[d.getMonth()]}</span></div>
               <div className="cal-agenda-list">
                 {groups.get(k).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start).map((s, i) => (
                   <button type="button" key={`${s.id}-${i}`} className="cal-agenda-item" style={{ '--c': s.colour }} onClick={() => openSlot(s)}>
-                    <span className="t">{s.allDay ? 'all day' : `${clock(s.start)} – ${clock(s.end)}`}</span>
+                    <span className="t">{s.allDay ? t('all day') : `${clock(s.start)} – ${clock(s.end)}`}</span>
                     <span className="s">{s.summary}</span>
                     {s.location ? <span className="l">{s.location}</span> : null}
                   </button>
@@ -492,7 +499,7 @@ export default function Calendar({ app, shell, boot }) {
               </div>
             </div>
           );
-        }) : <Empty icon="calendar" title="Nothing in the next thirty days">Press Ctrl+N to add an event, or open a .ics file.</Empty>}
+        }) : <Empty icon="calendar" title={t('Nothing in the next thirty days')}>{t('Press Ctrl+N to add an event, or open a .ics file.')}</Empty>}
       </div>
     );
   };
@@ -504,51 +511,51 @@ export default function Calendar({ app, shell, boot }) {
   const set = (patch) => setForm((f) => ({ ...f, ...patch }));
   const editor = form ? (
     <Dialog
-      title={form.id ? 'Edit event' : 'New event'}
+      title={form.id ? t('Edit event') : t('New event')}
       width={560}
       onClose={() => setForm(null)}
       actions={
         <>
-          <Button label="Cancel" onClick={() => setForm(null)} />
-          <Button primary label="Save" onClick={saveForm} />
+          <Button label={t('Cancel')} onClick={() => setForm(null)} />
+          <Button primary label={t('Save')} onClick={saveForm} />
         </>
       }
     >
       <div className="cal-form">
-        <Input className="rw-input cal-title" value={form.summary} placeholder="Title" autoFocus onChange={(e) => set({ summary: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') saveForm(); }} />
-        <label className="cal-check"><input type="checkbox" checked={form.allDay} onChange={(e) => set({ allDay: e.target.checked })} /> All day</label>
+        <Input className="rw-input cal-title" value={form.summary} placeholder={t('Title')} autoFocus onChange={(e) => set({ summary: e.target.value })} onKeyDown={(e) => { if (e.key === 'Enter') saveForm(); }} />
+        <label className="cal-check"><input type="checkbox" checked={form.allDay} onChange={(e) => set({ allDay: e.target.checked })} /> {t('All day')}</label>
         <div className="cal-when">
-          <Field label="Starts"><div className="cal-dt"><Input type="date" value={form.date} onChange={(e) => set({ date: e.target.value, endDate: form.endDate < e.target.value ? e.target.value : form.endDate })} />{form.allDay ? null : <Input type="time" value={form.time} onChange={(e) => set({ time: e.target.value })} />}</div></Field>
-          <Field label="Ends"><div className="cal-dt"><Input type="date" value={form.endDate} onChange={(e) => set({ endDate: e.target.value })} />{form.allDay ? null : <Input type="time" value={form.endTime} onChange={(e) => set({ endTime: e.target.value })} />}</div></Field>
+          <Field label={t('Starts')}><div className="cal-dt"><Input type="date" value={form.date} onChange={(e) => set({ date: e.target.value, endDate: form.endDate < e.target.value ? e.target.value : form.endDate })} />{form.allDay ? null : <Input type="time" value={form.time} onChange={(e) => set({ time: e.target.value })} />}</div></Field>
+          <Field label={t('Ends')}><div className="cal-dt"><Input type="date" value={form.endDate} onChange={(e) => set({ endDate: e.target.value })} />{form.allDay ? null : <Input type="time" value={form.endTime} onChange={(e) => set({ endTime: e.target.value })} />}</div></Field>
         </div>
         <div className="cal-when">
-          <Field label="Repeat">
+          <Field label={t('Repeat')}>
             <Select value={form.repeat} onChange={(e) => set({ repeat: e.target.value })}>
-              <option value="none">Does not repeat</option>
-              <option value="daily">Every day</option>
-              <option value="weekdays">Every weekday</option>
-              <option value="weekly">Every week</option>
-              <option value="monthly">Every month</option>
-              <option value="yearly">Every year</option>
-              {form.rule ? <option value="custom">As it is ({form.rule.freq.toLowerCase()})</option> : null}
+              <option value="none">{t('Does not repeat')}</option>
+              <option value="daily">{t('Every day')}</option>
+              <option value="weekdays">{t('Every weekday')}</option>
+              <option value="weekly">{t('Every week')}</option>
+              <option value="monthly">{t('Every month')}</option>
+              <option value="yearly">{t('Every year')}</option>
+              {form.rule ? <option value="custom">{t('As it is ({freq})', { freq: form.rule.freq.toLowerCase() })}</option> : null}
             </Select>
           </Field>
-          {form.repeat !== 'none' ? <Field label="Until" hint="Blank for no end"><Input type="date" value={form.repeatUntil} onChange={(e) => set({ repeatUntil: e.target.value })} /></Field> : <Field label="Reminder"><Select value={form.reminder} onChange={(e) => set({ reminder: e.target.value })}><option value="none">None</option><option value="0">At the time</option><option value="5">5 minutes before</option><option value="15">15 minutes before</option><option value="30">30 minutes before</option><option value="60">1 hour before</option><option value="1440">1 day before</option></Select></Field>}
+          {form.repeat !== 'none' ? <Field label={t('Until')} hint={t('Blank for no end')}><Input type="date" value={form.repeatUntil} onChange={(e) => set({ repeatUntil: e.target.value })} /></Field> : <Field label={t('Reminder')}><Select value={form.reminder} onChange={(e) => set({ reminder: e.target.value })}><option value="none">{t('None')}</option><option value="0">{t('At the time')}</option><option value="5">{t('5 minutes before')}</option><option value="15">{t('15 minutes before')}</option><option value="30">{t('30 minutes before')}</option><option value="60">{t('1 hour before')}</option><option value="1440">{t('1 day before')}</option></Select></Field>}
         </div>
         {form.id && form.rule && form.original != null ? (
-          <Field label="Change">
+          <Field label={t('Change')}>
             <Select value={form.scope} onChange={(e) => set({ scope: e.target.value })}>
-              <option value="this">Only this occurrence</option>
-              <option value="all">Every occurrence</option>
+              <option value="this">{t('Only this occurrence')}</option>
+              <option value="all">{t('Every occurrence')}</option>
             </Select>
           </Field>
         ) : null}
-        <Field label="Location"><Input value={form.location} placeholder="Where" onChange={(e) => set({ location: e.target.value })} /></Field>
-        <Field label="Calendar">
+        <Field label={t('Location')}><Input value={form.location} placeholder={t('Where')} onChange={(e) => set({ location: e.target.value })} /></Field>
+        <Field label={t('Calendar')}>
           <Select value={form.calendarId || ''} onChange={(e) => set({ calendarId: e.target.value })}>{calendars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</Select>
         </Field>
-        <Field label="Invite" hint="Addresses, separated by commas. Saving with people on the list offers a message with the invitation attached."><Input value={form.attendees} placeholder="kim@example.com, sam@example.org" onChange={(e) => set({ attendees: e.target.value })} /></Field>
-        <Field label="Notes"><textarea className="rw-input cal-notes" rows={3} value={form.description} onChange={(e) => set({ description: e.target.value })} /></Field>
+        <Field label={t('Invite')} hint={t('Addresses, separated by commas. Saving with people on the list offers a message with the invitation attached.')}><Input value={form.attendees} placeholder="kim@example.com, sam@example.org" onChange={(e) => set({ attendees: e.target.value })} /></Field>{/* words-ok: example addresses */}
+        <Field label={t('Notes')}><textarea className="rw-input cal-notes" rows={3} value={form.description} onChange={(e) => set({ description: e.target.value })} /></Field>
       </div>
     </Dialog>
   ) : null;
@@ -561,15 +568,15 @@ export default function Calendar({ app, shell, boot }) {
       actions={
         opened.readOnly ? (
           <>
-            <Button label="Close" onClick={() => setOpened(null)} />
-            {file ? <Button primary label="Add to my calendar" onClick={() => importFile(file.path)} /> : null}
+            <Button label={t('Close')} onClick={() => setOpened(null)} />
+            {file ? <Button primary label={t('Add to my calendar')} onClick={() => importFile(file.path)} /> : null}
           </>
         ) : (
           <>
-            {opened.event?.rrule ? <Button label="Delete this one" onClick={() => removeOpened('this')} /> : null}
-            <Button label={opened.event?.rrule ? 'Delete all' : 'Delete'} onClick={() => removeOpened('all')} />
-            {opened.event?.attendees?.length ? <Button label="Send invitation" onClick={invite} /> : null}
-            <Button primary label="Edit" onClick={() => { setForm(formFrom(opened.event, opened.slot.original)); setOpened(null); }} />
+            {opened.event?.rrule ? <Button label={t('Delete this one')} onClick={() => removeOpened('this')} /> : null}
+            <Button label={opened.event?.rrule ? t('Delete all') : t('Delete')} onClick={() => removeOpened('all')} />
+            {opened.event?.attendees?.length ? <Button label={t('Send invitation')} onClick={invite} /> : null}
+            <Button primary label={t('Edit')} onClick={() => { setForm(formFrom(opened.event, opened.slot.original)); setOpened(null); }} />
           </>
         )
       }
@@ -579,13 +586,13 @@ export default function Calendar({ app, shell, boot }) {
           <Icon name="clock" size={14} />
           <span>
             {opened.slot.allDay
-              ? `${new Date(opened.slot.start).toUTCString().slice(0, 16)}${opened.slot.end - opened.slot.start > DAY ? ` – ${new Date(opened.slot.end - DAY).toUTCString().slice(0, 16)}` : ''}, all day`
+              ? t('{when}, all day', { when: `${new Date(opened.slot.start).toUTCString().slice(0, 16)}${opened.slot.end - opened.slot.start > DAY ? ` – ${new Date(opened.slot.end - DAY).toUTCString().slice(0, 16)}` : ''}` })
               : `${new Date(opened.slot.start).toLocaleString(undefined, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })} – ${clock(opened.slot.end)}`}
           </span>
         </div>
         {opened.event?.rule && opened.event.rule !== 'Does not repeat' ? <div className="cal-detail-line"><Icon name="refresh" size={14} /><span>{opened.event.rule}</span></div> : null}
         {opened.slot.location ? <div className="cal-detail-line"><Icon name="globe" size={14} /><span>{opened.slot.location}</span></div> : null}
-        {opened.event?.attendees?.length ? <div className="cal-detail-line"><Icon name="contacts" size={14} /><span>{opened.event.attendees.map((a) => `${a.name || a.email}${a.partstat && a.partstat !== 'NEEDS-ACTION' ? ` (${a.partstat.toLowerCase()})` : ''}`).join(', ')}</span></div> : null}
+        {opened.event?.attendees?.length ? <div className="cal-detail-line"><Icon name="contacts" size={14} /><span>{opened.event.attendees.map((a) => `${a.name || a.email}${a.partstat && a.partstat !== 'NEEDS-ACTION' ? ` (${ANSWERS[a.partstat] ?? a.partstat.toLowerCase()})` : ''}`).join(', ')}</span></div> : null}
         {opened.event?.description ? <p className="cal-detail-notes">{opened.event.description}</p> : null}
         <div className="cal-detail-cal"><span className="dot" />{opened.slot.calendar}</div>
       </div>
@@ -600,44 +607,44 @@ export default function Calendar({ app, shell, boot }) {
       menu={appMenu}
       ribbon={
         <Ribbon
-          tabs={[{ id: 'home', label: 'Home' }, { id: 'view', label: 'View' }]}
+          tabs={[{ id: 'home', label: t('Home') }, { id: 'view', label: t('View') }]}
           active={tab}
           onTab={setTab}
           quick={
             <>
-              <Button icon="plus" title="New event (Ctrl+N)" onClick={() => newEvent()} />
-              <Button icon="clock" title="Today (Ctrl+T)" onClick={() => setCursor(new Date())} />
+              <Button icon="plus" title={t('New event (Ctrl+N)')} onClick={() => newEvent()} />
+              <Button icon="clock" title={t('Today (Ctrl+T)')} onClick={() => setCursor(new Date())} />
             </>
           }
         >
           {tab === 'home' ? (
             <>
-              <Group label="New">
-                <Button tall icon="plus" label="New event" onClick={() => newEvent()} />
+              <Group label={t('New')}>
+                <Button tall icon="plus" label={t('New event')} onClick={() => newEvent()} />
               </Group>
-              <Group label="Go to">
-                <Button tall icon="clock" label="Today" onClick={() => setCursor(new Date())} />
-                <Button icon="chevronLeft" title="Back" onClick={() => go(-1)} />
-                <Button icon="chevronRight" title="Forward" onClick={() => go(1)} />
+              <Group label={t('Go to')}>
+                <Button tall icon="clock" label={t('Today')} onClick={() => setCursor(new Date())} />
+                <Button icon="chevronLeft" title={t('Back')} onClick={() => go(-1)} />
+                <Button icon="chevronRight" title={t('Forward')} onClick={() => go(1)} />
               </Group>
-              <Group label="Arrange">
-                <Button tall icon="file" label="Day" pressed={view === 'day'} onClick={() => setView('day')} />
-                <Button tall icon="table" label="Week" pressed={view === 'week'} onClick={() => setView('week')} />
-                <Button tall icon="grid" label="Month" pressed={view === 'month'} onClick={() => setView('month')} />
-                <Button tall icon="list" label="Agenda" pressed={view === 'agenda'} onClick={() => setView('agenda')} />
+              <Group label={t('Arrange')}>
+                <Button tall icon="file" label={t('Day')} pressed={view === 'day'} onClick={() => setView('day')} />
+                <Button tall icon="table" label={t('Week')} pressed={view === 'week'} onClick={() => setView('week')} />
+                <Button tall icon="grid" label={t('Month')} pressed={view === 'month'} onClick={() => setView('month')} />
+                <Button tall icon="list" label={t('Agenda')} pressed={view === 'agenda'} onClick={() => setView('agenda')} />
               </Group>
-              <Group label="Files">
-                <Button tall icon="import" label="Import" title="Events from a .ics" onClick={() => importFile()} />
-                <Button tall icon="export" label="Export" title="Your calendars as a .ics" onClick={exportFile} />
+              <Group label={t('Files')}>
+                <Button tall icon="import" label={t('Import')} title={t('Events from a .ics')} onClick={() => importFile()} />
+                <Button tall icon="export" label={t('Export')} title={t('Your calendars as a .ics')} onClick={exportFile} />
               </Group>
-              <Group label="Accounts">
-                <Button tall icon="globe" label="Accounts" title="Accounts — a CalDAV or CardDAV server (iCloud, Fastmail, Nextcloud and the like) kept in step with this computer" onClick={() => setAccountsOpen(true)} />
-                <Button tall icon="refresh" label="Sync" title="Sync every account now" onClick={syncAll} />
+              <Group label={t('Accounts')}>
+                <Button tall icon="globe" label={t('Accounts')} title={t('Accounts — a CalDAV or CardDAV server (iCloud, Fastmail, Nextcloud and the like) kept in step with this computer')} onClick={() => setAccountsOpen(true)} />
+                <Button tall icon="refresh" label={t('Sync')} title={t('Sync every account now')} onClick={syncAll} />
               </Group>
             </>
           ) : (
-            <Group label="Calendars">
-              <Button tall icon="plus" label="New calendar" onClick={addCalendar} />
+            <Group label={t('Calendars')}>
+              <Button tall icon="plus" label={t('New calendar')} onClick={addCalendar} />
             </Group>
           )}
         </Ribbon>
@@ -649,9 +656,9 @@ export default function Calendar({ app, shell, boot }) {
         <div className="cal-side">
           <MiniMonth cursor={cursor} today={today} onPick={(d) => { setCursor(d); if (view === 'month') setView('day'); }} />
           <div className="cal-cals">
-            <div className="cal-cals-head">My calendars</div>
+            <div className="cal-cals-head">{t('My calendars')}</div>
             {calendars.map((c) => (
-              <label key={c.id} className="cal-cal" title={c.account ? 'Kept in step with an account' : undefined}>
+              <label key={c.id} className="cal-cal" title={c.account ? t('Kept in step with an account') : undefined}>
                 <input type="checkbox" checked={c.visible} onChange={() => toggleCalendar(c)} />
                 <span className="dot" style={{ background: c.colour }} />
                 <span className="n">{c.name}</span>
@@ -662,7 +669,7 @@ export default function Calendar({ app, shell, boot }) {
               <div className="cal-cal file">
                 <span className="dot" style={{ background: '#8c6d1f' }} />
                 <span className="n">{file.name}</span>
-                <Button ghost icon="close" title="Close the file" onClick={() => setFile(null)} />
+                <Button ghost icon="close" title={t('Close the file')} onClick={() => setFile(null)} />
               </div>
             ) : null}
           </div>
@@ -673,27 +680,27 @@ export default function Calendar({ app, shell, boot }) {
           <div className="cal-invite">
             <Icon name="mail" size={16} />
             <div className="grow">
-              <b>{file.invitation.organizer?.name || file.invitation.organizer?.email || 'Someone'}</b> invites you to <b>{file.invitation.summary}</b>
-              {file.invitation.me?.partstat && file.invitation.me.partstat !== 'NEEDS-ACTION' ? <span> — you answered {file.invitation.me.partstat.toLowerCase()}</span> : null}
+              <b>{file.invitation.organizer?.name || file.invitation.organizer?.email || t('Someone')}</b> {t('invites you to')} <b>{file.invitation.summary}</b>
+              {file.invitation.me?.partstat && file.invitation.me.partstat !== 'NEEDS-ACTION' ? <span> — {t('you answered {answer}', { answer: ANSWERS[file.invitation.me.partstat] ?? file.invitation.me.partstat.toLowerCase() })}</span> : null}
             </div>
-            <Button primary icon="check" label="Accept" onClick={() => respond('ACCEPTED')} />
-            <Button label="Tentative" onClick={() => respond('TENTATIVE')} />
-            <Button label="Decline" onClick={() => respond('DECLINED')} />
+            <Button primary icon="check" label={t('Accept')} onClick={() => respond('ACCEPTED')} />
+            <Button label={t('Tentative')} onClick={() => respond('TENTATIVE')} />
+            <Button label={t('Decline')} onClick={() => respond('DECLINED')} />
           </div>
         ) : file ? (
           <div className="cal-invite">
             <Icon name="file" size={16} />
-            <div className="grow">{file.count} event{file.count === 1 ? '' : 's'} from <b>{file.name}</b>, shown beside yours and not yet kept.</div>
-            <Button primary icon="import" label="Add to my calendar" onClick={() => importFile(file.path)} />
+            <div className="grow">{tn(file.count, '{count} event from', '{count} events from')} <b>{file.name}</b>, {t('shown beside yours and not yet kept.')}</div>
+            <Button primary icon="import" label={t('Add to my calendar')} onClick={() => importFile(file.path)} />
           </div>
         ) : null}
         <div className="cal-toolbar">
-          <Button icon="chevronLeft" title="Back" onClick={() => go(-1)} />
-          <Button icon="chevronRight" title="Forward" onClick={() => go(1)} />
+          <Button icon="chevronLeft" title={t('Back')} onClick={() => go(-1)} />
+          <Button icon="chevronRight" title={t('Forward')} onClick={() => go(1)} />
           <h2 className="cal-title">{title}</h2>
           <Spacer />
           <div className="cal-views">
-            {['day', 'week', 'month', 'agenda'].map((v) => <button type="button" key={v} className={`cal-view${view === v ? ' on' : ''}`} onClick={() => setView(v)}>{v[0].toUpperCase() + v.slice(1)}</button>)}
+            {['day', 'week', 'month', 'agenda'].map((v) => <button type="button" key={v} className={`cal-view${view === v ? ' on' : ''}`} onClick={() => setView(v)}>{VIEW_NAMES[v]}</button>)}
           </div>
         </div>
         <div className="cal-body">{body}</div>
@@ -713,11 +720,11 @@ function MiniMonth({ cursor, today, onPick }) {
     <div className="cal-mini">
       <div className="cal-mini-head">
         <button type="button" onClick={() => setShown(new Date(shown.getFullYear(), shown.getMonth() - 1, 1))}>‹</button>
-        <span>{MONTHS[shown.getMonth()].slice(0, 3)} {shown.getFullYear()}</span>
+        <span>{MONTHS_SHORT[shown.getMonth()]} {shown.getFullYear()}</span>
         <button type="button" onClick={() => setShown(new Date(shown.getFullYear(), shown.getMonth() + 1, 1))}>›</button>
       </div>
       <div className="cal-mini-grid">
-        {DAYS.map((d) => <span key={d} className="h">{d[0]}</span>)}
+        {DAY_LETTERS.map((d, i) => <span key={i} className="h">{d}</span>)}
         {cells.map((d) => (
           <button type="button" key={isoDate(d)} className={`${d.getMonth() !== shown.getMonth() ? 'other' : ''}${sameDay(d, today) ? ' today' : ''}${sameDay(d, cursor) ? ' on' : ''}`} onClick={() => onPick(d)}>{d.getDate()}</button>
         ))}

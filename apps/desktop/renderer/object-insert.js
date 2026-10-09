@@ -5,13 +5,13 @@
 // own app by a double-click.
 
 import React, { useState } from 'react';
-import { Button, Dialog } from '@rutba/office-ui';
+import { Button, Dialog, t } from '@rutba/office-ui';
 import { iconSvg } from '@rutba/office-ui/icons';
 
 export const OBJECT_TYPES = [
-  { ext: 'docx', label: 'Microsoft Word Document', glyph: 'word', colour: '#2B5FD9', app: 'word' },
-  { ext: 'xlsx', label: 'Microsoft Excel Worksheet', glyph: 'sheets', colour: '#1E8A4C', app: 'sheets' },
-  { ext: 'pptx', label: 'Microsoft PowerPoint Presentation', glyph: 'slides', colour: '#C4422F', app: 'slides' },
+  { ext: 'docx', label: t('Microsoft Word Document'), glyph: 'word', colour: '#2B5FD9', app: 'word' },
+  { ext: 'xlsx', label: t('Microsoft Excel Worksheet'), glyph: 'sheets', colour: '#1E8A4C', app: 'sheets' },
+  { ext: 'pptx', label: t('Microsoft PowerPoint Presentation'), glyph: 'slides', colour: '#C4422F', app: 'slides' },
 ];
 export const typeOfExt = (ext) => OBJECT_TYPES.find((t) => t.ext === String(ext || '').toLowerCase()) || null;
 export const appOfProgId = (progId) => (/^Word\./.test(progId || '') ? 'word' : /^Excel\./.test(progId || '') ? 'sheets' : /^PowerPoint\./.test(progId || '') ? 'slides' : null);
@@ -45,7 +45,7 @@ export function ObjectDialog({ shell, onInsert, onClose }) {
   const [type, setType] = useState('docx');
   const [file, setFile] = useState(null);
   const browse = async () => {
-    const [picked] = await shell.dialog.open({ title: 'Browse', filters: [{ name: 'Office documents', extensions: ['docx', 'xlsx', 'pptx'] }] });
+    const [picked] = await shell.dialog.open({ title: t('Browse'), filters: [{ name: t('Office documents'), extensions: ['docx', 'xlsx', 'pptx'] }] });
     if (picked) setFile(picked);
   };
   const ok = () => {
@@ -54,29 +54,29 @@ export function ObjectDialog({ shell, onInsert, onClose }) {
   };
   return (
     <Dialog
-      title="Insert Object"
+      title={t('Insert Object')}
       width={480}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="OK" className="obj-ok" disabled={mode === 'file' && !file} onClick={ok} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} className="obj-ok" disabled={mode === 'file' && !file} onClick={ok} /></>}
     >
       <div className="obj">
         <div className="obj-modes">
-          <label><input type="radio" name="obj-mode" checked={mode === 'new'} onChange={() => setMode('new')} /> Create new</label>
-          <label><input type="radio" name="obj-mode" className="obj-mode-file" checked={mode === 'file'} onChange={() => setMode('file')} /> Create from file</label>
+          <label><input type="radio" name="obj-mode" checked={mode === 'new'} onChange={() => setMode('new')} /> {t('Create new')}</label>
+          <label><input type="radio" name="obj-mode" className="obj-mode-file" checked={mode === 'file'} onChange={() => setMode('file')} /> {t('Create from file')}</label>
         </div>
         {mode === 'new' ? (
-          <div className="obj-list" role="listbox" aria-label="Object type">
+          <div className="obj-list" role="listbox" aria-label={t('Object type')}>
             {OBJECT_TYPES.map((t) => (
               <button key={t.ext} type="button" role="option" aria-selected={type === t.ext} className={`obj-item${type === t.ext ? ' on' : ''}`} data-ext={t.ext} onClick={() => setType(t.ext)}>{t.label}</button>
             ))}
           </div>
         ) : (
           <div className="obj-file">
-            <div className="obj-path">{file || 'No file chosen'}</div>
-            <Button label="Browse…" className="obj-browse" onClick={browse} />
+            <div className="obj-path">{file || t('No file chosen')}</div>
+            <Button label={t('Browse…')} className="obj-browse" onClick={browse} />
           </div>
         )}
-        <p className="obj-lead">The document goes in whole, shown as an icon; a double-click opens it in its own app. It is kept in the file as PowerPoint and Word keep an embedded document.</p>
+        <p className="obj-lead">{t('The document goes in whole, shown as an icon; a double-click opens it in its own app. It is kept in the file as PowerPoint and Word keep an embedded document.')}</p>
       </div>
     </Dialog>
   );

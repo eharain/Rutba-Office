@@ -4,10 +4,10 @@
 // take shown as they are typed.
 
 import React, { useState } from 'react';
-import { Button, Dialog } from '@rutba/office-ui';
+import { Button, Dialog, t } from '@rutba/office-ui';
 import { wordArtCss } from '../../wordart.js';
 
-export function ShapeWordsDialog({ title = 'Edit Text', initial = '', look = null, onOk, onClose }) {
+export function ShapeWordsDialog({ title = t('Edit Text'), initial = '', look = null, onOk, onClose }) {
   const [text, setText] = useState(initial);
   const ok = () => { if (text.trim()) onOk(text.replace(/\s+$/, '')); };
   return (
@@ -15,17 +15,17 @@ export function ShapeWordsDialog({ title = 'Edit Text', initial = '', look = nul
       title={title}
       width={460}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="OK" className="sh-words-ok" disabled={!text.trim()} onClick={ok} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('OK')} className="sh-words-ok" disabled={!text.trim()} onClick={ok} /></>}
     >
       <div className="sh-words">
         <textarea className="rw-input sh-words-text" rows={3} value={text} autoFocus onFocus={(e) => e.target.select()} onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); ok(); } }} />
         {look ? (
-          <div className="sh-words-preview" aria-label="Preview">
+          <div className="sh-words-preview" aria-label={t('Preview')}>
             <span style={{ fontWeight: 700, fontSize: 34, lineHeight: 1.15, whiteSpace: 'pre-wrap', fontFamily: 'Calibri, Carlito, sans-serif', ...wordArtCss(look, 1.4) }}>{text || ' '}</span>
           </div>
         ) : null}
-        <p className="sh-words-lead">Each line is a paragraph of its own. Ctrl+Enter puts the words in.</p>
+        <p className="sh-words-lead">{t('Each line is a paragraph of its own. Ctrl+Enter puts the words in.')}</p>
       </div>
     </Dialog>
   );

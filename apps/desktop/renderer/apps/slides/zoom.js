@@ -6,7 +6,7 @@
 // which any PowerPoint opens; the return is this suite's show's own.
 
 import React, { useState } from 'react';
-import { Button, Dialog } from '@rutba/office-ui';
+import { Button, Dialog, t } from '@rutba/office-ui';
 
 /** Whether a shape is one of the zooms this inserts, and of which kind. */
 export const zoomKind = (shape) => /^(Slide|Section|Summary) Zoom\b/.exec(shape?.name || '')?.[1]?.toLowerCase() || null;
@@ -40,15 +40,15 @@ export async function slidePicture(svg, width, height) {
 export function ZoomDialog({ kind, outline = [], sections = [], onInsert, onClose }) {
   const items = kind === 'section'
     ? sections.map((s) => ({ key: s.start ?? s.first ?? s.slides?.[0] ?? 0, label: s.name, thumb: outline[s.start ?? s.first ?? s.slides?.[0] ?? 0]?.thumbnail }))
-    : outline.map((o) => ({ key: o.index, label: `${o.index + 1}. ${o.title || `Slide ${o.index + 1}`}`, thumb: o.thumbnail }));
+    : outline.map((o) => ({ key: o.index, label: `${o.index + 1}. ${o.title || t('Slide {number}', { number: o.index + 1 })}`, thumb: o.thumbnail }));
   const [picked, setPicked] = useState([]);
-  const title = { summary: 'Insert Summary Zoom', section: 'Insert Section Zoom', slide: 'Insert Slide Zoom' }[kind];
+  const title = { summary: t('Insert Summary Zoom'), section: t('Insert Section Zoom'), slide: t('Insert Slide Zoom') }[kind];
   return (
     <Dialog
       title={title}
       width={620}
       onClose={onClose}
-      actions={<><Button label="Cancel" onClick={onClose} /><Button primary label="Insert" className="sl-zoom-ok" disabled={!picked.length} onClick={() => onInsert([...picked].sort((a, b) => a - b))} /></>}
+      actions={<><Button label={t('Cancel')} onClick={onClose} /><Button primary label={t('Insert')} className="sl-zoom-ok" disabled={!picked.length} onClick={() => onInsert([...picked].sort((a, b) => a - b))} /></>}
     >
       <div className="sl-zoom-grid">
         {items.map((it) => (
@@ -58,7 +58,7 @@ export function ZoomDialog({ kind, outline = [], sections = [], onInsert, onClos
             <span className="sl-zoom-label">{it.label}</span>
           </label>
         ))}
-        {!items.length ? <p className="sl-zoom-empty">{kind === 'section' ? 'This deck has no sections. Add one from the slides strip first.' : 'There are no slides to zoom to.'}</p> : null}
+        {!items.length ? <p className="sl-zoom-empty">{kind === 'section' ? t('This deck has no sections. Add one from the slides strip first.') : t('There are no slides to zoom to.')}</p> : null}
       </div>
     </Dialog>
   );

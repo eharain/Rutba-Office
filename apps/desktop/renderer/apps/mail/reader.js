@@ -8,7 +8,7 @@
 // the message, and only the second one is worth a person's attention.
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Icon, Chip, formatWhen, formatBytes } from '@rutba/office-ui';
+import { Button, Icon, Chip, formatWhen, formatBytes, t, tn } from '@rutba/office-ui';
 import { bodyDocument, avatarFor, displayName } from './parts.js';
 
 export default function Reader({
@@ -63,7 +63,7 @@ export default function Reader({
       <header className="ml-head">
         <h2>
           {message.flagged ? <Icon name="star" size={16} /> : null}
-          <span>{message.subject || '(no subject)'}</span>
+          <span>{message.subject || t('(no subject)')}</span>
         </h2>
 
         <div className="ml-meta">
@@ -75,27 +75,27 @@ export default function Reader({
               </button>
               {from?.name && from?.address ? <span className="ml-addr"> &lt;{from.address}&gt;</span> : null}
               {from?.address && onKeepSender ? (
-                <button type="button" className="ml-keep" title="Keep this sender in Contacts" onClick={() => onKeepSender(from)}>
-                  <Icon name="contacts" size={13} /> keep
+                <button type="button" className="ml-keep" title={t('Keep this sender in Contacts')} onClick={() => onKeepSender(from)}>
+                  <Icon name="contacts" size={13} /> {t('keep')}
                 </button>
               ) : null}
             </div>
             <div className="ml-to">
-              to {(message.to || []).map((t) => t.name || t.address).join(', ') || 'undisclosed recipients'}
-              {message.cc?.length ? ` · cc ${message.cc.map((c) => c.name || c.address).join(', ')}` : ''}
+              {t('to {recipients}', { recipients: (message.to || []).map((t) => t.name || t.address).join(', ') || t('undisclosed recipients') })}
+              {message.cc?.length ? ` · ${t('cc {recipients}', { recipients: message.cc.map((c) => c.name || c.address).join(', ') })}` : ''}
             </div>
           </div>
           <span className="ml-date">{formatWhen(message.date, { long: true })}</span>
-          <Button icon="reply" title="Reply" onClick={onReply} />
-          <Button icon="replyAll" title="Reply all" onClick={onReplyAll} />
-          <Button icon="forward" title="Forward" onClick={onForward} />
+          <Button icon="reply" title={t('Reply')} onClick={onReply} />
+          <Button icon="replyAll" title={t('Reply all')} onClick={onReplyAll} />
+          <Button icon="forward" title={t('Forward')} onClick={onForward} />
         </div>
 
         {inJunk ? (
           <div className="ml-junk-note">
             <Icon name="spam" size={15} />
-            <span>{message.junk?.reason ? `This message is in Junk because ${message.junk.reason}.` : 'This message is in Junk.'}</span>
-            <Button label="Not junk" onClick={onNotJunk} />
+            <span>{message.junk?.reason ? t('This message is in Junk because {reason}.', { reason: message.junk.reason }) : t('This message is in Junk.')}</span>
+            <Button label={t('Not junk')} onClick={onNotJunk} />
           </div>
         ) : null}
         {invitation ? (
@@ -104,18 +104,18 @@ export default function Reader({
             <div className="ml-invite-text">
               <div className="ml-invite-title">{invitation.summary}</div>
               <div className="ml-invite-when">{invitation.when}{invitation.location ? ` · ${invitation.location}` : ''}</div>
-              <div className="ml-invite-who">{invitation.organizer ? `From ${invitation.organizer}` : ''}{invitation.answered ? ` · you answered ${invitation.answered.toLowerCase()}` : ''}</div>
+              <div className="ml-invite-who">{invitation.organizer ? t('From {organizer}', { organizer: invitation.organizer }) : ''}{invitation.answered ? ` · ${t('you answered {answer}', { answer: { ACCEPTED: t('accepted'), TENTATIVE: t('tentative'), DECLINED: t('declined') }[invitation.answered] || invitation.answered.toLowerCase() })}` : ''}</div>
             </div>
             {invitation.method === 'REQUEST' ? (
               <div className="ml-invite-actions">
-                <Button primary label="Accept" onClick={() => onRespond?.('ACCEPTED')} />
-                <Button label="Tentative" onClick={() => onRespond?.('TENTATIVE')} />
-                <Button label="Decline" onClick={() => onRespond?.('DECLINED')} />
+                <Button primary label={t('Accept')} onClick={() => onRespond?.('ACCEPTED')} />
+                <Button label={t('Tentative')} onClick={() => onRespond?.('TENTATIVE')} />
+                <Button label={t('Decline')} onClick={() => onRespond?.('DECLINED')} />
               </div>
             ) : invitation.method === 'REPLY' ? (
-              <Chip>{invitation.reply || 'a reply'}</Chip>
+              <Chip>{invitation.reply || t('a reply')}</Chip>
             ) : (
-              <Button label="Add to calendar" onClick={() => onRespond?.('KEEP')} />
+              <Button label={t('Add to calendar')} onClick={() => onRespond?.('KEEP')} />
             )}
           </div>
         ) : null}
@@ -133,7 +133,7 @@ export default function Reader({
                     e.preventDefault();
                     onSaveAttachment(index);
                   }}
-                  title={`${a.filename} — click to open, right-click to save`}
+                  title={t('{name} — click to open, right-click to save', { name: a.filename })}
                 >
                   <Icon name="attach" size={14} />
                   <span className="name">{a.filename}</span>
@@ -144,7 +144,7 @@ export default function Reader({
             {attachments.length > 1 ? (
               <button type="button" className="ml-attachment" onClick={() => onSaveAttachment('all')}>
                 <Icon name="download" size={13} />
-                <span className="name">Save all</span>
+                <span className="name">{t('Save all')}</span>
               </button>
             ) : null}
           </div>
@@ -161,15 +161,15 @@ export default function Reader({
               <Icon name="shield" size={13} />
               <span>
                 {trackers?.watching
-                  ? `${trackers.watching} tracker${trackers.watching === 1 ? '' : 's'} blocked`
-                  : 'Remote images blocked'}
+                  ? tn(trackers.watching, '{count} tracker blocked', '{count} trackers blocked')
+                  : t('Remote images blocked')}
               </span>
-              <span style={{ opacity: 0.7 }}>· show</span>
+              <span style={{ opacity: 0.7 }}>· {t('show')}</span>
             </button>
           ) : remote ? (
             <span className="ml-badge">
               <Icon name="eye" size={13} />
-              <span>Images loaded for this message</span>
+              <span>{t('Images loaded for this message')}</span>
             </span>
           ) : null}
 
@@ -179,7 +179,7 @@ export default function Reader({
               <span>
                 {trackers.networks.length
                   ? trackers.networks.slice(0, 2).join(', ') + (trackers.networks.length > 2 ? ` +${trackers.networks.length - 2}` : '')
-                  : `${trackers.hosts.length} remote host${trackers.hosts.length === 1 ? '' : 's'}`}
+                  : tn(trackers.hosts.length, '{count} remote host', '{count} remote hosts')}
               </span>
               <Icon name={showTrackers ? 'chevronUp' : 'chevronDown'} size={12} />
             </button>
@@ -195,14 +195,14 @@ export default function Reader({
           {insight?.unsubscribe ? (
             <button type="button" className="ml-badge act" onClick={() => onUnsubscribe?.(insight.unsubscribe)}>
               <Icon name="close" size={13} />
-              <span>Unsubscribe</span>
+              <span>{t('Unsubscribe')}</span>
             </button>
           ) : null}
 
           {insight?.bulk && !insight?.unsubscribe ? (
             <span className="ml-badge">
               <Icon name="inbox" size={13} />
-              <span>Bulk mail</span>
+              <span>{t('Bulk mail')}</span>
             </span>
           ) : null}
         </div>
@@ -214,8 +214,8 @@ export default function Reader({
                 <Icon name={h.pixels ? 'eye' : 'image'} size={13} />
                 <span className="host">{h.host}</span>
                 {h.network ? <span className="net">{h.network}</span> : null}
-                {h.sameAsSender ? <Chip>sender's own</Chip> : null}
-                {h.pixels ? <span className="pix">{h.pixels} tracking pixel{h.pixels === 1 ? '' : 's'}</span> : null}
+                {h.sameAsSender ? <Chip>{t("sender's own")}</Chip> : null}
+                {h.pixels ? <span className="pix">{tn(h.pixels, '{count} tracking pixel', '{count} tracking pixels')}</span> : null}
               </div>
             ))}
           </div>
@@ -227,12 +227,12 @@ export default function Reader({
           sandbox with no tokens: no scripts, no forms, no same-origin, no
           top-level navigation. The only thing this frame can do is draw.
         */}
-        <iframe ref={frameRef} title="Message" sandbox="" referrerPolicy="no-referrer" srcDoc={doc} style={{ height }} />
+        <iframe ref={frameRef} title={t('Message')} sandbox="" referrerPolicy="no-referrer" srcDoc={doc} style={{ height }} />
       </div>
 
       {message.internetHeaders || message.headers?.length ? (
         <details className="ml-headers">
-          <summary>Message headers</summary>
+          <summary>{t('Message headers')}</summary>
           <pre className="selectable">
             {message.internetHeaders || (message.headers || []).map((h) => `${h.name}: ${h.value}`).join('\n')}
           </pre>

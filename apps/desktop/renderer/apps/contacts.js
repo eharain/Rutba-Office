@@ -11,7 +11,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Ribbon, Group, Button, Separator, Icon, Spacer, Chip, Empty, Panel, Content, Search, Field, Input, Select,
-  useToast, useCommands, menuItems, useMenu,
+  useToast, useCommands, menuItems, useMenu, t, tn,
 } from '@rutba/office-ui';
 import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.js';
 import { AccountsDialog } from '../dav-accounts.js';
@@ -27,6 +27,7 @@ const EMPTY_CONTACT = () => ({
 });
 
 const TYPES = { email: ['work', 'home', 'other'], phone: ['mobile', 'work', 'home', 'fax', 'other'], address: ['work', 'home', 'other'] };
+const TYPE_NAMES = { work: t('work'), home: t('home'), other: t('other'), mobile: t('mobile'), fax: t('fax') };
 
 const initialsOf = (c) => {
   const n = c.name || {};
@@ -50,7 +51,7 @@ export default function Contacts({ app, shell, boot }) {
     if (!results.length) { setAccountsOpen(true); return; }
     const failed = results.find((r) => r.error);
     if (failed) toast(failed.error, { tone: 'warn', ms: 5500 });
-    else toast(`Synced: ${results.reduce((n, r) => n + (r.received || 0), 0)} in, ${results.reduce((n, r) => n + (r.sent || 0), 0)} out`, { tone: 'good' });
+    else toast(t('Synced: {received} in, {sent} out', { received: results.reduce((n, r) => n + (r.received || 0), 0), sent: results.reduce((n, r) => n + (r.sent || 0), 0) }), { tone: 'good' });
     
   }, [shell, toast]);
 
@@ -142,7 +143,7 @@ export default function Contacts({ app, shell, boot }) {
     const full = draft.name.full.trim() || [draft.name.given, draft.name.family].filter(Boolean).join(' ').trim();
     const emails = draft.emails.filter((e) => e.value.trim());
     if (!full && !emails.length && !draft.org) {
-      toast('A card needs a name, an address or a company.', { tone: 'bad' });
+      toast(t('A card needs a name, an address or a company.'), { tone: 'bad' });
       return;
     }
     setBusy(true);
@@ -163,7 +164,7 @@ export default function Contacts({ app, shell, boot }) {
       setPeek(null);
       setSelectedId(saved.id);
       await refresh();
-      toast(`Kept ${saved.display}.`, { tone: 'good' });
+      toast(t('Kept {name}.', { name: saved.display }), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     } finally {
@@ -177,7 +178,7 @@ export default function Contacts({ app, shell, boot }) {
     setSelectedId(null);
     setDraft(null);
     await refresh();
-    toast(`Removed ${selected.display}.`);
+    toast(t('Removed {name}.', { name: selected.display }));
   }, [selected, peek, shell, refresh, toast]);
 
   const importFile = useCallback(
@@ -189,7 +190,7 @@ export default function Contacts({ app, shell, boot }) {
         const r = await shell.contacts.importFile({ path: target });
         setPeek(null);
         await refresh();
-        toast(`${r.added} added, ${r.updated} updated${r.same ? `, ${r.same} already here` : ''}.`, { tone: 'good', ms: 6000 });
+        toast(r.same ? t('{added} added, {updated} updated, {same} already here.', { added: r.added, updated: r.updated, same: r.same }) : t('{added} added, {updated} updated.', { added: r.added, updated: r.updated }), { tone: 'good', ms: 6000 });
       } catch (err) {
         toast(err.message, { tone: 'bad', ms: 8000 });
       } finally {
@@ -204,7 +205,7 @@ export default function Contacts({ app, shell, boot }) {
     if (!target) return;
     try {
       const r = await shell.contacts.exportFile({ path: target });
-      toast(`Wrote ${r.count} card${r.count === 1 ? '' : 's'} to ${target.split(/[\\/]/).pop()}.`, { tone: 'good' });
+      toast(tn(r.count, 'Wrote {count} card to {file}.', 'Wrote {count} cards to {file}.', { file: target.split(/[\\/]/).pop() }), { tone: 'good' });
     } catch (err) {
       toast(err.message, { tone: 'bad' });
     }
@@ -222,19 +223,19 @@ export default function Contacts({ app, shell, boot }) {
 
   const commands = useMemo(
     () => ({
-      'contact.new': { label: 'New contact', icon: 'plus', key: 'Mod+N', run: startNew },
-      'contact.edit': { label: 'Edit', icon: 'textbox', run: edit },
-      'contact.delete': { label: 'Delete', icon: 'trash', key: 'Delete', run: remove },
-      'contact.import': { label: 'Import…', icon: 'import', key: 'Mod+O', run: () => importFile() },
-      'contact.export': { label: 'Export…', icon: 'export', run: exportAll },
-      'contact.mail': { label: 'Send mail', icon: 'send', run: () => writeTo(selected?.emails?.[0]?.value) },
-      'contact.find': { label: 'Find', icon: 'find', key: 'Mod+F', run: () => searchRef.current?.focus() },
+      'contact.new': { label: t('New contact'), icon: 'plus', key: 'Mod+N', run: startNew },
+      'contact.edit': { label: t('Edit'), icon: 'textbox', run: edit },
+      'contact.delete': { label: t('Delete'), icon: 'trash', key: 'Delete', run: remove },
+      'contact.import': { label: t('Import…'), icon: 'import', key: 'Mod+O', run: () => importFile() },
+      'contact.export': { label: t('Export…'), icon: 'export', run: exportAll },
+      'contact.mail': { label: t('Send mail'), icon: 'send', run: () => writeTo(selected?.emails?.[0]?.value) },
+      'contact.find': { label: t('Find'), icon: 'find', key: 'Mod+F', run: () => searchRef.current?.focus() },
     }),
     [startNew, edit, remove, importFile, exportAll, writeTo, selected]
   );
   useCommands(commands, [selected, draft]);
 
-  const title = peek ? `${peek.name} (${peek.contacts.length})` : `${contacts.length} contact${contacts.length === 1 ? '' : 's'}`;
+  const title = peek ? `${peek.name} (${peek.contacts.length})` : tn(contacts.length, '{count} contact', '{count} contacts');
 
   /* ── the card ─────────────────────────────────────────────────────────── */
 
@@ -251,37 +252,37 @@ export default function Contacts({ app, shell, boot }) {
       {peek ? (
         <div className="ct-offer">
           <Icon name="info" size={14} />
-          <span>From {peek.name}, not yet in your contacts.</span>
-          <Button primary label={`Add ${peek.contacts.length === 1 ? 'this card' : `all ${peek.contacts.length}`}`} onClick={() => importFile(peek.path)} />
+          <span>{t('From {name}, not yet in your contacts.', { name: peek.name })}</span>
+          <Button primary label={peek.contacts.length === 1 ? t('Add this card') : t('Add all {count}', { count: peek.contacts.length })} onClick={() => importFile(peek.path)} />
         </div>
       ) : null}
       <dl className="ct-fields">
         {(selected.emails || []).map((e, i) => (
           <React.Fragment key={`e${i}`}>
-            <dt>{e.label || e.type || 'email'}</dt>
-            <dd><button type="button" className="ct-link" onClick={() => writeTo(e.value)} title="Write a message">{e.value}</button></dd>
+            <dt>{e.label || TYPE_NAMES[e.type] || e.type || t('email')}</dt>
+            <dd><button type="button" className="ct-link" onClick={() => writeTo(e.value)} title={t('Write a message')}>{e.value}</button></dd>
           </React.Fragment>
         ))}
         {(selected.phones || []).map((p, i) => (
           <React.Fragment key={`p${i}`}>
-            <dt>{p.label || p.type || 'phone'}</dt>
+            <dt>{p.label || TYPE_NAMES[p.type] || p.type || t('phone')}</dt>
             <dd>{p.value}</dd>
           </React.Fragment>
         ))}
         {(selected.addresses || []).map((a, i) => (
           <React.Fragment key={`a${i}`}>
-            <dt>{a.label || a.type || 'address'}</dt>
+            <dt>{a.label || TYPE_NAMES[a.type] || a.type || t('address')}</dt>
             <dd className="ct-addr">{[a.street, a.city, a.region, a.postcode, a.country].filter(Boolean).join('\n')}</dd>
           </React.Fragment>
         ))}
-        {selected.birthday ? (<><dt>birthday</dt><dd>{selected.birthday}</dd></>) : null}
+        {selected.birthday ? (<><dt>{t('birthday')}</dt><dd>{selected.birthday}</dd></>) : null}
         {(selected.urls || []).map((u, i) => (
           <React.Fragment key={`u${i}`}>
-            <dt>{u.label || 'web'}</dt>
+            <dt>{u.label || t('web')}</dt>
             <dd><a href={u.value} onClick={(e) => { e.preventDefault(); shell.shell.openExternal({ url: u.value }); }}>{u.value}</a></dd>
           </React.Fragment>
         ))}
-        {selected.note ? (<><dt>notes</dt><dd className="ct-note">{selected.note}</dd></>) : null}
+        {selected.note ? (<><dt>{t('notes')}</dt><dd className="ct-note">{selected.note}</dd></>) : null}
       </dl>
     </div>
   ) : null;
@@ -299,64 +300,64 @@ export default function Contacts({ app, shell, boot }) {
       <div className="ct-head">
         <Avatar contact={{ ...draft, display: draft.name.full || [draft.name.given, draft.name.family].filter(Boolean).join(' ') }} size={72} />
         <div className="ct-who grow">
-          <Input className="rw-input ct-name" value={draft.name.full} placeholder="Name" autoFocus onChange={(e) => { const full = e.target.value; setDraft((d) => ({ ...d, name: { ...d.name, full, ...splitTyped(full) } })); }} />
+          <Input className="rw-input ct-name" value={draft.name.full} placeholder={t('Name')} autoFocus onChange={(e) => { const full = e.target.value; setDraft((d) => ({ ...d, name: { ...d.name, full, ...splitTyped(full) } })); }} />
           <div className="ct-row2">
-            <Input value={draft.title} placeholder="Job title" onChange={(e) => set({ title: e.target.value })} />
-            <Input value={draft.org} placeholder="Company" onChange={(e) => set({ org: e.target.value })} />
+            <Input value={draft.title} placeholder={t('Job title')} onChange={(e) => set({ title: e.target.value })} />
+            <Input value={draft.org} placeholder={t('Company')} onChange={(e) => set({ org: e.target.value })} />
           </div>
         </div>
       </div>
       <div className="ct-section">
-        <h4>Email</h4>
+        <h4>{t('Email')}</h4>
         {draft.emails.map((e, i) => (
           <div className="ct-line" key={i}>
-            <Select value={e.type} onChange={(ev) => setRow('emails', i, { type: ev.target.value })}>{TYPES.email.map((t) => <option key={t} value={t}>{t}</option>)}</Select>
-            <Input value={e.value} placeholder="name@example.com" onChange={(ev) => setRow('emails', i, { value: ev.target.value })} />
-            <Button icon="close" title="Remove" onClick={() => dropRow('emails', i)} />
+            <Select value={e.type} onChange={(ev) => setRow('emails', i, { type: ev.target.value })}>{TYPES.email.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
+            <Input value={e.value} placeholder="name@example.com" onChange={(ev) => setRow('emails', i, { value: ev.target.value })} />{/* words-ok: an example address */}
+            <Button icon="close" title={t('Remove')} onClick={() => dropRow('emails', i)} />
           </div>
         ))}
-        <Button ghost icon="plus" label="Add email" onClick={() => addRow('emails', { value: '', type: 'home', pref: false, label: null })} />
+        <Button ghost icon="plus" label={t('Add email')} onClick={() => addRow('emails', { value: '', type: 'home', pref: false, label: null })} />
       </div>
       <div className="ct-section">
-        <h4>Phone</h4>
+        <h4>{t('Phone')}</h4>
         {draft.phones.map((p, i) => (
           <div className="ct-line" key={i}>
-            <Select value={p.type} onChange={(ev) => setRow('phones', i, { type: ev.target.value })}>{TYPES.phone.map((t) => <option key={t} value={t}>{t}</option>)}</Select>
+            <Select value={p.type} onChange={(ev) => setRow('phones', i, { type: ev.target.value })}>{TYPES.phone.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
             <Input value={p.value} placeholder="+44 7700 900123" onChange={(ev) => setRow('phones', i, { value: ev.target.value })} />
-            <Button icon="close" title="Remove" onClick={() => dropRow('phones', i)} />
+            <Button icon="close" title={t('Remove')} onClick={() => dropRow('phones', i)} />
           </div>
         ))}
-        <Button ghost icon="plus" label="Add phone" onClick={() => addRow('phones', { value: '', type: 'work', pref: false, label: null })} />
+        <Button ghost icon="plus" label={t('Add phone')} onClick={() => addRow('phones', { value: '', type: 'work', pref: false, label: null })} />
       </div>
       <div className="ct-section">
-        <h4>Address</h4>
+        <h4>{t('Address')}</h4>
         {draft.addresses.map((a, i) => (
           <div className="ct-address" key={i}>
             <div className="ct-line">
-              <Select value={a.type} onChange={(ev) => setRow('addresses', i, { type: ev.target.value })}>{TYPES.address.map((t) => <option key={t} value={t}>{t}</option>)}</Select>
-              <Input value={a.street} placeholder="Street" onChange={(ev) => setRow('addresses', i, { street: ev.target.value })} />
-              <Button icon="close" title="Remove" onClick={() => dropRow('addresses', i)} />
+              <Select value={a.type} onChange={(ev) => setRow('addresses', i, { type: ev.target.value })}>{TYPES.address.map((t) => <option key={t} value={t}>{TYPE_NAMES[t] ?? t}</option>)}</Select>
+              <Input value={a.street} placeholder={t('Street')} onChange={(ev) => setRow('addresses', i, { street: ev.target.value })} />
+              <Button icon="close" title={t('Remove')} onClick={() => dropRow('addresses', i)} />
             </div>
             <div className="ct-line four">
-              <Input value={a.city} placeholder="City" onChange={(ev) => setRow('addresses', i, { city: ev.target.value })} />
-              <Input value={a.region} placeholder="Region" onChange={(ev) => setRow('addresses', i, { region: ev.target.value })} />
-              <Input value={a.postcode} placeholder="Postcode" onChange={(ev) => setRow('addresses', i, { postcode: ev.target.value })} />
-              <Input value={a.country} placeholder="Country" onChange={(ev) => setRow('addresses', i, { country: ev.target.value })} />
+              <Input value={a.city} placeholder={t('City')} onChange={(ev) => setRow('addresses', i, { city: ev.target.value })} />
+              <Input value={a.region} placeholder={t('Region')} onChange={(ev) => setRow('addresses', i, { region: ev.target.value })} />
+              <Input value={a.postcode} placeholder={t('Postcode')} onChange={(ev) => setRow('addresses', i, { postcode: ev.target.value })} />
+              <Input value={a.country} placeholder={t('Country')} onChange={(ev) => setRow('addresses', i, { country: ev.target.value })} />
             </div>
           </div>
         ))}
-        <Button ghost icon="plus" label="Add address" onClick={() => addRow('addresses', { street: '', city: '', region: '', postcode: '', country: '', type: 'home', pref: false, label: null })} />
+        <Button ghost icon="plus" label={t('Add address')} onClick={() => addRow('addresses', { street: '', city: '', region: '', postcode: '', country: '', type: 'home', pref: false, label: null })} />
       </div>
       <div className="ct-section ct-two">
-        <Field label="Birthday"><Input type="date" value={draft.birthday || ''} onChange={(e) => set({ birthday: e.target.value })} /></Field>
-        <Field label="Categories" hint="Comma-separated"><Input value={(draft.categories || []).join(', ')} onChange={(e) => set({ categories: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} /></Field>
+        <Field label={t('Birthday')}><Input type="date" value={draft.birthday || ''} onChange={(e) => set({ birthday: e.target.value })} /></Field>
+        <Field label={t('Categories')} hint={t('Comma-separated')}><Input value={(draft.categories || []).join(', ')} onChange={(e) => set({ categories: e.target.value.split(',').map((s) => s.trim()).filter(Boolean) })} /></Field>
       </div>
       <div className="ct-section">
-        <Field label="Notes"><textarea className="rw-input ct-notes" rows={4} value={draft.note || ''} onChange={(e) => set({ note: e.target.value })} /></Field>
+        <Field label={t('Notes')}><textarea className="rw-input ct-notes" rows={4} value={draft.note || ''} onChange={(e) => set({ note: e.target.value })} /></Field>
       </div>
       <div className="ct-actions">
-        <Button label="Cancel" onClick={() => setDraft(null)} />
-        <Button primary label={busy ? 'Saving…' : 'Save'} disabled={busy} onClick={saveDraft} />
+        <Button label={t('Cancel')} onClick={() => setDraft(null)} />
+        <Button primary label={busy ? t('Saving…') : t('Save')} disabled={busy} onClick={saveDraft} />
       </div>
     </div>
   ) : null;
@@ -369,38 +370,38 @@ export default function Contacts({ app, shell, boot }) {
       menu={appMenu}
       ribbon={
         <Ribbon
-          tabs={[{ id: 'home', label: 'Home' }, { id: 'view', label: 'View' }]}
+          tabs={[{ id: 'home', label: t('Home') }, { id: 'view', label: t('View') }]}
           active={tab}
           onTab={setTab}
           quick={
             <>
-              <Button icon="plus" title="New contact (Ctrl+N)" onClick={startNew} />
-              <Button icon="trash" title="Delete" onClick={remove} disabled={!selected || Boolean(peek)} />
+              <Button icon="plus" title={t('New contact (Ctrl+N)')} onClick={startNew} />
+              <Button icon="trash" title={t('Delete')} onClick={remove} disabled={!selected || Boolean(peek)} />
             </>
           }
         >
           {tab === 'home' ? (
             <>
-              <Group label="New">
-                <Button tall icon="plus" label="New contact" onClick={startNew} />
+              <Group label={t('New')}>
+                <Button tall icon="plus" label={t('New contact')} onClick={startNew} />
               </Group>
-              <Group label="Card">
-                <Button tall icon="textbox" label="Edit" onClick={edit} disabled={!selected || Boolean(peek)} />
-                <Button tall icon="trash" label="Delete" onClick={remove} disabled={!selected || Boolean(peek)} />
-                <Button tall icon="send" label="Send mail" onClick={() => writeTo(selected?.emails?.[0]?.value)} disabled={!selected?.emails?.length} />
+              <Group label={t('Card')}>
+                <Button tall icon="textbox" label={t('Edit')} onClick={edit} disabled={!selected || Boolean(peek)} />
+                <Button tall icon="trash" label={t('Delete')} onClick={remove} disabled={!selected || Boolean(peek)} />
+                <Button tall icon="send" label={t('Send mail')} onClick={() => writeTo(selected?.emails?.[0]?.value)} disabled={!selected?.emails?.length} />
               </Group>
-              <Group label="Files">
-                <Button tall icon="import" label="Import" title="A .vcf or .csv from another program" onClick={() => importFile()} />
-                <Button tall icon="export" label="Export" title="All cards as a .vcf" onClick={exportAll} disabled={!contacts.length} />
+              <Group label={t('Files')}>
+                <Button tall icon="import" label={t('Import')} title={t('A .vcf or .csv from another program')} onClick={() => importFile()} />
+                <Button tall icon="export" label={t('Export')} title={t('All cards as a .vcf')} onClick={exportAll} disabled={!contacts.length} />
               </Group>
-              <Group label="Accounts">
-                <Button tall icon="globe" label="Accounts" title="Accounts — a CalDAV or CardDAV server (iCloud, Fastmail, Nextcloud and the like) kept in step with this computer" onClick={() => setAccountsOpen(true)} />
-                <Button tall icon="refresh" label="Sync" title="Sync every account now" onClick={syncAll} />
+              <Group label={t('Accounts')}>
+                <Button tall icon="globe" label={t('Accounts')} title={t('Accounts — a CalDAV or CardDAV server (iCloud, Fastmail, Nextcloud and the like) kept in step with this computer')} onClick={() => setAccountsOpen(true)} />
+                <Button tall icon="refresh" label={t('Sync')} title={t('Sync every account now')} onClick={syncAll} />
               </Group>
             </>
           ) : (
-            <Group label="Find">
-              <Button tall icon="find" label="Find" onClick={() => searchRef.current?.focus()} />
+            <Group label={t('Find')}>
+              <Button tall icon="find" label={t('Find')} onClick={() => searchRef.current?.focus()} />
             </Group>
           )}
         </Ribbon>
@@ -410,13 +411,13 @@ export default function Contacts({ app, shell, boot }) {
       {accountsOpen ? <AccountsDialog shell={shell} kind="contacts" toast={toast} onClose={() => setAccountsOpen(false)} /> : null}
       <Panel width={280} resizable>
         <div className="ct-search">
-          <Search value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search contacts" autoFocus={false} />
+          <Search value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t('Search contacts')} autoFocus={false} />
         </div>
         {peek ? (
           <div className="ct-peek">
             <Icon name="file" size={14} />
             <span className="grow">{peek.name}</span>
-            <Button ghost icon="close" title="Back to your contacts" onClick={() => { setPeek(null); setSelectedId(null); }} />
+            <Button ghost icon="close" title={t('Back to your contacts')} onClick={() => { setPeek(null); setSelectedId(null); }} />
           </div>
         ) : null}
         <div className="ct-list" role="listbox">
@@ -433,23 +434,23 @@ export default function Contacts({ app, shell, boot }) {
                 >
                   <Avatar contact={c} size={30} shell={shell} />
                   <span className="ct-item-text">
-                    <span className="name">{c.display || '(no name)'}</span>
+                    <span className="name">{c.display || t('(no name)')}</span>
                     <span className="sub">{c.emails?.[0]?.value || c.org || c.phones?.[0]?.value || ''}</span>
                   </span>
                 </button>
               ))}
             </React.Fragment>
           ))}
-          {!list.length ? <div className="ct-none">{query ? 'Nothing matches.' : peek ? 'The file holds no cards.' : 'No contacts yet.'}</div> : null}
+          {!list.length ? <div className="ct-none">{query ? t('Nothing matches.') : peek ? t('The file holds no cards.') : t('No contacts yet.')}</div> : null}
         </div>
       </Panel>
       <Content>
         {editor || card || (
-          <Empty icon="contacts" title={contacts.length ? 'Choose a contact' : 'No contacts yet'}>
-            {contacts.length ? 'Pick one on the left, or press Ctrl+N for a new card.' : 'Add a card, or bring in the .vcf or .csv another program exported.'}
+          <Empty icon="contacts" title={contacts.length ? t('Choose a contact') : t('No contacts yet')}>
+            {contacts.length ? t('Pick one on the left, or press Ctrl+N for a new card.') : t('Add a card, or bring in the .vcf or .csv another program exported.')}
             <div style={{ marginTop: 14, display: 'flex', gap: 8, justifyContent: 'center' }}>
-              <Button primary icon="plus" label="New contact" onClick={startNew} />
-              <Button icon="import" label="Import…" onClick={() => importFile()} />
+              <Button primary icon="plus" label={t('New contact')} onClick={startNew} />
+              <Button icon="import" label={t('Import…')} onClick={() => importFile()} />
             </div>
           </Empty>
         )}
