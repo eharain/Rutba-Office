@@ -1,6 +1,7 @@
 // Worksheets: the Power Query Editor's newer transforms — a month-by-column
 // table unpivoted on its Product column into rows, the month names cut to
-// their first three letters with Extract, and loaded. Run alone with
+// their first three letters with Extract, pivoted back into columns under
+// the short names with Pivot Column, and loaded. Run alone with
 // RUTBA_VERIFY_ONLY=querytransforms.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -45,10 +46,18 @@ export async function verifySheetQueryTransforms({ open, check, until, wait, err
     const steps = await js(`[...document.querySelectorAll('.pq-step-row .pq-step')].map((b) => b.textContent.trim())`);
     check('sheets: Extract → First characters keeps the first three letters of each month, listed as a step', months && steps.some((s) => /first 3 characters/.test(s)), JSON.stringify({ months, steps }));
 
+    // Pivot Column: the short month names back into columns, the values added up.
+    await js(`document.querySelector('.pq-grid th[data-col="Attribute"]').click()`);
+    await wait(100);
+    await clickText('.pq-tool', 'Pivot Column');
+    await until(() => js(`Boolean(document.querySelector('.pq-ask-ok'))`), 'the Pivot form', 3000);
+    await js(`document.querySelector('.pq-ask-ok').click()`);
+    const pivoted = await until(async () => JSON.stringify(await heads()) === '["Product","Jan","Feb","Mar"]', 'the months as columns again', 4000).then(() => true).catch(() => false);
+    check('sheets: Pivot Column turns the short month names back into columns, the values added up for each product', pivoted, JSON.stringify(await heads()));
     await js(`document.querySelector('.pq-load').click()`);
-    await until(() => text('B1') === 'Attribute', 'the query loaded', 6000).catch(() => {});
-    const loaded = ['A1', 'B1', 'C1', 'A2', 'B2', 'C2', 'B5'].map(text);
-    check('sheets: the unpivoted, extracted query loads as a table of its rows', loaded.join(',') === 'Product,Attribute,Value,Pens,Jan,10,Mar', loaded.join(','));
+    await until(() => text('B1') === 'Jan', 'the query loaded', 6000).catch(() => {});
+    const loaded = ['A1', 'B1', 'C1', 'D1', 'A2', 'B2', 'C2', 'D2', 'A3', 'B3', 'C3', 'D3'].map(text);
+    check('sheets: the unpivoted, extracted and pivoted query loads as a table of its rows', loaded.join(',') === 'Product,Jan,Feb,Mar,Pens,10,12,,Ink,5,,7', loaded.join(','));
     const complaints = await errorsIn(win);
     check('sheets: the query transforms report nothing', complaints.length === 0, complaints.join(' | ') || 'nothing reported');
   } catch (err) {

@@ -58,6 +58,25 @@ function uniqueNames(names) {
   });
 }
 
+/** A condition, as Filter Rows and Add Conditional Column take it: a test of a cell's value, or null for an unknown one. */
+function conditionTest(op, want) {
+  const lower = (v) => asText(v).toLowerCase();
+  return {
+    equals: (v) => compare(v, want) === 0,
+    notEquals: (v) => compare(v, want) !== 0,
+    contains: (v) => lower(v).includes(lower(want)),
+    notContains: (v) => !lower(v).includes(lower(want)),
+    beginsWith: (v) => lower(v).startsWith(lower(want)),
+    endsWith: (v) => lower(v).endsWith(lower(want)),
+    greater: (v) => !blank(v) && compare(v, want) > 0,
+    greaterOrEqual: (v) => !blank(v) && compare(v, want) >= 0,
+    less: (v) => !blank(v) && compare(v, want) < 0,
+    lessOrEqual: (v) => !blank(v) && compare(v, want) <= 0,
+    blank: (v) => blank(v),
+    notBlank: (v) => !blank(v),
+  }[op] || null;
+}
+
 /** A table's column types, by name, given only when there are any. */
 const typed = (types) => (types && Object.keys(types).length ? { types } : {});
 
@@ -180,24 +199,69 @@ export function applyStep(t, step, ctx = {}) {
     }
     case 'filterRows': {
       const i = indexOf(t, s.column);
-      const want = s.value;
-      const lower = (v) => asText(v).toLowerCase();
-      const test = {
-        equals: (v) => compare(v, want) === 0,
-        notEquals: (v) => compare(v, want) !== 0,
-        contains: (v) => lower(v).includes(lower(want)),
-        notContains: (v) => !lower(v).includes(lower(want)),
-        beginsWith: (v) => lower(v).startsWith(lower(want)),
-        endsWith: (v) => lower(v).endsWith(lower(want)),
-        greater: (v) => !blank(v) && compare(v, want) > 0,
-        greaterOrEqual: (v) => !blank(v) && compare(v, want) >= 0,
-        less: (v) => !blank(v) && compare(v, want) < 0,
-        lessOrEqual: (v) => !blank(v) && compare(v, want) <= 0,
-        blank: (v) => blank(v),
-        notBlank: (v) => !blank(v),
-      }[s.op];
+      const test = conditionTest(s.op, s.value);
       if (!test) throw new Error(`"${s.op}" is not a filter`);
       return { ...t, rows: t.rows.filter((r) => test(r[i])) };
+    }
+    // Add Conditional Column: a new column whose value is the output of the
+    // first rule a row meets — "if Region equals East then Home" — or the
+    // otherwise value, as Power Query's Add Conditional Column builds it.
+    case 'conditionalColumn': {
+      const rules = (s.rules || []).map((rule) => {
+        const test = conditionTest(rule.op, rule.value);
+        if (!test) throw new Error(`"${rule.op}" is not a condition`);
+        return { i: indexOf(t, rule.column), test, output: rule.output ?? null };
+      });
+      if (!rules.length) throw new Error('A conditional column needs a rule');
+      const name = uniqueNames([...t.columns, String(s.name || 'Custom').trim() || 'Custom']).pop();
+      return {
+        columns: [...t.columns, name],
+        rows: t.rows.map((r) => [...r, (rules.find((rule) => rule.test(r[rule.i])) || { output: s.otherwise ?? null }).output]),
+        ...typed(t.types),
+      };
+    }
+    // Pivot Column: each value of one column becomes a column of its own,
+    // filled with another column's values added up for the rows the rest of
+    // the columns share, as Power Query's Pivot Column does.
+    case 'pivotColumn': {
+      const a = indexOf(t, s.column);
+      const v = indexOf(t, s.values);
+      if (a === v) throw new Error('A column is pivoted on another column\'s values');
+      const fn = s.fn || 'sum';
+      const keep = t.columns.map((_, i) => i).filter((i) => i !== a && i !== v);
+      const heads = [];
+      const seen = new Set();
+      for (const r of t.rows) { const h = blank(r[a]) ? '' : asText(r[a]); if (!seen.has(h)) { seen.add(h); heads.push(h); } }
+      const groups = new Map();
+      for (const r of t.rows) {
+        const k = JSON.stringify(keep.map((i) => asText(r[i]).toLowerCase()));
+        if (!groups.has(k)) groups.set(k, { key: keep.map((i) => r[i]), cells: new Map() });
+        const h = blank(r[a]) ? '' : asText(r[a]);
+        const g = groups.get(k);
+        if (!g.cells.has(h)) g.cells.set(h, []);
+        g.cells.get(h).push(r[v]);
+      }
+      const fold = (values) => {
+        if (!values || !values.length) return null;
+        if (fn === 'none') {
+          if (values.length > 1) throw new Error('Pivot Column without adding up needs one value a cell; some rows share one');
+          return values[0];
+        }
+        if (fn === 'count') return values.filter((x) => !blank(x)).length;
+        const nums = values.map(asNumber).filter((x) => x !== null);
+        if (fn === 'sum') return nums.reduce((x, y) => x + y, 0);
+        if (fn === 'average') return nums.length ? nums.reduce((x, y) => x + y, 0) / nums.length : null;
+        if (fn === 'min') return nums.length ? Math.min(...nums) : null;
+        if (fn === 'max') return nums.length ? Math.max(...nums) : null;
+        throw new Error(`"${fn}" is not a way values are added up`);
+      };
+      const columns = uniqueNames([...keep.map((i) => t.columns[i]), ...heads.map((h) => h || 'null')]);
+      const valueType = fn === 'count' ? 'integer' : fn === 'none' ? t.types?.[t.columns[v]] : ['sum', 'average', 'min', 'max'].includes(fn) ? 'number' : null;
+      return {
+        columns,
+        rows: [...groups.values()].map((g) => [...g.key, ...heads.map((h) => fold(g.cells.get(h)))]),
+        ...typed({ ...keepTypes(t.types, keep.map((i, k) => [t.columns[i], columns[k]])).types, ...(valueType ? Object.fromEntries(columns.slice(keep.length).map((c) => [c, valueType])) : {}) }),
+      };
     }
     case 'sort': {
       const keys = (s.by || [{ column: s.column, descending: s.descending }]).map((k) => ({ i: indexOf(t, k.column), sign: k.descending ? -1 : 1 }));
@@ -375,6 +439,8 @@ export function describeStep(s) {
     case 'addIndex': return `Index column "${s.name || 'Index'}" added`;
     case 'transformText': return `"${s.column}" ${({ trim: 'trimmed', upper: 'in capitals', lower: 'in small letters', proper: 'in title case' })[s.how]}`;
     case 'promoteHeaders': return 'First row used as headers';
+    case 'conditionalColumn': return `Conditional column "${s.name || 'Custom'}" added`;
+    case 'pivotColumn': return `"${s.column}" pivoted, its values from "${s.values}"${s.fn && s.fn !== 'sum' ? ` (${s.fn === 'none' ? 'not added up' : s.fn})` : ''}`;
     case 'fillDown': return `${cols(s.columns || [s.column])} filled down`;
     case 'fillUp': return `${cols(s.columns || [s.column])} filled up`;
     case 'unpivotOthers': return `Columns other than ${cols(s.columns || [s.column])} unpivoted`;

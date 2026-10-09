@@ -106,6 +106,23 @@ export function QueryEditor({ query, preview, listSources = null, onClose, onLoa
       { label: 'Down', run: () => add({ kind: 'fillDown', columns: [column] }) },
       { label: 'Up', run: () => add({ kind: 'fillUp', columns: [column] }) },
     ])],
+    // Transform → Pivot Column: this column's values become columns, filled from another, added up.
+    ['Pivot Column', () => need() && askFor(`Pivot "${column}"`, [
+      { key: 'values', label: 'Values from', options: (table?.columns || []).filter((c) => c !== column).map((c) => [c, c]), value: [...(table?.columns || [])].reverse().find((c) => c !== column) || '' },
+      { key: 'fn', label: 'Add up as', options: [['sum', 'Sum'], ['count', 'Count'], ['average', 'Average'], ['min', 'Minimum'], ['max', 'Maximum'], ['none', 'Do not add up']], value: 'sum' },
+    ], (v) => add({ kind: 'pivotColumn', column, values: v.values, fn: v.fn }))],
+    // Add Column → Conditional Column: if a column meets a condition then one value, otherwise another.
+    ['Conditional Column', () => askFor('Add a conditional column', [
+      { key: 'name', label: 'New column name', value: 'Custom' },
+      { key: 'column', label: 'If column', options: (table?.columns || []).map((c) => [c, c]), value: column || table?.columns?.[0] || '' },
+      { key: 'op', label: 'Is', options: FILTERS, value: 'equals' },
+      { key: 'value', label: 'Value' },
+      { key: 'output', label: 'Then' },
+      { key: 'otherwise', label: 'Otherwise' },
+    ], (v) => {
+      const typedOf = (x) => (x !== '' && !Number.isNaN(Number(x)) ? Number(x) : x);
+      add({ kind: 'conditionalColumn', name: v.name || 'Custom', rules: [{ column: v.column, op: v.op, value: typedOf(v.value), output: v.output === '' ? null : typedOf(v.output) }], otherwise: v.otherwise === '' ? null : typedOf(v.otherwise) });
+    })],
     // Transform → Unpivot Other Columns: this column kept; every other column's cells become rows.
     ['Unpivot Other Columns', () => need() && add({ kind: 'unpivotOthers', columns: [column] })],
     // Transform → Merge Columns: this column and another joined, with a separator.
