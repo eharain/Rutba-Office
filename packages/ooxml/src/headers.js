@@ -17,6 +17,9 @@ import { OoxmlPackage, attrs } from './package.js';
 import { textOf, parseRuns } from './runs.js';
 import { unesc } from './workbook.js';
 
+/** The pictures a watermark is drawn from, by extension. */
+const PICTURE_TYPES = { png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp' };
+
 const REFERENCE = /<w:(header|footer)Reference\b([^>]*)\/>/g;
 
 const fieldName = (instr) => {
@@ -110,6 +113,31 @@ export function readHeadersAndFooters(pkg, mainPart, sectPrXml) {
           rotation: rotation ? Number(rotation[1]) : 315,
           band: type,
         };
+      }
+      // A picture watermark: Word's WordPictureWatermark shape, its picture
+      // by the header's own relationship, its size in points, washed out
+      // when it has Word's gain and black level.
+      const pic = path ? null : /<v:shape\b([^>]*\bid="WordPictureWatermark[^"]*"[^>]*)>([\s\S]*?)<\/v:shape>/.exec(xml);
+      const data = pic ? /<v:imagedata\b([^>]*?)\/?>/.exec(pic[2]) : null;
+      if (data) {
+        const da = attrs(data[1]);
+        const rid = da['r:id'] ?? da.id;
+        const target = rid ? pkg.rels(part).find((r) => r.Id === rid)?.Target : null;
+        const media = target ? OoxmlPackage.resolveTarget(part, target) : null;
+        const mime = media ? PICTURE_TYPES[media.split('.').pop().toLowerCase()] : null;
+        if (media && mime && pkg.has(media)) {
+          const style = attrs(pic[1]).style || '';
+          const pt = (name) => { const v = new RegExp('(?:^|;)\\s*' + name + ':\\s*([\\d.]+)pt').exec(style); return v ? Math.round(Number(v[1]) * (96 / 72)) : null; };
+          result.watermark = {
+            // The part, not its bytes: the bands are read on every edit.
+            picturePart: media,
+            pictureType: mime,
+            widthPx: pt('width'),
+            heightPx: pt('height'),
+            washout: da.gain != null || da.blacklevel != null,
+            band: type,
+          };
+        }
       }
     }
   }

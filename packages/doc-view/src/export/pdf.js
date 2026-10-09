@@ -497,6 +497,7 @@ function drawFrame(frame, { title = '', author = '', created = null, unicodeFont
   const byIndex = new Map((frame.blocks || []).map((b) => [b.index, b]));
   const labels = frame.listLabels || null;
   const labelOf = (i) => (labels instanceof Map ? labels.get(i) : (labels ? labels[i] : null)) || null;
+  const mediaBytes = (part) => { try { return part && typeof frame.media === 'function' ? frame.media(part) : null; } catch { return null; } };
 
   // `unicodeFont`: a TrueType font the system has, for the text the PDF's own fonts cannot draw.
   const doc = new PdfDocument({ size: [section.widthPx * PT, section.heightPx * PT], title, author, created, unicodeFont });
@@ -525,6 +526,7 @@ function drawFrame(frame, { title = '', author = '', created = null, unicodeFont
     // The watermark first, so everything else draws over it: the header's
     // WordArt, rising across the page in the grey Word draws it in.
     if (sheet.watermark?.text) drawWatermark(page, doc, sheet.watermark, section);
+    else if (sheet.watermark?.picturePart || sheet.watermark?.picture) drawPictureWatermark(page, doc, { ...sheet.watermark, pictureBytes: mediaBytes(sheet.watermark.picturePart) }, section);
     if (sheet.header) drawBand(page, doc, sheet.header, { xPx, yPx: m.header || m.top / 2, widthPx });
     if (sheet.footer) {
       const lh = lineHeightOf(BAND_SIZE_PX);
@@ -832,6 +834,30 @@ function drawWatermark(page, doc, watermark, section) {
 }
 
 /**
+ * A picture watermark: centred inside the margins, at the size the header
+ * gives it, washed out (each colour taken most of the way to white) when
+ * Word's washout is on. This writer embeds PNG; the window keeps every
+ * watermark it sets as one.
+ */
+function drawPictureWatermark(page, doc, watermark, section) {
+  const bytes = watermark.pictureBytes || dataUriBytes(watermark.picture);
+  if (!bytes || !isPng(bytes)) return;
+  let img;
+  try { img = decodePng(bytes); } catch { return; }
+  if (watermark.washout && img.bitsPerComponent === 8) {
+    const data = Buffer.from(img.data);
+    for (let i = 0; i < data.length; i++) data[i] = 255 - Math.round((255 - data[i]) * 0.32);
+    img = { ...img, data };
+  }
+  const wPx = watermark.widthPx || img.width;
+  const hPx = watermark.heightPx || img.height;
+  const m = section.margins || { top: 96, bottom: 96 };
+  const x = ((section.widthPx - wPx) / 2) * PT;
+  const y = (m.top + Math.max(0, (section.heightPx - m.top - m.bottom - hPx) / 2)) * PT;
+  try { page.image(doc.addImage(img), x, y, wPx * PT, hPx * PT); } catch { /* an unsupported PNG variant: no watermark rather than no page */ }
+}
+
+/**
  * Render a DocView — paginating it first if its backend has no pages (Mail's
  * HTML body), on the default A4 sheet or the one given.
  */
@@ -855,5 +881,7 @@ export function renderPdf(view, { title = '', author = '', created = null, secti
       page.footer = footer ? resolveFields(footer.paragraphs, { page: page.number, of: pages.count }) : null;
     }
   }
-  return renderFramePdf({ blocks: view.blocks, section: sheet, pages, listLabels, math }, { title, author, created, unicodeFont });
+  // A part's bytes, for a picture the header keeps (a watermark's).
+  const media = typeof view.doc.partBytes === 'function' ? (part) => view.doc.partBytes(part) : null;
+  return renderFramePdf({ blocks: view.blocks, section: sheet, pages, listLabels, math, media }, { title, author, created, unicodeFont });
 }

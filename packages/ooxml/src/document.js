@@ -647,7 +647,9 @@ const FOOTER_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/r
 /** What makes a band un-editable as plain text — flattening these loses them. */
 const BAND_STRUCTURE = /<w:(fldSimple|fldChar|sdt)\b/;
 /** The watermark's paragraph: the one holding a VML text path. */
-const WATERMARK_P = /<v:textpath\b/;
+// The watermark's paragraph: the words' text path, or the picture's shape,
+// which Word names WordPictureWatermark and a number.
+const WATERMARK_P = /<v:textpath\b|\bid="WordPictureWatermark/;
 const VML_NS = 'urn:schemas-microsoft-com:vml';
 const VML_OFFICE_NS = 'urn:schemas-microsoft-com:office:office';
 /** WordArt's plain-text shape, as Word declares it before every watermark. */
@@ -685,6 +687,23 @@ function watermarkParagraph(text, colour, rotation) {
     + '<v:textpath style="font-family:&quot;Calibri&quot;;font-size:1pt" string="' + attr(text) + '"/>'
     + '</v:shape></w:pict></w:r></w:p>';
 }
+/**
+ * A picture watermark's paragraph as Word writes one: the picture frame's
+ * shape type, then the picture — centred on the margins, behind the body,
+ * at the size given in points — washed out to a pale copy (Word's gain and
+ * black level) unless asked not to be.
+ */
+function pictureWatermarkParagraph(rId, { widthPt, heightPt, washout = true, title = '' }) {
+  const attr = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return '<w:p><w:r><w:rPr><w:noProof/></w:rPr><w:pict>' + SHAPETYPE_75
+    + '<v:shape id="WordPictureWatermark1" o:spid="_x0000_s2051" type="#_x0000_t75"'
+    + ' style="position:absolute;margin-left:0;margin-top:0;width:' + widthPt + 'pt;height:' + heightPt + 'pt'
+    + ';z-index:-251657216;mso-position-horizontal:center;mso-position-horizontal-relative:margin;mso-position-vertical:center;mso-position-vertical-relative:margin"'
+    + ' o:allowincell="f">'
+    + '<v:imagedata r:id="' + rId + '" o:title="' + attr(title) + '"' + (washout ? ' gain="19661f" blacklevel="22938f"' : '') + '/>'
+    + '</v:shape></w:pict></w:r></w:p>';
+}
+
 const COMMENTS_CT = 'application/vnd.openxmlformats-officedocument.wordprocessingml.comments+xml';
 const COMMENTS_REL_TYPE = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/comments';
 /** The parts Word 2013 and later keep beside the comments: threads and resolved state, durable ids, dates. */
@@ -4041,6 +4060,53 @@ export class Document {
       xml = xml.slice(0, root.index) + open + watermarkParagraph(words, colour, rotation) + xml.slice(root.index + root[0].length);
     }
     if (!/<w:p\b/.test(xml)) xml = xml.replace(/<\/w:hdr>/, '<w:p/></w:hdr>');
+    this.pkg.write_(band.part, xml);
+    this._undoParts.add(band.part);
+    return this;
+  }
+
+  /**
+   * Design → Watermark → Picture watermark: a picture behind the body on
+   * every page, as Word keeps one — a VML picture in the default header's
+   * first paragraph, centred on the margins, washed out to a pale copy
+   * unless `washout` is false. It replaces a watermark of words, and words
+   * replace it (`setWatermark`). Its size is the picture's own, shrunk to
+   * fit inside the margins, as Word's Auto scale has it, or `scale` times
+   * that. A document with no header gets one for it.
+   */
+  setPictureWatermark(data, { contentType = 'image/png', widthPx = 400, heightPx = 300, washout = true, scale = null, name = 'Watermark' } = {}) {
+    const ext = IMAGE_EXTENSIONS[contentType];
+    if (!ext) throw new Error('A watermark picture is a PNG, a JPEG, a GIF, a BMP or a WebP.');
+    const bytes = Buffer.isBuffer(data) ? data : data instanceof Uint8Array ? Buffer.from(data) : Buffer.from(String(data ?? ''), 'base64');
+    if (!bytes.length) throw new Error('the picture has no bytes');
+    let band = this.headerFooters().headers.default ?? null;
+    if (!band) {
+      this._addBand('header', '<w:p/>');
+      band = this.headerFooters().headers.default;
+    }
+    const relsPath = OoxmlPackage.relsPathFor(band.part);
+    if (this.pkg.has(relsPath)) this._undoParts.add(relsPath);
+    let n = 1;
+    while (this.pkg.has('word/media/watermark' + n + '.' + ext)) n += 1;
+    this.pkg.addPart('word/media/watermark' + n + '.' + ext, bytes, contentType);
+    const rId = this.pkg.addRelationshipTo(band.part, IMAGE_REL_TYPE, 'media/watermark' + n + '.' + ext);
+    // Inside the margins, the picture's shape kept.
+    const s = this.section();
+    const roomW = Math.max(48, (s.widthPx || 794) - (s.margins?.left ?? 96) - (s.margins?.right ?? 96));
+    const roomH = Math.max(48, (s.heightPx || 1123) - (s.margins?.top ?? 96) - (s.margins?.bottom ?? 96));
+    const w0 = Math.max(1, Number(widthPx) || 400);
+    const h0 = Math.max(1, Number(heightPx) || 300);
+    const fit = Number(scale) > 0 ? Number(scale) : Math.min(1, roomW / w0, roomH / h0);
+    const pt = (px) => Math.round(px * fit * 0.75 * 100) / 100;
+    let xml = this.pkg.text(band.part);
+    xml = xml.replace(/<w:p\b[^>]*?(?:\/>|>[\s\S]*?<\/w:p>)/g, (p) => (WATERMARK_P.test(p) ? '' : p));
+    const root = /<w:hdr\b[^>]*>/.exec(xml);
+    if (!root) throw new Error('unrecognised header part: ' + band.part);
+    let open = root[0];
+    if (!/\bxmlns:v=/.test(open)) open = open.replace(/>$/, () => ' xmlns:v="' + VML_NS + '">');
+    if (!/\bxmlns:o=/.test(open)) open = open.replace(/>$/, () => ' xmlns:o="' + VML_OFFICE_NS + '">');
+    if (!/\bxmlns:r=/.test(open)) open = open.replace(/>$/, () => ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">');
+    xml = xml.slice(0, root.index) + open + pictureWatermarkParagraph(rId, { widthPt: pt(w0), heightPt: pt(h0), washout: washout !== false, title: name }) + xml.slice(root.index + root[0].length);
     this.pkg.write_(band.part, xml);
     this._undoParts.add(band.part);
     return this;

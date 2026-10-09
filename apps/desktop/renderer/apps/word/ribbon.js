@@ -622,9 +622,10 @@ export default function WordRibbon({
             <Button icon="check" label="Set as Default" title="Set as Default — new blank documents start in this document's theme and styles" onClick={() => act('setDefaultDesign')} />
           </Group>
           <Group label="Page Background">
-            <Button tall icon="shield" label="Watermark" title="Watermark — faint words behind every page" onClick={(e) => menu.open(e, [
+            <Button tall icon="shield" label="Watermark" title="Watermark — faint words, or a picture, behind every page" onClick={(e) => menu.open(e, [
               ...WATERMARKS.map((text) => ({ label: text, run: () => dispatch({ op: 'setWatermark', text }) })),
               { label: 'Custom watermark…', icon: 'textbox', run: () => openDialog('watermark') },
+              { label: 'Picture watermark…', icon: 'picture', run: () => act('pictureWatermark') },
               { label: 'Remove watermark', icon: 'close', run: () => dispatch({ op: 'setWatermark', text: null }) },
             ])} />
             <Button tall icon="contrast" label="Page Colour" title="Page Colour — a colour behind every page" onClick={(e) => menu.open(e, SHADES.map(([value, label]) => ({ label, icon: value ? undefined : 'close', run: () => dispatch({ op: 'setPageColour', colour: value }) })))} />

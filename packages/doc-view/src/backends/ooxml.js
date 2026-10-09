@@ -509,6 +509,9 @@ export class OoxmlBackend {
   setBandText(which, lines) { this.doc.setBandText(which, lines); return this; }
   /** The watermark — words, colour, rotation — set, replaced or cleared, in the header as Word keeps it. */
   setWatermark(text, options) { this.doc.setWatermark(text, options); return this; }
+  setPictureWatermark(data, options) { this.doc.setPictureWatermark(data, options); return this; }
+  /** A part's bytes: a picture a header keeps, for the printout to draw. */
+  partBytes(part) { return this.doc.pkg.has(part) ? this.doc.pkg.read(part) : null; }
   /** Paragraph styles resolved from styles.xml — flattened, CSS pixels. */
   paragraphStyles() { return this.doc.paragraphStyles(); }
   /** Character styles by id — what a run's `w:rStyle` gives it. */

@@ -1653,6 +1653,17 @@ export default function Word({ app, shell, boot }) {
           await apply({ op: 'insertTextBox', spec }, { op: 'setRunFormat', delta: arg?.effects || {} });
           return;
         }
+        case 'pictureWatermark': {
+          // Design → Watermark → Picture: a picture from this computer behind every page, washed out, as Word's.
+          const [file] = await shell.dialog.open({ title: 'Picture Watermark', filters: [{ name: 'Pictures', extensions: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'webp'] }] });
+          if (!file) return;
+          const { bytes } = await shell.fs.read({ path: file });
+          // Kept as a PNG, at most 2,000 pixels across, so the page, the PDF and Word all draw it.
+          const png = await asPng(bytes, 2000).catch(() => null);
+          if (!png) { toast('That picture could not be read.', { ms: 4000 }); return; }
+          await apply({ op: 'setPictureWatermark', data: png, washout: true, name: file.split(/[\\/]/).pop() });
+          return;
+        }
         case 'drawTextBox':
           setPicked(null);
           patchView({ drawBox: !view.drawBox });
@@ -2496,11 +2507,7 @@ export default function Word({ app, shell, boot }) {
                   ))
                 : null}
               {/* Around a flow the watermark rides the one page; print layout puts it on every sheet below. */}
-              {!paged && model.bands?.watermark ? (
-                <div className="wd-watermark" contentEditable={false} aria-hidden="true" style={{ top: Math.round((section?.heightPx ?? 1123) / 3), color: model.bands.watermark.colour || 'silver', transform: `rotate(${model.bands.watermark.rotation ?? 315}deg)` }}>
-                  {model.bands.watermark.text}
-                </div>
-              ) : null}
+              {!paged && model.bands?.watermark ? <Watermark mark={model.bands.watermark} top={0} height={section?.heightPx ?? 1123} section={section} /> : null}
               {/* Line numbers, down the left margin, beside the lines the browser drew. */}
               {lineNos?.length ? (
                 <div className="wd-linenos" contentEditable={false} aria-hidden="true" style={{ left: Math.max(0, (section?.margins.left ?? 96) - (section?.lineNumbers?.distancePx ?? 24) - 28) }}>
@@ -2522,11 +2529,7 @@ export default function Word({ app, shell, boot }) {
               {paged
                 ? Array.from({ length: pages.count }, (_, k) => (
                     <React.Fragment key={`b${k}`}>
-                      {model.bands?.watermark && !(geo.first && k === 0) ? (
-                        <div className="wd-watermark" contentEditable={false} aria-hidden="true" style={{ top: pageTopOf(geo, k) + Math.round(geo.H / 3), color: model.bands.watermark.colour || 'silver', transform: `rotate(${model.bands.watermark.rotation ?? 315}deg)` }}>
-                          {model.bands.watermark.text}
-                        </div>
-                      ) : null}
+                      {model.bands?.watermark && !(geo.first && k === 0) ? <Watermark mark={model.bands.watermark} top={pageTopOf(geo, k)} height={geo.H} section={section} /> : null}
                       {/* An envelope has no header or footer, and is not counted: the letter starts at page 1. */}
                       {geo.first && k === 0 ? null : <Band kind="header" bands={model.bands} section={section} page={k + 1 - (geo.first ? 1 : 0)} of={pages.count - (geo.first ? 1 : 0)} top={pageTopOf(geo, k)} height={pageHeightOf(geo, k)} onEdit={() => setDialog('header')} />}
                       {geo.first && k === 0 ? null : <Band kind="footer" bands={model.bands} section={section} page={k + 1 - (geo.first ? 1 : 0)} of={pages.count - (geo.first ? 1 : 0)} top={pageTopOf(geo, k)} height={pageHeightOf(geo, k)} onEdit={() => setDialog('footer')} />}
@@ -3740,6 +3743,45 @@ function RunSpan({ run, markupMode = 'simple', at = null, hyph = null }) {
  * table cell, one holding a table — painted exactly like the body's, read
  * only: the engine cannot rebuild such a box, so the caret is kept out.
  */
+/** A picture's bytes as PNG bytes, no larger than `max` pixels either way. */
+async function asPng(bytes, max) {
+  const url = URL.createObjectURL(new Blob([bytes]));
+  try {
+    const img = new Image();
+    img.src = url;
+    await img.decode();
+    const scale = Math.min(1, max / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(img.naturalWidth * scale));
+    canvas.height = Math.max(1, Math.round(img.naturalHeight * scale));
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    return blob ? new Uint8Array(await blob.arrayBuffer()) : null;
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+/**
+ * The watermark on a page: the header's words, faint and rising, or its
+ * picture, centred inside the margins and washed out as Word draws one.
+ */
+function Watermark({ mark, top, height, section }) {
+  if (mark.picture) {
+    const w = mark.widthPx || 400;
+    const h = mark.heightPx || 300;
+    const mt = section?.margins?.top ?? 96;
+    const mb = section?.margins?.bottom ?? 96;
+    const y = top + mt + Math.max(0, (height - mt - mb - h) / 2);
+    return <img className={`wd-watermark-pic${mark.washout ? ' washout' : ''}`} src={mark.picture} alt="" draggable={false} contentEditable={false} aria-hidden="true" style={{ top: Math.round(y), width: w, height: h }} />;
+  }
+  return (
+    <div className="wd-watermark" contentEditable={false} aria-hidden="true" style={{ top: top + Math.round(height / 3), color: mark.colour || 'silver', transform: `rotate(${mark.rotation ?? 315}deg)` }}>
+      {mark.text}
+    </div>
+  );
+}
+
 function LiteParagraphs({ paragraphs, styles }) {
   const ref = React.useRef(null);
   React.useLayoutEffect(() => {
@@ -4163,6 +4205,9 @@ const CSS = `
   position: absolute; left: 0; right: 0; top: 380px; text-align: center; pointer-events: none; user-select: none;
   font-family: Calibri, "Segoe UI", sans-serif; font-size: 150px; font-weight: 400; opacity: .35; letter-spacing: .02em; z-index: 0;
 }
+/* A picture watermark: centred, behind the words; washed out, a pale copy, as Word's washout makes it. */
+.wd-watermark-pic { position: absolute; left: 50%; transform: translateX(-50%); pointer-events: none; user-select: none; z-index: 0; object-fit: contain; }
+.wd-watermark-pic.washout { opacity: .32; filter: saturate(.7) brightness(1.1); }
 .wd-page > .wd-block, .wd-page > .wd-table, .wd-page > .wd-notes { position: relative; z-index: 1; }
 /* Footnote references and the notes themselves. */
 .wd-noteref::after, .wd-notemark::after { content: attr(data-n); vertical-align: super; font-size: 0.65em; line-height: 0; }

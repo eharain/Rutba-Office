@@ -1579,7 +1579,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       // backend behind it. All three are wrapped because a document opened from
       // a converted format may have no backend that answers them.
       section: safely(() => view.section),
-      bands: safely(() => view.doc?.headerFooters?.()),
+      bands: docBands(session),
       comments: safely(() => view.doc?.comments?.()) || [],
       // Design → Themes, Colours, Fonts and Effects: what the theme part says now.
       design: safely(() => { const d = view.doc?.doc; const part = d?.themePart?.(); return readThemeDesign(part ? d.pkg.text(part) : null); }),
@@ -1600,6 +1600,27 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
    * find-and-replace — this hands back the whole model instead. Correct is the
    * floor; fast is the goal above it.
    */
+  /**
+   * A document's headers, footers and watermark for the window. A picture
+   * watermark goes as a URL the main process holds, made once for each
+   * picture: the bands ride every edit, and the picture must not.
+   */
+  function docBands(session) {
+    const view = session.engine;
+    const bands = safely(() => view.doc?.headerFooters?.());
+    const mark = bands?.watermark;
+    if (!mark?.picturePart) return bands;
+    const bytes = safely(() => view.doc.doc.pkg.read(mark.picturePart));
+    if (!bytes) return { ...bands, watermark: null };
+    const known = session.watermarkBlob;
+    if (!known || known.bytes !== bytes) {
+      if (known?.id) releaseBlob(known.id);
+      const held = holdBlob(bytes, mark.pictureType || 'image/png', path.basename(mark.picturePart));
+      session.watermarkBlob = { bytes, url: held.url, id: held.id };
+    }
+    return { ...bands, watermark: { ...mark, picture: session.watermarkBlob.url } };
+  }
+
   function docDelta(session) {
     const view = session.engine;
     // The editor never reads pages; paginating on every keystroke is what made
@@ -1622,7 +1643,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       section: frame.section,
       // The bands too: a header, footer or watermark edit changes no block,
       // and without this the window kept the bands it opened with.
-      bands: safely(() => view.doc?.headerFooters?.()),
+      bands: docBands(session),
       // And the bookmarks: adding one changes no block's text, and the
       // dialog lists them from the model it holds.
       bookmarks: frame.bookmarks,
@@ -2345,6 +2366,12 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // engine has been able to write one since bands existed.
     setBand: (v, a) => v.setBand(a.band, a.lines ?? [a.text ?? '']),
     setWatermark: (v, a) => v.setWatermark(a.text ?? null, { colour: a.colour ?? 'silver', rotation: a.rotation ?? 315 }),
+    // Design → Watermark → Picture: its size read from the picture itself, fitted inside the margins by the engine.
+    setPictureWatermark: (v, a) => {
+      const bytes = Buffer.from(a.data);
+      const probed = probeImage(bytes);
+      return v.setPictureWatermark(bytes, { contentType: ({ png: 'image/png', jpeg: 'image/jpeg', gif: 'image/gif', bmp: 'image/bmp', webp: 'image/webp' })[probed?.format] || a.contentType || 'image/png', widthPx: probed?.width || 400, heightPx: probed?.height || 300, washout: a.washout !== false, name: a.name || 'Watermark' });
+    },
     // Mailings. Start Mail Merge names the kind of main document (null is
     // Normal Word Document); the recipient list itself arrives through
     // `mailMerge` below, which reads files; these change what the window shows.

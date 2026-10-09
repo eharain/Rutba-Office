@@ -2514,6 +2514,19 @@ export class DocView {
     });
   }
 
+  /** A picture behind the words on every page, washed out, in place of any watermark. One undo step. */
+  setPictureWatermark(data, options = {}) {
+    if (typeof this.doc.setPictureWatermark !== 'function' || !this.section) {
+      throw new Error('this document backend has no header to carry a watermark');
+    }
+    if (typeof this.doc.registerBandUndo === 'function') this.doc.registerBandUndo('header');
+    return this._edit('watermark', null, () => {
+      this.doc.setPictureWatermark(data, options);
+      this._invalidate();
+      return this;
+    });
+  }
+
   /**
    * Add a comment at the caret's paragraph — a point comment, so the
    * paragraph it discusses stays editable. Allowed on structural paragraphs
