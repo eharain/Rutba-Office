@@ -508,7 +508,7 @@ function makeFixtures(dir) {
   };
 }
 
-export async function verifyApps({ windows, doc, broadcast = null, update = null }) {
+export async function verifyApps({ windows, doc, broadcast = null, update = null, idle = null }) {
   // An error that escapes a block would end the run with no summary and no
   // name. Name it.
   process.on('unhandledRejection', (e) => console.log(`     [unhandled] ${e?.stack || e}`));
@@ -611,6 +611,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     const proto = Object.getPrototypeOf(contents);
     const run = proto.executeJavaScript;
     proto.executeJavaScript = async function executeJavaScriptAfterAnswers(...args) {
+      // Every request a window has made answered first, then those answers sent.
+      if (idle) await idle(3000);
       await giveWay();
       return run.apply(this, args);
     };

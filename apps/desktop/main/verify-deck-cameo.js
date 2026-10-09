@@ -55,12 +55,14 @@ export async function verifyDeckCameo({ open, check, until, wait, errorsIn, doc 
     let inShow = await liveInShow();
     // A check run's stand-in camera, on a busy machine, sometimes will not
     // start again so soon after the preview let it go: the show is left and
-    // started once more, and must then show the camera live.
-    if (!inShow) {
+    // started again, after a longer pause each time, and must then show the
+    // camera live.
+    for (const pause of [2000, 5000]) {
+      if (inShow) break;
       win.webContents.sendInputEvent({ type: 'keyDown', keyCode: 'Escape' });
       win.webContents.sendInputEvent({ type: 'keyUp', keyCode: 'Escape' });
       await until(() => js(`!document.querySelector('.sl-present')`), 'the show closed', 4000).catch(() => {});
-      await wait(2000);
+      await wait(pause);
       await startShow();
       inShow = await liveInShow();
     }

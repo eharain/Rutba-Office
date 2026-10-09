@@ -80,6 +80,14 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
   // [0] an answer is on its way to a blocked caller; [1] the thread has ended.
   const signal = new Int32Array(new SharedArrayBuffer(8));
 
+  // Who is waiting for every answer to be in (`idle`), let go when the last one is.
+  let quiet = [];
+  const settled = () => {
+    const now = quiet;
+    quiet = [];
+    for (const resolve of now) resolve(true);
+  };
+
   const failed = (error) => Object.assign(new Error(error?.message || 'The document service could not answer.'), { name: error?.name || 'Error', code: error?.code });
 
   function start() {
@@ -104,6 +112,7 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
       const gone = new Error('The document engine stopped, and the documents it held were closed. Unsaved work is kept as a recovery copy.');
       for (const [, w] of waiting) w.reject(gone);
       waiting.clear();
+      settled();
       if (thread === mine && !stopping && !mine.everReady) {
         // A thread that never got ready will not get ready if started again.
         fallBack(`it ended (${code}) before it was ready`);
@@ -158,6 +167,7 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
           waiting.delete(m.seq);
           if (m.ok) w.resolve(m.value);
           else w.reject(failed(m.error));
+          if (!waiting.size) settled();
         } else {
           answered.set(m.seq, m);
         }
@@ -302,6 +312,21 @@ export function createDocumentHost({ holdBlob, releaseBlob, blobUrl, readyLimitM
 
     get doc() { return faces.doc; },
     get direct() { return faces.direct; },
+
+    /**
+     * For the checks: settled once every window request the thread is working
+     * on has its answer (or after `limit` ms, whichever is first), as every
+     * request was done before a check could look when the documents were
+     * worked on in the main process. True when it settled, false when it gave up.
+     */
+    idle(limit = 3000) {
+      if (local || !waiting.size) return Promise.resolve(true);
+      return new Promise((resolve) => {
+        const timer = setTimeout(() => { quiet = quiet.filter((r) => r !== done); resolve(false); }, limit);
+        const done = (v) => { clearTimeout(timer); resolve(v); };
+        quiet.push(done);
+      });
+    },
 
     /** For the checks: the thread, to be stopped and seen to start again. */
     get threadId() { return thread?.worker?.threadId ?? null; },

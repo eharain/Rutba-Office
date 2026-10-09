@@ -79,6 +79,14 @@ test('the document service answers from its own thread, as a promise and as a fu
   assert.throws(() => direct.model({ id: 'nope' }), /./);
   await assert.rejects(doc.model({ id: 'nope' }), /./);
 
+  // Idle once every request in hand has its answer, as a check waits for it.
+  let answeredFirst = false;
+  const inHand = doc.model({ id: made.id }).then(() => { answeredFirst = true; });
+  assert.equal(await host.idle(5000), true, 'settled');
+  assert.equal(answeredFirst, true, 'the request answered before idle settled');
+  await inHand;
+  assert.equal(await host.idle(), true, 'idle at once with nothing in hand');
+
   // A closed window frees what it opened.
   const gone = await doc.closeWindow(7);
   assert.deepEqual(gone.sort(), [made.id, deck.id].sort());

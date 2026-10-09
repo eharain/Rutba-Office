@@ -88,7 +88,9 @@ export async function verifyDeckFx(h, { file }) {
     await until(() => js(`Boolean(document.querySelector('.sl-format-fill .sl-format-slider input[type="range"]'))`), 'the transparency slider', 3000);
     await setRange('.sl-format-fill .sl-format-slider input[type="range"]', 60);
     const transparent = await until(() => Math.round((1 - (shapeOf(id).fill?.alpha ?? 1)) * 100) === 60, 'the transparency', 4000).catch(() => false);
-    check('slides: the transparency slider writes an alpha on the solid fill', transparent === true, `fill ${JSON.stringify(shapeOf(id).fill)}`);
+    // What the window showed, for a run where it went otherwise: the fill chip it had current, what it said.
+    const shown = transparent === true ? '' : await js(`JSON.stringify({ chip: document.querySelector('.sl-format-fill .sl-chip.current')?.textContent, said: [...document.querySelectorAll('.rw-toast, [role="status"]')].map((n) => n.textContent).filter(Boolean).slice(-3) })`);
+    check('slides: the transparency slider writes an alpha on the solid fill', transparent === true, `fill ${JSON.stringify(shapeOf(id).fill)}${shown ? `; window ${shown}` : ''}`);
 
     // Shape Effects: Glow, then Soft Edges, then Reflection — each merged
     // in beside what the shape already carries, never wiping the others.
