@@ -125,8 +125,10 @@ createShell({
     return (services = {
       // A window's Open waits on the file and its unzipping rather than
       // holding the main process (documents.js, `openAsync`).
-      // Save the same: the parts compressed off the main process too (`saveAsync`).
-      doc: { ...doc, open: doc.openAsync, save: doc.saveAsync },
+      // Save the same: the parts compressed off the main process too
+      // (`saveAsync`). The checks, which read a file the moment they save
+      // it, are handed the service with its own save (`directDoc` below).
+      doc: { ...doc, open: doc.openAsync, save: doc.saveAsync, saveNow: doc.save },
       // Paper and PDFs, for every kind of document. It asks the document
       // service where the pages fall and hands the result to a hidden window.
       print: createPrintService({ docs: doc }),
@@ -298,10 +300,12 @@ createShell({
       }
     };
 
+    // The document service as the checks call it: saving at once, as their reads expect.
+    const directDoc = () => ({ ...services.doc, save: services.doc.saveNow });
     if (process.env.RUTBA_OFFICE_VERIFY_EDIT) {
       return finish(async () => {
         const { verifyEditing } = await import('./verify-edit.js');
-        return verifyEditing({ windows, doc: services.doc });
+        return verifyEditing({ windows, doc: directDoc() });
       });
     }
     if (process.env.RUTBA_OFFICE_VERIFY_APPS) {
@@ -311,14 +315,14 @@ createShell({
         // to have imported an archive last week is not a check.
         const { seedMail } = await import('./seed-mail.js');
         await seedMail({ stores, mail: services?.mail }).catch((e) => console.error('the mail fixture failed:', e.message));
-        return verifyApps({ windows, doc: services.doc, broadcast, update: updates });
+        return verifyApps({ windows, doc: directDoc(), broadcast, update: updates });
       });
     }
     if (process.env.RUTBA_OFFICE_VERIFY_CORPUS) {
       // Every file in a folder, opened for real, one window at a time.
       return finish(async () => {
         const { verifyCorpus } = await import('./verify-corpus.js');
-        return verifyCorpus({ windows, doc: services.doc, appForFile: (file) => appFor(kindFromExtension(file)) || 'home' });
+        return verifyCorpus({ windows, doc: directDoc(), appForFile: (file) => appFor(kindFromExtension(file)) || 'home' });
       });
     }
     if (process.env.RUTBA_OFFICE_SMOKE) {
