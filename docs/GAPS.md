@@ -2,7 +2,7 @@
 
 Written 2026-09-09, from the code rather than from memory. Three sources: the
 suite's own register of unbuilt controls (257 of them then, 36 in
-1.29.5, 28 in 1.29.8, 24 in 1.29.9, 20 in 1.29.10 — 4 in Documents, 5 in Worksheets, 11 in Presentations — each a
+1.29.5, 28 in 1.29.8, 24 in 1.29.9, 20 in 1.29.10, 19 in 1.33.0 — 4 in Documents, 5 in Worksheets, 10 in Presentations — each a
 `<Soon>` in a ribbon with a sentence saying what it needs), a reading of what the engines
 write as against what they read, and the things a person expects that are not
 in either list because nothing in the interface offers them at all.
@@ -155,8 +155,14 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   1.32.0: Design → Watermark → Picture watermark, washed out behind every
   page, written in the header as Word writes one.) (Paragraph shading and borders, and the page colour, are
   written from the ribbon since 2026-09-21, and printed.)
-- **A default template.** (Building blocks — Insert → Quick Parts, the
-  Quick Part and AutoText galleries and the Organizer — arrived in 1.29.4.)
+- **A default template.** Design → Set as Default starts new blank
+  documents in a document's theme and styles, and since 1.33.0 templates
+  of one's own are kept where Office keeps them (Save as Template, from the
+  app menu of all three apps, into Documents\Custom Office Templates) and
+  listed on Home, each making a new untitled document. Not yet: a Normal
+  template file whose own text, headers and page setup new documents take.
+  (Building blocks — Insert → Quick Parts, the Quick Part and AutoText
+  galleries and the Organizer — arrived in 1.29.4.)
 
 ## 2. Worksheets — the workbook
 
@@ -248,7 +254,9 @@ it is where the gaps are.
   Merge Queries (left outer, inner, left anti, full outer) and Append
   Queries arrived in 1.29.10, a query reading another query's result.
   Since 1.31.0 a column's type follows it through every step, and a column
-  made dates loads in the short date format.
+  made dates loads in the short date format. Since 1.33.0 Fill Down and Up,
+  Unpivot Other Columns, Merge Columns and Extract are steps too; Pivot
+  Column, conditional and custom columns are not.
 - **A cut pasted** carries every reference with it since 1.29.8, as Excel's
   does: formulas on any sheet and defined names that name only the moved
   cells follow them, onto another sheet too.
@@ -302,7 +310,9 @@ document and workbook writers.
   file drawn as a picture by the suite's own renderer, the model kept beside
   it and turned from the 3D Model tab; PowerPoint's own 3D model element is
   not written, so PowerPoint shows the picture and cannot turn it. Cameo
-  arrived the same release: the camera, live, in a shape on the slide.
+  arrived the same release: the camera, live, in a shape on the slide, and
+  since 1.33.0 Record with the camera puts each slide's recording in its
+  cameo's place, as PowerPoint does, with Reset to Cameo to take it off.
 - **Design Ideas** arrived in 1.29.8, worked out on this computer rather
   than asked of a service: a pane of layouts the slide's own title, words
   and pictures suit, each drawn by the deck's renderer, one applied in a
@@ -425,8 +435,11 @@ stage keeps a picture until the next has decoded. What is still missing:
   a folder's tile says how much it holds; and Subfolders searches the
   folders inside for a name or a tag. XMP ratings written into the file, as
   Windows Photos and Lightroom write them, are not read or written.
-- **Edits from the viewer** — rotate the file, not only the view — belong to
-  the Image tool, which the viewer opens in one click.
+- **Edits from the viewer.** Since 1.33.0 Rotate the picture (Ctrl+R) turns
+  the file and saves it, as Windows Photos does: a JPEG by its EXIF
+  orientation, losslessly, and a PNG redrawn. Other formats, and crops and
+  adjustments, belong to the Image tool, which the viewer opens in one
+  click.
 
 ---
 
