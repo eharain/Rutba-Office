@@ -755,6 +755,34 @@ const outlineAbstract = (id) => {
   return xml + '</w:abstractNum>';
 };
 
+/**
+ * Home → Multilevel List's library, beyond the three every document gets:
+ * each level's number format and text, and whether it is a legal level.
+ * Each is written named, so a second use finds it rather than adding another.
+ */
+const LIST_LIBRARY = {
+  // 1) a) i), then (1) (a) (i), then 1. a. i.
+  outlineParen: { name: 'Rutba 1) a) i)', levels: [['decimal', '%1)'], ['lowerLetter', '%2)'], ['lowerRoman', '%3)'], ['decimal', '(%4)'], ['lowerLetter', '(%5)'], ['lowerRoman', '(%6)'], ['decimal', '%7.'], ['lowerLetter', '%8.'], ['lowerRoman', '%9.']] },
+  // I. A. 1. a) (1) (a) (i) (a) (i), the outline a report is written to.
+  outlineRoman: { name: 'Rutba I. A. 1. a)', levels: [['upperRoman', '%1.'], ['upperLetter', '%2.'], ['decimal', '%3.'], ['lowerLetter', '%4)'], ['decimal', '(%5)'], ['lowerLetter', '(%6)'], ['lowerRoman', '(%7)'], ['lowerLetter', '(%8)'], ['lowerRoman', '(%9)']] },
+  // Article I. Section 1.01 (a) (i), a contract's: the second level legal, its numbers in figures.
+  legal: { name: 'Rutba Article I. Section 1.01', levels: [['upperRoman', 'Article %1.'], ['decimalZero', 'Section %1.%2', true], ['lowerLetter', '(%3)'], ['lowerRoman', '(%4)'], ['decimal', '%5)'], ['lowerLetter', '%6)'], ['lowerRoman', '%7)'], ['lowerLetter', '%8.'], ['lowerRoman', '%9.']] },
+};
+
+const libraryAbstract = (id, style) => {
+  const def = LIST_LIBRARY[style];
+  let xml = '<w:abstractNum w:abstractNumId="' + id + '"><w:multiLevelType w:val="multilevel"/><w:name w:val="' + def.name + '"/>';
+  def.levels.forEach(([fmt, text, legal], i) => {
+    xml += '<w:lvl w:ilvl="' + i + '"><w:start w:val="1"/><w:numFmt w:val="' + fmt + '"/>' + (legal ? '<w:isLgl/>' : '')
+      + '<w:lvlText w:val="' + text + '"/><w:lvlJc w:val="left"/>'
+      + '<w:pPr><w:ind w:left="' + (720 * (i + 1)) + '" w:hanging="' + (legal || /Article/.test(text) ? 1080 : 360) + '"/></w:pPr></w:lvl>';
+  });
+  return xml + '</w:abstractNum>';
+};
+
+/** The list styles Home → Multilevel List offers, by key: Word's own three, then the library's. */
+export const LIST_STYLES = ['bullet', 'number', 'outline', ...Object.keys(LIST_LIBRARY)];
+
 const numDef = (numId, abstractId) =>
   '<w:num w:numId="' + numId + '"><w:abstractNumId w:val="' + abstractId + '"/></w:num>';
 
@@ -2291,6 +2319,34 @@ export class Document {
       this.pkg.write_(part, this._spliceNumbering(xml, abstracts.join(''), nums.join('')));
     }
     return { bullet: bulletId, number: numberId, outline: outlineId };
+  }
+
+  /**
+   * The numId of one of Home → Multilevel List's library lists ('outlineParen',
+   * 'outlineRoman', 'legal'): the one the document has already, found by its
+   * name, or a new definition and number written for it. Word's own three
+   * come from `ensureListNumbering`.
+   */
+  ensureListDefinition(style) {
+    if (!LIST_LIBRARY[style]) {
+      const ids = this.ensureListNumbering();
+      return ids[style] ?? ids.number;
+    }
+    const part = 'word/numbering.xml';
+    if (!this.pkg.has(part)) this.ensureListNumbering();
+    const xml = this.pkg.text(part);
+    const name = LIST_LIBRARY[style].name;
+    const abs = [...xml.matchAll(/<w:abstractNum\b([^>]*)>([\s\S]*?)<\/w:abstractNum>/g)].find((m) => m[2].includes('<w:name w:val="' + name + '"/>'));
+    if (abs) {
+      const absId = attrs(abs[1])['w:abstractNumId'];
+      const num = [...xml.matchAll(/<w:num\b([^>]*)>([\s\S]*?)<\/w:num>/g)].find((m) => new RegExp('<w:abstractNumId\\b[^>]*\\bw:val="' + absId + '"').test(m[2]));
+      if (num) return String(attrs(num[1])['w:numId']);
+    }
+    const found = this._classifyNumbering(xml);
+    const aId = found.maxAbstract + 1;
+    const nId = found.maxNum + 1;
+    this.pkg.write_(part, this._spliceNumbering(xml, libraryAbstract(aId, style), numDef(nId, aId)));
+    return String(nId);
   }
 
   /**

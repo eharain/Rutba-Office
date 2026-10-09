@@ -34,6 +34,7 @@ export function formatCounter(format, n) {
   switch (format) {
     case 'bullet': return '•';
     case 'none': return '';
+    case 'decimalZero': return n < 10 ? `0${n}` : String(n);
     case 'lowerLetter': return toLetter(n);
     case 'upperLetter': return toLetter(n).toUpperCase();
     case 'lowerRoman': return toRoman(n);
@@ -82,7 +83,10 @@ export function computeListLabels(flow, blocks, defs) {
 
       const level = Number(d) - 1;
       const value = c[level] ?? levels[level]?.start ?? 1;
-      return formatCounter(levels[level]?.format ?? 'decimal', value);
+      // A legal level shows every number in figures: its own as it is if a figure, the rest as plain ones.
+      const format = levels[level]?.format ?? 'decimal';
+      if (def.legal) return formatCounter(level === numbering.level && format === 'decimalZero' ? 'decimalZero' : 'decimal', value);
+      return formatCounter(format, value);
     });
 
     out.set(block.index, {

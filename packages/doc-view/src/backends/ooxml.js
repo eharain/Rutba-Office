@@ -340,8 +340,13 @@ export class OoxmlBackend {
     if (!p) throw new Error('no paragraph at index ' + index);
     let numId = null;
     if (listType != null) {
-      const ids = this.doc.ensureListNumbering();
-      numId = listType === 'bullet' ? ids.bullet : listType === 'outline' ? ids.outline : ids.number;
+      if (['bullet', 'number', 'outline'].includes(listType)) {
+        const ids = this.doc.ensureListNumbering();
+        numId = listType === 'bullet' ? ids.bullet : listType === 'outline' ? ids.outline : ids.number;
+      } else {
+        // Home → Multilevel List's library: "1) a) i)", "I. A. 1.", "Article I.".
+        numId = this.doc.ensureListDefinition(listType);
+      }
     }
     return this._replaceOwnPPr(p, (own) => withNumPr(own, numId));
   }

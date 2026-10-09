@@ -1418,14 +1418,21 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
         return true;
       };
       const markerOf = (block) => js(`document.querySelector('.wd-page [data-block="${block}"] .wd-marker')?.textContent.trim() || null`);
+      // Multilevel List is a gallery: the library's list picked from it.
+      const multilevel = async (label) => {
+        const opened = await clickRibbon('Multilevel List');
+        await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.includes(${JSON.stringify(label)}))`), 'the list library', 3000).catch(() => false);
+        await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.includes(${JSON.stringify(label)}))?.click(), 1`);
+        return opened;
+      };
       await caretTo(1);
       await wait(300);
-      const outlined = await clickRibbon('Multilevel list');
+      const outlined = await multilevel('1.1.1.');
       await until(async () => (await markerOf(1)) === '1.', 'the first number', 5000).catch(() => false);
       await wait(300);
       await caretTo(2);
       await wait(300);
-      await clickRibbon('Multilevel list');
+      await multilevel('1.1.1.');
       await until(async () => (await markerOf(2)) === '2.', 'the second number', 5000).catch(() => false);
       await wait(300);
       const deeper = await clickRibbon('Increase indent');
@@ -1433,6 +1440,17 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
       await wait(400);
       if (process.env.RUTBA_VERIFY_CAPTURE) fs.writeFileSync(path.join(process.env.RUTBA_VERIFY_CAPTURE, 'word-multilevel.png'), (await win.webContents.capturePage()).toPNG());
       check('word: Home → Multilevel list numbers 1., 2., and Increase indent makes the second 1.1.', outlined === 'clicked' && deeper === 'clicked' && nested === true && (await markerOf(1)) === '1.', `${outlined} ${deeper}; markers ${await markerOf(1)} ${await markerOf(2)}`);
+      // The library's Article and Section list on the first paragraph: a list of its own, Article I.
+      await caretTo(0);
+      await wait(300);
+      await multilevel('Article I.');
+      const article = await until(async () => (await markerOf(0)) === 'Article I.', 'the article', 5000).then(() => true).catch(() => false);
+      check('word: Multilevel List\'s library numbers a paragraph Article I., as Word\'s Article and Section list does', article, String(await markerOf(0)));
+      // And off again, from the gallery's None, for the checks that follow.
+      await multilevel('None');
+      await until(async () => !(await markerOf(0)), 'the article off', 5000).catch(() => false);
+      await caretTo(2);
+      await wait(300);
       await clickRibbon('Save');
       await until(() => { try { return /<w:ilvl w:val="1"\/>/.test(documentXml()); } catch { return false; } }, 'the level to land in the file', 8000).catch(() => false);
       const saved2 = (() => { try { const d = openDocx(fs.readFileSync(files.docx)).doc.doc; return { pPr: d.editParagraph(2).pPr || '', numbering: d.pkg.has('word/numbering.xml') ? d.pkg.text('word/numbering.xml') : '' }; } catch { return { pPr: '', numbering: '' }; } })();

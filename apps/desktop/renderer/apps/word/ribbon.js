@@ -103,6 +103,15 @@ const BOX_MARGINS = [
   ['Normal', { l: 9.6, t: 4.8, r: 9.6, b: 4.8 }],
   ['Wide', { l: 14.4, t: 14.4, r: 14.4, b: 14.4 }],
 ];
+/** Home → Multilevel List's library, as Word's gallery shows each: its first three levels. */
+const MULTILEVEL = [
+  ['outline', '1.  1.1.  1.1.1.'],
+  ['outlineParen', '1)  a)  i)'],
+  ['outlineRoman', 'I.  A.  1.'],
+  ['legal', 'Article I.  Section 1.01  (a)'],
+  ['bullet', '•  ○  ▪'],
+];
+
 /** Insert → WordArt: four styles of our own, made of the text effects the engine writes. */
 const WORDART = [
   ['Fill: blue, shadow', { colour: '2B5FD9', effects: { shadow: true } }],
@@ -381,7 +390,12 @@ export default function WordRibbon({
               <>
                 <Button icon="listBullet" title="Bullets" pressed={format.listType === 'bullet'} onClick={() => toggleList('bullet')} />
                 <Button icon="listNumber" title="Numbering" pressed={format.listType === 'number'} onClick={() => toggleList('number')} />
-                <Button icon="listNumber" title="Multilevel list — 1. 1.1. 1.1.1., deeper with Increase indent" pressed={format.listType === 'number' && (format.listLevel || 0) > 0} onClick={() => para({ list: 'outline' })} />
+                <Button icon="listNumber" className="wd-multilevel" title="Multilevel List — a list library: 1. 1.1. 1.1.1., 1) a) i), I. A. 1. or Article and Section; deeper with Increase indent" pressed={format.listType === 'number' && (format.listLevel || 0) > 0} onClick={(e) => menu.open(e, [
+                  { heading: true, label: 'List Library' },
+                  ...MULTILEVEL.map(([list, label]) => ({ label, icon: 'listNumber', run: () => para({ list }) })),
+                  '-',
+                  { label: 'None', icon: 'close', run: () => para({ list: null }) },
+                ])} />
                 <Separator />
                 <Button icon="chevronLeft" title="Decrease indent" disabled={!format.indentLevel} onClick={() => para({ indentDelta: -1 })} />
                 <Button icon="chevronRight" title="Increase indent" onClick={() => para({ indentDelta: 1 })} />

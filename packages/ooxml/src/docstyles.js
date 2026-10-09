@@ -384,7 +384,7 @@ export function readCharacterStyles(stylesXml, themeFonts = null) {
 }
 
 /** How a level formats its counter. Everything else falls back to decimal. */
-const FORMATS = new Set(['decimal', 'lowerLetter', 'upperLetter', 'lowerRoman', 'upperRoman', 'bullet', 'none']);
+const FORMATS = new Set(['decimal', 'decimalZero', 'lowerLetter', 'upperLetter', 'lowerRoman', 'upperRoman', 'bullet', 'none']);
 
 /**
  * Numbering definitions: numId -> level -> how to label it.
@@ -421,6 +421,8 @@ export function readNumberingDefs(numberingXml) {
         font: fonts ? (attrs(fonts)['w:ascii'] ?? attrs(fonts)['w:hAnsi'] ?? null) : null,
 
         start: Number(val(lvl[2], 'w:start') ?? 1) || 1,
+        // Legal numbering: every level's number shown in figures, as "Section 1.01" under "Article I".
+        legal: /<w:isLgl\b(?![^>]*\bw:val="(?:0|false|off)")/.test(lvl[2]),
         indentPx: ind && attrs(ind)['w:left'] !== undefined ? twipsToPx(attrs(ind)['w:left']) : (ilvl + 1) * 24,
       };
     }
