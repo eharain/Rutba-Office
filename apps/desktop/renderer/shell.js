@@ -6,7 +6,7 @@
 // the same place, and files dropped on a window open in the right app.
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Window, TitleBar, Body, StatusBar, Menu, Icon, useToast, useTheme, Button, Progress, t } from '@rutba/office-ui';
+import { Window, TitleBar, Body, StatusBar, Menu, Icon, useToast, useTheme, Button, Progress, t, msg, language } from '@rutba/office-ui';
 import { APPS, openFilters, saveFilters, NEW_DOCUMENTS } from '@rutba/office-formats/registry';
 import { appFor, kindFromExtension } from '@rutba/office-formats/sniff';
 import { pathOf } from '@rutba/office-shell/client';
@@ -18,13 +18,22 @@ import { filtersInLanguage } from './registry-words.js';
  * (none, the first, follows the system). A language is offered once its
  * catalogue is whole.
  */
-const LANGUAGES = [[null, null], ['en', 'English'], ['ur', 'اردو']];
+const LANGUAGES = [[null, null], ['en', 'English'], ['ur', 'اردو'], ['ar', 'العربية']];
+
+/**
+ * The digits a window in one of these languages may write its numbers in,
+ * Western first (the default, none stored), then the language's own.
+ */
+const DIGITS = {
+  ar: [[null, msg('Western digits (123)')], ['arab', msg('Arabic-Indic digits (١٢٣)')]],
+  ur: [[null, msg('Western digits (123)')], ['arabext', msg('Eastern Arabic-Indic digits (۱۲۳)')]],
+};
 
 /** A window's address with its language set, or taken off for the system's. */
-function withLanguage(href, tag) {
+function withLanguage(href, tag, key = 'lang') {
   const url = new URL(href);
-  if (tag) url.searchParams.set('lang', tag);
-  else url.searchParams.delete('lang');
+  if (tag) url.searchParams.set(key, tag);
+  else url.searchParams.delete(key);
   return url.toString();
 }
 
@@ -36,10 +45,12 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
   const toast = useToast();
   // The language setting as stored: a tag, or none for the system's.
   const [chosenLanguage, setChosenLanguage] = useState(undefined);
+  const [chosenDigits, setChosenDigits] = useState(null);
 
   useEffect(() => {
     shell.app.recent().then(setRecent).catch(() => {});
     shell.store.get({ key: 'language', fallback: null }).then((v) => setChosenLanguage(v || null)).catch(() => setChosenLanguage(null));
+    shell.store.get({ key: 'digits', fallback: null }).then((v) => setChosenDigits(v || null)).catch(() => setChosenDigits(null));
   }, [shell]);
 
   /**
@@ -55,6 +66,17 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
       return;
     }
     toast(t('The windows you open from now on are in the language chosen. Restart Rutba Office to see every window in it.'), { ms: 5000 });
+  }, [shell, appKey, toast]);
+
+  /** The digits, kept the same way: the launcher at once, other windows as they open. */
+  const chooseDigits = useCallback(async (system) => {
+    await shell.store.set({ key: 'digits', value: system || null });
+    setChosenDigits(system || null);
+    if (appKey === 'home') {
+      window.location.replace(withLanguage(window.location.href, system, 'digits'));
+      return;
+    }
+    toast(t('The windows you open from now on write numbers in the digits chosen.'), { ms: 5000 });
   }, [shell, appKey, toast]);
 
   const open = useCallback(
@@ -89,13 +111,22 @@ export function useAppMenu({ shell, appKey, onNew, onOpen, extra = [] }) {
       for (const [tag, name] of LANGUAGES) {
         items.push({ label: tag ? name : t('As the system is'), icon: (tag || null) === (chosenLanguage ?? null) ? 'check' : undefined, run: () => chooseLanguage(tag) });
       }
+      // The digits, in a window whose language has digits of its own.
+      const digits = DIGITS[language()];
+      if (digits) {
+        items.push('-');
+        items.push({ heading: true, label: t('Digits') });
+        for (const [system, label] of digits) {
+          items.push({ label: t(label), icon: (system || null) === (chosenDigits ?? null) ? 'check' : undefined, run: () => chooseDigits(system) });
+        }
+      }
       items.push('-');
       items.push({ label: t('What’s new'), icon: 'star', run: () => shell.win.create({ app: 'home', query: { whatsnew: 1 } }) });
       items.push({ label: t('About Rutba Office'), icon: 'info', run: () => shell.win.create({ app: 'home', query: { about: 1 } }) });
 
       setMenu({ x: rect.left, y: rect.bottom + 4, items });
     },
-    [recent, onNew, onOpen, extra, mode, setTheme, shell, appKey, chosenLanguage, chooseLanguage]
+    [recent, onNew, onOpen, extra, mode, setTheme, shell, appKey, chosenLanguage, chooseLanguage, chosenDigits, chooseDigits]
   );
 
   return { open, node: menu ? <Menu {...menu} onClose={() => setMenu(null)} /> : null };

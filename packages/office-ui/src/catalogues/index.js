@@ -20,6 +20,10 @@
 // the "language" setting when there is one.
 
 import ur from './ur.js';
+import ar from './ar.js';
 
-/** Urdu, since 1.38.0: the whole list, its frame right to left (renderer/language.js). */
-export const CATALOGUES = { ur };
+/**
+ * Urdu, since 1.38.0, and Arabic, since 1.40.0: each the whole list, its
+ * frame right to left (renderer/language.js).
+ */
+export const CATALOGUES = { ur, ar };

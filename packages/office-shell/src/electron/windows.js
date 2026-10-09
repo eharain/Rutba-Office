@@ -64,6 +64,9 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
     // it loads anything (renderer/language.js); none, and it takes the system's.
     const lang = stores.settings.get('language', null);
     if (lang) params.set('lang', String(lang));
+    // And the digits its numbers are written in, where the setting names them.
+    const digits = stores.settings.get('digits', null);
+    if (digits) params.set('digits', String(digits));
     for (const [k, v] of Object.entries(query || {})) if (v != null) params.set(k, String(v));
     return `${SCHEME}://app/index.html?${params.toString()}`;
   }

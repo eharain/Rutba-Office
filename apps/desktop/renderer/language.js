@@ -11,7 +11,7 @@
 // panes, the dialogs — while a page, a grid or a slide keeps the direction
 // its document gives it (they say `dir` for themselves).
 
-import { registerCatalogue, setLanguage, language, tFilled } from '@rutba/office-ui';
+import { registerCatalogue, setLanguage, language, setDigits, numberTag, tFilled } from '@rutba/office-ui';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { setErrorWords } from '@rutba/office-shell/client';
 import { registryInLanguage } from './registry-words.js';
@@ -24,8 +24,14 @@ export const rightToLeft = (tag) => RIGHT_TO_LEFT.has(String(tag || '').toLowerC
 
 for (const [tag, messages] of Object.entries(CATALOGUES)) registerCatalogue(tag, messages);
 
-const asked = typeof location === 'undefined' ? null : new URLSearchParams(location.search).get('lang');
+const query = typeof location === 'undefined' ? new URLSearchParams() : new URLSearchParams(location.search);
+const asked = query.get('lang');
 const chosen = setLanguage(asked || (typeof navigator === 'undefined' ? 'en' : navigator.language) || 'en');
+// The digits: as the setting says (Western 0 to 9, Arabic's ٠ to ٩, Urdu's
+// ۰ to ۹), else 0 to 9 in an Arabic window, as Office in Arabic writes them
+// by default, else the language's own.
+const digitsAsked = query.get('digits');
+setDigits(digitsAsked || (chosen === 'ar' ? 'latn' : null));
 if (typeof document !== 'undefined') {
   document.documentElement.lang = chosen;
   document.documentElement.dir = rightToLeft(chosen) ? 'rtl' : 'ltr';
@@ -41,7 +47,9 @@ setErrorWords(tFilled);
  * which is the system's; a window set to another language makes that default
  * its own, so a date in an Urdu window reads 9 اکتوبر 2026, as Urdu writes it.
  * A call that names its locale (a document's own, a sheet's) is left as it is,
- * and a window in the system's language is not touched at all.
+ * and a window in the system's language, its digits not chosen, is not
+ * touched at all. Chosen digits come along: 10 أكتوبر 2026 becomes
+ * ١٠ أكتوبر ٢٠٢٦ when Arabic's own digits are set.
  */
 function localeDefaults(tag) {
   const own = (locales) => (locales === undefined || (Array.isArray(locales) && !locales.length) ? tag : locales);
@@ -57,6 +65,6 @@ function localeDefaults(tag) {
   wrap(Number.prototype, 'toLocaleString');
 }
 const systemTag = typeof navigator === 'undefined' ? 'en' : String(navigator.language || 'en').toLowerCase();
-if (chosen !== 'en' && !systemTag.startsWith(chosen)) localeDefaults(chosen);
+if ((chosen !== 'en' && !systemTag.startsWith(chosen)) || digitsAsked) localeDefaults(numberTag());
 
 export { language };

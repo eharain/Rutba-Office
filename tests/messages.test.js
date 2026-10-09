@@ -73,9 +73,10 @@ test('the list of messages is current, every catalogue keys only messages on it,
   for (const [tag, catalogue] of Object.entries(CATALOGUES)) {
     for (const [message, translation] of Object.entries(catalogue)) {
       assert.ok(known.has(message), `${tag}: "${message}" is not a message the windows show`);
-      const names = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort().join(',');
+      // {count} may be left out of a form that says the number in words (Arabic's one, two).
+      const names = (s) => [...String(s).matchAll(/\{(\w+)\}/g)].map((m) => m[1]).filter((n) => n !== 'count').sort().join(',');
       for (const form of typeof translation === 'string' ? [translation] : Object.values(translation)) {
-        assert.equal(names(form).replace('count', '') || '', names(message).replace('count', '') || '', `${tag}: "${message}" keeps its placeholders`);
+        assert.equal(names(form), names(message), `${tag}: "${message}" keeps its placeholders`);
       }
     }
   }

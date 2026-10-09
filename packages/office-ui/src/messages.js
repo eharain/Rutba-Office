@@ -53,6 +53,21 @@ export function setLanguage(locale) {
 /** The language the windows are shown in. */
 export const language = () => current;
 
+/**
+ * The digits the window writes its numbers in: a numbering system ('latn'
+ * for 0 to 9, 'arab' for Arabic's ٠ to ٩, 'arabext' for Urdu's and Persian's
+ * ۰ to ۹), or none for the language's own. Arabic windows write 0 to 9
+ * unless the digits setting says otherwise.
+ */
+let digits = null;
+export function setDigits(system) {
+  digits = /^[a-z]{4,8}$/.test(String(system || '')) ? String(system) : null;
+  return digits;
+}
+
+/** The tag numbers and dates are formatted with: the language, and its digits when they are set. */
+export const numberTag = () => (digits ? `${current}-u-nu-${digits}` : current);
+
 /** The languages there is a catalogue for, English first. */
 export const languages = () => ['en', ...[...catalogues.keys()].filter((k) => k !== 'en')];
 
@@ -83,7 +98,7 @@ export function t(message, values) {
  */
 export function tn(count, one, other, values = {}) {
   const n = Number(count);
-  const shown = Number.isFinite(n) ? n.toLocaleString(current) : String(count);
+  const shown = Number.isFinite(n) ? n.toLocaleString(numberTag()) : String(count);
   const all = { ...values, count: shown };
   const english = n === 1 ? one : other;
   if (!table) return fill(english, all);

@@ -68,7 +68,7 @@ import { verifyPictureTiles } from './verify-picture-tiles.js';
 import { verifyPrintSetup } from './verify-print-setup.js';
 import { verifyPerfWindows } from './verify-perf-windows.js';
 import { verifyDocThread } from './verify-doc-thread.js';
-import { verifyUrdu } from './verify-urdu.js';
+import { verifyUrdu, verifyArabic } from './verify-urdu.js';
 import { verifyPictureRotate } from './verify-picture-rotate.js';
 import { verifyPersonalTemplates } from './verify-personal-templates.js';
 import { verifyWordWatermarkPicture } from './verify-word-watermark-picture.js';
@@ -4764,6 +4764,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('perfwindows')) await verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('docthread')) await verifyDocThread({ open, check, until, errorsIn }, { dir });
     if (only.includes('urdu')) await verifyUrdu({ open, check, until, wait, errorsIn }, { dir, files });
+    if (only.includes('arabic')) await verifyArabic({ open, check, until, wait, errorsIn }, { dir, files });
     if (only.includes('picturerotate')) await verifyPictureRotate({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('templates')) await verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('picwatermark')) await verifyWordWatermarkPicture({ open, check, until, wait, press, errorsIn }, { dir });
@@ -5036,6 +5037,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }));
   await block(() => verifyDocThread({ open, check, until, errorsIn }, { dir }));
   await block(() => verifyUrdu({ open, check, until, wait, errorsIn }, { dir, files }));
+  await block(() => verifyArabic({ open, check, until, wait, errorsIn }, { dir, files }));
   await block(() => verifyPictureRotate({ open, check, until, wait, press, errorsIn }, { dir }));
   await block(() => verifyPersonalTemplates({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => verifyWordWatermarkPicture({ open, check, until, wait, press, errorsIn }, { dir }));

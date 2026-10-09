@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5348,
+  "count": 5353,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -2890,6 +2890,12 @@
       "message": "Apps",
       "where": [
         "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Arabic-Indic digits (١٢٣)",
+      "where": [
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -7766,6 +7772,12 @@
       ]
     },
     {
+      "message": "Digits",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
       "message": "Dimensions",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
@@ -8419,6 +8431,12 @@
       "message": "Earth",
       "where": [
         "apps/desktop/renderer/apps/word/references-index.js"
+      ]
+    },
+    {
+      "message": "Eastern Arabic-Indic digits (۱۲۳)",
+      "where": [
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {
@@ -27332,6 +27350,12 @@
       ]
     },
     {
+      "message": "The windows you open from now on write numbers in the digits chosen.",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
       "message": "The words along the bottom",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -30178,6 +30202,12 @@
       "message": "Weight: {weight}",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Western digits (123)",
+      "where": [
+        "apps/desktop/renderer/shell.js"
       ]
     },
     {

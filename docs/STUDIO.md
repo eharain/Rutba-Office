@@ -401,7 +401,7 @@ it and Presentations already has its pieces; the owner may reorder (14).
   are not found.
 - **Words**: every visible word through `t()`, with Urdu in
   `catalogues/ur.js`; `npm run` the message extract; `tests/messages.test.js`,
-  `catalogue-ur.test.js` and `english-left.test.js` must pass. An engine
+  `catalogues.test.js` and `english-left.test.js` must pass. An engine
   error a user sees goes in `renderer/engine-words.js`.
 - **Window checks** live in `apps/desktop/main/verify-*.js` and run under
   `npm run gate`; see docs/TESTING.md.

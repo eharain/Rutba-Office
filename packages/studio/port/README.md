@@ -14,7 +14,7 @@ exists in Office. A port keeps the behaviour and replaces the frame:
 - `@rutba/office-ui` for the ribbon, commands (`useCommands`), panels and
   dialogs;
 - `t()` and `tn()` for every word a window shows, with an Urdu entry in
-  `catalogues/ur.js` (`tests/catalogue-ur.test.js` refuses a missing one);
+  `catalogues/ur.js` (`tests/catalogues.test.js` refuses a missing one);
 - `shell.fs` and the `rutba://file/` protocol instead of the media proxy,
   uploads and libraries;
 - `@rutba/studio/host` instead of `../../lib/renderer`.

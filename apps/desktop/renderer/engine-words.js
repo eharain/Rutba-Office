@@ -5,8 +5,8 @@
 // a window puts each into its own language as the message reaches it (the
 // shell client's unwrap, messages.js tFilled), its {placeholders} filled back
 // from the words the engine put there. No window imports this file: the
-// catalogue's extractor reads it, and tests/catalogue-ur.test.js holds each
-// message to its Urdu. Made from the engines' own sources by listing what
+// catalogue's extractor reads it, and tests/catalogues.test.js holds each
+// message to its translation in every catalogue. Made from the engines' own sources by listing what
 // they throw; a message added there is added here the same way.
 
 import { msg } from '@rutba/office-ui/messages';
