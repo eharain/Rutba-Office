@@ -40,16 +40,20 @@ export class CompoundFile {
     return true;
   }
 
+  // Past the end reads as zero, as the other binary readers' accessors do:
+  // a damaged file is refused in a sentence, never with a range error.
   u32(at) {
-    return this.view.getUint32(at, true);
+    return at >= 0 && at + 4 <= this.b.length ? this.view.getUint32(at, true) : 0;
   }
 
   u16(at) {
-    return this.view.getUint16(at, true);
+    return at >= 0 && at + 2 <= this.b.length ? this.view.getUint16(at, true) : 0;
   }
 
   #readHeader() {
     if (!CompoundFile.is(this.b)) throw new CfbError('not a compound file');
+    // The header is the first 512 bytes; a file that ends inside it was cut short.
+    if (this.b.length < 512) throw new CfbError('the file ends inside its header: it was cut short');
     this.major = this.u16(26);
     this.sectorShift = this.u16(30);
     this.miniSectorShift = this.u16(32);
