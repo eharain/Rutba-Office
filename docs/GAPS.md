@@ -146,12 +146,18 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   show straight while the caret is in them. Since 1.32.0 Transform → More
   gives twenty of the warps (the waves, inflate and deflate, slants,
   triangles, chevrons, fades and curves), each letter stretched between
-  the warp's two curves. Still to build: the rest of the gallery (the
-  pour arches, rings, cans, cascades, stop, deflate-inflate), drawn
-  straight; the handles, kept from the file but neither drawn nor dragged
-  here; and a Documents PDF, which draws a transformed box's words
+  the warp's two curves; since 1.34.0 thirty, with Square, the poured
+  arches, cans, rings, cascades and Stop. Still to build: the poured
+  Circle and Button, Fade: Up and Down and the deflate-inflate pairs,
+  drawn straight; the handles, kept from the file but neither drawn nor
+  dragged here; and a Documents PDF, which draws a transformed box's words
   straight. Asked for 2026-10-08.
-- **Multilevel list definitions.** (A picture watermark arrived in
+- **Multilevel list definitions.** Since 1.34.0 Home → Multilevel List is
+  Word's gallery of list libraries (1. 1.1. 1.1.1., 1) a) i), I. A. 1.,
+  Article I. with Section 1.01, and the bullets), legal levels and zero
+  padding labelled as Word labels them; Define New Multilevel List, a list
+  of one's own level by level, and lists linked to the heading styles are
+  not built. (A picture watermark arrived in
   1.32.0: Design → Watermark → Picture watermark, washed out behind every
   page, written in the header as Word writes one.) (Paragraph shading and borders, and the page colour, are
   written from the ribbon since 2026-09-21, and printed.)
