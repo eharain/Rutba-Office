@@ -369,3 +369,18 @@ check).
 - Nothing from the review in 1.36.0, which finishes WordArt's warps and
   its PDF, and adds Define New Multilevel List with lists linked to the
   heading styles; the document service's move is next.
+- The document service on the main process, 1.37.0, done: the service
+  runs on a worker thread of its own (`apps/desktop/main/doc-worker.js`),
+  and the main process passes requests in and answers out
+  (`doc-host.js`). A worker thread rather than a `utilityProcess`, for
+  three reasons: the window checks call the service as a function, which a
+  thread can answer through shared memory and a process cannot; the
+  engines' Buffers and pictures cross as transferred memory rather than a
+  pipe; and Electron starts a module thread from inside the installer's
+  asar, which was checked by building one. Pictures are held under ids the
+  thread mints, sent before the answer naming them; equations are laid out
+  by Chromium on the main process at the thread's request. A thread that
+  stops is started again, and one that cannot start leaves the service to
+  the main process. The main process still copies each answer between the
+  thread and the window; a window talking to the thread directly would
+  take a process and a port per window.

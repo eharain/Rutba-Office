@@ -165,7 +165,9 @@ two. Two things follow:
 
 **Documents live in the backend.** The OOXML engine inflates with zlib and works
 in Buffers — it is a Node engine, not a browser one. So a document opens, edits
-and saves in the main process, and the window draws the view model it is sent.
+and saves in Node, on a thread of the main process's own (since 1.37.0, so the
+other windows answer while one document is busy), and the window draws the view
+model it is sent.
 A spreadsheet asks for the viewport it is about to paint and nothing else, which
 is why the size of a workbook has no bearing on the size of a window's heap.
 
