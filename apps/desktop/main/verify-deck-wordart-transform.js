@@ -49,7 +49,7 @@ export async function verifyDeckWordArtTransform({ open, check, until, wait, err
 
     // More → a warp: the words stretched between two curves, a letter at a time.
     const warps = {};
-    for (const [label, preset] of [['Wave: Down', 'textWave1'], ['Inflate', 'textInflate'], ['Slant: Up', 'textSlantUp'], ['Chevron: Up', 'textChevron'], ['Arch: Up', 'textArchUpPour'], ['Stop', 'textStop']]) {
+    for (const [label, preset] of [['Wave: Down', 'textWave1'], ['Inflate', 'textInflate'], ['Slant: Up', 'textSlantUp'], ['Chevron: Up', 'textChevron'], ['Arch: Up', 'textArchUpPour'], ['Stop', 'textStop'], ['Fade: Up', 'textFadeUp']]) {
       await js(`(() => { const b = document.querySelector('.sl-warp-more'); b?.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true })); b?.click(); return 1; })()`);
       await until(() => js(`[...document.querySelectorAll('.rw-menu button')].some((b) => b.textContent.trim() === ${JSON.stringify(label)})`), `the ${label} item`, 3000).catch(() => {});
       await js(`[...document.querySelectorAll('.rw-menu button')].find((b) => b.textContent.trim() === ${JSON.stringify(label)})?.click(), 1`);

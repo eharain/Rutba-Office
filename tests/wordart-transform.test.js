@@ -107,8 +107,8 @@ test('a warp stretches each letter between its two curves, upright, across the w
   const { warpedTextSvg, WARP_MORE, drawnWarp, warpLabel } = await import('@rutba/drawing/warp');
   const box = { x: 0, y: 0, w: 400, h: 200 };
   const lines = [[{ text: 'WAVES', size: 24 }]];
-  const letters = (svg) => [...svg.matchAll(/<text font-size="100" text-anchor="middle" transform="matrix\(([-\d.]+) ([-\d.]+) 0 ([-\d.]+) ([-\d.]+) ([-\d.]+)\)">(.)<\/text>/g)]
-    .map((m) => ({ sx: Number(m[1]), skew: Number(m[2]), sy: Number(m[3]), x: Number(m[4]), foot: Number(m[5]), ch: m[6] }));
+  const letters = (svg) => [...svg.matchAll(/<text font-size="100" text-anchor="middle" transform="matrix\(([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+)\)">(.)<\/text>/g)]
+    .map((m) => ({ sx: Number(m[1]), skew: Number(m[2]), lean: Number(m[3]), sy: Number(m[4]), x: Number(m[5]), foot: Number(m[6]), ch: m[7] }));
   const wave = letters(warpedTextSvg({ preset: 'textWave1', box, lines }));
   assert.deepEqual(wave.map((l) => l.ch), ['W', 'A', 'V', 'E', 'S']);
   assert.ok(wave[0].x > 0 && wave[4].x < 400 && wave[4].x - wave[0].x > 250, 'across the whole box');
@@ -120,7 +120,15 @@ test('a warp stretches each letter between its two curves, upright, across the w
   assert.equal(slant.every((l) => Math.abs(l.sy - slant[0].sy) < 0.001), true, 'a slant keeps every letter one height');
   const two = letters(warpedTextSvg({ preset: 'textDeflate', box, lines: [[{ text: 'AB', size: 24 }], [{ text: 'CD', size: 24 }]] }));
   assert.ok(two.find((l) => l.ch === 'C').foot > two.find((l) => l.ch === 'A').foot, 'two lines share the height, one band each');
-  assert.equal(WARP_MORE.length, 30);
+  // Fade: Up draws the words in towards the top: the outer letters lean in, the middle one upright.
+  const fade = letters(warpedTextSvg({ preset: 'textFadeUp', box, lines }));
+  assert.ok(fade[0].lean < -0.1 && fade[4].lean > 0.1 && Math.abs(fade[2].lean) < Math.min(-fade[0].lean, fade[4].lean) / 3, `leaning in: ${fade.map((l) => l.lean).join(' ')}`);
+  // Deflate-Inflate: the first line squeezed in the middle where the second swells.
+  const di = letters(warpedTextSvg({ preset: 'textDeflateInflate', box, lines: [[{ text: 'ABC', size: 24 }], [{ text: 'DEF', size: 24 }]] }));
+  const tall = (ch) => di.find((l) => l.ch === ch).sy;
+  assert.ok(tall('B') < tall('A') && tall('E') > tall('D'), 'the first line thinner in the middle, the second thicker');
+  assert.equal(WARP_MORE.length, 36);
+  assert.ok(warpedTextSvg({ preset: 'textCirclePour', box, lines }).includes('<textPath'), 'the poured Circle round its twin\'s path');
   assert.equal(WARP_MORE.every((p) => drawnWarp(p.id)), true);
   assert.equal(warpLabel('textWave1'), 'Wave: Down');
   assert.equal(warpLabel('textArchUp'), 'Arch Up');

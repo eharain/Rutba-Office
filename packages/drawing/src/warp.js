@@ -59,15 +59,49 @@ const ENVELOPES = {
   // Cascades: the words growing taller as they climb, or fall.
   textCascadeUp: { label: 'Cascade: Up', top: (u) => 0.55 * (1 - u), bottom: (u) => 1 - 0.25 * u },
   textCascadeDown: { label: 'Cascade: Down', top: (u) => 0.55 * u, bottom: (u) => 1 - 0.25 * (1 - u) },
+  // The fades the other way: the words drawn in towards the top, or the foot.
+  textFadeUp: { label: 'Fade: Up', top: () => 0, bottom: () => 1, narrow: { top: 0.45, bottom: 1 } },
+  textFadeDown: { label: 'Fade: Down', top: () => 0, bottom: () => 1, narrow: { top: 1, bottom: 0.45 } },
+  // Two or three lines, the line between them curved: the first squeezed
+  // where the next swells (Deflate-Inflate), or the middle swelling between
+  // two squeezed (Deflate-Inflate-Deflate). One line fills the box.
+  textDeflateInflate: {
+    label: 'Deflate-Inflate',
+    top: () => 0,
+    bottom: () => 1,
+    split: (u, t, lines) => {
+      if (lines < 2) return t;
+      const m = 0.5 - 0.15 * Math.sin(Math.PI * u);
+      return t <= 0.5 ? 2 * t * m : m + (2 * t - 1) * (1 - m);
+    },
+  },
+  textDeflateInflateDeflate: {
+    label: 'Deflate-Inflate-Deflate',
+    top: () => 0,
+    bottom: () => 1,
+    split: (u, t, lines) => {
+      if (lines < 3) return t;
+      const m1 = 1 / 3 - 0.1 * Math.sin(Math.PI * u);
+      const m2 = 2 / 3 + 0.1 * Math.sin(Math.PI * u);
+      if (t <= 1 / 3) return 3 * t * m1;
+      if (t <= 2 / 3) return m1 + (3 * t - 1) * (m2 - m1);
+      return m2 + (3 * t - 2) * (1 - m2);
+    },
+  },
   // Stop: the corners cut, as an octagon's.
   textStop: { label: 'Stop', top: (u) => 0.2 * Math.max(0, 1 - 4 * Math.min(u, 1 - u)), bottom: (u) => 1 - 0.2 * Math.max(0, 1 - 4 * Math.min(u, 1 - u)) },
 };
 
 /** The rest of the gallery, after the five on the ribbon: the warps. */
-export const WARP_MORE = Object.entries(ENVELOPES).map(([id, e]) => ({ id, label: e.label }));
+export const WARP_MORE = [
+  ...Object.entries(ENVELOPES).map(([id, e]) => ({ id, label: e.label })),
+  // The poured Circle and Button: drawn round their Follow Path twins' paths.
+  { id: 'textCirclePour', label: 'Circle (warp)' },
+  { id: 'textButtonPour', label: 'Button (warp)' },
+];
 
 /** Whether a preset is one this drawing follows (the rest are drawn straight). */
-export const drawnWarp = (preset) => ['textArchUp', 'textArchDown', 'textCircle', 'textButton'].includes(preset) || Object.hasOwn(ENVELOPES, String(preset));
+export const drawnWarp = (preset) => ['textArchUp', 'textArchDown', 'textCircle', 'textButton', 'textCirclePour', 'textButtonPour'].includes(preset) || Object.hasOwn(ENVELOPES, String(preset));
 
 /** A preset's name as the gallery gives it. */
 export const warpLabel = (preset) => WARP_PRESETS.find((p) => p.id === preset)?.label || ENVELOPES[preset]?.label || null;
@@ -107,13 +141,13 @@ export function warpPaths(preset, { x, y, w, h }, { inset = [] } = {}) {
   // edge; drawn in a little and not run to the steep ends, where they would
   // stand out past the box.
   if (preset === 'textArchDown') return [{ ...arc(0, 0, 0.3), outside: false, cap: 0.34, share: 0.78 }];
-  if (preset === 'textCircle') {
+  if (preset === 'textCircle' || preset === 'textCirclePour') {
     // Round from the foot, by the left, over the top and back: the letters
     // spaced out to go the whole way round, the words' middle at the top.
     const { rx, ry } = radii(0);
     return [{ d: `M ${f(cx)} ${f(cy + ry)} A ${f(rx)} ${f(ry)} 0 1 1 ${f(cx)} ${f(cy - ry)} A ${f(rx)} ${f(ry)} 0 1 1 ${f(cx)} ${f(cy + ry)}`, length: 2 * halfEllipse(rx, ry), at: 0.5, outside: true, cap: 0.28, share: 0.97, spread: true }];
   }
-  if (preset === 'textButton') {
+  if (preset === 'textButton' || preset === 'textButtonPour') {
     // The top arc, a straight middle, and the bottom arc: one line each.
     const mid = cy + (inset[1] || 0) * 0.45;
     return [
@@ -218,10 +252,16 @@ function envelopeSvg(env, { box, lines, span, face, color }) {
     const width = glyphs.reduce((n, g) => n + g.adv, 0);
     if (!width) return;
     const sx = box.w / width;
-    // The band this line has between the curves, in the box's units.
-    const at = (u, t) => box.y + box.h * (env.top(u) + (env.bottom(u) - env.top(u)) * t);
+    // The band this line has between the curves, in the box's units: an
+    // equal share of the height, or the share a warp's own split gives it
+    // (Deflate-Inflate's curved line between its two).
+    const split = env.split ? (u, t) => env.split(u, t, count) : (u, t) => t;
+    const at = (u, t) => box.y + box.h * (env.top(u) + (env.bottom(u) - env.top(u)) * split(u, t));
     const top = (u) => at(u, k / count);
     const bottom = (u) => at(u, (k + 1) / count);
+    // A fade narrows the words towards its top or its bottom: the share of
+    // the width a height in the box keeps.
+    const narrow = (t) => (env.narrow ? env.narrow.top + (env.narrow.bottom - env.narrow.top) * t : 1);
     let along = 0;
     for (const g of glyphs) {
       const u = (along + g.adv / 2) / width;
@@ -234,9 +274,17 @@ function envelopeSvg(env, { box, lines, span, face, color }) {
       // The slope at the letter: the band's middle a little either side of it.
       const e = 0.002;
       const slope = (((top(u + e) + bottom(u + e)) - (top(u - e) + bottom(u - e))) / 2) / (2 * e * box.w);
-      const cx = box.x + u * box.w;
+      // Across: where the letter stands at the band's top and at its foot, a
+      // fade drawing it in towards the middle; the difference is its lean.
+      const n0 = narrow(k / count);
+      const n1 = narrow((k + 1) / count);
+      const xt = box.x + box.w * (0.5 + (u - 0.5) * n0);
+      const xb = box.x + box.w * (0.5 + (u - 0.5) * n1);
+      const a = sx * ((n0 + n1) / 2);
+      const c = (xb - xt) / ((ASCENT + DESCENT) * BASE);
+      const cx = xt + c * ASCENT * BASE;
       const attrs = span ? span(g.run) : '';
-      out.push(`<text font-size="${BASE}" text-anchor="middle" transform="matrix(${sx.toFixed(4)} ${(slope * sx).toFixed(4)} 0 ${sy.toFixed(4)} ${f(cx)} ${f(foot)})"${attrs ? ` ${attrs}` : ''}>${escape(g.ch)}</text>`);
+      out.push(`<text font-size="${BASE}" text-anchor="middle" transform="matrix(${a.toFixed(4)} ${(slope * a).toFixed(4)} ${c.toFixed(4)} ${sy.toFixed(4)} ${f(cx)} ${f(foot)})"${attrs ? ` ${attrs}` : ''}>${escape(g.ch)}</text>`);
     }
   });
   return out.length ? `<g font-family="${face}" fill="${laid.flat()[0]?.color || color}" xml:space="preserve">${out.join('')}</g>` : '';
