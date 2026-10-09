@@ -178,8 +178,33 @@ export function warpedTextSvg({ preset, box, lines, span, family = 'sans-serif',
   // A family named in quotes ("Segoe UI") goes in an attribute that is itself in double quotes.
   const face = String(family).replace(/"/g, "'");
   if (ENVELOPES[preset]) return envelopeSvg(ENVELOPES[preset], { box, lines, span, face, color });
+  const out = [];
+  pathLayout(preset, box, lines).forEach(({ p, i, runs, fit, size, stretch }) => {
+    const id = pathId(`${preset}|${p.d}|${i}|${runs.map((r) => r.text).join('')}`);
+    const spans = runs.map((r) => {
+      const attrs = span ? span(r) : '';
+      const sized = r.size && Math.abs(r.size * fit - size) > 0.01 ? ` font-size="${f(r.size * fit)}"` : '';
+      return `<tspan${attrs ? ` ${attrs}` : ''}${sized}>${escape(r.text)}</tspan>`;
+    }).join('');
+    const along = p.spread || stretch
+      ? `startOffset="${(((1 - p.share) / 2) * 100).toFixed(1)}%" textLength="${f(p.length * p.share)}" lengthAdjust="${p.spread ? 'spacing' : 'spacingAndGlyphs'}"`
+      : `startOffset="${(p.at * 100).toFixed(1)}%" text-anchor="middle"`;
+    out.push(`<defs><path id="${id}" d="${p.d}" fill="none"/></defs>`
+      + `<text font-size="${f(size)}" font-family="${face}" fill="${runs[0].color || color}" xml:space="preserve">`
+      + `<textPath href="#${id}" ${along}>${spans}</textPath></text>`);
+  });
+  return out.join('');
+}
+
+/**
+ * A preset's lines laid along its paths, as `warpedTextSvg` draws them:
+ * each `{ p, i, runs, fit, size, stretch }`, the path, its line's runs, the
+ * scale they are set at, the first run's size at it, and whether the letters
+ * are drawn wider to fill their share of the path.
+ */
+function pathLayout(preset, box, lines) {
   const first = warpPaths(preset, box);
-  if (!first.length) return '';
+  if (!first.length) return [];
   // More lines than paths: the rest run on along the last path, as one line.
   const laid = first.map((_, i) => (i < first.length - 1 ? lines[i] || [] : lines.slice(i).flatMap((l, k) => (k ? [{ ...(l[0] || {}), text: ' ' }, ...l] : l))));
   const widthOf = (runs) => runs.reduce((n, r) => n + measureText(r.text, { size: r.size || 18, weight: r.bold ? 'bold' : 'normal' }), 0);
@@ -205,21 +230,112 @@ export function warpedTextSvg({ preset, box, lines, span, family = 'sans-serif',
     // the same, its letters drawn wider, as Office's WordArt stretches them.
     const natural = widthOf(runs) * fit;
     const stretch = !p.spread && natural < p.length * p.share * 0.9;
-    const id = pathId(`${preset}|${p.d}|${i}|${runs.map((r) => r.text).join('')}`);
-    const size = (runs[0].size || 18) * fit;
-    const spans = runs.map((r) => {
-      const attrs = span ? span(r) : '';
-      const sized = r.size && Math.abs(r.size * fit - size) > 0.01 ? ` font-size="${f(r.size * fit)}"` : '';
-      return `<tspan${attrs ? ` ${attrs}` : ''}${sized}>${escape(r.text)}</tspan>`;
-    }).join('');
-    const along = p.spread || stretch
-      ? `startOffset="${(((1 - p.share) / 2) * 100).toFixed(1)}%" textLength="${f(p.length * p.share)}" lengthAdjust="${p.spread ? 'spacing' : 'spacingAndGlyphs'}"`
-      : `startOffset="${(p.at * 100).toFixed(1)}%" text-anchor="middle"`;
-    out.push(`<defs><path id="${id}" d="${p.d}" fill="none"/></defs>`
-      + `<text font-size="${f(size)}" font-family="${face}" fill="${runs[0].color || color}" xml:space="preserve">`
-      + `<textPath href="#${id}" ${along}>${spans}</textPath></text>`);
+    out.push({ p, i, runs, fit, size: (runs[0].size || 18) * fit, stretch, natural });
   });
-  return out.join('');
+  return out;
+}
+
+/**
+ * The points along a path `warpPaths` gives (its M, L and A, absolute), close
+ * enough together to walk: each `{ x, y, at }`, `at` the length so far.
+ */
+function walkPath(d) {
+  const nums = (s) => s.trim().split(/[\s,]+/).map(Number);
+  const points = [];
+  let x = 0;
+  let y = 0;
+  const add = (px, py) => {
+    const last = points[points.length - 1];
+    points.push({ x: px, y: py, at: last ? last.at + Math.hypot(px - last.x, py - last.y) : 0 });
+  };
+  for (const [, cmd, args] of String(d).matchAll(/([MLA])([^MLA]*)/g)) {
+    const v = nums(args);
+    if (cmd === 'M') { [x, y] = v; add(x, y); continue; }
+    if (cmd === 'L') {
+      for (let k = 1; k <= 16; k++) add(x + ((v[0] - x) * k) / 16, y + ((v[1] - y) * k) / 16);
+      [x, y] = v;
+      continue;
+    }
+    // An arc with no turn, by its centre (SVG's own endpoint-to-centre steps).
+    let [rx, ry] = [Math.abs(v[0]), Math.abs(v[1])];
+    const [large, sweep, x2, y2] = [v[3], v[4], v[5], v[6]];
+    const hx = (x - x2) / 2;
+    const hy = (y - y2) / 2;
+    const grow = (hx * hx) / (rx * rx) + (hy * hy) / (ry * ry);
+    if (grow > 1) { rx *= Math.sqrt(grow); ry *= Math.sqrt(grow); }
+    const num = rx * rx * ry * ry - rx * rx * hy * hy - ry * ry * hx * hx;
+    const den = rx * rx * hy * hy + ry * ry * hx * hx;
+    const k = (large !== sweep ? 1 : -1) * Math.sqrt(Math.max(0, den ? num / den : 0));
+    const ux = (k * rx * hy) / ry;
+    const uy = (-k * ry * hx) / rx;
+    const ox = ux + (x + x2) / 2;
+    const oy = uy + (y + y2) / 2;
+    const from = Math.atan2((hy - uy) / ry, (hx - ux) / rx);
+    let turn = Math.atan2((-hy - uy) / ry, (-hx - ux) / rx) - from;
+    if (sweep && turn <= 0) turn += TAU;
+    if (!sweep && turn >= 0) turn -= TAU;
+    const steps = Math.max(8, Math.ceil(Math.abs(turn) * 48));
+    for (let s = 1; s <= steps; s++) {
+      const t = from + (turn * s) / steps;
+      add(ox + rx * Math.cos(t), oy + ry * Math.sin(t));
+    }
+    [x, y] = [x2, y2];
+  }
+  return points;
+}
+
+/** Where along a walked path a length falls, and which way the path runs there. */
+function pointAlong(points, at) {
+  const end = points[points.length - 1];
+  let k = 1;
+  while (k < points.length - 1 && points[k].at < at) k++;
+  const p0 = points[k - 1];
+  const p1 = points[k] || end;
+  const span = p1.at - p0.at || 1;
+  const t = (at - p0.at) / span;
+  return { x: p0.x + (p1.x - p0.x) * t, y: p0.y + (p1.y - p0.y) * t, angle: Math.atan2(p1.y - p0.y, p1.x - p0.x) };
+}
+
+/**
+ * A text body's warped words a letter at a time, for a drawing that cannot
+ * follow SVG (the PDF): each `{ ch, run, size, matrix }`, the letter drawn
+ * at `size` with its left foot at the origin and `matrix` [a, b, c, d, e, f]
+ * taking it, top-down as SVG's, to where `warpedTextSvg` draws it.
+ */
+export function warpGlyphs({ preset, box, lines }) {
+  const advance = (ch, run, size) => measureText(ch, { size, weight: run.bold ? 'bold' : 'normal' });
+  const env = ENVELOPES[preset];
+  if (env) {
+    return envelopeGlyphs(env, { box, lines }).map(({ ch, run, matrix: [a, b, c, d, e, y] }) => {
+      // Drawn from its left, not its middle: back by half the letter, along its own width.
+      const half = advance(ch, run, ENVELOPE_BASE) / 2;
+      return { ch, run, size: ENVELOPE_BASE, matrix: [a, b, c, d, e - a * half, y - b * half] };
+    });
+  }
+  const out = [];
+  for (const { p, runs, fit, stretch, natural } of pathLayout(preset, box, lines)) {
+    const points = walkPath(p.d);
+    if (points.length < 2) continue;
+    const length = points[points.length - 1].at;
+    const glyphs = runs.flatMap((r) => Array.from(String(r.text)).map((ch) => ({ ch, run: r, size: (r.size || 18) * fit, adv: advance(ch, r, (r.size || 18) * fit) })));
+    const room = length * p.share;
+    // Spread round a circle, the room left over goes between the letters;
+    // stretched, the letters themselves are drawn wider.
+    const wide = stretch && natural ? room / natural : 1;
+    const gap = p.spread && glyphs.length > 1 ? (room - natural) / (glyphs.length - 1) : 0;
+    let along = p.spread || stretch ? ((1 - p.share) / 2) * length : p.at * length - natural / 2;
+    for (const g of glyphs) {
+      const adv = g.adv * wide;
+      // The letter's middle on the path, turned to the way it runs there.
+      const mid = pointAlong(points, along + adv / 2);
+      along += adv + gap;
+      if (!g.ch.trim()) continue;
+      const cos = Math.cos(mid.angle);
+      const sin = Math.sin(mid.angle);
+      out.push({ ch: g.ch, run: g.run, size: g.size, matrix: [cos * wide, sin * wide, -sin, cos, mid.x - (cos * adv) / 2, mid.y - (sin * adv) / 2] });
+    }
+  }
+  return out;
 }
 
 const escape = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -237,10 +353,27 @@ const DESCENT = 0.22;
  * share the height between the curves, one band each.
  */
 function envelopeSvg(env, { box, lines, span, face, color }) {
+  const out = envelopeGlyphs(env, { box, lines }).map(({ ch, run, matrix: [a, b, c, d, e, y] }) => {
+    const attrs = span ? span(run) : '';
+    return `<text font-size="${ENVELOPE_BASE}" text-anchor="middle" transform="matrix(${a.toFixed(4)} ${b.toFixed(4)} ${c.toFixed(4)} ${d.toFixed(4)} ${f(e)} ${f(y)})"${attrs ? ` ${attrs}` : ''}>${escape(ch)}</text>`;
+  });
+  const first = lines.flat().find((r) => r && r.text);
+  return out.length ? `<g font-family="${face}" fill="${first?.color || color}" xml:space="preserve">${out.join('')}</g>` : '';
+}
+
+/** The size a warp's letters are drawn at before their matrix stretches them. */
+const ENVELOPE_BASE = 100;
+
+/**
+ * A warp's letters, each `{ ch, run, matrix }`: drawn at ENVELOPE_BASE with
+ * its middle foot at the origin, `matrix` takes it to its place between the
+ * curves.
+ */
+function envelopeGlyphs(env, { box, lines }) {
   const laid = lines.map((l) => (l || []).filter((r) => r.text));
   const count = laid.length;
-  if (!laid.some((l) => l.length)) return '';
-  const BASE = 100;
+  if (!laid.some((l) => l.length)) return [];
+  const BASE = ENVELOPE_BASE;
   const out = [];
   laid.forEach((runs, k) => {
     // Each letter with its run and how far it goes at the base size.
@@ -283,9 +416,8 @@ function envelopeSvg(env, { box, lines, span, face, color }) {
       const a = sx * ((n0 + n1) / 2);
       const c = (xb - xt) / ((ASCENT + DESCENT) * BASE);
       const cx = xt + c * ASCENT * BASE;
-      const attrs = span ? span(g.run) : '';
-      out.push(`<text font-size="${BASE}" text-anchor="middle" transform="matrix(${a.toFixed(4)} ${(slope * a).toFixed(4)} ${c.toFixed(4)} ${sy.toFixed(4)} ${f(cx)} ${f(foot)})"${attrs ? ` ${attrs}` : ''}>${escape(g.ch)}</text>`);
+      out.push({ ch: g.ch, run: g.run, matrix: [a, slope * a, c, sy, cx, foot] });
     }
   });
-  return out.length ? `<g font-family="${face}" fill="${laid.flat()[0]?.color || color}" xml:space="preserve">${out.join('')}</g>` : '';
+  return out;
 }

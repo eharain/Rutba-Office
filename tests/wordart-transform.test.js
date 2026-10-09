@@ -103,6 +103,35 @@ test('a document\'s text box takes a Transform, written first in its body proper
   assert.throws(() => view.updateDrawings({ id: box().id, warp: '"/><x' }), /not a Transform preset/);
 });
 
+test('a document\'s WordArt prints as the page draws it: each letter along the arc, or between the curves, with its own text matrix', async () => {
+  const { openDocx } = await import('@rutba/doc-view/backends/ooxml');
+  const { buildDocx } = await import('@rutba/ooxml');
+  const { renderPdf } = await import('@rutba/doc-view/export/pdf');
+  const { warpGlyphs } = await import('@rutba/drawing/warp');
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'First.' }, { text: 'Second.' }] }));
+  view.setSelection({ block: 1, offset: 0 });
+  view.insertTextBox({ widthPx: 300, heightPx: 150, paragraphs: [{ text: 'Rutba', sizePt: 36 }] });
+  const id = view.render({ pages: false }).blocks[1].textBoxes[0].id;
+  const letters = (pdf) => [...pdf.matchAll(/([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) Tm\n\((.)\) Tj/g)].map((m) => ({ m: m.slice(1, 7).map(Number), ch: m[7] }));
+  const straight = renderPdf(view, { created: '2026-10-09T00:00:00Z' }).buffer.toString('latin1');
+  assert.match(straight, /\(Rutba\) Tj/, 'straight, the word is one line of text');
+  view.updateDrawings({ id, warp: 'textArchUp' });
+  const arched = letters(renderPdf(view, { created: '2026-10-09T00:00:00Z' }).buffer.toString('latin1'));
+  assert.deepEqual(arched.map((l) => l.ch), ['R', 'u', 't', 'b', 'a'], 'a letter at a time');
+  // Over the arc: the first letter leans up the left side, the last down the right.
+  assert.ok(arched[0].m[1] > 0.1 && arched[4].m[1] < -0.1, `turned along the arc: ${arched.map((l) => l.m[1]).join(' ')}`);
+  assert.ok(arched[2].m[5] > arched[0].m[5], 'the middle letter higher on the page than the first');
+  view.updateDrawings({ id, warp: 'textWave1' });
+  const wave = letters(renderPdf(view, { created: '2026-10-09T00:00:00Z' }).buffer.toString('latin1'));
+  assert.equal(wave.length, 5);
+  assert.ok(wave.every((l) => l.m[3] > 1), 'stretched taller than the type, between the curves');
+  assert.ok(wave.every((l) => Math.abs(l.m[2]) < 0.001), 'upright, as Office keeps a warp\'s letters');
+  // The layout itself: a circle's letters go all the way round.
+  const round = warpGlyphs({ preset: 'textCircle', box: { x: 0, y: 0, w: 200, h: 200 }, lines: [[{ text: 'ROUND', size: 20 }]] });
+  assert.equal(round.length, 5);
+  assert.ok(round.some((g) => g.matrix[3] < 0), 'a letter upside down at the foot of the circle');
+});
+
 test('a warp stretches each letter between its two curves, upright, across the whole box', async () => {
   const { warpedTextSvg, WARP_MORE, drawnWarp, warpLabel } = await import('@rutba/drawing/warp');
   const box = { x: 0, y: 0, w: 400, h: 200 };

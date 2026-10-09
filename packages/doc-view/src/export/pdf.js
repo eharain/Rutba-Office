@@ -32,6 +32,7 @@ import { computeListLabels } from '../lists.js';
 import { bandForPage, resolveFields } from '../bands.js';
 import { hyphenationRules } from '../hyphenate.js';
 import { lineHeight as lineHeightOf } from '@rutba/drawing';
+import { drawnWarp, warpGlyphs } from '@rutba/drawing/warp';
 import { cellLook, tableRuled, drawnSide } from '../table-look.js';
 
 /** CSS pixels (96dpi, the paginator's unit) to points (72dpi, the page's). */
@@ -774,6 +775,10 @@ function drawTextBox(page, doc, fr, { xPx, yPx, widthPx }) {
   if (fill || stroke) page.rect(bx * PT, yPx * PT, fr.widthPx * PT, fr.heightPx * PT, { fill, stroke, width: fr.lineWidthPx ? Math.max(0.25, fr.lineWidthPx * PT) : 0.6 });
   // The box's own margins, and where its words sit in it, up and down.
   const ins = fr.insets || { l: BOX_PAD_PX, t: BOX_PAD_PX, r: BOX_PAD_PX, b: BOX_PAD_PX };
+  if (drawnWarp(fr.warp)) {
+    drawWarpedWords(page, doc, fr, { x: bx + ins.l, y: yPx + ins.t, w: Math.max(8, fr.widthPx - ins.l - ins.r), h: Math.max(8, fr.heightPx - ins.t - ins.b) });
+    return;
+  }
   const words = (fr.paragraphs || []).reduce((s, p) => s + (p.spaceBefore || 0) + (p.lines || []).length * (p.lineHeightPx || 0) + (p.spaceAfter || 0), 0);
   let y = yPx + ins.t;
   if (fr.vAnchor === 'middle') y = yPx + Math.max(ins.t, (fr.heightPx - words) / 2);
@@ -784,6 +789,28 @@ function drawTextBox(page, doc, fr, { xPx, yPx, widthPx }) {
       lines: p.lines, fragment: p, runs: p.runs, xPx: bx + ins.l + (p.indent || 0), yPx: y, widthPx: fr.widthPx - ins.l - ins.r - (p.indent || 0),
     });
     y += p.spaceAfter || 0;
+  }
+}
+
+/**
+ * A text box's words under WordArt's Transform: each paragraph a line, laid
+ * along the preset's path or stretched between its curves as the page draws
+ * them, and written a letter at a time, each with its own text matrix.
+ * `box` is the box less its insets, in pixels.
+ */
+function drawWarpedWords(page, doc, fr, box) {
+  const lines = (fr.paragraphs || []).map((p) => (p.runs || []).filter((r) => r.text && !r.math).map((r) => {
+    const s = styleOfRun(r, p);
+    return { text: r.text, size: s.size / PT, bold: /Bold/.test(s.font), italic: /Oblique/.test(s.font), style: s };
+  }));
+  for (const g of warpGlyphs({ preset: fr.warp, box, lines })) {
+    const [a, b, c, d, e, y] = g.matrix;
+    const s = g.run.style;
+    page.text(g.ch, e * PT, y * PT, {
+      font: s.font, size: g.size * PT, matrix: [a, b, c, d],
+      // Outlined, the letters are hollow, their edge inked, as the straight words' are.
+      ...(s.outline ? { stroke: s.colour || '#000000', strokeWidth: 0.5 } : { colour: s.colour }),
+    });
   }
 }
 

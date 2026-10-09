@@ -418,7 +418,7 @@ function drawingsOf(block, width, height, lay) {
       fragment: {
         kind: layer === 'beside' ? 'floatbox' : 'overlaybox', ...(layer === 'beside' ? {} : { layer }),
         widthPx, heightPx, fill: box.fill || null, line: box.line || null, lineWidthPx: box.lineWidthPx ?? null,
-        insets: ins, vAnchor: box.vAnchor || 'top', paragraphs, ...turn(box),
+        insets: ins, vAnchor: box.vAnchor || 'top', paragraphs, ...turn(box), ...(box.warp ? { warp: box.warp } : {}),
       },
     });
   }
@@ -1086,6 +1086,7 @@ export function paginate({ flow, blocks, section: mainSection, sections = null, 
         kind: 'textbox', paragraphIndex: block.index, widthPx: boxWidth, heightPx,
         fill: box.fill || null, line: box.line || null, hAlign: box.hAlign || null, paragraphs,
         ...(box.insets ? { insets: ins, vAnchor: box.vAnchor || 'top', lineWidthPx: box.lineWidthPx ?? null } : {}),
+        ...(box.warp ? { warp: box.warp } : {}),
         ...(box.anchored && !box.hAlign ? { xPx: Math.max(0, Math.min(width - boxWidth, floatPlace({ ...box, widthPx: boxWidth, heightPx }, geom).x)) } : {}),
       }, heightPx + IMAGE_GAP);
     }

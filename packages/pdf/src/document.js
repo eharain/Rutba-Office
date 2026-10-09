@@ -61,6 +61,23 @@ const num = (v) => {
   return String(Math.round(n * 1000) / 1000);
 };
 
+/**
+ * The text matrix's first four numbers: a turn (`rotate`, degrees
+ * counter-clockwise), or a `matrix` [a, b, c, d] given top-down as SVG's is
+ * (a letter stretched, sheared or turned along a WordArt curve), flipped
+ * here as every y is.
+ */
+function textMatrix(rotate, matrix) {
+  if (Array.isArray(matrix) && matrix.length >= 4) {
+    const [a, b, c, d] = matrix.map(Number);
+    return [a, -b, -c, d];
+  }
+  const rad = (Number(rotate) || 0) * (Math.PI / 180);
+  const c = Math.cos(rad);
+  const s = Math.sin(rad);
+  return [c, s, -s, c];
+}
+
 /** A colour as PDF wants it: three components, 0..1. */
 function colour(value) {
   if (value === null || value === undefined) return null;
@@ -93,11 +110,11 @@ class Page {
    * positions by, and converting in two places is how text drifts by an
    * ascent.
    */
-  text(value, x, y, { font = 'Helvetica', size = 10, colour: fill = null, late = false, rotate = 0, stroke = null, strokeWidth = 0.5, rtl = null, visual = false } = {}) {
+  text(value, x, y, { font = 'Helvetica', size = 10, colour: fill = null, late = false, rotate = 0, matrix = null, stroke = null, strokeWidth = 0.5, rtl = null, visual = false } = {}) {
     // What the base-14 fonts cannot say goes out in the embedded font.
     // (A page an incremental update draws on belongs to no PdfDocument, and has no embedded font.)
     const embedded = typeof this.doc._embeddedFor === 'function' ? this.doc._embeddedFor(value, font) : null;
-    if (embedded) return this._textEmbedded(embedded, value, x, y, { font, size, fill, late, rotate, stroke, strokeWidth, rtl, visual });
+    if (embedded) return this._textEmbedded(embedded, value, x, y, { font, size, fill, late, rotate, matrix, stroke, strokeWidth, rtl, visual });
     const name = this._use(font);
     const bytes = encode(value);
     if (!bytes.length) return 0;
@@ -114,14 +131,12 @@ class Page {
     // `rotate` turns the text counter-clockwise about its own origin, in
     // degrees — a watermark rising across the page. The text matrix carries
     // the rotation; nothing else on the page is touched.
-    const rad = (Number(rotate) || 0) * (Math.PI / 180);
-    const c = Math.cos(rad);
-    const s = Math.sin(rad);
+    const [a, b, c, d] = textMatrix(rotate, matrix);
     ops.push(
       'BT',
       `/${name} ${num(size)} Tf`,
       ...(strokeRgb ? [`${rgb ? 2 : 1} Tr`] : []),
-      `${num(c)} ${num(s)} ${num(-s)} ${num(c)} ${num(x)} ${num(this.height - y)} Tm`,
+      `${num(a)} ${num(b)} ${num(c)} ${num(d)} ${num(x)} ${num(this.height - y)} Tm`,
       `${pdfString(value)} Tj`,
       'ET',
     );
@@ -137,7 +152,7 @@ class Page {
    * draws a face it lacks: the glyphs thickened with their own stroke, and
    * slanted.
    */
-  _textEmbedded(embedded, value, x, y, { font, size, fill, late, rotate, stroke, strokeWidth, rtl, visual }) {
+  _textEmbedded(embedded, value, x, y, { font, size, fill, late, rotate, matrix, stroke, strokeWidth, rtl, visual }) {
     const glyphs = embedded.glyphsOf(value, { rtl, visual });
     if (!glyphs.length) return 0;
     const name = embedded.ref;
@@ -149,15 +164,13 @@ class Page {
     if (rgb) ops.push(`${rgb.join(' ')} rg`);
     if (strokeRgb) ops.push(`${strokeRgb.join(' ')} RG`, `${num(strokeWidth)} w`);
     else if (bold) ops.push(`${(rgb || ['0', '0', '0']).join(' ')} RG`, `${num(size * 0.035)} w`);
-    const rad = (Number(rotate) || 0) * (Math.PI / 180);
-    const c = Math.cos(rad);
-    const s = Math.sin(rad);
+    const [a, b, c, d] = textMatrix(rotate, matrix);
     const mode = strokeRgb ? (rgb ? 2 : 1) : bold ? 2 : 0;
     ops.push(
       'BT',
       `/${name} ${num(size)} Tf`,
       ...(mode ? [`${mode} Tr`] : []),
-      `${num(c)} ${num(s)} ${num(slant * c - s)} ${num(slant * s + c)} ${num(x)} ${num(this.height - y)} Tm`,
+      `${num(a)} ${num(b)} ${num(slant * a + c)} ${num(slant * b + d)} ${num(x)} ${num(this.height - y)} Tm`,
       `<${glyphs.map((g) => g.toString(16).padStart(4, '0')).join('')}> Tj`,
       'ET',
       'Q',
