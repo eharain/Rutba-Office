@@ -159,6 +159,76 @@ export function describeExif(exif) {
   return rows;
 }
 
+/** The orientation a quarter turn clockwise more makes, whatever turn and mirror one says already. */
+export const TURN_CLOCKWISE = { 1: 6, 6: 3, 3: 8, 8: 1, 2: 7, 7: 4, 4: 5, 5: 2 };
+
+/**
+ * A JPEG with its EXIF orientation set to `orientation`, its pixels left
+ * exactly as they were — the lossless turn Windows Photos makes. The tag is
+ * rewritten where the file has one; a file with no EXIF gets a small block
+ * holding only it, after its JFIF header. Null where the file is not a JPEG
+ * or has EXIF without an orientation tag, which cannot be added without
+ * moving everything after it.
+ */
+export function withOrientation(bytes, orientation) {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  if (!(orientation >= 1 && orientation <= 8)) throw new Error('an orientation is 1 to 8');
+  if (b.length < 4 || b[0] !== 0xff || b[1] !== 0xd8) return null;
+  let at = 2;
+  let afterHeader = 2;
+  while (at + 4 <= b.length && b[at] === 0xff) {
+    const marker = b[at + 1];
+    const length = (b[at + 2] << 8) | b[at + 3];
+    if (length < 2) return null;
+    if (marker === 0xe0 && at === afterHeader) afterHeader = at + 2 + length;
+    if (marker === 0xe1 && at + 10 <= b.length && String.fromCharCode(b[at + 4], b[at + 5], b[at + 6], b[at + 7]) === 'Exif') {
+      const tiff = at + 10;
+      const end = Math.min(b.length, at + 2 + length);
+      if (tiff + 8 > end) return null;
+      const view = new DataView(b.buffer, b.byteOffset, b.byteLength);
+      const little = b[tiff] === 0x49;
+      const ifd = tiff + view.getUint32(tiff + 4, little);
+      if (ifd + 2 > end) return null;
+      const count = view.getUint16(ifd, little);
+      for (let i = 0; i < count; i++) {
+        const entry = ifd + 2 + i * 12;
+        if (entry + 12 > end) return null;
+        if (view.getUint16(entry, little) !== 0x0112) continue;
+        if (view.getUint16(entry + 2, little) !== 3) return null;
+        const out = new Uint8Array(b);
+        new DataView(out.buffer).setUint16(entry + 8, orientation, little);
+        return out;
+      }
+      return null;
+    }
+    if (marker === 0xda) break;
+    at += 2 + length;
+  }
+  // No EXIF at all: one holding the orientation and nothing else.
+  const tiff = new Uint8Array(26);
+  const tv = new DataView(tiff.buffer);
+  tiff.set([0x49, 0x49], 0);
+  tv.setUint16(2, 42, true);
+  tv.setUint32(4, 8, true);
+  tv.setUint16(8, 1, true);
+  tv.setUint16(10, 0x0112, true);
+  tv.setUint16(12, 3, true);
+  tv.setUint32(14, 1, true);
+  tv.setUint16(18, orientation, true);
+  tv.setUint32(22, 0, true);
+  const payload = new Uint8Array(6 + tiff.length);
+  payload.set([0x45, 0x78, 0x69, 0x66, 0, 0], 0);
+  payload.set(tiff, 6);
+  const app1 = new Uint8Array(4 + payload.length);
+  app1.set([0xff, 0xe1, (payload.length + 2) >> 8, (payload.length + 2) & 0xff], 0);
+  app1.set(payload, 4);
+  const out = new Uint8Array(b.length + app1.length);
+  out.set(b.subarray(0, afterHeader), 0);
+  out.set(app1, afterHeader);
+  out.set(b.subarray(afterHeader), afterHeader + app1.length);
+  return out;
+}
+
 /** What the viewer must do to show the image the right way up. */
 export function orientationOf(exif) {
   return ORIENTATION[exif?.orientation] || ORIENTATION[1];

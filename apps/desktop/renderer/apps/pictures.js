@@ -95,6 +95,8 @@ export default function Pictures({ app, shell, boot }) {
   // View state
   const [zoom, setZoom] = useState(0); // 0 = fit to window
   const [spin, setSpin] = useState(0); // view-only rotation, in quarter turns
+  // Counted up when this window changes a picture's file, so it is drawn afresh.
+  const [fresh, setFresh] = useState(0);
   // With a picture open the ribbon folds to its tabs, so the picture gets the
   // room — the top especially. Expanding it is remembered on this machine.
   const [ribbonCollapsed, setRibbonCollapsed] = useState(() => {
@@ -263,7 +265,7 @@ export default function Pictures({ app, shell, boot }) {
     }
     let alive = true;
     const img = held.current.get(current) || new Image();
-    if (!img.src) img.src = fileUrl(current);
+    if (!img.src) img.src = freshUrl(current);
     const arrive = () => {
       if (!alive) return;
       setNatural({ w: img.naturalWidth, h: img.naturalHeight });
@@ -288,7 +290,7 @@ export default function Pictures({ app, shell, boot }) {
     return () => {
       alive = false;
     };
-  }, [current, isStill, toast]);
+  }, [current, isStill, toast, fresh]);
 
   // The next pictures either way are fetched and decoded before they are
   // asked for, so Next is instant even the first time through a folder.
@@ -302,7 +304,7 @@ export default function Pictures({ app, shell, boot }) {
       if (!img) {
         img = new Image();
         img.decoding = 'async';
-        img.src = fileUrl(f.path);
+        img.src = freshUrl(f.path);
         img.decode().catch(() => {});
       }
       keep.set(f.path, img);
@@ -544,6 +546,42 @@ export default function Pictures({ app, shell, boot }) {
   const parent = folder ? dirname(folder).replace(/^([A-Za-z]:)$/, '$1/') : '';
   const hasParent = Boolean(parent) && parent.replace(/\/$/, '') !== String(folder).replace(/[\\/]+$/, '').replace(/\\/g, '/');
 
+  /**
+   * Rotate the picture: the file turned a quarter clockwise and saved, as
+   * Windows Photos turns it — a JPEG without touching its pixels, by its
+   * EXIF orientation, and a PNG redrawn, which loses nothing. Anything else
+   * is for Image, which Edit opens.
+   */
+  const rotateFile = useCallback(async (p) => {
+    const ext = String(p).split('.').pop().toLowerCase();
+    try {
+      let bytes = null;
+      if (['jpg', 'jpeg', 'jpe'].includes(ext)) {
+        const { readExif, withOrientation, TURN_CLOCKWISE } = await import('@rutba/imaging/exif');
+        const read = await shell.fs.read({ path: p });
+        bytes = withOrientation(read.bytes, TURN_CLOCKWISE[readExif(read.bytes).orientation] || 6);
+        if (!bytes) {
+          toast('This photo keeps its turn where it cannot be changed without redrawing it. Edit opens it in Image, which can.', { ms: 5000 });
+          return;
+        }
+      } else if (ext === 'png') {
+        bytes = await turnedPng(p);
+      } else {
+        toast('Pictures turns a JPEG or a PNG and saves it. Edit opens this one in Image to turn and save it.', { ms: 5000 });
+        return;
+      }
+      await shell.fs.write({ path: p, bytes });
+      stamps.set(p, Date.now());
+      held.current.delete(p);
+      arrived.delete(p);
+      setSpin(0);
+      setFresh((n) => n + 1);
+      toast('Turned and saved.', { tone: 'good', ms: 2000 });
+    } catch (err) {
+      toast(`The picture could not be turned: ${err.message || err}`, { tone: 'bad' });
+    }
+  }, [shell, toast]);
+
   /* ── commands ────────────────────────────────────────────────────────── */
 
   const commands = useMemo(
@@ -565,6 +603,8 @@ export default function Pictures({ app, shell, boot }) {
       'view.in': { label: 'Zoom in', icon: 'zoomIn', key: 'Mod+Plus', run: () => setZoom((z) => Math.min(12, (z || 1) * 1.25)) },
       'view.out': { label: 'Zoom out', icon: 'zoomOut', key: 'Mod+-', run: () => setZoom((z) => Math.max(0.05, (z || 1) / 1.25)) },
       'view.rotate': { label: 'Rotate view', icon: 'rotate', key: 'r', run: () => setSpin((s) => (s + 1) % 4) },
+      // The file itself turned and saved, as Windows Photos turns it.
+      'file.rotate': { label: 'Rotate the picture', icon: 'rotate', key: 'Mod+R', when: () => Boolean(current) && isStill && !showOpen, run: () => current && rotateFile(current) },
       // Rate the picture on the stage: 1 to 5 stars, 0 to clear, as Windows Photos and Lightroom take them.
       ...Object.fromEntries([0, 1, 2, 3, 4, 5].map((n) => [`file.rate${n}`, { label: n ? `Rate ${'★'.repeat(n)}` : 'Clear the rating', icon: 'star', key: String(n), when: () => Boolean(current) && !showOpen, run: () => current && rate(current, n) }])),
       'view.details': { label: 'Details panel', icon: 'info', run: () => setView({ details: !showDetails }) },
@@ -597,7 +637,7 @@ export default function Pictures({ app, shell, boot }) {
         },
       },
     }),
-    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip, showOpen, startShow, rate]
+    [openFile, openFolder, step, goTo, back, enterFolder, parent, hasParent, files, at, playing, frozen, toggleAnimation, current, folder, list, shell, toast, setView, showDetails, showGrid, filmstrip, showOpen, startShow, rate, rotateFile, isStill]
   );
 
   useCommands(commands, [files, at, current, folder, playing, frozen]);
@@ -835,7 +875,7 @@ export default function Pictures({ app, shell, boot }) {
             mediaRef={mediaRef}
             onEnded={() => playing && step(1)}
             onMediaError={() => { setFailed(current); toast('This file could not be played.', { tone: 'bad' }); }}
-            onMenu={(e) => menu.open(e, menuItems(commands, ['nav.prev', 'nav.next', 'nav.back', '-', 'view.fit', 'view.actual', 'view.rotate', '-', 'file.edit', 'file.reveal', '-', 'file.trash']))}
+            onMenu={(e) => menu.open(e, menuItems(commands, ['nav.prev', 'nav.next', 'nav.back', '-', 'view.fit', 'view.actual', 'view.rotate', 'file.rotate', '-', 'file.edit', 'file.reveal', '-', 'file.trash']))}
           />
         )}
 
@@ -872,6 +912,7 @@ export default function Pictures({ app, shell, boot }) {
               <Button icon={frozen ? 'play' : 'pause'} title={frozen ? 'Resume animation' : 'Hold this frame'} onClick={toggleAnimation} />
             ) : null}
             <Button icon="rotate" title="Rotate the view" onClick={() => setSpin((s) => (s + 1) % 4)} />
+            {isStill ? <Button icon="save" className="pv-rotate-file" title="Rotate the picture: turned a quarter clockwise and saved (Ctrl+R)" onClick={() => current && rotateFile(current)} /> : null}
             <Button icon="zoomOut" title="Zoom out" onClick={() => commands['view.out'].run()} />
             <Button icon="zoomIn" title="Zoom in" onClick={() => commands['view.in'].run()} />
             <Button icon="maximize" title="Fit to window" pressed={zoom === 0} onClick={() => setZoom(0)} />
@@ -1086,6 +1127,33 @@ function Grid({ files, folders, current, tileSize, browse = false, busy, onOpen,
 }
 
 /**
+ * When this window last changed a picture's file (Rotate the picture), by
+ * path: its picture and its tile are asked for again under a new address,
+ * since the old one is cached.
+ */
+const stamps = new Map();
+const freshUrl = (p) => fileUrl(p) + (stamps.has(p) ? `?v=${stamps.get(p)}` : '');
+const freshThumb = (p) => thumbUrl(p) + (stamps.has(p) ? `&v=${stamps.get(p)}` : '');
+
+/** A PNG turned a quarter clockwise, redrawn: nothing of it lost. */
+async function turnedPng(p) {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.src = `${fileUrl(p)}?v=${Date.now()}`;
+  await img.decode();
+  const canvas = document.createElement('canvas');
+  canvas.width = img.naturalHeight;
+  canvas.height = img.naturalWidth;
+  const g = canvas.getContext('2d');
+  g.translate(canvas.width, 0);
+  g.rotate(Math.PI / 2);
+  g.drawImage(img, 0, 0);
+  const blob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+  if (!blob) throw new Error('The picture could not be redrawn.');
+  return new Uint8Array(await blob.arrayBuffer());
+}
+
+/**
  * The source that arrived for each path in this window — the platform's
  * thumbnail, or the frame the window drew — so a tile drawn again starts
  * from what worked, without a fade and without asking the platform again.
@@ -1099,9 +1167,16 @@ const ICON = { video: 'video', audio: 'volume', pdf: 'pdf', still: 'picture', 'm
  */
 function Thumb({ file, shell }) {
   const kind = kindOf(file.path);
-  const url = thumbUrl(file.path);
+  const url = freshThumb(file.path);
   const [src, setSrc] = useState(() => arrived.get(file.path) || url);
   const [state, setState] = useState(() => (arrived.has(file.path) ? 'loaded' : 'loading'));
+  // A picture changed here: its tile asked for again.
+  const [asked, setAsked] = useState(url);
+  if (asked !== url) {
+    setAsked(url);
+    setSrc(url);
+    setState('loading');
+  }
   const ref = useRef(null);
   useLayoutEffect(() => {
     // Back in view: the browser still has it, and there is nothing to fade in.
@@ -1276,7 +1351,7 @@ function Stage({ current, shown, kind, failed, playing, zoom, setZoom, rotation,
           <img
             ref={imgRef}
             className={`pv-image${zoom ? ' zoomed' : ''}${frozen ? ' hidden' : ''}`}
-            src={fileUrl(shown)}
+            src={freshUrl(shown)}
             alt={basename(shown)}
             style={{
               transform: `rotate(${rotation}deg)`,
