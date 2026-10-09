@@ -366,3 +366,6 @@ check).
   while it compresses. Opening was taken off in 1.30.0. Edits, layout and
   the XML of a save still run on the main process; the move into a
   `utilityProcess` is still open.
+- Nothing from the review in 1.36.0, which finishes WordArt's warps and
+  its PDF, and adds Define New Multilevel List with lists linked to the
+  heading styles; the document service's move is next.

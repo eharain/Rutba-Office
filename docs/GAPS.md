@@ -147,17 +147,21 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   gives twenty of the warps (the waves, inflate and deflate, slants,
   triangles, chevrons, fades and curves), each letter stretched between
   the warp's two curves; since 1.34.0 thirty, with Square, the poured
-  arches, cans, rings, cascades and Stop. Still to build: the poured
-  Circle and Button, Fade: Up and Down and the deflate-inflate pairs,
-  drawn straight; the handles, kept from the file but neither drawn nor
-  dragged here; and a Documents PDF, which draws a transformed box's words
-  straight. Asked for 2026-10-08.
+  arches, cans, rings, cascades and Stop; since 1.36.0 all thirty-six,
+  with Fade: Up and Down, the deflate-inflate pairs and the poured Circle
+  and Button, and a Documents PDF writes a transformed box's words a
+  letter at a time as the page draws them. Still to build: the handles,
+  kept from the file but neither drawn nor dragged here. Asked for
+  2026-10-08.
 - **Multilevel list definitions.** Since 1.34.0 Home → Multilevel List is
   Word's gallery of list libraries (1. 1.1. 1.1.1., 1) a) i), I. A. 1.,
   Article I. with Section 1.01, and the bullets), legal levels and zero
-  padding labelled as Word labels them; Define New Multilevel List, a list
-  of one's own level by level, and lists linked to the heading styles are
-  not built. (A picture watermark arrived in
+  padding labelled as Word labels them. Since 1.36.0 Define New Multilevel
+  List makes a list of one's own level by level, and a level can be linked
+  to a heading style, every heading of that style numbered by it. Still to
+  build: Word's More options (a level's font, the tab after the number,
+  restarting after a level), and changing a list already defined.
+  (A picture watermark arrived in
   1.32.0: Design → Watermark → Picture watermark, washed out behind every
   page, written in the header as Word writes one.) (Paragraph shading and borders, and the page colour, are
   written from the ribbon since 2026-09-21, and printed.)
@@ -303,9 +307,10 @@ document and workbook writers.
   edited line dropped them), and the box's own anchor, text direction
   and columns are written from the same tab. WordArt's run look is written,
   and since 1.31.0 its Transform's arcs, circle and button are drawn and
-  written from Shape Format, and since 1.32.0 twenty of the warps; the rest
-  of the gallery is still drawn straight (see Documents, "WordArt's shapes"; the same drawing serves all
-  three apps, since the preset lives on the shared text body).
+  written from Shape Format, since 1.32.0 twenty of the warps, and since
+  1.36.0 the whole gallery (see Documents, "WordArt's shapes"; the same
+  drawing serves all three apps, since the preset lives on the shared text
+  body).
 - **What can be put on a slide**: a table and a chart are read and drawn —
   a table in its table style since 1.29.5 (its header, bands, borders and
   first and last rows and columns, which Table Design turns on and off since
