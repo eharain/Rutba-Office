@@ -150,3 +150,30 @@ test('A wrong password is refused with why; removing an account takes away the c
     await server.close();
   }
 });
+
+test('A sync asked for while one runs runs again after it, so an event made in between still goes to the server', async () => {
+  const server = await startDavServer();
+  const { calendar, dav } = setup();
+  try {
+    const added = await dav.add({ url: server.url, user: 'ann', password: 'secret' });
+    const cal = calendar.calendars().find((c) => c.account === added.id);
+    // One sync under way, held while it sends an event made before it; a
+    // second event made while it is held; Sync pressed twice.
+    calendar.save({ calendarId: cal.id, event: { summary: 'Made before', start: dateTimeAt(Date.UTC(2026, 9, 15, 8)), end: dateTimeAt(Date.UTC(2026, 9, 15, 9)) } });
+    const release = server.pause('PUT');
+    const first = dav.sync();
+    for (let i = 0; i < 200 && !server.held; i++) await new Promise((r) => setTimeout(r, 5));
+    assert.ok(server.held, 'the first sync is sending');
+    calendar.save({ calendarId: cal.id, event: { summary: 'Made mid-sync', start: dateTimeAt(Date.UTC(2026, 9, 15, 9)), end: dateTimeAt(Date.UTC(2026, 9, 15, 10)) } });
+    const later = Promise.all([dav.sync(), dav.sync()]);
+    release();
+    await first;
+    const [second, third] = await later;
+    const items = [...server.collections.get(server.calendarPath('work')).items.values()].map((i) => i.data);
+    assert.ok(items.some((d) => d.includes('SUMMARY:Made mid-sync')), 'on the server after the second press');
+    assert.equal(second.length, 1);
+    assert.equal(third.length, 1);
+  } finally {
+    await server.close();
+  }
+});

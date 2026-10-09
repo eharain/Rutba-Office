@@ -79,12 +79,16 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
     const done = { sent: 0, received: 0, removed: 0, conflicts: 0 };
     const href = c.remote.href;
     const refetch = new Set();
-    for (const d of c.deleted || []) {
+    // What is queued now is what this sync sends; anything queued while it
+    // runs (an event made or removed meanwhile) is left for the next.
+    const removing = [...(c.deleted || [])];
+    for (const d of removing) {
       try { await client.remove(d.href, d.etag); done.sent += 1; } catch (err) { if (!err.conflict) throw err; done.conflicts += 1; refetch.add(d.href); }
     }
-    c.deleted = [];
+    c.deleted = (c.deleted || []).filter((d) => !removing.includes(d));
     const failed = [];
-    for (const uid of c.dirty || []) {
+    const sending = [...(c.dirty || [])];
+    for (const uid of sending) {
       const events = c.events.filter((e) => e.uid === uid);
       if (!events.length) continue;
       const at = events.find((e) => e.remote?.href)?.remote || null;
@@ -98,7 +102,7 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
         if (err.conflict) { done.conflicts += 1; refetch.add(target); } else failed.push(uid);
       }
     }
-    c.dirty = failed;
+    c.dirty = [...new Set([...failed, ...(c.dirty || []).filter((u) => !sending.includes(u))])];
     const tag = await client.ctag(href);
     if (tag && tag === c.remote.ctag && !refetch.size && !done.sent) return done;
     const server = await client.etags(href, 'caldav');
@@ -130,12 +134,14 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
     const done = { sent: 0, received: 0, removed: 0, conflicts: 0 };
     const refetch = new Set();
     const mine = (d) => d.book === book.id;
-    for (const d of (state.deleted || []).filter(mine)) {
+    const removing = (state.deleted || []).filter(mine);
+    for (const d of removing) {
       try { await client.remove(d.href, d.etag); done.sent += 1; } catch (err) { if (!err.conflict) throw err; done.conflicts += 1; refetch.add(d.href); }
     }
-    state.deleted = (state.deleted || []).filter((d) => !mine(d));
+    state.deleted = (state.deleted || []).filter((d) => !removing.includes(d));
     const failed = [];
-    for (const id of state.dirty || []) {
+    const sending = [...(state.dirty || [])];
+    for (const id of sending) {
       const c = state.contacts.find((x) => x.id === id);
       if (!c) continue;
       if (c.book !== book.id) { if (c.book) failed.push(id); continue; }
@@ -150,7 +156,7 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
         if (err.conflict) { done.conflicts += 1; refetch.add(target); } else failed.push(id);
       }
     }
-    state.dirty = failed;
+    state.dirty = [...new Set([...failed, ...(state.dirty || []).filter((id) => !sending.includes(id))])];
     const tag = await client.ctag(book.href);
     if (tag && tag === book.ctag && !refetch.size && !done.sent) return done;
     const server = await client.etags(book.href, 'carddav');
@@ -202,7 +208,13 @@ export function createDavService({ stores, calendar, contacts, broadcast = null,
   async function sync({ id = null } = {}) {
     const out = [];
     for (const acc of read().filter((a) => !id || a.id === id)) {
-      if (running.has(acc.id)) { out.push({ id: acc.id, ...(await running.get(acc.id)) }); continue; }
+      if (running.has(acc.id)) {
+        // A sync asked for while one runs can be for a change that one began
+        // too soon to see (an event made a moment ago): it waits for it, then
+        // runs once more, a run that later asks share.
+        await running.get(acc.id);
+        if (running.has(acc.id)) { out.push({ id: acc.id, ...(await running.get(acc.id)) }); continue; }
+      }
       const job = (async () => {
         try {
           const totals = await syncAccount(acc);

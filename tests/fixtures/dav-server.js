@@ -21,6 +21,8 @@ export async function startDavServer({ user = 'ann', password = 'secret', calend
   for (const c of calendars) collections.set(`${home.cal}${c.slug}/`, { kind: 'cal', name: c.name, colour: c.colour || null, ctag: 1, items: new Map() });
   for (const b of books) collections.set(`${home.card}${b.slug}/`, { kind: 'card', name: b.name, ctag: 1, items: new Map() });
   const log = [];
+  // Requests of a method held until released, to catch a client mid-sync.
+  const held = { method: null, gate: null, release: null, waiting: 0 };
 
   const etag = () => `"${crypto.randomUUID().slice(0, 8)}"`;
   const collectionOf = (path) => collections.get(path.replace(/[^/]*$/, ''));
@@ -31,6 +33,7 @@ export async function startDavServer({ user = 'ann', password = 'secret', calend
   const server = http.createServer(async (req, res) => {
     const body = await new Promise((resolve) => { let s = ''; req.on('data', (d) => { s += d; }); req.on('end', () => resolve(s)); });
     const path = decodeURI(new URL(req.url, 'http://x').pathname);
+    if (held.gate && req.method === held.method) { held.waiting += 1; await held.gate; }
     log.push({ method: req.method, path });
     const send = (status, text = '', headers = {}) => { res.writeHead(status, headers); res.end(text); };
     const expected = `Basic ${Buffer.from(`${user}:${password}`).toString('base64')}`;
@@ -109,6 +112,15 @@ export async function startDavServer({ user = 'ann', password = 'secret', calend
       return tag;
     },
     remove(path) { const c = collectionOf(path); c.items.delete(path); c.ctag += 1; },
+    /** Hold every request of `method` until the release this returns is called. */
+    pause(method) {
+      held.method = method;
+      held.waiting = 0;
+      held.gate = new Promise((resolve) => { held.release = resolve; });
+      return () => { const release = held.release; held.gate = null; release(); };
+    },
+    /** How many requests are being held. */
+    get held() { return held.waiting; },
     close: () => new Promise((resolve) => server.close(resolve)),
   };
 }
