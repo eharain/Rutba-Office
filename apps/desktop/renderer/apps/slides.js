@@ -1028,6 +1028,7 @@ export default function Slides({ app, shell, boot }) {
   // the animations play and the timings count, and a kiosk that takes no
   // clicks.
   const showSet = model?.showSettings || {};
+  const queuedNext = useRef(0);
   const inShow = (i) => !showSet.range || (i >= showSet.range.from - 1 && i <= showSet.range.to - 1);
   /** The next shown slide in the show's range, or `from` at its end (the first again when it loops). */
   const nextInShow = (from, delta) => {
@@ -1053,7 +1054,9 @@ export default function Slides({ app, shell, boot }) {
   /** A click, a space or an arrow: the next animation on this slide, or the next slide. A press while something moves finishes it. */
   const showNext = () => {
     if (showControl.current?.finish()) return;
-    if (model?.slide?.index !== index) return;
+    // The slide not here yet: the press is kept, and carried out when it
+    // arrives (below), so pressing quickly through a show loses nothing.
+    if (model?.slide?.index !== index) { queuedNext.current += 1; return; }
     if (stepHere() < clicksHere()) return goShow(index, stepHere() + 1);
     const next = nextInShow(index, 1);
     // Without animation, each slide arrives fully built.
@@ -1066,6 +1069,13 @@ export default function Slides({ app, shell, boot }) {
     const prev = nextInShow(index, -1);
     if (prev !== index) goShow(prev, 9999);
   };
+  // A press kept for a slide that had not arrived, one carried out as each does.
+  useEffect(() => {
+    if (!present) { queuedNext.current = 0; return; }
+    if (!queuedNext.current || model?.slide?.index !== index) return;
+    queuedNext.current -= 1;
+    showNext();
+  }, [present, model, index]); // eslint-disable-line react-hooks/exhaustive-deps
   const showKeys = useRef({ next: () => {}, prev: () => {}, auto: () => {} });
   // A kiosk is advanced by its timings only: a click or a key does nothing
   // but Escape, so a visitor cannot walk the show off its loop.
