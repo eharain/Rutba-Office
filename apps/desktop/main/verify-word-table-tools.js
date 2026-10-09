@@ -442,7 +442,8 @@ export async function verifyWordTableTools(h, { dir }) {
     await js(`document.querySelector('.pf-prompt-ok.wd-formula-input').click(), 'ok'`);
     const formulaCell = () => model().blocks.find((b) => /:r1:c0$/.test(b.container || ''));
     await until(() => formulaCell()?.text === '240', 'the formula worked out', 5000).catch(() => {});
-    const drawn = await js(`Boolean(${cell('240')})`);
+    // The page redraws a moment after the model has the answer.
+    const drawn = await until(() => js(`Boolean(${cell('240')})`), 'the answer drawn', 4000).then(() => true).catch(() => false);
     check('word: Formula → Your own formula… works out =B2*2 in the caret\'s cell and draws it', formulaCell()?.text === '240' && drawn, `${formulaCell()?.text} drawn ${drawn}`);
     await pick('Formula', 'Update all formulas');
     await until(() => js(`!document.querySelector('.rw-menu')`), 'the menu closed', 3000).catch(() => {});

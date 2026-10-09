@@ -223,11 +223,14 @@ export async function verifyDeckAnimations(h, { file }) {
 
     // Both taken out from the pane: the tags and the strip's star go, the file goes back to how it was.
     for (let k = 0; k < 2; k++) {
-      await js(`(() => { document.querySelector('.sl-animrow[data-anim="0"]')?.click(); return 1; })()`);
-      await until(() => js(`document.querySelector('.sl-animrow[data-anim="0"]')?.classList.contains('active')`), 'the first row picked', 3000).catch(() => {});
-      await wait(200);
-      await js(`(() => { const b = document.querySelector('.sl-animpane-remove'); if (b && !b.disabled) b.click(); return 1; })()`);
-      await until(() => anims().length === 1 - k, `${1 - k} left`, 4000).catch(() => {});
+      // The pane draws its rows again after each removal: a press that came too soon is made again.
+      for (let tries = 0; tries < 3 && anims().length > 1 - k; tries++) {
+        await js(`(() => { document.querySelector('.sl-animrow[data-anim="0"]')?.click(); return 1; })()`);
+        await until(() => js(`document.querySelector('.sl-animrow[data-anim="0"]')?.classList.contains('active')`), 'the first row picked', 3000).catch(() => {});
+        await wait(200);
+        await js(`(() => { const b = document.querySelector('.sl-animpane-remove'); if (b && !b.disabled) b.click(); return 1; })()`);
+        await until(() => anims().length === 1 - k, `${1 - k} left`, 4000).catch(() => {});
+      }
     }
     const cleared = await until(async () => anims().length === 0 && (await badges()).length === 0 && (await js(`document.querySelectorAll('.sl-animrow').length`)) === 0, 'no animations, no tags, no rows', 4000).catch(() => false);
     const noStar = await until(() => js(`!document.querySelectorAll('.sl-thumb')[0]?.querySelector('.sl-thumb-fx')`), 'the star to go', 4000).catch(() => false);
