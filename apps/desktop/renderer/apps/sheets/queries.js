@@ -94,6 +94,26 @@ export function QueryEditor({ query, preview, listSources = null, onClose, onLoa
     ['Replace Values', () => need() && askFor(`Replace in "${column}"`, [{ key: 'find', label: 'Value to find' }, { key: 'replace', label: 'Replace with' }], (v) => add({ kind: 'replaceValues', column, find: v.find, replace: v.replace }))],
     ['Split Column', (e) => need() && menu.open(e, [['Comma', 'comma'], ['Tab', 'tab'], ['Space', 'space'], ['Semicolon', 'semicolon']].map(([label, delimiter]) => ({ label: `At each ${label.toLowerCase()}`, run: () => add({ kind: 'splitColumn', column, delimiter }) })).concat([{ label: 'At another character…', run: () => askFor(`Split "${column}" at`, [{ key: 'delimiter', label: 'Character' }], (v) => add({ kind: 'splitColumn', column, delimiter: v.delimiter })) }]))],
     ['Format', (e) => need() && menu.open(e, [['Trim', 'trim'], ['UPPERCASE', 'upper'], ['lowercase', 'lower'], ['Capitalise Each Word', 'proper']].map(([label, how]) => ({ label, run: () => add({ kind: 'transformText', column, how }) })))],
+    // Transform → Extract, as Power Query's: part of each cell's text kept.
+    ['Extract', (e) => need() && menu.open(e, [
+      { label: 'First characters…', run: () => askFor(`The first characters of "${column}"`, [{ key: 'count', label: 'How many', value: '3' }], (v) => add({ kind: 'extractText', column, how: 'first', count: Number(v.count) || 0 })) },
+      { label: 'Last characters…', run: () => askFor(`The last characters of "${column}"`, [{ key: 'count', label: 'How many', value: '3' }], (v) => add({ kind: 'extractText', column, how: 'last', count: Number(v.count) || 0 })) },
+      { label: 'Text before delimiter…', run: () => askFor(`The text of "${column}" before`, [{ key: 'delimiter', label: 'Delimiter', value: '-' }], (v) => add({ kind: 'extractText', column, how: 'before', delimiter: v.delimiter })) },
+      { label: 'Text after delimiter…', run: () => askFor(`The text of "${column}" after`, [{ key: 'delimiter', label: 'Delimiter', value: '-' }], (v) => add({ kind: 'extractText', column, how: 'after', delimiter: v.delimiter })) },
+    ])],
+    // Transform → Fill: a blank cell takes the value above it, or below.
+    ['Fill', (e) => need() && menu.open(e, [
+      { label: 'Down', run: () => add({ kind: 'fillDown', columns: [column] }) },
+      { label: 'Up', run: () => add({ kind: 'fillUp', columns: [column] }) },
+    ])],
+    // Transform → Unpivot Other Columns: this column kept; every other column's cells become rows.
+    ['Unpivot Other Columns', () => need() && add({ kind: 'unpivotOthers', columns: [column] })],
+    // Transform → Merge Columns: this column and another joined, with a separator.
+    ['Merge Columns', () => need() && askFor(`Merge "${column}" with`, [
+      { key: 'other', label: 'Column', options: (table?.columns || []).filter((c) => c !== column).map((c) => [c, c]), value: (table?.columns || []).find((c) => c !== column) || '' },
+      { key: 'separator', label: 'Separator', options: [[' ', 'Space'], [', ', 'Comma'], ['-', 'Dash'], ['', 'None']], value: ' ' },
+      { key: 'name', label: 'New column name', value: 'Merged' },
+    ], (v) => add({ kind: 'mergeColumns', columns: [column, v.other], separator: v.separator, name: v.name || 'Merged' }))],
     ['Group By', () => need() && askFor(`Group by "${column}"`, [{ key: 'fn', label: 'Operation', options: AGGREGATES, value: 'count' }, { key: 'of', label: 'Of column', options: (table?.columns || []).map((c) => [c, c]), value: (table?.columns || []).find((c) => c !== column) || column }, { key: 'as', label: 'New column name', value: 'Count' }], (v) => add({ kind: 'groupBy', columns: [column], aggregations: [{ fn: v.fn, column: v.fn === 'count' ? null : v.of, name: v.as || undefined }] }))],
     ['Append Queries', () => (sources.length
       ? askFor('Append the rows of', [{ key: 'with', label: 'Table or query', options: sourceOptions, value: '0' }], (v) => add({ kind: 'appendQuery', with: sources[Number(v.with)].source }))

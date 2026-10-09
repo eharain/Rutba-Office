@@ -280,6 +280,66 @@ export function applyStep(t, step, ctx = {}) {
       if (!t.rows.length) return t;
       return { columns: uniqueNames(t.rows[0].map((v) => (blank(v) ? '' : String(v)))), rows: t.rows.slice(1) };
     }
+    // Fill Down and Fill Up: a blank cell takes the value above it (or below), as a report's merged headings leave them.
+    case 'fillDown':
+    case 'fillUp': {
+      const cols = (s.columns || [s.column]).filter(Boolean).map((c) => indexOf(t, c));
+      const rows = t.rows.map((r) => r.slice());
+      const order = s.kind === 'fillDown' ? rows : rows.slice().reverse();
+      for (const i of cols) {
+        let last = null;
+        for (const r of order) {
+          if (blank(r[i])) { if (last !== null) r[i] = last; } else last = r[i];
+        }
+      }
+      return { ...t, rows };
+    }
+    // Unpivot Other Columns: the columns kept identify a row; every other
+    // column becomes a row of its own, its heading the Attribute and its
+    // cell the Value, a blank cell giving no row, as Power Query unpivots.
+    case 'unpivotOthers': {
+      const keep = (s.columns || [s.column]).filter(Boolean).map((c) => indexOf(t, c));
+      const others = t.columns.map((_, i) => i).filter((i) => !keep.includes(i));
+      const [attr, value] = uniqueNames([...keep.map((i) => t.columns[i]), s.attribute || 'Attribute', s.value || 'Value']).slice(-2);
+      const rows = [];
+      for (const r of t.rows) for (const i of others) if (!blank(r[i])) rows.push([...keep.map((k) => r[k] ?? null), t.columns[i], r[i]]);
+      // The kept columns keep their types; the values are one type only where every column they came from was.
+      const kinds = new Set(others.map((i) => t.types?.[t.columns[i]] || null));
+      const one = kinds.size === 1 ? [...kinds][0] : null;
+      return { columns: [...keep.map((i) => t.columns[i]), attr, value], rows, ...typed({ ...keepTypes(t.types, keep.map((i) => [t.columns[i], t.columns[i]])).types, [attr]: 'text', ...(one ? { [value]: one } : {}) }) };
+    }
+    // Merge Columns: two or more columns joined into one, with a separator, where the first was.
+    case 'mergeColumns': {
+      const cols = (s.columns || []).map((c) => indexOf(t, c));
+      if (cols.length < 2) throw new Error('Merge Columns needs two columns or more');
+      const name = String(s.name || 'Merged').trim() || 'Merged';
+      const sep = s.separator ?? ' ';
+      const at = Math.min(...cols);
+      // The columns as they stand after: the merged one where the first of them was, -1 for it.
+      const order = [];
+      t.columns.forEach((_, i) => { if (i === at) order.push(-1); else if (!cols.includes(i)) order.push(i); });
+      const columns = uniqueNames(order.map((i) => (i < 0 ? name : t.columns[i])));
+      const rows = t.rows.map((r) => order.map((i) => (i < 0 ? cols.map((c) => asText(r[c])).join(sep) : r[i])));
+      const pairs = order.map((i, k) => [i, columns[k]]).filter(([i]) => i >= 0).map(([i, to]) => [t.columns[i], to]);
+      return { columns, rows, ...typed({ ...keepTypes(t.types, pairs).types, [columns[order.indexOf(-1)]]: 'text' }) };
+    }
+    // Extract: the first or last characters of a column's text, or the text before or after a delimiter.
+    case 'extractText': {
+      const i = indexOf(t, s.column);
+      const n = Math.max(0, Math.floor(Number(s.count) || 0));
+      const d = String(s.delimiter ?? '');
+      const pick = {
+        first: (x) => x.slice(0, n),
+        last: (x) => (n ? x.slice(-n) : ''),
+        before: (x) => (d && x.includes(d) ? x.slice(0, x.indexOf(d)) : x),
+        after: (x) => (d && x.includes(d) ? x.slice(x.indexOf(d) + d.length) : ''),
+      }[s.how];
+      if (!pick) throw new Error(`"${s.how}" is not a way to extract text`);
+      if ((s.how === 'before' || s.how === 'after') && !d) throw new Error('Text is extracted before or after something');
+      const types = { ...(t.types || {}) };
+      if (types[t.columns[i]]) types[t.columns[i]] = 'text';
+      return { columns: t.columns, rows: t.rows.map((r) => r.map((v, j) => (j === i ? (blank(v) ? null : pick(asText(v))) : v))), ...typed(types) };
+    }
     default:
       throw new Error(`"${s.kind}" is not a step a query takes`);
   }
@@ -315,6 +375,11 @@ export function describeStep(s) {
     case 'addIndex': return `Index column "${s.name || 'Index'}" added`;
     case 'transformText': return `"${s.column}" ${({ trim: 'trimmed', upper: 'in capitals', lower: 'in small letters', proper: 'in title case' })[s.how]}`;
     case 'promoteHeaders': return 'First row used as headers';
+    case 'fillDown': return `${cols(s.columns || [s.column])} filled down`;
+    case 'fillUp': return `${cols(s.columns || [s.column])} filled up`;
+    case 'unpivotOthers': return `Columns other than ${cols(s.columns || [s.column])} unpivoted`;
+    case 'mergeColumns': return `${cols(s.columns)} merged into "${s.name || 'Merged'}"`;
+    case 'extractText': return `From "${s.column}", ${({ first: `the first ${s.count} characters`, last: `the last ${s.count} characters`, before: `the text before ${JSON.stringify(s.delimiter)}`, after: `the text after ${JSON.stringify(s.delimiter)}` })[s.how] || 'text'} kept`;
     case 'appendQuery': return `Appended ${sourceWords(s.with)}`;
     case 'mergeQueries': return `Merged with ${sourceWords(s.with)} on "${s.on}" = "${s.withOn}"${s.how && s.how !== 'left' ? ` (${({ inner: 'inner', leftAnti: 'left anti', full: 'full outer' })[s.how] || s.how})` : ''}`;
     default: return s.kind;
