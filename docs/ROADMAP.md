@@ -113,7 +113,10 @@ behind.
    a PDF app, OCR and a recorder on this computer, templates, forms, and
    Image and Video taken in three tiers each from crop-and-trim to layers,
    tracks, captions and MP4. Its release-by-release order (1.31 to 1.33)
-   follows items 1 to 5 above and runs beside localisation.
+   follows items 1 to 5 above and runs beside localisation. The two
+   editors and the recorder now have their own plan and a dedicated worker:
+   [STUDIO.md](STUDIO.md), built on `packages/studio`, the renderer brought
+   over from the consumer suite's Studio on 2026-10-09.
 7. **Then new breadth**, each item added to GAPS.md first, built second.
 
 Everything below the line in GAPS.md stays there: macros that run, cloud

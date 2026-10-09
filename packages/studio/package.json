@@ -1,0 +1,32 @@
+{
+  "name": "@rutba/studio",
+  "version": "1.0.0",
+  "license": "AGPL-3.0-or-later",
+  "description": "The studio renderer the Video app's editor, the Image app's advanced editor and the recorder are built on: a layer stack planned, compiled and painted to a canvas a frame at a time, with keyframes, enter and exit ramps, masks, blend modes, adjustment layers, word art, shapes, icons, lists, charts and sound layers, recorded to video or rendered to a still. Browser engine only, no dependencies.",
+  "type": "module",
+  "main": "./src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./host": "./src/host.js",
+    "./image": "./src/image.js",
+    "./toolset": "./src/toolset.js",
+    "./resolve": "./src/resolve.js",
+    "./doc": "./src/doc.js",
+    "./zoom": "./src/zoom.js",
+    "./chart-data": "./src/chart-data.js",
+    "./insert-catalog": "./src/insert-catalog.js",
+    "./capture/media-encode": "./src/capture/media-encode.js",
+    "./capture/audio-edit": "./src/capture/audio-edit.js",
+    "./lib/*": "./src/lib/*.js"
+  },
+  "sideEffects": [
+    "./src/wordart.js",
+    "./src/shapes.js",
+    "./src/adjust.js",
+    "./src/icons.js",
+    "./src/textblock.js",
+    "./src/charts.js",
+    "./src/toolset.js",
+    "./src/host.js"
+  ]
+}
