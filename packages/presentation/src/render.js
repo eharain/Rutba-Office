@@ -15,6 +15,7 @@
 import { wrapText, measureText, lineHeight } from '@rutba/drawing/measure';
 import { buildChart, renderSvg } from '@rutba/drawing';
 import { presetPath } from '@rutba/drawing/presets';
+import { warpedTextSvg, drawnWarp } from '@rutba/drawing/warp';
 import { escapeXml } from '@rutba/office-formats/xml';
 import { patternDef } from './patterns.js';
 import { cameraLook } from './shape3d.js';
@@ -351,6 +352,8 @@ const hasMath = (body) => Boolean(body?.paragraphs?.some((p) => (p.runs || []).s
 
 function textSvg(body, box, opts) {
   if (hasMath(body)) return htmlTextSvg(body, box, opts);
+  // WordArt's Transform: each line along its preset's path.
+  if (body.warp && drawnWarp(body.warp.preset)) return warpSvg(body, box, opts);
   // Words running up or down: laid out in the box turned on its side, then
   // the drawing turned back — PowerPoint's vert270 (up) and vert (down).
   const vert = body.vert === 'vert' || body.vert === 'vert270' ? body.vert : null;
@@ -385,6 +388,35 @@ function textSvg(body, box, opts) {
   }
   const { lines, height, insets } = layoutText(body, box, opts);
   return drawLines(body, box, opts, lines, height, insets);
+}
+
+/**
+ * A text body drawn along its WordArt Transform: laid out without wrapping,
+ * a line to a paragraph, each set along its own path of the preset inside
+ * the box less its insets, each run looking as it does straight.
+ */
+function warpSvg(body, box, opts) {
+  const scale = opts?.scale || 1;
+  const laid = layoutText({ ...body, warp: null, columns: 1 }, { ...box, w: 1e6 }, opts);
+  if (!laid.lines.length) return '';
+  const ins = laid.insets || {};
+  const inner = { x: box.x + (ins.l || 0), y: box.y + (ins.t || 0), w: Math.max(4, box.w - (ins.l || 0) - (ins.r || 0)), h: Math.max(4, box.h - (ins.t || 0) - (ins.b || 0)) };
+  const lines = laid.lines.map((l) => l.segments.map((s) => ({ ...s, size: s.size ? s.size * scale : l.size })));
+  const span = (s) => {
+    const attrs = [];
+    if (s.bold) attrs.push('font-weight="700"');
+    if (s.italic) attrs.push('font-style="italic"');
+    if (s.noFill) attrs.push('fill="none"');
+    else if (s.color) attrs.push(`fill="${s.color}"`);
+    if (s.outline?.color) attrs.push(`stroke="${s.outline.color}" stroke-width="${(Math.max(0.25, Number(s.outline.width) || 1) * (96 / 72) * scale).toFixed(2)}" stroke-linejoin="round"`);
+    if (s.font) attrs.push(`font-family="${fontStack(s.font)}"`);
+    if (s.colorAlpha != null && s.colorAlpha < 1) attrs.push(`fill-opacity="${s.colorAlpha}"`);
+    return attrs.join(' ');
+  };
+  const fx = lines.flat().find((s) => s.textEffects)?.textEffects;
+  const filter = fx && opts?.registerEffects ? opts.registerEffects(fx) : '';
+  const svg = warpedTextSvg({ preset: body.warp.preset, box: inner, lines, span, family: DEFAULT_FONT });
+  return filter ? `<g${filter}>${svg}</g>` : svg;
 }
 
 /** The laid-out lines of one text body, as SVG. */

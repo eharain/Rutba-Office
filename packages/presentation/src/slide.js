@@ -428,8 +428,14 @@ function readTextBody(txBody, theme) {
     paragraphs.push({ ...props, runs, endProps });
   }
   const anchorMap = { t: 'top', ctr: 'middle', b: 'bottom' };
+  // WordArt's Transform: the preset the words are laid along, and its handles.
+  const warpEl = bodyPr ? kids(bodyPr, A('prstTxWarp'))[0] : null;
+  const warp = warpEl?.attrs.prst && warpEl.attrs.prst !== 'textNoShape'
+    ? { preset: warpEl.attrs.prst, adj: Object.fromEntries(kids(kids(warpEl, A('avLst'))[0] || { children: [] }, A('gd')).map((g) => [g.attrs.name, g.attrs.fmla])) }
+    : null;
   return {
     paragraphs,
+    ...(warp ? { warp } : {}),
     // The body's own list style, when it states one — the lowest-but-one
     // layer of what a run without a size, colour or face falls back to.
     levels: lstStyle && kids(lstStyle).length ? readLevels(lstStyle, theme) : null,

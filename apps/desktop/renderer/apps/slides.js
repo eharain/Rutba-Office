@@ -1713,6 +1713,8 @@ export default function Slides({ app, shell, boot }) {
         return;
       }
       case 'recordAudio': setRecordAudioOpen(true); return;
+      // Shape Format → Transform: the selected shape's words along a preset's path.
+      case 'textWarp': if (selected != null) await apply({ op: 'setTextWarp', slide: index, shape: selected, preset: arg === 'textNoShape' ? null : arg }); return;
       case 'exportVideo': setVideoOpen(true); return;
       case 'insertZoom': setZoomOpen(arg); return;
       case 'insertObject': setObjectOpen(true); return;

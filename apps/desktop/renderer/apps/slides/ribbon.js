@@ -10,6 +10,7 @@
 
 import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select, Icon } from '@rutba/office-ui';
+import { WARP_PRESETS } from '@rutba/drawing/warp';
 import { TRANSITION_GALLERY, TRANSITION_OPTIONS, galleryKeyOf, optionOf, describeTransition } from './motion.js';
 import { ANIMATION_GALLERY, EFFECT_MENU, ANIMATION_OPTIONS } from './animate.js';
 import { MODEL_VIEWS } from '@rutba/imaging/model3d';
@@ -215,6 +216,8 @@ export default function SlidesRibbon({
         { id: 'pdf', label: 'PDF' },
         // Table Design, as PowerPoint's: there while a table is selected.
         ...(selectedShapeObj?.kind === 'table' ? [{ id: 'tableDesign', label: 'Table Design' }] : []),
+        // Shape Format, as PowerPoint's: there while a shape with words is selected.
+        ...(selectedShapeObj?.kind === 'shape' && selectedShapeObj?.text && !selectedShapeObj?.cameo ? [{ id: 'shapeFormat', label: 'Shape Format' }] : []),
         // Camera Format, as PowerPoint's: there while a cameo is selected.
         ...(selectedShapeObj?.cameo ? [{ id: 'cameraFormat', label: 'Camera Format' }] : []),
         // 3D Model, as PowerPoint's: there while a 3D model is selected.
@@ -1066,6 +1069,17 @@ export default function SlidesRibbon({
       })() : null}
 
       {/* ── Camera Format (contextual) ─────────────────────────────────────── */}
+      {/* ── Shape Format (contextual): WordArt's Transform ──────────────── */}
+      {tab === 'shapeFormat' && selectedShapeObj?.kind === 'shape' && selectedShapeObj?.text ? (
+        <>
+          <Group label="Text Effects: Transform">
+            {WARP_PRESETS.map((p) => (
+              <Button key={p.id} tall icon="wand" label={p.label} className="sl-warp" data-preset={p.id} pressed={(selectedShapeObj.text.warp?.preset || 'textNoShape') === p.id} title={p.id === 'textNoShape' ? 'No Transform — the words in straight lines' : `Transform — the words along ${p.label === 'Button' ? 'a button: an arc, a line and an arc' : `the ${p.label === 'Circle' ? 'circle' : 'arc'} of the shape`}`} onClick={() => act('textWarp', p.id)} />
+            ))}
+          </Group>
+        </>
+      ) : null}
+
       {tab === 'cameraFormat' && selectedShapeObj?.cameo ? (
         <>
           <Group label="Camera">

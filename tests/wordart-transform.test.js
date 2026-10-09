@@ -1,0 +1,61 @@
+// WordArt's Transform in a deck: a text box's words laid along Arch Up,
+// Arch Down, Circle or Button — written as PowerPoint writes a:prstTxWarp,
+// read back with its handles, drawn along the preset's path with
+// <textPath>, and taken off again.
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { Deck, buildPptx } from '@rutba/presentation';
+import { OoxmlPackage } from '@rutba/ooxml/package';
+import { renderSlide } from '@rutba/presentation/render';
+import { warpPaths, WARP_PRESETS } from '@rutba/drawing/warp';
+
+const deckWithBox = () => {
+  const d = Deck.open(buildPptx({ title: 'Art', slides: [{ layout: 'blank' }] }));
+  const id = d.addTextBox(0, { x: 100, y: 100, w: 400, h: 200, paragraphs: [{ runs: [{ text: 'Rutba Office' }] }] });
+  return { d, id: id?.id ?? id };
+};
+
+test('a Transform is written first in the body properties, read back, and taken off', () => {
+  const { d, id } = deckWithBox();
+  d.setTextWarp(0, id, 'textArchUp');
+  const xml = d.pkg.text(d.slideParts[0].part);
+  assert.match(xml, /<a:bodyPr\b[^>]*><a:prstTxWarp prst="textArchUp"><a:avLst\/><\/a:prstTxWarp>/);
+  const shape = Deck.open(d.save()).slide(0).shapes.find((s) => String(s.id) === String(id));
+  assert.deepEqual(shape.text.warp, { preset: 'textArchUp', adj: {} });
+  d.setTextWarp(0, id, 'textCircle');
+  assert.equal((d.pkg.text(d.slideParts[0].part).match(/prstTxWarp prst=/g) || []).length, 1, 'one preset, replaced');
+  d.setTextWarp(0, id, null);
+  assert.doesNotMatch(d.pkg.text(d.slideParts[0].part), /prstTxWarp/);
+  assert.equal(d.slide(0).shapes.find((s) => String(s.id) === String(id)).text.warp, undefined);
+  assert.throws(() => d.setTextWarp(0, id, '<x/>'), /not a Transform preset/);
+});
+
+test('a PowerPoint Transform with its handles is read', () => {
+  const { d, id } = deckWithBox();
+  d.setTextWarp(0, id, 'textArchDown');
+  // As PowerPoint writes one, with the handle dragged.
+  const part = d.slideParts[0].part;
+  const pkg = OoxmlPackage.read(d.save());
+  pkg.write_(part, pkg.text(part).replace('<a:prstTxWarp prst="textArchDown"><a:avLst/>', '<a:prstTxWarp prst="textArchDown"><a:avLst><a:gd name="adj" fmla="val 21599999"/></a:avLst>'));
+  const shape = Deck.open(pkg.write()).slide(0).shapes.find((s) => String(s.id) === String(id));
+  assert.deepEqual(shape.text.warp, { preset: 'textArchDown', adj: { adj: 'val 21599999' } });
+});
+
+test('the words are drawn along the preset\'s path, centred on it', () => {
+  const { d, id } = deckWithBox();
+  d.setTextWarp(0, id, 'textArchUp');
+  const svg = renderSlide(d.slide(0), {});
+  assert.match(svg, /<path id="(wp[a-z0-9]+)" d="M [\d.]+ [\d.]+ A [\d.]+ [\d.]+ 0 0 1 [\d.]+ [\d.]+" fill="none"\/>/);
+  assert.match(svg, /<textPath href="#wp[a-z0-9]+" startOffset="50\.0%" text-anchor="middle"><tspan[^>]*>Rutba Office<\/tspan><\/textPath>/);
+  d.setTextWarp(0, id, 'textCircle');
+  assert.match(renderSlide(d.slide(0), {}), /textLength="[\d.]+" lengthAdjust="spacing"/, 'round a circle the letters are spaced out to go the whole way');
+});
+
+test('each preset\'s paths: one arc, one circle, three lines for the button', () => {
+  const box = { x: 0, y: 0, w: 200, h: 100 };
+  assert.equal(warpPaths('textArchUp', box).length, 1);
+  assert.equal(warpPaths('textCircle', box)[0].length > warpPaths('textArchUp', box)[0].length * 1.9, true);
+  assert.equal(warpPaths('textButton', box).length, 3);
+  assert.deepEqual(warpPaths('textWave1', box), [], 'not drawn yet: straight');
+  assert.deepEqual(WARP_PRESETS.map((p) => p.id), ['textNoShape', 'textArchUp', 'textArchDown', 'textCircle', 'textButton']);
+});

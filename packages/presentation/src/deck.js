@@ -1416,6 +1416,33 @@ export class Deck {
     return true;
   }
 
+  /**
+   * Shape Format → Text Effects → Transform: the words laid along a preset
+   * path — Arch Up, Arch Down, Circle, Button — written as PowerPoint
+   * writes it, `a:prstTxWarp` first in the text body's properties; null or
+   * 'textNoShape' takes it off, the words straight again.
+   */
+  setTextWarp(slideIndex, shapeId, preset) {
+    if (preset != null && !/^text[A-Z][A-Za-z]+$/.test(String(preset))) throw new Error('That is not a Transform preset');
+    const part = this.#partOf(slideIndex);
+    if (!part) throw new RangeError(`no slide at index ${slideIndex}`);
+    const xml = this.pkg.text(part);
+    const range = this.#shapeRange(xml, shapeId);
+    if (!range) throw new Error(`shape ${shapeId} not found on slide ${slideIndex + 1}`);
+    let shapeXml = xml.slice(range.start, range.end);
+    if (!/<p:txBody>/.test(shapeXml)) throw new Error('That shape has no words to transform');
+    if (!/<a:bodyPr\b/.test(shapeXml)) shapeXml = shapeXml.replace('<p:txBody>', '<p:txBody><a:bodyPr/>');
+    // Open a self-closing bodyPr, and take any preset it had off.
+    shapeXml = shapeXml.replace(/<a:bodyPr\b([^>]*?)\/>/, (m, attrs) => `<a:bodyPr${attrs}></a:bodyPr>`);
+    shapeXml = shapeXml.replace(/<a:prstTxWarp\b[^>]*\/>|<a:prstTxWarp\b[^>]*>[\s\S]*?<\/a:prstTxWarp>/, '');
+    if (preset && preset !== 'textNoShape') {
+      shapeXml = shapeXml.replace(/(<a:bodyPr\b[^>]*>)/, (m) => `${m}<a:prstTxWarp prst="${preset}"><a:avLst/></a:prstTxWarp>`);
+    }
+    shapeXml = shapeXml.replace(/<a:bodyPr\b([^>]*)><\/a:bodyPr>/, (m, attrs) => `<a:bodyPr${attrs}/>`);
+    this.#writeSlide(part, xml.slice(0, range.start) + shapeXml + xml.slice(range.end));
+    return true;
+  }
+
   /** Remove a shape from a slide. */
   removeShape(slideIndex, shapeId) {
     const part = this.#partOf(slideIndex);

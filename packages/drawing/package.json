@@ -22,7 +22,8 @@
     "./measure": "./src/measure.js",
     "./glyphs": "./src/glyphs.js",
     "./presets": "./src/presets.js",
-    "./table-look": "./src/table-look.js"
+    "./table-look": "./src/table-look.js",
+    "./warp": "./src/warp.js"
   },
   "files": [
     "src",

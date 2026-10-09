@@ -1864,7 +1864,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
               // a title's real size rather than the ribbon's own default.
               textDefaults: s.textStyle?.[0] ? { size: s.textStyle[0].size ?? null, font: s.textStyle[0].font ?? null, color: s.textStyle[0].color ?? null, bold: s.textStyle[0].bold ?? null, italic: s.textStyle[0].italic ?? null, align: s.textStyle[0].align ?? null, rtl: s.textStyle[0].rtl ?? null } : null,
               text: (s.text || s.inheritedText)
-                ? { paragraphs: (s.text || s.inheritedText).paragraphs.map((p) => ({ ...p, plain: p.runs.map((r) => r.text).join('') })), anchor: (s.text || s.inheritedText).anchor || 'top', vert: (s.text || s.inheritedText).vert || 'horz', columns: (s.text || s.inheritedText).columns || 1 }
+                ? { paragraphs: (s.text || s.inheritedText).paragraphs.map((p) => ({ ...p, plain: p.runs.map((r) => r.text).join('') })), anchor: (s.text || s.inheritedText).anchor || 'top', vert: (s.text || s.inheritedText).vert || 'horz', columns: (s.text || s.inheritedText).columns || 1, warp: (s.text || s.inheritedText).warp ?? null }
                 : null,
               // A table's rows and columns, plain data: each cell's words
               // the way a text box's are, and its box in slide pixels so the
@@ -2378,6 +2378,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     addPicture: (d, a) => d.addPicture(a.slide, picturePlacement(d, a)),
     // Insert → Cameo, and Camera Format → Camera Shape.
     addCameo: (d, a) => d.addCameo(a.slide, { shape: a.shape || 'rect' }),
+    // Shape Format → Text Effects → Transform: the words along a preset's path, or straight again.
+    setTextWarp: (d, a) => d.setTextWarp(a.slide, a.shape, a.preset ?? null),
     setCameoShape: (d, a) => d.setCameoShape(a.slide, a.shape, a.preset),
     // Insert → 3D Models: the model and the picture the window drew of it, placed as a picture is.
     addModel3d: (d, a) => {
