@@ -169,6 +169,9 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     devtools: (_p, win) => void win?.webContents.toggleDevTools(),
   };
 
+  // The scratch files `temp` made in this run: the only ones `append` and `dropTemp` touch.
+  const temps = new Set();
+
   impl.fs = {
     read: async ({ path: p }) => {
       const bytes = await fsp.readFile(p);
@@ -234,7 +237,20 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
       const dir = await fsp.mkdtemp(path.join(app.getPath('temp'), 'rutba-office-'));
       const p = path.join(dir, `scratch${ext.startsWith('.') || !ext ? ext : `.${ext}`}`);
       if (bytes) await fsp.writeFile(p, Buffer.from(bytes));
+      temps.add(p);
       return { path: p };
+    },
+    // A scratch file written a piece at a time — a screen recording as it is
+    // made — so no one message carries the whole; only one `temp` made.
+    append: async ({ path: p, bytes }) => {
+      if (!temps.has(p)) throw new Error('Only a scratch file made in this run is added to.');
+      await fsp.appendFile(p, Buffer.from(bytes));
+      return { size: (await fsp.stat(p)).size };
+    },
+    dropTemp: async ({ path: p }) => {
+      if (!temps.delete(p)) return;
+      await fsp.rm(p, { force: true });
+      await fsp.rmdir(path.dirname(p)).catch(() => {});
     },
   };
 

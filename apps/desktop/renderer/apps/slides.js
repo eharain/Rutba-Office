@@ -33,7 +33,7 @@ import { ActionDialog, ACTION_CSS } from './slides/action.js';
 import { PhotoAlbumDialog, ALBUM_CSS } from './slides/album.js';
 import { CustomShowsDialog, CUSTOM_SHOWS_CSS } from './slides/custom-shows.js';
 import { HandoutSlots, HANDOUT_CSS } from './slides/handout.js';
-import { StageMedia, MEDIA_CSS, MEDIA_FILES, posterFrame } from './slides/media.js';
+import { StageMedia, MEDIA_CSS, MEDIA_FILES, posterFrame, fileSrc } from './slides/media.js';
 import { ScreenRecorder, SCREENREC_CSS } from './slides/screen-record.js';
 import { soundWav, soundFile } from './slides/sounds.js';
 import { NarrationRecorder, RecordingBar, RecordAudioDialog, RECORD_CSS } from './slides/record.js';
@@ -528,14 +528,15 @@ export default function Slides({ app, shell, boot }) {
    * video at its own shape (six tenths of the slide at most) with its
    * poster frame, a sound as a speaker — and selected.
    */
-  const placeMedia = useCallback(async ({ kind, bytes, contentType, name }) => {
+  const placeMedia = useCallback(async ({ kind, bytes, path, contentType, name }) => {
     const W = model?.size?.width || 1280;
     const H = model?.size?.height || 720;
     let poster;
     let w = 48;
     let h = 48;
     if (kind === 'video') {
-      const frame = await posterFrame(bytes, contentType);
+      // A recording in a scratch file is drawn from the file; the deck takes the file whole.
+      const frame = await posterFrame(path ? fileSrc(path) : bytes, contentType);
       poster = frame.png;
       const scale = Math.min((W * 0.6) / frame.width, (H * 0.6) / frame.height, 1);
       w = Math.max(32, Math.round(frame.width * scale));
@@ -544,7 +545,7 @@ export default function Slides({ app, shell, boot }) {
     } else {
       poster = await iconPng('volume', '#3b3f46', 192);
     }
-    const next = await apply({ op: 'addMedia', slide: index, kind, data: bytes, contentType, poster, name, x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h });
+    const next = await apply({ op: 'addMedia', slide: index, kind, ...(path ? { path } : { data: bytes }), contentType, poster, name, x: Math.round((W - w) / 2), y: Math.round((H - h) / 2), w, h });
     const added = next?.model?.slide?.shapes?.slice(-1)[0];
     if (added) setSelected(added.id);
   }, [apply, index, model?.size?.width, model?.size?.height, toast]);
@@ -3187,11 +3188,12 @@ export default function Slides({ app, shell, boot }) {
           <style>{SCREENREC_CSS}</style>
           <ScreenRecorder
             source={recSource}
+            shell={shell}
             onCancel={() => setRecSource(null)}
             onError={(message) => toast(message, { ms: 4500 })}
             onDone={async (clip) => {
               setRecSource(null);
-              await placeMedia({ kind: 'video', bytes: clip.bytes, contentType: clip.contentType, name: clip.name });
+              await placeMedia({ kind: 'video', path: clip.path, contentType: clip.contentType, name: clip.name });
             }}
           />
         </>

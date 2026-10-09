@@ -35,14 +35,21 @@ export async function placeholderPoster(width = 1280, height = 720) {
   return { png: await pngOf(canvas), width, height, decoded: false };
 }
 
+/** A local file as the window draws it, over rutba://file. */
+export const fileSrc = (p) => `rutba://file/${btoa(unescape(encodeURIComponent(p))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
+
 /**
  * A video's poster frame: the picture a tenth of the way in (a second at
  * most), at the video's own size, as PNG bytes — or a plain poster when
  * this window cannot decode the video (a .wmv, say), which PowerPoint can.
+ * `source` is the video's bytes, or a URL it is drawn from (a file's).
  */
-export async function posterFrame(bytes, type) {
-  const url = URL.createObjectURL(new Blob([bytes], { type }));
+export async function posterFrame(source, type) {
+  const owned = typeof source !== 'string';
+  const url = owned ? URL.createObjectURL(new Blob([source], { type })) : source;
   const video = document.createElement('video');
+  // A file's picture is read off a canvas: asked for so, it is the window's to read.
+  if (!owned) video.crossOrigin = 'anonymous';
   // The waits' timers are cleared once the frame is taken, so neither holds the video for seconds after.
   const timers = [];
   try {
@@ -70,7 +77,7 @@ export async function posterFrame(bytes, type) {
     video.onloadeddata = video.onerror = video.onseeked = null;
     video.removeAttribute('src');
     video.load();
-    URL.revokeObjectURL(url);
+    if (owned) URL.revokeObjectURL(url);
   }
 }
 

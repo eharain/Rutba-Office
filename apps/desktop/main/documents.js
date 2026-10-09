@@ -2401,7 +2401,16 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     addObject: (d, a) => d.addObject(a.slide, { data: a.data ? Buffer.from(a.data) : (a.ext === 'xlsx' ? TEMPLATES.sheet() : a.ext === 'pptx' ? TEMPLATES.deck() : TEMPLATES.doc()), ext: a.ext, name: a.name, icon: Buffer.from(a.icon), x: a.x, y: a.y, w: a.w, h: a.h }),
     addMedia: (d, a) => {
       const bytes = (v) => (Buffer.isBuffer(v) ? v : v instanceof Uint8Array ? Buffer.from(v) : Buffer.from(String(v ?? ''), 'base64'));
-      return d.addMedia(a.slide, { kind: a.kind, data: bytes(a.data), contentType: a.contentType, poster: { data: bytes(a.poster), contentType: 'image/png' }, name: a.name, x: a.x, y: a.y, w: a.w, h: a.h }).id;
+      // A screen recording comes as the scratch file it was written to, read
+      // here and let go, rather than the whole of it in one message.
+      const scratch = a.path != null ? String(a.path) : null;
+      if (scratch != null && !/[\\/]rutba-office-[^\\/]+[\\/]scratch\.[a-z0-9]+$/i.test(scratch)) throw new Error('Only a scratch file of this suite is taken as a recording.');
+      try {
+        return d.addMedia(a.slide, { kind: a.kind, data: scratch != null ? fs.readFileSync(scratch) : bytes(a.data), contentType: a.contentType, poster: { data: bytes(a.poster), contentType: 'image/png' }, name: a.name, x: a.x, y: a.y, w: a.w, h: a.h }).id;
+      } finally {
+        // The file, then its folder if nothing else is in it.
+        if (scratch != null) { fs.rmSync(scratch, { force: true }); try { fs.rmdirSync(path.dirname(scratch)); } catch { /* not empty, or gone */ } }
+      }
     },
     // A preset shape in the theme's colours; the ribbon picks the preset.
     addShape: (d, a) => d.addShape(a.slide, a),

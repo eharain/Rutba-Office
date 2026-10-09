@@ -61,6 +61,8 @@ export const METHODS = {
     'mkdirp',       // ({ path }) -> void
     'remove',       // ({ path }) -> void        (to the OS trash, never unlink)
     'temp',         // ({ ext, bytes }) -> { path }
+    'append',       // ({ path, bytes }) -> { size } — only to a file `temp` made, in this run
+    'dropTemp',     // ({ path }) -> void — a file `temp` made, and its folder, gone
     'exists',       // ({ path }) -> boolean
   ],
   // Thumbnails are served over rutba://thumb; a window that drew one itself

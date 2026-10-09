@@ -16,14 +16,20 @@ export function recordingType() {
   return 'video/webm';
 }
 
+/** The most of a recording one message carries to its scratch file. */
+const SLICE = 4 * 1024 * 1024;
+
 const clock = (ms) => `${Math.floor(ms / 60000)}:${String(Math.floor((ms / 1000) % 60)).padStart(2, '0')}`;
 
 /**
- * Records `source` (from capture.sources) on mount. `onDone({ bytes,
- * contentType, name })` when Stop is pressed; `onCancel()` when Cancel is,
- * or when the source cannot be recorded (`onError(message)` first).
+ * Records `source` (from capture.sources) on mount, into a scratch file half
+ * a second at a time, so the window holds none of it and no one message
+ * carries the whole. `onDone({ path, contentType, name })` when Stop is
+ * pressed, the recording in the file at `path`; `onCancel()` when Cancel
+ * is, the file gone, or when the source cannot be recorded (`onError(message)`
+ * first).
  */
-export function ScreenRecorder({ source, onDone, onCancel, onError }) {
+export function ScreenRecorder({ source, shell, onDone, onCancel, onError }) {
   const [started, setStarted] = useState(null);
   const [now, setNow] = useState(Date.now());
   const rec = useRef(null);
@@ -40,15 +46,33 @@ export function ScreenRecorder({ source, onDone, onCancel, onError }) {
         });
         if (!live) { stream.getTracks().forEach((t) => t.stop()); return; }
         const type = recordingType();
+        const contentType = type.split(';')[0];
+        const ext = contentType === 'video/mp4' ? 'mp4' : 'webm';
+        const { path } = await shell.fs.temp({ ext });
+        if (!live) { stream.getTracks().forEach((t) => t.stop()); shell.fs.dropTemp({ path }).catch(() => {}); return; }
         const r = new MediaRecorder(stream, { mimeType: type });
-        const parts = [];
-        r.ondataavailable = (e) => { if (e.data?.size) parts.push(e.data); };
+        // Each piece written after the one before, in the order they came, and
+        // four megabytes at a time: a WebM recorder hands one over every half
+        // second, an MP4 one may keep the whole until Stop.
+        let written = Promise.resolve();
+        let failed = null;
+        const put = async (part) => {
+          for (let at = 0; at < part.size && !failed; at += SLICE) await shell.fs.append({ path, bytes: new Uint8Array(await part.slice(at, at + SLICE).arrayBuffer()) });
+        };
+        r.ondataavailable = (e) => {
+          const part = e.data;
+          if (!part?.size) return;
+          written = written.then(() => (failed ? null : put(part))).catch((err) => { failed = err; });
+        };
         r.onstop = async () => {
           stream.getTracks().forEach((t) => t.stop());
-          if (cancelled.current) return;
-          const bytes = new Uint8Array(await new Blob(parts, { type }).arrayBuffer());
-          const contentType = type.split(';')[0];
-          onDone({ bytes, contentType, name: `Screen Recording ${new Date().toLocaleTimeString()}.${contentType === 'video/mp4' ? 'mp4' : 'webm'}` });
+          await written;
+          if (cancelled.current || failed) {
+            shell.fs.dropTemp({ path }).catch(() => {});
+            if (failed && !cancelled.current) { onError?.(`The recording could not be kept: ${failed.message || failed}`); onCancel(); }
+            return;
+          }
+          onDone({ path, contentType, name: `Screen Recording ${new Date().toLocaleTimeString()}.${ext}` });
         };
         r.start(500);
         rec.current = r;

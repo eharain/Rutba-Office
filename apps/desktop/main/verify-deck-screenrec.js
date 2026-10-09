@@ -2,10 +2,12 @@
 // picker lists the other windows (this check's own Documents window among
 // them), the one picked is recorded with a bar along the top showing the
 // time, Stop puts the recording on the slide as a video, and the saved
-// deck keeps it. Only the suite's own windows are named in what this
-// check reports.
+// deck keeps it. The recording goes by a scratch file, written a few
+// megabytes a message, and the file is gone once the deck has it. Only the
+// suite's own windows are named in what this check reports.
 
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { buildDocx } from '@rutba/ooxml/build';
 import { Deck, buildPptx } from '@rutba/presentation';
@@ -17,6 +19,14 @@ export async function verifyDeckScreenRecording(h, { dir }) {
   const { open, check, until, wait, doc } = h;
   const deckFile = path.join(dir, 'rec-host.pptx');
   const docFile = path.join(dir, 'rec-target.docx');
+  const began = Date.now();
+  // The scratch folders made since the check began and still there.
+  const scratchLeft = () => {
+    try {
+      return fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('rutba-office-'))
+        .filter((n) => { try { return fs.statSync(path.join(os.tmpdir(), n)).birthtimeMs >= began - 1000; } catch { return false; } });
+    } catch { return []; }
+  };
   try {
     fs.writeFileSync(deckFile, buildPptx({ title: 'Recording', slides: [{ layout: 'blank' }] }));
     fs.writeFileSync(docFile, buildDocx({ styles: true, paragraphs: [{ text: 'This window is recorded.' }] }));
@@ -39,12 +49,18 @@ export async function verifyDeckScreenRecording(h, { dir }) {
     const recording = await until(() => js(`(() => { const b = document.querySelector('.sl-screenrec-stop'); return Boolean(b) && !b.disabled; })()`), 'the recording to start', 8000).then(() => true).catch(() => false);
     await wait(1600);
     const shown = await js(`document.querySelector('.sl-screenrec-time')?.textContent || ''`);
+    const writing = scratchLeft().length === 1;
     await js(`document.querySelector('.sl-screenrec-stop')?.click(), 1`);
     const placed = await until(() => videos().length === 1, 'the recording on the slide', 15000).then(() => true).catch(() => false);
     const bar = await js(`Boolean(document.querySelector('.sl-screenrec'))`);
+    const left = scratchLeft().length;
+    // Its poster is a picture from the file, not the plain one a window that cannot decode it shows.
+    const pictured = !(await js(`document.body.textContent.includes('cannot show its picture')`));
     check('presentations: Insert → Screen Recording lists the other windows, records the one picked with the time showing, and Stop puts the recording on the slide as a video',
       pressed === 'clicked' && listed && /Screen Recording/.test(title) && recording && /^0:0[1-9]$/.test(shown) && placed && !bar,
       JSON.stringify({ pressed, listed, title, recording, shown, placed, bar }));
+    check('presentations: a screen recording goes to the slide by a scratch file, its poster drawn from the file, and the file is gone once the slide has it',
+      writing && placed && left === 0 && pictured, JSON.stringify({ writing, left, pictured }));
 
     await js(`(() => { [...document.querySelectorAll('.rw-btn')].find((n) => (n.title || n.dataset.tip || '').startsWith('Save'))?.click(); return 1; })()`);
     const saved = await until(() => {
