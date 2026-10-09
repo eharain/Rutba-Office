@@ -85,6 +85,46 @@ export async function verifySheetPointing(h, { dir }) {
     const product = await until(() => valueOf('D1') === '42', 'D1 to hold 6×7', 4000).catch(() => false);
     check('sheets: Enter commits the pointed formula, which calculates', product === true, `D1 ${JSON.stringify(valueOf('D1'))}`);
 
+    // Back to a formula already entered: selecting D1 again and editing it
+    // (F2, then a double-click) boxes its references again, as Excel does.
+    await click('D1');
+    await wait(150);
+    await press(wc, 'F2');
+    await until(async () => (await editor()) === '=A1*A2', 'the F2 edit', 3000).catch(() => {});
+    await wait(200);
+    const againF2 = await boxes();
+    await press(wc, 'Escape');
+    await wait(200);
+    await click('D1');
+    const at = await centre('D1');
+    wc.sendInputEvent({ type: 'mouseDown', x: at.x, y: at.y, button: 'left', clickCount: 2 });
+    wc.sendInputEvent({ type: 'mouseUp', x: at.x, y: at.y, button: 'left', clickCount: 2 });
+    await until(async () => (await editor()) === '=A1*A2', 'the double-click edit', 3000).catch(() => {});
+    await wait(200);
+    const againDbl = await boxes();
+    await press(wc, 'Escape');
+    await wait(200);
+    // And by clicking into the formula bar, before any key: Excel colours the
+    // references and boxes their cells the moment the bar is clicked.
+    await click('D1');
+    await wait(150);
+    const bar = await js(`(() => { const r = document.querySelector('.sh-formula input')?.getBoundingClientRect(); return r ? { x: Math.round(r.left + Math.min(r.width - 4, 120)), y: Math.round(r.top + r.height / 2) } : null; })()`);
+    wc.sendInputEvent({ type: 'mouseDown', x: bar.x, y: bar.y, button: 'left', clickCount: 1 });
+    wc.sendInputEvent({ type: 'mouseUp', x: bar.x, y: bar.y, button: 'left', clickCount: 1 });
+    await until(async () => (await boxes()).length === 2, 'the bar\'s boxes', 3000).catch(() => {});
+    const inBar = await boxes();
+    const barPainted = await js(`[...document.querySelectorAll('.sh-paint-bar .sh-ref-text')].map((s) => s.textContent)`);
+    await click('E8');
+    await wait(250);
+    const afterBar = await boxes();
+    const stillD1 = valueOf('D1');
+    check('sheets: clicking into the formula bar of a formula colours its references and boxes their cells at once, and a click on a cell moves on as before',
+      inBar.map((b) => b.ref).join() === 'A1,A2' && barPainted.join() === 'A1,A2' && afterBar.length === 0 && stillD1 === '42',
+      `bar ${JSON.stringify(inBar)}; painted ${JSON.stringify(barPainted)}; after a click on E8 ${afterBar.length} box(es); D1 ${JSON.stringify(stillD1)}`);
+    check('sheets: editing a formula already entered boxes its references again, by F2 and by a double-click',
+      againF2.map((b) => b.ref).join() === 'A1,A2' && againDbl.map((b) => b.ref).join() === 'A1,A2',
+      `F2 ${JSON.stringify(againF2)}; double-click ${JSON.stringify(againDbl)}`);
+
     // =SUM(B3:B12): a drag from B3 to B12 makes the range.
     await click('D2');
     await type('=SUM(');

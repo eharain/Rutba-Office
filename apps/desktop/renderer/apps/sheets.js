@@ -645,7 +645,13 @@ export default function Sheets({ app, shell, boot }) {
   const typedRef = useRef(false);
   const [caret, setCaret] = useState(null);
   const [pointing, setPointing] = useState(false);
-  const refs = useMemo(() => (draft != null && draft.startsWith('=') ? formulaReferences(draft) : []), [draft]);
+  // The formula bar holding the caret on a formula cell, before anything is
+  // typed: its references are coloured and their cells boxed then too, as
+  // Excel shows them the moment the bar is clicked. They waited for the
+  // first key, so going back to a formula to read it showed none.
+  const [barFocus, setBarFocus] = useState(false);
+  const shownFormula = draft != null ? draft : barFocus ? model?.formulaBar ?? null : null;
+  const refs = useMemo(() => (shownFormula != null && shownFormula.startsWith('=') ? formulaReferences(shownFormula) : []), [shownFormula]);
   const trackCaret = (e) => setCaret(e.target.selectionStart);
   const caretRef = refs.find((r) => caret != null && caret >= r.start && caret <= r.end) || null;
 
@@ -1765,7 +1771,7 @@ export default function Sheets({ app, shell, boot }) {
    * corner marks, and dashed while it is being pointed out.
    */
   const refsNode = () => {
-    if (!editing || !refs.length) return null;
+    if ((!editing && !barFocus) || !refs.length) return null;
     const sheet = String(model.activeSheet ?? '').toLowerCase();
     const box = (range) => {
       const cols = (model.columns || []).filter((c) => c.index >= range.left && c.index <= range.right);
@@ -3286,7 +3292,9 @@ export default function Sheets({ app, shell, boot }) {
             <div className="sh-barbox">
             <Input
               ref={barRef}
-              className={`rw-input${refs.length && (editing || draft != null) ? ' painted' : ''}`}
+              className={`rw-input${refs.length && (editing || draft != null || barFocus) ? ' painted' : ''}`}
+              onFocus={(e) => { setBarFocus(true); trackCaret(e); }}
+              onBlur={() => setBarFocus(false)}
               onSelect={trackCaret}
               onKeyUp={trackCaret}
               onScroll={(e) => followScroll(e.target)}
@@ -3336,7 +3344,7 @@ export default function Sheets({ app, shell, boot }) {
               style={{ flex: 1, border: 0, background: 'transparent' }}
 
             />
-            {refs.length && (editing || draft != null) ? <div className="rw-input sh-paint sh-paint-bar" aria-hidden="true">{paintedText(draft ?? '')}</div> : null}
+            {refs.length && (editing || draft != null || barFocus) ? <div className="rw-input sh-paint sh-paint-bar" aria-hidden="true">{paintedText(shownFormula ?? '')}</div> : null}
             </div>
           </div>
 
