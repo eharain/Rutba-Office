@@ -1112,8 +1112,9 @@ function Thumb({ file, shell }) {
     setState('loaded');
   };
   const onError = () => {
-    if (kind === 'video' && src === url) {
-      frameOf(file.path, (bytes) => shell.thumbs.put({ path: file.path, bytes })).then((frame) => {
+    // The platform had no tile: a clip's frame, or the picture at the tile's size, drawn here.
+    if ((kind === 'video' || kind === 'still' || kind === 'maybe-animated') && src === url) {
+      frameOf(file.path, (bytes) => shell.thumbs.put({ path: file.path, bytes }), kind).then((frame) => {
         if (frame) setSrc(frame);
         else setState('none');
       });

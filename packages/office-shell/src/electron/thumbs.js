@@ -13,8 +13,9 @@
 // caches itself — and keeps it on disk keyed by the file's path, size and
 // modification time, so the second visit to a folder costs a directory read.
 // A window can also hand a thumbnail in (`put`) for a file the system could
-// not do: a WebM on Windows without the codec pack, or anything on Linux,
-// where the window draws a frame of the clip itself.
+// not do: a WebM on Windows without the codec pack, an SVG, or anything on
+// Linux, where the window draws a frame of the clip, or the picture at the
+// tile's size, itself.
 //
 // Requests are answered newest first: the tiles a person is looking at now
 // are the ones that were asked for last, and the ones scrolled past can wait.
@@ -26,6 +27,8 @@ import crypto from 'node:crypto';
 
 export const THUMB_SIZE = 256;
 const QUALITY = 82;
+/** The largest picture shrunk on the main process when the system has no thumbnail; past it the window makes the tile. */
+export const SHRINK_HERE_MAX = 1536 * 1024;
 
 /** The cache file for a path at a size: the same file, unchanged, is the same thumbnail. */
 export function cacheKey(target, { size, mtimeMs, fileSize }) {
@@ -35,8 +38,12 @@ export function cacheKey(target, { size, mtimeMs, fileSize }) {
 /**
  * The system's thumbnail of a file, as JPEG bytes, or null when the system
  * has none for it. Windows and macOS answer for pictures and for the videos
- * they have a codec for; Linux answers for nothing, and a picture is then
- * read and shrunk by Electron's own decoder, which knows PNG and JPEG.
+ * they have a codec for; Linux answers for nothing, and a small PNG or JPEG
+ * is then read and shrunk by Electron's own decoder. A larger one is not:
+ * that decode is the main process's, all at once, and a 40-megapixel
+ * photograph held every window for a second a tile. It is left to the
+ * window, which decodes it off its own thread at the tile's size and hands
+ * the tile in (`put`).
  */
 async function systemThumbnail(target, size) {
   const { nativeImage } = await import('electron');
@@ -49,6 +56,7 @@ async function systemThumbnail(target, size) {
   if (!image || image.isEmpty()) {
     if (!/\.(png|jpe?g|jpe)$/i.test(target)) return null;
     try {
+      if ((await fsp.stat(target)).size > SHRINK_HERE_MAX) return null;
       const whole = nativeImage.createFromPath(target);
       if (whole.isEmpty()) return null;
       const { width, height } = whole.getSize();
