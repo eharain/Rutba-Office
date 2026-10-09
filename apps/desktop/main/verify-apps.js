@@ -595,8 +595,29 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rutba-verify-'));
   const files = makeFixtures(dir);
 
+  // A check reads the documents straight from their thread (doc-host.js),
+  // which can be ahead of a window: the answer to the window's last request
+  // goes out from the main process only once the check gives way, and a
+  // press sent first reached a window still drawing the state before it.
+  // So whatever a check does in a window first lets the main process send
+  // the answers it holds, as they always went out before a check could look
+  // when the documents were worked on in the main process itself.
+  const giveWay = () => new Promise((resolve) => setImmediate(() => setImmediate(resolve)));
+  let waysGiven = false;
+  const answersFirst = (contents) => {
+    if (waysGiven) return;
+    waysGiven = true;
+    const proto = Object.getPrototypeOf(contents);
+    const run = proto.executeJavaScript;
+    proto.executeJavaScript = async function executeJavaScriptAfterAnswers(...args) {
+      await giveWay();
+      return run.apply(this, args);
+    };
+  };
+
   const open = async (app, file) => {
     const win = windows.create({ app, file: file || null });
+    answersFirst(win.webContents);
     // A window that throws during render paints nothing and reports nothing, so
     // every check against it fails with a description of an empty page rather
     // than of the fault. The console is the only place the fault appears.
