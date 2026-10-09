@@ -63,6 +63,7 @@ import { verifyWordTheme } from './verify-word-theme.js';
 import { verifyDeckTrigger } from './verify-deck-trigger.js';
 import { verifySheetWordArtTransform } from './verify-sheet-wordart-transform.js';
 import { verifyWordWordArtTransform } from './verify-word-wordart-transform.js';
+import { verifyWordDefineList } from './verify-word-define-list.js';
 import { verifyPictureTiles } from './verify-picture-tiles.js';
 import { verifyPrintSetup } from './verify-print-setup.js';
 import { verifyPerfWindows } from './verify-perf-windows.js';
@@ -4716,6 +4717,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('trigger')) await verifyDeckTrigger({ open, check, until, wait, doc }, { dir });
     if (only.includes('sheetwordart')) await verifySheetWordArtTransform({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('wordwordart')) await verifyWordWordArtTransform({ open, check, until, wait, press, errorsIn }, { dir });
+    if (only.includes('worddefinelist')) await verifyWordDefineList({ open, check, until, wait, press, errorsIn }, { dir });
     if (only.includes('picturetiles')) await verifyPictureTiles({ open, check, until, wait, errorsIn }, { dir });
     if (only.includes('printsetup')) await verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('perfwindows')) await verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir });
@@ -4985,6 +4987,7 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckTrigger({ open, check, until, wait, doc }, { dir }));
   await block(() => verifySheetWordArtTransform({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyWordWordArtTransform({ open, check, until, wait, press, errorsIn }, { dir }));
+  await block(() => verifyWordDefineList({ open, check, until, wait, press, errorsIn }, { dir }));
   await block(() => verifyPictureTiles({ open, check, until, wait, errorsIn }, { dir }));
   await block(() => verifyPrintSetup({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyPerfWindows({ open, check, until, wait, press, errorsIn }, { dir }));

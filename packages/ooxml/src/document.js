@@ -780,6 +780,29 @@ const libraryAbstract = (id, style) => {
   return xml + '</w:abstractNum>';
 };
 
+/**
+ * A paragraph style put in a list: its `w:numPr` (given whole) set in its
+ * `w:pPr`, after the keeps, the break and the frame as the schema orders
+ * them; a style with no `w:pPr` is given one before its run properties.
+ */
+function withStyleNumPr(stylesXml, styleId, numPr) {
+  const re = new RegExp('(<w:style\\b[^>]*\\bw:styleId="' + esc(styleId).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*>)([\\s\\S]*?)(</w:style>)');
+  return stylesXml.replace(re, (whole, open, inner, close) => {
+    const pPr = /<w:pPr\b[^>]*\/>|<w:pPr\b[^>]*>[\s\S]*?<\/w:pPr>/.exec(inner);
+    if (!pPr) {
+      const rPr = inner.search(/<w:rPr\b|<w:tblPr\b/);
+      const at = rPr >= 0 ? rPr : inner.length;
+      return open + inner.slice(0, at) + '<w:pPr>' + numPr + '</w:pPr>' + inner.slice(at) + close;
+    }
+    let body = pPr[0].endsWith('/>') ? '' : pPr[0].replace(/^<w:pPr\b[^>]*>/, '').replace(/<\/w:pPr>$/, '');
+    body = body.replace(/<w:numPr\b[^>]*\/>|<w:numPr\b[^>]*>[\s\S]*?<\/w:numPr>/, '');
+    let at = 0;
+    for (const m of body.matchAll(/<w:(?:pStyle|keepNext|keepLines|pageBreakBefore|framePr|widowControl)\b[^>]*\/>|<w:framePr\b[^>]*>[\s\S]*?<\/w:framePr>/g)) at = m.index + m[0].length;
+    const rebuilt = '<w:pPr>' + body.slice(0, at) + numPr + body.slice(at) + '</w:pPr>';
+    return open + inner.slice(0, pPr.index) + rebuilt + inner.slice(pPr.index + pPr[0].length) + close;
+  });
+}
+
 /** The list styles Home → Multilevel List offers, by key: Word's own three, then the library's. */
 export const LIST_STYLES = ['bullet', 'number', 'outline', ...Object.keys(LIST_LIBRARY)];
 
@@ -2327,6 +2350,111 @@ export class Document {
    * name, or a new definition and number written for it. Word's own three
    * come from `ensureListNumbering`.
    */
+  /**
+   * The paragraph styles in a list by their own `w:numPr` (or a style they
+   * are based on): style id → `{ numId, level }`, the level the style's own,
+   * else the level that names the style (`w:pStyle` in the definition), as
+   * Word reads a heading linked to a multilevel list.
+   */
+  styleNumbering() {
+    const styles = this.pkg.has('word/styles.xml') ? this.pkg.text('word/styles.xml') : '';
+    const numbering = this.pkg.has('word/numbering.xml') ? this.pkg.text('word/numbering.xml') : '';
+    if (this._styleNumberingFor?.styles === styles && this._styleNumberingFor?.numbering === numbering) return this._styleNumberingMap;
+    const own = {};
+    const based = {};
+    for (const m of styles.matchAll(/<w:style\b([^>]*)>([\s\S]*?)<\/w:style>/g)) {
+      const a = attrs(m[1]);
+      if (a['w:type'] && a['w:type'] !== 'paragraph') continue;
+      const id = a['w:styleId'];
+      if (!id) continue;
+      based[id] = /<w:basedOn\b[^>]*w:val="([^"]*)"/.exec(m[2])?.[1] ?? null;
+      const numPr = /<w:numPr\b[^>]*>([\s\S]*?)<\/w:numPr>/.exec(m[2]);
+      if (!numPr) continue;
+      const numId = /<w:numId\b[^>]*w:val="([^"]*)"/.exec(numPr[1])?.[1];
+      const ilvl = /<w:ilvl\b[^>]*w:val="([^"]*)"/.exec(numPr[1])?.[1];
+      own[id] = { numId: numId ?? null, level: ilvl != null ? Number(ilvl) || 0 : null };
+    }
+    // The level a definition gives a style it names.
+    const named = {};
+    const absOf = {};
+    for (const m of numbering.matchAll(/<w:num\b([^>]*)>([\s\S]*?)<\/w:num>/g)) absOf[attrs(m[1])['w:numId']] = /<w:abstractNumId\b[^>]*w:val="([^"]*)"/.exec(m[2])?.[1];
+    for (const m of numbering.matchAll(/<w:abstractNum\b([^>]*)>([\s\S]*?)<\/w:abstractNum>/g)) {
+      const absId = attrs(m[1])['w:abstractNumId'];
+      for (const lvl of m[2].matchAll(/<w:lvl\b([^>]*)>([\s\S]*?)<\/w:lvl>/g)) {
+        const linked = /<w:pStyle\b[^>]*w:val="([^"]*)"/.exec(lvl[2])?.[1];
+        if (linked) named[absId + '|' + linked] = Number(attrs(lvl[1])['w:ilvl']) || 0;
+      }
+    }
+    const map = {};
+    for (const id of Object.keys(based)) {
+      let at = id;
+      const seen = new Set();
+      while (at && !own[at] && !seen.has(at)) { seen.add(at); at = based[at]; }
+      const found = at ? own[at] : null;
+      if (!found || !found.numId || found.numId === '0') continue;
+      map[id] = { numId: found.numId, level: found.level ?? named[absOf[found.numId] + '|' + id] ?? named[absOf[found.numId] + '|' + at] ?? 0 };
+    }
+    this._styleNumberingFor = { styles, numbering };
+    this._styleNumberingMap = map;
+    return map;
+  }
+
+  /**
+   * Home → Multilevel List → Define New Multilevel List: a list of one's own,
+   * level by level, each `{ format, text, start, legal, indentTw, hangingTw,
+   * style }` — `text` with %1 to %9 for the levels' numbers, `style` a
+   * paragraph style the level is linked to, so every paragraph of that style
+   * (Heading 1, Heading 2) is numbered by it, as Word links a heading to a
+   * list. Written named, as Word names a list; a style is linked to one list
+   * at a time. Returns the new numId.
+   */
+  defineList({ name = null, levels = [] } = {}) {
+    const FORMATS = ['decimal', 'decimalZero', 'lowerLetter', 'upperLetter', 'lowerRoman', 'upperRoman', 'bullet', 'none'];
+    if (!Array.isArray(levels) || !levels.length) throw new Error('A list needs at least one level.');
+    const catalogue = this.paragraphStyles();
+    const given = levels.slice(0, 9).map((l, i) => {
+      const format = l.format ?? 'decimal';
+      if (!FORMATS.includes(format)) throw new Error(`"${format}" is not a number style Word knows.`);
+      const text = String(l.text ?? (format === 'bullet' ? '•' : '%' + (i + 1) + '.'));
+      if (text.length > 60) throw new Error('A level\'s number text is too long.');
+      const start = Math.max(0, Math.min(32767, Math.round(Number(l.start ?? 1))));
+      if (!Number.isFinite(start)) throw new Error('A level starts at a whole number.');
+      const twips = (v, d) => Math.max(0, Math.min(31680, Math.round(Number(v ?? d) || 0)));
+      if (l.style != null && !catalogue[l.style]) throw new Error(`There is no paragraph style "${l.style}" to link a level to.`);
+      return { format, text, start, legal: Boolean(l.legal), indentTw: twips(l.indentTw, 720 * (i + 1)), hangingTw: twips(l.hangingTw, 360), style: l.style ?? null };
+    });
+    const linkedStyles = given.map((l) => l.style).filter(Boolean);
+    if (new Set(linkedStyles).size !== linkedStyles.length) throw new Error('A style can be linked to one level only.');
+    // The rest of the nine levels, as Word fills a list it was given fewer of.
+    const FMT = ['decimal', 'lowerLetter', 'lowerRoman'];
+    for (let i = given.length; i < 9; i++) given.push({ format: FMT[i % 3], text: '%' + (i + 1) + '.', start: 1, legal: false, indentTw: 720 * (i + 1), hangingTw: 360, style: null });
+    const part = 'word/numbering.xml';
+    if (!this.pkg.has(part)) this.ensureListNumbering();
+    // A style moves to the new list: the old lists stop naming it.
+    let xml = this.pkg.text(part);
+    for (const id of linkedStyles) xml = xml.split('<w:pStyle w:val="' + esc(id) + '"/>').join('');
+    const found = this._classifyNumbering(xml);
+    const aId = found.maxAbstract + 1;
+    const nId = found.maxNum + 1;
+    const title = String(name || '').trim() || 'Rutba list ' + nId;
+    let abs = '<w:abstractNum w:abstractNumId="' + aId + '"><w:multiLevelType w:val="multilevel"/><w:name w:val="' + esc(title) + '"/>';
+    given.forEach((l, i) => {
+      abs += '<w:lvl w:ilvl="' + i + '"><w:start w:val="' + l.start + '"/><w:numFmt w:val="' + l.format + '"/>'
+        + (l.style ? '<w:pStyle w:val="' + esc(l.style) + '"/>' : '') + (l.legal ? '<w:isLgl/>' : '')
+        + '<w:lvlText w:val="' + esc(l.text) + '"/><w:lvlJc w:val="left"/>'
+        + '<w:pPr><w:ind w:left="' + l.indentTw + '" w:hanging="' + l.hangingTw + '"/></w:pPr></w:lvl>';
+    });
+    abs += '</w:abstractNum>';
+    this.pkg.write_(part, this._spliceNumbering(xml, abs, numDef(nId, aId)));
+    // Each linked style numbered by the new list, at its level.
+    if (linkedStyles.length) {
+      let styles = this.pkg.text('word/styles.xml');
+      given.forEach((l, i) => { if (l.style) styles = withStyleNumPr(styles, l.style, '<w:numPr>' + (i ? '<w:ilvl w:val="' + i + '"/>' : '') + '<w:numId w:val="' + nId + '"/></w:numPr>'); });
+      this.pkg.write_('word/styles.xml', styles);
+    }
+    return String(nId);
+  }
+
   ensureListDefinition(style) {
     if (!LIST_LIBRARY[style]) {
       const ids = this.ensureListNumbering();
@@ -5354,12 +5482,17 @@ export class Document {
       decor: readParagraphDecor(now ?? ''),
       // A list paragraph names its numbering; the LABEL is computed by the view,
       // because "3." depends on the two list items before it, not on this XML.
+      // A paragraph whose style is linked to a list (a heading numbered
+      // 1, 1.1) is in it by its style; its own numId 0 takes it out.
       numbering: (() => {
         const numPr = /<w:numPr\b[^>]*>([\s\S]*?)<\/w:numPr>/.exec(now ?? '');
-        if (!numPr) return null;
+        const linked = this.styleNumbering()[style ? style[1] : ''] ?? null;
+        if (!numPr) return linked;
         const numId = /<w:numId\b[^>]*w:val="([^"]*)"/.exec(numPr[1]);
         const ilvl = /<w:ilvl\b[^>]*w:val="([^"]*)"/.exec(numPr[1]);
-        return numId ? { numId: numId[1], level: Number(ilvl?.[1] ?? 0) || 0 } : null;
+        if (numId?.[1] === '0') return null;
+        if (!numId) return linked && ilvl ? { ...linked, level: Number(ilvl[1]) || 0 } : linked;
+        return { numId: numId[1], level: Number(ilvl?.[1] ?? 0) || 0 };
       })(),
       images: this._paragraphImages(own),
       // Charts and shapes, RAW — the xml and the box, no interpretation.

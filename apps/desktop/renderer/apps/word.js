@@ -33,6 +33,7 @@ import {
   DateTimeDialog, SymbolDialog, PropertiesDialog, ShortcutsDialog, TrackedDialog, NoteDialog, WatermarkDialog,
   BookmarkDialog, CrossReferenceDialog, CaptionDialog, HyphenationDialog, ManualHyphenationDialog,
 } from './word/dialogs.js';
+import { DefineListDialog } from './word/list-dialog.js';
 import { lineBoxes, rectOf, zoomOf } from './word/pages.js';
 import { MathRun, mathHostOf, EQUATION_CSS, EquationDialog, clipOf, CLIP_TYPE } from './word/equations.js';
 import { useMailings, installMailingsStyles } from './word/mailings.js';
@@ -2762,6 +2763,17 @@ export default function Word({ app, shell, boot }) {
             const at = { block: c.block, offset: c.offset + p };
             await apply({ op: 'setSelection', anchor: at, focus: at }, { op: 'insertText', text: '\u00AD' });
             setManual((m) => (m ? { ...m, after: { block: c.block, offset: c.offset + 1 }, candidate: null } : m));
+          }}
+        />
+      ) : null}
+
+      {dialog === 'defineList' ? (
+        <DefineListDialog
+          styles={(model?.styles || []).filter((s) => s.id !== '*default*')}
+          onClose={() => setDialog(null)}
+          onApply={async (list) => {
+            await apply({ op: 'setParagraphFormat', delta: { list } });
+            setDialog(null);
           }}
         />
       ) : null}

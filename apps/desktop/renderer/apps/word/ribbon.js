@@ -395,6 +395,7 @@ export default function WordRibbon({
                   ...MULTILEVEL.map(([list, label]) => ({ label, icon: 'listNumber', run: () => para({ list }) })),
                   '-',
                   { label: 'None', icon: 'close', run: () => para({ list: null }) },
+                  { label: 'Define New Multilevel List…', icon: 'listNumber', run: () => openDialog('defineList') },
                 ])} />
                 <Separator />
                 <Button icon="chevronLeft" title="Decrease indent" disabled={!format.indentLevel} onClick={() => para({ indentDelta: -1 })} />

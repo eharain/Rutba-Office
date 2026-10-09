@@ -1194,6 +1194,11 @@ export class DocView {
     // While recording, each paragraph's properties before, for its change.
     const meta = this.recording && typeof this.doc.recordParagraphChange === 'function' ? this._trackMeta(null) : null;
     const before = meta ? Array.from({ length: to.block - from.block + 1 }, (_, k) => this.doc.paragraphPPr(from.block + k)) : null;
+    // A list of one's own is defined once, then every paragraph put in it.
+    if (delta.list && typeof delta.list === 'object' && Array.isArray(delta.list.levels)) {
+      if (typeof this.doc.defineList !== 'function') throw new Error('this document backend cannot define a list');
+      delta = { ...delta, list: { numId: this.doc.defineList(delta.list) } };
+    }
 
     for (let i = from.block; i <= to.block; i++) {
       if ('styleId' in delta) {

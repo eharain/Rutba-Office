@@ -339,7 +339,16 @@ export class OoxmlBackend {
     const p = this.doc.editParagraph(index);
     if (!p) throw new Error('no paragraph at index ' + index);
     let numId = null;
-    if (listType != null) {
+    if (listType && typeof listType === 'object') {
+      // A list of one's own, defined already (Define New Multilevel List);
+      // a paragraph whose style is linked to it is numbered by its style, at its level.
+      numId = String(listType.numId);
+      if (this.doc.styleNumbering?.()[p.style ?? '']?.numId === numId) return this._replaceOwnPPr(p, (own) => withNumPr(own, null));
+    } else if (listType == null) {
+      // A heading numbered by its style comes out of the list as Word takes it out: numId 0.
+      const styled = this.doc.styleNumbering?.()[p.style ?? ''];
+      if (styled) return this._replaceOwnPPr(p, (own) => withNumPr(own, 0));
+    } else {
       if (['bullet', 'number', 'outline'].includes(listType)) {
         const ids = this.doc.ensureListNumbering();
         numId = listType === 'bullet' ? ids.bullet : listType === 'outline' ? ids.outline : ids.number;
@@ -349,6 +358,11 @@ export class OoxmlBackend {
       }
     }
     return this._replaceOwnPPr(p, (own) => withNumPr(own, numId));
+  }
+
+  /** Define New Multilevel List: the definition written, its numId back — see `Document.defineList`. */
+  defineList(spec) {
+    return this.doc.defineList(spec);
   }
 
   /**
