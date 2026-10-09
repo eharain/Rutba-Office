@@ -168,6 +168,7 @@ export function TitleBar({ app, title, subtitle, dirty, platform, shell, right, 
 
   return (
     <div className={`rw-titlebar${isMac ? ' mac' : ''}`}>
+      {/* words-ok: the suite's own name */}
       <button type="button" className="rw-appmark interactive rw-btn ghost" onClick={onMenu} title="Rutba Office">
         <span className="glyph">
           <Icon name={app?.icon || 'home'} size={12} />
@@ -304,8 +305,12 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
     const el = groupsRef.current;
     if (!el || !showGroups) return undefined;
     const measure = () => {
-      const left = el.scrollLeft > 2;
-      const right = el.scrollLeft + el.clientWidth < el.scrollWidth - 2;
+      // Right to left, the groups start at the right and scroll to negative offsets.
+      const rtl = getComputedStyle(el).direction === 'rtl';
+      const gone = Math.abs(el.scrollLeft);
+      const rest = gone + el.clientWidth < el.scrollWidth - 2;
+      const left = rtl ? rest : gone > 2;
+      const right = rtl ? gone > 2 : rest;
       setMore((m) => (m.left === left && m.right === right ? m : { left, right }));
     };
     measure();
@@ -325,7 +330,8 @@ export function Ribbon({ tabs, active, onTab, quick, children, collapsed: collap
     const el = groupsRef.current;
     if (!el || el.scrollWidth <= el.clientWidth) return;
     if (Math.abs(e.deltaY) > Math.abs(e.deltaX) && !e.target.closest('select')) {
-      el.scrollLeft += e.deltaY;
+      // The wheel moves on through the groups, whichever way they run.
+      el.scrollLeft += getComputedStyle(el).direction === 'rtl' ? -e.deltaY : e.deltaY;
       e.preventDefault();
     }
   };

@@ -19,4 +19,7 @@
 // under its tag; the window picks it from the system's language, or from
 // the "language" setting when there is one.
 
-export const CATALOGUES = {};
+import ur from './ur.js';
+
+/** Urdu, since 1.38.0: the whole list, its frame right to left (renderer/language.js). */
+export const CATALOGUES = { ur };

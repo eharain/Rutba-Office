@@ -217,6 +217,10 @@ createShell({
       // else — a verdict on the operating system's setting, not the code.
       // `RUTBA_SMOKE_THEME` still asks for the dark captures on purpose.
       stores.settings.set('theme', 'light');
+      // And its words in English, which is what the checks read, whatever the
+      // machine speaks; `RUTBA_LANGUAGE=ur` asks for another on purpose (the
+      // Urdu captures, the Urdu checks).
+      stores.settings.set('language', process.env.RUTBA_LANGUAGE || 'en');
     }
 
     // `--import-accounts=<file>` sets up the accounts in a file before the

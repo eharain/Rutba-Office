@@ -5,11 +5,12 @@
 // no navigation: a window is one app for its whole life, and opening a document
 // of another kind opens another window.
 
+// First: the window's language, settled before any app's words are made.
+import './language.js';
 import React from 'react';
 import { createRoot } from 'react-dom/client';
 import shell, { boot } from '@rutba/office-shell/client';
-import { ThemeProvider, ToastProvider, registerCatalogue, setLanguage } from '@rutba/office-ui';
-import { CATALOGUES } from '@rutba/office-ui/catalogues';
+import { ThemeProvider, ToastProvider } from '@rutba/office-ui';
 import { APPS } from '@rutba/office-formats/registry';
 import '@rutba/office-ui/theme.css';
 import { installLostMouseupGuard } from './lost-mouseup.js';
@@ -57,20 +58,13 @@ function Root() {
   );
 }
 
-// The windows' words in the language chosen in settings, else the system's,
-// from the catalogues there are — English where there is none.
-for (const [tag, messages] of Object.entries(CATALOGUES)) registerCatalogue(tag, messages);
 // A drag whose mouseup is lost — let go outside the window, or the window left mid-drag — still ends.
 installLostMouseupGuard(window);
-const chooseLanguage = (chosen) => {
-  document.documentElement.lang = setLanguage(chosen || navigator.language || 'en');
-};
 
 // The stored theme is read before the first paint so a dark-mode window never
-// flashes white on the way up; the language with it, so no word changes after.
+// flashes white on the way up. (The language is settled earlier: language.js.)
 Promise.all([
   shell.store.get({ key: 'theme', fallback: 'system' }).then((mode) => { window.__rutbaTheme = mode || 'system'; }),
-  shell.store.get({ key: 'language', fallback: null }).then(chooseLanguage, () => chooseLanguage(null)),
 ])
   .catch(() => {})
   .finally(() => {

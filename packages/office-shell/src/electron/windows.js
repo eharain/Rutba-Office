@@ -60,6 +60,10 @@ export function createWindowManager({ stores, preloadPath, iconPath, appIcons = 
   function urlFor({ app: appKey, file, query }) {
     const params = new URLSearchParams({ app: appKey || 'home' });
     if (file) params.set('file', file);
+    // The language chosen in the app menu, which the window settles before
+    // it loads anything (renderer/language.js); none, and it takes the system's.
+    const lang = stores.settings.get('language', null);
+    if (lang) params.set('lang', String(lang));
     for (const [k, v] of Object.entries(query || {})) if (v != null) params.set(k, String(v));
     return `${SCHEME}://app/index.html?${params.toString()}`;
   }

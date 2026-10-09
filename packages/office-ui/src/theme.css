@@ -269,9 +269,9 @@ textarea,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.rw-doctitle .dirty { color: var(--accent); font-weight: 700; margin-left: 5px; }
+.rw-doctitle .dirty { color: var(--accent); font-weight: 700; margin-inline-start: 5px; }
 
-.rw-wincontrols { display: flex; height: 100%; align-items: center; padding-right: 4px; gap: 2px; }
+.rw-wincontrols { display: flex; height: 100%; align-items: center; padding-inline-end: 4px; gap: 2px; }
 .rw-wincontrols button {
   width: 42px;
   height: 30px;
@@ -329,13 +329,13 @@ textarea,
   box-shadow: var(--shadow-1), 0 0 0 1px var(--line-soft);
 }
 
-.rw-quick { display: flex; align-items: center; gap: 1px; margin-left: auto; padding-right: 2px; }
+.rw-quick { display: flex; align-items: center; gap: 1px; margin-inline-start: auto; padding-inline-end: 2px; }
 .rw-quick .rw-btn { color: var(--ink-2); }
 .rw-quick .rw-btn:hover:not(:disabled) { color: var(--ink); }
 
 /* Collapsing: the chevron at the strip's end; a peek floats the groups over the content. */
 .rw-collapse {
-  border: 0; background: transparent; color: var(--ink-3); width: 24px; height: 24px; margin-left: 4px;
+  border: 0; background: transparent; color: var(--ink-3); width: 24px; height: 24px; margin-inline-start: 4px;
   border-radius: var(--r-1); display: grid; place-items: center; cursor: pointer;
 }
 .rw-collapse:hover { background: var(--hover); color: var(--ink); }
@@ -486,13 +486,13 @@ textarea,
 
 .rw-panel {
   background: var(--chrome);
-  border-right: 1px solid var(--line);
+  border-inline-end: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   min-width: 0;
   overflow: hidden;
 }
-.rw-panel.right { border-right: 0; border-left: 1px solid var(--line); }
+.rw-panel.right { border-inline-end: 0; border-inline-start: 1px solid var(--line); }
 .rw-panel-head {
   padding: 10px 12px 8px;
   font-size: 11px;
@@ -516,7 +516,7 @@ textarea,
   color: var(--ink);
   border: 0;
   background: transparent;
-  text-align: left;
+  text-align: start;
   width: 100%;
   min-width: 0;
   transition: background var(--fast);
@@ -683,14 +683,14 @@ textarea,
   color: var(--ink);
   border-radius: var(--r-2);
   font: inherit;
-  text-align: left;
+  text-align: start;
 }
 .rw-menu button:hover:not(:disabled),
 .rw-menu button:focus-visible { background: var(--selected); color: var(--ink); outline: none; }
 .rw-menu button:hover:not(:disabled) svg { color: var(--accent); opacity: 1; }
 .rw-menu button:disabled { color: var(--ink-3); }
 .rw-menu button svg { width: 15px; height: 15px; opacity: 0.75; }
-.rw-menu .key { margin-left: auto; font-size: 11px; color: var(--ink-3); }
+.rw-menu .key { margin-inline-start: auto; font-size: 11px; color: var(--ink-3); }
 .rw-menu-preview { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 28px; flex: none; border-radius: 6px; background: var(--surface-2); }
 .rw-menu hr { border: 0; border-top: 1px solid var(--line-soft); margin: 4px 2px; }
 .rw-menu-head { padding: 7px 10px 3px; font-size: 10.5px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; color: var(--ink-3); }
@@ -787,12 +787,53 @@ textarea,
 :root[data-theme='dark'] .rw-tip { background: #f2f4f7; color: #1e2127; }
 
 /* the zoom slider ---------------------------------------------------------- */
-.rw-zoom { display: flex; align-items: center; gap: 4px; margin-left: 8px; }
+.rw-zoom { display: flex; align-items: center; gap: 4px; margin-inline-start: 8px; }
 .rw-zoom input[type='range'] { width: 108px; height: 4px; accent-color: var(--accent); cursor: pointer; margin: 0 2px; }
 .rw-zoom-step, .rw-zoom-pct {
   border: 0; background: transparent; color: var(--ink-2); font-size: 12px; line-height: 1;
   padding: 3px 5px; border-radius: 5px; cursor: pointer;
 }
 .rw-zoom-step { font-size: 14px; width: 20px; }
-.rw-zoom-pct { min-width: 42px; text-align: right; font-variant-numeric: tabular-nums; }
+.rw-zoom-pct { min-width: 42px; text-align: end; font-variant-numeric: tabular-nums; }
 .rw-zoom-step:hover, .rw-zoom-pct:hover { background: var(--surface-2); color: var(--ink); }
+
+/* ── right to left ──────────────────────────────────────────────────────── */
+/*
+ * A window in a right-to-left language (renderer/language.js sets dir on the
+ * page) mirrors its frame: the ribbon, the panes, the menus and the dialogs
+ * read from the right, and the sides above are start and end for that. A
+ * document's own surface keeps the direction its document gives it — a page
+ * lays its lines as Word does, a grid's columns run A, B, C from the left
+ * unless the sheet says otherwise, a slide is drawn where its shapes stand —
+ * so those surfaces are left to right here, and their paragraphs, sheets and
+ * text boxes turn themselves right to left where the file says so.
+ */
+[dir="rtl"] .wd-scroll,
+[dir="rtl"] .wd-ruler,
+[dir="rtl"] .sh-grid,
+[dir="rtl"] .sl-stage,
+[dir="rtl"] .sh-formula,
+[dir="rtl"] .sh-namebox,
+[dir="rtl"] input[type="number"],
+[dir="rtl"] input[type="url"],
+[dir="rtl"] input[type="email"],
+[dir="rtl"] .sl-thumb-pic {
+  direction: ltr;
+}
+/*
+ * A label takes its direction from its own words: Urdu reads from the right,
+ * while ".00", "Calibri" or "A → Z" keep the order they are written in, not
+ * the order a right-to-left line would put their dots and arrows in.
+ */
+[dir="rtl"] .rw-btn > span,
+[dir="rtl"] .rw-menu button > span,
+[dir="rtl"] .rw-tab,
+[dir="rtl"] .rw-group-label,
+[dir="rtl"] .chip {
+  unicode-bidi: plaintext;
+}
+/* Urdu and Arabic in the frame: Segoe UI's own Arabic letters, then the fonts the system has for them. */
+:root[lang|="ur"], :root[lang|="ar"], :root[lang|="fa"] {
+  --font: "Segoe UI", "Noto Naskh Arabic", "Urdu Typesetting", Tahoma, system-ui, sans-serif;
+  --font-display: "Segoe UI Semibold", "Segoe UI", "Noto Naskh Arabic", Tahoma, system-ui, sans-serif;
+}
