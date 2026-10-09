@@ -59,3 +59,22 @@ test('each preset\'s paths: one arc, one circle, three lines for the button', ()
   assert.deepEqual(warpPaths('textWave1', box), [], 'not drawn yet: straight');
   assert.deepEqual(WARP_PRESETS.map((p) => p.id), ['textNoShape', 'textArchUp', 'textArchDown', 'textCircle', 'textButton']);
 });
+
+test('a sheet shape\'s words take a Transform, drawn along its path and written as Excel writes it', async () => {
+  const { buildXlsx } = await import('@rutba/ooxml/build');
+  const { SheetView } = await import('@rutba/sheet-view');
+  const { buildShape } = await import('@rutba/drawing');
+  const { renderSvg, scene } = await import('@rutba/drawing');
+  const view = SheetView.open(buildXlsx({ sheets: [{ name: 'Sheet1', rows: [['a']] }] }), { viewportWidth: 800, viewportHeight: 400 });
+  view.insertWordArt?.({ text: 'Rutba Office', size: 36 }) ?? view.addWordArt?.({ text: 'Rutba Office' });
+  const shape = view.render().objects.find((o) => o.kind === 'shape');
+  assert.ok(shape?.hasText, 'a WordArt shape with words');
+  view.setShapeWarp({ id: shape.id, preset: 'textArchUp' });
+  assert.equal(view.render().objects.find((o) => o.id === shape.id).textWarp, 'textArchUp');
+  const drawing = OoxmlPackage.read(Buffer.from(view.serialize())).partNames().find((n) => /xl\/drawings\/drawing\d+\.xml$/.test(n));
+  assert.match(OoxmlPackage.read(Buffer.from(view.serialize())).text(drawing), /<a:bodyPr\b[^>]*><a:prstTxWarp prst="textArchUp"><a:avLst\/><\/a:prstTxWarp>/);
+  const svg = renderSvg(scene({ width: 400, height: 200, children: [buildShape({ geometry: 'rect', fill: 'none', text: 'Rutba Office', textSize: 24, textWarp: 'textArchUp' }, { x: 10, y: 10, width: 380, height: 180 })] }));
+  assert.match(svg, /<textPath href="#wp[a-z0-9]+"[^>]*>.*Rutba Office/);
+  view.setShapeWarp({ id: shape.id, preset: null });
+  assert.equal(view.render().objects.find((o) => o.id === shape.id).textWarp, null);
+});

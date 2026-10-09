@@ -9,6 +9,7 @@
 
 import React from 'react';
 import { Ribbon, Group, Rows, Button, Separator, Select } from '@rutba/office-ui';
+import { WARP_PRESETS } from '@rutba/drawing/warp';
 import { catalogByCategory } from '@rutba/formula';
 import { NUMBER_FORMATS } from './dialogs.js';
 import { recentSources } from './queries.js';
@@ -232,6 +233,8 @@ export default function SheetsRibbon({
         { id: 'view', label: 'View' },
         { id: 'automate', label: 'Automate' },
         { id: 'help', label: 'Help' },
+        // Shape Format, as Excel's: there while one shape with words is picked.
+        ...(arrange.picked.length === 1 && arrange.picked[0].kind === 'shape' && arrange.picked[0].hasText ? [{ id: 'shapeFormat', label: 'Shape Format' }] : []),
       ]}
       active={tab}
       onTab={setTab}
@@ -245,6 +248,17 @@ export default function SheetsRibbon({
         </>
       }
     >
+      {/* ── Shape Format (contextual): WordArt's Transform ──────────────── */}
+      {tab === 'shapeFormat' && arrange.picked.length === 1 && arrange.picked[0].hasText ? (
+        <>
+          <Group label="Text Effects: Transform">
+            {WARP_PRESETS.map((p) => (
+              <Button key={p.id} tall icon="wand" label={p.label} className="sh-warp" data-preset={p.id} pressed={(arrange.picked[0].textWarp || 'textNoShape') === p.id} title={p.id === 'textNoShape' ? 'No Transform — the words in straight lines' : `Transform — the words along ${p.label === 'Button' ? 'a button: an arc, a line and an arc' : `the ${p.label === 'Circle' ? 'circle' : 'arc'} of the shape`}`} onClick={() => act('textWarp', { id: arrange.picked[0].id, preset: p.id })} />
+            ))}
+          </Group>
+        </>
+      ) : null}
+
       {/* ── Home ─────────────────────────────────────────────────────────── */}
       {tab === 'home' ? (
         <>

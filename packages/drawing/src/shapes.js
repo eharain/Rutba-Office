@@ -19,6 +19,7 @@ import { group, rect, ellipse, line, polygon, path, text as textNode, roundedBar
 import { theme, seriesColour } from './palette.js';
 import { measureText, wrapText, lineHeight } from './measure.js';
 import { presetPath, PRESET_PATHS } from './presets.js';
+import { warpedTextSvg, drawnWarp } from './warp.js';
 
 /** Presets we draw properly. Everything else becomes a rectangle. */
 export const SUPPORTED_GEOMETRY = [...new Set([
@@ -218,8 +219,16 @@ export function buildShape(descriptor, box, { mode = 'light', palette = null } =
     else children.push(rect({ x, y, width, height, ...paint }));
   }
 
-  // Shape text is centred in the box and wrapped, the way a text box behaves.
-  if (descriptor.text) {
+  // WordArt's Transform: each paragraph along its preset's path.
+  if (descriptor.text && drawnWarp(descriptor.textWarp)) {
+    const size = descriptor.textSize ?? t.font.label + 1;
+    const colour = descriptor.textNoFill ? 'none' : resolveColour(descriptor.textColour, mode, palette) ?? t.ink.surface;
+    const outline = descriptor.textOutline;
+    const lines = String(descriptor.text).split('\n').map((p) => [{ text: p, size, bold: descriptor.textBold, color: colour }]);
+    const span = () => (outline?.color ? `stroke="${outline.color}" stroke-width="${r2(Math.max(0.5, (outline.width || 1) * (96 / 72)))}" stroke-linejoin="round"` : '') + (descriptor.textBold ? ' font-weight="600"' : '');
+    children.push({ type: 'raw', svg: warpedTextSvg({ preset: descriptor.textWarp, box: { x: x + 6, y: y + 4, w: Math.max(8, width - 12), h: Math.max(8, height - 8) }, lines, span, family: t.font.family, color: colour }) });
+  } else if (descriptor.text) {
+    // Shape text is centred in the box and wrapped, the way a text box behaves.
     const size = descriptor.textSize ?? t.font.label + 1;
     const colour = descriptor.textNoFill ? 'none' : resolveColour(descriptor.textColour, mode, palette) ?? t.ink.surface;
     // Each paragraph wrapped on its own; an empty one is an empty line.

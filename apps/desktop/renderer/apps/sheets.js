@@ -2909,6 +2909,8 @@ export default function Sheets({ app, shell, boot }) {
       case 'equation': setDialog({ kind: 'equation', id: null, initial: '' }); return;
       // Insert → WordArt: the words asked for, in the chosen style.
       case 'wordArt': setDialog({ kind: 'words', id: null, initial: 'Your text here', look: arg?.run || {}, title: 'WordArt' }); return;
+      // Shape Format → Transform: the picked shape's words along a preset's path.
+      case 'textWarp': dispatch({ op: 'setShapeWarp', id: arg.id, preset: arg.preset === 'textNoShape' ? null : arg.preset }); return;
       // Insert → SmartArt: the box, then the layout's shapes as one group at the selection.
       case 'smartArt': setDialog('smartart'); return;
       // Page Layout → Print Area: the page setup is rebuilt from what it is

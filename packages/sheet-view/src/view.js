@@ -1490,6 +1490,8 @@ export class SheetView {
       // Selection Pane lists (front first, as Excel's does).
       objects: (this.drawings.get(this.activeSheet) ?? []).map((d) => ({
         id: d.id, kind: d.kind, name: d.kind === 'slicer' ? d.slicerName : d.name, hidden: Boolean(d.hidden), index: d.index,
+        // A shape's words, and the Transform they are laid along, for Shape Format.
+        ...(d.kind === 'shape' ? { hasText: Boolean(d.descriptor?.text), textWarp: d.descriptor?.textWarp ?? null } : {}),
       })),
       // What the toolbar needs: whether the buttons are live and what they say.
       history: this.history.describe(),
@@ -4089,6 +4091,36 @@ export class SheetView {
       this._structuralDirty = true;
     }, { parts, tracksNewParts: true });
     return this;
+  }
+
+  /**
+   * Shape Format → Text Effects → Transform: a shape's words laid along a
+   * preset path — Arch Up, Arch Down, Circle, Button — written as Excel
+   * writes it, `a:prstTxWarp` first in the text body's properties; null or
+   * 'textNoShape' puts them straight again.
+   */
+  setShapeWarp({ id, preset = null } = {}) {
+    if (preset != null && !/^text[A-Z][A-Za-z]+$/.test(String(preset))) throw new Error('That is not a Transform preset');
+    const d = this._drawingById(id);
+    if (d.kind !== 'shape') throw new Error('Only a shape or a text box has words to transform.');
+    if (this.protection().sheet) throw protectionError('This sheet is protected — unprotect it before changing objects.');
+    const withWarp = (xml) => {
+      const sp = /<xdr:sp\b[\s\S]*<\/xdr:sp>/.exec(xml);
+      if (!sp) return xml;
+      const body = /<xdr:txBody>([\s\S]*?)<\/xdr:txBody>/.exec(sp[0]);
+      if (!body) return xml;
+      let inner = body[1];
+      if (!/<a:bodyPr\b/.test(inner)) inner = '<a:bodyPr/>' + inner;
+      inner = inner.replace(/<a:bodyPr\b([^>]*?)\/>/, (m, a) => `<a:bodyPr${a}></a:bodyPr>`);
+      inner = inner.replace(/<a:prstTxWarp\b[^>]*\/>|<a:prstTxWarp\b[^>]*>[\s\S]*?<\/a:prstTxWarp>/, '');
+      if (preset && preset !== 'textNoShape') inner = inner.replace(/(<a:bodyPr\b[^>]*>)/, (m) => `${m}<a:prstTxWarp prst="${preset}"><a:avLst/></a:prstTxWarp>`);
+      inner = inner.replace(/<a:bodyPr\b([^>]*)><\/a:bodyPr>/, (m, a) => `<a:bodyPr${a}/>`);
+      return xml.replace(sp[0], () => sp[0].replace(body[0], () => `<xdr:txBody>${inner}</xdr:txBody>`));
+    };
+    return this._editAnchors('transform', (spans, xml) => ({
+      xml: rebuild(spans, xml, (s, i) => (i === d.index ? withWarp(s.xml) : s.xml)),
+      result: true,
+    }));
   }
 
   /**

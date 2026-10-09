@@ -94,6 +94,10 @@ function renderNode(node, theme) {
         + attr('class', node.class)
         + '>' + esc(node.value) + '</text>';
     }
+    // SVG this package drew itself, its words already escaped: WordArt's
+    // Transform, which a scene of plain nodes has no way to say.
+    case 'raw':
+      return node.svg || '';
     case 'image':
       return '<image' + numAttr('x', node.x) + numAttr('y', node.y)
         + numAttr('width', node.width) + numAttr('height', node.height)

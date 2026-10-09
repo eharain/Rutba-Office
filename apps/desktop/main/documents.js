@@ -1953,6 +1953,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // Insert → SmartArt: the layout's shapes, laid out by the window, as one group at the selection; its id comes back.
     insertDiagram: (v, a) => v.insertDiagram({ name: a.name, shapes: a.shapes || [] }),
     setShapeText: (v, a) => v.setShapeText({ id: a.id, text: a.text }),
+    // Shape Format → Text Effects → Transform: a shape's words along a preset's path, or straight again.
+    setShapeWarp: (v, a) => v.setShapeWarp({ id: a.id, preset: a.preset ?? null }),
     formatBrush: (v) => v.markFormatBrush(),
     paintFormat: (v) => v.paintFormat(),
 

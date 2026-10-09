@@ -88,6 +88,8 @@ function pathId(seed) {
  * in the box; round a circle the letters are spaced out to go all the way.
  */
 export function warpedTextSvg({ preset, box, lines, span, family = 'sans-serif', color = '#1a1a1a' }) {
+  // A family named in quotes ("Segoe UI") goes in an attribute that is itself in double quotes.
+  const face = String(family).replace(/"/g, "'");
   const first = warpPaths(preset, box);
   if (!first.length) return '';
   // More lines than paths: the rest run on along the last path, as one line.
@@ -111,6 +113,10 @@ export function warpedTextSvg({ preset, box, lines, span, family = 'sans-serif',
     const runs = (laid[i] || []).filter((r) => r.text);
     if (!runs.length) return;
     const fit = p.outside ? Math.min(fits[i], scaleFor(runs, p)) : fits[i];
+    // Held back by the box's height, a line fills its share of the path all
+    // the same, its letters drawn wider, as Office's WordArt stretches them.
+    const natural = widthOf(runs) * fit;
+    const stretch = !p.spread && natural < p.length * p.share * 0.9;
     const id = pathId(`${preset}|${p.d}|${i}|${runs.map((r) => r.text).join('')}`);
     const size = (runs[0].size || 18) * fit;
     const spans = runs.map((r) => {
@@ -118,11 +124,11 @@ export function warpedTextSvg({ preset, box, lines, span, family = 'sans-serif',
       const sized = r.size && Math.abs(r.size * fit - size) > 0.01 ? ` font-size="${f(r.size * fit)}"` : '';
       return `<tspan${attrs ? ` ${attrs}` : ''}${sized}>${escape(r.text)}</tspan>`;
     }).join('');
-    const along = p.spread
-      ? `startOffset="${(((1 - p.share) / 2) * 100).toFixed(1)}%" textLength="${f(p.length * p.share)}" lengthAdjust="spacing"`
+    const along = p.spread || stretch
+      ? `startOffset="${(((1 - p.share) / 2) * 100).toFixed(1)}%" textLength="${f(p.length * p.share)}" lengthAdjust="${p.spread ? 'spacing' : 'spacingAndGlyphs'}"`
       : `startOffset="${(p.at * 100).toFixed(1)}%" text-anchor="middle"`;
     out.push(`<defs><path id="${id}" d="${p.d}" fill="none"/></defs>`
-      + `<text font-size="${f(size)}" font-family="${family}" fill="${runs[0].color || color}" xml:space="preserve">`
+      + `<text font-size="${f(size)}" font-family="${face}" fill="${runs[0].color || color}" xml:space="preserve">`
       + `<textPath href="#${id}" ${along}>${spans}</textPath></text>`);
   });
   return out.join('');

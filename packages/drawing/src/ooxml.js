@@ -435,6 +435,13 @@ export function parseShapeXml(spXml) {
     // or shadow round the words — and whether the shape is a text box.
     ...textLook(rPr),
     textBox: /<([\w]+:)?cNvSpPr\b[^>]*\btxBox="1"/.test(spXml),
+    // WordArt's Transform: the preset the words are laid along, if any.
+    textWarp: (() => {
+      const bodyPr = txBody ? firstElement(txBody, 'bodyPr') : null;
+      const warp = bodyPr ? firstElement(bodyPr, 'prstTxWarp') : null;
+      const preset = warp ? attrs(warp).prst : null;
+      return preset && preset !== 'textNoShape' ? preset : null;
+    })(),
 
     // False means we draw a box instead of the real outline. The caller can say
     // so; the part itself is preserved either way.
