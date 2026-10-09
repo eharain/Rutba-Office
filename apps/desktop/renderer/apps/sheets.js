@@ -1030,6 +1030,12 @@ export default function Sheets({ app, shell, boot }) {
         navigate({ op: 'move', direction: arrows[e.key], extend: e.shiftKey, jump: e.ctrlKey || e.metaKey });
         return;
       }
+      // Excel's own: Home to the row's first column, Ctrl+Home to A1, Ctrl+End to the last cell in use; Shift stretches the selection.
+      if (e.key === 'Home' || (e.key === 'End' && (e.ctrlKey || e.metaKey))) {
+        e.preventDefault();
+        navigate({ op: 'homeEnd', to: e.key === 'End' ? 'end' : e.ctrlKey || e.metaKey ? 'start' : 'rowStart', extend: e.shiftKey });
+        return;
+      }
       if (e.key === 'Tab') {
         e.preventDefault();
         navigate({ op: 'tab', back: e.shiftKey });
@@ -1303,6 +1309,44 @@ export default function Sheets({ app, shell, boot }) {
   const colLevels = outline?.cols?.levels || 0;
   const gutW = rowLevels ? (rowLevels + 1) * OUTLINE_LANE + 4 : 0;
   const gutH = colLevels ? (colLevels + 1) * OUTLINE_LANE + 4 : 0;
+
+  /**
+   * The grid follows the active cell, as Excel's does: an arrow, Enter,
+   * Tab, Ctrl+End or Go To that moves it out of sight scrolls the grid to
+   * it. The frame after a move is drawn round the cell, so its row and
+   * column are in it; the grid scrolls the least that shows the cell past
+   * the headings and any frozen panes, and its scroll asks for the frame
+   * there as any scroll does. A click on a cell already in sight moves
+   * nothing.
+   */
+  const followed = useRef(null);
+  const activeRow = model?.selection?.active?.row;
+  const activeCol = model?.selection?.active?.col;
+  useEffect(() => {
+    const el = gridRef.current;
+    if (!el || activeRow == null || activeCol == null || model?.viewMode === 'pageLayout') return;
+    const key = `${model?.sheet}:${activeRow}:${activeCol}`;
+    if (followed.current === key) return;
+    const first = followed.current === null;
+    followed.current = key;
+    // The first frame: where the file left the grid.
+    if (first) return;
+    const row = (model?.rows || []).find((r) => r.index === activeRow);
+    const col = (model?.columns || []).find((c) => c.index === activeCol);
+    const headH = (model?.headerHeight || 0) + gutH;
+    const headW = (model?.headerWidth || 0) + gutW;
+    if (row && activeRow >= (frozen.rows || 0)) {
+      const top = headH + row.y;
+      if (top < el.scrollTop + headH + frozenH) el.scrollTop = Math.max(0, top - headH - frozenH);
+      else if (top + row.height > el.scrollTop + el.clientHeight) el.scrollTop = top + row.height - el.clientHeight;
+    }
+    // Across, left to right only: a sheet that runs right to left scrolls the other way round.
+    if (col && activeCol >= (frozen.cols || 0) && !model?.rtl) {
+      const left = headW + col.x;
+      if (left < el.scrollLeft + headW + frozenW) el.scrollLeft = Math.max(0, left - headW - frozenW);
+      else if (left + col.width > el.scrollLeft + el.clientWidth) el.scrollLeft = left + col.width - el.clientWidth;
+    }
+  }, [activeRow, activeCol, model, gutH, gutW, frozen.rows, frozen.cols, frozenH, frozenW]);
   const lane = (level) => 2.5 + (level - 1) * OUTLINE_LANE + OUTLINE_LANE / 2;
   const headTop = view.headings ? (model?.headerHeight ?? 0) + gutH : 0;
   const headLeft = view.headings ? (model?.headerWidth ?? 0) + gutW : 0;

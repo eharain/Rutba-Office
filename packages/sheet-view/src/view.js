@@ -1742,6 +1742,27 @@ export class SheetView {
     return this;
   }
 
+  /**
+   * Home, Ctrl+Home and Ctrl+End, as Excel's: `to` 'rowStart' goes to the
+   * first column of the active cell's row, 'start' to A1 (or the first cell
+   * past the frozen panes), 'end' to the last row and column in use — the
+   * corner of the used range, which Excel calls the last cell. `extend`
+   * stretches the selection there instead, as Shift does.
+   */
+  homeEnd(to, { extend = false } = {}) {
+    const active = this.selection.active || { row: 0, col: 0 };
+    const frozen = this.frozenPane();
+    const first = { row: frozen?.rows || 0, col: frozen?.cols || 0 };
+    let target;
+    if (to === 'rowStart') target = { row: active.row, col: frozen?.cols && active.col >= frozen.cols ? frozen.cols : 0 };
+    else if (to === 'start') target = first;
+    else if (to === 'end') {
+      const b = this.bounds;
+      target = { row: Math.max(0, b?.maxRow ?? 0), col: Math.max(0, b?.maxCol ?? 0) };
+    } else throw new Error(`"${to}" is not a place Home or End goes to`);
+    return this.select(target.row, target.col, { extend });
+  }
+
   tab(back = false) {
     this.selection.tab(back, { bounds: { maxRow: MAX_ROWS - 1, maxCol: MAX_COLS - 1 } });
     this.ensureVisible();

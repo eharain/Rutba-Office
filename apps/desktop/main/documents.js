@@ -1949,6 +1949,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     selectRow: (v, a) => v.selectRow(a.row, { extend: a.extend, add: a.add }),
     selectColumn: (v, a) => v.selectColumn(a.col, { extend: a.extend, add: a.add }),
     move: (v, a) => v.moveSelection(a.direction, a),
+    // Home, Ctrl+Home and Ctrl+End, Shift stretching the selection there.
+    homeEnd: (v, a) => v.homeEnd(a.to, { extend: Boolean(a.extend) }),
     scrollTo: (v, a) => v.scrollTo(a.x, a.y),
     viewport: (v, a) => {
       v.viewportWidth = a.width;
