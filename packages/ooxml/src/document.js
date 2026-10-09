@@ -2774,7 +2774,7 @@ export class Document {
         fill: fill ?? (vmlFill ? vmlFill[1] : null),
         line: line ? colourOf(line[1], colours) : null,
         ...(line ? { lineWidthPx: Math.round((look.lineWidthPx ?? 1) * 100) / 100 } : {}),
-        ...(body ? { insets: body.insets, vAnchor: body.anchor, vert: body.vert, autoFit: body.autoFit } : {}),
+        ...(body ? { insets: body.insets, vAnchor: body.anchor, vert: body.vert, autoFit: body.autoFit, warp: body.warp } : {}),
         ...(blocks && blocks.length ? { blocks } : {}),
         paragraphs,
       });
@@ -3116,6 +3116,8 @@ export class Document {
    *                       ({ colour, widthPx } or null)
    *   insets, vAnchor, vert, autoFit   a text box's margins, vertical
    *                       alignment, text direction and "resize to fit text"
+   *   warp                WordArt's Transform: a preset ('textArchUp'…) the
+   *                       box's words are laid along, or null for straight
    */
   updateDrawing(id, patch = {}) {
     return this._rewriteDrawing(id, (xml, info) => {
@@ -3155,8 +3157,9 @@ export class Document {
       if (patch.name !== undefined || patch.hidden !== undefined) out = withDocPr(out, { name: patch.name, hidden: patch.hidden });
       if (patch.fill !== undefined) out = withShapeFill(out, patch.fill == null ? null : patch.fill);
       if (patch.line !== undefined) out = withShapeLine(out, patch.line == null ? { none: true } : patch.line);
-      if (patch.insets !== undefined || patch.vAnchor !== undefined || patch.vert !== undefined || patch.autoFit !== undefined) {
-        out = withBodyPr(out, { insets: patch.insets, anchor: patch.vAnchor, vert: patch.vert, autoFit: patch.autoFit });
+      if (patch.insets !== undefined || patch.vAnchor !== undefined || patch.vert !== undefined || patch.autoFit !== undefined || patch.warp !== undefined) {
+        if (patch.warp !== undefined && info.kind !== 'textbox') throw new Error('Only a text box has words to transform.');
+        out = withBodyPr(out, { insets: patch.insets, anchor: patch.vAnchor, vert: patch.vert, autoFit: patch.autoFit, warp: patch.warp });
       }
       return out;
     });
@@ -3599,7 +3602,7 @@ export class Document {
             ...box, kind: 'textbox', id: m.id, name: m.name,
             ...(prst !== 'rect' ? { geom: prst, shapeXml: m.xml.replace(/<wps:txbx\b[\s\S]*?<\/wps:txbx>/, '') } : {}),
             fill: colourOf(spPr.replace(/<a:ln\b[^>]*>[\s\S]*?<\/a:ln>/, ''), colours), line: line ? colourOf(line[1], colours) : null,
-            insets: bodyPr.insets, vAnchor: bodyPr.anchor, vert: bodyPr.vert,
+            insets: bodyPr.insets, vAnchor: bodyPr.anchor, vert: bodyPr.vert, warp: bodyPr.warp,
             paragraphs: this._liteParagraphs(content), ...(blocks && blocks.length ? { blocks } : {}),
           };
         }

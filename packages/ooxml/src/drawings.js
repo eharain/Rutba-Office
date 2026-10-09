@@ -371,11 +371,20 @@ export function readBodyPr(xml) {
     anchor: a.anchor === 'ctr' ? 'middle' : a.anchor === 'b' ? 'bottom' : 'top',
     vert: a.vert === 'vert' || a.vert === 'eaVert' || a.vert === 'wordArtVert' ? 'vert' : a.vert === 'vert270' ? 'vert270' : 'horz',
     autoFit: /<a:spAutoFit\b/.test(body),
+    // WordArt's Transform: the preset path the words are laid along, if any.
+    warp: ((p) => (p && p !== 'textNoShape' ? p : null))(/<a:prstTxWarp\b[^>]*\bprst="([^"]+)"/.exec(body)?.[1]),
   };
 }
 
-/** A text box's body frame rewritten: insets in px, `anchor` top/middle/bottom, `vert` horz/vert/vert270, `autoFit`. */
-export function withBodyPr(xml, { insets, anchor, vert, autoFit } = {}) {
+const WARP_RE = /<a:prstTxWarp\b(?:[^>]*\/>|[^>]*>[\s\S]*?<\/a:prstTxWarp>)/;
+
+/**
+ * A text box's body frame rewritten: insets in px, `anchor` top/middle/bottom,
+ * `vert` horz/vert/vert270, `autoFit`, and `warp` — WordArt's Transform, a
+ * preset written first among the frame's children as Word writes it, or
+ * null (or 'textNoShape') for the words straight again.
+ */
+export function withBodyPr(xml, { insets, anchor, vert, autoFit, warp } = {}) {
   const m = /<wps:bodyPr\b([^>]*?)(\/?)>/.exec(xml);
   if (!m) return xml;
   const a = attrs(m[1]);
@@ -394,9 +403,17 @@ export function withBodyPr(xml, { insets, anchor, vert, autoFit } = {}) {
     children = xml.slice(m.index + m[0].length, close);
     end = close + '</wps:bodyPr>'.length;
   }
+  if (warp !== undefined) {
+    if (warp != null && !/^text[A-Z][A-Za-z0-9]+$/.test(String(warp))) throw new Error('That is not a Transform preset');
+    children = children.replace(WARP_RE, '');
+    if (warp && warp !== 'textNoShape') children = '<a:prstTxWarp prst="' + warp + '"><a:avLst/></a:prstTxWarp>' + children;
+  }
   if (autoFit !== undefined) {
     children = children.replace(/<a:(?:spAutoFit|noAutofit|normAutofit)\b(?:[^>]*\/>|[^>]*>[\s\S]*?<\/a:normAutofit>)/, '');
-    children = (autoFit ? '<a:spAutoFit/>' : '<a:noAutofit/>') + children;
+    // After the Transform, if there is one: the schema has it first.
+    const lead = WARP_RE.exec(children);
+    const at = lead && lead.index === 0 ? lead[0].length : 0;
+    children = children.slice(0, at) + (autoFit ? '<a:spAutoFit/>' : '<a:noAutofit/>') + children.slice(at);
   }
   const el = children ? open + '>' + children + '</wps:bodyPr>' : open + '/>';
   return xml.slice(0, m.index) + el + xml.slice(end);

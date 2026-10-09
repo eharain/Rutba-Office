@@ -4189,6 +4189,9 @@ const CSS = `
 /* A text box: in flow under its paragraph, the caret kept out of it. */
 .wd-textbox { display: block; box-sizing: border-box; padding: 4px 8px; max-width: 100%; overflow: hidden; user-select: none; }
 .wd-textbox .wd-box-p { margin: 0; min-height: 1.2em; white-space: pre-wrap; }
+/* WordArt's Transform: the words drawn along their path over the box, the
+   straight ones kept for the caret, unseen until it goes in to edit them. */
+.wd-textbox.wd-warped:not(.wd-warp-editing) :is(.wd-block, .wd-box-p) { opacity: 0; }
 .wd-table { border-collapse: collapse; width: 100%; margin: 0.6em 0; }
 .wd-table td { border: 1px solid #bbb; padding: 4px 7px; vertical-align: top; }
 /* A table with its borders off — a sheet of labels — has no lines, only

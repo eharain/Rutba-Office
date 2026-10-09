@@ -22,6 +22,7 @@
 
 import React from 'react';
 import { TABLE_STYLES } from '@rutba/ooxml/table-styles';
+import { WARP_PRESETS } from '@rutba/drawing/warp';
 import { Ribbon, Group, Rows, Button, Separator, Select, Input } from '@rutba/office-ui';
 import { EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
 import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS } from '@rutba/office-formats/themes';
@@ -733,6 +734,18 @@ export default function WordRibbon({
             <Button tall icon="crop" label="Margins" disabled={drawing?.kind !== 'textbox'} title="Margins — the room between the box's edge and its words" onClick={(e) => menu.open(e, BOX_MARGINS.map(([label, insets]) => ({
               label, icon: look.insets && ['l', 't', 'r', 'b'].every((k) => Math.abs((look.insets[k] || 0) - insets[k]) < 0.6) ? 'check' : undefined, run: () => act('boxFormat', { insets }),
             })))} />
+          </Group>
+          {/* WordArt Styles → Text Effects → Transform, as Word's: a text box's words along a path. */}
+          <Group label="Text Effects: Transform">
+            {WARP_PRESETS.map((p) => (
+              <Button
+                key={p.id} tall icon="wand" label={p.label} className="wd-warp" data-preset={p.id}
+                disabled={drawing?.kind !== 'textbox'}
+                pressed={drawing?.kind === 'textbox' && (look.warp || 'textNoShape') === p.id}
+                title={drawing?.kind !== 'textbox' ? `${p.label} — select a text box or WordArt first` : p.id === 'textNoShape' ? 'No Transform — the words in straight lines' : `Transform — the words along ${p.label === 'Button' ? 'a button: an arc, a line and an arc' : `the ${p.label === 'Circle' ? 'circle' : 'arc'} of the box`}`}
+                onClick={() => act('boxFormat', { warp: p.id === 'textNoShape' ? null : p.id })}
+              />
+            ))}
           </Group>
           {arrange}
           <Group label="Size">

@@ -78,3 +78,27 @@ test('a sheet shape\'s words take a Transform, drawn along its path and written 
   view.setShapeWarp({ id: shape.id, preset: null });
   assert.equal(view.render().objects.find((o) => o.id === shape.id).textWarp, null);
 });
+
+test('a document\'s text box takes a Transform, written first in its body properties as Word writes it', async () => {
+  const { openDocx } = await import('@rutba/doc-view/backends/ooxml');
+  const { buildDocx } = await import('@rutba/ooxml');
+  const view = openDocx(buildDocx({ styles: true, paragraphs: [{ text: 'First.' }, { text: 'Second.' }] }));
+  view.setSelection({ block: 1, offset: 0 });
+  view.insertTextBox({ widthPx: 300, heightPx: 120, autoFit: true, paragraphs: [{ text: 'Rutba Office', sizePt: 36 }] });
+  const box = () => view.render({ pages: false }).blocks[1].textBoxes[0];
+  const bodyPr = () => /<wps:bodyPr\b[^>]*\/>|<wps:bodyPr\b[^>]*>[\s\S]*?<\/wps:bodyPr>/.exec(view.doc.doc.xml)[0];
+  assert.equal(box().warp, null);
+  view.updateDrawings({ id: box().id, warp: 'textArchUp' });
+  assert.match(bodyPr(), /^<wps:bodyPr\b[^>]*><a:prstTxWarp prst="textArchUp"><a:avLst\/><\/a:prstTxWarp><a:spAutoFit\/><\/wps:bodyPr>$/, 'the Transform first, then the fit, as the schema orders them');
+  assert.equal(box().warp, 'textArchUp');
+  view.updateDrawings({ id: box().id, autoFit: false });
+  assert.match(bodyPr(), /<a:prstTxWarp prst="textArchUp"><a:avLst\/><\/a:prstTxWarp><a:noAutofit\/>/, 'a new fit goes after the Transform');
+  view.updateDrawings({ id: box().id, warp: 'textCircle' });
+  assert.equal((bodyPr().match(/prstTxWarp prst=/g) || []).length, 1, 'one preset, replaced');
+  const reopened = openDocx(view.save()).render({ pages: false }).blocks[1].textBoxes[0];
+  assert.equal(reopened.warp, 'textCircle', 'read back from the saved file');
+  view.updateDrawings({ id: box().id, warp: null });
+  assert.doesNotMatch(bodyPr(), /prstTxWarp/);
+  assert.equal(box().warp, null);
+  assert.throws(() => view.updateDrawings({ id: box().id, warp: '"/><x' }), /not a Transform preset/);
+});

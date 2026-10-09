@@ -21,6 +21,7 @@
 import React from 'react';
 import { Button, Icon, Spacer } from '@rutba/office-ui';
 import { floatPlace, layerOf, sideOf } from '@rutba/doc-view/floats';
+import { warpedTextSvg, drawnWarp } from '@rutba/drawing/warp';
 import { rectOf, pageTopOf, pageIndexAt } from './pages.js';
 
 /** The layer a drawing lives in; a centred square-wrapped one stands under the words, as before. */
@@ -223,6 +224,11 @@ export function TextBox({ box, block = null, kids = null, renderBlock = null, re
   const ins = box.insets || { l: 9.6, t: 4.8, r: 9.6, b: 4.8 };
   const vertical = box.vert === 'vert' || box.vert === 'vert270';
   const editable = Boolean(kids && kids.length && renderBlock);
+  // WordArt's Transform: the words drawn along the preset's path over the
+  // words themselves, unseen until the caret goes in to edit them.
+  const warped = drawnWarp(box.warp) && !vertical;
+  const host = React.useRef(null);
+  const [warpEditing, setWarpEditing] = React.useState(false);
   const frame = {
     boxSizing: 'border-box',
     width: box.widthPx ? Math.round(box.widthPx) : undefined,
@@ -234,11 +240,13 @@ export function TextBox({ box, block = null, kids = null, renderBlock = null, re
     display: 'flex', flexDirection: 'column',
     justifyContent: box.vAnchor === 'middle' ? 'center' : box.vAnchor === 'bottom' ? 'flex-end' : 'flex-start',
     transform: turnCss(box, true),
+    ...(warped ? { position: 'relative' } : {}),
     ...(style || {}),
   };
   return (
     <div
-      className={`wd-textbox wd-drawing${editable ? ' editable' : ''}${picked ? ' picked' : ''}${className ? ` ${className}` : ''}`}
+      ref={host}
+      className={`wd-textbox wd-drawing${editable ? ' editable' : ''}${picked ? ' picked' : ''}${warped ? ` wd-warped${warpEditing ? ' wd-warp-editing' : ''}` : ''}${className ? ` ${className}` : ''}`}
       data-drawing={box.id ?? undefined}
       data-kind="textbox"
       contentEditable={editable ? undefined : false}
@@ -253,6 +261,89 @@ export function TextBox({ box, block = null, kids = null, renderBlock = null, re
       }}
     >
       {editable ? kids.map((k) => renderBlock(k)) : renderLite ? renderLite(box.paragraphs || []) : null}
+      {warped ? <WarpedWords host={host} preset={box.warp} insets={ins} editing={warpEditing} onEditing={setWarpEditing} /> : null}
+    </div>
+  );
+}
+
+/** A line's runs as the page draws them — size, weight, colour, outline — read off its words. */
+function runsOfLine(line) {
+  const runs = [];
+  const walk = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+  for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+    const text = n.data.replace(/[​﻿]/g, '');
+    const at = n.parentElement;
+    if (!text || !at || at.closest('[hidden], .wd-marker, .wd-shy')) continue;
+    const cs = getComputedStyle(at);
+    if (cs.display === 'none') continue;
+    const stroke = parseFloat(cs.webkitTextStrokeWidth) || 0;
+    const run = {
+      text, size: parseFloat(cs.fontSize) || 16, bold: Number(cs.fontWeight) >= 600, italic: cs.fontStyle === 'italic',
+      color: cs.webkitTextFillColor || cs.color, family: cs.fontFamily,
+      ...(stroke ? { stroke, strokeColor: cs.webkitTextStrokeColor || cs.color } : {}),
+    };
+    const last = runs[runs.length - 1];
+    if (last && ['size', 'bold', 'italic', 'color', 'stroke', 'strokeColor'].every((k) => last[k] === run[k])) last.text += text;
+    else runs.push(run);
+  }
+  return runs;
+}
+
+const warpSpan = (r) => [
+  r.bold ? 'font-weight="700"' : '',
+  r.italic ? 'font-style="italic"' : '',
+  r.color ? `fill="${r.color}"` : '',
+  r.stroke ? `stroke="${r.strokeColor}" stroke-width="${r.stroke}" stroke-linejoin="round"` : '',
+].filter(Boolean).join(' ');
+
+/**
+ * WordArt's Transform on a text box: its words drawn along the preset's path
+ * (`@rutba/drawing/warp`, as the slide and the sheet draw them), over the
+ * box's own paragraphs, which stay where they are, unseen. With the caret in
+ * the box the words show straight to be edited, and go back along the path
+ * when it leaves. What is drawn is read off the words as the page draws
+ * them, so a style, a colour or an outline looks the same arched.
+ */
+function WarpedWords({ host, preset, insets, editing, onEditing }) {
+  const art = React.useRef(null);
+  const [drawn, setDrawn] = React.useState({ svg: '', w: 0, h: 0 });
+  React.useLayoutEffect(() => {
+    const el = host.current;
+    if (!el) return undefined;
+    const draw = () => {
+      const w = el.clientWidth;
+      const h = el.clientHeight;
+      const lines = [...el.querySelectorAll('.wd-block, .wd-box-p')].map(runsOfLine);
+      const first = lines.flat()[0];
+      const box = { x: insets.l, y: insets.t, w: Math.max(8, w - insets.l - insets.r), h: Math.max(8, h - insets.t - insets.b) };
+      const svg = first ? warpedTextSvg({ preset, box, lines, span: warpSpan, family: first.family || 'sans-serif', color: first.color || '#000' }) : '';
+      setDrawn((was) => (was.svg === svg && was.w === w && was.h === h ? was : { svg, w, h }));
+    };
+    draw();
+    // Typing, a new look or a new size draws them again; the drawing itself changing does not.
+    const seen = new MutationObserver((records) => { if (records.some((r) => !art.current?.contains(r.target))) draw(); });
+    seen.observe(el, { subtree: true, childList: true, characterData: true, attributes: true, attributeFilter: ['style', 'class'] });
+    const sized = new ResizeObserver(draw);
+    sized.observe(el);
+    const caret = () => {
+      const at = document.getSelection()?.anchorNode;
+      onEditing(Boolean(at && el.contains(at) && !art.current?.contains(at)));
+    };
+    document.addEventListener('selectionchange', caret);
+    caret();
+    return () => { seen.disconnect(); sized.disconnect(); document.removeEventListener('selectionchange', caret); };
+  }, [host, preset, insets.l, insets.t, insets.r, insets.b, onEditing]);
+  // Out of the caret's way: no click lands on it, and no key walks into it.
+  return (
+    <div
+      ref={art}
+      className="wd-warp-art"
+      aria-hidden="true"
+      contentEditable={false}
+      suppressContentEditableWarning
+      style={{ position: 'absolute', left: 0, top: 0, width: drawn.w || 1, height: drawn.h || 1, pointerEvents: 'none', userSelect: 'none', display: editing ? 'none' : undefined }}
+    >
+      <svg width={drawn.w || 1} height={drawn.h || 1} viewBox={`0 0 ${drawn.w || 1} ${drawn.h || 1}`} style={{ overflow: 'visible', display: 'block' }} dangerouslySetInnerHTML={{ __html: drawn.svg }} />
     </div>
   );
 }
