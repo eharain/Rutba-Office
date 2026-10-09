@@ -2,6 +2,28 @@
 // edits applied as one undo step.
 
 import { applyFormat } from './styles-write.js';
+import { pixelsToCharWidth } from './geometry.js';
+
+/** Points, as Office Scripts measure a width or height, to the grid's pixels. */
+const ptToPx = (pt) => Math.max(1, Math.round((Number(pt) || 0) * (96 / 72)));
+
+/** A cell's A1 name, and a range's box from its A1 name. */
+const a1 = (row, col) => { let s = ''; for (let n = col + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s; return s + (row + 1); };
+const cellOf = (text) => {
+  const m = /^\$?([A-Z]+)\$?(\d+)$/i.exec(String(text).trim());
+  if (!m) return null;
+  let col = 0;
+  for (const ch of m[1].toUpperCase()) col = col * 26 + (ch.charCodeAt(0) - 64);
+  return { row: Number(m[2]) - 1, col: col - 1 };
+};
+const boxOf = (refText) => {
+  const [p, q = p] = String(refText).split(':');
+  const a = cellOf(p);
+  const b = cellOf(q);
+  return a && b ? { top: Math.min(a.row, b.row), bottom: Math.max(a.row, b.row), left: Math.min(a.col, b.col), right: Math.max(a.col, b.col) } : null;
+};
+/** A sheet's merged regions, by their A1 ranges. */
+const mergesOf = (view, sheet) => view.workbook._sheetPart(sheet).part.mergeRefs();
 
 const NAMED = { black: '#000000', white: '#FFFFFF', red: '#FF0000', green: '#00B050', blue: '#0070C0', yellow: '#FFFF00', orange: '#FFC000', purple: '#7030A0', grey: '#808080', gray: '#808080' };
 const colour = (c) => {
@@ -58,7 +80,7 @@ export function applyScriptEdits(view, edits = []) {
   }
   view._structureGate();
   let cells = 0;
-  const FORMAT_KEYS = { bold: 'bold', italic: 'italic', underline: 'underline', color: 'fontColour', fill: 'fill', fontSize: 'fontSize', fontFamily: 'fontName', align: 'align', wrap: 'wrap', numberFormat: 'numberFormat' };
+  const FORMAT_KEYS = { bold: 'bold', italic: 'italic', underline: 'underline', strike: 'strike', color: 'fontColour', fill: 'fill', fontSize: 'fontSize', fontFamily: 'fontName', align: 'align', valign: 'valign', wrap: 'wrap', numberFormat: 'numberFormat' };
   let show = null;
   view._edit('script', null, [], () => {
     view._flushForStructure();
@@ -111,6 +133,60 @@ export function applyScriptEdits(view, edits = []) {
           view.pkg.write_('xl/styles.xml', xml);
           break;
         }
+        // getFormat().setColumnWidth / setRowHeight, in points as Office Scripts take them,
+        // and autofitColumns: the widest text in each column, as the ribbon's AutoFit makes it.
+        // These were offered to a script and refused when it ran.
+        case 'colWidth':
+        case 'autofit': {
+          const used = view.calc.usedBounds(e.sheet);
+          for (let c = e.left; c <= Math.min(e.right, Math.max(e.left, used.maxCol)); c++) {
+            let px;
+            if (e.kind === 'colWidth') px = ptToPx(e.width);
+            else {
+              let widest = 0;
+              for (let r = 0; r <= used.maxRow; r++) {
+                const v = view.calc.getValue(e.sheet, r, c);
+                if (v != null && v !== '') widest = Math.max(widest, String(typeof v === 'object' ? v.value ?? '' : v).length);
+              }
+              px = Math.max(40, Math.min(600, Math.round(widest * 7.2 + 14)));
+            }
+            view.workbook.setColWidthChars(e.sheet, c, pixelsToCharWidth(px));
+            if (e.sheet === view.activeSheet) view.geo.colWidths.set(c, px);
+          }
+          view._structuralDirty = true;
+          break;
+        }
+        case 'rowHeight':
+          for (let r = e.top; r <= e.bottom; r++) {
+            view.workbook.setRowHeightPoints(e.sheet, r, Number(e.height) || 15);
+            if (e.sheet === view.activeSheet) view.geo.rowHeights.set(r, ptToPx(e.height));
+          }
+          view._structuralDirty = true;
+          break;
+        // merge() and unmerge(): the cells but the first emptied, as the ribbon's Merge does.
+        case 'merge': {
+          if (e.top === e.bottom && e.left === e.right) break;
+          // A merge inside the range gives way to it; one only partly inside is refused, as the ribbon refuses it.
+          for (const m of mergesOf(view, e.sheet)) {
+            const box = boxOf(m);
+            if (!box || box.right < e.left || box.left > e.right || box.bottom < e.top || box.top > e.bottom) continue;
+            if (box.top < e.top || box.bottom > e.bottom || box.left < e.left || box.right > e.right) throw new Error('A script cannot merge across part of a merged region');
+            view.workbook.removeMerge(e.sheet, m);
+          }
+          view.workbook.addMerge(e.sheet, `${a1(e.top, e.left)}:${a1(e.bottom, e.right)}`);
+          for (let r = e.top; r <= e.bottom; r++) {
+            for (let c = e.left; c <= e.right; c++) if ((r !== e.top || c !== e.left) && view.calc.getInput(e.sheet, r, c) !== '') { view._setCellOn(e.sheet, r, c, ''); cells += 1; }
+          }
+          view._structuralDirty = true;
+          break;
+        }
+        case 'unmerge':
+          for (const m of mergesOf(view, e.sheet)) {
+            const box = boxOf(m);
+            if (box && !(box.right < e.left || box.left > e.right || box.bottom < e.top || box.top > e.bottom)) view.workbook.removeMerge(e.sheet, m);
+          }
+          view._structuralDirty = true;
+          break;
         case 'activate':
           show = { sheet: e.sheet, range: null };
           break;

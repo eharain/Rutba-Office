@@ -114,6 +114,13 @@ export function scriptWorkbook(snapshot) {
       setNumberFormat: (code) => format({ numberFormat: String(code) }),
       setNumberFormatLocal: (code) => format({ numberFormat: String(code) }),
       select: () => { edits.push({ kind: 'select', sheet: s.name, ...box }); },
+      // merge(across) merges the range, or each of its rows when `across`; unmerge() undoes any in it.
+      merge: (across = false) => {
+        if (across) for (let r = box.top; r <= box.bottom; r++) edits.push({ kind: 'merge', sheet: s.name, ...box, top: r, bottom: r });
+        else edits.push({ kind: 'merge', sheet: s.name, ...box });
+        for (let r = box.top; r <= box.bottom; r++) for (let c = box.left; c <= box.right; c++) if ((across ? c !== box.left : r !== box.top || c !== box.left)) s.cells.delete(`${r},${c}`);
+      },
+      unmerge: () => { edits.push({ kind: 'unmerge', sheet: s.name, ...box }); },
       getFormat: () => ({
         getFill: () => ({ setColor: (c) => format({ fill: String(c) }), clear: () => format({ fill: null }) }),
         getFont: () => ({
@@ -123,8 +130,10 @@ export function scriptWorkbook(snapshot) {
           setSize: (n) => format({ fontSize: Number(n) }),
           setName: (n) => format({ fontFamily: String(n) }),
           setUnderline: (u) => format({ underline: u && u !== 'None' }),
+          setStrikethrough: (b) => format({ strike: Boolean(b) }),
         }),
         setHorizontalAlignment: (a) => format({ align: String(a).toLowerCase().replace('centeracrossselection', 'center') }),
+        setVerticalAlignment: (a) => format({ valign: String(a).toLowerCase() === 'justify' ? 'justify' : String(a).toLowerCase() }),
         setWrapText: (b) => format({ wrap: Boolean(b) }),
         setColumnWidth: (w) => edits.push({ kind: 'colWidth', sheet: s.name, ...box, width: Number(w) }),
         setRowHeight: (h) => edits.push({ kind: 'rowHeight', sheet: s.name, ...box, height: Number(h) }),
