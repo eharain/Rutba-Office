@@ -27,6 +27,8 @@ export async function verifyDeckCameoRecord({ open, check, until, wait, errorsIn
     await tab('Record');
     await ribbon('From Beginning');
     await until(() => js(`Boolean(document.querySelector('.sl-present'))`), 'the show', 6000).catch(() => {});
+    // Whether the window had to fall back to the voice alone, for the report.
+    const refused = await js(`document.body.textContent.includes('The camera could not be opened')`);
     await wait(1500);
     await js(`document.querySelector('.sl-present')?.click(), 1`);
     await wait(1200);
@@ -37,7 +39,7 @@ export async function verifyDeckCameoRecord({ open, check, until, wait, errorsIn
     const cam = shapesOf(0).find((s) => s.cameo);
     check('presentations: Record with a cameo puts the camera\'s recording in the cameo\'s place on its slide, and none on a slide without a cameo',
       Boolean(rec) && rec.media?.kind === 'video' && Math.abs(rec.geometry.x - cam.geometry.x) < 1 && Math.abs(rec.geometry.w - cam.geometry.w) < 1 && !shapesOf(1).some((s) => s.cameoRecording),
-      JSON.stringify({ rec: rec ? { kind: rec.media?.kind, g: rec.geometry } : null, cam: cam?.geometry, second: shapesOf(1).map((s) => s.name) }));
+      JSON.stringify({ rec: rec ? { kind: rec.media?.kind, g: rec.geometry } : null, cam: cam?.geometry, second: shapesOf(1).map((s) => s.name), refused }));
 
     // The show: the recording plays with its slide, and no live camera over it.
     await tab('Slide Show');

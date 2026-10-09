@@ -4703,7 +4703,6 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('dialogfocus')) await verifyDialogFocus({ open, check, until, wait, press }, { dir });
     if (only.includes('openprogram')) await verifyOpenProgram({ open, check, until }, { dir });
     if (only.includes('picturemarks')) await verifyPicturesMarks({ open, check, until, wait, press, errorsIn }, { dir });
-    if (only.includes('cameorecord')) await verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir });
     if (only.includes('deckchanges')) await verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('querymerge')) await verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir });
     if (only.includes('scripts')) await verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir });
@@ -4817,6 +4816,9 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     if (only.includes('signature')) await mailSignature();
     if (only.includes('sendlater')) await mailSendLater();
     if (only.includes('ooo')) await mailOOO();
+    // Last: Chromium's stand-in camera, once it has stopped under a recording, often stays stopped
+    // for the rest of the run, and the Cameo check would find no camera after it.
+    if (only.includes('cameorecord')) await verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir });
     return done();
   }
 
@@ -4966,7 +4968,6 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDialogFocus({ open, check, until, wait, press }, { dir }));
   await block(() => verifyOpenProgram({ open, check, until }, { dir }));
   await block(() => verifyPicturesMarks({ open, check, until, wait, press, errorsIn }, { dir }));
-  await block(() => verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => verifyDeckChanges({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetQueriesMerge({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetScripts({ open, check, until, wait, press, errorsIn, doc, sessionFor }, { dir }));
@@ -5063,6 +5064,8 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => sheetThemes());
   await block(() => verifySheetCf({ open, check, until, errorsIn }, { dir }));
   await block(() => verifyDeckDraw({ open, check, until, wait, errorsIn }, { dir }));
+  // Last of the camera's checks, for the reason given in the list above.
+  await block(() => verifyDeckCameoRecord({ open, check, until, wait, errorsIn, doc }, { dir }));
   await block(() => polish());
 
   // The sections below are written inline rather than as blocks; each one's

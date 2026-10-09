@@ -33,6 +33,25 @@ async function openCamera() {
   return stream;
 }
 
+/** A camera that is there but busy, or slow to start, is asked for again rather than given up on. */
+const BUSY = ['NotReadableError', 'AbortError', 'TrackStartError'];
+
+/**
+ * The camera, asked for again while it is busy — let go a moment ago by the
+ * stage's preview, held by another program, or slow to start — waiting a
+ * little longer each time, for about nine seconds, as `useCamera` does.
+ */
+async function openCameraPatiently() {
+  for (let tries = 1; ; tries += 1) {
+    try {
+      return await openCamera();
+    } catch (err) {
+      if (!BUSY.includes(err?.name) || tries > 5) throw err;
+      await new Promise((resolve) => { setTimeout(resolve, 300 * 2 ** (tries - 1)); });
+    }
+  }
+}
+
 /** One holder of `stream` lets it go; the camera is closed with the last. A stream already replaced is left alone. */
 function closeCamera(stream) {
   if (!shared || (stream && shared.stream !== stream)) return;
@@ -79,7 +98,7 @@ export function useCamera(on) {
         // A camera that is there but busy — let go a moment ago by the stage's
         // preview, or held by another program — is asked for again, as one
         // that stops is; only no camera, or one not allowed, is the answer.
-        if (['NotReadableError', 'AbortError', 'TrackStartError'].includes(err?.name) && ++tries <= 5) {
+        if (BUSY.includes(err?.name) && ++tries <= 5) {
           timer = setTimeout(take, 300 * 2 ** (tries - 1));
           return;
         }
@@ -159,7 +178,7 @@ export class CameraRecorder {
     this.tries = 0;
   }
   async _take() {
-    const stream = await openCamera();
+    const stream = await openCameraPatiently();
     if (this.closed) { closeCamera(stream); return; }
     this.stream = stream;
     const track = stream.getVideoTracks()[0];
