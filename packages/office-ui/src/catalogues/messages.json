@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 292,
+  "count": 296,
   "messages": [
     {
       "message": "(default)",
@@ -313,6 +313,12 @@
       "message": "Ctrl",
       "where": [
         "packages/office-ui/src/commands.js"
+      ]
+    },
+    {
+      "message": "Custom",
+      "where": [
+        "apps/desktop/renderer/print.js"
       ]
     },
     {
@@ -700,6 +706,12 @@
       ]
     },
     {
+      "message": "Keep these settings in the presentation",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Keep these settings in the workbook",
       "where": [
         "apps/desktop/renderer/print.js"
@@ -1027,6 +1039,12 @@
       ]
     },
     {
+      "message": "Paper, orientation and margins are the document’s own: changing them here changes the document, as in Word.",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
       "message": "Password",
       "where": [
         "apps/desktop/renderer/protect.js"
@@ -1052,6 +1070,12 @@
     },
     {
       "message": "Portrait",
+      "where": [
+        "apps/desktop/renderer/print.js"
+      ]
+    },
+    {
+      "message": "PowerPoint keeps what a deck prints in the file; so does this, so the next print starts from it",
       "where": [
         "apps/desktop/renderer/print.js"
       ]

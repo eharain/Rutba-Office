@@ -5,7 +5,12 @@
  * which printer, how many copies, what paper, which way round — and only the
  * middle differs: a workbook asks which sheets and whether to fit them across
  * the page, a deck asks whether it is printing slides, notes or a handout, a
- * document asks nothing yet.
+ * document asks nothing more.
+ *
+ * Each starts from what its file keeps. A workbook's page setup and a deck's
+ * print choices are kept in the file when printed, as Excel and PowerPoint
+ * keep them; a document's paper, orientation and margins are the document's
+ * own, so a change here changes the document, as Word's Print does.
  *
  * It says how many pages before it prints anything. That number is the whole
  * point of a print dialog: it is the difference between a report and forty
@@ -25,6 +30,15 @@ export const MARGIN_PRESETS = {
   Wide: { top: 25.4, right: 25.4, bottom: 25.4, left: 25.4 },
 };
 
+/** Word's margins, in millimetres: a document's own presets. */
+export const DOC_MARGIN_PRESETS = {
+  Normal: { top: 25.4, right: 25.4, bottom: 25.4, left: 25.4 },
+  Narrow: { top: 12.7, right: 12.7, bottom: 12.7, left: 12.7 },
+  Wide: { top: 25.4, right: 50.8, bottom: 25.4, left: 50.8 },
+};
+
+const presetOf = (presets, m) => Object.entries(presets).find(([, p]) => ['top', 'right', 'bottom', 'left'].every((k) => Math.abs(p[k] - (m?.[k] ?? -99)) < 0.3))?.[0] ?? null;
+
 export function defaultPrintOptions(kind) {
   if (kind === 'deck') return { paper: 'A4', orientation: 'landscape', layout: 'slides', perPage: 6, frame: true, margins: MARGIN_PRESETS.Normal };
   if (kind === 'sheet') {
@@ -41,10 +55,10 @@ export function defaultPrintOptions(kind) {
       footer: '&P of &N',
     };
   }
-  return { paper: 'A4', orientation: 'portrait', margins: MARGIN_PRESETS.Normal };
+  return { paper: 'A4', orientation: 'portrait', margins: DOC_MARGIN_PRESETS.Normal };
 }
 
-export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }) {
+export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs, onApply = null }) {
   const toast = useToast();
   const [options, setOptions] = useState(() => defaultPrintOptions(kind));
   const [margins, setMargins] = useState('Normal');
@@ -54,24 +68,47 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
   const [summary, setSummary] = useState(null);
   const [busy, setBusy] = useState(false);
   const set = (patch) => setOptions((o) => ({ ...o, ...patch }));
+  // Through the window's own apply when it gives one, so what it shows follows.
+  const applyOps = (ops) => (onApply ? onApply(ops) : shell.doc.apply({ id: doc.id, ops }));
+  const presets = kind === 'doc' ? DOC_MARGIN_PRESETS : MARGIN_PRESETS;
 
   // A workbook carries its own page setup — Excel keeps paper, orientation,
   // margins, scaling, the print area and the repeated rows in the file — so
   // the dialog starts from what the file says rather than from what this
   // build happens to default to.
-  const [keep, setKeep] = useState(kind === 'sheet');
+  const [keep, setKeep] = useState(kind === 'sheet' || kind === 'deck');
   useEffect(() => {
-    if (kind !== 'sheet') return;
     shell.doc
       .pageSetup({ id: doc.id })
       .then((fromFile) => {
         if (!fromFile) return;
-        setOptions((o) => ({ ...o, ...fromFile }));
-        const named = Object.entries(MARGIN_PRESETS).find(([, m]) => Math.abs(m.top - fromFile.margins.top) < 0.2 && Math.abs(m.left - fromFile.margins.left) < 0.2);
-        setMargins(named ? named[0] : 'Normal');
+        if (kind === 'deck') {
+          // An outline is not printed here: its slides are.
+          const layout = fromFile.layout === 'outline' ? 'slides' : fromFile.layout;
+          setOptions((o) => ({ ...o, layout, perPage: fromFile.perPage, frame: fromFile.frame, orientation: layout === 'slides' ? 'landscape' : 'portrait' }));
+          return;
+        }
+        setOptions((o) => ({ ...o, ...fromFile, paper: fromFile.paper || o.paper }));
+        setMargins(presetOf(kind === 'doc' ? DOC_MARGIN_PRESETS : MARGIN_PRESETS, fromFile.margins) || (kind === 'doc' ? 'Custom' : 'Normal'));
       })
       .catch(() => {});
   }, [shell, doc.id, kind]);
+
+  /** A document's page changed here is changed in the document, as Word's Print changes it. */
+  const change = async (patch) => {
+    if (kind !== 'doc') return set(patch);
+    const spec = {};
+    if (patch.paper) spec.size = patch.paper;
+    if (patch.orientation) spec.orientation = patch.orientation;
+    if (patch.margins) spec.margins = Object.fromEntries(Object.entries(patch.margins).map(([k, mm]) => [k, Math.round((mm / 25.4) * 1440)]));
+    try {
+      await applyOps([{ op: 'setPageSetup', spec }]);
+      set(patch);
+    } catch (err) {
+      toast(err.message, { tone: 'bad' });
+    }
+    return undefined;
+  };
 
   useEffect(() => {
     shell.print
@@ -106,11 +143,12 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
       : tn(pages, '{count} page', '{count} pages');
   }, [summary, pages]);
 
-  /** Keep the choices in the workbook, where the next person will find them. */
+  /** Keep the choices in the workbook or the deck, where the next person will find them. */
   const remember = async () => {
-    if (kind !== 'sheet' || !keep) return;
+    if ((kind !== 'sheet' && kind !== 'deck') || !keep) return;
     try {
-      await shell.doc.apply({ id: doc.id, ops: [{ op: 'setPageSetup', setup: options }] });
+      if (kind === 'deck') await applyOps([{ op: 'setPrintSettings', settings: { layout: options.layout, perPage: options.perPage, frame: options.frame } }]);
+      else await applyOps([{ op: 'setPageSetup', setup: options }]);
     } catch {
       /* a setup that will not save must not stop the print */
     }
@@ -162,14 +200,14 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
           <Input type="number" min="1" max="99" value={copies} onChange={(e) => setCopies(e.target.value)} style={{ width: 80 }} />
         </Field>
         <Field label={t('Paper')}>
-          <Select value={options.paper} onChange={(e) => set({ paper: e.target.value })} style={{ width: 110 }}>
+          <Select value={options.paper} onChange={(e) => change({ paper: e.target.value })} style={{ width: 110 }}>
             {PAPERS.map((p) => (
               <option key={p} value={p}>{p}</option>
             ))}
           </Select>
         </Field>
         <Field label={t('Orientation')}>
-          <Select value={options.orientation} onChange={(e) => set({ orientation: e.target.value })} style={{ width: 130 }}>
+          <Select value={options.orientation} onChange={(e) => change({ orientation: e.target.value })} style={{ width: 130 }}>
             <option value="portrait">{t('Portrait')}</option>
             <option value="landscape">{t('Landscape')}</option>
           </Select>
@@ -178,14 +216,16 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
           <Select
             value={margins}
             onChange={(e) => {
+              if (!presets[e.target.value]) return;
               setMargins(e.target.value);
-              set({ margins: MARGIN_PRESETS[e.target.value] });
+              change({ margins: presets[e.target.value] });
             }}
             style={{ width: 110 }}
           >
-            {Object.keys(MARGIN_PRESETS).map((m) => (
+            {Object.keys(presets).map((m) => (
               <option key={m} value={m}>{t(MARGIN_NAMES[m] || m)}</option>
             ))}
+            {margins === 'Custom' ? <option value="Custom">{t('Custom')}</option> : null}
           </Select>
         </Field>
       </div>
@@ -251,6 +291,14 @@ export function PrintDialog({ shell, doc, kind, sheets = [], onClose, onSaveAs }
             </label>
           </Field>
         </div>
+      ) : null}
+      {kind === 'deck' ? (
+        <label title={t('PowerPoint keeps what a deck prints in the file; so does this, so the next print starts from it')}>
+          <input type="checkbox" checked={keep} onChange={(e) => setKeep(e.target.checked)} /> {t('Keep these settings in the presentation')}
+        </label>
+      ) : null}
+      {kind === 'doc' ? (
+        <p className="rw-hint" style={{ margin: '6px 0 0' }}>{t('Paper, orientation and margins are the document’s own: changing them here changes the document, as in Word.')}</p>
       ) : null}
 
       <div style={{ marginTop: 10 }}>

@@ -584,6 +584,61 @@ export class Deck {
     return this.showSettings();
   }
 
+  /**
+   * File → Print's choices as PowerPoint keeps them, in `ppt/presProps.xml`'s
+   * `p:prnPr`: what is printed (full page slides, notes pages, or a handout
+   * of so many slides to a page) and whether each slide has a frame. Null
+   * when the deck keeps none, and a print starts from its own defaults.
+   *
+   * @returns {null|{ layout: 'slides'|'notes'|'handout'|'outline', perPage: number, frame: boolean }}
+   */
+  printSettings() {
+    const part = this.#relTarget('ppt/presentation.xml', PRES_PROPS.rel);
+    const xml = part ? this.pkg.text(part) : '';
+    const pr = /<p:prnPr\b([^>]*?)\/?>/.exec(xml);
+    if (!pr) return null;
+    const a = Object.fromEntries([...pr[1].matchAll(/(\w+)="([^"]*)"/g)].map((m) => [m[1], m[2]]));
+    const what = a.prnWhat || 'slides';
+    const handout = /^handouts(\d)$/.exec(what);
+    return {
+      layout: handout ? 'handout' : what === 'notes' ? 'notes' : what === 'outline' ? 'outline' : 'slides',
+      perPage: handout ? Number(handout[1]) : 6,
+      frame: a.frameSlides === '1' || a.frameSlides === 'true',
+    };
+  }
+
+  /**
+   * Keep File → Print's choices in the deck, as PowerPoint does, so the next
+   * print, here or in PowerPoint, starts from them: `p:prnPr` written ahead
+   * of the show's settings, as the schema orders them, the rest of presProps
+   * kept as it was. Its other choices (colour, hidden slides, fit to paper)
+   * are kept from the file.
+   */
+  setPrintSettings({ layout = 'slides', perPage = 6, frame = false } = {}) {
+    const n = [1, 2, 3, 4, 6, 9].includes(Number(perPage)) ? Number(perPage) : 6;
+    const what = layout === 'handout' ? `handouts${n}` : layout === 'notes' ? 'notes' : layout === 'outline' ? 'outline' : 'slides';
+    let part = this.#relTarget('ppt/presentation.xml', PRES_PROPS.rel);
+    if (!part) {
+      part = 'ppt/presProps.xml';
+      this.pkg.addPart(part, Buffer.from(`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><p:presentationPr xmlns:a="${PRES_PROPS.a}" xmlns:r="${PRES_PROPS.r}" xmlns:p="${PRES_PROPS.p}"></p:presentationPr>`, 'utf8'), PRES_PROPS.ct);
+      this.pkg.addRelationshipTo('ppt/presentation.xml', PRES_PROPS.rel, 'presProps.xml');
+    }
+    let xml = this.pkg.text(part);
+    const old = /<p:prnPr\b([^>]*?)(?:\/>|>[\s\S]*?<\/p:prnPr>)/.exec(xml);
+    const kept = old ? [...old[1].matchAll(/\b(clrMode|hiddenSlides|scaleToFitPaper)="([^"]*)"/g)].map((m) => ` ${m[1]}="${m[2]}"`).join('') : '';
+    const prnPr = `<p:prnPr prnWhat="${what}"${kept} frameSlides="${frame ? 1 : 0}"/>`;
+    if (old) xml = xml.replace(old[0], () => prnPr);
+    else if (/<p:presentationPr\b[^>]*\/>/.test(xml)) xml = xml.replace(/<p:presentationPr\b([^>]*)\/>/, (m, attrsText) => `<p:presentationPr${attrsText}>${prnPr}</p:presentationPr>`);
+    else {
+      // After the HTML and web settings, ahead of the show's and the rest.
+      const next = /<p:(showPr|clrMru|extLst)\b/.exec(xml);
+      xml = next ? xml.slice(0, next.index) + prnPr + xml.slice(next.index) : xml.replace('</p:presentationPr>', () => `${prnPr}</p:presentationPr>`);
+    }
+    this.pkg.write_(part, Buffer.from(xml, 'utf8'));
+    this.dirty = true;
+    return this.printSettings();
+  }
+
   // ---- sections ----------------------------------------------------------
 
   /**

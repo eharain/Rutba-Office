@@ -2564,7 +2564,7 @@ export class Document {
    * from the right, or back.
    */
   setPageSetup({ orientation, size, margins, columns, rtl } = {}) {
-    const PAPER = { A4: [11906, 16838], Letter: [12240, 15840], Legal: [12240, 20160] };
+    const PAPER = { A4: [11906, 16838], Letter: [12240, 15840], Legal: [12240, 20160], A3: [16838, 23811], A5: [8391, 11906] };
     const MARGIN_PRESETS = {
       normal: { top: 1440, right: 1440, bottom: 1440, left: 1440 },
       narrow: { top: 720, right: 720, bottom: 720, left: 720 },

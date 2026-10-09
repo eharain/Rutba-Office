@@ -3335,6 +3335,7 @@ export default function Slides({ app, shell, boot }) {
           shell={shell}
           doc={doc}
           kind="deck"
+          onApply={(ops) => apply(...ops)}
           onClose={() => setPrinting(false)}
           onSaveAs={(options) => exportAs('pdf', options)}
         />

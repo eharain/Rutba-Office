@@ -2692,6 +2692,7 @@ export default function Word({ app, shell, boot }) {
           shell={shell}
           doc={doc}
           kind="doc"
+          onApply={(ops) => apply(...ops)}
           onClose={() => setDialog(null)}
           onSaveAs={(options) => exportAs('pdf', options)}
         />

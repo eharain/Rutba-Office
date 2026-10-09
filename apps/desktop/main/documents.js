@@ -639,6 +639,26 @@ function readSavedQuerySource(file) {
   return readQuerySource(file);
 }
 
+/** The papers a document's print knows, portrait, in twips. */
+const DOC_PAPERS = { A4: [11906, 16838], Letter: [12240, 15840], Legal: [12240, 20160], A3: [16838, 23811], A5: [8391, 11906] };
+
+/**
+ * A document's page, as File → Print shows it: its paper (by its size, or
+ * null for one of its own), which way round, and its margins in
+ * millimetres — the document's own section, which the dialog changes, as
+ * Word's does, rather than a setting of the print's.
+ */
+export function docPageSetup(view) {
+  const s = view?.doc?.doc?.section?.();
+  if (!s) return null;
+  const twips = (px) => Math.round(px * 15);
+  const w = Math.min(twips(s.widthPx), twips(s.heightPx));
+  const h = Math.max(twips(s.widthPx), twips(s.heightPx));
+  const paper = Object.entries(DOC_PAPERS).find(([, [pw, ph]]) => Math.abs(pw - w) < 60 && Math.abs(ph - h) < 60)?.[0] ?? null;
+  const mm = (px) => Math.round(((px * 25.4) / 96) * 10) / 10;
+  return { paper, orientation: s.orientation, margins: { top: mm(s.margins.top), right: mm(s.margins.right), bottom: mm(s.margins.bottom), left: mm(s.margins.left) } };
+}
+
 export function createDocumentService({ holdBlob, releaseBlob = () => {}, recoveryDir = null, measureMath = null, proofing = null }) {
   // Review → Check Accessibility and Spelling (main/proofing.js): ops for the
   // tables below, and `proof` for what reads.
@@ -2541,6 +2561,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
     // the window says or else the account at the keyboard (the rule a note's
     // and a tracked change's author follow); a reply; Resolve; Delete.
     setShowSettings: (d, a) => { d.setShowSettings(a.settings || {}); },
+    // File → Print's choices, kept in the deck as PowerPoint keeps them.
+    setPrintSettings: (d, a) => { d.setPrintSettings(a.settings || {}); },
     setCustomShows: (d, a) => { d.setCustomShows(a.shows || []); },
     addComment: (d, a) => d.addComment(a.slide, { text: a.text, author: a.author || safeUserName() || 'Rutba Office user', shape: a.shape ?? null, x: a.x ?? null, y: a.y ?? null }),
     replyComment: (d, a) => d.replyComment(a.slide, a.id, { text: a.text, author: a.author || safeUserName() || 'Rutba Office user' }),
@@ -3098,6 +3120,8 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
 
     pageSetup: ({ id, sheet }) => {
       const session = get(id);
+      if (session.kind === 'deck') return session.engine.printSettings();
+      if (session.kind === 'doc') return docPageSetup(session.engine);
       if (session.kind !== 'sheet') return null;
       return readPageSetup(session.engine, sheet || session.engine.activeSheet);
     },
@@ -3115,7 +3139,7 @@ export function createDocumentService({ holdBlob, releaseBlob = () => {}, recove
       if (session.kind === 'sheet') return { kind: 'sheet', name: session.name, ...sheetPrintSummary(session.engine, options) };
       if (session.kind === 'deck') return { kind: 'deck', name: session.name, ...deckPrintSummary(session.engine, options) };
       const rendered = renderPdf(session.engine, { title: session.name, unicodeFont: unicodeFont() }) || {};
-      return { kind: 'doc', name: session.name, pages: rendered.pages ?? 0, setup: { paper: 'A4', orientation: 'portrait' } };
+      return { kind: 'doc', name: session.name, pages: rendered.pages ?? 0, setup: docPageSetup(session.engine) };
     },
 
     /**
