@@ -205,6 +205,26 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   more do, that Multiple Pages shows two whole pages, that typing at the
   foot of the left page carries on at the head of the right one, and that
   Side to Side scrolls sideways.
+- **Zoom by Ctrl and the mouse wheel, and by Ctrl+Plus and Ctrl+Minus**
+  (the owner, 2026-10-10). Word, Excel and PowerPoint zoom the page, the
+  sheet or the slide with Ctrl and the wheel (centred on the pointer) and
+  with Ctrl+Plus, Ctrl+Minus and Ctrl+0, the ribbon and the panes staying
+  the size they are. In the code today: Documents and Presentations have no
+  wheel handler for it, Worksheets' wheel handler only scrolls the frozen
+  panes, and the application menu's Zoom In and Zoom Out
+  (`office-shell/src/electron/main.js`, `view.zoomIn` and `view.zoomOut`)
+  are registered as commands by Pictures alone, so in the document apps
+  the keys reach nothing. What it needs, in Documents, Worksheets,
+  Presentations, Mail's reading pane, Image and Video: Ctrl+wheel stepping
+  the app's own zoom (`view.zoom`, the same level the status bar's slider
+  sets) by 10% a notch within the app's limits, keeping the point under the
+  pointer where it was; `view.zoomIn`, `view.zoomOut` and Ctrl+0 (100%)
+  registered in each app's commands; the browser's own page zoom never
+  used, since it scales the ribbon too (the owner's report of 2026-09-24).
+  With pages side by side (above), Ctrl+wheel reflows the rows as it
+  zooms. Proof: a window check per app sends Ctrl+wheel and Ctrl+Plus,
+  Ctrl+Minus and Ctrl+0 and reads the zoom level and that the ribbon's
+  height has not changed.
 
 ## 2. Worksheets — the workbook
 
