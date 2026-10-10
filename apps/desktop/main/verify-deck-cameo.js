@@ -33,8 +33,23 @@ export async function verifyDeckCameo({ open, check, until, wait, errorsIn, doc 
       Boolean(g) && g.x > W / 2 && (await tabs()).includes('Camera Format'), JSON.stringify({ g, tabs: await tabs() }));
 
     // Preview: the camera, live, on the stage.
+    const liveOnStage = () => until(async () => { const p = await playing('body'); return Boolean(p?.live) && p.w > 16; }, 'the camera on the stage', 14000).then(() => true).catch(() => false);
     await js(`document.querySelector('.sl-cameo-preview')?.click(), 1`);
-    const previewed = await until(async () => { const p = await playing('body'); return Boolean(p?.live) && p.w > 16; }, 'the camera on the stage', 14000).then(() => true).catch(() => false);
+    let previewed = await liveOnStage();
+    // The stand-in camera, on a machine a long check run has made busy,
+    // sometimes will not start at the first asking, as the show's below
+    // sometimes will not start again: Preview is turned off and on, after a
+    // longer pause each time, and must then show the camera live.
+    for (const pause of [2000, 5000]) {
+      if (previewed) break;
+      if (await playing('body')) {
+        await js(`document.querySelector('.sl-cameo-preview')?.click(), 1`);
+        await until(async () => !(await playing('body')), 'the preview off', 3000).catch(() => {});
+      }
+      await wait(pause);
+      await js(`document.querySelector('.sl-cameo-preview')?.click(), 1`);
+      previewed = await liveOnStage();
+    }
     const stage = await playing('body');
     check('presentations: Camera Format → Preview fills the cameo with the camera, live, mirrored as a camera pointed at oneself is',
       previewed && stage?.live, JSON.stringify(stage));
