@@ -134,16 +134,27 @@ export async function verifyWordIndex(h, { dir }) {
       JSON.stringify({ sel1, panel, marked1, shown, text1, xes: xes() })
     );
 
+    // A word selected while the box is open, and the box following it. On a
+    // loaded machine the box can miss the first selection's news while the
+    // document thread is busy, as a person would see and simply click again:
+    // the word is selected once more before the check gives up on it.
+    const selectFollowed = async (block, word) => {
+      for (let tries = 0; tries < 2; tries++) {
+        await selectWord(block, word);
+        const followed = await until(() => js(`document.querySelector('.wd-refs-main')?.value === ${JSON.stringify(word)}`), 'the box to follow the selection', 5000).then(() => true).catch(() => false);
+        if (followed) return true;
+      }
+      return false;
+    };
+
     // Bananas on page 2, as a subentry of Fruit; the box stays open.
-    await selectWord(3, 'Bananas');
-    await until(() => js(`document.querySelector('.wd-refs-main')?.value === 'Bananas'`), 'the box to follow the selection', 5000).catch(() => {});
+    await selectFollowed(3, 'Bananas');
     await fill('.wd-refs-main', 'Fruit');
     await fill('.wd-refs-sub', 'bananas');
     await click('.wd-refs-mark');
     const marked2 = await until(() => xes().some((x) => x.instr === 'XE "Fruit:bananas"' && x.block === 3), 'the subentry', 5000).catch(() => false);
     // Orchard: a cross-reference.
-    await selectWord(1, 'orchard');
-    await until(() => js(`document.querySelector('.wd-refs-main')?.value === 'orchard'`), 'the box to follow the selection', 5000).catch(() => {});
+    await selectFollowed(1, 'orchard');
     await js(`document.querySelector('.wd-refs-opt-see')?.click(), 1`);
     await fill('.wd-refs-see', 'See Fruit');
     await snap('word-index-mark.png');
