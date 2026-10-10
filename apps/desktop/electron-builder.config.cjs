@@ -74,16 +74,11 @@ module.exports = async () => {
     },
 
     nsis: {
-      // The installer speaks the system's language where NSIS has it: the
-      // languages electron-builder bundles (Arabic, Chinese and Japanese among
-      // them) and Hindi, which it does not list but NSIS has. Written out,
-      // since naming any replaces its list; hi_IN in full, since it would
-      // guess hi_HI. NSIS has no Urdu, so an Urdu system's installer is English.
-      installerLanguages: [
-        'en_US', 'de_DE', 'fr_FR', 'es_ES', 'zh_CN', 'zh_TW', 'ja_JP', 'ko_KR', 'it_IT', 'nl_NL', 'da_DK', 'sv_SE', 'nb_NO',
-        'fi_FI', 'ru_RU', 'pt_PT', 'pt_BR', 'pl_PL', 'uk_UA', 'cs_CZ', 'sk_SK', 'hu_HU', 'ar_SA', 'tr_TR', 'th_TH', 'vi_VN',
-        'hi_IN',
-      ],
+      // The installer speaks the system's language from the list
+      // electron-builder bundles (Arabic, Chinese and Japanese among them).
+      // Not Hindi: the Hindi language file in the NSIS it uses is broken (an
+      // unterminated string), and naming hi_IN stopped the 1.42.0 build. NSIS
+      // has no Urdu. Both systems see the installer in English.
       oneClick: false,
       perMachine: false,
       allowToChangeInstallationDirectory: true,
