@@ -8,6 +8,7 @@
 // alone with RUTBA_VERIFY_ONLY=urdu, arabic or hindi.
 import fs from 'node:fs';
 import path from 'node:path';
+import { BrowserWindow } from 'electron';
 import { CATALOGUES } from '@rutba/office-ui/catalogues';
 import { buildDocx } from '@rutba/ooxml/build';
 
@@ -36,6 +37,8 @@ async function verifyLanguage({ open, check, until, wait, errorsIn }, { dir, fil
   const capture = process.env.RUTBA_VERIFY_CAPTURE;
   const snap = async (win, file) => { if (capture) { win.webContents.invalidate(); await wait(400); fs.writeFileSync(path.join(capture, file), (await win.webContents.capturePage()).toPNG()); } };
   let home = null;
+  // The windows open before, so those these checks open can be closed after.
+  const before = new Set(BrowserWindow.getAllWindows().map((w) => w.id));
   try {
     // The language chosen where a person chooses it: the app menu's store.
     home = await open('home');
@@ -121,6 +124,10 @@ async function verifyLanguage({ open, check, until, wait, errorsIn }, { dir, fil
     } catch {
       /* the home window gone: the run's own settings say English at the next start */
     }
+    // Every window these checks opened, closed: four apps in three languages
+    // left open weigh on the checks after them (a stand-in camera above all).
+    // The home window stays: with no window left the application would quit.
+    for (const w of BrowserWindow.getAllWindows()) if (w !== home && !before.has(w.id) && !w.isDestroyed()) w.destroy();
   }
 }
 
