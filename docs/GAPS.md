@@ -173,6 +173,38 @@ Reads more than it writes. What it draws faithfully and cannot yet produce:
   template file whose own text, headers and page setup new documents take.
   (Building blocks — Insert → Quick Parts, the Quick Part and AutoText
   galleries and the Organizer — arrived in 1.29.4.)
+- **Pages side by side as the zoom drops** (the owner, 2026-10-10, with
+  Word's own window beside this one). Word lays the pages across the window
+  once there is room: two side by side at about 50%, three or four and more
+  as the zoom falls further, each row wrapping, and View → Multiple Pages
+  picks the zoom that shows two whole pages across. View → Page Movement →
+  Side to Side turns the pages like a book, moved through sideways with the
+  wheel. Here every page is stacked one under another at any zoom, and
+  View → Multiple Pages only sets the zoom to 50% (`case 'zoom'` in
+  `renderer/apps/word.js`, `arg === 'pages'`), so at 50% a wide window
+  shows one small page in the middle with empty space on each side. What it
+  needs:
+  - the page column laid as rows that wrap, as many pages across as fit at
+    the zoom (a page's width times the zoom, plus the gap), centred, the
+    pages still in reading order left to right (right to left in a
+    right-to-left document);
+  - Multiple Pages choosing the zoom that fits two pages across, and the
+    zoom slider and Ctrl+wheel reflowing the rows as they change;
+  - Side to Side as a second page movement on the View tab beside
+    Vertical, pages in one row moved through horizontally, with a thumbnail
+    strip when zoomed right out, as Word draws it;
+  - everything that reads a page's place still right with pages beside each
+    other: the caret moving from the foot of one page to the head of the
+    next, selection dragged across pages, the ruler following the page the
+    caret is in, scroll to the caret, find, the navigation pane, comments
+    and tracked changes in the margin, and picture and text box handles
+    (they read their rects through `pages.js`, which divides by the zoom);
+  - Read Mode and print preview kept as they are.
+  Proof: a window check that at 50% in a wide window two pages share a top
+  edge and the second sits to the right of the first, that at 30% three or
+  more do, that Multiple Pages shows two whole pages, that typing at the
+  foot of the left page carries on at the head of the right one, and that
+  Side to Side scrolls sideways.
 
 ## 2. Worksheets — the workbook
 
