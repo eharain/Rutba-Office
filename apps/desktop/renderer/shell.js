@@ -18,7 +18,7 @@ import { filtersInLanguage } from './registry-words.js';
  * (none, the first, follows the system). A language is offered once its
  * catalogue is whole.
  */
-const LANGUAGES = [[null, null], ['en', 'English'], ['ur', 'اردو'], ['ar', 'العربية']];
+const LANGUAGES = [[null, null], ['en', 'English'], ['ur', 'اردو'], ['ar', 'العربية'], ['hi', 'हिन्दी']];
 
 /**
  * The digits a window in one of these languages may write its numbers in,
@@ -27,6 +27,7 @@ const LANGUAGES = [[null, null], ['en', 'English'], ['ur', 'اردو'], ['ar', '
 const DIGITS = {
   ar: [[null, msg('Western digits (123)')], ['arab', msg('Arabic-Indic digits (١٢٣)')]],
   ur: [[null, msg('Western digits (123)')], ['arabext', msg('Eastern Arabic-Indic digits (۱۲۳)')]],
+  hi: [[null, msg('Western digits (123)')], ['deva', msg('Devanagari digits (१२३)')]],
 };
 
 /** A window's address with its language set, or taken off for the system's. */

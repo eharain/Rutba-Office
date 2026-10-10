@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5361,
+  "count": 5366,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -7721,6 +7721,12 @@
       ]
     },
     {
+      "message": "Devanagari digits (१२३)",
+      "where": [
+        "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
       "message": "Developer Tools",
       "where": [
         "packages/office-shell/src/electron/main.js"
@@ -13362,6 +13368,30 @@
     },
     {
       "message": "Justify (Ctrl+J)",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Justify High",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Justify Low",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Justify Medium",
+      "where": [
+        "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Justify with kashida — stretch the letters to fill the line, as Arabic is justified",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]

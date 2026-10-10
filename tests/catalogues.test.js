@@ -18,13 +18,13 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const LIST = JSON.parse(fs.readFileSync(path.join(ROOT, 'packages/office-ui/src/catalogues/messages.json'), 'utf8')).messages;
 
 /** The script each language writes in, to tell a translation from English left in. */
-const SCRIPTS = { ur: /[\u0600-\u06FF]/, ar: /[\u0600-\u06FF]/ };
+const SCRIPTS = { ur: /[\u0600-\u06FF]/, ar: /[\u0600-\u06FF]/, hi: /[\u0900-\u097F]/ };
 
 // A brand, a format or a code alone stays as it is; words do not.
 const KEEP = /^(?:[\s\d.,:;!?…—–()[\]{}/+%#&|·×→←=-]|\{\w+\}|PDF|CSV|TSV|HTML|Markdown|DOCX|PNG|JPEG|WebP|Mbox|TLS|STARTTLS|Cc|Bcc|ISO|AV|Aa|IF|DOI|URL|SmartArt|WordArt|PivotTable|PivotChart|Power Query|Rutba Office|Rutba|Office|Word|Excel|PowerPoint|Windows|Google|Microsoft|iCloud|Outlook|vCard|AutoFit|AutoSum|Calibri|\S+@\S+|https?:\S+|[A-Z]\d*|f\/\S+)+$/;
 
 test('there is a catalogue for each language the windows offer', () => {
-  assert.deepEqual(Object.keys(CATALOGUES).sort(), ['ar', 'ur']);
+  assert.deepEqual(Object.keys(CATALOGUES).sort(), ['ar', 'hi', 'ur']);
 });
 
 for (const [tag, catalogue] of Object.entries(CATALOGUES)) {
@@ -91,13 +91,18 @@ for (const [tag, catalogue] of Object.entries(CATALOGUES)) {
 }
 
 test('the digits a window writes its numbers in: the language\'s own, or the ones chosen', () => {
-  registerCatalogue('ar', CATALOGUES.ar);
+  for (const [tag, catalogue] of Object.entries(CATALOGUES)) registerCatalogue(tag, catalogue);
   try {
     setLanguage('ar');
     setDigits('latn');
     assert.match(tn(1234, '{count} word', '{count} words'), /1,234/);
     setDigits('arab');
     assert.match(tn(1234, '{count} word', '{count} words'), /١٬٢٣٤/);
+    setLanguage('hi');
+    setDigits(null);
+    assert.match(tn(1234567, '{count} word', '{count} words'), /12,34,567/, 'Hindi groups as India does');
+    setDigits('deva');
+    assert.match(tn(25, '{count} word', '{count} words'), new RegExp('\u0968\u096B'), 'Devanagari digits');
     setLanguage('ur');
     setDigits('arabext');
     assert.match(tn(25, '{count} word', '{count} words'), /۲۵/);

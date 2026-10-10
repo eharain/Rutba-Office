@@ -17,11 +17,28 @@ import { AppFrame, useAppMenu, pickOpen, pickSave, useFileDrop } from '../shell.
 import { AccountsDialog } from '../dav-accounts.js';
 
 const DAY = 86400000;
-// The days, Monday first, and the months, as the window's language names them
-// (Mon and January in English): 1 January 2024 was a Monday.
+/**
+ * The week's first day, counted as getDay counts (0 is Sunday): Monday in
+ * English, as the suite has always had it; else the window language's own,
+ * as the locale data gives it: Saturday in Arabic, Sunday in Urdu and Hindi.
+ */
+const WEEK_START = (() => {
+  if (language() === 'en') return 1;
+  try {
+    const locale = new Intl.Locale(language());
+    const info = typeof locale.getWeekInfo === 'function' ? locale.getWeekInfo() : locale.weekInfo;
+    return info?.firstDay ? info.firstDay % 7 : 1;
+  } catch {
+    return 1;
+  }
+})();
+/** A day's place in the week, from 0 for its first day. */
+const weekIndex = (d) => (d.getDay() - WEEK_START + 7) % 7;
+// The days, the week's first day first, and the months, as the window's
+// language names them (Mon and January in English): 7 January 2024 was a Sunday.
 const named = (options, count, at) => Array.from({ length: count }, (_, i) => at(i).toLocaleDateString(language(), options));
-const DAYS = named({ weekday: 'short' }, 7, (i) => new Date(2024, 0, 1 + i));
-const DAY_LETTERS = named({ weekday: 'narrow' }, 7, (i) => new Date(2024, 0, 1 + i));
+const DAYS = named({ weekday: 'short' }, 7, (i) => new Date(2024, 0, 7 + WEEK_START + i));
+const DAY_LETTERS = named({ weekday: 'narrow' }, 7, (i) => new Date(2024, 0, 7 + WEEK_START + i));
 const MONTHS = named({ month: 'long' }, 12, (i) => new Date(2024, i, 1));
 const MONTHS_SHORT = named({ month: 'short' }, 12, (i) => new Date(2024, i, 1));
 
@@ -68,7 +85,7 @@ const startOfDay = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
 const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 /** Monday of the week that holds the date. */
-const startOfWeek = (d) => addDays(startOfDay(d), -((d.getDay() + 6) % 7));
+const startOfWeek = (d) => addDays(startOfDay(d), -weekIndex(d));
 const pad = (n) => String(n).padStart(2, '0');
 const isoDate = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 const isoTime = (d) => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
@@ -393,7 +410,7 @@ export default function Calendar({ app, shell, boot }) {
   );
   useCommands(commands, [view, cursor]);
 
-  const title = view === 'month' ? `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}${hijri && hijriSpan(cursor) ? ` · ${hijriSpan(cursor)}` : ''}` : view === 'week' ? t('Week of {date}', { date: `${range.from.getDate()} ${MONTHS_SHORT[range.from.getMonth()]} ${range.from.getFullYear()}` }) : view === 'day' ? `${DAYS[(cursor.getDay() + 6) % 7]} ${cursor.getDate()} ${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}` : t('Next 30 days');
+  const title = view === 'month' ? `${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}${hijri && hijriSpan(cursor) ? ` · ${hijriSpan(cursor)}` : ''}` : view === 'week' ? t('Week of {date}', { date: `${range.from.getDate()} ${MONTHS_SHORT[range.from.getMonth()]} ${range.from.getFullYear()}` }) : view === 'day' ? `${DAYS[weekIndex(cursor)]} ${cursor.getDate()} ${MONTHS[cursor.getMonth()]} ${cursor.getFullYear()}` : t('Next 30 days');
 
   /* ── views ────────────────────────────────────────────────────────────── */
 
@@ -462,7 +479,7 @@ export default function Calendar({ app, shell, boot }) {
           <div className="cal-gutter" />
           {days.map((d) => (
             <div key={isoDate(d)} className={`cal-col-head${sameDay(d, today) ? ' today' : ''}`}>
-              <span className="dn">{DAYS[(d.getDay() + 6) % 7]}</span> <span className="dd">{d.getDate()}</span>
+              <span className="dn">{DAYS[weekIndex(d)]}</span> <span className="dd">{d.getDate()}</span>
               {hijri ? <span className="dh">{hijriLabel(d)}</span> : null}
             </div>
           ))}
@@ -537,7 +554,7 @@ export default function Calendar({ app, shell, boot }) {
           const d = new Date(`${k}T00:00:00`);
           return (
             <div key={k} className={`cal-agenda-day${sameDay(d, today) ? ' today' : ''}`}>
-              <div className="cal-agenda-date"><span className="dn">{DAYS[(d.getDay() + 6) % 7]}</span><span className="dd">{d.getDate()}</span><span className="dm">{MONTHS_SHORT[d.getMonth()]}</span></div>
+              <div className="cal-agenda-date"><span className="dn">{DAYS[weekIndex(d)]}</span><span className="dd">{d.getDate()}</span><span className="dm">{MONTHS_SHORT[d.getMonth()]}</span></div>
               <div className="cal-agenda-list">
                 {groups.get(k).sort((a, b) => Number(b.allDay) - Number(a.allDay) || a.start - b.start).map((s, i) => (
                   <button type="button" key={`${s.id}-${i}`} className="cal-agenda-item" style={{ '--c': s.colour }} onClick={() => openSlot(s)}>

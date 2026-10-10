@@ -859,8 +859,15 @@ function withMarkRecord(pPr, kind, meta) {
 // empty collapses back to nothing, so a paragraph that had no explicit
 // properties returns to having none.
 
-/** Editor alignment -> the docx `w:jc` value. Justify is stored as "both". */
-const TO_DOCX_ALIGN = { left: 'left', center: 'center', right: 'right', justify: 'both', both: 'both' };
+/**
+ * Editor alignment -> the docx `w:jc` value. Justify is stored as "both";
+ * Word's Arabic justifications, which stretch the letters with kashida
+ * (Justify Low, Medium and High), keep their own names.
+ */
+const TO_DOCX_ALIGN = {
+  left: 'left', center: 'center', right: 'right', justify: 'both', both: 'both',
+  lowKashida: 'lowKashida', mediumKashida: 'mediumKashida', highKashida: 'highKashida',
+};
 /** The docx `w:jc` value -> the editor's neutral vocabulary. */
 const FROM_DOCX_ALIGN = { left: 'left', center: 'center', right: 'right', both: 'justify', start: 'left', end: 'right' };
 

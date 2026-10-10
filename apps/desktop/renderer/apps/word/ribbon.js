@@ -23,7 +23,7 @@
 import React from 'react';
 import { TABLE_STYLES } from '@rutba/ooxml/table-styles';
 import { WARP_PRESETS, WARP_MORE, warpLabel } from '@rutba/drawing/warp';
-import { Ribbon, Group, Rows, Button, Separator, Select, Input, t } from '@rutba/office-ui';
+import { Ribbon, Group, Rows, Button, Separator, Select, Input, t, msg } from '@rutba/office-ui';
 import { EQUATION_GALLERY } from '@rutba/ooxml/math-linear';
 import { THEMES, PALETTES, FONT_PAIRS, EFFECT_PRESETS } from '@rutba/office-formats/themes';
 import { MailingsTab } from './mailings.js';
@@ -39,6 +39,8 @@ import { untrackedOk } from './untracked.js';
 
 const FONTS = ['Calibri', 'Calibri Light', 'Cambria', 'Arial', 'Times New Roman', 'Georgia', 'Verdana', 'Segoe UI', 'Tahoma', 'Garamond', 'Consolas', 'Courier New'];
 const SIZES = [8, 9, 10, 10.5, 11, 12, 14, 16, 18, 20, 22, 24, 26, 28, 36, 48, 72];
+/** Word's three Arabic justifications, each stretching the letters with kashida a little more. */
+const KASHIDA = [['lowKashida', msg('Justify Low')], ['mediumKashida', msg('Justify Medium')], ['highKashida', msg('Justify High')]];
 
 // Immersive Reader's choices, as Word names them.
 const IR_WIDTHS = [['veryNarrow', t('Very Narrow')], ['narrow', t('Narrow')], ['moderate', t('Moderate')], ['wide', t('Wide')]];
@@ -419,6 +421,11 @@ export default function WordRibbon({
                 <Button icon="alignCenter" title={t('Centre (Ctrl+E)')} pressed={format.paragraphAlign === 'center'} onClick={() => para({ align: 'center' })} />
                 <Button icon="alignRight" title={t('Align right (Ctrl+R)')} pressed={format.paragraphAlign === 'right'} onClick={() => para({ align: 'right' })} />
                 <Button icon="alignJustify" title={t('Justify (Ctrl+J)')} pressed={format.paragraphAlign === 'justify' || format.paragraphAlign === 'both'} onClick={() => para({ align: 'both' })} />
+                {format.rtl ? (
+                  // Word's Arabic justifications: the line filled by stretching the letters with kashida.
+                  <Button icon="chevronDown" title={t('Justify with kashida — stretch the letters to fill the line, as Arabic is justified')} pressed={KASHIDA.some(([v]) => v === format.paragraphAlign)} onClick={(e) =>
+                    menu.open(e, KASHIDA.map(([v, label]) => ({ label: t(label), icon: format.paragraphAlign === v ? 'check' : undefined, run: () => para({ align: v }) })))} />
+                ) : null}
                 <Separator />
                 <Button icon="listNumber" title={format.lineSpacing ? t('Line and paragraph spacing — {spacing}', { spacing: format.lineSpacing }) : t('Line and paragraph spacing')} onClick={(e) =>
                   menu.open(e, [

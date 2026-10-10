@@ -23,11 +23,12 @@ const { appendExecutionPage, overlayPages, describePages, Unsupported: PdfUnsupp
 const metrics = require('./metrics');
 const encoding = require('./encoding');
 const { shapeArabic, hasArabic } = require('./shaping');
+const { stretchArabic, kashidaPlaces, KASHIDA_SHARE } = require('./kashida');
 const { visualPieces, visualText, hasRtl } = require('./bidi');
 const { readTrueType } = require('./truetype');
 
 module.exports = {
-  shapeArabic, hasArabic, visualPieces, visualText, hasRtl, readTrueType,
+  shapeArabic, hasArabic, visualPieces, visualText, hasRtl, readTrueType, stretchArabic, kashidaPlaces, KASHIDA_SHARE,
   PdfDocument, Page, SIZES, colour, fingerprint,
   Sheet, INK, DEFAULT_MARGINS,
   drawPaper, renderPaper,

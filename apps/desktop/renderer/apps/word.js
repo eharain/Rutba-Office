@@ -3504,8 +3504,10 @@ function paragraphCss(block, styles) {
     fontVariant: named?.smallCaps ? 'small-caps' : undefined,
     color: named?.colour || undefined,
     // 'both' is OOXML for justified; the others are CSS already, a
-    // right-to-left paragraph's left and right swapped.
-    textAlign: align === 'both' ? 'justify' : (rtl ? MIRRORED_ALIGN[align] : null) || align || undefined,
+    // right-to-left paragraph's left and right swapped. Word's Arabic
+    // justifications are justified here by the spaces, as the browser
+    // cannot stretch the letters; the PDF and print stretch them with kashida.
+    textAlign: JUSTIFIED.has(align) ? 'justify' : (rtl ? MIRRORED_ALIGN[align] : null) || align || undefined,
     marginTop: block.spaceBeforePx != null ? Math.round(block.spaceBeforePx) : named?.spaceBeforePx != null ? Math.round(named.spaceBeforePx) : heading ? '1.1em' : undefined,
     marginBottom: block.spaceAfterPx != null ? Math.round(block.spaceAfterPx) : named?.spaceAfterPx != null ? Math.round(named.spaceAfterPx) : undefined,
     // The paragraph's own left indent, to the pixel — including an explicit
@@ -3542,6 +3544,8 @@ function paragraphCss(block, styles) {
 }
 
 const MIRRORED_ALIGN = { left: 'right', right: 'left' };
+/** The alignments the page shows justified: Word's own, and its three Arabic ones with kashida. */
+const JUSTIFIED = new Set(['both', 'justify', 'lowKashida', 'mediumKashida', 'highKashida']);
 const MIRRORED_SIDE = {
   marginLeft: 'marginRight', marginRight: 'marginLeft', paddingLeft: 'paddingRight', paddingRight: 'paddingLeft',
   borderLeft: 'borderRight', borderRight: 'borderLeft',

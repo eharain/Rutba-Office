@@ -130,4 +130,4 @@ function baseLetters(cp) {
   return BASE_OF.get(cp) || [cp];
 }
 
-module.exports = { shapeArabic, hasArabic, baseLetters, isMark };
+module.exports = { shapeArabic, hasArabic, baseLetters, isMark, joiningType: joining };

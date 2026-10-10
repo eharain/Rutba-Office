@@ -26,7 +26,7 @@
  * Workspace seam test allows it by name: `@rutba/pdf` is a shared package
  * with no Workspace dependency, so nothing here ties the editor to a product.
  */
-import { PdfDocument, decodePng, isPng, shapeArabic, hasArabic, visualPieces, hasRtl } from '@rutba/pdf';
+import { PdfDocument, decodePng, isPng, shapeArabic, hasArabic, visualPieces, hasRtl, stretchArabic, kashidaPlaces, KASHIDA_SHARE } from '@rutba/pdf';
 import { layoutParagraph, paginate, rowHeight, cellPadding } from '../paginate.js';
 import { computeListLabels } from '../lists.js';
 import { bandForPage, resolveFields } from '../bands.js';
@@ -183,6 +183,34 @@ function visualLine(segments, fragment) {
 const DRAWN_ALIGN = { left: 'right', right: 'left', start: 'right', end: 'left' };
 
 /**
+ * A justified Arabic line stretched with kashida, as Word draws a paragraph
+ * aligned Justify Low, Medium or High: the share of the line's slack the
+ * alignment gives to kashida, as tatweels set into its words' joins, shared
+ * among the runs by how many joins each has. The rest of the slack is left
+ * for the spaces, as plain justification spreads it.
+ */
+function withKashida(doc, segments, fragment, slack, share) {
+  if (!(slack > 0) || !share) return segments;
+  const places = segments.map((seg) => (seg.math || !seg.text ? 0 : kashidaPlaces(seg.text).reduce((n, word) => n + word.length, 0)));
+  const total = places.reduce((n, p) => n + p, 0);
+  if (!total) return segments;
+  const first = segments.find((seg, k) => places[k] > 0);
+  const style = styleOfRun(first, fragment);
+  const tatweel = doc.widthOf('\u0640', { font: style.font, size: style.size });
+  if (!(tatweel > 0)) return segments;
+  let count = Math.floor((slack * share) / tatweel);
+  if (!count) return segments;
+  // Each run's part of the count by its joins; what rounding leaves goes to the runs in turn.
+  const parts = places.map((p) => Math.floor((count * p) / total));
+  let left = count - parts.reduce((n, p) => n + p, 0);
+  for (let k = 0; left > 0 && k < parts.length * 2; k++) {
+    const i = k % parts.length;
+    if (places[i] > 0) { parts[i] += 1; left -= 1; }
+  }
+  return segments.map((seg, k) => (parts[k] ? { ...seg, text: stretchArabic(seg.text, parts[k]) } : seg));
+}
+
+/**
  * Draw one laid-out line. `x` and `baseline` are in points. Justification
  * spreads `extraPerSpace` points across every space in the line.
  */
@@ -287,16 +315,20 @@ function drawParagraphLines(page, doc, { lines, fragment, runs, xPx, yPx, widthP
       segments[segments.length - 1] = { ...last, text: last.text + '-' };
     }
     if (!segments.length) return;
-    segments = visualLine(segments, fragment);
-    const lineWidth = widthOfSegments(doc, segments, fragment);
     // A line beside a floating picture is narrower than its column, and one
     // beside a left float starts further in; the paginator says by how much.
     const room = (line.widthPx ?? widthPx) * PT;
+    const lastLine = lastIsFinal && i === lines.length - 1;
+    // Justified with kashida: the letters stretched first, the spaces after.
+    const share = KASHIDA_SHARE[align];
+    if (share && !lastLine) segments = withKashida(doc, segments, fragment, room - widthOfSegments(doc, segments, fragment), share);
+    segments = visualLine(segments, fragment);
+    const lineWidth = widthOfSegments(doc, segments, fragment);
     let x = (xPx + (line.offsetPx || 0)) * PT;
     let extraPerSpace = 0;
     if (align === 'center') x += Math.max(0, (room - lineWidth) / 2);
     else if (align === 'right' || align === 'end') x += Math.max(0, room - lineWidth);
-    else if ((align === 'both' || align === 'justify') && !(lastIsFinal && i === lines.length - 1)) {
+    else if ((align === 'both' || align === 'justify' || share) && !lastLine) {
       const spaces = segments.reduce((n, seg) => n + (seg.text.match(/ /g) || []).length, 0);
       if (spaces > 0 && room > lineWidth) extraPerSpace = (room - lineWidth) / spaces;
     }

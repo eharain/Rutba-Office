@@ -21,9 +21,11 @@
 
 import ur from './ur.js';
 import ar from './ar.js';
+import hi from './hi.js';
 
 /**
  * Urdu, since 1.38.0, and Arabic, since 1.40.0: each the whole list, its
- * frame right to left (renderer/language.js).
+ * frame right to left (renderer/language.js). Hindi, since 1.42.0, left to
+ * right in Devanagari.
  */
-export const CATALOGUES = { ur, ar };
+export const CATALOGUES = { ur, ar, hi };

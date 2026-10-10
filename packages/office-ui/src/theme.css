@@ -837,6 +837,10 @@ textarea,
   --font: "Segoe UI", "Noto Naskh Arabic", "Urdu Typesetting", Tahoma, system-ui, sans-serif;
   --font-display: "Segoe UI Semibold", "Segoe UI", "Noto Naskh Arabic", Tahoma, system-ui, sans-serif;
 }
+:root[lang|="hi"] {
+  --font: "Segoe UI", "Nirmala UI", "Noto Sans Devanagari", Mangal, system-ui, sans-serif;
+  --font-display: "Segoe UI Semibold", "Segoe UI", "Nirmala UI", "Noto Sans Devanagari", system-ui, sans-serif;
+}
 :root[lang|="ar"] {
   --font: "Segoe UI", "Noto Sans Arabic", "Noto Naskh Arabic", Tahoma, system-ui, sans-serif;
   --font-display: "Segoe UI Semibold", "Segoe UI", "Noto Sans Arabic", Tahoma, system-ui, sans-serif;
