@@ -13,17 +13,15 @@
 
 MSG_FILE="$1"
 
-# Two classes, because one of them collides with ordinary code and prose.
+# Two classes, because one of them collides with ordinary prose and code.
 #   AI_ANYWHERE — distinctive enough to be meant wherever it appears, so it
-#     matches inside an identifier too. Word-bounding these would let a
-#     camelCase file or symbol name through.
-#   AI_WORD — also ordinary substrings, so they count only as WHOLE WORDS. An
-#     XML decoding helper whose name ends in "codeX" is not a tool, and neither
-#     is a meteor shower. Each still trips when written as a word.
-#
-# Added 2026-09-06, mirroring pre-push and pre-commit.
-AI_ANYWHERE='claude|anthropic|copilot|chatgpt|openai|gpt-[0-9]|codeium|tabnine|windsurf|deepseek|conva'
-AI_WORD='codex|kimi|gemini|deepseek|conva'
+#     matches inside an identifier too.
+#   AI_WORD — also ordinary substrings, so they count only as WHOLE WORDS.
+#     "canvas" is not Canva, an XML decoding helper whose name ends in "codeX"
+#     is not a tool, and a meteor shower is not a model. Each still trips when
+#     written as a word: canva.com, codex.md, Gemini.
+AI_ANYWHERE='claude|anthropic|copilot|chatgpt|openai|gpt-[0-9]|codeium|tabnine|windsurf|deepseek'
+AI_WORD='codex|canva|kimi|gemini'
 CONTENT_PATTERN="$AI_ANYWHERE|\\b($AI_WORD)\\b"
 CURSOR_PATTERN='(co-?authored|generated|written|authored|created|assisted|made|built|powered)([^a-z]|[a-z]){0,24}cursor|cursor\.(sh|so|com|ai|dev)|cursor[-_ ](ide|editor|ai|agent|composer|rules)|\.cursorrules|\.cursor/'
 ROBOT=$(printf '\360\237\244\226')

@@ -1,6 +1,6 @@
 #!/bin/sh
 # Last line of defense: every commit about to be pushed is re-checked for an
-# AI-provider footprint in ALL FOUR places a commit can carry one —
+# AI-provider footprint in ALL FOUR places a commit can carry one:
 #   - the author and committer identities,
 #   - the commit message,
 #   - the names of the files it touches,
@@ -9,28 +9,69 @@
 # cherry-pick/patch/rebase from elsewhere, or already sitting in history.
 # The patterns and carve-outs mirror pre-commit and commit-msg exactly; see
 # pre-commit for why "cursor" and lockfiles are handled specially.
+#
+# 2026-10-10 rewrite for speed (owner: "it cant take that long"): the old hook
+# started a diff and several greps PER FILE PER COMMIT, about 0.4 s each on
+# Windows, so an 87-commit push sat for hours. Now each commit costs one diff
+# read once by awk; the allow-list is read once. Same rules, same result.
+# Previous version: pre-push.before-speedup-20261010.
+#
+# 2026-10-10 addition (owner: "add a check in the hook against these characters
+# that we cleaned"): commits made from the clean-up commit onward (committer time
+# >= CHAR_CUTOFF) must not add the long dash, zero-width characters, direction
+# marks, word joiners, no-break spaces or a byte-order mark (except at the very
+# start of a file) in any line or in the message. Older history is not re-judged.
 
 # Two classes, because one of them collides with ordinary code.
-#   AI_ANYWHERE — distinctive enough to be meant wherever it appears, so it
-#     matches inside an identifier too: ClaudeService.ts and myclaudehelper
-#     both trip. Word-bounding these would let camelCase through.
-#   AI_WORD — also ordinary substrings, so they count only as WHOLE WORDS.
-#     "decodeXml" is not Codex and "geminid" is not Gemini. Each still trips
-#     as a word: codex.md, using Codex, Gemini.
-#
-# Added 2026-09-06, after `decodeXml` in a merge commit already on the remote
-# made it impossible to push any new branch in this repository.
+#   AI_ANYWHERE: distinctive enough to be meant wherever it appears, so it
+#     matches inside an identifier too.
+#   AI_WORD: also ordinary substrings, so they count only as WHOLE WORDS.
 AI_ANYWHERE='claude|anthropic|copilot|chatgpt|openai|gpt-[0-9]|codeium|tabnine|windsurf|deepseek'
-AI_WORD='codex|kimi|gemini'
+AI_WORD='codex|canva|kimi|gemini'
 PATTERN="$AI_ANYWHERE|\\b($AI_WORD)\\b|cursor"
 CONTENT_PATTERN="$AI_ANYWHERE|\\b($AI_WORD)\\b"
 CURSOR_PATTERN='(co-?authored|generated|written|authored|created|assisted|made|built|powered)([^a-z]|[a-z]){0,24}cursor|cursor\.(sh|so|com|ai|dev)|cursor[-_ ](ide|editor|ai|agent|composer|rules)|\.cursorrules|\.cursor/'
+# gawk spells the word boundary \y
+AWK_CONTENT="$AI_ANYWHERE|\\y($AI_WORD)\\y"
 ROBOT=$(printf '\360\237\244\226')
+CHAR_CUTOFF=1791582780
+
+# Cleaned characters, as UTF-8 bytes: long dash, zero-width space, zero-width
+# non-joiner, left-to-right and right-to-left marks, word joiner, no-break space,
+# byte-order mark.
+CH_DASH=$(printf '\342\200\224'); CH_ZWSP=$(printf '\342\200\213'); CH_ZWNJ=$(printf '\342\200\214')
+CH_LRM=$(printf '\342\200\216'); CH_RLM=$(printf '\342\200\217'); CH_WJ=$(printf '\342\201\240')
+CH_NBSP=$(printf '\302\240'); CH_BOM=$(printf '\357\273\277')
+
+ALLOW_FILE="$(git rev-parse --show-toplevel 2>/dev/null)/.ai-names-allow"
+# Read the allow-list ONCE (it used to be re-read, with a sed per rule, for every path).
+ALLOW_RULES=""
+if [ -f "$ALLOW_FILE" ]; then
+  ALLOW_RULES=$(sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' "$ALLOW_FILE" | grep -v '^$')
+fi
+content_allowed() {
+  [ -n "$ALLOW_RULES" ] || return 1
+  _old_ifs=$IFS; IFS='
+'; set -f
+  for _rule in $ALLOW_RULES; do
+    case "$1" in $_rule) IFS=$_old_ifs; set +f; return 0 ;; esac
+  done
+  IFS=$_old_ifs; set +f
+  return 1
+}
 
 z40=0000000000000000000000000000000000000000
 HITS=$(mktemp)
 PATHS=$(mktemp)
-trap 'rm -f "$HITS" "$PATHS"' EXIT
+SKIP=$(mktemp)
+trap 'rm -f "$HITS" "$PATHS" "$SKIP"' EXIT
+
+has_chars() { # stdin text; a leading byte-order mark on the first line is allowed
+  LC_ALL=C awk -v d="$CH_DASH" -v a="$CH_ZWSP" -v b="$CH_ZWNJ" -v l="$CH_LRM" -v r="$CH_RLM" -v w="$CH_WJ" -v n="$CH_NBSP" -v m="$CH_BOM" '
+    { s = $0; if (NR == 1 && index(s, m) == 1) s = substr(s, 4)
+      if (index(s, d) || index(s, a) || index(s, b) || index(s, l) || index(s, r) || index(s, w) || index(s, n) || index(s, m)) { found = 1; exit } }
+    END { exit found ? 0 : 1 }'
+}
 
 check_commit() {
   c="$1"
@@ -42,10 +83,8 @@ check_commit() {
     printf '  %s (%s) IDENT: %s\n' "$c" "$ref" "$(printf '%s' "$ident" | tr '\n' ';')" >> "$HITS"
   fi
 
-  # Message: provider names anywhere, attribution-context cursor, robot mark.
-  # The robot mark is matched by SHELL string containment, not grep: the hook
-  # environment's locale differs from an interactive shell's, and a multibyte
-  # grep pattern that matches at a prompt silently missed under a real push.
+  # Message: provider names anywhere, attribution-context cursor, robot mark
+  # (matched by shell containment: the hook locale can make a multibyte grep miss).
   msg=$(git show -s --format='%B' "$c")
   robot_hit=1
   case "$msg" in *"$ROBOT"*) robot_hit=0 ;; esac
@@ -54,43 +93,69 @@ check_commit() {
     || [ "$robot_hit" -eq 0 ]; then
     printf '  %s (%s) MESSAGE\n' "$c" "$ref" >> "$HITS"
   fi
+  ctime=$(git show -s --format='%ct' "$c")
+  charcheck=0
+  if [ "$ctime" -ge "$CHAR_CUTOFF" ]; then
+    charcheck=1
+    if printf '%s\n' "$msg" | has_chars; then
+      printf '  %s (%s) MESSAGE-CHARS (long dash or invisible character)\n' "$c" "$ref" >> "$HITS"
+    fi
+  fi
 
-  # File names and added lines, with pre-commit's exact carve-outs. A merge
-  # commit shows no diff here (its content arrived in parents already
-  # checked); that is the same stance `git log -p` takes.
-  git diff-tree -r --no-commit-id --name-only --diff-filter=ACMR -z "$c" \
-    | tr '\0' '\n' > "$PATHS"
+  # File names: one grep over the whole list, guard files excluded.
+  git diff-tree -r --no-commit-id --name-only --diff-filter=ACMR -z "$c" | tr '\0' '\n' > "$PATHS"
+  : > "$SKIP"
   while IFS= read -r path; do
     [ -z "$path" ] && continue
     case "$path" in
-      *.githooks/*|AGENTS.md|RULES.md|.ai-rules.md|*/AGENTS.md|*/RULES.md|*/.ai-rules.md)
-        continue ;;
+      *.githooks/*|AGENTS.md|RULES.md|.ai-rules.md|.ai-names-allow|*/AGENTS.md|*/RULES.md|*/.ai-rules.md|*/.ai-names-allow)
+        printf 'G\t%s\n' "$path" >> "$SKIP.kind"; continue ;;
     esac
-    if printf '%s' "$path" | grep -qiE "$PATTERN"; then
-      printf '  %s (%s) NAME: %s\n' "$c" "$ref" "$path" >> "$HITS"
-    fi
+    printf '%s\n' "$path" >> "$SKIP"   # names to check, guard files excluded
     case "$path" in
       package-lock.json|*/package-lock.json|npm-shrinkwrap.json|*/npm-shrinkwrap.json|yarn.lock|*/yarn.lock|pnpm-lock.yaml|*/pnpm-lock.yaml)
-        continue ;;
+        printf 'L\t%s\n' "$path" >> "$SKIP.kind"; continue ;;
     esac
-    added=$(git diff-tree -r -p --no-commit-id "$c" -- "$path" \
-      | grep '^+' | grep -v '^+++')
-    if printf '%s' "$added" | grep -qiE "$CONTENT_PATTERN" \
-      || printf '%s' "$added" | grep -qiE "$CURSOR_PATTERN"; then
-      printf '  %s (%s) CONTENT: %s\n' "$c" "$ref" "$path" >> "$HITS"
-    fi
+    content_allowed "$path" && printf 'A\t%s\n' "$path" >> "$SKIP.kind"
   done < "$PATHS"
+  grep -iE "$PATTERN" "$SKIP" 2>/dev/null | while IFS= read -r hit; do printf '  %s (%s) NAME: %s\n' "$c" "$ref" "$hit"; done >> "$HITS"
+
+  # Added lines: ONE diff per commit, read by awk.
+  #   G (guard files): no checks at all, as before.
+  #   L (lockfiles) and A (allow-listed): no AI-name check, as before; the
+  #     character check still applies to allow-listed files, not to lockfiles.
+  # The regexes go through the environment: awk -v would rewrite their backslashes (\y, \.).
+  git diff-tree -r -p --no-commit-id --diff-filter=ACMR "$c" | HOOK_RE="$AWK_CONTENT" HOOK_CRE="$CURSOR_PATTERN" LC_ALL=C awk \
+    -v kindfile="$SKIP.kind" -v cc="$charcheck" \
+    -v d="$CH_DASH" -v a="$CH_ZWSP" -v b="$CH_ZWNJ" -v l="$CH_LRM" -v r="$CH_RLM" -v w="$CH_WJ" -v n="$CH_NBSP" -v m="$CH_BOM" \
+    -v c="$c" -v ref="$ref" '
+    BEGIN { re = ENVIRON["HOOK_RE"]; cre = ENVIRON["HOOK_CRE"]; while ((getline line < kindfile) > 0) { split(line, p, "\t"); kind[p[2]] = p[1] } }
+    /^diff --git / { path = ""; first = 1; next }
+    /^\+\+\+ / { path = substr($0, 5); sub(/^"/, "", path); sub(/"$/, "", path); sub(/^b\//, "", path); next }
+    /^@@/ { next }
+    /^\+/ {
+      if (path == "" || kind[path] == "G") next
+      s = substr($0, 2)
+      if (kind[path] != "L" && kind[path] != "A" && !named[path]) {
+        t = s; gsub(/base64,[A-Za-z0-9+\/=]*/, "", t); t = tolower(t)
+        if (t ~ re || t ~ cre) { named[path] = 1; printf "  %s (%s) CONTENT: %s\n", c, ref, path }
+      }
+      if (cc == 1 && kind[path] != "L" && !chars[path]) {
+        u = s; if (first && index(u, m) == 1) u = substr(u, 4)
+        if (index(u, d) || index(u, a) || index(u, b) || index(u, l) || index(u, r) || index(u, w) || index(u, n) || index(u, m)) {
+          chars[path] = 1; printf "  %s (%s) CHARS: %s (long dash or invisible character)\n", c, ref, path
+        }
+      }
+      first = 0
+    }' >> "$HITS"
+  rm -f "$SKIP.kind"
 }
 
 while read -r local_ref local_sha remote_ref remote_sha; do
   [ "$local_sha" = "$z40" ] && continue   # deleting a ref, nothing to check
 
   # A brand-new ref is checked for what it ADDS, not for everything reachable
-  # from it. Checking the whole history meant a branch cut from main re-read
-  # every commit ever pushed, so one historical false positive made it
-  # impossible to create a branch at all — which is how a guard ends up
-  # bypassed with --no-verify. Anything already on a remote has been past this
-  # hook or predates it; re-reading it yields noise and never protection.
+  # from it (see the history in pre-push.before-speedup-20261010).
   if [ "$remote_sha" = "$z40" ]; then
     commits=$(git rev-list "$local_sha" --not --remotes -- 2>/dev/null)
   else
@@ -98,17 +163,21 @@ while read -r local_ref local_sha remote_ref remote_sha; do
   fi
 
   for c in $commits; do
+    # the same commit pushed to two refs at once is checked once
+    case " $SEEN " in *" $c "*) continue ;; esac
+    SEEN="$SEEN $c"
     check_commit "$c" "$remote_ref"
   done
 done
 
 if [ -s "$HITS" ]; then
   echo "" >&2
-  echo "pre-push hook: rejected - commit(s) about to be pushed carry an AI-provider footprint:" >&2
+  echo "pre-push hook: rejected - commit(s) about to be pushed carry an AI-provider footprint" >&2
+  echo "or a character the 2026-10-10 clean-up removed:" >&2
   cat "$HITS" >&2
   echo "" >&2
   echo "Rewrite the offending commit(s) (rebase/amend) so no identity, message," >&2
-  echo "file name or added line names an AI tool, then push again." >&2
+  echo "file name or added line names an AI tool or carries those characters, then push again." >&2
   echo "" >&2
   exit 1
 fi
