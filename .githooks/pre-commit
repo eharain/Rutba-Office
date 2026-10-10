@@ -21,13 +21,12 @@
 #   AI_ANYWHERE — distinctive enough to be meant wherever it appears, so it
 #     matches inside an identifier too. Word-bounding these would let a
 #     camelCase file or symbol name through, which is a name worth catching.
-#   AI_WORD — also ordinary substrings, so they count only as WHOLE WORDS. An
-#     XML decoding helper whose name ends in "codeX" is not a tool, and neither
-#     is a meteor shower. Each still trips when written as a word.
-#
-# Added 2026-09-06, mirroring pre-push and commit-msg.
+#   AI_WORD — also ordinary substrings, so they count only as WHOLE WORDS.
+#     "canvas" is not Canva, an XML decoding helper whose name ends in "codeX"
+#     is not a tool, and a meteor shower is not a model. Each still trips when
+#     written as a word: canva.com, codex.md, Gemini.
 AI_ANYWHERE='claude|anthropic|copilot|chatgpt|openai|gpt-[0-9]|codeium|tabnine|windsurf|deepseek'
-AI_WORD='codex|kimi|gemini'
+AI_WORD='codex|canva|kimi|gemini'
 PATTERN="$AI_ANYWHERE|\\b($AI_WORD)\\b|cursor"
 
 # CONTENT is scanned with a second pattern, because one name on that list is
@@ -68,6 +67,44 @@ if printf '%s' "$IDENT" | grep -qiE "$PATTERN"; then
   exit 1
 fi
 
+# ── two refinements to the CONTENT scan ─────────────────────────────────────
+#
+# (a) Base64 payloads are not prose. An SVG or an HTML file with an embedded
+#     image carries megabytes of [A-Za-z0-9+/=], and a case-insensitive search
+#     over that hits "kImI" and "CODex" by pure chance - five of tech-style.co's
+#     team portraits matched on exactly that, none of them naming anything.
+#     Random base64 cannot be an attribution, so the payload is dropped before
+#     the scan while every real character around it is still read. What this
+#     does NOT do is skip the file: metadata a generator wrote in plain bytes
+#     (the C2PA manifests those same PNGs carried) is still caught.
+#
+# (b) Some files name a provider because the product genuinely integrates with
+#     it - an API a feature calls, an env var a deployment needs. Silence there
+#     is not neutrality, it is wrong documentation. A repo can carry a
+#     .ai-names-allow file listing those paths, one glob per line with its
+#     reason beside it; the file is committed, so an exception is a reviewable
+#     decision rather than a --no-verify habit. It waives CONTENT only -
+#     identity, message and file NAME are never exempted by it.
+strip_b64() { sed 's/base64,[A-Za-z0-9+/=]*//g'; }
+
+ALLOW_FILE="$(git rev-parse --show-toplevel 2>/dev/null)/.ai-names-allow"
+# Read the allow-list ONCE (2026-10-10: it used to run a sed per rule for every
+# staged path, which made a large commit take half an hour). Same rules.
+ALLOW_RULES=""
+if [ -f "$ALLOW_FILE" ]; then
+  ALLOW_RULES=$(sed 's/#.*//; s/^[[:space:]]*//; s/[[:space:]]*$//' "$ALLOW_FILE" | grep -v '^$')
+fi
+content_allowed() {
+  [ -n "$ALLOW_RULES" ] || return 1
+  _old_ifs=$IFS; IFS='
+'; set -f
+  for _rule in $ALLOW_RULES; do
+    case "$1" in $_rule) IFS=$_old_ifs; set +f; return 0 ;; esac
+  done
+  IFS=$_old_ifs; set +f
+  return 1
+}
+
 HITS=$(mktemp)
 trap 'rm -f "$HITS"' EXIT
 
@@ -77,7 +114,7 @@ git diff --cached --name-only --diff-filter=ACMR -z | tr '\0' '\n' | while IFS= 
   [ -z "$path" ] && continue
 
   case "$path" in
-    *.githooks/*|AGENTS.md|RULES.md|.ai-rules.md|*/AGENTS.md|*/RULES.md|*/.ai-rules.md)
+    *.githooks/*|AGENTS.md|RULES.md|.ai-rules.md|.ai-names-allow|*/AGENTS.md|*/RULES.md|*/.ai-rules.md|*/.ai-names-allow)
       continue ;;
   esac
 
@@ -98,18 +135,48 @@ git diff --cached --name-only --diff-filter=ACMR -z | tr '\0' '\n' | while IFS= 
       continue ;;
   esac
 
+  # Refinement (b): a path the repo justified in .ai-names-allow is waived for
+  # CONTENT only. Its NAME was already checked above and is never exempted.
+  content_allowed "$path" && continue
+
   blob=$(git ls-files -s -- "$path" | awk '{print $2}')
   [ -z "$blob" ] && continue
-  if git cat-file -p "$blob" 2>/dev/null | grep -qiE "$CONTENT_PATTERN"; then
+  # Refinement (a): the base64 payload is dropped before the scan, never the
+  # whole file — plain-byte metadata around it is still read.
+  if git cat-file -p "$blob" 2>/dev/null | strip_b64 | grep -qiE "$CONTENT_PATTERN"; then
     printf '  CONTENT: %s\n' "$path" >> "$HITS"
-  elif git cat-file -p "$blob" 2>/dev/null | grep -qiE "$CURSOR_PATTERN"; then
+  elif git cat-file -p "$blob" 2>/dev/null | strip_b64 | grep -qiE "$CURSOR_PATTERN"; then
     printf '  CONTENT: %s\n' "$path" >> "$HITS"
   fi
 done
 
+# 2026-10-10 (owner: "add a check in the hook against these characters that we
+# cleaned"): the lines a commit ADDS must not carry the long dash, zero-width
+# characters, direction marks, word joiners, no-break spaces or a byte-order mark
+# (a mark at the very start of a file is allowed). Existing lines are not judged.
+# Guard files and lockfiles are skipped; allow-listed files are still checked.
+CH_DASH=$(printf '\342\200\224'); CH_ZWSP=$(printf '\342\200\213'); CH_ZWNJ=$(printf '\342\200\214')
+CH_LRM=$(printf '\342\200\216'); CH_RLM=$(printf '\342\200\217'); CH_WJ=$(printf '\342\201\240')
+CH_NBSP=$(printf '\302\240'); CH_BOM=$(printf '\357\273\277')
+git diff --cached -U0 --no-color --diff-filter=ACMR | LC_ALL=C awk \
+  -v d="$CH_DASH" -v a="$CH_ZWSP" -v b="$CH_ZWNJ" -v l="$CH_LRM" -v r="$CH_RLM" -v w="$CH_WJ" -v n="$CH_NBSP" -v m="$CH_BOM" '
+  /^diff --git / { path = ""; next }
+  /^\+\+\+ / { path = substr($0, 5); sub(/^"/, "", path); sub(/"$/, "", path); sub(/^b\//, "", path)
+    if (path ~ /(^|\/)(\.githooks\/|AGENTS\.md$|RULES\.md$|\.ai-rules\.md$|\.ai-names-allow$|package-lock\.json$|npm-shrinkwrap\.json$|yarn\.lock$|pnpm-lock\.yaml$)/) path = ""
+    next }
+  /^@@/ { split($0, h, " "); split(h[3], st, ","); startline = substr(st[1], 2) + 0; ln = startline; next }
+  /^\+/ {
+    if (path == "" || seen[path]) { ln++; next }
+    u = substr($0, 2); if (ln == 1 && index(u, m) == 1) u = substr(u, 4)
+    if (index(u, d) || index(u, a) || index(u, b) || index(u, l) || index(u, r) || index(u, w) || index(u, n) || index(u, m)) {
+      seen[path] = 1; printf "  CHARS: %s line %d (long dash or invisible character)\n", path, ln }
+    ln++
+  }' >> "$HITS"
+
 if [ -s "$HITS" ]; then
   echo "" >&2
-  echo "pre-commit hook: rejected - staged file(s) carry an AI-provider name in the file name or content:" >&2
+  echo "pre-commit hook: rejected - staged file(s) carry an AI-provider name in the file name or content," >&2
+  echo "or add a long dash / invisible character (removed in the 2026-10-10 clean-up):" >&2
   cat "$HITS" >&2
   echo "" >&2
   echo "Rename the file / remove the reference. Files that legitimately document this" >&2
