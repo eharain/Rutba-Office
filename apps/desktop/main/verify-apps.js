@@ -4973,6 +4973,11 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
     check('word: the round trip ran', false, err.message);
   }
 
+  // First: Chromium's stand-in camera grows unreliable as a long run goes on
+  // (the Cameo check passed alone every time while failing deep in the run),
+  // so the camera is asked for while the run is young. Cameo with a recording
+  // stays last, for the reason given in the list above.
+  await block(() => verifyDeckCameo({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => wordPages());
   await block(() => wordFloat());
   await block(() => sheetGrips());
@@ -5056,7 +5061,6 @@ export async function verifyApps({ windows, doc, broadcast = null, update = null
   await block(() => verifyDeckMotion({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyDeckModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordModel3d({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
-  await block(() => verifyDeckCameo({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifyWordMergeRules({ open, check, until, wait, errorsIn, doc, sessionFor }, { dir }));
   await block(() => verifySheetEquation({ open, check, until, wait }, { dir }));
   await block(() => verifyWordSignature({ open, check, until, wait }, { dir }));
