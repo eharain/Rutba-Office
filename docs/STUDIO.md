@@ -110,8 +110,9 @@ no longer needs them.
   - `export-video.js`: a canvas and mixed sound to `MediaRecorder`.
 - `renderer/screenshot.js`: the source picker for screens and windows.
 - **Main process**: `office-shell/src/electron/ipc.js` serves
-  `capture.sources` and `capture.grab`; there is no
-  `setDisplayMediaRequestHandler` and no permission handler yet.
+  `capture.sources` and `capture.grab`, and since Phase 2 `choose`
+  (the `setDisplayMediaRequestHandler`), `controls`, `space` and
+  `take`; there is no permission handler yet.
 
 ## 5. Decisions to take first
 
@@ -175,6 +176,20 @@ Write each down in this file when taken.
   the same clock, placed as two layers (the camera a picture-in-picture
   layer with a mask), so the inset can be moved, resized or removed after.
   A single composited file is an export choice, not the recording.
+
+  **Taken (Phase 2, 2026-10-12), as recommended.** The screen and the camera
+  are two WebM files, each with its own `MediaRecorder`, started on the same
+  tick and paused and resumed together. The microphone goes into the
+  camera's file and the computer's own sound into the screen's, so each
+  sound lands on a lane of its own; without a camera both go into the
+  screen's file, mixed. A file with no sound to record carries a silent
+  track (a picture-only recorder on a window that seldom changes kept the
+  paused stretch in its file). On the timeline the camera is a `video`
+  layer with `fx`, `fy`, `fw`, `fh`, an `insetShape` (`circle`,
+  `rounded`, `rect`) and `flipX` for the mirror; the screen is a
+  `video` layer with `fit: 'contain'` and, for a region, a `crop`. All
+  of a recording's layers share one group. One composited file is what
+  Export makes.
 - **D7. Consumer's second painter.** `consumer/packages/video/index.js` is
   a diverged copy of the same renderer. From now on Office's copy is the
   one developed; nothing is synced back by hand.
@@ -451,6 +466,81 @@ What Phase 1 leaves, for the phases that own it:
   word art and the rest of the insert catalogue on the timeline are later.
 - Export is real time through `MediaRecorder` (MP4 where the machine records
   it, WebM otherwise); the encoder of our own is D3, Phase 4.
+
+### Phase 2 as built (2026-10-12)
+
+The recorder is `apps/desktop/renderer/apps/video/recorder/`: `panel.js`
+(the Record box), `session.js` (the sources, the sound graph and the
+recorders), `camera.js` (the shared, patient camera open, moved out of
+Presentations' `cameo.js`) and `css.js`. Its arithmetic is
+`packages/studio/src/recorder.js`: the settings and what they cost the
+disk, the camera's inset and the corner it settles in, a drawn region as a
+crop, the pausing clock, the writer that streams a recording to its file
+(four megabytes a message at most), and `placeTakes` and `settleTakes`,
+which put the takes on the timeline and settle a recovered recording to
+its files' real lengths. R1 to R6 and R10 to R14 are in:
+
+- R1: Screen, Window or Region, from `shell.capture.sources()` (screens now
+  carry their size). A region is drawn on the live picture and kept as the
+  screen layer's crop, changeable after in the clip's properties. A region
+  can be drawn on a window as well as a screen.
+- R2: the camera at 480, 720 or 1080 lines, which camera, mirrored or not,
+  cut to a circle, a rounded or a square rectangle, small, medium or large.
+- R3, R4: the microphone and the computer's sound each with a level meter
+  before and during. The computer's sound comes through
+  `capture.choose`: the main process answers the window's
+  `getDisplayMedia` with the source it chose and, on Windows, `audio:
+  'loopback'` (`session.setDisplayMediaRequestHandler`); a request no
+  window chose for is refused.
+- R5: the frame as it will be recorded, with the camera's inset where it
+  will sit, dragged to a corner.
+- R6: a countdown (none, 3, 5 or 10 seconds; 3 by default), Pause and
+  Resume, and `capture.controls`: Ctrl+Shift+F10 stops and Ctrl+Shift+F9
+  pauses from anywhere while recording, a tray icon offers both, and the
+  window can minimise itself while recording; all of it is let go on stop
+  or when the window closes.
+- R10: 15, 30 or 60 frames a second, a size held to 720, 1080 or 1440 on
+  the shorter side (or the source's own), and three qualities as bits per
+  pixel; the default keeps a 1080p screen at 30 fps near 6 Mbps.
+- R11: the takes go to `Videos/Rutba Recordings` (a setting) through
+  `capture.take` and `fs.append`; Presentations' through `fs.temp`.
+- R12: every five seconds while recording, the project with its takes so
+  far (marked unfinished) is the window's recovery copy; the launcher's
+  Recover opens it in Video, settled to the files' real lengths.
+  Presentations' recording is copied the same way.
+- R13: `capture.space` before and every five seconds during; a warning
+  under five minutes left, and a stop that keeps the take under twenty
+  seconds.
+- R14: the screen on the first free picture lane, the camera on the lane
+  above, each sound on a free sound lane, after what is already there.
+  Presentations' Insert, Screen Recording opens the same box without the
+  camera and puts the screen's take on the slide.
+
+Proven by `tests/studio-recorder.test.js` and the window checks under the
+key `recorder` (`main/verify-recorder.js`), which record one of the
+suite's own windows with Chromium's stand-in camera and microphone, land
+the takes, export, read the files back with `probeMedia`, and recover a
+copy made while recording; `screenrec` holds Presentations to the same
+recorder. A check run lists only the suite's own windows, and is handed
+the global key's press rather than taking a key from the keyboard.
+
+What Phase 2 leaves:
+
+- The computer's sound is proven only as far as the main process answering
+  `getDisplayMedia`; a check never records the machine's own output. On
+  macOS there is no loopback: the box says so.
+- The global keys and the tray are not exercised for real by the checks
+  (no key is taken from the person's keyboard and no icon put on their
+  desktop); the press is handed in.
+- A region is drawn on the live picture with the camera's inset over it,
+  and the cropped result is seen on the timeline, not in the box.
+- Moving or covering a recorded window is Chromium's (R16); a minimised
+  window sends no frames.
+- The pointer, keystrokes and drawing on the screen (R7 to R9) and
+  retakes (R15) are later phases.
+- Takes are WebM (VP9 or VP8 and Opus), so a take cut short by a crash
+  still plays; Presentations' recordings stay MP4 where the machine makes
+  it, as before.
 
 ## 13. Conventions that bite
 
