@@ -144,14 +144,18 @@ export async function verifyZoom(h, { files }) {
       }
 
       // A touchpad's pinch: small fractional amounts, no notches.
+      // Smooth means levels between the 10% steps along the way: the end
+      // alone can land on one by chance (150% pinched to exactly 170%).
       const before = await level();
-      for (let i = 0; i < 12; i++) { wheel(1.25, 0); await wait(20); }
+      const seen = [];
+      for (let i = 0; i < 12; i++) { wheel(1.25, 0); await wait(20); seen.push(await level()); }
       await until(async () => (await level()) !== before, `${a.name} to follow the pinch`, 3000).catch(() => {});
       await wait(200);
       const pinched = await level();
+      seen.push(pinched);
       check(`${a.name}: a touchpad pinch zooms smoothly, not in 10% steps`,
-        pinched > before && pinched < Math.round(before * 1.4) && pinched % 10 !== 0,
-        `${before}% -> ${pinched}%`);
+        pinched > before && pinched < Math.round(before * 1.4) && seen.some((l) => l !== before && l % 10 !== 0),
+        `${before}% -> ${pinched}% (along the way ${[...new Set(seen)].join(', ')})`);
 
       if (a.app === 'mail') {
         // Over the message itself, a sandboxed frame the page cannot hear.
