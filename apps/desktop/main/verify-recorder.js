@@ -213,7 +213,11 @@ export async function verifyRecorder(h, { dir }) {
     const ext = await js(`(() => { for (const t of ['video/mp4;codecs=avc1.42E01E,mp4a.40.2', 'video/mp4;codecs=avc1,mp4a.40.2', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return 'mp4'; return 'webm'; })()`);
     const target = path.join(dir, `recorder-out.${ext}`);
     const projectLength = await js(`Number(document.querySelector('.vd-editor')?.dataset.duration || 0)`);
-    globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: target });
+    // An answer an earlier block queued for a Save that never asked (a project
+    // that already had its path) would be taken by this dialog instead.
+    const queue = globalThis.__rutbaCheckDialogAnswers;
+    if (queue) for (let i = queue.length - 1; i >= 0; i--) if (queue[i].kind === 'save') queue.splice(i, 1);
+    queue?.push({ kind: 'save', answer: target });
     await js(`(() => { [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === 'Home')?.click(); return 1; })()`);
     await wait(200);
     await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Export') && !n.disabled); b?.click(); return Boolean(b); })()`);

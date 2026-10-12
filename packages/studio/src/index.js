@@ -1503,19 +1503,54 @@ function drawInset(ctx, plan, entry, x, y, w, h, layer) {
 /** The shapes an inset clip may be cut to. */
 export const INSET_SHAPES = ['rect', 'rounded', 'circle'];
 
-function paintVideo(ctx, plan, layer, time) {
-    const entry = videoEntry(plan, layer);
-    if (!entry || !entry.el || entry.el.readyState < 2) return;
+/**
+ * A video element's last good frame, kept beside it. While the element
+ * seeks (a playing clip caught up with the clock, a paused one following
+ * the playhead) it has no frame to give and drew nothing: an export's first
+ * half second, as the decoder started late and was sought to catch up, came
+ * out black under its titles. The frame held over is drawn instead.
+ * Answers the entry to draw from, or null when there is nothing yet.
+ */
+function frameOf(entry) {
+    const el = entry.el;
+    if (el.readyState >= 2) {
+        if (typeof document !== 'undefined' && el.videoWidth && el.videoHeight) {
+            try {
+                let held = entry.held;
+                if (!held) {
+                    held = document.createElement('canvas');
+                    Object.defineProperty(entry, 'held', { value: held, enumerable: false, writable: true });
+                }
+                if (held.width !== el.videoWidth) held.width = el.videoWidth;
+                if (held.height !== el.videoHeight) held.height = el.videoHeight;
+                if (entry.heldAt !== el.currentTime || entry.heldFor !== el) {
+                    held.getContext('2d').drawImage(el, 0, 0, held.width, held.height);
+                    entry.heldAt = el.currentTime;
+                    entry.heldFor = el;
+                }
+            } catch { /* the hold is a fallback, not the frame */ }
+        }
+        return entry;
+    }
+    if (entry.held && entry.heldFor === el && entry.held.width) return { ...entry, el: entry.held, img: entry.held, width: entry.held.width, height: entry.held.height };
+    return null;
+}
 
-    // A paused element (the preview) follows the playhead by seeking; the
-    // 0.08s threshold stops scrubbing from thrashing the decoder.
-    const w = layer.timing || { start: 0, end: plan.duration };
-    const target = (layer.offset || 0) + (time - w.start);
-    if (entry.el.paused && Math.abs(entry.el.currentTime - target) > 0.08) {
+function paintVideo(ctx, plan, layer, time) {
+    const live = videoEntry(plan, layer);
+    if (!live || !live.el) return;
+    // A paused element (the preview) follows the playhead by seeking, first,
+    // so the frame it held is what shows until the new one lands; the 0.08 s
+    // threshold stops scrubbing from thrashing the decoder.
+    const w0 = layer.timing || { start: 0, end: plan.duration };
+    const want = (layer.offset || 0) + (time - w0.start);
+    if (live.el.paused && live.el.readyState >= 2 && Math.abs(live.el.currentTime - want) > 0.08) {
         try {
-            entry.el.currentTime = Math.min(Math.max(0, target), Math.max(0, (entry.duration || 1) - 0.05));
+            live.el.currentTime = Math.min(Math.max(0, want), Math.max(0, (live.duration || 1) - 0.05));
         } catch { /* not seekable yet */ }
     }
+    const entry = frameOf(live);
+    if (!entry) return;
 
     if (layer.fw) {
         const rw = plan.W * layer.fw;

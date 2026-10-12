@@ -360,3 +360,31 @@ test('the renderer: a bare plan runs as long as its clips, compiles nothing of i
   assert.equal(clipsAt(doc, 1)[0].type, 'text');
   assert.equal(laneClips(doc, 'v', 0).length, 3);
 });
+
+test('a clip whose decoder is seeking shows the frame it held, not nothing: an export began black under its titles while its decoder caught up', () => {
+  const doc = addMedia(emptyProject(), A).doc;
+  const canvas = canvasStub();
+  const held = [];
+  const prior = globalThis.document;
+  // Enough of a document for the painter to keep a frame aside.
+  globalThis.document = { createElement: () => { const c = { width: 0, height: 0, getContext: () => ({ drawImage: (...a) => held.push(a) }) }; return c; } };
+  try {
+    const el = { readyState: 4, paused: false, currentTime: 0.2, videoWidth: 320, videoHeight: 240 };
+    const entry = { el, img: el, width: 320, height: 240, duration: 6 };
+    const plan = buildPlan({ canvas, images: [], options: doc.options, layerPatches: planPatches(doc), videos: { [A.url]: entry }, assets: {} });
+    paintFrame(canvas.ctx, plan, 0.2);
+    assert.ok(canvas.ctx.calls.some((c) => c[0] === 'drawImage' && c[1] === el), 'drawn from the element while it has a frame');
+    assert.equal(held.length, 1, 'and the frame kept aside');
+    // The element is sought to catch up with the clock: no frame to give.
+    el.readyState = 1;
+    el.currentTime = 0.6;
+    canvas.ctx.calls.length = 0;
+    paintFrame(canvas.ctx, plan, 0.6);
+    const drawn = canvas.ctx.calls.filter((c) => c[0] === 'drawImage');
+    assert.equal(drawn.length, 1, 'something is drawn while it seeks');
+    assert.equal(drawn[0][1], entry.held, 'the frame it held');
+  } finally {
+    if (prior === undefined) delete globalThis.document;
+    else globalThis.document = prior;
+  }
+});
