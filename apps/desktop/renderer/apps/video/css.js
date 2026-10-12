@@ -27,7 +27,9 @@ export const CSS = `
 
 .vd-split { height: 6px; flex: none; cursor: row-resize; background: #0e1013; border-top: 1px solid #23262d; border-bottom: 1px solid #23262d; }
 .vd-split:hover { background: #1c1f26; }
-.vd-timeline { flex: none; display: flex; min-height: 0; background: #17191e; }
+/* Time runs left to right in every language, as it does in every editor; the words in it follow the window. */
+.vd-timeline { flex: none; display: flex; min-height: 0; background: #17191e; direction: ltr; }
+.vd-transport { direction: ltr; }
 .vd-tl-scroll { flex: 1; overflow: auto; position: relative; min-height: 0; }
 .vd-tl-scroll::-webkit-scrollbar { height: 11px; width: 11px; }
 .vd-tl-scroll::-webkit-scrollbar-thumb { background: #3a3f49; border-radius: 6px; border: 2px solid #17191e; }

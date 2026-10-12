@@ -14,6 +14,7 @@
 // draws from those at whatever zoom it is at.
 
 import { configureMediaFetch, loadVideo, loadImage, loadAudioTrack, releaseVideos } from '@rutba/studio/host';
+import { onsetTimes } from '@rutba/studio/lib/beats';
 
 /** A path as the window reads it, over rutba://file. */
 export const fileUrl = (p) => `rutba://file/${btoa(unescape(encodeURIComponent(p))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')}`;
@@ -51,6 +52,7 @@ export class MediaLibrary {
     this.thumbs = new Map(); // path -> { step, frames: [canvas] }
     this.peaks = new Map(); // path -> { rate, data: Float32Array }
     this.failed = new Map(); // path -> message
+    this.onsets = new Map(); // path -> beat times in the source, seconds
     this.listeners = new Set();
     this.pending = new Map();
     configureMediaFetch((url, opts) => this.blob(url, opts));
@@ -205,6 +207,19 @@ export class MediaLibrary {
         releaseVideos([entry]);
       }
     }).catch(() => {});
+  }
+
+  /**
+   * The beats of a sound file (its onsets, found once): what a clip dragged
+   * over a music bed snaps to.
+   */
+  beatsOf(path) {
+    if (this.onsets.has(path)) return this.onsets.get(path);
+    const buffer = this.sounds.get(path);
+    if (!buffer) return [];
+    const found = onsetTimes(buffer.getChannelData(0), buffer.sampleRate);
+    this.onsets.set(path, found);
+    return found;
   }
 
   /** Let every decoder go. */

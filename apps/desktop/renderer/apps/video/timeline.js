@@ -22,14 +22,17 @@ import {
 
 export const HEADER_W = 120;
 export const RULER_H = 28;
-const LANE_H = { v: 60, a: 50 };
+// A track of pictures is tall enough for its frames; one of titles, or an
+// empty one, is lower, so more tracks fit before the timeline scrolls.
+const LANE_H = { v: 60, words: 40, a: 48 };
 const SNAP_PX = 8;
 
 /** The rows, top to bottom: the picture lanes from the highest down, then the sound lanes. */
 export function rowsOf(doc) {
   const n = laneCount(doc);
   const rows = [];
-  for (let l = n.v; l >= 0; l--) rows.push({ section: 'v', lane: l, h: LANE_H.v });
+  const pictures = new Set(clipsOf(doc).filter((p) => p.type === 'video' || p.type === 'image').map((p) => laneOf(p)));
+  for (let l = n.v; l >= 0; l--) rows.push({ section: 'v', lane: l, h: l === 0 || pictures.has(l) ? LANE_H.v : LANE_H.words });
   for (let l = 0; l <= n.a; l++) rows.push({ section: 'a', lane: l, h: LANE_H.a });
   return rows;
 }
@@ -42,7 +45,7 @@ function tickStep(pps) {
 
 export default function Timeline({
   doc, time, pps, setPps, selected, onSelect, onSeek, onBegin, onLive, onLane, media, mediaVersion,
-  playing, missing, follow = true,
+  playing, missing, follow = true, onContext,
 }) {
   const scrollRef = useRef(null);
   const drag = useRef(null);
@@ -140,7 +143,8 @@ export default function Timeline({
       const dt = dx / pps;
       const threshold = ev.altKey || d.start.settings?.snap === false ? 0 : SNAP_PX / pps;
       const exclude = withPartners(d.start, [d.id]);
-      const snap = (v) => snapTime(d.start, v, { threshold, exclude, playhead: time });
+      if (!d.beats) d.beats = beatsOnClock(d.start, media, exclude);
+      const snap = (v) => snapTime(d.start, v, { threshold, exclude, playhead: time, beats: d.beats });
       let next = d.start;
       if (d.mode === 'move') {
         let start = d.clip.timing.start + dt;
@@ -233,7 +237,7 @@ export default function Timeline({
           const clips = clipsOf(doc).filter((p) => sectionOf(p) === row.section && laneOf(p) === row.lane);
           const label = row.section === 'v' ? `V${row.lane + 1}` : `A${row.lane + 1}`;
           return (
-            <div key={`${row.section}${row.lane}`} className={`vd-row ${row.section === 'v' ? 'pic' : 'snd'}${clips.length ? '' : ' empty'}${row.section === 'a' && row.lane === 0 ? ' first-sound' : ''}`} style={{ height: row.h }}>
+            <div key={`${row.section}${row.lane}`} data-track={label} className={`vd-row ${row.section === 'v' ? 'pic' : 'snd'}${clips.length ? '' : ' empty'}${row.section === 'a' && row.lane === 0 ? ' first-sound' : ''}`} style={{ height: row.h }}>
               <div className="vd-row-head" style={{ width: HEADER_W }}>
                 <span className="vd-row-name">{label}</span>
                 {row.section === 'v' ? (
@@ -263,6 +267,7 @@ export default function Timeline({
                     missing={missing?.has?.(clip.url)}
                     source={doc.sources?.[clip.url]}
                     onDown={startDrag}
+                    onContext={onContext}
                   />
                 ))}
               </div>
@@ -280,7 +285,7 @@ export default function Timeline({
 const KIND_ICON = { video: 'video', image: 'picture', sound: 'volume', text: 'textbox', shape: 'shape' };
 
 /** One clip: its picture strip, waveform or words, its name and length, its handles. */
-function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, onDown }) {
+function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, onDown, onContext }) {
   const w = Math.max(4, lengthOf(clip) * pps);
   const kind = clip.type;
   const tr = clip.transition;
@@ -293,8 +298,11 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
       data-start={clip.timing.start}
       data-end={clip.timing.end}
       data-transition={tr ? tr.kind : ''}
+      data-fit={clip.fit || ''}
+      data-turn={clip.turn || 0}
       style={{ left: clip.timing.start * pps, width: w, height: h }}
       onPointerDown={(e) => onDown(e, clip, 'move')}
+      onContextMenu={(e) => onContext?.(e, clip)}
     >
       <ClipArt clip={clip} w={w} h={h} pps={pps} media={media} version={mediaVersion} source={source} />
       <div className="vd-clip-label">
@@ -312,6 +320,24 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
       <div className="vd-trim end" onPointerDown={(e) => onDown(e, clip, 'end')} />
     </div>
   );
+}
+
+/**
+ * The beats of the music under the project, on its clock: the onsets of
+ * every sound file on the timeline (a song, not a clip's own sound), where
+ * each of its clips plays them. Found when a drag starts, once per file.
+ */
+function beatsOnClock(doc, media, exclude) {
+  const skip = new Set(exclude);
+  const out = [];
+  for (const p of clipsOf(doc)) {
+    if (p.type !== 'sound' || skip.has(p.id) || doc.sources?.[p.url]?.kind !== 'audio') continue;
+    for (const o of media.beatsOf(p.url)) {
+      const at = p.timing.start + (o - (p.offset || 0));
+      if (at >= p.timing.start && at <= p.timing.end) out.push(at);
+    }
+  }
+  return out;
 }
 
 /** A transition's name, as the ribbon shows it. */

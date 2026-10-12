@@ -13,7 +13,7 @@
 // same window its own.
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Spacer, Chip, Empty, Button, Panel, Content, useToast, useCommands, formatBytes, basename, t, tn } from '@rutba/office-ui';
+import { Spacer, Chip, Empty, Button, Panel, Content, useToast, useCommands, useMenu, menuItems, formatBytes, basename, t, tn } from '@rutba/office-ui';
 import { History } from '@rutba/editing/history';
 import { timecode } from '@rutba/media/timeline';
 import { buildPlan, startAudioPreview, soundLayers, clipFromSoundLayer, driveVideoElements, pauseVideoElements, unsupportedReason } from '@rutba/studio/host';
@@ -194,16 +194,11 @@ export default function VideoEditor({ app, shell, boot }) {
       timeRef.current = now;
       setTime(now);
     };
-    if (rate === 1) {
-      const loop = () => {
-        tick();
-        if (playback.current === pb) pb.raf = requestAnimationFrame(loop);
-      };
-      pb.raf = requestAnimationFrame(loop);
-    } else {
-      // Faster than real time and backwards, the decoder is sought frame by frame.
-      pb.timer = setInterval(tick, 1000 / FPS);
-    }
+    // A timer rather than animation frames: the clock is the wall's, so a
+    // window that is not being drawn (behind another, or off the desktop)
+    // still plays on to the end instead of stopping where it was. Faster
+    // than real time and backwards, the decoder is sought frame by frame.
+    pb.timer = setInterval(tick, rate === 1 ? 1000 / 60 : 1000 / FPS);
   }, [stop, audioClips]);
 
   const restartRef = useRef(null);
@@ -591,6 +586,29 @@ export default function VideoEditor({ app, shell, boot }) {
   }
   useCommands(cmds, [doc, selected, time, path, dirty, clipboard.current, playing, exporting, transitionSeconds, follow, duration]);
 
+  // A clip's own menu, on a right-click: the clip is picked first, and the
+  // menu opens once the window has drawn it picked, so every item acts on it.
+  const contextMenu = useMenu();
+  const pendingMenu = useRef(null);
+  const CLIP_MENU = ['edit.cut', 'edit.copy', 'edit.paste', '-', 'edit.split', 'edit.trimStart', 'edit.trimEnd', '-', 'edit.detach', 'edit.link', 'edit.duplicate', '-', 'edit.delete', 'edit.rippleDelete'];
+  const openClipMenu = (e, clip) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const at = { clientX: e.clientX, clientY: e.clientY, preventDefault() {}, stopPropagation() {} };
+    if (selected.includes(clip.id)) contextMenu.open(at, menuItems(cmds, CLIP_MENU));
+    else {
+      pendingMenu.current = at;
+      setSelected([clip.id]);
+    }
+  };
+  useEffect(() => {
+    const at = pendingMenu.current;
+    if (!at) return;
+    pendingMenu.current = null;
+    contextMenu.open(at, menuItems(cmds, CLIP_MENU));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+
   // The space bar plays and pauses, as in every player.
   useEffect(() => {
     const key = (e) => {
@@ -713,10 +731,12 @@ export default function VideoEditor({ app, shell, boot }) {
               playing={playing}
               missing={missing}
               follow={follow}
+              onContext={openClipMenu}
             />
           </div>
         </div>
       </Content>
+      {contextMenu.node}
       {exportOpen ? <ExportDialog doc={doc} onClose={() => setExportOpen(false)} onExport={runExport} /> : null}
       {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} onCancel={() => exportAbort.current?.abort()} /> : null}
       <style>{CSS}</style>

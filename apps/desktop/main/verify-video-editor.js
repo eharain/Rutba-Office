@@ -375,8 +375,150 @@ export async function verifyVideoEditor(h, { dir }) {
     await js2(`(() => { const n = document.querySelector('.vd-clip[data-kind="sound"]'); if (!n) return 0; const r = n.getBoundingClientRect(); const o = { bubbles: true, button: 0, clientX: r.left + 10, clientY: r.top + 10 }; n.dispatchEvent(new PointerEvent('pointerdown', o)); window.dispatchEvent(new PointerEvent('pointerup', o)); return 1; })()`);
     await wait(300);
     await capture(again, 'video-editor-4-reopened.png');
+    await moreChecks({ win: again, check, until, wait, capture, project, open });
   } catch (err) {
     check('video editor: the checks ran', false, err.message);
+  }
+}
+
+/**
+ * On the reopened project: a title dragged to the empty track above, the
+ * preview playing, a marker found again, a still turned and letterboxed,
+ * a track hidden, the frame made vertical, and the project saved again.
+ */
+async function moreChecks({ win, check, until, wait, capture, project, open }) {
+  const js = (code) => win.webContents.executeJavaScript(code);
+  const clickTab = (name) => js(`(() => { const t = [...document.querySelectorAll('.rw-tab')].find((n) => n.textContent.trim() === ${JSON.stringify(name)}); if (!t) return 'no tab'; t.click(); return 'tab'; })()`);
+  const press = async (label) => {
+    const find = `[...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || n.title || n.textContent || '').trim().startsWith(${JSON.stringify(label)}) && !n.disabled)`;
+    await until(() => js(`Boolean(${find})`), `the ${label} button`, 4000).catch(() => {});
+    return js(`(() => { const b = ${find}; if (!b) return 'no button ' + ${JSON.stringify(label)}; b.click(); return 'clicked'; })()`);
+  };
+  const seekTo = async (t) => {
+    await js(`(() => { const s = document.querySelector('.vd-scrub'); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set.call(s, ${JSON.stringify(String(t))}); s.dispatchEvent(new Event('input', { bubbles: true })); return 1; })()`);
+    await wait(250);
+  };
+  const pick = (selector) => js(`(() => {
+    const n = document.querySelector(${JSON.stringify(selector)});
+    if (!n) return false;
+    const r = n.getBoundingClientRect();
+    const o = { bubbles: true, cancelable: true, button: 0, clientX: r.left + r.width / 2, clientY: r.top + r.height / 2, pointerId: 1 };
+    n.dispatchEvent(new PointerEvent('pointerdown', o));
+    window.dispatchEvent(new PointerEvent('pointerup', o));
+    return true;
+  })()`);
+  /** The stage's pixel at fractions of the frame, as [r, g, b]. */
+  const pixel = (fx, fy) => js(`(() => { const c = document.querySelector('.vd-canvas'); const d = c.getContext('2d').getImageData(Math.floor(c.width * ${fx}), Math.floor(c.height * ${fy}), 1, 1).data; return [d[0], d[1], d[2]]; })()`);
+  const dark = (p) => p[0] + p[1] + p[2] < 60;
+
+  // Drag the title up onto the empty track, and a little later.
+  const dragged = await js(`(async () => {
+    const clip = document.querySelector('.vd-clip[data-kind="text"]');
+    const row = document.querySelector('.vd-row[data-track="V3"] .vd-row-track');
+    if (!clip || !row) return 'nothing to drag';
+    const a = clip.getBoundingClientRect();
+    const b = row.getBoundingClientRect();
+    const x0 = a.left + a.width / 2; const y0 = a.top + a.height / 2;
+    const x1 = x0 + 40; const y1 = b.top + b.height / 2;
+    clip.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, cancelable: true, button: 0, clientX: x0, clientY: y0, pointerId: 1 }));
+    for (let k = 1; k <= 6; k++) {
+      window.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, clientX: x0 + ((x1 - x0) * k) / 6, clientY: y0 + ((y1 - y0) * k) / 6, pointerId: 1 }));
+      await new Promise((r) => setTimeout(r, 30));
+    }
+    window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, clientX: x1, clientY: y1, pointerId: 1 }));
+    return 'dragged';
+  })()`);
+  const onV3 = await until(() => js(`Boolean(document.querySelector('.vd-row[data-track="V3"] .vd-clip[data-kind="text"]'))`), 'the title on V3', 4000).then(() => true).catch(() => false);
+  const titleStart = await js(`Number(document.querySelector('.vd-clip[data-kind="text"]')?.dataset.start)`);
+  check('video editor: a title dragged on the timeline moves later and onto the track it is dropped on', onV3 && titleStart > 0.35, `${dragged}; on V3: ${onV3}; starts at ${titleStart}`);
+
+  // Play: the playhead moves on by itself, and Pause stops it.
+  await seekTo(0);
+  await js(`document.querySelector('.vd-play')?.click(), 1`);
+  await wait(1300);
+  await js(`document.querySelector('.vd-play')?.click(), 1`);
+  await wait(200);
+  const played = await js(`Number(document.querySelector('.vd-scrub').value)`);
+  await wait(500);
+  const held = await js(`Number(document.querySelector('.vd-scrub').value)`);
+  check('video editor: Play runs the playhead on in real time and Pause holds it', played > 0.6 && played < 2.5 && Math.abs(held - played) < 0.01, `${played.toFixed(2)} s after 1.3 s, then ${held.toFixed(2)}`);
+
+  // A marker at the playhead, found again from the start.
+  await seekTo(1.0);
+  await clickTab('Insert');
+  await press('Add Marker');
+  await until(() => js(`document.querySelectorAll('.vd-marker').length === 1`), 'the marker', 3000).catch(() => {});
+  await seekTo(0);
+  await press('Next Marker');
+  await wait(250);
+  const atMarker = await js(`Number(document.querySelector('.vd-scrub').value)`);
+  check('video editor: Add Marker marks the playhead and Next Marker goes back to it', (await js(`document.querySelectorAll('.vd-marker').length`)) === 1 && Math.abs(atMarker - 1) < 0.02, `playhead at ${atMarker}`);
+
+  // The still, turned a quarter and fitted inside: black bars either side.
+  const stillAt = await js(`Number(document.querySelector('.vd-clip[data-kind="image"]').dataset.start)`);
+  await seekTo(stillAt + 1);
+  const before = await pixel(0.03, 0.5);
+  await pick('.vd-clip[data-kind="image"]');
+  await clickTab('Clip');
+  await press('Rotate Right');
+  await press('Fit');
+  await until(() => js(`document.querySelector('.vd-clip[data-kind="image"]').dataset.fit === 'contain'`), 'the fit', 3000).catch(() => {});
+  await wait(400);
+  const after = await pixel(0.03, 0.5);
+  const turn = await js(`document.querySelector('.vd-clip[data-kind="image"]').dataset.turn`);
+  check('video editor: Rotate Right and Fit turn a still on its side and letterbox it in the frame', turn === '90' && !dark(before) && dark(after), `turn ${turn}; edge ${before.join(',')} then ${after.join(',')}`);
+  await capture(win, 'video-editor-5-still-turned.png');
+
+  // Hide V1: the clips under the title go dark.
+  await seekTo(0.5);
+  const shown = await pixel(0.05, 0.9);
+  await js(`(() => { const b = document.querySelector('.vd-row[data-track="V1"] .vd-row-btn'); b?.click(); return 1; })()`);
+  await wait(400);
+  const hidden = await pixel(0.05, 0.9);
+  await js(`(() => { const b = document.querySelector('.vd-row[data-track="V1"] .vd-row-btn'); b?.click(); return 1; })()`);
+  check('video editor: hiding a track takes its clips off the picture', !dark(shown) && dark(hidden), `${shown.join(',')} then ${hidden.join(',')}`);
+
+  // Vertical: the frame becomes 1080 by 1920.
+  await clickTab('View');
+  await press('Vertical');
+  const tall = await until(() => js(`(() => { const c = document.querySelector('.vd-canvas'); return c.width === 1080 && c.height === 1920; })()`), 'the vertical frame', 3000).then(() => true).catch(() => false);
+  await capture(win, 'video-editor-6-vertical.png');
+  await press('Landscape');
+  check('video editor: View, Vertical makes the frame 9:16 for Reels, Shorts and TikTok', tall, tall ? '1080 by 1920' : 'unchanged');
+
+  // A clip's own menu on a right-click, with the clip's commands.
+  const menu = await js(`(async () => {
+    const n = document.querySelector('.vd-clip[data-kind="video"]');
+    const r = n.getBoundingClientRect();
+    n.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true, button: 2, clientX: r.left + 8, clientY: r.top + 8 }));
+    await new Promise((res) => setTimeout(res, 300));
+    const items = [...document.querySelectorAll('.rw-menu button')].map((b) => b.textContent.trim());
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    return items;
+  })()`);
+  const picked = await js(`document.querySelector('.vd-clip[data-kind="video"]').classList.contains('selected')`);
+  check('video editor: right-clicking a clip picks it and offers its commands', picked && menu.some((m) => m.startsWith('Split')) && menu.some((m) => m.startsWith('Detach Audio')), menu.join(' | '));
+
+  // Saved again: nothing left unsaved, no copy left for the launcher.
+  globalThis.__rutbaCheckDialogAnswers?.push({ kind: 'save', answer: project });
+  await js(`(() => { const b = [...document.querySelectorAll('.rw-ribbon .rw-btn')].find((n) => (n.dataset.tip || '').startsWith('Save')); b?.click(); return 1; })()`);
+  const clean = await until(() => js(`document.querySelector('.vd-editor')?.dataset.dirty === '0'`), 'the save', 5000).then(() => true).catch(() => false);
+  check('video editor: the changed project saves again', clean, clean ? 'saved' : 'still unsaved');
+
+  // In Urdu: the window's words in Urdu and its frame right to left, the timeline still running left to right.
+  const was = await js(`window.rutbaOffice.store.get({ key: 'language', fallback: null })`);
+  try {
+    await js(`window.rutbaOffice.store.set({ key: 'language', value: 'ur' }).then(() => 1)`);
+    const ur = await open('video', project);
+    const ujs = (code) => ur.webContents.executeJavaScript(code);
+    await until(() => ujs(`document.querySelectorAll('.vd-clip').length > 3`), 'the project in Urdu', 15000).catch(() => {});
+    await until(() => ujs(`(() => { const c = document.querySelector('.vd-clip[data-kind="video"] canvas'); if (!c) return false; return c.getContext('2d').getImageData(Math.floor(c.width / 2), Math.floor(c.height / 2), 1, 1).data[3] > 0; })()`), 'the thumbnails', 8000).catch(() => {});
+    const frame = await ujs(`({ dir: document.documentElement.dir, tabs: [...document.querySelectorAll('.rw-tab')].map((t) => t.textContent.trim()), timeline: getComputedStyle(document.querySelector('.vd-timeline')).direction, empty: [...document.querySelectorAll('.rw-ribbon .rw-btn')].some((b) => /^(Split|Add Media|Export)$/.test(b.textContent.trim())) })`);
+    await capture(ur, 'video-editor-7-urdu.png');
+    check('video editor: in Urdu the window speaks Urdu, right to left, and its timeline still runs left to right', frame.dir === 'rtl' && frame.timeline === 'ltr' && !frame.tabs.includes('Home') && !frame.empty, JSON.stringify(frame));
+  } finally {
+    await js(`window.rutbaOffice.store.set({ key: 'language', value: ${JSON.stringify(was ?? null)} }).then(() => 1)`);
   }
 }
 
