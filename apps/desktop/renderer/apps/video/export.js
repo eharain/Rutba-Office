@@ -9,10 +9,30 @@
 // was; it takes as long as the project runs, and says so.
 
 import React, { useState } from 'react';
-import { Button, Dialog, Field, Select, Progress, t } from '@rutba/office-ui';
+import { Button, Dialog, Field, Select, Progress, formatBytes, t } from '@rutba/office-ui';
 import { timecode } from '@rutba/media/timeline';
 import { buildPlan, renderVideo, soundLayers, clipFromSoundLayer, pickMimeType, extensionFor, loadVideo, releaseVideos } from '@rutba/studio/host';
 import { planPatches, projectMedia, projectDuration, cutToRange } from '@rutba/studio/project';
+import { EXPORT_PRESETS, presetById, presetFrame, presetBytes, presetWarnings, presetDoc } from '@rutba/studio/presets';
+
+/** Each destination by name, as the Export box offers them. */
+export const PRESET_NAMES = () => ({
+  project: t('This project as it is'),
+  youtube: t('YouTube, 16:9 at 1080p'),
+  'social-wide': t('LinkedIn and X, 16:9'),
+  'social-square': t('LinkedIn and X, square'),
+  vertical: t('Reels, Shorts and TikTok, 9:16'),
+  email: t('Email, a small MP4'),
+});
+
+/** A short word for a destination, put after the project's name in the file's. */
+export const PRESET_TAGS = () => ({
+  youtube: t('YouTube'),
+  'social-wide': t('LinkedIn and X'),
+  'social-square': t('Square'),
+  vertical: t('Vertical'),
+  email: t('Email'),
+});
 
 /** What this machine will write: { mime, ext, label }. */
 export function exportFormat() {
@@ -27,8 +47,10 @@ export function exportFormat() {
  * reused); `onProgress(0..1)`; `signal` cancels. Answers { bytes, mimeType,
  * extension, duration, hasAudio }.
  */
-export async function renderProject(doc, media, { quality = 'high', range = null, onProgress, signal } = {}) {
-  const source = range ? cutToRange(doc, range.in, range.out) : doc;
+export async function renderProject(doc, media, { quality = 'high', range = null, preset = 'project', relayout = null, onProgress, signal } = {}) {
+  // The stretch asked for, then made ready for where it is going: its frame,
+  // rate and bitrates, its captions and its scenes laid out for that shape.
+  const source = presetDoc(range ? cutToRange(doc, range.in, range.out) : doc, preset, { relayout });
   const canvas = document.createElement('canvas');
   // A canvas that belongs to the page, off to one side, so the engine's
   // capture is of a live document.
@@ -64,11 +86,18 @@ export async function renderProject(doc, media, { quality = 'high', range = null
 }
 
 /** File → Export: the format this machine writes, the quality, the whole project or the In to Out range. */
-export function ExportDialog({ doc, onClose, onExport }) {
+export function ExportDialog({ doc, onClose, onExport, initialPreset = 'project' }) {
   const format = exportFormat();
   const [quality, setQuality] = useState('high');
   const [which, setWhich] = useState(doc.range ? 'range' : 'all');
+  const [preset, setPreset] = useState(presetById(initialPreset).id);
   const length = which === 'range' && doc.range ? doc.range.out - doc.range.in : projectDuration(doc);
+  const names = PRESET_NAMES();
+  const frame = presetFrame(preset, doc.options?.aspect);
+  const p = presetById(preset);
+  const bytes = presetBytes(p, length);
+  const shape = { landscape: '16:9', square: '1:1', vertical: '9:16' }[frame.aspect];
+  const warnings = presetWarnings(p, length);
   return (
     <Dialog
       title={t('Export video')}
@@ -78,20 +107,36 @@ export function ExportDialog({ doc, onClose, onExport }) {
       actions={
         <>
           <Button label={t('Cancel')} onClick={onClose} />
-          <Button primary className="vd-export-go" label={t('Export')} disabled={!format || length <= 0} onClick={() => onExport({ quality, range: which === 'range' ? doc.range : null, format })} />
+          <Button primary className="vd-export-go" label={t('Export')} disabled={!format || length <= 0} onClick={() => onExport({ quality, range: which === 'range' ? doc.range : null, format, preset })} />
         </>
       }
     >
+      <Field label={t('Made for')}>
+        <Select value={preset} className="rw-select vd-export-preset" onChange={(e) => setPreset(e.target.value)}>
+          {EXPORT_PRESETS.map((x) => <option key={x.id} value={x.id}>{names[x.id]}</option>)}
+        </Select>
+        <div className="vd-export-frame" data-width={frame.width} data-height={frame.height}>
+          <span className={`vd-export-shape s-${frame.aspect}`} aria-hidden="true" />
+          <span>
+            {t('{width} × {height}, {shape}, {fps} frames a second', { width: frame.width, height: frame.height, shape, fps: p.fps })}
+            {bytes ? <><br />{t('About {size}', { size: formatBytes(bytes) })}</> : null}
+          </span>
+        </div>
+        {warnings.includes('long') ? <div className="vd-export-warn">{t('Longer than {minutes} minutes: the place it is going may not take it.', { minutes: Math.round(p.maxSeconds / 60) })}</div> : null}
+        {warnings.includes('big') ? <div className="vd-export-warn">{t('Larger than most email will carry. Export the In to Out range, or a shorter project.')}</div> : null}
+      </Field>
       <Field label={t('Format')}>
         <div className="vd-export-format">{format ? format.label : t('This system cannot record video.')}</div>
       </Field>
-      <Field label={t('Quality')}>
-        <Select value={quality} onChange={(e) => setQuality(e.target.value)}>
-          <option value="high">{t('High')}</option>
-          <option value="medium">{t('Medium')}</option>
-          <option value="low">{t('Low (smaller file)')}</option>
-        </Select>
-      </Field>
+      {preset === 'project' ? (
+        <Field label={t('Quality')}>
+          <Select value={quality} onChange={(e) => setQuality(e.target.value)}>
+            <option value="high">{t('High')}</option>
+            <option value="medium">{t('Medium')}</option>
+            <option value="low">{t('Low (smaller file)')}</option>
+          </Select>
+        </Field>
+      ) : null}
       <Field label={t('What to export')}>
         <Select value={which} onChange={(e) => setWhich(e.target.value)}>
           <option value="all">{t('The whole project')}</option>

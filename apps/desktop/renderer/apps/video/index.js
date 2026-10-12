@@ -33,7 +33,7 @@ import Timeline from './timeline.js';
 import Stage from './stage.js';
 import VideoRibbon, { TITLE_NAMES } from './ribbon.js';
 import Inspector from './inspector.js';
-import { ExportDialog, ExportProgress, renderProject } from './export.js';
+import { ExportDialog, ExportProgress, renderProject, PRESET_TAGS } from './export.js';
 import { CSS } from './css.js';
 
 const FPS = 30;
@@ -68,6 +68,11 @@ export default function VideoEditor({ app, shell, boot }) {
   const [exportOpen, setExportOpen] = useState(false);
   const [recordOpen, setRecordOpen] = useState(false);
   const [exporting, setExporting] = useState(null);
+  // The destination last exported for, offered first next time.
+  const [lastPreset, setLastPreset] = useState('project');
+  useEffect(() => { shell.store.get({ key: 'video.exportPreset', fallback: 'project' }).then((v) => setLastPreset(v || 'project')).catch(() => {}); }, [shell]);
+  // How a project's own layout is made again for another shape (an introduction's scenes).
+  const relayoutRef = useRef(null);
   const [transitionSeconds, setTransitionSeconds] = useState(1);
   const [timelineH, setTimelineH] = useState(300);
   const clipboard = useRef(null);
@@ -585,12 +590,15 @@ export default function VideoEditor({ app, shell, boot }) {
 
   /* ── export ────────────────────────────────────────────────────────── */
 
-  const runExport = useCallback(async ({ quality, range, format }) => {
+  const runExport = useCallback(async ({ quality, range, format, preset = 'project' }) => {
     setExportOpen(false);
+    setLastPreset(preset);
+    shell.store.set({ key: 'video.exportPreset', value: preset }).catch(() => {});
     const base = (path ? basename(path) : t('Untitled video')).replace(/\.[^.]+$/, '');
+    const tag = PRESET_TAGS()[preset];
     const target = await shell.dialog.save({
       title: t('Export video'),
-      defaultPath: `${base}.${format.ext}`,
+      defaultPath: `${base}${tag ? ` (${tag})` : ''}.${format.ext}`,
       filters: [{ name: format.ext === 'mp4' ? t('MP4 Video (.mp4)') : t('WebM Video (.webm)'), extensions: [format.ext] }],
     });
     if (!target) return;
@@ -603,6 +611,8 @@ export default function VideoEditor({ app, shell, boot }) {
       const out = await renderProject(docRef.current, media, {
         quality,
         range,
+        preset,
+        relayout: relayoutRef.current,
         signal: abort.signal,
         onProgress: (p) => setExporting((e) => (e ? { ...e, progress: p } : e)),
       });
@@ -888,7 +898,7 @@ export default function VideoEditor({ app, shell, boot }) {
         </div>
       </Content>
       {contextMenu.node}
-      {exportOpen ? <ExportDialog doc={doc} onClose={() => setExportOpen(false)} onExport={runExport} /> : null}
+      {exportOpen ? <ExportDialog doc={doc} initialPreset={lastPreset} onClose={() => setExportOpen(false)} onExport={runExport} /> : null}
       {recordOpen ? <RecorderPanel shell={shell} mode="video" toast={toast} onDone={landTakes} onCancel={recordClosed} onProgress={recordingCopy} /> : null}
       {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} onCancel={() => exportAbort.current?.abort()} /> : null}
       <style>{CSS}</style>

@@ -3194,7 +3194,7 @@ export async function renderVideo({ canvas, plan, audio, onProgress, signal }) {
     const rec = new MediaRecorder(stream, {
         mimeType,
         videoBitsPerSecond: plan.bitrate,
-        ...(withAudio ? { audioBitsPerSecond: 128000 } : {}),
+        ...(withAudio ? { audioBitsPerSecond: Number(plan.opts?.audioBitrate) > 0 ? Math.round(Number(plan.opts.audioBitrate)) : 128000 } : {}),
     });
     const chunks = [];
     rec.ondataavailable = (e) => { if (e.data && e.data.size) chunks.push(e.data); };

@@ -17,6 +17,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseVtt } from '@rutba/studio/captions';
+import { probeMedia } from '@rutba/media/probe';
 
 /** The run's capture: a window's picture, saved when RUTBA_VERIFY_CAPTURE names a folder. */
 function capturer(wait) {
@@ -137,6 +138,35 @@ export async function verifyIntroCaptions(h, { dir }) {
     check('intro-video: Export Captions writes the track as WebVTT, which reads back as the same four cues with the edit',
       exported === 'clicked' && back.length === 4 && back[0].text === 'Hello, and welcome to the tour.' && back[1].text.includes('\n') && back[3].start === 6,
       JSON.stringify(back.map((c) => `${c.start}-${c.end} ${c.text.replace('\n', ' / ')}`)));
+
+    // Export presets (X11): the box names each destination's frame, and the email one writes a small file.
+    await js(pressJs('Export', 'Home'));
+    const boxed = await ok(until(() => js(`Boolean(document.querySelector('.vd-export-preset'))`), 'the Export box', 4000));
+    const frames = {};
+    for (const id of ['youtube', 'social-wide', 'social-square', 'vertical', 'email', 'project']) {
+      await js(`(() => { const s = document.querySelector('.vd-export-preset'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, '${id}'); s.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+      await ok(until(() => js(`document.querySelector('.vd-export-preset')?.value === '${id}'`), id, 2000));
+      frames[id] = await js(`(() => { const f = document.querySelector('.vd-export-frame'); return f ? \`\${f.dataset.width}x\${f.dataset.height}\` : ''; })()`);
+    }
+    check('intro-video: Export offers each destination with its frame: YouTube 1920x1080, LinkedIn and X 16:9 or square, Reels, Shorts and TikTok 1080x1920, email 854x480',
+      boxed && frames.youtube === '1920x1080' && frames['social-wide'] === '1920x1080' && frames['social-square'] === '1080x1080' && frames.vertical === '1080x1920' && frames.email === '854x480' && frames.project === '1920x1080',
+      JSON.stringify(frames));
+    await js(`(() => { const s = document.querySelector('.vd-export-preset'); Object.getOwnPropertyDescriptor(HTMLSelectElement.prototype, 'value').set.call(s, 'email'); s.dispatchEvent(new Event('change', { bubbles: true })); return 1; })()`);
+    await wait(200);
+    await capture(win, 'intro-presets-box.png');
+    const ext = await js(`(() => { for (const t of ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4']) if (MediaRecorder.isTypeSupported(t)) return 'mp4'; return 'webm'; })()`);
+    const small = path.join(dir, `intro-captions-email.${ext}`);
+    answer('save', small);
+    await js(`document.querySelector('.vd-export-go')?.click(), 1`);
+    const made = await ok(until(() => { try { return fs.statSync(small).size > 2000; } catch { return false; } }, 'the email export', 30000));
+    await ok(until(() => js(`!document.querySelector('.vd-export-busy')`), 'the progress to close', 8000));
+    let probe = null;
+    if (made) { await wait(400); probe = probeMedia(new Uint8Array(fs.readFileSync(small)), { complete: true }); }
+    const remembered = await js(`window.rutbaOffice.store.get({ key: 'video.exportPreset', fallback: null })`);
+    check('intro-video: exported for email the captions make a small video of 854 by 480, as long as the project, and the choice is remembered',
+      Boolean(probe?.hasVideo && probe.width === 854 && probe.height === 480 && Math.abs(probe.duration - 8) < 0.75 && remembered === 'email'),
+      probe ? `${path.basename(small)}: ${probe.width}x${probe.height}, ${probe.duration?.toFixed(2)} s, ${fs.statSync(small).size} bytes, remembered ${remembered}` : 'no file');
+    await js(`window.rutbaOffice.store.set({ key: 'video.exportPreset', value: null }).then(() => 1)`);
 
     const complaints = await errorsIn(win);
     check('intro-video: the captions reported no error', complaints.length === 0, complaints.join(' | ') || 'nothing reported');

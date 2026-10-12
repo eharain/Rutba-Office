@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5866,
+  "count": 5879,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1433,6 +1433,12 @@
       "message": "About {minutes} minutes of space are left on the disk.",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
+      "message": "About {size}",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -9505,7 +9511,8 @@
     {
       "message": "Email",
       "where": [
-        "apps/desktop/renderer/apps/contacts.js"
+        "apps/desktop/renderer/apps/contacts.js",
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -9518,6 +9525,12 @@
       "message": "Email address",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Email, a small MP4",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -14779,6 +14792,12 @@
       ]
     },
     {
+      "message": "Larger than most email will carry. Export the In to Out range, or a shorter project.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Largest above",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -15560,6 +15579,24 @@
       ]
     },
     {
+      "message": "LinkedIn and X",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "LinkedIn and X, 16:9",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "LinkedIn and X, square",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Links",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -15771,6 +15808,12 @@
       ]
     },
     {
+      "message": "Longer than {minutes} minutes: the place it is going may not take it.",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Longest side",
       "where": [
         "apps/desktop/renderer/apps/image.js",
@@ -15935,6 +15978,12 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Made for",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -22462,6 +22511,12 @@
       ]
     },
     {
+      "message": "Reels, Shorts and TikTok, 9:16",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "Reenter password",
       "where": [
         "apps/desktop/renderer/protect.js"
@@ -27511,6 +27566,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/words.js",
+        "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
@@ -30894,6 +30950,12 @@
       ]
     },
     {
+      "message": "This project as it is",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
       "message": "This project is damaged: it has no document in it.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -32870,6 +32932,7 @@
       "message": "Vertical",
       "where": [
         "apps/desktop/renderer/apps/slides/motion.js",
+        "apps/desktop/renderer/apps/video/export.js",
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/shared-words.js"
@@ -33860,6 +33923,18 @@
       "where": [
         "apps/desktop/renderer/review.js",
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "YouTube",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
+      ]
+    },
+    {
+      "message": "YouTube, 16:9 at 1080p",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {
@@ -37053,6 +37128,12 @@
       "message": "{width} × {height} source",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "{width} × {height}, {shape}, {fps} frames a second",
+      "where": [
+        "apps/desktop/renderer/apps/video/export.js"
       ]
     },
     {

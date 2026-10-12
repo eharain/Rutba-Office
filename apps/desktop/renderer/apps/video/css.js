@@ -72,6 +72,12 @@ export const CSS = `
 .vd-clip.k-sound { background: #1a4a3c; border-color: rgba(120, 230, 190, 0.25); }
 .vd-clip.k-text { background: linear-gradient(180deg, #7b4bd1, #5f37a8); }
 .vd-clip.k-shape { background: linear-gradient(180deg, #b7792a, #8c5b1d); }
+.vd-export-frame { display: flex; align-items: center; gap: 10px; margin: 8px 0 6px; font-size: 12px; color: var(--ink-2); line-height: 1.45; }
+.vd-export-shape { flex: none; display: block; border: 1.5px solid currentColor; border-radius: 3px; opacity: 0.8; }
+.vd-export-shape.s-landscape { width: 32px; height: 18px; }
+.vd-export-shape.s-square { width: 22px; height: 22px; }
+.vd-export-shape.s-vertical { width: 15px; height: 26px; }
+.vd-export-warn { margin-top: 6px; font-size: 12px; color: var(--bad, #c62828); }
 .vd-clip.k-caption { background: linear-gradient(180deg, #2f6f8f, #22566f); }
 .vd-clip.k-pointer { background: repeating-linear-gradient(135deg, #5a4a1f 0 6px, #4a3d19 6px 12px); }
 .vd-clip.selected { border: 2px solid #ffd54a; box-shadow: 0 0 0 1px rgba(0,0,0,0.6), 0 0 12px rgba(255,213,74,0.35); z-index: 2; }

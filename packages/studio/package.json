@@ -16,6 +16,7 @@
     "./rvid": "./src/rvid.js",
     "./recorder": "./src/recorder.js",
     "./captions": "./src/captions.js",
+    "./presets": "./src/presets.js",
     "./layers": "./src/layers.js",
     "./rimg": "./src/rimg.js",
     "./zoom": "./src/zoom.js",
