@@ -835,6 +835,7 @@ export function applyLayerPatches(plan, patches) {
                 exit: patch.exit || { kind: 'none', seconds: 0 },
                 z: patch.z ?? nextZ(),
                 fx: patch.fx, fy: patch.fy, fw: patch.fw, fh: patch.fh,
+                insetShape: INSET_SHAPES.includes(patch.insetShape) ? patch.insetShape : null,
                 rot: patch.rot || 0,
                 opacity: patch.opacity,
                 filter: patch.filter || null,
@@ -1458,6 +1459,40 @@ function drawWhole(ctx, plan, layer, entry, drawable) {
     ctx.restore();
 }
 
+/**
+ * A clip as an inset (picture in picture): the camera over a screen
+ * recording. `insetShape` cuts it to a circle, a rounded or a square-cornered
+ * rectangle (unset: the slight rounding every inset always had), and a flip
+ * mirrors it inside its own box, as a camera pointed at oneself is shown.
+ */
+function drawInset(ctx, plan, entry, x, y, w, h, layer) {
+    const shape = layer.insetShape;
+    if (!shape && !layer.flipX && !layer.flipY) {
+        drawCoverInRect(ctx, plan, entry, x, y, w, h, layer);
+        return;
+    }
+    const s = srcRect(entry.width, entry.height, layer);
+    const c = coverRect(s.sw, s.sh, w, h);
+    ctx.save();
+    if (shape === 'circle') {
+        ctx.beginPath();
+        ctx.ellipse(x + w / 2, y + h / 2, w / 2, h / 2, 0, 0, Math.PI * 2);
+    } else {
+        roundRect(ctx, x, y, w, h, shape === 'rect' ? 0 : shape === 'rounded' ? Math.min(w, h) * 0.14 : Math.round(plan.W * 0.015));
+    }
+    ctx.clip();
+    if (layer.flipX || layer.flipY) {
+        ctx.translate(x + w / 2, y + h / 2);
+        ctx.scale(layer.flipX ? -1 : 1, layer.flipY ? -1 : 1);
+        ctx.translate(-(x + w / 2), -(y + h / 2));
+    }
+    drawSrc(ctx, entry.img, s, x + (w - c.w) / 2, y + (h - c.h) / 2, c.w, c.h);
+    ctx.restore();
+}
+
+/** The shapes an inset clip may be cut to. */
+export const INSET_SHAPES = ['rect', 'rounded', 'circle'];
+
 function paintVideo(ctx, plan, layer, time) {
     const entry = videoEntry(plan, layer);
     if (!entry || !entry.el || entry.el.readyState < 2) return;
@@ -1475,7 +1510,7 @@ function paintVideo(ctx, plan, layer, time) {
     if (layer.fw) {
         const rw = plan.W * layer.fw;
         const rh = layer.fh ? plan.H * layer.fh : rw * srcAspect(entry, layer);
-        drawCoverInRect(ctx, plan, entry, plan.W * (layer.fx ?? 0.3), plan.H * (layer.fy ?? 0.3), rw, rh, layer);
+        drawInset(ctx, plan, entry, plan.W * (layer.fx ?? 0.3), plan.H * (layer.fy ?? 0.3), rw, rh, layer);
         return;
     }
     if (layer.fit || layer.turn || layer.flipX || layer.flipY) {
