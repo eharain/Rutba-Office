@@ -501,9 +501,13 @@ holds each item's number and state.
   text, WordArt, shapes, icons, charts and pictures as layers with handles;
   adjustment layers; Canvas Size, Image Size and Trim; the `.rimg` project
   with Recover; and Picture Format → Edit in Image from Documents,
-  Worksheets and Presentations, saved back in place. Not yet: masks,
-  selections, brushes, clone and heal, perspective and free transform
-  (I10 to I14), typing on the canvas, and background removal, RAW and the
+  Worksheets and Presentations, saved back in place. Since 1.45.0 the
+  tools of a photo editor (I10 to I14): selections by rectangle, ellipse,
+  lasso, wand and colour with Feather, Grow and Shrink; brush, eraser,
+  fill and gradient; clone stamp and healing brush; painted, feathered
+  layer masks kept in the .rimg; free transform and perspective. Not yet:
+  a selection kept in the .rimg, a mask that follows its layer's
+  transform, typing on the canvas, and background removal, RAW and the
   rest of 7.3.
 - **Video**, since 1.43.0: an editor on a timeline (STUDIO.md Phase 1):
   clips, stills and sound on lanes with frames and waveforms; split, trim,
@@ -517,9 +521,14 @@ holds each item's number and state.
   the same clock, the microphone and the computer's sound, pause, global
   keys and the tray, streamed to disk and recovered after a crash, landing
   on the timeline as layers; Presentations' Screen Recording uses it. Not
-  yet: introductory videos (Phase 3), an encoder of our own and faster than real
-  time export (Phase 4), speed, keyframes, captions, colour and picture in
-  picture (Phase 6); media is read whole into memory.
+  yet: an encoder of our own and faster than real time export (Phase 4),
+  speed, keyframes, colour and picture in picture (Phase 6); media is read
+  whole into memory. Since 1.45.0, introductory videos (Phase 3): scenes
+  from a template with layouts switchable after recording, a teleprompter,
+  takes, a brand kit with a lower third, pointer data drawn as a layer and
+  Zoom on Clicks, captions read and written as .srt and .vtt, and export
+  presets by destination. Clicks are recorded only in the suite's own
+  windows.
 - **Pictures** opens either in one click, and since 1.43.0 its Batch edit
   resizes, converts, renames, turns upright and strips the pictures of a
   folder (I6).
