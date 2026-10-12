@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5879,
+  "count": 5959,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1436,6 +1436,12 @@
       ]
     },
     {
+      "message": "About {seconds} s to read at the teleprompter's speed",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "About {size}",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
@@ -1457,6 +1463,12 @@
       "message": "Absolute value",
       "where": [
         "apps/desktop/renderer/apps/word/equations.js"
+      ]
+    },
+    {
+      "message": "Accent",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
     {
@@ -1726,6 +1738,13 @@
       "message": "Add Point",
       "where": [
         "apps/desktop/renderer/apps/slides/points.js"
+      ]
+    },
+    {
+      "message": "Add Scene",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -2025,6 +2044,12 @@
     },
     {
       "message": "Adding the recording",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Adding the take",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
       ]
@@ -3602,6 +3627,12 @@
       ]
     },
     {
+      "message": "Automatic zoom",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "Automatically hyphenate document",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -3692,7 +3723,8 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
-        "apps/desktop/renderer/apps/video/inspector.js"
+        "apps/desktop/renderer/apps/video/inspector.js",
+        "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
     {
@@ -4316,6 +4348,20 @@
       ]
     },
     {
+      "message": "Brand",
+      "where": [
+        "apps/desktop/renderer/apps/video/ribbon.js"
+      ]
+    },
+    {
+      "message": "Brand Kit",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/intro/brand.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "Break after \"{text}\"",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -4818,6 +4864,7 @@
         "apps/desktop/renderer/apps/slides/setup.js",
         "apps/desktop/renderer/apps/slides/zoom.js",
         "apps/desktop/renderer/apps/video/export.js",
+        "apps/desktop/renderer/apps/video/intro/brand.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/word/blocks.js",
         "apps/desktop/renderer/apps/word/compare.js",
@@ -5199,7 +5246,8 @@
     {
       "message": "Change…",
       "where": [
-        "apps/desktop/renderer/apps/image/batch.js"
+        "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
     {
@@ -5461,6 +5509,12 @@
       ]
     },
     {
+      "message": "Choose a logo",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
+      ]
+    },
+    {
       "message": "Choose a message to read it here.",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -5530,7 +5584,8 @@
     {
       "message": "Choose…",
       "where": [
-        "apps/desktop/renderer/apps/sheets/ribbon.js"
+        "apps/desktop/renderer/apps/sheets/ribbon.js",
+        "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
     {
@@ -5848,6 +5903,12 @@
       ]
     },
     {
+      "message": "Click rings",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "Click the line to add a point, drag it to bend the tones; drag a point off the box, or double-click it, to take it away.",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -6137,6 +6198,7 @@
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/intro/brand.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -9613,6 +9675,12 @@
       ]
     },
     {
+      "message": "End card",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "End of the deck",
       "where": [
         "apps/desktop/renderer/apps/slides/presenter.js"
@@ -10290,6 +10358,12 @@
       ]
     },
     {
+      "message": "Fast",
+      "where": [
+        "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
       "message": "Feedback",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -10782,6 +10856,7 @@
     {
       "message": "Finish",
       "where": [
+        "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/mailings.js"
       ]
     },
@@ -11139,6 +11214,7 @@
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/intro/brand.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
       ]
     },
@@ -12853,6 +12929,12 @@
       ]
     },
     {
+      "message": "Highlight",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "Highlight\nMerge Fields",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -12996,9 +13078,21 @@
       ]
     },
     {
+      "message": "How close",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "How hard the filter looks",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "How it looks",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
     {
@@ -14247,6 +14341,24 @@
       ]
     },
     {
+      "message": "Introduction",
+      "where": [
+        "apps/desktop/renderer/apps/video/ribbon.js"
+      ]
+    },
+    {
+      "message": "Introduction video",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
+      "message": "Introduction video: a title, you on camera, your screen and an end card, recorded scene by scene in your brand",
+      "where": [
+        "apps/desktop/renderer/apps/home.js"
+      ]
+    },
+    {
       "message": "Invalid merge field: {fields} — the list has no such column. Match Fields or Insert Merge Field again.",
       "plural": "Invalid merge fields: {fields} — the list has no such column. Match Fields or Insert Merge Field again.",
       "where": [
@@ -14536,6 +14648,12 @@
       ]
     },
     {
+      "message": "Keep the logo in a corner of recorded scenes",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
+      ]
+    },
+    {
       "message": "Keep the mail",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -14581,6 +14699,12 @@
       "message": "Keeps",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Kept for you, and used by every introduction you make.",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
     {
@@ -14792,6 +14916,12 @@
       ]
     },
     {
+      "message": "Larger pointer",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "Larger than most email will carry. Export the In to Out range, or a shorter project.",
       "where": [
         "apps/desktop/renderer/apps/video/export.js"
@@ -14942,6 +15072,9 @@
       "message": "Layout",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js",
+        "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/smartart-dialog.js"
       ]
@@ -15162,7 +15295,8 @@
     {
       "message": "Length",
       "where": [
-        "apps/desktop/renderer/apps/video/inspector.js"
+        "apps/desktop/renderer/apps/video/inspector.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -15769,6 +15903,12 @@
       "message": "Logical",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Logo",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
     {
@@ -17085,7 +17225,9 @@
       "message": "Move Earlier",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -17104,7 +17246,9 @@
       "message": "Move Later",
       "where": [
         "apps/desktop/renderer/apps/slides.js",
-        "apps/desktop/renderer/apps/slides/ribbon.js"
+        "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -17117,6 +17261,12 @@
       "message": "Move Later — this effect plays after the one below it",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Move Scene",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -17401,6 +17551,12 @@
       ]
     },
     {
+      "message": "Name, for the lower third",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
+      ]
+    },
+    {
       "message": "Named ranges",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -17584,6 +17740,12 @@
       "message": "New Entry",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "New Introduction Video",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -18105,6 +18267,12 @@
       ]
     },
     {
+      "message": "No clicks were recorded to zoom on.",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "No colour",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -18287,6 +18455,12 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "No logo",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
     {
@@ -18633,6 +18807,12 @@
       ]
     },
     {
+      "message": "No words yet",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "No words yet. Add to Dictionary in the Editor pane puts them here.",
       "where": [
         "packages/office-ui/src/proofing.js"
@@ -18745,6 +18925,7 @@
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "apps/desktop/renderer/print.js"
       ]
@@ -18815,6 +18996,12 @@
       "message": "Not now",
       "where": [
         "apps/desktop/renderer/shell.js"
+      ]
+    },
+    {
+      "message": "Not recorded yet",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -19357,6 +19544,12 @@
       "message": "On a click in the show:",
       "where": [
         "apps/desktop/renderer/apps/slides/action.js"
+      ]
+    },
+    {
+      "message": "On the timeline",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -20816,6 +21009,7 @@
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/album.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
+        "apps/desktop/renderer/apps/video/intro/brand.js",
         "apps/desktop/renderer/apps/word.js",
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
@@ -21174,7 +21368,15 @@
     {
       "message": "Pointer",
       "where": [
-        "apps/desktop/renderer/apps/video/index.js"
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/inspector.js",
+        "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Pointer and clicks",
+      "where": [
+        "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
     {
@@ -22277,6 +22479,7 @@
         "apps/desktop/renderer/apps/slides/record.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js",
         "apps/desktop/renderer/apps/video/recorder/panel.js",
         "apps/desktop/renderer/apps/video/ribbon.js",
         "apps/desktop/renderer/apps/word/mailings.js"
@@ -22320,6 +22523,12 @@
       ]
     },
     {
+      "message": "Record Scene",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Record Screen",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -22347,6 +22556,12 @@
       "message": "Record again",
       "where": [
         "apps/desktop/renderer/apps/slides/record.js"
+      ]
+    },
+    {
+      "message": "Record this scene",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -22390,7 +22605,8 @@
       "where": [
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/slides/record.js",
-        "apps/desktop/renderer/apps/video/recorder/panel.js"
+        "apps/desktop/renderer/apps/video/recorder/panel.js",
+        "apps/desktop/renderer/apps/video/ribbon.js"
       ]
     },
     {
@@ -22813,6 +23029,13 @@
       ]
     },
     {
+      "message": "Remove Scene",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "Remove Section",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -22918,6 +23141,12 @@
       ]
     },
     {
+      "message": "Remove the logo",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
+      ]
+    },
+    {
       "message": "Remove this category",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -22936,9 +23165,21 @@
       ]
     },
     {
+      "message": "Remove this zoom",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "Remove watermark",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Remove zoom",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -23536,6 +23777,18 @@
       ]
     },
     {
+      "message": "Retake",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "Retake Scene",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Return address font:",
       "where": [
         "apps/desktop/renderer/apps/word/envelopes.js"
@@ -23743,6 +23996,12 @@
       "message": "Rocket",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "Role, under the name",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
     {
@@ -24737,6 +24996,25 @@
       ]
     },
     {
+      "message": "Scene",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/ribbon.js"
+      ]
+    },
+    {
+      "message": "Scene {n}: {name}",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Scenes",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
       "message": "Schedule",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js"
@@ -24795,6 +25073,12 @@
       ]
     },
     {
+      "message": "Screen with camera",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "Screen: the whole of one screen",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js"
@@ -24832,6 +25116,7 @@
       "where": [
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/scripts.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js",
         "apps/desktop/renderer/apps/word/equations.js"
       ]
     },
@@ -26404,6 +26689,12 @@
       ]
     },
     {
+      "message": "Show the name and role over the first recorded scene",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
+      ]
+    },
+    {
       "message": "Show the row and column headings",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -26527,6 +26818,12 @@
       "message": "Side by Side",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Side by side",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -26936,6 +27233,12 @@
       "message": "Slope",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Slow",
+      "where": [
+        "apps/desktop/renderer/apps/video/recorder/panel.js"
       ]
     },
     {
@@ -28551,15 +28854,33 @@
       ]
     },
     {
+      "message": "Take the zoom off",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "Take this step away",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
       ]
     },
     {
+      "message": "Take {n}",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "Taken",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Talking head",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -28592,6 +28913,18 @@
       "message": "Technical",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Teleprompter",
+      "where": [
+        "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
+      "message": "Teleprompter speed",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -28847,7 +29180,8 @@
     {
       "message": "Thanks for watching",
       "where": [
-        "apps/desktop/renderer/apps/video/index.js"
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -29139,6 +29473,12 @@
       "message": "The answer to that could not be sent: {v1}",
       "where": [
         "apps/desktop/renderer/engine-words.js"
+      ]
+    },
+    {
+      "message": "The brand kit is kept for you and drawn into every scene.",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -29758,6 +30098,12 @@
       ]
     },
     {
+      "message": "The pointer is not written down over another program's window. Record its screen to keep it.",
+      "where": [
+        "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
       "message": "The presentation is not open",
       "where": [
         "apps/desktop/renderer/apps/slides/presenter.js"
@@ -29987,6 +30333,12 @@
       "message": "The suite has English dictionaries only, so Spelling reads past words in {language} rather than marking them wrong; Office proofs them in {language}.",
       "where": [
         "packages/office-ui/src/proofing.js"
+      ]
+    },
+    {
+      "message": "The take is in its scene. Record it again for another take; every take is kept.",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -30986,6 +31338,12 @@
       ]
     },
     {
+      "message": "This scene has no script. Write one in its card and it scrolls here while you record.",
+      "where": [
+        "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
       "message": "This selection crosses a table boundary — delete inside one cell at a time.",
       "where": [
         "apps/desktop/renderer/engine-words.js"
@@ -31403,6 +31761,12 @@
       "where": [
         "apps/desktop/renderer/apps/video/index.js",
         "apps/desktop/renderer/apps/video/timeline.js"
+      ]
+    },
+    {
+      "message": "Title card",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -32738,6 +33102,12 @@
       ]
     },
     {
+      "message": "Use",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "Use First Row as Headers",
       "where": [
         "apps/desktop/renderer/apps/sheets/queries.js"
@@ -32753,6 +33123,12 @@
       "message": "Use Recorded Timings and Narrations",
       "where": [
         "apps/desktop/renderer/apps/slides/export-video.js"
+      ]
+    },
+    {
+      "message": "Use Take",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -32777,6 +33153,12 @@
       "message": "Use function",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Use in Every Scene",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/brand.js"
       ]
     },
     {
@@ -33367,6 +33749,20 @@
       ]
     },
     {
+      "message": "What you do, in a line",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/intro/brand.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "What you will say. It scrolls above the camera while you record.",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "What's New",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -33425,6 +33821,13 @@
       "message": "Where this goes",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Where to find you",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -33700,6 +34103,8 @@
         "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/inspector.js",
+        "apps/desktop/renderer/apps/video/intro/brand.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
       ]
     },
@@ -33959,7 +34364,10 @@
       "message": "Your name",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js",
-        "apps/desktop/renderer/apps/sheets/dialogs.js"
+        "apps/desktop/renderer/apps/sheets/dialogs.js",
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/intro/brand.js",
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -34051,6 +34459,7 @@
         "apps/desktop/renderer/apps/slides/animate.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/inspector.js",
         "apps/desktop/renderer/apps/video/timeline.js",
         "apps/desktop/renderer/apps/word/ribbon.js",
         "packages/office-ui/src/index.js"
@@ -34085,6 +34494,12 @@
       ]
     },
     {
+      "message": "Zoom in where the clicks are, and follow them.",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "Zoom in — the message at {percent}%",
       "where": [
         "apps/desktop/renderer/apps/mail.js"
@@ -34094,6 +34509,13 @@
       "message": "Zoom level",
       "where": [
         "packages/office-ui/src/index.js"
+      ]
+    },
+    {
+      "message": "Zoom on Clicks",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js",
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -34161,6 +34583,12 @@
     },
     {
       "message": "a gap stays where it was",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "a logo, colours, a font and a name and role, in every scene",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
       ]
@@ -34575,6 +35003,12 @@
       ]
     },
     {
+      "message": "for {seconds} s",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
       "message": "formatting",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -34748,6 +35182,12 @@
       "message": "is unread",
       "where": [
         "apps/desktop/renderer/apps/mail/rules.js"
+      ]
+    },
+    {
+      "message": "its takes stay on the disk",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
       ]
     },
     {
@@ -35121,6 +35561,18 @@
       ]
     },
     {
+      "message": "scenes to record one at a time, in your brand",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "seconds",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "select a picture, shape, chart or slicer first",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -35263,6 +35715,24 @@
       ]
     },
     {
+      "message": "thanks and where to find you",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "the camera and the screen next to each other",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
+      "message": "the camera, the whole frame",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "the caption track as a .srt or .vtt file, to send beside the video",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
@@ -35327,6 +35797,30 @@
       "message": "the picture fills the frame, cropped to fit",
       "where": [
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "the scene picked, laid out this way; a recorded one keeps its take",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "the scene picked, with its script above the camera; every take is kept",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "the screen zooms in where the recorded clicks are and follows them; each zoom can be changed in the properties",
+      "where": [
+        "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "the screen, the camera in a corner",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
       ]
     },
     {
@@ -35598,6 +36092,12 @@
       ]
     },
     {
+      "message": "your name and a line, in the brand's colours",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "zoom and selection",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -35813,6 +36313,13 @@
       "plural": "{count} citations marked.",
       "where": [
         "apps/desktop/renderer/apps/word/references-toa.js"
+      ]
+    },
+    {
+      "message": "{count} click was recorded.",
+      "plural": "{count} clicks were recorded.",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {
@@ -36342,6 +36849,13 @@
       ]
     },
     {
+      "message": "{count} take",
+      "plural": "{count} takes",
+      "where": [
+        "apps/desktop/renderer/apps/video/intro/scenes.js"
+      ]
+    },
+    {
       "message": "{count} tracker blocked",
       "plural": "{count} trackers blocked",
       "where": [
@@ -36578,6 +37092,12 @@
       "message": "{label} — {blurb}; it replaces the selected effect",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "{level} times",
+      "where": [
+        "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
     {

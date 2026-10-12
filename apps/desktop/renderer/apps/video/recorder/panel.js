@@ -20,8 +20,10 @@ import {
   normaliseSettings, insetRect, cornerOf, regionCrop, bytesPerSecond, diskState, takeFileName,
   FRAME_RATES, SIZE_CAPS, LOW_DISK_MINUTES,
 } from '@rutba/studio/recorder';
+import { prompterProgress, PROMPTER_SPEEDS } from '@rutba/studio/intro';
 import { RecorderRig } from './session.js';
 import { RECORDER_CSS } from './css.js';
+import { INTRO_CSS } from '../intro/css.js';
 
 const STORE_KEY = 'recorder.settings';
 const COPY_EVERY_MS = 5000;
@@ -114,11 +116,15 @@ const containIn = (w, h, W, H) => {
 };
 
 /**
- * @param {{ shell, mode?: 'video' | 'slide', toast, onDone: (result) => void, onCancel: () => void, onProgress?: (takes, info) => void }} props
+ * @param {{ shell, mode?: 'video' | 'slide', toast, onDone: (result) => void, onCancel: () => void, onProgress?: (takes, info) => void,
+ *   prompter?: { title, script, speed, onSpeed }, force?: object }} props
+ * `prompter`: a scene's script, scrolled above the frame at `speed` words a
+ * minute while it records (an introduction's teleprompter, X3). `force`:
+ * settings the scene needs (the camera on), over the ones kept.
  * onDone({ takes, crop, inset, settings }): takes as files, each
  * { role, path, contentType, hasAudio, width, height, duration }.
  */
-export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, onProgress = null }) {
+export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, onProgress = null, prompter = null, force = null }) {
   const slide = mode === 'slide';
   const [settings, setSettings] = useState(() => normaliseSettings(null));
   const [loaded, setLoaded] = useState(false);
@@ -144,6 +150,8 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
   const warned = useRef(false);
   const stopRef = useRef(null);
   const pauseRef = useRef(null);
+  // Whether the main process is writing the pointer down for this recording (R7).
+  const pointerOn = useRef(false);
   const [frameBox, setFrameBox] = useState({ w: 0, h: 0 });
   const [picture, setPicture] = useState({ w: 0, h: 0 });
 
@@ -156,7 +164,7 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
       const stored = await shell.store.get({ key: STORE_KEY, fallback: null }).catch(() => null);
       const paths = await shell.app.paths().catch(() => null);
       if (!live) return;
-      const s = normaliseSettings(stored);
+      const s = normaliseSettings(force ? { ...(stored || {}), ...force } : stored);
       setSettings(s);
       const sep = paths?.separator || '\\';
       setFolder(s.folder || (paths?.videos ? `${paths.videos}${sep}${t('Rutba Recordings')}` : ''));
@@ -273,6 +281,12 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
   const begin = useCallback(async () => {
     try {
       await rig.record({ settings, file: fileFor, slide });
+      pointerOn.current = false;
+      if (!slide && settings.pointer && source) {
+        const pt = await shell.capture.pointer({ on: true, id: source.id, fps: settings.fps }).catch(() => null);
+        pointerOn.current = Boolean(pt?.tracking);
+        if (!pt?.tracking) toast?.(t('The pointer is not written down over another program\'s window. Record its screen to keep it.'), { ms: 7000 });
+      }
       setPhase('recording');
       warned.current = false;
       const c = await shell.capture.controls({ on: true, paused: false, minimise: settings.minimise }).catch(() => null);
@@ -281,7 +295,7 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
       setPhase('setup');
       toast?.(err?.message || String(err), { tone: 'bad', ms: 6000 });
     }
-  }, [rig, settings, fileFor, slide, shell, toast]);
+  }, [rig, settings, fileFor, slide, shell, toast, source]);
 
   const record = useCallback(async () => {
     if (!rig.screen.stream) return;
@@ -312,10 +326,13 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
     setPhase('stopping');
     shell.capture.controls({ on: false }).catch(() => {});
     try {
+      const pointer = pointerOn.current ? await shell.capture.pointer({ on: false }).catch(() => null) : null;
+      pointerOn.current = false;
       const takes = await rig.stop();
       const camera = takes.find((k) => k.role === 'camera');
+      const kept = pointer && (pointer.samples?.length || pointer.clicks?.length) ? pointer : null;
       onDone({
-        takes: takes.map((k) => ({ ...k, ...(k.role === 'screen' && crop ? { crop } : {}), ...(k.role === 'camera' ? { inset, shape: settings.shape, mirror: settings.mirror } : {}) })),
+        takes: takes.map((k) => ({ ...k, ...(k.role === 'screen' && crop ? { crop } : {}), ...(k.role === 'screen' && kept ? { pointer: kept } : {}), ...(k.role === 'camera' ? { inset, shape: settings.shape, mirror: settings.mirror } : {}) })),
         crop,
         inset: camera ? inset : null,
         settings,
@@ -332,6 +349,7 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
     if (rig.paused) rig.resume();
     else rig.pause();
     shell.capture.controls({ on: true, paused: rig.paused }).catch(() => {});
+    if (pointerOn.current) shell.capture.pointer({ on: true, paused: rig.paused }).catch(() => {});
   }, [rig, shell]);
   pauseRef.current = togglePause;
 
@@ -365,13 +383,36 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
   const cancel = useCallback(async () => {
     if (phaseRef.current === 'recording' || phaseRef.current === 'stopping') {
       shell.capture.controls({ on: false }).catch(() => {});
+      if (pointerOn.current) shell.capture.pointer({ on: false }).catch(() => {});
+      pointerOn.current = false;
       await rig.cancel();
     }
     onCancel();
   }, [rig, shell, onCancel]);
 
   // Gone in the middle of a recording (the window closed): the keys and the tray are let go.
-  useEffect(() => () => { if (phaseRef.current === 'recording') shell.capture.controls({ on: false }).catch(() => {}); }, [shell]);
+  useEffect(() => () => {
+    if (phaseRef.current === 'recording') shell.capture.controls({ on: false }).catch(() => {});
+    if (pointerOn.current) shell.capture.pointer({ on: false }).catch(() => {});
+  }, [shell]);
+
+  /* ── the teleprompter ──────────────────────────────────────────────── */
+
+  const promptView = useRef(null);
+  const promptText = useRef(null);
+  const script = prompter?.script || '';
+  const speed = prompter?.speed || PROMPTER_SPEEDS.normal;
+  const progress = phase === 'recording' || phase === 'stopping' ? prompterProgress(script, elapsed / 1000, speed) : 0;
+  const [shift, setShift] = useState(0);
+  useEffect(() => {
+    const view = promptView.current;
+    const text = promptText.current;
+    if (!view || !text) { setShift(0); return; }
+    // The line being read sits a third of the way down, as on a prompter.
+    setShift(Math.max(0, progress * Math.max(0, text.scrollHeight - view.clientHeight * 0.66)));
+  }, [progress, script]);
+  // The speed offered nearest the one kept.
+  const speedKey = Object.keys(PROMPTER_SPEEDS).sort((x, y) => Math.abs(PROMPTER_SPEEDS[x] - speed) - Math.abs(PROMPTER_SPEEDS[y] - speed))[0];
 
   /* ── the frame: dragging the camera, drawing a region ─────────────── */
 
@@ -492,8 +533,30 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
   return (
     <Dialog title={title} className="rec-dialog" onClose={busy ? undefined : cancel} actions={actions}>
       <style>{RECORDER_CSS}</style>
+      {prompter ? <style>{INTRO_CSS}</style> : null}
       <div className={`rec-body${slide ? ' slide' : ''}`} data-phase={phase}>
-        <div className="rec-stage">
+        <div className={`rec-stage${prompter ? ' with-prompter' : ''}`}>
+          {prompter ? (
+            <div className="rec-prompter" data-progress={progress.toFixed(3)} aria-label={t('Teleprompter')}>
+              <div className="rec-prompter-head">
+                <Icon name="prompter" size={15} />
+                <b>{prompter.title}</b>
+                <Segments
+                  value={speedKey}
+                  className="rec-prompter-speed"
+                  onChange={(k) => prompter.onSpeed?.(PROMPTER_SPEEDS[k])}
+                  options={[{ value: 'slow', label: t('Slow') }, { value: 'normal', label: t('Normal') }, { value: 'fast', label: t('Fast') }]}
+                />
+              </div>
+              <div className="rec-prompter-view" ref={promptView}>
+                {script ? (
+                  <div className="rec-prompter-text" dir="auto" ref={promptText} style={{ transform: `translateY(${-shift}px)` }}>{script}</div>
+                ) : (
+                  <div className="rec-prompter-empty">{t('This scene has no script. Write one in its card and it scrolls here while you record.')}</div>
+                )}
+              </div>
+            </div>
+          ) : null}
           <div
             ref={frameRef}
             className={`rec-frame${recording ? ' live' : ''}${paused ? ' held' : ''}${settings.source === 'region' && phase === 'setup' ? ' drawing' : ''}`}
@@ -561,6 +624,9 @@ export function RecorderPanel({ shell, mode = 'video', toast, onDone, onCancel, 
               ))}
             </div>
             <Button ghost icon="refresh" label={t('Refresh the list')} className="rec-refresh" disabled={busy} onClick={loadSources} />
+            {!slide ? (
+              <Toggle on={settings.pointer} icon="pointer" label={t('Pointer and clicks')} disabled={busy} onChange={(v) => change({ pointer: v })} className="rec-pointer-toggle" />
+            ) : null}
           </section>
 
           {!slide ? (

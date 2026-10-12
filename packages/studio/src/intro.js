@@ -220,13 +220,18 @@ function cardGeometry(aspect, withLogo) {
     return { logo: null, title: { fy: aspect === 'vertical' ? 0.42 : 0.4, size: 0.064 * k }, subtitle: { fy: aspect === 'vertical' ? 0.49 : 0.54, size: 0.03 * k } };
 }
 
-/** The lower third for a name and a role: a band behind the two, right to left when the name is. */
-function lowerThirdGeometry(aspect, name, role) {
+/**
+ * The lower third for a name and a role: a band behind the two, right to
+ * left when the name is. `side` puts the band on the left or the right
+ * (out of the camera's way); by default it is the side the words start from.
+ * `top`, when given, is where the band starts down the frame.
+ */
+function lowerThirdGeometry(aspect, name, role, { side = null, top: at = null } = {}) {
     const k = TEXT_SCALE[aspect] || 1;
     const nameSize = 0.032 * k;
     const roleSize = 0.021 * k;
     const tall = aspect === 'vertical';
-    const top = tall ? 0.66 : aspect === 'square' ? 0.74 : 0.76;
+    const top = at ?? (tall ? 0.66 : aspect === 'square' ? 0.74 : 0.76);
     const H = (FRAMES[aspect] || FRAMES.landscape).H;
     const W = (FRAMES[aspect] || FRAMES.landscape).W;
     // The band as wide as the longer line, roughly: half a size a letter.
@@ -237,11 +242,13 @@ function lowerThirdGeometry(aspect, name, role) {
     const nameY = top + 0.012;
     const roleY = nameY + (nameSize * W * 1.32) / H;
     const bandH = (roleY - top) + (roleSize * W * 1.5) / H + 0.012;
-    const left = rtl ? 1 - margin - fw : margin;
+    const onRight = side ? side === 'right' : rtl;
+    const left = onRight ? 1 - margin - fw : margin;
+    const x = rtl ? left + fw - 0.02 : left + 0.02;
     return {
         band: { fx: left + fw / 2, fy: top + bandH / 2, fw, fh: bandH },
-        name: { fx: rtl ? 1 - margin - 0.02 : margin + 0.02, fy: nameY, size: nameSize, align: rtl ? 'right' : 'left' },
-        role: { fx: rtl ? 1 - margin - 0.02 : margin + 0.02, fy: roleY, size: roleSize, align: rtl ? 'right' : 'left' },
+        name: { fx: x, fy: nameY, size: nameSize, align: rtl ? 'right' : 'left' },
+        role: { fx: x, fy: roleY, size: roleSize, align: rtl ? 'right' : 'left' },
     };
 }
 
@@ -372,7 +379,14 @@ function sceneLayers(scene, { start, aspect, brand, words, lowerThird }) {
         const name = scene.ltName ?? brand.name;
         const role = scene.ltRole ?? brand.role;
         if (String(name || '').trim()) {
-            const g = lowerThirdGeometry(aspect, name, role);
+            // Out of the camera's way: across from an inset in a bottom corner, and in an upright frame between the screen and the camera.
+            const corner = scene.corner || 'br';
+            const inset = scene.layout === 'screenCamera' && screenFile && geo.camera && !geo.camera.full;
+            // Side by side, over the camera's box, naming the person in it.
+            const beside = scene.layout === 'sideBySide' && screenFile && geo.camera && !geo.camera.full;
+            const g = lowerThirdGeometry(aspect, name, role, inset
+                ? (aspect === 'vertical' ? { top: 0.49 } : { side: corner === 'br' ? 'left' : corner === 'bl' ? 'right' : null })
+                : beside ? (aspect === 'landscape' ? { side: 'left' } : { top: aspect === 'vertical' ? 0.36 : 0.33 }) : {});
             const lt = { start: round(start + Math.min(0.8, length * 0.15)), end: round(start + Math.max(1, Math.min(length - 0.4, 5.5))) };
             const third = (role2, extra) => ({ ...base(role2, extra), timing: lt });
             out.push(third('band', { type: 'shape', name: 'lower third', geometry: 'rect', fx: g.band.fx, fy: g.band.fy, fw: g.band.fw, fh: g.band.fh, color: brand.colors.accent, radius: 0.012, opacity: 0.94, lane: LANES.band, enter: { kind: 'slide-up', seconds: 0.5, dist: 40 }, exit: fade(0.4) }));

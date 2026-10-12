@@ -8,10 +8,12 @@
 // size, colour and the animations in and out.
 
 import React from 'react';
-import { Button, Icon, Select, t } from '@rutba/office-ui';
+import { Button, Icon, Select, t, tn } from '@rutba/office-ui';
 import { timecode } from '@rutba/media/timeline';
 import { clipById, partnersOf, previousOnLane, lengthOf, animationName, TEXT_ANIMATIONS, TRANSITIONS, setTransition, trimEnd, moveClip, updateMarker, removeMarker } from '@rutba/studio/project';
 import { insetRect, cornerOf } from '@rutba/studio/recorder';
+import { pointerOf, applyAutoZoom, updateZoom, setZooms } from '@rutba/studio/pointer';
+import { composeIntro } from '@rutba/studio/intro';
 import { transitionName } from './timeline.js';
 
 const COLOURS = ['#ffffff', '#111111', '#ffc107', '#e2445c', '#2bb673', '#3b82f6', '#c2408f'];
@@ -102,6 +104,71 @@ function InsetProps({ clip, set, aspect = 9 / 16 }) {
   );
 }
 
+const POINTER_COLOURS = ['#ffd54a', '#ff5c8a', '#4cc9f0', '#7ee081', '#ffffff'];
+
+/**
+ * A screen recording's pointer (R7) and its automatic zoom (X5): the look of
+ * the highlight and the rings, and the zooms found from the clicks, each
+ * made stronger, weaker or taken away.
+ */
+function PointerProps({ doc, screen, pointer, edit, onSeek }) {
+  const setPointer = (label, change, group) => edit(label, (d) => ({ ...d, patches: d.patches.map((p) => (p.id === pointer.id ? { ...p, ...change } : p)) }), group);
+  const zooms = screen?.autoZoom || [];
+  const levels = [1.4, 1.8, 2.2, 2.6];
+  return (
+    <>
+      <section className="vd-insp-section vd-pointer-props">
+        <h3>{t('Pointer')}</h3>
+        <Row label={t('Highlight')}>
+          <input type="checkbox" className="vd-pointer-highlight" checked={pointer.highlight !== false} onChange={(e) => setPointer(t('Highlight'), { highlight: e.target.checked })} />
+        </Row>
+        <Row label={t('Click rings')}>
+          <input type="checkbox" className="vd-pointer-rings" checked={pointer.rings !== false} onChange={(e) => setPointer(t('Click rings'), { rings: e.target.checked })} />
+        </Row>
+        <Row label={t('Larger pointer')}>
+          <input type="checkbox" checked={Boolean(pointer.arrow)} onChange={(e) => setPointer(t('Larger pointer'), { arrow: e.target.checked })} />
+        </Row>
+        <Row label={t('Size')}>
+          <Slider value={pointer.size || 1} min={0.5} max={2.5} step={0.1} onChange={(x) => setPointer(t('Size'), { size: x }, `ptr-size-${pointer.id}`)} format={(x) => `${Math.round(x * 100)}%`} />
+        </Row>
+        <Row label={t('Colour')}>
+          <span className="vd-swatches">
+            {POINTER_COLOURS.map((c) => (
+              <button key={c} type="button" className={`vd-swatch${String(pointer.color).toLowerCase() === c ? ' on' : ''}`} style={{ background: c }} aria-label={c} onClick={() => setPointer(t('Colour'), { color: c })} />
+            ))}
+          </span>
+        </Row>
+        <div className="vd-prop-note">{tn((pointer.clicks || []).length, '{count} click was recorded.', '{count} clicks were recorded.')}</div>
+      </section>
+      {screen ? (
+        <section className="vd-insp-section vd-zoom-props">
+          <h3>{t('Automatic zoom')}</h3>
+          {zooms.length ? (
+            <>
+              {zooms.map((z, i) => (
+                <div key={`${z.start}-${i}`} className="vd-zoom-row" data-level={z.level}>
+                  <button type="button" className="vd-marker-time" onClick={() => onSeek(screen.timing.start + z.start)}>{timecode(screen.timing.start + z.start)}</button>
+                  <span className="vd-zoom-len">{t('for {seconds} s', { seconds: Math.round((z.end - z.start) * 10) / 10 })}</span>
+                  <Select value={String(z.level)} aria-label={t('How close')} onChange={(e) => edit(t('Zoom'), (d) => updateZoom(d, screen.id, i, { level: Number(e.target.value) }))}>
+                    {[...new Set([...levels, z.level])].sort((a, b) => a - b).map((l) => <option key={l} value={String(l)}>{t('{level} times', { level: l })}</option>)}
+                  </Select>
+                  <Button icon="trash" title={t('Remove this zoom')} onClick={() => edit(t('Remove zoom'), (d) => updateZoom(d, screen.id, i, null))} />
+                </div>
+              ))}
+              <Button icon="close" label={t('Take the zoom off')} className="vd-zoom-off" onClick={() => edit(t('Take the zoom off'), (d) => setZooms(d, screen.id, []))} />
+            </>
+          ) : (
+            <>
+              <div className="vd-prop-note">{(pointer.clicks || []).length ? t('Zoom in where the clicks are, and follow them.') : t('No clicks were recorded to zoom on.')}</div>
+              <Button icon="zoomIn" label={t('Zoom on Clicks')} className="vd-zoom-on" disabled={!(pointer.clicks || []).length} onClick={() => edit(t('Zoom on Clicks'), (d) => applyAutoZoom(d, screen.id))} />
+            </>
+          )}
+        </section>
+      ) : null}
+    </>
+  );
+}
+
 export default function Inspector({ doc, selected, edit, onSeek, missing, kindName }) {
   const clip = selected.length ? clipById(doc, selected[0]) : null;
   if (!clip) return <ProjectProps doc={doc} edit={edit} onSeek={onSeek} missing={missing} />;
@@ -173,6 +240,13 @@ export default function Inspector({ doc, selected, edit, onSeek, missing, kindNa
           </Row>
         </section>
       ) : null}
+
+      {(() => {
+        // A screen recording with its pointer, or the pointer itself: its look and the zoom on its clicks.
+        const screen = clip.type === 'video' ? clip : clip.type === 'pointer' ? doc.patches.find((p) => p.type === 'video' && p.url === clip.screenUrl && p.timing && p.timing.start < clip.timing.end && p.timing.end > clip.timing.start && (!clip.group || p.group === clip.group)) || null : null;
+        const pointer = clip.type === 'pointer' ? clip : clip.type === 'video' ? pointerOf(doc, clip.id) : null;
+        return pointer ? <PointerProps doc={doc} screen={screen} pointer={pointer} edit={edit} onSeek={onSeek} /> : null;
+      })()}
 
       {clip.type === 'video' && clip.fw ? <InsetProps clip={clip} set={set} aspect={doc.sources?.[clip.url]?.width ? doc.sources[clip.url].height / doc.sources[clip.url].width : 9 / 16} /> : null}
 
@@ -287,7 +361,7 @@ function ProjectProps({ doc, edit, onSeek, missing }) {
       <section className="vd-insp-section">
         <h3>{t('Settings')}</h3>
         <Row label={t('Frame')}>
-          <Select value={doc.options.aspect} onChange={(e) => edit(t('Frame'), (d) => ({ ...d, options: { ...d.options, aspect: e.target.value } }))}>
+          <Select value={doc.options.aspect} onChange={(e) => edit(t('Frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: e.target.value } }))}>
             <option value="landscape">{t('Landscape 16:9')}</option>
             <option value="vertical">{t('Vertical 9:16')}</option>
             <option value="square">{t('Square 1:1')}</option>

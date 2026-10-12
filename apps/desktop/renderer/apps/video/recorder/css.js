@@ -10,6 +10,8 @@ export const RECORDER_CSS = `
 .rec-body { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 18px; }
 
 .rec-stage { min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 8px; padding-top: 4px; container-type: inline-size; }
+.rec-stage.with-prompter .rec-frame { width: min(100cqw, calc((92vh - 400px) * 16 / 9)); }
+.rec-stage.with-prompter .rec-prompter { margin-bottom: 0; }
 .rec-frame { position: relative; width: min(100cqw, calc((92vh - 250px) * 16 / 9)); aspect-ratio: 16 / 9; flex: none; align-self: center; outline: none;
   background: radial-gradient(ellipse at center, #1a1d23 0%, #0b0c0f 75%); border-radius: 12px; overflow: hidden;
   box-shadow: 0 0 0 1px rgba(255,255,255,0.06), 0 10px 30px rgba(0,0,0,0.28); user-select: none; touch-action: none; }

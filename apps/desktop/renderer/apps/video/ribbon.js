@@ -5,6 +5,8 @@
 import React from 'react';
 import { Ribbon, Group, Button, Rows, Select, prettyKey, t } from '@rutba/office-ui';
 import { TITLE_PRESETS } from '@rutba/studio/project';
+import { LAYOUTS } from '@rutba/studio/intro';
+import { LayoutGlyph } from './intro/scenes.js';
 
 /** A command as a ribbon button: its label, its tip beginning with the label and naming the key. */
 function C({ cmds, id, tall, label, icon, pressed }) {
@@ -37,9 +39,10 @@ function TitleTile({ preset }) {
 
 export const TITLE_NAMES = () => ({ title: t('Title'), lowerThird: t('Lower Third'), endCard: t('End Card'), callout: t('Callout') });
 
-export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeconds, setTransitionSeconds, selection }) {
+export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeconds, setTransitionSeconds, selection, intro = false }) {
   const tabs = [
     { id: 'home', label: t('Home') },
+    ...(intro ? [{ id: 'intro', label: t('Introduction') }] : []),
     { id: 'insert', label: t('Insert') },
     { id: 'edit', label: t('Edit') },
     { id: 'transitions', label: t('Transitions') },
@@ -89,6 +92,7 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
           </Group>
           <Group label={t('Record')}>
             <C cmds={cmds} id="record.screen" tall />
+            <C cmds={cmds} id="intro.new" tall />
           </Group>
           <Group label={t('Project')}>
             <C cmds={cmds} id="insert.media" tall />
@@ -98,6 +102,36 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
               <C cmds={cmds} id="file.save" />
               <C cmds={cmds} id="file.saveAs" />
             </Rows>
+          </Group>
+        </>
+      ) : null}
+
+      {tab === 'intro' && intro ? (
+        <>
+          <Group label={t('Scene')}>
+            <C cmds={cmds} id="intro.record" tall />
+            <Rows>
+              <C cmds={cmds} id="intro.up" />
+              <C cmds={cmds} id="intro.down" />
+              <C cmds={cmds} id="intro.remove" />
+            </Rows>
+          </Group>
+          <Group label={t('Layout')}>
+            {LAYOUTS.map((l) => {
+              const c = cmds[`intro.layout.${l}`];
+              return (
+                <Button key={l} tall className="vi-layout-btn" label={c.label} title={`${c.label}: ${c.tip}`} pressed={c.pressed} disabled={c.disabled} onClick={() => c.run()}>
+                  <LayoutGlyph layout={l} size="ribbon" />
+                </Button>
+              );
+            })}
+          </Group>
+          <Group label={t('Brand')}>
+            <C cmds={cmds} id="intro.brand" tall />
+          </Group>
+          <Group label={t('Finish')}>
+            <C cmds={cmds} id="captions.import" tall />
+            <C cmds={cmds} id="file.export" tall />
           </Group>
         </>
       ) : null}
@@ -199,6 +233,9 @@ export default function VideoRibbon({ tab, setTab, cmds, playing, transitionSeco
             <C cmds={cmds} id="clip.fit.cover" tall />
             <C cmds={cmds} id="clip.fit.contain" tall />
             <C cmds={cmds} id="clip.fit.blur" tall />
+          </Group>
+          <Group label={t('Recording')}>
+            <C cmds={cmds} id="clip.autoZoom" tall />
           </Group>
           <Group label={t('Rotate and flip')}>
             <Rows>

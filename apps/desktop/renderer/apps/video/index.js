@@ -26,6 +26,14 @@ import {
 import { writeRvid, readRvid } from '@rutba/studio/rvid';
 import { placeTakes, settleTakes } from '@rutba/studio/recorder';
 import { parseCaptions, placeCaptions, captionsOf, writeSrt, writeVtt, isCaption } from '@rutba/studio/captions';
+import { pointerOf, applyAutoZoom } from '@rutba/studio/pointer';
+import {
+  isIntro, newIntro, recordScene, setLayout, moveScene, removeScene, addScene, updateScene, useTake, applyBrand, normaliseBrand,
+  setPrompterSpeed, composeIntro, sceneSpans, sceneById, sceneAt, RECORDED, LAYOUTS,
+} from '@rutba/studio/intro';
+import ScenesPanel, { LAYOUT_NAMES } from './intro/scenes.js';
+import { BrandDialog, BRAND_KEY } from './intro/brand.js';
+import { INTRO_CSS } from './intro/css.js';
 import { RecorderPanel } from './recorder/panel.js';
 import { AppFrame, useAppMenu, useDirtyGuard, useFileDrop } from '../../shell.js';
 import { MediaLibrary, mediaKind, MEDIA_EXTENSIONS } from './media.js';
@@ -80,7 +88,20 @@ export default function VideoEditor({ app, shell, boot }) {
   const copyKey = useRef(newCopyKey());
   const exportAbort = useRef(null);
   const appMenuOpen = useRef(null);
-  const appMenu = useAppMenu({ shell, appKey: 'video', onOpen: () => appMenuOpen.current?.() });
+  const appMenuNewIntro = useRef(null);
+  const appMenu = useAppMenu({
+    shell,
+    appKey: 'video',
+    onNew: () => shell.win.create({ app: 'video' }),
+    onOpen: () => appMenuOpen.current?.(),
+    extra: [{ label: t('New Introduction Video'), icon: 'scenes', run: () => appMenuNewIntro.current?.() }],
+  });
+  // An introduction: the scene picked, the scene being recorded, the brand kit.
+  const [sceneId, setSceneId] = useState(null);
+  const [sceneRecord, setSceneRecord] = useState(null);
+  const [brandOpen, setBrandOpen] = useState(false);
+  const [brand, setBrand] = useState(() => normaliseBrand(null));
+  useEffect(() => { shell.store.get({ key: BRAND_KEY, fallback: null }).then((b) => setBrand(normaliseBrand(b))).catch(() => {}); }, [shell]);
 
   // Every decoder ready and every thumbnail made repaints what shows it; only
   // a decoder or a picture ready rebuilds the plan, and only a sound decoded
@@ -368,6 +389,7 @@ export default function VideoEditor({ app, shell, boot }) {
         exists: async (p) => Boolean(await shell.fs.exists({ path: p }).catch(() => false)),
       });
       const next = normaliseProject(read.doc);
+      if (isIntro(next)) { setSceneId(next.intro.scenes[0]?.id || null); setTab('intro'); }
       history.current.clear();
       setDoc(next);
       docRef.current = next;
@@ -468,6 +490,8 @@ export default function VideoEditor({ app, shell, boot }) {
     const recover = new URLSearchParams(location.search).get('recover');
     // The launcher's Record a screen: a new video that opens on the recorder.
     if (new URLSearchParams(location.search).get('record')) setRecordOpen(true);
+    // The launcher's Introduction video, or New Introduction Video: a new introduction.
+    if (new URLSearchParams(location.search).get('intro')) startIntroRef.current?.();
     if (recover) {
       (async () => {
         try {
@@ -521,6 +545,88 @@ export default function VideoEditor({ app, shell, boot }) {
     window.addEventListener('pagehide', away);
     return () => window.removeEventListener('pagehide', away);
   }, [shell]);
+
+  /* ── an introduction ───────────────────────────────────────────────── */
+
+  const intro = isIntro(doc);
+  /** The template's words, in this window's language. */
+  const introWords = () => ({ title: t('Your name'), subtitle: t('What you do, in a line'), endTitle: t('Thanks for watching'), endSubtitle: t('Where to find you'), placeholder: t('Record this scene') });
+
+  /** This window's project made a new introduction, in the brand kit kept for this person. */
+  const startIntro = useCallback(async () => {
+    stop();
+    const kept = normaliseBrand(await shell.store.get({ key: BRAND_KEY, fallback: null }).catch(() => null));
+    setBrand(kept);
+    const next = newIntro({ brand: kept, words: introWords() });
+    history.current.clear();
+    docRef.current = next;
+    setDoc(next);
+    setDirty(false);
+    setSelected([]);
+    setSceneId(next.intro.scenes[0].id);
+    setTab('intro');
+    seek(0);
+    if (kept.logo) media.image(kept.logo.url).catch(() => {});
+    requestAnimationFrame(() => fitTo(projectDuration(next)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [shell, media, stop, seek, fitTo]);
+  const startIntroRef = useRef(null);
+  startIntroRef.current = startIntro;
+  appMenuNewIntro.current = () => {
+    if (!docRef.current.patches.some((p) => p.timing) && !dirty) startIntro();
+    else shell.win.create({ app: 'video', query: { intro: 1 } });
+  };
+
+  // The brand's logo is a picture every scene draws: loaded when it changes.
+  const logoUrl = doc.intro?.brand?.logo?.url || null;
+  useEffect(() => { if (logoUrl) media.image(logoUrl).catch(() => {}); }, [logoUrl, media]);
+  // An export to another shape lays the scenes out again for it.
+  relayoutRef.current = intro ? (d, aspect) => composeIntro(d, { aspect }) : null;
+
+  const currentScene = intro ? (sceneById(doc, sceneId) || sceneAt(doc, time) || doc.intro.scenes[0]) : null;
+  const sceneIndex = currentScene ? doc.intro.scenes.findIndex((s) => s.id === currentScene.id) : -1;
+  const pickScene = useCallback((id, start) => { setSceneId(id); stop(); seek(start); }, [stop, seek]);
+  const sceneEdit = useCallback((label, fn, group = null) => edit(label, fn, group), [edit]);
+
+  /** A scene's take, read like any added file and put in its scene; the scenes after it move on. */
+  const landScene = useCallback(async ({ takes }) => {
+    const id = sceneRecord;
+    setSceneRecord(null);
+    stop();
+    if (!id) return;
+    setBusy(t('Adding the take'));
+    try {
+      const files = [];
+      for (const k of takes) {
+        const info = await media.describe(k.path, { name: basename(k.path), size: k.written ?? null });
+        files.push({
+          role: k.role, url: k.path, name: basename(k.path).replace(/\.[^.]+$/, ''), duration: info.duration || k.duration,
+          width: info.width || k.width, height: info.height || k.height, hasAudio: Boolean(k.hasAudio && info.hasAudio),
+          ...(k.crop ? { crop: k.crop } : {}), ...(k.role === 'camera' ? { mirror: k.mirror !== false } : {}), ...(k.pointer ? { pointer: k.pointer } : {}),
+        });
+      }
+      edit(t('Record Scene'), (d) => recordScene(d, id, files).doc);
+      setSceneId(id);
+      const span = sceneSpans(docRef.current).find((s) => s.id === id);
+      if (span) seek(span.start);
+      requestAnimationFrame(() => fitTo(projectDuration(docRef.current)));
+      toast(t('The take is in its scene. Record it again for another take; every take is kept.'), { tone: 'good', ms: 5000 });
+    } catch (err) {
+      toast(t('The recording could not be added: {reason}', { reason: err.message }), { tone: 'bad', ms: 8000 });
+    } finally {
+      setBusy(null);
+    }
+  }, [sceneRecord, media, edit, stop, seek, fitTo, toast]);
+
+  const saveBrand = useCallback((kit) => {
+    const b = normaliseBrand(kit);
+    setBrandOpen(false);
+    setBrand(b);
+    shell.store.set({ key: BRAND_KEY, value: b }).catch(() => {});
+    if (b.logo) media.image(b.logo.url).catch(() => {});
+    if (isIntro(docRef.current)) edit(t('Brand Kit'), (d) => applyBrand(d, b));
+    toast(t('The brand kit is kept for you and drawn into every scene.'), { tone: 'good', ms: 4000 });
+  }, [shell, media, edit, toast]);
 
   /* ── record ────────────────────────────────────────────────────────── */
 
@@ -662,6 +768,12 @@ export default function VideoEditor({ app, shell, boot }) {
     'insert.media': { label: t('Add Media'), icon: 'plus', key: 'Mod+I', tip: t('videos, sound and pictures, placed one after another'), run: insertMedia },
     'captions.import': { label: t('Import Captions'), icon: 'captions', tip: t('a SubRip (.srt) or WebVTT (.vtt) file, each caption a clip on its own track'), run: () => importCaptions() },
     'captions.export': { label: t('Export Captions'), icon: 'export', disabled: !doc.patches.some(isCaption), tip: t('the caption track as a .srt or .vtt file, to send beside the video'), run: exportCaptions },
+    'intro.record': { label: currentScene?.take ? t('Retake Scene') : t('Record Scene'), icon: 'record', disabled: !currentScene || !RECORDED.has(currentScene.layout) || Boolean(exporting), tip: t('the scene picked, with its script above the camera; every take is kept'), run: () => { stop(); setSceneRecord(currentScene.id); } },
+    'intro.up': { label: t('Move Earlier'), icon: 'chevronUp', disabled: sceneIndex <= 0, run: () => edit(t('Move Scene'), (d) => moveScene(d, currentScene.id, -1)) },
+    'intro.down': { label: t('Move Later'), icon: 'chevronDown', disabled: !intro || sceneIndex >= doc.intro.scenes.length - 1, run: () => edit(t('Move Scene'), (d) => moveScene(d, currentScene.id, 1)) },
+    'intro.remove': { label: t('Remove Scene'), icon: 'trash', disabled: !intro || doc.intro.scenes.length < 2, tip: t('its takes stay on the disk'), run: () => { edit(t('Remove Scene'), (d) => removeScene(d, currentScene.id)); setSceneId(null); } },
+    'intro.brand': { label: t('Brand Kit'), icon: 'brand', tip: t('a logo, colours, a font and a name and role, in every scene'), run: () => setBrandOpen(true) },
+    'intro.new': { label: t('New Introduction Video'), icon: 'scenes', tip: t('scenes to record one at a time, in your brand'), run: () => appMenuNewIntro.current?.() },
     'record.screen': { label: t('Record Screen'), icon: 'record', disabled: Boolean(exporting) || recordOpen, tip: t('a screen, a window or a region, with the camera and sound, onto the timeline'), run: () => { stop(); setRecordOpen(true); } },
     'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', disabled: !history.current.canUndo, run: undo },
     'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', disabled: !history.current.canRedo, run: redo },
@@ -699,6 +811,7 @@ export default function VideoEditor({ app, shell, boot }) {
     'clip.fit.cover': { label: t('Fill'), icon: 'grid', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => (p.fit || 'cover') === 'cover'), tip: t('the picture fills the frame, cropped to fit'), run: () => setPictures(t('Fill'), () => ({ fit: 'cover' })) },
     'clip.fit.contain': { label: t('Fit'), icon: 'image', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.fit === 'contain'), tip: t('the whole picture, on black bars'), run: () => setPictures(t('Fit'), () => ({ fit: 'contain' })) },
     'clip.fit.blur': { label: t('Blur Fill'), icon: 'contrast', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.fit === 'blur'), tip: t('the whole picture, over a blur of itself'), run: () => setPictures(t('Blur Fill'), () => ({ fit: 'blur' })) },
+    'clip.autoZoom': { label: t('Zoom on Clicks'), icon: 'zoomIn', disabled: !(first?.type === 'video' && pointerOf(doc, first.id)?.clicks?.length), tip: t('the screen zooms in where the recorded clicks are and follows them; each zoom can be changed in the properties'), run: () => edit(t('Zoom on Clicks'), (d) => applyAutoZoom(d, first.id)) },
     'clip.rotateLeft': { label: t('Rotate Left'), icon: 'rotate', disabled: !pictures.length, run: () => setPictures(t('Rotate'), (p) => ({ turn: ((((p.turn || 0) - 90) % 360) + 360) % 360 })) },
     'clip.rotateRight': { label: t('Rotate Right'), icon: 'rotate', disabled: !pictures.length, run: () => setPictures(t('Rotate'), (p) => ({ turn: ((p.turn || 0) + 90) % 360 })) },
     'clip.flipX': { label: t('Flip Horizontal'), icon: 'flip', disabled: !pictures.length, pressed: pictures.length > 0 && pictures.every((p) => p.flipX), run: () => setPictures(t('Flip'), (p) => ({ flipX: !p.flipX })) },
@@ -711,9 +824,9 @@ export default function VideoEditor({ app, shell, boot }) {
     'view.fit': { label: t('Fit to Window'), icon: 'maximize', key: 'Shift+Z', run: fitView },
     'view.snap': { label: t('Snapping'), icon: 'grid', pressed: doc.settings?.snap !== false, tip: t('clips snap to edges, the playhead and markers; hold Alt to drag freely'), run: () => edit(t('Snapping'), (d) => ({ ...d, settings: { ...d.settings, snap: d.settings?.snap === false } })) },
     'view.follow': { label: t('Follow Playhead'), icon: 'eye', pressed: follow, run: () => setFollow((f) => !f) },
-    'view.aspect.landscape': { label: t('Landscape'), icon: 'video', pressed: doc.options.aspect === 'landscape', tip: '16:9', run: () => edit(t('Frame'), (d) => ({ ...d, options: { ...d.options, aspect: 'landscape' } })) },
-    'view.aspect.vertical': { label: t('Vertical'), icon: 'video', pressed: doc.options.aspect === 'vertical', tip: '9:16', run: () => edit(t('Frame'), (d) => ({ ...d, options: { ...d.options, aspect: 'vertical' } })) },
-    'view.aspect.square': { label: t('Square'), icon: 'video', pressed: doc.options.aspect === 'square', tip: '1:1', run: () => edit(t('Frame'), (d) => ({ ...d, options: { ...d.options, aspect: 'square' } })) },
+    'view.aspect.landscape': { label: t('Landscape'), icon: 'video', pressed: doc.options.aspect === 'landscape', tip: '16:9', run: () => edit(t('Frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'landscape' } })) },
+    'view.aspect.vertical': { label: t('Vertical'), icon: 'video', pressed: doc.options.aspect === 'vertical', tip: '9:16', run: () => edit(t('Frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'vertical' } })) },
+    'view.aspect.square': { label: t('Square'), icon: 'video', pressed: doc.options.aspect === 'square', tip: '1:1', run: () => edit(t('Frame'), (d) => composeIntro({ ...d, options: { ...d.options, aspect: 'square' } })) },
   };
   for (const kind of ['none', 'fade', 'dip', 'wipe', 'slide', 'push', 'zoom']) {
     const pick = pictures[0] || null;
@@ -729,6 +842,16 @@ export default function VideoEditor({ app, shell, boot }) {
       run: () => edit(t('Transition'), (d) => setTransition(d, pick.id, { kind, seconds: transitionSeconds })),
     };
   }
+  const layoutNames = LAYOUT_NAMES();
+  for (const l of LAYOUTS) {
+    cmds[`intro.layout.${l}`] = {
+      label: layoutNames[l],
+      disabled: !currentScene,
+      pressed: currentScene?.layout === l,
+      tip: t('the scene picked, laid out this way; a recorded one keeps its take'),
+      run: () => currentScene && currentScene.layout !== l && edit(t('Layout'), (d) => setLayout(d, currentScene.id, l)),
+    };
+  }
   for (const preset of Object.keys(TITLE_PRESETS)) {
     cmds[`insert.title.${preset}`] = {
       label: titleNames[preset],
@@ -742,7 +865,7 @@ export default function VideoEditor({ app, shell, boot }) {
       },
     };
   }
-  useCommands(cmds, [doc, selected, time, path, dirty, clipboard.current, playing, exporting, transitionSeconds, follow, duration, recordOpen]);
+  useCommands(cmds, [doc, selected, time, path, dirty, clipboard.current, playing, exporting, transitionSeconds, follow, duration, recordOpen, sceneId]);
 
   // A clip's own menu, on a right-click: the clip is picked first, and the
   // menu opens once the window has drawn it picked, so every item acts on it.
@@ -807,7 +930,7 @@ export default function VideoEditor({ app, shell, boot }) {
       dirty={dirty}
       menu={appMenu}
       ribbon={
-        <VideoRibbon tab={tab} setTab={setTab} cmds={cmds} playing={playing} transitionSeconds={transitionSeconds} setTransitionSeconds={setTransitionSeconds} selection={first?.type || null} />
+        <VideoRibbon tab={tab} setTab={setTab} cmds={cmds} playing={playing} transitionSeconds={transitionSeconds} setTransitionSeconds={setTransitionSeconds} selection={first?.type || null} intro={intro} />
       }
       status={
         <>
@@ -823,6 +946,24 @@ export default function VideoEditor({ app, shell, boot }) {
       <Content>
         <div className="vd-editor" data-duration={duration} data-clips={doc.patches.filter((p) => p.timing).length} data-dirty={dirty ? '1' : '0'} data-copy={copyKey.current} data-starts={playStarts.current}>
           <div className="vd-top">
+            {intro ? (
+              <Panel title={t('Scenes')} width={272}>
+                <ScenesPanel
+                  doc={doc}
+                  current={currentScene?.id || null}
+                  speed={doc.intro.prompter?.speed || 140}
+                  onPick={pickScene}
+                  onRecord={(id) => { stop(); setSceneId(id); setSceneRecord(id); }}
+                  onLayout={(id, l) => sceneEdit(t('Layout'), (d) => setLayout(d, id, l))}
+                  onMove={(id, by) => sceneEdit(t('Move Scene'), (d) => moveScene(d, id, by))}
+                  onRemove={(id) => { sceneEdit(t('Remove Scene'), (d) => removeScene(d, id)); setSceneId(null); }}
+                  onAdd={(l) => { let made = null; sceneEdit(t('Add Scene'), (d) => { const r = addScene(d, l, { after: currentScene?.id || null }); made = r.id; return r.doc; }); if (made) setSceneId(made); }}
+                  onChange={(id, change, group) => sceneEdit(t('Scene'), (d) => updateScene(d, id, change), group)}
+                  onUseTake={(id, takeId) => sceneEdit(t('Use Take'), (d) => useTake(d, id, takeId))}
+                  onBrand={() => setBrandOpen(true)}
+                />
+              </Panel>
+            ) : null}
             <div className="vd-monitor">
               {hasClips ? (
                 <Stage
@@ -900,8 +1041,26 @@ export default function VideoEditor({ app, shell, boot }) {
       {contextMenu.node}
       {exportOpen ? <ExportDialog doc={doc} initialPreset={lastPreset} onClose={() => setExportOpen(false)} onExport={runExport} /> : null}
       {recordOpen ? <RecorderPanel shell={shell} mode="video" toast={toast} onDone={landTakes} onCancel={recordClosed} onProgress={recordingCopy} /> : null}
+      {sceneRecord && intro && sceneById(doc, sceneRecord) ? (
+        <RecorderPanel
+          shell={shell}
+          mode="video"
+          toast={toast}
+          onDone={landScene}
+          onCancel={() => setSceneRecord(null)}
+          force={{ camera: true }}
+          prompter={{
+            title: t('Scene {n}: {name}', { n: doc.intro.scenes.findIndex((s) => s.id === sceneRecord) + 1, name: LAYOUT_NAMES()[sceneById(doc, sceneRecord).layout] }),
+            script: sceneById(doc, sceneRecord).script || '',
+            speed: doc.intro.prompter?.speed || 140,
+            onSpeed: (v) => edit(t('Teleprompter speed'), (d) => setPrompterSpeed(d, v)),
+          }}
+        />
+      ) : null}
+      {brandOpen ? <BrandDialog shell={shell} brand={doc.intro?.brand || brand} onClose={() => setBrandOpen(false)} onSave={saveBrand} /> : null}
       {exporting ? <ExportProgress progress={exporting.progress} total={exporting.total} onCancel={() => exportAbort.current?.abort()} /> : null}
       <style>{CSS}</style>
+      {intro || brandOpen ? <style>{INTRO_CSS}</style> : null}
     </AppFrame>
   );
 }

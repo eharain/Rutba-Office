@@ -472,7 +472,84 @@ export function buildImplementations({ stores, windows, quitting, thumbnailer = 
     ]);
   };
 
+  // The pointer while a window records (R7): where it is over the screen or
+  // window being recorded, polled at the frame rate, and where it was
+  // pressed, as fractions of that source, on the recording's clock (the
+  // time paused left out). A screen is mapped by its display's bounds and
+  // one of the suite's own windows by its own; another program's window
+  // cannot be, so the pointer is not recorded for it. A press is seen in the
+  // suite's own windows only: nothing outside them is listened to. A check
+  // run reads no mouse: it hands the positions and the presses in
+  // (globalThis.__rutbaPointerFeed).
+  let tracking = null; // { timer, samples, clicks, started, heldAt, held, toSource, listeners }
+  const stopTracking = () => {
+    const tr = tracking;
+    tracking = null;
+    if (!tr) return null;
+    clearInterval(tr.timer);
+    for (const [wc, fn] of tr.listeners) { try { if (!wc.isDestroyed()) wc.removeListener('input-event', fn); } catch { /* gone */ } }
+    if (CHECK) globalThis.__rutbaPointerFeed = null;
+    return { samples: tr.samples, clicks: tr.clicks };
+  };
+  const pointerClock = (tr) => {
+    const now = Date.now();
+    const end = tr.heldAt != null ? tr.heldAt : now;
+    return Math.max(0, (end - tr.started - tr.held) / 1000);
+  };
+
   impl.capture = {
+    pointer: async ({ on = false, id = '', fps = 30, paused = undefined } = {}) => {
+      if (!on) return stopTracking() || { samples: [], clicks: [] };
+      if (tracking && paused !== undefined && !id) {
+        // Pause and resume: the clock holds while paused, and nothing is written down.
+        if (paused && tracking.heldAt == null) tracking.heldAt = Date.now();
+        if (!paused && tracking.heldAt != null) { tracking.held += Date.now() - tracking.heldAt; tracking.heldAt = null; }
+        return { tracking: true };
+      }
+      stopTracking();
+      const sid = String(id || '');
+      let toSource = null;
+      if (sid.startsWith('screen:')) {
+        const found = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 0, height: 0 }, fetchWindowIcons: false }).catch(() => []);
+        const src = found.find((s) => s.id === sid);
+        const displays = screen.getAllDisplays();
+        const d = displays.find((x) => String(x.id) === String(src?.display_id)) || (displays.length === 1 ? displays[0] : null);
+        if (d) toSource = (p) => ({ x: (p.x - d.bounds.x) / d.bounds.width, y: (p.y - d.bounds.y) / d.bounds.height });
+      } else {
+        const w = BrowserWindow.getAllWindows().find((x) => !x.isDestroyed() && x.getMediaSourceId() === sid);
+        if (w) toSource = (p) => { if (w.isDestroyed()) return null; const b = w.getBounds(); return { x: (p.x - b.x) / b.width, y: (p.y - b.y) / b.height }; };
+      }
+      if (!toSource && !CHECK) return { tracking: false };
+      const tr = { timer: null, samples: [], clicks: [], started: Date.now(), heldAt: null, held: 0, listeners: [] };
+      tracking = tr;
+      const r3 = (n) => Math.round(n * 1000) / 1000;
+      const feed = CHECK ? { at: null, move(x, y) { feed.at = { x, y }; return true; }, click(x, y) { if (tr.heldAt == null) tr.clicks.push([r3(pointerClock(tr)), r3(x), r3(y)]); return true; } } : null;
+      if (CHECK) globalThis.__rutbaPointerFeed = feed;
+      tr.timer = setInterval(() => {
+        if (tr.heldAt != null) return;
+        let at = null;
+        if (feed) at = feed.at;
+        else { const p = toSource(screen.getCursorScreenPoint()); at = p; }
+        if (!at) return;
+        tr.samples.push([r3(pointerClock(tr)), r3(at.x), r3(at.y)]);
+      }, Math.max(15, Math.round(1000 / Math.max(5, Math.min(60, Number(fps) || 30)))));
+      if (!CHECK && toSource) {
+        // A press in one of the suite's windows, where the screen recorded can see it.
+        for (const w of BrowserWindow.getAllWindows()) {
+          if (w.isDestroyed()) continue;
+          const wc = w.webContents;
+          const fn = (_e, input) => {
+            if (input?.type !== 'mouseDown' || tr.heldAt != null) return;
+            const b = w.getContentBounds();
+            const p = toSource({ x: b.x + (input.x || 0), y: b.y + (input.y || 0) });
+            if (p && p.x >= 0 && p.x <= 1 && p.y >= 0 && p.y <= 1) tr.clicks.push([r3(pointerClock(tr)), r3(p.x), r3(p.y)]);
+          };
+          wc.on('input-event', fn);
+          tr.listeners.push([wc, fn]);
+        }
+      }
+      return { tracking: true };
+    },
     sources: async (_p, win) => {
       const own = win && !win.isDestroyed() ? win.getMediaSourceId() : null;
       const found = await desktopCapturer.getSources({ types: ['window', 'screen'], thumbnailSize: { width: 320, height: 200 }, fetchWindowIcons: false });

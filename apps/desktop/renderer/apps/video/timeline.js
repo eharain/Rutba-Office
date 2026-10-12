@@ -294,7 +294,7 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
   const kind = clip.type;
   const tr = clip.transition;
   const caption = Boolean(clip.caption && kind === 'text');
-  const label = kind === 'text' ? clip.text || t('Title') : kind === 'shape' ? t('Title background') : clip.name || '';
+  const label = kind === 'text' ? clip.text || t('Title') : kind === 'shape' ? t('Title background') : kind === 'pointer' ? t('Pointer') : clip.name || '';
   return (
     <div
       className={`vd-clip k-${kind}${caption ? ' k-caption' : ''}${selected ? ' selected' : ''}${missing ? ' missing' : ''}`}
@@ -311,6 +311,8 @@ function Clip({ clip, pps, h, selected, media, mediaVersion, missing, source, on
       data-take={clip.take || ''}
       data-inset={clip.fw ? [clip.fx, clip.fy, clip.fw, clip.fh, clip.insetShape || ''].join(' ') : ''}
       data-crop={clip.crop ? [clip.crop.x, clip.crop.y, clip.crop.w, clip.crop.h].join(' ') : ''}
+      data-zooms={clip.autoZoom ? clip.autoZoom.length : undefined}
+      data-clicks={kind === 'pointer' ? (clip.clicks || []).length : undefined}
       style={{ left: clip.timing.start * pps, width: w, height: h }}
       onPointerDown={(e) => onDown(e, clip, 'move')}
       onContextMenu={(e) => onContext?.(e, clip)}
@@ -387,6 +389,16 @@ function ClipArt({ clip, w, h, pps, media, version, source }) {
           g.fillStyle = 'rgba(255,255,255,0.05)';
           g.fillRect(x + 1, 1, tw - 2, h - 2);
         }
+      }
+    } else if (kind === 'pointer') {
+      // Each click a dot where it was made, on the clip's own clock.
+      g.fillStyle = 'rgba(255, 213, 74, 0.95)';
+      for (const c of clip.clicks || []) {
+        const x = (c[0] - (clip.offset || 0)) * pps;
+        if (x < 0 || x > cw) continue;
+        g.beginPath();
+        g.arc(x, h / 2, 3.5, 0, Math.PI * 2);
+        g.fill();
       }
     } else if (kind === 'sound') {
       const peaks = media.peaks.get(clip.url);

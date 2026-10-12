@@ -165,6 +165,33 @@ test('the brand kit on every scene (X6): colours, font, logo and the lower third
   assert.ok(of(quiet, title.id, 'logo'), 'the card keeps its logo');
 });
 
+test('the lower third keeps out of the camera\'s way: across from an inset in a bottom corner, and between the screen and the camera upright', () => {
+  let doc = newIntro({ words: WORDS, brand: { name: 'عائشہ خان', role: 'ڈیزائنر' } });
+  const screen = doc.intro.scenes[2];
+  doc = recordScene(doc, screen.id, [screenFile(), cameraFile()]).doc;
+  const band = of(doc, screen.id, 'band');
+  const name = of(doc, screen.id, 'ltName');
+  assert.ok(band.fx + band.fw / 2 < 0.6, 'the band on the left, across from the camera in the bottom right');
+  assert.equal(name.align, 'right', 'an Urdu name still right to left');
+  near(name.fx, band.fx + band.fw / 2 - 0.02, 'the words at the band\'s right edge');
+  const tall = relayoutIntro(doc, 'vertical');
+  const cam = of(tall, screen.id, 'camera');
+  const tb = of(tall, screen.id, 'band');
+  assert.ok(tb.fy + tb.fh / 2 <= cam.fy, 'upright, the band ends above the camera');
+  // Side by side, over the camera's box: on the left in a wide frame, at the camera's foot upright.
+  const sbs = setLayout(doc, screen.id, 'sideBySide');
+  const sb = of(sbs, screen.id, 'band');
+  assert.ok(sb.fx - sb.fw / 2 < 0.1 && sb.fx < 0.4, 'over the camera on the left');
+  const sbTall = relayoutIntro(sbs, 'vertical');
+  const sbCam = of(sbTall, screen.id, 'camera');
+  const sbBand = of(sbTall, screen.id, 'band');
+  assert.ok(sbBand.fy + sbBand.fh / 2 <= sbCam.fy + sbCam.fh + 0.001 && sbBand.fy > sbCam.fy, 'inside the camera\'s box, upright');
+  // Over a talking head it sits where the name starts: on the right for Urdu.
+  let talk = newIntro({ words: WORDS, brand: { name: 'عائشہ خان', role: 'ڈیزائنر' } });
+  talk = recordScene(talk, talk.intro.scenes[1].id, [cameraFile()]).doc;
+  assert.ok(of(talk, talk.intro.scenes[1].id, 'band').fx > 0.5);
+});
+
 test('laid out for another shape: an upright export stacks the screen and the camera, and the project itself is left as it was', () => {
   let doc = newIntro({ words: WORDS });
   const screen = doc.intro.scenes[2];

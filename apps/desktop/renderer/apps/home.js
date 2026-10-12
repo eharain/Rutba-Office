@@ -236,6 +236,15 @@ export default function Home({ app, shell }) {
                 <span>{t('Record a screen')}</span>
               </button>
             ) : null}
+            {/* An introduction: scenes recorded one at a time, in one's brand. */}
+            {APPS.video ? (
+              <button type="button" className="home-template home-intro" data-tip={t('Introduction video: a title, you on camera, your screen and an end card, recorded scene by scene in your brand')} onClick={() => shell.win.create({ app: 'video', query: { intro: 1 } })}>
+                <span className="tpl-glyph" data-app="video">
+                  <Icon name="scenes" size={16} />
+                </span>
+                <span>{t('Introduction video')}</span>
+              </button>
+            ) : null}
             {/* Templates of one's own: each makes a new document, the template left as it is. */}
             {personal.map((tpl) => (
               <button key={tpl.path} type="button" className="home-template personal" title={t('Your template: a new document made from {name}', { name: tpl.name })} data-template={tpl.path} onClick={() => shell.win.create({ app: tpl.app, query: { templateFile: tpl.path } })}>

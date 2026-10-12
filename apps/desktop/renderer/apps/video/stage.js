@@ -13,8 +13,8 @@ import { paintFrame, layerBounds, withLayerStateAt, hitTestLayers } from '@rutba
 import { t } from '@rutba/office-ui';
 
 const MOVABLE = new Set(['text', 'shape']);
-/** What can be picked and dragged on the stage: a title, its shape, and a clip drawn as an inset (a recording's camera). */
-const movable = (l) => MOVABLE.has(l.type) || (l.type === 'video' && Boolean(l.fw));
+/** What can be picked and dragged on the stage: a title, its shape, and a clip drawn as an inset (a recording's camera); nothing locked (an introduction's background and screen). */
+const movable = (l) => !l.locked && (MOVABLE.has(l.type) || (l.type === 'video' && Boolean(l.fw)));
 
 export default function Stage({ plan, time, selected, onSelect, onBegin, onMove, paintTick, canvasRef }) {
   const wrapRef = useRef(null);

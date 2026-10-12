@@ -283,6 +283,7 @@ export const METHODS = {
     'controls',     // ({ on, paused, minimise }) -> { stop, pause, tray }   while recording: a global Stop and Pause key and a tray icon, sent back as capture:command; off releases them
     'space',        // ({ path }) -> { free, total }   bytes on the disk that holds path
     'take',         // ({ dir, name }) -> { path }   a new file in dir for a recording, written to by fs.append and let go of by fs.dropTemp
+    'pointer',      // ({ on, id, fps, paused }) -> on: { tracking } | off: { samples, clicks }   the pointer over the source being recorded, a sample a frame, as fractions of it
   ],
 };
 
