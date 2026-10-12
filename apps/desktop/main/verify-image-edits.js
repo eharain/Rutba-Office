@@ -163,6 +163,47 @@ export async function verifyImageEdits({ open, check, until, wait, press, errors
       handles && Boolean(edge) && kept.includes('annotate') && !(await js(`Boolean(document.querySelector('.im-handle'))`)),
       JSON.stringify({ drag, handles, edge, ops: kept }));
 
+    // I1: an arrow dragged, and a text typed where it was clicked; each kept with Done.
+    const dragWith = (tool, from, to) => js(`(() => {
+      document.querySelector('[data-tool="${tool}"]')?.click();
+      return new Promise((resolve) => setTimeout(() => {
+        const layer = document.querySelector('.im-draw');
+        if (!layer) return resolve(false);
+        const r = layer.getBoundingClientRect();
+        const at = (f) => ({ clientX: r.left + r.width * f[0], clientY: r.top + r.height * f[1], bubbles: true, button: 0 });
+        layer.dispatchEvent(new MouseEvent('mousedown', at(${JSON.stringify(from)})));
+        window.dispatchEvent(new MouseEvent('mousemove', at(${JSON.stringify(to)})));
+        window.dispatchEvent(new MouseEvent('mouseup', at(${JSON.stringify(to)})));
+        resolve(true);
+      }, 150));
+    })()`);
+    await dragWith('arrow', [0.7, 0.8], [0.9, 0.6]);
+    const arrowHandles = await until(() => js(`document.querySelectorAll('.im-handle.h-a, .im-handle.h-b').length === 2`), 'the arrow being edited', 4000).then(() => true).catch(() => false);
+    await click('Done');
+    await dragWith('text', [0.66, 0.12], [0.66, 0.12]);
+    const typed = await until(() => js(`Boolean(document.querySelector('.im-text-input'))`), 'the text box', 4000).then(() => js(`(() => {
+      const box = document.querySelector('.im-text-input');
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value').set.call(box, 'Harbour');
+      box.dispatchEvent(new Event('input', { bubbles: true }));
+      return true;
+    })()`)).catch(() => false);
+    await wait(250);
+    await capture('image-edits-text.png');
+    await click('Done');
+    await until(async () => (await ops()).filter((o) => o === 'annotate').length === 3, 'the arrow and the text in the edit list', 4000).catch(() => {});
+    await settled('the text drawn');
+    const marks = (await ops()).filter((o) => o === 'annotate').length;
+    // The text is drawn into the picture in the colour chosen: red pixels where it was typed.
+    const textRed = await js(`(() => {
+      const c = document.querySelector('.im-canvas');
+      const d = c.getContext('2d').getImageData(Math.floor(c.width * 0.66), Math.floor(c.height * 0.12), Math.floor(c.width * 0.2), Math.floor(c.height * 0.1)).data;
+      let n = 0;
+      for (let i = 0; i < d.length; i += 4) if (d[i] > 180 && d[i + 1] < 110 && d[i + 2] < 110) n++;
+      return n;
+    })()`);
+    check('image: an arrow dragged has a handle at each end, a text typed where it was clicked is drawn into the picture, and Done keeps each as an edit',
+      arrowHandles && typed === true && marks === 3 && textRed > 20, JSON.stringify({ arrowHandles, typed, marks, textRed }));
+
     // I2: straighten by five degrees, the crop following.
     await tab('Home');
     await until(() => js(`Boolean(document.querySelector('[data-role="straighten"]'))`), 'the straighten slider', 4000).catch(() => {});

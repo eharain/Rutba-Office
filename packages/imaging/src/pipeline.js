@@ -332,7 +332,7 @@ export function markToOperation(plan, mark) {
     return { ...base, cx: c.x, cy: c.y, w: round2(Math.abs(mark.x2 - mark.x1) / k), h: round2(Math.abs(mark.y2 - mark.y1) / k), frame: frame.map(round4), fill: mark.fill || null };
   }
   if (mark.shape === 'arrow') {
-    return { ...base, points: [at(mark.x1, mark.y1), at(mark.x2, mark.y2)], head: round2(Math.max(12, (mark.width || 4) * 3.5) / k) };
+    return { ...base, points: [at(mark.x1, mark.y1), at(mark.x2, mark.y2)], head: round2(Math.max(16, (mark.width || 4) * 4) / k) };
   }
   if (mark.shape === 'pen') {
     return { ...base, points: (mark.points || []).map((p) => at(p.x, p.y)) };
