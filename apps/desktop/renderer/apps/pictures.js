@@ -34,6 +34,7 @@ import { frameOf } from './pictures/frames.js';
 import { durationOf, peekLength } from './pictures/durations.js';
 import { nextIndex, formatLength, advanceAfter } from './pictures/show.js';
 import { useMarks, useFolderCount } from './pictures/marks.js';
+import { BatchDialog, canBatch } from './image/batch.js';
 
 const INTERVALS = [
   { label: t('{seconds}s', { seconds: 2 }), value: 2000 },
@@ -82,6 +83,8 @@ export default function Pictures({ app, shell, boot }) {
   const [found, setFound] = useState(null);
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('home');
+  // Batch edit: the folder's pictures resized, converted and renamed together.
+  const [batching, setBatching] = useState(false);
 
   // How the window is arranged, remembered on this machine.
   const [view, setViewState] = useState(readView);
@@ -741,6 +744,9 @@ export default function Pictures({ app, shell, boot }) {
                 <Button tall icon="folderOpen" label={t('Reveal')} disabled={!current} onClick={() => commands['file.reveal'].run()} />
                 <Button tall icon="trash" label={t('Trash')} disabled={!current} onClick={() => commands['file.trash'].run()} />
               </Group>
+              <Group label={t('Batch')}>
+                <Button tall icon="mkResize" label={t('Batch edit')} title={t('Batch edit: resize, convert, rename and strip the pictures in this folder together')} disabled={!files.some((f) => !f.dir && canBatch(f.path))} onClick={() => setBatching(true)} />
+              </Group>
               <Group label={t('Clipboard')}>
                 <Button icon="copy" label={t('Copy path')} disabled={!current} onClick={() => commands['file.copy'].run()} />
               </Group>
@@ -983,6 +989,9 @@ export default function Pictures({ app, shell, boot }) {
       ) : null}
 
       {menu.node}
+      {batching ? (
+        <BatchDialog shell={shell} files={files} folder={folder} onClose={() => setBatching(false)} onDone={() => folder && list(folder)} />
+      ) : null}
       <style>{CSS}</style>
     </AppFrame>
   );
