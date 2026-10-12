@@ -76,6 +76,11 @@ export function nameOf(p) {
   if (!p) return '';
   if (p.label) return p.label;
   if (p.id === 'background') return t('Background');
+  // The advanced editor's own pixel layers, named in the window's language.
+  const n = String(p.id || '').match(/-(\d+)$/)?.[1] || '';
+  if (p.kind === 'paint') return t('Paint {number}', { number: n }).trim();
+  if (p.kind === 'adjusted') return t('Adjusted selection {number}', { number: n }).trim();
+  if (p.kind === 'copied') return t('Copied selection {number}', { number: n }).trim();
   if (p.type === 'textblock' || p.type === 'text' || p.type === 'wordart') {
     const line = String(p.text || '').split('\n')[0].trim();
     if (line) return line.length > 32 ? `${line.slice(0, 31)}…` : line;

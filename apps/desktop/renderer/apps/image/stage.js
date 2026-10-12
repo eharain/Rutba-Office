@@ -48,7 +48,9 @@ export function LayerStage({ plan, cssPerPx, doc, selected, onSelect, isLocked, 
   const primaryLayer = primary ? plan?.layers.find((l) => l.id === primary) : null;
   // An adjustment over the whole canvas has nowhere to be moved to: no handles, no box.
   const whole = (l) => l && l.type === 'adjust' && l.fw == null && l.fh == null;
-  const handles = primaryLayer && !isLocked(primary) && primaryLayer.visible !== false && !whole(primaryLayer) ? layerHandles(ctx, plan, primaryLayer) : null;
+  // A picture on corners of its own (free transform) is reshaped by the Free Transform tool, not these handles.
+  const onCorners = Boolean(primary && doc.patches.find((p) => p.id === primary)?.corners);
+  const handles = primaryLayer && !isLocked(primary) && primaryLayer.visible !== false && !whole(primaryLayer) && !onCorners ? layerHandles(ctx, plan, primaryLayer) : null;
 
   const toPlan = (e) => {
     const r = ref.current.getBoundingClientRect();

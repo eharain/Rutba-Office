@@ -12,6 +12,7 @@ import { applyPixels } from '@rutba/imaging/pixels';
 import { FORMATS, sizeFor, withExifFrom, underSize } from '@rutba/imaging/batch';
 import { readExif } from '@rutba/imaging/exif';
 import { probeImage } from '@rutba/imaging/probe';
+import { runTool } from './tool-jobs.js';
 
 async function decode(bytes, upright) {
   const blob = new Blob([bytes]);
@@ -71,6 +72,9 @@ self.onmessage = async (e) => {
     } else if (job.kind === 'convert') {
       const done = await convert(job.bytes, job.options);
       self.postMessage({ id: job.id, ...done }, [done.bytes.buffer]);
+    } else if (job.kind === 'tool') {
+      const done = runTool(job);
+      self.postMessage({ id: job.id, ...done.result }, done.transfer);
     } else {
       self.postMessage({ id: job.id, error: `unknown job ${job.kind}` });
     }

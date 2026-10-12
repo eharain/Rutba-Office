@@ -1,6 +1,6 @@
 {
   "about": "Every message the windows show, in English, and the files that use it — what a catalogue translates. Made by tools/extract-messages.mjs; see catalogues/index.js.",
-  "count": 5959,
+  "count": 6074,
   "messages": [
     {
       "message": "\"{address}\" is not a cell or a range",
@@ -1663,6 +1663,7 @@
     {
       "message": "Add",
       "where": [
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -1823,6 +1824,12 @@
       "message": "Add a marker at the playhead with M.",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
+      ]
+    },
+    {
+      "message": "Add a mask",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -2019,6 +2026,12 @@
       ]
     },
     {
+      "message": "Add: each selection joins the last (Shift)",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Added",
       "where": [
         "apps/desktop/renderer/apps/slides/changes.js"
@@ -2163,6 +2176,18 @@
         "apps/desktop/renderer/apps/image/insert.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Adjust and Filters work inside the selection",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Adjusted selection {number}",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
       ]
     },
     {
@@ -2452,9 +2477,21 @@
       ]
     },
     {
+      "message": "Aligned",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Aligned at (cm)",
       "where": [
         "apps/desktop/renderer/apps/word/list-dialog.js"
+      ]
+    },
+    {
+      "message": "Aligned: every stroke keeps the same distance from where it copies",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -2709,6 +2746,18 @@
       "message": "Alt Text — title",
       "where": [
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Alt+click where to copy from",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Alt+click where to copy from first.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -2988,6 +3037,7 @@
       "message": "Apply",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
@@ -3039,6 +3089,12 @@
       "message": "Apply {style} to this paragraph",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Apply: the mask made part of the layer's pixels",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -4503,6 +4559,18 @@
       ]
     },
     {
+      "message": "Brush",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Brush (B): paint on a layer, or on its mask in black and white",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Budget",
       "where": [
         "apps/desktop/renderer/registry-words.js"
@@ -4592,6 +4660,12 @@
       "message": "Button (warp)",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "By",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -5527,6 +5601,18 @@
       ]
     },
     {
+      "message": "Choose a picture or a paint layer to straighten it.",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Choose a picture or a paint layer to transform it.",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Choose a screen or a window to record.",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js",
@@ -5567,6 +5653,12 @@
       "message": "Choose the column that holds the e-mail addresses.",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Choose the layer to clear the selection from.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -5819,6 +5911,12 @@
       ]
     },
     {
+      "message": "Click a layer on the picture to choose it; drag it to move it, or its corners to resize it.",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Click a line between two cells to join them.",
       "where": [
         "apps/desktop/renderer/apps/word.js"
@@ -5978,6 +6076,18 @@
       "message": "Clockwise",
       "where": [
         "apps/desktop/renderer/apps/slides/animate.js"
+      ]
+    },
+    {
+      "message": "Clone Stamp",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Clone Stamp (S): Alt+click where to copy from, then paint the copy",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -6159,6 +6269,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -6180,9 +6291,27 @@
       ]
     },
     {
+      "message": "Colour to clear",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Colour to second colour",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Colour/Greyscale",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Colour: what the brush, the fill and the gradient paint with",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -6650,6 +6779,18 @@
       ]
     },
     {
+      "message": "Contiguous",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Contiguous: only the area joined to where you click",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Continuous",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -6768,7 +6909,19 @@
       ]
     },
     {
+      "message": "Copied selection {number}",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Copied the picture, {width} × {height}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Copied the selection, {width} × {height}",
       "where": [
         "apps/desktop/renderer/apps/image.js"
       ]
@@ -6846,6 +6999,12 @@
       ]
     },
     {
+      "message": "Copy the selection",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Copy the shape (Ctrl+C)",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -6870,6 +7029,18 @@
       ]
     },
     {
+      "message": "Copy to Layer",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Copy to Layer (Ctrl+J): what is selected, as a layer of its own",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Copy to another location",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -6891,6 +7062,12 @@
       "message": "Copy: the edited picture, to paste anywhere (Ctrl+C)",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Copying from {x}, {y}",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -7928,6 +8105,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
@@ -7938,6 +8116,12 @@
         "apps/desktop/renderer/apps/word/dialogs.js",
         "apps/desktop/renderer/apps/word/references.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Delete (Del): what is selected cleared from the layer",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -8046,6 +8230,12 @@
       ]
     },
     {
+      "message": "Delete inside the selection",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Delete note",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -8124,6 +8314,12 @@
       "message": "Delete the layer",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
+      "message": "Delete the mask: the whole layer shows again",
+      "where": [
         "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
@@ -8352,6 +8548,18 @@
       ]
     },
     {
+      "message": "Deselect",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Deselect (Ctrl+D)",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Design",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js",
@@ -8569,6 +8777,18 @@
       ]
     },
     {
+      "message": "Distort",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Distort: each corner goes where it is dragged",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Distribute Columns",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -8690,13 +8910,20 @@
     {
       "message": "Done",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
       "message": "Done: keep the mark as it is (Enter)",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Done: put the tool down (Enter)",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -8892,6 +9119,12 @@
       "message": "Drag the camera to a corner",
       "where": [
         "apps/desktop/renderer/apps/video/recorder/panel.js"
+      ]
+    },
+    {
+      "message": "Drag the four pins onto the corners of something that should be a rectangle.",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -9565,6 +9798,18 @@
       ]
     },
     {
+      "message": "Ellipse Select",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Ellipse Select: drag an oval to select; Shift adds to the selection, Alt takes away",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Ellipse: drag an oval; Shift keeps it round",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -9848,9 +10093,16 @@
     {
       "message": "Eraser",
       "where": [
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Eraser (E): rub out a layer's pixels, or hide them with a mask",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -10364,6 +10616,19 @@
       ]
     },
     {
+      "message": "Feather",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Feather: soften the selection's edge by that many pixels",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Feedback",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -10525,11 +10790,18 @@
       "message": "Fill",
       "where": [
         "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js",
         "apps/desktop/renderer/apps/sheets/queries.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides.js",
         "apps/desktop/renderer/apps/video/index.js"
+      ]
+    },
+    {
+      "message": "Fill (G): click to fill an area of one colour",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -10662,6 +10934,12 @@
       "message": "Fill: gold, glow",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Fill: the selection painted in the colour",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -11618,6 +11896,18 @@
       ]
     },
     {
+      "message": "Free Transform",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Free Transform (T): drag a picture's corners to scale, skew or distort it",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Freeze Panes",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
@@ -11778,6 +12068,18 @@
       "where": [
         "apps/desktop/renderer/apps/slides/animate.js",
         "apps/desktop/renderer/apps/slides/motion.js"
+      ]
+    },
+    {
+      "message": "From Selection",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
+      "message": "From Selection: the layer shows only where the selection is",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -12185,7 +12487,14 @@
     {
       "message": "Gradient",
       "where": [
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/slides.js"
+      ]
+    },
+    {
+      "message": "Gradient: drag to blend one colour into another",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -12452,6 +12761,12 @@
       ]
     },
     {
+      "message": "Grow",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Grow font",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -12461,6 +12776,12 @@
       "message": "Grow/Shrink",
       "where": [
         "apps/desktop/renderer/apps/slides/animate.js"
+      ]
+    },
+    {
+      "message": "Grow: widen the selection by that many pixels",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -12541,6 +12862,12 @@
       "message": "Hard light",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
+      "message": "Hardness",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -12673,6 +13000,18 @@
       ]
     },
     {
+      "message": "Healing Brush",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Healing Brush (J): Alt+click clean skin, then paint over a blemish",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Heart",
       "where": [
         "apps/desktop/renderer/apps/image/words.js"
@@ -12759,6 +13098,7 @@
     {
       "message": "Hide All",
       "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/sheets/objects.js",
         "apps/desktop/renderer/apps/word/drawings.js"
       ]
@@ -12767,6 +13107,12 @@
       "message": "Hide All — every drawing kept in the file but not drawn",
       "where": [
         "apps/desktop/renderer/apps/word/drawings.js"
+      ]
+    },
+    {
+      "message": "Hide All: a black mask, to paint white where the layer should show",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -14311,6 +14657,18 @@
       ]
     },
     {
+      "message": "Intersect",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Intersect: only what both selections hold",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Into 2 columns",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
@@ -14374,13 +14732,26 @@
     {
       "message": "Invert",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
       "message": "Invert the colours",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Invert the selection",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Invert the selection (Ctrl+Shift+I)",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -14916,6 +15287,12 @@
       ]
     },
     {
+      "message": "Larger brush",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "Larger pointer",
       "where": [
         "apps/desktop/renderer/apps/video/inspector.js"
@@ -14942,9 +15319,16 @@
     {
       "message": "Lasso",
       "where": [
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
         "apps/desktop/renderer/apps/slides/ribbon.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Lasso (L): draw round what to select",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -15653,6 +16037,7 @@
     {
       "message": "Linear",
       "where": [
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js"
       ]
     },
@@ -16133,6 +16518,18 @@
       ]
     },
     {
+      "message": "Magic Wand",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Magic Wand (W): click a colour to select the area of it",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Mail",
       "where": [
         "apps/desktop/renderer/apps/mail.js",
@@ -16525,6 +16922,12 @@
       "where": [
         "apps/desktop/renderer/apps/image/words.js",
         "apps/desktop/renderer/apps/word/dialogs.js"
+      ]
+    },
+    {
+      "message": "Mask",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -17021,9 +17424,21 @@
       ]
     },
     {
+      "message": "Modify",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Modify Range",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Modify: feather, grow or shrink the selection by that many pixels",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -17217,8 +17632,15 @@
     {
       "message": "Move",
       "where": [
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Move (V): choose a layer on the picture, drag it, or resize it by its corners",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -17679,6 +18101,7 @@
         "apps/desktop/renderer/apps/calendar.js",
         "apps/desktop/renderer/apps/contacts.js",
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/mail.js",
         "apps/desktop/renderer/apps/sheets.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -17913,6 +18336,12 @@
       "message": "New: a clear picture to put layers on (Ctrl+N)",
       "where": [
         "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "New: each selection replaces the last",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -19547,6 +19976,24 @@
       ]
     },
     {
+      "message": "On a mask of {name}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "On a new paint layer",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "On the mask of {name}: black hides, white shows",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
       "message": "On the timeline",
       "where": [
         "apps/desktop/renderer/apps/video/intro/scenes.js"
@@ -19556,6 +20003,12 @@
       "message": "On this slide",
       "where": [
         "apps/desktop/renderer/apps/slides/comments.js"
+      ]
+    },
+    {
+      "message": "On {name}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -19750,6 +20203,7 @@
       "message": "Opacity",
       "where": [
         "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/video/inspector.js"
       ]
     },
@@ -20502,6 +20956,12 @@
       ]
     },
     {
+      "message": "Paint {number}",
+      "where": [
+        "apps/desktop/renderer/apps/image/words.js"
+      ]
+    },
+    {
       "message": "Painted.",
       "where": [
         "apps/desktop/renderer/apps/slides.js"
@@ -20775,6 +21235,18 @@
       ]
     },
     {
+      "message": "Pen pressure",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Pen pressure: a pen pressed lightly paints a thinner line",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Pen: draw freehand",
       "where": [
         "apps/desktop/renderer/apps/image.js"
@@ -20855,6 +21327,12 @@
       ]
     },
     {
+      "message": "Perspective",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Perspective: Above",
       "where": [
         "apps/desktop/renderer/shared-words.js"
@@ -20882,6 +21360,18 @@
       "message": "Perspective: Right",
       "where": [
         "apps/desktop/renderer/shared-words.js"
+      ]
+    },
+    {
+      "message": "Perspective: a corner and its neighbour move apart, as if seen at an angle",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Perspective: set four pins on something that should be square, and straighten it",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -22154,6 +22644,12 @@
       ]
     },
     {
+      "message": "Put the pins back",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Put {code} in the footer",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -22259,6 +22755,12 @@
       "message": "REF {name} — Ctrl+click to go to the bookmark",
       "where": [
         "apps/desktop/renderer/apps/word.js"
+      ]
+    },
+    {
+      "message": "Radial",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -22662,6 +23164,18 @@
       ]
     },
     {
+      "message": "Rectangle Select",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Rectangle Select (M): drag a box to select; Shift adds to the selection, Alt takes away",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Rectangle: Rounded Corners",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -22773,6 +23287,12 @@
       "message": "Refers to cells",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Reflected",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -23548,6 +24068,7 @@
     {
       "message": "Reset",
       "where": [
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/slides/design.js",
         "apps/desktop/renderer/apps/slides/presenter.js",
         "apps/desktop/renderer/apps/slides/ribbon.js"
@@ -23625,6 +24146,12 @@
       "message": "Reset — the placeholders back where the layout puts them",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Reset: the picture back to its own rectangle",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -23804,6 +24331,18 @@
       "message": "Reveal",
       "where": [
         "apps/desktop/renderer/apps/pictures.js"
+      ]
+    },
+    {
+      "message": "Reveal All",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
+      "message": "Reveal All: a white mask, to paint black where the layer should not show",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
       ]
     },
     {
@@ -24932,6 +25471,7 @@
     {
       "message": "Scale",
       "where": [
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js"
       ]
     },
@@ -24951,6 +25491,12 @@
       "message": "Scale — now {percent}%, set aside while fitting",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Scale: a corner grows or shrinks the picture from the opposite corner; Shift keeps its shape",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -25256,6 +25802,18 @@
       ]
     },
     {
+      "message": "Second colour",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Second colour: where a gradient ends",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Seconds spent on each slide",
       "where": [
         "apps/desktop/renderer/apps/slides/export-video.js"
@@ -25315,6 +25873,18 @@
       "message": "Select\nRecipients",
       "where": [
         "apps/desktop/renderer/apps/word/mailings.js"
+      ]
+    },
+    {
+      "message": "Select All",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Select All (Ctrl+A)",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -25471,6 +26041,18 @@
       "message": "Select all (Ctrl+A)",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Select by Colour",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Select by Colour: click a colour to select it everywhere in the picture",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -25684,6 +26266,12 @@
       "message": "Selection pane (layers)",
       "where": [
         "apps/desktop/renderer/apps/slides/ribbon.js"
+      ]
+    },
+    {
+      "message": "Selection {width} × {height}",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -26803,9 +27391,21 @@
       ]
     },
     {
+      "message": "Shrink",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Shrink font",
       "where": [
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Shrink: narrow the selection by that many pixels",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -26960,6 +27560,7 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/batch.js",
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/mail/parts.js",
         "apps/desktop/renderer/apps/pictures.js",
         "apps/desktop/renderer/apps/sheets/ribbon.js",
@@ -26991,6 +27592,18 @@
       "message": "Size — now {paper}",
       "where": [
         "apps/desktop/renderer/apps/sheets/ribbon.js"
+      ]
+    },
+    {
+      "message": "Skew",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Skew: a corner slides its edge along, slanting the picture",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -27277,6 +27890,12 @@
       "message": "Smaller",
       "where": [
         "apps/desktop/renderer/apps/mail/dialogs.js"
+      ]
+    },
+    {
+      "message": "Smaller brush",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -28241,11 +28860,42 @@
     {
       "message": "Straighten",
       "where": [
-        "apps/desktop/renderer/apps/image.js"
+        "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Straighten and Crop",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Straighten and Crop: straightened, and the canvas cut to the rectangle",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
       "message": "Straighten {degrees}°",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Straighten: the four pins made a rectangle, the picture with them",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
+      "message": "Straightened",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Straightened and cropped to {width} × {height}",
       "where": [
         "apps/desktop/renderer/apps/image.js"
       ]
@@ -28419,7 +29069,14 @@
     {
       "message": "Subtract",
       "where": [
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/sheets/dialogs.js"
+      ]
+    },
+    {
+      "message": "Subtract: each selection is taken out of the last (Alt)",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -28538,6 +29195,18 @@
       "where": [
         "apps/desktop/renderer/apps/word/equations.js",
         "apps/desktop/renderer/apps/word/ribbon.js"
+      ]
+    },
+    {
+      "message": "Swap the colours",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "Swap the colours (X)",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {
@@ -29446,6 +30115,12 @@
       ]
     },
     {
+      "message": "The Adjust and Filters tabs change this layer while its selection stays.",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
       "message": "The Book of Things",
       "where": [
         "apps/desktop/renderer/apps/word/references.js"
@@ -29842,6 +30517,18 @@
       ]
     },
     {
+      "message": "The layer is locked. Unlock it to paint on it.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
+      ]
+    },
+    {
+      "message": "The layer's mask: white shows, black hides. Click to paint on it.",
+      "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js"
+      ]
+    },
+    {
       "message": "The link on {cell}",
       "where": [
         "apps/desktop/renderer/apps/sheets/dialogs.js"
@@ -30083,6 +30770,12 @@
       "message": "The picture stays at the anchor; the canvas grows or is cut on the other sides. Nothing is scaled.",
       "where": [
         "apps/desktop/renderer/apps/image/canvas-size.js"
+      ]
+    },
+    {
+      "message": "The pins cross. Put them on four corners, in order round the shape.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -30585,6 +31278,12 @@
       "message": "There are no slides to zoom to.",
       "where": [
         "apps/desktop/renderer/apps/slides/zoom.js"
+      ]
+    },
+    {
+      "message": "There is a selection: these change only what is selected, on a layer of its own. Deselect (Ctrl+D) to change the whole picture.",
+      "where": [
+        "apps/desktop/renderer/apps/image.js"
       ]
     },
     {
@@ -31849,6 +32548,12 @@
       ]
     },
     {
+      "message": "Tolerance",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Tomorrow afternoon, 1pm",
       "where": [
         "apps/desktop/renderer/apps/mail/compose.js"
@@ -31873,9 +32578,16 @@
       ]
     },
     {
+      "message": "Tool options",
+      "where": [
+        "apps/desktop/renderer/apps/image/tools.js"
+      ]
+    },
+    {
       "message": "Tools",
       "where": [
         "apps/desktop/renderer/apps/image.js",
+        "apps/desktop/renderer/apps/image/tools.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
@@ -32422,6 +33134,7 @@
     {
       "message": "Turn off",
       "where": [
+        "apps/desktop/renderer/apps/image/layers-panel.js",
         "apps/desktop/renderer/apps/mail.js"
       ]
     },
@@ -35497,7 +36210,9 @@
       "where": [
         "apps/desktop/renderer/apps/image.js",
         "apps/desktop/renderer/apps/image/batch.js",
-        "apps/desktop/renderer/apps/image/canvas-size.js"
+        "apps/desktop/renderer/apps/image/canvas-size.js",
+        "apps/desktop/renderer/apps/image/layers-panel.js",
+        "apps/desktop/renderer/apps/image/tools.js"
       ]
     },
     {

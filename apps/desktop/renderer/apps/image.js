@@ -21,11 +21,21 @@ import { nextId } from '@rutba/studio/doc';
 import {
   emptyImage, normaliseImage, pictureLayer, dropLayer, stepLayer, layerToEnd, groupLayers, ungroupLayers, removeLayers,
   duplicateLayers, setLayer, isLocked, reframe, canvasSize, imageSize, trimBounds, trimTo, isGroup,
+  paintLayer, isPixelLayer, insertAbove, addMask, setMask, removeMask, moveLayerBy, canvasToBitmap, pictureBox as layerBox, unitOf,
 } from '@rutba/studio/layers';
 import { writeRimg, readRimg, rimgPath, safeName } from '@rutba/studio/rimg';
+import { boxCorners, dragCorner, straighten as straightenQuad, isConvexQuad } from '@rutba/studio/warp';
+import { paintMaskSurface } from '@rutba/studio/host';
+import { rectSelection, ellipseSelection, polygonSelection, combineSelection, invertSelection, selectAll as wholeSelection, selectionBounds, isEmptySelection } from '@rutba/imaging/select';
+import { cloneOffset } from '@rutba/imaging/paint';
 import { AppFrame, useAppMenu, pickOpen, useFileDrop, useDirtyGuard } from '../shell.js';
 import { drawBase, drawMarks } from './image/draw.js';
-import { pixelsOff } from './image/work.js';
+import { pixelsOff, toolOff } from './image/work.js';
+import { ToolBar, OptionsBar, TOOLS, DEFAULT_OPTIONS, TOOLS_CSS } from './image/tools.js';
+import { ToolStage, TOOL_STAGE_CSS } from './image/tool-stage.js';
+import { Stroke, layOnce, colourPaint, restoreBits } from './image/painter.js';
+import { SelectionAnts, SELECTION_CSS } from './image/selection.js';
+import { makeCanvas, ctx2d, editable, touched, blankEntry, copyCanvas, alphaCanvas, selectionCanvas, rgbaBuffer } from './image/bitmaps.js';
 import { DrawLayer, markIsSomething } from './image/marks.js';
 import { Histogram, CurveEditor } from './image/tone.js';
 import { paintLayered, renderLayered, decodeBitmap, pngBytes, mimeOf } from './image/layered.js';
@@ -158,6 +168,41 @@ export default function ImageTool({ app, shell, boot }) {
   // edits before each change, a run of the same change (a drag, a slider) one step.
   const steps = useRef({ undo: [], redo: [], lastKey: null, lastAt: 0, skip: false, key: null });
   const prevState = useRef(null);
+  // The advanced editor's tools (STUDIO.md 7.2, I10 to I14): the tool in
+  // hand and its options, the selection (an alpha plane the canvas's size),
+  // where paint goes (a layer's pixels or its mask), the clone stamp's source,
+  // the perspective pins, and the layer the Adjust tab changes while there is
+  // a selection. A painted region's pixels before and after ride with the
+  // undo step that made them (`pendingBits`).
+  const [ptool, setPtool] = useState('move');
+  const [toolOpts, setToolOpts] = useState(() => ({ ...DEFAULT_OPTIONS }));
+  const [selection, setSelection] = useState(null);
+  const selectionRef = useRef(null);
+  selectionRef.current = selection;
+  const [paintTo, setPaintTo] = useState(null);
+  const [cloneSrc, setCloneSrc] = useState(null);
+  const cloneLink = useRef(null);
+  const [pins, setPins] = useState(null);
+  const [scopedId, setScopedId] = useState(null);
+  const bases = useRef(new Map());
+  const pendingBits = useRef(null);
+  const copiedAt = useRef(null);
+  // With a selection on a layered picture, the Adjust and Filters tabs work inside it (editScoped).
+  const scopeRef = useRef(null);
+  const assetsNowRef = useRef(() => ({}));
+  const scoped = Boolean(layered && selection);
+  const scopedPatch = scoped && scopedId ? layered.patches.find((p) => p.id === scopedId) || null : null;
+  const curAdjust = scoped ? { ...DEFAULT_ADJUSTMENTS, ...(scopedPatch?.quick?.adjust || {}) } : adjust;
+  const curPixels = scoped ? { ...DEFAULT_PIXELS, ...(scopedPatch?.quick?.pixels || {}) } : pixels;
+  /** Put painted regions back as they were before a step, or as it left them. */
+  const putBits = (bits, which) => {
+    const list = which === 'before' ? [...bits].reverse() : bits;
+    for (const b of list) {
+      const e = media.current.get(b.url);
+      if (e) restoreBits(e, b, which);
+    }
+    setAssetsTick((n) => n + 1);
+  };
   // Edit in Image: the picture came from a document, and Save puts it back there.
   const editFor = useMemo(() => {
     const q = new URLSearchParams(window.location.search);
@@ -197,6 +242,16 @@ export default function ImageTool({ app, shell, boot }) {
     prevState.current = null;
     setProjectPath(null);
     setProjectDirty(false);
+    selectionRef.current = null;
+    setSelection(null);
+    setPaintTo(null);
+    setCloneSrc(null);
+    cloneLink.current = null;
+    setPins(null);
+    setScopedId(null);
+    bases.current.clear();
+    pendingBits.current = null;
+    setPtool('move');
   }, []);
   const openProjectRef = useRef(null);
   const addPictureRef = useRef(null);
@@ -375,6 +430,7 @@ export default function ImageTool({ app, shell, boot }) {
   const chooseTool = useCallback((next) => {
     commitDraft();
     setCrop(null);
+    setPtool('move');
     setTool((cur) => (cur === next ? null : next));
   }, [commitDraft]);
 
@@ -411,31 +467,50 @@ export default function ImageTool({ app, shell, boot }) {
 
   const setSlider = useCallback((key, value) => {
     const spec = SLIDERS[key];
+    // With a selection, inside it (on a layer of its own); otherwise the picture's own quick edit.
+    if (scopeRef.current) {
+      scopeRef.current(spec.kind === 'css' ? 'adjust' : 'pixels', (s) => ({ ...s, [key]: value }), `slider:${key}`);
+      return;
+    }
     steps.current.key = `slider:${key}`;
     if (spec.kind === 'css') setAdjust((s) => ({ ...s, [key]: value }));
     else setPixels((s) => ({ ...s, [key]: value }));
   }, []);
-  const sliderValue = (key) => (SLIDERS[key].kind === 'css' ? adjust[key] : pixels[key]);
+  const sliderValue = (key) => (SLIDERS[key].kind === 'css' ? curAdjust[key] : curPixels[key]);
+  /** Change the tone and colour settings, inside the selection when there is one. */
+  const changeAdjust = (fn, key = null) => {
+    if (scopeRef.current) { scopeRef.current('adjust', fn, key); return; }
+    steps.current.key = key;
+    setAdjust(fn);
+  };
+  const changePixels = (fn, key = null) => {
+    if (scopeRef.current) { scopeRef.current('pixels', fn, key); return; }
+    steps.current.key = key;
+    setPixels(fn);
+  };
   const sliderDefault = (key) => (SLIDERS[key].kind === 'css' ? DEFAULT_ADJUSTMENTS[key] : DEFAULT_PIXELS[key]);
 
-  const levels = { ...NEUTRAL_LEVELS, ...(pixels.levels || {}) };
-  const setLevels = (patch) => {
-    steps.current.key = 'levels';
-    setPixels((s) => ({ ...s, levels: { ...NEUTRAL_LEVELS, ...(s.levels || {}), ...patch } }));
-  };
-  const setCurve = (points) => {
-    steps.current.key = 'curve';
-    setPixels((s) => ({ ...s, curve: { ...(s.curve || {}), [channel]: points } }));
-  };
+  const levels = { ...NEUTRAL_LEVELS, ...(curPixels.levels || {}) };
+  const setLevels = (patch) => changePixels((s) => ({ ...s, levels: { ...NEUTRAL_LEVELS, ...(s.levels || {}), ...patch } }), 'levels');
+  const setCurve = (points) => changePixels((s) => ({ ...s, curve: { ...(s.curve || {}), [channel]: points } }), 'curve');
 
   const autoFix = useCallback(() => {
     // Worked out from the picture as it is shown before tone, then put on
     // the sliders, where each can be taken further or back.
-    const base = baseRef.current;
-    if (!base) return;
-    const data = base.getContext('2d').getImageData(0, 0, base.width, base.height);
+    // Inside a selection: from what is selected, as it shows.
+    const sel = selectionRef.current;
+    const box = layeredRef.current && sel ? selectionBounds(sel) : null;
+    let data = null;
+    if (box) {
+      const flat = renderLayered(layeredRef.current, assetsNowRef.current(), 1);
+      data = flat.getContext('2d').getImageData(box.x, box.y, box.width, box.height);
+    } else {
+      const base = baseRef.current;
+      if (!base) return;
+      data = base.getContext('2d').getImageData(0, 0, base.width, base.height);
+    }
     const found = autoEnhance(data);
-    setPixels((s) => ({ ...s, levels: found.levels, temperature: found.temperature, tint: found.tint }));
+    changePixels((s) => ({ ...s, levels: found.levels, temperature: found.temperature, tint: found.tint }));
     toast(t('Enhanced: the tones stretched to the full range and the colour cast eased.'), { tone: 'good' });
   }, [toast]);
 
@@ -467,6 +542,8 @@ export default function ImageTool({ app, shell, boot }) {
     for (const [url, m] of media.current) out[url] = m;
     return out;
   }, []);
+
+  assetsNowRef.current = assetsNow;
 
   /** What is exported or copied: the layered picture flattened, or the quick-edited one. */
   const renderResult = useCallback(async (s = 1, { ground = null } = {}) => {
@@ -552,11 +629,13 @@ export default function ImageTool({ app, shell, boot }) {
   // While there are layers, every change to them or to the picture's quick
   // edits is an undo step; a run of one change (a drag, a slider) is one.
   useEffect(() => {
-    const now = { doc: layered, ops, adjust, pixels };
+    const now = { doc: layered, ops, adjust, pixels, sel: selection };
     const prev = prevState.current;
     prevState.current = now;
     if (!prev) return;
     const h = steps.current;
+    const bits = pendingBits.current;
+    pendingBits.current = null;
     if (h.skip) {
       h.skip = false;
       return;
@@ -567,16 +646,18 @@ export default function ImageTool({ app, shell, boot }) {
     const at = Date.now();
     if (key && key === h.lastKey && (key.startsWith('drag:') || at - h.lastAt < 900)) {
       h.lastAt = at;
+      if (bits && h.undo.length) h.undo[h.undo.length - 1] = { ...h.undo[h.undo.length - 1], bits: mergeBits(h.undo[h.undo.length - 1].bits, bits) };
       setProjectDirty(true);
       return;
     }
-    h.undo.push(prev);
+    h.undo.push(bits ? { ...prev, bits } : prev);
+    // Painted regions are kept with their steps; a long history keeps fewer.
     if (h.undo.length > 200) h.undo.shift();
     h.redo = [];
     h.lastKey = key;
     h.lastAt = at;
     setProjectDirty(true);
-  }, [layered, ops, adjust, pixels]);
+  }, [layered, ops, adjust, pixels, selection]);
 
   // A layer that is gone is no longer chosen.
   useEffect(() => {
@@ -674,7 +755,15 @@ export default function ImageTool({ app, shell, boot }) {
     let id = null;
     editLayers((d) => {
       id = nextId(d, patch.type || 'layer');
-      return { ...d, patches: [...d.patches, { ...patch, id }] };
+      let next = { ...d, patches: [...d.patches, { ...patch, id }] };
+      // An adjustment made while something is selected changes only that: the selection is its mask.
+      const sel = selectionRef.current;
+      if (patch.type === 'adjust' && sel && sel.width === d.size.width && sel.height === d.size.height) {
+        const url = `rimg:bitmaps/${id}-mask.png`;
+        media.current.set(url, { img: alphaCanvas(sel.data, sel.width, sel.height), width: sel.width, height: sel.height, bytes: null, name: `${id}-mask.png`, version: 1 });
+        next = addMask(next, id, { url, outside: 0 });
+      }
+      return next;
     });
     if (id) {
       setSelected([id]);
@@ -694,9 +783,12 @@ export default function ImageTool({ app, shell, boot }) {
       const url = `rimg:bitmaps/${id}.${ext}`;
       media.current.set(url, { ...bmp, bytes, name });
       const { width: W, height: H } = base.size;
-      const k = Math.min(1, (W * 0.8) / bmp.width, (H * 0.8) / bmp.height);
+      // A selection just copied from this picture is pasted back where it was, at its size.
+      const back = copiedAt.current && copiedAt.current.width === bmp.width && copiedAt.current.height === bmp.height ? copiedAt.current : null;
+      const k = back ? 1 : Math.min(1, (W * 0.8) / bmp.width, (H * 0.8) / bmp.height);
       const label = String(name || '').replace(/\.[^.]+$/, '') || t('Picture');
-      const patch = pictureLayer(base, { url, width: bmp.width * k, height: bmp.height * k, label, centre: true, id });
+      let patch = pictureLayer(base, { url, width: bmp.width * k, height: bmp.height * k, label, centre: !back, id });
+      if (back) patch = { ...patch, fx: round4(back.x / W), fy: round4(back.y / H) };
       editLayers((d) => ({ ...d, patches: [...d.patches, patch] }));
       setSelected([id]);
       setSide('layers');
@@ -775,6 +867,613 @@ export default function ImageTool({ app, shell, boot }) {
     toast(t('Trimmed to {width} × {height}', { width: bounds.width, height: bounds.height }), { tone: 'good' });
   }, [assetsNow, editLayers, toast]);
 
+  /* ── the advanced editor's tools (I10 to I14) ─────────────────────── */
+
+  const toast2 = toast;
+  const opt = (patch) => setToolOpts((o) => ({ ...o, ...patch }));
+  const canvasSizeNow = () => (layeredRef.current ? layeredRef.current.size : { width: 1, height: 1 });
+  const chosenNow = () => {
+    const d = layeredRef.current;
+    const id = selected[selected.length - 1];
+    const p = d && id ? d.patches.find((x) => x.id === id) : null;
+    return p && !isGroup(p) ? p : null;
+  };
+  /** The picture as it shows, at the canvas's own size: what the wand, the bucket and the clone stamp read. */
+  const composite = useCallback(() => renderLayered(layeredRef.current, assetsNow(), 1), [assetsNow]);
+  /** A layer moved on the canvas takes its mask and its corners with it. */
+  const liveChange = (d, id, change) => {
+    const p = d.patches.find((x) => x.id === id);
+    const keys = Object.keys(change);
+    if (p && (p.paintMask || p.corners) && keys.length && keys.every((k) => k === 'fx' || k === 'fy')) {
+      return moveLayerBy(d, id, (change.fx ?? p.fx ?? 0) - (p.fx ?? 0), (change.fy ?? p.fy ?? 0) - (p.fy ?? 0));
+    }
+    return setLayer(d, id, change);
+  };
+
+  /** Pick a tool from the column: anything but Move works on layers, so the picture becomes layers. */
+  const pickTool = useCallback((id) => {
+    commitDraft();
+    setCrop(null);
+    setTool(null);
+    if (id !== 'move' && !layeredRef.current) enterLayers();
+    setPtool(id);
+    setPins(null);
+    if (id === 'transform' || id === 'perspective') setSide('layers');
+  }, [commitDraft, enterLayers]);
+
+  // The selection belongs to one canvas size: a new size lets it go.
+  useEffect(() => {
+    const s = selectionRef.current;
+    if (s && layered && (s.width !== layered.size.width || s.height !== layered.size.height)) {
+      selectionRef.current = null;
+      setSelection(null);
+    }
+  }, [layered?.size.width, layered?.size.height]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** The new selection, combined with the one there is by `mode`. */
+  const putSelection = useCallback((next, mode = 'replace') => {
+    const base = selectionRef.current;
+    let s = next ? (base && mode !== 'replace' ? combineSelection(base, next, mode) : mode === 'subtract' || mode === 'intersect' ? (mode === 'intersect' ? null : base) : next) : (mode === 'replace' ? null : base);
+    if (s && isEmptySelection(s)) s = null;
+    selectionRef.current = s;
+    setSelection(s);
+    setScopedId(null);
+  }, []);
+
+  const selectShape = useCallback((kind, shape, mods) => {
+    const { width: W, height: H } = canvasSizeNow();
+    const mode = mods?.shift ? 'add' : mods?.alt ? 'subtract' : toolOpts.mode;
+    if (!shape) {
+      if (mode === 'replace') putSelection(null);
+      return;
+    }
+    const s = kind === 'lasso' ? polygonSelection(W, H, shape) : kind === 'ellipse' ? ellipseSelection(W, H, shape) : rectSelection(W, H, shape);
+    putSelection(s, mode);
+  }, [toolOpts.mode, putSelection]);
+
+  const selectAllNow = useCallback(() => {
+    if (!layeredRef.current) enterLayers();
+    const { width: W, height: H } = canvasSizeNow();
+    putSelection(wholeSelection(W, H));
+  }, [enterLayers, putSelection]);
+  const deselect = useCallback(() => putSelection(null), [putSelection]);
+  const invertSel = useCallback(() => {
+    const s = selectionRef.current;
+    if (s) putSelection(invertSelection(s));
+  }, [putSelection]);
+  const reshapeSel = useCallback(async (how) => {
+    const s = selectionRef.current;
+    if (!s) return;
+    const copy = new Uint8Array(s.data);
+    const { mask } = await toolOff({ op: 'reshape', width: s.width, height: s.height, mask: copy.buffer, how, amount: toolOpts.edge });
+    if (selectionRef.current !== s) return;
+    putSelection({ width: s.width, height: s.height, data: new Uint8Array(mask) });
+  }, [toolOpts.edge, putSelection]);
+
+  /** Bitmaps a layer shares with another (a duplicate) are copied before one is painted. */
+  const ownUrl = (d, id, url) => {
+    const shared = d.patches.filter((p) => p.url === url || p.paintMask?.url === url).length > 1;
+    if (!shared) return url;
+    const entry = media.current.get(url);
+    if (!entry) return url;
+    const next = `rimg:bitmaps/${id}-${Date.now().toString(36)}.png`;
+    const img = copyCanvas(editable(entry));
+    media.current.set(next, { img, width: img.width, height: img.height, bytes: null, name: next.split('/').pop(), version: 1 });
+    return next;
+  };
+
+  /** The map from the canvas to a mask's bitmap. */
+  const maskMap = (d, m, entry) => {
+    const { width: W, height: H } = d.size;
+    const sx = entry.width / (W * (m.fw ?? 1));
+    const sy = entry.height / (H * (m.fh ?? 1));
+    return [sx, 0, -(m.fx ?? 0) * W * sx, 0, sy, -(m.fy ?? 0) * H * sy, 0, 0, 1];
+  };
+
+  /** A new mask on a layer: everything shown, nothing shown, or what is selected. Answers the new document. */
+  const makeMask = useCallback((id, how) => {
+    const d = layeredRef.current;
+    if (!d) return null;
+    const { width: W, height: H } = d.size;
+    const url = `rimg:bitmaps/${id}-mask-${Date.now().toString(36)}.png`;
+    let entry;
+    if (how === 'selection' && selectionRef.current) {
+      const img = alphaCanvas(selectionRef.current.data, W, H);
+      entry = { img, width: W, height: H, bytes: null, name: url.split('/').pop(), version: 1 };
+    } else {
+      entry = blankEntry(W, H, url.split('/').pop());
+      if (how !== 'hide') {
+        const g = entry.img.getContext('2d');
+        g.fillStyle = '#ffffff';
+        g.fillRect(0, 0, W, H);
+      }
+    }
+    media.current.set(url, entry);
+    return addMask(d, id, { url, outside: how === 'hide' || how === 'selection' ? 0 : 1 });
+  }, []);
+
+  /**
+   * Where paint goes for a tool: the chosen layer's mask when it is being
+   * painted; a mask made for it when the eraser meets a layer whose own
+   * pixels cannot be painted (the Background keeps its quick edits); the
+   * chosen layer's own pixels when it is a picture or a paint layer; and
+   * otherwise a new paint layer above it. Answers { entry, map, url, id, part } or null.
+   */
+  const targetFor = useCallback((kind) => {
+    let d = layeredRef.current || enterLayers();
+    let p = chosenNow();
+    if (p && isLocked(d, p.id)) {
+      toast2(t('The layer is locked. Unlock it to paint on it.'));
+      return null;
+    }
+    const pixelsOk = (x) => isPixelLayer(x) && x.url !== BACKGROUND && !x.corners;
+    const wantMask = p && p.paintMask && paintTo?.id === p.id && paintTo.part === 'mask' && kind !== 'clone';
+    if (p && (wantMask || (kind === 'erase' && !pixelsOk(p)))) {
+      if (!p.paintMask) {
+        d = makeMask(p.id, 'reveal');
+        layeredRef.current = d;
+        setLayered(d);
+        steps.current.key = null;
+        p = d.patches.find((x) => x.id === p.id);
+        setPaintTo({ id: p.id, part: 'mask' });
+      }
+      const url = ownUrl(d, p.id, p.paintMask.url);
+      if (url !== p.paintMask.url) {
+        d = setMask(d, p.id, { url });
+        layeredRef.current = d;
+        setLayered(d);
+        p = d.patches.find((x) => x.id === p.id);
+      }
+      let entry = media.current.get(url);
+      if (!entry) {
+        entry = blankEntry(d.size.width, d.size.height, url.split('/').pop());
+        media.current.set(url, entry);
+      }
+      return { entry, map: maskMap(d, p.paintMask, entry), url, id: p.id, part: 'mask' };
+    }
+    if (p && pixelsOk(p) && media.current.get(p.url)) {
+      const url = ownUrl(d, p.id, p.url);
+      if (url !== p.url) {
+        d = setLayer(d, p.id, { url });
+        layeredRef.current = d;
+        setLayered(d);
+        p = d.patches.find((x) => x.id === p.id);
+      }
+      const entry = media.current.get(url);
+      return { entry, map: canvasToBitmap(d, p, entry), url, id: p.id, part: 'pixels' };
+    }
+    // A paint layer of its own, above the layer chosen (or on top).
+    const np = paintLayer(d);
+    const entry = blankEntry(d.size.width, d.size.height, np.url.split('/').pop());
+    media.current.set(np.url, entry);
+    d = insertAbove(d, p?.id || null, np);
+    steps.current.key = null;
+    layeredRef.current = d;
+    setLayered(d);
+    setSelected([np.id]);
+    setPaintTo({ id: np.id, part: 'pixels' });
+    return { entry, map: canvasToBitmap(d, np, entry), url: np.url, id: np.id, part: 'pixels' };
+  }, [enterLayers, paintTo, makeMask, selected, toast2]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** A painted region kept as an undo step, the layer's revision moved on. */
+  const commitBits = useCallback((bits, target) => {
+    if (!bits.length) return;
+    pendingBits.current = bits;
+    editLayers((d) => {
+      const p = d.patches.find((x) => x.id === target.id);
+      if (!p) return d;
+      return target.part === 'mask' ? setMask(d, p.id, { rev: (p.paintMask?.rev || 0) + 1 }) : setLayer(d, p.id, { rev: (p.rev || 0) + 1 });
+    });
+    setAssetsTick((n) => n + 1);
+  }, [editLayers]);
+
+  const lum = (hex) => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+    if (!m) return 0;
+    const v = parseInt(m[1], 16);
+    return 0.2126 * ((v >> 16) & 255) + 0.7152 * ((v >> 8) & 255) + 0.0722 * (v & 255);
+  };
+
+  /** A stroke of the brush, the eraser, the clone stamp or the healing brush, from where the pointer went down. */
+  const startStroke = useCallback((point) => {
+    const kind = ptool;
+    if ((kind === 'clone' || kind === 'heal') && !cloneSrc) {
+      toast2(t('Alt+click where to copy from first.'));
+      return null;
+    }
+    const target = targetFor(kind === 'eraser' ? 'erase' : kind === 'clone' || kind === 'heal' ? 'clone' : 'paint');
+    if (!target) return null;
+    const source = kind === 'clone' || kind === 'heal' ? composite() : null;
+    let offset = null;
+    if (source) {
+      offset = toolOpts.aligned && cloneLink.current ? cloneLink.current : cloneOffset(cloneSrc, point);
+      if (toolOpts.aligned) cloneLink.current = offset;
+    }
+    let strokeTool = kind;
+    if (target.part === 'mask') strokeTool = kind === 'eraser' || (kind === 'brush' && lum(toolOpts.colour) < 128) ? 'hide' : 'reveal';
+    const stroke = new Stroke({
+      target,
+      size: layeredRef.current.size,
+      tool: strokeTool,
+      colour: toolOpts.colour,
+      diameter: toolOpts.size,
+      hardness: toolOpts.hardness / 100,
+      opacity: toolOpts.opacity / 100,
+      selection: selectionRef.current,
+      source,
+      offset,
+      pressure: toolOpts.pressure,
+    });
+    let frame = 0;
+    const draw = () => {
+      frame = 0;
+      if (stroke.frame()) setAssetsTick((n) => n + 1);
+    };
+    const later = () => { if (!frame) frame = requestAnimationFrame(draw); };
+    stroke.add(point);
+    later();
+    return {
+      move(p) { stroke.add(p); later(); },
+      async end() {
+        if (frame) cancelAnimationFrame(frame);
+        frame = 0;
+        try {
+          const bit = await stroke.finish(target.url);
+          if (bit) commitBits([bit], target);
+        } catch (err) {
+          toast2(err.message, { tone: 'bad' });
+        }
+        setAssetsTick((n) => n + 1);
+      },
+    };
+  }, [ptool, cloneSrc, targetFor, composite, toolOpts, commitBits, toast2]);
+
+  /** The wand, select by colour and the bucket: a click on the picture. */
+  const pickAt = useCallback(async (kind, point, mods) => {
+    const d = layeredRef.current;
+    if (!d) return;
+    const { width: W, height: H } = d.size;
+    const flat = composite();
+    const rgba = rgbaBuffer(flat);
+    const x = Math.floor(point.x);
+    const y = Math.floor(point.y);
+    if (x < 0 || y < 0 || x >= W || y >= H) return;
+    if (kind === 'colour') {
+      const px = new Uint8ClampedArray(rgba, (y * W + x) * 4, 4);
+      const { mask } = await toolOff({ op: 'colour', width: W, height: H, rgba, colour: [...px], tolerance: toolOpts.tolerance });
+      putSelection({ width: W, height: H, data: new Uint8Array(mask) }, mods?.shift ? 'add' : mods?.alt ? 'subtract' : toolOpts.mode);
+      return;
+    }
+    const { mask } = await toolOff({ op: 'wand', width: W, height: H, rgba, x, y, tolerance: toolOpts.tolerance, contiguous: toolOpts.contiguous });
+    let region = { width: W, height: H, data: new Uint8Array(mask) };
+    if (kind === 'wand') {
+      putSelection(region, mods?.shift ? 'add' : mods?.alt ? 'subtract' : toolOpts.mode);
+      return;
+    }
+    // The bucket: the region, inside the selection, painted in the colour.
+    if (selectionRef.current) region = combineSelection(selectionRef.current, region, 'intersect');
+    const target = targetFor('paint');
+    if (!target) return;
+    const paint = alphaCanvas(region.data, W, H);
+    const g = paint.getContext('2d');
+    g.globalCompositeOperation = 'source-in';
+    g.fillStyle = target.part === 'mask' ? '#ffffff' : toolOpts.colour;
+    g.fillRect(0, 0, W, H);
+    const hide = target.part === 'mask' && lum(toolOpts.colour) < 128;
+    const bounds = selectionBounds(region) || { x: 0, y: 0, width: W, height: H };
+    const bit = layOnce(target, target.url, paint, bounds, { op: hide ? 'out' : 'over', opacity: toolOpts.opacity / 100 });
+    if (bit) commitBits([bit], target);
+  }, [composite, toolOpts, putSelection, targetFor, commitBits]);
+
+  /** The gradient, dragged from `start` to `end`, inside the selection. */
+  const gradientAt = useCallback(async (start, end) => {
+    const d = layeredRef.current;
+    if (!d) return;
+    const { width: W, height: H } = d.size;
+    const target = targetFor('paint');
+    if (!target) return;
+    const toRgb = (hex) => { const v = parseInt(String(hex).slice(1), 16) || 0; return [(v >> 16) & 255, (v >> 8) & 255, v & 255]; };
+    const mask = target.part === 'mask';
+    const a = mask ? [255, 255, 255, Math.round(lum(toolOpts.colour))] : [...toRgb(toolOpts.colour), 255];
+    const b = toolOpts.gradientTo === 'second'
+      ? (mask ? [255, 255, 255, Math.round(lum(toolOpts.colour2))] : [...toRgb(toolOpts.colour2), 255])
+      : [...a.slice(0, 3), 0];
+    const sel = selectionRef.current;
+    const clear = new Uint8ClampedArray(W * H * 4);
+    const { rgba } = await toolOff({
+      op: 'gradient', width: W, height: H, rgba: clear.buffer, region: sel ? new Uint8Array(sel.data).buffer : null,
+      gradient: { kind: toolOpts.gradient, start, end, from: a, to: b, opacity: 1 },
+    });
+    const paint = makeCanvas(W, H);
+    const g = paint.getContext('2d');
+    const img = g.createImageData(W, H);
+    img.data.set(new Uint8ClampedArray(rgba));
+    g.putImageData(img, 0, 0);
+    const bounds = (sel && selectionBounds(sel)) || { x: 0, y: 0, width: W, height: H };
+    let bit;
+    if (mask) {
+      // On a mask a gradient sets how much shows: the old mask goes where it lands.
+      const tgtCanvas = editable(target.entry);
+      const before = copyCanvas(tgtCanvas);
+      layOnce(target, target.url, sel ? selectionCanvas(sel) : colourPaint({ width: W, height: H }, '#ffffff', null), bounds, { op: 'out' });
+      const second = layOnce(target, target.url, paint, bounds, { op: 'over', opacity: toolOpts.opacity / 100 });
+      if (second) bit = { ...second, before: ctx2d(before).getImageData(second.rect.x, second.rect.y, second.rect.width, second.rect.height) };
+    } else {
+      bit = layOnce(target, target.url, paint, bounds, { op: 'over', opacity: toolOpts.opacity / 100 });
+    }
+    if (bit) commitBits([bit], target);
+  }, [targetFor, toolOpts, commitBits]);
+
+  /** Fill: the selection painted in the colour, on the chosen layer (or a paint layer). */
+  const fillSelection = useCallback(() => {
+    const sel = selectionRef.current;
+    if (!sel) return;
+    const target = targetFor('paint');
+    if (!target) return;
+    const { width: W, height: H } = layeredRef.current.size;
+    const hide = target.part === 'mask' && lum(toolOpts.colour) < 128;
+    const paint = colourPaint({ width: W, height: H }, target.part === 'mask' ? '#ffffff' : toolOpts.colour, sel);
+    const bit = layOnce(target, target.url, paint, selectionBounds(sel) || { x: 0, y: 0, width: W, height: H }, { op: hide ? 'out' : 'over' });
+    if (bit) commitBits([bit], target);
+  }, [targetFor, toolOpts.colour, commitBits]);
+
+  /** Delete inside the selection: a picture's or paint layer's pixels cleared; any other layer hidden there by its mask. */
+  const clearSelection = useCallback(() => {
+    const sel = selectionRef.current;
+    if (!sel) return;
+    if (!chosenNow()) {
+      toast2(t('Choose the layer to clear the selection from.'));
+      return;
+    }
+    const target = targetFor('erase');
+    if (!target) return;
+    const { width: W, height: H } = layeredRef.current.size;
+    const bit = layOnce(target, target.url, selectionCanvas(sel), selectionBounds(sel) || { x: 0, y: 0, width: W, height: H }, { op: 'out' });
+    if (bit) commitBits([bit], target);
+  }, [targetFor, commitBits, toast2]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** What is selected, as pixels on a canvas the picture's size: of the chosen picture alone, or of all that shows. */
+  const selectedPixels = useCallback(() => {
+    const d = layeredRef.current;
+    const sel = selectionRef.current;
+    if (!d || !sel) return null;
+    const p = chosenNow();
+    const alone = p && isPixelLayer(p) ? { ...d, patches: [{ ...p, visible: true, parent: undefined }] } : d;
+    const c = renderLayered(alone, assetsNow(), 1);
+    const g = c.getContext('2d');
+    g.globalCompositeOperation = 'destination-in';
+    g.drawImage(selectionCanvas(sel), 0, 0);
+    return c;
+  }, [assetsNow, selected]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Copy to Layer: what is selected, as a layer of its own above the chosen one, in the same place. */
+  const copyToLayer = useCallback(() => {
+    const c = selectedPixels();
+    if (!c) return;
+    const d = layeredRef.current;
+    const np = paintLayer(d, { kind: 'copied' });
+    media.current.set(np.url, { img: c, width: c.width, height: c.height, bytes: null, name: np.url.split('/').pop(), version: 1 });
+    editLayers((x) => insertAbove(x, chosenNow()?.id || null, np));
+    setSelected([np.id]);
+    setPaintTo({ id: np.id, part: 'pixels' });
+    setSide('layers');
+  }, [selectedPixels, editLayers]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Copy with a selection: what is selected, cut to its box, and where it was, for Paste to put back in place. */
+  const copySelection = useCallback(async () => {
+    const c = selectedPixels();
+    const b = selectionBounds(selectionRef.current);
+    if (!c || !b) return false;
+    const out = makeCanvas(b.width, b.height);
+    out.getContext('2d').drawImage(c, b.x, b.y, b.width, b.height, 0, 0, b.width, b.height);
+    const bytes = await pngBytes(out);
+    await shell.clipboard.writeImage({ bytes });
+    copiedAt.current = { x: b.x, y: b.y, width: b.width, height: b.height };
+    toast2(t('Copied the selection, {width} × {height}', { width: b.width, height: b.height }), { tone: 'good' });
+    return true;
+  }, [selectedPixels, shell, toast2]);
+
+  /** A layer's mask: added, changed, applied to its pixels or taken away. */
+  const onMask = useCallback((id, action, value) => {
+    const d = layeredRef.current;
+    const p = d?.patches.find((x) => x.id === id);
+    if (!p) return;
+    if (action === 'add') {
+      const next = makeMask(id, value);
+      if (!next) return;
+      editLayers(() => next);
+      setPaintTo({ id, part: 'mask' });
+      return;
+    }
+    if (!p.paintMask) return;
+    if (action === 'feather') editLayers((x) => setMask(x, id, { feather: +Number(value).toFixed(5) }), `mask:feather:${id}`);
+    else if (action === 'invert') editLayers((x) => setMask(x, id, { invert: Boolean(value) }));
+    else if (action === 'off') editLayers((x) => setMask(x, id, { off: Boolean(value) }));
+    else if (action === 'remove') {
+      editLayers((x) => removeMask(x, id));
+      setPaintTo({ id, part: 'pixels' });
+    } else if (action === 'apply') {
+      if (!isPixelLayer(p) || p.url === BACKGROUND) return;
+      const entry = media.current.get(p.url);
+      if (!entry) return;
+      const { width: W, height: H } = d.size;
+      const m = p.paintMask;
+      const pm = {
+        src: media.current.get(m.url) || null, x: W * (m.fx ?? 0), y: H * (m.fy ?? 0), w: W * (m.fw ?? 1), h: H * (m.fh ?? 1),
+        outside: m.outside === 0 ? 0 : 1, feather: W * (m.feather || 0), invert: !!m.invert, off: false, rev: m.rev ?? 0,
+      };
+      const surface = paintMaskSurface({ W, H }, pm);
+      const dest = editable(entry);
+      const before = copyCanvas(dest);
+      const g = dest.getContext('2d');
+      const map = canvasToBitmap(d, p, entry);
+      g.save();
+      g.setTransform(map[0], map[3], map[1], map[4], map[2], map[5]);
+      g.globalCompositeOperation = 'destination-in';
+      g.drawImage(surface, 0, 0);
+      g.restore();
+      touched(entry);
+      const rect = { x: 0, y: 0, width: dest.width, height: dest.height };
+      pendingBits.current = [{ url: p.url, rect, before: ctx2d(before).getImageData(0, 0, rect.width, rect.height), after: ctx2d(dest).getImageData(0, 0, rect.width, rect.height) }];
+      editLayers((x) => setLayer(removeMask(x, id), id, { rev: (p.rev || 0) + 1 }));
+      setPaintTo({ id, part: 'pixels' });
+      setAssetsTick((n) => n + 1);
+    }
+  }, [makeMask, editLayers]);
+
+  /** Free transform: the chosen picture's four corners on the canvas, in its pixels. */
+  const quadOf = (d, p) => {
+    if (!d || !p) return null;
+    const bitmap = p.url === BACKGROUND ? bgRef.current : media.current.get(p.url);
+    if (!bitmap) return null;
+    const { box, rot, corners } = layerBox(d, p, bitmap);
+    return corners || boxCorners(box, rot);
+  };
+  const quadDrag = useRef(null);
+  const onQuad = useCallback((index, start, point, { shift, from }) => {
+    const d = layeredRef.current;
+    const p = chosenNow();
+    if (!d || !p) return;
+    const { width: W, height: H } = d.size;
+    if (quadDrag.current?.start !== start) quadDrag.current = { start, key: `drag:transform:${Date.now()}`, moved: { x: 0, y: 0 } };
+    const k = quadDrag.current.key;
+    if (index === 'move') {
+      const dx = point.x - from.x;
+      const dy = point.y - from.y;
+      const last = quadDrag.current.moved;
+      quadDrag.current.moved = { x: dx, y: dy };
+      editLayers((x) => {
+        const q = x.patches.find((z) => z.id === p.id);
+        const withCorners = q.corners ? x : setLayer(x, p.id, { corners: start.map(([cx, cy]) => [+(cx / W).toFixed(5), +(cy / H).toFixed(5)]), rot: 0 });
+        return moveLayerBy(withCorners, p.id, (dx - last.x) / W, (dy - last.y) / H);
+      }, k);
+      return;
+    }
+    const q = dragCorner(start, index, [point.x, point.y], toolOpts.transform, { keep: shift });
+    editLayers((x) => setLayer(x, p.id, { corners: q.map(([cx, cy]) => [+(cx / W).toFixed(5), +(cy / H).toFixed(5)]), rot: 0 }), k);
+  }, [editLayers, toolOpts.transform, selected]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const resetTransform = useCallback(() => {
+    const p = chosenNow();
+    if (p?.corners) editLayers((x) => setLayer(x, p.id, { corners: undefined }));
+  }, [editLayers, selected]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** Perspective: the pins, at first a little inside the chosen picture's corners. */
+  const pinsFor = (d, p) => {
+    const q = quadOf(d, p);
+    if (!q) return null;
+    const cx = q.reduce((s, c) => s + c[0], 0) / 4;
+    const cy = q.reduce((s, c) => s + c[1], 0) / 4;
+    return q.map(([x, y]) => [x + (cx - x) * 0.18, y + (cy - y) * 0.18]);
+  };
+  const straightenNow = useCallback((crop) => {
+    const d = layeredRef.current;
+    const p = chosenNow();
+    const q = quadOf(d, p);
+    if (!d || !p || !q || !pins) return;
+    if (!isConvexQuad(pins)) {
+      toast2(t('The pins cross. Put them on four corners, in order round the shape.'), { tone: 'bad' });
+      return;
+    }
+    const done = straightenQuad(pins, q);
+    if (!done) return;
+    const { width: W, height: H } = d.size;
+    editLayers((x) => {
+      let next = setLayer(x, p.id, { corners: done.corners.map(([cx, cy]) => [+(cx / W).toFixed(5), +(cy / H).toFixed(5)]), rot: 0 });
+      if (crop) {
+        const r = done.rect;
+        next = reframe(next, { x: Math.round(r[0][0]), y: Math.round(r[0][1]), width: Math.round(r[1][0] - r[0][0]), height: Math.round(r[3][1] - r[0][1]) });
+      }
+      return next;
+    });
+    setPins(null);
+    // Done: the tool is put down, as Done puts Free Transform down, so no pins stand over the result.
+    setPtool('move');
+    toast2(crop ? t('Straightened and cropped to {width} × {height}', { width: Math.round(done.rect[1][0] - done.rect[0][0]), height: Math.round(done.rect[3][1] - done.rect[0][1]) }) : t('Straightened'), { tone: 'good' });
+  }, [pins, editLayers, toast2, selected]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Another picture chosen: the pins start again on it.
+  useEffect(() => { setPins(null); }, [selected.join(',')]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The pins follow the chosen picture until they are moved.
+  useEffect(() => {
+    if (ptool !== 'perspective' || pins) return;
+    const next = pinsFor(layeredRef.current, chosenNow());
+    if (next) setPins(next);
+  }, [ptool, pins, selected, layered]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /* ── adjustments inside the selection ── */
+
+
+  /**
+   * With a selection, the Adjust and Filters tabs change a layer of their
+   * own: the picture under the chosen layer's place, adjusted, cut to the
+   * selection. Made at the first change; every change after makes it again
+   * from the same picture, so a slider can go back.
+   */
+  const editScoped = useCallback((part, fn, key) => {
+    const d = layeredRef.current;
+    const sel = selectionRef.current;
+    if (!d || !sel) return;
+    let id = scopedId && d.patches.some((p) => p.id === scopedId) ? scopedId : null;
+    if (!id) {
+      const at = chosenNow();
+      const unit = at ? unitOf(d, at.id) : null;
+      const below = { ...d, patches: d.patches.slice(0, unit ? unit[1] + 1 : d.patches.length) };
+      const base = renderLayered(below, assetsNow(), 1);
+      const np = { ...paintLayer(d, { kind: 'adjusted' }), quick: { adjust: { ...DEFAULT_ADJUSTMENTS }, pixels: { ...DEFAULT_PIXELS } } };
+      media.current.set(np.url, blankEntry(d.size.width, d.size.height, np.url.split('/').pop()));
+      bases.current.set(np.id, { canvas: base, selection: sel });
+      editLayers((x) => insertAbove(x, at?.id || null, np), key);
+      id = np.id;
+      setScopedId(id);
+    }
+    editLayers((x) => {
+      const p = x.patches.find((z) => z.id === id);
+      const q = p.quick || { adjust: { ...DEFAULT_ADJUSTMENTS }, pixels: { ...DEFAULT_PIXELS } };
+      return setLayer(x, id, { quick: { ...q, [part]: fn(q[part]) } });
+    }, key);
+  }, [scopedId, assetsNow, editLayers, selected]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  scopeRef.current = scoped ? editScoped : null;
+
+  // A scoped layer is drawn again whenever its settings change (a slider, an undo).
+  const scopedTurn = useRef(0);
+  useEffect(() => {
+    if (!layered) return;
+    for (const p of layered.patches) {
+      if (p.kind !== 'adjusted' || !p.quick) continue;
+      const base = bases.current.get(p.id);
+      const entry = media.current.get(p.url);
+      if (!base || !entry) continue;
+      const want = JSON.stringify(p.quick);
+      if (entry.drawnFrom === want) continue;
+      entry.drawnFrom = want;
+      const turn = ++scopedTurn.current;
+      (async () => {
+        const { width: W, height: H } = base.canvas;
+        const c = makeCanvas(W, H);
+        const g = ctx2d(c);
+        const look = toCanvasPlan({ width: W, height: H }, [{ op: OPS.adjust, ...p.quick.adjust }]);
+        g.filter = look.filter || 'none';
+        g.drawImage(base.canvas, 0, 0);
+        g.filter = 'none';
+        if (!isNeutral(p.quick.pixels)) {
+          const data = g.getImageData(0, 0, W, H);
+          g.putImageData(await pixelsOff(data, p.quick.pixels, []), 0, 0);
+        }
+        g.globalCompositeOperation = 'destination-in';
+        g.drawImage(selectionCanvas(base.selection), 0, 0);
+        if (turn !== scopedTurn.current && entry.drawnFrom !== want) return;
+        const dest = editable(entry);
+        const dg = dest.getContext('2d');
+        dg.clearRect(0, 0, dest.width, dest.height);
+        dg.drawImage(c, 0, 0);
+        touched(entry);
+        setAssetsTick((n) => n + 1);
+      })();
+    }
+  }, [layered]);
+
   /* ── the project file (.rimg) ──────────────────────────────────────── */
 
   /** The project as .rimg bytes: the layers, the opened picture and its quick edits, every bitmap. */
@@ -783,7 +1482,12 @@ export default function ImageTool({ app, shell, boot }) {
     if (!doc) return null;
     const files = {};
     if (bgRef.current && doc.patches.some((p) => p.url === BACKGROUND)) files[rimgPath(BACKGROUND)] = await pngBytes(bgRef.current.img);
-    for (const [url, m] of media.current) if (doc.patches.some((p) => p.url === url)) files[rimgPath(url)] = m.bytes;
+    for (const [url, m] of media.current) {
+      if (!doc.patches.some((p) => p.url === url || p.paintMask?.url === url)) continue;
+      // A bitmap painted since it was last kept is encoded again.
+      if (!m.bytes && m.img instanceof HTMLCanvasElement) m.bytes = await pngBytes(m.img);
+      if (m.bytes) files[rimgPath(url)] = m.bytes;
+    }
     let quick = null;
     if (image && sourceRef.current) {
       let bytes = sourceRef.current.bytes;
@@ -846,10 +1550,10 @@ export default function ImageTool({ app, shell, boot }) {
       const doc = normaliseImage({ ...read.doc, quick: undefined });
       delete doc.quick;
       const loaded = new Map();
-      for (const p of doc.patches) {
-        const at = rimgPath(p.url);
-        if (!at || p.url === BACKGROUND || !read.files[at] || loaded.has(p.url)) continue;
-        loaded.set(p.url, { ...(await decodeBitmap(read.files[at], mimeOf(at))), bytes: read.files[at], name: at.split('/').pop() });
+      for (const url of doc.patches.flatMap((p) => [p.url, p.paintMask?.url])) {
+        const at = rimgPath(url);
+        if (!at || url === BACKGROUND || !read.files[at] || loaded.has(url)) continue;
+        loaded.set(url, { ...(await decodeBitmap(read.files[at], mimeOf(at))), bytes: read.files[at], name: at.split('/').pop(), version: 1 });
       }
       let img = null;
       let edits = { ops: [], adjust: { ...DEFAULT_ADJUSTMENTS }, pixels: { ...DEFAULT_PIXELS } };
@@ -951,14 +1655,17 @@ export default function ImageTool({ app, shell, boot }) {
     const h = steps.current;
     if (h.undo.length) {
       const back = h.undo.pop();
-      h.redo.push({ doc: layeredRef.current, ops, adjust, pixels });
+      h.redo.push({ doc: layeredRef.current, ops, adjust, pixels, sel: selectionRef.current, bits: back.bits });
       h.lastKey = null;
       h.skip = true;
+      if (back.bits) putBits(back.bits, 'before');
       layeredRef.current = back.doc;
       setLayered(back.doc);
       setOps(back.ops);
       setAdjust(back.adjust);
       setPixels(back.pixels);
+      selectionRef.current = back.sel || null;
+      setSelection(back.sel || null);
       setProjectDirty(true);
       return;
     }
@@ -969,14 +1676,17 @@ export default function ImageTool({ app, shell, boot }) {
     const h = steps.current;
     const next = h.redo.pop();
     if (!next) return;
-    h.undo.push({ doc: layeredRef.current, ops, adjust, pixels });
+    h.undo.push({ doc: layeredRef.current, ops, adjust, pixels, sel: selectionRef.current, bits: next.bits });
     h.lastKey = null;
     h.skip = true;
+    if (next.bits) putBits(next.bits, 'after');
     layeredRef.current = next.doc;
     setLayered(next.doc);
     setOps(next.ops);
     setAdjust(next.adjust);
     setPixels(next.pixels);
+    selectionRef.current = next.sel || null;
+    setSelection(next.sel || null);
     setProjectDirty(true);
   }, [ops, adjust, pixels]);
 
@@ -996,19 +1706,30 @@ export default function ImageTool({ app, shell, boot }) {
       'edit.undo': { label: t('Undo'), icon: 'undo', key: 'Mod+Z', run: undo },
       'edit.redo': { label: t('Redo'), icon: 'redo', key: 'Mod+Y', run: redo },
       'edit.reset': { label: t('Reset all'), icon: 'refresh', run: reset },
-      'edit.copy': { label: t('Copy the picture'), icon: 'copy', key: 'Mod+C', when: () => hasResult, run: copy },
+      'edit.copy': { label: selection ? t('Copy the selection') : t('Copy the picture'), icon: 'copy', key: 'Mod+C', when: () => hasResult, run: () => (selectionRef.current && layeredRef.current ? copySelection() : copy()) },
+      'select.all': { label: t('Select All'), icon: 'selectAll', key: 'Mod+A', when: () => hasResult, run: selectAllNow },
+      'select.none': { label: t('Deselect'), icon: 'deselect', key: 'Mod+D', when: () => Boolean(selection), run: deselect },
+      'select.invert': { label: t('Invert the selection'), icon: 'invertSelection', key: 'Mod+Shift+I', when: () => Boolean(selection), run: invertSel },
+      'layer.viaCopy': { label: t('Copy to Layer'), icon: 'duplicate', key: 'Mod+J', when: () => Boolean(selection && layered), run: copyToLayer },
+      'selection.clear': { label: t('Delete inside the selection'), icon: 'trash', key: 'Delete', when: () => Boolean(selection && layered && !draft && !crop), run: clearSelection },
+      'colours.swap': { label: t('Swap the colours'), icon: 'swap', key: 'x', when: () => hasResult, run: () => setToolOpts((o) => ({ ...o, colour: o.colour2, colour2: o.colour })) },
+      'brush.smaller': { label: t('Smaller brush'), key: '[', when: () => hasResult, run: () => setToolOpts((o) => ({ ...o, size: Math.max(1, Math.round(o.size / 1.25)) })) },
+      'brush.bigger': { label: t('Larger brush'), key: ']', when: () => hasResult, run: () => setToolOpts((o) => ({ ...o, size: Math.min(400, Math.round(o.size * 1.25) + 1) })) },
+      ...Object.fromEntries(TOOLS.filter((x) => x !== '-' && x.key).map((x) => [`tool.${x.id}`, { label: x.label, icon: x.icon, key: x.key, when: () => hasResult && !editFor, run: () => pickTool(x.id) }])),
       'edit.paste': { label: layered ? t('Paste as a layer') : t('Paste as a new picture'), icon: 'paste', key: 'Mod+V', run: paste },
-      'layer.delete': { label: t('Delete the layer'), icon: 'trash', key: 'Delete', when: () => Boolean(layered && selected.length && !draft && !crop), run: () => removeChosen(selected) },
+      'layer.delete': { label: t('Delete the layer'), icon: 'trash', key: 'Delete', when: () => Boolean(layered && selected.length && !draft && !crop && !selection), run: () => removeChosen(selected) },
       'layer.forward': { label: t('Bring forward'), icon: 'layerUp', key: 'Mod+]', when: () => Boolean(layered && selected.length), run: () => editLayers((d) => stepLayer(d, selected[selected.length - 1], +1)) },
       'layer.backward': { label: t('Send backward'), icon: 'layerDown', key: 'Mod+[', when: () => Boolean(layered && selected.length), run: () => editLayers((d) => stepLayer(d, selected[selected.length - 1], -1)) },
       'mark.commit': { label: t('Done'), icon: 'check', key: 'Enter', when: () => Boolean(draft), run: commitDraft },
-      'mark.cancel': { label: t('Discard the mark'), icon: 'close', key: 'Escape', when: () => Boolean(draft || crop || tool), run: () => { if (draft) setDraft(null); else if (crop) setCrop(null); else setTool(null); } },
+      'tool.done': { label: t('Done'), icon: 'check', key: 'Enter', when: () => !draft && (ptool === 'transform' || ptool === 'perspective'), run: () => setPtool('move') },
+      'mark.cancel': { label: t('Discard the mark'), icon: 'close', key: 'Escape', when: () => Boolean(draft || crop || tool || ptool !== 'move'), run: () => { if (draft) setDraft(null); else if (crop) setCrop(null); else if (tool) setTool(null); else setPtool('move'); } },
       'image.rotateRight': { label: t('Rotate right'), icon: 'rotate', key: 'Mod+R', run: () => addOp({ op: OPS.rotate, degrees: 90 }) },
       'image.rotateLeft': { label: t('Rotate left'), icon: 'rotateLeft', run: () => addOp({ op: OPS.rotate, degrees: 270 }) },
       'image.flipX': { label: t('Flip horizontally'), icon: 'flip', run: () => addOp({ op: OPS.flip, axis: 'x' }) },
       'image.flipY': { label: t('Flip vertically'), icon: 'flipVertical', run: () => addOp({ op: OPS.flip, axis: 'y' }) },
     }),
-    [openFile, exportPicture, undo, redo, reset, copy, paste, commitDraft, draft, crop, tool, addOp, editFor, layered, putBack, saveProject, saveProjectAs, newPicture, hasResult, selected, removeChosen, editLayers]
+    [openFile, exportPicture, undo, redo, reset, copy, paste, commitDraft, draft, crop, tool, addOp, editFor, layered, putBack, saveProject, saveProjectAs, newPicture, hasResult, selected, removeChosen, editLayers,
+      selection, selectAllNow, deselect, invertSel, copyToLayer, clearSelection, copySelection, pickTool, ptool]
   );
 
   useCommands(commands, [image, plan, draft, crop, tool, layered, selected, editFor, hasResult]);
@@ -1020,6 +1741,15 @@ export default function ImageTool({ app, shell, boot }) {
     : projectPath ? basename(projectPath) : path ? basename(path) : pastedName || t('Image');
   const chosenId = selected[selected.length - 1] || null;
   const chosen = layered && chosenId ? layered.patches.find((p) => p.id === chosenId) || null : null;
+  // Where the next stroke, fill or gradient goes, said in the options bar.
+  const paintNote = (() => {
+    if (!layered || !['brush', 'eraser', 'bucket', 'gradient', 'clone', 'heal'].includes(ptool)) return null;
+    const p = chosen && !isGroup(chosen) ? chosen : null;
+    if (p && p.paintMask && paintTo?.id === p.id && paintTo.part === 'mask' && ptool !== 'clone' && ptool !== 'heal') return t('On the mask of {name}: black hides, white shows', { name: nameOf(p) });
+    if (p && isPixelLayer(p) && p.url !== BACKGROUND && !p.corners) return t('On {name}', { name: nameOf(p) });
+    if (p && ptool === 'eraser') return t('On a mask of {name}', { name: nameOf(p) });
+    return t('On a new paint layer');
+  })();
   const dpr = window.devicePixelRatio || 1;
   const bgLayer = layered && layerPlan ? layerPlan.layers.find((l) => l.url === BACKGROUND) : null;
   // Where the opened picture is on the canvas, for drawing on it and red eye.
@@ -1069,7 +1799,7 @@ export default function ImageTool({ app, shell, boot }) {
     );
   };
 
-  const toggleCss = (key) => setAdjust((s) => ({ ...s, [key]: s[key] ? 0 : 100 }));
+  const toggleCss = (key) => changeAdjust((s) => ({ ...s, [key]: s[key] ? 0 : 100 }));
 
   const ribbon = (
     <Ribbon
@@ -1216,15 +1946,15 @@ export default function ImageTool({ app, shell, boot }) {
             <Button tall icon="mkCurve" label={t('Curves')} title={t('Curves: bend the tones by dragging a line')} disabled={!image} onClick={() => openSection('curve')} />
           </Group>
           <Group label={t('Start again')}>
-            <Button tall icon="refresh" label={t('Reset adjustments')} disabled={!image} onClick={() => { setAdjust({ ...DEFAULT_ADJUSTMENTS }); setPixels({ ...DEFAULT_PIXELS }); }} />
+            <Button tall icon="refresh" label={t('Reset adjustments')} disabled={!image} onClick={() => { changeAdjust(() => ({ ...DEFAULT_ADJUSTMENTS }), 'reset'); changePixels(() => ({ ...DEFAULT_PIXELS }), 'reset'); }} />
           </Group>
         </>
       ) : tab === 'filters' ? (
         <>
           <Group label={t('Effects')}>
-            <Button tall icon="mkInvert" label={t('Invert')} title={t('Invert: the colours turned to their opposites')} pressed={Boolean(adjust.invert)} disabled={!image} onClick={() => toggleCss('invert')} />
-            <Button tall icon="contrast" label={t('Greyscale')} pressed={Boolean(adjust.grayscale)} disabled={!image} onClick={() => toggleCss('grayscale')} />
-            <Button tall icon="mkSepia" label={t('Sepia')} pressed={Boolean(adjust.sepia)} disabled={!image} onClick={() => toggleCss('sepia')} />
+            <Button tall icon="mkInvert" label={t('Invert')} title={t('Invert: the colours turned to their opposites')} pressed={Boolean(curAdjust.invert)} disabled={!image} onClick={() => toggleCss('invert')} />
+            <Button tall icon="contrast" label={t('Greyscale')} pressed={Boolean(curAdjust.grayscale)} disabled={!image} onClick={() => toggleCss('grayscale')} />
+            <Button tall icon="mkSepia" label={t('Sepia')} pressed={Boolean(curAdjust.sepia)} disabled={!image} onClick={() => toggleCss('sepia')} />
           </Group>
           <Group label={t('Detail')}>
             <div className="im-rs-col">{['sharpen', 'denoise', 'blur'].map((k) => slider(k, { compact: true }))}</div>
@@ -1378,6 +2108,8 @@ export default function ImageTool({ app, shell, boot }) {
           <span>{editFor ? t('Picture in {name}', { name: editFor.name || t('a document') }) : projectPath || path || pastedName || t('No picture open')}</span>
           <Spacer />
           {tool ? <Chip>{tool === 'redeye' ? t('Click each red pupil') : TOOL_INFO[tool]?.tip}</Chip> : null}
+          {selection ? (() => { const b = selectionBounds(selection); return b ? <Chip>{t('Selection {width} × {height}', { width: b.width, height: b.height })}</Chip> : null; })() : null}
+          {scoped ? <Chip>{t('Adjust and Filters work inside the selection')}</Chip> : null}
           {image ? <Chip>{t('{width} × {height} source', { width: image.naturalWidth, height: image.naturalHeight })}</Chip> : null}
           {layered ? <Chip>{t('{width} × {height} canvas', { width: layered.size.width, height: layered.size.height })}</Chip> : size ? <Chip>{t('{width} × {height} result', { width: size.width, height: size.height })}</Chip> : null}
           {layered ? <Chip>{tn(layered.patches.filter((p) => !isGroup(p)).length, '{count} layer', '{count} layers')}</Chip> : null}
@@ -1393,23 +2125,63 @@ export default function ImageTool({ app, shell, boot }) {
           <Button primary icon="open" label={t('Open another')} onClick={openFile} style={{ marginTop: 12 }} />
         </Empty>
       ) : !image && !layered ? (
-        <Empty icon="image" title={busy ? t('Opening…') : t('No picture open')}>
-          {busy ? null : t('Open a picture, paste one, or drop one onto this window. Nothing is changed until you export.')}
-          {busy ? <Spinner /> : (
+        // The buttons go in as the empty state's action, beside its words rather than inside their paragraph.
+        <Empty
+          icon="image"
+          title={busy ? t('Opening…') : t('No picture open')}
+          action={busy ? <Spinner /> : (
             <div className="im-empty-actions">
               <Button primary icon="open" label={t('Open a picture')} onClick={openFile} />
               <Button icon="paste" label={t('Paste')} onClick={paste} />
               <Button icon="new" label={t('New picture')} onClick={newPicture} />
             </div>
           )}
+        >
+          {busy ? null : t('Open a picture, paste one, or drop one onto this window. Nothing is changed until you export.')}
         </Empty>
       ) : (
         <>
           <Content>
+            <div className="im-work">
+            {editFor ? null : <ToolBar tool={ptool} onTool={pickTool} options={toolOpts} onOptions={opt} disabled={!hasResult} />}
+            <div className="im-main">
+            {editFor ? null : (
+              <OptionsBar
+                tool={ptool}
+                options={toolOpts}
+                onOptions={opt}
+                act={{
+                  selectAll: selectAllNow, deselect, invert: invertSel, reshape: reshapeSel, copyToLayer, fillSelection, clearSelection,
+                  resetTransform, done: () => setPtool('move'), straighten: straightenNow, resetPins: () => setPins(null),
+                }}
+                state={{ selection, source: cloneSrc, target: paintNote, canTransform: Boolean(layered && chosen && quadOf(layered, chosen)), transformed: Boolean(chosen?.corners) }}
+              />
+            )}
             <div className="im-stage" ref={stageRef}>
               <div className="im-canvas-wrap" data-result={resultSize ? `${resultSize.width}x${resultSize.height}` : ''} data-layers={layered ? layered.patches.length : 0}>
                 <canvas ref={canvasRef} className="im-canvas" />
-                {layered && layerPlan && !crop && !tool ? (
+                {layered && selection ? (
+                  <SelectionAnts selection={selection} size={layered.size} width={Math.round(layered.size.width * scale)} height={Math.round(layered.size.height * scale)} bounds={selectionBounds(selection)} />
+                ) : null}
+                {layered && !crop && !tool && ptool !== 'move' ? (
+                  <ToolStage
+                    tool={ptool}
+                    size={layered.size}
+                    onSelect={selectShape}
+                    onPick={pickAt}
+                    onStroke={startStroke}
+                    onSource={(p) => { setCloneSrc(p); cloneLink.current = null; }}
+                    onGradient={gradientAt}
+                    quad={ptool === 'transform' && chosen ? quadOf(layered, chosen) : null}
+                    onQuad={onQuad}
+                    onQuadEnd={() => { quadDrag.current = null; }}
+                    pins={ptool === 'perspective' ? pins : null}
+                    onPins={setPins}
+                    brush={toolOpts.size}
+                    source={cloneSrc}
+                  />
+                ) : null}
+                {layered && layerPlan && !crop && !tool && ptool === 'move' ? (
                   <LayerStage
                     plan={layerPlan}
                     cssPerPx={1 / (window.devicePixelRatio || 1)}
@@ -1418,7 +2190,7 @@ export default function ImageTool({ app, shell, boot }) {
                     onSelect={setSelected}
                     isLocked={lockedNow}
                     onBegin={(kind) => { dragKey.current = `drag:${kind}:${Date.now()}`; }}
-                    onLive={(id, change) => editLayers((d) => setLayer(d, id, change), dragKey.current)}
+                    onLive={(id, change) => editLayers((d) => liveChange(d, id, change), dragKey.current)}
                     onOpenText={(id) => { setSelected([id]); setSide('layers'); requestAnimationFrame(() => document.querySelector('[data-role="layer-text"]')?.focus()); }}
                   />
                 ) : null}
@@ -1438,6 +2210,8 @@ export default function ImageTool({ app, shell, boot }) {
                   </div>
                 ) : null}
               </div>
+            </div>
+            </div>
             </div>
           </Content>
 
@@ -1460,6 +2234,11 @@ export default function ImageTool({ app, shell, boot }) {
                   onUngroup={(id) => editLayers((d) => ungroupLayers(d, id))}
                   onDuplicate={duplicateChosen}
                   onRemove={removeChosen}
+                  target={paintTo && chosen && paintTo.id === chosen.id ? paintTo : chosen && !isGroup(chosen) ? { id: chosen.id, part: 'pixels' } : null}
+                  onTarget={(id, part) => setPaintTo({ id, part })}
+                  onMask={onMask}
+                  hasSelection={Boolean(selection)}
+                  canApplyMask={(p) => Boolean(p.paintMask && isPixelLayer(p) && p.url !== BACKGROUND)}
                 />
               ) : (
                 <div className="im-layers-off">
@@ -1470,6 +2249,7 @@ export default function ImageTool({ app, shell, boot }) {
               )
             ) : (
             <div className="im-panel">
+              {scoped ? <div className="rw-hint im-scoped-note" data-role="scoped-note">{t('There is a selection: these change only what is selected, on a layer of its own. Deselect (Ctrl+D) to change the whole picture.')}</div> : null}
               {SECTIONS.map((sec) => (
                 <section key={sec.id} className="im-sec" data-section={sec.id} ref={(el) => { sectionRefs.current[sec.id] = el; }}>
                   <button
@@ -1486,7 +2266,7 @@ export default function ImageTool({ app, shell, boot }) {
                       {sec.sliders ? sec.sliders.map((k) => slider(k)) : null}
                       {sec.id === 'effects' ? (
                         <label className="im-check">
-                          <input type="checkbox" checked={Boolean(adjust.invert)} onChange={() => toggleCss('invert')} />
+                          <input type="checkbox" checked={Boolean(curAdjust.invert)} onChange={() => toggleCss('invert')} />
                           <span>{t('Invert the colours')}</span>
                         </label>
                       ) : null}
@@ -1517,7 +2297,7 @@ export default function ImageTool({ app, shell, boot }) {
                           ))}
                           <div className="im-sec-actions">
                             <Button label={t('Auto')} onClick={autoFix} />
-                            <Button label={t('Reset levels')} onClick={() => setPixels((s) => ({ ...s, levels: null }))} />
+                            <Button label={t('Reset levels')} onClick={() => changePixels((s) => ({ ...s, levels: null }), 'levels')} />
                           </div>
                         </div>
                       ) : null}
@@ -1544,7 +2324,7 @@ export default function ImageTool({ app, shell, boot }) {
                             </Select>
                           </div>
                           <CurveEditor
-                            points={curvePoints(pixels.curve, channel)}
+                            points={curvePoints(curPixels.curve, channel)}
                             onChange={setCurve}
                             hist={hist}
                             tone={{ rgb: 'var(--ink)', r: '#d23c3c', g: '#2e9e4f', b: '#2f6fe0' }[channel]}
@@ -1589,7 +2369,7 @@ export default function ImageTool({ app, shell, boot }) {
           }}
         />
       ) : null}
-      <style>{CSS + LAYERS_CSS + STAGE_CSS + INSERT_CSS + CANVAS_CSS}</style>
+      <style>{CSS + LAYERS_CSS + STAGE_CSS + INSERT_CSS + CANVAS_CSS + TOOLS_CSS + TOOL_STAGE_CSS + SELECTION_CSS}</style>
     </AppFrame>
   );
 }
@@ -1742,7 +2522,8 @@ const CSS = `
 .im-picture-box { position: absolute; }
 .im-layers-off { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 26px 18px; text-align: center; color: var(--ink-3); }
 .im-layers-off p { margin: 0; font-size: 12px; line-height: 1.5; color: var(--ink-2); }
-.im-empty-actions { display: flex; gap: 8px; justify-content: center; margin-top: 12px; }
+.im-scoped-note { margin: 8px 0 2px; padding: 7px 9px; border-radius: var(--r-2); background: var(--selected); color: var(--ink-2); line-height: 1.45; }
+.im-empty-actions { display: flex; gap: 8px; justify-content: center; margin-top: 3px; }
 
 /* the ribbon's sliders, three to a group */
 /* Each group's sliders share one grid, so their labels and tracks line up. */

@@ -3,6 +3,7 @@
 // web host that does not serve it), the pixel work runs here instead, so the
 // picture is still right, only slower.
 import { applyPixels } from '@rutba/imaging/pixels';
+import { runTool } from './tool-jobs.js';
 
 let worker = null;
 let failed = false;
@@ -76,4 +77,31 @@ export async function convertOff(bytes, options) {
   const asked = post({ kind: 'convert', bytes: copy, options }, [copy.buffer]);
   if (!asked) throw new Error('the image worker could not start');
   return asked;
+}
+
+/**
+ * A pixel job of the advanced editor (tool-jobs.js) off the window's thread:
+ * selections, fills, gradients, healing. `job` carries ArrayBuffers, which
+ * go to the worker as copies (the window keeps its own); answers what the
+ * job answers. Run in the window where the worker cannot start.
+ */
+export async function toolOff(job) {
+  const copy = {};
+  const transfer = [];
+  for (const [k, v] of Object.entries(job)) {
+    if (v instanceof ArrayBuffer) {
+      const c = v.slice(0);
+      copy[k] = c;
+      transfer.push(c);
+    } else copy[k] = v;
+  }
+  const asked = post({ ...copy, kind: 'tool' }, transfer);
+  if (asked) {
+    try {
+      return await asked;
+    } catch {
+      /* the window does it */
+    }
+  }
+  return runTool(job).result;
 }

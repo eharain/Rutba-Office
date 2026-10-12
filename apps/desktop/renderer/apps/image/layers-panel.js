@@ -39,7 +39,7 @@ function colourChange(p, c) {
   return { fill: { kind: 'solid', color: c } };
 }
 
-export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep, onGroup, onUngroup, onDuplicate, onRemove, assets }) {
+export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep, onGroup, onUngroup, onDuplicate, onRemove, assets, target = null, onTarget = null, onMask = null, hasSelection = false, canApplyMask = null }) {
   const rows = layerRows(doc);
   const [collapsed, setCollapsed] = useState(() => new Set());
   const [renaming, setRenaming] = useState(null);
@@ -138,7 +138,16 @@ export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep,
               >
                 <Icon name={hidden ? 'eyeOff' : 'eye'} size={14} />
               </button>
-              <Thumb patch={p} assets={assets} />
+              <span className={`im-layer-thumbs${target?.id === r.id ? ` target-${target.part}` : ''}`}>
+                <span className="im-thumb-hit pixels" data-role="target-pixels" onClick={(e) => { if (onTarget && !r.group) { e.stopPropagation(); onSelect([r.id]); onTarget(r.id, 'pixels'); } }}>
+                  <Thumb patch={p} assets={assets} />
+                </span>
+                {p.paintMask ? (
+                  <span className="im-thumb-hit mask" data-role="target-mask" data-tip={t('The layer\'s mask: white shows, black hides. Click to paint on it.')} onClick={(e) => { e.stopPropagation(); onSelect([r.id]); onTarget?.(r.id, 'mask'); }}>
+                    <MaskThumb mask={p.paintMask} asset={assets?.[p.paintMask.url]} />
+                  </span>
+                ) : null}
+              </span>
               {renaming === r.id ? (
                 <input
                   className="im-layer-rename"
@@ -182,7 +191,7 @@ export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep,
         <Button icon="duplicate" title={t('Duplicate the layer')} disabled={!primary} onClick={() => onDuplicate(primary)} data-role="layer-duplicate" />
         <Button icon="trash" title={t('Delete the layer')} disabled={!selected.length} onClick={() => onRemove(selected)} data-role="layer-delete" />
       </div>
-      {layer ? <LayerProperties layer={layer} onChange={onChange} /> : <div className="rw-hint im-layer-hint">{t('Choose a layer to set its opacity, blend and look.')}</div>}
+      {layer ? <LayerProperties layer={layer} onChange={onChange} onMask={onMask} canvasWidth={doc.size?.width || 1} hasSelection={hasSelection} canApplyMask={canApplyMask ? canApplyMask(layer) : false} /> : <div className="rw-hint im-layer-hint">{t('Choose a layer to set its opacity, blend and look.')}</div>}
     </div>
   );
 }
@@ -190,6 +199,7 @@ export function LayersPanel({ doc, selected, onSelect, onChange, onDrop, onStep,
 function Thumb({ patch, assets }) {
   const ref = useRef(null);
   const asset = patch.type === 'image' ? assets?.[patch.url] : null;
+  const version = asset?.version || 0;
   useEffect(() => {
     const c = ref.current;
     if (!c || !asset?.img) return;
@@ -199,7 +209,7 @@ function Thumb({ patch, assets }) {
     const w = asset.width * k;
     const h = asset.height * k;
     ctx.drawImage(asset.img, (c.width - w) / 2, (c.height - h) / 2, w, h);
-  }, [asset]);
+  }, [asset, version, patch.rev]);
   if (asset?.img) return <canvas ref={ref} className="im-layer-thumb pic" width={36} height={26} />;
   if (patch.type === 'shape') return <span className="im-layer-thumb" data-chip="1"><span className="im-layer-block" style={{ background: colourOf(patch) }} /></span>;
   const swatch = patch.type === 'icon' || patch.type === 'wordart' || patch.type === 'textblock' ? colourOf(patch) : null;
@@ -210,8 +220,76 @@ function Thumb({ patch, assets }) {
   );
 }
 
+/** A layer's painted mask, small: white where it shows the layer, black where it hides it. */
+function MaskThumb({ mask, asset }) {
+  const ref = useRef(null);
+  const version = asset?.version || 0;
+  useEffect(() => {
+    const c = ref.current;
+    if (!c) return;
+    const g = c.getContext('2d');
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = mask.outside === 0 ? '#000000' : '#ffffff';
+    g.fillRect(0, 0, c.width, c.height);
+    if (asset?.img) {
+      const x = (mask.fx ?? 0) * c.width;
+      const y = (mask.fy ?? 0) * c.height;
+      const w = (mask.fw ?? 1) * c.width;
+      const h = (mask.fh ?? 1) * c.height;
+      g.fillStyle = '#000000';
+      g.fillRect(x, y, w, h);
+      g.drawImage(asset.img, x, y, w, h);
+    }
+    if (mask.invert) {
+      g.globalCompositeOperation = 'difference';
+      g.fillStyle = '#ffffff';
+      g.fillRect(0, 0, c.width, c.height);
+    }
+  }, [asset, version, mask.fx, mask.fy, mask.fw, mask.fh, mask.invert, mask.outside, mask.rev]);
+  return <canvas ref={ref} className={`im-layer-thumb mask${mask.off ? ' off' : ''}`} width={36} height={26} data-mask-off={mask.off ? '1' : '0'} />;
+}
+
+/** The chosen layer's mask: add one, or set its feather, turn it over, turn it off, apply it, delete it. */
+function MaskProperties({ layer, onMask, canvasWidth, hasSelection, canApply }) {
+  const m = layer.paintMask;
+  if (!m) {
+    return (
+      <div className="im-mask-add" data-role="mask-add">
+        <div className="im-props-sub"><Icon name="mask" size={13} /><span>{t('Add a mask')}</span></div>
+        <span className="im-mask-kinds">
+          <Button label={t('Reveal All')} title={t('Reveal All: a white mask, to paint black where the layer should not show')} onClick={() => onMask(layer.id, 'add', 'reveal')} data-role="mask-reveal" />
+          <Button label={t('Hide All')} title={t('Hide All: a black mask, to paint white where the layer should show')} onClick={() => onMask(layer.id, 'add', 'hide')} data-role="mask-hide" />
+          <Button label={t('From Selection')} title={t('From Selection: the layer shows only where the selection is')} disabled={!hasSelection} onClick={() => onMask(layer.id, 'add', 'selection')} data-role="mask-selection" />
+        </span>
+      </div>
+    );
+  }
+  const px = Math.round((m.feather || 0) * canvasWidth);
+  return (
+    <div className="im-mask-props" data-role="mask-props">
+      <div className="im-props-sub"><Icon name="mask" size={13} /><span>{t('Mask')}</span></div>
+      <label className="im-prop" data-prop="feather">
+        <span className="im-prop-label">{t('Feather')}</span>
+        <span className="im-prop-range">
+          <input type="range" min={0} max={120} value={px} data-role="mask-feather" onChange={(e) => onMask(layer.id, 'feather', Number(e.target.value) / canvasWidth)} />
+          <span className="im-ps-value">{`${px} ${t('px')}`}</span>
+        </span>
+      </label>
+      <div className="im-mask-checks">
+        <label className="im-check"><input type="checkbox" checked={Boolean(m.invert)} data-role="mask-invert" onChange={(e) => onMask(layer.id, 'invert', e.target.checked)} /><span>{t('Invert')}</span></label>
+        <label className="im-check"><input type="checkbox" checked={Boolean(m.off)} data-role="mask-off" onChange={(e) => onMask(layer.id, 'off', e.target.checked)} /><span>{t('Turn off')}</span></label>
+      </div>
+      <div className="im-mask-actions">
+        <Button label={t('Apply')} title={t('Apply: the mask made part of the layer\'s pixels')} disabled={!canApply} onClick={() => onMask(layer.id, 'apply')} data-role="mask-apply" />
+        <Button icon="trash" label={t('Delete')} title={t('Delete the mask: the whole layer shows again')} onClick={() => onMask(layer.id, 'remove')} data-role="mask-delete" />
+      </div>
+    </div>
+  );
+}
+
 /** The chosen layer's own settings. */
-function LayerProperties({ layer, onChange }) {
+function LayerProperties({ layer, onChange, onMask = null, canvasWidth = 1, hasSelection = false, canApplyMask = false }) {
   const id = layer.id;
   const group = isGroup(layer);
   const opacity = Math.round((layer.opacity == null ? 1 : layer.opacity) * 100);
@@ -238,6 +316,7 @@ function LayerProperties({ layer, onChange }) {
   return (
     <div className="im-props" data-props={layer.type}>
       <div className="im-props-head">{nameOf(layer)}</div>
+      {layer.quick ? <div className="rw-hint" data-role="adjusted-note">{t('The Adjust and Filters tabs change this layer while its selection stays.')}</div> : null}
       {row(t('Opacity'), (
         <span className="im-prop-range">
           <input type="range" min={0} max={100} value={opacity} data-role="opacity" onChange={(e) => onChange(id, { opacity: Number(e.target.value) / 100 }, t('Opacity'), 'opacity')} />
@@ -329,6 +408,7 @@ function LayerProperties({ layer, onChange }) {
           <div className="rw-hint">{t('An adjustment changes every layer under it, and none above it.')}</div>
         </>
       ) : null}
+      {!group && onMask ? <MaskProperties layer={layer} onMask={onMask} canvasWidth={canvasWidth} hasSelection={hasSelection} canApply={canApplyMask} /> : null}
     </div>
   );
 }
@@ -383,4 +463,18 @@ export const LAYERS_CSS = `
 .im-swatch.small { width: 18px; height: 18px; }
 .im-prop-seg { display: flex; gap: 2px; }
 .im-prop-seg .rw-btn.icon { width: 28px; height: 24px; }
+.im-layer-thumbs { display: inline-flex; gap: 3px; flex: none; margin-inline-end: 2px; }
+.im-thumb-hit { display: inline-flex; border-radius: 4px; outline: 2px solid transparent; outline-offset: 1px; cursor: pointer; }
+.im-layer-thumbs.target-pixels .im-thumb-hit.pixels, .im-layer-thumbs.target-mask .im-thumb-hit.mask { outline-color: var(--accent); }
+.im-layer-thumb.mask { background: #000; }
+.im-layer-thumb.mask.off { opacity: 0.45; box-shadow: inset 0 0 0 1px #d23c3c; }
+.im-mask-add { display: flex; flex-direction: column; gap: 7px; padding-top: 8px; border-top: 1px solid var(--line-soft); font-size: 12px; }
+.im-mask-kinds { display: grid; grid-template-columns: 1fr 1fr 1.4fr; gap: 4px; }
+.im-mask-kinds .rw-btn, .im-mask-actions .rw-btn { height: 26px; padding: 0 8px; font-size: 11.5px; border: 1px solid var(--line); background: var(--surface); justify-content: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.im-mask-kinds .rw-btn:hover:not(:disabled), .im-mask-actions .rw-btn:hover:not(:disabled) { border-color: var(--accent); }
+.im-mask-kinds .rw-btn { padding: 0 4px; }
+.im-mask-props { display: flex; flex-direction: column; gap: 8px; padding-top: 8px; border-top: 1px solid var(--line-soft); }
+.im-props-sub { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--ink); }
+.im-mask-checks { display: flex; gap: 16px; padding-inline-start: 72px; }
+.im-mask-actions { display: flex; gap: 6px; padding-inline-start: 72px; }
 `;

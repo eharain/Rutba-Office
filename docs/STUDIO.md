@@ -350,14 +350,104 @@ opened it only, put in place by a `replacePicture` op of each engine
 
 What part 1 leaves:
 
-- A corner drag scales a layer uniformly; free transform and perspective are I14.
+- A corner drag scales a layer uniformly; free transform and perspective are I14 (part 2).
 - Text is edited in the Layers panel (a double-click on the canvas goes there), not on the canvas.
-- Masks (I10), selections (I11), brushes (I12), clone and heal (I13) are not started.
+- Masks (I10), selections (I11), brushes (I12), clone and heal (I13) are part 2.
 - A group has visibility, opacity and a lock; it has no blend of its own (it passes through).
 - Draw and Red eye work on the Background picture where it is on the canvas, unturned.
 - Edit in Image finds a Worksheets picture on the sheet that is active, and a
   Presentations picture on the slide it was on; a picture whose sheet or slide
   went away is not put back.
+
+#### Part 2 as built (2026-10-12)
+
+I10 to I14 are in. The tools stand in a column down the left of the picture,
+as photo editors place them (Move; Rectangle and Ellipse Select, Lasso, Magic
+Wand, Select by Colour; Brush, Eraser, Fill, Gradient; Clone Stamp, Healing
+Brush; Free Transform, Perspective), with the two colours at the column's
+foot, and the chosen tool's options and actions in a bar above the picture.
+Picking any tool but Move turns the picture into layers. Right to left, the
+column stands on the right.
+
+- **Selections (I11).** A selection is an alpha plane the canvas's size
+  (`packages/imaging/src/select.js`): rectangles, ellipses and lassos
+  rasterised with smooth edges, the magic wand (tolerance, contiguous) and
+  select by colour; New, Add (Shift), Subtract (Alt) and Intersect; Select All,
+  Deselect, Invert; Feather, Grow and Shrink by a number of pixels, under the
+  options bar's Modify menu so the bar stays one row (an exact distance
+  transform, so corners round); marching ants drawn from an outline
+  worked out in the image worker. The selection is part of every undo step.
+  With a selection, the Adjust and Filters tabs (and the Adjust panel, levels
+  and curves included) change only what is selected: the first change makes
+  an "Adjusted selection" layer above the chosen layer from the picture under
+  it, and every change after makes it again from that same picture, so a
+  slider can go back; Deselect returns the tabs to the picture's own quick
+  edits. An adjustment layer inserted with a selection takes it as its mask.
+  The bucket, the gradient, the brushes and Fill paint only inside it, Delete
+  clears it from the chosen layer, Copy to Layer (Ctrl+J) makes it a layer of
+  its own in place, and Copy puts it on the clipboard, pasted back where it was.
+- **Masks (I10).** `paintMask` on a layer's patch: a bitmap the canvas's size
+  kept under `bitmaps/` in the `.rimg`, its place in canvas fractions (moved
+  with the layer and by `reframe`), what lies past it (shown or hidden), a
+  feather, an inversion and an off switch. The renderer draws a masked layer
+  on a surface of its own, cuts it there with the mask (`destination-in`,
+  blurred for the feather with the canvas's own edges held out, so only the
+  mask's edges soften) and lays it on the frame with the layer's opacity and
+  blend; an adjustment layer's surface starts as a copy of the frame, which is
+  what it adjusts. Add Mask (Reveal All, Hide All, From Selection), Feather,
+  Invert, Turn off, Apply (into a picture's or paint layer's own pixels) and
+  Delete are in the Layers panel, the mask's thumbnail beside the layer's;
+  a click on it paints the mask (black hides, white shows).
+- **Painting (I12, I13).** A stroke is dabs (`packages/imaging/src/paint.js`:
+  the brush's fall-off by hardness, a sprite sampled four by four, dabs an
+  eighth of the brush apart) laid on a coverage surface, cut to the selection,
+  coloured (or filled from the picture moved by the clone's offset) and laid
+  on the layer's bitmap through the map from the canvas to it (a turned or
+  cornered layer included), live, frame by frame; a pen's pressure narrows
+  the dab. Paint goes on the chosen picture or paint layer, on its mask when
+  that is chosen, and otherwise on a new paint layer (`kind: 'paint'`, an
+  `image` layer over the whole canvas) above it; the Eraser on a layer whose
+  own pixels cannot be painted (the Background, which keeps its quick edits,
+  or text and shapes) hides through a mask instead. The Fill and the
+  Gradient (linear, radial, reflected; to clear or to the second colour) are
+  worked in the image worker over the picture as it shows. The Clone Stamp
+  copies from where it was Alt+clicked, aligned or from the start each
+  stroke; the Healing Brush lays the same copy and then, in the worker, swaps
+  its low frequencies for those round the place healed (a weighted blur, so
+  the blemish's own colour is left out). A painted region's pixels before and
+  after go with the undo step that made them.
+- **Free transform and perspective (I14).** `corners` on a picture's patch:
+  its four corners in canvas fractions, painted by a projective map
+  (`packages/studio/src/warp.js`, bilinear in premultiplied alpha, drawn at
+  about the size it lands and kept until the corners change), so a transform
+  is never resampled into the project and Reset takes it off. Free Transform's
+  corner handles scale from the opposite corner (Shift keeps the shape), skew
+  along an edge, distort one corner or pull a perspective; dragging inside
+  moves the picture. Perspective sets four pins on something that should be a
+  rectangle; Straighten maps them to the rectangle of their average sides,
+  the picture with them, and Straighten and Crop cuts the canvas to it; either
+  puts the tool down, so no pins stand over the result. Any
+  picture layer can be transformed, the Background too.
+
+Proven by `tests/imaging-select.test.js`, `tests/imaging-paint.test.js`,
+`tests/studio-warp.test.js`, `tests/studio-masks.test.js` and the window
+checks under the key `image-tools` (`main/verify-image-tools.js`).
+
+What part 2 leaves:
+
+- The Background's own pixels are not painted: brushes put paint on a layer
+  above it and the eraser hides through its mask, so its quick edits stay
+  editable.
+- A mask moves with its layer when the layer is dragged, but not when it is
+  resized, turned or transformed by its corners.
+- Painting on a picture whose corners have been distorted maps each dab
+  through the flat map nearest it, so a dab is not itself put in perspective.
+- An "Adjusted selection" layer can be changed from the Adjust and Filters
+  tabs only while its selection stays and the window is open; saved and
+  opened again, it is a picture layer like any other.
+- A gradient on a mask sets how much shows from the colours' lightness; there
+  is no gradient editor with more than two stops.
+- Selections are not saved in the `.rimg`.
 
 ### 7.3 Beyond (Image Tier 3, each a declared download at most once)
 
