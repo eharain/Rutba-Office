@@ -43,8 +43,10 @@ npm run gate -- --record
 ```
 
 Run on Windows, on the release commit, with nothing else running against
-the same profile. It runs the engine suite, the editing checks, every
-application check and the smoke captures. With `--record`, a full run that
+the same profile. It runs the engine suite, the performance budgets alone
+after it (`npm run test:perf`; timed beside the suite they measure the
+machine), the editing checks, every application check and the smoke
+captures. With `--record`, a full run that
 passes writes its own counts into the note's **Gate** section (where it
 ran, when, and what each pass counted) and into the README's counts, so the
 release says the gate ran rather than leaving it to be believed. Commit
